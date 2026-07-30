@@ -60,6 +60,33 @@ fence。双向通话必须表示为两条 Edge；fork、tap、chain 和 mix inpu
 不同 Edge，不能把两个可写 Backend 塞进同一 Edge。
 _Avoid_: bidirectional RTP Session、whole Call media backend
 
+**Directed Media Edge**:
+`Media Edge` 的规范性全称，用于强调它只能有一个 source、一个 destination，并且每个
+Edge generation 只有一个 active writer。语音与 LiveKit 之间的双向音频必须由两条
+方向相反的 Directed Media Edge 表示，不能用一个“双向 bridge”隐藏双写。
+_Avoid_: bidirectional writer、implicit reverse path
+
+**Voice-LiveKit Handoff**:
+在保持同一 `interaction_id`、业务 Call、路由/计费/录音决策 Authority 的前提下，把
+一条或多条 Directed Media Edge 从 SIP/PSTN 端切换到 LiveKit Room，或从 LiveKit
+Room 切回 SIP/PSTN 端的持久、owner-fenced 状态机。它改变媒体执行绑定，不把 Call
+Authority 转移给 LiveKit，也不把 Room/WebRTC Authority 转移给 RustPBX。
+_Avoid_: Call transfer of authority、PBX replacement、unproved seamless switch
+
+**Voice-LiveKit Bridge**:
+RustPBX Media Engine Facade 对 `RustPBX ↔ livekit-sip ↔ LiveKit` 执行路径的绑定与
+receipt。它记录 bridge ID/generation、方向、关联 Call/Room/participant、owner epoch、
+command sequence、writer fence、handoff decision、provider receipt 与 terminal cleanup
+receipt；不是第二个 Call、CDR、Room、RecordingManifest 或 billing Authority。
+_Avoid_: second Call、LiveKit-owned CDR、recording authority
+
+**Bridge Generation**:
+Voice-LiveKit Bridge 一次不可变的执行尝试。改变方向、participant、Room、Backend、
+transport 或 writer 必须产生新 generation，并通过
+`prepare/commit/abort/query/reconcile` 与旧 generation 的 revoke/cleanup 收敛。每个
+generation 的双向媒体仍分别对应两条 Directed Media Edge。
+_Avoid_: mutable bridge in place、generation-less retry
+
 **Media Backend**:
 执行一条或多条 Media Edge 的实现，例如 RTPengine ordinary fast path、进程内
 `voice-media-rs` processing Backend，或通过资格门禁后的 Rust-native fast-path

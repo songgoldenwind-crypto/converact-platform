@@ -1,9 +1,16 @@
 {
   "schema_version": "1.0.0",
   "contract_id": "voice-media-goal4-v1",
-  "revision": 5,
+  "revision": 6,
   "status": "target",
-  "generated_at": "2026-07-29T00:00:00.000Z",
+  "generated_at": "2026-07-30T00:00:00.000Z",
+  "foundation_authority": {
+    "path": "docs/capacity/contracts/unified-voice-foundation-r4-v1.json",
+    "contract_id": "unified-voice-foundation-r4-v1",
+    "revision": 4,
+    "digest_projection": "rfc8785_jcs_without_top_level_authority_binding",
+    "content_sha256": "f15ad0f6051d53c2024389da228fe7a0d36ad43d73f87a4442d803f39a87b8c8"
+  },
   "sources": {
     "rustpbx": {
       "repository": "https://github.com/restsend/rustpbx",
@@ -76,12 +83,13 @@
         "OPUS_TO_PCMA"
       ],
       "packetization_ms": [20],
-      "capacity_profile_id": "vos-eq-v3-g711-opus-1k-v1",
+      "capacity_profile_id": "vos-eq-r4-g711-opus-1k-v1",
       "verification": "not_run"
     },
     {
       "slice_id": "g729-v1",
-      "codecs": ["PCMU", "PCMA", "OPUS", "G729A", "G729AB"],
+      "codecs": ["PCMU", "PCMA", "OPUS", "G729"],
+      "external_codec_id": "G729/8000",
       "codec_pairs": [
         "PCMU_TO_G729A",
         "G729A_TO_PCMU",
@@ -96,7 +104,7 @@
         "OPUS_TO_G729AB",
         "G729AB_TO_OPUS"
       ],
-      "codec_modes": [
+      "internal_processing_modes": [
         {
           "mode_id": "G729A",
           "annex_b_mode": false,
@@ -135,7 +143,7 @@
       "sample_rate_hz": 8000,
       "frame_ms": 10,
       "samples_per_frame": 80,
-      "packetization_ms": [10, 20, 30, 40, 60],
+      "packetization_ms": [10, 20, 30, 40, 50, 60],
       "rtp_wire": {
         "encoding_name": "G729",
         "clock_rate_hz": 8000,
@@ -147,7 +155,7 @@
       "payload_framing": {
         "speech_frame_octets": 10,
         "sid_frame_octets": 2,
-        "speech_frames_per_packet": [1, 2, 3, 4, 6],
+        "speech_frames_per_packet": [1, 2, 3, 4, 5, 6],
         "sid_position": "zero_or_one_after_zero_or_more_speech_frames",
         "no_data_semantics": "silence_suppression_no_rtp_packet_not_zero_length_speech_frame"
       },
@@ -191,6 +199,7 @@
         "packetization_20ms": "not_run",
         "packetization_30ms": "not_run",
         "packetization_40ms": "not_run",
+        "packetization_50ms": "not_run",
         "packetization_60ms": "not_run",
         "rtp_encoding_g729_8000": "not_run",
         "static_payload_type_18": "not_run",
@@ -512,7 +521,7 @@
       "ivekit_voice_processing_sessions"
     ]
   },
-  "profile_path": "docs/capacity/profiles/vos-eq-v3-g711-opus-1k-v1.json",
+  "profile_path": "docs/capacity/profiles/vos-eq-r4-g711-opus-1k-v1.json",
   "verification": {
     "schema": "not_run",
     "rust_unit": "not_run",

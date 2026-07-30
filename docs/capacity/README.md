@@ -70,7 +70,8 @@ member flow。双向通话、tap、录音和处理 chain 使用不同 Edge；gro
 | [`schemas/rvoip-g729-source-candidate.schema.json`](schemas/rvoip-g729-source-candidate.schema.json) | rvoip G.729 精确源码候选、依赖闭包、验收门和未提升声明 Schema |
 | [`forks/rvoip-g729-source-candidate-v1.json`](forks/rvoip-g729-source-candidate-v1.json) | rvoip `4ced02b` 的 136 个 G.729 Rust 文件、支持文件和目标映射的精确候选记录 |
 | [`../../scripts/verify-rvoip-g729-source-candidate.ts`](../../scripts/verify-rvoip-g729-source-candidate.ts) | 校验候选、存档、支持文件和选定源码树；不执行提取或运行时启用 |
-| [`profiles/vos-eq-v3-g711-opus-1k-v1.json`](profiles/vos-eq-v3-g711-opus-1k-v1.json) | Unified RustPBX control + embedded processing co-resident 1K 双向 G.711/Opus 目标；当前不是实测容量声明 |
+| [`profiles/vos-eq-r4-g711-opus-1k-v1.json`](profiles/vos-eq-r4-g711-opus-1k-v1.json) | Revision 4 Unified RustPBX control + embedded processing co-resident 1K 双向 G.711/Opus 目标；当前不是实测容量声明 |
+| [`profiles/vos-eq-v3-g711-opus-1k-v1.json`](profiles/vos-eq-v3-g711-opus-1k-v1.json) | 已退役的 Revision 3 历史目标；未产生可继承的实测或生产授权声明 |
 | [`../adr/ccaas-5-media-authority-and-rtpengine.md`](../adr/ccaas-5-media-authority-and-rtpengine.md) | RustPBX、rtpengine、媒体处理和区域录音清单的权威边界 |
 | [`rtc-performance-contract-v1.md`](rtc-performance-contract-v1.md) | 端到端测量点、弱网矩阵、原始证据和联合判定语义 |
 | [`schemas/capacity-vector.schema.json`](schemas/capacity-vector.schema.json) | 节点、Cell、Zone 容量、使用量和 admission 合同 |

@@ -32,6 +32,7 @@ const G729_GATES = [
   'packetization_20ms',
   'packetization_30ms',
   'packetization_40ms',
+  'packetization_50ms',
   'packetization_60ms',
   'rtp_encoding_g729_8000',
   'static_payload_type_18',
@@ -86,15 +87,16 @@ function expectedG729Slice(): Record<string, any> {
   ];
   return {
     slice_id: 'g729-v1',
-    codecs: ['PCMU', 'PCMA', 'OPUS', 'G729A', 'G729AB'],
+    codecs: ['PCMU', 'PCMA', 'OPUS', 'G729'],
+    external_codec_id: 'G729/8000',
     codec_pairs: codec_modes.flatMap((mode) =>
       mode.codec_pairs.map((pair: Record<string, any>) => pair.pair_id)
     ),
-    codec_modes,
+    internal_processing_modes: codec_modes,
     sample_rate_hz: 8000,
     frame_ms: 10,
     samples_per_frame: 80,
-    packetization_ms: [10, 20, 30, 40, 60],
+    packetization_ms: [10, 20, 30, 40, 50, 60],
     rtp_wire: {
       encoding_name: 'G729',
       clock_rate_hz: 8000,
@@ -106,7 +108,7 @@ function expectedG729Slice(): Record<string, any> {
     payload_framing: {
       speech_frame_octets: 10,
       sid_frame_octets: 2,
-      speech_frames_per_packet: [1, 2, 3, 4, 6],
+      speech_frames_per_packet: [1, 2, 3, 4, 5, 6],
       sid_position: 'zero_or_one_after_zero_or_more_speech_frames',
       no_data_semantics:
         'silence_suppression_no_rtp_packet_not_zero_length_speech_frame'
@@ -186,9 +188,25 @@ function contract(): Record<string, any> {
 function profile(): Record<string, any> {
   return validated(
     'docs/capacity/schemas/voice-media-processing-profile.schema.json',
-    'docs/capacity/profiles/vos-eq-v3-g711-opus-1k-v1.json'
+    'docs/capacity/profiles/vos-eq-r4-g711-opus-1k-v1.json'
   );
 }
+
+test('Goal 4 retires the Revision 3 target and binds a Revision 4 replacement', () => {
+  const historical = json(
+    'docs/capacity/profiles/vos-eq-v3-g711-opus-1k-v1.json'
+  );
+  const replacement = profile();
+
+  assert.equal(historical.status, 'retired');
+  assert.equal(historical.claim.capacity_claim, 'none');
+  assert.match(historical.description, /Historical Revision 3/);
+  assert.equal(replacement.revision, 4);
+  assert.equal(replacement.status, 'target');
+  assert.equal(replacement.claim.capacity_claim, 'none');
+  assert.equal(contract().profile_path,
+    'docs/capacity/profiles/vos-eq-r4-g711-opus-1k-v1.json');
+});
 
 test('Goal 4 freezes the processing source and authority boundary', () => {
   const document = contract();
@@ -275,7 +293,7 @@ test('Goal 4 freezes the first directed codec-pair slice', () => {
     'PCMA_TO_OPUS',
     'OPUS_TO_PCMA'
   ]);
-  assert.equal(slice.capacity_profile_id, 'vos-eq-v3-g711-opus-1k-v1');
+  assert.equal(slice.capacity_profile_id, 'vos-eq-r4-g711-opus-1k-v1');
   assert.equal(slice.verification, 'not_run');
 });
 
@@ -431,11 +449,11 @@ test('Goal 4 profile binds co-resident Unified RustPBX and 1K processing target'
   );
   assert.equal(
     document.source_identity.media_plan_compiler_revision,
-    'target-r3-not-run'
+    'target-r4-not-run'
   );
   assert.equal(
     document.source_identity.backend_selector_revision,
-    'carrier-cell-v1-target-r3-not-run'
+    'carrier-cell-v1-target-r4-not-run'
   );
   assert.equal(
     document.source_identity.backend_mix_id,
@@ -448,7 +466,7 @@ test('Goal 4 profile binds co-resident Unified RustPBX and 1K processing target'
   assert.deepEqual(document.workload.backend_mix, {
     ordinary_edge_backend: 'rtpengine',
     decode_required_edge_backend: 'embedded_voice_media_rs',
-    selector_revision: 'carrier-cell-v1-target-r3-not-run',
+    selector_revision: 'carrier-cell-v1-target-r4-not-run',
     profile_results_transferable_to_other_mix: false
   });
   assert.equal(document.generator.separate_from_sut, true);
@@ -549,7 +567,8 @@ test('Goal 4 schema rejects every G.729 or no-claim promotion attack', () => {
       const slice = value.codec_slices.find(
         (entry: Record<string, any>) => entry.slice_id === 'g729-v1'
       );
-      slice.codec_modes[1].codec_pairs[0].capacity_profile_id = 'merged-v1';
+      slice.internal_processing_modes[1]
+        .codec_pairs[0].capacity_profile_id = 'merged-v1';
     }],
     ['G729 gate promotion', value => {
       const slice = value.codec_slices.find(
@@ -568,6 +587,24 @@ test('Goal 4 schema rejects every G.729 or no-claim promotion attack', () => {
         (entry: Record<string, any>) => entry.slice_id === 'g729-v1'
       );
       slice.runtime_enabled = true;
+    }],
+    ['missing 50ms packetization', value => {
+      const slice = value.codec_slices.find(
+        (entry: Record<string, any>) => entry.slice_id === 'g729-v1'
+      );
+      slice.packetization_ms = [10, 20, 30, 40, 60];
+    }],
+    ['missing five-frame packet', value => {
+      const slice = value.codec_slices.find(
+        (entry: Record<string, any>) => entry.slice_id === 'g729-v1'
+      );
+      slice.payload_framing.speech_frames_per_packet = [1, 2, 3, 4, 6];
+    }],
+    ['50ms packetization gate promotion', value => {
+      const slice = value.codec_slices.find(
+        (entry: Record<string, any>) => entry.slice_id === 'g729-v1'
+      );
+      slice.acceptance_gates.packetization_50ms = 'controlled_pass';
     }],
     ['global verification promotion', value => {
       value.verification.schema = 'controlled_pass';

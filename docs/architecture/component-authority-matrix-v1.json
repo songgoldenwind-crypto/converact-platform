@@ -113,7 +113,7 @@
       },
       "profiles": ["core"], "default_enabled": false, "config_switch": "voice.enabled",
       "delivery": "production", "rollback": "Drain the node and deploy the prior compatible patched fork image; never restore an unqualified hidden direct-media production path.",
-      "resource_budget": {"scope": "co-resident Unified RustPBX node", "requests": "signed co-resident capacity profile", "limits": "signed co-resident capacity profile with reserved SIP/control headroom", "notes": "Bound to docs/capacity/profiles/vos-eq-v3-g711-opus-1k-v1.json; its targets are non-claims until exact-hardware evidence passes."},
+      "resource_budget": {"scope": "co-resident Unified RustPBX node", "requests": "signed co-resident capacity profile", "limits": "signed co-resident capacity profile with reserved SIP/control headroom", "notes": "Bound to docs/capacity/profiles/vos-eq-r4-g711-opus-1k-v1.json; its targets are non-claims until exact-hardware evidence passes."},
       "image_contract": {"policy": "immutable", "values_path": "voice.image.digest", "helper": "ivekit.rustpbxImage"}
     },
     {

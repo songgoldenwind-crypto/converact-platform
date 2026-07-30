@@ -4,9 +4,9 @@
 
 日期：2026-07-28
 
-修订：2026-07-29，Revision 5
+修订：2026-07-30，Revision 6
 
-决策 ID：`rvoip-rustpbx-unified-authority-r2`
+决策 ID：`rvoip-rustpbx-unified-authority-r4`
 
 本修订保留 ADR-CCAAS-5 对 RTPengine ordinary fast path 的长期正式定位，并
 supersede Revision 3 中“多个生产 Profile”“按 Call/媒体方向选择 Backend”“未来沿本
@@ -54,10 +54,12 @@ RustPBX executable，并共享 Tokio control runtime；二者之间没有 RPC。
 Dialog、两套媒体会话和两套故障恢复语义。这里的“不得运行第二套 SIP runtime”不排斥
 RustPBX 进程内使用 rvoip library Adapter；它禁止的是独立 PBX、双主路径和双写权威。
 
-“一个媒体引擎”在本 ADR 中表示一个 Media Engine Facade、一个 codec identity
-registry 和一个 Media Plan Authority。Facade 把 Logical Media Graph 编译成有向
-Media Edge；每个 Edge generation 只有一个 `WireMediaBinding` 和 writer fence，并
-以 `(group_id, group_generation, flow_selector)` 精确绑定一条 member flow。
+“一个媒体引擎”在本 ADR 中表示一个 Media Engine Facade、一个外部 codec
+identity/negotiation registry 和一个 Media Plan Authority；其中 G.729 的外部身份只
+有 `G729/8000`，G729A/G729AB 只进入内部 mode/capacity registry。Facade 把
+Logical Media Graph 编译成有向 Media Edge；每个 Edge generation 只有一个
+`WireMediaBinding` 和 writer fence，并以
+`(group_id, group_generation, flow_selector)` 精确绑定一条 member flow。
 `BackendBindingGroup` generation 才是共享 Backend allocation 的物理生命周期权威，
 `WireTransportBundle` 持有 effective SDP、transport、SSRC 与 crypto state reference。
 双向通话是两条 Edge，AI/录音 tap 与处理 chain 也是独立 Edge；group generation
@@ -80,8 +82,8 @@ Path 只有在功能、PPS、CPU/packet、P99、loss、session density、故障�
 1. **协议底座分阶段采用**：SIP Message Codec、Transaction、Protocol Dialog、
    Transport/DNS 和 REGISTER/auth primitives 通过 OPC-owned `SipFoundation`
    Seam 逐模块进入 RustPBX；
-2. **开发恢复后优先或独立切片吸收**：有界 RTP 方法、G.729A/AB、Provider
-   semantics、vCon、
+2. **Revision 4 D0 后优先或独立切片吸收**：有界 RTP 方法、G.729
+   （G729A/G729AB internal modes）、Provider semantics、vCon、
    STIR/SHAKEN、SCIM、benchmark 和证据方法；
 3. **作为测试与迁移输入**：SIP 互通用例、拓扑 profile、模糊测试 corpus 和
    rsipstack/rvoip shadow equivalence；
@@ -92,6 +94,291 @@ Path 只有在功能、PPS、CPU/packet、P99、loss、session density、故障�
 “整合”只指低层协议 Module 的 Adapter 迁移、Exact Source Slice 和媒体 primitive
 吸收，不指整体切换生产呼叫引擎。未来若要替换 RustPBX 产品主干，必须另立
 superseding 架构 ADR。
+
+### 1.1 Revision 4 的补充裁决
+
+Revision 6 把外部评审提出的持久性与迁移边界纳入本 ADR；完整字段由
+[`unified-voice-foundation-r4-v1.json`](../capacity/contracts/unified-voice-foundation-r4-v1.json)
+约束，零遗漏关系由
+[`unified-voice-foundation-r4-traceability-v1.json`](../capacity/contracts/unified-voice-foundation-r4-traceability-v1.json)
+约束：
+
+1. 网络不提供 Exactly Once。SIP effect 分别记录 durable decision、send attempted、
+   transport accepted、protocol observed、failed 和 unknown；只有 response、ACK 等
+   协议事实能证明 peer 可观察，local send 成功不是远端 receipt。
+2. wire 必须先绑定 RFC 3263 candidate、route、transport、advertised local endpoint
+   和 SNI，再冻结 Via/branch/auth/bytes/hash，完成 durable decision 后才能发送。
+   commit 后禁止静默改写；改变 transaction-visible 绑定必须建立有 lineage 的新
+   protocol attempt。
+3. `SipFoundation` V1 takeover 只允许 confirmed、transaction-quiescent Dialog。
+   early dialog、活动 transaction、pending ACK/PRACK、dead TCP/TLS flow、DNS attempt、
+   unknown effect、schema 不兼容和跨 Adapter capsule 不能冒充恢复成功。
+   `active_timers` 的 lossless 与 cross-Adapter takeover 都是 false；运行时
+   `Instant` 不可持久化，恢复只能 fail closed 或按协议重新启动。
+4. durable store 的 transaction 边界、P99/deadline、queue/pool ceiling 和降级 cause
+   必须冻结。`100 Trying` 可在 transaction admission 后、业务 commit 前发送；18x/2xx
+   与其他业务 effect 必须等待相应 durable decision。store 故障拒绝新 Call、保护既有
+   Call，所有 retry/repair/reconcile 有界。
+5. Kamailio 与 Core 使用版本化 Edge-to-Core Acceptance Contract，固定 raw/canonical
+   bytes、parser policy、source/transport/TLS metadata、内部 header 重建和 differential
+   security corpus。
+6. Business/Protocol Dialog、Effect WAL、Media Plan/Binding、Wire Bundle 和 Recovery
+   Capsule 分别版本化，并签署 N/N+1 read/write/takeover/drain/rollback 矩阵。UTC、
+   monotonic 与 RTP media clock 不混用，runtime `Instant` 不持久化。
+7. 每个 SIP/media Backend 发布绑定 source/binary/config 的 closed
+   `BackendCapabilitySet`。required capability 为 false、unknown 或 `not_run` 时
+   fail closed；当前 RTPengine atomic lifecycle patch 为 `not_present/not_run`，不能
+   授权 active migration。
+8. 默认发布只选择新 Call、旧 Call drain。active migration 必须另行通过 single-writer、
+   packet gate、remote re-INVITE、SRTP/RTCP、crash 和 continuity 证据，只承诺可测量
+   bounded gap/loss，不承诺 zero-loss。普通 drain 超时只进入可观测 repair，不强制
+   BYE/CANCEL，也不删除旧实现；必须等 active Call/Protocol Session/Edge/group、
+   unknown effect 和 cleanup delta 全部归零且 rollback window 到期后才能移除。
+   active-zero 由 `unified_rustpbx`、`rtpengine`、`effect_wal` 三方独立 receipt
+   共同证明，不接受单方汇总；删除还必须等 retention/rollback references 清零。
+9. 单进程减少 RPC 和重复状态，不产生地址空间故障隔离：OOM、abort、UB、allocator
+   corruption 或不可捕获 native failure 可能中断全部 embedded Edge。安全、native/
+   unsafe、Conference、quality 和 co-resident capacity 都是独立生产门禁。
+10. Voice/SIP/PSTN ↔ LiveKit 按
+    [ADR-CCAAS-8](ccaas-8-voice-livekit-bridge-handoff.md) 使用现有
+    `RustPBX ↔ livekit-sip ↔ LiveKit` 路径；它是持久 Bridge/Edge handoff，不是 Call、
+    Dialog、CDR、billing、recording 或 WebRTC Authority 转移。
+
+本裁决不把任何尚未执行的功能或性能结果提升为通过；相应 verification 继续
+`not_run`、`production_eligible=false`。
+
+### 1.2 Machine-exact adoption gates
+
+`edge-core-sip-v1` 只接受 `raw_bytes_with_trusted_metadata`，保留 raw bytes 并校验
+SHA-256。metadata allowlist 仅含 `source_identity`、`ingress_transport`、
+`tls_verification`、`raw_message_length`、`raw_message_sha256` 和
+`parser_policy_version`；外部同名内部 header 先剥离再重建。硬上限是：
+
+| 项 | 上限 |
+| --- | ---: |
+| SIP message / header section / body | 65,535 / 32,768 / 32,768 bytes |
+| start line / URI | 4,096 / 2,048 bytes |
+| header count / header line | 128 / 8,192 bytes |
+| URI parameters / header components | 32 / 16 |
+| multipart boundary / depth / parts | 70 bytes / 2 / 16 |
+| multipart part headers / body | 8,192 / 32,768 bytes |
+
+`Content-Length` 只允许一个，或 byte-identical duplicates 且匹配 raw body octets；
+`Via`、`Contact`、`Authorization` 保序逐值解析，`Route`/`Record-Route` 保持 wire
+order；`From`/`To`/`CSeq` duplicate 语义相同，`Call-ID` byte-identical，
+`Max-Forwards` 为相同十进制值。冲突不得选择 first/last，而是 fail closed。URI
+非法 percent escape 拒绝；unreserved 仅解码一次、reserved 保留；userinfo 只有一个
+`@` delimiter 且解码后不重解释；host 为 lowercase ASCII 或 IDNA2008 A-label，
+不得有歧义 trailing dot；IPv6 literal 必须带方括号。multipart boundary 畸形或歧义
+同样拒绝。rvoip parser 只有在这些 accept/reject 语义与 differential corpus 全部通过
+后才可从 shadow 进入主路径。
+
+Region durable store 固定四个原子边界：Call admission 同时写入 Call Session、
+Protocol Effect、Effect WAL、capacity reservation receipt 与 idempotency record；
+Media generation 同时写入 Media Plan、directed Edges、Binding Groups 与 capacity
+reservation receipt；bridge head 同时写入 command、decision、receipt 并完成 head
+CAS；recording 同时写入 intent、root manifest、source chain 与 segment reference。
+单 Region 内必须 all-or-nothing，partial failure 以稳定 cause 回滚。路由、媒体、
+billing、recording 与 webhook 分别只能在其对应 Call/media-generation/bridge/
+recording/protocol decision 持久后产生业务可见 effect。`store_timeout`、
+`store_pool_exhausted`、`store_unavailable` 或
+`store_schema_incompatible` 必须拒绝为 SIP 503 并携带 deterministic
+`Retry-After`，不得 partial commit。其秒数使用 checked-u64
+`clamp(1, 30, 1 + ceil(pool_wait_ms/1000) + ceil(queue_depth/256) +
+retry_attempt)`；输入范围分别为 0..250 ms、0..1024、0..3，不加 jitter，同一输入
+必须同一输出，非法输入拒绝且不得伪造 `Retry-After`。
+
+RFC 3263 candidate 顺序依次执行 NAPTR order/preference、SRV priority/weight 和
+地址族选择，并把 target FQDN、transport、port、address、NAPTR 与 SRV identity
+冻结进 attempt。DNS query timeout 为 2 秒、connect timeout 为 3 秒，最多 8 个
+candidate、每个最多 1 次 retry、总预算 10 秒；耗尽必须产生有序 terminal-effect
+receipts。candidate receipt 保留 1 天，transaction effect 保留 7 天，late-response
+窗口 32 秒；transaction、Dialog、recovery 与 rollback reference 全部到期后才可 GC。
+
+drain active-zero 使用 checked-u64 且要求同一
+`tenant_id/drain_scope_id/generation/observation_epoch` 的三份 digest-bound
+receipt：`unified_rustpbx` 的
+`call_count/protocol_session_count/edge_count/binding_group_count`，
+`rtpengine` 的 `session_count/port_count/allocation_count/generation_count`，
+`effect_wal` 的
+`pending_effect_count/unknown_effect_count/repair_delta_count/
+cleanup_delta_count` 全部为零。缺失、过期、identity/epoch 不一致时继续 drain。
+deletion-safe 还要求 `retention_reference_count=0` 和
+`rollback_reference_count=0`。普通 timeout 不允许 BYE/强删；emergency action
+必须另有带
+`actor/reason_code/incident_id/scope/expires_at/decision_hash` 的授权和审计
+receipt。
+
+所有 Backend 采用 `backend-capability-set-v1@1.0.0`，绑定 source、binary/image、
+config 和 capability-set digest。closed required set 是：
+
+| Backend | allocation/fence scope | required capability IDs |
+| --- | --- | --- |
+| `embedded_voice_media` | directed Edge generation | `bounded_processing_session`、`codec_chain`、`rfc4733_dtmf`、`recording_tap`、`ai_tap`、`n_minus_one_mix`、`owner_fence`、`zero_output_revoke` |
+| `livekit_sip_bridge` | bridge generation | `bidirectional_bridge`、`participant_lifecycle`、`prepare_blocked`、`zero_output_revoke`、`query_reconcile`、`terminal_tombstone`、`ice_dtls_srtp_bundle_mid` |
+| `rtpengine_ordinary` | Binding Group generation | `ordinary_rtp_rtcp`、`srtp`、`wire_sdp`、`prepare_blocked`、`commit`、`revoke_zero_output`、`query_reconcile`、`member_flow_binding`、`dtmf_event_notification` |
+| `rust_native_fast_path` | Binding Group generation | `rtp_rtcp_srtp_parity`、`kernel_nic_numa_profile`、`same_hardware_rtpengine_floor`、`failure_isolation`、`endurance_24h` |
+
+compiler 只接受 `support=supported && verified=passed` 且 exact runtime identity
+匹配的 required capability。allocation/lifecycle/fence 粒度粗于 directed Edge 时，
+必须证明 immutable member set 和 exact member-flow fence；否则拆 Binding Group，
+无法拆分则在任何 allocation 前 fail closed，不能静默削弱 capability set。
+
+生命周期资格按操作独立签署，不能从汇总状态推断。每个 Backend 对
+`allocation/prepare/commit/abort/revoke/fence/query/reconcile/migration/
+notification/member_flow_fence/zero_output_ack/security_termination_scope`
+逐项发布 `operation_contracts`；每项必须同时满足
+`support=supported`、`verified=passed`、exact operation granularity 和全部声明的
+prerequisites passed。失败时
+`fail_closed_without_side_effect_and_freeze_exact_generation`，并稳定返回
+`lifecycle_operation_missing`、`lifecycle_operation_not_supported`、
+`lifecycle_operation_not_verified`、
+`lifecycle_operation_granularity_mismatch` 或
+`lifecycle_operation_prerequisite_unmet`。
+
+持久 schema Authority 是 PostgreSQL Region store 中的
+`opc-persistent-schema-registry-v1`，identity 为
+`artifact_type/schema_id/schema_version/schema_sha256`；Registry 不可用时禁止新
+writer version。Voice↔LiveKit 单独注册
+`voice_livekit_bridge_generation/attempt/command/receipt/tombstone` 五个 durable
+artifact。1.0.0/1.1.0 expand-contract evidence 必须证明 old reader 拒绝 new
+writer、new reader 接受 old producer、所有 live reader 支持前 writer 维持 1.0.0，
+回滚也维持 1.0.0 到旧 reader drain。缺失 bridge 对象表示 unsupported 且 advertised
+capacity 为零。
+
+Call Session、Business Dialog、Protocol Dialog、Protocol Effect、Effect WAL、
+Media Plan、directed Media Edge、Backend Binding Group、Wire Transport Bundle、
+Recovery Capsule、root RecordingManifest、recording source chain、Capacity
+Vector，加上述五个 bridge artifact，共 18 个独立 artifact contract。每项都固定
+自己的 `schema_id`、N=`1.0.0`、N+1=`1.1.0`、N/N+1 hash、current writer
+version/identity、reader/takeover matrix、migration receipt、rollback 与 GC
+references。当前两个 hash 和 writer version/identity 都必须为 `null`，状态
+`not_run`；在 registry receipt 持久化、两个 hash 验证且所有 live reader 兼容之前
+禁止启用 writer。迁移按 expand → dual-read/single-write → contract，逐对象幂等并
+写 durable receipt；rollback 继续写 N 到旧 reader drain，evidence 保留到 rollback
+closed，且 reader/writer/recovery/rollback reference 全部消失前不得 GC。
+
+`media-plan-capacity-demand-v1` 把 RTP/RTCP flow、SRTP context、port pair、
+decode/encode/resample/transcode Edge、mix output、recording/AI Edge、
+packetization、bitrate 和 NUMA affinity 确定性编译成 RTP/RTCP socket、SRTP
+context、port pair、PPS、bps、memory、CPU microseconds/second、NUMA node 与
+decode/encode/resample/transcode/mix/record/AI slot。共享 transport 只计一次。RTPengine 与
+可选 Rust-native 只供应 Wire Bundle；embedded Backend 供应 Bundle 和全部 processing
+slot；LiveKit SIP bridge 供应 Bundle 与 decode/encode/resample/transcode。所有 required demand
+在 Backend prepare 前原子预留，并保留 declared failure-domain reserve；N+1 是 peak
+demand 加 largest failure-domain demand。缺失、过期或跨 profile supply 拒绝。
+
+admission contract 还必须绑定 `worker_count/shard_count/queue_depth/
+service_time_micros/backpressure_limit`。Supply 只有在签名验证、未过期，且
+`capacity_profile_id/profile_revision/role/backend_source_digest/binary_digest/
+config_digest/hardware_profile_id/cell_id/failure_domain_id/issued_at/expires_at/
+signature_key_id` 与请求完全匹配后才可使用。每个维度用 checked-u64 证明
+`deduplicated_demand <= signed_unexpired_identity_bound_supply -
+active_reservations - failure_reserve`；overflow、underflow、negative、saturation、
+unit mismatch 一律拒绝。共享 transport 只按 exact
+`binding_group_id/binding_group_generation/wire_transport_bundle_id` 去重。
+同一 dedupe key 携带不同 demand vector 时 `conflict_fail_closed`，不能重复计数、
+覆盖或任选一个 vector。
+reservation CAS 固定 profile/revision/epoch/available-vector digest；在 Backend
+prepare 前持久 receipt，绑定 tenant、interaction、Media Plan generation、
+reservation/profile/revision、demand/failure-reserve digests 与 decision hash。
+N+1 另行证明 `supply - active reservations - largest failure domain >= peak
+admitted demand`，缺失 failure-domain identity 直接拒绝。
+
+RTPengine userspace 与 kernel forwarding 是两份独立 execution profile。两者分别
+绑定 source/binary/config/capability-set digests、hardware profile、NIC driver、
+kernel module 与 Cell；userspace evidence 必须证明 userspace packet path，
+kernel evidence 必须证明 kernel packet path 及 module/NIC identity。当前两份结果
+均为 `not_run`，且 userspace pass 不得授权 kernel、kernel pass 也不得授权
+userspace。
+
+ordinary RFC 4733 唯一 no-decode 采集路径是
+`rtpengine_rfc4733_event_notification` → RustPBX per-Leg canonical Authority。
+该路径要求 `rtpengine_ordinary.dtmf_event_notification` 达到
+`support=supported && verified=passed`。notification 绑定
+tenant/interaction/Leg/SSRC/RTP timestamp/event/duration/end
+bit/provider sequence，按全字段去重，P99 report budget 为 50 ms；parallel read-only
+fork 和 decode-all 禁止，丢失/歧义对业务副作用 fail closed 并 query/reconcile。
+
+notification channel 使用 mutual TLS，并对 payload 做 HMAC；identity 绑定 Backend
+instance、Binding Group generation、tenant、interaction 与 Leg，鉴权失败不产生
+业务 effect。ordering 与 monotonic sequence 按 tenant/interaction/Leg，sequence
+CAS 必须在业务 effect 前持久化。queue 上限 1,024、event 上限 4,096 bytes、
+deadline 50 ms；overflow 或 gap 冻结 exact Leg effect 并 query/reconcile。duplicate
+返回同 receipt 且不重复 effect；同 identity 不同 payload hash 是 conflict。receipt
+固定 event ID/sequence、payload hash、Backend identity digest 与 received time。
+只有 exact Backend 的 `query` operation 也通过独立 support/verification gate 后，
+该 DTMF business effect 才 eligible；当前保持 `not_run`。
+
+small conference 固定为最多 8 人的 per-participant N-1 mixer：
+`N*(N-1)` directed contribution、`N` jitter buffer、`N` encode output；第 9 人不
+扰动 active mix 而被拒绝或路由 LiveKit。quality 独立覆盖 clipping、loudness、level
+normalization、jitter/PLC 等 machine vector，未运行保持 `not_run`。
+
+十二项 quality method 分别为：MOS-LQO=P.863 或声明的等价评分，
+PESQ/POLQA=P.862/P.863 licensed score，packet loss=RTP sequence-gap capture，
+jitter=RFC 3550 interarrival，PLC=reference/degraded comparison，
+clipping=PCM full-scale ratio，loudness=BS.1770 LUFS，level normalization=
+input/output LUFS delta，tandem=codec-chain reference A/B，clock drift=
+RTP-versus-monotonic capture PPM，DTX/CNG=state-transition continuity，
+switch gap=last-old/first-new capture。每项必须独立绑定 method source/digest、
+quality profile identity、workload source/digest、签名 threshold/operator/value/
+unit 和 independent-witness evidence digest；任一为空或未签名均保持 `not_run`、
+production-ineligible，不能继承其他 metric 的结论。
+
+DTLS setup role/fingerprint、ICE ufrag/password/consent 与 RTCP-mux/BUNDLE/MID 均
+绑定 Wire Transport Bundle generation；fingerprint 验证后才能 SRTP，consent 过期
+停止输出，ICE restart 或 DTLS role/fingerprint 改变必须新 generation，unknown/
+duplicate MID 拒绝。安全响应持续摄取 signed digest-bound RustSec/OSV/GitHub/vendor
+advisory；critical/high/medium/low triage SLA 为 4/24/72/168 小时，remediation SLA
+为 24/168/720/2160 小时。修复采用 upstream backport→cherry-pick；local fork 必须
+bounded 且有 owner/expiry/rebase。production core dump 关闭，只允许不含 key、SDP
+或 media 的 redacted minidump，禁止 unredacted crash upload。
+
+Voice↔LiveKit 资格场景让同一 Call 完成 32 个
+`V2L_ACTIVE → L2V_ACTIVE` alternating round trip，每次新建 generation。相反方向
+并发 command 只有一个 bridge-head CAS winner；loser fail closed 并只
+query/reconcile winner。往返不得增加 Call/CDR/rating/root-manifest Authority；
+active participant/port/allocation 有界，终态 participants、port pairs、Backend
+allocations、writers、pending commands 与 unreconciled receipts 全部为零。
+
+资格证据必须逐项独立执行，不能由 32 次往返汇总继承。八个 scenario 是
+`same_call_32_round_trip_v2l_l2v`、`concurrent_head_cas_single_winner`、
+`terminal_zero_resource_leak`、`cancel_before_prepare_ack`、
+`cancel_after_apply_before_receipt`、`token_expiry_before_prepare`、
+`token_expiry_during_active`、`webhook_duplicate_reordered_replayed_forged`；
+七个 property 是 `every_switch_allocates_new_generation`、
+`cas_loser_never_emits_media`、`one_call_cdr_rating_and_root_manifest`、
+`terminal_cleanup_is_idempotent`、`cancel_terminal_prevents_recreate`、
+`token_scope_matches_exact_generation`、
+`webhook_requires_exact_identity_and_receipt_digest`；九个 fault vector 是
+`timeout_before_apply`、`timeout_after_apply`、
+`coordinator_crash_after_decision`、`livekit_sip_unavailable`、
+`sfu_disconnect`、`webhook_loss_duplicate_and_reorder`、`token_expiry`、
+`store_head_cas_conflict`、`cleanup_retry_and_dead_letter`。当前所有项都是
+`not_run` 且 production-ineligible。
+
+command token 是 pinned-issuer asymmetric-signed capability，绑定
+`tenant_id/interaction_id/bridge_id/bridge_generation/operation_id/
+idempotency_key/issued_at/expires_at/key_id` 并 exact scope match；checked
+`now < expires_at`，prepare 前过期不创建 command/resource，active 中过期只阻止新
+command。cancel 绑定
+`tenant_id/interaction_id/bridge_id/bridge_generation/command_id/
+idempotency_key/command_hash`，按 generation 内 `command_sequence` 排序并在 ACK 前
+写 tombstone；prepare ACK 前无 writer 地释放，apply 后 receipt 前 query/reconcile
+exact generation，terminal cancel 战胜 late success 且禁止 recreate。webhook 必须
+验证签名/pinned provider，绑定 tenant/interaction/bridge/generation/provider/
+event/sequence/type/receipt/payload，reorder window 最大 128，receipt 先于 effect
+持久化。三类输入的 exact duplicate 只 replay 原 receipt；same identity/different
+hash、forged 或越界重排 fail closed 并 query/reconcile，terminal tombstone 禁止
+nonterminal replay/recreate。三份合同当前均为 `not_run`。
+
+确定性 32-round-trip resource model 要求 active generation 的
+participant/port-pair/Backend-allocation/writer 为 `1/1/1/1`，
+pending-command/unreconciled-receipt 为 `0/0`；每个被替代 generation 显式 terminal
+且六项全零，Call/CDR/billing session/root manifest 跨 generation 始终
+`1/1/1/1`。CAS loser、cancel、bad/expired token 与 forged webhook 不得创建 writer
+或资源，重复 final cleanup 仍为全零。这是 target/`not_run`，不能写成当前能力。
 
 ## 2. 审计源码身份
 
@@ -139,8 +426,8 @@ rvoip 的 README 展示了一个很有吸引力的统一 Rust 通信愿景，但
 - PCMU、PCMA、RFC 4733 DTMF；
 - 部分 SDES-SRTP；
 - RTP/RTCP parser、session、jitter、SRTP 和媒体处理组件；
-- 纯 Rust G.729 Annex A，及上游可选 Annex B VAD/DTX/CNG；OPC 的 G729AB 仍是强制
-  codec identity；
+- 纯 Rust G.729 Annex A，及上游可选 Annex B VAD/DTX/CNG；OPC 的 G729AB internal
+  processing mode 仍是强制项，对外 wire identity 仍只有 `G729/8000`；
 - SIP Digest、AKA、registrar identity provider；
 - ASR、TTS、Dialog、Recording 的抽象 trait；
 - vCon、STIR/SHAKEN、SCIM/identity 等扩展；
@@ -227,7 +514,7 @@ rvoip 的同类 benchmark 适配为独立 generator，在同一硬件、同一 S
 - `media-core` 中基于 `ArrayQueue` 的固定容量 audio/RTP pool；
 - cache-line 分离的原子计数；
 - RTP parse/serialize、SRTP、jitter、UDP loopback 和 demux benchmark；
-- codec registry 和 G.729A/AB 的独立实现边界；
+- 一个 `G729/8000` 外部 identity 与 G729A/G729AB 内部 mode 的独立实现、质量和容量边界；
 - packet/session/transport 分层比在一个通用异步任务中混合处理更容易测量。
 
 ### 6.2 不能整段复制
@@ -310,7 +597,7 @@ authenticate/count/drop，禁止 forward、DTMF、recording 或 AI 副作用。�
 幂等 `commit_send` 发送；unknown outcome 只能 query/reconcile。Transaction 自动重传
 只能重放已提交的同一 bytes/hash，不得绕过业务持久化或生成新副作用。
 
-### 7.2 P0：开发恢复后优先进入当前 Goal 4
+### 7.2 P0：Revision 4 D0 后优先进入当前 Goal 4
 
 | rvoip 强项 | iveKit 落点 | 接入方式 | 验收 |
 | --- | --- | --- | --- |
@@ -341,14 +628,17 @@ authenticate/count/drop，禁止 forward、DTMF、recording 或 AI 副作用。�
 - SID/no-data packet handling；
 - bitstream 和 reference-vector tests。
 
-G.729A 与 G.729AB 是两个独立、强制实现的 codec identity，不是可选候选。不得直接把
-“源码存在”标记为 codec 完成。合入前必须：
+RTP wire 与 SDP 中只有一个 `G729/8000` codec identity。G729A 与 G729AB 是两个
+独立、强制实现的 internal processing/quality/capacity mode，不是两个可协商的外部
+codec identity，也不是可选候选。不得直接把“源码存在”标记为 codec 完成。合入前必须：
 
 1. 做来源和精确 commit manifest；
 2. 剥离与 rvoip 全 workspace 无关的依赖；
-3. 加入 `voice-media-rs` codec-pair registry；
+3. 加入 `voice-media-rs` internal codec-pair quality/capacity registry，不新增外部
+   G729A/G729AB identity；
 4. 固定 canonical encoding `G729/8000`，覆盖 static PT 18 和 dynamic PT 96–127
-   remap，以及 ptime 10/20/30/40/60 ms；
+   remap，以及 ptime 10/20/30/40/50/60 ms；50 ms 必须证明为五个连续 10 ms、
+   每个 10-octet 的 speech frame，并验证 RTP timestamp/sequence 推进；
 5. 验证每 10 ms speech frame 为 10 octets、SID 为 2 octets；一个 RTP payload
    允许零个或多个 speech frame 且至多一个 SID；no-data 必须不发送 RTP packet，
    不能编码成 zero-length speech；
@@ -359,8 +649,9 @@ G.729A 与 G.729AB 是两个独立、强制实现的 codec identity，不是可�
 9. 测量每 core sessions、P99 和 steady-state allocation；
 10. 工程、互通、质量与容量各自未签署前保持 `not_run`。
 
-架构获用户批准并恢复开发后，工程提取、实现、编译和测试立即进行；法律/专利结论只
-阻塞生产分发、runtime enablement 和 Production Eligibility，不得写成
+Revision 4 D0 合同冻结后，工程提取、实现、编译和测试立即进行且只依赖 D0，不等待
+另一轮人工批准；法律/专利结论只阻塞生产分发、runtime enablement 和 Production
+Eligibility，不得写成
 implementation blocker。
 
 ### 7.5 P1：Provider trait
@@ -462,7 +753,7 @@ rvoip 的 `AsrProvider/AsrStream`、`TtsProvider/TtsPlayback`、
 8. RustPBX 与 rvoip 顶层 MIT 许可文本和相关第三方声明必须保留；MIT 不代替 G.729
    适用专利评估，该评估仍只阻塞生产分发/启用/资格，不阻塞工程。
 
-## 11. 开发恢复后的执行顺序
+## 11. Revision 4 D0 后的执行顺序
 
 截至 2026-07-29，下列项目按实际完成状态分别记录；服务器真实 RTP、故障注入和容量签署
 仍为 `not_run`：
@@ -484,8 +775,9 @@ rvoip 的 `AsrProvider/AsrStream`、`TtsProvider/TtsPlayback`、
     atomic `prepare_blocked/commit/revoke/query-reconcile`、initial/migration SDP 与
     decision-aware compensation；RTPengine 新 lifecycle patch 当前为
     `not_present/not_run`，不得借历史补丁证据晋级；
-11. 完成 rvoip G.729 exact-source manifest 且用户恢复开发后，立即实现 G.729A/AB，
-    不等待法律结论；
+11. Revision 4 D0 冻结后，立即完成 rvoip G.729 exact-source manifest，并实现一个
+    `G729/8000` wire codec 及 G729A/G729AB 两个 mandatory internal mode；U2 只依赖
+    D0，不等待 U1 或法律结论；
 12. 建立 parser shadow 等价门禁，再按 `SipFoundation` 阶段迁移；
 13. 在 Goal 6 建立 RFC/compat/security machine-readable matrix；
 14. 在服务器以 co-resident Unified RustPBX SUT 跑统一 A/B，而不是直接比较两份项目
@@ -574,3 +866,4 @@ Provider interface、身份扩展和性能证据方法。它不是当前 iveKit 
 | 3 | 2026-07-29 | 接受 RTPengine 长期正式定位与 Rust-native 性能竞争路线 |
 | 4 | 2026-07-29 | 锁定唯一 `CARRIER-CELL-V1` 生产基线；Backend 选择改为 directed Media Edge；首期同进程嵌入 `voice-media-rs`；拒绝 rvoip 高层 runtime；移除本路线整体替换 RustPBX 的出口 |
 | 5 | 2026-07-29 | 固化 Backend Binding Group/Wire Transport Bundle、O(1) Edge-flow mapping、atomic blocked lifecycle、initial/migration SDP、decision-aware compensation、per-Leg DTMF、co-resident 容量和新呼叫选择/旧呼叫 drain。 |
+| 6 | 2026-07-30 | 绑定 Revision 4 机器合同；冻结 effect/receipt、wire、confirmed-only recovery、durable-store SLO、Edge-to-Core、rolling schema、clock、fail-closed capability、真实单进程故障域和 Voice↔LiveKit Authority 边界；更正 G.729 为一个 wire identity 与两个 mandatory internal mode。 |

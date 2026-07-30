@@ -10,6 +10,7 @@
     "revision",
     "status",
     "generated_at",
+    "foundation_authority",
     "source_identity",
     "summary",
     "claim_boundary",
@@ -21,9 +22,12 @@
   "properties": {
     "schema_version": { "const": "1.0.0" },
     "contract_id": { "const": "rvoip-capability-integration-v1" },
-    "revision": { "const": 5 },
+    "revision": { "const": 6 },
     "status": { "const": "target" },
     "generated_at": { "type": "string", "format": "date-time" },
+    "foundation_authority": {
+      "$ref": "#/$defs/foundationAuthority"
+    },
     "source_identity": {
       "const": {
         "repository": "https://github.com/eisenzopf/rvoip",
@@ -362,6 +366,35 @@
     }
   },
   "$defs": {
+    "foundationAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "contract_id",
+        "revision",
+        "digest_projection",
+        "content_sha256"
+      ],
+      "properties": {
+        "path": {
+          "const": "docs/capacity/contracts/unified-voice-foundation-r4-v1.json"
+        },
+        "contract_id": {
+          "const": "unified-voice-foundation-r4-v1"
+        },
+        "revision": {
+          "const": 4
+        },
+        "digest_projection": {
+          "const": "rfc8785_jcs_without_top_level_authority_binding"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
     "status": {
       "enum": ["implemented_local", "partial", "not_run", "rejected"]
     },

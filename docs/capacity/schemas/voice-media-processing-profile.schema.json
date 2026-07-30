@@ -24,7 +24,7 @@
   ],
   "properties": {
     "schema_version": { "const": "1.0.0" },
-    "profile_id": { "const": "vos-eq-v3-g711-opus-1k-v1" },
+    "profile_id": { "const": "vos-eq-r4-g711-opus-1k-v1" },
     "revision": { "type": "integer", "minimum": 1 },
     "status": { "enum": ["target", "verified", "retired"] },
     "description": { "type": "string", "minLength": 20 },
@@ -60,10 +60,10 @@
         },
         "audio_codec_version": { "const": "0.3.40" },
         "media_plan_compiler_revision": {
-          "const": "target-r3-not-run"
+          "const": "target-r4-not-run"
         },
         "backend_selector_revision": {
-          "const": "carrier-cell-v1-target-r3-not-run"
+          "const": "carrier-cell-v1-target-r4-not-run"
         },
         "backend_mix_id": {
           "const": "rtpengine-ordinary-plus-embedded-processing-v2"
@@ -178,7 +178,7 @@
           "const": {
             "ordinary_edge_backend": "rtpengine",
             "decode_required_edge_backend": "embedded_voice_media_rs",
-            "selector_revision": "carrier-cell-v1-target-r3-not-run",
+            "selector_revision": "carrier-cell-v1-target-r4-not-run",
             "profile_results_transferable_to_other_mix": false
           }
         },

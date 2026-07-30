@@ -24,7 +24,7 @@
       "minLength": 1
     },
     "schema_version": {
-      "const": "1.0.0"
+      "enum": ["1.0.0", "1.1.0"]
     },
     "sample_id": {
       "type": "string",
@@ -102,10 +102,158 @@
         "verified_at": {
           "type": "string",
           "format": "date-time"
+        },
+        "workload_profile_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{2,63}-v[1-9][0-9]*$"
+        },
+        "bridge_included": {
+          "type": "boolean"
+        },
+        "results_inheritable": {
+          "type": "boolean"
+        },
+        "forbidden_inheritance_sources": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded",
+              "another_path"
+            ]
+          }
         }
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "required": ["dimensions"],
+        "properties": {
+          "dimensions": {
+            "type": "object",
+            "required": ["voice_livekit_bridge"]
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "required": ["evidence"],
+        "properties": {
+          "schema_version": {
+            "const": "1.1.0"
+          },
+          "profile_id": {
+            "const": "voice-livekit-bridge-v1"
+          },
+          "evidence": {
+            "type": "object",
+            "required": [
+              "workload_profile_id",
+              "bridge_included",
+              "results_inheritable",
+              "forbidden_inheritance_sources"
+            ],
+            "properties": {
+              "workload_profile_id": {
+                "const": "voice-livekit-bridge-v1"
+              },
+              "bridge_included": {
+                "const": true
+              },
+              "results_inheritable": {
+                "const": false
+              },
+              "forbidden_inheritance_sources": {
+                "const": [
+                  "ordinary_rtp",
+                  "livekit_only",
+                  "optional_bridge_excluded",
+                  "another_path"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["dimensions", "evidence"],
+        "properties": {
+          "dimensions": {
+            "type": "object",
+            "required": ["voice_livekit_bridge"]
+          },
+          "evidence": {
+            "type": "object",
+            "required": ["status"],
+            "properties": {
+              "status": {
+                "const": "verified"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "evidence": {
+            "type": "object",
+            "required": ["evidence_bundle_id", "verified_at"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["dimensions", "evidence"],
+        "properties": {
+          "dimensions": {
+            "type": "object",
+            "required": ["voice_livekit_bridge"]
+          },
+          "evidence": {
+            "type": "object",
+            "required": ["status"],
+            "properties": {
+              "status": {
+                "enum": ["target", "not_run", "failed"]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "admission": {
+            "type": "object",
+            "properties": {
+              "accepts_new_interactions": {
+                "const": false
+              }
+            }
+          },
+          "dimensions": {
+            "type": "object",
+            "properties": {
+              "voice_livekit_bridge": {
+                "$ref": "#/$defs/unverifiedBridgeCapacity"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "scope": {
       "type": "object",
@@ -210,6 +358,9 @@
         "sip": { "$ref": "#/$defs/sipDimensions" },
         "voice": { "$ref": "#/$defs/voiceDimensions" },
         "livekit": { "$ref": "#/$defs/liveKitDimensions" },
+        "voice_livekit_bridge": {
+          "$ref": "#/$defs/voiceLiveKitBridgeDimensions"
+        },
         "im": { "$ref": "#/$defs/imDimensions" },
         "events": { "$ref": "#/$defs/eventDimensions" },
         "remote": { "$ref": "#/$defs/remoteDimensions" },
@@ -228,6 +379,8 @@
             "per_second",
             "mbps",
             "packet_ops_per_second",
+            "milliseconds",
+            "packets",
             "bytes_per_second",
             "seconds_per_second",
             "characters_per_second",
@@ -257,6 +410,66 @@
           "enum": ["benchmark", "static_limit", "provider_quota", "aggregate", "unknown"]
         }
       }
+    },
+    "countCapacityDimension": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/capacityDimension"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "unit": {
+              "const": "count"
+            }
+          }
+        }
+      ]
+    },
+    "perSecondCapacityDimension": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/capacityDimension"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "unit": {
+              "const": "per_second"
+            }
+          }
+        }
+      ]
+    },
+    "millisecondsCapacityDimension": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/capacityDimension"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "unit": {
+              "const": "milliseconds"
+            }
+          }
+        }
+      ]
+    },
+    "packetsCapacityDimension": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/capacityDimension"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "unit": {
+              "const": "packets"
+            }
+          }
+        }
+      ]
     },
     "sipDimensions": {
       "type": "object",
@@ -307,6 +520,81 @@
         "turn_relay_mbps": { "$ref": "#/$defs/capacityDimension" },
         "track_egress_jobs": { "$ref": "#/$defs/capacityDimension" },
         "room_composite_jobs": { "$ref": "#/$defs/capacityDimension" }
+      }
+    },
+    "voiceLiveKitBridgeDimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bridge_generations",
+        "directed_bridge_edges",
+        "livekit_sip_participants",
+        "bridge_cps",
+        "switch_attempts",
+        "switch_gap_p99_ms",
+        "switch_loss_packets_p99",
+        "decode_slots",
+        "encode_slots",
+        "resample_slots",
+        "transcode_slots",
+        "recording_roles",
+        "handoff_reconciliation_cps"
+      ],
+      "properties": {
+        "bridge_generations": {
+          "$ref": "#/$defs/countCapacityDimension"
+        },
+        "directed_bridge_edges": {
+          "$ref": "#/$defs/countCapacityDimension"
+        },
+        "livekit_sip_participants": {
+          "$ref": "#/$defs/countCapacityDimension"
+        },
+        "bridge_cps": {
+          "$ref": "#/$defs/perSecondCapacityDimension"
+        },
+        "switch_attempts": {
+          "$ref": "#/$defs/perSecondCapacityDimension"
+        },
+        "switch_gap_p99_ms": {
+          "$ref": "#/$defs/millisecondsCapacityDimension"
+        },
+        "switch_loss_packets_p99": {
+          "$ref": "#/$defs/packetsCapacityDimension"
+        },
+        "decode_slots": {
+          "$ref": "#/$defs/countCapacityDimension"
+        },
+        "encode_slots": {
+          "$ref": "#/$defs/countCapacityDimension"
+        },
+        "resample_slots": {
+          "$ref": "#/$defs/countCapacityDimension"
+        },
+        "transcode_slots": {
+          "$ref": "#/$defs/countCapacityDimension"
+        },
+        "recording_roles": {
+          "$ref": "#/$defs/countCapacityDimension"
+        },
+        "handoff_reconciliation_cps": {
+          "$ref": "#/$defs/perSecondCapacityDimension"
+        }
+      }
+    },
+    "unverifiedBridgeCapacity": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["safe_capacity", "confidence"],
+        "properties": {
+          "safe_capacity": {
+            "const": 0
+          },
+          "confidence": {
+            "enum": ["target", "unknown"]
+          }
+        }
       }
     },
     "imDimensions": {
@@ -398,6 +686,11 @@
     "hard_limit >= safe_capacity when hard_limit is present",
     "confidence=verified requires evidence.status=verified",
     "node scope requires a monotonically fenced owner_epoch",
-    "unknown or target dimensions cannot be used to advertise production safe capacity"
+    "unknown or target dimensions cannot be used to advertise production safe capacity",
+    "schema 1.1.0 readers accept 1.0.0 producer vectors, but 1.0.0 readers do not accept 1.1.0 writers",
+    "the oldest_live_reader_first gate keeps writers at 1.0.0 until every live reader supports 1.1.0",
+    "voice_livekit_bridge is optional for 1.0.0 producers; absence advertises no bridge support and zero bridge capacity",
+    "voice_livekit_bridge requires schema 1.1.0, all 13 dimensions, its own bridge-included evidence, and cannot inherit ordinary voice or optional_bridge_excluded results",
+    "target, not_run, and failed bridge evidence force rejecting admission and zero advertised bridge safe capacity"
   ]
 }

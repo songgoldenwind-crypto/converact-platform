@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0.0",
-  "profile_id": "vos-eq-v3-g711-opus-1k-v1",
-  "revision": 3,
-  "status": "retired",
-  "description": "Historical Revision 3 co-resident CARRIER-CELL-V1 target, superseded by vos-eq-r4-g711-opus-1k-v1 before any measured or production-authorizing capacity claim.",
+  "profile_id": "vos-eq-r4-g711-opus-1k-v1",
+  "revision": 4,
+  "status": "target",
+  "description": "Revision 4 co-resident CARRIER-CELL-V1 target for one Unified RustPBX process with 1,000 concurrent two-leg G.711 and Opus processing sessions plus reserved SIP control headroom; this is not a measured capacity claim and does not authorize production.",
   "source_identity": {
     "contract_path": "docs/capacity/contracts/voice-media-goal4-v1.json",
     "component_id": "unified-rustpbx",
@@ -12,8 +12,8 @@
     "rustrtc_commit": "166c6d22984429eb6b509920c14fcd69f974f0b3",
     "rtpengine_commit": "506cfa74386a5373e40fca139a932917f22f0524",
     "audio_codec_version": "0.3.40",
-    "media_plan_compiler_revision": "target-r3-not-run",
-    "backend_selector_revision": "carrier-cell-v1-target-r3-not-run",
+    "media_plan_compiler_revision": "target-r4-not-run",
+    "backend_selector_revision": "carrier-cell-v1-target-r4-not-run",
     "backend_mix_id": "rtpengine-ordinary-plus-embedded-processing-v2"
   },
   "primary_sut": {
@@ -79,7 +79,7 @@
     "backend_mix": {
       "ordinary_edge_backend": "rtpengine",
       "decode_required_edge_backend": "embedded_voice_media_rs",
-      "selector_revision": "carrier-cell-v1-target-r3-not-run",
+      "selector_revision": "carrier-cell-v1-target-r4-not-run",
       "profile_results_transferable_to_other_mix": false
     },
     "packetization_ms": 20,

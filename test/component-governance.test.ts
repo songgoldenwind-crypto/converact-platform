@@ -55,7 +55,7 @@ test('component governance defines one carrier baseline with four component over
   );
   assert.match(
     components.get('rustpbx')?.resource_budget.notes ?? '',
-    /vos-eq-v3-g711-opus-1k-v1\.json/
+    /vos-eq-r4-g711-opus-1k-v1\.json/
   );
   assert.deepEqual(technologyBaseline.topology_identities, [
     {

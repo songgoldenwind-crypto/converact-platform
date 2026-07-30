@@ -1,0 +1,4173 @@
+{
+  "schema_version": "1.0.0",
+  "contract_id": "unified-voice-foundation-r4-v1",
+  "revision": 4,
+  "status": "target",
+  "binding_objective": {
+    "source_path": "/private/tmp/opc-ivekit-unified-voice-goal-r4-2026-07-29.md",
+    "archive_path": "docs/capacity/contracts/unified-voice-foundation-r4-objective.md",
+    "content_sha256": "9435c3e28f46f43906d325bb325253da2ecb448d257533547740073d9132bc54"
+  },
+  "implementation_plan": {
+    "path": "docs/superpowers/plans/2026-07-29-unified-voice-foundation-r4.md",
+    "content_sha256": "b5121a7c73360f2a46eb0aa2114c95953f85224a2750c74059755df2f9bec107"
+  },
+  "authority_bindings": {
+    "digest_projection": "rfc8785_jcs_without_top_level_authority_binding",
+    "rvoip": {
+      "path": "docs/capacity/contracts/rvoip-capability-integration-v1.json",
+      "contract_id": "rvoip-capability-integration-v1",
+      "revision": 6,
+      "content_sha256": "c66835b4e86341f3cde110b9e74190b6addf2e4f7409834ac96b8dcb146ee6d8"
+    },
+    "voice_media_goal4": {
+      "path": "docs/capacity/contracts/voice-media-goal4-v1.json",
+      "contract_id": "voice-media-goal4-v1",
+      "revision": 6,
+      "content_sha256": "4493687546edd76751c6fbdd2367e53cf1b7899df2efdf9cb97f78e2cc00a779"
+    }
+  },
+  "source_identity": {
+    "repository_head": "4cefaa5eb85a91e60e228b04062de11b65153198",
+    "branch": "codex/ivekit-v5-shared-foundation",
+    "canonical_plan": "docs/superpowers/plans/2026-07-29-unified-voice-foundation-r4.md",
+    "canonical_design": "docs/design/rvoip-opc-communication-foundation-integration-design.md",
+    "canonical_adr": "docs/adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md",
+    "livekit_handoff_adr": "docs/adr/ccaas-8-voice-livekit-bridge-handoff.md",
+    "rvoip_contract": "docs/capacity/contracts/rvoip-capability-integration-v1.json",
+    "voice_media_goal4_contract": "docs/capacity/contracts/voice-media-goal4-v1.json",
+    "rvoip_capability_count": 198,
+    "rvoip_replacement_gate_count": 14
+  },
+  "claim_boundary": {
+    "capacity_claim": "none",
+    "physical_result_status": "not_run",
+    "production_result_status": "not_run",
+    "production_eligible": false,
+    "runtime_enablement": false,
+    "upstream_claim_authorizes_ivekit": false,
+    "local_microbenchmark_authorizes_production": false,
+    "borrowed_evidence_allowed": false,
+    "results_inheritable": false
+  },
+  "architecture_profile": {
+    "profile_id": "CARRIER-CELL-V1",
+    "architecture_profile_count": 1,
+    "ordinary_media_backend": "rtpengine_ordinary",
+    "decode_required_backend": "embedded_voice_media",
+    "room_webrtc_backend": "livekit",
+    "livekit_gateway_backend": "livekit_sip_bridge",
+    "rust_native_fast_path_role": "candidate_backend_not_second_profile",
+    "standalone_role": "development_diagnostics_and_benchmark_only",
+    "runtime_capability_identity_fields": [
+      "backend_id",
+      "source_digest",
+      "binary_digest",
+      "config_digest",
+      "capability_set_digest"
+    ],
+    "missing_identity_policy": "backend_ineligible_fail_closed",
+    "results_inheritable": false,
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "authority_matrix": {
+    "policy": {
+      "owner": "opc_ivekit_policy_store",
+      "writer_count": 1,
+      "fact_scope": "tenant_identity_business_compliance_recording_and_tariff_policy"
+    },
+    "telephony_business": {
+      "owner": "unified_rustpbx_call_core",
+      "writer_count": 1,
+      "fact_scope": "call_leg_business_dialog_route_and_terminal_state"
+    },
+    "sip_protocol": {
+      "owner": "selected_sip_foundation",
+      "writer_count": 1,
+      "fact_scope": "sip_protocol_transaction_and_dialog"
+    },
+    "logical_media_graph": {
+      "owner": "unified_rustpbx_call_core",
+      "writer_count": 1,
+      "fact_scope": "logical_media_graph_intent"
+    },
+    "media_plan": {
+      "owner": "rustpbx_media_engine_facade",
+      "writer_count": 1,
+      "fact_scope": "media_plan_backend_assignment"
+    },
+    "directed_media_edge_generation": {
+      "owner": "rustpbx_media_engine_facade",
+      "writer_count": 1,
+      "fact_scope": "edge_generation_binding_and_writer_fence"
+    },
+    "room_webrtc": {
+      "owner": "livekit",
+      "writer_count": 1,
+      "fact_scope": "room_participant_track_ice_dtls_srtp_sfu_and_turn"
+    },
+    "recording_intent": {
+      "owner": "unified_rustpbx_call_core",
+      "writer_count": 1,
+      "fact_scope": "per_interaction_recording_intent_and_policy_snapshot"
+    },
+    "recording_manifest": {
+      "owner": "region_recording_plane",
+      "writer_count": 1,
+      "fact_scope": "manifest_segment_evidence_retention_and_legal_hold"
+    },
+    "immutable_voice_cdr": {
+      "owner": "unified_rustpbx_call_core",
+      "writer_count": 1,
+      "fact_scope": "immutable_dual_leg_voice_cdr_fact"
+    },
+    "cdr_convergence": {
+      "owner": "region_cdr_convergence_service",
+      "writer_count": 1,
+      "fact_scope": "durable_cdr_projection_final_receipt_and_terminal_repair"
+    },
+    "billing_rating": {
+      "owner": "opc_ivekit_billing",
+      "writer_count": 1,
+      "fact_scope": "customer_rating_session_and_tariff_dimensions"
+    },
+    "dtmf_event": {
+      "owner": "unified_rustpbx_per_leg_dtmf_event_authority",
+      "writer_count": 1,
+      "fact_scope": "canonical_monotonic_dtmf_sequence_and_business_effect"
+    },
+    "bridge_orchestration_store": {
+      "owner": "opc_owned_bridge_coordinator_store",
+      "writer_count": 1,
+      "fact_scope": "bridge_attempt_decision_receipt_tombstone_and_cleanup"
+    },
+    "livekit_sip_role": "executor_not_authority"
+  },
+  "receipt_facts": {
+    "effect_wal_authority": "selected_sip_foundation_effect_wal",
+    "attempt_identity_fields": [
+      "decision_id",
+      "idempotency_key",
+      "request_hash",
+      "command_id",
+      "wire_bytes_hash"
+    ],
+    "levels": [
+      "durable_decision",
+      "send_attempted",
+      "transport_accepted",
+      "protocol_observed",
+      "failed",
+      "unknown"
+    ],
+    "network_exactly_once": false,
+    "query_scope": "local_durable_facts",
+    "transport_acceptance_proves_peer_receipt": false,
+    "protocol_observation_required_for_peer_effect": true,
+    "unknown_effect_policy": "query_and_reconcile_same_attempt_identity",
+    "retransmission_rule": "same_transaction_identity_and_wire_bytes_hash",
+    "same_idempotency_different_hash": "conflict_fail_closed",
+    "terminal_tombstone_required": true,
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "wire_freeze": {
+    "ordered_stages": [
+      "semantic_intent",
+      "route_transport_local_endpoint_binding",
+      "transaction_visible_fields_and_wire_bytes_hash_freeze",
+      "durable_decision",
+      "transmission"
+    ],
+    "binding_facts": [
+      "rfc3263_candidate",
+      "next_hop",
+      "route_set",
+      "transport",
+      "local_endpoint",
+      "advertised_via_sent_by",
+      "via_branch",
+      "tls_sni",
+      "authorization_identity",
+      "canonical_wire_bytes",
+      "wire_bytes_hash"
+    ],
+    "dns_connect_are_preparatory": true,
+    "preparatory_actions_emit_sip": false,
+    "post_decision_wire_mutation": "forbidden",
+    "binding_change_rule": "new_protocol_attempt_with_explicit_lineage",
+    "retransmission_bytes_rule": "byte_identical_for_same_transaction_attempt",
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "sip_transaction_policy": {
+    "transaction_key_fields": [
+      "branch",
+      "sent_by",
+      "method",
+      "call_id",
+      "cseq"
+    ],
+    "non_2xx_ack_owner": "transaction_runtime",
+    "ack_2xx_owner": "uac_core_protocol_dialog",
+    "uas_2xx_retransmission_owner": "uas_core_protocol_dialog",
+    "repeated_2xx_ack_rule": "replay_same_ack_for_dialog",
+    "forked_2xx_rule": "one_dialog_and_ack_per_distinct_to_tag",
+    "cancel_correlation_required": true,
+    "cancel_match_rule": "same_invite_branch_call_id_cseq_number_and_route_binding",
+    "prack_match_rule": "exact_rseq_rack_early_dialog_and_transaction",
+    "late_response_rule": "protocol_facts_only_no_business_state_resurrection",
+    "transaction_timer_clock": "monotonic",
+    "rfc3263_contract": {
+      "candidate_order": [
+        "naptr_order_and_preference",
+        "srv_priority_and_weight",
+        "address_family_policy"
+      ],
+      "candidate_identity_fields": [
+        "target_fqdn",
+        "transport",
+        "port",
+        "address",
+        "naptr_order",
+        "naptr_preference",
+        "srv_priority",
+        "srv_weight"
+      ],
+      "dns_query_timeout_ms": 2000,
+      "candidate_connect_timeout_ms": 3000,
+      "candidate_attempt_ceiling": 8,
+      "per_candidate_retry_ceiling": 1,
+      "total_resolution_connect_deadline_ms": 10000,
+      "exhaustion_policy": "terminal_effect_with_ordered_candidate_attempt_receipts",
+      "effect_retention": {
+        "candidate_attempt_receipt_ms": 86400000,
+        "transaction_effect_ms": 604800000,
+        "late_response_correlation_ms": 32000,
+        "gc_policy": "only_after_transaction_dialog_recovery_and_rollback_references_expire"
+      },
+      "verification_status": "not_run"
+    },
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "backend_capability_sets": [
+    {
+      "backend_id": "embedded_voice_media",
+      "schema_id": "backend-capability-set-v1",
+      "schema_version": "1.0.0",
+      "schema_authority": "unified_rustpbx_media_protocol_governance",
+      "role": "decode_required_media",
+      "current_status": "partial",
+      "target_requirement": "required",
+      "source_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "binary_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "config_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "capability_set_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "eligibility_status": "not_run",
+      "production_eligible": false,
+      "lifecycle_contract": {
+        "allocation_scope": "directed_edge_generation",
+        "blocked_prepare": "required_before_commit",
+        "precommit_output": "forbidden",
+        "commit": "durable_decision_then_activate_exact_generation",
+        "abort": "precommit_only_then_release_with_tombstone",
+        "revoke": "durable_decision_then_stop_exact_generation",
+        "zero_output_ack": "packet_watermark_required_before_successor_commit",
+        "fence_scope": "directed_edge_generation",
+        "query": "read_only_exact_generation",
+        "reconcile": "durable_decision_to_provider_state",
+        "migration": "new_generation_never_reactivate_revoked_generation",
+        "notification": "receipt_candidate_only_query_on_loss_or_ambiguity",
+        "member_flow_fence": "required_when_allocation_scope_is_coarser_than_edge",
+        "security_termination_scope": "exact_crypto_context_and_transport_generation",
+        "operation_contracts": [
+          {
+            "operation_id": "allocation",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": [
+              "exact_source_binary_config_capability_set_identity"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "prepare",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": ["allocation_and_capacity_reservation_verified"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "commit",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": [
+              "prepared_blocked_receipt_durable_decision_and_writer_fence"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "abort",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": ["precommit_generation_and_abort_tombstone"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "revoke",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": ["active_generation_and_durable_revoke_decision"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "fence",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": [
+              "owner_epoch_command_sequence_and_writer_fence_match"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "query",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": ["exact_generation_identity"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "reconcile",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": ["durable_decision_and_exact_provider_generation"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "migration",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": [
+              "new_generation_and_predecessor_zero_output_receipt"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "notification",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": [
+              "authenticated_identity_and_query_reconcile_fallback"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "member_flow_fence",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "member_flow",
+            "prerequisites": ["immutable_member_set_and_member_flow_fence"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "zero_output_ack",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": ["packet_watermark_and_last_tx_receipt"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "security_termination_scope",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["exact_transport_and_crypto_context_generation"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          }
+        ],
+        "verification_status": "not_run"
+      },
+      "capabilities": [
+        {
+          "capability_id": "bounded_processing_session",
+          "required": true,
+          "support": "partial",
+          "verified": "not_run",
+          "granularity": "directed_edge"
+        },
+        {
+          "capability_id": "codec_chain",
+          "required": true,
+          "support": "partial",
+          "verified": "not_run",
+          "granularity": "directed_edge"
+        },
+        {
+          "capability_id": "rfc4733_dtmf",
+          "required": true,
+          "support": "partial",
+          "verified": "not_run",
+          "granularity": "member_flow"
+        },
+        {
+          "capability_id": "recording_tap",
+          "required": true,
+          "support": "partial",
+          "verified": "not_run",
+          "granularity": "directed_edge"
+        },
+        {
+          "capability_id": "ai_tap",
+          "required": true,
+          "support": "partial",
+          "verified": "not_run",
+          "granularity": "directed_edge"
+        },
+        {
+          "capability_id": "n_minus_one_mix",
+          "required": true,
+          "support": "partial",
+          "verified": "not_run",
+          "granularity": "binding_group"
+        }
+      ]
+    },
+    {
+      "backend_id": "livekit_sip_bridge",
+      "schema_id": "backend-capability-set-v1",
+      "schema_version": "1.0.0",
+      "schema_authority": "unified_rustpbx_media_protocol_governance",
+      "role": "voice_room_bridge",
+      "current_status": "partial",
+      "target_requirement": "required",
+      "source_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "binary_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "config_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "capability_set_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "eligibility_status": "not_run",
+      "production_eligible": false,
+      "lifecycle_contract": {
+        "allocation_scope": "bridge_generation",
+        "blocked_prepare": "required_before_commit",
+        "precommit_output": "forbidden",
+        "commit": "durable_decision_then_activate_exact_generation",
+        "abort": "precommit_only_then_release_with_tombstone",
+        "revoke": "durable_decision_then_stop_exact_generation",
+        "zero_output_ack": "packet_watermark_required_before_successor_commit",
+        "fence_scope": "bridge_generation",
+        "query": "read_only_exact_generation",
+        "reconcile": "durable_decision_to_provider_state",
+        "migration": "new_generation_never_reactivate_revoked_generation",
+        "notification": "receipt_candidate_only_query_on_loss_or_ambiguity",
+        "member_flow_fence": "required_when_allocation_scope_is_coarser_than_edge",
+        "security_termination_scope": "exact_crypto_context_and_transport_generation",
+        "operation_contracts": [
+          {
+            "operation_id": "allocation",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "bridge_generation",
+            "prerequisites": [
+              "exact_source_binary_config_capability_set_identity"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "prepare",
+            "required": true,
+            "support": "unsupported",
+            "verified": "not_run",
+            "granularity": "bridge_generation",
+            "prerequisites": ["allocation_and_capacity_reservation_verified"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "commit",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "bridge_generation",
+            "prerequisites": [
+              "prepared_blocked_receipt_durable_decision_and_writer_fence"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "abort",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "bridge_generation",
+            "prerequisites": ["precommit_generation_and_abort_tombstone"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "revoke",
+            "required": true,
+            "support": "unsupported",
+            "verified": "not_run",
+            "granularity": "bridge_generation",
+            "prerequisites": ["active_generation_and_durable_revoke_decision"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "fence",
+            "required": true,
+            "support": "unsupported",
+            "verified": "not_run",
+            "granularity": "bridge_generation",
+            "prerequisites": [
+              "owner_epoch_command_sequence_and_writer_fence_match"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "query",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "bridge_generation",
+            "prerequisites": ["exact_generation_identity"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "reconcile",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "bridge_generation",
+            "prerequisites": ["durable_decision_and_exact_provider_generation"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "migration",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "bridge_generation",
+            "prerequisites": [
+              "new_generation_and_predecessor_zero_output_receipt"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "notification",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "bridge_generation",
+            "prerequisites": [
+              "authenticated_identity_and_query_reconcile_fallback"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "member_flow_fence",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "member_flow",
+            "prerequisites": ["immutable_member_set_and_member_flow_fence"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "zero_output_ack",
+            "required": true,
+            "support": "unsupported",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": ["packet_watermark_and_last_tx_receipt"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "security_termination_scope",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["exact_transport_and_crypto_context_generation"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          }
+        ],
+        "verification_status": "not_run"
+      },
+      "capabilities": [
+        {
+          "capability_id": "bidirectional_bridge",
+          "required": true,
+          "support": "partial",
+          "verified": "not_run",
+          "granularity": "bridge_generation"
+        },
+        {
+          "capability_id": "ice_dtls_srtp_bundle_mid",
+          "required": true,
+          "support": "partial",
+          "verified": "not_run",
+          "granularity": "binding_group"
+        }
+      ]
+    },
+    {
+      "backend_id": "rtpengine_ordinary",
+      "schema_id": "backend-capability-set-v1",
+      "schema_version": "1.0.0",
+      "schema_authority": "unified_rustpbx_media_protocol_governance",
+      "role": "ordinary_media",
+      "current_status": "partial",
+      "target_requirement": "required",
+      "source_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "binary_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "config_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "capability_set_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "eligibility_status": "not_run",
+      "production_eligible": false,
+      "lifecycle_contract": {
+        "allocation_scope": "binding_group_generation",
+        "blocked_prepare": "required_before_commit",
+        "precommit_output": "forbidden",
+        "commit": "durable_decision_then_activate_exact_generation",
+        "abort": "precommit_only_then_release_with_tombstone",
+        "revoke": "durable_decision_then_stop_exact_generation",
+        "zero_output_ack": "packet_watermark_required_before_successor_commit",
+        "fence_scope": "binding_group_generation",
+        "query": "read_only_exact_generation",
+        "reconcile": "durable_decision_to_provider_state",
+        "migration": "new_generation_never_reactivate_revoked_generation",
+        "notification": "receipt_candidate_only_query_on_loss_or_ambiguity",
+        "member_flow_fence": "required_when_allocation_scope_is_coarser_than_edge",
+        "security_termination_scope": "exact_crypto_context_and_transport_generation",
+        "operation_contracts": [
+          {
+            "operation_id": "allocation",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": [
+              "exact_source_binary_config_capability_set_identity"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "prepare",
+            "required": true,
+            "support": "unsupported",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["allocation_and_capacity_reservation_verified"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "commit",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": [
+              "prepared_blocked_receipt_durable_decision_and_writer_fence"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "abort",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["precommit_generation_and_abort_tombstone"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "revoke",
+            "required": true,
+            "support": "unsupported",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["active_generation_and_durable_revoke_decision"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "fence",
+            "required": true,
+            "support": "unsupported",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": [
+              "owner_epoch_command_sequence_and_writer_fence_match"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "query",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["exact_generation_identity"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "reconcile",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["durable_decision_and_exact_provider_generation"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "migration",
+            "required": true,
+            "support": "unsupported",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": [
+              "new_generation_and_predecessor_zero_output_receipt"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "notification",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": [
+              "authenticated_identity_and_query_reconcile_fallback"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "member_flow_fence",
+            "required": true,
+            "support": "unsupported",
+            "verified": "not_run",
+            "granularity": "member_flow",
+            "prerequisites": ["immutable_member_set_and_member_flow_fence"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "zero_output_ack",
+            "required": true,
+            "support": "unsupported",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": ["packet_watermark_and_last_tx_receipt"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "security_termination_scope",
+            "required": true,
+            "support": "partial",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["exact_transport_and_crypto_context_generation"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          }
+        ],
+        "verification_status": "not_run"
+      },
+      "capabilities": [
+        {
+          "capability_id": "ordinary_rtp_rtcp",
+          "required": true,
+          "support": "supported",
+          "verified": "not_run",
+          "granularity": "binding_group"
+        },
+        {
+          "capability_id": "srtp",
+          "required": true,
+          "support": "partial",
+          "verified": "not_run",
+          "granularity": "binding_group"
+        },
+        {
+          "capability_id": "wire_sdp",
+          "required": true,
+          "support": "supported",
+          "verified": "not_run",
+          "granularity": "binding_group"
+        },
+        {
+          "capability_id": "dtmf_event_notification",
+          "required": true,
+          "support": "unknown",
+          "verified": "not_run",
+          "granularity": "member_flow"
+        }
+      ]
+    },
+    {
+      "backend_id": "rust_native_fast_path",
+      "schema_id": "backend-capability-set-v1",
+      "schema_version": "1.0.0",
+      "schema_authority": "unified_rustpbx_media_protocol_governance",
+      "role": "optional_ordinary_media_candidate",
+      "current_status": "not_run",
+      "target_requirement": "optional",
+      "source_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "binary_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "config_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "capability_set_digest": {
+        "algorithm": "sha256",
+        "value": null,
+        "verification_status": "not_run"
+      },
+      "eligibility_status": "not_run",
+      "production_eligible": false,
+      "lifecycle_contract": {
+        "allocation_scope": "binding_group_generation",
+        "blocked_prepare": "required_before_commit",
+        "precommit_output": "forbidden",
+        "commit": "durable_decision_then_activate_exact_generation",
+        "abort": "precommit_only_then_release_with_tombstone",
+        "revoke": "durable_decision_then_stop_exact_generation",
+        "zero_output_ack": "packet_watermark_required_before_successor_commit",
+        "fence_scope": "binding_group_generation",
+        "query": "read_only_exact_generation",
+        "reconcile": "durable_decision_to_provider_state",
+        "migration": "new_generation_never_reactivate_revoked_generation",
+        "notification": "receipt_candidate_only_query_on_loss_or_ambiguity",
+        "member_flow_fence": "required_when_allocation_scope_is_coarser_than_edge",
+        "security_termination_scope": "exact_crypto_context_and_transport_generation",
+        "operation_contracts": [
+          {
+            "operation_id": "allocation",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": [
+              "exact_source_binary_config_capability_set_identity"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "prepare",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["allocation_and_capacity_reservation_verified"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "commit",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": [
+              "prepared_blocked_receipt_durable_decision_and_writer_fence"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "abort",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["precommit_generation_and_abort_tombstone"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "revoke",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["active_generation_and_durable_revoke_decision"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "fence",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": [
+              "owner_epoch_command_sequence_and_writer_fence_match"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "query",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["exact_generation_identity"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "reconcile",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["durable_decision_and_exact_provider_generation"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "migration",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": [
+              "new_generation_and_predecessor_zero_output_receipt"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "notification",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": [
+              "authenticated_identity_and_query_reconcile_fallback"
+            ],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "member_flow_fence",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "member_flow",
+            "prerequisites": ["immutable_member_set_and_member_flow_fence"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "zero_output_ack",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "directed_edge",
+            "prerequisites": ["packet_watermark_and_last_tx_receipt"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          },
+          {
+            "operation_id": "security_termination_scope",
+            "required": true,
+            "support": "unknown",
+            "verified": "not_run",
+            "granularity": "binding_group",
+            "prerequisites": ["exact_transport_and_crypto_context_generation"],
+            "unmet_prerequisite_policy": "fail_closed_without_side_effect_and_freeze_exact_generation"
+          }
+        ],
+        "verification_status": "not_run"
+      },
+      "capabilities": [
+        {
+          "capability_id": "rtp_rtcp_srtp_parity",
+          "required": true,
+          "support": "unknown",
+          "verified": "not_run",
+          "granularity": "binding_group"
+        },
+        {
+          "capability_id": "kernel_nic_numa_profile",
+          "required": true,
+          "support": "unknown",
+          "verified": "not_run",
+          "granularity": "backend"
+        },
+        {
+          "capability_id": "same_hardware_rtpengine_floor",
+          "required": true,
+          "support": "unknown",
+          "verified": "not_run",
+          "granularity": "backend"
+        },
+        {
+          "capability_id": "failure_isolation",
+          "required": true,
+          "support": "unknown",
+          "verified": "not_run",
+          "granularity": "backend"
+        },
+        {
+          "capability_id": "endurance_24h",
+          "required": true,
+          "support": "unknown",
+          "verified": "not_run",
+          "granularity": "backend"
+        }
+      ]
+    }
+  ],
+  "media_graph_compiler": {
+    "compiler_id": "directed-media-graph-compiler-v1",
+    "input_authority": "unified_rustpbx_call_core",
+    "output_unit": "directed_media_edge_generation",
+    "compile_failure_mode": "fail_closed_before_backend_allocation",
+    "required_capability_rule": "support_must_be_supported_and_verified_passed",
+    "runtime_identity_rule": "source_binary_config_and_capability_set_digest_exact_match",
+    "compile_errors": [
+      "backend_identity_missing",
+      "backend_identity_mismatch",
+      "required_capability_not_supported",
+      "required_capability_not_verified",
+      "capability_granularity_mismatch",
+      "illegal_binding_group",
+      "incomplete_member_flow_set",
+      "writer_fence_conflict",
+      "security_context_mismatch",
+      "coarse_lifecycle_scope_without_member_flow_fence",
+      "binding_group_split_impossible",
+      "lifecycle_operation_missing",
+      "lifecycle_operation_not_supported",
+      "lifecycle_operation_not_verified",
+      "lifecycle_operation_granularity_mismatch",
+      "lifecycle_operation_prerequisite_unmet"
+    ],
+    "grouping_rules": {
+      "allocation_unit": "backend_binding_group_generation",
+      "member_flow_key": ["group_id", "group_generation", "flow_selector"],
+      "member_set": "immutable_within_group_generation",
+      "directed_edge_binding": "exactly_one_wire_media_binding_per_edge_generation",
+      "writer_fence": "one_active_writer_per_directed_edge_generation",
+      "shared_allocation": "only_compatible_security_codec_transport_and_lifetime",
+      "group_change": "new_binding_group_generation",
+      "edge_change": "new_directed_edge_generation",
+      "bidirectional_media": "two_opposite_directed_edges",
+      "tap_rule": "recording_ai_and_quality_are_separate_directed_edges"
+    },
+    "lifecycle_granularity_rule": {
+      "required_unit": "directed_edge_generation",
+      "coarse_allocation_detection": "backend_lifecycle_or_fence_scope_coarser_than_directed_edge",
+      "member_flow_fence_proof_required": true,
+      "unproven_member_flow_policy": "split_binding_group_or_fail_closed",
+      "split_result": "one_lifecycle_and_fence_domain_per_compatible_directed_edge_set",
+      "allocation_before_resolution": "forbidden"
+    },
+    "lifecycle_operation_gate": {
+      "required_operations": [
+        "allocation",
+        "prepare",
+        "commit",
+        "abort",
+        "revoke",
+        "fence",
+        "query",
+        "reconcile",
+        "migration",
+        "notification",
+        "member_flow_fence",
+        "zero_output_ack",
+        "security_termination_scope"
+      ],
+      "requirement_sources": {
+        "lifecycle_operations": "backend_capability_sets.lifecycle_contract.operation_contracts",
+        "media_features": "backend_capability_sets.capabilities"
+      },
+      "input_fields": ["support", "verified", "granularity", "prerequisites"],
+      "support_requirement": "supported",
+      "verification_requirement": "passed",
+      "granularity_requirement": "exact_operation_scope",
+      "prerequisite_requirement": "all_declared_prerequisites_passed",
+      "evaluation": "each_operation_independent_no_aggregate_inference",
+      "failure_mode": "fail_closed_without_side_effect_and_freeze_exact_generation"
+    },
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "rtpengine_atomic_lifecycle": {
+    "required_target": true,
+    "required_patch_id": "rtpengine-ivekit-atomic-binding-lifecycle-v1",
+    "current_availability": "unavailable",
+    "allocation_identity_fields": [
+      "backend_allocation_id",
+      "binding_group_id",
+      "binding_group_generation",
+      "backend_instance_id"
+    ],
+    "writer_fence_fields": ["owner_epoch", "command_sequence", "writer_fence"],
+    "wal_decision_before_command": true,
+    "notification_is_receipt": false,
+    "notification_loss_policy": "query_and_reconcile",
+    "member_flow_identity_fields": [
+      "group_id",
+      "group_generation",
+      "flow_selector"
+    ],
+    "member_set_mutability": "frozen_after_prepare",
+    "zero_output_requirement": "packet_level_ack_with_last_tx_watermark_before_successor_commit",
+    "security_identity_fields": [
+      "wire_transport_bundle_id",
+      "security_mode",
+      "crypto_context_generation"
+    ],
+    "same_identity_different_hash": "conflict_fail_closed",
+    "verification_status": "not_run",
+    "execution_profiles": [
+      {
+        "profile_id": "userspace",
+        "execution_mode": "userspace",
+        "identity": {
+          "source_digest": {
+            "algorithm": "sha256",
+            "value": null,
+            "verification_status": "not_run"
+          },
+          "binary_digest": {
+            "algorithm": "sha256",
+            "value": null,
+            "verification_status": "not_run"
+          },
+          "config_digest": {
+            "algorithm": "sha256",
+            "value": null,
+            "verification_status": "not_run"
+          },
+          "capability_set_digest": {
+            "algorithm": "sha256",
+            "value": null,
+            "verification_status": "not_run"
+          }
+        },
+        "hardware_identity": {
+          "hardware_profile_id": null,
+          "nic_driver_digest": null,
+          "kernel_module_digest": null,
+          "cell_id": null,
+          "verification_status": "not_run"
+        },
+        "required_evidence": [
+          "userspace_packet_path",
+          "userspace_source_binary_config_capability_identity",
+          "userspace_hardware_identity"
+        ],
+        "result_status": "not_run",
+        "results_inheritable": false,
+        "production_eligible": false
+      },
+      {
+        "profile_id": "kernel",
+        "execution_mode": "kernel",
+        "identity": {
+          "source_digest": {
+            "algorithm": "sha256",
+            "value": null,
+            "verification_status": "not_run"
+          },
+          "binary_digest": {
+            "algorithm": "sha256",
+            "value": null,
+            "verification_status": "not_run"
+          },
+          "config_digest": {
+            "algorithm": "sha256",
+            "value": null,
+            "verification_status": "not_run"
+          },
+          "capability_set_digest": {
+            "algorithm": "sha256",
+            "value": null,
+            "verification_status": "not_run"
+          }
+        },
+        "hardware_identity": {
+          "hardware_profile_id": null,
+          "nic_driver_digest": null,
+          "kernel_module_digest": null,
+          "cell_id": null,
+          "verification_status": "not_run"
+        },
+        "required_evidence": [
+          "kernel_packet_path",
+          "kernel_source_binary_config_capability_identity",
+          "kernel_module_nic_and_hardware_identity"
+        ],
+        "result_status": "not_run",
+        "results_inheritable": false,
+        "production_eligible": false
+      }
+    ],
+    "production_eligible": false,
+    "active_migration_enabled": false,
+    "operations": [
+      {
+        "operation_id": "prepare_blocked",
+        "durable_fact": "prepare_decision_and_allocation_receipt",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "commit",
+        "durable_fact": "activation_decision_and_first_tx_receipt",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "abort",
+        "durable_fact": "abort_decision_and_release_tombstone",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "revoke_zero_output",
+        "durable_fact": "revoke_decision_zero_output_ack_and_last_tx_watermark",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "release",
+        "durable_fact": "release_receipt_and_terminal_tombstone",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "query",
+        "durable_fact": "read_only_exact_generation_observation",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "reconcile",
+        "durable_fact": "decision_to_provider_convergence_result",
+        "status": "not_run"
+      }
+    ]
+  },
+  "recovery_matrix": [
+    {
+      "state_id": "active_invite_transaction",
+      "current_status": "unavailable",
+      "target_policy": "fail_closed_or_protocol_restart",
+      "verification_status": "not_run",
+      "lossless_restore_claim": false,
+      "persist_runtime_instant": false,
+      "cross_adapter_restore": false
+    },
+    {
+      "state_id": "active_non_invite_transaction",
+      "current_status": "unavailable",
+      "target_policy": "fail_closed_or_protocol_restart",
+      "verification_status": "not_run",
+      "lossless_restore_claim": false,
+      "persist_runtime_instant": false,
+      "cross_adapter_restore": false
+    },
+    {
+      "state_id": "active_timers",
+      "current_status": "unavailable",
+      "target_policy": "fail_closed_or_protocol_restart",
+      "verification_status": "not_run",
+      "lossless_restore_claim": false,
+      "persist_runtime_instant": false,
+      "cross_adapter_restore": false
+    },
+    {
+      "state_id": "confirmed_quiescent_dialog",
+      "current_status": "partial",
+      "target_policy": "restore",
+      "verification_status": "not_run",
+      "lossless_restore_claim": false,
+      "persist_runtime_instant": false,
+      "cross_adapter_restore": false
+    },
+    {
+      "state_id": "dead_tcp_tls_flow",
+      "current_status": "unavailable",
+      "target_policy": "fail_closed_or_protocol_restart",
+      "verification_status": "not_run",
+      "lossless_restore_claim": false,
+      "persist_runtime_instant": false,
+      "cross_adapter_restore": false
+    },
+    {
+      "state_id": "dns_connection_attempt",
+      "current_status": "unavailable",
+      "target_policy": "fail_closed_or_protocol_restart",
+      "verification_status": "not_run",
+      "lossless_restore_claim": false,
+      "persist_runtime_instant": false,
+      "cross_adapter_restore": false
+    },
+    {
+      "state_id": "early_dialog",
+      "current_status": "unavailable",
+      "target_policy": "fail_closed_or_protocol_restart",
+      "verification_status": "not_run",
+      "lossless_restore_claim": false,
+      "persist_runtime_instant": false,
+      "cross_adapter_restore": false
+    },
+    {
+      "state_id": "pending_2xx_ack",
+      "current_status": "unavailable",
+      "target_policy": "fail_closed_or_protocol_restart",
+      "verification_status": "not_run",
+      "lossless_restore_claim": false,
+      "persist_runtime_instant": false,
+      "cross_adapter_restore": false
+    },
+    {
+      "state_id": "pending_prack_rseq_rack",
+      "current_status": "unavailable",
+      "target_policy": "fail_closed_or_protocol_restart",
+      "verification_status": "not_run",
+      "lossless_restore_claim": false,
+      "persist_runtime_instant": false,
+      "cross_adapter_restore": false
+    },
+    {
+      "state_id": "unknown_effect",
+      "current_status": "unavailable",
+      "target_policy": "fail_closed_or_protocol_restart",
+      "verification_status": "not_run",
+      "lossless_restore_claim": false,
+      "persist_runtime_instant": false,
+      "cross_adapter_restore": false
+    }
+  ],
+  "durable_store_slo": {
+    "authority": "postgresql_region_durable_store",
+    "transaction_p99_budget_ms": 20,
+    "call_setup_cumulative_p99_budget_ms": 60,
+    "trying_p99_budget_ms": 100,
+    "trying_hard_deadline_ms": 200,
+    "write_timeout_ms": 250,
+    "pool_wait_p99_budget_ms": 10,
+    "pool_size_ceiling": 256,
+    "queue_depth_ceiling": 1024,
+    "retry_attempt_ceiling": 3,
+    "repair_batch_ceiling": 100,
+    "unavailable_new_call_policy": "reject_503_retry_after",
+    "existing_call_policy": "bounded_repair_no_unbounded_queue",
+    "degradation_cause_codes": [
+      "store_timeout",
+      "store_pool_exhausted",
+      "store_unavailable",
+      "store_schema_incompatible"
+    ],
+    "trying_before_business_decision_allowed": true,
+    "business_visible_18x_2xx_before_durable_decision": false,
+    "atomic_boundaries": {
+      "call_admission": [
+        "call_session",
+        "protocol_effect",
+        "effect_wal",
+        "capacity_reservation_receipt",
+        "idempotency_record"
+      ],
+      "media_generation": [
+        "media_plan",
+        "directed_media_edges",
+        "backend_binding_groups",
+        "capacity_reservation_receipt"
+      ],
+      "bridge_head": [
+        "bridge_command",
+        "bridge_decision",
+        "bridge_receipt",
+        "head_compare_and_swap"
+      ],
+      "recording": [
+        "recording_intent",
+        "root_recording_manifest",
+        "source_chain",
+        "segment_reference"
+      ],
+      "commit_rule": "all_or_nothing_single_region_transaction",
+      "partial_commit_policy": "rollback_and_return_stable_failure_code",
+      "business_visible_effect_gates": {
+        "route_activation": "after_call_admission_durable_decision",
+        "media_activation": "after_media_generation_and_bridge_head_durable_decisions",
+        "billing": "after_call_admission_or_bridge_durable_decision",
+        "recording": "after_recording_durable_decision",
+        "webhook": "after_protocol_or_bridge_effect_durable_decision"
+      }
+    },
+    "retry_after_contract": {
+      "input_fields": [
+        "failure_code",
+        "pool_wait_ms",
+        "queue_depth",
+        "retry_attempt"
+      ],
+      "input_constraints": {
+        "failure_code": {
+          "membership": "degradation_cause_codes"
+        },
+        "pool_wait_ms": {
+          "type": "u64",
+          "minimum": 0,
+          "maximum": 250
+        },
+        "queue_depth": {
+          "type": "u64",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "retry_attempt": {
+          "type": "u64",
+          "minimum": 0,
+          "maximum": 3
+        }
+      },
+      "numeric_policy": "checked_u64_reject_overflow",
+      "base_seconds": 1,
+      "pool_wait_divisor_ms": 1000,
+      "queue_depth_divisor": 256,
+      "retry_attempt_seconds": 1,
+      "formula": {
+        "operation": "clamp",
+        "minimum_field": "minimum_seconds",
+        "maximum_field": "maximum_seconds",
+        "value": {
+          "operation": "checked_add",
+          "operands": [
+            "base_seconds",
+            {
+              "operation": "checked_ceil_div",
+              "numerator_field": "pool_wait_ms",
+              "divisor_field": "pool_wait_divisor_ms"
+            },
+            {
+              "operation": "checked_ceil_div",
+              "numerator_field": "queue_depth",
+              "divisor_field": "queue_depth_divisor"
+            },
+            {
+              "operation": "checked_multiply",
+              "left_field": "retry_attempt",
+              "right_field": "retry_attempt_seconds"
+            }
+          ]
+        }
+      },
+      "minimum_seconds": 1,
+      "maximum_seconds": 30,
+      "jitter": "forbidden",
+      "same_inputs_same_output": true,
+      "invalid_input_policy": "reject_without_fabricated_retry_after"
+    },
+    "failure_responses": [
+      {
+        "failure_code": "store_timeout",
+        "sip_status": 503,
+        "retry_after_required": true,
+        "partial_commit_allowed": false
+      },
+      {
+        "failure_code": "store_pool_exhausted",
+        "sip_status": 503,
+        "retry_after_required": true,
+        "partial_commit_allowed": false
+      },
+      {
+        "failure_code": "store_unavailable",
+        "sip_status": 503,
+        "retry_after_required": true,
+        "partial_commit_allowed": false
+      },
+      {
+        "failure_code": "store_schema_incompatible",
+        "sip_status": 503,
+        "retry_after_required": true,
+        "partial_commit_allowed": false
+      }
+    ],
+    "physical_result_status": "not_run",
+    "production_eligible": false
+  },
+  "edge_to_core_policy": {
+    "contract_id": "edge-core-sip-v1",
+    "schema_identity": {
+      "registry_id": "opc-persistent-schema-registry-v1",
+      "artifact_type": "edge_core_sip_contract",
+      "schema_id": "edge-core-sip-v1",
+      "schema_version": "1.0.0",
+      "authority": "unified_rustpbx_protocol_governance"
+    },
+    "forwarding_mode": "raw_bytes_with_trusted_metadata",
+    "raw_bytes_retained": true,
+    "canonical_bytes_hash_required": true,
+    "parser_policy_version": "edge-core-sip-v1",
+    "external_metadata_policy": "strip_then_recreate",
+    "message_limits": {
+      "message_bytes_max": 65535,
+      "start_line_bytes_max": 4096,
+      "uri_bytes_max": 2048,
+      "header_section_bytes_max": 32768,
+      "header_count_max": 128,
+      "header_line_bytes_max": 8192,
+      "body_bytes_max": 32768
+    },
+    "critical_header_policy": {
+      "header_rules": {
+        "Content-Length": "one_or_byte_identical_duplicates_matching_raw_body_octets",
+        "Via": "ordered_repeatable_each_value_must_parse",
+        "From": "one_or_semantically_identical_duplicates",
+        "To": "one_or_semantically_identical_duplicates",
+        "Call-ID": "one_or_byte_identical_duplicates",
+        "CSeq": "one_or_semantically_identical_duplicates",
+        "Max-Forwards": "one_or_identical_decimal_duplicates",
+        "Contact": "ordered_repeatable_each_value_must_parse",
+        "Route": "ordered_repeatable_preserve_wire_order",
+        "Record-Route": "ordered_repeatable_preserve_wire_order",
+        "Authorization": "ordered_repeatable_independently_parse_each_credential"
+      },
+      "conflict_policy": "reject_fail_closed",
+      "duplicate_normalization": "never_choose_first_or_last_value"
+    },
+    "uri_policy": {
+      "invalid_percent_encoding": "reject_fail_closed",
+      "percent_normalization": "decode_unreserved_once_preserve_reserved_octets",
+      "userinfo": "single_at_delimiter_no_decoded_delimiter_reinterpretation",
+      "host": "lowercase_ascii_or_idna2008_alabel_no_ambiguous_trailing_dot",
+      "ipv6_literal": "brackets_required",
+      "uri_parameter_count_max": 32,
+      "uri_header_component_count_max": 16
+    },
+    "multipart_limits": {
+      "boundary_bytes_max": 70,
+      "nesting_depth_max": 2,
+      "part_count_max": 16,
+      "part_header_bytes_max": 8192,
+      "part_body_bytes_max": 32768,
+      "malformed_or_ambiguous_boundary": "reject_fail_closed"
+    },
+    "trusted_metadata": [
+      "source_identity",
+      "ingress_transport",
+      "tls_verification",
+      "raw_message_length",
+      "raw_message_sha256",
+      "parser_policy_version"
+    ],
+    "differential_security_required": true,
+    "disagreement_policy": "reject_fail_closed",
+    "smuggling_ambiguity_policy": "reject_fail_closed",
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "rolling_schema_rules": {
+    "compatibility_window": "n_and_n_plus_1",
+    "schema_registry": {
+      "registry_id": "opc-persistent-schema-registry-v1",
+      "authority": "unified_rustpbx_protocol_governance",
+      "persistence": "postgresql_region_durable_store",
+      "identity_fields": [
+        "artifact_type",
+        "schema_id",
+        "schema_version",
+        "schema_sha256"
+      ],
+      "unavailable_policy": "fail_closed_no_new_writer_version"
+    },
+    "versioned_artifacts": [
+      "call_session",
+      "business_dialog",
+      "protocol_dialog",
+      "protocol_effect",
+      "effect_wal",
+      "media_plan",
+      "directed_media_edge",
+      "backend_binding_group",
+      "wire_transport_bundle",
+      "recovery_capsule",
+      "root_recording_manifest",
+      "recording_source_chain",
+      "capacity_vector",
+      "voice_livekit_bridge_generation",
+      "voice_livekit_bridge_attempt",
+      "voice_livekit_bridge_command",
+      "voice_livekit_bridge_receipt",
+      "voice_livekit_bridge_tombstone"
+    ],
+    "artifact_contracts": [
+      {
+        "artifact_type": "call_session",
+        "schema_id": "call_session-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "business_dialog",
+        "schema_id": "business_dialog-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "protocol_dialog",
+        "schema_id": "protocol_dialog-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "protocol_effect",
+        "schema_id": "protocol_effect-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "effect_wal",
+        "schema_id": "effect_wal-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "media_plan",
+        "schema_id": "media_plan-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "directed_media_edge",
+        "schema_id": "directed_media_edge-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "backend_binding_group",
+        "schema_id": "backend_binding_group-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "wire_transport_bundle",
+        "schema_id": "wire_transport_bundle-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "recovery_capsule",
+        "schema_id": "recovery_capsule-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "root_recording_manifest",
+        "schema_id": "root_recording_manifest-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "recording_source_chain",
+        "schema_id": "recording_source_chain-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "capacity_vector",
+        "schema_id": "capacity_vector-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "voice_livekit_bridge_generation",
+        "schema_id": "voice_livekit_bridge_generation-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "voice_livekit_bridge_attempt",
+        "schema_id": "voice_livekit_bridge_attempt-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "voice_livekit_bridge_command",
+        "schema_id": "voice_livekit_bridge_command-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "voice_livekit_bridge_receipt",
+        "schema_id": "voice_livekit_bridge_receipt-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      },
+      {
+        "artifact_type": "voice_livekit_bridge_tombstone",
+        "schema_id": "voice_livekit_bridge_tombstone-v1",
+        "target_schema_versions": { "n": "1.0.0", "n_plus_1": "1.1.0" },
+        "schema_hashes": {
+          "n": null,
+          "n_plus_1": null,
+          "verification_status": "not_run"
+        },
+        "current_writer_version": null,
+        "current_writer_identity": null,
+        "current_status": "not_run",
+        "reader_matrix": {
+          "reader_n_reads_writer_n": true,
+          "reader_n_reads_writer_n_plus_1": false,
+          "reader_n_plus_1_reads_writer_n": true,
+          "reader_n_plus_1_reads_writer_n_plus_1": true
+        },
+        "writer_enable_gate": "registry_receipt_and_both_schema_hashes_verified_all_live_readers_compatible",
+        "writer_expand_contract": "expand_then_dual_read_single_write_then_contract",
+        "takeover_prerequisites": [
+          "reader_matrix_verified",
+          "schema_and_adapter_identity_match",
+          "oldest_live_reader_supports_writer_version"
+        ],
+        "migration": "idempotent_versioned_per_object_with_durable_receipt",
+        "rollback": "writer_n_until_all_reader_n_instances_are_drained",
+        "retention": "retain_source_and_migration_receipts_until_rollback_window_closed",
+        "garbage_collection": "only_after_no_live_reader_writer_or_rollback_reference",
+        "verification_status": "not_run",
+        "production_eligible": false
+      }
+    ],
+    "writer_rule": "oldest_live_reader_first",
+    "capacity_vector_rollout": {
+      "reader_n_version": "1.0.0",
+      "reader_n_plus_1_version": "1.1.0",
+      "n_reader_accepts_n_plus_1_writer": false,
+      "n_plus_1_reader_accepts_n_writer": true,
+      "n_plus_1_writer_enable_condition": "all_live_readers_support_1_1_0",
+      "bridge_absence_semantics": "unsupported_and_zero_advertised_bridge_capacity",
+      "rollback_writer_version": "1.0.0_until_all_1.0.0_readers_are_drained"
+    },
+    "takeover_rule": "reader_writer_schema_and_adapter_identity_must_match",
+    "incompatible_snapshot_policy": "drain_old_binary_or_fail_closed",
+    "unknown_field_policy": "versioned_expand_contract_not_implicit_preservation",
+    "rollback_required": true,
+    "migration_required": true,
+    "retention_gc_required": true,
+    "cross_adapter_snapshot_restore": false,
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "clocks": {
+    "durable_audit_clock": "utc_wall_clock",
+    "sip_timer_deadline_clock": "monotonic",
+    "rtp_clock": "media_clock_domain",
+    "persist_runtime_instant": false,
+    "persist_deadline_representation": "duration_and_wall_clock_observation_not_runtime_instant",
+    "recovery_timer_rule": "rebase_from_durable_duration_and_elapsed_evidence",
+    "ntp_jump_changes_sip_timer": false,
+    "ntp_offset_evidence_required": true,
+    "rtp_wrap_drift_resampler_policy_required": true,
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "migration_drain": {
+    "default_scope": "new_calls_only",
+    "old_calls": "drain_on_original_runtime",
+    "active_call_migration_status": "not_run",
+    "active_migration_prerequisites": [
+      "single_writer",
+      "packet_output_gate",
+      "remote_reinvite",
+      "srtp_rtcp_continuity",
+      "crash_reconcile",
+      "bounded_gap_loss_evidence"
+    ],
+    "rollback_new_admission": "disable_selector",
+    "rollback_existing_calls": "drain_exact_original_generation",
+    "unknown_attempt_policy": "query_reconcile_before_removal",
+    "zero_loss_claim": false,
+    "max_drain_duration_ms": 14400000,
+    "three_party_drain_contract": {
+      "authoritative_sources": [
+        {
+          "source_id": "unified_rustpbx",
+          "required_zero_counters": [
+            "call_count",
+            "protocol_session_count",
+            "edge_count",
+            "binding_group_count"
+          ]
+        },
+        {
+          "source_id": "rtpengine",
+          "required_zero_counters": [
+            "session_count",
+            "port_count",
+            "allocation_count",
+            "generation_count"
+          ]
+        },
+        {
+          "source_id": "effect_wal",
+          "required_zero_counters": [
+            "pending_effect_count",
+            "unknown_effect_count",
+            "repair_delta_count",
+            "cleanup_delta_count"
+          ]
+        }
+      ],
+      "source_receipt_identity_fields": [
+        "tenant_id",
+        "drain_scope_id",
+        "generation",
+        "observation_epoch",
+        "counter_vector_digest",
+        "receipt_digest"
+      ],
+      "counter_numeric_policy": "checked_u64",
+      "active_zero_predicate": {
+        "operator": "all",
+        "required_source_count": 3,
+        "comparison": {
+          "left": "every_required_zero_counter",
+          "operator": "equals",
+          "right": 0
+        },
+        "consistency": "all_source_receipts_match_exact_tenant_drain_scope_generation_and_observation_epoch",
+        "missing_stale_or_mismatched_policy": "not_active_zero_continue_drain"
+      },
+      "deletion_reference_counters": [
+        "retention_reference_count",
+        "rollback_reference_count"
+      ],
+      "deletion_safe_predicate": {
+        "operator": "all",
+        "clauses": [
+          "active_zero_predicate_passed",
+          "three_source_consistency_passed",
+          "retention_reference_count_equals_zero",
+          "rollback_reference_count_equals_zero"
+        ],
+        "failure_policy": "not_deletion_safe_continue_drain"
+      },
+      "normal_timeout_action": "stop_new_admission_keep_drain_no_bye_no_forced_delete",
+      "normal_timeout_bye_allowed": false,
+      "normal_timeout_delete_allowed": false,
+      "emergency_authorization": {
+        "required": true,
+        "fields": [
+          "actor",
+          "reason_code",
+          "incident_id",
+          "scope",
+          "expires_at",
+          "decision_hash"
+        ],
+        "separate_from_normal_timeout": true
+      },
+      "emergency_action": "exact_scope_terminal_bye_or_delete_with_audit_receipt",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    "production_eligible": false
+  },
+  "single_process_failure_scope": {
+    "process_id": "unified_rustpbx_process",
+    "address_space_isolation": false,
+    "in_process_path": "embedded_voice_media_library_and_worker_shards",
+    "failure_modes": [
+      "oom",
+      "process_abort",
+      "undefined_behavior",
+      "allocator_corruption",
+      "uncatchable_native_failure"
+    ],
+    "embedded_edge_blast_radius": "all_embedded_edges_in_unified_rustpbx_process",
+    "ordinary_rtpengine_edge_on_process_loss": "continue_degraded",
+    "new_decode_required_admission": "reject_until_qualified_runtime_available",
+    "rpc_elimination_proves_failure_isolation": false,
+    "failure_isolation_claim": false,
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "g729": {
+    "external_wire_identity": "G729/8000",
+    "external_identity_count": 1,
+    "mandatory_internal_modes": ["G729A", "G729AB"],
+    "packetization_ms": [10, 20, 30, 40, 50, 60],
+    "speech_frames_per_packet": [1, 2, 3, 4, 5, 6],
+    "annex_b_missing_defaults_yes": true,
+    "annex_b_explicit_no_wins": true,
+    "engineering_status": "not_run",
+    "legal_distribution_status": "not_run",
+    "runtime_enablement": false,
+    "production_eligible": false
+  },
+  "dtmf": {
+    "normal_path": "rfc4733_via_rtpengine",
+    "normal_path_requires_decode": false,
+    "normal_path_acquisition": {
+      "path": "rtpengine_rfc4733_event_notification",
+      "required_backend_capability_id": "dtmf_event_notification",
+      "alternate_read_only_fork": "forbidden",
+      "decode_all_ordinary_media": "forbidden",
+      "notification_identity_fields": [
+        "tenant_id",
+        "interaction_id",
+        "leg_id",
+        "ssrc",
+        "rtp_timestamp",
+        "event",
+        "duration",
+        "end_bit",
+        "provider_event_sequence"
+      ],
+      "dedupe_key": "leg_id_ssrc_rtp_timestamp_event_duration_end_bit_provider_event_sequence",
+      "report_p99_budget_ms": 50,
+      "loss_or_ambiguity_policy": "fail_closed_for_business_effect_query_reconcile_without_decode_all"
+    },
+    "canonical_event_authority": "unified_rustpbx_per_leg_dtmf_event_authority",
+    "candidate_inputs": [
+      "rfc4733",
+      "sip_info",
+      "in_band_detector",
+      "livekit_data_or_control"
+    ],
+    "canonical_identity_fields": [
+      "tenant_id",
+      "interaction_id",
+      "leg_id",
+      "event_sequence",
+      "digit",
+      "start_media_timestamp",
+      "duration"
+    ],
+    "deduplication_rule": "all_candidate_inputs_feed_one_monotonic_per_leg_sequence",
+    "handoff_grace_side_effects": "forbidden",
+    "business_effects": [
+      "ivr",
+      "recording_marker",
+      "webhook",
+      "business_state"
+    ],
+    "delivery_contract": {
+      "transport": "rtpengine_authenticated_event_notification",
+      "authentication": {
+        "mechanism": "mutual_tls_and_hmac_signed_payload",
+        "identity_fields": [
+          "backend_instance_id",
+          "binding_group_generation",
+          "tenant_id",
+          "interaction_id",
+          "leg_id"
+        ],
+        "failure_policy": "reject_without_business_effect"
+      },
+      "ordering_scope": "tenant_interaction_leg",
+      "bounded_queue": {
+        "queue_depth_max": 1024,
+        "event_bytes_max": 4096,
+        "delivery_deadline_ms": 50,
+        "overflow_policy": "freeze_business_effect_then_query_exact_leg"
+      },
+      "durable_sequence": {
+        "field": "event_sequence",
+        "allocation": "monotonic_compare_and_swap_per_leg",
+        "persistence_order": "durable_before_business_effect",
+        "duplicate_policy": "replay_same_receipt_without_second_effect",
+        "gap_policy": "freeze_then_query_and_reconcile_exact_leg"
+      },
+      "receipt_identity_fields": [
+        "event_id",
+        "event_sequence",
+        "payload_hash",
+        "backend_identity_digest",
+        "received_at"
+      ],
+      "same_identity_different_hash": "conflict_fail_closed",
+      "query_prerequisite": "backend_query_supported_and_verified_before_business_effect_eligibility",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "media_protocol_invariants": {
+    "rtcp": {
+      "required_packets": ["sr", "rr", "sdes_cname", "bye"],
+      "cname_rule": "stable_per_sender_with_explicit_generation_discontinuity",
+      "sender_report_rule": "rtp_and_ntp_mapping_bound_to_sender_and_clock_domain",
+      "loss_jitter_rule": "preserve_or_explicitly_reset_at_generation_boundary"
+    },
+    "srtp": {
+      "roc_rule": "persist_or_rekey_without_rollback_per_ssrc_key_generation",
+      "replay_rule": "bounded_replay_window_rejects_duplicate_and_too_old_packets",
+      "key_rule": "opaque_reference_only_zeroize_runtime_material",
+      "handoff_rule": "new_crypto_context_generation_unless_exact_state_transfer_verified"
+    },
+    "ssrc": {
+      "ownership_rule": "bound_to_edge_generation_and_wire_transport_bundle",
+      "collision_rule": "detect_rewrite_or_allocate_new_edge_generation",
+      "continuity_rule": "preserve_or_signal_explicit_reset_with_rtcp_evidence"
+    },
+    "dtls": {
+      "role": "negotiated_setup_role_bound_to_bundle_generation",
+      "fingerprint": "exact_hash_algorithm_and_value_verified_before_srtp",
+      "role_or_fingerprint_change": "new_wire_transport_bundle_generation"
+    },
+    "ice": {
+      "credentials": "exact_ufrag_and_pwd_bound_to_bundle_generation",
+      "consent_freshness": "required_bounded_expiry_stops_output",
+      "restart": "new_ufrag_pwd_and_new_wire_transport_bundle_generation"
+    },
+    "livekit_webrtc_authority": [
+      "ice",
+      "dtls",
+      "dtls_srtp",
+      "turn",
+      "bundle",
+      "mid"
+    ],
+    "multiplexing": {
+      "rtcp_mux": "negotiated_required_for_bundle_and_bound_to_generation",
+      "bundle_mid": "bundle_group_and_mid_demux_bound_to_generation_unknown_or_duplicate_mid_rejected",
+      "payload_type_scope": "leg_and_binding_revision",
+      "security_context_scope": "bundle_transport_and_generation"
+    },
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "livekit_handoff": {
+    "machine_id": "voice-livekit-bridge-v1",
+    "existing_path": "rustpbx_livekit_sip_livekit",
+    "livekit_sip_role": "executor",
+    "results_inheritable": false,
+    "directions": ["voice_to_livekit", "livekit_to_voice"],
+    "paths": [
+      {
+        "path_id": "V2L_NEW",
+        "source": "voice_or_sip",
+        "destination": "livekit_room",
+        "handoff_kind": "new_call_or_bridge",
+        "required_edges": ["voice_to_livekit", "livekit_to_voice"],
+        "evidence_slices": [
+          {
+            "slice_id": "functional",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          },
+          {
+            "slice_id": "fault",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          },
+          {
+            "slice_id": "capacity",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          }
+        ]
+      },
+      {
+        "path_id": "L2V_NEW",
+        "source": "livekit_room",
+        "destination": "voice_sip_or_pstn",
+        "handoff_kind": "new_call_or_bridge",
+        "required_edges": ["voice_to_livekit", "livekit_to_voice"],
+        "evidence_slices": [
+          {
+            "slice_id": "functional",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          },
+          {
+            "slice_id": "fault",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          },
+          {
+            "slice_id": "capacity",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          }
+        ]
+      },
+      {
+        "path_id": "V2L_ACTIVE",
+        "source": "active_voice_or_sip_endpoint",
+        "destination": "browser_participant",
+        "handoff_kind": "active_endpoint_handoff",
+        "required_edges": ["voice_to_livekit", "livekit_to_voice"],
+        "evidence_slices": [
+          {
+            "slice_id": "functional",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          },
+          {
+            "slice_id": "fault",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          },
+          {
+            "slice_id": "capacity",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          }
+        ]
+      },
+      {
+        "path_id": "L2V_ACTIVE",
+        "source": "active_browser_participant",
+        "destination": "voice_sip_or_pstn_endpoint",
+        "handoff_kind": "active_endpoint_handoff",
+        "required_edges": ["voice_to_livekit", "livekit_to_voice"],
+        "evidence_slices": [
+          {
+            "slice_id": "functional",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          },
+          {
+            "slice_id": "fault",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          },
+          {
+            "slice_id": "capacity",
+            "status": "not_run",
+            "results_inheritable": false,
+            "forbidden_inheritance_sources": [
+              "other_path",
+              "ordinary_rtp",
+              "livekit_only",
+              "optional_bridge_excluded"
+            ]
+          }
+        ]
+      }
+    ],
+    "bridge_generation_identity_fields": [
+      "tenant_id",
+      "interaction_id",
+      "call_id",
+      "media_call_id",
+      "leg_id",
+      "sip_dialog_id",
+      "livekit_room_id",
+      "livekit_participant_id",
+      "room_name",
+      "bridge_id",
+      "bridge_generation",
+      "handoff_id",
+      "handoff_kind",
+      "direction",
+      "edge_id",
+      "edge_generation",
+      "binding_group_id",
+      "binding_group_generation",
+      "writer_fence",
+      "owner_epoch",
+      "command_sequence",
+      "idempotency_key",
+      "request_hash",
+      "decision_id",
+      "decision_hash",
+      "handoff_decision_id",
+      "activation_decision_id",
+      "predecessor_zero_output_receipt_hash",
+      "provider_participant_id",
+      "provider_call_id",
+      "backend_identity",
+      "last_command_id",
+      "last_command_hash",
+      "last_receipt_hash",
+      "terminal_receipt_id",
+      "terminal_receipt_hash",
+      "cleanup_state",
+      "billing_key",
+      "recording_intent_id",
+      "root_recording_manifest_id",
+      "recording_source_chain_id",
+      "state",
+      "created_at",
+      "updated_at",
+      "ended_at"
+    ],
+    "directed_edges": [
+      {
+        "edge_role": "voice_to_livekit",
+        "direction": "voice_to_livekit",
+        "edge_count": 1,
+        "independent_generation": true,
+        "independent_writer_fence": true
+      },
+      {
+        "edge_role": "livekit_to_voice",
+        "direction": "livekit_to_voice",
+        "edge_count": 1,
+        "independent_generation": true,
+        "independent_writer_fence": true
+      }
+    ],
+    "operations": [
+      {
+        "operation_id": "prepare",
+        "durable_fact": "prepare_decision_and_prepared_blocked_receipt",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "commit",
+        "durable_fact": "activation_decision_and_first_tx_receipt",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "abort",
+        "durable_fact": "predecision_abort_tombstone",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "query",
+        "durable_fact": "read_only_exact_generation_observation",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "reconcile",
+        "durable_fact": "durable_decision_provider_convergence_result",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "revoke",
+        "durable_fact": "revoke_decision_zero_output_ack_and_last_tx_watermark",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "release",
+        "durable_fact": "resource_release_receipt_and_tombstone",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "terminate",
+        "durable_fact": "terminal_decision_and_native_call_terminal_receipt",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "delete",
+        "durable_fact": "participant_delete_cleanup_receipt",
+        "status": "not_run"
+      },
+      {
+        "operation_id": "cleanup",
+        "durable_fact": "exact_generation_orphan_cleanup_result",
+        "status": "not_run"
+      }
+    ],
+    "state_contract": {
+      "blocked_state": "prepared_blocked_no_output_or_side_effects",
+      "unknown_states": ["unknown", "old_revoke_unknown", "new_create_unknown"],
+      "unknown_policy": "freeze_role_then_query_and_reconcile_exact_generation",
+      "current_handoff_mode": "break_before_make",
+      "break_before_make_states": [
+        "prechecked",
+        "break_decided",
+        "old_revoke_pending",
+        "old_revoke_confirmed",
+        "new_create_pending",
+        "active",
+        "interrupted",
+        "interrupted_terminal"
+      ],
+      "make_before_break_eligible": false,
+      "compensation_terminal": "compensated_failed",
+      "terminal_states": [
+        "released",
+        "compensated_failed",
+        "interrupted_terminal"
+      ],
+      "legal_transitions": [
+        "absent->prepare_pending",
+        "prepare_pending->prepared_blocked",
+        "prepare_pending->abort_pending",
+        "prepared_blocked->abort_pending",
+        "abort_pending->released",
+        "prepared_blocked->commit_pending",
+        "commit_pending->active",
+        "active->revoke_pending",
+        "revoke_pending->revoked_receive_only",
+        "revoked_receive_only->release_pending",
+        "release_pending->released",
+        "mutation_timeout->unknown",
+        "unknown->query_reconcile_known_state",
+        "postdecision_failure->compensated_failed",
+        "prechecked->break_decided",
+        "break_decided->old_revoke_pending",
+        "old_revoke_pending->old_revoke_confirmed",
+        "old_revoke_confirmed->new_create_pending",
+        "new_create_pending->active",
+        "new_create_pending->interrupted",
+        "interrupted->interrupted_terminal"
+      ],
+      "illegal_transitions": [
+        "prepared_blocked->emit",
+        "active->abort",
+        "unknown->create_new_generation",
+        "revoked->active",
+        "same_generation_mutates_writer_backend_participant_transport_or_members",
+        "postdecision_attempt->predecision_abort"
+      ]
+    },
+    "legal_migration": {
+      "interaction_id_stable": true,
+      "business_call_id_stable": true,
+      "changed_binding_requires_new_bridge_generation": true,
+      "old_generation_reactivation": "forbidden",
+      "migration_pairs": [
+        "voice_to_livekit",
+        "livekit_to_voice",
+        "voice_to_browser",
+        "browser_to_voice"
+      ],
+      "current_admission": "new_call_selection_or_break_before_make_only",
+      "make_before_break_prerequisites": [
+        "allocation_time_output_gate",
+        "prepared_blocked_receipt",
+        "predecessor_zero_output_ack",
+        "query_and_terminal_tombstone",
+        "packet_level_single_writer_evidence"
+      ],
+      "verification_status": "not_run"
+    },
+    "activation_prerequisites": [
+      "exact_backend_source_binary_and_config_identity",
+      "durable_activation_decision",
+      "owner_epoch_and_writer_fence_match",
+      "exact_group_generation_and_member_digest",
+      "exact_command_hash",
+      "capacity_recording_and_billing_reservation",
+      "predecessor_zero_output_receipt_durable_for_handoff"
+    ],
+    "receipt_contract": {
+      "provider_ack_is_not_packet_evidence": true,
+      "commit_receipt_requires_first_tx_watermark": true,
+      "revoke_receipt_requires_zero_output_and_last_tx_watermark": true,
+      "same_identity_different_hash": "conflict_fail_closed",
+      "terminal_tombstone_prevents_recreate": true
+    },
+    "store_contract": {
+      "logical_bridge": "stable_identity_with_cas_head_pointer",
+      "immutable_records": ["bridge_generation", "bridge_attempt"],
+      "append_only_records": [
+        "bridge_command",
+        "bridge_receipt",
+        "bridge_tombstone"
+      ],
+      "head_compare_and_swap_fields": ["revision", "owner_epoch", "state"],
+      "stale_cas_policy": "fail_closed_then_query_and_reconcile",
+      "history_foreign_key_policy": "on_delete_restrict",
+      "physical_cleanup_policy": "append_terminal_receipt_and_tombstone_never_delete_audit_lineage",
+      "migration_writer_policy": "one_writer_epoch_cas_no_old_new_dual_write",
+      "legacy_backfill_policy": "generation_zero_legacy_unverified_no_synthetic_gate_watermark_or_receipt",
+      "current_status": "not_present",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    "recording_manifest_contract": {
+      "authority": "region_recording_plane",
+      "root_identity_fields": ["recording_intent_id", "logical_recording_role"],
+      "root_manifest_count_per_interaction_role": 1,
+      "source_chain_fields": [
+        "source_chain_id",
+        "source_kind",
+        "source_identity_digest",
+        "first_segment_sequence",
+        "last_segment_sequence",
+        "predecessor_chain_hash",
+        "bridge_generation_range",
+        "discontinuity_reason"
+      ],
+      "source_chain_mutability": "append_only",
+      "segment_mutability": "append_only",
+      "handoff_source_change": "append_source_specific_chain_under_same_root_manifest",
+      "bridge_store_recording_role": "opaque_correlation_only_no_root_create_split_or_replace",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    "control_endpoint_security": {
+      "production_scheme": "https_only",
+      "certificate_chain_verification": true,
+      "hostname_verification": true,
+      "explicit_tls_policy_required": true,
+      "internal_service_http_bypass": false,
+      "bare_http_scope": "non_production_loopback_fixture_only",
+      "bare_http_results_inheritable": false,
+      "current_implementation": "internal_service_http_gap_present",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    "command_token_contract": {
+      "identity_fields": [
+        "tenant_id",
+        "interaction_id",
+        "bridge_id",
+        "bridge_generation",
+        "operation_id",
+        "idempotency_key",
+        "issued_at",
+        "expires_at",
+        "key_id"
+      ],
+      "authentication": "asymmetric_signature_verified_against_pinned_issuer_identity",
+      "scope_match_policy": "tenant_interaction_bridge_generation_operation_and_key_exact_match",
+      "expiry_comparison": "checked_now_strictly_before_expires_at",
+      "pre_prepare_expiry": "reject_without_command_or_resource",
+      "active_expiry": "block_new_commands_without_mutating_committed_generation",
+      "identity_mismatch": "reject_fail_closed",
+      "replay_policy": "same_identity_and_hash_replay_same_receipt",
+      "same_identity_different_hash": "conflict_fail_closed",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    "cancellation_contract": {
+      "identity_fields": [
+        "tenant_id",
+        "interaction_id",
+        "bridge_id",
+        "bridge_generation",
+        "command_id",
+        "idempotency_key",
+        "command_hash"
+      ],
+      "ordering_field": "command_sequence",
+      "ordering_scope": "bridge_generation",
+      "durability": "cancel_tombstone_durable_before_ack",
+      "before_prepare_ack": "abort_or_release_without_writer",
+      "after_apply_before_receipt": "query_exact_generation_then_reconcile_to_terminal",
+      "terminal_prevents_recreate": true,
+      "duplicate_policy": "replay_same_cancel_receipt",
+      "same_identity_different_hash": "conflict_fail_closed",
+      "late_success_after_cancel": "terminal_cancel_wins_freeze_and_cleanup_exact_generation",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    "webhook_contract": {
+      "authentication": "verified_signature_and_pinned_provider_identity",
+      "identity_fields": [
+        "tenant_id",
+        "interaction_id",
+        "bridge_id",
+        "bridge_generation",
+        "provider_id",
+        "provider_event_id",
+        "provider_sequence",
+        "event_type",
+        "receipt_digest",
+        "payload_hash"
+      ],
+      "ordering_scope": "tenant_interaction_bridge_generation",
+      "ordering_field": "provider_sequence",
+      "scope_match_policy": "provider_tenant_interaction_bridge_generation_and_receipt_digest_exact_match",
+      "reorder_window_max": 128,
+      "durability": "receipt_durable_before_business_effect",
+      "duplicate_replay": "same_identity_and_hash_replay_same_receipt_without_second_effect",
+      "same_identity_different_hash": "conflict_fail_closed",
+      "reorder_policy": "bounded_buffer_else_freeze_query_and_reconcile",
+      "forged_policy": "reject_without_business_effect",
+      "terminal_event_rule": "terminal_tombstone_prevents_nonterminal_replay_or_recreate",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    "timeout_rollback": {
+      "timeout_policy": "unknown_then_query_same_command_no_recreate",
+      "rollback_new_admission": "disable_handoff_selector",
+      "active_bridge_rollback": "drain_exact_generation",
+      "postdecision_failure": "predeclared_compensation_with_visible_interruption",
+      "revoked_generation_reactivation": "forbidden",
+      "return_requires_new_generation": true
+    },
+    "behavior_contract": {
+      "codec": "g711_opus_and_goal4_g729_exact_slice_with_new_generation_on_chain_change",
+      "dtmf": "all_inputs_normalize_to_rustpbx_per_leg_canonical_sequence",
+      "hold_resume": "new_media_decision_preserves_single_writer_and_directional_state",
+      "mute": "ui_or_participant_mute_never_substitutes_for_packet_zero_output",
+      "transfer": "blind_attended_refer_replaces_and_room_transfer_use_durable_attempt_identity",
+      "hangup": "bye_leave_room_end_and_commit_races_resolve_by_durable_call_sequence",
+      "security": "livekit_owns_ice_dtls_srtp_turn_bundle_mid_and_tenant_scope_is_mandatory",
+      "webhook": "exact_tenant_bridge_generation_provider_and_receipt_digest_required",
+      "capacity": "bridge_specific_reservation_and_profile_required_no_inheritance",
+      "return_to_rtpengine": "new_generation_with_rtpengine_backend_full_gate_never_reactivate_revoked_generation"
+    },
+    "recording_continuity": "one_recording_intent_and_one_active_capture_per_role_interval",
+    "billing_continuity": "one_opc_rating_session_with_deduplicated_interval_union",
+    "alternating_handoff_contract": {
+      "same_call_required": true,
+      "active_path_cycle": ["V2L_ACTIVE", "L2V_ACTIVE"],
+      "max_round_trips_per_scenario": 32,
+      "new_generation_per_switch": true,
+      "concurrent_arbitration": {
+        "authority": "opc_owned_bridge_coordinator_store",
+        "winner_rule": "head_cas_owner_epoch_and_idempotency_key",
+        "loser_rule": "fail_closed_then_query_and_reconcile_winner_generation",
+        "duplicate_idempotency_key": "replay_same_decision_and_receipt",
+        "same_key_different_hash": "conflict_fail_closed"
+      },
+      "no_growth_invariants": [
+        "one_business_call",
+        "one_immutable_voice_cdr",
+        "one_billing_rating_session",
+        "one_root_recording_manifest_per_role",
+        "one_active_livekit_participant_per_role",
+        "bounded_port_pairs_by_active_generation",
+        "one_writer_per_directed_edge_generation"
+      ],
+      "terminal_zero_leak": [
+        "participants",
+        "port_pairs",
+        "backend_allocations",
+        "writers",
+        "pending_commands",
+        "unreconciled_receipts"
+      ],
+      "required_evidence": [
+        "alternating_32_round_trip_scenario",
+        "concurrent_switch_property",
+        "cas_loser_reconcile_fault",
+        "timeout_after_apply_fault",
+        "terminal_zero_leak_assertion"
+      ],
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    "machine_verification_vectors": {
+      "required_round_trips": 32,
+      "scenario_vectors": [
+        "same_call_32_round_trip_v2l_l2v",
+        "concurrent_head_cas_single_winner",
+        "terminal_zero_resource_leak",
+        "cancel_before_prepare_ack",
+        "cancel_after_apply_before_receipt",
+        "token_expiry_before_prepare",
+        "token_expiry_during_active",
+        "webhook_duplicate_reordered_replayed_forged"
+      ],
+      "property_vectors": [
+        "every_switch_allocates_new_generation",
+        "cas_loser_never_emits_media",
+        "one_call_cdr_rating_and_root_manifest",
+        "terminal_cleanup_is_idempotent",
+        "cancel_terminal_prevents_recreate",
+        "token_scope_matches_exact_generation",
+        "webhook_requires_exact_identity_and_receipt_digest"
+      ],
+      "fault_vectors": [
+        "timeout_before_apply",
+        "timeout_after_apply",
+        "coordinator_crash_after_decision",
+        "livekit_sip_unavailable",
+        "sfu_disconnect",
+        "webhook_loss_duplicate_and_reorder",
+        "token_expiry",
+        "store_head_cas_conflict",
+        "cleanup_retry_and_dead_letter"
+      ],
+      "vectors_independently_required": true,
+      "results_inheritable": false,
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    "measured_switch_facts": [
+      "gap",
+      "loss",
+      "reorder",
+      "duplicate",
+      "last_old_tx",
+      "first_new_tx",
+      "writer_overlap"
+    ],
+    "active_switching_status": "not_run",
+    "zero_loss_claim": false,
+    "physical_result_status": "not_run",
+    "production_result_status": "not_run",
+    "production_eligible": false
+  },
+  "capacity_demand": {
+    "demand_categories": [
+      "bridge_generations",
+      "directed_bridge_edges",
+      "livekit_sip_participants",
+      "bridge_cps",
+      "switch_attempts",
+      "switch_gap_loss",
+      "codec_transcode_demand",
+      "recording_roles",
+      "handoff_reconciliation"
+    ],
+    "demand_axes": {
+      "mix": [
+        "participants",
+        "input_edges",
+        "n_minus_one_outputs",
+        "sample_rate",
+        "ptime"
+      ],
+      "recorder": [
+        "forks",
+        "channels",
+        "encoded_or_decoded",
+        "spool_bps",
+        "upload_bps"
+      ],
+      "ai": [
+        "tap_count",
+        "audio_bps",
+        "resample_units",
+        "provider_queue_depth"
+      ],
+      "bandwidth": ["ingress_bps", "egress_bps", "pps", "turn_ratio"],
+      "memory": [
+        "resident_bytes",
+        "per_session_bytes",
+        "jitter_buffer_bytes",
+        "queue_bytes"
+      ],
+      "worker": ["shards", "queue_depth", "service_time", "backpressure"],
+      "cpu": [
+        "cpu_per_packet",
+        "cpu_per_codec_frame",
+        "irq_load",
+        "allocator_load"
+      ],
+      "numa": [
+        "node",
+        "cpuset",
+        "nic_affinity",
+        "irq_affinity",
+        "remote_memory_ratio"
+      ]
+    },
+    "media_plan_compiler": {
+      "compiler_id": "media-plan-capacity-demand-v1",
+      "input_authority": "unified_rustpbx_media_plan_generation",
+      "plan_inputs": [
+        "rtp_flows",
+        "rtcp_flows",
+        "srtp_contexts",
+        "port_pairs",
+        "codec_decode_edges",
+        "codec_encode_edges",
+        "resample_edges",
+        "transcode_edges",
+        "mix_outputs",
+        "recording_edges",
+        "ai_edges",
+        "packetization",
+        "bitrate",
+        "numa_affinity",
+        "worker_count",
+        "shard_count",
+        "queue_depth",
+        "service_time_micros",
+        "backpressure_limit"
+      ],
+      "demand_outputs": [
+        "rtp_socket_count",
+        "rtcp_socket_count",
+        "srtp_context_count",
+        "port_pair_count",
+        "packet_rate_pps",
+        "bit_rate_bps",
+        "memory_bytes",
+        "cpu_micros_per_second",
+        "numa_node",
+        "decode_slots",
+        "encode_slots",
+        "resample_slots",
+        "transcode_slots",
+        "mix_slots",
+        "record_slots",
+        "ai_slots",
+        "worker_count",
+        "shard_count",
+        "queue_depth",
+        "service_time_micros",
+        "backpressure_limit"
+      ],
+      "resource_mappings": [
+        {
+          "plan_fact": "wire_transport_bundle",
+          "demand_fields": [
+            "rtp_socket_count",
+            "rtcp_socket_count",
+            "srtp_context_count",
+            "port_pair_count",
+            "packet_rate_pps",
+            "bit_rate_bps",
+            "memory_bytes",
+            "cpu_micros_per_second",
+            "numa_node"
+          ]
+        },
+        {
+          "plan_fact": "decode_edge",
+          "demand_fields": [
+            "decode_slots",
+            "packet_rate_pps",
+            "memory_bytes",
+            "cpu_micros_per_second",
+            "numa_node"
+          ]
+        },
+        {
+          "plan_fact": "encode_edge",
+          "demand_fields": [
+            "encode_slots",
+            "packet_rate_pps",
+            "bit_rate_bps",
+            "memory_bytes",
+            "cpu_micros_per_second",
+            "numa_node"
+          ]
+        },
+        {
+          "plan_fact": "resample_edge",
+          "demand_fields": [
+            "resample_slots",
+            "memory_bytes",
+            "cpu_micros_per_second",
+            "numa_node"
+          ]
+        },
+        {
+          "plan_fact": "transcode_edge",
+          "demand_fields": [
+            "decode_slots",
+            "encode_slots",
+            "resample_slots",
+            "transcode_slots",
+            "packet_rate_pps",
+            "bit_rate_bps",
+            "memory_bytes",
+            "cpu_micros_per_second",
+            "numa_node"
+          ]
+        },
+        {
+          "plan_fact": "mix_output",
+          "demand_fields": [
+            "mix_slots",
+            "memory_bytes",
+            "cpu_micros_per_second",
+            "numa_node"
+          ]
+        },
+        {
+          "plan_fact": "recording_edge",
+          "demand_fields": [
+            "record_slots",
+            "bit_rate_bps",
+            "memory_bytes",
+            "cpu_micros_per_second",
+            "numa_node"
+          ]
+        },
+        {
+          "plan_fact": "ai_edge",
+          "demand_fields": [
+            "ai_slots",
+            "bit_rate_bps",
+            "memory_bytes",
+            "cpu_micros_per_second",
+            "numa_node"
+          ]
+        }
+      ],
+      "mapping_rule": "sum_exact_directed_edge_and_binding_group_generation_demands_without_double_counting_shared_transport",
+      "verification_status": "not_run"
+    },
+    "role_supply": [
+      {
+        "role": "rtpengine_ordinary",
+        "supplies": ["wire_transport_bundle"],
+        "supply_identity_fields": [
+          "capacity_profile_id",
+          "profile_revision",
+          "role",
+          "backend_source_digest",
+          "binary_digest",
+          "config_digest",
+          "hardware_profile_id",
+          "cell_id",
+          "failure_domain_id",
+          "issued_at",
+          "expires_at",
+          "signature_key_id"
+        ],
+        "unit_binding": "exact_capacity_vector_field_id_and_unit",
+        "verification_status": "not_run"
+      },
+      {
+        "role": "embedded_voice_media",
+        "supplies": [
+          "wire_transport_bundle",
+          "decode_edge",
+          "encode_edge",
+          "resample_edge",
+          "transcode_edge",
+          "mix_output",
+          "recording_edge",
+          "ai_edge"
+        ],
+        "supply_identity_fields": [
+          "capacity_profile_id",
+          "profile_revision",
+          "role",
+          "backend_source_digest",
+          "binary_digest",
+          "config_digest",
+          "hardware_profile_id",
+          "cell_id",
+          "failure_domain_id",
+          "issued_at",
+          "expires_at",
+          "signature_key_id"
+        ],
+        "unit_binding": "exact_capacity_vector_field_id_and_unit",
+        "verification_status": "not_run"
+      },
+      {
+        "role": "livekit_sip_bridge",
+        "supplies": [
+          "wire_transport_bundle",
+          "decode_edge",
+          "encode_edge",
+          "resample_edge",
+          "transcode_edge"
+        ],
+        "supply_identity_fields": [
+          "capacity_profile_id",
+          "profile_revision",
+          "role",
+          "backend_source_digest",
+          "binary_digest",
+          "config_digest",
+          "hardware_profile_id",
+          "cell_id",
+          "failure_domain_id",
+          "issued_at",
+          "expires_at",
+          "signature_key_id"
+        ],
+        "unit_binding": "exact_capacity_vector_field_id_and_unit",
+        "verification_status": "not_run"
+      },
+      {
+        "role": "rust_native_fast_path",
+        "supplies": ["wire_transport_bundle"],
+        "supply_identity_fields": [
+          "capacity_profile_id",
+          "profile_revision",
+          "role",
+          "backend_source_digest",
+          "binary_digest",
+          "config_digest",
+          "hardware_profile_id",
+          "cell_id",
+          "failure_domain_id",
+          "issued_at",
+          "expires_at",
+          "signature_key_id"
+        ],
+        "unit_binding": "exact_capacity_vector_field_id_and_unit",
+        "verification_status": "not_run"
+      }
+    ],
+    "reservation_rule": "atomic_before_backend_prepare",
+    "failure_reserve_rule": "reserve_for_declared_failure_domain",
+    "n_plus_1_rule": "largest_failure_domain_plus_peak_demand",
+    "cross_profile_inheritance": "forbidden",
+    "admission_contract": {
+      "worker_demand_fields": [
+        "worker_count",
+        "shard_count",
+        "queue_depth",
+        "service_time_micros",
+        "backpressure_limit"
+      ],
+      "supply_identity_fields": [
+        "capacity_profile_id",
+        "profile_revision",
+        "role",
+        "backend_source_digest",
+        "binary_digest",
+        "config_digest",
+        "hardware_profile_id",
+        "cell_id",
+        "failure_domain_id",
+        "issued_at",
+        "expires_at",
+        "signature_key_id"
+      ],
+      "supply_signature": "required_and_verified_before_admission",
+      "admission_predicate": {
+        "evaluation_scope": "each_capacity_vector_dimension",
+        "numeric_policy": "checked_u64_no_wrap_saturate_or_negative",
+        "comparison": {
+          "left": "deduplicated_demand",
+          "operator": "less_than_or_equal",
+          "right_base": "signed_unexpired_identity_bound_supply",
+          "right_subtract": ["active_reservations", "failure_reserve"]
+        },
+        "supply_preconditions": [
+          "present",
+          "signature_verified",
+          "unexpired",
+          "identity_match",
+          "unit_match"
+        ],
+        "shared_transport_dedupe_key": [
+          "binding_group_id",
+          "binding_group_generation",
+          "wire_transport_bundle_id"
+        ],
+        "same_dedupe_key_different_vector": "conflict_fail_closed",
+        "overflow_policy": "reject_admission",
+        "underflow_policy": "reject_admission"
+      },
+      "reservation_compare_and_swap_fields": [
+        "capacity_profile_id",
+        "profile_revision",
+        "reservation_epoch",
+        "available_vector_digest"
+      ],
+      "reservation_receipt_identity_fields": [
+        "tenant_id",
+        "interaction_id",
+        "media_plan_generation",
+        "reservation_id",
+        "capacity_profile_id",
+        "profile_revision",
+        "demand_vector_digest",
+        "failure_reserve_vector_digest",
+        "decision_hash"
+      ],
+      "reservation_order": "atomic_cas_receipt_durable_before_backend_prepare",
+      "missing_supply_policy": "reject_admission",
+      "stale_or_expired_supply_policy": "reject_admission",
+      "identity_or_unit_mismatch_policy": "reject_admission",
+      "n_plus_1_predicate": {
+        "failure_domain_selection": "largest_declared_failure_domain",
+        "comparison": {
+          "left": "supply_minus_active_reservations_minus_largest_failure_domain",
+          "operator": "greater_than_or_equal",
+          "right": "peak_admitted_demand"
+        },
+        "missing_failure_domain_policy": "reject_admission"
+      },
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    "capacity_vector_fields": [
+      {
+        "field_id": "bridge_generations",
+        "unit": "count"
+      },
+      {
+        "field_id": "directed_bridge_edges",
+        "unit": "count"
+      },
+      {
+        "field_id": "livekit_sip_participants",
+        "unit": "count"
+      },
+      {
+        "field_id": "bridge_cps",
+        "unit": "per_second"
+      },
+      {
+        "field_id": "switch_attempts",
+        "unit": "per_second"
+      },
+      {
+        "field_id": "switch_gap_p99_ms",
+        "unit": "milliseconds"
+      },
+      {
+        "field_id": "switch_loss_packets_p99",
+        "unit": "packets"
+      },
+      {
+        "field_id": "decode_slots",
+        "unit": "count"
+      },
+      {
+        "field_id": "encode_slots",
+        "unit": "count"
+      },
+      {
+        "field_id": "resample_slots",
+        "unit": "count"
+      },
+      {
+        "field_id": "transcode_slots",
+        "unit": "count"
+      },
+      {
+        "field_id": "recording_roles",
+        "unit": "count"
+      },
+      {
+        "field_id": "handoff_reconciliation_cps",
+        "unit": "per_second"
+      }
+    ],
+    "admission_vectors": [
+      "control_headroom",
+      "ordinary_media",
+      "decode_media",
+      "codec_pair_ptime",
+      "conference_mix",
+      "recording_roles",
+      "ai_taps",
+      "bandwidth",
+      "memory",
+      "worker_queues",
+      "cpu_numa",
+      "livekit_bridge",
+      "handoff_reconciliation"
+    ],
+    "results_inheritable": false,
+    "physical_result_status": "not_run",
+    "production_eligible": false
+  },
+  "small_conference": {
+    "engine": "embedded_voice_media",
+    "mix_semantics": "per_participant_n_minus_one",
+    "naive_complexity": "O(N^2)",
+    "max_participants": 8,
+    "limit_scope": "per_conference_binding_group_generation",
+    "admission_at_limit": "reject_new_participant_without_disturbing_active_mix",
+    "above_limit_policy": "route_new_conference_to_livekit_or_reject",
+    "recording_role": "separate_directed_edge_from_authoritative_mix_output",
+    "member_change_rule": "new_binding_group_generation",
+    "per_participant_output_count": "N",
+    "directed_mix_contribution_count": "N*(N-1)",
+    "per_participant_jitter_buffers": "N",
+    "per_participant_encode_outputs": "N",
+    "results_inheritable": false,
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "security": {
+    "advisory_policy": {
+      "owner": "unified_rustpbx_security_response",
+      "feed_ingestion": "continuous_signed_feed_snapshot_with_digest",
+      "sources": [
+        "rustsec",
+        "osv",
+        "github_security_advisories",
+        "vendor_advisories"
+      ],
+      "remediation_sla_hours": {
+        "critical": 24,
+        "high": 168,
+        "medium": 720,
+        "low": 2160
+      },
+      "triage_sla_hours": {
+        "critical": 4,
+        "high": 24,
+        "medium": 72,
+        "low": 168
+      },
+      "patch_lifecycle": "upstream_backport_then_cherry_pick_or_bounded_local_fork_with_owner_expiry_and_rebase",
+      "affected_slice_policy": "requalify_exact_affected_slices_or_disable_them",
+      "overdue_policy": "disable_affected_capability_or_document_time_bounded_exception",
+      "verification_status": "not_run"
+    },
+    "key_management": {
+      "raw_key_persistence": "forbidden",
+      "durable_representation": "opaque_key_reference_and_generation_only",
+      "memory_policy": "mlock_when_supported_minimize_copy_and_zeroize",
+      "rotation_rule": "new_crypto_context_generation",
+      "logs_metrics_evidence": "raw_keys_and_unredacted_sdp_crypto_forbidden",
+      "verification_status": "not_run"
+    },
+    "native_dependencies": {
+      "inventory": "source_version_digest_license_sbom_and_advisory_state_required",
+      "untracked_native_code": "forbidden",
+      "crash_scope": "single_process_failure_scope_applies",
+      "crash_policy": {
+        "core_dump": "disabled_in_production",
+        "crash_artifact": "redacted_minidump_without_keys_sdp_or_media",
+        "unredacted_crash_upload": "forbidden"
+      },
+      "verification_status": "not_run"
+    },
+    "unsafe_rust": {
+      "policy": "deny_unless_allowlisted_reviewed_and_tested",
+      "required_evidence": [
+        "owner",
+        "safety_invariant",
+        "fuzz_or_property_test",
+        "sanitizer_or_miri_plan"
+      ],
+      "verification_status": "not_run"
+    },
+    "ffi": {
+      "policy": "closed_allowlist_with_exact_binary_and_abi_identity",
+      "failure_policy": "fail_closed_and_contain_at_worker_boundary_when_possible",
+      "input_validation": "length_lifetime_threading_and_ownership_checked",
+      "panic_unwind_rule": "must_not_cross_ffi_boundary",
+      "verification_status": "not_run"
+    },
+    "requirements": [
+      "sip_sdp_rtp_rtcp_srtp_fuzz",
+      "parser_smuggling_differential",
+      "tenant_identity_isolation",
+      "tls_mtls_validation",
+      "secret_redaction",
+      "key_memory_zeroize",
+      "native_dependency_audit",
+      "unsafe_and_ffi_review",
+      "supply_chain_provenance"
+    ],
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "quality": {
+    "metrics": [
+      "mos_lqo",
+      "pesq_or_polqa",
+      "packet_loss",
+      "jitter",
+      "plc_quality",
+      "clipping",
+      "loudness",
+      "level_normalization",
+      "tandem_transcode",
+      "clock_drift",
+      "dtx_cng_transition",
+      "switch_gap"
+    ],
+    "measurement_methods": [
+      {
+        "metric_id": "mos_lqo",
+        "method_id": "itu_t_p863_or_declared_equivalent",
+        "unit": "score",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      },
+      {
+        "metric_id": "pesq_or_polqa",
+        "method_id": "itu_t_p862_or_p863_declared_license",
+        "unit": "score",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      },
+      {
+        "metric_id": "packet_loss",
+        "method_id": "rtp_sequence_gap_packet_capture",
+        "unit": "percent",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      },
+      {
+        "metric_id": "jitter",
+        "method_id": "rfc3550_interarrival_jitter",
+        "unit": "milliseconds",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      },
+      {
+        "metric_id": "plc_quality",
+        "method_id": "reference_degraded_segment_comparison",
+        "unit": "score",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      },
+      {
+        "metric_id": "clipping",
+        "method_id": "pcm_full_scale_sample_ratio",
+        "unit": "percent",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      },
+      {
+        "metric_id": "loudness",
+        "method_id": "itu_r_bs1770",
+        "unit": "lufs",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      },
+      {
+        "metric_id": "level_normalization",
+        "method_id": "input_output_lufs_delta",
+        "unit": "decibels",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      },
+      {
+        "metric_id": "tandem_transcode",
+        "method_id": "codec_chain_reference_ab",
+        "unit": "score",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      },
+      {
+        "metric_id": "clock_drift",
+        "method_id": "rtp_clock_vs_monotonic_capture",
+        "unit": "ppm",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      },
+      {
+        "metric_id": "dtx_cng_transition",
+        "method_id": "state_transition_audio_continuity",
+        "unit": "score",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      },
+      {
+        "metric_id": "switch_gap",
+        "method_id": "last_old_to_first_new_packet_capture",
+        "unit": "milliseconds",
+        "method_source": null,
+        "method_digest": null,
+        "verification_status": "not_run"
+      }
+    ],
+    "profile_identity_fields": [
+      "quality_profile_id",
+      "quality_profile_revision",
+      "codec_pair",
+      "ptime_ms",
+      "security_mode",
+      "transcode_count",
+      "network_impairment_profile_id",
+      "hardware_profile_id",
+      "backend_source_digest",
+      "binary_digest",
+      "config_digest"
+    ],
+    "workload_contract": {
+      "identity_fields": [
+        "workload_profile_id",
+        "workload_profile_revision",
+        "call_mix_digest",
+        "impairment_schedule_digest",
+        "duration_seconds",
+        "concurrency",
+        "cps"
+      ],
+      "workload_source": null,
+      "workload_digest": null,
+      "current_profile": null,
+      "missing_identity_policy": "not_run_and_ineligible",
+      "verification_status": "not_run"
+    },
+    "threshold_contract": {
+      "binding_fields": [
+        "metric_id",
+        "method_id",
+        "quality_profile_id",
+        "operator",
+        "threshold_value",
+        "unit"
+      ],
+      "threshold_source": null,
+      "threshold_digest": null,
+      "threshold_signature_status": "not_run",
+      "required_for_each_metric": true,
+      "current_bindings": [],
+      "missing_binding_policy": "not_run_and_ineligible",
+      "unsigned_threshold_policy": "not_run_and_ineligible",
+      "verification_status": "not_run"
+    },
+    "evidence_identity_fields": [
+      "run_id",
+      "scenario_id",
+      "quality_profile_digest",
+      "threshold_digest",
+      "source_commit",
+      "binary_digest",
+      "config_digest",
+      "hardware_identity",
+      "started_at",
+      "ended_at",
+      "witness_id",
+      "evidence_sha256"
+    ],
+    "independent_witness_required": true,
+    "verification_status": "not_run",
+    "production_eligible": false
+  },
+  "current_target_eligibility": [
+    {
+      "component_id": "g729",
+      "current_status": "not_run",
+      "target_state": "mandatory_one_wire_two_internal_modes",
+      "eligibility_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "component_id": "livekit_handoff",
+      "current_status": "partial",
+      "target_state": "durable_bidirectional_generation_fenced_handoff",
+      "eligibility_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "component_id": "media_protocol_invariants",
+      "current_status": "partial",
+      "target_state": "rtcp_srtp_ssrc_dtls_ice_mux_bundle_mid_qualified",
+      "eligibility_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "component_id": "rtpengine_atomic_lifecycle",
+      "current_status": "unavailable",
+      "target_state": "atomic_prepare_commit_revoke_release_query",
+      "eligibility_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "component_id": "rust_native_fast_path",
+      "current_status": "not_run",
+      "target_state": "same_profile_candidate_not_second_architecture",
+      "eligibility_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "component_id": "sip_foundation",
+      "current_status": "partial",
+      "target_state": "single_adapter_durable_effect_oracle",
+      "eligibility_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "component_id": "small_conference",
+      "current_status": "partial",
+      "target_state": "bounded_n_minus_one_mix_with_livekit_overflow",
+      "eligibility_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "component_id": "voice_media_embedded",
+      "current_status": "partial",
+      "target_state": "bounded_in_process_decode_backend",
+      "eligibility_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    }
+  ],
+  "phase_gates": [
+    {
+      "phase_id": "D0",
+      "depends_on": [],
+      "dependency_mode": "phase_gated",
+      "slice_dependencies": [],
+      "objective": "freeze_revision_4_contracts_and_traceability",
+      "verification_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "phase_id": "U1",
+      "depends_on": ["D0"],
+      "dependency_mode": "phase_gated",
+      "slice_dependencies": [],
+      "objective": "baseline_sip_effect_and_recovery_semantics",
+      "verification_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "phase_id": "U2",
+      "depends_on": ["D0"],
+      "dependency_mode": "phase_gated",
+      "slice_dependencies": [],
+      "objective": "mandatory_exact_source_g729",
+      "verification_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "phase_id": "U3",
+      "depends_on": ["D0", "U1"],
+      "dependency_mode": "phase_gated",
+      "slice_dependencies": [],
+      "objective": "rtpengine_atomic_lifecycle",
+      "verification_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "phase_id": "U4",
+      "depends_on": ["D0", "U1"],
+      "dependency_mode": "phase_gated",
+      "slice_dependencies": [],
+      "objective": "selective_rvoip_sip_absorption",
+      "verification_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "phase_id": "U5",
+      "depends_on": ["D0", "U2", "U3"],
+      "dependency_mode": "phase_gated",
+      "slice_dependencies": [],
+      "objective": "unified_decoded_media_slices",
+      "verification_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "phase_id": "U6",
+      "depends_on": ["D0"],
+      "dependency_mode": "slice_gated",
+      "slice_dependencies": [
+        {
+          "slice_id": "repository_schema_backfill",
+          "required_predecessors": ["D0"],
+          "explicit_non_inheritance": [
+            "U1_runtime",
+            "U3_runtime",
+            "U5_runtime",
+            "behavior_enablement"
+          ],
+          "gate_effect": "contract_and_storage_only_no_runtime_behavior",
+          "results_inheritable": false
+        },
+        {
+          "slice_id": "durable_coordinator_and_new_call_bridge",
+          "required_predecessors": [
+            "U1:effect_semantics",
+            "U3:edge_generation_fencing",
+            "U5:g711_opus_selected_slice"
+          ],
+          "explicit_non_inheritance": [
+            "g729",
+            "active_handoff",
+            "recording_closure",
+            "capacity_claim"
+          ],
+          "gate_effect": "selected_new_call_slice_only",
+          "results_inheritable": false
+        },
+        {
+          "slice_id": "v2l_new_l2v_new",
+          "required_predecessors": [
+            "U6:durable_coordinator_and_new_call_bridge",
+            "path_specific_real_sip_rtp_srtp_webrtc_evidence"
+          ],
+          "explicit_non_inheritance": ["opposite_direction"],
+          "gate_effect": "each_new_call_direction_qualified_independently",
+          "results_inheritable": false
+        },
+        {
+          "slice_id": "v2l_active_l2v_active",
+          "required_predecessors": [
+            "U6:corresponding_new_call_direction",
+            "path_specific_revoke_query_tombstone_evidence",
+            "measured_break_before_make_evidence"
+          ],
+          "explicit_non_inheritance": [
+            "new_call_evidence",
+            "opposite_active_direction",
+            "make_before_break_without_blocked_and_zero_output"
+          ],
+          "gate_effect": "each_active_direction_qualified_independently",
+          "results_inheritable": false
+        },
+        {
+          "slice_id": "g729_carrier_leg",
+          "required_predecessors": [
+            "U2",
+            "U5:g729_corresponding_integration_slice"
+          ],
+          "explicit_non_inheritance": ["g711_opus_evidence"],
+          "gate_effect": "g729_path_only",
+          "results_inheritable": false
+        },
+        {
+          "slice_id": "advanced_sip_transport_or_transfer",
+          "required_predecessors": ["U4:applicable_qualified_module"],
+          "explicit_non_inheritance": [
+            "unrelated_u4_module",
+            "another_transport_method_or_peer"
+          ],
+          "gate_effect": "applicable_advanced_sip_slice_only",
+          "results_inheritable": false
+        },
+        {
+          "slice_id": "recording_billing_closure",
+          "required_predecessors": [
+            "U6:lifecycle_contract",
+            "U7:root_manifest_source_chain_physical_evidence"
+          ],
+          "explicit_non_inheritance": ["bridge_create_success"],
+          "gate_effect": "recording_and_billing_closure_only",
+          "results_inheritable": false
+        },
+        {
+          "slice_id": "production_fault_capacity",
+          "required_predecessors": [
+            "U7:evidence_observability",
+            "U8:physical_qualification",
+            "U9:finalization"
+          ],
+          "explicit_non_inheritance": [
+            "ordinary_rtp",
+            "livekit_only",
+            "bridge_excluded_mix",
+            "another_u6_path"
+          ],
+          "gate_effect": "production_conclusion_only",
+          "results_inheritable": false
+        }
+      ],
+      "objective": "bidirectional_voice_livekit_handoff",
+      "verification_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "phase_id": "U7",
+      "depends_on": ["U5", "U6"],
+      "dependency_mode": "phase_gated",
+      "slice_dependencies": [],
+      "objective": "recording_evidence_observability_capacity",
+      "verification_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "phase_id": "U8",
+      "depends_on": ["U7"],
+      "dependency_mode": "phase_gated",
+      "slice_dependencies": [],
+      "objective": "physical_performance_and_fault_qualification",
+      "verification_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "phase_id": "U9",
+      "depends_on": ["U8"],
+      "dependency_mode": "phase_gated",
+      "slice_dependencies": [],
+      "objective": "vos_eq_and_100k_finalization",
+      "verification_status": "not_run",
+      "physical_result_status": "not_run",
+      "production_result_status": "not_run",
+      "production_eligible": false
+    }
+  ]
+}
