@@ -38,7 +38,8 @@ import {
   type DurableProtocolEffectPrepareInput,
   type ProtocolEffectIdentity,
   type ProtocolEffectRecord,
-  type ProtocolEffectStore
+  type ProtocolEffectStore,
+  type StoreFailureCode
 } from '../src/agent-runtime/ivekit/voice/sip-foundation/effect-oracle.js';
 import {
   PostgresEffectStore
@@ -1852,6 +1853,240 @@ test('Postgres admission is bounded and every transaction installs timeout and s
   assert.equal(metrics.snapshot().queue_depth.high_watermark, 1);
 });
 
+test('Postgres pool acquisition has a hard 250ms deadline when connect never settles', async () => {
+  const pool = stalledConnectPool();
+  const store = new PostgresEffectStore(pool);
+
+  const error = await expectSipEffectRejection(
+    store.query(identity()),
+    'store_pool_exhausted',
+    500
+  );
+  assert.equal(error.retryable, true);
+  assert.equal(error.status, 503);
+  assert.equal(pool.connectCount, 1);
+});
+
+test('Postgres pool acquisition releases a client that arrives after its deadline', async () => {
+  const deferred = new DeferredConnections();
+  const pool = new TestConnectPool(() => deferred.connect());
+  const store = singlePermitStore(pool);
+  const operation = store.query(identity());
+
+  await expectSipEffectRejection(operation, 'store_pool_exhausted');
+
+  const lateClient = new TestPoolClient();
+  deferred.resolveNext(lateClient);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(lateClient.releaseCount, 1);
+  assert.equal(lateClient.queries.length, 0);
+});
+
+test('Postgres retains admission when a late client has no data release method', async () => {
+  const deferred = new DeferredConnections();
+  const pool = new TestConnectPool(() => deferred.connect());
+  const store = singlePermitStore(pool);
+
+  await expectSipEffectRejection(store.query(identity()), 'store_pool_exhausted');
+  deferred.resolveNext({
+    query: async () => emptyQueryResult()
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  await expectSipEffectRejection(store.query(identity()), 'store_pool_exhausted');
+  assert.equal(pool.connectCount, 1);
+});
+
+test('Postgres retains admission when a late client release throws', async () => {
+  const deferred = new DeferredConnections();
+  const pool = new TestConnectPool(() => deferred.connect());
+  const store = singlePermitStore(pool);
+
+  await expectSipEffectRejection(store.query(identity()), 'store_pool_exhausted');
+  const lateClient = new TestPoolClient(new Error('physical release failed'));
+  deferred.resolveNext(lateClient);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  await expectSipEffectRejection(store.query(identity()), 'store_pool_exhausted');
+  assert.equal(lateClient.releaseCount, 1);
+  assert.equal(pool.connectCount, 1);
+});
+
+test('Postgres assimilates a hostile multi-callback connect thenable exactly once', async () => {
+  const client = new TestPoolClient();
+  const pool = new TestConnectPool(() => ({
+    then(
+      resolve: (value: TestPoolClient) => void,
+      reject: (error: unknown) => void
+    ): void {
+      resolve(client);
+      resolve(client);
+      reject(new Error('hostile extra rejection'));
+    }
+  }));
+  const store = singlePermitStore(pool, 20);
+
+  assert.equal(await store.query(identity()), null);
+  assert.equal(pool.connectCount, 1);
+  assert.equal(client.releaseCount, 1);
+});
+
+test('Postgres rejects an early client without query before BEGIN and releases it', async () => {
+  let releaseCount = 0;
+  const client = {
+    release(): void {
+      releaseCount += 1;
+    }
+  };
+  const pool = new TestConnectPool(() => Promise.resolve(client));
+  const store = singlePermitStore(pool, 20);
+
+  await expectSipEffectRejection(
+    store.query(identity()),
+    'store_schema_incompatible'
+  );
+  assert.equal(releaseCount, 1);
+});
+
+test('Postgres rejects an early client without release before BEGIN and retains admission', async () => {
+  const client = new MissingReleaseClient();
+  const pool = new TestConnectPool(() => Promise.resolve(client));
+  const store = singlePermitStore(pool);
+
+  await expectSipEffectRejection(
+    store.query(identity()),
+    'store_schema_incompatible'
+  );
+  assert.equal(client.queryCount, 0);
+
+  await expectSipEffectRejection(store.query(identity()), 'store_pool_exhausted');
+  assert.equal(pool.connectCount, 1);
+});
+
+test('Postgres release failure cannot override COMMIT and retains admission', async () => {
+  const client = new TestPoolClient(new Error('physical release failed'));
+  const pool = new TestConnectPool(() => Promise.resolve(client));
+  const store = singlePermitStore(pool);
+
+  assert.equal(await store.query(identity()), null);
+  assert.equal(client.releaseCount, 1);
+  assert.ok(client.queries.includes('COMMIT'));
+
+  await expectSipEffectRejection(store.query(identity()), 'store_pool_exhausted');
+  assert.equal(pool.connectCount, 1);
+  assert.equal(client.releaseCount, 1);
+});
+
+test('Postgres admission queue and connect share one monotonic pool wait deadline', async () => {
+  const pool = new QueueThenStallPool();
+  const store = new PostgresEffectStore(pool, {
+    max_in_flight: 1,
+    max_queue_depth: 1,
+    pool_wait_timeout_ms: 200
+  });
+  const first = store.query(identity());
+  await pool.waitUntilFirstQueryBlocks();
+  const second = store.query(identity());
+
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  pool.releaseFirstQuery();
+  await first;
+  const error = await expectSipEffectRejection(
+    second,
+    'store_pool_exhausted',
+    160
+  );
+  assert.equal(error.details.pool_wait_ms, 200);
+  assert.ok(error.details.pool_wait_ms >= 0);
+  assert.ok(error.details.pool_wait_ms <= 250);
+  assert.equal(pool.connectCount, 2);
+});
+
+test('Postgres late connect rejection restores exactly one admission permit', async () => {
+  const deferred = new DeferredConnections();
+  const pool = new TestConnectPool(() => deferred.connect());
+  const store = singlePermitStore(pool);
+
+  await expectSipEffectRejection(store.query(identity()), 'store_pool_exhausted');
+  const second = store.query(identity());
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(pool.connectCount, 1);
+
+  deferred.rejectNext(new Error('late connection rejected'));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(pool.connectCount, 2);
+  deferred.rejectNext(new Error('next connection rejected'));
+  await assert.rejects(second);
+  assert.equal(pool.connectCount, 2);
+});
+
+test('Postgres default concurrency cannot bypass the pool acquisition deadline', async () => {
+  const pool = stalledConnectPool();
+  const store = new PostgresEffectStore(pool);
+  const operations = Array.from(
+    { length: 24 },
+    () => store.query(identity())
+  );
+
+  const outcome = await settleWithin(Promise.allSettled(operations), 500);
+
+  assert.equal(outcome.status, 'resolved');
+  assert.equal(pool.connectCount, 24);
+  if (outcome.status !== 'resolved') return;
+  assert.equal(outcome.value.length, 24);
+  for (const result of outcome.value) {
+    assert.equal(result.status, 'rejected');
+    assert.ok(
+      result.status === 'rejected' &&
+      result.reason instanceof SipEffectError &&
+      result.reason.code === 'store_pool_exhausted'
+    );
+  }
+});
+
+test('Postgres timed-out connects retain admission capacity until the pool settles', async () => {
+  const pool = stalledConnectPool();
+  const store = singlePermitStore(pool);
+
+  await expectSipEffectRejection(store.query(identity()), 'store_pool_exhausted');
+  const queued = settleWithin(store.query(identity()), 100);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(pool.connectCount, 1);
+  assert.equal((await queued).status, 'rejected');
+  assert.equal(pool.connectCount, 1);
+});
+
+test('Postgres pool deadline exposes bounded low-cardinality Retry-After facts', async () => {
+  const pool = stalledConnectPool();
+  const store = new PostgresEffectStore(pool, {
+    pool_wait_timeout_ms: 7
+  });
+
+  const outcome = await settleWithin(store.query(identity()), 100);
+
+  assert.equal(outcome.status, 'rejected');
+  if (outcome.status !== 'rejected') return;
+  assert.ok(outcome.error instanceof SipEffectError);
+  if (!(outcome.error instanceof SipEffectError)) return;
+  assert.equal(outcome.error.code, 'store_pool_exhausted');
+  assert.deepEqual(outcome.error.details, {
+    pool_wait_ms: 7,
+    queue_depth: 0,
+    retry_attempt: 0
+  });
+  assert.equal(Object.isFrozen(outcome.error.details), true);
+  assert.deepEqual(createStoreFailureSip503({
+    failure_code: outcome.error.code,
+    pool_wait_ms: outcome.error.details.pool_wait_ms,
+    queue_depth: outcome.error.details.queue_depth,
+    retry_attempt: outcome.error.details.retry_attempt
+  }), {
+    failure_code: 'store_pool_exhausted',
+    sip_status: 503,
+    retry_after_seconds: 2
+  });
+});
+
 test('Postgres repair SQL is tenant-scoped, bounded, token/revision fenced and never regresses epoch', async () => {
   const pg = new RecordingPg();
   const store = new PostgresEffectStore(pg);
@@ -2449,6 +2684,215 @@ class BlockingPg extends RecordingPg {
 
   releaseOne(): void {
     this.blockers.shift()?.();
+  }
+}
+
+function singlePermitStore(
+  pg: PgQueryable,
+  poolWaitTimeoutMs = 5
+): PostgresEffectStore {
+  return new PostgresEffectStore(pg, {
+    max_in_flight: 1,
+    max_queue_depth: 1,
+    pool_wait_timeout_ms: poolWaitTimeoutMs
+  });
+}
+
+async function expectSipEffectRejection<T>(
+  promise: Promise<T>,
+  code: StoreFailureCode,
+  timeoutMs = 100
+): Promise<SipEffectError> {
+  const outcome = await settleWithin(promise, timeoutMs);
+  assert.equal(outcome.status, 'rejected');
+  assert.ok(outcome.status === 'rejected');
+  assert.ok(outcome.error instanceof SipEffectError);
+  assert.equal(outcome.error.code, code);
+  return outcome.error;
+}
+
+type TimedSettlement<T> =
+  | { status: 'resolved'; value: T }
+  | { status: 'rejected'; error: unknown }
+  | { status: 'watchdog' };
+
+async function settleWithin<T>(
+  promise: Promise<T>,
+  timeoutMs: number
+): Promise<TimedSettlement<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise.then(
+        (value): TimedSettlement<T> => ({ status: 'resolved', value }),
+        (error: unknown): TimedSettlement<T> => ({
+          status: 'rejected',
+          error
+        })
+      ),
+      new Promise<TimedSettlement<T>>((resolve) => {
+        timer = setTimeout(() => resolve({ status: 'watchdog' }), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+class TestConnectPool implements PgQueryable {
+  connectCount = 0;
+
+  constructor(private readonly open: () => unknown) {}
+
+  async query<R extends Record<string, unknown>>(): Promise<{
+    rows: R[];
+    rowCount: number;
+    command: string;
+    oid: number;
+    fields: never[];
+  }> {
+    throw new Error('pool query must not bypass an owned client');
+  }
+
+  connect(): Promise<never> {
+    this.connectCount += 1;
+    return this.open() as Promise<never>;
+  }
+}
+
+function stalledConnectPool(): TestConnectPool {
+  return new TestConnectPool(() => new Promise<never>(() => {}));
+}
+
+class DeferredConnections {
+  readonly #pending: Array<{
+    resolve: (client: unknown) => void;
+    reject: (error: unknown) => void;
+  }> = [];
+
+  connect(): Promise<never> {
+    return new Promise<never>((resolve, reject) => {
+      this.#pending.push({
+        resolve: resolve as (client: unknown) => void,
+        reject
+      });
+    });
+  }
+
+  resolveNext(client: unknown): void {
+    const pending = this.#pending.shift();
+    assert.ok(pending);
+    pending.resolve(client);
+  }
+
+  rejectNext(error: unknown): void {
+    const pending = this.#pending.shift();
+    assert.ok(pending);
+    pending.reject(error);
+  }
+}
+
+class TestPoolClient implements PgQueryable {
+  readonly queries: string[] = [];
+  releaseCount = 0;
+
+  constructor(private readonly releaseError?: Error) {}
+
+  async query<R extends Record<string, unknown>>(
+    text: string
+  ): Promise<{
+    rows: R[];
+    rowCount: number;
+    command: string;
+    oid: number;
+    fields: never[];
+  }> {
+    this.queries.push(text);
+    return emptyQueryResult<R>();
+  }
+
+  release(): void {
+    this.releaseCount += 1;
+    if (this.releaseError) throw this.releaseError;
+  }
+}
+
+class MissingReleaseClient {
+  queryCount = 0;
+
+  async query<R extends Record<string, unknown>>(): Promise<{
+    rows: R[];
+    rowCount: number;
+    command: string;
+    oid: number;
+    fields: never[];
+  }> {
+    this.queryCount += 1;
+    return emptyQueryResult<R>();
+  }
+}
+
+class QueueThenStallPool extends TestConnectPool {
+  readonly #client: FirstQueryBlockingClient;
+
+  constructor() {
+    const client = new FirstQueryBlockingClient();
+    let calls = 0;
+    super(() => {
+      calls += 1;
+      return calls === 1
+        ? Promise.resolve(client)
+        : new Promise<never>(() => {});
+    });
+    this.#client = client;
+  }
+
+  waitUntilFirstQueryBlocks(): Promise<void> {
+    return this.#client.waitUntilBlocked();
+  }
+
+  releaseFirstQuery(): void {
+    this.#client.releaseQuery();
+  }
+}
+
+class FirstQueryBlockingClient extends TestPoolClient {
+  #blocked: Promise<void>;
+  #notifyBlocked!: () => void;
+  #releaseQuery!: () => void;
+
+  constructor() {
+    super();
+    this.#blocked = new Promise((resolve) => {
+      this.#notifyBlocked = resolve;
+    });
+  }
+
+  override async query<R extends Record<string, unknown>>(
+    text: string
+  ): Promise<{
+    rows: R[];
+    rowCount: number;
+    command: string;
+    oid: number;
+    fields: never[];
+  }> {
+    this.queries.push(text);
+    if (text.includes('ivekit-sip-effect-oracle:query')) {
+      this.#notifyBlocked();
+      await new Promise<void>((resolve) => {
+        this.#releaseQuery = resolve;
+      });
+    }
+    return emptyQueryResult<R>();
+  }
+
+  waitUntilBlocked(): Promise<void> {
+    return this.#blocked;
+  }
+
+  releaseQuery(): void {
+    this.#releaseQuery();
   }
 }
 

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { types as utilTypes } from 'node:util';
 
+import type { QueryResult, QueryResultRow } from 'pg';
 import type { PgQueryable } from '../../../../db-pg.js';
 import { withPgTenant } from '../../../../db-pg-tenant.js';
 import {
@@ -731,9 +732,13 @@ export class PostgresEffectStore implements ProtocolEffectStore {
         hasDataMethod(this.pg, 'release')) {
       schemaIncompatible('effect_store_requires_owned_pool_transaction');
     }
-    const release = await this.#admission.acquire();
+    const admission = await this.#admission.acquire();
     try {
-      return await withPgTenant(this.pg, tenantId, async (pg) => {
+      const boundedPool = new PoolAcquisitionDeadline(
+        this.pg as ConnectableEffectPool,
+        admission
+      );
+      return await withPgTenant(boundedPool, tenantId, async (pg) => {
         await pg.query(`SET LOCAL statement_timeout = '250ms'`);
         await pg.query(`SET LOCAL lock_timeout = '250ms'`);
         await pg.query(
@@ -763,7 +768,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
       if (error instanceof SipEffectError) throw error;
       throw mapPostgresError(error);
     } finally {
-      release();
+      admission.release();
     }
   }
 }
@@ -1499,32 +1504,41 @@ class StoreAdmissionGate {
     this.#metrics = input.metrics;
   }
 
-  acquire(): Promise<() => void> {
+  acquire(): Promise<StoreAdmissionLease> {
+    const deadlineMs = performance.now() + this.#waitTimeoutMs;
     if (this.#inFlight < this.#maxInFlight) {
       this.#inFlight += 1;
-      return Promise.resolve(this.#release);
+      return Promise.resolve(new StoreAdmissionLease(
+        this.#release,
+        this.#waitTimeoutMs,
+        0,
+        deadlineMs
+      ));
     }
     if (this.#queueDepth >= this.#maxQueueDepth) {
       return Promise.reject(poolExhausted(0, this.#queueDepth));
     }
-    return new Promise<() => void>((resolve, reject) => {
+    return new Promise<StoreAdmissionLease>((resolve, reject) => {
       const waiter: AdmissionWaiter = {
         previous: this.#tail,
         next: null,
         resolve,
         reject,
         timer: undefined,
-        active: true
+        active: true,
+        queue_depth: 0,
+        deadline_ms: deadlineMs
       };
       if (this.#tail) this.#tail.next = waiter;
       else this.#head = waiter;
       this.#tail = waiter;
       this.#queueDepth += 1;
+      waiter.queue_depth = this.#queueDepth;
       this.#metrics?.setQueueDepth(this.#queueDepth);
       waiter.timer = setTimeout(() => {
         if (!waiter.active) return;
         this.#unlink(waiter);
-        reject(poolExhausted(this.#waitTimeoutMs, this.#queueDepth));
+        reject(poolExhausted(this.#waitTimeoutMs, waiter.queue_depth));
       }, this.#waitTimeoutMs);
     });
   }
@@ -1536,7 +1550,12 @@ class StoreAdmissionGate {
       return;
     }
     this.#unlink(waiter);
-    waiter.resolve(this.#release);
+    waiter.resolve(new StoreAdmissionLease(
+      this.#release,
+      this.#waitTimeoutMs,
+      waiter.queue_depth,
+      waiter.deadline_ms
+    ));
   };
 
   #unlink(waiter: AdmissionWaiter): void {
@@ -1555,10 +1574,196 @@ class StoreAdmissionGate {
 interface AdmissionWaiter {
   previous: AdmissionWaiter | null;
   next: AdmissionWaiter | null;
-  resolve: (release: () => void) => void;
+  resolve: (lease: StoreAdmissionLease) => void;
   reject: (error: SipEffectError) => void;
   timer: ReturnType<typeof setTimeout> | undefined;
   active: boolean;
+  queue_depth: number;
+  deadline_ms: number;
+}
+
+class StoreAdmissionLease {
+  #references = 1;
+
+  constructor(
+    private readonly releasePermit: () => void,
+    readonly pool_wait_ms: number,
+    readonly queue_depth: number,
+    private readonly deadlineMs: number
+  ) {}
+
+  retain(): void {
+    this.#references += 1;
+  }
+
+  remainingPoolWaitMs(): number {
+    return Math.max(0, this.deadlineMs - performance.now());
+  }
+
+  release(): void {
+    if (this.#references === 0) return;
+    this.#references -= 1;
+    if (this.#references === 0) this.releasePermit();
+  }
+}
+
+interface ReleasableEffectClient extends PgQueryable {
+  release(): void;
+}
+
+interface ConnectableEffectPool extends PgQueryable {
+  connect(): Promise<ReleasableEffectClient>;
+}
+
+type CapturedDataMethod = (...args: unknown[]) => unknown;
+
+class PoolAcquisitionDeadline implements PgQueryable {
+  constructor(
+    private readonly pool: ConnectableEffectPool,
+    private readonly admission: StoreAdmissionLease
+  ) {}
+
+  query<R extends Record<string, unknown>>(
+    text: string,
+    params: unknown[] = []
+  ) {
+    return this.pool.query<R>(text, params);
+  }
+
+  connect(): Promise<ReleasableEffectClient> {
+    return acquireEffectPoolClient(this.pool, this.admission);
+  }
+}
+
+function acquireEffectPoolClient(
+  pool: ConnectableEffectPool,
+  admission: StoreAdmissionLease
+): Promise<ReleasableEffectClient> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const remainingWaitMs = admission.remainingPoolWaitMs();
+    if (remainingWaitMs <= 0) {
+      reject(poolExhausted(
+        admission.pool_wait_ms,
+        admission.queue_depth
+      ));
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (settled) return;
+      admission.retain();
+      settled = true;
+      reject(poolExhausted(
+        admission.pool_wait_ms,
+        admission.queue_depth
+      ));
+    }, remainingWaitMs);
+
+    let connection: Promise<ReleasableEffectClient>;
+    try {
+      connection = Promise.resolve(pool.connect());
+    } catch (error) {
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+      return;
+    }
+    connection.then(
+      (client) => {
+        if (settled) {
+          releaseEffectPoolClient(client, admission);
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        try {
+          resolve(ownedEffectPoolClient(client, admission));
+        } catch (error) {
+          reject(error);
+        }
+      },
+      (error: unknown) => {
+        if (settled) {
+          admission.release();
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
+function ownedEffectPoolClient(
+  client: unknown,
+  admission: StoreAdmissionLease
+): ReleasableEffectClient {
+  admission.retain();
+  const query = dataMethod(client, 'query');
+  const release = dataMethod(client, 'release');
+  if (!query || !release) {
+    if (release) releaseEffectPoolClient(client, admission, release);
+    schemaIncompatible('invalid_effect_pool_client');
+  }
+  return new OwnedEffectPoolClient(
+    client,
+    query,
+    release,
+    admission
+  );
+}
+
+class OwnedEffectPoolClient implements ReleasableEffectClient {
+  #releaseAttempted = false;
+
+  constructor(
+    private readonly client: unknown,
+    private readonly queryMethod: CapturedDataMethod,
+    private readonly releaseMethod: CapturedDataMethod,
+    private readonly admission: StoreAdmissionLease
+  ) {}
+
+  query<R extends QueryResultRow = QueryResultRow>(
+    text: string,
+    params: unknown[] = []
+  ): Promise<QueryResult<R>> {
+    try {
+      return Promise.resolve(Reflect.apply(
+        this.queryMethod,
+        this.client,
+        [text, params]
+      )) as Promise<QueryResult<R>>;
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  release(): void {
+    if (this.#releaseAttempted) return;
+    this.#releaseAttempted = true;
+    releaseEffectPoolClient(
+      this.client,
+      this.admission,
+      this.releaseMethod
+    );
+  }
+}
+
+function releaseEffectPoolClient(
+  client: unknown,
+  admission: StoreAdmissionLease,
+  capturedRelease = dataMethod(client, 'release')
+): void {
+  if (!capturedRelease) return;
+  try {
+    Promise.resolve(Reflect.apply(capturedRelease, client, [])).then(
+      () => admission.release(),
+      () => {}
+    );
+  } catch {
+    // Keep the admission reference when physical ownership is uncertain.
+  }
 }
 
 function poolExhausted(
@@ -1970,23 +2175,32 @@ function ownStringData(
 }
 
 function hasDataMethod(value: unknown, key: string): boolean {
+  return dataMethod(value, key) !== null;
+}
+
+function dataMethod(
+  value: unknown,
+  key: string
+): CapturedDataMethod | null {
   if ((!value || (typeof value !== 'object' && typeof value !== 'function')) ||
       utilTypes.isProxy(value)) {
-    return false;
+    return null;
   }
   let current: object | null = value;
   const visited = new Set<object>();
   for (let depth = 0; current && depth < 16; depth += 1) {
-    if (utilTypes.isProxy(current) || visited.has(current)) return false;
+    if (utilTypes.isProxy(current) || visited.has(current)) return null;
     visited.add(current);
     const descriptor = Object.getOwnPropertyDescriptor(current, key);
     if (descriptor) {
       return !descriptor.get && !descriptor.set &&
-        typeof descriptor.value === 'function';
+        typeof descriptor.value === 'function'
+        ? descriptor.value as CapturedDataMethod
+        : null;
     }
     current = Object.getPrototypeOf(current);
   }
-  return false;
+  return null;
 }
 
 const EFFECT_STATES = new Set<ProtocolEffectState>([
