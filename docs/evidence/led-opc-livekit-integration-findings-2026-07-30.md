@@ -2,14 +2,16 @@
 
 ## Decision
 
-The production blocker is now isolated:
+The production blocker was independently revalidated on 2026-07-31 and remains
+isolated:
 
 - OPC can create the durable call, allocate placement, produce a valid LiveKit
   join plan, and clean up the call and room.
 - LED incorrectly uses new-call capacity (`capabilities.calls`) as a prerequisite
   for joining an already-created call.
-- No LED source, configuration, database row, image, or container was changed
-  during this investigation.
+- No LED source, configuration, image, container, or database row was changed
+  directly. The browser and official API workflow created only the retained
+  test order, assignment, payment, and call-lifecycle rows described below.
 - The complete two-browser audio/video and reconnect test remains `not_run`
   until LED separates its create and join readiness gates.
 
@@ -26,8 +28,10 @@ application workflow to the operation-specific OPC capability contract.
 | LiveKit browser endpoint | `wss://rtc.freeotp.win:2096` |
 | Customer test role | Spencer test account |
 | Engineer test role | SJF test account |
-| Order | `cms7pyogi0011ru1rs2z97urq` |
-| Assignment | `cms7pzlui0016ru1rm8sn8ise` |
+| Original order | `cms7pyogi0011ru1rs2z97urq` |
+| Original assignment | `cms7pzlui0016ru1rm8sn8ise` |
+| 2026-07-31 revalidation order | `cms85mbkz002aru1r3qqz75pm` |
+| 2026-07-31 revalidation assignment | `cms85ms98002fru1r6tqgkju7` |
 
 Passwords, bearer tokens, LiveKit tokens, API keys, and server secrets are
 deliberately omitted.
@@ -36,6 +40,82 @@ deliberately omitted.
 
 The test used two clean, independent local Chrome contexts with fake camera and
 microphone devices. It did not reuse the ambient signed-in browser session.
+
+### Independent revalidation — 2026-07-31
+
+A complete fresh customer/engineer workflow independently reproduced the
+original result:
+
+1. Spencer created `OPC LiveKit findings revalidation 2026-07-31`; SJF accepted
+   the assignment.
+2. Stripe test-mode payment completed. The browser stated that no real charge
+   would be made, and the reloaded order showed `Payment funded` and
+   `Ready To Start`.
+3. Before call creation, the authenticated capability response was ready with
+   `calls=true`, `join=true`,
+   `livekit_server_configured=true`,
+   `livekit_browser_join_ready=true`, and one eligible candidate.
+4. While an existing call was ringing, the customer call API returned
+   `allowedActions=["accept","reject"]`, but the browser showed
+   `Video calling is temporarily unavailable` and rendered no Accept button.
+5. At the same point, a fresh capability request returned:
+
+   ```text
+   calls=false
+   join=true
+   media_call_create_availability=unavailable
+   reason=no_eligible_candidates
+   candidate_count=0
+   ```
+
+6. The customer accepted the controlled call through LED's official action
+   endpoint. The accepted snapshot returned `allowedActions=["join"]`.
+7. The subsequent official LED join request again failed with HTTP 503:
+
+   ```text
+   call_id=mcall_2de01c3e-c5fa-41b8-8602-202422abdd90
+   request_id=e507c902-573d-40d5-809e-f6f7c2af6c8e
+   path=/engagement/assignments/cms85ms98002fru1r6tqgkju7/media-call/mcall_2de01c3e-c5fa-41b8-8602-202422abdd90/join
+   server_timestamp=2026-07-30T23:44:05.521Z
+   ```
+
+8. The LED API container log recorded `ServiceUnavailableException`, HTTP 503,
+   the same request ID, and the same route. The failed request completed in
+   20.38 ms and did not reach OPC's call-bound join operation.
+9. An authenticated direct request to OPC for that same accepted call returned:
+
+   ```text
+   mode=webrtc
+   role=participant
+   room_name=ivekit-mcall_2de01c3e-c5fa-41b8-8602-202422abdd90
+   livekit_url=wss://rtc.freeotp.win:2096
+   token_configured=true
+   token_nonempty=true
+   placement_reservation_id=111d4a27-20a5-451e-9ce7-4d43cc8dcd7a
+   placement_cell_id=ivekit-goal3-cell-a
+   ```
+
+   The token value was neither printed nor persisted.
+10. The controlled call was ended through LED's official action endpoint with
+    `controlled_test_cleanup`. Final authoritative checks showed:
+
+    ```text
+    mcall_cd536439-61b5-44fa-bd90-199104b76fb7  timed_out  ring_timeout
+    mcall_50a1e7fd-55cd-4f07-9a12-e4d8eab199b7  timed_out  ring_timeout
+    mcall_2de01c3e-c5fa-41b8-8602-202422abdd90  ended     controlled_test_cleanup
+
+    all interaction placements: state=closed desired_state=closed sync_state=succeeded
+    all Cell admission reservations: state=closed
+    matching_livekit_rooms=0
+    calls=true
+    join=true
+    media_call_create_availability=ready
+    candidate_count=1
+    ```
+
+Relevant LED and OPC containers remained running; containers with configured
+health checks reported healthy. No server configuration or deployment artifact
+was changed.
 
 ### Successful workflow before media join
 
@@ -306,5 +386,7 @@ the tested customer UI:
 - funded test order `cms7pyogi0011ru1rs2z97urq`;
 - funded assignment `cms7pzlui0016ru1rm8sn8ise`;
 - unused open test order `cms7pqcl3000xru1rsc59sc55`.
+- funded revalidation order `cms85mbkz002aru1r3qqz75pm`;
+- funded revalidation assignment `cms85ms98002fru1r6tqgkju7`.
 
 No direct LED database cleanup was attempted.
