@@ -48,7 +48,7 @@ test('rsipstack gives application-initiated 100 Trying one transaction owner', (
   assert.doesNotMatch(patch, /^\+.*(?:Atomic|Mutex|RwLock)/m);
 });
 
-test('ivekit.39 applies single-Trying ownership after the existing rsipstack queue', () => {
+test('the current patchset retains single-Trying ownership after the existing rsipstack queue', () => {
   const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
   const readme = readFileSync('infra/ivekit/rustpbx/README.md', 'utf8');
 
@@ -56,7 +56,7 @@ test('ivekit.39 applies single-Trying ownership after the existing rsipstack que
     build,
     /rsipstack-ivekit-rejection-headers\.patch"[\s\S]*apply --check "\$PATCH_DIR\/rsipstack-ivekit-single-trying\.patch"[\s\S]*apply "\$PATCH_DIR\/rsipstack-ivekit-single-trying\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.39"/);
+  assert.match(build, /PATCHSET="ivekit\.40"/);
   assert.match(
     build,
     /cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline failed_send_trying_can_retry_on_replacement_connection/
@@ -69,11 +69,11 @@ test('ivekit.39 applies single-Trying ownership after the existing rsipstack que
     readme,
     /ServerInviteDialog[\s\S]*transaction-owned no-op/
   );
-  assert.match(readme, /503 durable admission\s+wiring[\s\S]*remain `not_run`/);
-  assert.match(readme, /Timer G validation[\s\S]*remain `not_run`/);
+  assert.match(readme, /durable-admission Retry-After wire propagation remain `not_run`/);
+  assert.match(readme, /Current Timer G\/H\/I evidence is recorded separately below/);
 });
 
-test('ivekit.39 source manifest binds the single-Trying patch identity', () => {
+test('the current source manifest binds the single-Trying patch identity', () => {
   const manifest = JSON.parse(
     readFileSync('docs/capacity/forks/ivekit-forks-v1.json', 'utf8')
   ) as {

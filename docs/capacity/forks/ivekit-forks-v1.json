@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 59,
+  "revision": 60,
   "status": "proposed",
-  "generated_at": "2026-07-29T16:00:00+08:00",
+  "generated_at": "2026-07-30T15:52:43+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.39-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.40-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.39-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.40-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -234,6 +234,12 @@
           "sha256": "4338a10e7f2ce7cba81ee7336c9a3c17ae3a633120a792f5789f65fcdf9ab752",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-processing-terminal-events.patch",
           "purpose": "Execute the existing IVR application through owner-fenced processing media with strict prompt and gather commands, durable terminal projection, SIP INFO digit injection, and a native single-leg commit that does not allocate or transcode toward a fake remote endpoint."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-server-invite-owner.patch",
+          "sha256": "f0397035f8141e375b0794200cc2c8d6bbbad54577e077175925c65675822c31",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-processing-ivr-execution.patch",
+          "purpose": "Retain each stateful 300-699 server INVITE transaction until ACK, Timer H, transport failure or shutdown without retaining the business-concurrency slot, and count abnormal terminal causes with fixed-cardinality telemetry."
         }
       ],
       "protocols": [
@@ -724,6 +730,21 @@
           ]
         },
         {
+          "change_id": "rustpbx-server-invite-owner-v1",
+          "summary": "Keep non-2xx server INVITE protocol ownership alive after RustPBX business processing returns while releasing business capacity before the protocol wait.",
+          "capacity_dimensions": [
+            "sip.active_transactions",
+            "sip.transactions_per_second",
+            "sip.invite_cps"
+          ],
+          "acceptance_evidence": [
+            "Normal completion and routing rejection retain the transaction through typed ACK, Timer-H and transport terminal outcomes; max-concurrency rejection uses a cancellation-bound owner task while the rsipstack active-transaction limit remains authoritative.",
+            "Business latency is recorded and the RustPBX business-concurrency counter is released before protocol retention begins.",
+            "Expected abnormal terminal causes increment one fixed-label counter and keep transaction identity at debug level instead of generating one warning per call.",
+            "The exact pinned full patch queue passes RustPBX cargo check --lib and two focused owner-retention tests; the full RustPBX suite, release image, SIPp wire behavior and capacity benchmarks remain not_run."
+          ]
+        },
+        {
           "change_id": "rustpbx-rustrtc-udp-socket-capacity-v1",
           "summary": "Use a pinned rustrtc transport fork with bounded per-socket RTP and RTCP receive/send buffer controls.",
           "capacity_dimensions": [
@@ -816,6 +837,8 @@
           "test/ivekit-rustpbx-processing-terminal-events-patch.test.ts",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch",
           "test/ivekit-rustpbx-processing-ivr-execution-patch.test.ts",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-server-invite-owner.patch",
+          "test/ivekit-rsipstack-server-invite-lifecycle-patch.test.ts",
           "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
           "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
@@ -859,12 +882,12 @@
           "scripts/ivekit-rustpbx-sipp-acceptance.ts",
           "docs/capacity/phase2-code-status.json"
         ],
-        "checked_at": "2026-07-29T05:23:06+08:00"
+        "checked_at": "2026-07-30T15:52:43+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The current ivekit.35 session-media-profile patch follows the complete media-tracing and inbound-admission queue; its locked native compile passes, while image build, real SIPp admission, runtime trace continuity and overhead comparison remain not_run.",
+          "The current ivekit.40 exact pinned patch queue passes cargo check --lib and focused server-INVITE owner tests; its release image, full RustPBX suite, SIPp wire behavior, runtime trace continuity and load/capacity comparison remain not_run.",
           "The exact ivekit.19 locked build and local controlled runtime pass, but the candidate has not been published with an immutable registry manifest digest, SBOM, signature or provenance.",
           "Strict packet-sequence RTP evidence passes at 10 shared-host calls and controlled RTP throughput evidence passes through 800 shared-host calls. The 150-call strict sample is invalid because the generators saturate, and both 900-call throughput samples contain mixed generator and SUT/protocol signals. Independent-generator production-capacity, realtime audio gateway authorization, recording failure injection, WSS load, multi-node failover and Cell-10K evidence are not attached.",
           "The historical shared four-vCPU signaling gate passes at 1,400 CPS and fails its strict boundary at 1,500 CPS. The ivekit.18 sustained 1,000-CPS direct and Kamailio regression gates pass, but neither result is a production or media capacity claim."
@@ -946,6 +969,12 @@
           "sha256": "a86e84a4484e9ec6f416eaa163d12f22171360241fdb8e9ae67a7b235d1c016f",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-rejection-headers.patch",
           "purpose": "Make application-initiated initial 100 Trying emission transaction-owned and at-most-once while leaving protocol retransmission replay unchanged."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-server-invite-lifecycle.patch",
+          "sha256": "d84ba38aae7e91682d4180e87cdad9a910178a67dd8d5791dade5f765bea6eef",
+          "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-single-trying.patch",
+          "purpose": "Implement the RFC 3261 server-INVITE 300-699 lifecycle with frozen-response Timer G replay, Timer H/I termination, typed owner outcomes and retained timer-head wakeups while preserving the existing 2xx path."
         }
       ],
       "implemented_changes": [
@@ -1046,6 +1075,22 @@
             "Source-flow review identifies the RustPBX CallModule and later ServerInviteDialog calls; a native ChannelConnection test proves two application-level send_trying calls on one transaction emit one outbound transport event.",
             "All 252 patched rsipstack library tests pass, including retry after a failed first transport send; durable admission 503 wiring, Timer G end-to-end validation, the RustPBX full suite and a release image remain not_run."
           ]
+        },
+        {
+          "change_id": "rsipstack-server-invite-lifecycle-v1",
+          "summary": "Complete stateful non-2xx server INVITE retransmission and termination ownership without changing the separately owned 2xx dialog path.",
+          "capacity_dimensions": [
+            "sip.active_transactions",
+            "sip.transactions_per_second",
+            "sip.invite_cps",
+            "sip.timer_queue_depth"
+          ],
+          "acceptance_evidence": [
+            "UDP 300-699 responses replay the frozen post-inspector bytes on Timer G from T1 with exponential backoff capped at T2; Timer H terminates on every transport and ACK transitions UDP through Timer I while reliable transports terminate immediately.",
+            "Initial and asynchronous final-response transport failures commit no cached response, terminate the transaction, publish a typed transport outcome and wake the transaction owner.",
+            "Timer insertion and cancellation retain a wake permit only when the queue head changes, including insertion before waiter registration; non-head insertion does not wake the worker.",
+            "The exact pinned full queue passes rustfmt, all 264 rsipstack library tests, RustPBX cargo check --lib and two RustPBX owner tests; release image, SIPp wire/load behavior and timer-capacity benchmarks remain not_run."
+          ]
         }
       ],
       "planned_changes": [],
@@ -1066,19 +1111,21 @@
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-prepared-invite.patch",
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-rejection-headers.patch",
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-single-trying.patch",
+          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-server-invite-lifecycle.patch",
           "test/ivekit-rsipstack-prepared-invite-patch.test.ts",
           "test/ivekit-rsipstack-single-trying-patch.test.ts",
+          "test/ivekit-rsipstack-server-invite-lifecycle-patch.test.ts",
           "test/ivekit-rustpbx-dialog-recovery-patch.test.ts",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
           "test/ivekit-rustpbx-build.test.ts",
           "test/ivekit-voice-deployment.test.ts"
         ],
-        "checked_at": "2026-07-30T14:44:12+08:00"
+        "checked_at": "2026-07-30T15:52:43+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The patched library compiled into the local ivekit.16 RustPBX image, but that image has no immutable registry digest for this manifest revision.",
+          "The exact ivekit.40 pinned queue passes all 264 rsipstack library tests and RustPBX cargo check --lib, but no ivekit.40 release image digest, SBOM, signature or registry provenance exists.",
           "The shared-host 1,400-CPS signaling baseline passed, but TCP/TLS/WSS transport load, controlled overload recovery, RTP integration and Cell-10K benchmarks are not attached."
         ]
       },

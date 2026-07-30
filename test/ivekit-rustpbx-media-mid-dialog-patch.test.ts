@@ -85,7 +85,7 @@ test('unsolicited RTPengine DTMF uses a replayable RustPBX event stream', () => 
   assert.match(effective, /send_command_async/);
 });
 
-test('RustPBX deployment references advance atomically to ivekit.39', () => {
+test('RustPBX deployment references advance atomically to ivekit.40', () => {
   for (const path of [
     'infra/env.example',
     'infra/ivekit/env.example',
@@ -93,7 +93,7 @@ test('RustPBX deployment references advance atomically to ivekit.39', () => {
   ]) {
     assert.match(
       readFileSync(path, 'utf8'),
-      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.39-6c49ee76/,
+      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.40-6c49ee76/,
       path
     );
   }

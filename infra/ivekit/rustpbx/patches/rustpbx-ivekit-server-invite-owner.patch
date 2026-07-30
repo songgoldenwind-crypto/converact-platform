@@ -1,0 +1,363 @@
+--- a/src/proxy/server.rs
++++ b/src/proxy/server.rs
+@@ -15,51 +15,51 @@
+     config::{ProxyConfig, RtpConfig, SipFlowConfig},
+     proxy::{
+         FnCreateRouteInvite,
+         active_call_registry::ActiveProxyCallRegistry,
+         auth::AuthBackend,
+         call::{CallRouter, DialplanInspector},
+         cluster_event::{ClusterEventHub, ClusterEventModule},
+         locator::{
+             DialogTargetLocator, LocatorEvent, LocatorEventSender, TransportInspectorLocator,
+         },
+         pre_auth_registry::PreAuthRegistry,
+         presence::PresenceManager,
+     },
+     sipflow::SipFlowBackend,
+     sipflow::backend::create_backend,
+ };
+ use anyhow::{Result, anyhow};
+ use rsipstack::sip::prelude::HeadersExt;
+ use rsipstack::sip::{Auth, Param, Transport};
+ use rsipstack::{
+     EndpointBuilder,
+     dialog::dialog_layer::DialogLayer,
+     transaction::{
+         Endpoint, TransactionReceiver,
+         endpoint::{EndpointOption, MessageInspector},
+-        transaction::Transaction,
++        transaction::{ServerInviteTermination, Transaction},
+     },
+     transport::{
+         TcpListenerConnection, TlsConfig, TlsListenerConnection, TransportLayer,
+         WebSocketListenerConnection, udp::UdpConnection,
+     },
+ };
+ 
+ use sea_orm::DatabaseConnection;
+ use std::{
+     collections::{HashMap, HashSet},
+     net::{IpAddr, SocketAddr},
+     sync::{
+         Arc, OnceLock,
+         atomic::{AtomicUsize, Ordering},
+     },
+     time::{Duration, Instant},
+ };
+ use tokio::select;
+ use tokio_util::sync::CancellationToken;
+ use tracing::{debug, info, warn};
+ 
+ pub struct SipServerInner {
+     pub cancel_token: CancellationToken,
+     pub rtp_config: RtpConfig,
+     pub proxy_config: Arc<ProxyConfig>,
+@@ -1232,89 +1232,134 @@
+         for module in self.modules.iter() {
+             match module.on_stop().await {
+                 Ok(_) => {}
+                 Err(e) => {
+                     warn!("failed to stop module {}: {}", module.name(), e);
+                 }
+             }
+         }
+         info!("stopped");
+         Ok(())
+     }
+     pub fn stop(&self) {
+         self.inner.cancel_token.cancel();
+     }
+ 
+     pub fn get_inner(&self) -> SipServerRef {
+         self.inner.clone()
+     }
+ 
+     pub fn get_modules(&self) -> impl Iterator<Item = &Box<dyn ProxyModule>> {
+         self.modules.iter()
+     }
+ 
+     pub fn get_cancel_token(&self) -> CancellationToken {
+         self.inner.cancel_token.clone()
++    }
++
++    async fn retain_server_invite_owner(token: &CancellationToken, tx: &mut Transaction) {
++        select! {
++            result = tx.drain_non_2xx_server_invite() => {
++                match result {
++                    Ok(Some(ServerInviteTermination::Acknowledged)) => {
++                        debug!(key = %tx.key, "server INVITE transaction acknowledged");
++                    }
++                    Ok(Some(termination @ ServerInviteTermination::TimerHExpired)) => {
++                        metrics::counter!(
++                            "rustpbx_sip_server_invite_terminations_total",
++                            "cause" => "timer_h_expired"
++                        ).increment(1);
++                        debug!(key = %tx.key, ?termination, "server INVITE transaction failed");
++                    }
++                    Ok(Some(termination @ ServerInviteTermination::TransportError)) => {
++                        metrics::counter!(
++                            "rustpbx_sip_server_invite_terminations_total",
++                            "cause" => "transport_error"
++                        ).increment(1);
++                        debug!(key = %tx.key, ?termination, "server INVITE transaction failed");
++                    }
++                    Ok(None) => {}
++                    Err(error) => {
++                        warn!(key = %tx.key, error = %error, "failed to retain server INVITE transaction");
++                    }
++                }
++            }
++            _ = token.cancelled() => {
++                debug!(key = %tx.key, "server INVITE transaction owner cancelled");
++            }
++        }
+     }
+ 
++    async fn reject_max_concurrency_and_retain(token: CancellationToken, mut tx: Transaction) {
++        let guard = token.clone().drop_guard();
++        match tx
++            .reply(rsipstack::sip::StatusCode::ServiceUnavailable)
++            .await
++        {
++            Ok(()) => Self::retain_server_invite_owner(&token, &mut tx).await,
++            Err(error) => {
++                warn!(key = %tx.key, error = %error, "failed to send max-concurrency rejection");
++            }
++        }
++        let _ = guard;
++    }
++
+     async fn handle_incoming(&self, mut incoming: TransactionReceiver) -> Result<()> {
+         let mut tx_count: u64 = 0;
+         while let Some(mut tx) = incoming.recv().await {
+             crate::metrics::transaction::received();
+             tx_count += 1;
+             if tx_count % 100 == 0 {
+                 let stats = self.inner.endpoint.inner.get_stats();
+                 crate::metrics::transaction::set_endpoint_running(stats.running_transactions);
+                 crate::metrics::transaction::set_endpoint_finished(stats.finished_transactions);
+                 crate::metrics::transaction::set_endpoint_waiting_ack(stats.waiting_ack);
+                 crate::metrics::transaction::set_running(
+                     self.inner.runnings_tx.load(Ordering::Relaxed),
+                 );
+             }
+             let modules = self.modules.clone();
+ 
+             let token = tx
+                 .connection
+                 .as_ref()
+                 .and_then(|c| c.cancel_token())
+                 .unwrap_or_else(|| self.inner.cancel_token.clone())
+                 .child_token();
+ 
+             let runnings_tx = self.inner.runnings_tx.clone();
+ 
+             if let Some(max_concurrency) = self.inner.proxy_config.max_concurrency
+                 && runnings_tx.load(Ordering::Relaxed) >= max_concurrency
+             {
+                 info!(
+                     key = %tx.key,
+                     runnings = runnings_tx.load(Ordering::Relaxed),
+                     "max concurrency reached, not process this transaction"
+                 );
+                 crate::metrics::transaction::rejected("max_concurrency");
+-                tx.reply(rsipstack::sip::StatusCode::ServiceUnavailable)
+-                    .await
+-                    .ok();
++                crate::utils::spawn(Self::reject_max_concurrency_and_retain(token, tx));
+                 continue;
+             }
+             // Spam protection for out-of-dialog requests
+             if self.inner.ignore_out_of_dialog_request
+                 && matches!(
+                     tx.original.method,
+                     rsipstack::sip::Method::Options
+                         | rsipstack::sip::method::Method::Info
+                         | rsipstack::sip::method::Method::Refer
+                         | rsipstack::sip::method::Method::Update
+                 )
+             {
+                 let to_tag = tx
+                     .original
+                     .to_header()
+                     .and_then(|to| to.tag())
+                     .ok()
+                     .flatten();
+                 if to_tag.is_none() {
+                     let via_ip = crate::proxy::routing::extract_via_ip(&tx.original);
+                     let via_ip_str = via_ip
+                         .map(|ip| ip.to_string())
+                         .unwrap_or_else(|| "unknown".to_string());
+                     if tx.original.method == rsipstack::sip::Method::Options {
+                         let is_trunk = if let Some(ref ip) = via_ip {
+@@ -1358,50 +1403,51 @@
+                         info!(key = %tx.key, "transaction cancelled");
+                     }
+                 };
+                 crate::metrics::transaction::latency_seconds(start_time.elapsed().as_secs_f64());
+                 runnings_tx.fetch_sub(1, Ordering::Relaxed);
+                 let is_mid_dialog = tx
+                     .original
+                     .to_header()
+                     .ok()
+                     .and_then(|h| h.tag().ok().flatten())
+                     .is_some();
+ 
+                 if !matches!(
+                     tx.original.method,
+                     rsipstack::sip::Method::Bye
+                         | rsipstack::sip::Method::Cancel
+                         | rsipstack::sip::Method::Ack
+                 ) && !is_mid_dialog
+                     && tx.last_response.is_none()
+                     && !cookie.is_spam()
+                 {
+                     tx.reply(rsipstack::sip::StatusCode::NotImplemented)
+                         .await
+                         .ok();
+                 }
++                Self::retain_server_invite_owner(&token, &mut tx).await;
+                 let _ = guard;
+                 Ok::<(), anyhow::Error>(())
+             });
+         }
+         Ok(())
+     }
+ 
+     async fn process_transaction(
+         token: CancellationToken,
+         modules: Arc<Vec<Box<dyn ProxyModule>>>,
+         cookie: TransactionCookie,
+         tx: &mut Transaction,
+     ) -> Result<()> {
+         for module in modules.iter() {
+             match module
+                 .on_transaction_begin(token.clone(), tx, cookie.clone())
+                 .await
+             {
+                 Ok(action) => match action {
+                     ProxyAction::Continue => {}
+                     ProxyAction::Abort => break,
+                 },
+                 Err(e) => {
+                     warn!(
+                         key = %tx.key,
+@@ -1413,51 +1459,117 @@
+                         tx.reply(rsipstack::sip::StatusCode::ServerInternalError)
+                             .await
+                             .ok();
+                     }
+                     return Ok(());
+                 }
+             }
+         }
+ 
+         for module in modules.iter() {
+             match module.on_transaction_end(tx).await {
+                 Ok(_) => {}
+                 Err(e) => {
+                     warn!(key = %tx.key, "failed to handle transaction: {}", e);
+                 }
+             }
+         }
+         Ok(())
+     }
+ }
+ 
+ impl Drop for SipServerInner {
+     fn drop(&mut self) {
+         self.cancel_token.cancel();
+         info!("SipServerInner dropped");
++    }
++}
++
++#[cfg(test)]
++mod invite_owner_tests {
++    use super::SipServer;
++    use crate::proxy::tests::common::{create_test_request, create_transaction};
++    use rsipstack::sip::{Method, StatusCode};
++    use std::time::Duration;
++    use tokio::time::timeout;
++    use tokio_util::sync::CancellationToken;
++
++    #[tokio::test]
++    async fn ivekit_server_invite_owner_survives_module_return_until_cancelled() {
++        let request = create_test_request(Method::Invite, "alice", None, "rustpbx.test", None);
++        let (mut transaction, endpoint) = create_transaction(request).await;
++        transaction
++            .reply(StatusCode::ServiceUnavailable)
++            .await
++            .expect("final response");
++        let token = CancellationToken::new();
++        let owner_token = token.clone();
++        let owner = tokio::spawn(async move {
++            SipServer::retain_server_invite_owner(&owner_token, &mut transaction).await;
++            transaction
++        });
++
++        tokio::task::yield_now().await;
++        assert!(
++            !owner.is_finished(),
++            "owner dropped before protocol terminal"
++        );
++        assert_eq!(endpoint.get_stats().running_transactions, 1);
++
++        token.cancel();
++        let transaction = timeout(Duration::from_secs(1), owner)
++            .await
++            .expect("owner cancellation timeout")
++            .expect("owner task panicked");
++        drop(transaction);
++        assert_eq!(endpoint.get_stats().running_transactions, 0);
+     }
++
++    #[tokio::test]
++    async fn ivekit_max_concurrency_rejection_retains_owner_until_cancelled() {
++        let request = create_test_request(Method::Invite, "alice", None, "rustpbx.test", None);
++        let (transaction, endpoint) = create_transaction(request).await;
++        let token = CancellationToken::new();
++        let owner_token = token.clone();
++        let owner = tokio::spawn(async move {
++            SipServer::reject_max_concurrency_and_retain(owner_token, transaction).await;
++        });
++
++        tokio::task::yield_now().await;
++        assert!(
++            !owner.is_finished(),
++            "503 owner dropped before protocol terminal"
++        );
++        assert_eq!(endpoint.get_stats().running_transactions, 1);
++
++        token.cancel();
++        timeout(Duration::from_secs(1), owner)
++            .await
++            .expect("owner cancellation timeout")
++            .expect("owner task panicked");
++        assert_eq!(endpoint.get_stats().running_transactions, 0);
++    }
+ }
+ 
+ impl SipServerInner {
+     pub fn default_contact_uri(&self) -> Option<rsipstack::sip::Uri> {
+         let addr = self.endpoint.get_addrs().first()?.clone();
+         let mut params = Vec::new();
+         if let Some(transport) = addr.r#type
+             && !matches!(transport, Transport::Udp)
+         {
+             params.push(Param::Transport(transport));
+         }
+         Some(rsipstack::sip::Uri {
+             scheme: addr.r#type.map(|t| t.sip_scheme()),
+             auth: Some(Auth {
+                 user: self.contact_username.clone(),
+                 password: None,
+             }),
+             host_with_port: addr.addr,
+             params,
+             ..Default::default()
+         })
+     }
+ 
+     pub fn default_media_config(&self) -> MediaConfig {
+         MediaConfig::new()

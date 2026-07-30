@@ -28,12 +28,41 @@ retransmissions remain independent through `respond(last_response)`.
 Source-flow review identifies the RustPBX `CallModule` and later
 `ServerInviteDialog` calls; the native channel-transport regression proves two
 application-level calls on one transaction emit one outbound transport event.
-The patched rsipstack library passes all 252 tests. A separate native regression proves a
-failed first transport send can retry on a replacement connection. The
-RustPBX full suite and release image for ivekit.39, 503 durable admission
-wiring, and end-to-end Timer G validation remain `not_run`; this patch does not
-claim those gates. The 1,911-test RustPBX result below remains the ivekit.38
-evidence baseline.
+The patched rsipstack library passed all 252 tests at that checkpoint. A
+separate native regression proves a failed first transport send can retry on a
+replacement connection. The RustPBX full suite, ivekit.40 release image, and
+end-to-end durable-admission Retry-After wire propagation remain `not_run`.
+Current Timer G/H/I evidence is recorded separately below. The 1,911-test
+RustPBX result below remains the ivekit.38 evidence baseline.
+
+## Non-2xx server INVITE lifecycle
+
+ivekit.40 adds the RFC 3261 server-INVITE lifecycle only for final responses
+300 through 699. On UDP, Timer G starts at T1, doubles to T2, and replays the
+cached post-inspector response without running the inspector again. Timer H
+runs for 64*T1 on every transport. An ACK cancels G/H and retains UDP
+transactions through Timer I at T4; reliable transports terminate immediately.
+Timer H expiry and transport failure have typed observable outcomes. An initial
+final-response send failure commits neither the Completed state nor the cached
+response: it records `TransportError`, terminates the transaction, and wakes
+the transaction owner. INVITE 2xx remains outside this patch and never starts
+G/H.
+
+RustPBX retains each applicable transaction owner after module return, routing
+rejection, and normal dialog completion. The ordinary path records business
+latency and releases its business-concurrency slot before waiting for the SIP
+protocol terminal. Max-concurrency rejection uses a separate owner task, still
+bounded by rsipstack active-transaction capacity and by the connection/server
+cancellation token. The endpoint's capacity-emergency 503 remains the explicit
+stateless exception. Timer-H and transport failures increment one bounded
+counter keyed only by the fixed cause set; per-transaction detail is debug-only.
+
+The same patch closes the timer worker's head-publication lost-wakeup window by
+using a retained Tokio Notify permit for a new or removed head and by avoiding
+non-head wakeups. Native evidence on the pinned sources is 264/264 rsipstack
+library tests plus two targeted RustPBX owner-retention tests. Docker verification,
+the full RustPBX suite, release image, SIPp wire tests, and load/capacity gates
+remain `not_run`.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The iveKit AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

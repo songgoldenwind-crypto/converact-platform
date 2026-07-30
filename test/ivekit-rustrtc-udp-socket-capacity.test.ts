@@ -30,7 +30,7 @@ test('RustPBX build pins and patches the rustrtc media transport source', () => 
     build,
     /git -C "\$BUILD_ROOT\/rustpbx" apply --check "\$PATCH_DIR\/rustpbx-local-rustrtc\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.39"/);
+  assert.match(build, /PATCHSET="ivekit\.40"/);
 
   assert.match(dependencyPatch, /\[patch\.crates-io\]/);
   assert.match(dependencyPatch, /rustrtc = \{ path = "\.\.\/rustrtc" \}/);
