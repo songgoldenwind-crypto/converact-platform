@@ -1,0 +1,21 @@
+[package]
+name = "rvoip-g729"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+
+[features]
+default = ["g729"]
+g729 = []
+
+[lib]
+path = "src/lib.rs"
+
+[package.metadata.ivekit]
+upstream_repository = "https://github.com/eisenzopf/rvoip"
+upstream_commit = "4ced02b7f6e73041c848f1765dc2bcf7588796f0"
+upstream_tree = "74dabd314841d99e1a87dbdaca6050fc4e8ed923"
+source_set_sha256 = "bbc645b365a3b0d86fd2c05881d7911d65b880b695b1483dba856903bae223ad"
+runtime_enabled = false
+production_eligible = false

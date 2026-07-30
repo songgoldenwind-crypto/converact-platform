@@ -1,0 +1,50 @@
+[package]
+name = "rvoip-codec-core"
+# 🎯 INHERIT VERSION AND METADATA FROM WORKSPACE!
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+categories.workspace = true
+keywords.workspace = true
+
+# Crate-specific description
+description = "G.711 and optional G.729A/G.729AB audio codec implementation for RVOIP"
+
+[lib]
+name = "codec_core"
+path = "src/lib.rs"
+
+# ✨ INHERIT LINTS FROM WORKSPACE
+[lints]
+workspace = true
+
+[dependencies]
+# External dependencies from workspace
+thiserror.workspace = true
+tracing.workspace = true
+
+# Crate-specific dependencies not in workspace
+tracing-subscriber = "0.3"   # Logging initialization
+
+[dev-dependencies]
+# Testing
+tokio.workspace = true       # Async runtime for tests
+criterion = { workspace = true }
+
+[[bench]]
+name = "g711_codec"
+harness = false
+
+[features]
+default = ["g711"]
+
+# Codec features
+g711 = []                    # G.711 μ-law/A-law codec (always available)
+g729 = []                    # G.729A/G.729AB codec
+opus = []                    # Opus codec (real impl in src/codecs/opus.rs)
+opus-sim = []                # Opus codec simulator variant
