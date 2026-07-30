@@ -66,6 +66,26 @@ export interface PostgresEffectStoreOptions {
   metrics?: SipEffectMetricBook;
 }
 
+export interface PostgresStoreFailureEvidence {
+  failure_code: StoreFailureCode;
+  retry_after_facts: Readonly<{
+    pool_wait_ms: number;
+    queue_depth: number;
+    retry_attempt: number;
+  }> | null;
+}
+
+const STORE_FAILURE_EVIDENCE =
+  new WeakMap<SipEffectError, PostgresStoreFailureEvidence>();
+
+export function readPostgresStoreFailureEvidence(
+  error: unknown
+): PostgresStoreFailureEvidence | null {
+  return error instanceof SipEffectError
+    ? STORE_FAILURE_EVIDENCE.get(error) ?? null
+    : null;
+}
+
 const EFFECT_COLUMNS = effectColumns('');
 const EFFECT_COLUMNS_QUALIFIED = effectColumns('effect.');
 const REPAIR_BATCH_CEILING = 100;
@@ -1770,7 +1790,7 @@ function poolExhausted(
   poolWaitMs: number,
   queueDepth: number
 ): SipEffectError {
-  return new SipEffectError({
+  return evidenceStoreFailure(new SipEffectError({
     code: 'store_pool_exhausted',
     status: 503,
     retryable: true,
@@ -1779,6 +1799,10 @@ function poolExhausted(
       queue_depth: queueDepth,
       retry_attempt: 0
     }
+  }), {
+    pool_wait_ms: poolWaitMs,
+    queue_depth: queueDepth,
+    retry_attempt: 0
   });
 }
 
@@ -2109,12 +2133,12 @@ function notFound(): never {
 }
 
 function unavailable(reason: string): never {
-  throw new SipEffectError({
+  throw evidenceStoreFailure(new SipEffectError({
     code: 'store_unavailable',
     status: 503,
     retryable: true,
     details: { reason }
-  });
+  }));
 }
 
 function schemaIncompatible(reason: string): never {
@@ -2122,12 +2146,12 @@ function schemaIncompatible(reason: string): never {
 }
 
 function schemaError(reason: string): SipEffectError {
-  return new SipEffectError({
+  return evidenceStoreFailure(new SipEffectError({
     code: 'store_schema_incompatible',
     status: 503,
     retryable: true,
     details: { reason }
-  });
+  }));
 }
 
 function mapPostgresError(error: unknown): SipEffectError {
@@ -2145,12 +2169,25 @@ function mapPostgresError(error: unknown): SipEffectError {
   } else {
     failureCode = 'store_unavailable';
   }
-  return new SipEffectError({
+  return evidenceStoreFailure(new SipEffectError({
     code: failureCode,
     status: 503,
     retryable: true,
     cause: error
-  });
+  }));
+}
+
+function evidenceStoreFailure(
+  error: SipEffectError,
+  retryAfterFacts: PostgresStoreFailureEvidence['retry_after_facts'] = null
+): SipEffectError {
+  STORE_FAILURE_EVIDENCE.set(error, Object.freeze({
+    failure_code: error.code as StoreFailureCode,
+    retry_after_facts: retryAfterFacts === null
+      ? null
+      : Object.freeze({ ...retryAfterFacts })
+  }));
+  return error;
 }
 
 function ownStringData(

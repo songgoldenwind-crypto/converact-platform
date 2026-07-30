@@ -6,6 +6,7 @@ import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/index.js';
 import {
   VoiceError,
   routeIveKitVoiceApi,
+  sipFoundation,
   type VoiceExtension,
   type VoiceHttpModule
 } from '../src/agent-runtime/ivekit/voice/index.js';
@@ -1121,6 +1122,97 @@ test('standalone Voice errors use the stable secret-safe envelope', async (t) =>
   assert.equal(response.headers.get('x-request-id'), 'request-safe-a');
 });
 
+test('standalone retryable Voice 503 propagates validated Retry-After', async (t) => {
+  const db = createDatabase(':memory:');
+  const store = new sipFoundation.PostgresEffectStore({
+    connect: () => new Promise(() => {})
+  } as unknown as PgQueryable, {
+    pool_wait_timeout_ms: 7
+  });
+  const unavailableStore = new sipFoundation.PostgresEffectStore({
+    connect: () => Promise.reject(new Error('database unavailable'))
+  } as unknown as PgQueryable);
+  const server = createIveKitHttpServer({
+    db,
+    pg: null,
+    routes: {
+      voice: async (_pg, _method, path) => {
+        if (path.endsWith('/pool-exhausted')) {
+          return store.query(storeFailureIdentity());
+        }
+        if (path.endsWith('/missing-evidence')) {
+          return unavailableStore.query(storeFailureIdentity());
+        }
+        if (path.endsWith('/forged-store-evidence')) {
+          throw new sipFoundation.SipEffectError({
+            code: 'store_pool_exhausted',
+            status: 503,
+            retryable: true,
+            details: {
+              pool_wait_ms: 250,
+              queue_depth: 1024,
+              retry_attempt: 1
+            }
+          });
+        }
+        const forged = new VoiceError({
+          code: 'provider_unavailable',
+          status: 503,
+          retryable: true
+        });
+        Object.defineProperty(forged, 'retry_after_seconds', { value: 7 });
+        throw forged;
+      },
+      media: async () => undefined,
+      chat: async () => undefined,
+      intelligence: async () => undefined,
+      events: async () => undefined,
+      collaboration: async () => undefined
+    }
+  });
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => error ? reject(error) : resolve())
+    );
+    db.close();
+  });
+
+  const port = await listenOnRandomPort(server);
+  const poolExhausted = await fetch(
+    `http://127.0.0.1:${port}/api/ivekit/voice/profiles/pool-exhausted`
+  );
+  assert.equal(poolExhausted.status, 503);
+  assert.equal(poolExhausted.headers.get('retry-after'), '2');
+
+  const missingEvidence = await fetch(
+    `http://127.0.0.1:${port}/api/ivekit/voice/profiles/missing-evidence`
+  );
+  assert.equal(missingEvidence.status, 503);
+  assert.equal(missingEvidence.headers.get('retry-after'), null);
+  const missingEvidenceBody = await missingEvidence.json() as {
+    error: { code: string; retryable: boolean };
+  };
+  assert.equal(missingEvidenceBody.error.code, 'provider_unavailable');
+  assert.equal(missingEvidenceBody.error.retryable, true);
+
+  const forgedStoreEvidence = await fetch(
+    `http://127.0.0.1:${port}/api/ivekit/voice/profiles/forged-store-evidence`
+  );
+  assert.equal(forgedStoreEvidence.status, 503);
+  assert.equal(forgedStoreEvidence.headers.get('retry-after'), null);
+  const forgedStoreBody = await forgedStoreEvidence.json() as {
+    error: { code: string; retryable: boolean };
+  };
+  assert.equal(forgedStoreBody.error.code, 'internal_error');
+  assert.equal(forgedStoreBody.error.retryable, false);
+
+  const forged = await fetch(
+    `http://127.0.0.1:${port}/api/ivekit/voice/profiles/forged`
+  );
+  assert.equal(forged.status, 503);
+  assert.equal(forged.headers.get('retry-after'), null);
+});
+
 function installJwtAuth(t: import('node:test').TestContext): { token: string } {
   const previousSecret = process.env.OPC_JWT_SECRET;
   const previousIssuer = process.env.OPC_AUTH_ISSUER;
@@ -1167,6 +1259,27 @@ function outboundBody(patch: Record<string, unknown> = {}): Record<string, unkno
     business_ref: { type: 'order', id: 'order-a' },
     metadata: {},
     ...patch
+  };
+}
+
+function storeFailureIdentity(): sipFoundation.ProtocolEffectIdentity {
+  return {
+    tenant_id: 'tenant-auth',
+    protocol_effect_id: 'effect-http-a',
+    protocol_session_id: 'session-http-a',
+    protocol_session_generation: '1',
+    decision_id: 'decision-http-a',
+    idempotency_key: 'effect-http-key-a',
+    request_hash: 'a'.repeat(64),
+    command_id: 'command-http-a',
+    adapter_identity_hash: 'b'.repeat(64),
+    wire_bytes_hash: 'c'.repeat(64),
+    wire_length_bytes: 1,
+    route_binding_hash: 'd'.repeat(64),
+    wire_attempt_facts_hash: 'e'.repeat(64),
+    wire_freeze_sha256: 'f'.repeat(64),
+    owner_epoch: '1',
+    command_sequence: '1'
   };
 }
 

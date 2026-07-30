@@ -59,6 +59,10 @@ import {
 import { ContactCenterError } from './contact-center/errors.js';
 import { PlacementError } from './placement/types.js';
 import { VoiceError } from './voice/errors.js';
+import {
+  mapStoreFailureToVoice503,
+  trustedStoreFailureRetryAfterSeconds
+} from './voice/sip-foundation/admission-error.js';
 import { IvrError } from './ivr/errors.js';
 import {
   routeIveKitNotificationApi,
@@ -501,15 +505,23 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           );
         });
       }
-      const status = Number((error as { status?: number }).status || 500);
+      const storeFailure = mapStoreFailureToVoice503(error);
+      const responseError = storeFailure ?? error;
+      const status = Number((responseError as { status?: number }).status || 500);
       if (isStructuredControlPath(requestPath)) {
-        const domainError = error instanceof VoiceError || error instanceof IvrError ||
-          error instanceof ContactCenterError || error instanceof NotificationError ||
-          error instanceof IveKitOperationsError || error instanceof IveKitRateLimitError
-          || error instanceof IveKitRetentionError || error instanceof RecordingSpoolIntakeError
-          || error instanceof PlacementError
-            ? error : null;
+        const domainError = responseError instanceof VoiceError ||
+          responseError instanceof IvrError ||
+          responseError instanceof ContactCenterError ||
+          responseError instanceof NotificationError ||
+          responseError instanceof IveKitOperationsError ||
+          responseError instanceof IveKitRateLimitError ||
+          responseError instanceof IveKitRetentionError ||
+          responseError instanceof RecordingSpoolIntakeError ||
+          responseError instanceof PlacementError
+            ? responseError : null;
         const code = domainError?.code ?? (status >= 500 ? 'internal_error' : httpVoiceErrorCode(status));
+        const storeRetryAfter =
+          trustedStoreFailureRetryAfterSeconds(domainError);
         sendJson(
           response,
           status,
@@ -521,7 +533,9 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           ),
           error instanceof IveKitRateLimitError
             ? { 'retry-after': error.retry_after_seconds }
-            : {}
+            : storeRetryAfter !== null
+              ? { 'retry-after': storeRetryAfter }
+              : {}
         );
         return;
       }
