@@ -27,7 +27,7 @@ function removedLines(): string {
     .join('\n');
 }
 
-test('RustPBX retains the immutable per-session media profile in ivekit.38', () => {
+test('RustPBX retains the immutable per-session media profile in ivekit.39', () => {
   assert.equal(existsSync(PATCH_PATH), true, `${PATCH_PATH} is required`);
   const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
   const parsed = spawnSync('git', ['apply', '--numstat', PATCH_PATH], {
@@ -35,7 +35,7 @@ test('RustPBX retains the immutable per-session media profile in ivekit.38', () 
   });
 
   assert.equal(parsed.status, 0, parsed.stderr);
-  assert.match(build, /PATCHSET="ivekit\.38"/);
+  assert.match(build, /PATCHSET="ivekit\.39"/);
   assert.match(
     build,
     /rustpbx-ivekit-inbound-admission-response-contract\.patch"[\s\S]*rustpbx-ivekit-session-media-profile\.patch"/

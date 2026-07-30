@@ -1,0 +1,206 @@
+diff --git a/src/transaction/tests/test_server.rs b/src/transaction/tests/test_server.rs
+--- a/src/transaction/tests/test_server.rs
++++ b/src/transaction/tests/test_server.rs
+@@ -1,5 +1,5 @@
+ use crate::sip::headers::*;
+-use crate::transport::SipConnection;
++use crate::transport::{channel::ChannelConnection, SipAddr, SipConnection, TransportEvent};
+ use crate::{
+     transport::{udp::UdpConnection, TransportLayer},
+     EndpointBuilder,
+@@ -10,6 +10,157 @@ use tokio_util::sync::CancellationToken;
+ use tracing::info;
+ 
+ #[tokio::test]
++async fn repeated_send_trying_emits_one_initial_response() {
++    let (_incoming_tx, incoming_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    let channel_addr = SipAddr::from(
++        "127.0.0.1:5060"
++            .parse::<std::net::SocketAddr>()
++            .expect("channel address"),
++    );
++    let connection =
++        ChannelConnection::create_connection(incoming_rx, outgoing_tx, channel_addr, None)
++            .await
++            .expect("channel connection");
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-test")
++        .build();
++    let request = crate::sip::Request {
++        method: crate::sip::Method::Invite,
++        uri: crate::sip::Uri::try_from("sip:bob@example.test").expect("request URI"),
++        headers: vec![
++            Via::new("SIP/2.0/UDP example.test:5060;branch=z9hG4bK-single-trying").into(),
++            CSeq::new("1 INVITE").into(),
++            From::new("Alice <sip:alice@example.test>;tag=single-trying").into(),
++            To::new("Bob <sip:bob@example.test>").into(),
++            CallId::new("single-trying@example.test").into(),
++        ]
++        .into(),
++        version: crate::sip::Version::V2,
++        body: Default::default(),
++    };
++    let key = crate::transaction::TransactionKey::from_request(
++        &request,
++        crate::transaction::key::TransactionRole::Server,
++    )
++    .expect("transaction key");
++    let mut transaction = crate::transaction::Transaction::new_server(
++        key,
++        request,
++        endpoint.inner.clone(),
++        Some(connection.into()),
++    );
++
++    transaction.send_trying().await.expect("first 100 Trying");
++    transaction
++        .send_trying()
++        .await
++        .expect("duplicate owner is a no-op");
++
++    let first = outgoing_rx.recv().await.expect("first response");
++    assert!(matches!(
++        first,
++        TransportEvent::Incoming(
++            crate::sip::SipMessage::Response(crate::sip::Response {
++                status_code: crate::sip::StatusCode::Trying,
++                ..
++            }),
++            _,
++            _
++        )
++    ));
++    assert!(
++        matches!(
++            outgoing_rx.try_recv(),
++            Err(tokio::sync::mpsc::error::TryRecvError::Empty)
++        ),
++        "the second application owner must not emit another 100 Trying"
++    );
++}
++
++#[tokio::test]
++async fn failed_send_trying_can_retry_on_replacement_connection() {
++    let (_failed_incoming_tx, failed_incoming_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (failed_outgoing_tx, failed_outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    drop(failed_outgoing_rx);
++    let channel_addr = SipAddr::from(
++        "127.0.0.1:5060"
++            .parse::<std::net::SocketAddr>()
++            .expect("channel address"),
++    );
++    let failed_connection = ChannelConnection::create_connection(
++        failed_incoming_rx,
++        failed_outgoing_tx,
++        channel_addr.clone(),
++        None,
++    )
++    .await
++    .expect("failed channel connection");
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-test")
++        .build();
++    let request = crate::sip::Request {
++        method: crate::sip::Method::Invite,
++        uri: crate::sip::Uri::try_from("sip:bob@example.test").expect("request URI"),
++        headers: vec![
++            Via::new("SIP/2.0/UDP example.test:5060;branch=z9hG4bK-trying-retry").into(),
++            CSeq::new("1 INVITE").into(),
++            From::new("Alice <sip:alice@example.test>;tag=trying-retry").into(),
++            To::new("Bob <sip:bob@example.test>").into(),
++            CallId::new("trying-retry@example.test").into(),
++        ]
++        .into(),
++        version: crate::sip::Version::V2,
++        body: Default::default(),
++    };
++    let key = crate::transaction::TransactionKey::from_request(
++        &request,
++        crate::transaction::key::TransactionRole::Server,
++    )
++    .expect("transaction key");
++    let mut transaction = crate::transaction::Transaction::new_server(
++        key,
++        request,
++        endpoint.inner.clone(),
++        Some(failed_connection.into()),
++    );
++
++    assert!(transaction.send_trying().await.is_err());
++
++    let (_retry_incoming_tx, retry_incoming_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (retry_outgoing_tx, mut retry_outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    let retry_connection = ChannelConnection::create_connection(
++        retry_incoming_rx,
++        retry_outgoing_tx,
++        channel_addr,
++        None,
++    )
++    .await
++    .expect("retry channel connection");
++    transaction.connection = Some(retry_connection.into());
++    transaction
++        .send_trying()
++        .await
++        .expect("replacement connection sends 100 Trying");
++
++    assert!(matches!(
++        retry_outgoing_rx.recv().await,
++        Some(TransportEvent::Incoming(
++            crate::sip::SipMessage::Response(crate::sip::Response {
++                status_code: crate::sip::StatusCode::Trying,
++                ..
++            }),
++            _,
++            _
++        ))
++    ));
++    assert!(matches!(
++        retry_outgoing_rx.try_recv(),
++        Err(tokio::sync::mpsc::error::TryRecvError::Empty)
++    ));
++}
++
++#[tokio::test]
+ async fn test_server_transaction() {
+     let token = CancellationToken::new();
+ 
+diff --git a/src/transaction/transaction.rs b/src/transaction/transaction.rs
+--- a/src/transaction/transaction.rs
++++ b/src/transaction/transaction.rs
+@@ -180,6 +180,7 @@ pub struct Transaction {
+     pub timer_k: Option<u64>, // server invite only
+     pub timer_g: Option<u64>, // server invite only
+     admitted: bool,
++    initial_trying_sent: bool,
+     is_cleaned_up: bool,
+ }
+ 
+@@ -218,6 +219,7 @@ impl Transaction {
+             timer_k: None,
+             timer_g: None,
+             admitted: false,
++            initial_trying_sent: false,
+             tu_receiver,
+             tu_sender,
+             is_cleaned_up: false,
+@@ -592,10 +594,17 @@ impl Transaction {
+     }
+ 
+     pub async fn send_trying(&mut self) -> Result<()> {
++        // The transaction is the single owner for application-initiated 100 Trying.
++        // Protocol retransmissions still use respond(last_response) independently.
++        if self.initial_trying_sent {
++            return Ok(());
++        }
+         let response = self
+             .endpoint_inner
+             .make_response(&self.original, StatusCode::Trying, None);
+-        self.respond(response).await
++        self.respond(response).await?;
++        self.initial_trying_sent = true;
++        Ok(())
+     }
+ 
+     pub fn is_terminated(&self) -> bool {

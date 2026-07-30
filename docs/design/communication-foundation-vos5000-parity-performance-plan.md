@@ -1844,10 +1844,11 @@ rtpengine/RecordingManifest 后，必须发布新的 `MIX-100K-v2` 或更高 rev
 - conference、voicemail、queue、WebRTC、recording、audio tap、offerless 和非 IVR application
   保持原路径。
 
-源码证据：`ivekit.38` 已从固定 RustPBX/rsipstack/rustrtc 上游提交按生产顺序完整重放 38
-个补丁；干净 RustPBX 库回归为 `1,911 passed / 0 failed / 1 ignored`，rsipstack 定向回归
-为 `3 passed / 0 failed`。这证明既有 IVR 与非 IVR 代码回归通过，不代表服务器真实 RTP、
-进程重启、过载或容量验收完成；这些仍为 `not_run`。
+源码证据：当前 `ivekit.39` 已从固定 RustPBX/rsipstack/rustrtc 上游提交按生产顺序完整
+重放 39 个补丁；single-Trying、首次 transport send 失败后重试和完整 rsipstack 库回归
+`252 passed / 0 failed`。上一版 `ivekit.38` 的干净 RustPBX 库回归为
+`1,911 passed / 0 failed / 1 ignored`；`ivekit.39` 的 RustPBX 全量库回归、镜像构建、
+SIPp、Timer G、服务器真实 RTP、进程重启、过载和容量验收仍为 `not_run`。
 
 ### Goal 3L：Voice/SIP/PSTN ↔ LiveKit Bridge 与双向 Handoff
 

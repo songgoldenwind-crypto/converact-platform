@@ -2,7 +2,7 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 58,
+  "revision": 59,
   "status": "proposed",
   "generated_at": "2026-07-29T16:00:00+08:00",
   "profile_ids": [
@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.38-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.39-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.38-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.39-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -940,6 +940,12 @@
           "sha256": "a9047e0bd1a4eed576636a30310054142ada0e0a2c85b29e651d2ba50a0f959d",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-prepared-invite.patch",
           "purpose": "Allow server INVITE rejection to preserve explicit response headers so RustPBX can emit standards-visible Retry-After overload backoff together with its Reason value."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-single-trying.patch",
+          "sha256": "a86e84a4484e9ec6f416eaa163d12f22171360241fdb8e9ae67a7b235d1c016f",
+          "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-rejection-headers.patch",
+          "purpose": "Make application-initiated initial 100 Trying emission transaction-owned and at-most-once while leaving protocol retransmission replay unchanged."
         }
       ],
       "implemented_changes": [
@@ -1026,6 +1032,20 @@
             "A native transaction test verifies that a 503 response carries both Retry-After and Reason through the actual server-dialog response path.",
             "The patch is ordered after prepared INVITE; clean full-queue replay and release image build remain release gates."
           ]
+        },
+        {
+          "change_id": "rsipstack-single-trying-v1",
+          "summary": "Make the rsipstack transaction idempotently emit one initial 100 Trying across the RustPBX pre-routing and later dialog-layer calls.",
+          "capacity_dimensions": [
+            "sip.transactions_per_second",
+            "sip.invite_cps",
+            "sip.transaction_setup_latency"
+          ],
+          "acceptance_evidence": [
+            "The patch applies after the exact ivekit.38 rsipstack queue and the resulting source passes Rustfmt.",
+            "Source-flow review identifies the RustPBX CallModule and later ServerInviteDialog calls; a native ChannelConnection test proves two application-level send_trying calls on one transaction emit one outbound transport event.",
+            "All 252 patched rsipstack library tests pass, including retry after a failed first transport send; durable admission 503 wiring, Timer G end-to-end validation, the RustPBX full suite and a release image remain not_run."
+          ]
         }
       ],
       "planned_changes": [],
@@ -1044,13 +1064,16 @@
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch",
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch",
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-prepared-invite.patch",
+          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-rejection-headers.patch",
+          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-single-trying.patch",
           "test/ivekit-rsipstack-prepared-invite-patch.test.ts",
+          "test/ivekit-rsipstack-single-trying-patch.test.ts",
           "test/ivekit-rustpbx-dialog-recovery-patch.test.ts",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
           "test/ivekit-rustpbx-build.test.ts",
           "test/ivekit-voice-deployment.test.ts"
         ],
-        "checked_at": "2026-07-29T05:23:06+08:00"
+        "checked_at": "2026-07-30T14:44:12+08:00"
       },
       "release_gate": {
         "production_eligible": false,

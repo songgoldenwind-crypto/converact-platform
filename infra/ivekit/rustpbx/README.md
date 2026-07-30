@@ -12,6 +12,29 @@ and retries one failed TCP transaction send on a new connection.
 The build also pins `rustrtc` to `0.3.90`. RustPBX commit `6c49ee76` was written
 for that API, while an unconstrained Cargo resolution currently selects `0.3.91`.
 
+## Initial INVITE 100 Trying ownership
+
+The pinned RustPBX `CallModule::handle_invite` remains the early owner of the
+initial `100 Trying`; it sends before routing and business admission so a slow
+control path does not trigger upstream Timer A retransmissions. The later
+rsipstack `ServerInviteDialog` path still invokes the same API, but ivekit.39
+makes that second application-level invocation a transaction-owned no-op.
+
+The guard is a private boolean on the exclusively borrowed `Transaction`; it
+adds no global lock, scan, task, atomic operation, or allocation to the hot
+path. It is committed only after the first send succeeds. SIP protocol
+retransmissions remain independent through `respond(last_response)`.
+
+Source-flow review identifies the RustPBX `CallModule` and later
+`ServerInviteDialog` calls; the native channel-transport regression proves two
+application-level calls on one transaction emit one outbound transport event.
+The patched rsipstack library passes all 252 tests. A separate native regression proves a
+failed first transport send can retry on a replacement connection. The
+RustPBX full suite and release image for ivekit.39, 503 durable admission
+wiring, and end-to-end Timer G validation remain `not_run`; this patch does not
+claim those gates. The 1,911-test RustPBX result below remains the ivekit.38
+evidence baseline.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The iveKit AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the
@@ -229,7 +252,7 @@ and an enabled-versus-disabled overhead comparison remain `not_run`.
 
 ### Existing IVR application processing contract
 
-ivekit.38 does not introduce a second IVR engine. RustPBX remains authoritative
+ivekit.39 does not introduce a second IVR engine. RustPBX remains authoritative
 for the existing `ivr` application's flow graph, provider calls, menu state,
 timeouts, transfers, queue handoff, and Call/Leg/Dialog state. Only the
 media-execution part of that existing application is delegated to the

@@ -406,8 +406,8 @@ pending-command/unreconciled-receipt 为 `0/0`；每个被替代 generation 显�
 | RustPBX commit | `6c49ee76baa54fdbf8f98020cc9bee158c7c15de` |
 | rsipstack commit | `8318e97b1170de4e5245b120afec1cdf53e3d716` |
 | rustrtc commit | `166c6d22984429eb6b509920c14fcd69f974f0b3` |
-| Patch set | `ivekit.38` |
-| Patch 文件 | `38` |
+| Patch set | `ivekit.39` |
+| Patch 文件 | `39` |
 | Builder | Rust `1.94` exact image digest |
 | 构建方式 | exact source + lockfile + ordered patch queue |
 
@@ -745,7 +745,7 @@ rvoip 的 `AsrProvider/AsrStream`、`TtsProvider/TtsPlayback`、
 
 1. 升级必须解决已知缺口、性能瓶颈、安全问题或长期维护风险；
 2. 先在独立 worktree/reproducible image 中 rebase；
-3. 现有 38 个补丁逐个 `apply --check` 或语义迁移；
+3. 现有 39 个补丁逐个 `apply --check` 或语义迁移；
 4. 先过 contract、unit、interop、failure、capacity regression；
 5. 任何 owner/media/CDR/recording 语义回退都阻止升级；
 6. 不为了版本号更新而替换已验证的 rustrtc `0.3.90` 接口；
@@ -783,10 +783,14 @@ rvoip 的 `AsrProvider/AsrStream`、`TtsProvider/TtsPlayback`、
 14. 在服务器以 co-resident Unified RustPBX SUT 跑统一 A/B，而不是直接比较两份项目
     自己的报告；发布只对新呼叫切 selector，旧呼叫 drain。
 
-当前发布候选为 `ivekit.38`：固定上游 RustPBX、rsipstack、rustrtc 源码后，完整 38
-补丁按生产构建顺序逐个 `apply --check` 并成功重放；干净 RustPBX 源码回归结果为
-`1,911 passed / 0 failed / 1 ignored`，rsipstack 定向回归为 `3 passed / 0 failed`。
-这些是源码与功能回归证据，不是服务器容量结论。
+当前源码候选为 `ivekit.39`：固定上游 RustPBX、rsipstack、rustrtc 源码后，完整 39
+补丁按生产构建顺序逐个 `apply --check` 并成功重放；新增的 transaction-owned
+single-Trying 与首次 transport send 失败后重试的 native 回归通过，完整 rsipstack 库回归为
+`252 passed / 0 failed`。
+上一版 `ivekit.38` 的干净 RustPBX 库回归为
+`1,911 passed / 0 failed / 1 ignored`；`ivekit.39` 的 RustPBX 全量库回归、镜像构建、
+SIPp 和 Timer G 端到端验证仍为 `not_run`。这些是源码与功能回归证据，不是服务器容量
+结论。
 
 ## 12. Backend 替换门槛
 

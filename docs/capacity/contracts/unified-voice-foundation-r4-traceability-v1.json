@@ -36,7 +36,7 @@
     },
     "historical_goal_plan": {
       "path": "docs/design/communication-foundation-vos5000-parity-performance-plan.md",
-      "sha256": "d5b4acc1a1386fb7dfa5293c2ed74f12537302b1a656c499abe84a74240286d4"
+      "sha256": "19af38723d776d6bf507168096a4a5d57b075f4e919d180842e109e5b7ca38be"
     },
     "r4_contract": {
       "path": "docs/capacity/contracts/unified-voice-foundation-r4-v1.json",
@@ -50,7 +50,7 @@
     },
     "adr7": {
       "path": "docs/adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md",
-      "sha256": "1cd55a91489a6f345d94b22fabf42f8c53666759bf896852dab8bfd7845a1345"
+      "sha256": "7fc2c4cbf5cf077c1a38797b9a44b629a5ad54388c45fe189c54ff1afe37d232"
     },
     "goal4_plan": {
       "path": "docs/design/2026-07-28-ivekit-media-processing-goal4-implementation-plan.md",
