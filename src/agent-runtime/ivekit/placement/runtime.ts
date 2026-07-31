@@ -7,6 +7,7 @@ import { PlacementSnapshotSigner, PlacementTokenSigner } from './snapshot.js';
 import {
   PlacementError,
   type CellAdmissionPort,
+  type PlacementAvailability,
   type PlacementDecision,
   type PlacementRequest,
   type SignedPlacementSnapshot
@@ -151,6 +152,25 @@ export class FilePlacementRuntime {
       last_accepted_snapshot_version: this.#lastAcceptedSnapshotVersion,
       request
     });
+  }
+
+  async availability(request: PlacementRequest): Promise<PlacementAvailability> {
+    try {
+      const loaded = await this.#verifiedSnapshot();
+      const service = this.#placementService(loaded);
+      return await service.availability({
+        snapshot: loaded.snapshot,
+        last_accepted_snapshot_version: this.#lastAcceptedSnapshotVersion,
+        request
+      });
+    } catch {
+      return {
+        status: 'unknown',
+        reason: 'snapshot_unavailable',
+        candidate_count: 0,
+        snapshot_version: null
+      };
+    }
   }
 
   async inspectOwner(

@@ -27,6 +27,7 @@ export function createIveKitMediaHooks(input: IveKitMediaHooksInput): RouteIveKi
   const retentionDays = configuredRetentionDays();
   return {
     pg: input.pg,
+    commandPg: input.pg,
     eventStore: new IveKitTenantEventJournal(input.pg),
     realtimeSpeechStore: new RealtimeSpeechStore(input.pg),
     onRecordingStarted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, (pg) =>

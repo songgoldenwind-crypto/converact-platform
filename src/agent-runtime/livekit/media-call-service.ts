@@ -24,6 +24,10 @@ export const ALLOWED_MEDIA_CALL_ACTIONS = {
   failed: []
 } as const satisfies Record<IveKitMediaCall['status'], readonly IveKitMediaCallAction[]>;
 
+export const MAX_MEDIA_CALL_PARTICIPANTS = 32;
+export const MAX_MEDIA_CALL_INVITEE_IDENTITIES =
+  MAX_MEDIA_CALL_PARTICIPANTS - 1;
+
 const memoryCallLockTails = new WeakMap<MemoryPg, Map<string, Promise<void>>>();
 
 export interface MediaCallTransitionResult {
@@ -41,7 +45,31 @@ export interface MediaCallPlacementReservation {
   value: unknown;
 }
 
+export type MediaCallPlacementAvailability =
+  | {
+      status: 'ready';
+      reason: 'eligible_candidates';
+      candidate_count: number;
+      snapshot_version: number;
+    }
+  | {
+      status: 'unavailable';
+      reason: 'no_eligible_candidates';
+      candidate_count: 0;
+      snapshot_version: number;
+    }
+  | {
+      status: 'unknown';
+      reason: 'snapshot_unavailable';
+      candidate_count: 0;
+      snapshot_version: null;
+    };
+
 export interface MediaCallPlacementPort {
+  availability?(input: {
+    tenant_id: string;
+    participant_count?: number;
+  }): Promise<MediaCallPlacementAvailability>;
   reserve(input: {
     tenant_id: string;
     interaction_id: string;
@@ -125,7 +153,12 @@ export class MediaCallService {
     idempotency_key?: string;
     call_id?: string;
     placement_reservation?: MediaCallPlacementReservation;
+    beforeCreateCommit?: (
+      pg: PgQueryable,
+      snapshot: IveKitMediaCallSnapshot
+    ) => Promise<void>;
   }): Promise<IveKitMediaCallSnapshot> {
+    assertMediaCallParticipantLimit(input.participant_identities);
     const actor = requiredIdentity(input.initiated_by, 'initiated_by');
     const businessRef = validatedBusinessRef(input.tenant_id, input.business_ref);
     if (input.media !== 'voice' && input.media !== 'video') throw badRequest('media must be voice or video');
@@ -138,6 +171,7 @@ export class MediaCallService {
     const callId = input.call_id
       ? requiredIdentity(input.call_id, 'call_id')
       : pgId('mcall');
+    const ownsReservation = !input.placement_reservation;
     let reservation = input.placement_reservation;
     if (reservation && reservation.interaction_id !== callId) {
       throw badRequest('placement reservation interaction mismatch');
@@ -189,10 +223,12 @@ export class MediaCallService {
             reason: 'media_call_durable'
           });
         }
-        return (await store.snapshot(input.tenant_id, call.id))!;
+        const snapshot = (await store.snapshot(input.tenant_id, call.id))!;
+        await input.beforeCreateCommit?.(store.pg, snapshot);
+        return snapshot;
       });
     } catch (error) {
-      if (this.options.placement && reservation) {
+      if (ownsReservation && this.options.placement && reservation) {
         await this.options.placement.releaseUncommitted(reservation).catch((releaseError) => {
           console.error(
             '[media-call-placement] failed to release uncommitted reservation:',
@@ -749,6 +785,16 @@ function assertActionAuthorized(
   if (!participant) throw Object.assign(new Error('active media call participant required'), { status: 403 });
   if (participant.role !== 'host') {
     throw Object.assign(new Error('media call host role required'), { status: 403 });
+  }
+}
+
+export function assertMediaCallParticipantLimit(
+  participantIdentities: readonly unknown[]
+): void {
+  if (participantIdentities.length > MAX_MEDIA_CALL_INVITEE_IDENTITIES) {
+    throw badRequest(
+      `participant_identities must contain at most ${MAX_MEDIA_CALL_INVITEE_IDENTITIES} entries`
+    );
   }
 }
 

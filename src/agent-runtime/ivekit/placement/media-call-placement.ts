@@ -14,6 +14,7 @@ import {
 } from './interaction-placement.js';
 import type {
   CapacityRequirement,
+  PlacementAvailability,
   PlacementRequest
 } from './types.js';
 import { PlacementError } from './types.js';
@@ -25,6 +26,9 @@ export interface MediaCallPlacementPolicy {
 }
 
 export interface InteractionPlacementCoordinatorPort {
+  availability?(
+    input: PlacementRequest
+  ): Promise<PlacementAvailability>;
   reserve(
     input: PlacementRequest & { owner_component: 'livekit' }
   ): Promise<ReservedInteractionPlacement>;
@@ -93,6 +97,46 @@ export class MediaCallPlacementAdapter implements MediaCallPlacementPort {
   }) {
     this.coordinator = input.coordinator;
     this.#policy = checkedPolicy(input.policy);
+  }
+
+  async availability(input: {
+    tenant_id: string;
+    participant_count?: number;
+  }): Promise<PlacementAvailability> {
+    if (!this.coordinator.availability) {
+      return {
+        status: 'unknown',
+        reason: 'snapshot_unavailable',
+        candidate_count: 0,
+        snapshot_version: null
+      };
+    }
+    const participantCount = boundedInteger(
+      input.participant_count ?? 1,
+      1,
+      10_000,
+      'media placement participant count'
+    );
+    const identifier = digest([input.tenant_id, 'availability']);
+    try {
+      return await this.coordinator.availability({
+        request_id: `media-availability:${identifier}`,
+        idempotency_key: `media-availability:${identifier}`,
+        tenant_id: input.tenant_id,
+        routing_partition_id: `media-availability:${identifier}`,
+        interaction_id: `media-availability:${identifier}`,
+        interaction_kind: 'livekit_av',
+        profile_id: this.#policy.profile_id,
+        required_capacity: compileCapacity(this.#policy, participantCount)
+      });
+    } catch {
+      return {
+        status: 'unknown',
+        reason: 'snapshot_unavailable',
+        candidate_count: 0,
+        snapshot_version: null
+      };
+    }
   }
 
   async reserve(input: {

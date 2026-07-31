@@ -11,6 +11,7 @@ import {
   type CapacityRequirement,
   type CellReservationLifecyclePort,
   type InteractionKind,
+  type PlacementAvailability,
   type PlacementDecision,
   type PlacementRequest
 } from './types.js';
@@ -146,6 +147,7 @@ export interface InteractionPlacementEvent {
 
 export interface InteractionPlacementPlanner {
   place(request: PlacementRequest): Promise<PlacementDecision>;
+  availability?(request: PlacementRequest): Promise<PlacementAvailability>;
   inspectOwner?(input: {
     profile_id: string;
     interaction_kind: InteractionKind;
@@ -387,6 +389,18 @@ export class InteractionPlacementCoordinator {
       record,
       signed_placement_token: decision.signed_placement_token
     };
+  }
+
+  async availability(request: PlacementRequest): Promise<PlacementAvailability> {
+    if (!this.#planner.availability) {
+      return {
+        status: 'unknown',
+        reason: 'snapshot_unavailable',
+        candidate_count: 0,
+        snapshot_version: null
+      };
+    }
+    return this.#planner.availability(request);
   }
 
   async persistReserved(

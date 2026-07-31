@@ -194,7 +194,8 @@ export const REQUIRED_MIGRATIONS = [
   '103_ivekit_voice_cdr_convergence',
   '104_ivekit_cell_admission_ledger_runtime',
   '105_tinode_closed_session_inbound',
-  '106_tinode_open_session_mutation_queue'
+  '106_tinode_open_session_mutation_queue',
+  '106_ivekit_media_call_create_commands'
 ] as const;
 
 function configurationCheck(env: NodeJS.ProcessEnv): IveKitReadinessResult['checks']['configuration'] {

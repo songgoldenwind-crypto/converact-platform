@@ -181,6 +181,26 @@ export interface PlacementDecision {
   signed_placement_token: string;
 }
 
+export type PlacementAvailability =
+  | {
+      status: 'ready';
+      reason: 'eligible_candidates';
+      candidate_count: number;
+      snapshot_version: number;
+    }
+  | {
+      status: 'unavailable';
+      reason: 'no_eligible_candidates';
+      candidate_count: 0;
+      snapshot_version: number;
+    }
+  | {
+      status: 'unknown';
+      reason: 'snapshot_unavailable';
+      candidate_count: 0;
+      snapshot_version: null;
+    };
+
 export class PlacementError extends Error {
   readonly code: string;
   readonly status: number;

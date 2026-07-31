@@ -2,14 +2,24 @@ import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 
 import { resolveAuthContext } from '../../middleware/auth.js';
-import { getPostgresOrNull, pgId, type PgQueryable } from '../../db-pg.js';
+import { getPostgresOrNull, type PgQueryable } from '../../db-pg.js';
 import {
   runWithPgTenantContextAsync,
   withPgTenant
 } from '../../db-pg-tenant.js';
 import { wsBroadcastToUsers } from '../../ws.js';
 import { createLiveKitMediaModule, issueSupervisorToken } from '../livekit/index.js';
-import { MediaCallService } from '../livekit/media-call-service.js';
+import {
+  MediaCallCreateCommandError,
+  MediaCallCreateCommandStore,
+  type MediaCallCreateAttempt,
+  type MediaCallCreateCommand,
+  type MediaCallCreateCommandClaim
+} from '../livekit/media-call-create-command-store.js';
+import {
+  assertMediaCallParticipantLimit,
+  MediaCallService
+} from '../livekit/media-call-service.js';
 import { MediaCallStore } from '../livekit/media-call-store.js';
 import {
   MediaQualityService,
@@ -67,7 +77,9 @@ import type {
 } from '../livekit/types.js';
 import type { MediaChannel } from '../media-gateway/index.js';
 import { IveKitTenantEventJournal } from './tenant-event-store.js';
+import { PlacementError } from './placement/types.js';
 import type {
+  MediaCallPlacementAvailability,
   MediaCallPlacementPort,
   MediaCallPlacementReservation
 } from '../livekit/media-call-service.js';
@@ -104,6 +116,7 @@ export interface RouteIveKitMediaApiOptions {
   egressPlacement?: LiveKitEgressPlacementPort;
   placementWorkerId?: string;
   preparedMediaCallPlacement?: PreparedMediaCallPlacement;
+  mediaCallCreateCommandStoreFactory?: MediaCallCreateCommandStoreFactory;
   ingressProvider?: LiveKitIngressProvider | null;
   onIngressAudit?: (event: LiveKitIngressAuditEvent) => void | Promise<void>;
   realtime_audio_tap_grants?: Pick<
@@ -129,8 +142,44 @@ export interface LiveKitIngressAuditEvent {
 export interface PreparedMediaCallPlacement {
   tenant_id: string;
   call_id: string;
-  reservation: MediaCallPlacementReservation;
+  reservation?: MediaCallPlacementReservation;
+  create_attempt: MediaCallCreateAttempt | null;
+  replay_snapshot: IveKitMediaCallSnapshot | null;
 }
+
+export interface MediaCallCreateCommandStorePort {
+  claim(input: {
+    tenant_id: string;
+    idempotency_key: string;
+    payload: Record<string, unknown>;
+  }): Promise<MediaCallCreateCommandClaim>;
+  findByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+    requesterIdentity: string
+  ): Promise<MediaCallCreateCommand | null>;
+  markSucceeded(input: {
+    tenant_id: string;
+    call_id: string;
+    attempt_generation: number;
+    attempt_token: string;
+    result_snapshot: IveKitMediaCallSnapshot;
+  }): Promise<MediaCallCreateCommand>;
+  markFailed(input: {
+    tenant_id: string;
+    call_id: string;
+    attempt_generation: number;
+    attempt_token: string;
+    error_code: string;
+    error_status: number;
+    retryable: boolean;
+    retry_after_seconds: number;
+  }): Promise<MediaCallCreateCommand>;
+}
+
+export type MediaCallCreateCommandStoreFactory = (
+  pg: PgQueryable
+) => MediaCallCreateCommandStorePort;
 
 export async function prepareIveKitMediaCallPlacement(
   method: string,
@@ -139,34 +188,417 @@ export async function prepareIveKitMediaCallPlacement(
   headers: Record<string, string | string[] | undefined>,
   options: RouteIveKitMediaApiOptions
 ): Promise<PreparedMediaCallPlacement | null> {
-  if (!options.placement ||
-      method !== 'POST' ||
+  if (method !== 'POST' ||
       routePath !== '/api/ivekit/media/calls') {
     return null;
   }
+  const freezeConfigured = mediaCallCreateFreezeConfigured();
+  const placementRequired = mediaCallCreatePlacementRequired();
+  if (!options.placement && !freezeConfigured && !placementRequired) {
+    return null;
+  }
   const ctx = requireAuth(headers);
+  const actorIdentity = mediaActorIdentity(ctx, headers);
+  const freeze = mediaCallCreateFreeze(ctx.tenantId, actorIdentity);
+  if (freeze.frozen) {
+    throw new MediaCallCreateCommandError(
+      'media_call_create_frozen',
+      503,
+      true
+    );
+  }
+  if (!options.placement) {
+    throw new PlacementError({
+      code: 'placement_unavailable',
+      status: 503,
+      retryable: true,
+      details: {
+        candidate_count: 0,
+        attempted_cell_count: 0
+      }
+    });
+  }
   const input = bodyRecord(body);
   const businessRef = optionalBusinessRef(ctx.tenantId, input);
   if (!businessRef) throw badRequest('business_ref is required');
-  const actorIdentity = mediaActorIdentity(ctx, headers);
   if (!actorIdentity) throw badRequest('authenticated media call identity is required');
-  const participantIdentities = Array.isArray(input.participant_identities)
-    ? input.participant_identities.map((identity) => String(identity || '').trim()).filter(Boolean)
+  const participantIdentityValues = Array.isArray(input.participant_identities)
+    ? input.participant_identities
     : [];
+  assertMediaCallParticipantLimit(participantIdentityValues);
+  const participantIdentities = participantIdentityValues
+    .map((identity) => String(identity || '').trim())
+    .filter(Boolean);
   const invitees = [...new Set(participantIdentities)]
     .filter((identity) => identity !== actorIdentity);
-  const callId = pgId('mcall');
-  return {
+  const idempotencyKey = requiredMediaCallCreateIdempotencyKey(headers);
+  const commandPg = options.commandPg || options.pg;
+  if (!commandPg) {
+    throw serviceUnavailable('media call create command store is unavailable');
+  }
+  const commandStore = mediaCallCreateCommandStore(options, commandPg);
+  const claim = await commandStore.claim({
     tenant_id: ctx.tenantId,
-    call_id: callId,
-    reservation: await options.placement.reserve({
+    idempotency_key: idempotencyKey,
+    payload: normalizedMediaCallCreatePayload({
+      actor_identity: actorIdentity,
+      business_ref: businessRef,
+      input,
+      invitees
+    })
+  });
+  if (claim.command.state === 'succeeded') {
+    if (!claim.command.result_snapshot) {
+      throw new MediaCallCreateCommandError(
+        'create_command_reload_failed',
+        503,
+        true
+      );
+    }
+    requireMediaCallReadAccess(
+      ctx,
+      headers,
+      claim.command.result_snapshot
+    );
+    return {
+      tenant_id: ctx.tenantId,
+      call_id: claim.command.call_id,
+      create_attempt: null,
+      replay_snapshot: claim.command.result_snapshot
+    };
+  }
+  if (claim.command.state === 'retryable_failed' ||
+      claim.command.state === 'terminal_failed') {
+    throw persistedMediaCallCreateFailure(claim.command);
+  }
+  if (!claim.attempt) {
+    throw new MediaCallCreateCommandError(
+      'media_call_create_in_progress',
+      409,
+      true
+    );
+  }
+  const callId = claim.command.call_id;
+  let reservation: MediaCallPlacementReservation;
+  try {
+    reservation = await options.placement.reserve({
       tenant_id: ctx.tenantId,
       interaction_id: callId,
       media: String(input.media || 'video') === 'voice' ? 'voice' : 'video',
       participant_count: invitees.length + 1,
       business_ref: businessRef,
-      idempotency_key: headerValue(headers, 'idempotency-key') || `media-call:${callId}`
-    })
+      idempotency_key:
+        `media-call-create:${claim.attempt.generation}:${idempotencyKey}`
+    });
+  } catch (error) {
+    await markMediaCallCreateFailed(
+      commandStore,
+      ctx.tenantId,
+      callId,
+      claim.attempt,
+      mediaCallCreateFailure(error)
+    );
+    throw error;
+  }
+  return {
+    tenant_id: ctx.tenantId,
+    call_id: callId,
+    reservation,
+    create_attempt: claim.attempt,
+    replay_snapshot: null
+  };
+}
+
+export async function releasePreparedIveKitMediaCallPlacement(
+  options: RouteIveKitMediaApiOptions,
+  prepared: PreparedMediaCallPlacement | null,
+  error: unknown
+): Promise<void> {
+  if (!prepared?.create_attempt || prepared.replay_snapshot) return;
+  const commandPg = options.commandPg || options.pg;
+  if (!commandPg) {
+    throw serviceUnavailable('media call create command store is unavailable');
+  }
+  const ownsCleanup = await markMediaCallCreateFailed(
+    mediaCallCreateCommandStore(options, commandPg),
+    prepared.tenant_id,
+    prepared.call_id,
+    prepared.create_attempt,
+    mediaCallCreateFailure(error)
+  );
+  if (!ownsCleanup || !prepared.reservation) return;
+  if (!options.placement) {
+    throw serviceUnavailable('media placement release is unavailable');
+  }
+  await options.placement.releaseUncommitted(prepared.reservation);
+}
+
+function normalizedMediaCallCreatePayload(input: {
+  actor_identity: string;
+  business_ref: MediaBusinessRef;
+  input: Record<string, unknown>;
+  invitees: string[];
+}): Record<string, unknown> {
+  const ringTimeoutSeconds = optionalBodyNumber(
+    input.input,
+    'ring_timeout_seconds'
+  ) ?? 30;
+  if (!Number.isInteger(ringTimeoutSeconds) ||
+      ringTimeoutSeconds < 5 ||
+      ringTimeoutSeconds > 300) {
+    throw badRequest(
+      'ring_timeout_seconds must be an integer between 5 and 300'
+    );
+  }
+  const businessDisplayName = String(
+    input.business_ref.display_name || ''
+  ).trim();
+  return {
+    initiated_by: input.actor_identity,
+    media: String(input.input.media || 'video') === 'voice'
+      ? 'voice'
+      : 'video',
+    participant_identities: input.invitees,
+    business_ref: {
+      tenant_id: input.business_ref.tenant_id,
+      type: input.business_ref.type,
+      id: input.business_ref.id,
+      ...(businessDisplayName
+        ? { display_name: businessDisplayName }
+        : {}),
+      metadata: input.business_ref.metadata || {}
+    },
+    title: optionalBodyString(input.input, 'title') || '',
+    metadata: bodyRecord(input.input.metadata),
+    ring_timeout_seconds: ringTimeoutSeconds
+  };
+}
+
+function mediaCallCreateCommandStore(
+  options: RouteIveKitMediaApiOptions,
+  pg: PgQueryable
+): MediaCallCreateCommandStorePort {
+  return options.mediaCallCreateCommandStoreFactory?.(pg) ||
+    new MediaCallCreateCommandStore(pg, {
+      attemptLeaseMs: mediaCallCreateAttemptLeaseMs()
+    });
+}
+
+function mediaCallCreateAttemptLeaseMs(): number {
+  const configured = Number(
+    process.env.OPC_IVEKIT_MEDIA_CALL_CREATE_ATTEMPT_LEASE_MS || 30_000
+  );
+  return Number.isSafeInteger(configured) &&
+    configured >= 5_000 &&
+    configured <= 60_000
+    ? configured
+    : 30_000;
+}
+
+interface MediaCallCreateFreeze {
+  configured: boolean;
+  frozen: boolean;
+  rule_id: string;
+}
+
+const MEDIA_CREATE_FREEZE_VALUE_MAX_BYTES = 8 * 1024;
+const MEDIA_CREATE_FREEZE_MAX_IDENTIFIERS = 128;
+const MEDIA_CREATE_FREEZE_IDENTIFIER =
+  /^[A-Za-z0-9][A-Za-z0-9@._:+/-]{0,254}$/;
+const MEDIA_CREATE_FREEZE_RULE_ID =
+  /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+
+function mediaCallCreateFreezeConfigured(): boolean {
+  return String(
+    process.env.OPC_IVEKIT_MEDIA_CALL_CREATE_FREEZE || ''
+  ).trim() !== '';
+}
+
+function mediaCallCreateFreeze(
+  tenantId: string,
+  actorIdentity: string
+): MediaCallCreateFreeze {
+  const raw = String(
+    process.env.OPC_IVEKIT_MEDIA_CALL_CREATE_FREEZE || ''
+  ).trim();
+  if (!raw || raw === '0') {
+    return { configured: false, frozen: false, rule_id: '' };
+  }
+  const ruleId = String(
+    process.env.OPC_IVEKIT_MEDIA_CALL_CREATE_FREEZE_RULE_ID || ''
+  ).trim();
+  const tenantAllowlist = mediaCallCreateCanaryIdentifiers(
+    'OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_TENANT_IDS'
+  );
+  const subjectAllowlist = mediaCallCreateCanaryIdentifiers(
+    'OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_SUBJECTS'
+  );
+  const valid = raw === '1' &&
+    MEDIA_CREATE_FREEZE_RULE_ID.test(ruleId) &&
+    tenantAllowlist !== null &&
+    subjectAllowlist !== null;
+  const allowed = valid && (
+    tenantAllowlist.has(tenantId) ||
+    subjectAllowlist.has(actorIdentity)
+  );
+  return {
+    configured: true,
+    frozen: !allowed,
+    rule_id: valid ? ruleId : 'invalid-freeze-configuration'
+  };
+}
+
+function mediaCallCreateCanaryIdentifiers(
+  name:
+    | 'OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_TENANT_IDS'
+    | 'OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_SUBJECTS'
+): ReadonlySet<string> | null {
+  const raw = String(process.env[name] || '').trim();
+  if (!raw) return new Set();
+  if (Buffer.byteLength(raw, 'utf8') > MEDIA_CREATE_FREEZE_VALUE_MAX_BYTES) {
+    return null;
+  }
+  const values = raw.split(',').map((value) => value.trim());
+  if (values.length > MEDIA_CREATE_FREEZE_MAX_IDENTIFIERS ||
+      values.some((value) => !MEDIA_CREATE_FREEZE_IDENTIFIER.test(value))) {
+    return null;
+  }
+  return new Set(values);
+}
+
+function mediaCallCreatePlacementRequired(): boolean {
+  const raw = String(
+    process.env.OPC_IVEKIT_MEDIA_CALL_CREATE_REQUIRE_PLACEMENT || ''
+  ).trim();
+  return raw !== '' && raw !== '0';
+}
+
+async function markMediaCallCreateFailed(
+  store: MediaCallCreateCommandStorePort,
+  tenantId: string,
+  callId: string,
+  attempt: MediaCallCreateAttempt,
+  failure: MediaCallCreateFailure
+): Promise<boolean> {
+  try {
+    await store.markFailed({
+      tenant_id: tenantId,
+      call_id: callId,
+      attempt_generation: attempt.generation,
+      attempt_token: attempt.token,
+      error_code: failure.code,
+      error_status: failure.status,
+      retryable: failure.retryable,
+      retry_after_seconds: failure.retry_after_seconds
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof MediaCallCreateCommandError &&
+        error.code === 'attempt_fenced') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+interface MediaCallCreateFailure {
+  code: string;
+  status: number;
+  retryable: boolean;
+  retry_after_seconds: number;
+}
+
+function mediaCallCreateFailure(error: unknown): MediaCallCreateFailure {
+  const value = typeof error === 'string'
+    ? error
+    : String((error as { code?: unknown })?.code || '');
+  const code = /^[a-z0-9][a-z0-9_.:-]{0,127}$/.test(value)
+    ? value
+    : 'media_call_create_failed';
+  const explicitStatus = Number((error as { status?: unknown })?.status);
+  const status = Number.isInteger(explicitStatus) &&
+    explicitStatus >= 400 &&
+    explicitStatus <= 599
+    ? explicitStatus
+    : 500;
+  const explicitRetryable =
+    (error as { retryable?: unknown })?.retryable;
+  const retryable = typeof explicitRetryable === 'boolean'
+    ? explicitRetryable
+    : status >= 500 || [408, 425, 429].includes(status);
+  const requestedRetryAfter = Number(
+    (error as {
+      retryAfterSeconds?: unknown;
+      retry_after_seconds?: unknown;
+    })?.retryAfterSeconds ??
+    (error as { retry_after_seconds?: unknown })?.retry_after_seconds
+  );
+  const retryAfterSeconds = retryable
+    ? (
+        Number.isInteger(requestedRetryAfter) &&
+        requestedRetryAfter >= 1 &&
+        requestedRetryAfter <= 60
+          ? requestedRetryAfter
+          : mediaCallCreateRetryAfterSeconds()
+      )
+    : 0;
+  return {
+    code,
+    status,
+    retryable,
+    retry_after_seconds: retryAfterSeconds
+  };
+}
+
+function persistedMediaCallCreateFailure(
+  command: MediaCallCreateCommand
+): MediaCallCreateCommandError {
+  const status = command.error_status >= 400 &&
+    command.error_status <= 599
+    ? command.error_status
+    : 503;
+  const retryAfterSeconds = command.error_retryable
+    ? secondsUntil(command.next_retry_at)
+    : 0;
+  return new MediaCallCreateCommandError(
+    command.error_code || 'media_call_create_failed',
+    status,
+    command.error_retryable,
+    retryAfterSeconds
+  );
+}
+
+function secondsUntil(timestampValue: string | null): number {
+  if (!timestampValue) return mediaCallCreateRetryAfterSeconds();
+  const milliseconds = Date.parse(timestampValue) - Date.now();
+  if (!Number.isFinite(milliseconds)) {
+    return mediaCallCreateRetryAfterSeconds();
+  }
+  return Math.max(1, Math.min(60, Math.ceil(milliseconds / 1_000)));
+}
+
+function mediaCallCreateRetryAfterSeconds(): number {
+  const value = Number(
+    process.env.OPC_IVEKIT_MEDIA_RETRY_AFTER_SECONDS || 5
+  );
+  return Number.isInteger(value) && value >= 1 && value <= 60 ? value : 5;
+}
+
+function publicMediaCallCreateCommand(
+  command: MediaCallCreateCommand
+): Record<string, unknown> {
+  return {
+    call_id: command.call_id,
+    state: command.state,
+    retryable: command.state === 'pending' || command.error_retryable,
+    error_code: command.error_code,
+    error_status: command.error_status,
+    next_retry_at: command.next_retry_at,
+    updated_at: command.updated_at,
+    completed_at: command.completed_at,
+    ...(command.state === 'succeeded' && command.result_snapshot
+      ? { result_snapshot: command.result_snapshot }
+      : {})
   };
 }
 
@@ -269,6 +701,27 @@ function requiredIdempotencyKey(
   const value = headerValue(headers, 'idempotency-key').trim();
   if (!value || value.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(value)) {
     throw badRequest('Idempotency-Key is required and must be a valid identifier');
+  }
+  return value;
+}
+
+function requiredMediaCallCreateIdempotencyKey(
+  headers: Record<string, string | string[] | undefined>
+): string {
+  const value = headerValue(headers, 'idempotency-key').trim();
+  if (!value) {
+    throw new MediaCallCreateCommandError(
+      'idempotency_key_required',
+      400,
+      false
+    );
+  }
+  if (value.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(value)) {
+    throw new MediaCallCreateCommandError(
+      'idempotency_key_invalid',
+      400,
+      false
+    );
   }
   return value;
 }
@@ -420,9 +873,49 @@ async function closeTerminalEgressPlacement(
   }
 }
 
-function capabilities(
+async function mediaCallCreateAvailability(
   tenantId: string,
-  media: ReturnType<typeof createLiveKitMediaModule>
+  placement: MediaCallPlacementPort | undefined
+): Promise<MediaCallPlacementAvailability | undefined> {
+  if (!placement) {
+    return mediaCallCreatePlacementRequired() ||
+      mediaCallCreateFreezeConfigured()
+      ? {
+          status: 'unknown',
+          reason: 'snapshot_unavailable',
+          candidate_count: 0,
+          snapshot_version: null
+        }
+      : undefined;
+  }
+  if (!placement.availability) {
+    return {
+      status: 'unknown',
+      reason: 'snapshot_unavailable',
+      candidate_count: 0,
+      snapshot_version: null
+    };
+  }
+  try {
+    return await placement.availability({
+      tenant_id: tenantId,
+      participant_count: 2
+    });
+  } catch {
+    return {
+      status: 'unknown',
+      reason: 'snapshot_unavailable',
+      candidate_count: 0,
+      snapshot_version: null
+    };
+  }
+}
+
+async function capabilities(
+  tenantId: string,
+  actorIdentity: string,
+  media: ReturnType<typeof createLiveKitMediaModule>,
+  placement: MediaCallPlacementPort | undefined
 ) {
   const livekitConfig = readLiveKitConfig();
   const livekitUrl = livekitConfig.url || '';
@@ -433,15 +926,20 @@ function capabilities(
   const minioAccessKey = String(process.env.MINIO_ACCESS_KEY || '').trim();
   const minioSecretKey = String(process.env.MINIO_SECRET_KEY || '').trim();
   const sipReady = media.gateways.get('sip_volte').definition.status === 'active';
+  const serverReady = isLiveKitConfigured(livekitConfig);
+  const browserJoinReady = isLiveKitBrowserJoinConfigured(livekitConfig);
+  const createAvailability = await mediaCallCreateAvailability(tenantId, placement);
+  const createFreeze = mediaCallCreateFreeze(tenantId, actorIdentity);
 
   return {
     provider: 'livekit',
     tenant_id: tenantId,
     capabilities: {
-      calls: true,
+      calls: serverReady && !createFreeze.frozen &&
+        (!createAvailability || createAvailability.status === 'ready'),
       rooms: true,
       tokens: true,
-      join: true,
+      join: browserJoinReady,
       participants: true,
       host_moderation: true,
       recording: true,
@@ -458,13 +956,20 @@ function capabilities(
     config: {
       livekit_url_configured: Boolean(livekitUrl),
       livekit_public_url_configured: Boolean(livekitPublicUrl),
-      livekit_server_configured: isLiveKitConfigured(livekitConfig),
-      livekit_browser_join_ready: isLiveKitBrowserJoinConfigured(livekitConfig),
+      livekit_server_configured: serverReady,
+      livekit_browser_join_ready: browserJoinReady,
       livekit_api_key_configured: Boolean(livekitApiKey),
       livekit_api_secret_configured: Boolean(livekitApiSecret),
       invite_secret_configured: Boolean(inviteSecret),
       egress_configured: Boolean(minioAccessKey && minioSecretKey),
-      ingress_configured: liveKitIngressConfigured()
+      ingress_configured: liveKitIngressConfigured(),
+      media_call_create_frozen: createFreeze.frozen,
+      media_call_create_freeze_rule_id: createFreeze.rule_id,
+      media_call_create_placement_required:
+        mediaCallCreatePlacementRequired(),
+      ...(createAvailability
+        ? { media_call_create_availability: createAvailability }
+        : {})
     }
   };
 }
@@ -611,13 +1116,30 @@ export async function routeIveKitMediaApi(
     if (!businessRef) throw badRequest('business_ref is required');
     const actorIdentity = mediaActorIdentity(ctx, headers);
     if (!actorIdentity) throw badRequest('authenticated media call identity is required');
-    const participantIdentities = Array.isArray(input.participant_identities)
-      ? input.participant_identities.map((identity) => String(identity || '').trim()).filter(Boolean)
+    const participantIdentityValues = Array.isArray(input.participant_identities)
+      ? input.participant_identities
       : [];
+    assertMediaCallParticipantLimit(participantIdentityValues);
+    const participantIdentities = participantIdentityValues
+      .map((identity) => String(identity || '').trim())
+      .filter(Boolean);
     const prepared = options.preparedMediaCallPlacement;
     if (prepared && prepared.tenant_id !== ctx.tenantId) {
       throw badRequest('prepared media placement tenant mismatch');
     }
+    if (options.placement && !prepared) {
+      throw serviceUnavailable('prepared media call create command is required');
+    }
+    if (prepared?.replay_snapshot) {
+      return {
+        status: 200,
+        data: prepared.replay_snapshot
+      };
+    }
+    if (prepared && (!prepared.reservation || !prepared.create_attempt)) {
+      throw serviceUnavailable('prepared media call create attempt is invalid');
+    }
+    const createAttempt = prepared?.create_attempt;
     const snapshot = await mediaCallService().createCall({
       tenant_id: ctx.tenantId,
       call_id: prepared?.call_id,
@@ -629,7 +1151,26 @@ export async function routeIveKitMediaApi(
       metadata: bodyRecord(input.metadata),
       ring_timeout_seconds: optionalBodyNumber(input, 'ring_timeout_seconds'),
       idempotency_key: headerValue(headers, 'idempotency-key'),
-      placement_reservation: prepared?.reservation
+      placement_reservation: prepared?.reservation,
+      ...(prepared && createAttempt
+        ? {
+            beforeCreateCommit: async (
+              transactionPg: PgQueryable,
+              durableSnapshot: IveKitMediaCallSnapshot
+            ) => {
+              await mediaCallCreateCommandStore(
+                options,
+                transactionPg
+              ).markSucceeded({
+                tenant_id: ctx.tenantId,
+                call_id: prepared.call_id,
+                attempt_generation: createAttempt.generation,
+                attempt_token: createAttempt.token,
+                result_snapshot: durableSnapshot
+              });
+            }
+          }
+        : {})
     });
     return {
       status: 201,
@@ -642,6 +1183,29 @@ export async function routeIveKitMediaApi(
           snapshot.call.id
         )
       ])
+    };
+  }
+
+  if (routePath === '/api/ivekit/media/call-creates/current' &&
+      method === 'GET') {
+    const commandPg = options.commandPg || options.pg;
+    if (!commandPg) {
+      throw serviceUnavailable('media call create command store is unavailable');
+    }
+    const command = await mediaCallCreateCommandStore(
+      options,
+      commandPg
+    ).findByIdempotencyKey(
+      ctx.tenantId,
+      requiredMediaCallCreateIdempotencyKey(headers),
+      mediaActorIdentity(ctx, headers)
+    );
+    if (!command) throw notFound('media call create command not found');
+    if (command.state === 'succeeded' && command.result_snapshot) {
+      requireMediaCallReadAccess(ctx, headers, command.result_snapshot);
+    }
+    return {
+      data: publicMediaCallCreateCommand(command)
     };
   }
 
@@ -984,7 +1548,14 @@ export async function routeIveKitMediaApi(
   }
 
   if (routePath === '/api/ivekit/media/capabilities' && method === 'GET') {
-    return { data: capabilities(ctx.tenantId, media) };
+    return {
+      data: await capabilities(
+        ctx.tenantId,
+        mediaActorIdentity(ctx, headers),
+        media,
+        options.placement
+      )
+    };
   }
 
   if (routePath === '/api/ivekit/media/ingresses' && method === 'POST') {

@@ -5,6 +5,7 @@ import { splitOwnerEpoch } from './owner-epoch.js';
 import {
   PlacementError,
   type CellAdmissionPort,
+  type PlacementAvailability,
   type PlacementDecision,
   type PlacementRequest,
   type PlacementSnapshotCell,
@@ -17,6 +18,12 @@ interface Candidate {
   zone_id: string;
   cell: PlacementSnapshotCell;
   request_utilization: number;
+}
+
+interface CandidateResolution {
+  candidates: Candidate[];
+  now: Date;
+  snapshot_version: number;
 }
 
 export class PlacementService {
@@ -51,6 +58,131 @@ export class PlacementService {
     last_accepted_snapshot_version: number;
     request: PlacementRequest;
   }): Promise<PlacementDecision> {
+    const {
+      candidates,
+      now,
+      snapshot_version: snapshotVersion
+    } = await this.#resolveCandidates(input);
+    if (candidates.length === 0) {
+      throw new PlacementError({
+        code: 'placement_unavailable',
+        status: 503,
+        retryable: true,
+        details: {
+          candidate_count: 0,
+          attempted_cell_count: 0
+        }
+      });
+    }
+    const partitionKey = [
+      input.request.tenant_id,
+      input.request.routing_partition_id,
+      input.request.profile_id
+    ].join(':');
+    const selected = candidates
+      .map((candidate) => ({
+        candidate,
+        rendezvous: rendezvousScore(partitionKey, candidate.cell)
+      }))
+      .sort((left, right) => left.rendezvous - right.rendezvous ||
+        left.candidate.cell.cell_id.localeCompare(right.candidate.cell.cell_id))
+      .slice(0, 2)
+      .map((item) => item.candidate)
+      .sort((left, right) =>
+        left.request_utilization - right.request_utilization ||
+        left.cell.cell_id.localeCompare(right.cell.cell_id)
+      );
+    let attemptedCount = 0;
+    let lastError: PlacementError | null = null;
+    for (const candidate of selected) {
+      const admission = this.#admissions.get(candidate.cell.cell_id);
+      if (!admission) continue;
+      attemptedCount += 1;
+      try {
+        const reservation = await admission.reserve({
+          ...input.request,
+          region_id: candidate.region_id,
+          zone_id: candidate.zone_id,
+          cell_id: candidate.cell.cell_id,
+          snapshot_version: snapshotVersion,
+          cell_lease_epoch: candidate.cell.cell_lease_epoch
+        });
+        validateAdmissionResponse(reservation, candidate, input.request, now);
+        const issuedAt = now.toISOString();
+        const signedToken = this.#tokenSigner.issue({
+          key_id: this.#tokenKeyId,
+          tenant_id: input.request.tenant_id,
+          interaction_id: input.request.interaction_id,
+          interaction_kind: input.request.interaction_kind,
+          profile_id: input.request.profile_id,
+          region_id: reservation.region_id,
+          zone_id: reservation.zone_id,
+          cell_id: reservation.cell_id,
+          owner_node_id: reservation.owner_node_id,
+          owner_epoch: reservation.owner_epoch,
+          reservation_id: reservation.reservation_id,
+          issued_at: issuedAt,
+          expires_at: reservation.expires_at
+        });
+        return {
+          request_id: input.request.request_id,
+          interaction_id: input.request.interaction_id,
+          region_id: reservation.region_id,
+          zone_id: reservation.zone_id,
+          cell_id: reservation.cell_id,
+          owner_node_id: reservation.owner_node_id,
+          owner_epoch: reservation.owner_epoch,
+          reservation_id: reservation.reservation_id,
+          reservation_expires_at: reservation.expires_at,
+          snapshot_version: snapshotVersion,
+          admission_endpoint: candidate.cell.admission_endpoint,
+          endpoint: reservation.endpoint,
+          signed_placement_token: signedToken
+        };
+      } catch (error) {
+        if (!(error instanceof PlacementError) || !error.retryable) throw error;
+        lastError = error;
+      }
+    }
+    throw new PlacementError({
+      code: 'placement_capacity_exhausted',
+      status: 503,
+      retryable: true,
+      details: {
+        candidate_count: candidates.length,
+        attempted_cell_count: attemptedCount,
+        last_error_code: lastError?.code || 'admission_unavailable'
+      }
+    });
+  }
+
+  async availability(input: {
+    snapshot: SignedPlacementSnapshot;
+    last_accepted_snapshot_version: number;
+    request: PlacementRequest;
+  }): Promise<PlacementAvailability> {
+    const resolved = await this.#resolveCandidates(input);
+    if (resolved.candidates.length === 0) {
+      return {
+        status: 'unavailable',
+        reason: 'no_eligible_candidates',
+        candidate_count: 0,
+        snapshot_version: resolved.snapshot_version
+      };
+    }
+    return {
+      status: 'ready',
+      reason: 'eligible_candidates',
+      candidate_count: resolved.candidates.length,
+      snapshot_version: resolved.snapshot_version
+    };
+  }
+
+  async #resolveCandidates(input: {
+    snapshot: SignedPlacementSnapshot;
+    last_accepted_snapshot_version: number;
+    request: PlacementRequest;
+  }): Promise<CandidateResolution> {
     validatePlacementRequest(input.request);
     const now = this.#now();
     const verified = this.#snapshotSigner.verify(input.snapshot, {
@@ -87,92 +219,11 @@ export class PlacementService {
         candidate.cell.cell_id === input.request.preferred_cell_id
       );
     }
-    if (candidates.length === 0) {
-      throw new PlacementError({
-        code: 'placement_unavailable',
-        status: 503,
-        retryable: true
-      });
-    }
-    const partitionKey = [
-      input.request.tenant_id,
-      input.request.routing_partition_id,
-      input.request.profile_id
-    ].join(':');
-    const selected = candidates
-      .map((candidate) => ({
-        candidate,
-        rendezvous: rendezvousScore(partitionKey, candidate.cell)
-      }))
-      .sort((left, right) => left.rendezvous - right.rendezvous ||
-        left.candidate.cell.cell_id.localeCompare(right.candidate.cell.cell_id))
-      .slice(0, 2)
-      .map((item) => item.candidate)
-      .sort((left, right) =>
-        left.request_utilization - right.request_utilization ||
-        left.cell.cell_id.localeCompare(right.cell.cell_id)
-      );
-    const attempted: string[] = [];
-    let lastError: PlacementError | null = null;
-    for (const candidate of selected) {
-      const admission = this.#admissions.get(candidate.cell.cell_id);
-      if (!admission) continue;
-      attempted.push(candidate.cell.cell_id);
-      try {
-        const reservation = await admission.reserve({
-          ...input.request,
-          region_id: candidate.region_id,
-          zone_id: candidate.zone_id,
-          cell_id: candidate.cell.cell_id,
-          snapshot_version: verified.body.snapshot_version,
-          cell_lease_epoch: candidate.cell.cell_lease_epoch
-        });
-        validateAdmissionResponse(reservation, candidate, input.request, now);
-        const issuedAt = now.toISOString();
-        const signedToken = this.#tokenSigner.issue({
-          key_id: this.#tokenKeyId,
-          tenant_id: input.request.tenant_id,
-          interaction_id: input.request.interaction_id,
-          interaction_kind: input.request.interaction_kind,
-          profile_id: input.request.profile_id,
-          region_id: reservation.region_id,
-          zone_id: reservation.zone_id,
-          cell_id: reservation.cell_id,
-          owner_node_id: reservation.owner_node_id,
-          owner_epoch: reservation.owner_epoch,
-          reservation_id: reservation.reservation_id,
-          issued_at: issuedAt,
-          expires_at: reservation.expires_at
-        });
-        return {
-          request_id: input.request.request_id,
-          interaction_id: input.request.interaction_id,
-          region_id: reservation.region_id,
-          zone_id: reservation.zone_id,
-          cell_id: reservation.cell_id,
-          owner_node_id: reservation.owner_node_id,
-          owner_epoch: reservation.owner_epoch,
-          reservation_id: reservation.reservation_id,
-          reservation_expires_at: reservation.expires_at,
-          snapshot_version: verified.body.snapshot_version,
-          admission_endpoint: candidate.cell.admission_endpoint,
-          endpoint: reservation.endpoint,
-          signed_placement_token: signedToken
-        };
-      } catch (error) {
-        if (!(error instanceof PlacementError) || !error.retryable) throw error;
-        lastError = error;
-      }
-    }
-    throw new PlacementError({
-      code: 'placement_capacity_exhausted',
-      status: 503,
-      retryable: true,
-      details: {
-        attempted_cells: attempted,
-        last_error_code: lastError?.code || 'admission_unavailable'
-      }
-    });
+    return {
+      candidates,
+      now,
+      snapshot_version: verified.body.snapshot_version
+    };
   }
 }
 

@@ -36,8 +36,10 @@ import {
   type RouteIveKitEventApiOptions
 } from './event-http.js';
 import { createIveKitMediaHooks } from './media-hooks.js';
+import { MediaCallCreateCommandError } from '../livekit/media-call-create-command-store.js';
 import {
   prepareIveKitMediaCallPlacement,
+  releasePreparedIveKitMediaCallPlacement,
   routeIveKitMediaApi,
   type PreparedMediaCallPlacement,
   type RouteIveKitMediaApiOptions
@@ -178,9 +180,18 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
     retention: input.routes?.retention || routeIveKitRetentionApi,
     collaboration: input.routes?.collaboration || routeCollaborationApi
   };
-  const mediaOptions = input.mediaOptions || (input.pg
-    ? createIveKitMediaHooks({ db: input.db, pg: input.pg })
-    : {});
+  const mediaOptions: RouteIveKitMediaApiOptions = {
+    ...(input.pg
+      ? createIveKitMediaHooks({ db: input.db, pg: input.pg })
+      : {}),
+    ...input.mediaOptions,
+    ...(input.pg && !input.mediaOptions?.pg
+      ? { pg: input.pg }
+      : {}),
+    ...(input.pg && !input.mediaOptions?.commandPg
+      ? { commandPg: input.pg }
+      : {})
+  };
   const readiness = input.readinessProbe || createIveKitReadinessProbe({
     pg: input.pg,
     instanceId: process.env.OPC_IVEKIT_INSTANCE_ID,
@@ -386,9 +397,10 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       const result = buffered.result;
 
       if (result === undefined) {
-        await releasePreparedMediaCallPlacement(
+        await releasePreparedIveKitMediaCallPlacement(
           mediaOptions,
-          preparedMediaCallPlacement
+          preparedMediaCallPlacement,
+          'media_route_not_handled'
         );
         await releasePreparedVoiceCallPlacement(
           input.voiceOptions,
@@ -458,14 +470,21 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       );
     } catch (error) {
       if (preparedMediaCallPlacement && !preparedMediaCallPlacementCommitted) {
-        await releasePreparedMediaCallPlacement(
+        await releasePreparedIveKitMediaCallPlacement(
           mediaOptions,
-          preparedMediaCallPlacement
+          preparedMediaCallPlacement,
+          error
         ).catch((releaseError) => {
-          console.error(
-            '[ivekit] failed to release media placement after request failure:',
-            releaseError instanceof Error ? releaseError.message : String(releaseError)
+          const releaseCode = String(
+            (releaseError as { code?: unknown })?.code || ''
           );
+          console.error(JSON.stringify({
+            event: 'ivekit_media_create_cleanup_failed',
+            request_id: requestId,
+            code: /^[a-z0-9][a-z0-9_.:-]{0,127}$/.test(releaseCode)
+              ? releaseCode
+              : 'cleanup_failed'
+          }));
         });
       }
       if (preparedVoiceCallPlacement && !preparedVoiceCallPlacementCommitted) {
@@ -502,6 +521,67 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         });
       }
       const status = Number((error as { status?: number }).status || 500);
+      if (isStructuredMediaCreatePath(requestPath)) {
+        const placementError = error instanceof PlacementError ? error : null;
+        const createCommandError = error instanceof MediaCallCreateCommandError
+          ? error
+          : null;
+        const code = placementError?.code ?? createCommandError?.code ??
+          (
+            requestPath === '/api/ivekit/media/calls' && status >= 500
+              ? 'media_call_create_failed'
+              : (
+                  status >= 500
+                    ? 'internal_error'
+                    : httpMediaErrorCode(status)
+                )
+          );
+        const retryable = placementError?.retryable === true ||
+          createCommandError?.retryable === true ||
+          (
+            !placementError &&
+            !createCommandError &&
+            (status >= 500 || [408, 425, 429].includes(status))
+          );
+        const commandRetryAfter =
+          createCommandError?.retryAfterSeconds ?? 0;
+        const retryAfterSeconds = retryable
+          ? (
+              Number.isInteger(commandRetryAfter) &&
+              commandRetryAfter >= 1 &&
+              commandRetryAfter <= 60
+                ? commandRetryAfter
+                : mediaRetryAfterSeconds()
+            )
+          : 0;
+        const details = structuredMediaErrorDetails(placementError);
+        console.error(JSON.stringify({
+          event: 'ivekit_media_request_failed',
+          operation: mediaOperation(requestPath),
+          request_id: requestId,
+          code,
+          status,
+          retryable,
+          retry_after_seconds: retryAfterSeconds,
+          ...details
+        }));
+        sendJson(
+          response,
+          status,
+          mediaErrorEnvelope(
+            code,
+            status,
+            retryable,
+            requestId,
+            retryAfterSeconds,
+            details
+          ),
+          retryAfterSeconds > 0
+            ? { 'retry-after': retryAfterSeconds }
+            : {}
+        );
+        return;
+      }
       if (isStructuredControlPath(requestPath)) {
         const domainError = error instanceof VoiceError || error instanceof IvrError ||
           error instanceof ContactCenterError || error instanceof NotificationError ||
@@ -536,14 +616,6 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
   return input.tls
     ? createHttpsServer(input.tls, requestListener)
     : createHttpServer(requestListener);
-}
-
-async function releasePreparedMediaCallPlacement(
-  options: RouteIveKitMediaApiOptions,
-  prepared: PreparedMediaCallPlacement | null
-): Promise<void> {
-  if (!prepared || !options.placement) return;
-  await options.placement.releaseUncommitted(prepared.reservation);
 }
 
 async function releasePreparedVoiceCallPlacement(
@@ -587,6 +659,11 @@ function isStructuredControlPath(path: string): boolean {
     path.startsWith('/api/ivekit/events/webhook-subscriptions');
 }
 
+function isStructuredMediaCreatePath(path: string): boolean {
+  return path === '/api/ivekit/media/calls' ||
+    path === '/api/ivekit/media/call-creates/current';
+}
+
 function requestIdentifier(headers: Record<string, string | string[] | undefined>): string {
   const provided = requestHeader(headers, 'x-request-id');
   return provided && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(provided)
@@ -609,6 +686,86 @@ function voiceErrorEnvelope(
       details
     }
   };
+}
+
+function mediaErrorEnvelope(
+  code: string,
+  status: number,
+  retryable: boolean,
+  requestId: string,
+  retryAfterSeconds: number,
+  details: Readonly<Record<string, unknown>>
+): Record<string, unknown> {
+  return {
+    error: {
+      code,
+      message: mediaErrorMessage(code),
+      status,
+      retryable,
+      request_id: requestId,
+      ...(retryAfterSeconds > 0 ? { retry_after_seconds: retryAfterSeconds } : {}),
+      details
+    }
+  };
+}
+
+function structuredMediaErrorDetails(error: PlacementError | null): Readonly<Record<string, unknown>> {
+  if (!error) return {};
+  const output: Record<string, number | string> = {};
+  for (const key of ['candidate_count', 'attempted_cell_count'] as const) {
+    const value = error.details[key];
+    if (Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= 10_000) {
+      output[key] = Number(value);
+    }
+  }
+  if (error.code === 'placement_unavailable' ||
+      error.code === 'placement_capacity_exhausted') {
+    output.selected_component = 'livekit';
+    output.placement_health = error.code === 'placement_capacity_exhausted'
+      ? 'capacity_exhausted'
+      : 'unavailable';
+  }
+  return output;
+}
+
+function mediaRetryAfterSeconds(): number {
+  const value = Number(process.env.OPC_IVEKIT_MEDIA_RETRY_AFTER_SECONDS || 5);
+  return Number.isSafeInteger(value) && value >= 1 && value <= 60 ? value : 5;
+}
+
+function mediaOperation(path: string): string {
+  if (path === '/api/ivekit/media/calls') return 'create_call';
+  if (/^\/api\/ivekit\/media\/calls\/[^/]+\/join$/.test(path)) return 'join_call';
+  if (/^\/api\/ivekit\/media\/calls\/[^/]+\/actions$/.test(path)) return 'transition_call';
+  if (path === '/api/ivekit/media/capabilities') return 'capabilities';
+  return 'other';
+}
+
+function mediaErrorMessage(code: string): string {
+  const messages: Record<string, string> = {
+    media_call_create_failed: 'media call creation failed',
+    placement_unavailable: 'media placement is unavailable',
+    placement_capacity_exhausted: 'media placement capacity is exhausted',
+    placement_owner_missing: 'media placement owner is unavailable',
+    placement_owner_not_active: 'media placement owner is not active',
+    media_call_create_frozen: 'media call creation is temporarily frozen',
+    media_call_create_in_progress: 'media call creation is already in progress',
+    attempt_fenced: 'media call creation moved to a newer attempt',
+    create_command_reload_failed: 'media call creation state is temporarily unavailable',
+    idempotency_key_required: 'media Idempotency-Key is required',
+    idempotency_key_invalid: 'media Idempotency-Key is invalid',
+    idempotency_conflict: 'media idempotency key conflicts with an existing request',
+    not_found: 'media resource was not found',
+    validation_failed: 'media request validation failed',
+    internal_error: 'internal server error'
+  };
+  return messages[code] || 'media request failed';
+}
+
+function httpMediaErrorCode(status: number): string {
+  if (status === 404) return 'not_found';
+  if (status === 409) return 'idempotency_conflict';
+  return 'validation_failed';
 }
 
 function structuredErrorDetails(error: unknown): Readonly<Record<string, unknown>> {
