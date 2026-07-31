@@ -1,0 +1,13 @@
+ABSENT  scripts/run-production-media-hotfix-migration.ts
+b941d9f1836240b7368d322c18c6c51ce6f3bc124b3838dbaa260f5e5323b6c5  src/agent-runtime/ivekit/http-server.ts
+d97be4fd6a088eba27aee43c15221c6933b2118bc6aceeb61358065d31d83621  src/agent-runtime/ivekit/media-hooks.ts
+365a91c2387190c040880e9cf1decbe1a0269951d090fb76a03148489b285752  src/agent-runtime/ivekit/media-http.ts
+7375202891649ba1b0ba1c9ec8e1f5a153f6b1a86104c0264d046ce3da6d9026  src/agent-runtime/ivekit/operations/readiness.ts
+97dc040eb08cfe5aab1d040893fe1bec08765f5c519c47065bae3725b80416bf  src/agent-runtime/ivekit/placement/interaction-placement.ts
+dbbb085888f58059b588939127e63e515c6f7349ec0f227abc48cbafe721931c  src/agent-runtime/ivekit/placement/media-call-placement.ts
+f8055b3d39338e0af0f61f760e7d666fcaf360ac6ae04835f51ad60c39c0a21b  src/agent-runtime/ivekit/placement/placement-service.ts
+027eaaacbdbd61b3f201c93812b298c9e39dd42aca3da2c4a13caf79598a0d53  src/agent-runtime/ivekit/placement/runtime.ts
+10fdb2a17d0fd6c21ede79f628570c3d55e3c860977132c0e044a85620e6fa99  src/agent-runtime/ivekit/placement/types.ts
+ABSENT  src/agent-runtime/livekit/media-call-create-command-store.ts
+7db8d03f4f898884693764c1aec8f5846cf9b07413b923fdf712aa782611f657  src/agent-runtime/livekit/media-call-service.ts
+ABSENT  src/migrations/106_ivekit_media_call_create_commands.sql

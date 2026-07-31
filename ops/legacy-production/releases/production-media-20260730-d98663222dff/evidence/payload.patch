@@ -1,0 +1,2518 @@
+diff --git a/scripts/run-production-media-hotfix-migration.ts b/scripts/run-production-media-hotfix-migration.ts
+new file mode 100644
+index 0000000..ce62e9f
+--- /dev/null
++++ b/scripts/run-production-media-hotfix-migration.ts
+@@ -0,0 +1,133 @@
++import { resolve } from 'node:path';
++import { pathToFileURL } from 'node:url';
++
++import { Pool } from 'pg';
++
++import {
++  readPostgresMigrationPlan,
++  runPostgresMigrationsOnClient,
++  type PostgresMigration
++} from '../src/postgres-migrations.js';
++
++const LOCK_NAME = 'opc_schema_migrations';
++const TARGET_VERSION = '106_ivekit_media_call_create_commands';
++
++interface RecordedMigration {
++  version: string;
++  checksum: string;
++}
++
++export function validateProductionMediaHotfixMigrationState(
++  plan: PostgresMigration[],
++  recordedRows: Record<string, unknown>[]
++): PostgresMigration {
++  const targetIndex = plan.findIndex(
++    (migration) => migration.version === TARGET_VERSION
++  );
++  if (targetIndex < 0 || targetIndex !== plan.length - 1) {
++    throw new Error(
++      'production media hotfix migration must be the final migration in the image'
++    );
++  }
++  const recorded = new Map<string, RecordedMigration>();
++  for (const row of recordedRows) {
++    const version = String(row.version || '');
++    const checksum = String(row.checksum || '');
++    if (!version || !/^[a-f0-9]{64}$/.test(checksum)) {
++      throw new Error(
++        'schema_migrations contains an invalid or blank checksum'
++      );
++    }
++    if (recorded.has(version)) {
++      throw new Error('schema_migrations contains a duplicate version');
++    }
++    recorded.set(version, { version, checksum });
++  }
++
++  const target = plan[targetIndex];
++  for (const migration of plan.slice(0, targetIndex)) {
++    const current = recorded.get(migration.version);
++    if (!current) {
++      throw new Error(
++        `historical migration is missing: ${migration.version}`
++      );
++    }
++    if (current.checksum !== migration.checksum) {
++      throw new Error(
++        `historical migration checksum mismatch: ${migration.version}`
++      );
++    }
++  }
++  const targetRow = recorded.get(target.version);
++  if (targetRow && targetRow.checksum !== target.checksum) {
++    throw new Error(
++      `target migration checksum mismatch: ${target.version}`
++    );
++  }
++  return target;
++}
++
++async function main(): Promise<void> {
++  const pool = new Pool({ max: 1 });
++  const connection = await pool.connect();
++  try {
++    await connection.query(
++      'SELECT pg_advisory_lock(hashtext($1))',
++      [LOCK_NAME]
++    );
++    const plan = readPostgresMigrationPlan(
++      resolve(process.cwd(), 'src/migrations')
++    );
++    const recorded = await connection.query<Record<string, unknown>>(
++      'SELECT version, checksum FROM schema_migrations ORDER BY version'
++    );
++    const target = validateProductionMediaHotfixMigrationState(
++      plan,
++      recorded.rows
++    );
++    await runPostgresMigrationsOnClient(connection, plan);
++    const verified = await connection.query<Record<string, unknown>>(
++      'SELECT version, checksum FROM schema_migrations WHERE version = $1',
++      [target.version]
++    );
++    if (verified.rowCount !== 1 ||
++        String(verified.rows[0]?.checksum || '') !== target.checksum) {
++      throw new Error('target migration did not commit with the expected checksum');
++    }
++    await connection.query(`
++      DO $$
++      BEGIN
++        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'opc_runtime') THEN
++          REVOKE ALL PRIVILEGES ON TABLE schema_migrations FROM opc_runtime;
++        END IF;
++      END
++      $$
++    `);
++    process.stdout.write(
++      `production media hotfix migration applied version=${target.version} ` +
++      `checksum=${target.checksum}\n`
++    );
++  } finally {
++    try {
++      await connection.query(
++        'SELECT pg_advisory_unlock(hashtext($1))',
++        [LOCK_NAME]
++      );
++    } finally {
++      connection.release();
++      await pool.end();
++    }
++  }
++}
++
++if (process.argv[1] &&
++    pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
++  main().catch((error) => {
++    process.stderr.write(
++      `${error instanceof Error
++        ? error.message
++        : 'production media hotfix migration failed'}\n`
++    );
++    process.exitCode = 1;
++  });
++}
+diff --git a/src/agent-runtime/ivekit/http-server.ts b/src/agent-runtime/ivekit/http-server.ts
+index 2ac873f..869fcd2 100644
+--- a/src/agent-runtime/ivekit/http-server.ts
++++ b/src/agent-runtime/ivekit/http-server.ts
+@@ -36,8 +36,10 @@ import {
+   type RouteIveKitEventApiOptions
+ } from './event-http.js';
+ import { createIveKitMediaHooks } from './media-hooks.js';
++import { MediaCallCreateCommandError } from '../livekit/media-call-create-command-store.js';
+ import {
+   prepareIveKitMediaCallPlacement,
++  releasePreparedIveKitMediaCallPlacement,
+   routeIveKitMediaApi,
+   type PreparedMediaCallPlacement,
+   type RouteIveKitMediaApiOptions
+@@ -178,9 +180,18 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
+     retention: input.routes?.retention || routeIveKitRetentionApi,
+     collaboration: input.routes?.collaboration || routeCollaborationApi
+   };
+-  const mediaOptions = input.mediaOptions || (input.pg
+-    ? createIveKitMediaHooks({ db: input.db, pg: input.pg })
+-    : {});
++  const mediaOptions: RouteIveKitMediaApiOptions = {
++    ...(input.pg
++      ? createIveKitMediaHooks({ db: input.db, pg: input.pg })
++      : {}),
++    ...input.mediaOptions,
++    ...(input.pg && !input.mediaOptions?.pg
++      ? { pg: input.pg }
++      : {}),
++    ...(input.pg && !input.mediaOptions?.commandPg
++      ? { commandPg: input.pg }
++      : {})
++  };
+   const readiness = input.readinessProbe || createIveKitReadinessProbe({
+     pg: input.pg,
+     instanceId: process.env.OPC_IVEKIT_INSTANCE_ID,
+@@ -386,9 +397,10 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
+       const result = buffered.result;
+ 
+       if (result === undefined) {
+-        await releasePreparedMediaCallPlacement(
++        await releasePreparedIveKitMediaCallPlacement(
+           mediaOptions,
+-          preparedMediaCallPlacement
++          preparedMediaCallPlacement,
++          'media_route_not_handled'
+         );
+         await releasePreparedVoiceCallPlacement(
+           input.voiceOptions,
+@@ -458,14 +470,21 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
+       );
+     } catch (error) {
+       if (preparedMediaCallPlacement && !preparedMediaCallPlacementCommitted) {
+-        await releasePreparedMediaCallPlacement(
++        await releasePreparedIveKitMediaCallPlacement(
+           mediaOptions,
+-          preparedMediaCallPlacement
++          preparedMediaCallPlacement,
++          error
+         ).catch((releaseError) => {
+-          console.error(
+-            '[ivekit] failed to release media placement after request failure:',
+-            releaseError instanceof Error ? releaseError.message : String(releaseError)
++          const releaseCode = String(
++            (releaseError as { code?: unknown })?.code || ''
+           );
++          console.error(JSON.stringify({
++            event: 'ivekit_media_create_cleanup_failed',
++            request_id: requestId,
++            code: /^[a-z0-9][a-z0-9_.:-]{0,127}$/.test(releaseCode)
++              ? releaseCode
++              : 'cleanup_failed'
++          }));
+         });
+       }
+       if (preparedVoiceCallPlacement && !preparedVoiceCallPlacementCommitted) {
+@@ -502,6 +521,67 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
+         });
+       }
+       const status = Number((error as { status?: number }).status || 500);
++      if (isStructuredMediaCreatePath(requestPath)) {
++        const placementError = error instanceof PlacementError ? error : null;
++        const createCommandError = error instanceof MediaCallCreateCommandError
++          ? error
++          : null;
++        const code = placementError?.code ?? createCommandError?.code ??
++          (
++            requestPath === '/api/ivekit/media/calls' && status >= 500
++              ? 'media_call_create_failed'
++              : (
++                  status >= 500
++                    ? 'internal_error'
++                    : httpMediaErrorCode(status)
++                )
++          );
++        const retryable = placementError?.retryable === true ||
++          createCommandError?.retryable === true ||
++          (
++            !placementError &&
++            !createCommandError &&
++            (status >= 500 || [408, 425, 429].includes(status))
++          );
++        const commandRetryAfter =
++          createCommandError?.retryAfterSeconds ?? 0;
++        const retryAfterSeconds = retryable
++          ? (
++              Number.isInteger(commandRetryAfter) &&
++              commandRetryAfter >= 1 &&
++              commandRetryAfter <= 60
++                ? commandRetryAfter
++                : mediaRetryAfterSeconds()
++            )
++          : 0;
++        const details = structuredMediaErrorDetails(placementError);
++        console.error(JSON.stringify({
++          event: 'ivekit_media_request_failed',
++          operation: mediaOperation(requestPath),
++          request_id: requestId,
++          code,
++          status,
++          retryable,
++          retry_after_seconds: retryAfterSeconds,
++          ...details
++        }));
++        sendJson(
++          response,
++          status,
++          mediaErrorEnvelope(
++            code,
++            status,
++            retryable,
++            requestId,
++            retryAfterSeconds,
++            details
++          ),
++          retryAfterSeconds > 0
++            ? { 'retry-after': retryAfterSeconds }
++            : {}
++        );
++        return;
++      }
+       if (isStructuredControlPath(requestPath)) {
+         const domainError = error instanceof VoiceError || error instanceof IvrError ||
+           error instanceof ContactCenterError || error instanceof NotificationError ||
+@@ -538,14 +618,6 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
+     : createHttpServer(requestListener);
+ }
+ 
+-async function releasePreparedMediaCallPlacement(
+-  options: RouteIveKitMediaApiOptions,
+-  prepared: PreparedMediaCallPlacement | null
+-): Promise<void> {
+-  if (!prepared || !options.placement) return;
+-  await options.placement.releaseUncommitted(prepared.reservation);
+-}
+-
+ async function releasePreparedVoiceCallPlacement(
+   options: RouteIveKitVoiceApiOptions | undefined,
+   prepared: PreparedVoiceCallPlacement | null
+@@ -587,6 +659,11 @@ function isStructuredControlPath(path: string): boolean {
+     path.startsWith('/api/ivekit/events/webhook-subscriptions');
+ }
+ 
++function isStructuredMediaCreatePath(path: string): boolean {
++  return path === '/api/ivekit/media/calls' ||
++    path === '/api/ivekit/media/call-creates/current';
++}
++
+ function requestIdentifier(headers: Record<string, string | string[] | undefined>): string {
+   const provided = requestHeader(headers, 'x-request-id');
+   return provided && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(provided)
+@@ -611,6 +688,86 @@ function voiceErrorEnvelope(
+   };
+ }
+ 
++function mediaErrorEnvelope(
++  code: string,
++  status: number,
++  retryable: boolean,
++  requestId: string,
++  retryAfterSeconds: number,
++  details: Readonly<Record<string, unknown>>
++): Record<string, unknown> {
++  return {
++    error: {
++      code,
++      message: mediaErrorMessage(code),
++      status,
++      retryable,
++      request_id: requestId,
++      ...(retryAfterSeconds > 0 ? { retry_after_seconds: retryAfterSeconds } : {}),
++      details
++    }
++  };
++}
++
++function structuredMediaErrorDetails(error: PlacementError | null): Readonly<Record<string, unknown>> {
++  if (!error) return {};
++  const output: Record<string, number | string> = {};
++  for (const key of ['candidate_count', 'attempted_cell_count'] as const) {
++    const value = error.details[key];
++    if (Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= 10_000) {
++      output[key] = Number(value);
++    }
++  }
++  if (error.code === 'placement_unavailable' ||
++      error.code === 'placement_capacity_exhausted') {
++    output.selected_component = 'livekit';
++    output.placement_health = error.code === 'placement_capacity_exhausted'
++      ? 'capacity_exhausted'
++      : 'unavailable';
++  }
++  return output;
++}
++
++function mediaRetryAfterSeconds(): number {
++  const value = Number(process.env.OPC_IVEKIT_MEDIA_RETRY_AFTER_SECONDS || 5);
++  return Number.isSafeInteger(value) && value >= 1 && value <= 60 ? value : 5;
++}
++
++function mediaOperation(path: string): string {
++  if (path === '/api/ivekit/media/calls') return 'create_call';
++  if (/^\/api\/ivekit\/media\/calls\/[^/]+\/join$/.test(path)) return 'join_call';
++  if (/^\/api\/ivekit\/media\/calls\/[^/]+\/actions$/.test(path)) return 'transition_call';
++  if (path === '/api/ivekit/media/capabilities') return 'capabilities';
++  return 'other';
++}
++
++function mediaErrorMessage(code: string): string {
++  const messages: Record<string, string> = {
++    media_call_create_failed: 'media call creation failed',
++    placement_unavailable: 'media placement is unavailable',
++    placement_capacity_exhausted: 'media placement capacity is exhausted',
++    placement_owner_missing: 'media placement owner is unavailable',
++    placement_owner_not_active: 'media placement owner is not active',
++    media_call_create_frozen: 'media call creation is temporarily frozen',
++    media_call_create_in_progress: 'media call creation is already in progress',
++    attempt_fenced: 'media call creation moved to a newer attempt',
++    create_command_reload_failed: 'media call creation state is temporarily unavailable',
++    idempotency_key_required: 'media Idempotency-Key is required',
++    idempotency_key_invalid: 'media Idempotency-Key is invalid',
++    idempotency_conflict: 'media idempotency key conflicts with an existing request',
++    not_found: 'media resource was not found',
++    validation_failed: 'media request validation failed',
++    internal_error: 'internal server error'
++  };
++  return messages[code] || 'media request failed';
++}
++
++function httpMediaErrorCode(status: number): string {
++  if (status === 404) return 'not_found';
++  if (status === 409) return 'idempotency_conflict';
++  return 'validation_failed';
++}
++
+ function structuredErrorDetails(error: unknown): Readonly<Record<string, unknown>> {
+   if (!(error instanceof PlacementError)) return {};
+   const allowed = new Set([
+diff --git a/src/agent-runtime/ivekit/media-hooks.ts b/src/agent-runtime/ivekit/media-hooks.ts
+index e3fac66..f4d8721 100644
+--- a/src/agent-runtime/ivekit/media-hooks.ts
++++ b/src/agent-runtime/ivekit/media-hooks.ts
+@@ -27,6 +27,7 @@ export function createIveKitMediaHooks(input: IveKitMediaHooksInput): RouteIveKi
+   const retentionDays = configuredRetentionDays();
+   return {
+     pg: input.pg,
++    commandPg: input.pg,
+     eventStore: new IveKitTenantEventJournal(input.pg),
+     realtimeSpeechStore: new RealtimeSpeechStore(input.pg),
+     onRecordingStarted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, (pg) =>
+diff --git a/src/agent-runtime/ivekit/media-http.ts b/src/agent-runtime/ivekit/media-http.ts
+index 200965e..872d0a2 100644
+--- a/src/agent-runtime/ivekit/media-http.ts
++++ b/src/agent-runtime/ivekit/media-http.ts
+@@ -2,14 +2,24 @@ import { createHash } from 'node:crypto';
+ import { isIP } from 'node:net';
+ 
+ import { resolveAuthContext } from '../../middleware/auth.js';
+-import { getPostgresOrNull, pgId, type PgQueryable } from '../../db-pg.js';
++import { getPostgresOrNull, type PgQueryable } from '../../db-pg.js';
+ import {
+   runWithPgTenantContextAsync,
+   withPgTenant
+ } from '../../db-pg-tenant.js';
+ import { wsBroadcastToUsers } from '../../ws.js';
+ import { createLiveKitMediaModule, issueSupervisorToken } from '../livekit/index.js';
+-import { MediaCallService } from '../livekit/media-call-service.js';
++import {
++  MediaCallCreateCommandError,
++  MediaCallCreateCommandStore,
++  type MediaCallCreateAttempt,
++  type MediaCallCreateCommand,
++  type MediaCallCreateCommandClaim
++} from '../livekit/media-call-create-command-store.js';
++import {
++  assertMediaCallParticipantLimit,
++  MediaCallService
++} from '../livekit/media-call-service.js';
+ import { MediaCallStore } from '../livekit/media-call-store.js';
+ import {
+   MediaQualityService,
+@@ -67,7 +77,9 @@ import type {
+ } from '../livekit/types.js';
+ import type { MediaChannel } from '../media-gateway/index.js';
+ import { IveKitTenantEventJournal } from './tenant-event-store.js';
++import { PlacementError } from './placement/types.js';
+ import type {
++  MediaCallPlacementAvailability,
+   MediaCallPlacementPort,
+   MediaCallPlacementReservation
+ } from '../livekit/media-call-service.js';
+@@ -104,6 +116,7 @@ export interface RouteIveKitMediaApiOptions {
+   egressPlacement?: LiveKitEgressPlacementPort;
+   placementWorkerId?: string;
+   preparedMediaCallPlacement?: PreparedMediaCallPlacement;
++  mediaCallCreateCommandStoreFactory?: MediaCallCreateCommandStoreFactory;
+   ingressProvider?: LiveKitIngressProvider | null;
+   onIngressAudit?: (event: LiveKitIngressAuditEvent) => void | Promise<void>;
+   realtime_audio_tap_grants?: Pick<
+@@ -129,8 +142,44 @@ export interface LiveKitIngressAuditEvent {
+ export interface PreparedMediaCallPlacement {
+   tenant_id: string;
+   call_id: string;
+-  reservation: MediaCallPlacementReservation;
+-}
++  reservation?: MediaCallPlacementReservation;
++  create_attempt: MediaCallCreateAttempt | null;
++  replay_snapshot: IveKitMediaCallSnapshot | null;
++}
++
++export interface MediaCallCreateCommandStorePort {
++  claim(input: {
++    tenant_id: string;
++    idempotency_key: string;
++    payload: Record<string, unknown>;
++  }): Promise<MediaCallCreateCommandClaim>;
++  findByIdempotencyKey(
++    tenantId: string,
++    idempotencyKey: string,
++    requesterIdentity: string
++  ): Promise<MediaCallCreateCommand | null>;
++  markSucceeded(input: {
++    tenant_id: string;
++    call_id: string;
++    attempt_generation: number;
++    attempt_token: string;
++    result_snapshot: IveKitMediaCallSnapshot;
++  }): Promise<MediaCallCreateCommand>;
++  markFailed(input: {
++    tenant_id: string;
++    call_id: string;
++    attempt_generation: number;
++    attempt_token: string;
++    error_code: string;
++    error_status: number;
++    retryable: boolean;
++    retry_after_seconds: number;
++  }): Promise<MediaCallCreateCommand>;
++}
++
++export type MediaCallCreateCommandStoreFactory = (
++  pg: PgQueryable
++) => MediaCallCreateCommandStorePort;
+ 
+ export async function prepareIveKitMediaCallPlacement(
+   method: string,
+@@ -139,34 +188,417 @@ export async function prepareIveKitMediaCallPlacement(
+   headers: Record<string, string | string[] | undefined>,
+   options: RouteIveKitMediaApiOptions
+ ): Promise<PreparedMediaCallPlacement | null> {
+-  if (!options.placement ||
+-      method !== 'POST' ||
++  if (method !== 'POST' ||
+       routePath !== '/api/ivekit/media/calls') {
+     return null;
+   }
++  const freezeConfigured = mediaCallCreateFreezeConfigured();
++  const placementRequired = mediaCallCreatePlacementRequired();
++  if (!options.placement && !freezeConfigured && !placementRequired) {
++    return null;
++  }
+   const ctx = requireAuth(headers);
++  const actorIdentity = mediaActorIdentity(ctx, headers);
++  const freeze = mediaCallCreateFreeze(ctx.tenantId, actorIdentity);
++  if (freeze.frozen) {
++    throw new MediaCallCreateCommandError(
++      'media_call_create_frozen',
++      503,
++      true
++    );
++  }
++  if (!options.placement) {
++    throw new PlacementError({
++      code: 'placement_unavailable',
++      status: 503,
++      retryable: true,
++      details: {
++        candidate_count: 0,
++        attempted_cell_count: 0
++      }
++    });
++  }
+   const input = bodyRecord(body);
+   const businessRef = optionalBusinessRef(ctx.tenantId, input);
+   if (!businessRef) throw badRequest('business_ref is required');
+-  const actorIdentity = mediaActorIdentity(ctx, headers);
+   if (!actorIdentity) throw badRequest('authenticated media call identity is required');
+-  const participantIdentities = Array.isArray(input.participant_identities)
+-    ? input.participant_identities.map((identity) => String(identity || '').trim()).filter(Boolean)
++  const participantIdentityValues = Array.isArray(input.participant_identities)
++    ? input.participant_identities
+     : [];
++  assertMediaCallParticipantLimit(participantIdentityValues);
++  const participantIdentities = participantIdentityValues
++    .map((identity) => String(identity || '').trim())
++    .filter(Boolean);
+   const invitees = [...new Set(participantIdentities)]
+     .filter((identity) => identity !== actorIdentity);
+-  const callId = pgId('mcall');
+-  return {
++  const idempotencyKey = requiredMediaCallCreateIdempotencyKey(headers);
++  const commandPg = options.commandPg || options.pg;
++  if (!commandPg) {
++    throw serviceUnavailable('media call create command store is unavailable');
++  }
++  const commandStore = mediaCallCreateCommandStore(options, commandPg);
++  const claim = await commandStore.claim({
+     tenant_id: ctx.tenantId,
+-    call_id: callId,
+-    reservation: await options.placement.reserve({
++    idempotency_key: idempotencyKey,
++    payload: normalizedMediaCallCreatePayload({
++      actor_identity: actorIdentity,
++      business_ref: businessRef,
++      input,
++      invitees
++    })
++  });
++  if (claim.command.state === 'succeeded') {
++    if (!claim.command.result_snapshot) {
++      throw new MediaCallCreateCommandError(
++        'create_command_reload_failed',
++        503,
++        true
++      );
++    }
++    requireMediaCallReadAccess(
++      ctx,
++      headers,
++      claim.command.result_snapshot
++    );
++    return {
++      tenant_id: ctx.tenantId,
++      call_id: claim.command.call_id,
++      create_attempt: null,
++      replay_snapshot: claim.command.result_snapshot
++    };
++  }
++  if (claim.command.state === 'retryable_failed' ||
++      claim.command.state === 'terminal_failed') {
++    throw persistedMediaCallCreateFailure(claim.command);
++  }
++  if (!claim.attempt) {
++    throw new MediaCallCreateCommandError(
++      'media_call_create_in_progress',
++      409,
++      true
++    );
++  }
++  const callId = claim.command.call_id;
++  let reservation: MediaCallPlacementReservation;
++  try {
++    reservation = await options.placement.reserve({
+       tenant_id: ctx.tenantId,
+       interaction_id: callId,
+       media: String(input.media || 'video') === 'voice' ? 'voice' : 'video',
+       participant_count: invitees.length + 1,
+       business_ref: businessRef,
+-      idempotency_key: headerValue(headers, 'idempotency-key') || `media-call:${callId}`
+-    })
++      idempotency_key:
++        `media-call-create:${claim.attempt.generation}:${idempotencyKey}`
++    });
++  } catch (error) {
++    await markMediaCallCreateFailed(
++      commandStore,
++      ctx.tenantId,
++      callId,
++      claim.attempt,
++      mediaCallCreateFailure(error)
++    );
++    throw error;
++  }
++  return {
++    tenant_id: ctx.tenantId,
++    call_id: callId,
++    reservation,
++    create_attempt: claim.attempt,
++    replay_snapshot: null
++  };
++}
++
++export async function releasePreparedIveKitMediaCallPlacement(
++  options: RouteIveKitMediaApiOptions,
++  prepared: PreparedMediaCallPlacement | null,
++  error: unknown
++): Promise<void> {
++  if (!prepared?.create_attempt || prepared.replay_snapshot) return;
++  const commandPg = options.commandPg || options.pg;
++  if (!commandPg) {
++    throw serviceUnavailable('media call create command store is unavailable');
++  }
++  const ownsCleanup = await markMediaCallCreateFailed(
++    mediaCallCreateCommandStore(options, commandPg),
++    prepared.tenant_id,
++    prepared.call_id,
++    prepared.create_attempt,
++    mediaCallCreateFailure(error)
++  );
++  if (!ownsCleanup || !prepared.reservation) return;
++  if (!options.placement) {
++    throw serviceUnavailable('media placement release is unavailable');
++  }
++  await options.placement.releaseUncommitted(prepared.reservation);
++}
++
++function normalizedMediaCallCreatePayload(input: {
++  actor_identity: string;
++  business_ref: MediaBusinessRef;
++  input: Record<string, unknown>;
++  invitees: string[];
++}): Record<string, unknown> {
++  const ringTimeoutSeconds = optionalBodyNumber(
++    input.input,
++    'ring_timeout_seconds'
++  ) ?? 30;
++  if (!Number.isInteger(ringTimeoutSeconds) ||
++      ringTimeoutSeconds < 5 ||
++      ringTimeoutSeconds > 300) {
++    throw badRequest(
++      'ring_timeout_seconds must be an integer between 5 and 300'
++    );
++  }
++  const businessDisplayName = String(
++    input.business_ref.display_name || ''
++  ).trim();
++  return {
++    initiated_by: input.actor_identity,
++    media: String(input.input.media || 'video') === 'voice'
++      ? 'voice'
++      : 'video',
++    participant_identities: input.invitees,
++    business_ref: {
++      tenant_id: input.business_ref.tenant_id,
++      type: input.business_ref.type,
++      id: input.business_ref.id,
++      ...(businessDisplayName
++        ? { display_name: businessDisplayName }
++        : {}),
++      metadata: input.business_ref.metadata || {}
++    },
++    title: optionalBodyString(input.input, 'title') || '',
++    metadata: bodyRecord(input.input.metadata),
++    ring_timeout_seconds: ringTimeoutSeconds
++  };
++}
++
++function mediaCallCreateCommandStore(
++  options: RouteIveKitMediaApiOptions,
++  pg: PgQueryable
++): MediaCallCreateCommandStorePort {
++  return options.mediaCallCreateCommandStoreFactory?.(pg) ||
++    new MediaCallCreateCommandStore(pg, {
++      attemptLeaseMs: mediaCallCreateAttemptLeaseMs()
++    });
++}
++
++function mediaCallCreateAttemptLeaseMs(): number {
++  const configured = Number(
++    process.env.OPC_IVEKIT_MEDIA_CALL_CREATE_ATTEMPT_LEASE_MS || 30_000
++  );
++  return Number.isSafeInteger(configured) &&
++    configured >= 5_000 &&
++    configured <= 60_000
++    ? configured
++    : 30_000;
++}
++
++interface MediaCallCreateFreeze {
++  configured: boolean;
++  frozen: boolean;
++  rule_id: string;
++}
++
++const MEDIA_CREATE_FREEZE_VALUE_MAX_BYTES = 8 * 1024;
++const MEDIA_CREATE_FREEZE_MAX_IDENTIFIERS = 128;
++const MEDIA_CREATE_FREEZE_IDENTIFIER =
++  /^[A-Za-z0-9][A-Za-z0-9@._:+/-]{0,254}$/;
++const MEDIA_CREATE_FREEZE_RULE_ID =
++  /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
++
++function mediaCallCreateFreezeConfigured(): boolean {
++  return String(
++    process.env.OPC_IVEKIT_MEDIA_CALL_CREATE_FREEZE || ''
++  ).trim() !== '';
++}
++
++function mediaCallCreateFreeze(
++  tenantId: string,
++  actorIdentity: string
++): MediaCallCreateFreeze {
++  const raw = String(
++    process.env.OPC_IVEKIT_MEDIA_CALL_CREATE_FREEZE || ''
++  ).trim();
++  if (!raw || raw === '0') {
++    return { configured: false, frozen: false, rule_id: '' };
++  }
++  const ruleId = String(
++    process.env.OPC_IVEKIT_MEDIA_CALL_CREATE_FREEZE_RULE_ID || ''
++  ).trim();
++  const tenantAllowlist = mediaCallCreateCanaryIdentifiers(
++    'OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_TENANT_IDS'
++  );
++  const subjectAllowlist = mediaCallCreateCanaryIdentifiers(
++    'OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_SUBJECTS'
++  );
++  const valid = raw === '1' &&
++    MEDIA_CREATE_FREEZE_RULE_ID.test(ruleId) &&
++    tenantAllowlist !== null &&
++    subjectAllowlist !== null;
++  const allowed = valid && (
++    tenantAllowlist.has(tenantId) ||
++    subjectAllowlist.has(actorIdentity)
++  );
++  return {
++    configured: true,
++    frozen: !allowed,
++    rule_id: valid ? ruleId : 'invalid-freeze-configuration'
++  };
++}
++
++function mediaCallCreateCanaryIdentifiers(
++  name:
++    | 'OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_TENANT_IDS'
++    | 'OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_SUBJECTS'
++): ReadonlySet<string> | null {
++  const raw = String(process.env[name] || '').trim();
++  if (!raw) return new Set();
++  if (Buffer.byteLength(raw, 'utf8') > MEDIA_CREATE_FREEZE_VALUE_MAX_BYTES) {
++    return null;
++  }
++  const values = raw.split(',').map((value) => value.trim());
++  if (values.length > MEDIA_CREATE_FREEZE_MAX_IDENTIFIERS ||
++      values.some((value) => !MEDIA_CREATE_FREEZE_IDENTIFIER.test(value))) {
++    return null;
++  }
++  return new Set(values);
++}
++
++function mediaCallCreatePlacementRequired(): boolean {
++  const raw = String(
++    process.env.OPC_IVEKIT_MEDIA_CALL_CREATE_REQUIRE_PLACEMENT || ''
++  ).trim();
++  return raw !== '' && raw !== '0';
++}
++
++async function markMediaCallCreateFailed(
++  store: MediaCallCreateCommandStorePort,
++  tenantId: string,
++  callId: string,
++  attempt: MediaCallCreateAttempt,
++  failure: MediaCallCreateFailure
++): Promise<boolean> {
++  try {
++    await store.markFailed({
++      tenant_id: tenantId,
++      call_id: callId,
++      attempt_generation: attempt.generation,
++      attempt_token: attempt.token,
++      error_code: failure.code,
++      error_status: failure.status,
++      retryable: failure.retryable,
++      retry_after_seconds: failure.retry_after_seconds
++    });
++    return true;
++  } catch (error) {
++    if (error instanceof MediaCallCreateCommandError &&
++        error.code === 'attempt_fenced') {
++      return false;
++    }
++    throw error;
++  }
++}
++
++interface MediaCallCreateFailure {
++  code: string;
++  status: number;
++  retryable: boolean;
++  retry_after_seconds: number;
++}
++
++function mediaCallCreateFailure(error: unknown): MediaCallCreateFailure {
++  const value = typeof error === 'string'
++    ? error
++    : String((error as { code?: unknown })?.code || '');
++  const code = /^[a-z0-9][a-z0-9_.:-]{0,127}$/.test(value)
++    ? value
++    : 'media_call_create_failed';
++  const explicitStatus = Number((error as { status?: unknown })?.status);
++  const status = Number.isInteger(explicitStatus) &&
++    explicitStatus >= 400 &&
++    explicitStatus <= 599
++    ? explicitStatus
++    : 500;
++  const explicitRetryable =
++    (error as { retryable?: unknown })?.retryable;
++  const retryable = typeof explicitRetryable === 'boolean'
++    ? explicitRetryable
++    : status >= 500 || [408, 425, 429].includes(status);
++  const requestedRetryAfter = Number(
++    (error as {
++      retryAfterSeconds?: unknown;
++      retry_after_seconds?: unknown;
++    })?.retryAfterSeconds ??
++    (error as { retry_after_seconds?: unknown })?.retry_after_seconds
++  );
++  const retryAfterSeconds = retryable
++    ? (
++        Number.isInteger(requestedRetryAfter) &&
++        requestedRetryAfter >= 1 &&
++        requestedRetryAfter <= 60
++          ? requestedRetryAfter
++          : mediaCallCreateRetryAfterSeconds()
++      )
++    : 0;
++  return {
++    code,
++    status,
++    retryable,
++    retry_after_seconds: retryAfterSeconds
++  };
++}
++
++function persistedMediaCallCreateFailure(
++  command: MediaCallCreateCommand
++): MediaCallCreateCommandError {
++  const status = command.error_status >= 400 &&
++    command.error_status <= 599
++    ? command.error_status
++    : 503;
++  const retryAfterSeconds = command.error_retryable
++    ? secondsUntil(command.next_retry_at)
++    : 0;
++  return new MediaCallCreateCommandError(
++    command.error_code || 'media_call_create_failed',
++    status,
++    command.error_retryable,
++    retryAfterSeconds
++  );
++}
++
++function secondsUntil(timestampValue: string | null): number {
++  if (!timestampValue) return mediaCallCreateRetryAfterSeconds();
++  const milliseconds = Date.parse(timestampValue) - Date.now();
++  if (!Number.isFinite(milliseconds)) {
++    return mediaCallCreateRetryAfterSeconds();
++  }
++  return Math.max(1, Math.min(60, Math.ceil(milliseconds / 1_000)));
++}
++
++function mediaCallCreateRetryAfterSeconds(): number {
++  const value = Number(
++    process.env.OPC_IVEKIT_MEDIA_RETRY_AFTER_SECONDS || 5
++  );
++  return Number.isInteger(value) && value >= 1 && value <= 60 ? value : 5;
++}
++
++function publicMediaCallCreateCommand(
++  command: MediaCallCreateCommand
++): Record<string, unknown> {
++  return {
++    call_id: command.call_id,
++    state: command.state,
++    retryable: command.state === 'pending' || command.error_retryable,
++    error_code: command.error_code,
++    error_status: command.error_status,
++    next_retry_at: command.next_retry_at,
++    updated_at: command.updated_at,
++    completed_at: command.completed_at,
++    ...(command.state === 'succeeded' && command.result_snapshot
++      ? { result_snapshot: command.result_snapshot }
++      : {})
+   };
+ }
+ 
+@@ -273,6 +705,27 @@ function requiredIdempotencyKey(
+   return value;
+ }
+ 
++function requiredMediaCallCreateIdempotencyKey(
++  headers: Record<string, string | string[] | undefined>
++): string {
++  const value = headerValue(headers, 'idempotency-key').trim();
++  if (!value) {
++    throw new MediaCallCreateCommandError(
++      'idempotency_key_required',
++      400,
++      false
++    );
++  }
++  if (value.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(value)) {
++    throw new MediaCallCreateCommandError(
++      'idempotency_key_invalid',
++      400,
++      false
++    );
++  }
++  return value;
++}
++
+ function optionalBodyBoolean(body: Record<string, unknown>, key: string): boolean | undefined {
+   const value = body[key];
+   if (value === undefined || value === null) return undefined;
+@@ -420,9 +873,49 @@ async function closeTerminalEgressPlacement(
+   }
+ }
+ 
+-function capabilities(
++async function mediaCallCreateAvailability(
++  tenantId: string,
++  placement: MediaCallPlacementPort | undefined
++): Promise<MediaCallPlacementAvailability | undefined> {
++  if (!placement) {
++    return mediaCallCreatePlacementRequired() ||
++      mediaCallCreateFreezeConfigured()
++      ? {
++          status: 'unknown',
++          reason: 'snapshot_unavailable',
++          candidate_count: 0,
++          snapshot_version: null
++        }
++      : undefined;
++  }
++  if (!placement.availability) {
++    return {
++      status: 'unknown',
++      reason: 'snapshot_unavailable',
++      candidate_count: 0,
++      snapshot_version: null
++    };
++  }
++  try {
++    return await placement.availability({
++      tenant_id: tenantId,
++      participant_count: 2
++    });
++  } catch {
++    return {
++      status: 'unknown',
++      reason: 'snapshot_unavailable',
++      candidate_count: 0,
++      snapshot_version: null
++    };
++  }
++}
++
++async function capabilities(
+   tenantId: string,
+-  media: ReturnType<typeof createLiveKitMediaModule>
++  actorIdentity: string,
++  media: ReturnType<typeof createLiveKitMediaModule>,
++  placement: MediaCallPlacementPort | undefined
+ ) {
+   const livekitConfig = readLiveKitConfig();
+   const livekitUrl = livekitConfig.url || '';
+@@ -433,15 +926,20 @@ function capabilities(
+   const minioAccessKey = String(process.env.MINIO_ACCESS_KEY || '').trim();
+   const minioSecretKey = String(process.env.MINIO_SECRET_KEY || '').trim();
+   const sipReady = media.gateways.get('sip_volte').definition.status === 'active';
++  const serverReady = isLiveKitConfigured(livekitConfig);
++  const browserJoinReady = isLiveKitBrowserJoinConfigured(livekitConfig);
++  const createAvailability = await mediaCallCreateAvailability(tenantId, placement);
++  const createFreeze = mediaCallCreateFreeze(tenantId, actorIdentity);
+ 
+   return {
+     provider: 'livekit',
+     tenant_id: tenantId,
+     capabilities: {
+-      calls: true,
++      calls: serverReady && !createFreeze.frozen &&
++        (!createAvailability || createAvailability.status === 'ready'),
+       rooms: true,
+       tokens: true,
+-      join: true,
++      join: browserJoinReady,
+       participants: true,
+       host_moderation: true,
+       recording: true,
+@@ -458,13 +956,20 @@ function capabilities(
+     config: {
+       livekit_url_configured: Boolean(livekitUrl),
+       livekit_public_url_configured: Boolean(livekitPublicUrl),
+-      livekit_server_configured: isLiveKitConfigured(livekitConfig),
+-      livekit_browser_join_ready: isLiveKitBrowserJoinConfigured(livekitConfig),
++      livekit_server_configured: serverReady,
++      livekit_browser_join_ready: browserJoinReady,
+       livekit_api_key_configured: Boolean(livekitApiKey),
+       livekit_api_secret_configured: Boolean(livekitApiSecret),
+       invite_secret_configured: Boolean(inviteSecret),
+       egress_configured: Boolean(minioAccessKey && minioSecretKey),
+-      ingress_configured: liveKitIngressConfigured()
++      ingress_configured: liveKitIngressConfigured(),
++      media_call_create_frozen: createFreeze.frozen,
++      media_call_create_freeze_rule_id: createFreeze.rule_id,
++      media_call_create_placement_required:
++        mediaCallCreatePlacementRequired(),
++      ...(createAvailability
++        ? { media_call_create_availability: createAvailability }
++        : {})
+     }
+   };
+ }
+@@ -611,13 +1116,30 @@ export async function routeIveKitMediaApi(
+     if (!businessRef) throw badRequest('business_ref is required');
+     const actorIdentity = mediaActorIdentity(ctx, headers);
+     if (!actorIdentity) throw badRequest('authenticated media call identity is required');
+-    const participantIdentities = Array.isArray(input.participant_identities)
+-      ? input.participant_identities.map((identity) => String(identity || '').trim()).filter(Boolean)
++    const participantIdentityValues = Array.isArray(input.participant_identities)
++      ? input.participant_identities
+       : [];
++    assertMediaCallParticipantLimit(participantIdentityValues);
++    const participantIdentities = participantIdentityValues
++      .map((identity) => String(identity || '').trim())
++      .filter(Boolean);
+     const prepared = options.preparedMediaCallPlacement;
+     if (prepared && prepared.tenant_id !== ctx.tenantId) {
+       throw badRequest('prepared media placement tenant mismatch');
+     }
++    if (options.placement && !prepared) {
++      throw serviceUnavailable('prepared media call create command is required');
++    }
++    if (prepared?.replay_snapshot) {
++      return {
++        status: 200,
++        data: prepared.replay_snapshot
++      };
++    }
++    if (prepared && (!prepared.reservation || !prepared.create_attempt)) {
++      throw serviceUnavailable('prepared media call create attempt is invalid');
++    }
++    const createAttempt = prepared?.create_attempt;
+     const snapshot = await mediaCallService().createCall({
+       tenant_id: ctx.tenantId,
+       call_id: prepared?.call_id,
+@@ -629,7 +1151,26 @@ export async function routeIveKitMediaApi(
+       metadata: bodyRecord(input.metadata),
+       ring_timeout_seconds: optionalBodyNumber(input, 'ring_timeout_seconds'),
+       idempotency_key: headerValue(headers, 'idempotency-key'),
+-      placement_reservation: prepared?.reservation
++      placement_reservation: prepared?.reservation,
++      ...(prepared && createAttempt
++        ? {
++            beforeCreateCommit: async (
++              transactionPg: PgQueryable,
++              durableSnapshot: IveKitMediaCallSnapshot
++            ) => {
++              await mediaCallCreateCommandStore(
++                options,
++                transactionPg
++              ).markSucceeded({
++                tenant_id: ctx.tenantId,
++                call_id: prepared.call_id,
++                attempt_generation: createAttempt.generation,
++                attempt_token: createAttempt.token,
++                result_snapshot: durableSnapshot
++              });
++            }
++          }
++        : {})
+     });
+     return {
+       status: 201,
+@@ -645,6 +1186,29 @@ export async function routeIveKitMediaApi(
+     };
+   }
+ 
++  if (routePath === '/api/ivekit/media/call-creates/current' &&
++      method === 'GET') {
++    const commandPg = options.commandPg || options.pg;
++    if (!commandPg) {
++      throw serviceUnavailable('media call create command store is unavailable');
++    }
++    const command = await mediaCallCreateCommandStore(
++      options,
++      commandPg
++    ).findByIdempotencyKey(
++      ctx.tenantId,
++      requiredMediaCallCreateIdempotencyKey(headers),
++      mediaActorIdentity(ctx, headers)
++    );
++    if (!command) throw notFound('media call create command not found');
++    if (command.state === 'succeeded' && command.result_snapshot) {
++      requireMediaCallReadAccess(ctx, headers, command.result_snapshot);
++    }
++    return {
++      data: publicMediaCallCreateCommand(command)
++    };
++  }
++
+   const audioTapGrantMatch = routePath.match(
+     /^\/api\/ivekit\/media\/calls\/([^/]+)\/realtime-audio-tap-grants(?:\/([^/]+)\/(revoke))?$/
+   );
+@@ -984,7 +1548,14 @@ export async function routeIveKitMediaApi(
+   }
+ 
+   if (routePath === '/api/ivekit/media/capabilities' && method === 'GET') {
+-    return { data: capabilities(ctx.tenantId, media) };
++    return {
++      data: await capabilities(
++        ctx.tenantId,
++        mediaActorIdentity(ctx, headers),
++        media,
++        options.placement
++      )
++    };
+   }
+ 
+   if (routePath === '/api/ivekit/media/ingresses' && method === 'POST') {
+diff --git a/src/agent-runtime/ivekit/operations/readiness.ts b/src/agent-runtime/ivekit/operations/readiness.ts
+index 0c83097..271512b 100644
+--- a/src/agent-runtime/ivekit/operations/readiness.ts
++++ b/src/agent-runtime/ivekit/operations/readiness.ts
+@@ -194,7 +194,8 @@ export const REQUIRED_MIGRATIONS = [
+   '103_ivekit_voice_cdr_convergence',
+   '104_ivekit_cell_admission_ledger_runtime',
+   '105_tinode_closed_session_inbound',
+-  '106_tinode_open_session_mutation_queue'
++  '106_tinode_open_session_mutation_queue',
++  '106_ivekit_media_call_create_commands'
+ ] as const;
+ 
+ function configurationCheck(env: NodeJS.ProcessEnv): IveKitReadinessResult['checks']['configuration'] {
+diff --git a/src/agent-runtime/ivekit/placement/interaction-placement.ts b/src/agent-runtime/ivekit/placement/interaction-placement.ts
+index 8eb829e..f293cad 100644
+--- a/src/agent-runtime/ivekit/placement/interaction-placement.ts
++++ b/src/agent-runtime/ivekit/placement/interaction-placement.ts
+@@ -11,6 +11,7 @@ import {
+   type CapacityRequirement,
+   type CellReservationLifecyclePort,
+   type InteractionKind,
++  type PlacementAvailability,
+   type PlacementDecision,
+   type PlacementRequest
+ } from './types.js';
+@@ -146,6 +147,7 @@ export interface InteractionPlacementEvent {
+ 
+ export interface InteractionPlacementPlanner {
+   place(request: PlacementRequest): Promise<PlacementDecision>;
++  availability?(request: PlacementRequest): Promise<PlacementAvailability>;
+   inspectOwner?(input: {
+     profile_id: string;
+     interaction_kind: InteractionKind;
+@@ -389,6 +391,18 @@ export class InteractionPlacementCoordinator {
+     };
+   }
+ 
++  async availability(request: PlacementRequest): Promise<PlacementAvailability> {
++    if (!this.#planner.availability) {
++      return {
++        status: 'unknown',
++        reason: 'snapshot_unavailable',
++        candidate_count: 0,
++        snapshot_version: null
++      };
++    }
++    return this.#planner.availability(request);
++  }
++
+   async persistReserved(
+     pg: PgQueryable,
+     reserved: ReservedInteractionPlacement
+diff --git a/src/agent-runtime/ivekit/placement/media-call-placement.ts b/src/agent-runtime/ivekit/placement/media-call-placement.ts
+index 6374f31..04e7011 100644
+--- a/src/agent-runtime/ivekit/placement/media-call-placement.ts
++++ b/src/agent-runtime/ivekit/placement/media-call-placement.ts
+@@ -14,6 +14,7 @@ import {
+ } from './interaction-placement.js';
+ import type {
+   CapacityRequirement,
++  PlacementAvailability,
+   PlacementRequest
+ } from './types.js';
+ import { PlacementError } from './types.js';
+@@ -25,6 +26,9 @@ export interface MediaCallPlacementPolicy {
+ }
+ 
+ export interface InteractionPlacementCoordinatorPort {
++  availability?(
++    input: PlacementRequest
++  ): Promise<PlacementAvailability>;
+   reserve(
+     input: PlacementRequest & { owner_component: 'livekit' }
+   ): Promise<ReservedInteractionPlacement>;
+@@ -95,6 +99,46 @@ export class MediaCallPlacementAdapter implements MediaCallPlacementPort {
+     this.#policy = checkedPolicy(input.policy);
+   }
+ 
++  async availability(input: {
++    tenant_id: string;
++    participant_count?: number;
++  }): Promise<PlacementAvailability> {
++    if (!this.coordinator.availability) {
++      return {
++        status: 'unknown',
++        reason: 'snapshot_unavailable',
++        candidate_count: 0,
++        snapshot_version: null
++      };
++    }
++    const participantCount = boundedInteger(
++      input.participant_count ?? 1,
++      1,
++      10_000,
++      'media placement participant count'
++    );
++    const identifier = digest([input.tenant_id, 'availability']);
++    try {
++      return await this.coordinator.availability({
++        request_id: `media-availability:${identifier}`,
++        idempotency_key: `media-availability:${identifier}`,
++        tenant_id: input.tenant_id,
++        routing_partition_id: `media-availability:${identifier}`,
++        interaction_id: `media-availability:${identifier}`,
++        interaction_kind: 'livekit_av',
++        profile_id: this.#policy.profile_id,
++        required_capacity: compileCapacity(this.#policy, participantCount)
++      });
++    } catch {
++      return {
++        status: 'unknown',
++        reason: 'snapshot_unavailable',
++        candidate_count: 0,
++        snapshot_version: null
++      };
++    }
++  }
++
+   async reserve(input: {
+     tenant_id: string;
+     interaction_id: string;
+diff --git a/src/agent-runtime/ivekit/placement/placement-service.ts b/src/agent-runtime/ivekit/placement/placement-service.ts
+index fb9e2ff..2b58543 100644
+--- a/src/agent-runtime/ivekit/placement/placement-service.ts
++++ b/src/agent-runtime/ivekit/placement/placement-service.ts
+@@ -5,6 +5,7 @@ import { splitOwnerEpoch } from './owner-epoch.js';
+ import {
+   PlacementError,
+   type CellAdmissionPort,
++  type PlacementAvailability,
+   type PlacementDecision,
+   type PlacementRequest,
+   type PlacementSnapshotCell,
+@@ -19,6 +20,12 @@ interface Candidate {
+   request_utilization: number;
+ }
+ 
++interface CandidateResolution {
++  candidates: Candidate[];
++  now: Date;
++  snapshot_version: number;
++}
++
+ export class PlacementService {
+   readonly #snapshotSigner: PlacementSnapshotSigner;
+   readonly #tokenSigner: PlacementTokenSigner;
+@@ -51,47 +58,20 @@ export class PlacementService {
+     last_accepted_snapshot_version: number;
+     request: PlacementRequest;
+   }): Promise<PlacementDecision> {
+-    validatePlacementRequest(input.request);
+-    const now = this.#now();
+-    const verified = this.#snapshotSigner.verify(input.snapshot, {
++    const {
++      candidates,
+       now,
+-      last_accepted_version: input.last_accepted_snapshot_version,
+-      stale_grace_ms: this.#staleGraceMs
+-    });
+-    if (verified.body.profile_id !== input.request.profile_id) {
+-      throw new PlacementError({ code: 'snapshot_profile_mismatch', status: 409 });
+-    }
+-    const directory = await this.#tenantRegions.resolve(input.request.tenant_id);
+-    const regionOrder = [
+-      directory.home_region_id,
+-      ...directory.failover_region_ids
+-    ].filter((value, index, values) => values.indexOf(value) === index);
+-    if (input.request.preferred_region_id &&
+-        regionOrder.includes(input.request.preferred_region_id)) {
+-      regionOrder.splice(regionOrder.indexOf(input.request.preferred_region_id), 1);
+-      regionOrder.unshift(input.request.preferred_region_id);
+-    }
+-    let candidates: Candidate[] = [];
+-    for (const regionId of regionOrder) {
+-      candidates = collectCandidates(verified.body, input.request, [regionId], now);
+-      if (candidates.length > 0) break;
+-    }
+-    if (input.request.preferred_zone_id) {
+-      const preferred = candidates.filter((candidate) =>
+-        candidate.zone_id === input.request.preferred_zone_id
+-      );
+-      if (preferred.length > 0) candidates = preferred;
+-    }
+-    if (input.request.preferred_cell_id) {
+-      candidates = candidates.filter((candidate) =>
+-        candidate.cell.cell_id === input.request.preferred_cell_id
+-      );
+-    }
++      snapshot_version: snapshotVersion
++    } = await this.#resolveCandidates(input);
+     if (candidates.length === 0) {
+       throw new PlacementError({
+         code: 'placement_unavailable',
+         status: 503,
+-        retryable: true
++        retryable: true,
++        details: {
++          candidate_count: 0,
++          attempted_cell_count: 0
++        }
+       });
+     }
+     const partitionKey = [
+@@ -112,19 +92,19 @@ export class PlacementService {
+         left.request_utilization - right.request_utilization ||
+         left.cell.cell_id.localeCompare(right.cell.cell_id)
+       );
+-    const attempted: string[] = [];
++    let attemptedCount = 0;
+     let lastError: PlacementError | null = null;
+     for (const candidate of selected) {
+       const admission = this.#admissions.get(candidate.cell.cell_id);
+       if (!admission) continue;
+-      attempted.push(candidate.cell.cell_id);
++      attemptedCount += 1;
+       try {
+         const reservation = await admission.reserve({
+           ...input.request,
+           region_id: candidate.region_id,
+           zone_id: candidate.zone_id,
+           cell_id: candidate.cell.cell_id,
+-          snapshot_version: verified.body.snapshot_version,
++          snapshot_version: snapshotVersion,
+           cell_lease_epoch: candidate.cell.cell_lease_epoch
+         });
+         validateAdmissionResponse(reservation, candidate, input.request, now);
+@@ -154,7 +134,7 @@ export class PlacementService {
+           owner_epoch: reservation.owner_epoch,
+           reservation_id: reservation.reservation_id,
+           reservation_expires_at: reservation.expires_at,
+-          snapshot_version: verified.body.snapshot_version,
++          snapshot_version: snapshotVersion,
+           admission_endpoint: candidate.cell.admission_endpoint,
+           endpoint: reservation.endpoint,
+           signed_placement_token: signedToken
+@@ -169,11 +149,82 @@ export class PlacementService {
+       status: 503,
+       retryable: true,
+       details: {
+-        attempted_cells: attempted,
++        candidate_count: candidates.length,
++        attempted_cell_count: attemptedCount,
+         last_error_code: lastError?.code || 'admission_unavailable'
+       }
+     });
+   }
++
++  async availability(input: {
++    snapshot: SignedPlacementSnapshot;
++    last_accepted_snapshot_version: number;
++    request: PlacementRequest;
++  }): Promise<PlacementAvailability> {
++    const resolved = await this.#resolveCandidates(input);
++    if (resolved.candidates.length === 0) {
++      return {
++        status: 'unavailable',
++        reason: 'no_eligible_candidates',
++        candidate_count: 0,
++        snapshot_version: resolved.snapshot_version
++      };
++    }
++    return {
++      status: 'ready',
++      reason: 'eligible_candidates',
++      candidate_count: resolved.candidates.length,
++      snapshot_version: resolved.snapshot_version
++    };
++  }
++
++  async #resolveCandidates(input: {
++    snapshot: SignedPlacementSnapshot;
++    last_accepted_snapshot_version: number;
++    request: PlacementRequest;
++  }): Promise<CandidateResolution> {
++    validatePlacementRequest(input.request);
++    const now = this.#now();
++    const verified = this.#snapshotSigner.verify(input.snapshot, {
++      now,
++      last_accepted_version: input.last_accepted_snapshot_version,
++      stale_grace_ms: this.#staleGraceMs
++    });
++    if (verified.body.profile_id !== input.request.profile_id) {
++      throw new PlacementError({ code: 'snapshot_profile_mismatch', status: 409 });
++    }
++    const directory = await this.#tenantRegions.resolve(input.request.tenant_id);
++    const regionOrder = [
++      directory.home_region_id,
++      ...directory.failover_region_ids
++    ].filter((value, index, values) => values.indexOf(value) === index);
++    if (input.request.preferred_region_id &&
++        regionOrder.includes(input.request.preferred_region_id)) {
++      regionOrder.splice(regionOrder.indexOf(input.request.preferred_region_id), 1);
++      regionOrder.unshift(input.request.preferred_region_id);
++    }
++    let candidates: Candidate[] = [];
++    for (const regionId of regionOrder) {
++      candidates = collectCandidates(verified.body, input.request, [regionId], now);
++      if (candidates.length > 0) break;
++    }
++    if (input.request.preferred_zone_id) {
++      const preferred = candidates.filter((candidate) =>
++        candidate.zone_id === input.request.preferred_zone_id
++      );
++      if (preferred.length > 0) candidates = preferred;
++    }
++    if (input.request.preferred_cell_id) {
++      candidates = candidates.filter((candidate) =>
++        candidate.cell.cell_id === input.request.preferred_cell_id
++      );
++    }
++    return {
++      candidates,
++      now,
++      snapshot_version: verified.body.snapshot_version
++    };
++  }
+ }
+ 
+ function collectCandidates(
+diff --git a/src/agent-runtime/ivekit/placement/runtime.ts b/src/agent-runtime/ivekit/placement/runtime.ts
+index 40c24a7..4d384f3 100644
+--- a/src/agent-runtime/ivekit/placement/runtime.ts
++++ b/src/agent-runtime/ivekit/placement/runtime.ts
+@@ -7,6 +7,7 @@ import { PlacementSnapshotSigner, PlacementTokenSigner } from './snapshot.js';
+ import {
+   PlacementError,
+   type CellAdmissionPort,
++  type PlacementAvailability,
+   type PlacementDecision,
+   type PlacementRequest,
+   type SignedPlacementSnapshot
+@@ -153,6 +154,25 @@ export class FilePlacementRuntime {
+     });
+   }
+ 
++  async availability(request: PlacementRequest): Promise<PlacementAvailability> {
++    try {
++      const loaded = await this.#verifiedSnapshot();
++      const service = this.#placementService(loaded);
++      return await service.availability({
++        snapshot: loaded.snapshot,
++        last_accepted_snapshot_version: this.#lastAcceptedSnapshotVersion,
++        request
++      });
++    } catch {
++      return {
++        status: 'unknown',
++        reason: 'snapshot_unavailable',
++        candidate_count: 0,
++        snapshot_version: null
++      };
++    }
++  }
++
+   async inspectOwner(
+     input: PlacementOwnerInspectionInput
+   ): Promise<PlacementOwnerInspection> {
+diff --git a/src/agent-runtime/ivekit/placement/types.ts b/src/agent-runtime/ivekit/placement/types.ts
+index cbbbc1f..56b56aa 100644
+--- a/src/agent-runtime/ivekit/placement/types.ts
++++ b/src/agent-runtime/ivekit/placement/types.ts
+@@ -181,6 +181,26 @@ export interface PlacementDecision {
+   signed_placement_token: string;
+ }
+ 
++export type PlacementAvailability =
++  | {
++      status: 'ready';
++      reason: 'eligible_candidates';
++      candidate_count: number;
++      snapshot_version: number;
++    }
++  | {
++      status: 'unavailable';
++      reason: 'no_eligible_candidates';
++      candidate_count: 0;
++      snapshot_version: number;
++    }
++  | {
++      status: 'unknown';
++      reason: 'snapshot_unavailable';
++      candidate_count: 0;
++      snapshot_version: null;
++    };
++
+ export class PlacementError extends Error {
+   readonly code: string;
+   readonly status: number;
+diff --git a/src/agent-runtime/livekit/media-call-create-command-store.ts b/src/agent-runtime/livekit/media-call-create-command-store.ts
+new file mode 100644
+index 0000000..317ae88
+--- /dev/null
++++ b/src/agent-runtime/livekit/media-call-create-command-store.ts
+@@ -0,0 +1,746 @@
++import { createHash, randomBytes } from 'node:crypto';
++
++import { pgId, type PgQueryable } from '../../db-pg.js';
++import { withPgTenant } from '../../db-pg-tenant.js';
++import type { IveKitMediaCallSnapshot } from './types.js';
++
++export type MediaCallCreateCommandState =
++  | 'pending'
++  | 'succeeded'
++  | 'retryable_failed'
++  | 'terminal_failed';
++
++export interface MediaCallCreateCommand {
++  tenant_id: string;
++  call_id: string;
++  idempotency_key_hash: string;
++  payload_hash: string;
++  requester_identity_hash: string;
++  state: MediaCallCreateCommandState;
++  attempt_generation: number;
++  lease_until: string | null;
++  result_snapshot: IveKitMediaCallSnapshot | null;
++  error_code: string;
++  error_status: number;
++  error_retryable: boolean;
++  next_retry_at: string | null;
++  created_at: string;
++  updated_at: string;
++  completed_at: string | null;
++  expires_at: string;
++}
++
++export interface MediaCallCreateCommandClaim {
++  command: MediaCallCreateCommand;
++  replayed: boolean;
++  attempt: MediaCallCreateAttempt | null;
++}
++
++export interface MediaCallCreateAttempt {
++  generation: number;
++  token: string;
++  lease_until: string;
++}
++
++export type MediaCallCreateCommandErrorCode =
++  | 'idempotency_key_required'
++  | 'idempotency_key_invalid'
++  | 'idempotency_conflict'
++  | 'create_payload_invalid'
++  | 'create_command_not_found'
++  | 'create_command_reload_failed'
++  | 'media_call_create_frozen'
++  | 'media_call_create_in_progress'
++  | 'attempt_fenced';
++
++export class MediaCallCreateCommandError extends Error {
++  readonly code: string;
++  readonly status: number;
++  readonly retryable: boolean;
++  readonly retryAfterSeconds: number;
++
++  constructor(
++    code: string,
++    status: number,
++    retryable = false,
++    retryAfterSeconds = 0
++  ) {
++    super(code);
++    this.name = 'MediaCallCreateCommandError';
++    this.code = code;
++    this.status = status;
++    this.retryable = retryable;
++    this.retryAfterSeconds = retryAfterSeconds;
++  }
++}
++
++export interface MediaCallCreateCommandStoreOptions {
++  callId?: () => string;
++  attemptToken?: () => string;
++  attemptLeaseMs?: number;
++  retentionMs?: number;
++  cleanupBatchSize?: number;
++  cleanupSelector?: (idempotencyKeyHash: string) => boolean;
++}
++
++const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7e]{1,200}$/;
++const IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$/;
++const ERROR_CODE_PATTERN = /^[a-z0-9][a-z0-9_.:-]{0,127}$/;
++const ATTEMPT_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,128}$/;
++const REQUEST_MAX_BYTES = 256 * 1024;
++const SNAPSHOT_MAX_BYTES = 1024 * 1024;
++const JSON_MAX_DEPTH = 32;
++const JSON_MAX_NODES = 20_000;
++const MIN_ATTEMPT_LEASE_MS = 1_000;
++const MAX_ATTEMPT_LEASE_MS = 60_000;
++const DEFAULT_ATTEMPT_LEASE_MS = 15_000;
++const MIN_RETENTION_MS = 60 * 60 * 1_000;
++const MAX_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
++const DEFAULT_RETENTION_MS = 24 * 60 * 60 * 1_000;
++const MIN_CLEANUP_BATCH_SIZE = 1;
++const MAX_CLEANUP_BATCH_SIZE = 128;
++const DEFAULT_CLEANUP_BATCH_SIZE = 32;
++
++export class MediaCallCreateCommandStore {
++  readonly #callId: () => string;
++  readonly #attemptToken: () => string;
++  readonly #attemptLeaseMs: number;
++  readonly #retentionMs: number;
++  readonly #cleanupBatchSize: number;
++  readonly #cleanupSelector: (idempotencyKeyHash: string) => boolean;
++
++  constructor(
++    private readonly pg: PgQueryable,
++    options: MediaCallCreateCommandStoreOptions = {}
++  ) {
++    this.#callId = options.callId ?? (() => pgId('mcall'));
++    this.#attemptToken = options.attemptToken ??
++      (() => randomBytes(32).toString('base64url'));
++    const leaseMs = options.attemptLeaseMs ?? DEFAULT_ATTEMPT_LEASE_MS;
++    if (!Number.isInteger(leaseMs) ||
++        leaseMs < MIN_ATTEMPT_LEASE_MS ||
++        leaseMs > MAX_ATTEMPT_LEASE_MS) {
++      throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++    }
++    this.#attemptLeaseMs = leaseMs;
++    const retentionMs = options.retentionMs ?? DEFAULT_RETENTION_MS;
++    if (!Number.isSafeInteger(retentionMs) ||
++        retentionMs < MIN_RETENTION_MS ||
++        retentionMs > MAX_RETENTION_MS) {
++      throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++    }
++    this.#retentionMs = retentionMs;
++    const cleanupBatchSize =
++      options.cleanupBatchSize ?? DEFAULT_CLEANUP_BATCH_SIZE;
++    if (!Number.isInteger(cleanupBatchSize) ||
++        cleanupBatchSize < MIN_CLEANUP_BATCH_SIZE ||
++        cleanupBatchSize > MAX_CLEANUP_BATCH_SIZE) {
++      throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++    }
++    this.#cleanupBatchSize = cleanupBatchSize;
++    this.#cleanupSelector = options.cleanupSelector ??
++      ((keyHash) => Number.parseInt(keyHash.slice(0, 2), 16) === 0);
++  }
++
++  async claim(input: {
++    tenant_id: string;
++    idempotency_key: string;
++    payload: Record<string, unknown>;
++  }): Promise<MediaCallCreateCommandClaim> {
++    const tenantId = identifier(input.tenant_id, 'create_payload_invalid');
++    const idempotencyKey = requiredIdempotencyKey(input.idempotency_key);
++    const requestPayload = canonicalJsonObject(input.payload, REQUEST_MAX_BYTES);
++    const idempotencyKeyHash = hash(
++      'ivekit-media-call-create-key-v1',
++      tenantId,
++      idempotencyKey
++    );
++    const payloadHash = hash(
++      'ivekit-media-call-create-payload-v1',
++      tenantId,
++      requestPayload.json
++    );
++    const requesterIdentity = requiredRequesterIdentity(
++      requestPayload.value.initiated_by
++    );
++    const requesterIdentityHash = hash(
++      'ivekit-media-call-create-requester-v1',
++      tenantId,
++      requesterIdentity
++    );
++    const callId = identifier(this.#callId(), 'create_payload_invalid');
++    const initialToken = attemptToken(this.#attemptToken());
++    const initialTokenHash = attemptTokenHash(
++      tenantId,
++      callId,
++      1,
++      initialToken
++    );
++
++    return withPgTenant(this.pg, tenantId, async (pg) => {
++      if (this.#cleanupSelector(idempotencyKeyHash)) {
++        await pruneExpired(
++          pg,
++          tenantId,
++          this.#cleanupBatchSize
++        );
++      }
++      const inserted = await pg.query<Record<string, unknown>>(
++        `INSERT INTO ivekit_media_call_create_commands
++          (call_id, tenant_id, idempotency_key_hash, payload_hash,
++           requester_identity_hash, attempt_token_hash, lease_until, expires_at)
++         VALUES ($1, $2, $3, $4, $5, $6,
++                 clock_timestamp() + ($7::bigint * interval '1 millisecond'),
++                 clock_timestamp() + ($8::bigint * interval '1 millisecond'))
++         ON CONFLICT (tenant_id, idempotency_key_hash) DO UPDATE
++         SET call_id = EXCLUDED.call_id,
++             payload_hash = EXCLUDED.payload_hash,
++             requester_identity_hash = EXCLUDED.requester_identity_hash,
++             state = 'pending', attempt_generation = 1,
++             attempt_token_hash = EXCLUDED.attempt_token_hash,
++             lease_until = EXCLUDED.lease_until,
++             result_snapshot = NULL, error_code = '', error_status = 0,
++             error_retryable = FALSE, next_retry_at = NULL,
++             created_at = clock_timestamp(),
++             updated_at = clock_timestamp(), completed_at = NULL,
++             expires_at = EXCLUDED.expires_at
++         WHERE ivekit_media_call_create_commands.expires_at <= clock_timestamp()
++           AND (
++             ivekit_media_call_create_commands.state <> 'pending'
++             OR ivekit_media_call_create_commands.lease_until <= clock_timestamp()
++           )
++         RETURNING *`,
++        [
++          callId,
++          tenantId,
++          idempotencyKeyHash,
++          payloadHash,
++          requesterIdentityHash,
++          initialTokenHash,
++          this.#attemptLeaseMs,
++          this.#retentionMs
++        ]
++      );
++      if (inserted.rows[0]) {
++        const command = decodeCommand(inserted.rows[0]);
++        return {
++          command,
++          replayed: false,
++          attempt: claimedAttempt(command, initialToken)
++        };
++      }
++
++      const replay = await selectByKeyHash(pg, tenantId, idempotencyKeyHash);
++      if (!replay) {
++        throw new MediaCallCreateCommandError(
++          'create_command_reload_failed',
++          503,
++          true
++        );
++      }
++      if (replay.requester_identity_hash !== requesterIdentityHash ||
++          replay.payload_hash !== payloadHash) {
++        throw new MediaCallCreateCommandError('idempotency_conflict', 409);
++      }
++      if (replay.state === 'succeeded' ||
++          replay.state === 'terminal_failed') {
++        return { command: replay, replayed: true, attempt: null };
++      }
++
++      const nextGeneration = replay.attempt_generation + 1;
++      const takeoverToken = attemptToken(this.#attemptToken());
++      const takeoverTokenHash = attemptTokenHash(
++        tenantId,
++        replay.call_id,
++        nextGeneration,
++        takeoverToken
++      );
++      const taken = await pg.query<Record<string, unknown>>(
++        `UPDATE ivekit_media_call_create_commands
++         SET state = 'pending', attempt_generation = attempt_generation + 1,
++             attempt_token_hash = $4,
++             lease_until = clock_timestamp() +
++               ($5::bigint * interval '1 millisecond'),
++             result_snapshot = NULL, error_code = '', error_status = 0,
++             error_retryable = FALSE, next_retry_at = NULL,
++             completed_at = NULL, updated_at = clock_timestamp(),
++             expires_at = clock_timestamp() +
++               ($6::bigint * interval '1 millisecond')
++         WHERE tenant_id = $1 AND call_id = $2 AND attempt_generation = $3
++           AND state IN ('pending', 'retryable_failed')
++           AND (
++             (state = 'pending' AND lease_until <= clock_timestamp())
++             OR
++             (state = 'retryable_failed' AND next_retry_at <= clock_timestamp())
++           )
++         RETURNING *`,
++        [
++          tenantId,
++          replay.call_id,
++          replay.attempt_generation,
++          takeoverTokenHash,
++          this.#attemptLeaseMs,
++          this.#retentionMs
++        ]
++      );
++      if (taken.rows[0]) {
++        const command = decodeCommand(taken.rows[0]);
++        return {
++          command,
++          replayed: true,
++          attempt: claimedAttempt(command, takeoverToken)
++        };
++      }
++
++      const current = await selectByCallId(pg, tenantId, replay.call_id);
++      if (!current) {
++        throw new MediaCallCreateCommandError(
++          'create_command_reload_failed',
++          503,
++          true
++        );
++      }
++      return { command: current, replayed: true, attempt: null };
++    });
++  }
++
++  async findByIdempotencyKey(
++    tenantIdInput: string,
++    idempotencyKeyInput: string,
++    requesterIdentityInput: string
++  ): Promise<MediaCallCreateCommand | null> {
++    const tenantId = identifier(tenantIdInput, 'create_payload_invalid');
++    const key = requiredIdempotencyKey(idempotencyKeyInput);
++    const requester = requiredRequesterIdentity(requesterIdentityInput);
++    const keyHash = hash('ivekit-media-call-create-key-v1', tenantId, key);
++    const requesterHash = hash(
++      'ivekit-media-call-create-requester-v1',
++      tenantId,
++      requester
++    );
++    return withPgTenant(this.pg, tenantId, (pg) =>
++      selectByKeyAndRequesterHash(pg, tenantId, keyHash, requesterHash)
++    );
++  }
++
++  async findByCallId(
++    tenantIdInput: string,
++    callIdInput: string
++  ): Promise<MediaCallCreateCommand | null> {
++    const tenantId = identifier(tenantIdInput, 'create_payload_invalid');
++    const callId = identifier(callIdInput, 'create_payload_invalid');
++    return withPgTenant(this.pg, tenantId, async (pg) => {
++      const result = await pg.query<Record<string, unknown>>(
++        `SELECT command.*
++         FROM ivekit_media_call_create_commands command
++         WHERE command.tenant_id = $1 AND command.call_id = $2`,
++        [tenantId, callId]
++      );
++      return result.rows[0] ? decodeCommand(result.rows[0]) : null;
++    });
++  }
++
++  markSucceeded(input: {
++    tenant_id: string;
++    call_id: string;
++    attempt_generation: number;
++    attempt_token: string;
++    result_snapshot: IveKitMediaCallSnapshot;
++  }): Promise<MediaCallCreateCommand> {
++    const snapshot = canonicalJsonObject(
++      input.result_snapshot as unknown as Record<string, unknown>,
++      SNAPSHOT_MAX_BYTES
++    );
++    return this.#transition({
++      tenant_id: input.tenant_id,
++      call_id: input.call_id,
++      attempt_generation: input.attempt_generation,
++      attempt_token: input.attempt_token,
++      state: 'succeeded',
++      result_snapshot: snapshot.json,
++      error_code: '',
++      error_status: 0,
++      error_retryable: false,
++      retry_after_seconds: 0
++    });
++  }
++
++  markFailed(input: {
++    tenant_id: string;
++    call_id: string;
++    attempt_generation: number;
++    attempt_token: string;
++    error_code: string;
++    error_status: number;
++    retryable: boolean;
++    retry_after_seconds: number;
++  }): Promise<MediaCallCreateCommand> {
++    const errorCode = String(input.error_code || '').trim();
++    if (!ERROR_CODE_PATTERN.test(errorCode)) {
++      throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++    }
++    const errorStatus = Number(input.error_status);
++    if (!Number.isInteger(errorStatus) ||
++        errorStatus < 400 ||
++        errorStatus > 599) {
++      throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++    }
++    const retryAfterSeconds = Number(input.retry_after_seconds);
++    if (!Number.isInteger(retryAfterSeconds) ||
++        retryAfterSeconds < (input.retryable ? 1 : 0) ||
++        retryAfterSeconds > 60 ||
++        (!input.retryable && retryAfterSeconds !== 0)) {
++      throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++    }
++    return this.#transition({
++      tenant_id: input.tenant_id,
++      call_id: input.call_id,
++      attempt_generation: input.attempt_generation,
++      attempt_token: input.attempt_token,
++      state: input.retryable ? 'retryable_failed' : 'terminal_failed',
++      result_snapshot: null,
++      error_code: errorCode,
++      error_status: errorStatus,
++      error_retryable: input.retryable,
++      retry_after_seconds: retryAfterSeconds
++    });
++  }
++
++  async #transition(input: {
++    tenant_id: string;
++    call_id: string;
++    attempt_generation: number;
++    attempt_token: string;
++    state: Exclude<MediaCallCreateCommandState, 'pending'>;
++    result_snapshot: string | null;
++    error_code: string;
++    error_status: number;
++    error_retryable: boolean;
++    retry_after_seconds: number;
++  }): Promise<MediaCallCreateCommand> {
++    const tenantId = identifier(input.tenant_id, 'create_payload_invalid');
++    const callId = identifier(input.call_id, 'create_payload_invalid');
++    const generation = attemptGeneration(input.attempt_generation);
++    const token = attemptToken(input.attempt_token);
++    const tokenHash = attemptTokenHash(tenantId, callId, generation, token);
++    return withPgTenant(this.pg, tenantId, async (pg) => {
++      const result = await pg.query<Record<string, unknown>>(
++        `UPDATE ivekit_media_call_create_commands
++         SET state = $5, attempt_token_hash = '', lease_until = NULL,
++             result_snapshot = $6::jsonb, error_code = $7,
++             error_status = $8, error_retryable = $9,
++             next_retry_at = CASE
++               WHEN $9 THEN clock_timestamp() +
++                 ($10::bigint * interval '1 second')
++               ELSE NULL
++             END,
++             completed_at = CASE
++               WHEN $5 IN ('succeeded', 'terminal_failed')
++                 THEN clock_timestamp()
++               ELSE NULL
++             END,
++             updated_at = clock_timestamp(),
++             expires_at = clock_timestamp() +
++               ($11::bigint * interval '1 millisecond')
++         WHERE tenant_id = $1 AND call_id = $2 AND state = 'pending'
++           AND attempt_generation = $3 AND attempt_token_hash = $4
++           AND lease_until > clock_timestamp()
++         RETURNING *`,
++        [
++          tenantId,
++          callId,
++          generation,
++          tokenHash,
++          input.state,
++          input.result_snapshot,
++          input.error_code,
++          input.error_status,
++          input.error_retryable,
++          input.retry_after_seconds,
++          this.#retentionMs
++        ]
++      );
++      if (result.rows[0]) return decodeCommand(result.rows[0]);
++
++      const existing = await selectByCallId(pg, tenantId, callId);
++      if (!existing) {
++        throw new MediaCallCreateCommandError('create_command_not_found', 404);
++      }
++      throw new MediaCallCreateCommandError('attempt_fenced', 409, true);
++    });
++  }
++}
++
++async function selectByKeyHash(
++  pg: PgQueryable,
++  tenantId: string,
++  keyHash: string
++): Promise<MediaCallCreateCommand | null> {
++  const result = await pg.query<Record<string, unknown>>(
++    `SELECT command.*
++     FROM ivekit_media_call_create_commands command
++     WHERE command.tenant_id = $1 AND command.idempotency_key_hash = $2`,
++    [tenantId, keyHash]
++  );
++  return result.rows[0] ? decodeCommand(result.rows[0]) : null;
++}
++
++async function selectByKeyAndRequesterHash(
++  pg: PgQueryable,
++  tenantId: string,
++  keyHash: string,
++  requesterHash: string
++): Promise<MediaCallCreateCommand | null> {
++  const result = await pg.query<Record<string, unknown>>(
++    `SELECT command.*
++     FROM ivekit_media_call_create_commands command
++     WHERE command.tenant_id = $1
++       AND command.idempotency_key_hash = $2
++       AND command.requester_identity_hash = $3
++       AND command.expires_at > clock_timestamp()`,
++    [tenantId, keyHash, requesterHash]
++  );
++  return result.rows[0] ? decodeCommand(result.rows[0]) : null;
++}
++
++async function pruneExpired(
++  pg: PgQueryable,
++  tenantId: string,
++  maximumRows: number
++): Promise<void> {
++  await pg.query(
++    `WITH expired AS (
++       SELECT call_id
++       FROM ivekit_media_call_create_commands
++       WHERE tenant_id = $1
++         AND expires_at <= clock_timestamp()
++         AND (state <> 'pending' OR lease_until <= clock_timestamp())
++       ORDER BY expires_at, call_id
++       LIMIT $2
++     )
++     DELETE FROM ivekit_media_call_create_commands command
++     USING expired
++     WHERE command.tenant_id = $1
++       AND command.call_id = expired.call_id`,
++    [tenantId, maximumRows]
++  );
++}
++
++async function selectByCallId(
++  pg: PgQueryable,
++  tenantId: string,
++  callId: string
++): Promise<MediaCallCreateCommand | null> {
++  const result = await pg.query<Record<string, unknown>>(
++    `SELECT command.*
++     FROM ivekit_media_call_create_commands command
++     WHERE command.tenant_id = $1 AND command.call_id = $2`,
++    [tenantId, callId]
++  );
++  return result.rows[0] ? decodeCommand(result.rows[0]) : null;
++}
++
++function decodeCommand(row: Record<string, unknown>): MediaCallCreateCommand {
++  return {
++    tenant_id: String(row.tenant_id),
++    call_id: String(row.call_id),
++    idempotency_key_hash: String(row.idempotency_key_hash),
++    payload_hash: String(row.payload_hash),
++    requester_identity_hash: String(row.requester_identity_hash),
++    state: String(row.state) as MediaCallCreateCommandState,
++    attempt_generation: attemptGeneration(row.attempt_generation),
++    lease_until: nullableTimestamp(row.lease_until),
++    result_snapshot: row.result_snapshot == null
++      ? null
++      : jsonValue<IveKitMediaCallSnapshot>(row.result_snapshot),
++    error_code: String(row.error_code || ''),
++    error_status: finiteInteger(row.error_status, 0),
++    error_retryable: row.error_retryable === true,
++    next_retry_at: nullableTimestamp(row.next_retry_at),
++    created_at: timestamp(row.created_at),
++    updated_at: timestamp(row.updated_at),
++    completed_at: nullableTimestamp(row.completed_at),
++    expires_at: timestamp(row.expires_at)
++  };
++}
++
++function requiredIdempotencyKey(value: unknown): string {
++  const key = typeof value === 'string' ? value.trim() : '';
++  if (!key) {
++    throw new MediaCallCreateCommandError('idempotency_key_required', 400);
++  }
++  if (!IDEMPOTENCY_KEY_PATTERN.test(key)) {
++    throw new MediaCallCreateCommandError('idempotency_key_invalid', 400);
++  }
++  return key;
++}
++
++function requiredRequesterIdentity(value: unknown): string {
++  const identity = typeof value === 'string' ? value.trim() : '';
++  if (!identity ||
++      Buffer.byteLength(identity, 'utf8') > 512 ||
++      /[\u0000-\u001f\u007f]/u.test(identity)) {
++    throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++  }
++  return identity;
++}
++
++function finiteInteger(value: unknown, fallback: number): number {
++  const parsed = Number(value);
++  return Number.isSafeInteger(parsed) ? parsed : fallback;
++}
++
++function attemptToken(value: unknown): string {
++  const token = String(value || '');
++  if (!ATTEMPT_TOKEN_PATTERN.test(token)) {
++    throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++  }
++  return token;
++}
++
++function attemptGeneration(value: unknown): number {
++  const generation = Number(value);
++  if (!Number.isSafeInteger(generation) || generation < 1) {
++    throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++  }
++  return generation;
++}
++
++function attemptTokenHash(
++  tenantId: string,
++  callId: string,
++  generation: number,
++  token: string
++): string {
++  return hash(
++    'ivekit-media-call-create-attempt-v1',
++    tenantId,
++    callId,
++    String(generation),
++    token
++  );
++}
++
++function claimedAttempt(
++  command: MediaCallCreateCommand,
++  token: string
++): MediaCallCreateAttempt {
++  if (command.state !== 'pending' || !command.lease_until) {
++    throw new MediaCallCreateCommandError(
++      'create_command_reload_failed',
++      503,
++      true
++    );
++  }
++  return {
++    generation: command.attempt_generation,
++    token,
++    lease_until: command.lease_until
++  };
++}
++
++function identifier(
++  value: unknown,
++  code: MediaCallCreateCommandErrorCode
++): string {
++  const text = String(value || '').trim();
++  if (!IDENTIFIER_PATTERN.test(text)) {
++    throw new MediaCallCreateCommandError(code, 400);
++  }
++  return text;
++}
++
++function hash(domain: string, ...values: string[]): string {
++  const digest = createHash('sha256');
++  digest.update(domain);
++  for (const value of values) {
++    digest.update('\u0000');
++    digest.update(value);
++  }
++  return digest.digest('hex');
++}
++
++function canonicalJsonObject(
++  value: Record<string, unknown>,
++  maximumBytes: number
++): { value: Record<string, unknown>; json: string } {
++  const state = {
++    nodes: 0,
++    active: new WeakSet<object>()
++  };
++  const normalized = normalizeJson(value, 0, state);
++  if (!normalized || typeof normalized !== 'object' || Array.isArray(normalized)) {
++    throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++  }
++  const json = JSON.stringify(normalized);
++  if (Buffer.byteLength(json, 'utf8') > maximumBytes) {
++    throw new MediaCallCreateCommandError('create_payload_invalid', 413);
++  }
++  return { value: normalized as Record<string, unknown>, json };
++}
++
++function normalizeJson(
++  value: unknown,
++  depth: number,
++  state: { nodes: number; active: WeakSet<object> }
++): unknown {
++  state.nodes += 1;
++  if (state.nodes > JSON_MAX_NODES || depth > JSON_MAX_DEPTH) {
++    throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++  }
++  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
++    return value;
++  }
++  if (typeof value === 'number') {
++    if (!Number.isFinite(value)) {
++      throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++    }
++    return Object.is(value, -0) ? 0 : value;
++  }
++  if (!value || typeof value !== 'object') {
++    throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++  }
++  if (state.active.has(value)) {
++    throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++  }
++  state.active.add(value);
++  try {
++    if (Array.isArray(value)) {
++      return value.map((entry) => normalizeJson(entry, depth + 1, state));
++    }
++    const prototype = Object.getPrototypeOf(value);
++    if (prototype !== Object.prototype && prototype !== null) {
++      throw new MediaCallCreateCommandError('create_payload_invalid', 400);
++    }
++    return Object.fromEntries(
++      Object.keys(value as Record<string, unknown>)
++        .sort()
++        .map((key) => [
++          key,
++          normalizeJson(
++            (value as Record<string, unknown>)[key],
++            depth + 1,
++            state
++          )
++        ])
++    );
++  } finally {
++    state.active.delete(value);
++  }
++}
++
++function jsonValue<T>(value: unknown): T {
++  return (typeof value === 'string' ? JSON.parse(value) : value) as T;
++}
++
++function timestamp(value: unknown): string {
++  const parsed = value instanceof Date ? value : new Date(String(value));
++  if (!Number.isFinite(parsed.getTime())) {
++    throw new Error('media call create command database timestamp is invalid');
++  }
++  return parsed.toISOString();
++}
++
++function nullableTimestamp(value: unknown): string | null {
++  return value == null || value === '' ? null : timestamp(value);
++}
+diff --git a/src/agent-runtime/livekit/media-call-service.ts b/src/agent-runtime/livekit/media-call-service.ts
+index ad7a93c..258d8d0 100644
+--- a/src/agent-runtime/livekit/media-call-service.ts
++++ b/src/agent-runtime/livekit/media-call-service.ts
+@@ -24,6 +24,10 @@ export const ALLOWED_MEDIA_CALL_ACTIONS = {
+   failed: []
+ } as const satisfies Record<IveKitMediaCall['status'], readonly IveKitMediaCallAction[]>;
+ 
++export const MAX_MEDIA_CALL_PARTICIPANTS = 32;
++export const MAX_MEDIA_CALL_INVITEE_IDENTITIES =
++  MAX_MEDIA_CALL_PARTICIPANTS - 1;
++
+ const memoryCallLockTails = new WeakMap<MemoryPg, Map<string, Promise<void>>>();
+ 
+ export interface MediaCallTransitionResult {
+@@ -41,7 +45,31 @@ export interface MediaCallPlacementReservation {
+   value: unknown;
+ }
+ 
++export type MediaCallPlacementAvailability =
++  | {
++      status: 'ready';
++      reason: 'eligible_candidates';
++      candidate_count: number;
++      snapshot_version: number;
++    }
++  | {
++      status: 'unavailable';
++      reason: 'no_eligible_candidates';
++      candidate_count: 0;
++      snapshot_version: number;
++    }
++  | {
++      status: 'unknown';
++      reason: 'snapshot_unavailable';
++      candidate_count: 0;
++      snapshot_version: null;
++    };
++
+ export interface MediaCallPlacementPort {
++  availability?(input: {
++    tenant_id: string;
++    participant_count?: number;
++  }): Promise<MediaCallPlacementAvailability>;
+   reserve(input: {
+     tenant_id: string;
+     interaction_id: string;
+@@ -125,7 +153,12 @@ export class MediaCallService {
+     idempotency_key?: string;
+     call_id?: string;
+     placement_reservation?: MediaCallPlacementReservation;
++    beforeCreateCommit?: (
++      pg: PgQueryable,
++      snapshot: IveKitMediaCallSnapshot
++    ) => Promise<void>;
+   }): Promise<IveKitMediaCallSnapshot> {
++    assertMediaCallParticipantLimit(input.participant_identities);
+     const actor = requiredIdentity(input.initiated_by, 'initiated_by');
+     const businessRef = validatedBusinessRef(input.tenant_id, input.business_ref);
+     if (input.media !== 'voice' && input.media !== 'video') throw badRequest('media must be voice or video');
+@@ -138,6 +171,7 @@ export class MediaCallService {
+     const callId = input.call_id
+       ? requiredIdentity(input.call_id, 'call_id')
+       : pgId('mcall');
++    const ownsReservation = !input.placement_reservation;
+     let reservation = input.placement_reservation;
+     if (reservation && reservation.interaction_id !== callId) {
+       throw badRequest('placement reservation interaction mismatch');
+@@ -189,10 +223,12 @@ export class MediaCallService {
+             reason: 'media_call_durable'
+           });
+         }
+-        return (await store.snapshot(input.tenant_id, call.id))!;
++        const snapshot = (await store.snapshot(input.tenant_id, call.id))!;
++        await input.beforeCreateCommit?.(store.pg, snapshot);
++        return snapshot;
+       });
+     } catch (error) {
+-      if (this.options.placement && reservation) {
++      if (ownsReservation && this.options.placement && reservation) {
+         await this.options.placement.releaseUncommitted(reservation).catch((releaseError) => {
+           console.error(
+             '[media-call-placement] failed to release uncommitted reservation:',
+@@ -752,6 +788,16 @@ function assertActionAuthorized(
+   }
+ }
+ 
++export function assertMediaCallParticipantLimit(
++  participantIdentities: readonly unknown[]
++): void {
++  if (participantIdentities.length > MAX_MEDIA_CALL_INVITEE_IDENTITIES) {
++    throw badRequest(
++      `participant_identities must contain at most ${MAX_MEDIA_CALL_INVITEE_IDENTITIES} entries`
++    );
++  }
++}
++
+ function validatedBusinessRef(tenantId: string, ref: MediaBusinessRef): MediaBusinessRef {
+   if (!ref || !String(ref.type || '').trim() || !String(ref.id || '').trim()) {
+     throw badRequest('business_ref.type and business_ref.id are required');
+diff --git a/src/migrations/106_ivekit_media_call_create_commands.sql b/src/migrations/106_ivekit_media_call_create_commands.sql
+new file mode 100644
+index 0000000..474dd4f
+--- /dev/null
++++ b/src/migrations/106_ivekit_media_call_create_commands.sql
+@@ -0,0 +1,102 @@
++CREATE TABLE IF NOT EXISTS ivekit_media_call_create_commands (
++  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
++  call_id TEXT NOT NULL,
++  idempotency_key_hash TEXT NOT NULL
++    CHECK (char_length(idempotency_key_hash) = 64)
++    CHECK (idempotency_key_hash ~ '^[a-f0-9]{64}$'),
++  payload_hash TEXT NOT NULL
++    CHECK (char_length(payload_hash) = 64)
++    CHECK (payload_hash ~ '^[a-f0-9]{64}$'),
++  requester_identity_hash TEXT NOT NULL
++    CHECK (char_length(requester_identity_hash) = 64)
++    CHECK (requester_identity_hash ~ '^[a-f0-9]{64}$'),
++  state TEXT NOT NULL DEFAULT 'pending'
++    CHECK (
++      state IN (
++        'pending',
++        'succeeded',
++        'retryable_failed',
++        'terminal_failed'
++      )
++    ),
++  attempt_generation BIGINT NOT NULL DEFAULT 1
++    CHECK (attempt_generation BETWEEN 1 AND 9007199254740991),
++  attempt_token_hash TEXT NOT NULL
++    CHECK (
++      attempt_token_hash = ''
++      OR (
++        char_length(attempt_token_hash) = 64
++        AND attempt_token_hash ~ '^[a-f0-9]{64}$'
++      )
++    ),
++  lease_until TIMESTAMPTZ,
++  result_snapshot JSONB,
++  error_code TEXT NOT NULL DEFAULT '',
++  error_status INTEGER NOT NULL DEFAULT 0
++    CHECK (error_status = 0 OR error_status BETWEEN 400 AND 599),
++  error_retryable BOOLEAN NOT NULL DEFAULT FALSE,
++  next_retry_at TIMESTAMPTZ,
++  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  completed_at TIMESTAMPTZ,
++  expires_at TIMESTAMPTZ NOT NULL,
++  UNIQUE (tenant_id, idempotency_key_hash),
++  UNIQUE (tenant_id, call_id),
++  CHECK (
++    (state = 'pending' AND result_snapshot IS NULL
++      AND char_length(attempt_token_hash) = 64
++      AND lease_until IS NOT NULL
++      AND error_code = '' AND error_status = 0
++      AND error_retryable = FALSE AND next_retry_at IS NULL
++      AND completed_at IS NULL)
++    OR
++    (state = 'retryable_failed' AND result_snapshot IS NULL
++      AND attempt_token_hash = '' AND lease_until IS NULL
++      AND error_code <> '' AND error_status BETWEEN 400 AND 599
++      AND error_retryable = TRUE AND next_retry_at IS NOT NULL
++      AND completed_at IS NULL)
++    OR
++    (state = 'terminal_failed' AND result_snapshot IS NULL
++      AND attempt_token_hash = '' AND lease_until IS NULL
++      AND error_code <> '' AND error_status BETWEEN 400 AND 599
++      AND error_retryable = FALSE AND next_retry_at IS NULL
++      AND completed_at IS NOT NULL)
++    OR
++    (state = 'succeeded' AND result_snapshot IS NOT NULL
++      AND attempt_token_hash = '' AND lease_until IS NULL
++      AND error_code = '' AND error_status = 0
++      AND error_retryable = FALSE AND next_retry_at IS NULL
++      AND completed_at IS NOT NULL)
++  )
++);
++
++-- call_id intentionally has no foreign key: this ledger must commit before
++-- placement and before the ivekit_media_calls row exists.
++CREATE INDEX IF NOT EXISTS idx_ivekit_media_call_create_commands_recovery
++  ON ivekit_media_call_create_commands(
++    tenant_id,
++    state,
++    next_retry_at,
++    lease_until,
++    call_id
++  )
++  WHERE state IN ('pending', 'retryable_failed');
++
++CREATE INDEX IF NOT EXISTS idx_ivekit_media_call_create_commands_expiry
++  ON ivekit_media_call_create_commands(tenant_id, expires_at, call_id);
++
++ALTER TABLE ivekit_media_call_create_commands ENABLE ROW LEVEL SECURITY;
++ALTER TABLE ivekit_media_call_create_commands FORCE ROW LEVEL SECURITY;
++DROP POLICY IF EXISTS tenant_isolation ON ivekit_media_call_create_commands;
++CREATE POLICY tenant_isolation ON ivekit_media_call_create_commands FOR ALL
++  USING (opc_rls_bypass() OR tenant_id = opc_current_tenant())
++  WITH CHECK (opc_rls_bypass() OR tenant_id = opc_current_tenant());
++
++DO $$
++BEGIN
++  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'opc_runtime') THEN
++    GRANT SELECT, INSERT, UPDATE, DELETE
++      ON ivekit_media_call_create_commands TO opc_runtime;
++  END IF;
++END
++$$;

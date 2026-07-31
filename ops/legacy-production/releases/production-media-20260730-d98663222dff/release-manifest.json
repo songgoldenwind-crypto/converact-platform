@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "production-media-20260730-d98663222dff",
+  "status": "current",
+  "deploymentVerifiedAt": "2026-07-31T09:19:23Z",
+  "source": {
+    "repository": "songgoldenwind-crypto/opc-platform.git",
+    "branch": "maintenance/legacy-production-20260730",
+    "provenance": "reconstructed_orphan",
+    "originalGitAncestryProven": false,
+    "reachableCommitsCompared": 349,
+    "serverSnapshot": "/opt/opc-ivekit-goal3/source-im-final8-3f1a7d3ab2f3",
+    "baseImageId": "sha256:530e6e3345c0801cfb0ed73b6356b43f78f97344696d12677d567711551484ea",
+    "baseSnapshotGitTree": "660484e2ec9cefada4bfbab274ace6830a88c8e4",
+    "baseSnapshotInventoryManifestSha256": "119203e5db9bcc6e2d9747d57ce115b7886505197a6cac7926daa9159059fef5",
+    "baseCommit": "011de6f11a39aed14633e22f3ee5988dddc59038",
+    "mediaHotfixCommit": "f4027853eb45addab284928f4e1541f6dac3d1ff"
+  },
+  "components": {
+    "opc": {
+      "container": "ivekit-goal3-0f9b063-opc-1",
+      "imageTag": "ivekit/opc:production-media-20260730-835137d340da",
+      "imageId": "sha256:a7cefdc4fb22c46495fc78d9ee7d89776f7ece28fac6dc41d60146bef788fb0d",
+      "health": "healthy",
+      "restartCount": 0
+    },
+    "cellAdmission": {
+      "container": "ivekit-goal3-0f9b063-cell-admission-1",
+      "imageTag": "ivekit/opc:production-media-control-recovery-c32e8f369583",
+      "imageId": "sha256:f1b388dabe30540fb8d7d9d17a4bff39afb71ec5196b8d497378307146081307",
+      "health": "healthy",
+      "restartCount": 0
+    },
+    "livekitOwner": {
+      "container": "opc-ivekit-media-livekit-component-node-1",
+      "imageTag": "ivekit/opc:production-media-control-recovery-c32e8f369583",
+      "imageId": "sha256:f1b388dabe30540fb8d7d9d17a4bff39afb71ec5196b8d497378307146081307",
+      "health": "healthy",
+      "restartCount": 0
+    },
+    "livekit": {
+      "container": "opc-ivekit-media-livekit-1",
+      "imageId": "sha256:95b4473a03aeba9d2c36c62450f1bc924ad0638a44a9edd4cae46860aed23963",
+      "dockerHealthcheck": "not_configured",
+      "runtimeState": "running",
+      "restartCount": 0
+    }
+  },
+  "mediaPayload": {
+    "fileCount": 13,
+    "basePayloadManifestSha256": "5118a5842f66645eef2a7963f3ec2c11282305a26986ad981f426947d9cf3727",
+    "hotfixPayloadManifestSha256": "835137d340dab140c3b716a268ee262dd8e400eac5bb5ef93e93c47818b56a34",
+    "patchSha256": "ff66992c068e8a59858369bec146a12e94f9982f1b87235d59a09128966e4068",
+    "verification": "passed"
+  },
+  "controlRecoveryPayload": {
+    "fileCount": 2,
+    "baseImageId": "sha256:83296c08de7b798cdb753527d216efd5b7dc1ef6ec8a05c1233f16a4f9feece3",
+    "patchSha256": "1fbb094f2431676a26adc8c45e3715a1782265c03e3a8ce5878d177594ab55ab",
+    "admissionLedgerBaseSha256": "6d93abb1fd85a944235fa2d067b73c7223f7332d10ce20c7ed1f47480cffa9c5",
+    "admissionLedgerSourceSha256": "932282a2a12177798289a70a947b6068108f97135c81dc7489d9ad30f387c39a",
+    "componentNodeBaseSha256": "8f6c62c76afa4ceff2495f461cf02139d1dbfb585522c9c333b2e174e56a67c4",
+    "componentNodeSourceSha256": "2a3b7d389601fc74da47aea71b0f4d18da78342c6c7a9d3705b713e36800ab51",
+    "sourceProvenance": "pending_provenance"
+  },
+  "compose": {
+    "goal3OverrideFiles": [
+      "/secure/releases/production-media-20260730-d98663222dff/hotfix/cell-owner.override.yml",
+      "/secure/releases/production-media-20260730-d98663222dff/hotfix/api-hotfix.override.yml"
+    ],
+    "mediaConfigFiles": [
+      "/opt/opc-ivekit-led/source/infra/livekit/docker-compose.yml",
+      "/opt/opc-ivekit-led/source/infra/livekit/docker-compose.storage.yml",
+      "/secure/releases/production-media-20260730-d98663222dff/hotfix/livekit-owner.override.yml"
+    ]
+  },
+  "database": {
+    "migration": "106_ivekit_media_call_create_commands.sql",
+    "targetTableObserved": true,
+    "migrationHistoryChecksumVerified": false,
+    "status": "partial_evidence"
+  },
+  "rollback": {
+    "mode": "base_only",
+    "runbook": "/secure/releases/production-media-20260730-d98663222dff/hotfix/runbook.md",
+    "restorePoint": "/secure/releases/production-media-20260730-d75905969606/evidence/restore-point.tar.gpg",
+    "restorePointSha256": "bebec30904f4737d8273fc518b137c91a0fda5bdbfd637021df434720af295aa",
+    "exerciseStatus": "not_run"
+  },
+  "temporaryExceptions": {
+    "livekitOwnerRequiresMtls": false,
+    "nonMtlsRecordedExpiry": "2026-08-02T10:06:34.133Z",
+    "enforcement": "unknown",
+    "alert": "unknown"
+  },
+  "healthObservation": {
+    "mediaCallsLast24Hours": 15,
+    "livekitPlacementsLast24Hours": 15,
+    "livekitReservationsLast24Hours": 15,
+    "nonTerminalRooms": 0,
+    "newRoomsLast24Hours": 0
+  },
+  "acceptance": {
+    "containerHealth": "passed",
+    "databaseReadOnlyCounts": "passed",
+    "browserCreateJoinTracksReconnectHangupAfterRecovery": "not_run",
+    "productionWriteTestAuthorized": false
+  },
+  "supersedes": "/secure/releases/production-media-20260730-5418f3bcb38d"
+}
