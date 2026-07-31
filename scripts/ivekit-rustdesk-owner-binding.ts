@@ -2,7 +2,7 @@ import {
   createRustDeskOwnerBindingHttpServer,
   RustDeskOwnerBindingRegistry,
   rustDeskOwnerBindingCheckpointFromFile
-} from '../src/agent-runtime/ivekit/placement/rustdesk-owner-binding.js';
+} from '../src/agent-runtime/converact/placement/rustdesk-owner-binding.js';
 
 const host = String(process.env.OPC_IVEKIT_RUSTDESK_OWNER_BINDING_HOST || '127.0.0.1').trim();
 const port = Number(process.env.OPC_IVEKIT_RUSTDESK_OWNER_BINDING_PORT || 3211);

@@ -6,7 +6,7 @@ import test from 'node:test';
 
 import {
   loadIveKitInternalTlsConfig
-} from '../src/agent-runtime/ivekit/internal-tls.js';
+} from '../src/agent-runtime/converact/internal-tls.js';
 
 test('iveKit internal TLS configuration is optional but all-or-none', () => {
   assert.equal(loadIveKitInternalTlsConfig({}), null);

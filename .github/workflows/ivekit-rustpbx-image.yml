@@ -5,7 +5,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/ivekit-rustpbx-image.yml'
-      - 'infra/ivekit/rustpbx/**'
+      - 'infra/converact/rustpbx/**'
       - 'integrations/component-hook-rs/**'
       - 'package.json'
   push:
@@ -14,7 +14,7 @@ on:
       - 'codex/**'
     paths:
       - '.github/workflows/ivekit-rustpbx-image.yml'
-      - 'infra/ivekit/rustpbx/**'
+      - 'infra/converact/rustpbx/**'
       - 'package.json'
 
 permissions:
@@ -39,7 +39,7 @@ jobs:
       - name: Apply pinned patchset and run Rust behavior gates
         env:
           IVEKIT_RUSTPBX_VERIFY_ONLY: "1"
-        run: bash infra/ivekit/rustpbx/build.sh
+        run: bash infra/converact/rustpbx/build.sh
 
   build:
     name: Build ${{ matrix.arch }}
@@ -66,7 +66,7 @@ jobs:
         env:
           TARGETARCH: ${{ matrix.arch }}
           IVEKIT_RUSTPBX_IMAGE: ${{ env.IMAGE }}:${{ env.VERSION }}-${{ matrix.arch }}
-        run: bash infra/ivekit/rustpbx/build.sh
+        run: bash infra/converact/rustpbx/build.sh
       - name: Smoke test image
         run: docker run --rm ${{ env.IMAGE }}:${{ env.VERSION }}-${{ matrix.arch }} --version
       - name: Push architecture image

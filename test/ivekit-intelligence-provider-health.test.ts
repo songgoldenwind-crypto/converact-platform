@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { createIntelligenceProviderRegistry } from '../src/agent-runtime/collaboration/intelligence-provider-registry.js';
 import { IntelligenceProviderHealthService } from '../src/agent-runtime/collaboration/intelligence-provider-health.js';
-import { routeIveKitIntelligenceApi } from '../src/agent-runtime/ivekit/intelligence-http.js';
+import { routeIveKitIntelligenceApi } from '../src/agent-runtime/converact/intelligence-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 const API_KEY = 'intelligence-health-system-key';

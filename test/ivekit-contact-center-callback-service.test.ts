@@ -11,7 +11,7 @@ import {
   type ContactCenterQueueEntry,
   type ContactCenterRepository,
   type ContactCenterUnitOfWork
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 
 test('Contact Center callback request encrypts the target and leaves the waiting queue atomically', async () => {
   const fixture = setup();

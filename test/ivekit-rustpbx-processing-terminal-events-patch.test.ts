@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch';
 
 test('RustPBX consumes processing terminal events through an owner-fenced stream', () => {
   assert.equal(existsSync(PATCH_PATH), true, `${PATCH_PATH} is required`);
@@ -24,7 +24,7 @@ test('RustPBX consumes processing terminal events through an owner-fenced stream
 });
 
 test('processing terminal event patch is ordered, reproducible, and manifest-bound', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
   assert.match(
     build,
     /rustpbx-ivekit-recording-lifecycle-reservation\.patch"[\s\S]*rustpbx-ivekit-processing-terminal-events\.patch"/

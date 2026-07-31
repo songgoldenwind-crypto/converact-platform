@@ -6,7 +6,7 @@ import {
   type ContactCenterOverflowAction,
   type ContactCenterRepository,
   type ContactCenterUnitOfWork
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 
 test('Contact Center overflow moves a call into the configured queue idempotently', async () => {
   const fixture = setup(overflowAction({ action: 'queue', target_queue_id: 'queue-b' }));

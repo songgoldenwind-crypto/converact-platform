@@ -1,20 +1,20 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { MediaControlError } from '../src/agent-runtime/ivekit/media-control/agent.js';
-import { mediaControlCommandHash } from '../src/agent-runtime/ivekit/media-control/protocol.js';
+import { MediaControlError } from '../src/agent-runtime/converact/media-control/agent.js';
+import { mediaControlCommandHash } from '../src/agent-runtime/converact/media-control/protocol.js';
 import type {
   MediaControlCommand,
   MediaControlReconcileInput,
   MediaControlResult,
   MediaSessionSnapshot
-} from '../src/agent-runtime/ivekit/media-control/protocol.js';
-import { rtpengineRequest } from '../src/agent-runtime/ivekit/media-control/rtpengine.js';
+} from '../src/agent-runtime/converact/media-control/protocol.js';
+import { rtpengineRequest } from '../src/agent-runtime/converact/media-control/rtpengine.js';
 import {
   RustPbxMediaControlAdapter,
   rustPbxMediaCommandId,
   type RustPbxMediaControlClientPort
-} from '../src/agent-runtime/ivekit/voice/adapters/media-control.js';
+} from '../src/agent-runtime/converact/voice/adapters/media-control.js';
 
 const OWNER_EPOCH = ((1n << 32n) | 1n).toString();
 

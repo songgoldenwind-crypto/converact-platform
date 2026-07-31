@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { PgQueryable } from '../src/db-pg.js';
-import { startPostgresIveKitRetentionWorker } from '../src/agent-runtime/ivekit/operations/retention/index.js';
+import { startPostgresIveKitRetentionWorker } from '../src/agent-runtime/converact/operations/retention/index.js';
 
 class RecordingPg implements PgQueryable {
   calls: string[] = [];

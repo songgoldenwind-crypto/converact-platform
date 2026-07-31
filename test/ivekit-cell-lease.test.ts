@@ -6,7 +6,7 @@ import {
   CellLeaseError,
   PostgresCellLeaseRepository,
   startCellLeaseMaintainer
-} from '../src/agent-runtime/ivekit/placement/index.js';
+} from '../src/agent-runtime/converact/placement/index.js';
 
 test('Cell lease migration stores one fenced owner per Region/Zone/Cell', () => {
   const sql = readFileSync('src/migrations/078_ivekit_cell_leases.sql', 'utf8');

@@ -40,28 +40,28 @@ import {
   type ProtocolEffectRecord,
   type ProtocolEffectStore,
   type StoreFailureCode
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/effect-oracle.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/effect-oracle.js';
 import {
   PostgresEffectStore
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/postgres-effect-store.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.js';
 import {
   SIP_FOUNDATION_CAPABILITY_IDS,
   computeBackendCapabilitySetDigest,
   createBackendCapabilitySet
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/capabilities.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/capabilities.js';
 import {
   RSIPSTACK_BASELINE_REQUIRED_CAPABILITIES,
   RsipstackFoundationAdapter
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/rsipstack-adapter.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.js';
 import {
   SIP_WIRE_BRANCH_PLACEHOLDER,
   sipRouteBindingSha256,
   sipWireAttemptFactsSha256,
   sipWireFreezeSha256
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/route-binding.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/route-binding.js';
 import {
   SipFoundationSessionRegistry
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/session-registry.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/session-registry.js';
 import type {
   BackendCapabilitySetInput,
   BackendRuntimeIdentity,
@@ -71,7 +71,7 @@ import type {
   PreparedProtocolEffectAuthority,
   SipFoundationCapabilityId,
   SipRouteBinding
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/types.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/types.js';
 
 const ORIGINAL_WIRE_BYTES = Buffer.from(
   'OPTIONS sip:service.example.test SIP/2.0\r\n' +
@@ -2304,7 +2304,7 @@ test('migration 107 is authoritative; local projection has no duplicate DDL and 
   const migration = await readFile(migrationUrl, 'utf8');
   const projection = await readFile(
     new URL(
-      '../src/agent-runtime/ivekit/voice/sip-foundation/migrations/001_effect_oracle.sql',
+      '../src/agent-runtime/converact/voice/sip-foundation/migrations/001_effect_oracle.sql',
       import.meta.url
     ),
     'utf8'

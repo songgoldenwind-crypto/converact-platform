@@ -7,7 +7,7 @@ import {
 } from './communication-technology-baseline.js';
 
 const MATRIX_PATH = 'docs/architecture/component-authority-matrix-v1.json';
-const CHART_ROOT = 'services/ivekit-service/helm/ivekit';
+const CHART_ROOT = 'services/converact-service/helm/converact';
 const PROFILE_IDS = ['ai', 'benchmark', 'core', 'observability'] as const;
 const PRODUCTION_PROFILES = new Set(['ai', 'core', 'observability']);
 const COMPONENT_STATUSES = new Set([

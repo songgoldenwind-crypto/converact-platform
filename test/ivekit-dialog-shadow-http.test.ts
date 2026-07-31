@@ -6,12 +6,12 @@ import {
   dialogShadowPairHash,
   dialogShadowRecordHash,
   type DialogShadowRecord
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow.js';
 import {
   HttpDialogShadowClient,
   handleDialogShadowRequest,
   type DialogShadowHttpCoordinator
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow-http.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow-http.js';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);

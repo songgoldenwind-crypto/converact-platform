@@ -3,10 +3,10 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch';
 const patch = readFileSync(PATCH_PATH, 'utf8');
-const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
-const lock = readFileSync('infra/ivekit/rustpbx/Cargo.lock', 'utf8');
+const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
+const lock = readFileSync('infra/converact/rustpbx/Cargo.lock', 'utf8');
 
 test('RustPBX uses async DNS and a connection pool sized for concurrent routing and CDR work', () => {
   assert.match(patch, /"hickory-dns"/);

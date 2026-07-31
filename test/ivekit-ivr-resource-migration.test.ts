@@ -13,7 +13,7 @@ test('IVR resource migration adds optimistic revision and standalone delivery or
     assert.match(sql, new RegExp(`idx_ivekit_ivr_${table}_status`, 'i'));
   }
 
-  const sourcePolicy = readFileSync('services/ivekit-service/source-policy.json', 'utf8');
+  const sourcePolicy = readFileSync('services/converact-service/source-policy.json', 'utf8');
   const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
   for (const source of [sourcePolicy, delivery]) assert.match(source, /051_ivekit_ivr_resources\.sql/);
   assert.ok(sourcePolicy.indexOf('050_ivekit_ivr_runtime.sql') < sourcePolicy.indexOf('051_ivekit_ivr_resources.sql'));

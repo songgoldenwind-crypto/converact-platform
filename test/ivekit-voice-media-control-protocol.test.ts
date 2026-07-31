@@ -10,7 +10,7 @@ import {
   mediaControlIdempotencyHash,
   mediaControlPayloadHash,
   type MediaControlCommand
-} from '../src/agent-runtime/ivekit/media-control/protocol.js';
+} from '../src/agent-runtime/converact/media-control/protocol.js';
 
 const schema = JSON.parse(
   readFileSync(

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const root = 'services/ivekit-service/acceptance/victoria-metrics';
+const root = 'services/converact-service/acceptance/victoria-metrics';
 
 test('VictoriaMetrics acceptance covers WAL recovery and backup restore on the server', () => {
   for (const file of ['docker-compose.yml', 'prometheus.yml', 'source.mjs', 'probe.mjs', 'accept.sh']) {

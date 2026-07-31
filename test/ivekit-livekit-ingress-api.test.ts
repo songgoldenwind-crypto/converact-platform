@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { IngressInfo, IngressInput } from 'livekit-server-sdk';
 
-import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
+import { routeIveKitMediaApi } from '../src/agent-runtime/converact/media-http.js';
 import { LiveKitSdkIngressProvider } from '../src/agent-runtime/livekit/livekit-ingress-provider.js';
 import type {
   LiveKitIngressCreateCommand,
@@ -14,7 +14,7 @@ import { createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken, type AuthRole } from '../src/middleware/auth.js';
 import { createTenant } from '../src/platform/tenant-core.js';
-import { createIveKitHttpSdk } from '../sdk/ivekit/src/http-sdk.js';
+import { createIveKitHttpSdk } from '../sdk/converact/src/http-sdk.js';
 
 class FakeIngressProvider implements LiveKitIngressProvider {
   readonly records = new Map<string, LiveKitIngressRecord>();

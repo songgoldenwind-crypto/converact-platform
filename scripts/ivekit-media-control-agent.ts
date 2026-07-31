@@ -5,47 +5,47 @@ import { join } from 'node:path';
 import '../src/telemetry.js';
 import {
   MediaControlAgent
-} from '../src/agent-runtime/ivekit/media-control/agent.js';
+} from '../src/agent-runtime/converact/media-control/agent.js';
 import {
   createMediaControlHttpServer,
   type MediaControlServerTlsOptions
-} from '../src/agent-runtime/ivekit/media-control/http.js';
+} from '../src/agent-runtime/converact/media-control/http.js';
 import {
   MediaControlEventBroker
-} from '../src/agent-runtime/ivekit/media-control/events.js';
+} from '../src/agent-runtime/converact/media-control/events.js';
 import {
   MediaCommandJournal,
   MediaTerminalEventJournal
-} from '../src/agent-runtime/ivekit/media-control/journal.js';
+} from '../src/agent-runtime/converact/media-control/journal.js';
 import {
   ComponentNodeMediaOrphanProbe,
   mediaControlAdmissionReady
-} from '../src/agent-runtime/ivekit/media-control/orphan-probe.js';
+} from '../src/agent-runtime/converact/media-control/orphan-probe.js';
 import {
   ProcessingMediaTransport
-} from '../src/agent-runtime/ivekit/media-control/processing.js';
+} from '../src/agent-runtime/converact/media-control/processing.js';
 import {
   ProcessingEventHandoff
-} from '../src/agent-runtime/ivekit/media-control/processing-event-handoff.js';
+} from '../src/agent-runtime/converact/media-control/processing-event-handoff.js';
 import {
   MediaTransportRouter
-} from '../src/agent-runtime/ivekit/media-control/router.js';
+} from '../src/agent-runtime/converact/media-control/router.js';
 import {
   RtpengineMediaTransport
-} from '../src/agent-runtime/ivekit/media-control/rtpengine.js';
+} from '../src/agent-runtime/converact/media-control/rtpengine.js';
 import {
   RtpengineNgClient
-} from '../src/agent-runtime/ivekit/media-control/rtpengine-ng.js';
+} from '../src/agent-runtime/converact/media-control/rtpengine-ng.js';
 import {
   InMemoryMediaTransport
-} from '../src/agent-runtime/ivekit/media-control/simulator.js';
+} from '../src/agent-runtime/converact/media-control/simulator.js';
 import type {
   MediaTransportPort
-} from '../src/agent-runtime/ivekit/media-control/transport.js';
+} from '../src/agent-runtime/converact/media-control/transport.js';
 import {
   HttpComponentNodeAdmissionClient,
   type ComponentNodeAdmissionClientTlsOptions
-} from '../src/agent-runtime/ivekit/placement/component-node-admission-http.js';
+} from '../src/agent-runtime/converact/placement/component-node-admission-http.js';
 
 const production = booleanEnv('IVEKIT_MEDIA_CONTROL_PRODUCTION', true);
 const requireMtls = booleanEnv(

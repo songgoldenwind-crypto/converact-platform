@@ -67,11 +67,11 @@ test('every repository Dockerfile pins external base images by digest', () => {
     'Dockerfile',
     'frontend/Dockerfile',
     'infra/capacity/Dockerfile',
-    'infra/ivekit/kamailio/Dockerfile',
-    'infra/ivekit/rustdesk-server/Dockerfile',
-    'infra/ivekit/rustpbx/Dockerfile.runtime',
+    'infra/converact/kamailio/Dockerfile',
+    'infra/converact/rustdesk-server/Dockerfile',
+    'infra/converact/rustpbx/Dockerfile.runtime',
     'services/ai-agent-py/Dockerfile',
-    'services/ivekit-service/Dockerfile'
+    'services/converact-service/Dockerfile'
   ];
   for (const dockerfile of dockerfiles) {
     const stages = new Set<string>();
@@ -86,8 +86,8 @@ test('every repository Dockerfile pins external base images by digest', () => {
     }
   }
 
-  const livekitSip = readFileSync('infra/ivekit/livekit-sip/Dockerfile', 'utf8');
-  const livekitBuild = readFileSync('infra/ivekit/livekit-sip/build.sh', 'utf8');
+  const livekitSip = readFileSync('infra/converact/livekit-sip/Dockerfile', 'utf8');
+  const livekitBuild = readFileSync('infra/converact/livekit-sip/build.sh', 'utf8');
   assert.match(livekitSip, /FROM \$\{LIVEKIT_SIP_BUILDER_IMAGE\}/);
   assert.match(livekitSip, /FROM \$\{LIVEKIT_SIP_RUNTIME_IMAGE\}/);
   assert.match(livekitBuild, /@sha256:\[a-f0-9\]/);
@@ -118,7 +118,7 @@ test('core source images share one digest-only build and release workflow', () =
 
   for (const image of [
     'opc-platform',
-    'opc-frontend',
+    'converact-console',
     'opc-ivekit-service',
     'opc-ivekit-capacity-tools',
     'opc-ivekit-kamailio',

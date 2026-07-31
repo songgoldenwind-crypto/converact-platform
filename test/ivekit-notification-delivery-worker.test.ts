@@ -10,7 +10,7 @@ import {
   type NotificationDeliveryRecord,
   type NotificationDeliveryRepository,
   type NotificationRecord
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 class WorkerRepository implements NotificationDeliveryRepository {
   readonly finishes: NotificationDeliveryFinishInput[] = [];

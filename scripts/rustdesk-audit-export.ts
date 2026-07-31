@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
   createIveKitRustDeskHttpClient,
   type IveKitRustDeskHttpClient
-} from '../src/agent-runtime/ivekit/index.js';
+} from '../src/agent-runtime/converact/index.js';
 
 export type RustDeskAuditExportClient = Pick<IveKitRustDeskHttpClient, 'listGatewayAuditEvents'>;
 

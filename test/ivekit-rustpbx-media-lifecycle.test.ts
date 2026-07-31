@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import {
   RUSTPBX_MEDIA_LIFECYCLE_STATES,
   transitionRustPbxMediaLifecycle
-} from '../src/agent-runtime/ivekit/voice/media-lifecycle.js';
+} from '../src/agent-runtime/converact/voice/media-lifecycle.js';
 
 describe('RustPBX media lifecycle', () => {
   it('covers prepare, early media, final answer, update and close', () => {

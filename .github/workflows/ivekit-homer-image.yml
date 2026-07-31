@@ -9,7 +9,7 @@ on:
     paths:
       - '.github/workflows/ivekit-homer-image.yml'
       - '.github/workflows/ivekit-oci-release-gate.yml'
-      - 'infra/ivekit/homer/**'
+      - 'infra/converact/homer/**'
       - 'test/ivekit-homer-postgres-catalog.test.ts'
       - 'test/ivekit-image-supply-chain.test.ts'
 
@@ -81,7 +81,7 @@ jobs:
         env:
           HOMER_SOURCE_DIR: ${{ steps.source.outputs.source_dir }}
           IVEKIT_HOMER_IMAGE: ${{ env.IMAGE }}:${{ env.VERSION }}
-        run: bash infra/ivekit/homer/build.sh
+        run: bash infra/converact/homer/build.sh
 
       - name: Push image
         shell: bash

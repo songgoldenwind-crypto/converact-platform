@@ -5,12 +5,12 @@ import { describe, it } from 'node:test';
 import {
   ComponentNodeMediaOrphanProbe,
   mediaControlAdmissionReady
-} from '../src/agent-runtime/ivekit/media-control/orphan-probe.js';
+} from '../src/agent-runtime/converact/media-control/orphan-probe.js';
 import {
   ComponentNodeAdmissionError,
   type ComponentNodeAuthorizationInput,
   type ComponentNodeStateSnapshot
-} from '../src/agent-runtime/ivekit/placement/component-node-admission.js';
+} from '../src/agent-runtime/converact/placement/component-node-admission.js';
 
 const NOW = new Date('2026-07-26T00:01:01.000Z');
 
@@ -188,15 +188,15 @@ describe('component-node media orphan proof', () => {
       'utf8'
     );
     const compose = readFileSync(
-      'infra/ivekit/docker-compose.voice.yml',
+      'infra/converact/docker-compose.voice.yml',
       'utf8'
     );
     const values = readFileSync(
-      'infra/ivekit/helm/rtpengine/values.yaml',
+      'infra/converact/helm/rtpengine/values.yaml',
       'utf8'
     );
     const daemonset = readFileSync(
-      'infra/ivekit/helm/rtpengine/templates/daemonset.yaml',
+      'infra/converact/helm/rtpengine/templates/daemonset.yaml',
       'utf8'
     );
 

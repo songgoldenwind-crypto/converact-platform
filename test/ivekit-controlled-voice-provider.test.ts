@@ -11,7 +11,7 @@ import {
   EnvVoiceSecretResolver,
   RustPbxRwiClient,
   type RustPbxRwiSafeEvent
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('controlled Voice provider implements safe Management and AMI contracts', async () => {
   const state = createControlledVoiceProviderState({ token: 'voice-control-secret' });

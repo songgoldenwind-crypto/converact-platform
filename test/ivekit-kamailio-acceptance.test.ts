@@ -31,7 +31,7 @@ test('Kamailio controlled acceptance covers routing, affinity, failover, drain a
     if (scenario.driver === 'sipp') {
       assert.match(scenario.sipp_scenario!, /^[a-z0-9-]+\.xml$/);
       const xml = readFileSync(
-        `services/ivekit-service/acceptance/kamailio-sip-edge/scenarios/${scenario.sipp_scenario}`,
+        `services/converact-service/acceptance/kamailio-sip-edge/scenarios/${scenario.sipp_scenario}`,
         'utf8'
       );
       assert.match(xml, /^<\?xml version="1\.0" encoding="UTF-8" \?>/);
@@ -123,7 +123,7 @@ test('Kamailio acceptance report cannot promote missing or unbound evidence', (t
 
 test('Kamailio acceptance documentation preserves physical capacity as a separate gate', () => {
   const readme = readFileSync(
-    'services/ivekit-service/acceptance/kamailio-sip-edge/README.md',
+    'services/converact-service/acceptance/kamailio-sip-edge/README.md',
     'utf8'
   );
   assert.match(readme, /Cell admission.*authority/i);

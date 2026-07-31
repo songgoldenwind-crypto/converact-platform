@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type {
   PlacementPgQueryable
-} from '../../../src/agent-runtime/ivekit/placement/pg-queryable.js';
+} from '../../../src/agent-runtime/converact/placement/pg-queryable.js';
 import { canonicalSha256 } from '../canonical-json.js';
 import type { LoadShardWorkload } from '../profile-compiler.js';
 import {

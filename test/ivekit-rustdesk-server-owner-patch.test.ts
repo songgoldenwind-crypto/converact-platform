@@ -21,7 +21,7 @@ import {
   RUSTDESK_SERVER_UPSTREAM_COMMIT,
   RUSTDESK_SERVER_UPSTREAM_TAG,
   RUSTDESK_SERVER_HBB_COMMON_COMMIT
-} from '../infra/ivekit/rustdesk-server/apply-overlay.mjs';
+} from '../infra/converact/rustdesk-server/apply-overlay.mjs';
 
 test('RustDesk Server owner overlay is exact-release bound', () => {
   assert.equal(RUSTDESK_SERVER_UPSTREAM_TAG, '1.1.16');
@@ -64,10 +64,10 @@ test('RustDesk Server hbbr fences setup and leaves relay frame copy untouched', 
 });
 
 test('RustDesk Server overlay wires only local hook modules', () => {
-  assert.match(patchCargoToml(cargoFixture()), /ivekit-component-hook = \{ path = "ivekit\/component-hook-rs" \}/);
+  assert.match(patchCargoToml(cargoFixture()), /converact-component-hook = \{ path = "ivekit\/component-hook-rs" \}/);
   const lock = patchCargoLock(cargoLockFixture());
-  assert.match(lock, /name = "ivekit-component-hook"\nversion = "0\.1\.0"/);
-  assert.match(lock, /"ivekit-component-hook",/);
+  assert.match(lock, /name = "converact-component-hook"\nversion = "0\.1\.0"/);
+  assert.match(lock, /"converact-component-hook",/);
   assert.equal(patchCargoLock(lock), lock);
   assert.match(patchLibraryRoot('pub mod common;\n'), /^pub mod ivekit_owner;/);
   assert.match(patchRelayBinary('mod common;\nmod relay_server;\n'), /mod ivekit_owner;/);
@@ -101,7 +101,7 @@ test('RustDesk Server pinned source patch is idempotent', () => {
 
 test('RustDesk Server relay hot path avoids global usage writes and same-protocol frame copies', () => {
   const source = readFileSync(
-    'infra/ivekit/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch',
+    'infra/converact/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch',
     'utf8'
   );
   const added = source
@@ -119,11 +119,11 @@ test('RustDesk Server relay hot path avoids global usage writes and same-protoco
 
 test('RustDesk Server relay benchmark is reproducible and explicitly operation scoped', () => {
   const source = readFileSync(
-    'infra/ivekit/rustdesk-server/bench/relay-hot-path.rs',
+    'infra/converact/rustdesk-server/bench/relay-hot-path.rs',
     'utf8'
   );
   const runner = readFileSync(
-    'infra/ivekit/rustdesk-server/bench/run.sh',
+    'infra/converact/rustdesk-server/bench/run.sh',
     'utf8'
   );
   assert.match(source, /scope=operation_only/);
@@ -133,12 +133,12 @@ test('RustDesk Server relay benchmark is reproducible and explicitly operation s
 });
 
 test('RustDesk Server hook declares bounded setup-only owner behavior', () => {
-  const hook = readFileSync('infra/ivekit/rustdesk-server/server-hook.rs', 'utf8');
-  const readme = readFileSync('infra/ivekit/rustdesk-server/README.md', 'utf8');
-  const build = readFileSync('infra/ivekit/rustdesk-server/build.sh', 'utf8');
-  const dockerfile = readFileSync('infra/ivekit/rustdesk-server/Dockerfile', 'utf8');
+  const hook = readFileSync('infra/converact/rustdesk-server/server-hook.rs', 'utf8');
+  const readme = readFileSync('infra/converact/rustdesk-server/README.md', 'utf8');
+  const build = readFileSync('infra/converact/rustdesk-server/build.sh', 'utf8');
+  const dockerfile = readFileSync('infra/converact/rustdesk-server/Dockerfile', 'utf8');
   const dockerignore = readFileSync(
-    'infra/ivekit/rustdesk-server/Dockerfile.dockerignore',
+    'infra/converact/rustdesk-server/Dockerfile.dockerignore',
     'utf8'
   );
   assert.match(hook, /\/v1\/bindings\/claim/);
@@ -183,7 +183,7 @@ test('RustDesk Server 1.1.16 image workflow binds exact source and shared OCI ga
 });
 
 test('RustDesk Server hook is a no-op when iveKit ownership is not configured', () => {
-  const hook = readFileSync('infra/ivekit/rustdesk-server/server-hook.rs', 'utf8');
+  const hook = readFileSync('infra/converact/rustdesk-server/server-hook.rs', 'utf8');
   assert.match(hook, /let enabled = required \|\| configuration\.iter\(\)\.any/);
   assert.match(hook, /if enabled && configuration\.iter\(\)\.any/);
   assert.ok(

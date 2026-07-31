@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { publishNotificationTenantEvent } from '../src/agent-runtime/ivekit/notifications/realtime.js';
+import { publishNotificationTenantEvent } from '../src/agent-runtime/converact/notifications/realtime.js';
 
 test('notification realtime publisher preserves audience and producer idempotency key', async () => {
   const calls: unknown[][] = [];

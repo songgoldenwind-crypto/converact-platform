@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { routeIveKitEventApi } from '../src/agent-runtime/ivekit/event-http.js';
-import { IveKitTenantEventStore } from '../src/agent-runtime/ivekit/tenant-event-store.js';
+import { routeIveKitEventApi } from '../src/agent-runtime/converact/event-http.js';
+import { IveKitTenantEventStore } from '../src/agent-runtime/converact/tenant-event-store.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 

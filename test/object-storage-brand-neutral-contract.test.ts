@@ -123,7 +123,7 @@ test('object storage Helm server acceptance covers external, workload identity, 
 test('recording and backup runtime consumers share the brand-neutral S3 resolver', () => {
   for (const path of [
     'src/agent-runtime/media-recording-object.ts',
-    'src/agent-runtime/ivekit/operations/backup-runner.ts',
+    'src/agent-runtime/converact/operations/backup-runner.ts',
     'scripts/render-media-configs.ts'
   ]) {
     const consumer = source(path);

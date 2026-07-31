@@ -26,7 +26,7 @@ import {
   MediaCommandJournal,
   MediaCommandJournalError,
   type MediaCommandJournalRecord
-} from '../src/agent-runtime/ivekit/media-control/journal.js';
+} from '../src/agent-runtime/converact/media-control/journal.js';
 
 describe('checksummed media command journal', () => {
   it('appends, replays and survives process-style reopen', async () => {
@@ -598,7 +598,7 @@ describe('checksummed media command journal', () => {
   it('releases the kernel writer lock when its process is killed', async () => {
     await withJournalPath(async (journalPath) => {
       const moduleUrl = new URL(
-        '../src/agent-runtime/ivekit/media-control/journal.js',
+        '../src/agent-runtime/converact/media-control/journal.js',
         import.meta.url
       ).href;
       const childCode = [

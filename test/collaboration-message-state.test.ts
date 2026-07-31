@@ -7,7 +7,7 @@ import { signAccessToken } from '../src/middleware/auth.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { closeCollaborationSession } from '../src/agent-runtime/collaboration/collaboration-session-lifecycle.js';
 import { CollaborationMessageStateStore } from '../src/agent-runtime/collaboration/message-state-store.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
+import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import { PolicyFindingStore } from '../src/agent-runtime/collaboration/policy-finding-store.js';
 import type { QualityReviewProvider } from '../src/agent-runtime/collaboration/quality-review.js';
 

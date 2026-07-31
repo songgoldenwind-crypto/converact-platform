@@ -10,12 +10,12 @@ import {
   decodeBencodePrefix,
   encodeBencode,
   type BencodeDictionary
-} from '../src/agent-runtime/ivekit/media-control/bencode.js';
+} from '../src/agent-runtime/converact/media-control/bencode.js';
 import {
   RtpengineNgClient,
   RtpengineNgRequestError,
   rtpengineNgCookie
-} from '../src/agent-runtime/ivekit/media-control/rtpengine-ng.js';
+} from '../src/agent-runtime/converact/media-control/rtpengine-ng.js';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
@@ -620,7 +620,7 @@ describe('persistent RTPengine TCP NG client', () => {
   it('keeps an active request alive until connection failure is classified', async () => {
     const port = await unusedPort();
     const script = `
-      import { RtpengineNgClient } from './src/agent-runtime/ivekit/media-control/rtpengine-ng.js';
+      import { RtpengineNgClient } from './src/agent-runtime/converact/media-control/rtpengine-ng.js';
       const client = new RtpengineNgClient({
         host: '127.0.0.1',
         port: ${port},

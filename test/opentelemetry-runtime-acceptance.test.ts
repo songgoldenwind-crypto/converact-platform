@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const root = 'services/ivekit-service/acceptance/opentelemetry';
+const root = 'services/converact-service/acceptance/opentelemetry';
 
 test('OpenTelemetry acceptance is isolated, bounded and server-only', () => {
   for (const file of ['docker-compose.yml', 'collector.yaml', 'backend.mjs', 'probe.ts', 'accept.sh']) {

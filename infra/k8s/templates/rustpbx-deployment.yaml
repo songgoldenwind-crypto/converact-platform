@@ -415,7 +415,7 @@ spec:
         - name: route-snapshot-projector
           image: {{ $opcImage | quote }}
           imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
-          command: ["node", "--import", "tsx", "src/ivekit-rustpbx-route-snapshot.ts"]
+          command: ["node", "--import", "tsx", "src/converact-rustpbx-route-snapshot.ts"]
           env:
             - name: DATABASE_URL
               valueFrom:
@@ -450,7 +450,7 @@ spec:
         - name: recording-spool-uploader
           image: {{ $opcImage | quote }}
           imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
-          command: ["node", "--import", "tsx", "src/ivekit-rustpbx-recording-spool.ts"]
+          command: ["node", "--import", "tsx", "src/converact-rustpbx-recording-spool.ts"]
           env:
             - name: OPC_IVEKIT_RECORDING_BASE_URL
               value: {{ printf "http://%s-opc:3000" .Release.Name | quote }}
@@ -609,7 +609,7 @@ spec:
         - name: realtime-audio-tap-gateway
           image: {{ $opcImage | quote }}
           imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
-          command: ["node", "--import", "tsx", "src/ivekit-realtime-audio-tap-worker.ts"]
+          command: ["node", "--import", "tsx", "src/converact-realtime-audio-tap-worker.ts"]
           env:
             - name: NODE_ENV
               value: production
@@ -687,7 +687,7 @@ spec:
         - name: dialog-shadow-agent
           image: {{ $opcImage | quote }}
           imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
-          command: ["node", "dist/ivekit-dialog-shadow-agent.js"]
+          command: ["node", "dist/converact-dialog-shadow-agent.js"]
           env:
             - name: IVEKIT_DIALOG_SHADOW_PRODUCTION
               value: "true"

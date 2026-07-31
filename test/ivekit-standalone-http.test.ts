@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import {
   createIveKitHttpServer,
   IveKitRateLimitError
-} from '../src/agent-runtime/ivekit/index.js';
+} from '../src/agent-runtime/converact/index.js';
 import { createDatabase } from '../src/db.js';
 import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 import { getPgTenantContext } from '../src/db-pg-tenant.js';

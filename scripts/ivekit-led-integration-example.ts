@@ -4,7 +4,7 @@ import {
   createIveKitHttpSdk,
   createIveKitRustDeskLedSdk,
   type IveKitSdkFetch
-} from '../src/agent-runtime/ivekit/index.js';
+} from '../src/agent-runtime/converact/index.js';
 
 export interface IveKitLedExampleConfig {
   baseUrl: string;

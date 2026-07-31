@@ -11,14 +11,14 @@ import {
   type VoiceCdrDurabilityContract,
   type VoiceCdrProjection,
   type VoiceHttpModule
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 const STARTED_AT = '2026-07-27T01:00:00.000Z';
 const ANSWERED_AT = '2026-07-27T01:00:02.000Z';
 const ENDED_AT = '2026-07-27T01:01:00.000Z';
 const MIGRATION = 'src/migrations/103_ivekit_voice_cdr_convergence.sql';
 const POSTGRES_STORE =
-  'src/agent-runtime/ivekit/voice/postgres/cdr-convergence-store.ts';
+  'src/agent-runtime/converact/voice/postgres/cdr-convergence-store.ts';
 
 const durability: VoiceCdrDurabilityContract = {
   id: 'cdr-contract-1',

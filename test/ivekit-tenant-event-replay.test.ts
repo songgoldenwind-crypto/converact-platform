@@ -6,7 +6,7 @@ import { CollaborationStore } from '../src/agent-runtime/collaboration/collabora
 import {
   IveKitTenantEventStore,
   iveKitEventReplayEnabled
-} from '../src/agent-runtime/ivekit/tenant-event-store.js';
+} from '../src/agent-runtime/converact/tenant-event-store.js';
 import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 
 test('tenant event migration defines monotonic durable events with forced RLS', () => {
@@ -158,7 +158,7 @@ test('tenant event replay uses signed cursors, current membership and strict tar
 });
 
 test('tenant event retention prunes expired rows per tenant without touching live events', async () => {
-  const source = readFileSync('src/agent-runtime/ivekit/tenant-event-store.ts', 'utf8');
+  const source = readFileSync('src/agent-runtime/converact/tenant-event-store.ts', 'utf8');
   assert.match(source, /hold\.category = 'tenant_events'/);
   assert.match(source, /hold\.resource_type = 'tenant_event'/);
   assert.match(source, /FROM ivekit_voice_cdr_calls cdr_call/);

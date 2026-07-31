@@ -7,10 +7,10 @@ import { describe, it } from 'node:test';
 import {
   ProcessingMediaTransport,
   ProcessingMediaTransportError
-} from '../src/agent-runtime/ivekit/media-control/processing.js';
+} from '../src/agent-runtime/converact/media-control/processing.js';
 import type {
   MediaTransportCommand
-} from '../src/agent-runtime/ivekit/media-control/transport.js';
+} from '../src/agent-runtime/converact/media-control/transport.js';
 
 describe('processing MediaTransportPort', () => {
   it('sends the complete fenced command with bounded internal credentials', async () => {

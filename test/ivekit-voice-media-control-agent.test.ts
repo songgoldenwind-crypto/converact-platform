@@ -6,20 +6,20 @@ import {
   MediaControlError,
   type MediaControlAuthorizationFailure,
   type MediaControlAuthorityPort
-} from '../src/agent-runtime/ivekit/media-control/agent.js';
+} from '../src/agent-runtime/converact/media-control/agent.js';
 import {
   InMemoryMediaTransport,
   type SimulatedFailure
-} from '../src/agent-runtime/ivekit/media-control/simulator.js';
+} from '../src/agent-runtime/converact/media-control/simulator.js';
 import type {
   MediaTransportPort
-} from '../src/agent-runtime/ivekit/media-control/transport.js';
+} from '../src/agent-runtime/converact/media-control/transport.js';
 import {
   mediaControlPayloadHash,
   type MediaControlAction,
   type MediaControlCommand,
   type MediaControlReconcileInput
-} from '../src/agent-runtime/ivekit/media-control/protocol.js';
+} from '../src/agent-runtime/converact/media-control/protocol.js';
 
 const NOW = new Date('2026-07-25T00:00:00.000Z');
 const OWNER_EPOCH = ((7n << 32n) | 11n).toString();

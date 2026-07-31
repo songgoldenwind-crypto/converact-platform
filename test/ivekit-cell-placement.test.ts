@@ -6,12 +6,12 @@ import {
   PlacementService,
   PlacementSnapshotSigner,
   PlacementTokenSigner
-} from '../src/agent-runtime/ivekit/placement/index.js';
+} from '../src/agent-runtime/converact/placement/index.js';
 import type {
   AdmissionReservation,
   CellAdmissionPort,
   PlacementSnapshotBody
-} from '../src/agent-runtime/ivekit/placement/types.js';
+} from '../src/agent-runtime/converact/placement/types.js';
 
 test('placement filters snapshot candidates, uses at most two admissions and returns a signed token', async () => {
   const snapshotSigner = new PlacementSnapshotSigner({

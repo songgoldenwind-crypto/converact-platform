@@ -8,8 +8,8 @@ import {
 } from '../src/agent-runtime/collaboration/collaboration-http.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { RustDeskGatewaySessionStore } from '../src/agent-runtime/collaboration/rustdesk-gateway-session-store.js';
-import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/http-server.js';
-import type { ComponentPlacementReservation } from '../src/agent-runtime/ivekit/placement/component-placement.js';
+import { createIveKitHttpServer } from '../src/agent-runtime/converact/http-server.js';
+import type { ComponentPlacementReservation } from '../src/agent-runtime/converact/placement/component-placement.js';
 import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 import { listenOnRandomPort } from './test-helpers.js';
 

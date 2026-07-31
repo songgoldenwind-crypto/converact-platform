@@ -5,7 +5,7 @@ import {
   createIveKitRustDeskHttpClient,
   IveKitRustDeskHttpError,
   projectRustDeskClientDistributionProfile
-} from '../src/agent-runtime/ivekit/index.js';
+} from '../src/agent-runtime/converact/index.js';
 
 type FetchCall = {
   url: string;

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { PgQueryable } from '../src/db-pg.js';
-import { PostgresIveKitRateLimitStore } from '../src/agent-runtime/ivekit/operations/rate-limit/index.js';
+import { PostgresIveKitRateLimitStore } from '../src/agent-runtime/converact/operations/rate-limit/index.js';
 
 class RecordingPg implements PgQueryable {
   calls: Array<{ text: string; params: unknown[] }> = [];

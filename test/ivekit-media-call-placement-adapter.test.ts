@@ -4,15 +4,15 @@ import test from 'node:test';
 import {
   MediaCallPlacementAdapter,
   mediaCallPlacementPolicyConfig
-} from '../src/agent-runtime/ivekit/placement/media-call-placement.js';
+} from '../src/agent-runtime/converact/placement/media-call-placement.js';
 import type {
   InteractionPlacementRecord,
   ReservedInteractionPlacement
-} from '../src/agent-runtime/ivekit/placement/interaction-placement.js';
+} from '../src/agent-runtime/converact/placement/interaction-placement.js';
 import type {
   PlacementDecision,
   PlacementRequest
-} from '../src/agent-runtime/ivekit/placement/types.js';
+} from '../src/agent-runtime/converact/placement/types.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 test('media placement adapter compiles trusted participant capacity and hashed partition', async () => {

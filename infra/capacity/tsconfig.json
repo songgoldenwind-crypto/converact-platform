@@ -29,7 +29,7 @@
     "../../scripts/ivekit-cell-capacity-projector.ts",
     "../../scripts/ivekit-component-node-admission.ts",
     "../../scripts/ivekit-rustdesk-owner-binding.ts",
-    "../../src/ivekit-component-node-admission.ts",
-    "../../src/ivekit-placement-snapshot-projector.ts"
+    "../../src/converact-component-node-admission.ts",
+    "../../src/converact-placement-snapshot-projector.ts"
   ]
 }

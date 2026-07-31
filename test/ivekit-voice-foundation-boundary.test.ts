@@ -19,13 +19,13 @@ test('Voice Foundation source graph owns new modules and excludes OPC legacy run
 
   assert.doesNotThrow(() => assertIveKitStandaloneBoundary(graph, policy.forbidden_prefixes));
   for (const required of [
-    'src/agent-runtime/ivekit/voice/types.ts',
-    'src/agent-runtime/ivekit/voice/ports.ts',
-    'src/agent-runtime/ivekit/voice/index.ts',
-    'src/agent-runtime/ivekit/ivr/types.ts',
-    'src/agent-runtime/ivekit/ivr/graph-types.ts',
-    'src/agent-runtime/ivekit/ivr/ports.ts',
-    'src/agent-runtime/ivekit/ivr/index.ts'
+    'src/agent-runtime/converact/voice/types.ts',
+    'src/agent-runtime/converact/voice/ports.ts',
+    'src/agent-runtime/converact/voice/index.ts',
+    'src/agent-runtime/converact/ivr/types.ts',
+    'src/agent-runtime/converact/ivr/graph-types.ts',
+    'src/agent-runtime/converact/ivr/ports.ts',
+    'src/agent-runtime/converact/ivr/index.ts'
   ]) assert.equal(graph.files.includes(required), true, required);
 
   for (const forbidden of [
@@ -39,13 +39,13 @@ test('Voice Foundation source graph owns new modules and excludes OPC legacy run
 
 test('Voice Foundation public files do not import forbidden runtime modules', () => {
   const files = [
-    'src/agent-runtime/ivekit/voice/types.ts',
-    'src/agent-runtime/ivekit/voice/ports.ts',
-    'src/agent-runtime/ivekit/voice/index.ts',
-    'src/agent-runtime/ivekit/ivr/types.ts',
-    'src/agent-runtime/ivekit/ivr/graph-types.ts',
-    'src/agent-runtime/ivekit/ivr/ports.ts',
-    'src/agent-runtime/ivekit/ivr/index.ts'
+    'src/agent-runtime/converact/voice/types.ts',
+    'src/agent-runtime/converact/voice/ports.ts',
+    'src/agent-runtime/converact/voice/index.ts',
+    'src/agent-runtime/converact/ivr/types.ts',
+    'src/agent-runtime/converact/ivr/graph-types.ts',
+    'src/agent-runtime/converact/ivr/ports.ts',
+    'src/agent-runtime/converact/ivr/index.ts'
   ];
   const forbidden = [
     '/agent-runtime/voice/',

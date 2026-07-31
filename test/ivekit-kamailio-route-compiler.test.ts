@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { ComponentNodeStateSnapshot } from '../src/agent-runtime/ivekit/placement/component-node-admission.js';
+import type { ComponentNodeStateSnapshot } from '../src/agent-runtime/converact/placement/component-node-admission.js';
 import {
   compileKamailioRouteSnapshotBody,
   kamailioRecoverySetId,
   renderKamailioDispatcherList,
   type KamailioRoutePoolSource
-} from '../src/agent-runtime/ivekit/voice/kamailio-route-compiler.js';
+} from '../src/agent-runtime/converact/voice/kamailio-route-compiler.js';
 
 test('Kamailio route compiler normalizes headroom and lowers degraded node weight', () => {
   const body = compileKamailioRouteSnapshotBody(compileInput([

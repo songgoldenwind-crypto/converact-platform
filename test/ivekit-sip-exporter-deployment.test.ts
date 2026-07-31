@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { parse } from 'yaml';
 
-const chartRoot = 'services/ivekit-service/helm/ivekit';
+const chartRoot = 'services/converact-service/helm/converact';
 
 test('SIP exporter is an opt-in off-path node observer with bounded labels', () => {
   const values = parse(readFileSync(`${chartRoot}/values.yaml`, 'utf8')) as any;

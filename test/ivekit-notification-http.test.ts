@@ -13,7 +13,7 @@ import {
   type PutNotificationPreferenceInput,
   type CreateNotificationTemplateInput,
   type UpdateNotificationEndpointInput
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 const operatorHeaders = {
   'x-tenant-id': 'tenant-a', 'x-user-id': 'operator-a', 'x-role': 'operator',

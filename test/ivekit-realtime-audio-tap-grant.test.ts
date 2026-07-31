@@ -8,11 +8,11 @@ import {
   RealtimeAudioTapGrantService,
   type RealtimeAudioTapGrant,
   type RealtimeAudioTapGrantRepository
-} from '../src/agent-runtime/ivekit/voice/realtime-audio-tap-grant.js';
+} from '../src/agent-runtime/converact/voice/realtime-audio-tap-grant.js';
 import {
   createLiveKitRealtimeAudioTapTokenCodec
-} from '../src/agent-runtime/ivekit/voice/livekit-realtime-audio-tap-token.js';
-import { createRealtimeAudioTapTokenCodec } from '../src/agent-runtime/ivekit/voice/realtime-audio-tap-token.js';
+} from '../src/agent-runtime/converact/voice/livekit-realtime-audio-tap-token.js';
+import { createRealtimeAudioTapTokenCodec } from '../src/agent-runtime/converact/voice/realtime-audio-tap-token.js';
 
 const NOW = new Date('2026-07-23T04:00:00.000Z');
 

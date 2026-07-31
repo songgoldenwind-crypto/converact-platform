@@ -4,11 +4,11 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-media-control-client.patch';
 
 test('RustPBX media-control client patch is ordered and exact-source applicable', () => {
   const patch = readFileSync(PATCH_PATH, 'utf8');
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
 
   assert.equal(
     spawnSync('git', ['apply', '--numstat', PATCH_PATH]).status,
@@ -84,8 +84,8 @@ test('RustPBX media-control client preserves command and uncertainty semantics',
 test('RustPBX deployment references advance atomically to ivekit.40', () => {
   for (const path of [
     'infra/env.example',
-    'infra/ivekit/env.example',
-    'services/ivekit-service/env.example'
+    'infra/converact/env.example',
+    'services/converact-service/env.example'
   ]) {
     assert.match(
       readFileSync(path, 'utf8'),
@@ -97,9 +97,9 @@ test('RustPBX deployment references advance atomically to ivekit.40', () => {
 
 test('RustPBX media tracing patch follows dual-leg CDR and is exact-source applicable', () => {
   const tracingPatchPath =
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-tracing.patch';
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-media-tracing.patch';
   const tracingPatch = readFileSync(tracingPatchPath, 'utf8');
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
 
   assert.equal(
     spawnSync('git', ['apply', '--numstat', tracingPatchPath]).status,

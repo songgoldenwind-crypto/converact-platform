@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import {
   recoverRustPbxRuntime,
   rustPbxRecoveryOptionsFromEnv
-} from '../src/agent-runtime/ivekit/voice/rustpbx-recovery.js';
+} from '../src/agent-runtime/converact/voice/rustpbx-recovery.js';
 
 test('RustPBX runtime recovery retries locally and returns secret-free metrics', async () => {
   const requests: string[] = [];

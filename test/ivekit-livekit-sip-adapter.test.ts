@@ -11,7 +11,7 @@ import {
   type VoiceCall,
   type VoiceCallCommand,
   type VoiceLiveKitBridge
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 import { MediaCallService } from '../src/agent-runtime/livekit/media-call-service.js';
 import { MediaCallStore } from '../src/agent-runtime/livekit/media-call-store.js';
 import { MemoryPg } from '../src/db-pg.js';

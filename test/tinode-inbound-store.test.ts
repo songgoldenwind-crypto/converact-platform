@@ -16,8 +16,8 @@ import {
   describeRejectedTinodePacket,
   normalizeTinodeInboundPacket
 } from '../src/agent-runtime/collaboration/tinode-inbound-protocol.js';
-import { applyIveKitMigrations } from '../src/ivekit-migrations.js';
-import { initializeIveKitRuntimeRole } from '../src/ivekit-runtime-role.js';
+import { applyIveKitMigrations } from '../src/converact-migrations.js';
+import { initializeIveKitRuntimeRole } from '../src/converact-runtime-role.js';
 import type { PgQueryable } from '../src/db-pg.js';
 
 const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';

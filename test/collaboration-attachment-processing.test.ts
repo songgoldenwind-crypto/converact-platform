@@ -12,7 +12,7 @@ import {
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { createHttpOcrProvider } from '../src/agent-runtime/collaboration/ocr-provider.js';
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
+import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import {
   AttachmentProcessingWorker,
   attachmentProcessingWorkerConfig
@@ -800,7 +800,7 @@ test('attachment worker coalesces concurrent runs and stops cleanly', async () =
 
 test('production server starts and stops the attachment processing worker', () => {
   const server = readFileSync('src/server.ts', 'utf8');
-  const application = readFileSync('src/agent-runtime/ivekit/application.ts', 'utf8');
+  const application = readFileSync('src/agent-runtime/converact/application.ts', 'utf8');
   assert.match(server, /startIveKitApplication/);
   assert.match(server, /await iveKitApplication\.stop\(\)/);
   assert.match(application, /startAttachmentProcessingWorker/);

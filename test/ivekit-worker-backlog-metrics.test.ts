@@ -4,8 +4,8 @@ import test from 'node:test';
 import {
   WorkerBacklogMetricsObserver,
   workerBacklogMetricsConfig
-} from '../src/agent-runtime/ivekit/operations/worker-backlog-metrics.js';
-import { startIveKitApplication } from '../src/agent-runtime/ivekit/application.js';
+} from '../src/agent-runtime/converact/operations/worker-backlog-metrics.js';
+import { startIveKitApplication } from '../src/agent-runtime/converact/application.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 test('worker backlog metrics observer is explicit and bounded', () => {

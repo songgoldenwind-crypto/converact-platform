@@ -206,7 +206,7 @@ test('HOMER is an implemented optional observer with immutable image governance'
   assert.equal(homer.image_contract?.helper, 'ivekit-homer.image');
   assert.equal(
     homer.image_contract?.chart_root,
-    'infra/ivekit/homer/helm/ivekit-homer'
+    'infra/converact/homer/helm/converact-homer'
   );
 });
 

@@ -13,7 +13,7 @@ import {
   type DialogShadowPairReplicaAck,
   type DialogShadowReplicaAck,
   type DialogShadowReplicationBus
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow.js';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);

@@ -9,7 +9,7 @@ on:
     paths:
       - '.github/workflows/ivekit-livekit-sip-image.yml'
       - '.github/workflows/ivekit-oci-release-gate.yml'
-      - 'infra/ivekit/livekit-sip/**'
+      - 'infra/converact/livekit-sip/**'
       - 'test/ivekit-capacity-fork-status.test.ts'
 
 permissions:
@@ -78,7 +78,7 @@ jobs:
         env:
           LIVEKIT_SIP_SOURCE_DIR: ${{ steps.source.outputs.source_dir }}
           IVEKIT_LIVEKIT_SIP_IMAGE: ${{ env.IMAGE }}:${{ env.VERSION }}
-        run: bash infra/ivekit/livekit-sip/build.sh
+        run: bash infra/converact/livekit-sip/build.sh
 
       - name: Push image
         shell: bash

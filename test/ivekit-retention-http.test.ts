@@ -5,7 +5,7 @@ import {
   IveKitRetentionError,
   routeIveKitRetentionApi,
   type IveKitRetentionHttpModule
-} from '../src/agent-runtime/ivekit/operations/retention/index.js';
+} from '../src/agent-runtime/converact/operations/retention/index.js';
 
 const adminHeaders = {
   'x-tenant-id': 'tenant-a', 'x-user-id': 'admin-a', 'x-role': 'admin',

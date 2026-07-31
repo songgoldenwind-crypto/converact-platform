@@ -5,7 +5,7 @@ import { WebSocketServer } from 'ws';
 
 import {
   runKamailioWebPhoneRegisterProbe
-} from '../src/agent-runtime/ivekit/voice/kamailio-webphone-acceptance.js';
+} from '../src/agent-runtime/converact/voice/kamailio-webphone-acceptance.js';
 
 test('WebPhone acceptance probe registers, refreshes and unregisters without exposing its token', async () => {
   const requests: string[] = [];

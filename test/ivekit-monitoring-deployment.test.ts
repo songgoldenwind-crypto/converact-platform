@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { parse } from 'yaml';
 
-const chartRoot = 'services/ivekit-service/helm/ivekit';
+const chartRoot = 'services/converact-service/helm/converact';
 
 test('iveKit Prometheus rules cover shared foundation failure domains with unique alerts', () => {
   const document = parse(readFileSync(`${chartRoot}/files/prometheus-rules.yaml`, 'utf8')) as {

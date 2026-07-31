@@ -6,15 +6,15 @@ import {
   integrationEventWebhookWorkerConfig,
   projectIveKitIntegrationEvent,
   runIveKitEventWebhookBatch
-} from '../src/agent-runtime/ivekit/integration-events/worker.js';
-import { startIveKitApplication } from '../src/agent-runtime/ivekit/application.js';
-import { iveKitRuntimeComponents } from '../src/agent-runtime/ivekit/operations/runtime-heartbeat.js';
+} from '../src/agent-runtime/converact/integration-events/worker.js';
+import { startIveKitApplication } from '../src/agent-runtime/converact/application.js';
+import { iveKitRuntimeComponents } from '../src/agent-runtime/converact/operations/runtime-heartbeat.js';
 import { MemoryPg } from '../src/db-pg.js';
-import { integrationEventMetricDefinitions } from '../src/agent-runtime/ivekit/integration-events/metrics.js';
+import { integrationEventMetricDefinitions } from '../src/agent-runtime/converact/integration-events/metrics.js';
 import type {
   IveKitEventWebhookSubscription,
   IveKitStoredIntegrationEvent
-} from '../src/agent-runtime/ivekit/integration-events/types.js';
+} from '../src/agent-runtime/converact/integration-events/types.js';
 
 test('event webhook batch projects matching events and advances over filtered events', async () => {
   const completed: string[] = [];
@@ -122,8 +122,8 @@ test('event webhook metrics expose only bounded result labels', () => {
 
 test('event webhook worker configuration is present in every delivery surface', () => {
   for (const file of [
-    '.env.example', 'infra/env.example', 'infra/ivekit/env.example',
-    'services/ivekit-service/env.example'
+    '.env.example', 'infra/env.example', 'infra/converact/env.example',
+    'services/converact-service/env.example'
   ]) {
     const source = readFileSync(file, 'utf8');
     assert.match(source, /^OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED=0$/m, file);
@@ -131,9 +131,9 @@ test('event webhook worker configuration is present in every delivery surface', 
     assert.match(source, /^OPC_IVEKIT_RATE_LIMIT_EVENT_WEBHOOK_ACTOR_PER_MINUTE=30$/m, file);
   }
   for (const file of [
-    'infra/docker-compose.production.yml', 'infra/ivekit/docker-compose.yml',
-    'services/ivekit-service/docker-compose.yml',
-    'services/ivekit-service/helm/ivekit/values.yaml'
+    'infra/docker-compose.production.yml', 'infra/converact/docker-compose.yml',
+    'services/converact-service/docker-compose.yml',
+    'services/converact-service/helm/converact/values.yaml'
   ]) {
     const source = readFileSync(file, 'utf8');
     assert.match(source, /OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED/, file);

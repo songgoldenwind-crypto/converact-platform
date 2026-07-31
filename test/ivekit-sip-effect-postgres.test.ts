@@ -4,7 +4,7 @@ import test from 'node:test';
 
 import { Pool, type PoolClient } from 'pg';
 
-import { initializeIveKitRuntimeRole } from '../src/ivekit-runtime-role.js';
+import { initializeIveKitRuntimeRole } from '../src/converact-runtime-role.js';
 import {
   SIP_EFFECT_SCHEMA_HASH,
   SIP_EFFECT_SCHEMA_ID,
@@ -15,22 +15,22 @@ import {
   type EffectRepairFence,
   type ProtocolEffectIdentity,
   type ProtocolEffectRecord
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/effect-oracle.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/effect-oracle.js';
 import {
   PostgresEffectStore
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/postgres-effect-store.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.js';
 import {
   sipRouteBindingSha256,
   sipWireAttemptFactsSha256,
   sipWireFreezeSha256
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/route-binding.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/route-binding.js';
 import type {
   BackendRuntimeIdentity,
   BoundSipRouteBinding,
   BoundSipWireAttemptFacts,
   PreparedProtocolEffect,
   PreparedProtocolEffectAuthority
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/types.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/types.js';
 
 const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
 const runtimeUrl =

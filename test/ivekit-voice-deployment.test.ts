@@ -3,42 +3,42 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { renderRustPbxConfig } from '../scripts/render-rustpbx-config.js';
-import { createVoiceQueueTenantLister } from '../src/agent-runtime/ivekit/voice/runtime.js';
+import { createVoiceQueueTenantLister } from '../src/agent-runtime/converact/voice/runtime.js';
 import type { PgQueryable } from '../src/db-pg.js';
 
-const STANDALONE_COMPOSE = new URL('../infra/ivekit/docker-compose.yml', import.meta.url);
-const VOICE_COMPOSE = new URL('../infra/ivekit/docker-compose.voice.yml', import.meta.url);
-const SERVICE_COMPOSE = new URL('../services/ivekit-service/docker-compose.yml', import.meta.url);
-const SERVICE_VOICE_COMPOSE = new URL('../services/ivekit-service/docker-compose.voice.yml', import.meta.url);
-const SERVICE_RUSTPBX_INIT = new URL('../services/ivekit-service/init-rustpbx-database.sh', import.meta.url);
-const SERVICE_HELM_VALUES = new URL('../services/ivekit-service/helm/ivekit/values.yaml', import.meta.url);
+const STANDALONE_COMPOSE = new URL('../infra/converact/docker-compose.yml', import.meta.url);
+const VOICE_COMPOSE = new URL('../infra/converact/docker-compose.voice.yml', import.meta.url);
+const SERVICE_COMPOSE = new URL('../services/converact-service/docker-compose.yml', import.meta.url);
+const SERVICE_VOICE_COMPOSE = new URL('../services/converact-service/docker-compose.voice.yml', import.meta.url);
+const SERVICE_RUSTPBX_INIT = new URL('../services/converact-service/init-rustpbx-database.sh', import.meta.url);
+const SERVICE_HELM_VALUES = new URL('../services/converact-service/helm/converact/values.yaml', import.meta.url);
 const SERVICE_HELM_DEPLOYMENT = new URL(
-  '../services/ivekit-service/helm/ivekit/templates/deployment.yaml',
+  '../services/converact-service/helm/converact/templates/deployment.yaml',
   import.meta.url
 );
 const SERVICE_HELM_RUSTPBX = new URL(
-  '../services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml',
+  '../services/converact-service/helm/converact/templates/rustpbx-deployment.yaml',
   import.meta.url
 );
 const SERVICE_HELM_KAMAILIO = new URL(
-  '../services/ivekit-service/helm/ivekit/templates/kamailio-deployment.yaml',
+  '../services/converact-service/helm/converact/templates/kamailio-deployment.yaml',
   import.meta.url
 );
 const SERVICE_HELM_HELPERS = new URL(
-  '../services/ivekit-service/helm/ivekit/templates/_helpers.tpl',
+  '../services/converact-service/helm/converact/templates/_helpers.tpl',
   import.meta.url
 );
 const PRODUCTION_COMPOSE = new URL('../infra/docker-compose.production.yml', import.meta.url);
 const PRODUCTION_ENV_EXAMPLE = new URL('../infra/env.example', import.meta.url);
-const STANDALONE_BOOTSTRAP = new URL('../infra/ivekit/init-postgres-runtime-role.sh', import.meta.url);
+const STANDALONE_BOOTSTRAP = new URL('../infra/converact/init-postgres-runtime-role.sh', import.meta.url);
 const CHECKED_IN_CONFIG = new URL('../config/rustpbx.docker.toml', import.meta.url);
 const HELM_VALUES = new URL('../infra/k8s/values.yaml', import.meta.url);
 const HELM_SECRETS = new URL('../infra/k8s/templates/secrets.yaml', import.meta.url);
 const HELM_OPC = new URL('../infra/k8s/templates/opc-deployment.yaml', import.meta.url);
 const HELM_RUSTPBX = new URL('../infra/k8s/templates/rustpbx-deployment.yaml', import.meta.url);
-const VOICE_RUNTIME = new URL('../src/agent-runtime/ivekit/voice/runtime.ts', import.meta.url);
-const SERVICE_PACKAGE = new URL('../services/ivekit-service/package.json', import.meta.url);
-const SOURCE_POLICY = new URL('../services/ivekit-service/source-policy.json', import.meta.url);
+const VOICE_RUNTIME = new URL('../src/agent-runtime/converact/voice/runtime.ts', import.meta.url);
+const SERVICE_PACKAGE = new URL('../services/converact-service/package.json', import.meta.url);
+const SOURCE_POLICY = new URL('../services/converact-service/source-policy.json', import.meta.url);
 const STANDALONE_CONTEXT_VERIFIER = new URL('../scripts/verify-ivekit-standalone-context.ts', import.meta.url);
 
 const SECRET_VALUES = {
@@ -348,7 +348,7 @@ test('WebPhone production deployment shares one JWT authority and exposes only t
   const serviceRustPbx = readFileSync(SERVICE_HELM_RUSTPBX, 'utf8');
   const serviceKamailio = readFileSync(SERVICE_HELM_KAMAILIO, 'utf8');
   const kamailioConfig = readFileSync(
-    'src/agent-runtime/ivekit/voice/kamailio-config.ts',
+    'src/agent-runtime/converact/voice/kamailio-config.ts',
     'utf8'
   );
   const platformValues = readFileSync(HELM_VALUES, 'utf8');
@@ -401,12 +401,12 @@ test('standalone service Voice overlay uses only compiled image entrypoints', ()
   const voice = readFileSync(SERVICE_VOICE_COMPOSE, 'utf8');
   const bootstrap = readFileSync(SERVICE_RUSTPBX_INIT, 'utf8');
 
-  assert.match(voice, /command: \["node", "dist\/ivekit-render-rustpbx-config\.js"\]/);
+  assert.match(voice, /command: \["node", "dist\/converact-render-rustpbx-config\.js"\]/);
   assert.doesNotMatch(voice, /--import|\btsx\b|scripts\//);
-  assert.match(voice, /command: \["node", "dist\/ivekit-rustpbx-route-snapshot\.js"\]/);
+  assert.match(voice, /command: \["node", "dist\/converact-rustpbx-route-snapshot\.js"\]/);
   assert.match(voice, /rustpbx-route-snapshot:\/app\/route-snapshot/);
-  assert.match(voice, /command: \["node", "dist\/ivekit-rustpbx-recovery\.js"\]/);
-  assert.match(voice, /exec node dist\/ivekit-component-node-admission\.js/);
+  assert.match(voice, /command: \["node", "dist\/converact-rustpbx-recovery\.js"\]/);
+  assert.match(voice, /exec node dist\/converact-component-node-admission\.js/);
   assert.match(voice, /rustpbx-generated-config:\/app\/generated/);
   assert.match(voice, /network_mode: service:rustpbx/);
   assert.match(voice, /rustpbx-db-init:/);
@@ -436,34 +436,34 @@ test('standalone image exposes compiled Voice config and preflight entrypoints',
 
   assert.equal(
     servicePackage.scripts['render:rustpbx'],
-    'node dist/ivekit-render-rustpbx-config.js'
+    'node dist/converact-render-rustpbx-config.js'
   );
   assert.equal(
     servicePackage.scripts['preflight:voice'],
-    'node dist/ivekit-voice-preflight.js'
+    'node dist/converact-voice-preflight.js'
   );
   assert.equal(
     servicePackage.scripts['recover:rustpbx'],
-    'node dist/ivekit-rustpbx-recovery.js'
+    'node dist/converact-rustpbx-recovery.js'
   );
   assert.equal(
     servicePackage.scripts['project:rustpbx-routes'],
-    'node dist/ivekit-rustpbx-route-snapshot.js'
+    'node dist/converact-rustpbx-route-snapshot.js'
   );
   assert.equal(
     servicePackage.scripts['upload:rustpbx-recordings'],
-    'node dist/ivekit-rustpbx-recording-spool.js'
+    'node dist/converact-rustpbx-recording-spool.js'
   );
   assert.equal(
     servicePackage.scripts['admit:component-node'],
-    'node dist/ivekit-component-node-admission.js'
+    'node dist/converact-component-node-admission.js'
   );
-  assert.equal(sourcePolicy.entrypoints.includes('src/ivekit-render-rustpbx-config.ts'), true);
-  assert.equal(sourcePolicy.entrypoints.includes('src/ivekit-voice-preflight.ts'), true);
-  assert.equal(sourcePolicy.entrypoints.includes('src/ivekit-rustpbx-recovery.ts'), true);
-  assert.equal(sourcePolicy.entrypoints.includes('src/ivekit-rustpbx-route-snapshot.ts'), true);
-  assert.equal(sourcePolicy.entrypoints.includes('src/ivekit-rustpbx-recording-spool.ts'), true);
-  assert.equal(sourcePolicy.entrypoints.includes('src/ivekit-component-node-admission.ts'), true);
+  assert.equal(sourcePolicy.entrypoints.includes('src/converact-render-rustpbx-config.ts'), true);
+  assert.equal(sourcePolicy.entrypoints.includes('src/converact-voice-preflight.ts'), true);
+  assert.equal(sourcePolicy.entrypoints.includes('src/converact-rustpbx-recovery.ts'), true);
+  assert.equal(sourcePolicy.entrypoints.includes('src/converact-rustpbx-route-snapshot.ts'), true);
+  assert.equal(sourcePolicy.entrypoints.includes('src/converact-rustpbx-recording-spool.ts'), true);
+  assert.equal(sourcePolicy.entrypoints.includes('src/converact-component-node-admission.ts'), true);
   for (const entrypoint of [
     'ivekit-server.js',
     'ivekit-worker.js',
@@ -610,11 +610,11 @@ test('RustPBX capacity limits and overload telemetry are consistent across deplo
   const serviceValues = readFileSync(SERVICE_HELM_VALUES, 'utf8');
   const serviceTemplate = readFileSync(SERVICE_HELM_RUSTPBX, 'utf8');
   const serviceMonitor = readFileSync(
-    new URL('../services/ivekit-service/helm/ivekit/templates/service-monitor.yaml', import.meta.url),
+    new URL('../services/converact-service/helm/converact/templates/service-monitor.yaml', import.meta.url),
     'utf8'
   );
   const prometheusRules = readFileSync(
-    new URL('../services/ivekit-service/helm/ivekit/files/prometheus-rules.yaml', import.meta.url),
+    new URL('../services/converact-service/helm/converact/files/prometheus-rules.yaml', import.meta.url),
     'utf8'
   );
 
@@ -757,7 +757,7 @@ test('standalone Helm Voice renderer receives a distinct RustPBX management toke
   assert.match(rustpbx, /name: RUSTPBX_MANAGEMENT_TOKEN[\s\S]*?key: \{\{ \.Values\.voice\.managementTokenKey \}\}/);
   assert.match(rustpbx, /name: RUSTPBX_AMI_ALLOWS/);
   assert.match(rustpbx, /mountPath: \/app\/generated/);
-  assert.match(rustpbx, /dist\/ivekit-rustpbx-route-snapshot\.js/);
+  assert.match(rustpbx, /dist\/converact-rustpbx-route-snapshot\.js/);
   assert.match(rustpbx, /IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY/);
   assert.match(rustpbx, /IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL/);
   assert.match(rustpbx, /fieldPath: metadata\.name/);

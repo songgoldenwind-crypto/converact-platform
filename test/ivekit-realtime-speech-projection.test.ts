@@ -6,19 +6,19 @@ import type { PgQueryable } from '../src/db-pg.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { createDatabase } from '../src/db.js';
 import { signAccessToken } from '../src/middleware/auth.js';
-import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
+import { routeIveKitMediaApi } from '../src/agent-runtime/converact/media-http.js';
 import {
   RealtimeSpeechStore,
   type RealtimeSpeechFinalSegment,
   type RealtimeSpeechStorePort
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-store.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-store.js';
 import {
   RealtimeSpeechProjection
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-projection.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-projection.js';
 import type {
   RealtimeSpeechTranslationEvent
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-translation.js';
-import { createIveKitHttpSdk } from '../sdk/ivekit/src/http-sdk.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-translation.js';
+import { createIveKitHttpSdk } from '../sdk/converact/src/http-sdk.js';
 
 test('realtime speech projection keeps partials ephemeral and persists final segments only', async () => {
   const store = new ControlledStore();

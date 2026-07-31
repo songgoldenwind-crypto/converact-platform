@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   initializeIveKitRuntimeRole,
   type IveKitRuntimeRoleQueryable
-} from '../src/ivekit-runtime-role.js';
+} from '../src/converact-runtime-role.js';
 
 class RuntimeRolePg implements IveKitRuntimeRoleQueryable {
   readonly calls: Array<{ text: string; params: unknown[] }> = [];

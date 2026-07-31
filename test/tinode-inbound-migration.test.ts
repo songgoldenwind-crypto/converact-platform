@@ -30,18 +30,18 @@ test('Tinode inbound migration defines durable mappings, cursors, inbox, and dea
 });
 
 test('standalone migration manifest includes Tinode inbound before runtime security', () => {
-  const policy = JSON.parse(readFileSync('services/ivekit-service/source-policy.json', 'utf8')) as {
+  const policy = JSON.parse(readFileSync('services/converact-service/source-policy.json', 'utf8')) as {
     migrations: string[];
   };
   const inbound = policy.migrations.indexOf('041_tinode_inbound_sync.sql');
-  const security = policy.migrations.indexOf('services/ivekit-service/migrations/090_ivekit_runtime_security.sql');
+  const security = policy.migrations.indexOf('services/converact-service/migrations/090_ivekit_runtime_security.sql');
   assert.equal(inbound >= 0, true);
   assert.equal(inbound < security, true);
 });
 
 test('Tinode closed-session migration pauses cursors and excludes closed sessions from discovery', () => {
   const sql = readFileSync(closedSessionMigrationPath, 'utf8');
-  const policy = JSON.parse(readFileSync('services/ivekit-service/source-policy.json', 'utf8')) as {
+  const policy = JSON.parse(readFileSync('services/converact-service/source-policy.json', 'utf8')) as {
     migrations: string[];
   };
   const store = readFileSync('src/agent-runtime/collaboration/tinode-inbound-store.ts', 'utf8');

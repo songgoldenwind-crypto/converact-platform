@@ -6,7 +6,7 @@ import {
   routeIveKitAuditApi,
   type IveKitAuditHttpModule,
   type IveKitAuditListInput
-} from '../src/agent-runtime/ivekit/operations/audit/index.js';
+} from '../src/agent-runtime/converact/operations/audit/index.js';
 
 const adminHeaders = {
   'x-tenant-id': 'tenant-a', 'x-user-id': 'admin-a', 'x-role': 'admin'

@@ -5,7 +5,7 @@ import {
 } from 'node:fs';
 import test from 'node:test';
 
-const ROOT = new URL('../infra/ivekit/livekit-cli/', import.meta.url);
+const ROOT = new URL('../infra/converact/livekit-cli/', import.meta.url);
 
 test('LiveKit CLI capacity dependency is versioned and checksum pinned', () => {
   const manifest = JSON.parse(

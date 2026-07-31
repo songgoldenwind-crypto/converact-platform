@@ -13,11 +13,11 @@ import { describe, it } from 'node:test';
 
 import type {
   MediaControlTerminalEvent
-} from '../src/agent-runtime/ivekit/media-control/events.js';
+} from '../src/agent-runtime/converact/media-control/events.js';
 import {
   MediaTerminalEventJournal,
   MediaTerminalEventJournalError
-} from '../src/agent-runtime/ivekit/media-control/journal.js';
+} from '../src/agent-runtime/converact/media-control/journal.js';
 
 type GatherTerminalEvent = Extract<
   MediaControlTerminalEvent,

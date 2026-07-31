@@ -9,7 +9,7 @@ import { RustDeskDeviceStore } from '../src/agent-runtime/collaboration/rustdesk
 import { RustDeskGatewaySessionStore } from '../src/agent-runtime/collaboration/rustdesk-gateway-session-store.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
-import { createIveKitRustDeskHttpClient } from '../sdk/ivekit/src/rustdesk-http-client.js';
+import { createIveKitRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
 
 test('iveKit API docs keep the legacy control plane attended-only', () => {
   const docs = readFileSync(new URL('../docs/ivekit-openapi.md', import.meta.url), 'utf8');

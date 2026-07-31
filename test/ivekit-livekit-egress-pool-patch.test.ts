@@ -8,7 +8,7 @@ import {
   patchLiveKitEgressDockerfile,
   patchLiveKitEgressGoMod,
   patchLiveKitEgressMonitor
-} from '../infra/ivekit/livekit-egress/apply-overlay.mjs';
+} from '../infra/converact/livekit-egress/apply-overlay.mjs';
 
 test('LiveKit Egress pool overlay is exact-release bound and rejects cross-pool request types first', () => {
   assert.equal(LIVEKIT_EGRESS_UPSTREAM_TAG, 'v1.13.0');
@@ -90,10 +90,10 @@ test('LiveKit Egress overlay makes the upstream production Dockerfile build the 
 });
 
 test('LiveKit Egress build and Kubernetes pools enforce the source-level policy boundary', () => {
-  const build = readFileSync('infra/ivekit/livekit-egress/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/livekit-egress/build.sh', 'utf8');
   const deployment = readFileSync('infra/k8s/templates/livekit-egress-deployment.yaml', 'utf8');
   const values = readFileSync('infra/k8s/values.yaml', 'utf8');
-  const metrics = readFileSync('infra/ivekit/livekit-egress/ivekit_metrics.go', 'utf8');
+  const metrics = readFileSync('infra/converact/livekit-egress/ivekit_metrics.go', 'utf8');
 
   assert.match(build, /LIVEKIT_EGRESS_UPSTREAM_COMMIT/);
   assert.match(build, /golang\.org\/toolchain@v0\.0\.1-go1\.26\.2\.linux-\$\{target_arch\}/);

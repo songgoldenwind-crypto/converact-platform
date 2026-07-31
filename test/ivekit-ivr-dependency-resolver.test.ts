@@ -6,7 +6,7 @@ import type { PgQueryable } from '../src/db-pg.js';
 import {
   PostgresIvrDependencyResolver,
   type IvrDependencyManifest
-} from '../src/agent-runtime/ivekit/ivr/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
 
 test('Postgres IVR dependency resolver blocks missing resources and unbound external capabilities', async () => {
   const pg = new ScriptedPg((sql) => {

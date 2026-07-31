@@ -4,10 +4,10 @@ import test from 'node:test';
 
 test('iveKit Kamailio image is source-pinned, multi-arch buildable and non-root', async () => {
   const [dockerfile, build, readme, dispatcherPatch] = await Promise.all([
-    source('infra/ivekit/kamailio/Dockerfile'),
-    source('infra/ivekit/kamailio/build.sh'),
-    source('infra/ivekit/kamailio/README.md'),
-    source('infra/ivekit/kamailio/patches/0001-dispatcher-retain-probe-state.patch')
+    source('infra/converact/kamailio/Dockerfile'),
+    source('infra/converact/kamailio/build.sh'),
+    source('infra/converact/kamailio/README.md'),
+    source('infra/converact/kamailio/patches/0001-dispatcher-retain-probe-state.patch')
   ]);
 
   assert.match(dockerfile, /ARG KAMAILIO_VERSION=6\.0\.7/);
@@ -54,15 +54,15 @@ test('Kamailio syntax verifier requires an immutable image and disables networki
 
 test('standalone iveKit image compiles the Kamailio renderer and route agent', async () => {
   const [policySource, packageSource, verifier, renderer, agent] = await Promise.all([
-    source('services/ivekit-service/source-policy.json'),
-    source('services/ivekit-service/package.json'),
+    source('services/converact-service/source-policy.json'),
+    source('services/converact-service/package.json'),
     source('scripts/verify-ivekit-standalone-context.ts'),
-    source('src/ivekit-render-kamailio-config.ts'),
-    source('src/ivekit-kamailio-route-agent.ts')
+    source('src/converact-render-kamailio-config.ts'),
+    source('src/converact-kamailio-route-agent.ts')
   ]);
   const policy = JSON.parse(policySource) as { entrypoints: string[] };
-  assert.ok(policy.entrypoints.includes('src/ivekit-render-kamailio-config.ts'));
-  assert.ok(policy.entrypoints.includes('src/ivekit-kamailio-route-agent.ts'));
+  assert.ok(policy.entrypoints.includes('src/converact-render-kamailio-config.ts'));
+  assert.ok(policy.entrypoints.includes('src/converact-kamailio-route-agent.ts'));
   assert.match(packageSource, /"render:kamailio"/);
   assert.match(packageSource, /"route:kamailio"/);
   assert.match(verifier, /ivekit-render-kamailio-config\.js/);

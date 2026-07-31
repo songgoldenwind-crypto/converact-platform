@@ -23,11 +23,11 @@ test('migration 063 defines tenant-isolated QoS snapshots and monotonic connecti
 
 test('standalone source graph orders media quality before runtime security', () => {
   const sourcePolicy = JSON.parse(
-    readFileSync('services/ivekit-service/source-policy.json', 'utf8')
+    readFileSync('services/converact-service/source-policy.json', 'utf8')
   ) as { migrations: string[] };
   const quality = sourcePolicy.migrations.indexOf('063_livekit_media_quality.sql');
   const runtimeSecurity = sourcePolicy.migrations.indexOf(
-    'services/ivekit-service/migrations/090_ivekit_runtime_security.sql'
+    'services/converact-service/migrations/090_ivekit_runtime_security.sql'
   );
   assert.ok(quality >= 0);
   assert.ok(runtimeSecurity > quality);
@@ -43,7 +43,7 @@ test('OpenAPI, environment, events, SDK, and metrics expose the bounded QoS cont
     'src/agent-runtime/livekit/media-quality-metrics.ts',
     'utf8'
   );
-  const sdk = readFileSync('sdk/ivekit/src/http-sdk.ts', 'utf8');
+  const sdk = readFileSync('sdk/converact/src/http-sdk.ts', 'utf8');
   for (const path of [
     '/api/ivekit/media/calls/{call_id}/qos:',
     '/api/ivekit/media/calls/{call_id}/connection-events:'
@@ -60,7 +60,7 @@ test('OpenAPI, environment, events, SDK, and metrics expose the bounded QoS cont
   assert.match(sdk, /reportCallQuality/);
   assert.match(sdk, /reportCallConnectionEvent/);
   assert.doesNotMatch(metrics, /labelNames:\s*\[[^\]]*(?:tenant|call|participant)/s);
-  for (const envFile of ['.env.example', 'services/ivekit-service/env.example']) {
+  for (const envFile of ['.env.example', 'services/converact-service/env.example']) {
     const env = readFileSync(envFile, 'utf8');
     assert.match(env, /OPC_MEDIA_QOS_DEGRADED_SAMPLES=3/);
     assert.match(env, /OPC_MEDIA_QOS_RETENTION_MS=604800000/);

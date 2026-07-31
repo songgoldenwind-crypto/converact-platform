@@ -38,7 +38,7 @@ import {
   VoiceRouterDecisionService,
   voiceProfileConfigHash,
   routeIveKitVoiceApi
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
 const runtimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';

@@ -4,11 +4,11 @@ import { describe, it } from 'node:test';
 import { parse } from 'yaml';
 
 const dockerfile = readFileSync(
-  'infra/ivekit/media-control/Dockerfile',
+  'infra/converact/media-control/Dockerfile',
   'utf8'
 );
 const voiceMediaDockerfile = readFileSync(
-  'infra/ivekit/voice-media/Dockerfile',
+  'infra/converact/voice-media/Dockerfile',
   'utf8'
 );
 const entrypoint = readFileSync(
@@ -16,7 +16,7 @@ const entrypoint = readFileSync(
   'utf8'
 );
 const compose = parse(
-  readFileSync('infra/ivekit/docker-compose.voice.yml', 'utf8')
+  readFileSync('infra/converact/docker-compose.voice.yml', 'utf8')
 ) as Record<string, any>;
 
 describe('iveKit media control deployment', () => {

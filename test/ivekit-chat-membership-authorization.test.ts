@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import type { ChatGateway } from '../src/agent-runtime/collaboration/chat-gateway.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { TinodeProviderUserStore } from '../src/agent-runtime/collaboration/tinode-provider-user-store.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
+import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 

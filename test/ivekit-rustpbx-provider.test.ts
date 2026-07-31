@@ -13,7 +13,7 @@ import {
   type VoiceCapability,
   type VoiceDeploymentProfile,
   type VoiceManagementPort
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('RustPBX provider composes management and RWI capabilities without overstating support', async () => {
   const profile = rustPbxProfile();

@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   ComponentNodeSynchronizer,
   type ComponentNodeAdmissionClientPort
-} from '../src/agent-runtime/ivekit/placement/index.js';
+} from '../src/agent-runtime/converact/placement/index.js';
 
 test('component node recovery pushes draining lease, checkpoints, then desired lease', async () => {
   const events: string[] = [];

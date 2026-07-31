@@ -58,7 +58,7 @@ test('OpenTelemetry dependencies are exact and limited to selected instrumentati
   };
   assert.equal(root.dependencies['@opentelemetry/api'], '1.9.1');
 
-  for (const path of ['package.json', 'services/ivekit-service/package.json']) {
+  for (const path of ['package.json', 'services/converact-service/package.json']) {
     const pkg = JSON.parse(readFileSync(path, 'utf8')) as {
       dependencies: Record<string, string>;
     };
@@ -74,23 +74,23 @@ test('OpenTelemetry dependencies are exact and limited to selected instrumentati
   }
 
   const service = JSON.parse(
-    readFileSync('services/ivekit-service/package.json', 'utf8')
+    readFileSync('services/converact-service/package.json', 'utf8')
   ) as { dependencies: Record<string, string> };
   assert.equal(service.dependencies['@opentelemetry/api'], undefined);
 });
 
 test('iveKit workloads preload trace SDK only when telemetry is enabled', () => {
-  const values = readFileSync('services/ivekit-service/helm/ivekit/values.yaml', 'utf8');
+  const values = readFileSync('services/converact-service/helm/converact/values.yaml', 'utf8');
   const api = readFileSync(
-    'services/ivekit-service/helm/ivekit/templates/deployment.yaml',
+    'services/converact-service/helm/converact/templates/deployment.yaml',
     'utf8'
   );
   const notification = readFileSync(
-    'services/ivekit-service/helm/ivekit/templates/notification-worker.yaml',
+    'services/converact-service/helm/converact/templates/notification-worker.yaml',
     'utf8'
   );
   const pools = readFileSync(
-    'services/ivekit-service/helm/ivekit/templates/async-worker-pools.yaml',
+    'services/converact-service/helm/converact/templates/async-worker-pools.yaml',
     'utf8'
   );
 

@@ -3,50 +3,50 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const buildScript = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
-const runtimeDockerfile = readFileSync('infra/ivekit/rustpbx/Dockerfile.runtime', 'utf8');
+const buildScript = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
+const runtimeDockerfile = readFileSync('infra/converact/rustpbx/Dockerfile.runtime', 'utf8');
 const rustPbxPatch = readFileSync(
-  'infra/ivekit/rustpbx/patches/rustpbx-local-rsipstack.patch',
+  'infra/converact/rustpbx/patches/rustpbx-local-rsipstack.patch',
   'utf8'
 );
 const rustPbxAmiPatch = readFileSync(
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-ami-dialogs.patch',
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-ami-dialogs.patch',
   'utf8'
 );
 const rustPbxRwiHangupPatchPath =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-rwi-originate-hangup.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-rwi-originate-hangup.patch';
 const rsipstackPatch = readFileSync(
-  'infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch',
+  'infra/converact/rustpbx/patches/rsipstack-tcp-reconnect.patch',
   'utf8'
 );
 const rsipstackCapacityPatch = readFileSync(
-  'infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch',
+  'infra/converact/rustpbx/patches/rsipstack-ivekit-capacity.patch',
   'utf8'
 );
 const rsipstackRetransmissionPatch = readFileSync(
-  'infra/ivekit/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch',
+  'infra/converact/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch',
   'utf8'
 );
 const rsipstackDialogRecoveryPatch = readFileSync(
-  'infra/ivekit/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch',
+  'infra/converact/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch',
   'utf8'
 );
 const rustPbxSipCapacityPatch = readFileSync(
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch',
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch',
   'utf8'
 );
 const rustPbxMediaHotPathPatch = readFileSync(
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch',
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch',
   'utf8'
 );
 const rustPbxSessionCleanupPatch = readFileSync(
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-cleanup-isolation.patch',
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-session-cleanup-isolation.patch',
   'utf8'
 );
 const imageWorkflow = readFileSync('.github/workflows/ivekit-rustpbx-image.yml', 'utf8');
 
 test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', () => {
-  assert.equal(spawnSync('bash', ['-n', 'infra/ivekit/rustpbx/build.sh']).status, 0);
+  assert.equal(spawnSync('bash', ['-n', 'infra/converact/rustpbx/build.sh']).status, 0);
   assert.match(buildScript, /RUSTPBX_COMMIT="[a-f0-9]{40}"/);
   assert.match(buildScript, /RSIPSTACK_COMMIT="[a-f0-9]{40}"/);
   assert.match(buildScript, /RUSTRTC_COMMIT="[a-f0-9]{40}"/);
@@ -93,7 +93,7 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
   assert.match(runtimeDockerfile, /COPY entrypoint\.ivekit\.sh \/app\/entrypoint\.sh/);
   assert.match(runtimeDockerfile, /ENTRYPOINT \["\/app\/entrypoint\.sh"\]/);
 
-  const lock = readFileSync('infra/ivekit/rustpbx/Cargo.lock', 'utf8');
+  const lock = readFileSync('infra/converact/rustpbx/Cargo.lock', 'utf8');
   assert.match(
     lock,
     /name = "rustrtc"\nversion = "0\.3\.90"\ndependencies = \[[\s\S]*?"socket2 0\.6\.5"/
@@ -104,8 +104,8 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
 test('RustPBX deployment examples reference the current patchset', () => {
   for (const path of [
     'infra/env.example',
-    'infra/ivekit/env.example',
-    'services/ivekit-service/env.example'
+    'infra/converact/env.example',
+    'services/converact-service/env.example'
   ]) {
     assert.match(
       readFileSync(path, 'utf8'),
@@ -139,7 +139,7 @@ test('RustPBX CI verifies exact-source behavior before publishing images', () =>
   );
   assert.match(
     buildScript,
-    /cargo fmt --manifest-path vendor\/ivekit-component-hook\/Cargo\.toml -- --check/
+    /cargo fmt --manifest-path vendor\/converact-component-hook\/Cargo\.toml -- --check/
   );
   assert.doesNotMatch(buildScript, /cargo fmt --all/);
   assert.match(buildScript, /cargo check --locked --features cross --bin rustpbx --bin sipflow/);
@@ -339,7 +339,7 @@ test('iveKit exposes reproducible RustPBX build and acceptance commands', () => 
   const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
     scripts: Record<string, string>;
   };
-  assert.equal(packageJson.scripts['ivekit:rustpbx-build'], 'bash infra/ivekit/rustpbx/build.sh');
+  assert.equal(packageJson.scripts['ivekit:rustpbx-build'], 'bash infra/converact/rustpbx/build.sh');
   assert.equal(
     packageJson.scripts['ivekit:rustpbx-management-acceptance'],
     'node --import tsx scripts/ivekit-rustpbx-management-acceptance.ts'

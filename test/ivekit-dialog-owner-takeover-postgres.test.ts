@@ -6,18 +6,18 @@ import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 import {
   DialogRecoveryCapsuleCodec,
   type DialogRecoveryCapsulePayload
-} from '../src/agent-runtime/ivekit/voice/dialog-recovery-capsule.js';
+} from '../src/agent-runtime/converact/voice/dialog-recovery-capsule.js';
 import {
   DialogOwnerTakeoverError,
   type DialogOwnerTakeoverClaimWrite
-} from '../src/agent-runtime/ivekit/voice/dialog-owner-takeover.js';
+} from '../src/agent-runtime/converact/voice/dialog-owner-takeover.js';
 import {
   dialogShadowPairHash,
   type DialogShadowRecord
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow.js';
 import {
   PostgresDialogOwnerTakeoverStore
-} from '../src/agent-runtime/ivekit/voice/postgres/dialog-owner-takeover-store.js';
+} from '../src/agent-runtime/converact/voice/postgres/dialog-owner-takeover-store.js';
 
 const MIGRATION = 'src/migrations/102_ivekit_voice_dialog_takeovers.sql';
 const CDR_MIGRATION = 'src/migrations/103_ivekit_voice_cdr_convergence.sql';
@@ -42,7 +42,7 @@ test('takeover migration persists current authority and append-only claim histor
 
 test('terminal shadow observation clears the durable pending-shadow repair fence', () => {
   const source = readFileSync(
-    'src/agent-runtime/ivekit/voice/postgres/dialog-owner-takeover-store.ts',
+    'src/agent-runtime/converact/voice/postgres/dialog-owner-takeover-store.ts',
     'utf8'
   );
 
@@ -81,7 +81,7 @@ test('CDR migration provides a durable, RLS-isolated terminal repair queue', () 
 
 test('terminal repair completion binds the source fault domain in both durable updates', () => {
   const source = readFileSync(
-    'src/agent-runtime/ivekit/voice/postgres/dialog-owner-takeover-store.ts',
+    'src/agent-runtime/converact/voice/postgres/dialog-owner-takeover-store.ts',
     'utf8'
   );
 

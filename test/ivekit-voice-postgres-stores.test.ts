@@ -13,13 +13,13 @@ import {
   type VoiceParkingSlot,
   type VoiceProviderEvent,
   type VoiceRecording
-} from '../src/agent-runtime/ivekit/voice/index.js';
-import { PostgresVoiceCallStore } from '../src/agent-runtime/ivekit/voice/postgres/call-store.js';
-import { PostgresVoiceCommandStore } from '../src/agent-runtime/ivekit/voice/postgres/command-store.js';
-import { PostgresVoiceConfigurationStore } from '../src/agent-runtime/ivekit/voice/postgres/configuration-store.js';
-import { PostgresVoiceProviderEventStore } from '../src/agent-runtime/ivekit/voice/postgres/provider-event-store.js';
-import { PostgresVoiceParkingStore } from '../src/agent-runtime/ivekit/voice/postgres/parking-store.js';
-import { PostgresVoiceRecordingStore } from '../src/agent-runtime/ivekit/voice/postgres/recording-store.js';
+} from '../src/agent-runtime/converact/voice/index.js';
+import { PostgresVoiceCallStore } from '../src/agent-runtime/converact/voice/postgres/call-store.js';
+import { PostgresVoiceCommandStore } from '../src/agent-runtime/converact/voice/postgres/command-store.js';
+import { PostgresVoiceConfigurationStore } from '../src/agent-runtime/converact/voice/postgres/configuration-store.js';
+import { PostgresVoiceProviderEventStore } from '../src/agent-runtime/converact/voice/postgres/provider-event-store.js';
+import { PostgresVoiceParkingStore } from '../src/agent-runtime/converact/voice/postgres/parking-store.js';
+import { PostgresVoiceRecordingStore } from '../src/agent-runtime/converact/voice/postgres/recording-store.js';
 
 interface RecordedQuery {
   text: string;

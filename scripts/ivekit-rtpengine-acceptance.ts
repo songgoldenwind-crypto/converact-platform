@@ -8,7 +8,7 @@ import {
   type MediaControlAction,
   type MediaControlCommand,
   type MediaControlResult
-} from '../src/agent-runtime/ivekit/media-control/protocol.js';
+} from '../src/agent-runtime/converact/media-control/protocol.js';
 import {
   buildEndpointSdp,
   createSdesKeyMaterial,

@@ -6,11 +6,11 @@ import {
   type IveKitSipAudioElement,
   type IveKitSipWebPhoneEngine,
   type IveKitSipWebPhoneEngineEvents
-} from '../sdk/ivekit/src/sip-webphone.js';
+} from '../sdk/converact/src/sip-webphone.js';
 import {
   parseIveKitVoiceExtensionSessionPlan,
   type IveKitVoiceExtensionSessionPlan
-} from '../sdk/ivekit/src/voice-types.js';
+} from '../sdk/converact/src/voice-types.js';
 
 const NOW = Date.parse('2026-07-13T09:00:00.000Z');
 

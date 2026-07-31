@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
-import { createIveKitMediaHooks } from '../src/agent-runtime/ivekit/media-hooks.js';
+import { createIveKitMediaHooks } from '../src/agent-runtime/converact/media-hooks.js';
 import type { EgressRecord } from '../src/agent-runtime/livekit/types.js';
 import { all, createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';

@@ -4,13 +4,13 @@ import test from 'node:test';
 import {
   IveKitVoiceCallbackAdapter,
   type ContactCenterCallbackRecord
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 import {
   type VoiceAddressProtector,
   type VoiceCall,
   type VoiceCallRepository,
   VoiceCallService
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('Contact Center Voice adapter reuses inbound DID and durable Voice outbound service', async () => {
   const observed: Array<Record<string, unknown>> = [];

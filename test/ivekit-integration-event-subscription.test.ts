@@ -4,9 +4,9 @@ import test from 'node:test';
 import {
   IveKitEventWebhookSubscriptionService,
   type IveKitEventWebhookSubscriptionRepository
-} from '../src/agent-runtime/ivekit/integration-events/subscription-service.js';
-import type { IveKitEventWebhookSubscription } from '../src/agent-runtime/ivekit/integration-events/types.js';
-import type { NotificationEndpoint } from '../src/agent-runtime/ivekit/notifications/types.js';
+} from '../src/agent-runtime/converact/integration-events/subscription-service.js';
+import type { IveKitEventWebhookSubscription } from '../src/agent-runtime/converact/integration-events/types.js';
+import type { NotificationEndpoint } from '../src/agent-runtime/converact/notifications/types.js';
 
 test('event webhook subscription binds a webhook endpoint and normalizes patterns', async () => {
   const repository = new MemorySubscriptionRepository();

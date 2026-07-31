@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { PostgresContactCenterMonitorSource } from
-  '../src/agent-runtime/ivekit/contact-center/index.js';
+  '../src/agent-runtime/converact/contact-center/index.js';
 import type { PgQueryable } from '../src/db-pg.js';
 
 test('Contact Center PostgreSQL monitor loads tenant-scoped operational projections', async () => {

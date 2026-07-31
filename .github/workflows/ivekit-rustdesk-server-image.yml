@@ -9,7 +9,7 @@ on:
     paths:
       - '.github/workflows/ivekit-rustdesk-server-image.yml'
       - '.github/workflows/ivekit-oci-release-gate.yml'
-      - 'infra/ivekit/rustdesk-server/**'
+      - 'infra/converact/rustdesk-server/**'
       - 'integrations/component-hook-rs/**'
       - 'test/ivekit-rustdesk-server-owner-patch.test.ts'
       - 'test/ivekit-image-supply-chain.test.ts'
@@ -72,7 +72,7 @@ jobs:
         env:
           RUSTDESK_SERVER_SOURCE_DIR: ${{ steps.source.outputs.source_dir }}
           RUSTDESK_SERVER_IMAGE: ${{ env.IMAGE }}:${{ env.VERSION }}
-        run: sh infra/ivekit/rustdesk-server/build.sh
+        run: sh infra/converact/rustdesk-server/build.sh
 
       - name: Smoke test fork marker and binaries
         shell: bash

@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { startIveKitApplication } from '../src/agent-runtime/ivekit/application.js';
+import { startIveKitApplication } from '../src/agent-runtime/converact/application.js';
 import {
   dispatchIveKitVoiceCallCommand,
   iveKitVoiceWorkerConfig,
   startIveKitVoiceProviderEventWorker,
   type IveKitVoiceWorkerConfig
-} from '../src/agent-runtime/ivekit/voice/runtime.js';
+} from '../src/agent-runtime/converact/voice/runtime.js';
 import { MemoryPg } from '../src/db-pg.js';
 import type { PgQueryable } from '../src/db-pg.js';
 

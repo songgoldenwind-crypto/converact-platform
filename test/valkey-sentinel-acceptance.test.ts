@@ -8,7 +8,7 @@ function source(path: string): string {
 }
 
 test('Valkey acceptance topology is isolated, persistent and immutable', () => {
-  const compose = source('services/ivekit-service/acceptance/valkey-sentinel/docker-compose.yml');
+  const compose = source('services/converact-service/acceptance/valkey-sentinel/docker-compose.yml');
 
   assert.match(compose, /VALKEY_ACCEPTANCE_IMAGE:\?immutable Valkey image is required/);
   for (const service of ['valkey-1', 'valkey-2', 'valkey-3', 'sentinel-1', 'sentinel-2', 'sentinel-3']) {
@@ -26,7 +26,7 @@ test('Valkey acceptance topology is isolated, persistent and immutable', () => {
 });
 
 test('Valkey acceptance runner bounds failover, protects LED and cleans all project state', () => {
-  const script = source('services/ivekit-service/acceptance/valkey-sentinel/accept.sh');
+  const script = source('services/converact-service/acceptance/valkey-sentinel/accept.sh');
 
   assert.match(script, /^#!\/bin\/sh/);
   assert.match(script, /64\.225\.122\.227/);
@@ -67,7 +67,7 @@ test('Valkey acceptance runner bounds failover, protects LED and cleans all proj
 });
 
 test('Valkey acceptance runner captures redacted diagnostics before cleanup', () => {
-  const script = source('services/ivekit-service/acceptance/valkey-sentinel/accept.sh');
+  const script = source('services/converact-service/acceptance/valkey-sentinel/accept.sh');
 
   assert.match(script, /failure_diagnostics\(\)/);
   assert.match(script, /docker compose[\s\S]*ps -a/);
@@ -78,7 +78,7 @@ test('Valkey acceptance runner captures redacted diagnostics before cleanup', ()
 });
 
 test('Valkey acceptance probe uses the production Sentinel resolver and verifies PubSub', () => {
-  const probe = source('services/ivekit-service/acceptance/valkey-sentinel/probe.ts');
+  const probe = source('services/converact-service/acceptance/valkey-sentinel/probe.ts');
 
   assert.match(probe, /resolveRedisConnectionOptions/);
   assert.match(probe, /buildIoRedisConstructorArgs/);

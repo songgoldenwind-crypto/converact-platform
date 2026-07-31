@@ -1,5 +1,5 @@
 {
-  "name": "@opc/ivekit-rustdesk-edge-agent",
+  "name": "@converact/rustdesk-edge-agent",
   "version": "0.1.0",
   "private": true,
   "type": "module",

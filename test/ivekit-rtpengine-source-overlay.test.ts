@@ -19,12 +19,12 @@ const RTPENGINE_COMMIT =
 const RTPENGINE_ARCHIVE_SHA256 =
   'a6d23de8f656c3ad54e4060813c230861d100b79fb45ba1ce728ad2cef780143';
 const overlayModule = pathToFileURL(
-  join(process.cwd(), 'infra/ivekit/rtpengine/apply-overlay.mjs')
+  join(process.cwd(), 'infra/converact/rtpengine/apply-overlay.mjs')
 ).href;
 
 test('RTPengine source lock freezes archive, commit and patch order', () => {
   const lock = JSON.parse(readFileSync(
-    'infra/ivekit/rtpengine/source-lock.json',
+    'infra/converact/rtpengine/source-lock.json',
     'utf8'
   )) as Record<string, any>;
   assert.equal(lock.schema_version, '1.0.0');
@@ -56,7 +56,7 @@ test('RTPengine fetch refuses an archive with the wrong identity', () => {
 
   const result = spawnSync(
     'bash',
-    ['infra/ivekit/rtpengine/fetch-source.sh', output],
+    ['infra/converact/rtpengine/fetch-source.sh', output],
     {
       cwd: process.cwd(),
       encoding: 'utf8',
@@ -305,7 +305,7 @@ test('source identity assertion rejects an unpinned tree', async () => {
 
 test('TCP NG patch bounds fragmented SDP frames without the upstream 1 KiB cutoff', () => {
   const patch = readFileSync(
-    'infra/ivekit/rtpengine/patches/0001-tcp-ng-bounded-frame.patch',
+    'infra/converact/rtpengine/patches/0001-tcp-ng-bounded-frame.patch',
     'utf8'
   );
   assert.match(patch, /IVEKIT_RTPENGINE_NG_MAX_FRAME_BYTES/);
@@ -317,7 +317,7 @@ test('TCP NG patch bounds fragmented SDP frames without the upstream 1 KiB cutof
 
 test('owner fence patch rejects stale mutations before RTPengine dispatch', () => {
   const patch = readFileSync(
-    'infra/ivekit/rtpengine/patches/0002-ivekit-owner-fence.patch',
+    'infra/converact/rtpengine/patches/0002-ivekit-owner-fence.patch',
     'utf8'
   );
   for (const key of [
@@ -342,7 +342,7 @@ test('owner fence patch rejects stale mutations before RTPengine dispatch', () =
 
 test('drain and capacity patch bounds new call admission without dropping active calls', () => {
   const patch = readFileSync(
-    'infra/ivekit/rtpengine/patches/0003-ivekit-drain-capacity.patch',
+    'infra/converact/rtpengine/patches/0003-ivekit-drain-capacity.patch',
     'utf8'
   );
   for (const setting of [
@@ -370,7 +370,7 @@ test('drain and capacity patch bounds new call admission without dropping active
 
 test('metrics patch exports a fixed low-cardinality iveKit metric set', () => {
   const patch = readFileSync(
-    'infra/ivekit/rtpengine/patches/0004-ivekit-metrics.patch',
+    'infra/converact/rtpengine/patches/0004-ivekit-metrics.patch',
     'utf8'
   );
 
@@ -413,7 +413,7 @@ test('metrics patch exports a fixed low-cardinality iveKit metric set', () => {
 
 test('durable replay patch owns replay SDP and preserves recovery queries', () => {
   const patch = readFileSync(
-    'infra/ivekit/rtpengine/patches/0005-ivekit-durable-replay.patch',
+    'infra/converact/rtpengine/patches/0005-ivekit-durable-replay.patch',
     'utf8'
   );
 
@@ -452,7 +452,7 @@ test('durable replay patch owns replay SDP and preserves recovery queries', () =
 
 test('owner guard overlay test exercises bounded identities and uint64 epochs', () => {
   const source = readFileSync(
-    'infra/ivekit/rtpengine/overlay-tests/ivekit_owner_guard_test.c',
+    'infra/converact/rtpengine/overlay-tests/ivekit_owner_guard_test.c',
     'utf8'
   );
   assert.match(source, /18446744073709551615/);
@@ -465,7 +465,7 @@ test('owner guard overlay test exercises bounded identities and uint64 epochs', 
 
 test('replay protocol preserves SDP across stable and cross-cookie replays', () => {
   const source = readFileSync(
-    'infra/ivekit/rtpengine/overlay-tests/ivekit_replay_protocol_test.py',
+    'infra/converact/rtpengine/overlay-tests/ivekit_replay_protocol_test.py',
     'utf8'
   );
   assert.match(source, /stable-cookie replay did not return cached response/);

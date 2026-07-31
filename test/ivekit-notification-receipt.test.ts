@@ -9,7 +9,7 @@ import {
   type NotificationEndpoint,
   type NotificationReceipt,
   type NotificationReceiptRepository
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 class MemoryReceiptRepository implements NotificationReceiptRepository {
   receipts = new Map<string, NotificationReceipt>();

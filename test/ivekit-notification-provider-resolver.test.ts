@@ -10,7 +10,7 @@ import {
   type NotificationEndpoint,
   type NotificationEndpointRepository,
   type NotificationRecord
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 class Endpoints implements NotificationEndpointRepository {
   constructor(readonly items: NotificationEndpoint[]) {}

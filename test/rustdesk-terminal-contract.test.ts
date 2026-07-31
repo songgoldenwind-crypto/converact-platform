@@ -3,10 +3,10 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { createIveKitRustDeskHttpClient } from '../sdk/ivekit/src/rustdesk-http-client.js';
+import { createIveKitRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
 
-const typesSource = readFileSync('sdk/ivekit/src/types.ts', 'utf8');
-const clientSource = readFileSync('sdk/ivekit/src/rustdesk-http-client.ts', 'utf8');
+const typesSource = readFileSync('sdk/converact/src/types.ts', 'utf8');
+const clientSource = readFileSync('sdk/converact/src/rustdesk-http-client.ts', 'utf8');
 
 test('RustDesk terminal DTOs keep configured, available, granted, and observed states distinct', () => {
   for (const dto of [
@@ -128,7 +128,7 @@ test('RustDesk client matrix pins OSS versions and platform limitations without 
   assert.match(matrix, /releases\/tag\/1\.1\.16/);
   assert.match(matrix, /releases\/tag\/1\.4\.9/);
   assert.doesNotMatch(matrix, /rustdesk-server:latest/);
-  for (const envPath of ['.env.example', 'infra/env.example', 'infra/ivekit/env.example']) {
+  for (const envPath of ['.env.example', 'infra/env.example', 'infra/converact/env.example']) {
     const env = readFileSync(envPath, 'utf8');
     assert.match(env, /^RUSTDESK_SERVER_IMAGE_TAG=1\.1\.16$/m, envPath);
     assert.doesNotMatch(env, /^RUSTDESK_SERVER_IMAGE_TAG=(?:latest|1\.1\.14)$/m, envPath);
@@ -144,7 +144,7 @@ test('RustDesk client matrix pins OSS versions and platform limitations without 
   );
   assert.doesNotMatch(productionCompose, /rustdesk\/rustdesk-server:/);
 
-  for (const envPath of ['infra/env.example', 'infra/ivekit/env.example']) {
+  for (const envPath of ['infra/env.example', 'infra/converact/env.example']) {
     const env = readFileSync(envPath, 'utf8');
     assert.match(
       env,
@@ -193,7 +193,7 @@ test('RustDesk client config pack command guidance keeps launch URLs runtime-onl
 });
 
 test('iveKit SDK RustDesk sources remain browser-safe and independent from OPC server source', () => {
-  const sourceDir = 'sdk/ivekit/src';
+  const sourceDir = 'sdk/converact/src';
   for (const filename of readdirSync(sourceDir).filter((name) => name.endsWith('.ts'))) {
     const source = readFileSync(join(sourceDir, filename), 'utf8');
     assert.doesNotMatch(source, /from ['"]node:/, filename);

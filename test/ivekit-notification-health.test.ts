@@ -9,7 +9,7 @@ import {
   type NotificationEndpointHealthRepository,
   type NotificationEndpointProbeResult,
   type NotificationSecretResolver
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 const secrets: NotificationSecretResolver = {
   async resolve() { return 'provider-credential-1234567890'; }

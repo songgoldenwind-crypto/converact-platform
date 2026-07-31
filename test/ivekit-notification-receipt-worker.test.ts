@@ -5,7 +5,7 @@ import {
   runNotificationReceiptReconciliationBatch,
   type NotificationReceipt,
   type NotificationReceiptReconciliationRepository
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 class MemoryReceiptReconciliationRepository implements NotificationReceiptReconciliationRepository {
   async listReceiptTenants() { return ['tenant-a']; }

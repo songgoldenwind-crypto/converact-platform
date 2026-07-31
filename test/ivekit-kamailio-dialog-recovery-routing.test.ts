@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   renderKamailioConfig,
   type KamailioConfig
-} from '../src/agent-runtime/ivekit/voice/kamailio-config.js';
+} from '../src/agent-runtime/converact/voice/kamailio-config.js';
 
 const SECRETS = {
   topoh_mask_key: 'ivekit-topology-mask-key-1234567890abcdef',

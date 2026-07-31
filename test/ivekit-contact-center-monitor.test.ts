@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   ContactCenterMonitorService,
   type ContactCenterMonitorSource
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 
 test('Contact Center monitor derives stable queue estimates and operational alerts', async () => {
   const source: ContactCenterMonitorSource = {

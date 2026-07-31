@@ -2,17 +2,17 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const BUILD = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+const BUILD = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
 const RUSTPBX_PATCH = readFileSync(
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch',
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch',
   'utf8'
 );
 const DUAL_LEG_CDR_PATCH = readFileSync(
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch',
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch',
   'utf8'
 );
 const RSIPSTACK_PATCH = readFileSync(
-  'infra/ivekit/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch',
+  'infra/converact/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch',
   'utf8'
 );
 

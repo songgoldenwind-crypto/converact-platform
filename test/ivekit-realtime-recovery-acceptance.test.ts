@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const ROOT = 'services/ivekit-service/acceptance/realtime-recovery';
+const ROOT = 'services/converact-service/acceptance/realtime-recovery';
 const FILES = {
   compose: `${ROOT}/docker-compose.yml`,
   shell: `${ROOT}/accept.sh`,
@@ -20,7 +20,7 @@ test('realtime recovery acceptance is a declared reproducible entrypoint', () =>
   };
   assert.equal(
     pkg.scripts['ivekit:realtime-recovery-acceptance'],
-    'sh services/ivekit-service/acceptance/realtime-recovery/accept.sh'
+    'sh services/converact-service/acceptance/realtime-recovery/accept.sh'
   );
 });
 

@@ -1,5 +1,5 @@
 {
-  "name": "@opc/sdk",
+  "name": "@converact/javascript-sdk",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",

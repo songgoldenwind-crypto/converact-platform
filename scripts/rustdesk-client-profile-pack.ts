@@ -6,8 +6,8 @@ import {
   createIveKitRustDeskHttpClient,
   projectRustDeskClientDistributionProfile,
   type GetIveKitRustDeskClientProfileInput
-} from '../src/agent-runtime/ivekit/index.js';
-import type { RustDeskClientDistributionProfile } from '../sdk/ivekit/src/index.js';
+} from '../src/agent-runtime/converact/index.js';
+import type { RustDeskClientDistributionProfile } from '../sdk/converact/src/index.js';
 
 const TARGETS = [
   { platform: 'windows', architecture: 'x86_64' },

@@ -65,8 +65,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node opc/infra/ivekit/livekit/apply-overlay.mjs upstream
-          node opc/infra/ivekit/livekit/apply-overlay.mjs upstream
+          node opc/infra/converact/livekit/apply-overlay.mjs upstream
+          node opc/infra/converact/livekit/apply-overlay.mjs upstream
           GOCACHE=/tmp/ivekit-livekit-go-cache \
             go test -C upstream ./cmd/server ./pkg/sfu ./pkg/sfu/utils
           GOCACHE=/tmp/ivekit-livekit-go-cache \

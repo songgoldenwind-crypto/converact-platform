@@ -2,10 +2,10 @@
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-CHART_DIR="$ROOT_DIR/services/ivekit-service/helm/ivekit"
+CHART_DIR="$ROOT_DIR/services/converact-service/helm/converact"
 PLATFORM_CHART_DIR="$ROOT_DIR/infra/k8s"
-COMPOSE_FILE="$ROOT_DIR/services/ivekit-service/docker-compose.yml"
-COMPOSE_ENV="$ROOT_DIR/services/ivekit-service/env.example"
+COMPOSE_FILE="$ROOT_DIR/services/converact-service/docker-compose.yml"
+COMPOSE_ENV="$ROOT_DIR/services/converact-service/env.example"
 KAMAILIO_VALUES_FILE="$ROOT_DIR/test/fixtures/ivekit-kamailio-values.yaml"
 RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-helm.XXXXXX.yaml")
 CLAMAV_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-clamav.XXXXXX.yaml")

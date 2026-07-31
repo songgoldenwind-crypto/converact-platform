@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch';
 
 function patch(): string {
   return readFileSync(PATCH_PATH, 'utf8');
@@ -29,7 +29,7 @@ function removedLines(): string {
 
 test('RustPBX retains the immutable per-session media profile in the current patchset', () => {
   assert.equal(existsSync(PATCH_PATH), true, `${PATCH_PATH} is required`);
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
   const parsed = spawnSync('git', ['apply', '--numstat', PATCH_PATH], {
     encoding: 'utf8'
   });

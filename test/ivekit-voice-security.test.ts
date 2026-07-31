@@ -7,7 +7,7 @@ import {
   VoiceError,
   canonicalVoicePayloadHash,
   safeVoiceProviderPayload
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 const encryptionKey = Buffer.alloc(32, 0x11).toString('base64');
 const hmacKey = Buffer.alloc(32, 0x22).toString('base64');

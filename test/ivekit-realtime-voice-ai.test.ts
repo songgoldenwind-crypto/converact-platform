@@ -10,7 +10,7 @@ import {
   VoiceError,
   projectRealtimeVoiceAiEvent,
   type RealtimeVoiceAiProfile
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('Realtime Voice AI registry supports every provider family and enforces profile state', async () => {
   const factory = new ControlledRealtimeVoiceAiFactory({
@@ -168,9 +168,9 @@ test('Realtime Voice AI event projection persists only authorized bounded eviden
 
 test('Realtime Voice AI foundation stays provider-neutral and outside OPC product modules', () => {
   for (const path of [
-    'src/agent-runtime/ivekit/voice/realtime-ai.ts',
-    'src/agent-runtime/ivekit/voice/realtime-ai-events.ts',
-    'src/agent-runtime/ivekit/voice/adapters/controlled-realtime-ai.ts'
+    'src/agent-runtime/converact/voice/realtime-ai.ts',
+    'src/agent-runtime/converact/voice/realtime-ai-events.ts',
+    'src/agent-runtime/converact/voice/adapters/controlled-realtime-ai.ts'
   ]) {
     const source = readFileSync(path, 'utf8');
     assert.doesNotMatch(source, /call-center|\.\.\/\.\.\/\.\.\/db|node:sqlite|from ['"][^'"]*db\.js/);

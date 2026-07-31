@@ -3,10 +3,10 @@ import test from 'node:test';
 
 import {
   resolveRustPbxMediaControlProfile
-} from '../src/agent-runtime/ivekit/voice/media-control-profile.js';
+} from '../src/agent-runtime/converact/voice/media-control-profile.js';
 import type {
   VoiceDeploymentProfile
-} from '../src/agent-runtime/ivekit/voice/types.js';
+} from '../src/agent-runtime/converact/voice/types.js';
 
 test('RustPBX media profile defaults to the ordinary G.711 relay path', () => {
   assert.deepEqual(resolveRustPbxMediaControlProfile(profile({})), {

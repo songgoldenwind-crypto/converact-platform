@@ -113,7 +113,7 @@ const GROUP_TEMPLATE: Record<IveKitV6RealAcceptanceGroupId, {
   kubernetes: {
     reason_code: 'kubernetes_cluster_unavailable',
     reason: 'A production-like Kubernetes cluster, ingress, storage class, and monitoring stack are unavailable.',
-    command: 'helm lint services/ivekit-service/helm/ivekit && helm template ivekit services/ivekit-service/helm/ivekit --set image.repository=registry.example/ivekit --set image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    command: 'helm lint services/converact-service/helm/converact && helm template ivekit services/converact-service/helm/converact --set image.repository=registry.example/ivekit --set image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   }
 };
 

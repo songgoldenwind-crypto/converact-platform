@@ -1,17 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { IveKitHttpSdkError } from '../sdk/ivekit/src/http-sdk.js';
+import { IveKitHttpSdkError } from '../sdk/converact/src/http-sdk.js';
 import {
   createIveKitVoiceController,
   type IveKitVoiceControllerClient
-} from '../sdk/ivekit/src/voice-controller.js';
+} from '../sdk/converact/src/voice-controller.js';
 import type {
   IveKitVoiceCall,
   IveKitVoiceCallCommand,
   IveKitVoiceCommandKind,
   IveKitVoiceCreateOutboundCallInput
-} from '../sdk/ivekit/src/voice-types.js';
+} from '../sdk/converact/src/voice-types.js';
 
 test('Voice controller exposes every WebPhone action and publishes stable state', async () => {
   const requests: Array<{ kind: IveKitVoiceCommandKind; payload: Record<string, unknown>; key: string }> = [];

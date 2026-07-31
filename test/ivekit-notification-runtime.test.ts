@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import {
   NotificationDeliveryWorker,
   notificationDeliveryWorkerConfig
-} from '../src/agent-runtime/ivekit/notifications/index.js';
-import { startIveKitApplication } from '../src/agent-runtime/ivekit/application.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
+import { startIveKitApplication } from '../src/agent-runtime/converact/application.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 test('notification delivery worker config enables only with encryption keys or an explicit flag', () => {

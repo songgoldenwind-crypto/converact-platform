@@ -100,7 +100,7 @@ export function assertIveKitStandaloneBoundary(
 
 export function readIveKitStandaloneSourcePolicy(repoRoot: string): IveKitStandaloneSourcePolicy {
   return JSON.parse(readFileSync(
-    join(repoRoot, 'services', 'ivekit-service', 'source-policy.json'),
+    join(repoRoot, 'services', 'converact-service', 'source-policy.json'),
     'utf8'
   )) as IveKitStandaloneSourcePolicy;
 }

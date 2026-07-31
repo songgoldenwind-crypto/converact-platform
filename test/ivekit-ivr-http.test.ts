@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { IvrError, routeIveKitIvrApi, type IvrHttpModule } from '../src/agent-runtime/ivekit/ivr/index.js';
-import { VoiceError } from '../src/agent-runtime/ivekit/voice/index.js';
+import { IvrError, routeIveKitIvrApi, type IvrHttpModule } from '../src/agent-runtime/converact/ivr/index.js';
+import { VoiceError } from '../src/agent-runtime/converact/voice/index.js';
 
 const pg = { query: async () => { throw new Error('not used'); } };
 const url = new URL('http://localhost/api/ivekit/ivr/provider-webhooks/rustpbx/profile-a/step');

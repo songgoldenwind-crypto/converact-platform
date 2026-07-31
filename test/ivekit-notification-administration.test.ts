@@ -7,7 +7,7 @@ import {
   type NotificationPreference,
   type NotificationTemplate,
   type NotificationTemplateVersion
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 class MemoryAdministrationRepository implements NotificationAdministrationRepository {
   templates = new Map<string, NotificationTemplate>();

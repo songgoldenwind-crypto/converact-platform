@@ -4,11 +4,11 @@ import test from 'node:test';
 import {
   DialogOwnerTakeoverError,
   type DialogOwnerTakeoverCoordinator
-} from '../src/agent-runtime/ivekit/voice/dialog-owner-takeover.js';
+} from '../src/agent-runtime/converact/voice/dialog-owner-takeover.js';
 import {
   handleDialogShadowRequest,
   type DialogOwnerTakeoverHttpCoordinator
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow-http.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow-http.js';
 
 const SERVICE_TOKEN = 'dialog-takeover-service-token-aa';
 const PEER = {

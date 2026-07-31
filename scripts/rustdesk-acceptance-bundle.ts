@@ -485,7 +485,7 @@ function renderRustDeskLedIntegrationQuickstart(config: RustDeskAcceptanceBundle
     'A standalone copyable example is generated as `led-sdk-minimal-example.ts` in this bundle.',
     '',
     '```typescript',
-    "import { createIveKitRustDeskLedSdk } from './src/agent-runtime/ivekit/index.js';",
+    "import { createIveKitRustDeskLedSdk } from './src/agent-runtime/converact/index.js';",
     '',
     'const sdk = createIveKitRustDeskLedSdk({',
     '  baseUrl: process.env.OPC_BASE_URL,',
@@ -592,7 +592,7 @@ function renderRustDeskLedIntegrationQuickstart(config: RustDeskAcceptanceBundle
 function renderRustDeskLedSdkMinimalExample(): string {
   return [
     "// Adjust this import to the extracted iveKit package path used by your service.",
-    "import { createIveKitRustDeskLedSdk } from './src/agent-runtime/ivekit/index.js';",
+    "import { createIveKitRustDeskLedSdk } from './src/agent-runtime/converact/index.js';",
     '',
     'function requiredEnv(name: string): string {',
     '  const value = process.env[name]?.trim();',

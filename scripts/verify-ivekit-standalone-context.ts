@@ -19,23 +19,23 @@ if (process.env.OPC_IVEKIT_STANDALONE_NPM_OFFLINE === '1') npmCiArgs.push('--off
 run('npm', npmCiArgs, outputDir);
 run('npm', ['run', 'build'], outputDir);
 const entrypoints = [
-  'ivekit-server.js',
-  'ivekit-worker.js',
-  'ivekit-realtime-audio-tap-worker.js',
-  'ivekit-migrate.js',
-  'ivekit-init-runtime-role.js',
-  'ivekit-intelligence-preflight.js',
-  'ivekit-kamailio-compose-config.js',
-  'ivekit-render-kamailio-config.js',
-  'ivekit-kamailio-route-agent.js',
-  'ivekit-kamailio-webphone-acceptance.js',
-  'ivekit-render-rustpbx-config.js',
-  'ivekit-rustpbx-route-snapshot.js',
-  'ivekit-rustpbx-recording-spool.js',
-  'ivekit-component-node-admission.js',
-  'ivekit-rustpbx-recovery.js',
-  'ivekit-dialog-shadow-agent.js',
-  'ivekit-voice-preflight.js'
+  'converact-server.js',
+  'converact-worker.js',
+  'converact-realtime-audio-tap-worker.js',
+  'converact-migrate.js',
+  'converact-init-runtime-role.js',
+  'converact-intelligence-preflight.js',
+  'converact-kamailio-compose-config.js',
+  'converact-render-kamailio-config.js',
+  'converact-kamailio-route-agent.js',
+  'converact-kamailio-webphone-acceptance.js',
+  'converact-render-rustpbx-config.js',
+  'converact-rustpbx-route-snapshot.js',
+  'converact-rustpbx-recording-spool.js',
+  'converact-component-node-admission.js',
+  'converact-rustpbx-recovery.js',
+  'converact-dialog-shadow-agent.js',
+  'converact-voice-preflight.js'
 ].map((name) => join(outputDir, 'dist', name));
 for (const entrypoint of entrypoints) {
   if (!existsSync(entrypoint)) {

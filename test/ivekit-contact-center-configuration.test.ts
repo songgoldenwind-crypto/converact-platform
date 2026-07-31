@@ -16,7 +16,7 @@ import {
   type ContactCenterQueueMembership,
   type ContactCenterSkill,
   type ContactCenterSkillRequirement
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 
 test('Contact Center configuration creates an agent with durable offline presence', async () => {
   const fixture = setup();

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const PATCH = 'infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-registry.patch';
+const PATCH = 'infra/converact/rustpbx/patches/rustpbx-ivekit-webphone-registry.patch';
 
 test('RustPBX WebPhone patch replaces the serialized linear pre-auth registry', () => {
   const patch = readFileSync(PATCH, 'utf8');
@@ -20,8 +20,8 @@ test('RustPBX WebPhone patch replaces the serialized linear pre-auth registry', 
 });
 
 test('RustPBX reproducible build applies the WebPhone registry patch', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
-  const readme = readFileSync('infra/ivekit/rustpbx/README.md', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
+  const readme = readFileSync('infra/converact/rustpbx/README.md', 'utf8');
 
   assert.match(build, /apply --check "\$PATCH_DIR\/rustpbx-ivekit-webphone-registry\.patch"/);
   assert.match(build, /apply "\$PATCH_DIR\/rustpbx-ivekit-webphone-registry\.patch"/);

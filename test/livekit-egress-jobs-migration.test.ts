@@ -33,13 +33,13 @@ test('LiveKit Egress reconciliation migration supports leased multi-instance cla
 
 test('standalone delivery orders Egress job migration after manifests and before runtime security', () => {
   const policy = JSON.parse(
-    readFileSync('services/ivekit-service/source-policy.json', 'utf8')
+    readFileSync('services/converact-service/source-policy.json', 'utf8')
   ) as { migrations: string[] };
   const manifests = policy.migrations.indexOf('086_ivekit_recording_manifests.sql');
   const jobs = policy.migrations.indexOf('087_livekit_egress_jobs.sql');
   const reconciliation = policy.migrations.indexOf('088_livekit_egress_reconciliation.sql');
   const security = policy.migrations.indexOf(
-    'services/ivekit-service/migrations/090_ivekit_runtime_security.sql'
+    'services/converact-service/migrations/090_ivekit_runtime_security.sql'
   );
   assert.ok(manifests >= 0 && manifests < jobs && jobs < reconciliation && reconciliation < security);
 });

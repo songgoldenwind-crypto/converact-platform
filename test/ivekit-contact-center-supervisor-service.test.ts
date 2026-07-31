@@ -7,7 +7,7 @@ import {
   type ContactCenterRepository,
   type ContactCenterSupervisorSession,
   type ContactCenterUnitOfWork
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 
 test('Contact Center supervisor starts and ends an authorized provider session idempotently', async () => {
   const provider = { supported: true };

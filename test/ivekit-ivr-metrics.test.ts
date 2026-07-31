@@ -6,7 +6,7 @@ import {
   observeIvrPendingAction,
   observeIvrReconciliation,
   observeIvrSessionEvent
-} from '../src/agent-runtime/ivekit/ivr/metrics.js';
+} from '../src/agent-runtime/converact/ivr/metrics.js';
 import { metricsRegistry } from '../src/metrics.js';
 
 test('IVR metrics expose only bounded labels without tenant or resource identities', () => {

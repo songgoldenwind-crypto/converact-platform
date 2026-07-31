@@ -10,7 +10,7 @@ import {
   PostgresRustPbxRouteSnapshotRepository,
   createRustPbxRouteSnapshotProjector,
   verifyRustPbxRouteSnapshotEnvelope
-} from '../src/ivekit-rustpbx-route-snapshot.js';
+} from '../src/converact-rustpbx-route-snapshot.js';
 
 const FORWARD_HMAC = 'a'.repeat(64);
 const REJECT_HMAC = 'b'.repeat(64);
@@ -18,7 +18,7 @@ const SIGNING_KEY = Buffer.alloc(32, 7).toString('base64');
 
 test('RustPBX route snapshot patch imports the HMAC constructor trait', () => {
   const patch = readFileSync(
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-route-snapshot.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-route-snapshot.patch',
     'utf8'
   );
 
@@ -27,7 +27,7 @@ test('RustPBX route snapshot patch imports the HMAC constructor trait', () => {
 
 test('RustPBX route snapshot patch covers display-name SIP To headers', () => {
   const patch = readFileSync(
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-route-snapshot.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-route-snapshot.patch',
     'utf8'
   );
 

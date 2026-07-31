@@ -12,7 +12,7 @@ import { createCollaborationModule } from '../src/agent-runtime/collaboration/in
 import type { RemoteConsentScope } from '../src/agent-runtime/collaboration/types.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { createRustDeskEdgeCommandToken } from '../src/agent-runtime/collaboration/rustdesk-edge-auth.js';
-import { createWebAssistJoinPath } from '../src/agent-runtime/ivekit/remote-assist-token.js';
+import { createWebAssistJoinPath } from '../src/agent-runtime/converact/remote-assist-token.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 const API_KEY = 'test-collaboration-http-key';

@@ -14,10 +14,10 @@ import {
   type NotificationReceipt,
   type NotificationTemplate,
   type NotificationTemplateVersion
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 import {
   PostgresNotificationStore
-} from '../src/agent-runtime/ivekit/notifications/postgres/store.js';
+} from '../src/agent-runtime/converact/notifications/postgres/store.js';
 
 class RecordingPg implements PgQueryable {
   readonly calls: Array<{ text: string; params: unknown[] }> = [];

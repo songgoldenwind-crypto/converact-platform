@@ -9,7 +9,7 @@ on:
     paths:
       - '.github/workflows/ivekit-livekit-egress-image.yml'
       - '.github/workflows/ivekit-oci-release-gate.yml'
-      - 'infra/ivekit/livekit-egress/**'
+      - 'infra/converact/livekit-egress/**'
       - 'integrations/livekit-egress-v1.13.0/**'
       - 'test/ivekit-livekit-egress-pool-patch.test.ts'
       - 'test/ivekit-image-supply-chain.test.ts'
@@ -100,7 +100,7 @@ jobs:
             export LIVEKIT_EGRESS_SOURCE_DIR="${GITHUB_WORKSPACE}/upstream"
             export IVEKIT_LIVEKIT_EGRESS_TARGETARCH="${arch}"
             export IVEKIT_LIVEKIT_EGRESS_IMAGE="${IMAGE}:${VERSION}-${arch}"
-            bash opc/infra/ivekit/livekit-egress/build.sh
+            bash opc/infra/converact/livekit-egress/build.sh
             docker push "${IVEKIT_LIVEKIT_EGRESS_IMAGE}"
           done
 

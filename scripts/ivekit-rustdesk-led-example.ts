@@ -4,7 +4,7 @@ import type { RemoteConsentScope } from '../src/agent-runtime/collaboration/type
 import {
   createIveKitRustDeskHttpClient,
   type IveKitRustDeskHttpClient
-} from '../src/agent-runtime/ivekit/index.js';
+} from '../src/agent-runtime/converact/index.js';
 
 export interface IveKitRustDeskLedExampleConfig {
   baseUrl: string;

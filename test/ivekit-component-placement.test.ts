@@ -5,16 +5,16 @@ import {
   ComponentPlacementAdapter,
   componentPlacementPolicyConfig,
   type ComponentPlacementCoordinatorPort
-} from '../src/agent-runtime/ivekit/placement/component-placement.js';
+} from '../src/agent-runtime/converact/placement/component-placement.js';
 import type {
   InteractionPlacementOwnerComponent,
   InteractionPlacementRecord,
   ReservedInteractionPlacement
-} from '../src/agent-runtime/ivekit/placement/interaction-placement.js';
+} from '../src/agent-runtime/converact/placement/interaction-placement.js';
 import type {
   InteractionKind,
   PlacementRequest
-} from '../src/agent-runtime/ivekit/placement/types.js';
+} from '../src/agent-runtime/converact/placement/types.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 test('component placement adapters compile trusted capacity for SIP Tinode and RustDesk', async () => {

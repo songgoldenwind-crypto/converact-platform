@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
-import { createWebAssistJoinPath } from '../src/agent-runtime/ivekit/remote-assist-token.js';
+import { createWebAssistJoinPath } from '../src/agent-runtime/converact/remote-assist-token.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 const API_KEY = 'test-web-assist-event-key';

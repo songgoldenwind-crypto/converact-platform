@@ -6,7 +6,7 @@ import test from 'node:test';
 
 import {
   RustPbxRecordingSpoolCapacityGate
-} from '../src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.js';
+} from '../src/agent-runtime/converact/recordings/rustpbx-recording-spool-capacity.js';
 
 test('RustPBX recording spool gate admits below 90 percent and rejects projected exhaustion', async (t) => {
   const fixture = await metricsFixture(t, { capacity_bytes: 1_000, available_bytes: 150 });

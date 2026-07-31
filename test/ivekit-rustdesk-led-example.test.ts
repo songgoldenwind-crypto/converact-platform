@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import type { IveKitRustDeskHttpClient } from '../src/agent-runtime/ivekit/index.js';
+import type { IveKitRustDeskHttpClient } from '../src/agent-runtime/converact/index.js';
 import {
   createIveKitRustDeskLedExampleConfigFromEnv,
   runIveKitRustDeskLedExample

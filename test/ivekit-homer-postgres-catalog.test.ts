@@ -9,11 +9,11 @@ import {
   patchCliDuckLakeConfig,
   patchDockerfile,
   patchDuckLakeTuning
-} from '../infra/ivekit/homer/apply-overlay.mjs';
+} from '../infra/converact/homer/apply-overlay.mjs';
 
-const overlay = readFileSync('infra/ivekit/homer/apply-overlay.mjs', 'utf8');
-const buildScript = readFileSync('infra/ivekit/homer/build.sh', 'utf8');
-const upstreamTests = readFileSync('infra/ivekit/homer/postgres_catalog_test.go', 'utf8');
+const overlay = readFileSync('infra/converact/homer/apply-overlay.mjs', 'utf8');
+const buildScript = readFileSync('infra/converact/homer/build.sh', 'utf8');
+const upstreamTests = readFileSync('infra/converact/homer/postgres_catalog_test.go', 'utf8');
 const patchedDockerfile = patchDockerfile('FROM golang:bookworm AS builder\n');
 
 test('HOMER fork identity is exact', () => {
@@ -113,12 +113,12 @@ test('HOMER build fixes Node and dependency resolution to immutable inputs', () 
 });
 
 test('HOMER Cell chart is PostgreSQL-only, private, persistent and off the call path', () => {
-  const values = readFileSync('infra/ivekit/homer/helm/ivekit-homer/values.yaml', 'utf8');
-  const helpers = readFileSync('infra/ivekit/homer/helm/ivekit-homer/templates/_helpers.tpl', 'utf8');
-  const workload = readFileSync('infra/ivekit/homer/helm/ivekit-homer/templates/statefulset.yaml', 'utf8');
-  const service = readFileSync('infra/ivekit/homer/helm/ivekit-homer/templates/service.yaml', 'utf8');
-  const policy = readFileSync('infra/ivekit/homer/helm/ivekit-homer/templates/networkpolicy.yaml', 'utf8');
-  const readme = readFileSync('infra/ivekit/homer/README.md', 'utf8');
+  const values = readFileSync('infra/converact/homer/helm/converact-homer/values.yaml', 'utf8');
+  const helpers = readFileSync('infra/converact/homer/helm/converact-homer/templates/_helpers.tpl', 'utf8');
+  const workload = readFileSync('infra/converact/homer/helm/converact-homer/templates/statefulset.yaml', 'utf8');
+  const service = readFileSync('infra/converact/homer/helm/converact-homer/templates/service.yaml', 'utf8');
+  const policy = readFileSync('infra/converact/homer/helm/converact-homer/templates/networkpolicy.yaml', 'utf8');
+  const readme = readFileSync('infra/converact/homer/README.md', 'utf8');
 
   assert.match(values, /catalogType: postgres/);
   assert.doesNotMatch(values, /catalogType: sqlite|\.sqlite\b/);

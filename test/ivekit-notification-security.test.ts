@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import {
   EncryptedNotificationProtector,
   NotificationError
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 const encryptionKey = Buffer.alloc(32, 7).toString('base64');
 const hmacKey = Buffer.alloc(32, 9).toString('base64');

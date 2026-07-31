@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import * as tinodeOverlay from '../infra/ivekit/tinode/apply-overlay.mjs';
+import * as tinodeOverlay from '../infra/converact/tinode/apply-overlay.mjs';
 
 import {
   TINODE_UPSTREAM_COMMIT,
@@ -20,7 +20,7 @@ import {
   patchTinodeMain,
   patchTinodeTopic,
   patchTinodeTopicInit
-} from '../infra/ivekit/tinode/apply-overlay.mjs';
+} from '../infra/converact/tinode/apply-overlay.mjs';
 
 test('Tinode owner overlay is exact-release bound', () => {
   assert.equal(TINODE_UPSTREAM_TAG, 'v0.25.3');
@@ -118,7 +118,7 @@ test('Tinode pinned source patch is exact and idempotent', () => {
 
 test('Tinode hot-path patch keeps personalized and cluster messages isolated', () => {
   const source = readFileSync(
-    'infra/ivekit/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch',
+    'infra/converact/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch',
     'utf8'
   );
 
@@ -137,7 +137,7 @@ test('Tinode hot-path patch keeps personalized and cluster messages isolated', (
 
 test('Tinode PostgreSQL bootstrap patch handles absent and precreated databases safely', () => {
   const source = readFileSync(
-    'infra/ivekit/tinode/patches/tinode-ivekit-postgres-bootstrap.patch',
+    'infra/converact/tinode/patches/tinode-ivekit-postgres-bootstrap.patch',
     'utf8'
   );
 
@@ -234,9 +234,9 @@ test('Tinode config overlay parameterizes stable StatefulSet cluster members', (
 });
 
 test('Tinode build files retain the real upstream compile boundary', () => {
-  const build = readFileSync('infra/ivekit/tinode/build.sh', 'utf8');
-  const readme = readFileSync('infra/ivekit/tinode/README.md', 'utf8');
-  const hook = readFileSync('infra/ivekit/tinode/server-hook.go', 'utf8');
+  const build = readFileSync('infra/converact/tinode/build.sh', 'utf8');
+  const readme = readFileSync('infra/converact/tinode/README.md', 'utf8');
+  const hook = readFileSync('infra/converact/tinode/server-hook.go', 'utf8');
 
   assert.match(
     build,

@@ -24,7 +24,7 @@ import {
   type VoiceRoute,
   type VoiceRouteVersion,
   type VoiceSipTrunk
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('Voice command worker runs one shared call/configuration batch and shutdown waits', async () => {
   const gate = deferred<void>();

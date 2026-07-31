@@ -28,7 +28,7 @@ import {
   type VoiceCallPlacementPort,
   type VoiceProtectedAddress,
   type VoiceProviderAdapter
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 test('Voice call service atomically creates compliant outbound calls without plaintext persistence', async () => {

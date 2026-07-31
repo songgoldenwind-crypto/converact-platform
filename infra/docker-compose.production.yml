@@ -265,7 +265,7 @@ services:
   rustpbx-route-snapshot:
     build: ..
     profiles: ["voice", "voice-capacity"]
-    command: ["node", "--import", "tsx", "src/ivekit-rustpbx-route-snapshot.ts"]
+    command: ["node", "--import", "tsx", "src/converact-rustpbx-route-snapshot.ts"]
     init: true
     restart: unless-stopped
     environment:

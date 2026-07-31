@@ -4,9 +4,9 @@ import { test } from 'node:test';
 import {
   inspectIveKitVoice,
   type IveKitVoicePreflightReport
-} from '../src/agent-runtime/ivekit/voice/preflight.js';
-import { voiceProfileConfigHash } from '../src/agent-runtime/ivekit/voice/deployment-profile-service.js';
-import type { VoiceDeploymentProfile } from '../src/agent-runtime/ivekit/voice/types.js';
+} from '../src/agent-runtime/converact/voice/preflight.js';
+import { voiceProfileConfigHash } from '../src/agent-runtime/converact/voice/deployment-profile-service.js';
+import type { VoiceDeploymentProfile } from '../src/agent-runtime/converact/voice/types.js';
 import type { PgQueryable } from '../src/db-pg.js';
 
 const ADDRESS_KEY = Buffer.alloc(32, 1).toString('base64');

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { startIveKitApplication } from '../src/agent-runtime/ivekit/application.js';
+import { startIveKitApplication } from '../src/agent-runtime/converact/application.js';
 import {
   iveKitIvrWorkerConfig,
   startIveKitIvrPendingActionWorker,
   type IveKitIvrWorkerConfig
-} from '../src/agent-runtime/ivekit/ivr/runtime.js';
+} from '../src/agent-runtime/converact/ivr/runtime.js';
 import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 
 test('IVR workers are disabled by default with bounded production defaults', () => {

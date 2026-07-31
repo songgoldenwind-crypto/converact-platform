@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import {
   SmtpNotificationProvider,
   type NotificationProviderDeliveryInput
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 test('SMTP provider sends a stable message and keeps provider acceptance distinct from delivery', async () => {
   let mail: Record<string, unknown> | null = null;

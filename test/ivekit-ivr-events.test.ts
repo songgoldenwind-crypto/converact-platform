@@ -4,10 +4,10 @@ import { test } from 'node:test';
 import {
   emitIvrSessionEvents,
   projectIvrSessionEvents
-} from '../src/agent-runtime/ivekit/ivr/events.js';
-import { IvrSessionActionCompletion } from '../src/agent-runtime/ivekit/ivr/session-action-completion.js';
-import type { IvrSessionService } from '../src/agent-runtime/ivekit/ivr/session-service.js';
-import type { IvrSessionResult } from '../src/agent-runtime/ivekit/ivr/session-service.js';
+} from '../src/agent-runtime/converact/ivr/events.js';
+import { IvrSessionActionCompletion } from '../src/agent-runtime/converact/ivr/session-action-completion.js';
+import type { IvrSessionService } from '../src/agent-runtime/converact/ivr/session-service.js';
+import type { IvrSessionResult } from '../src/agent-runtime/converact/ivr/session-service.js';
 
 test('IVR session events project bounded state without context or provider payloads', async () => {
   const result = sessionResult();

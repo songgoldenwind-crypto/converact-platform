@@ -6,7 +6,7 @@ import {
   type VoiceCallCommand,
   type VoiceParkingRepository,
   type VoiceParkingSlot
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('Voice parking reconciliation trusts only durable terminal slot states', async () => {
   let slot = parkingSlot();

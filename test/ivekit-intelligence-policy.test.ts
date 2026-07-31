@@ -8,7 +8,7 @@ import {
   type IntelligencePolicyUpdate
 } from '../src/agent-runtime/collaboration/intelligence-policy-store.js';
 import { createIntelligenceProviderRegistry } from '../src/agent-runtime/collaboration/intelligence-provider-registry.js';
-import { routeIveKitIntelligenceApi } from '../src/agent-runtime/ivekit/intelligence-http.js';
+import { routeIveKitIntelligenceApi } from '../src/agent-runtime/converact/intelligence-http.js';
 
 const providerEnv: NodeJS.ProcessEnv = {
   OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([

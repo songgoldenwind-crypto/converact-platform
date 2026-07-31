@@ -9,9 +9,9 @@ import {
   runWebPhoneSessionCleanupOnce,
   webPhoneSessionCleanupConfig,
   type WebPhoneExtensionSessionConfig
-} from '../src/agent-runtime/ivekit/voice/webphone-session-service.js';
+} from '../src/agent-runtime/converact/voice/webphone-session-service.js';
 import type { PgQueryable } from '../src/db-pg.js';
-import type { VoiceExtension } from '../src/agent-runtime/ivekit/voice/types.js';
+import type { VoiceExtension } from '../src/agent-runtime/converact/voice/types.js';
 
 const NOW = new Date('2026-07-19T08:00:00.000Z');
 const JWT_SECRET = 'webphone-jwt-secret-value-that-is-at-least-32-bytes';

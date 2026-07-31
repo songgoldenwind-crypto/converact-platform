@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   IveKitRetentionAdministrationService,
   type IveKitRetentionPolicyRepository
-} from '../src/agent-runtime/ivekit/operations/retention/index.js';
+} from '../src/agent-runtime/converact/operations/retention/index.js';
 
 test('retention administration validates policy bounds and legal hold reason codes', async () => {
   const calls: any[] = [];

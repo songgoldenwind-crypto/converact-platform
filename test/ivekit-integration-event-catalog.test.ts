@@ -5,7 +5,7 @@ import {
   IVEKIT_INTEGRATION_EVENT_CATALOG,
   matchesIveKitEventPattern,
   normalizeIveKitEventPatterns
-} from '../src/agent-runtime/ivekit/integration-events/catalog.js';
+} from '../src/agent-runtime/converact/integration-events/catalog.js';
 
 test('integration event catalog covers every shared foundation domain', () => {
   assert.equal(IVEKIT_INTEGRATION_EVENT_CATALOG.schema_version, 1);

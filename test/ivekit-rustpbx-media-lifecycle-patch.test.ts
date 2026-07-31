@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch';
 
 function effectivePatch(): string {
   return readFileSync(PATCH_PATH, 'utf8')
@@ -15,7 +15,7 @@ function effectivePatch(): string {
 
 test('RustPBX media lifecycle patch is ordered and exact-source applicable', () => {
   const patch = readFileSync(PATCH_PATH, 'utf8');
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
 
   assert.equal(
     spawnSync('git', ['apply', '--numstat', PATCH_PATH]).status,
@@ -110,7 +110,7 @@ test('local media profiles stay local and remote failures never silently bypass'
 test('media-control failures retain a safe diagnostic code across the lifecycle boundary', () => {
   const effective = effectivePatch();
   const clientPatch = readFileSync(
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-media-control-client.patch',
     'utf8'
   )
     .split('\n')

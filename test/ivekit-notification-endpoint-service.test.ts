@@ -7,7 +7,7 @@ import {
   type NotificationEndpoint,
   type NotificationEndpointAdminRepository,
   type NotificationEndpointCreateResult
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 class EndpointRepository implements NotificationEndpointAdminRepository {
   readonly items: NotificationEndpoint[] = [];

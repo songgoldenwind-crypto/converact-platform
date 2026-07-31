@@ -7,7 +7,7 @@ import {
   type NotificationDeliveryProvider,
   type NotificationEndpoint,
   type NotificationEndpointGovernanceRepository
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 test('notification resolver skips circuit-open endpoints and uses the next healthy priority', async () => {
   const primary = endpointRow({ id: 'primary', priority: 10 });

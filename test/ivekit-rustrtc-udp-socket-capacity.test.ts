@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const BUILD = 'infra/ivekit/rustpbx/build.sh';
+const BUILD = 'infra/converact/rustpbx/build.sh';
 const DEPENDENCY_PATCH =
-  'infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch';
+  'infra/converact/rustpbx/patches/rustpbx-local-rustrtc.patch';
 const SOCKET_PATCH =
-  'infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch';
+  'infra/converact/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch';
 
 test('RustPBX build pins and patches the rustrtc media transport source', () => {
   const build = readFileSync(BUILD, 'utf8');
@@ -43,7 +43,7 @@ test('RustPBX build pins and patches the rustrtc media transport source', () => 
 });
 
 test('RustPBX media documentation states socket-buffer memory and evidence limits', () => {
-  const readme = readFileSync('infra/ivekit/rustpbx/README.md', 'utf8');
+  const readme = readFileSync('infra/converact/rustpbx/README.md', 'utf8');
 
   assert.match(readme, /RUSTRTC_UDP_RECEIVE_BUFFER_BYTES/);
   assert.match(readme, /RUSTRTC_UDP_SEND_BUFFER_BYTES/);
@@ -55,9 +55,9 @@ test('Compose and Helm expose bounded rustrtc socket buffers to every RustPBX no
   for (const path of [
     'infra/capacity/rustpbx-baseline/docker-compose.yml',
     'infra/docker-compose.production.yml',
-    'services/ivekit-service/docker-compose.voice.yml',
+    'services/converact-service/docker-compose.voice.yml',
     'infra/k8s/templates/rustpbx-deployment.yaml',
-    'services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml'
+    'services/converact-service/helm/converact/templates/rustpbx-deployment.yaml'
   ]) {
     const deployment = readFileSync(path, 'utf8');
     assert.match(deployment, /RUSTRTC_UDP_RECEIVE_BUFFER_BYTES/, path);
@@ -66,7 +66,7 @@ test('Compose and Helm expose bounded rustrtc socket buffers to every RustPBX no
 
   for (const path of [
     'infra/k8s/values.yaml',
-    'services/ivekit-service/helm/ivekit/values.yaml'
+    'services/converact-service/helm/converact/values.yaml'
   ]) {
     const values = readFileSync(path, 'utf8');
     assert.match(values, /udpReceiveBufferBytes: 1048576/, path);

@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import test from 'node:test';
 
-import { createIveKitClient } from '../sdk/ivekit/src/index.js';
-import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
+import { createIveKitClient } from '../sdk/converact/src/index.js';
+import { routeIveKitMediaApi } from '../src/agent-runtime/converact/media-http.js';
 import type {
   IveKitMediaConnectionEventResult,
   IveKitMediaQualityReportResult,
@@ -12,7 +12,7 @@ import type {
 import { createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
-import { IveKitTenantEventStore } from '../src/agent-runtime/ivekit/tenant-event-store.js';
+import { IveKitTenantEventStore } from '../src/agent-runtime/converact/tenant-event-store.js';
 import { initWebSocket, shutdownWebSocket } from '../src/ws.js';
 
 const JWT_SECRET = 'livekit-media-quality-jwt-secret-32-bytes';

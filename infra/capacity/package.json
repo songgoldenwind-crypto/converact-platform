@@ -1,5 +1,5 @@
 {
-  "name": "@opc/ivekit-capacity-runtime",
+  "name": "@converact/capacity-runtime",
   "version": "0.1.0",
   "private": true,
   "type": "module",

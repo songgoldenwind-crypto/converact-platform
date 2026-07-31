@@ -15,16 +15,16 @@ import {
   MediaControlAgent,
   MediaControlError,
   type MediaControlAuthorityPort
-} from '../src/agent-runtime/ivekit/media-control/agent.js';
+} from '../src/agent-runtime/converact/media-control/agent.js';
 import {
   InMemoryMediaTransport,
   type SimulatedFailure
-} from '../src/agent-runtime/ivekit/media-control/simulator.js';
+} from '../src/agent-runtime/converact/media-control/simulator.js';
 import {
   mediaControlPayloadHash,
   type MediaControlAction,
   type MediaControlCommand
-} from '../src/agent-runtime/ivekit/media-control/protocol.js';
+} from '../src/agent-runtime/converact/media-control/protocol.js';
 
 const OWNER_EPOCH = ((7n << 32n) | 11n).toString();
 

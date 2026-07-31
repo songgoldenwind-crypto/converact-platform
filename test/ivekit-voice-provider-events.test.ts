@@ -12,7 +12,7 @@ import {
   type VoiceCall,
   type VoiceProviderEvent,
   type VoiceRecording
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 const NOW = '2026-07-13T06:00:00.000Z';

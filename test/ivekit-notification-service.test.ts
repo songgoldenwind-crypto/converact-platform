@@ -8,7 +8,7 @@ import {
   type CreateNotificationRecord,
   type NotificationCreateResult,
   type NotificationRepository
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 const encryptionKey = Buffer.alloc(32, 11).toString('base64');
 const hmacKey = Buffer.alloc(32, 13).toString('base64');

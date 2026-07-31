@@ -30,14 +30,14 @@ test('notification delivery work has stable indexed logical shards', () => {
 
 test('Helm deploys notification workers as dynamically scalable competing consumers', () => {
   const template = readFileSync(
-    'services/ivekit-service/helm/ivekit/templates/notification-worker.yaml',
+    'services/converact-service/helm/converact/templates/notification-worker.yaml',
     'utf8'
   );
   const values = readFileSync(
-    'services/ivekit-service/helm/ivekit/values.yaml',
+    'services/converact-service/helm/converact/values.yaml',
     'utf8'
   );
-  const worker = readFileSync('src/ivekit-worker.ts', 'utf8');
+  const worker = readFileSync('src/converact-worker.ts', 'utf8');
 
   assert.match(template, /kind: Deployment/i);
   assert.doesNotMatch(template, /partition_index="\$\{HOSTNAME##\*-\}"/);

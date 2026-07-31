@@ -7,15 +7,15 @@ import {
   RecordingSegmentUploadError,
   RecordingSegmentUploadService,
   type RecordingSegmentUploadStore
-} from '../src/agent-runtime/ivekit/recordings/recording-segment-upload-service.js';
+} from '../src/agent-runtime/converact/recordings/recording-segment-upload-service.js';
 import type {
   RecordingMultipartUpload,
   RecordingUploadLease,
   RecordingUploadPart
-} from '../src/agent-runtime/ivekit/recordings/postgres-recording-manifest-store.js';
+} from '../src/agent-runtime/converact/recordings/postgres-recording-manifest-store.js';
 import type {
   RecordingSegment
-} from '../src/agent-runtime/ivekit/recordings/recording-manifest.js';
+} from '../src/agent-runtime/converact/recordings/recording-manifest.js';
 
 const now = new Date('2026-07-17T04:00:00.000Z');
 

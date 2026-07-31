@@ -4,14 +4,14 @@ import test from 'node:test';
 import {
   LiveKitEgressPlacementAdapter,
   liveKitEgressPlacementPolicies
-} from '../src/agent-runtime/ivekit/placement/livekit-egress-placement.js';
-import type { ComponentPlacementCoordinatorPort } from '../src/agent-runtime/ivekit/placement/component-placement.js';
+} from '../src/agent-runtime/converact/placement/livekit-egress-placement.js';
+import type { ComponentPlacementCoordinatorPort } from '../src/agent-runtime/converact/placement/component-placement.js';
 import type {
   InteractionPlacementOwnerComponent,
   InteractionPlacementRecord,
   ReservedInteractionPlacement
-} from '../src/agent-runtime/ivekit/placement/interaction-placement.js';
-import type { PlacementRequest } from '../src/agent-runtime/ivekit/placement/types.js';
+} from '../src/agent-runtime/converact/placement/interaction-placement.js';
+import type { PlacementRequest } from '../src/agent-runtime/converact/placement/types.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 test('Egress placement uses disjoint Track and Composite capacity dimensions', async () => {

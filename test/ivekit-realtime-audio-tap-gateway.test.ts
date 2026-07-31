@@ -9,20 +9,20 @@ import test from 'node:test';
 import {
   createRealtimeAudioTapTokenCodec,
   type RealtimeAudioTapTokenClaims
-} from '../src/agent-runtime/ivekit/voice/realtime-audio-tap-token.js';
+} from '../src/agent-runtime/converact/voice/realtime-audio-tap-token.js';
 import {
   RustPbxRealtimeAudioTapGateway,
   type RustPbxRealtimeAudioTapGatewayEvent
-} from '../src/agent-runtime/ivekit/voice/rustpbx-realtime-audio-tap-gateway.js';
+} from '../src/agent-runtime/converact/voice/rustpbx-realtime-audio-tap-gateway.js';
 import {
   RustPbxAudioTapFrameDecoder,
   encodeRustPbxAudioTapFrame
-} from '../src/agent-runtime/ivekit/voice/rustpbx-audio-tap-protocol.js';
-import type { PolicyRealtimeSpeechRouter } from '../src/agent-runtime/ivekit/voice/realtime-speech-routing.js';
+} from '../src/agent-runtime/converact/voice/rustpbx-audio-tap-protocol.js';
+import type { PolicyRealtimeSpeechRouter } from '../src/agent-runtime/converact/voice/realtime-speech-routing.js';
 import type {
   RealtimeAudioFrame,
   RealtimeSpeechTranslationSession
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-translation.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-translation.js';
 
 const NOW = new Date('2026-07-23T04:00:00.000Z');
 const SECRET = Buffer.alloc(32, 7);

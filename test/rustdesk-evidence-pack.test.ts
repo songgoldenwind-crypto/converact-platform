@@ -135,7 +135,7 @@ test('RustDesk evidence pack accepts npm stdout wrappers around JSON artifacts',
   const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-evidence-json-'));
   const files = writeCompleteEvidenceFiles(dir);
   writeFileSync(files.readiness, [
-    '> opc-growth-platform@0.1.0 rustdesk:readiness',
+    '> converact-platform@0.1.0 rustdesk:readiness',
     '> tsx scripts/rustdesk-readiness.ts',
     '',
     JSON.stringify({ ok: true, steps: [{ name: 'remote-gateway', status: 'pass' }] }, null, 2)

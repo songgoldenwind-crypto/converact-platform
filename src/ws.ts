@@ -2,8 +2,8 @@ import type { Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { WebSocketServer, WebSocket } from 'ws';
-import type { IveKitTenantEvent } from './agent-runtime/ivekit/tenant-event-store.js';
-import { IveKitTenantEventStore } from './agent-runtime/ivekit/tenant-event-store.js';
+import type { IveKitTenantEvent } from './agent-runtime/converact/tenant-event-store.js';
+import { IveKitTenantEventStore } from './agent-runtime/converact/tenant-event-store.js';
 import { verifyAccessToken, type AuthRole } from './middleware/auth.js';
 import { getRedisPubSub } from './redis-pubsub.js';
 

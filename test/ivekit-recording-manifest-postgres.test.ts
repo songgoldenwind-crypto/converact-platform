@@ -5,12 +5,12 @@ import type { PgQueryable } from '../src/db-pg.js';
 import {
   PostgresRecordingManifestStore,
   RecordingManifestStoreError
-} from '../src/agent-runtime/ivekit/recordings/postgres-recording-manifest-store.js';
+} from '../src/agent-runtime/converact/recordings/postgres-recording-manifest-store.js';
 import {
   createRecordingManifest,
   createRecordingSegment,
   transitionRecordingSegment
-} from '../src/agent-runtime/ivekit/recordings/recording-manifest.js';
+} from '../src/agent-runtime/converact/recordings/recording-manifest.js';
 
 class RecordingPg implements PgQueryable {
   readonly calls: Array<{ text: string; params: unknown[] }> = [];

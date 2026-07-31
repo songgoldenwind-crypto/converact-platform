@@ -7,7 +7,7 @@ import {
   type IvrFlowGraph,
   type IvrNodeBase,
   type IvrNodeType
-} from '../src/agent-runtime/ivekit/ivr/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
 
 test('IVR executor deterministically runs start, set_var, condition, and time_condition', () => {
   const context = emptyContext();

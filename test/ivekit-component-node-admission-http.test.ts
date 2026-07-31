@@ -13,7 +13,7 @@ import {
   ComponentNodeAdmissionController,
   HttpComponentNodeAdmissionClient,
   createComponentNodeAdmissionHttpServer
-} from '../src/agent-runtime/ivekit/placement/index.js';
+} from '../src/agent-runtime/converact/placement/index.js';
 import { listenOnRandomPort } from './test-helpers.js';
 
 const token = 'component-node-service-token-1234567890';

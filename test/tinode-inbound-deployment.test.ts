@@ -9,8 +9,8 @@ test('Tinode inbound worker is configurable in OPC and standalone deployment sur
     'docker-compose.callcenter.yml',
     'infra/docker-compose.production.yml',
     'infra/k8s/templates/opc-deployment.yaml',
-    'services/ivekit-service/env.example',
-    'services/ivekit-service/docker-compose.yml'
+    'services/converact-service/env.example',
+    'services/converact-service/docker-compose.yml'
   ].map((path) => ({ path, content: readFileSync(path, 'utf8') }));
 
   for (const { path, content } of sources) {
@@ -31,7 +31,7 @@ test('Tinode inbound worker is configurable in OPC and standalone deployment sur
   for (const path of [
     'docker-compose.callcenter.yml',
     'infra/docker-compose.production.yml',
-    'services/ivekit-service/docker-compose.yml'
+    'services/converact-service/docker-compose.yml'
   ]) {
     const content = readFileSync(path, 'utf8');
     assert.match(content, /TINODE_WS_URL/, path);

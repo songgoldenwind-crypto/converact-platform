@@ -7,7 +7,7 @@ import {
   transitionNotificationDelivery,
   type NotificationDeliveryState,
   type NotificationDeliveryTransition
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 const ALLOWED: ReadonlyArray<{
   from: NotificationDeliveryState;

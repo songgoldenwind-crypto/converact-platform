@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createIveKitHttpSdk } from '../sdk/ivekit/src/http-sdk.js';
+import { createIveKitHttpSdk } from '../sdk/converact/src/http-sdk.js';
 
 test('iveKit SDK maps the complete secure file resume workflow', async () => {
   const calls: Array<{

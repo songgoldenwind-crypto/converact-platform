@@ -8,7 +8,7 @@ import {
   transitionVoiceCall,
   type VoiceCallState,
   type VoiceCallTransition
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 const ALLOWED_TRANSITIONS: ReadonlyArray<{
   from: VoiceCallState;

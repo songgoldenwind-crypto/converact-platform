@@ -2,24 +2,24 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-import type { BencodeDictionary } from '../src/agent-runtime/ivekit/media-control/bencode.js';
+import type { BencodeDictionary } from '../src/agent-runtime/converact/media-control/bencode.js';
 import {
   MediaControlAgent
-} from '../src/agent-runtime/ivekit/media-control/agent.js';
+} from '../src/agent-runtime/converact/media-control/agent.js';
 import {
   createMediaControlHttpServer
-} from '../src/agent-runtime/ivekit/media-control/http.js';
+} from '../src/agent-runtime/converact/media-control/http.js';
 import {
   mediaControlPayloadHash,
   type MediaControlCommand
-} from '../src/agent-runtime/ivekit/media-control/protocol.js';
-import type { RtpengineNgDtmfEvent } from '../src/agent-runtime/ivekit/media-control/rtpengine-ng.js';
+} from '../src/agent-runtime/converact/media-control/protocol.js';
+import type { RtpengineNgDtmfEvent } from '../src/agent-runtime/converact/media-control/rtpengine-ng.js';
 import {
   InMemoryMediaTransport
-} from '../src/agent-runtime/ivekit/media-control/simulator.js';
+} from '../src/agent-runtime/converact/media-control/simulator.js';
 import type {
   ProcessingTerminalEvent
-} from '../src/agent-runtime/ivekit/media-control/processing.js';
+} from '../src/agent-runtime/converact/media-control/processing.js';
 
 const TOKEN = 'media-event-test-token-0123456789';
 
@@ -76,7 +76,7 @@ describe('media-control event broker', () => {
   it('routes RTPengine DTMF only to the current RustPBX owner', async () => {
     const {
       MediaControlEventBroker
-    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    } = await import('../src/agent-runtime/converact/media-control/events.js');
     const broker = new MediaControlEventBroker({
       maxBindings: 8,
       maxRetainedEventsPerOwner: 8
@@ -130,7 +130,7 @@ describe('media-control event broker', () => {
     const {
       MediaControlEventBroker,
       MediaControlEventGapError
-    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    } = await import('../src/agent-runtime/converact/media-control/events.js');
     const broker = new MediaControlEventBroker({
       maxBindings: 2,
       maxRetainedEventsPerOwner: 2
@@ -159,7 +159,7 @@ describe('media-control event broker', () => {
   it('bounds call ownership and ignores malformed or unbound notifications', async () => {
     const {
       MediaControlEventBroker
-    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    } = await import('../src/agent-runtime/converact/media-control/events.js');
     const broker = new MediaControlEventBroker({
       maxBindings: 1,
       maxRetainedEventsPerOwner: 2
@@ -182,7 +182,7 @@ describe('media-control event broker', () => {
   it('durably publishes and deduplicates processing terminal events', async () => {
     const {
       MediaControlEventBroker
-    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    } = await import('../src/agent-runtime/converact/media-control/events.js');
     const appended: unknown[] = [];
     const broker = new MediaControlEventBroker({
       maxBindings: 8,
@@ -220,7 +220,7 @@ describe('media-control event broker', () => {
     const {
       MediaControlEventBroker,
       MEDIA_CONTROL_EVENT_PROTOCOL_VERSION
-    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    } = await import('../src/agent-runtime/converact/media-control/events.js');
     const restored = {
       protocol_version: MEDIA_CONTROL_EVENT_PROTOCOL_VERSION,
       event_sequence: 5,
@@ -288,7 +288,7 @@ describe('media-control event broker', () => {
   it('keeps RTPengine DTMF delivery independent from terminal WAL fsync', async () => {
     const {
       MediaControlEventBroker
-    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    } = await import('../src/agent-runtime/converact/media-control/events.js');
     let finishAppend!: () => void;
     const appendBarrier = new Promise<void>((resolve) => {
       finishAppend = resolve;
@@ -340,7 +340,7 @@ describe('media-control event broker', () => {
   it('binds committed commands and streams authenticated NDJSON events', async () => {
     const {
       MediaControlEventBroker
-    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    } = await import('../src/agent-runtime/converact/media-control/events.js');
     const broker = new MediaControlEventBroker({
       maxBindings: 8,
       maxRetainedEventsPerOwner: 8
@@ -413,7 +413,7 @@ describe('media-control event broker', () => {
   it('streams durable terminal events on an independent owner cursor', async () => {
     const {
       MediaControlEventBroker
-    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    } = await import('../src/agent-runtime/converact/media-control/events.js');
     const broker = new MediaControlEventBroker({
       maxBindings: 8,
       maxRetainedEventsPerOwner: 8,
@@ -491,10 +491,10 @@ describe('media-control event broker', () => {
   });
 
   it('deploys bounded event routing controls with the media-control agent', () => {
-    const env = readFileSync('infra/ivekit/env.example', 'utf8');
-    const compose = readFileSync('infra/ivekit/docker-compose.voice.yml', 'utf8');
+    const env = readFileSync('infra/converact/env.example', 'utf8');
+    const compose = readFileSync('infra/converact/docker-compose.voice.yml', 'utf8');
     const daemonset = readFileSync(
-      'infra/ivekit/helm/rtpengine/templates/daemonset.yaml',
+      'infra/converact/helm/rtpengine/templates/daemonset.yaml',
       'utf8'
     );
     for (const name of [

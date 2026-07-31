@@ -16,7 +16,7 @@ import {
   PostgresIvrSessionStepStore,
   PostgresIvrSessionUnitOfWork,
   type IvrFlowGraph
-} from '../src/agent-runtime/ivekit/ivr/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
 
 const url = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL;
 

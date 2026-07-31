@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   CellAdmissionController
-} from '../src/agent-runtime/ivekit/placement/admission.js';
+} from '../src/agent-runtime/converact/placement/admission.js';
 
 test('cell admission reserves all dimensions atomically and replays idempotently', () => {
   const controller = fixture();

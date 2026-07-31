@@ -6,10 +6,10 @@ import {
   HttpHomerMetricsClient,
   KamailioHepHighWaterController,
   type KamailioHepMode
-} from '../src/agent-runtime/ivekit/voice/kamailio-hep-high-water.js';
+} from '../src/agent-runtime/converact/voice/kamailio-hep-high-water.js';
 import {
   HttpKamailioJsonRpcClient
-} from '../src/agent-runtime/ivekit/voice/kamailio-route-agent.js';
+} from '../src/agent-runtime/converact/voice/kamailio-route-agent.js';
 
 const MODE_VALUE: Record<KamailioHepMode, number> = {
   full: 2,

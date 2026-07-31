@@ -1,0 +1,79 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ivekit.fullname" . }}-backup
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.backup.activeDeadlineSeconds }}
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "ivekit.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: backup
+              image: {{ include "ivekit.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: ["node", "dist/converact-backup.js"]
+              {{- with .Values.secrets.runtimeEnvironmentSecret }}
+              envFrom:
+                - secretRef:
+                    name: {{ . }}
+              {{- end }}
+              env:
+                - name: OPC_IVEKIT_ADMIN_DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "ivekit.secretName" . }}
+                      key: {{ .Values.secrets.adminDatabaseUrlKey }}
+                - name: OPC_IVEKIT_BACKUP_ROOT
+                  value: {{ .Values.backup.backupRoot | quote }}
+                {{- if .Values.backup.localObjectStorage.existingClaim }}
+                - name: OPC_UPLOAD_DIR
+                  value: {{ .Values.backup.localObjectStorage.mountPath | quote }}
+                {{- end }}
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: backup
+                  mountPath: {{ .Values.backup.backupRoot | quote }}
+                - name: tmp
+                  mountPath: /tmp
+                {{- if .Values.backup.localObjectStorage.existingClaim }}
+                - name: objects
+                  mountPath: {{ .Values.backup.localObjectStorage.mountPath | quote }}
+                  readOnly: true
+                {{- end }}
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: {{ required "backup.persistence.existingClaim is required when backup.enabled=true" .Values.backup.persistence.existingClaim }}
+            - name: tmp
+              emptyDir: {}
+            {{- if .Values.backup.localObjectStorage.existingClaim }}
+            - name: objects
+              persistentVolumeClaim:
+                claimName: {{ .Values.backup.localObjectStorage.existingClaim }}
+            {{- end }}
+{{- end }}

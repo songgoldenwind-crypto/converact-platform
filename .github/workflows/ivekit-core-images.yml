@@ -29,8 +29,8 @@ jobs:
             dockerfile: Dockerfile
             platforms: linux/amd64,linux/arm64
             prepare: none
-          - id: opc-frontend
-            image: ghcr.io/songgoldenwind-crypto/opc-frontend
+          - id: converact-console
+            image: ghcr.io/songgoldenwind-crypto/converact-console
             context: frontend
             dockerfile: frontend/Dockerfile
             platforms: linux/amd64,linux/arm64
@@ -49,8 +49,8 @@ jobs:
             prepare: none
           - id: kamailio
             image: ghcr.io/songgoldenwind-crypto/opc-ivekit-kamailio
-            context: infra/ivekit/kamailio
-            dockerfile: infra/ivekit/kamailio/Dockerfile
+            context: infra/converact/kamailio
+            dockerfile: infra/converact/kamailio/Dockerfile
             platforms: linux/amd64,linux/arm64
             prepare: none
           - id: ai-agent

@@ -7,9 +7,9 @@ import test from 'node:test';
 import {
   createPlacementSnapshotProjector,
   placementSnapshotProjectorConfig
-} from '../src/ivekit-placement-snapshot-projector.js';
-import { PlacementSnapshotSigner } from '../src/agent-runtime/ivekit/placement/index.js';
-import type { SignedPlacementSnapshot } from '../src/agent-runtime/ivekit/placement/types.js';
+} from '../src/converact-placement-snapshot-projector.js';
+import { PlacementSnapshotSigner } from '../src/agent-runtime/converact/placement/index.js';
+import type { SignedPlacementSnapshot } from '../src/agent-runtime/converact/placement/types.js';
 
 test('placement snapshot projector aggregates authenticated Cell state into an atomic signed snapshot', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'ivekit-placement-projector-'));

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createIveKitHttpSdk } from '../sdk/ivekit/src/http-sdk.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
+import { createIveKitHttpSdk } from '../sdk/converact/src/http-sdk.js';
+import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 

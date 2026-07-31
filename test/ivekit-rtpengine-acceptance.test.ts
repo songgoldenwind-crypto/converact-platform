@@ -27,7 +27,7 @@ import {
   type RtpengineAcceptanceAdmissionIdentity,
   type RtpengineAcceptanceAdmissionPort
 } from '../scripts/ivekit-rtpengine-acceptance.js';
-import { mediaControlPayloadHash } from '../src/agent-runtime/ivekit/media-control/protocol.js';
+import { mediaControlPayloadHash } from '../src/agent-runtime/converact/media-control/protocol.js';
 import {
   prepareIsolatedRtpengineEnvironment,
   loadRtpengineAcceptanceCliConfig
@@ -36,7 +36,7 @@ import {
 describe('iveKit RTPengine media generator', () => {
   it('ships the signalling templates referenced by media-control profiles', () => {
     const configuration = readFileSync(
-      'infra/ivekit/rtpengine/rtpengine.conf.template',
+      'infra/converact/rtpengine/rtpengine.conf.template',
       'utf8'
     );
 

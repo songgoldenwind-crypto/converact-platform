@@ -3,8 +3,8 @@ import { createHash } from 'node:crypto';
 import {
   DEFAULT_RUSTPBX_MANAGEMENT_PATHS,
   RustPbxManagementClient
-} from '../src/agent-runtime/ivekit/voice/adapters/rustpbx-management.js';
-import { EnvVoiceSecretResolver } from '../src/agent-runtime/ivekit/voice/secret-resolver.js';
+} from '../src/agent-runtime/converact/voice/adapters/rustpbx-management.js';
+import { EnvVoiceSecretResolver } from '../src/agent-runtime/converact/voice/secret-resolver.js';
 
 const runId = required('IVEKIT_ACCEPTANCE_RUN_ID');
 if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(runId)) throw new Error('invalid IVEKIT_ACCEPTANCE_RUN_ID');

@@ -26,7 +26,7 @@ export interface IveKitReleaseContract {
     policy: 'forward_only_expand_contract';
     manifest_path: 'service/migration-manifest.json';
     manifest_sha256: string;
-    runner: 'node dist/ivekit-migrate.js';
+    runner: 'node dist/converact-migrate.js';
     advisory_lock: 'ivekit_schema_migrations';
     required: [
       '061_ivekit_file_security.sql',
@@ -100,7 +100,7 @@ export function createIveKitReleaseOperations(
       policy: 'forward_only_expand_contract',
       manifest_path: 'service/migration-manifest.json',
       manifest_sha256: input.migrationManifestSha256,
-      runner: 'node dist/ivekit-migrate.js',
+      runner: 'node dist/converact-migrate.js',
       advisory_lock: 'ivekit_schema_migrations',
       required: [
         '061_ivekit_file_security.sql',

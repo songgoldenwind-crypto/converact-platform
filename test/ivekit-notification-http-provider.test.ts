@@ -5,9 +5,9 @@ import { test } from 'node:test';
 import {
   HttpNotificationProvider,
   type NotificationProviderDeliveryInput
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 import { pinnedNotificationHttpRequest, resolveNotificationHttpDestination } from
-  '../src/agent-runtime/ivekit/notifications/providers/http-destination.js';
+  '../src/agent-runtime/converact/notifications/providers/http-destination.js';
 
 test('pinned notification transport connects to the validated address without resolving again', async (t) => {
   let host = '';

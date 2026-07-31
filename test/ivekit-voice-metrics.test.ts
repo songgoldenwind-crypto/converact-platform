@@ -7,7 +7,7 @@ import {
   observeVoiceCommand,
   observeVoiceProviderEvent,
   voiceMetricDefinitions
-} from '../src/agent-runtime/ivekit/voice/metrics.js';
+} from '../src/agent-runtime/converact/voice/metrics.js';
 
 test('Voice metrics use only bounded labels and forbid tenant or resource identities', () => {
   const forbidden = new Set([

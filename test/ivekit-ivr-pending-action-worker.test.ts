@@ -7,7 +7,7 @@ import {
   IvrPendingActionWorker,
   type IvrPendingAction,
   type IvrPendingActionRepository
-} from '../src/agent-runtime/ivekit/ivr/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
 
 test('IVR pending action worker claims and completes a durable action once', async () => {
   const actions = new MemoryActions([pendingAction()]);

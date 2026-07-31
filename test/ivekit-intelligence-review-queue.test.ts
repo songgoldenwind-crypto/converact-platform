@@ -6,7 +6,7 @@ import { signAccessToken } from '../src/middleware/auth.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { CollaborationMessageStateStore } from '../src/agent-runtime/collaboration/message-state-store.js';
 import { PolicyFindingStore } from '../src/agent-runtime/collaboration/policy-finding-store.js';
-import { routeIveKitIntelligenceApi } from '../src/agent-runtime/ivekit/intelligence-http.js';
+import { routeIveKitIntelligenceApi } from '../src/agent-runtime/converact/intelligence-http.js';
 
 test('tenant finding queue is authorized, filtered, cursor-paged, and deletion aware', async () => {
   const previousSecret = process.env.OPC_JWT_SECRET;

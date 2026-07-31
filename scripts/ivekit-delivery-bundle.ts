@@ -183,7 +183,7 @@ export interface BuildIveKitDeliveryBundleOptions {
 }
 
 const STANDALONE_MIGRATIONS = [
-  'services/ivekit-service/migrations/000_ivekit_foundation.sql',
+  'services/converact-service/migrations/000_ivekit_foundation.sql',
   'src/migrations/009_tenant_rls.sql',
   'src/migrations/010_force_rls.sql',
   '011_collaboration_remote_assistance.sql',
@@ -261,7 +261,7 @@ const STANDALONE_MIGRATIONS = [
   '087_livekit_egress_jobs.sql',
   '088_livekit_egress_reconciliation.sql',
   '089_livekit_egress_capacity_metrics.sql',
-  'services/ivekit-service/migrations/090_ivekit_runtime_security.sql',
+  'services/converact-service/migrations/090_ivekit_runtime_security.sql',
   '091_ivekit_capacity_scaling_campaigns.sql',
   '092_ivekit_capacity_platform_campaigns.sql',
   '093_ivekit_cell_admission_rls.sql',
@@ -328,27 +328,27 @@ const CAPACITY_RUNTIME_SOURCE_PATHS = [
   'scripts/capacity/scaling-campaign.ts',
   'scripts/capacity/scaling-curve.ts',
   'scripts/capacity/shard-lease.ts',
-  'services/ivekit-service/acceptance/sipp/answer-bye-uac.xml',
-  'src/ivekit-component-node-admission.ts',
-  'src/ivekit-placement-snapshot-projector.ts',
+  'services/converact-service/acceptance/sipp/answer-bye-uac.xml',
+  'src/converact-component-node-admission.ts',
+  'src/converact-placement-snapshot-projector.ts',
   'src/infra/nats-connection-options.ts',
-  'src/agent-runtime/ivekit/placement/admission-http.ts',
-  'src/agent-runtime/ivekit/placement/admission-ledger.ts',
-  'src/agent-runtime/ivekit/placement/admission.ts',
-  'src/agent-runtime/ivekit/placement/cell-lease.ts',
-  'src/agent-runtime/ivekit/placement/component-node-admission-http.ts',
-  'src/agent-runtime/ivekit/placement/component-node-admission.ts',
-  'src/agent-runtime/ivekit/placement/component-node-sync.ts',
-  'src/agent-runtime/ivekit/placement/component-node-topology.ts',
-  'src/agent-runtime/ivekit/placement/owner-epoch.ts',
-  'src/agent-runtime/ivekit/placement/pg-queryable.ts',
-  'src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts',
-  'src/agent-runtime/ivekit/placement/snapshot.ts',
-  'src/agent-runtime/ivekit/placement/types.ts',
-  'src/agent-runtime/ivekit/recordings/recording-manifest.ts',
-  'src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.ts',
-  'src/agent-runtime/ivekit/voice/rustpbx-media-readiness.ts',
-  'src/agent-runtime/ivekit/voice/rustpbx-route-snapshot-envelope.ts'
+  'src/agent-runtime/converact/placement/admission-http.ts',
+  'src/agent-runtime/converact/placement/admission-ledger.ts',
+  'src/agent-runtime/converact/placement/admission.ts',
+  'src/agent-runtime/converact/placement/cell-lease.ts',
+  'src/agent-runtime/converact/placement/component-node-admission-http.ts',
+  'src/agent-runtime/converact/placement/component-node-admission.ts',
+  'src/agent-runtime/converact/placement/component-node-sync.ts',
+  'src/agent-runtime/converact/placement/component-node-topology.ts',
+  'src/agent-runtime/converact/placement/owner-epoch.ts',
+  'src/agent-runtime/converact/placement/pg-queryable.ts',
+  'src/agent-runtime/converact/placement/rustdesk-owner-binding.ts',
+  'src/agent-runtime/converact/placement/snapshot.ts',
+  'src/agent-runtime/converact/placement/types.ts',
+  'src/agent-runtime/converact/recordings/recording-manifest.ts',
+  'src/agent-runtime/converact/recordings/rustpbx-recording-spool-capacity.ts',
+  'src/agent-runtime/converact/voice/rustpbx-media-readiness.ts',
+  'src/agent-runtime/converact/voice/rustpbx-route-snapshot-envelope.ts'
 ] as const;
 
 export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
@@ -363,7 +363,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'env.example',
     'init-rustpbx-database.sh'
   ].map((name) => ({
-    source: `services/ivekit-service/${name}`,
+    source: `services/converact-service/${name}`,
     destination: `deploy/application/${name}`
   })),
   ...[
@@ -399,7 +399,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'files/prometheus-rules.yaml',
     'files/grafana-dashboard.json'
   ].map((name) => ({
-    source: `services/ivekit-service/helm/ivekit/${name}`,
+    source: `services/converact-service/helm/converact/${name}`,
     destination: `deploy/kubernetes/ivekit/${name}`
   })),
   ...[
@@ -412,7 +412,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'templates/pdb.yaml',
     'templates/servicemonitor.yaml'
   ].map((name) => ({
-    source: `infra/ivekit/homer/helm/ivekit-homer/${name}`,
+    source: `infra/converact/homer/helm/converact-homer/${name}`,
     destination: `deploy/kubernetes/homer/${name}`
   })),
   ...[
@@ -421,7 +421,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'apply-overlay.mjs',
     'postgres_catalog_test.go'
   ].map((name) => ({
-    source: `infra/ivekit/homer/${name}`,
+    source: `infra/converact/homer/${name}`,
     destination: `deploy/homer-source/${name}`
   })),
   ...[
@@ -444,15 +444,15 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     destination: 'acceptance/rustpbx-recording-isolation/capacity/sipp-rtp-check.ts'
   },
   {
-    source: 'services/ivekit-service/acceptance/rustpbx-recording-isolation/docker-compose.yml',
+    source: 'services/converact-service/acceptance/rustpbx-recording-isolation/docker-compose.yml',
     destination: 'acceptance/rustpbx-recording-isolation/docker-compose.yml'
   },
   {
-    source: 'services/ivekit-service/acceptance/rustpbx-recording-isolation/owner-admission.mjs',
+    source: 'services/converact-service/acceptance/rustpbx-recording-isolation/owner-admission.mjs',
     destination: 'acceptance/rustpbx-recording-isolation/owner-admission.mjs'
   },
   {
-    source: 'services/ivekit-service/acceptance/rustpbx-recording-isolation/bootstrap-inbound-trunk.py',
+    source: 'services/converact-service/acceptance/rustpbx-recording-isolation/bootstrap-inbound-trunk.py',
     destination: 'acceptance/rustpbx-recording-isolation/bootstrap-inbound-trunk.py'
   },
   {
@@ -460,7 +460,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     destination: 'acceptance/kamailio-sip-edge/runner.ts'
   },
   {
-    source: 'src/agent-runtime/ivekit/voice/kamailio-webphone-acceptance.ts',
+    source: 'src/agent-runtime/converact/voice/kamailio-webphone-acceptance.ts',
     destination: 'acceptance/kamailio-sip-edge/webphone-runner.ts'
   },
   ...[
@@ -473,11 +473,11 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'scenarios/forged-headers-uac.xml',
     'scenarios/kdmq-expect-403-uac.xml'
   ].map((name) => ({
-    source: `services/ivekit-service/acceptance/kamailio-sip-edge/${name}`,
+    source: `services/converact-service/acceptance/kamailio-sip-edge/${name}`,
     destination: `acceptance/kamailio-sip-edge/${name}`
   })),
   ...['README.md', 'package.json', 'package-lock.json'].map((name) => ({
-    source: `services/ivekit-service/acceptance/livekit-storage-isolation/${name}`,
+    source: `services/converact-service/acceptance/livekit-storage-isolation/${name}`,
     destination: `acceptance/livekit-storage-isolation/${name}`
   })),
   ...STANDALONE_MIGRATIONS.map((source) => ({
@@ -633,7 +633,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'ivekit-rustdesk-led-example.ts'
   ].map((name) => ({ source: `scripts/${name}`, destination: `examples/${name}` })),
   {
-    source: 'sdk/ivekit/examples/webhook-receiver.ts',
+    source: 'sdk/converact/examples/webhook-receiver.ts',
     destination: 'examples/ivekit-webhook-receiver.ts'
   },
   ...[
@@ -642,14 +642,14 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'Cargo.lock',
     'entrypoint.sh',
     'build.sh'
-  ].map((name) => ({ source: `infra/ivekit/rustpbx/${name}`, destination: `deploy/rustpbx/${name}` })),
+  ].map((name) => ({ source: `infra/converact/rustpbx/${name}`, destination: `deploy/rustpbx/${name}` })),
   ...[
     'README.md',
     'Dockerfile',
     'build.sh'
-  ].map((name) => ({ source: `infra/ivekit/kamailio/${name}`, destination: `deploy/kamailio/${name}` })),
+  ].map((name) => ({ source: `infra/converact/kamailio/${name}`, destination: `deploy/kamailio/${name}` })),
   {
-    source: 'infra/ivekit/kamailio/patches/0001-dispatcher-retain-probe-state.patch',
+    source: 'infra/converact/kamailio/patches/0001-dispatcher-retain-probe-state.patch',
     destination: 'deploy/kamailio/patches/0001-dispatcher-retain-probe-state.patch'
   },
   ...[
@@ -692,7 +692,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rustpbx-ivekit-processing-terminal-events.patch',
     'rustpbx-ivekit-processing-ivr-execution.patch'
   ].map((name) => ({
-    source: `infra/ivekit/rustpbx/patches/${name}`,
+    source: `infra/converact/rustpbx/patches/${name}`,
     destination: `deploy/rustpbx/patches/${name}`
   })),
   ...[
@@ -700,11 +700,11 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'apply-overlay.mjs',
     'build.sh'
   ].map((name) => ({
-    source: `infra/ivekit/livekit/${name}`,
+    source: `infra/converact/livekit/${name}`,
     destination: `deploy/livekit-fork/${name}`
   })),
   {
-    source: 'infra/ivekit/livekit/patches/livekit-ivekit-small-room-hot-path.patch',
+    source: 'infra/converact/livekit/patches/livekit-ivekit-small-room-hot-path.patch',
     destination: 'deploy/livekit-fork/patches/livekit-ivekit-small-room-hot-path.patch'
   },
   ...[
@@ -713,8 +713,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'build.sh',
     'ivekit_metrics.go'
   ].map((name) => ({
-    source: `infra/ivekit/livekit-egress/${name}`,
-    destination: `components/livekit-egress/infra/ivekit/livekit-egress/${name}`
+    source: `infra/converact/livekit-egress/${name}`,
+    destination: `components/livekit-egress/infra/converact/livekit-egress/${name}`
   })),
   ...[
     'go.mod',
@@ -734,8 +734,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     destination: `components/livekit-egress/infra/k8s/${destination}`
   })),
   ...['README.md', 'build.sh', 'Dockerfile'].map((name) => ({
-    source: `infra/ivekit/livekit-sip/${name}`,
-    destination: `components/livekit-sip/infra/ivekit/livekit-sip/${name}`
+    source: `infra/converact/livekit-sip/${name}`,
+    destination: `components/livekit-sip/infra/converact/livekit-sip/${name}`
   })),
   ...[
     'README.md',
@@ -743,11 +743,11 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'build.sh',
     'server-hook.go'
   ].map((name) => ({
-    source: `infra/ivekit/tinode/${name}`,
+    source: `infra/converact/tinode/${name}`,
     destination: `deploy/tinode-fork/${name}`
   })),
   {
-    source: 'infra/ivekit/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch',
+    source: 'infra/converact/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch',
     destination: 'deploy/tinode-fork/patches/tinode-ivekit-session-fanout-hot-path.patch'
   },
   ...[
@@ -758,15 +758,15 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'Dockerfile.dockerignore',
     'server-hook.rs'
   ].map((name) => ({
-    source: `infra/ivekit/rustdesk-server/${name}`,
+    source: `infra/converact/rustdesk-server/${name}`,
     destination: `deploy/rustdesk-server-fork/${name}`
   })),
   {
-    source: 'infra/ivekit/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch',
+    source: 'infra/converact/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch',
     destination: 'deploy/rustdesk-server-fork/patches/rustdesk-server-ivekit-relay-hot-path.patch'
   },
   ...['relay-hot-path.rs', 'run.sh'].map((name) => ({
-    source: `infra/ivekit/rustdesk-server/bench/${name}`,
+    source: `infra/converact/rustdesk-server/bench/${name}`,
     destination: `deploy/rustdesk-server-fork/bench/${name}`
   })),
   {
@@ -774,11 +774,11 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     destination: 'deploy/rustdesk-server-fork/ivekit-rustdesk-owner-binding.ts'
   },
   {
-    source: 'src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts',
+    source: 'src/agent-runtime/converact/placement/rustdesk-owner-binding.ts',
     destination: 'fork-hooks/rustdesk-server/rustdesk-owner-binding.ts'
   },
   {
-    source: 'services/ivekit-service/acceptance/rustpbx-router.py',
+    source: 'services/converact-service/acceptance/rustpbx-router.py',
     destination: 'acceptance/rustpbx/router.py'
   },
   ...[
@@ -798,7 +798,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'register-invalid-digest-uac.xml',
     'unavailable-503-uas.xml'
   ].map((name) => ({
-    source: `services/ivekit-service/acceptance/sipp/${name}`,
+    source: `services/converact-service/acceptance/sipp/${name}`,
     destination: `acceptance/rustpbx/sipp/${name}`
   })),
   {
@@ -872,15 +872,15 @@ const RUSTPBX_ACCEPTANCE_GENERATED_FILES = [
   'acceptance/rustpbx/scripts/ivekit-rustpbx-management-acceptance.js',
   'acceptance/rustpbx/scripts/ivekit-rustpbx-rwi-acceptance.js',
   'acceptance/rustpbx/scripts/ivekit-rustpbx-sipp-acceptance.js',
-  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/adapters/rustpbx-management.js',
-  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/adapters/rustpbx-rwi.js',
-  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/canonical.js',
-  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/capabilities.js',
-  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/errors.js',
-  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/media-control-profile.js',
-  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/ports.js',
-  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/secret-resolver.js',
-  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/types.js',
+  'acceptance/rustpbx/src/agent-runtime/converact/voice/adapters/rustpbx-management.js',
+  'acceptance/rustpbx/src/agent-runtime/converact/voice/adapters/rustpbx-rwi.js',
+  'acceptance/rustpbx/src/agent-runtime/converact/voice/canonical.js',
+  'acceptance/rustpbx/src/agent-runtime/converact/voice/capabilities.js',
+  'acceptance/rustpbx/src/agent-runtime/converact/voice/errors.js',
+  'acceptance/rustpbx/src/agent-runtime/converact/voice/media-control-profile.js',
+  'acceptance/rustpbx/src/agent-runtime/converact/voice/ports.js',
+  'acceptance/rustpbx/src/agent-runtime/converact/voice/secret-resolver.js',
+  'acceptance/rustpbx/src/agent-runtime/converact/voice/types.js',
   'acceptance/rustpbx/src/db-pg.js',
   'acceptance/rustpbx/src/postgres-migrations.js'
 ] as const;
@@ -1299,10 +1299,10 @@ export function buildIveKitDeliveryBundle(
         'deploy/livekit/docker-compose.yml',
         'deploy/livekit/docker-compose.storage.yml',
         'deploy/livekit/env.example',
-        'components/livekit-egress/infra/ivekit/livekit-egress/README.md',
-        'components/livekit-egress/infra/ivekit/livekit-egress/apply-overlay.mjs',
-        'components/livekit-egress/infra/ivekit/livekit-egress/build.sh',
-        'components/livekit-egress/infra/ivekit/livekit-egress/ivekit_metrics.go',
+        'components/livekit-egress/infra/converact/livekit-egress/README.md',
+        'components/livekit-egress/infra/converact/livekit-egress/apply-overlay.mjs',
+        'components/livekit-egress/infra/converact/livekit-egress/build.sh',
+        'components/livekit-egress/infra/converact/livekit-egress/ivekit_metrics.go',
         'components/livekit-egress/integrations/livekit-egress-v1.13.0/go.mod',
         'components/livekit-egress/integrations/livekit-egress-v1.13.0/policy.go',
         'components/livekit-egress/integrations/livekit-egress-v1.13.0/policy_test.go',
@@ -1356,7 +1356,7 @@ export function buildIveKitDeliveryBundle(
   const sbom = JSON.parse(run(
     'npm',
     ['sbom', '--package-lock-only', '--sbom-format', 'spdx'],
-    join(repoRoot, 'services', 'ivekit-service')
+    join(repoRoot, 'services', 'converact-service')
   )) as Record<string, unknown>;
   writeFileSync(join(outputDir, 'service', 'sbom.spdx.json'), `${JSON.stringify(sbom, null, 2)}\n`, 'utf8');
   writeFileSync(join(outputDir, 'README.md'), renderBundleReadme(), 'utf8');
@@ -1445,8 +1445,8 @@ export function buildIveKitDeliveryBundle(
       operations: 'docs/ivekit-v3-intelligence-operations.md',
       release_operations: 'operations/upgrade-runbook.md',
       completion_audit: 'docs/ivekit-v3-completion-audit.md',
-      intelligence_preflight: 'service/build-context/src/ivekit-intelligence-preflight.ts',
-      voice_preflight: 'service/build-context/src/ivekit-voice-preflight.ts',
+      intelligence_preflight: 'service/build-context/src/converact-intelligence-preflight.ts',
+      voice_preflight: 'service/build-context/src/converact-voice-preflight.ts',
       voice_compose: 'service/build-context/docker-compose.voice.yml',
       voice_helm: 'deploy/kubernetes/ivekit/',
       voice_acceptance_template: 'acceptance/voice-real-template.json',
@@ -1617,9 +1617,9 @@ function prepareBundleFromCli(): { outputDir: string; manifest: IveKitDeliveryMa
   );
   const stagingDir = mkdtempSync(join(tmpdir(), 'ivekit-delivery-build-'));
   try {
-    run('npm', ['--prefix', 'sdk/ivekit', 'run', 'build'], repoRoot);
-    run('npm', ['--prefix', 'clients/ivekit-reference', 'run', 'build'], repoRoot);
-    const packed = run('npm', ['pack', './sdk/ivekit', '--json', '--pack-destination', stagingDir], repoRoot);
+    run('npm', ['--prefix', 'sdk/converact', 'run', 'build'], repoRoot);
+    run('npm', ['--prefix', 'clients/converact-reference', 'run', 'build'], repoRoot);
+    const packed = run('npm', ['pack', './sdk/converact', '--json', '--pack-destination', stagingDir], repoRoot);
     const packResult = JSON.parse(packed) as Array<{ filename: string }>;
     const filename = packResult[0]?.filename;
     if (!filename) throw new Error('npm pack did not return an SDK filename');
@@ -1657,7 +1657,7 @@ function renderBundleReadme(): string {
     '',
     '## Contents',
     '',
-    '- `sdk/`: installable `@opc/ivekit-sdk` npm package.',
+    '- `sdk/`: installable `@converact/sdk` npm package.',
     '- `client/`: production reference client static assets.',
     '- `deploy/application/`: standalone iveKit service Compose with PostgreSQL and optional RustPBX overlay.',
     '- `deploy/kubernetes/ivekit/`: standalone digest-pinned Helm Chart with a migration gate.',

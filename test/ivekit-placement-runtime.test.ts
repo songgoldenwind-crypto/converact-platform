@@ -8,11 +8,11 @@ import {
   FilePlacementRuntime,
   PlacementSnapshotSigner,
   placementRuntimeConfig
-} from '../src/agent-runtime/ivekit/placement/index.js';
+} from '../src/agent-runtime/converact/placement/index.js';
 import type {
   PlacementSnapshotBody,
   SignedPlacementSnapshot
-} from '../src/agent-runtime/ivekit/placement/types.js';
+} from '../src/agent-runtime/converact/placement/types.js';
 
 test('file placement runtime refreshes signed snapshots and targets the selected Cell admission endpoint', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'ivekit-placement-runtime-'));

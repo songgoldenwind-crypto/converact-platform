@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 
-import { RtpengineNgClient } from '../src/agent-runtime/ivekit/media-control/rtpengine-ng.js';
+import { RtpengineNgClient } from '../src/agent-runtime/converact/media-control/rtpengine-ng.js';
 
 const host = String(process.env.IVEKIT_RTPENGINE_NG_HOST || '').trim();
 const port = boundedInteger(

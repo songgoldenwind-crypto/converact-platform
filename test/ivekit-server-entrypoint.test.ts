@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 test('iveKit entrypoint starts only the reusable communication runtime', () => {
-  const source = readFileSync('src/ivekit-server.ts', 'utf8');
+  const source = readFileSync('src/converact-server.ts', 'utf8');
   assert.match(source, /createIveKitHttpServer/);
   assert.match(source, /startIveKitApplication/);
   assert.match(source, /initWebSocket/);
@@ -24,18 +24,18 @@ test('package exposes the iveKit production start command', () => {
   const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
     scripts?: Record<string, string>;
   };
-  assert.equal(pkg.scripts?.['start:ivekit'], 'tsx src/ivekit-server.ts');
-  assert.equal(pkg.scripts?.['start:ivekit:worker'], 'tsx src/ivekit-worker.ts');
+  assert.equal(pkg.scripts?.['start:ivekit'], 'tsx src/converact-server.ts');
+  assert.equal(pkg.scripts?.['start:ivekit:worker'], 'tsx src/converact-worker.ts');
   assert.equal(
     pkg.scripts?.['start:ivekit:realtime-audio-tap'],
-    'tsx src/ivekit-realtime-audio-tap-worker.ts'
+    'tsx src/converact-realtime-audio-tap-worker.ts'
   );
   const servicePackage = JSON.parse(
-    readFileSync('services/ivekit-service/package.json', 'utf8')
+    readFileSync('services/converact-service/package.json', 'utf8')
   ) as { scripts?: Record<string, string> };
   assert.equal(
     servicePackage.scripts?.['start:realtime-audio-tap'],
-    'node dist/ivekit-realtime-audio-tap-worker.js'
+    'node dist/converact-realtime-audio-tap-worker.js'
   );
   assert.equal(
     pkg.scripts?.['test:ivekit:foundation'],
@@ -52,7 +52,7 @@ test('standalone iveKit dependency path does not load the SQLite database module
   assert.doesNotMatch(compatibilitySource, /node:sqlite|createDatabase|call-center/);
 
   for (const filename of [
-    'src/agent-runtime/ivekit/media-hooks.ts',
+    'src/agent-runtime/converact/media-hooks.ts',
     'src/agent-runtime/livekit/webhook-handler.ts',
     'src/agent-runtime/livekit/recording-service.ts',
     'src/agent-runtime/livekit/room-store.ts',
@@ -71,7 +71,7 @@ test('standalone iveKit dependency path does not load the SQLite database module
 
   const imported = spawnSync(
     process.execPath,
-    ['--import', 'tsx', '-e', "import('./src/agent-runtime/ivekit/http-server.ts')"],
+    ['--import', 'tsx', '-e', "import('./src/agent-runtime/converact/http-server.ts')"],
     { encoding: 'utf8' }
   );
   assert.equal(imported.status, 0, imported.stderr);

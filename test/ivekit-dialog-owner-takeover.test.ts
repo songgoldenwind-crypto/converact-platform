@@ -5,7 +5,7 @@ import test from 'node:test';
 import {
   DialogRecoveryCapsuleCodec,
   type DialogRecoveryCapsulePayload
-} from '../src/agent-runtime/ivekit/voice/dialog-recovery-capsule.js';
+} from '../src/agent-runtime/converact/voice/dialog-recovery-capsule.js';
 import {
   DialogOwnerTakeoverCoordinator,
   DialogOwnerTakeoverError,
@@ -14,12 +14,12 @@ import {
   type DialogOwnerTakeoverClaimWrite,
   type DialogOwnerTakeoverConsumeWrite,
   type DialogOwnerTakeoverStore
-} from '../src/agent-runtime/ivekit/voice/dialog-owner-takeover.js';
+} from '../src/agent-runtime/converact/voice/dialog-owner-takeover.js';
 import {
   dialogShadowPairHash,
   type
   DialogShadowRecord
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow.js';
 
 const KEY = Buffer.alloc(32, 0x55);
 const HASH_A = 'a'.repeat(64);

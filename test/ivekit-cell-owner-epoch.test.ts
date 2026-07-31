@@ -6,7 +6,7 @@ import {
   compareOwnerEpoch,
   composeOwnerEpoch,
   splitOwnerEpoch
-} from '../src/agent-runtime/ivekit/placement/owner-epoch.js';
+} from '../src/agent-runtime/converact/placement/owner-epoch.js';
 
 test('owner epoch composes cell lease and local sequence without JS integer loss', () => {
   const epoch = composeOwnerEpoch(7, 3);

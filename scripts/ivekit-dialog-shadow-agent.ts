@@ -1,1 +1,1 @@
-import '../src/ivekit-dialog-shadow-agent.js';
+import '../src/converact-dialog-shadow-agent.js';

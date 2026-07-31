@@ -8,7 +8,7 @@ import {
   type NotificationPreference,
   type NotificationTemplate,
   type NotificationTemplateVersion
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 test('published notification templates render variables and reject unpublished or missing values', async () => {
   const repository = repositoryStub();

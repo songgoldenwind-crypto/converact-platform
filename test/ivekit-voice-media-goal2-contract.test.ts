@@ -49,7 +49,7 @@ test('Goal 2 freezes exact RTPengine source and patch identities', () => {
   assert.equal(document.source.archive_size_bytes, 6_987_926);
   assert.equal(
     document.source.source_lock_path,
-    'infra/ivekit/rtpengine/source-lock.json'
+    'infra/converact/rtpengine/source-lock.json'
   );
   assert.equal(
     document.source.patch_set_id,
@@ -76,7 +76,7 @@ test('Goal 2 freezes exact RTPengine source and patch identities', () => {
   const hash = createHash('sha256');
   for (const patch of lock.patch_set.patches) {
     hash.update(`${patch.id}\0${patch.path}\0`);
-    hash.update(readFileSync(`infra/ivekit/rtpengine/${patch.path}`));
+    hash.update(readFileSync(`infra/converact/rtpengine/${patch.path}`));
     hash.update('\0');
   }
   assert.equal(hash.digest('hex'), document.source.patch_set_sha256);

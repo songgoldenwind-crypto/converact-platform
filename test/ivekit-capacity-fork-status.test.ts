@@ -191,25 +191,25 @@ test('RustPBX fork manifest tracks the ivekit.40 product patchset', () => {
   const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.40-6c49ee76';
   assert.equal(rustpbx.runtime_artifact.reference, expectedReference);
   for (const path of [
-    'infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-cdr-mtls-noop.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-tracing.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch'
+    'infra/converact/rustpbx/patches/rustpbx-local-rustrtc.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-media-control-client.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-cdr-mtls-noop.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-media-tracing.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch',
+    'infra/converact/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch'
   ]) {
     assert.ok(rustpbx.patches?.some((patch) => patch.path === path), path);
   }
@@ -253,7 +253,7 @@ test('rustrtc fork manifest pins the UDP socket-capacity patch', () => {
   assert.ok(
     rustrtc.patches?.some(
       (patch) => patch.path ===
-        'infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch'
+        'infra/converact/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch'
     )
   );
   assert.ok(
@@ -323,19 +323,19 @@ test('Tinode fork status records native mutation and exact-release owner overlay
   );
   assert.ok(
     tinode.verification.evidence_paths?.includes(
-      'infra/ivekit/tinode/apply-overlay.mjs'
+      'infra/converact/tinode/apply-overlay.mjs'
     )
   );
   assert.ok(
     tinode.patches?.some(
-      (patch) => patch.path === 'infra/ivekit/tinode/apply-overlay.mjs'
+      (patch) => patch.path === 'infra/converact/tinode/apply-overlay.mjs'
     )
   );
   assert.ok(
     tinode.patches?.some(
       (patch) =>
         patch.path ===
-        'infra/ivekit/tinode/patches/tinode-ivekit-postgres-bootstrap.patch'
+        'infra/converact/tinode/patches/tinode-ivekit-postgres-bootstrap.patch'
     )
   );
   assert.ok(
@@ -349,7 +349,7 @@ test('Tinode fork status records native mutation and exact-release owner overlay
     );
     assert.equal(
       component?.patches?.some(
-        (patch) => patch.path === 'infra/ivekit/tinode/apply-overlay.mjs'
+        (patch) => patch.path === 'infra/converact/tinode/apply-overlay.mjs'
       ),
       false
     );
@@ -429,12 +429,12 @@ test('LiveKit fork status records the owner overlay without claiming a built pro
   assert.equal(livekit.verification.integration, 'partial');
   assert.ok(
     livekit.verification.evidence_paths?.includes(
-      'infra/ivekit/livekit/apply-overlay.mjs'
+      'infra/converact/livekit/apply-overlay.mjs'
     )
   );
   assert.ok(
     livekit.patches?.some(
-      (patch) => patch.path === 'infra/ivekit/livekit/apply-overlay.mjs'
+      (patch) => patch.path === 'infra/converact/livekit/apply-overlay.mjs'
     )
   );
   assert.equal(livekit.runtime_artifact.kind, 'custom_candidate');
@@ -481,7 +481,7 @@ test('LiveKit Egress fork status records hard pool fencing without claiming a de
   );
   assert.ok(
     egress.verification.evidence_paths?.includes(
-      'infra/ivekit/livekit-egress/apply-overlay.mjs'
+      'infra/converact/livekit-egress/apply-overlay.mjs'
     )
   );
   assert.equal(egress.release_gate.production_eligible, false);
@@ -528,8 +528,8 @@ test('LiveKit Ingress fork status records exact-source delivery without claiming
     'ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-ingress:v1.5.0-ivekit.1-363f6090'
   );
   for (const path of [
-    'infra/ivekit/livekit-ingress/apply-overlay.mjs',
-    'infra/ivekit/livekit-ingress/build.sh'
+    'infra/converact/livekit-ingress/apply-overlay.mjs',
+    'infra/converact/livekit-ingress/build.sh'
   ]) {
     assert.ok(ingress.patches?.some((patch) => patch.path === path), path);
   }
@@ -583,11 +583,11 @@ test('LiveKit SIP is reproducibly built from the exact upstream commit without c
   );
   assert.ok(
     sip.verification.evidence_paths?.includes(
-      'infra/ivekit/livekit-sip/build.sh'
+      'infra/converact/livekit-sip/build.sh'
     )
   );
-  assert.equal(existsSync('infra/ivekit/livekit-sip/build.sh'), true);
-  assert.equal(existsSync('infra/ivekit/livekit-sip/README.md'), true);
+  assert.equal(existsSync('infra/converact/livekit-sip/build.sh'), true);
+  assert.equal(existsSync('infra/converact/livekit-sip/README.md'), true);
   assert.equal(sip.runtime_artifact.kind, 'custom_candidate');
   assert.equal(sip.runtime_artifact.contains_declared_modifications, true);
   assert.equal(sip.release_gate.production_eligible, false);
@@ -604,8 +604,8 @@ test('LiveKit SIP is reproducibly built from the exact upstream commit without c
 });
 
 test('LiveKit SIP build script rejects source drift and verifies its runtime identity', () => {
-  const build = readFileSync('infra/ivekit/livekit-sip/build.sh', 'utf8');
-  const dockerfile = readFileSync('infra/ivekit/livekit-sip/Dockerfile', 'utf8');
+  const build = readFileSync('infra/converact/livekit-sip/build.sh', 'utf8');
+  const dockerfile = readFileSync('infra/converact/livekit-sip/Dockerfile', 'utf8');
   const workflow = readFileSync('.github/workflows/ivekit-livekit-sip-image.yml', 'utf8');
 
   assert.match(build, /git -C "\$\{LIVEKIT_SIP_SOURCE_DIR\}" rev-parse HEAD/);
@@ -711,12 +711,12 @@ test('RustDesk Server fork status records the compiled relay hot path without cl
   assert.equal(rustdeskServer.verification.benchmark, 'not_run');
   assert.ok(
     rustdeskServer.verification.evidence_paths?.includes(
-      'infra/ivekit/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch'
+      'infra/converact/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch'
     )
   );
   assert.ok(
     rustdeskServer.patches?.some(
-      (patch) => patch.path === 'infra/ivekit/rustdesk-server/Dockerfile'
+      (patch) => patch.path === 'infra/converact/rustdesk-server/Dockerfile'
     )
   );
   for (const componentId of ['rustpbx', 'rsipstack', 'tinode-server']) {
@@ -725,7 +725,7 @@ test('RustDesk Server fork status records the compiled relay hot path without cl
     );
     assert.equal(
       component?.patches?.some(
-        (patch) => patch.path === 'infra/ivekit/rustdesk-server/Dockerfile'
+        (patch) => patch.path === 'infra/converact/rustdesk-server/Dockerfile'
       ),
       false
     );

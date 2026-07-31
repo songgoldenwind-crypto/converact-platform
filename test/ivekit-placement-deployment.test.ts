@@ -4,15 +4,15 @@ import test from 'node:test';
 
 test('standalone Helm deploys placement as a signed snapshot sidecar with a read-only API mount', () => {
   const deployment = readFileSync(
-    'services/ivekit-service/helm/ivekit/templates/deployment.yaml',
+    'services/converact-service/helm/converact/templates/deployment.yaml',
     'utf8'
   );
   const values = readFileSync(
-    'services/ivekit-service/helm/ivekit/values.yaml',
+    'services/converact-service/helm/converact/values.yaml',
     'utf8'
   );
   assert.match(deployment, /name: placement-snapshot-projector/);
-  assert.match(deployment, /dist\/ivekit-placement-snapshot-projector\.js/);
+  assert.match(deployment, /dist\/converact-placement-snapshot-projector\.js/);
   assert.match(deployment, /OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON/);
   assert.match(deployment, /OPC_IVEKIT_PLACEMENT_TOKEN_HMAC_KEYS_JSON/);
   assert.match(deployment, /OPC_IVEKIT_CELL_ADMISSION_TOKEN/);
@@ -31,15 +31,15 @@ test('standalone Helm deploys placement as a signed snapshot sidecar with a read
 
 test('standalone Compose and source policy ship the placement projector and migration', () => {
   const compose = readFileSync(
-    'services/ivekit-service/docker-compose.yml',
+    'services/converact-service/docker-compose.yml',
     'utf8'
   );
   const policy = JSON.parse(readFileSync(
-    'services/ivekit-service/source-policy.json',
+    'services/converact-service/source-policy.json',
     'utf8'
   )) as { entrypoints: string[]; migrations: string[] };
   const servicePackage = JSON.parse(readFileSync(
-    'services/ivekit-service/package.json',
+    'services/converact-service/package.json',
     'utf8'
   )) as { scripts: Record<string, string> };
   assert.match(compose, /placement-projector:/);
@@ -48,7 +48,7 @@ test('standalone Compose and source policy ship the placement projector and migr
   assert.match(compose, /OPC_IVEKIT_PLACEMENT_EGRESS_TRACK_POLICY_JSON/);
   assert.match(compose, /OPC_IVEKIT_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON/);
   assert.equal(
-    policy.entrypoints.includes('src/ivekit-placement-snapshot-projector.ts'),
+    policy.entrypoints.includes('src/converact-placement-snapshot-projector.ts'),
     true
   );
   assert.equal(
@@ -65,7 +65,7 @@ test('standalone Compose and source policy ship the placement projector and migr
   );
   assert.equal(
     servicePackage.scripts['project:placement'],
-    'node dist/ivekit-placement-snapshot-projector.js'
+    'node dist/converact-placement-snapshot-projector.js'
   );
 });
 
@@ -88,7 +88,7 @@ test('Cell admission examples declare component capabilities instead of intercha
 });
 
 test('RustPBX deployment admits the configured voice placement profile', () => {
-  const env = readFileSync('infra/ivekit/env.example', 'utf8');
+  const env = readFileSync('infra/converact/env.example', 'utf8');
   const policy = JSON.parse(envValue(
     env,
     'OPC_IVEKIT_PLACEMENT_VOICE_POLICY_JSON'
@@ -117,10 +117,10 @@ test('RustPBX deployment admits the configured voice placement profile', () => {
 
 test('standalone Cell deployment admits Tinode through its native owner guard', () => {
   const compose = readFileSync(
-    'infra/ivekit/docker-compose.voice.yml',
+    'infra/converact/docker-compose.voice.yml',
     'utf8'
   );
-  const env = readFileSync('infra/ivekit/env.example', 'utf8');
+  const env = readFileSync('infra/converact/env.example', 'utf8');
 
   const tinode = serviceBlock(compose, 'tinode');
   const componentNode = serviceBlock(compose, 'tinode-component-node');

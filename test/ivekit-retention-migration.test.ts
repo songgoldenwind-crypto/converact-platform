@@ -5,7 +5,7 @@ import test from 'node:test';
 test('iveKit retention migration defines policies, legal holds, leases and controlled audit deletion', () => {
   const sql = readFileSync('src/migrations/068_ivekit_retention.sql', 'utf8');
   const runtimeSecurity = readFileSync(
-    'services/ivekit-service/migrations/090_ivekit_runtime_security.sql',
+    'services/converact-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'
   );
   for (const table of [

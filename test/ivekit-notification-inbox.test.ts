@@ -7,7 +7,7 @@ import {
   type NotificationInboxRepository,
   type NotificationDeliveryRecord,
   type NotificationRecord
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 class MemoryInbox implements Pick<NotificationInboxRepository, 'upsertInboxItem'> {
   readonly items: NotificationInboxItem[] = [];

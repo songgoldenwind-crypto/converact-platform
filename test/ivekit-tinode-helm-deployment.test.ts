@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const root = new URL('../services/ivekit-service/helm/ivekit/', import.meta.url);
+const root = new URL('../services/converact-service/helm/converact/', import.meta.url);
 
 function chartFile(path: string): string {
   return readFileSync(new URL(path, root), 'utf8');
@@ -76,7 +76,7 @@ test('bundled Tinode bootstraps its service account before API startup and enabl
   };
 
   assert.match(apiDeployment, /name: tinode-service-account-bootstrap/);
-  assert.match(apiDeployment, /command: \["node", "dist\/ivekit-tinode-bootstrap\.js"\]/);
+  assert.match(apiDeployment, /command: \["node", "dist\/converact-tinode-bootstrap\.js"\]/);
   assert.match(
     apiDeployment,
     /name: TINODE_POSTGRES_DSN[\s\S]*?key: \{\{ \.Values\.tinode\.secrets\.postgresDsnKey \}\}/
@@ -96,8 +96,8 @@ test('bundled Tinode bootstraps its service account before API startup and enabl
   assert.match(values, /inboundWorkerEnabled: "1"/);
   assert.match(apiDeployment, /name: TINODE_PUBLIC_WS_URL/);
   assert.match(values, /publicWsUrl: ""/);
-  assert.ok(sourcePolicy.entrypoints.includes('src/ivekit-tinode-bootstrap.ts'));
-  assert.equal(servicePackage.scripts['bootstrap:tinode'], 'node dist/ivekit-tinode-bootstrap.js');
+  assert.ok(sourcePolicy.entrypoints.includes('src/converact-tinode-bootstrap.ts'));
+  assert.equal(servicePackage.scripts['bootstrap:tinode'], 'node dist/converact-tinode-bootstrap.js');
 });
 
 test('Tinode Helm values keep secrets external and document compact and cluster modes', () => {

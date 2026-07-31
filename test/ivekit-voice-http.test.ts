@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 
-import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/index.js';
+import { createIveKitHttpServer } from '../src/agent-runtime/converact/index.js';
 import {
   VoiceError,
   routeIveKitVoiceApi,
   sipFoundation,
   type VoiceExtension,
   type VoiceHttpModule
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 import { createDatabase } from '../src/db.js';
 import type { PgQueryable } from '../src/db-pg.js';
 import { getPgTenantContext } from '../src/db-pg-tenant.js';

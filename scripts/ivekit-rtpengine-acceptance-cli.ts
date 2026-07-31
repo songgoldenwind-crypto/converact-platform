@@ -13,18 +13,18 @@ import { fileURLToPath } from 'node:url';
 
 import {
   RtpengineNgClient
-} from '../src/agent-runtime/ivekit/media-control/rtpengine-ng.js';
+} from '../src/agent-runtime/converact/media-control/rtpengine-ng.js';
 import {
   HttpCellAdmissionClient
-} from '../src/agent-runtime/ivekit/placement/admission-http.js';
+} from '../src/agent-runtime/converact/placement/admission-http.js';
 import {
   composeOwnerEpoch,
   splitOwnerEpoch
-} from '../src/agent-runtime/ivekit/placement/owner-epoch.js';
+} from '../src/agent-runtime/converact/placement/owner-epoch.js';
 import type {
   AdmissionReservation,
   CapacityRequirement
-} from '../src/agent-runtime/ivekit/placement/types.js';
+} from '../src/agent-runtime/converact/placement/types.js';
 import {
   RTPENGINE_ACCEPTANCE_REQUIRED_CHECKS,
   buildRtpengineAcceptanceEvidence,

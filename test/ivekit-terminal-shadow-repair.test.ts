@@ -4,16 +4,16 @@ import test from 'node:test';
 import {
   DialogRecoveryCapsuleCodec,
   type DialogRecoveryCapsulePayload
-} from '../src/agent-runtime/ivekit/voice/dialog-recovery-capsule.js';
+} from '../src/agent-runtime/converact/voice/dialog-recovery-capsule.js';
 import {
   DialogTerminalShadowRepairWorker,
   type DialogTerminalShadowRepairClaim,
   type DialogTerminalShadowRepairStore
-} from '../src/agent-runtime/ivekit/voice/dialog-terminal-shadow-repair.js';
+} from '../src/agent-runtime/converact/voice/dialog-terminal-shadow-repair.js';
 import {
   dialogShadowPairHash,
   type DialogShadowRecord
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow.js';
 
 const KEY = Buffer.alloc(32, 0x71);
 const CDR_HASH = 'd'.repeat(64);

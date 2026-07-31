@@ -778,7 +778,7 @@ test('quality worker claim lease covers the longest configured provider reservat
 
 test('production server starts quality worker and refreshes review after attachment extraction', () => {
   const server = readFileSync('src/server.ts', 'utf8');
-  const application = readFileSync('src/agent-runtime/ivekit/application.ts', 'utf8');
+  const application = readFileSync('src/agent-runtime/converact/application.ts', 'utf8');
   assert.match(server, /startIveKitApplication/);
   assert.match(server, /await iveKitApplication\.stop\(\)/);
   assert.match(application, /startQualityReviewWorker/);

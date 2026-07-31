@@ -33,8 +33,8 @@ test('reconciliation runtime is explicit, bounded, and present in delivery templ
     OPC_LIVEKIT_EGRESS_RECONCILIATION_RETRY_MAX_MS: '5000'
   }), /RETRY_MAX_MS/);
 
-  const compose = readFileSync('services/ivekit-service/docker-compose.yml', 'utf8');
-  const values = readFileSync('services/ivekit-service/helm/ivekit/values.yaml', 'utf8');
+  const compose = readFileSync('services/converact-service/docker-compose.yml', 'utf8');
+  const values = readFileSync('services/converact-service/helm/converact/values.yaml', 'utf8');
   const runtime = readFileSync('src/agent-runtime/livekit/egress-reconciliation-runtime.ts', 'utf8');
   const migration = readFileSync('src/migrations/089_livekit_egress_capacity_metrics.sql', 'utf8');
   assert.match(compose, /OPC_LIVEKIT_EGRESS_RECONCILIATION_ENABLED/);

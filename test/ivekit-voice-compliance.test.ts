@@ -7,7 +7,7 @@ import {
   type VoiceCallUnitOfWorkContext,
   type VoiceConsent,
   type VoicePolicy
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 const NOW = '2026-07-13T09:00:00.000Z';
 

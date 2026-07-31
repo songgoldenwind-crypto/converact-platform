@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import {
   WebhookNotificationProvider,
   type NotificationProviderDeliveryInput
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 test('webhook provider signs a stable payload and treats 2xx as delivered', async () => {
   let request: { url: string; init: RequestInit } | null = null;

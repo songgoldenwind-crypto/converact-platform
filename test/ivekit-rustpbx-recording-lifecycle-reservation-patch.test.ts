@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch';
 
 test('RustPBX reserves asynchronous recording start and releases every lifecycle edge', () => {
   assert.equal(existsSync(PATCH_PATH), true, `${PATCH_PATH} is required`);
@@ -23,7 +23,7 @@ test('RustPBX reserves asynchronous recording start and releases every lifecycle
 });
 
 test('recording lifecycle reservation is reproducible and recorded in the fork manifest', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
   assert.match(
     build,
     /rustpbx-ivekit-session-media-profile\.patch"[\s\S]*rustpbx-ivekit-recording-lifecycle-reservation\.patch"/

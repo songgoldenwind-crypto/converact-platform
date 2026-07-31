@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createIveKitClient } from '../sdk/ivekit/src/index.js';
-import type { IveKitIntelligencePolicyWrite } from '../sdk/ivekit/src/intelligence-types.js';
+import { createIveKitClient } from '../sdk/converact/src/index.js';
+import type { IveKitIntelligencePolicyWrite } from '../sdk/converact/src/intelligence-types.js';
 
 test('SDK policy write supports route-native requests without legacy primary fields', () => {
   const routeNative: IveKitIntelligencePolicyWrite = {

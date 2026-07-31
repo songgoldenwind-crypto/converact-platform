@@ -3,16 +3,16 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const patchPath =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-capacity.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-capacity.patch';
 const databasePolicyPatchPath =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch';
 const runtimeIsolationPatchPath =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch';
 const failureTelemetryPatchPath =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch';
 
 test('RustPBX bounds and observes the asynchronous call-record queue', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
   const patch = readFileSync(patchPath, 'utf8');
 
   assert.match(build, /rustpbx-ivekit-callrecord-capacity\.patch/);
@@ -44,7 +44,7 @@ test('RustPBX removes per-call info and expected rejection warning logs', () => 
 });
 
 test('RustPBX can omit the duplicate local CDR database hook behind an explicit policy', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
   const patch = readFileSync(databasePolicyPatchPath, 'utf8');
 
   assert.match(
@@ -60,7 +60,7 @@ test('RustPBX can omit the duplicate local CDR database hook behind an explicit 
 });
 
 test('RustPBX isolates call-record sinks from SIP transaction workers', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
   const patch = readFileSync(runtimeIsolationPatchPath, 'utf8');
 
   assert.match(
@@ -76,7 +76,7 @@ test('RustPBX isolates call-record sinks from SIP transaction workers', () => {
 });
 
 test('RustPBX counts sink failures without per-record warning amplification', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
   const patch = readFileSync(failureTelemetryPatchPath, 'utf8');
 
   assert.match(

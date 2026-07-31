@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   IveKitVoiceOverflowAdapter
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 
 test('Contact Center overflow adapter maps terminal actions to durable Voice commands', async () => {
   const observed: unknown[] = [];

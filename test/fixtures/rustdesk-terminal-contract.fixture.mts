@@ -3,10 +3,10 @@ import type {
   RustDeskDisconnectState,
   RustDeskOperationEvidence,
   RustDeskOperationObservedEvidence
-} from '../../sdk/ivekit/src/types.js';
+} from '../../sdk/converact/src/types.js';
 import type {
   IveKitRustDeskGatewayDisconnectState
-} from '../../sdk/ivekit/src/rustdesk-http-client.js';
+} from '../../sdk/converact/src/rustdesk-http-client.js';
 
 const reference = {
   type: 'operator_report',

@@ -17,7 +17,7 @@ import { closeCollaborationSession } from '../src/agent-runtime/collaboration/co
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
 import { TinodeProviderUserStore } from '../src/agent-runtime/collaboration/tinode-provider-user-store.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
+import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import {
   TinodeMessageDeliveryService,
   type TinodeDeliveryRunSummary

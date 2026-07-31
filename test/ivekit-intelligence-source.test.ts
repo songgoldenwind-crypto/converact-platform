@@ -8,7 +8,7 @@ import { createPolicyAttachmentProviderResolver } from '../src/agent-runtime/col
 import { IntelligenceSourceService } from '../src/agent-runtime/collaboration/intelligence-source-service.js';
 import { RemoteAssistanceStore } from '../src/agent-runtime/collaboration/remote-assistance-store.js';
 import type { EgressRecord } from '../src/agent-runtime/livekit/types.js';
-import { routeIveKitIntelligenceApi } from '../src/agent-runtime/ivekit/intelligence-http.js';
+import { routeIveKitIntelligenceApi } from '../src/agent-runtime/converact/intelligence-http.js';
 
 test('media recording import creates one system message, attachment, ASR job, and idempotent source link', async () => {
   const pg = new MemoryPg();

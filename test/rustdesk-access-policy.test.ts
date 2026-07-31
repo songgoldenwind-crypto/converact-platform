@@ -9,17 +9,17 @@ import {
   createCollaborationModule
 } from '../src/agent-runtime/collaboration/index.js';
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
-import { createIveKitModule } from '../src/agent-runtime/ivekit/module.js';
+import { createIveKitModule } from '../src/agent-runtime/converact/module.js';
 import type { RemoteGatewayClient } from '../src/agent-runtime/collaboration/remote-gateway-client.js';
 import { RustDeskDeviceStore } from '../src/agent-runtime/collaboration/rustdesk-device-store.js';
 import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 import { signAccessToken, type AuthRole } from '../src/middleware/auth.js';
-import { createIveKitRustDeskHttpClient } from '../sdk/ivekit/src/rustdesk-http-client.js';
+import { createIveKitRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
 import type {
   ConfigureIveKitRustDeskAccessPolicyInput,
   IveKitRustDeskAccessPolicyHttpClient,
   IveKitRustDeskHttpClient
-} from '../src/agent-runtime/ivekit/index.js';
+} from '../src/agent-runtime/converact/index.js';
 
 const compilePolicyInput: ConfigureIveKitRustDeskAccessPolicyInput = {
   mode: 'unattended_allowed',

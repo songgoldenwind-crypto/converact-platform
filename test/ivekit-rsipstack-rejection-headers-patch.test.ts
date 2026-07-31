@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rsipstack-ivekit-rejection-headers.patch';
+  'infra/converact/rustpbx/patches/rsipstack-ivekit-rejection-headers.patch';
 
 test('rsipstack preserves overload Retry-After and Reason headers', () => {
   assert.equal(existsSync(PATCH_PATH), true, `${PATCH_PATH} is required`);
@@ -20,7 +20,7 @@ test('rsipstack preserves overload Retry-After and Reason headers', () => {
 });
 
 test('the rejection-header patch follows prepared INVITE and is recorded', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
   assert.match(
     build,
     /rsipstack-ivekit-prepared-invite\.patch"[\s\S]*rsipstack-ivekit-rejection-headers\.patch"/

@@ -87,8 +87,8 @@ test('intelligence preflight reports missing token refs and invalid profile JSON
 test('package exposes the unified intelligence preflight command', () => {
   const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> };
   assert.equal(pkg.scripts['ivekit:intelligence-preflight'], 'tsx scripts/ivekit-intelligence-preflight.ts');
-  const standalone = JSON.parse(readFileSync('services/ivekit-service/package.json', 'utf8')) as {
+  const standalone = JSON.parse(readFileSync('services/converact-service/package.json', 'utf8')) as {
     scripts: Record<string, string>;
   };
-  assert.equal(standalone.scripts['preflight:intelligence'], 'node dist/ivekit-intelligence-preflight.js');
+  assert.equal(standalone.scripts['preflight:intelligence'], 'node dist/converact-intelligence-preflight.js');
 });

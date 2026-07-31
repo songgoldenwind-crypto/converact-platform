@@ -1,0 +1,6 @@
+apiVersion: v2
+name: converact-rtpengine
+description: Node-local RTPengine and durable iveKit media control
+type: application
+version: 0.1.0
+appVersion: "mr26.0.1.13"

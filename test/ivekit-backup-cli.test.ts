@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
-import { parseIveKitBackupCli } from '../src/ivekit-backup.js';
-import { parseIveKitRestoreCli } from '../src/ivekit-restore.js';
+import { parseIveKitBackupCli } from '../src/converact-backup.js';
+import { parseIveKitRestoreCli } from '../src/converact-restore.js';
 
 test('backup CLI creates a unique backup directory under an explicit root', () => {
   const options = parseIveKitBackupCli(

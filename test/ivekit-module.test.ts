@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';
-import { createIveKitModule } from '../src/agent-runtime/ivekit/index.js';
+import { createIveKitModule } from '../src/agent-runtime/converact/index.js';
 import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
 import {
   LocalChatGateway,

@@ -33,7 +33,7 @@ test('worker backlog metrics are aggregate-only and callable by the runtime role
 
 test('backlog observer publishes bounded low-cardinality Prometheus metrics', () => {
   const observer = readFileSync(
-    'src/agent-runtime/ivekit/operations/worker-backlog-metrics.ts',
+    'src/agent-runtime/converact/operations/worker-backlog-metrics.ts',
     'utf8'
   );
 
@@ -46,13 +46,13 @@ test('backlog observer publishes bounded low-cardinality Prometheus metrics', ()
 });
 
 test('Helm provides fixed worker pools and backlog-driven KEDA without arbitrary worker env', () => {
-  const values = readFileSync('services/ivekit-service/helm/ivekit/values.yaml', 'utf8');
+  const values = readFileSync('services/converact-service/helm/converact/values.yaml', 'utf8');
   const template = readFileSync(
-    'services/ivekit-service/helm/ivekit/templates/async-worker-pools.yaml',
+    'services/converact-service/helm/converact/templates/async-worker-pools.yaml',
     'utf8'
   );
   const helpers = readFileSync(
-    'services/ivekit-service/helm/ivekit/templates/_helpers.tpl',
+    'services/converact-service/helm/converact/templates/_helpers.tpl',
     'utf8'
   );
 
@@ -79,11 +79,11 @@ test('Helm provides fixed worker pools and backlog-driven KEDA without arbitrary
 
 test('observability profile enables one API backlog observer and keeps workers off API pods', () => {
   const profile = readFileSync(
-    'services/ivekit-service/helm/ivekit/profiles/observability.values.yaml',
+    'services/converact-service/helm/converact/profiles/observability.values.yaml',
     'utf8'
   );
   const aiProfile = readFileSync(
-    'services/ivekit-service/helm/ivekit/profiles/ai.values.yaml',
+    'services/converact-service/helm/converact/profiles/ai.values.yaml',
     'utf8'
   );
 

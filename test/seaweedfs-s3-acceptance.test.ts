@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const compose = read('services/ivekit-service/acceptance/seaweedfs-s3/docker-compose.yml');
-const probe = read('services/ivekit-service/acceptance/seaweedfs-s3/probe.ts');
-const acceptance = read('services/ivekit-service/acceptance/seaweedfs-s3/accept.sh');
+const compose = read('services/converact-service/acceptance/seaweedfs-s3/docker-compose.yml');
+const probe = read('services/converact-service/acceptance/seaweedfs-s3/probe.ts');
+const acceptance = read('services/converact-service/acceptance/seaweedfs-s3/accept.sh');
 
 test('SeaweedFS acceptance topology is isolated and immutable', () => {
   for (const service of ['master', 'volume', 'filer', 's3']) {

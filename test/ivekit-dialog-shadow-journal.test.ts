@@ -14,14 +14,14 @@ import test, { type TestContext } from 'node:test';
 import {
   DialogShadowJournal,
   DialogShadowJournalError
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow-journal.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow-journal.js';
 import type {
   DialogShadowRecord
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow.js';
 import {
   dialogShadowPairHash,
   dialogShadowRecordHash
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow.js';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);

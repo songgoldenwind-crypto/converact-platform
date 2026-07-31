@@ -9,7 +9,7 @@ on:
     paths:
       - '.github/workflows/ivekit-tinode-server-image.yml'
       - '.github/workflows/ivekit-oci-release-gate.yml'
-      - 'infra/ivekit/tinode/**'
+      - 'infra/converact/tinode/**'
       - 'integrations/component-hook-go/**'
       - 'integrations/tinode-v0.25.3/**'
       - 'test/ivekit-tinode-owner-patch.test.ts'
@@ -97,7 +97,7 @@ jobs:
             export TINODE_SOURCE_DIR="${GITHUB_WORKSPACE}/upstream"
             export IVEKIT_TINODE_TARGETARCH="${arch}"
             export IVEKIT_TINODE_IMAGE="${IMAGE}:${VERSION}-${arch}"
-            bash opc/infra/ivekit/tinode/build.sh
+            bash opc/infra/converact/tinode/build.sh
             docker push "${IVEKIT_TINODE_IMAGE}"
           done
 

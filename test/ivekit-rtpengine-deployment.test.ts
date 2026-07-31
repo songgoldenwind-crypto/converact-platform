@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { parse } from 'yaml';
 
-const chartRoot = 'infra/ivekit/helm/rtpengine';
+const chartRoot = 'infra/converact/helm/rtpengine';
 
 function read(path: string): string {
   return readFileSync(path, 'utf8');
@@ -12,7 +12,7 @@ function read(path: string): string {
 
 test('media-control selects the hybrid router and bounds every transport input', () => {
   const runtime = read('scripts/ivekit-media-control-agent.ts');
-  const dockerfile = read('infra/ivekit/media-control/Dockerfile');
+  const dockerfile = read('infra/converact/media-control/Dockerfile');
 
   assert.match(runtime, /openTransportRuntime\(transportMode, events\)/);
   assert.match(runtime, /mode !== 'rtpengine'/);
@@ -44,7 +44,7 @@ test('media-control selects the hybrid router and bounds every transport input',
 
 test('Compose runs an independent bounded RTPengine and persistent media-control WAL', () => {
   const compose = parse(
-    read('infra/ivekit/docker-compose.voice.yml')
+    read('infra/converact/docker-compose.voice.yml')
   ) as Record<string, any>;
   const rtpengine = compose.services.rtpengine;
   const validator = compose.services['rtpengine-config-validate'];
@@ -151,7 +151,7 @@ test('Compose runs an independent bounded RTPengine and persistent media-control
     undefined
   );
   assert.match(
-    read('infra/ivekit/env.example'),
+    read('infra/converact/env.example'),
     /^OPC_IVEKIT_COMPONENT_NODE_TOKEN_FILE=\.\/secrets\/component-node-token$/m
   );
   assert.ok(compose.volumes['media-control-wal']);

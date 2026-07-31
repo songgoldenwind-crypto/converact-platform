@@ -11,7 +11,7 @@ import {
   requiredRestoreConfirmation,
   sha256,
   validateIveKitBackupSet
-} from '../src/agent-runtime/ivekit/operations/backup.js';
+} from '../src/agent-runtime/converact/operations/backup.js';
 
 test('backup manifest validates database and object inventory checksums', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'ivekit-backup-'));

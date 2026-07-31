@@ -1,7 +1,7 @@
 import {
   loadKamailioConfigRuntime,
   writeKamailioConfigRuntime
-} from '../src/agent-runtime/ivekit/voice/kamailio-config.js';
+} from '../src/agent-runtime/converact/voice/kamailio-config.js';
 
 async function main() {
   const runtime = await loadKamailioConfigRuntime(process.env);

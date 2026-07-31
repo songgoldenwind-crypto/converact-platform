@@ -224,7 +224,7 @@ services:
       - node
       - --import
       - tsx
-      - src/ivekit-placement-snapshot-projector.ts
+      - src/converact-placement-snapshot-projector.ts
     environment:
       OPC_IVEKIT_PLACEMENT_SNAPSHOT_FILE: /run/ivekit-placement/placement.json
       OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON: ${OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON:?set OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON}

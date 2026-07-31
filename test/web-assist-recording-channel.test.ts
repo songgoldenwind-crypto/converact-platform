@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
-import { createWebAssistJoinPath } from '../src/agent-runtime/ivekit/remote-assist-token.js';
+import { createWebAssistJoinPath } from '../src/agent-runtime/converact/remote-assist-token.js';
 import { createLiveKitMediaModule } from '../src/agent-runtime/livekit/index.js';
 import { createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';

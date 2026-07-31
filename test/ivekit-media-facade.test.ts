@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { test } from 'node:test';
 
-import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
+import { routeIveKitMediaApi } from '../src/agent-runtime/converact/media-http.js';
 import { createLiveKitMediaModule } from '../src/agent-runtime/livekit/index.js';
 import { resetMediaGatewayRegistryForTests } from '../src/agent-runtime/media-gateway/index.js';
 import { createDatabase, run } from '../src/db.js';

@@ -4,13 +4,13 @@ import test from 'node:test';
 import {
   RealtimeSpeechProjectionDispatcher,
   type RealtimeSpeechProjectionDispatchEvent
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-projection-dispatcher.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-projection-dispatcher.js';
 import type {
   RealtimeSpeechProjectionContext
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-projection.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-projection.js';
 import type {
   RealtimeSpeechTranslationEvent
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-translation.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-translation.js';
 
 test('projection dispatcher retries a final after a short database outage', async () => {
   let available = false;

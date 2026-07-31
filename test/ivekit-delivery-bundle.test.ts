@@ -95,7 +95,7 @@ test('capacity runtime handoff typechecks without borrowing repository source', 
           'import("./scripts/ivekit-cell-admission.ts"),',
           'import("./scripts/ivekit-cell-capacity-projector.ts"),',
           'import("./scripts/ivekit-component-node-admission.ts"),',
-          'import("./src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts")',
+          'import("./src/agent-runtime/converact/placement/rustdesk-owner-binding.ts")',
           ']);'
         ].join('')
       ],
@@ -166,15 +166,15 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       'acceptance/rustpbx/scripts/ivekit-rustpbx-management-acceptance.js',
       'acceptance/rustpbx/scripts/ivekit-rustpbx-rwi-acceptance.js',
       'acceptance/rustpbx/scripts/ivekit-rustpbx-sipp-acceptance.js',
-      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/adapters/rustpbx-management.js',
-      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/adapters/rustpbx-rwi.js',
-      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/canonical.js',
-      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/capabilities.js',
-      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/errors.js',
-      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/media-control-profile.js',
-      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/ports.js',
-      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/secret-resolver.js',
-      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/types.js',
+      'acceptance/rustpbx/src/agent-runtime/converact/voice/adapters/rustpbx-management.js',
+      'acceptance/rustpbx/src/agent-runtime/converact/voice/adapters/rustpbx-rwi.js',
+      'acceptance/rustpbx/src/agent-runtime/converact/voice/canonical.js',
+      'acceptance/rustpbx/src/agent-runtime/converact/voice/capabilities.js',
+      'acceptance/rustpbx/src/agent-runtime/converact/voice/errors.js',
+      'acceptance/rustpbx/src/agent-runtime/converact/voice/media-control-profile.js',
+      'acceptance/rustpbx/src/agent-runtime/converact/voice/ports.js',
+      'acceptance/rustpbx/src/agent-runtime/converact/voice/secret-resolver.js',
+      'acceptance/rustpbx/src/agent-runtime/converact/voice/types.js',
       'acceptance/rustpbx/src/db-pg.js',
       'acceptance/rustpbx/src/postgres-migrations.js',
       '.ivekit-delivery-root',
@@ -261,9 +261,9 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(
       (result.manifest.contents as typeof result.manifest.contents & { intelligence_preflight: string })
         .intelligence_preflight,
-      'service/build-context/src/ivekit-intelligence-preflight.ts'
+      'service/build-context/src/converact-intelligence-preflight.ts'
     );
-    assert.equal(result.manifest.contents.voice_preflight, 'service/build-context/src/ivekit-voice-preflight.ts');
+    assert.equal(result.manifest.contents.voice_preflight, 'service/build-context/src/converact-voice-preflight.ts');
     assert.equal(result.manifest.contents.voice_compose, 'service/build-context/docker-compose.voice.yml');
     assert.equal(result.manifest.contents.voice_helm, 'deploy/kubernetes/ivekit/');
     assert.equal(result.manifest.contents.voice_acceptance_template, 'acceptance/voice-real-template.json');
@@ -305,17 +305,17 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       ].some((prefix) => file.startsWith(prefix))),
       false
     );
-    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/voice/index.ts'), true);
-    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/ivr/index.ts'), true);
-    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/index.ts'), true);
-    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/configuration-service.ts'), true);
-    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/http.ts'), true);
-    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/ivr-queue-port.ts'), true);
-    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/queue-service.ts'), true);
-    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/maintenance-worker.ts'), true);
-    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/postgres/store.ts'), true);
-    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/postgres/configuration-store.ts'), true);
-    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/postgres/unit-of-work.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/converact/voice/index.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/converact/ivr/index.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/converact/contact-center/index.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/converact/contact-center/configuration-service.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/converact/contact-center/http.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/converact/contact-center/ivr-queue-port.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/converact/contact-center/queue-service.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/converact/contact-center/maintenance-worker.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/converact/contact-center/postgres/store.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/converact/contact-center/postgres/configuration-store.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/converact/contact-center/postgres/unit-of-work.ts'), true);
     assert.equal(files.includes('acceptance/tools/ivekit-controlled-voice-provider.ts'), true);
     assert.equal(files.includes('acceptance/tools/ivekit-voice-acceptance.ts'), true);
     assert.equal(files.includes('deploy/rustpbx/build.sh'), true);
@@ -422,7 +422,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       scripts: Record<string, string>;
     };
     assert.deepEqual(storageIsolationPackage, {
-      name: 'ivekit-livekit-storage-isolation-acceptance',
+      name: 'converact-livekit-storage-isolation-acceptance',
       private: true,
       type: 'module',
       engines: { node: '>=24.0.0 <25.0.0' },
@@ -752,7 +752,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       true
     );
     assert.equal(
-      files.includes('capacity-runtime/services/ivekit-service/acceptance/sipp/answer-bye-uac.xml'),
+      files.includes('capacity-runtime/services/converact-service/acceptance/sipp/answer-bye-uac.xml'),
       true
     );
     assert.equal(
@@ -789,7 +789,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     );
     assert.equal(
       files.includes(
-        'capacity-runtime/src/agent-runtime/ivekit/placement/component-node-admission.ts'
+        'capacity-runtime/src/agent-runtime/converact/placement/component-node-admission.ts'
       ),
       true
     );
@@ -800,7 +800,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('deploy/rustdesk-server-fork/bench/run.sh'), true);
     assert.equal(
       files.includes(
-        'capacity-runtime/src/agent-runtime/ivekit/placement/pg-queryable.ts'
+        'capacity-runtime/src/agent-runtime/converact/placement/pg-queryable.ts'
       ),
       true
     );
@@ -822,10 +822,10 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       true
     );
     for (const livekitEgressFile of [
-      'components/livekit-egress/infra/ivekit/livekit-egress/README.md',
-      'components/livekit-egress/infra/ivekit/livekit-egress/apply-overlay.mjs',
-      'components/livekit-egress/infra/ivekit/livekit-egress/build.sh',
-      'components/livekit-egress/infra/ivekit/livekit-egress/ivekit_metrics.go',
+      'components/livekit-egress/infra/converact/livekit-egress/README.md',
+      'components/livekit-egress/infra/converact/livekit-egress/apply-overlay.mjs',
+      'components/livekit-egress/infra/converact/livekit-egress/build.sh',
+      'components/livekit-egress/infra/converact/livekit-egress/ivekit_metrics.go',
       'components/livekit-egress/integrations/livekit-egress-v1.13.0/go.mod',
       'components/livekit-egress/integrations/livekit-egress-v1.13.0/policy.go',
       'components/livekit-egress/integrations/livekit-egress-v1.13.0/policy_test.go',
@@ -837,9 +837,9 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       assert.equal(files.includes(livekitEgressFile), true, livekitEgressFile);
     }
     for (const livekitSipFile of [
-      'components/livekit-sip/infra/ivekit/livekit-sip/README.md',
-      'components/livekit-sip/infra/ivekit/livekit-sip/build.sh',
-      'components/livekit-sip/infra/ivekit/livekit-sip/Dockerfile'
+      'components/livekit-sip/infra/converact/livekit-sip/README.md',
+      'components/livekit-sip/infra/converact/livekit-sip/build.sh',
+      'components/livekit-sip/infra/converact/livekit-sip/Dockerfile'
     ]) {
       assert.equal(files.includes(livekitSipFile), true, livekitSipFile);
     }
@@ -1080,8 +1080,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     const egressFingerprints = stage2Evidence.configuration_template_fingerprints.livekit_egress
       .artifacts.map((entry) => entry.path);
     for (const requiredEgressArtifact of [
-      'components/livekit-egress/infra/ivekit/livekit-egress/apply-overlay.mjs',
-      'components/livekit-egress/infra/ivekit/livekit-egress/build.sh',
+      'components/livekit-egress/infra/converact/livekit-egress/apply-overlay.mjs',
+      'components/livekit-egress/infra/converact/livekit-egress/build.sh',
       'components/livekit-egress/integrations/livekit-egress-v1.13.0/policy.go',
       'components/livekit-egress/infra/k8s/values.yaml',
       'components/livekit-egress/infra/k8s/templates/livekit-egress-deployment.yaml'

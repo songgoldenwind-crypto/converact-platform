@@ -19,7 +19,7 @@ import {
   createRustDeskDeploymentPreflightReport,
   type RustDeskDeploymentPreflightReport
 } from './rustdesk-deployment-preflight.js';
-import { createIveKitRustDeskHttpClient } from '../src/agent-runtime/ivekit/rustdesk-http-client.js';
+import { createIveKitRustDeskHttpClient } from '../src/agent-runtime/converact/rustdesk-http-client.js';
 import type { RustDeskDisconnectExecutionMethod } from '../src/agent-runtime/collaboration/rustdesk-device-command-store.js';
 
 export interface RustDeskReadinessConfig {

@@ -14,7 +14,7 @@ import {
   type IvrSessionRepository,
   type IvrSessionStep,
   type IvrSessionUnitOfWork
-} from '../src/agent-runtime/ivekit/ivr/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
 
 test('IVR durable session advances, persists actions, replays exactly, and reaches terminal state', async () => {
   const fixture = createFixture();

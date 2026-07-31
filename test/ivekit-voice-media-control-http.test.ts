@@ -15,22 +15,22 @@ import {
   MediaControlAgent,
   MediaControlError,
   type MediaControlAuthorityPort
-} from '../src/agent-runtime/ivekit/media-control/agent.js';
+} from '../src/agent-runtime/converact/media-control/agent.js';
 import {
   HttpMediaControlClient
-} from '../src/agent-runtime/ivekit/media-control/client.js';
+} from '../src/agent-runtime/converact/media-control/client.js';
 import {
   createMediaControlHttpServer,
   type MediaControlHttpFailure,
   type MediaControlHttpServer
-} from '../src/agent-runtime/ivekit/media-control/http.js';
+} from '../src/agent-runtime/converact/media-control/http.js';
 import {
   mediaControlPayloadHash,
   type MediaControlCommand
-} from '../src/agent-runtime/ivekit/media-control/protocol.js';
+} from '../src/agent-runtime/converact/media-control/protocol.js';
 import {
   InMemoryMediaTransport
-} from '../src/agent-runtime/ivekit/media-control/simulator.js';
+} from '../src/agent-runtime/converact/media-control/simulator.js';
 
 const TOKEN = 'media-control-test-token-0123456789';
 const NOW = new Date('2026-07-25T00:00:00.000Z');

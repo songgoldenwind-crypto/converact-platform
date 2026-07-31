@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import type { QueryResult, QueryResultRow } from 'pg';
 
-import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
+import { routeIveKitMediaApi } from '../src/agent-runtime/converact/media-http.js';
 import { LiveKitModerationService } from '../src/agent-runtime/livekit/livekit-moderation-service.js';
 import { MediaCallStore } from '../src/agent-runtime/livekit/media-call-store.js';
 import { createDatabase } from '../src/db.js';

@@ -5,22 +5,22 @@ import test from 'node:test';
 const read = (path: string): string => readFileSync(path, 'utf8');
 
 test('standalone image and package expose guarded backup and restore operations', () => {
-  const dockerfile = read('services/ivekit-service/Dockerfile');
-  const packageJson = JSON.parse(read('services/ivekit-service/package.json'));
-  const compose = read('services/ivekit-service/docker-compose.yml');
+  const dockerfile = read('services/converact-service/Dockerfile');
+  const packageJson = JSON.parse(read('services/converact-service/package.json'));
+  const compose = read('services/converact-service/docker-compose.yml');
   assert.match(dockerfile, /postgresql-client/);
-  assert.equal(packageJson.scripts.backup, 'node dist/ivekit-backup.js');
-  assert.equal(packageJson.scripts.restore, 'node dist/ivekit-restore.js');
+  assert.equal(packageJson.scripts.backup, 'node dist/converact-backup.js');
+  assert.equal(packageJson.scripts.restore, 'node dist/converact-restore.js');
   assert.match(compose, /profiles: \["operations"\]/);
-  assert.match(compose, /dist\/ivekit-backup\.js/);
+  assert.match(compose, /dist\/converact-backup\.js/);
   assert.match(compose, /OPC_IVEKIT_BACKUP_HOST_DIR/);
 });
 
 test('Helm supports autoscaling, failure-domain spread, graceful termination and serialized backups', () => {
-  const values = read('services/ivekit-service/helm/ivekit/values.yaml');
-  const deployment = read('services/ivekit-service/helm/ivekit/templates/deployment.yaml');
-  const hpa = read('services/ivekit-service/helm/ivekit/templates/hpa.yaml');
-  const backup = read('services/ivekit-service/helm/ivekit/templates/backup-cronjob.yaml');
+  const values = read('services/converact-service/helm/converact/values.yaml');
+  const deployment = read('services/converact-service/helm/converact/templates/deployment.yaml');
+  const hpa = read('services/converact-service/helm/converact/templates/hpa.yaml');
+  const backup = read('services/converact-service/helm/converact/templates/backup-cronjob.yaml');
   assert.match(values, /autoscaling:\n  enabled: false\n  minReplicas: 2/);
   assert.match(deployment, /topologySpreadConstraints:/);
   assert.match(deployment, /terminationGracePeriodSeconds:/);

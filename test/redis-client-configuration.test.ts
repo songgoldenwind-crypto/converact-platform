@@ -51,7 +51,7 @@ test('Redis Pub/Sub rejects incomplete Sentinel config instead of creating local
 });
 
 test('Redis deployment examples expose the complete topology contract', async () => {
-  const paths = ['.env.example', 'infra/env.example', 'services/ivekit-service/env.example'];
+  const paths = ['.env.example', 'infra/env.example', 'services/converact-service/env.example'];
   for (const path of paths) {
     const env = await readFile(path, 'utf8');
     for (const variable of [
@@ -76,7 +76,7 @@ test('Redis deployment examples expose the complete topology contract', async ()
     }
   }
 
-  const compose = await readFile('services/ivekit-service/docker-compose.yml', 'utf8');
+  const compose = await readFile('services/converact-service/docker-compose.yml', 'utf8');
   for (const variable of [
     'REDIS_TOPOLOGY',
     'REDIS_URL',

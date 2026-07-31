@@ -9,7 +9,7 @@ import {
   VoiceError,
   VoiceWebhookAuthenticator,
   type VoiceProfileContextResolver
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('Postgres profile context resolver uses only the security-definer binding', async () => {
   const queries: Array<{ text: string; params: unknown[] }> = [];

@@ -10,8 +10,8 @@ import {
   runIveKitBackup,
   runIveKitRestore,
   type IveKitProcessRunner
-} from '../src/agent-runtime/ivekit/operations/backup-runner.js';
-import { validateIveKitBackupSet } from '../src/agent-runtime/ivekit/operations/backup.js';
+} from '../src/agent-runtime/converact/operations/backup-runner.js';
+import { validateIveKitBackupSet } from '../src/agent-runtime/converact/operations/backup.js';
 
 test('backup runner creates a validated database and streamed object backup set', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'ivekit-backup-runner-'));

@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   MediaTransportRouter
-} from '../src/agent-runtime/ivekit/media-control/router.js';
+} from '../src/agent-runtime/converact/media-control/router.js';
 import type {
   MediaTransportCommand,
   MediaTransportCommandIdentity,
@@ -12,7 +12,7 @@ import type {
   MediaTransportPort,
   MediaTransportQuery,
   MediaTransportSessionSnapshot
-} from '../src/agent-runtime/ivekit/media-control/transport.js';
+} from '../src/agent-runtime/converact/media-control/transport.js';
 
 describe('media transport router', () => {
   it('routes only frozen ordinary and processing profiles', async () => {

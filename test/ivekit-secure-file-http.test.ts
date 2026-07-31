@@ -11,7 +11,7 @@ import { SecureFileStore } from '../src/agent-runtime/collaboration/secure-file-
 import {
   routeIveKitChatApi,
   type RouteIveKitChatApiOptions
-} from '../src/agent-runtime/ivekit/chat-http.js';
+} from '../src/agent-runtime/converact/chat-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { LocalObjectStorage } from '../src/storage/object-storage.js';
 

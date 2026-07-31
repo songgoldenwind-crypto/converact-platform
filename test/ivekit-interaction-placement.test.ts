@@ -8,13 +8,13 @@ import {
   type InteractionPlacementHandoffRecord,
   type InteractionPlacementRecord,
   type InteractionPlacementRepository
-} from '../src/agent-runtime/ivekit/placement/interaction-placement.js';
+} from '../src/agent-runtime/converact/placement/interaction-placement.js';
 import {
   PlacementError,
   type AdmissionReservation,
   type PlacementDecision,
   type PlacementRequest
-} from '../src/agent-runtime/ivekit/placement/types.js';
+} from '../src/agent-runtime/converact/placement/types.js';
 import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 
 test('interaction placement persists reservation and reconciles active then closed lifecycle', async () => {

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import {
   RtpengineNgClient
-} from '../src/agent-runtime/ivekit/media-control/rtpengine-ng.js';
+} from '../src/agent-runtime/converact/media-control/rtpengine-ng.js';
 
 const endpoint = parseEndpoint(
   requiredEnv('IVEKIT_RTPENGINE_NG_ENDPOINT')

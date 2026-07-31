@@ -14,7 +14,7 @@ import {
   type ContactCenterOverflowAction,
   type ContactCenterQueue,
   type ContactCenterSupervisorSession
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 import type { PgQueryable } from '../src/db-pg.js';
 
 test('Contact Center PostgreSQL repository decodes queues inside tenant context', async () => {

@@ -89,7 +89,7 @@ test('capacity runner renders Kamailio, targets the edge and records RTT plus co
 
 test('capacity rejection scenario emits one timer and transaction-correct non-2xx ACK per call', async () => {
   const scenario = await source(
-    'services/ivekit-service/acceptance/sipp/inbound-reject-486-uac.xml'
+    'services/converact-service/acceptance/sipp/inbound-reject-486-uac.xml'
   );
 
   assert.match(scenario, /start_rtd="sip_route"/);

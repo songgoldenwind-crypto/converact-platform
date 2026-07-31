@@ -6,7 +6,7 @@ import {
   DialogRecoveryCapsuleError,
   type DialogRecoveryCapsuleBinding,
   type DialogRecoveryCapsulePayload
-} from '../src/agent-runtime/ivekit/voice/dialog-recovery-capsule.js';
+} from '../src/agent-runtime/converact/voice/dialog-recovery-capsule.js';
 
 const KEY_A = Buffer.alloc(32, 0x11);
 const KEY_B = Buffer.alloc(32, 0x22);

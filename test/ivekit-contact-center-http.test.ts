@@ -5,7 +5,7 @@ import {
   ContactCenterError,
   routeIveKitContactCenterApi,
   type ContactCenterHttpModule
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 
 test('Contact Center HTTP keeps configuration under signed tenant and admin authority', async (t) => {

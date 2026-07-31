@@ -10,7 +10,7 @@ import {
   transitionQueueEntry,
   transitionSupervisorSession,
   type ContactCenterRoutingCandidate
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 
 test('Contact Center queue entries follow the durable lifecycle', () => {
   assert.equal(transitionQueueEntry('waiting', 'offer'), 'offered');

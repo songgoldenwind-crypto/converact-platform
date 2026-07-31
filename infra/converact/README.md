@@ -1,0 +1,185 @@
+# iveKit Application Plane
+
+This directory deploys the reusable iveKit application plane: the standalone iveKit facade, PostgreSQL, Redis, Tinode, and RustDesk OSS `hbbs`/`hbbr`. It pairs with `infra/livekit` Media Core and does not use SQLite.
+
+This is the OPC repository integration topology and still uses the OPC root image for Tinode bootstrap and controlled-provider tooling. The portable delivery bundle uses `services/converact-service` Compose and Helm artifacts instead; do not present this directory as the independently versioned LED handoff.
+
+## Boundaries
+
+- PostgreSQL, Redis, Tinode uploads, and RustDesk keys use named volumes.
+- PostgreSQL is not published to the host.
+- iveKit and Tinode bind to loopback; expose them through the Media Core Caddy TLS routes.
+- RustDesk uses host networking for its standard TCP/UDP ports.
+- The stack joins the external `ivekit-media_default` network to reach LiveKit and private MinIO.
+- `opc_admin` only appears in one-shot role initialization and migration services. Long-running iveKit uses `opc_runtime`; Tinode uses the separate `tinode_app` role and database. Both runtime roles are `NOSUPERUSER NOBYPASSRLS` and cannot connect to each other's database.
+- The Compose service key remains `opc` for upgrade compatibility. New internal integrations should use the `ivekit-api` network alias. External applications must use the public base URL, never either Docker service name.
+
+## Configure
+
+```bash
+cp infra/converact/env.example /secure/path/application.env
+chmod 600 /secure/path/application.env
+```
+
+Replace every `replace_with_...` value. Generate independent secrets rather than reusing one value. Generate `TINODE_API_KEY` as a non-root browser key and `TINODE_ROOT_API_KEY` as a separate root server key from the pinned Tinode source; retain only the key values printed after their labels. Never expose `TINODE_ROOT_API_KEY` in a browser client plan.
+
+The `tinode-bootstrap` one-shot service creates or verifies `TINODE_BASIC_USER`, promotes its `basic:<username>` credential to Tinode Root through the `tinode_app` PostgreSQL role, and reconnects to prove `authlvl=root`. OPC will not start if any of those steps fail. The root API key and Root service account are separate authorization layers; both are required for trusted placement metadata and owner fencing.
+
+Set `OPC_IVEKIT_ALLOWED_ORIGINS` to the comma-separated HTTPS origins that may call iveKit directly from a browser, for example the LED web application origin. Do not include paths. `OPC_IVEKIT_HTTP_BODY_MAX_BYTES` limits every non-attachment JSON and webhook body; attachment uploads keep their separate larger limit.
+
+Configure V3 OCR, ASR, quality, and translation through `OPC_IVEKIT_PROVIDER_PROFILES_JSON`. Keep provider tokens in the four `OPC_IVEKIT_*_TOKEN` variables, never inline in the JSON. Attachment, quality, and translation workers default to disabled; run `npm run ivekit:intelligence-preflight`, probe provider health, and configure the tenant policy before enabling a worker. Self-hosted and third-party examples, retry recovery, alerts, upgrade, and rollback are documented in [V3 intelligence operations](../../docs/ivekit-v3-intelligence-operations.md).
+
+Voice trunk and extension credentials use `env://NAME` references. Put extra values in the optional file selected by `OPC_IVEKIT_VOICE_RUNTIME_ENV_FILE` (default `./voice-runtime.env`), mode it `0600`, and list the exact variable names in `OPC_IVEKIT_VOICE_SECRET_ENV_NAMES`. Compose injects that file only into the application service. Never add credential values to Provider profile JSON or commit the runtime env file.
+
+For isolated server acceptance only, the optional `acceptance` profile starts the deterministic controlled provider on the Compose network without publishing a host port:
+
+```bash
+docker compose \
+  --project-name ivekit-app \
+  --env-file /secure/path/application.env \
+  -f infra/converact/docker-compose.yml \
+  --profile acceptance up -d controlled-intelligence-provider
+```
+
+Point test profiles at `http://controlled-intelligence-provider:8790`. Use independent service/control tokens and remove the acceptance container after evidence collection. This provider is not a production OCR, ASR, quality, or translation service.
+
+Deploy Media Core first so its Docker network exists and Caddy has routes for iveKit and Tinode.
+
+## Deploy
+
+```bash
+docker compose \
+  --project-name ivekit-app \
+  --env-file /secure/path/application.env \
+  -f infra/converact/docker-compose.yml \
+  config --quiet
+
+docker compose \
+  --project-name ivekit-app \
+  --env-file /secure/path/application.env \
+  -f infra/converact/docker-compose.yml \
+  build opc
+
+docker compose \
+  --project-name ivekit-app \
+  --env-file /secure/path/application.env \
+  -f infra/converact/docker-compose.yml \
+  up -d
+```
+
+Startup is gated in this order: PostgreSQL healthy, runtime roles/databases initialized, advisory-locked migrations applied, Tinode healthy, Tinode service account verified, then the standalone iveKit process starts. All three one-shot services must exit with code 0.
+
+## Verify
+
+```bash
+docker compose \
+  --project-name ivekit-app \
+  --env-file /secure/path/application.env \
+  -f infra/converact/docker-compose.yml \
+  ps -a
+
+curl --fail http://127.0.0.1:8300/health
+curl --fail http://127.0.0.1:6060/health
+```
+
+Reference-client local gates use controlled HTTP/WebSocket/Tinode/LiveKit adapters and isolated Chromium contexts. They are deterministic regression evidence, not proof of deployed Tinode, WebRTC, ICE/TURN, camera/microphone, or Egress behavior:
+
+```bash
+npm run verify:ivekit:im-client
+npm run test:e2e:ivekit-im
+npm run verify:ivekit:media-client
+npm run test:e2e:ivekit-media
+npm run test:e2e:ivekit-rustdesk
+```
+
+Create the intentionally incomplete real-environment checklist, fill it from two real browsers and real Tinode, then validate it:
+
+```bash
+OPC_IVEKIT_IM_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/im-template.json \
+  npm run ivekit:im-client-acceptance || true
+
+OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE=/secure/evidence/im-report.json \
+OPC_IVEKIT_IM_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/im-result.json \
+  npm run ivekit:im-client-acceptance
+```
+
+Without `OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE`, the command returns `not_run` and a nonzero exit status. Every passed check requires a unique, non-symlink JSON observation bound to the same check, run, environment, timestamp, and tool; layout observations also require a recorded human redaction review. Reports and observations must not contain API keys, authorization headers, JWTs, cookies, passwords, private keys, or provider secrets. A successful validator result means `ready_for_review`, not environment acceptance: a human must inspect the referenced captures and confirm the observations are genuine and redacted.
+
+Generate and validate the LiveKit real-client report separately. The template now includes reference-client checks for two-identity lifecycle, prejoin/device switching, desktop/mobile layout, screen share, moderation/revoke, recording/evidence, reconnect, and token non-persistence:
+
+```bash
+OPC_LIVEKIT_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/livekit-template.json \
+  npm run livekit:client-acceptance || true
+
+OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE=/secure/evidence/livekit-report.json \
+OPC_LIVEKIT_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/livekit-result.json \
+OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE=/secure/evidence/qa-public.pem \
+OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT=replace_with_sha256 \
+  npm run livekit:client-acceptance
+```
+
+Without `OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE`, this validator also returns `not_run` with a nonzero exit status. Every passed check needs a distinct SHA-256-bound JSON artifact from the real environment and an independent QA attestation. Controlled Playwright screenshots and events cannot satisfy real LiveKit, ICE/TURN, physical device, or Egress checks.
+
+Generate the RustDesk schema-v2 template separately. It requires exact hbbs/hbbr and native-client versions, agent/target platform and architecture, target ID, server key fingerprint, ID/relay path, and distinct operator/QA identities:
+
+```bash
+OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/rustdesk-report.json \
+  npm run rustdesk:client-acceptance || true
+
+OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE=/secure/evidence/rustdesk-report.json \
+OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE=/secure/evidence/rustdesk-audit.jsonl \
+OPC_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/rustdesk-result.json \
+  npm run rustdesk:client-acceptance
+```
+
+Without a real report the result is `not_run`. Every check references a unique, non-symlink JSON observation bound by SHA-256 to the same run, environment, full deployed commit, gateway external ID, target RustDesk ID, timestamp, and real capture tool. Screen, keyboard/mouse, multi-display, file checksum, clipboard direction, recording playback, reconnect, authorization revoke, and physical disconnect need separate observations. Command success and operator-observed physical disconnect are independent requirements. Controlled E2E, Playwright, mock and synthetic artifacts are rejected.
+
+Generate the real Voice template and runbook before testing RustPBX, a SIP trunk/DID or approved SIP endpoint, browser WebRTC audio, IVR, recording, LiveKit SIP bridge, and Contact Center behavior. The full environment binding variables are documented in `docs/ivekit-voice-foundation-v1-design.md`; the validation step is:
+
+```bash
+OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE=/secure/evidence/voice-report.json \
+OPC_IVEKIT_VOICE_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/voice-result.json \
+  npm run ivekit:voice-acceptance
+```
+
+Without a report this command returns `not_run`. The 45 passed checks must each reference a distinct, non-symlink JSON artifact from a real tool and physical observation, bound to the same run, environment, full deployed commit, deployment fingerprint, operator, and fresh 24-hour window. Controlled providers, Playwright, mock, fake, synthetic and simulated evidence are rejected. `ready_for_review` still requires an independent QA decision and does not automatically change delivery acceptance.
+
+Expected PostgreSQL roles:
+
+```text
+opc_admin   superuser=true   bypassrls=true
+opc_runtime superuser=false  bypassrls=false
+tinode_app  superuser=false  bypassrls=false
+```
+
+All ordinary tables containing `tenant_id` must have both `relrowsecurity=true` and `relforcerowsecurity=true`. Run `test/db-rls-integration.test.ts` with temporary runtime/admin URLs as the final isolation gate; do not add the admin URL to the long-running iveKit container. The gate also proves `opc_runtime` cannot turn `app.bypass_rls` into a cross-tenant bypass.
+
+## Device-Side RustDesk Disconnect
+
+The iveKit application container never executes device commands. Install the edge agent and the matching files from `scripts/rustdesk-edge-adapters/` on each controlled Windows, macOS, or Linux device. Adapter processes are started with `shell:false`; dynamic values are individual allowlisted placeholders, never a server-provided command string.
+
+RustDesk OSS 1.4.9 does not expose a stable cross-platform CLI for terminating one incoming session. The `*-disconnect` wrapper therefore calls only a locally configured absolute-path session hook. If no version-specific hook exists it exits as unavailable, after which the `*-restart` adapter may restart the local RustDesk service with explicit collateral-session risk. Do not enable `OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=1` until validate mode, command claim/result, and real two-client disconnect observation all pass.
+
+Every wrapper supports a non-mutating validate invocation. Linux example:
+
+```bash
+/opt/opc/bin/linux-disconnect.sh \
+  --mode validate --external-id gateway-check --target-id device-check \
+  --rustdesk-id 123456789 --reason gateway_ended
+
+/opt/opc/bin/linux-restart.sh \
+  --mode validate --external-id gateway-check --target-id device-check \
+  --rustdesk-id 123456789 --reason gateway_ended
+```
+
+Configure edge adapter args with the exact placeholders `{external_id}`, `{target_id}`, `{rustdesk_id}`, and `{requested_reason}`. The optional session hook, systemd service name, and launchd label are local-only settings (`OPC_RUSTDESK_SESSION_DISCONNECT_HOOK`, `OPC_RUSTDESK_SERVICE_NAME`, `OPC_RUSTDESK_LAUNCHD_LABEL`); the server cannot override them.
+
+## OPC Integration Upgrade And Recovery
+
+Switching from the full OPC process to `npm run start:ivekit` changes only the application container command. No PostgreSQL downgrade or data copy is required, and existing host ports, public URLs, service key, databases, and named volumes remain stable. `postgres-runtime-role` and `tinode-bootstrap` are idempotent and rerun on `up`.
+
+LED and other products should integrate through `@converact/sdk` and the public base URL. They must not depend on the Compose service key or the `ivekit-api` internal alias.
+
+To roll back, use the same image and volumes and change only the `opc` service command to `["npm", "start"]`, then recreate that service. Never use `down -v` during an upgrade or rollback. Back up the `opc` and `tinode` databases before role or schema changes. RustDesk clients must retain the same public key; changing the `rustdesk_data` volume changes client trust configuration.
+
+See [iveKit server acceptance report](../../docs/iveKit服务器部署验收报告-2026-07-11.md) for the tested deployment evidence and remaining physical-client checks.

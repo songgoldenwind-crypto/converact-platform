@@ -1,6 +1,0 @@
-apiVersion: v2
-name: ivekit-homer
-description: Cell-local, off-path HOMER 11 HEP collector with PostgreSQL DuckLake catalog
-type: application
-version: 0.1.0
-appVersion: "11.0.297-ivekit.2"

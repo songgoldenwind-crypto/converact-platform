@@ -25,25 +25,25 @@ COPY scripts/ivekit-cell-admission.ts ./scripts/ivekit-cell-admission.ts
 COPY scripts/ivekit-cell-capacity-projector.ts ./scripts/ivekit-cell-capacity-projector.ts
 COPY scripts/ivekit-component-node-admission.ts ./scripts/ivekit-component-node-admission.ts
 COPY scripts/ivekit-rustdesk-owner-binding.ts ./scripts/ivekit-rustdesk-owner-binding.ts
-COPY services/ivekit-service/acceptance/sipp/answer-bye-uac.xml /opt/ivekit/scenarios/answer-bye-uac.xml
+COPY services/converact-service/acceptance/sipp/answer-bye-uac.xml /opt/ivekit/scenarios/answer-bye-uac.xml
 COPY src/infra/nats-connection-options.ts ./src/infra/nats-connection-options.ts
-COPY src/ivekit-component-node-admission.ts ./src/ivekit-component-node-admission.ts
-COPY src/ivekit-placement-snapshot-projector.ts ./src/ivekit-placement-snapshot-projector.ts
-COPY src/agent-runtime/ivekit/placement/admission-http.ts ./src/agent-runtime/ivekit/placement/admission-http.ts
-COPY src/agent-runtime/ivekit/placement/admission-ledger.ts ./src/agent-runtime/ivekit/placement/admission-ledger.ts
-COPY src/agent-runtime/ivekit/placement/admission.ts ./src/agent-runtime/ivekit/placement/admission.ts
-COPY src/agent-runtime/ivekit/placement/cell-lease.ts ./src/agent-runtime/ivekit/placement/cell-lease.ts
-COPY src/agent-runtime/ivekit/placement/component-node-admission-http.ts ./src/agent-runtime/ivekit/placement/component-node-admission-http.ts
-COPY src/agent-runtime/ivekit/placement/component-node-admission.ts ./src/agent-runtime/ivekit/placement/component-node-admission.ts
-COPY src/agent-runtime/ivekit/placement/component-node-sync.ts ./src/agent-runtime/ivekit/placement/component-node-sync.ts
-COPY src/agent-runtime/ivekit/placement/component-node-topology.ts ./src/agent-runtime/ivekit/placement/component-node-topology.ts
-COPY src/agent-runtime/ivekit/placement/owner-epoch.ts ./src/agent-runtime/ivekit/placement/owner-epoch.ts
-COPY src/agent-runtime/ivekit/placement/pg-queryable.ts ./src/agent-runtime/ivekit/placement/pg-queryable.ts
-COPY src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts ./src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts
-COPY src/agent-runtime/ivekit/placement/snapshot.ts ./src/agent-runtime/ivekit/placement/snapshot.ts
-COPY src/agent-runtime/ivekit/placement/types.ts ./src/agent-runtime/ivekit/placement/types.ts
-COPY src/agent-runtime/ivekit/recordings/recording-manifest.ts ./src/agent-runtime/ivekit/recordings/recording-manifest.ts
-COPY src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.ts ./src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.ts
+COPY src/converact-component-node-admission.ts ./src/converact-component-node-admission.ts
+COPY src/converact-placement-snapshot-projector.ts ./src/converact-placement-snapshot-projector.ts
+COPY src/agent-runtime/converact/placement/admission-http.ts ./src/agent-runtime/converact/placement/admission-http.ts
+COPY src/agent-runtime/converact/placement/admission-ledger.ts ./src/agent-runtime/converact/placement/admission-ledger.ts
+COPY src/agent-runtime/converact/placement/admission.ts ./src/agent-runtime/converact/placement/admission.ts
+COPY src/agent-runtime/converact/placement/cell-lease.ts ./src/agent-runtime/converact/placement/cell-lease.ts
+COPY src/agent-runtime/converact/placement/component-node-admission-http.ts ./src/agent-runtime/converact/placement/component-node-admission-http.ts
+COPY src/agent-runtime/converact/placement/component-node-admission.ts ./src/agent-runtime/converact/placement/component-node-admission.ts
+COPY src/agent-runtime/converact/placement/component-node-sync.ts ./src/agent-runtime/converact/placement/component-node-sync.ts
+COPY src/agent-runtime/converact/placement/component-node-topology.ts ./src/agent-runtime/converact/placement/component-node-topology.ts
+COPY src/agent-runtime/converact/placement/owner-epoch.ts ./src/agent-runtime/converact/placement/owner-epoch.ts
+COPY src/agent-runtime/converact/placement/pg-queryable.ts ./src/agent-runtime/converact/placement/pg-queryable.ts
+COPY src/agent-runtime/converact/placement/rustdesk-owner-binding.ts ./src/agent-runtime/converact/placement/rustdesk-owner-binding.ts
+COPY src/agent-runtime/converact/placement/snapshot.ts ./src/agent-runtime/converact/placement/snapshot.ts
+COPY src/agent-runtime/converact/placement/types.ts ./src/agent-runtime/converact/placement/types.ts
+COPY src/agent-runtime/converact/recordings/recording-manifest.ts ./src/agent-runtime/converact/recordings/recording-manifest.ts
+COPY src/agent-runtime/converact/recordings/rustpbx-recording-spool-capacity.ts ./src/agent-runtime/converact/recordings/rustpbx-recording-spool-capacity.ts
 
 RUN ./node_modules/.bin/tsc --noEmit -p infra/capacity/tsconfig.json
 RUN npm prune --omit=dev --ignore-scripts

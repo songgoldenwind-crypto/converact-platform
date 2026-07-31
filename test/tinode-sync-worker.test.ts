@@ -109,7 +109,7 @@ test('Tinode sync worker coalesces overlapping runs', async () => {
 
 test('Tinode sync worker is wired into server shutdown and deployment env examples', () => {
   const server = readFileSync('src/server.ts', 'utf8');
-  const application = readFileSync('src/agent-runtime/ivekit/application.ts', 'utf8');
+  const application = readFileSync('src/agent-runtime/converact/application.ts', 'utf8');
   const rootEnv = readFileSync('.env.example', 'utf8');
   const productionEnv = readFileSync('infra/env.example', 'utf8');
   const compose = readFileSync('docker-compose.callcenter.yml', 'utf8');

@@ -5,23 +5,23 @@ import test from 'node:test';
 
 import {
   ComponentNodeAdmissionController
-} from '../src/agent-runtime/ivekit/placement/component-node-admission.js';
+} from '../src/agent-runtime/converact/placement/component-node-admission.js';
 import {
   createComponentNodeAdmissionHttpServer
-} from '../src/agent-runtime/ivekit/placement/component-node-admission-http.js';
+} from '../src/agent-runtime/converact/placement/component-node-admission-http.js';
 import {
   evaluateRustPbxMediaReadiness,
   renderRustPbxMediaReadinessMetrics,
   RustPbxMediaReadinessProbe,
   type RustPbxMediaReadinessProfile
-} from '../src/agent-runtime/ivekit/voice/rustpbx-media-readiness.js';
+} from '../src/agent-runtime/converact/voice/rustpbx-media-readiness.js';
 
 const helmValues = readFileSync(
-  'services/ivekit-service/helm/ivekit/values.yaml',
+  'services/converact-service/helm/converact/values.yaml',
   'utf8'
 );
 const helmRustPbx = readFileSync(
-  'services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml',
+  'services/converact-service/helm/converact/templates/rustpbx-deployment.yaml',
   'utf8'
 );
 const legacyHelmValues = readFileSync('infra/k8s/values.yaml', 'utf8');
@@ -30,20 +30,20 @@ const legacyHelmRustPbx = readFileSync(
   'utf8'
 );
 const rtpengineValues = readFileSync(
-  'infra/ivekit/helm/rtpengine/values.yaml',
+  'infra/converact/helm/rtpengine/values.yaml',
   'utf8'
 );
 const rtpengineDaemonSet = readFileSync(
-  'infra/ivekit/helm/rtpengine/templates/daemonset.yaml',
+  'infra/converact/helm/rtpengine/templates/daemonset.yaml',
   'utf8'
 );
 const canonicalPrometheusRules = readFileSync(
-  'services/ivekit-service/helm/ivekit/files/prometheus-rules.yaml',
+  'services/converact-service/helm/converact/files/prometheus-rules.yaml',
   'utf8'
 );
-const rustPbxReadme = readFileSync('infra/ivekit/rustpbx/README.md', 'utf8');
+const rustPbxReadme = readFileSync('infra/converact/rustpbx/README.md', 'utf8');
 const rustPbxMediaTracingPatch = readFileSync(
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-tracing.patch',
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-media-tracing.patch',
   'utf8'
 );
 const mediaControlAgent = readFileSync(
@@ -51,11 +51,11 @@ const mediaControlAgent = readFileSync(
   'utf8'
 );
 const voiceCompose = readFileSync(
-  'infra/ivekit/docker-compose.voice.yml',
+  'infra/converact/docker-compose.voice.yml',
   'utf8'
 );
 const voiceEnvExample = readFileSync(
-  'infra/ivekit/env.example',
+  'infra/converact/env.example',
   'utf8'
 );
 

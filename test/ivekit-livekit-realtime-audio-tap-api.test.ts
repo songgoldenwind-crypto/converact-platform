@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
+import { routeIveKitMediaApi } from '../src/agent-runtime/converact/media-http.js';
 import type {
   CreateRealtimeAudioTapGrantInput,
   RealtimeAudioTapGrant
-} from '../src/agent-runtime/ivekit/voice/realtime-audio-tap-grant.js';
+} from '../src/agent-runtime/converact/voice/realtime-audio-tap-grant.js';
 import { MediaCallService } from '../src/agent-runtime/livekit/media-call-service.js';
 import { MediaCallStore } from '../src/agent-runtime/livekit/media-call-store.js';
 import { createDatabase } from '../src/db.js';

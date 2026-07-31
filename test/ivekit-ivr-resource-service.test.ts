@@ -10,7 +10,7 @@ import {
   type IvrResourceRepository,
   type IvrResourceUnitOfWork,
   type IvrSettings
-} from '../src/agent-runtime/ivekit/ivr/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
 
 test('IVR resource service creates safe audio assets and revision-locks updates', async () => {
   const fixture = createFixture();

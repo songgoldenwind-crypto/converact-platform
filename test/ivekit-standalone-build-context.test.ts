@@ -48,7 +48,7 @@ test('standalone context contains the complete allowed graph and no OPC product 
 
 test('standalone service lock is reproducibly derived and excludes unrelated root dependencies', () => {
   const generated = generateIveKitServiceLock(repoRoot);
-  const committed = JSON.parse(readFileSync('services/ivekit-service/package-lock.json', 'utf8'));
+  const committed = JSON.parse(readFileSync('services/converact-service/package-lock.json', 'utf8'));
   assert.deepEqual(committed, generated);
   const rootDependencies = Object.keys((generated.packages[''].dependencies || {})).sort();
   assert.deepEqual(rootDependencies, [
@@ -123,14 +123,14 @@ test('standalone V3 examples expose provider profiles, storage, and bounded work
     'OPC_TRANSLATION_CLAIM_LEASE_MS=120000',
     'OPC_TRANSLATION_RETRY_DELAYS_MS=5000,30000'
   ];
-  for (const file of ['.env.example', 'infra/ivekit/env.example', 'services/ivekit-service/env.example']) {
+  for (const file of ['.env.example', 'infra/converact/env.example', 'services/converact-service/env.example']) {
     const content = readFileSync(file, 'utf8');
     for (const value of required) assert.equal(content.split('\n').includes(value), true, `${file}: ${value}`);
     assert.equal(content.split('\n').some((line) => line.startsWith('MINIO_BUCKET=')), true, `${file}: MINIO_BUCKET`);
   }
-  const compose = readFileSync('services/ivekit-service/docker-compose.yml', 'utf8');
-  const voiceCompose = readFileSync('services/ivekit-service/docker-compose.voice.yml', 'utf8');
-  const serviceEnv = readFileSync('services/ivekit-service/env.example', 'utf8');
+  const compose = readFileSync('services/converact-service/docker-compose.yml', 'utf8');
+  const voiceCompose = readFileSync('services/converact-service/docker-compose.voice.yml', 'utf8');
+  const serviceEnv = readFileSync('services/converact-service/env.example', 'utf8');
   const immutablePostgresImage = /^IVEKIT_POSTGRES_IMAGE=postgres:[^\s@]+@sha256:[a-f0-9]{64}$/m;
   const immutableClamavImage =
     'CLAMAV_IMAGE=clamav/clamav:1.5.2_base@sha256:3aa0c6d6a966dc062899e070fb13f87485acf0cbb710fccaae9a848cd5f5b09a';
@@ -164,32 +164,32 @@ test('standalone V3 examples expose provider profiles, storage, and bounded work
   const ivekit = compose.match(/^  ivekit:\n([\s\S]*?)(?=^  [a-zA-Z0-9_-]+:\n|^volumes:)/m)?.[0] || '';
   assert.match(ivekit, /depends_on:[\s\S]*migrate:[\s\S]*condition: service_completed_successfully/);
   assert.doesNotMatch(ivekit, /\n {6}clamav:\n {8}condition: service_healthy/);
-  const readme = readFileSync('services/ivekit-service/README.md', 'utf8');
+  const readme = readFileSync('services/converact-service/README.md', 'utf8');
   assert.match(readme, /ClamAV outage[^.]*must not gate API readiness or active communication/i);
-  const dockerfile = readFileSync('services/ivekit-service/Dockerfile', 'utf8');
+  const dockerfile = readFileSync('services/converact-service/Dockerfile', 'utf8');
   assert.match(dockerfile, /apt-get install[^\n]*ffmpeg/);
-  const servicePackage = JSON.parse(readFileSync('services/ivekit-service/package.json', 'utf8')) as {
+  const servicePackage = JSON.parse(readFileSync('services/converact-service/package.json', 'utf8')) as {
     scripts: Record<string, string>;
   };
-  assert.equal(servicePackage.scripts['preflight:intelligence'], 'node dist/ivekit-intelligence-preflight.js');
-  assert.equal(servicePackage.scripts['render:kamailio-compose'], 'node dist/ivekit-kamailio-compose-config.js');
-  assert.equal(servicePackage.scripts['accept:kamailio-webphone'], 'node dist/ivekit-kamailio-webphone-acceptance.js');
-  assert.equal(servicePackage.scripts['render:rustpbx'], 'node dist/ivekit-render-rustpbx-config.js');
-  assert.equal(servicePackage.scripts['project:rustpbx-routes'], 'node dist/ivekit-rustpbx-route-snapshot.js');
-  assert.equal(servicePackage.scripts['preflight:voice'], 'node dist/ivekit-voice-preflight.js');
+  assert.equal(servicePackage.scripts['preflight:intelligence'], 'node dist/converact-intelligence-preflight.js');
+  assert.equal(servicePackage.scripts['render:kamailio-compose'], 'node dist/converact-kamailio-compose-config.js');
+  assert.equal(servicePackage.scripts['accept:kamailio-webphone'], 'node dist/converact-kamailio-webphone-acceptance.js');
+  assert.equal(servicePackage.scripts['render:rustpbx'], 'node dist/converact-render-rustpbx-config.js');
+  assert.equal(servicePackage.scripts['project:rustpbx-routes'], 'node dist/converact-rustpbx-route-snapshot.js');
+  assert.equal(servicePackage.scripts['preflight:voice'], 'node dist/converact-voice-preflight.js');
 });
 
 test('standalone verifier requires every compiled operational entrypoint', () => {
   const verifier = readFileSync('scripts/verify-ivekit-standalone-context.ts', 'utf8');
 
   for (const entrypoint of [
-    'ivekit-server.js',
-    'ivekit-worker.js',
-    'ivekit-realtime-audio-tap-worker.js',
-    'ivekit-kamailio-compose-config.js',
-    'ivekit-kamailio-webphone-acceptance.js',
-    'ivekit-render-rustpbx-config.js',
-    'ivekit-rustpbx-route-snapshot.js',
-    'ivekit-voice-preflight.js'
+    'converact-server.js',
+    'converact-worker.js',
+    'converact-realtime-audio-tap-worker.js',
+    'converact-kamailio-compose-config.js',
+    'converact-kamailio-webphone-acceptance.js',
+    'converact-render-rustpbx-config.js',
+    'converact-rustpbx-route-snapshot.js',
+    'converact-voice-preflight.js'
   ]) assert.match(verifier, new RegExp(entrypoint.replaceAll('.', '\\.')));
 });

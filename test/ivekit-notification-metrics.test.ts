@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { notificationMetricDefinitions } from '../src/agent-runtime/ivekit/notifications/index.js';
+import { notificationMetricDefinitions } from '../src/agent-runtime/converact/notifications/index.js';
 
 test('notification metrics cover delivery, provider governance, receipts, queue and leases', () => {
   const names = notificationMetricDefinitions.map((metric) => metric.name);

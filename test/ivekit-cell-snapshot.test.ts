@@ -4,11 +4,11 @@ import test from 'node:test';
 import {
   PlacementSnapshotSigner,
   PlacementTokenSigner
-} from '../src/agent-runtime/ivekit/placement/snapshot.js';
+} from '../src/agent-runtime/converact/placement/snapshot.js';
 import type {
   PlacementSnapshotBody,
   PlacementTokenClaims
-} from '../src/agent-runtime/ivekit/placement/types.js';
+} from '../src/agent-runtime/converact/placement/types.js';
 
 const key = Buffer.alloc(32, 7);
 

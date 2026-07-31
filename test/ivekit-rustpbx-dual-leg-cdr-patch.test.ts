@@ -5,11 +5,11 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const patchPath =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch';
 
 test('RustPBX dual-leg CDR patch durably spools terminal state before legacy reporting', () => {
   const patch = readFileSync(patchPath, 'utf8');
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
 
   assert.match(build, /rustpbx-ivekit-dual-leg-cdr\.patch/);
   assert.match(patch, /src\/ivekit_dual_leg_cdr\.rs/);
@@ -155,18 +155,18 @@ test('RustPBX hash-binds the configured Region before uploading a terminal CDR',
 });
 
 test('RustPBX CDR deployment uses a persistent per-node spool and file-backed service key', () => {
-  const compose = readFileSync('services/ivekit-service/docker-compose.voice.yml', 'utf8');
-  const apiCompose = readFileSync('services/ivekit-service/docker-compose.yml', 'utf8');
-  const values = readFileSync('services/ivekit-service/helm/ivekit/values.yaml', 'utf8');
+  const compose = readFileSync('services/converact-service/docker-compose.voice.yml', 'utf8');
+  const apiCompose = readFileSync('services/converact-service/docker-compose.yml', 'utf8');
+  const values = readFileSync('services/converact-service/helm/converact/values.yaml', 'utf8');
   const apiDeployment = readFileSync(
-    'services/ivekit-service/helm/ivekit/templates/deployment.yaml',
+    'services/converact-service/helm/converact/templates/deployment.yaml',
     'utf8'
   );
   const statefulSet = readFileSync(
-    'services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml',
+    'services/converact-service/helm/converact/templates/rustpbx-deployment.yaml',
     'utf8'
   );
-  const legacyCompose = readFileSync('infra/ivekit/docker-compose.voice.yml', 'utf8');
+  const legacyCompose = readFileSync('infra/converact/docker-compose.voice.yml', 'utf8');
   const legacyValues = readFileSync('infra/k8s/values.yaml', 'utf8');
   const legacyStatefulSet = readFileSync(
     'infra/k8s/templates/rustpbx-deployment.yaml',

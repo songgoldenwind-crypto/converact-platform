@@ -5,7 +5,7 @@ import {
   NotificationError,
   NotificationOperationsService,
   type NotificationOperationsRepository
-} from '../src/agent-runtime/ivekit/notifications/index.js';
+} from '../src/agent-runtime/converact/notifications/index.js';
 
 function repository(overrides: Partial<NotificationOperationsRepository> = {}): NotificationOperationsRepository {
   return {

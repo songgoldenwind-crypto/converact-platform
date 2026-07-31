@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const composeFiles = [
-  'infra/ivekit/docker-compose.yml',
+  'infra/converact/docker-compose.yml',
   'infra/docker-compose.production.yml'
 ];
 
@@ -36,7 +36,7 @@ test('Compose deployments expose V3 provider profiles, secret refs, and bounded 
     assert.match(compose, /OPC_QUALITY_REVIEW_RETRY_DELAYS_MS:/, path);
   }
 
-  const standalone = readFileSync('infra/ivekit/docker-compose.yml', 'utf8');
+  const standalone = readFileSync('infra/converact/docker-compose.yml', 'utf8');
   assert.match(standalone, /OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED: \$\{OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED:-0\}/);
   assert.match(standalone, /OPC_QUALITY_REVIEW_WORKER_ENABLED: \$\{OPC_QUALITY_REVIEW_WORKER_ENABLED:-0\}/);
   assert.match(standalone, /OPC_TRANSLATION_WORKER_ENABLED: \$\{OPC_TRANSLATION_WORKER_ENABLED:-0\}/);
@@ -48,7 +48,7 @@ test('Compose deployments expose V3 provider profiles, secret refs, and bounded 
   assert.match(controlled, /OPC_IVEKIT_CONTROLLED_HOST: 0\.0\.0\.0/);
   assert.match(controlled, /OPC_IVEKIT_CONTROLLED_PORT: "8790"/);
   assert.doesNotMatch(controlled, /ports:/);
-  const standaloneEnv = readFileSync('infra/ivekit/env.example', 'utf8');
+  const standaloneEnv = readFileSync('infra/converact/env.example', 'utf8');
   assert.match(standaloneEnv, /^OPC_IVEKIT_CONTROLLED_TOKEN=/m);
   assert.match(standaloneEnv, /^OPC_IVEKIT_CONTROL_TOKEN=/m);
 });

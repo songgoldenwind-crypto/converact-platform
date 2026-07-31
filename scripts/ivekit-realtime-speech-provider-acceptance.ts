@@ -10,17 +10,17 @@ import { IntelligencePolicyStore } from '../src/agent-runtime/collaboration/inte
 import {
   createExternalRealtimeSpeechFactory,
   decodeRealtimeAudioEnvelope
-} from '../src/agent-runtime/ivekit/voice/adapters/external-realtime-speech.js';
+} from '../src/agent-runtime/converact/voice/adapters/external-realtime-speech.js';
 import {
   createPolicyRealtimeSpeechRouter
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-routing.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-routing.js';
 import {
   RealtimeSpeechTranslationRegistry,
   RealtimeSpeechTranslationService,
   type RealtimeAudioFrame,
   type RealtimeSpeechProviderProfile,
   type RealtimeSpeechTranslationEvent
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-translation.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-translation.js';
 
 const CONTROLLED_TOKEN = 'controlled-realtime-token';
 const TENANT_ID = 'tenant-controlled-realtime';

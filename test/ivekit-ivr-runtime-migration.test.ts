@@ -78,7 +78,7 @@ test('IVR runtime migration extends durable action recovery and tenant discovery
 });
 
 test('standalone source and delivery manifests include IVR runtime migration in order', () => {
-  const sourcePolicy = readFileSync('services/ivekit-service/source-policy.json', 'utf8');
+  const sourcePolicy = readFileSync('services/converact-service/source-policy.json', 'utf8');
   const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
   for (const source of [sourcePolicy, delivery]) assert.match(source, /050_ivekit_ivr_runtime\.sql/);
   assert.ok(sourcePolicy.indexOf('049_ivekit_voice_route_deployment.sql') < sourcePolicy.indexOf('050_ivekit_ivr_runtime.sql'));

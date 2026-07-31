@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   loadDialogShadowAgentConfig
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow-runtime.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow-runtime.js';
 
 const BASE_ENV: NodeJS.ProcessEnv = {
   IVEKIT_DIALOG_SHADOW_CELL_ID: 'cell-a',

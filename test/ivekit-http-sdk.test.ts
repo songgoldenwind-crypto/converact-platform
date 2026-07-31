@@ -6,7 +6,7 @@ import type {
   IveKitCreateMediaRoomInput,
   IveKitMediaRoomJoinInput,
   IveKitStartMediaRecordingInput
-} from '../sdk/ivekit/src/media-types.js';
+} from '../sdk/converact/src/media-types.js';
 
 const legacyRoomJoinInput: IveKitMediaRoomJoinInput = { identity: 'customer-defaults' };
 const legacyFlatRoomRef: IveKitCreateMediaRoomInput = {
@@ -31,13 +31,13 @@ type FetchCall = {
 };
 
 test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat facade', async () => {
-  const sdkPath = 'src/agent-runtime/ivekit/http-sdk.ts';
+  const sdkPath = 'src/agent-runtime/converact/http-sdk.ts';
   assert.equal(existsSync(sdkPath), true);
   const source = readFileSync(sdkPath, 'utf8');
   assert.doesNotMatch(source, /collaboration-store|db-pg|livekit\/index|media-http|chat-http/);
   assert.doesNotMatch(source, /\bpublish(?:Message)?\s*\(/);
 
-  const module = await import('../src/agent-runtime/ivekit/http-sdk.js');
+  const module = await import('../src/agent-runtime/converact/http-sdk.js');
   const calls: FetchCall[] = [];
   const responses: Array<{ status?: number; body: unknown; headers?: Record<string, string> }> = [
     { body: { id: 'room_1', room_name: 'led-room' } },
@@ -166,7 +166,7 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
 
 test('iveKit HTTP SDK maps reaction and pin commands', async () => {
   const calls: Array<{ method: string; url: string }> = [];
-  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+  const sdk = (await import('../sdk/converact/src/http-sdk.js')).createIveKitHttpSdk({
     baseUrl: 'https://ivekit.example.com',
     tenantId: 'tenant-rich',
     accessToken: 'rich-token',
@@ -203,7 +203,7 @@ test('iveKit media SDK maps child Egress job inspection and export paths', async
       }
     })
   ];
-  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+  const sdk = (await import('../sdk/converact/src/http-sdk.js')).createIveKitHttpSdk({
     baseUrl: 'https://ivekit.example.com',
     tenantId: 'tenant-media-job',
     accessToken: 'media-job-token',
@@ -225,7 +225,7 @@ test('iveKit media SDK maps child Egress job inspection and export paths', async
 
 test('iveKit media SDK maps durable call and moderation commands', async () => {
   const calls: FetchCall[] = [];
-  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+  const sdk = (await import('../sdk/converact/src/http-sdk.js')).createIveKitHttpSdk({
     baseUrl: 'https://ivekit.example.com',
     tenantId: 'tenant-media-sdk',
     accessToken: 'media-access-token',
@@ -296,7 +296,7 @@ test('iveKit media SDK maps durable call and moderation commands', async () => {
 
 test('iveKit HTTP SDK exposes cursor session and message history requests', async () => {
   const calls: string[] = [];
-  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+  const sdk = (await import('../sdk/converact/src/http-sdk.js')).createIveKitHttpSdk({
     baseUrl: 'https://ivekit.example.com',
     tenantId: 'tenant-page',
     accessToken: 'page-token',
@@ -359,7 +359,7 @@ test('iveKit HTTP SDK exposes durable event pages, bounded replay, and snapshot 
       }
     }
   ];
-  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+  const sdk = (await import('../sdk/converact/src/http-sdk.js')).createIveKitHttpSdk({
     baseUrl: 'https://ivekit.example.com',
     tenantId: 'tenant-events',
     accessToken: 'event-token',
@@ -388,9 +388,9 @@ test('iveKit HTTP SDK exposes durable event pages, bounded replay, and snapshot 
 });
 
 test('iveKit HTTP SDK keeps Bearer identity authoritative and exposes structured errors', async () => {
-  const sdkPath = 'src/agent-runtime/ivekit/http-sdk.ts';
+  const sdkPath = 'src/agent-runtime/converact/http-sdk.ts';
   assert.equal(existsSync(sdkPath), true);
-  const module = await import('../src/agent-runtime/ivekit/http-sdk.js');
+  const module = await import('../src/agent-runtime/converact/http-sdk.js');
   let requestHeaders: Record<string, string> = {};
   const sdk = module.createIveKitHttpSdk({
     baseUrl: 'https://opc.example.com',
@@ -438,10 +438,10 @@ test('iveKit HTTP SDK keeps Bearer identity authoritative and exposes structured
 });
 
 test('iveKit SDK exports named browser-safe chat DTOs', () => {
-  const typesPath = 'sdk/ivekit/src/chat-types.ts';
+  const typesPath = 'sdk/converact/src/chat-types.ts';
   assert.equal(existsSync(typesPath), true);
   const types = readFileSync(typesPath, 'utf8');
-  const sdk = readFileSync('sdk/ivekit/src/http-sdk.ts', 'utf8');
+  const sdk = readFileSync('sdk/converact/src/http-sdk.ts', 'utf8');
   const chatInterface = sdk.match(/export interface IveKitChatHttpClient \{([\s\S]*?)\n\}/)?.[1] || '';
 
   for (const name of [
@@ -464,12 +464,12 @@ test('iveKit SDK exports named browser-safe chat DTOs', () => {
 });
 
 test('iveKit SDK exports named browser-safe media DTOs without untyped returns', () => {
-  const typesPath = 'sdk/ivekit/src/media-types.ts';
+  const typesPath = 'sdk/converact/src/media-types.ts';
   assert.equal(existsSync(typesPath), true);
   const types = readFileSync(typesPath, 'utf8');
-  const sharedTypes = readFileSync('sdk/ivekit/src/types.ts', 'utf8');
-  const sdk = readFileSync('sdk/ivekit/src/http-sdk.ts', 'utf8');
-  const entrypoint = readFileSync('sdk/ivekit/src/index.ts', 'utf8');
+  const sharedTypes = readFileSync('sdk/converact/src/types.ts', 'utf8');
+  const sdk = readFileSync('sdk/converact/src/http-sdk.ts', 'utf8');
+  const entrypoint = readFileSync('sdk/converact/src/index.ts', 'utf8');
   const mediaInterface = sdk.match(/export interface IveKitMediaHttpClient \{([\s\S]*?)\n\}/)?.[1] || '';
   const callJoinInterface = types.match(/export interface IveKitMediaJoinInput \{([\s\S]*?)\n\}/)?.[1] || '';
 
@@ -533,7 +533,7 @@ test('iveKit LED handoff artifacts cover SDK, extraction, deployment, and valida
 
 test('iveKit HTTP SDK exposes the unified business context endpoint', async () => {
   const calls: FetchCall[] = [];
-  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+  const sdk = (await import('../sdk/converact/src/http-sdk.js')).createIveKitHttpSdk({
     baseUrl: 'https://ivekit.example.com/',
     tenantId: 'tenant-led',
     accessToken: 'user-token',

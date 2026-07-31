@@ -5,10 +5,10 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const RSIPSTACK_PATCH =
-  'infra/ivekit/rustpbx/patches/rsipstack-ivekit-server-invite-lifecycle.patch';
+  'infra/converact/rustpbx/patches/rsipstack-ivekit-server-invite-lifecycle.patch';
 const RUSTPBX_PATCH =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-server-invite-owner.patch';
-const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-server-invite-owner.patch';
+const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
 const rsipstackPatch = readFileSync(RSIPSTACK_PATCH, 'utf8');
 const rustpbxPatch = readFileSync(RUSTPBX_PATCH, 'utf8');
 const manifest = JSON.parse(

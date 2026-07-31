@@ -5,10 +5,10 @@ import { parse } from 'yaml';
 
 import {
   buildKamailioComposeRuntime
-} from '../src/ivekit-kamailio-compose-config.js';
-import { renderKamailioConfig } from '../src/agent-runtime/ivekit/voice/kamailio-config.js';
+} from '../src/converact-kamailio-compose-config.js';
+import { renderKamailioConfig } from '../src/agent-runtime/converact/voice/kamailio-config.js';
 
-const composePath = 'services/ivekit-service/docker-compose.voice.yml';
+const composePath = 'services/converact-service/docker-compose.voice.yml';
 
 test('Compose builds a Cell-local Kamailio edge in front of two independently owned RustPBX nodes', () => {
   const compose = parse(readFileSync(composePath, 'utf8')) as any;
@@ -185,18 +185,18 @@ test('Compose Kamailio runtime compiler rejects incomplete HEP protection', () =
 });
 
 test('standalone image packages the Compose runtime compiler and file-backed contracts', () => {
-  const sourcePolicy = JSON.parse(readFileSync('services/ivekit-service/source-policy.json', 'utf8')) as {
+  const sourcePolicy = JSON.parse(readFileSync('services/converact-service/source-policy.json', 'utf8')) as {
     entrypoints: string[];
   };
-  const servicePackage = JSON.parse(readFileSync('services/ivekit-service/package.json', 'utf8')) as {
+  const servicePackage = JSON.parse(readFileSync('services/converact-service/package.json', 'utf8')) as {
     scripts: Record<string, string>;
   };
-  const env = readFileSync('services/ivekit-service/env.example', 'utf8');
+  const env = readFileSync('services/converact-service/env.example', 'utf8');
 
-  assert.ok(sourcePolicy.entrypoints.includes('src/ivekit-kamailio-compose-config.ts'));
+  assert.ok(sourcePolicy.entrypoints.includes('src/converact-kamailio-compose-config.ts'));
   assert.equal(
     servicePackage.scripts['render:kamailio-compose'],
-    'node dist/ivekit-kamailio-compose-config.js'
+    'node dist/converact-kamailio-compose-config.js'
   );
   assert.match(env, /^IVEKIT_KAMAILIO_IMAGE=.*@sha256:[a-f0-9]{64}$/m);
   assert.match(env, /^OPC_IVEKIT_KAMAILIO_ADVERTISE_SIP_HOST=/m);

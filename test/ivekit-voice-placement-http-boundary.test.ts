@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/http-server.js';
-import { PlacementError } from '../src/agent-runtime/ivekit/placement/types.js';
-import { prepareIveKitVoiceCallPlacement } from '../src/agent-runtime/ivekit/voice/http.js';
-import type { VoiceCallPlacementPort } from '../src/agent-runtime/ivekit/voice/call-service.js';
+import { createIveKitHttpServer } from '../src/agent-runtime/converact/http-server.js';
+import { PlacementError } from '../src/agent-runtime/converact/placement/types.js';
+import { prepareIveKitVoiceCallPlacement } from '../src/agent-runtime/converact/voice/http.js';
+import type { VoiceCallPlacementPort } from '../src/agent-runtime/converact/voice/call-service.js';
 import type { PgQueryable } from '../src/db-pg.js';
 import { listenOnRandomPort } from './test-helpers.js';
 

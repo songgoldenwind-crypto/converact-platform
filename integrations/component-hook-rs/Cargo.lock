@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "ivekit-component-hook"
+name = "converact-component-hook"
 version = "0.1.0"

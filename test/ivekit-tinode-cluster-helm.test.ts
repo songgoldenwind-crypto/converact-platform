@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const root = new URL('../services/ivekit-service/helm/ivekit/', import.meta.url);
+const root = new URL('../services/converact-service/helm/converact/', import.meta.url);
 
 function chartFile(path: string): string {
   return readFileSync(new URL(path, root), 'utf8');

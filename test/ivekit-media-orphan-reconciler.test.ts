@@ -5,21 +5,21 @@ import {
   MediaControlAgent,
   type MediaControlAuthorityPort,
   type MediaControlOrphanProbe
-} from '../src/agent-runtime/ivekit/media-control/agent.js';
+} from '../src/agent-runtime/converact/media-control/agent.js';
 import {
   mediaControlPayloadHash,
   type MediaControlAction,
   type MediaControlCommand
-} from '../src/agent-runtime/ivekit/media-control/protocol.js';
+} from '../src/agent-runtime/converact/media-control/protocol.js';
 import {
   InMemoryMediaTransport
-} from '../src/agent-runtime/ivekit/media-control/simulator.js';
+} from '../src/agent-runtime/converact/media-control/simulator.js';
 import type {
   MediaTransportCommand,
   MediaTransportOrphanCandidate,
   MediaTransportOutcome,
   MediaTransportPort
-} from '../src/agent-runtime/ivekit/media-control/transport.js';
+} from '../src/agent-runtime/converact/media-control/transport.js';
 
 const NOW = new Date('2026-07-26T00:00:00.000Z');
 const EXPIRED = new Date('2026-07-26T00:01:01.000Z');

@@ -15,21 +15,21 @@ import {
   decodeBencodePrefix,
   encodeBencode,
   type BencodeDictionary
-} from '../src/agent-runtime/ivekit/media-control/bencode.js';
+} from '../src/agent-runtime/converact/media-control/bencode.js';
 import {
   MediaCommandJournal
-} from '../src/agent-runtime/ivekit/media-control/journal.js';
+} from '../src/agent-runtime/converact/media-control/journal.js';
 import {
   RtpengineMediaTransport,
   rtpengineRequest
-} from '../src/agent-runtime/ivekit/media-control/rtpengine.js';
+} from '../src/agent-runtime/converact/media-control/rtpengine.js';
 import {
   RtpengineNgClient,
   rtpengineNgCookie
-} from '../src/agent-runtime/ivekit/media-control/rtpengine-ng.js';
+} from '../src/agent-runtime/converact/media-control/rtpengine-ng.js';
 import type {
   MediaTransportCommand
-} from '../src/agent-runtime/ivekit/media-control/transport.js';
+} from '../src/agent-runtime/converact/media-control/transport.js';
 
 const FENCE_KEYS = [
   'ivekit-owner-epoch',

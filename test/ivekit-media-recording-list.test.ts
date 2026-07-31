@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
+import { routeIveKitMediaApi } from '../src/agent-runtime/converact/media-http.js';
 import { createLiveKitMediaModule } from '../src/agent-runtime/livekit/index.js';
 import { createDatabase, run } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 import { createTenant } from '../src/platform/tenant-core.js';
-import { createIveKitHttpSdk } from '../sdk/ivekit/src/http-sdk.js';
+import { createIveKitHttpSdk } from '../sdk/converact/src/http-sdk.js';
 
 test('recording list preserves arrays and adds tenant-scoped filtered cursor pages', async () => {
   const previousKey = process.env.OPC_API_KEY;

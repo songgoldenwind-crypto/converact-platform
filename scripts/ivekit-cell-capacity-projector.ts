@@ -11,12 +11,12 @@ import type {
   CellCapacityObservation,
   CellCapacityObservationDimension,
   FlatCapacityState
-} from '../src/agent-runtime/ivekit/placement/types.js';
+} from '../src/agent-runtime/converact/placement/types.js';
 import {
   compileAdmissionNodePools,
   validateAdmissionNodeCapacity,
   type AdmissionNodePoolConfig
-} from '../src/agent-runtime/ivekit/placement/component-node-topology.js';
+} from '../src/agent-runtime/converact/placement/component-node-topology.js';
 
 interface ProjectorNodeConfig {
   node_id: string;

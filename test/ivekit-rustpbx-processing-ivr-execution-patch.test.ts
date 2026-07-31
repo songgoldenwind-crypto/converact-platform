@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch';
 
 test('RustPBX executes the existing IVR through owner-fenced processing media', () => {
   assert.equal(existsSync(PATCH_PATH), true, `${PATCH_PATH} is required`);
@@ -32,7 +32,7 @@ test('RustPBX executes the existing IVR through owner-fenced processing media', 
 });
 
 test('processing IVR execution patch is ordered, reproducible, and release-bound', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
   assert.match(
     build,
     /rustpbx-ivekit-processing-terminal-events\.patch"[\s\S]*rustpbx-ivekit-processing-ivr-execution\.patch"/

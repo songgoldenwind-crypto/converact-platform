@@ -5,7 +5,7 @@ import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { TranslationService } from '../src/agent-runtime/collaboration/translation-service.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
+import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
 
 test('translation HTTP requests, runs, and lists message translations without leaking job internals', async () => {
   const previous = { secret: process.env.OPC_JWT_SECRET, key: process.env.OPC_API_KEY };

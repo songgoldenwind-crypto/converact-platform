@@ -7,7 +7,7 @@ import {
   RustPbxManagementClient,
   VoiceError,
   type RustPbxManagementPaths
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 const paths: RustPbxManagementPaths = {
   management_health: '/api/pending-reloads',

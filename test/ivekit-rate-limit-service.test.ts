@@ -6,7 +6,7 @@ import {
   IveKitRateLimiter,
   type IveKitRateLimitReservationInput,
   type IveKitRateLimitRepository
-} from '../src/agent-runtime/ivekit/operations/rate-limit/index.js';
+} from '../src/agent-runtime/converact/operations/rate-limit/index.js';
 
 test('rate limiter HMACs all sensitive dimensions before repository reservation', async () => {
   let captured: IveKitRateLimitReservationInput | null = null;

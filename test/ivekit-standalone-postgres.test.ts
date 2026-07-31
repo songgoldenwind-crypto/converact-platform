@@ -9,9 +9,9 @@ import { Pool } from 'pg';
 
 import { buildIveKitStandaloneContext } from '../scripts/ivekit-standalone-build-context.js';
 import { runMigrations } from '../src/db-pg.js';
-import { applyIveKitMigrations } from '../src/ivekit-migrations.js';
-import { initializeIveKitRuntimeRole } from '../src/ivekit-runtime-role.js';
-import { IveKitTenantEventStore } from '../src/agent-runtime/ivekit/tenant-event-store.js';
+import { applyIveKitMigrations } from '../src/converact-migrations.js';
+import { initializeIveKitRuntimeRole } from '../src/converact-runtime-role.js';
+import { IveKitTenantEventStore } from '../src/agent-runtime/converact/tenant-event-store.js';
 import {
   AttachmentProcessingService,
   type AttachmentTextProvider
@@ -49,7 +49,7 @@ import {
   type VoiceCallCommand,
   type VoiceProviderEvent,
   type VoiceRecording
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 const freshAdminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
 const freshRuntimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import * as liveKitOverlay from '../infra/ivekit/livekit/apply-overlay.mjs';
+import * as liveKitOverlay from '../infra/converact/livekit/apply-overlay.mjs';
 
 import {
   LIVEKIT_UPSTREAM_COMMIT,
@@ -14,7 +14,7 @@ import {
   patchLiveKitGoMod,
   patchLiveKitRoomManager,
   patchLiveKitServerMain
-} from '../infra/ivekit/livekit/apply-overlay.mjs';
+} from '../infra/converact/livekit/apply-overlay.mjs';
 
 test('LiveKit owner overlay is exact-tag bound and patches every owner boundary', () => {
   assert.equal(LIVEKIT_UPSTREAM_TAG, 'v1.13.4');
@@ -119,8 +119,8 @@ test('LiveKit overlay exposes local owner modules to the upstream image build', 
 });
 
 test('LiveKit owner build files state the real compile boundary', () => {
-  const build = readFileSync('infra/ivekit/livekit/build.sh', 'utf8');
-  const readme = readFileSync('infra/ivekit/livekit/README.md', 'utf8');
+  const build = readFileSync('infra/converact/livekit/build.sh', 'utf8');
+  const readme = readFileSync('infra/converact/livekit/README.md', 'utf8');
   assert.match(build, /go test -C "\$\{LIVEKIT_SOURCE_DIR\}" \.\/cmd\/server/);
   assert.match(build, /\.\/pkg\/sfu \.\/pkg\/sfu\/utils/);
   assert.match(build, /ivekit\/component-hook-go" \.\/\.\.\./);
@@ -184,7 +184,7 @@ function liveKitDockerfileFixture(): string {
 
 test('LiveKit small-room patch removes locks and heap aggregation from 1:1 RTP fanout', () => {
   const hotPathPatch = readFileSync(
-    'infra/ivekit/livekit/patches/livekit-ivekit-small-room-hot-path.patch',
+    'infra/converact/livekit/patches/livekit-ivekit-small-room-hot-path.patch',
     'utf8'
   );
   assert.match(hotPathPatch, /atomic\.Pointer\[\[\]T\]/);

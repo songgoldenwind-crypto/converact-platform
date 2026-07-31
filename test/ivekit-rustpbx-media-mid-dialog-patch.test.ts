@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch';
 
 function effectivePatch(): string {
   return readFileSync(PATCH_PATH, 'utf8')
@@ -88,8 +88,8 @@ test('unsolicited RTPengine DTMF uses a replayable RustPBX event stream', () => 
 test('RustPBX deployment references advance atomically to ivekit.40', () => {
   for (const path of [
     'infra/env.example',
-    'infra/ivekit/env.example',
-    'services/ivekit-service/env.example'
+    'infra/converact/env.example',
+    'services/converact-service/env.example'
   ]) {
     assert.match(
       readFileSync(path, 'utf8'),

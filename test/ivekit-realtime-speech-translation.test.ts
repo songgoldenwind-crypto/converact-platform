@@ -12,7 +12,7 @@ import {
   type RealtimeSpeechTranslationEvent,
   type RealtimeSpeechTranslationFactory,
   type RealtimeSpeechTranslationSession
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-translation.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-translation.js';
 
 const profile: RealtimeSpeechProviderProfile = {
   id: 'speech-vendor-a',

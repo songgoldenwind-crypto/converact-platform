@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 
-import { startIveKitApplication } from '../src/agent-runtime/ivekit/application.js';
-import { IveKitTenantEventStore } from '../src/agent-runtime/ivekit/tenant-event-store.js';
+import { startIveKitApplication } from '../src/agent-runtime/converact/application.js';
+import { IveKitTenantEventStore } from '../src/agent-runtime/converact/tenant-event-store.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { initWebSocket, shutdownWebSocket } from '../src/ws.js';
 

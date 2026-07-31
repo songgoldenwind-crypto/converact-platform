@@ -8,12 +8,12 @@ import { TinodeProviderUserStore } from '../src/agent-runtime/collaboration/tino
 import {
   prepareIveKitChatPlacement,
   routeIveKitChatApi
-} from '../src/agent-runtime/ivekit/chat-http.js';
-import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/http-server.js';
+} from '../src/agent-runtime/converact/chat-http.js';
+import { createIveKitHttpServer } from '../src/agent-runtime/converact/http-server.js';
 import type {
   ComponentPlacementAdapter,
   ComponentPlacementReservation
-} from '../src/agent-runtime/ivekit/placement/component-placement.js';
+} from '../src/agent-runtime/converact/placement/component-placement.js';
 import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 import { createDatabase } from '../src/db.js';
 import { createServer as createOpcServer } from '../src/http.js';

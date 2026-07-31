@@ -4,15 +4,15 @@ import { createServer } from './http.js';
 import { initWebSocket, wsBroadcast } from './ws.js';
 import { connectNats } from './infra/nats-client.js';
 import { startCallCenterRuntime } from './agent-runtime/call-center/call-center-runtime.js';
-import { startIveKitApplication } from './agent-runtime/ivekit/application.js';
-import { createConfiguredPlacementFoundation } from './agent-runtime/ivekit/placement/index.js';
+import { startIveKitApplication } from './agent-runtime/converact/application.js';
+import { createConfiguredPlacementFoundation } from './agent-runtime/converact/placement/index.js';
 import {
   rustDeskOwnerBindingPrepareClientFromEnv
-} from './agent-runtime/ivekit/placement/rustdesk-owner-binding.js';
+} from './agent-runtime/converact/placement/rustdesk-owner-binding.js';
 import {
   IveKitTenantEventStore,
   iveKitEventReplayEnabled
-} from './agent-runtime/ivekit/tenant-event-store.js';
+} from './agent-runtime/converact/tenant-event-store.js';
 import { migrateIvrRuntimeTables } from './db-migrations/ivr-runtime-schema.js';
 import { validateEnvOrExit } from './env-config.js';
 import { shutdownOpenTelemetry } from './telemetry.js';

@@ -7,7 +7,7 @@ import {
   KamailioHepHighWaterController,
   KamailioHepHighWaterStateMachine,
   type KamailioHepHighWaterPolicy
-} from '../src/agent-runtime/ivekit/voice/kamailio-hep-high-water.js';
+} from '../src/agent-runtime/converact/voice/kamailio-hep-high-water.js';
 
 const POLICY: KamailioHepHighWaterPolicy = {
   sample_percent: 10,

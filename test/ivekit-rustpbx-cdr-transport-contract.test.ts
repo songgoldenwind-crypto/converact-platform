@@ -4,14 +4,14 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const patchPath =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-cdr-mtls-noop.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-cdr-mtls-noop.patch';
 
 test('RustPBX CDR transport uses mTLS and a no-op legacy sink', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
   const patch = readFileSync(patchPath, 'utf8');
-  const compose = readFileSync('infra/ivekit/docker-compose.voice.yml', 'utf8');
+  const compose = readFileSync('infra/converact/docker-compose.voice.yml', 'utf8');
   const serviceCompose = readFileSync(
-    'services/ivekit-service/docker-compose.voice.yml',
+    'services/converact-service/docker-compose.voice.yml',
     'utf8'
   );
   const opcHelm = readFileSync('infra/k8s/templates/opc-deployment.yaml', 'utf8');
@@ -20,11 +20,11 @@ test('RustPBX CDR transport uses mTLS and a no-op legacy sink', () => {
     'utf8'
   );
   const serviceOpcHelm = readFileSync(
-    'services/ivekit-service/helm/ivekit/templates/deployment.yaml',
+    'services/converact-service/helm/converact/templates/deployment.yaml',
     'utf8'
   );
   const serviceRustPbxHelm = readFileSync(
-    'services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml',
+    'services/converact-service/helm/converact/templates/rustpbx-deployment.yaml',
     'utf8'
   );
 

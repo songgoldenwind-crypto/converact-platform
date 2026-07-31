@@ -7,27 +7,27 @@ import { withPgTenant } from '../src/db-pg-tenant.js';
 import {
   DialogRecoveryCapsuleCodec,
   type DialogRecoveryCapsulePayload
-} from '../src/agent-runtime/ivekit/voice/dialog-recovery-capsule.js';
+} from '../src/agent-runtime/converact/voice/dialog-recovery-capsule.js';
 import {
   parseVoiceDualLegCdr
-} from '../src/agent-runtime/ivekit/voice/cdr-convergence.js';
+} from '../src/agent-runtime/converact/voice/cdr-convergence.js';
 import {
   DialogOwnerTakeoverError,
   type DialogPeerIdentity
-} from '../src/agent-runtime/ivekit/voice/dialog-owner-takeover.js';
+} from '../src/agent-runtime/converact/voice/dialog-owner-takeover.js';
 import {
   dialogShadowPairHash,
   type DialogShadowRecord
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow.js';
 import type {
   DialogTerminalShadowRepairClaim
-} from '../src/agent-runtime/ivekit/voice/dialog-terminal-shadow-repair.js';
+} from '../src/agent-runtime/converact/voice/dialog-terminal-shadow-repair.js';
 import {
   PostgresDialogOwnerTakeoverStore
-} from '../src/agent-runtime/ivekit/voice/postgres/dialog-owner-takeover-store.js';
+} from '../src/agent-runtime/converact/voice/postgres/dialog-owner-takeover-store.js';
 import {
   PostgresVoiceCdrConvergenceStore
-} from '../src/agent-runtime/ivekit/voice/postgres/cdr-convergence-store.js';
+} from '../src/agent-runtime/converact/voice/postgres/cdr-convergence-store.js';
 
 const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
 const runtimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';

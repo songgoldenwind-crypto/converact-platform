@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rsipstack-ivekit-prepared-invite.patch';
+  'infra/converact/rustpbx/patches/rsipstack-ivekit-prepared-invite.patch';
 
 function patch(): string {
   return readFileSync(PATCH_PATH, 'utf8');
@@ -34,7 +34,7 @@ test('rsipstack prepares an effective offer after assigning the real dialog tag'
 });
 
 test('the exact rsipstack prepared-invite patch is applied and recorded', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
   assert.match(
     build,
     /rsipstack-ivekit-dialog-recovery\.patch"[\s\S]*rsipstack-ivekit-prepared-invite\.patch"/

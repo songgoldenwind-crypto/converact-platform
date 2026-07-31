@@ -8,12 +8,12 @@ import { one, run } from '../src/db-compat.js';
 import { createTenant } from '../src/platform/tenant-core.js';
 import { createLiveKitMediaModule, LiveKitRoomStore } from '../src/agent-runtime/livekit/index.js';
 
-const policy = JSON.parse(readFileSync('services/ivekit-service/source-policy.json', 'utf8')) as {
+const policy = JSON.parse(readFileSync('services/converact-service/source-policy.json', 'utf8')) as {
   migrations: string[];
 };
 
 test('standalone foundation creates only the communication prerequisites', () => {
-  const sql = readFileSync('services/ivekit-service/migrations/000_ivekit_foundation.sql', 'utf8');
+  const sql = readFileSync('services/converact-service/migrations/000_ivekit_foundation.sql', 'utf8');
   const created = [...sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z0-9_]+)/gi)]
     .map((match) => match[1])
     .sort();
@@ -220,7 +220,7 @@ test('standalone migration order includes RLS and communication overlays but exc
   );
   assert.equal(migrations.at(-1), '107_ivekit_sip_effect_oracle.sql');
   const runtimeSecurity = readFileSync(
-    'services/ivekit-service/migrations/090_ivekit_runtime_security.sql',
+    'services/converact-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'
   );
   assert.match(runtimeSecurity, /current_user = 'opc_admin'/);
@@ -237,24 +237,24 @@ test('standalone migration order includes RLS and communication overlays but exc
 });
 
 test('standalone service exposes a compiled migration entrypoint', () => {
-  const servicePackage = JSON.parse(readFileSync('services/ivekit-service/package.json', 'utf8')) as {
+  const servicePackage = JSON.parse(readFileSync('services/converact-service/package.json', 'utf8')) as {
     scripts: Record<string, string>;
   };
-  const dockerfile = readFileSync('services/ivekit-service/Dockerfile', 'utf8');
-  assert.equal(servicePackage.scripts.migrate, 'node dist/ivekit-migrate.js');
+  const dockerfile = readFileSync('services/converact-service/Dockerfile', 'utf8');
+  assert.equal(servicePackage.scripts.migrate, 'node dist/converact-migrate.js');
   assert.match(dockerfile, /COPY migrations \.\/migrations/);
   assert.doesNotMatch(dockerfile, /tsx|scripts\/run-postgres-migrations/);
 });
 
 test('standalone service owns compiled runtime-role bootstrap and Compose ordering', () => {
-  const servicePackage = JSON.parse(readFileSync('services/ivekit-service/package.json', 'utf8')) as {
+  const servicePackage = JSON.parse(readFileSync('services/converact-service/package.json', 'utf8')) as {
     scripts: Record<string, string>;
   };
-  const compose = readFileSync('services/ivekit-service/docker-compose.yml', 'utf8');
-  const envExample = readFileSync('services/ivekit-service/env.example', 'utf8');
+  const compose = readFileSync('services/converact-service/docker-compose.yml', 'utf8');
+  const envExample = readFileSync('services/converact-service/env.example', 'utf8');
 
-  assert.equal(servicePackage.scripts['init:runtime-role'], 'node dist/ivekit-init-runtime-role.js');
-  assert.match(compose, /runtime-role-init:[\s\S]*dist\/ivekit-init-runtime-role\.js/);
+  assert.equal(servicePackage.scripts['init:runtime-role'], 'node dist/converact-init-runtime-role.js');
+  assert.match(compose, /runtime-role-init:[\s\S]*dist\/converact-init-runtime-role\.js/);
   assert.match(compose, /migrate:[\s\S]*runtime-role-init:[\s\S]*condition: service_completed_successfully/);
   assert.match(compose, /ivekit:[\s\S]*migrate:[\s\S]*condition: service_completed_successfully/);
   assert.match(compose, /PGUSER: opc_runtime/);
@@ -262,7 +262,7 @@ test('standalone service owns compiled runtime-role bootstrap and Compose orderi
   assert.match(compose, /OPC_RUSTDESK_EDGE_TOKEN_SECRET: \$\{OPC_RUSTDESK_EDGE_TOKEN_SECRET:-\}/);
   assert.match(envExample, /^OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=0$/m);
   assert.match(envExample, /^OPC_RUSTDESK_EDGE_TOKEN_SECRET=$/m);
-  assert.doesNotMatch(compose, /\.\.\/\.\.|opc-growth-platform|src\/server\.ts/);
+  assert.doesNotMatch(compose, /\.\.\/\.\.|converact-platform|src\/server\.ts/);
 });
 
 test('generic media module does not write the legacy OPC voice session', async () => {

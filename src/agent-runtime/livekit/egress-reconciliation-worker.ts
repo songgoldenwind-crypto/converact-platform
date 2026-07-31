@@ -1,6 +1,6 @@
 import type { LiveKitEgressJobStatus } from './types.js';
 import { withPgTransaction, type PgQueryable } from '../../db-pg.js';
-import { PostgresInteractionPlacementRepository } from '../ivekit/placement/interaction-placement.js';
+import { PostgresInteractionPlacementRepository } from '../converact/placement/interaction-placement.js';
 
 export interface LiveKitEgressProviderInfo {
   egressId?: string;

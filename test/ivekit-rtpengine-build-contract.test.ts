@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-const ROOT = 'infra/ivekit/rtpengine';
+const ROOT = 'infra/converact/rtpengine';
 const REQUIRED_FILES = [
   `${ROOT}/Dockerfile.toolchain`,
   `${ROOT}/Dockerfile.runtime`,

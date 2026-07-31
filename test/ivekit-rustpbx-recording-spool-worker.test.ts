@@ -7,7 +7,7 @@ import test from 'node:test';
 import {
   RustPbxRecordingSpoolWorker,
   type RustPbxRecordingSpoolWorkerConfig
-} from '../src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-worker.js';
+} from '../src/agent-runtime/converact/recordings/rustpbx-recording-spool-worker.js';
 
 const PART_SIZE = 5 * 1024 * 1024;
 

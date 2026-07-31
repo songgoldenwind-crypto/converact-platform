@@ -5,7 +5,7 @@ import type { PgQueryable } from '../src/db-pg.js';
 import {
   iveKitRuntimeComponents,
   startIveKitRuntimeHeartbeat
-} from '../src/agent-runtime/ivekit/operations/runtime-heartbeat.js';
+} from '../src/agent-runtime/converact/operations/runtime-heartbeat.js';
 
 class RecordingPg implements PgQueryable {
   calls: Array<{ text: string; params: unknown[] }> = [];

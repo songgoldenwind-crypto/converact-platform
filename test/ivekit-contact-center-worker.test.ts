@@ -7,7 +7,7 @@ import {
   contactCenterMaintenanceWorkerConfig,
   runContactCenterMaintenanceBatch,
   type ContactCenterMaintenanceService
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 test('Contact Center maintenance batch expires, times out, then offers per tenant', async () => {
@@ -155,11 +155,11 @@ test('Contact Center callback and overflow retry configuration is wired across d
   for (const path of [
     '.env.example',
     'infra/env.example',
-    'infra/ivekit/env.example',
-    'services/ivekit-service/env.example',
-    'infra/ivekit/docker-compose.yml',
+    'infra/converact/env.example',
+    'services/converact-service/env.example',
+    'infra/converact/docker-compose.yml',
     'infra/docker-compose.production.yml',
-    'services/ivekit-service/docker-compose.yml',
+    'services/converact-service/docker-compose.yml',
     'infra/k8s/templates/opc-deployment.yaml'
   ]) {
     assert.match(

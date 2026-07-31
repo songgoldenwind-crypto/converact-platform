@@ -3,27 +3,27 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const standaloneValues = readFileSync(
-  'services/ivekit-service/helm/ivekit/values.yaml',
+  'services/converact-service/helm/converact/values.yaml',
   'utf8'
 );
 const aiProfile = readFileSync(
-  'services/ivekit-service/helm/ivekit/profiles/ai.values.yaml',
+  'services/converact-service/helm/converact/profiles/ai.values.yaml',
   'utf8'
 );
 const standaloneDeployment = readFileSync(
-  'services/ivekit-service/helm/ivekit/templates/deployment.yaml',
+  'services/converact-service/helm/converact/templates/deployment.yaml',
   'utf8'
 );
 const standaloneService = readFileSync(
-  'services/ivekit-service/helm/ivekit/templates/service.yaml',
+  'services/converact-service/helm/converact/templates/service.yaml',
   'utf8'
 );
 const standaloneNetworkPolicy = readFileSync(
-  'services/ivekit-service/helm/ivekit/templates/realtime-audio-tap-network-policy.yaml',
+  'services/converact-service/helm/converact/templates/realtime-audio-tap-network-policy.yaml',
   'utf8'
 );
 const standaloneRustPbx = readFileSync(
-  'services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml',
+  'services/converact-service/helm/converact/templates/rustpbx-deployment.yaml',
   'utf8'
 );
 const platformValues = readFileSync('infra/k8s/values.yaml', 'utf8');
@@ -40,11 +40,11 @@ const platformRustPbx = readFileSync(
   'utf8'
 );
 const standaloneVoiceCompose = readFileSync(
-  'services/ivekit-service/docker-compose.voice.yml',
+  'services/converact-service/docker-compose.voice.yml',
   'utf8'
 );
 const standaloneCompose = readFileSync(
-  'services/ivekit-service/docker-compose.yml',
+  'services/converact-service/docker-compose.yml',
   'utf8'
 );
 const platformCompose = readFileSync(

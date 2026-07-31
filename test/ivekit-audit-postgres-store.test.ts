@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { PgQueryable } from '../src/db-pg.js';
-import { PostgresIveKitAuditStore } from '../src/agent-runtime/ivekit/operations/audit/postgres-store.js';
-import type { IveKitAuditAppendInput } from '../src/agent-runtime/ivekit/operations/audit/types.js';
+import { PostgresIveKitAuditStore } from '../src/agent-runtime/converact/operations/audit/postgres-store.js';
+import type { IveKitAuditAppendInput } from '../src/agent-runtime/converact/operations/audit/types.js';
 
 class RecordingPg implements PgQueryable {
   calls: Array<{ text: string; params: unknown[] }> = [];

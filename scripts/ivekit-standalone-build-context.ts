@@ -71,7 +71,7 @@ export function buildIveKitStandaloneContext(
 
   for (const path of graph.files) copy(repoRoot, outputDir, path, path);
   for (const source of policy.assets) copy(repoRoot, outputDir, source, basename(source));
-  copy(repoRoot, outputDir, 'services/ivekit-service/source-policy.json', 'source-policy.json');
+  copy(repoRoot, outputDir, 'services/converact-service/source-policy.json', 'source-policy.json');
   for (const migration of policy.migrations || []) {
     const source = migration.includes('/') ? migration : `src/migrations/${migration}`;
     copy(repoRoot, outputDir, source, `migrations/${basename(migration)}`);
@@ -139,7 +139,7 @@ export function validateIveKitStandaloneContext(outputDirInput: string): IveKitS
 
 function assertPackageBoundary(repoRoot: string, graph: IveKitStandaloneSourceGraph): void {
   const servicePackage = JSON.parse(readFileSync(
-    join(repoRoot, 'services', 'ivekit-service', 'package.json'),
+    join(repoRoot, 'services', 'converact-service', 'package.json'),
     'utf8'
   )) as { dependencies?: Record<string, string> };
   const declared = Object.keys(servicePackage.dependencies || {}).sort();
@@ -155,7 +155,7 @@ function assertPackageBoundary(repoRoot: string, graph: IveKitStandaloneSourceGr
 function assertServiceLockCurrent(repoRoot: string): void {
   const expected = generateIveKitServiceLock(repoRoot);
   const actual = JSON.parse(readFileSync(
-    join(repoRoot, 'services', 'ivekit-service', 'package-lock.json'),
+    join(repoRoot, 'services', 'converact-service', 'package-lock.json'),
     'utf8'
   ));
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {

@@ -14,7 +14,7 @@ import {
   rustDeskClientConfig,
   rustDeskPublicKey
 } from '../src/agent-runtime/collaboration/rustdesk-client-config.js';
-import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/index.js';
+import { createIveKitHttpServer } from '../src/agent-runtime/converact/index.js';
 import { createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { createServer as createOpcHttpServer } from '../src/http.js';
@@ -561,7 +561,7 @@ test('RustDesk client profile deployment passes pinned version and manifest into
   for (const path of [
     '../docker-compose.callcenter.yml',
     '../infra/docker-compose.production.yml',
-    '../infra/ivekit/docker-compose.yml'
+    '../infra/converact/docker-compose.yml'
   ]) {
     const compose = readFileSync(new URL(path, import.meta.url), 'utf8');
     assert.match(compose, /RUSTDESK_SERVER_IMAGE_TAG:\s*\$\{RUSTDESK_SERVER_IMAGE_TAG/);
@@ -570,7 +570,7 @@ test('RustDesk client profile deployment passes pinned version and manifest into
     assert.match(compose, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS:\s*\$\{OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS/);
     assert.doesNotMatch(compose, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
   }
-  for (const path of ['../.env.example', '../infra/env.example', '../infra/ivekit/env.example']) {
+  for (const path of ['../.env.example', '../infra/env.example', '../infra/converact/env.example']) {
     const env = readFileSync(new URL(path, import.meta.url), 'utf8');
     assert.match(env, /^OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON=$/m);
     assert.match(env, /^OPC_RUSTDESK_CLIENT_VERSION=1\.4\.9$/m);

@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(sqlite3 data/opc-growth-platform.db \".schema\")",
+      "Bash(sqlite3 data/converact-platform.db \".schema\")",
       "Bash(node --import tsx -e ' *)"
     ]
   }

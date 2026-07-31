@@ -8,7 +8,7 @@ import {
   type IvrFlowGraph,
   type IvrNodeBase,
   type IvrNodeType
-} from '../src/agent-runtime/ivekit/ivr/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
 
 test('IVR compiler normalizes flat nodes and produces order-stable canonical hashes', () => {
   const graph = validGraph();

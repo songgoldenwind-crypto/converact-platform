@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/http-server.js';
+import { createIveKitHttpServer } from '../src/agent-runtime/converact/http-server.js';
 
 test('iveKit internal listener requires a trusted mTLS client', async () => {
   const certificates = testCertificates();

@@ -15,7 +15,7 @@ import {
   type ContactCenterRoutingCandidate,
   type ContactCenterSupervisorSession,
   type ContactCenterUnitOfWork
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 
 test('Contact Center enqueue is idempotent and rejects a changed payload', async () => {
   const fixture = setup();

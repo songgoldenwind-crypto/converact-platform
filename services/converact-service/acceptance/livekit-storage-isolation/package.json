@@ -1,0 +1,21 @@
+{
+  "name": "converact-livekit-storage-isolation-acceptance",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0 <25.0.0"
+  },
+  "dependencies": {
+    "livekit-client": "2.20.1",
+    "livekit-server-sdk": "2.17.0",
+    "playwright": "1.61.1",
+    "tsx": "4.23.1"
+  },
+  "overrides": {
+    "esbuild": "0.28.1"
+  },
+  "scripts": {
+    "accept": "tsx runner.ts",
+    "install:chromium": "playwright install chromium"
+  }
+}

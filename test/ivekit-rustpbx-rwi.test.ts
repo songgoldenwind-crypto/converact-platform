@@ -11,7 +11,7 @@ import {
   mapRustPbxRwiBridgeCommand,
   mapRustPbxRwiCommand,
   type RustPbxRwiSafeEvent
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('RustPBX RWI authenticates by header and correlates durable action ids once', async () => {
   const fixture = await rwiFixture((socket, message) => {

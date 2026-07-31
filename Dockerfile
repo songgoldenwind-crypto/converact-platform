@@ -9,7 +9,7 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY scripts ./scripts
 COPY shared ./shared
-COPY sdk/ivekit ./sdk/ivekit
+COPY sdk/converact ./sdk/converact
 COPY public ./public
 COPY config ./config
 

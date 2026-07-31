@@ -19,7 +19,7 @@ import {
   type VoiceRouteVersion,
   type VoiceSipTrunk,
   type VoiceConsent
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('Voice configuration service creates validated desired state and immutable admin events', async () => {
   const fixture = configurationFixture();

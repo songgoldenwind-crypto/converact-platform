@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { renderRustPbxConfig } from '../src/agent-runtime/ivekit/voice/rustpbx-config.js';
+import { renderRustPbxConfig } from '../src/agent-runtime/converact/voice/rustpbx-config.js';
 
 const ENV = {
   RUSTPBX_DATABASE_URL: 'postgresql://rustpbx_app:database-secret@postgres:5432/rustpbx',
@@ -33,10 +33,10 @@ test('RustPBX uses the shared PostgreSQL locator for multi-node WebPhone registr
 test('RustPBX patch binds JWT subject to SIP and registrar identities', async () => {
   const [patch, build] = await Promise.all([
     readFile(new URL(
-      '../infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch',
+      '../infra/converact/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch',
       import.meta.url
     ), 'utf8'),
-    readFile(new URL('../infra/ivekit/rustpbx/build.sh', import.meta.url), 'utf8')
+    readFile(new URL('../infra/converact/rustpbx/build.sh', import.meta.url), 'utf8')
   ]);
 
   assert.match(patch, /jwt_auth_backend\.rs/);

@@ -19,7 +19,7 @@ import {
 test('RustPBX SIPp acceptance ignores an incomplete delivery scenario directory', () => {
   const delivery = fileURLToPath(new URL('../sipp/', import.meta.url));
   const repository = fileURLToPath(new URL(
-    '../services/ivekit-service/acceptance/sipp/',
+    '../services/converact-service/acceptance/sipp/',
     import.meta.url
   ));
 
@@ -78,7 +78,7 @@ test('RustPBX SIPp acceptance pins tools and covers the complete signaling matri
   assert.throws(() => selectRustPbxSippScenarios(scenarios, 'missing'), /unknown/i);
 
   const tcpUac = readFileSync(new URL(
-    '../services/ivekit-service/acceptance/sipp/answer-bye-uac.xml',
+    '../services/converact-service/acceptance/sipp/answer-bye-uac.xml',
     import.meta.url
   ), 'utf8');
   assert.equal(tcpUac.match(/<recv response="100" optional="true"(?: rtd="sip_route")? \/>/g)?.length, 2);

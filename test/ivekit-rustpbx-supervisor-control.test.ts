@@ -5,7 +5,7 @@ import {
   ContactCenterError,
   RustPbxRwiSupervisorControl,
   type RustPbxSupervisorCallBindingResolver
-} from '../src/agent-runtime/ivekit/contact-center/index.js';
+} from '../src/agent-runtime/converact/contact-center/index.js';
 import {
   RUSTPBX_RWI_EFFECTIVE_CAPABILITIES,
   RUSTPBX_RWI_PROTOCOL_CAPABILITIES,
@@ -13,7 +13,7 @@ import {
   mapRustPbxRwiSupervisorAction,
   type RustPbxRwiPreflightResult,
   type RustPbxRwiSupervisorActionInput
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('RustPBX supervisor RWI mapping is exact and rejects malformed provider identifiers', () => {
   assert.deepEqual(mapRustPbxRwiSupervisorAction({

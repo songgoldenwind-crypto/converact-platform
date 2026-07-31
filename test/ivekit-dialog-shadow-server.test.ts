@@ -4,10 +4,10 @@ import test from 'node:test';
 
 import {
   createDialogShadowHttpServer
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow-server.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow-server.js';
 import type {
   DialogShadowHttpCoordinator
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow-http.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow-http.js';
 
 const SERVICE_TOKEN = 'dialog-shadow-service-token-aa';
 const PEER = {

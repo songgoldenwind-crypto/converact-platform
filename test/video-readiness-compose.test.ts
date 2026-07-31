@@ -10,8 +10,8 @@ const PRODUCTION_ENV_PATH = new URL('../infra/env.example', import.meta.url);
 const LIVEKIT_EDGE_COMPOSE_PATH = new URL('../infra/livekit/docker-compose.yml', import.meta.url);
 const LIVEKIT_STORAGE_COMPOSE_PATH = new URL('../infra/livekit/docker-compose.storage.yml', import.meta.url);
 const LIVEKIT_ENV_PATH = new URL('../infra/livekit/env.example', import.meta.url);
-const IVEKIT_APPLICATION_COMPOSE_PATH = new URL('../infra/ivekit/docker-compose.yml', import.meta.url);
-const IVEKIT_POSTGRES_ROLE_INIT_PATH = new URL('../infra/ivekit/init-postgres-runtime-role.sh', import.meta.url);
+const IVEKIT_APPLICATION_COMPOSE_PATH = new URL('../infra/converact/docker-compose.yml', import.meta.url);
+const IVEKIT_POSTGRES_ROLE_INIT_PATH = new URL('../infra/converact/init-postgres-runtime-role.sh', import.meta.url);
 const K8S_OPC_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/opc-deployment.yaml', import.meta.url);
 const K8S_HELPERS_PATH = new URL('../infra/k8s/templates/_helpers.tpl', import.meta.url);
 const K8S_AI_AGENT_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/ai-agent-deployment.yaml', import.meta.url);
@@ -313,7 +313,7 @@ test('standalone LiveKit storage overlay keeps MinIO private and gates Egress on
 
 test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and RustDesk', () => {
   const compose = readFileSync(IVEKIT_APPLICATION_COMPOSE_PATH, 'utf8');
-  const envExample = readFileSync(new URL('../infra/ivekit/env.example', import.meta.url), 'utf8');
+  const envExample = readFileSync(new URL('../infra/converact/env.example', import.meta.url), 'utf8');
 
   const postgres = readServiceBlock(compose, 'postgres');
   assert.match(postgres, /image: \$\{IVEKIT_POSTGRES_IMAGE:\?IVEKIT_POSTGRES_IMAGE immutable digest reference is required\}/);

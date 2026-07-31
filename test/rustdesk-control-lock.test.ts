@@ -8,7 +8,7 @@ import { createCollaborationModule } from '../src/agent-runtime/collaboration/in
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
-import { createIveKitRustDeskHttpClient } from '../sdk/ivekit/src/rustdesk-http-client.js';
+import { createIveKitRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
 
 test('RustDesk control ownership migration defines leases confirmations and immutable events', () => {
   const migrationUrl = new URL('../src/migrations/040_rustdesk_control_ownership.sql', import.meta.url);

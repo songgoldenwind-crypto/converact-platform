@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash, createHmac } from 'node:crypto';
 import test from 'node:test';
 
-import { verifyIveKitWebhook } from '../sdk/ivekit/src/webhook.js';
+import { verifyIveKitWebhook } from '../sdk/converact/src/webhook.js';
 
 test('SDK verifies a signed integration event and delegates replay to shared storage', async () => {
   const body = JSON.stringify(envelope());

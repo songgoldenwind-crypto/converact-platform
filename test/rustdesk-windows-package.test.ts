@@ -303,7 +303,7 @@ test('Windows package emits syntax-valid JavaScript from the real companion sour
 test('Windows package command, environment samples, and Windows AST validation CI are wired', () => {
   const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
   const rootEnv = readFileSync(join(process.cwd(), '.env.example'), 'utf8');
-  const standaloneEnv = readFileSync(join(process.cwd(), 'infra/ivekit/env.example'), 'utf8');
+  const standaloneEnv = readFileSync(join(process.cwd(), 'infra/converact/env.example'), 'utf8');
   const workflow = readFileSync(
     join(process.cwd(), '.github/workflows/ivekit-rustdesk-windows-ci.yml'),
     'utf8'

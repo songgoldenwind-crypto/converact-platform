@@ -4,9 +4,9 @@ import { pathToFileURL } from 'node:url';
 import {
   DEFAULT_RUSTPBX_MANAGEMENT_PATHS,
   RustPbxManagementClient
-} from '../src/agent-runtime/ivekit/voice/adapters/rustpbx-management.js';
-import { RustPbxRwiClient } from '../src/agent-runtime/ivekit/voice/adapters/rustpbx-rwi.js';
-import { EnvVoiceSecretResolver } from '../src/agent-runtime/ivekit/voice/secret-resolver.js';
+} from '../src/agent-runtime/converact/voice/adapters/rustpbx-management.js';
+import { RustPbxRwiClient } from '../src/agent-runtime/converact/voice/adapters/rustpbx-rwi.js';
+import { EnvVoiceSecretResolver } from '../src/agent-runtime/converact/voice/secret-resolver.js';
 
 interface ReconciliationDialog {
   id: string;

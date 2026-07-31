@@ -4,17 +4,17 @@ import { describe, it } from 'node:test';
 import {
   MediaControlAgent,
   type MediaControlAuthorityPort
-} from '../src/agent-runtime/ivekit/media-control/agent.js';
+} from '../src/agent-runtime/converact/media-control/agent.js';
 import {
   mediaControlPayloadHash,
   type MediaControlCommand
-} from '../src/agent-runtime/ivekit/media-control/protocol.js';
+} from '../src/agent-runtime/converact/media-control/protocol.js';
 import type {
   MediaTransportCommand,
   MediaTransportOutcome,
   MediaTransportPort,
   MediaTransportQuery
-} from '../src/agent-runtime/ivekit/media-control/transport.js';
+} from '../src/agent-runtime/converact/media-control/transport.js';
 
 const NOW = new Date('2026-07-25T00:00:00.000Z');
 const OWNER_EPOCH = ((1n << 32n) | 1n).toString();

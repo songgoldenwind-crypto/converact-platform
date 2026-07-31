@@ -12,17 +12,17 @@ import {
   type RecordingSpoolAuthorization,
   type RecordingSpoolIntakeStore,
   type RecordingSpoolUploadPort
-} from '../src/agent-runtime/ivekit/recordings/recording-spool-intake-service.js';
+} from '../src/agent-runtime/converact/recordings/recording-spool-intake-service.js';
 import type {
   RecordingManifest,
   RecordingSegment
-} from '../src/agent-runtime/ivekit/recordings/recording-manifest.js';
+} from '../src/agent-runtime/converact/recordings/recording-manifest.js';
 import type {
   RecordingMultipartUpload,
   RecordingSegmentEvent,
   RecordingUploadLease,
   RecordingUploadPart
-} from '../src/agent-runtime/ivekit/recordings/postgres-recording-manifest-store.js';
+} from '../src/agent-runtime/converact/recordings/postgres-recording-manifest-store.js';
 
 const NOW = new Date('2026-07-17T06:01:00.000Z');
 const FILE = Buffer.from('whole wav file');

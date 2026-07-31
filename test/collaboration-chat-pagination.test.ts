@@ -11,7 +11,7 @@ import {
 } from '../src/agent-runtime/collaboration/chat-gateway.js';
 import { TinodeProviderUserStore } from '../src/agent-runtime/collaboration/tinode-provider-user-store.js';
 import { withCollaborationSessionLock } from '../src/agent-runtime/collaboration/collaboration-lock.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
+import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 const API_KEY = 'test-chat-pagination-key';

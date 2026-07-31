@@ -6,7 +6,7 @@ import {
   type IveKitAuditAppendInput,
   type IveKitAuditEvent,
   type IveKitAuditRepository
-} from '../src/agent-runtime/ivekit/operations/audit/index.js';
+} from '../src/agent-runtime/converact/operations/audit/index.js';
 
 class MemoryAuditRepository implements IveKitAuditRepository {
   events: IveKitAuditEvent[] = [];

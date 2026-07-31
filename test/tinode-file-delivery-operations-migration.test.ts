@@ -17,12 +17,12 @@ test('Tinode file delivery operations migration defines bounded states, replay a
 });
 
 test('standalone migration manifest orders Tinode operations before runtime security', () => {
-  const policy = JSON.parse(readFileSync('services/ivekit-service/source-policy.json', 'utf8')) as {
+  const policy = JSON.parse(readFileSync('services/converact-service/source-policy.json', 'utf8')) as {
     migrations: string[];
   };
   const operations = policy.migrations.indexOf('062_tinode_file_delivery_operations.sql');
   const security = policy.migrations.indexOf(
-    'services/ivekit-service/migrations/090_ivekit_runtime_security.sql'
+    'services/converact-service/migrations/090_ivekit_runtime_security.sql'
   );
   assert.equal(operations >= 0, true);
   assert.equal(operations < security, true);

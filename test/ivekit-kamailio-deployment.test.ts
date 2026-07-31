@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import { parse } from 'yaml';
 
-const chartRoot = 'services/ivekit-service/helm/ivekit';
+const chartRoot = 'services/converact-service/helm/converact';
 
 function read(path: string): string {
   return readFileSync(`${chartRoot}/${path}`, 'utf8');

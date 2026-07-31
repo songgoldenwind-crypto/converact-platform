@@ -12,7 +12,7 @@ import {
   type VoiceCapabilitySnapshot,
   type VoiceConfigurationRepository,
   type VoiceDeploymentProfile
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 const ALL_CAPABILITIES: VoiceCapability[] = [
   'management_http',

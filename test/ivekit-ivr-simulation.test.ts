@@ -7,7 +7,7 @@ import {
   type IvrFlow,
   type IvrFlowRepository,
   type IvrFlowVersion
-} from '../src/agent-runtime/ivekit/ivr/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
 
 test('IVR simulator uses the durable session runtime with deterministic virtual time and trace', async () => {
   const simulator = new IvrSimulationService({ flows: new SimulationFlowRepository(flowVersion()) });

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { CollaborationMessageStateStore } from '../src/agent-runtime/collaboration/message-state-store.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
+import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 const API_KEY = 'test-im-features-key';

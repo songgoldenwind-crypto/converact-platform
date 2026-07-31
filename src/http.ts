@@ -34,14 +34,14 @@ import {
   prepareIveKitChatPlacement,
   routeIveKitChatApi,
   type RouteIveKitChatApiOptions
-} from './agent-runtime/ivekit/chat-http.js';
-import { routeIveKitEventApi } from './agent-runtime/ivekit/event-http.js';
+} from './agent-runtime/converact/chat-http.js';
+import { routeIveKitEventApi } from './agent-runtime/converact/event-http.js';
 import {
   prepareIveKitMediaCallPlacement,
   routeIveKitMediaApi,
   type PreparedMediaCallPlacement,
   type RouteIveKitMediaApiOptions
-} from './agent-runtime/ivekit/media-http.js';
+} from './agent-runtime/converact/media-http.js';
 import { runWithWsBroadcastBuffer } from './ws.js';
 import {
   markMediaRecordingEvidenceDeleted,

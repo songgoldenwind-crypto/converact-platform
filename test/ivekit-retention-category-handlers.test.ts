@@ -5,7 +5,7 @@ import type { PgQueryable } from '../src/db-pg.js';
 import {
   createPostgresIveKitRetentionCategoryHandlers,
   type IveKitRetentionClaim
-} from '../src/agent-runtime/ivekit/operations/retention/index.js';
+} from '../src/agent-runtime/converact/operations/retention/index.js';
 import type { ObjectStorage } from '../src/storage/object-storage.js';
 
 class RecordingPg implements PgQueryable {

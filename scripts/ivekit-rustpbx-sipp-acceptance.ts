@@ -15,7 +15,7 @@ export const ALPINE_ACCEPTANCE_IMAGE = 'alpine@sha256:d9e853e87e55526f6b2917df91
 
 const DELIVERY_SCENARIO_DIR = fileURLToPath(new URL('../sipp/', import.meta.url));
 const REPOSITORY_SCENARIO_DIR = fileURLToPath(new URL(
-  '../services/ivekit-service/acceptance/sipp/',
+  '../services/converact-service/acceptance/sipp/',
   import.meta.url
 ));
 const MAX_COMMAND_OUTPUT = 2 * 1024 * 1024;

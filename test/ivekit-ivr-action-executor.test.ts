@@ -5,7 +5,7 @@ import {
   IvrError,
   IvrPortActionExecutor,
   type IvrPendingAction
-} from '../src/agent-runtime/ivekit/ivr/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
 
 test('IVR port action executor dispatches each external action family with stable idempotency', async () => {
   const calls: string[] = [];

@@ -5,7 +5,7 @@ import test from 'node:test';
 import {
   KamailioRouteSnapshotCodec,
   type KamailioRouteSnapshotBody
-} from '../src/agent-runtime/ivekit/voice/kamailio-route-snapshot.js';
+} from '../src/agent-runtime/converact/voice/kamailio-route-snapshot.js';
 
 const CURRENT_KEY = Buffer.alloc(32, 7);
 const PREVIOUS_KEY = Buffer.alloc(32, 6);

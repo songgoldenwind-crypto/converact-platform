@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   InteractionPlacementWorker,
   interactionPlacementWorkerConfig
-} from '../src/agent-runtime/ivekit/placement/interaction-placement-worker.js';
+} from '../src/agent-runtime/converact/placement/interaction-placement-worker.js';
 
 test('interaction placement worker serializes overlapping reconciliation batches', async () => {
   let runs = 0;

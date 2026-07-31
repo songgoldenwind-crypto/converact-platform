@@ -54,11 +54,11 @@ test('recording migration links legacy voice rows without making media binary a 
 
 test('standalone migration order places recording manifests before runtime security', () => {
   const policy = JSON.parse(
-    readFileSync('services/ivekit-service/source-policy.json', 'utf8')
+    readFileSync('services/converact-service/source-policy.json', 'utf8')
   ) as { migrations: string[] };
   const recording = policy.migrations.indexOf('086_ivekit_recording_manifests.sql');
   const runtimeSecurity = policy.migrations.indexOf(
-    'services/ivekit-service/migrations/090_ivekit_runtime_security.sql'
+    'services/converact-service/migrations/090_ivekit_runtime_security.sql'
   );
 
   assert.ok(recording >= 0);

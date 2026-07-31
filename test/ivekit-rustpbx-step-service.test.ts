@@ -15,7 +15,7 @@ import {
   type IvrSessionRepository,
   type IvrSessionStep,
   type IvrSessionUnitOfWork
-} from '../src/agent-runtime/ivekit/ivr/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
 
 test('RustPBX Step service binds, waits for a worker, polls, and exactly replays every exchange', async () => {
   const fixture = createFixture(workerGraph());

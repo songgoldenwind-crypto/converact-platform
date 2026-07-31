@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
 import WebSocket from 'ws';
 
-import { IveKitTenantEventStore } from '../src/agent-runtime/ivekit/tenant-event-store.js';
+import { IveKitTenantEventStore } from '../src/agent-runtime/converact/tenant-event-store.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 import { resetRedisPubSubForTests } from '../src/redis-pubsub.js';

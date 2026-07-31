@@ -21,7 +21,7 @@ interface PackageLock {
 export function generateIveKitServiceLock(repoRootInput: string): PackageLock {
   const repoRoot = resolve(repoRootInput);
   const rootLock = JSON.parse(readFileSync(join(repoRoot, 'package-lock.json'), 'utf8')) as PackageLock;
-  const serviceRoot = join(repoRoot, 'services', 'ivekit-service');
+  const serviceRoot = join(repoRoot, 'services', 'converact-service');
   const servicePackage = JSON.parse(readFileSync(join(serviceRoot, 'package.json'), 'utf8')) as {
     name: string;
     version: string;
@@ -78,7 +78,7 @@ export function generateIveKitServiceLock(repoRootInput: string): PackageLock {
 
 export function writeIveKitServiceLock(repoRoot: string): string {
   const lock = generateIveKitServiceLock(repoRoot);
-  const outputFile = join(repoRoot, 'services', 'ivekit-service', 'package-lock.json');
+  const outputFile = join(repoRoot, 'services', 'converact-service', 'package-lock.json');
   writeFileSync(outputFile, `${JSON.stringify(lock, null, 2)}\n`, 'utf8');
   return outputFile;
 }

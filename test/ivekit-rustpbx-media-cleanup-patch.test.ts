@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch';
 
 function effectivePatch(): string {
   return readFileSync(PATCH_PATH, 'utf8')

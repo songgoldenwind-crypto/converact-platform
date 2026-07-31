@@ -6,11 +6,11 @@ import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collab
 import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
 import type { RemoteGatewayClient } from '../src/agent-runtime/collaboration/remote-gateway-client.js';
 import { MemoryPg } from '../src/db-pg.js';
-import { createIveKitModule } from '../src/agent-runtime/ivekit/module.js';
+import { createIveKitModule } from '../src/agent-runtime/converact/module.js';
 import {
   createIveKitRustDeskHttpClient,
   projectRustDeskAuthorizationCode
-} from '../sdk/ivekit/src/rustdesk-http-client.js';
+} from '../sdk/converact/src/rustdesk-http-client.js';
 
 const API_KEY = 'rustdesk-authorization-integration-api-key';
 const AUTHORIZATION_SECRET = 'rustdesk-authorization-integration-secret-at-least-32-bytes';
@@ -347,10 +347,10 @@ test('in-process iveKit facade exposes the same authorization exchange and atomi
 test('RustDesk authorization-code deployment contract uses external secrets and an explicit strict switch', () => {
   const rootEnv = readFileSync('.env.example', 'utf8');
   const productionEnv = readFileSync('infra/env.example', 'utf8');
-  const standaloneEnv = readFileSync('infra/ivekit/env.example', 'utf8');
+  const standaloneEnv = readFileSync('infra/converact/env.example', 'utf8');
   const productionCompose = readFileSync('infra/docker-compose.production.yml', 'utf8');
-  const standaloneCompose = readFileSync('infra/ivekit/docker-compose.yml', 'utf8');
-  const serviceCompose = readFileSync('services/ivekit-service/docker-compose.yml', 'utf8');
+  const standaloneCompose = readFileSync('infra/converact/docker-compose.yml', 'utf8');
+  const serviceCompose = readFileSync('services/converact-service/docker-compose.yml', 'utf8');
   const helmDeployment = readFileSync('infra/k8s/templates/opc-deployment.yaml', 'utf8');
   const helmSecrets = readFileSync('infra/k8s/templates/secrets.yaml', 'utf8');
 

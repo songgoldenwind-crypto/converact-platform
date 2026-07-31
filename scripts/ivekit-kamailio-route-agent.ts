@@ -3,9 +3,9 @@ import { pathToFileURL } from 'node:url';
 import {
   loadKamailioRouteAgentRuntimeConfig,
   runKamailioRouteAgent
-} from '../src/agent-runtime/ivekit/voice/kamailio-route-agent.js';
+} from '../src/agent-runtime/converact/voice/kamailio-route-agent.js';
 
-export * from '../src/agent-runtime/ivekit/voice/kamailio-route-agent.js';
+export * from '../src/agent-runtime/converact/voice/kamailio-route-agent.js';
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   loadKamailioRouteAgentRuntimeConfig()

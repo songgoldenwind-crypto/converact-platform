@@ -6,7 +6,7 @@ import {
   iveKitRetentionMetricDefinitions,
   type IveKitRetentionClaim,
   type IveKitRetentionRepository
-} from '../src/agent-runtime/ivekit/operations/retention/index.js';
+} from '../src/agent-runtime/converact/operations/retention/index.js';
 
 test('retention worker claims due tenant policies and records deletion and holds', async () => {
   const completed: any[] = [];

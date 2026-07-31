@@ -5,7 +5,7 @@ import test from 'node:test';
 import {
   routeIveKitEventApi,
   type IveKitEventHttpModule
-} from '../src/agent-runtime/ivekit/event-http.js';
+} from '../src/agent-runtime/converact/event-http.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 
 test('event HTTP exposes the catalog and admin subscription lifecycle', async () => {

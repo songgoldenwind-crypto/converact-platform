@@ -118,9 +118,9 @@ export async function verifyCommunicationTechnologyBaseline(
   const packageFiles = [
     'package.json',
     'infra/capacity/package.json',
-    'services/ivekit-service/package.json',
-    'services/ivekit-service/acceptance/kamailio-sip-edge/package.json',
-    'services/ivekit-service/acceptance/livekit-storage-isolation/package.json'
+    'services/converact-service/package.json',
+    'services/converact-service/acceptance/kamailio-sip-edge/package.json',
+    'services/converact-service/acceptance/livekit-storage-isolation/package.json'
   ];
   for (const relativePath of packageFiles) {
     const manifest = JSON.parse(
@@ -134,7 +134,7 @@ export async function verifyCommunicationTechnologyBaseline(
   const dockerfiles = [
     ['Dockerfile', 'FROM node:24-bookworm-slim'],
     ['infra/capacity/Dockerfile', 'FROM node:24-alpine'],
-    ['services/ivekit-service/Dockerfile', 'FROM node:24-bookworm-slim']
+    ['services/converact-service/Dockerfile', 'FROM node:24-bookworm-slim']
   ] as const;
   for (const [relativePath, expected] of dockerfiles) {
     const source = await readFile(resolve(repositoryRoot, relativePath), 'utf8');
@@ -160,11 +160,11 @@ export async function verifyCommunicationTechnologyBaseline(
     pythonLock,
     voiceSessionHandler
   ] = await Promise.all([
-    readFile(resolve(repositoryRoot, 'src/agent-runtime/ivekit/voice/kamailio-config.ts'), 'utf8'),
-    readFile(resolve(repositoryRoot, 'infra/ivekit/kamailio/Dockerfile'), 'utf8'),
-    readFile(resolve(repositoryRoot, 'services/ivekit-service/helm/ivekit/values.yaml'), 'utf8'),
+    readFile(resolve(repositoryRoot, 'src/agent-runtime/converact/voice/kamailio-config.ts'), 'utf8'),
+    readFile(resolve(repositoryRoot, 'infra/converact/kamailio/Dockerfile'), 'utf8'),
+    readFile(resolve(repositoryRoot, 'services/converact-service/helm/converact/values.yaml'), 'utf8'),
     readFile(
-      resolve(repositoryRoot, 'services/ivekit-service/helm/ivekit/templates/sip-exporter.yaml'),
+      resolve(repositoryRoot, 'services/converact-service/helm/converact/templates/sip-exporter.yaml'),
       'utf8'
     ),
     readFile(resolve(repositoryRoot, 'services/ai-agent-py/requirements.txt'), 'utf8'),

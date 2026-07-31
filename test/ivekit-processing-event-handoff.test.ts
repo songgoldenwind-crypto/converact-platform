@@ -5,11 +5,11 @@ import {
   ProcessingEventHandoff,
   type ProcessingEventSource,
   type ProcessingTerminalEventSink
-} from '../src/agent-runtime/ivekit/media-control/processing-event-handoff.js';
+} from '../src/agent-runtime/converact/media-control/processing-event-handoff.js';
 import type {
   ProcessingEventPage,
   ProcessingTerminalEvent
-} from '../src/agent-runtime/ivekit/media-control/processing.js';
+} from '../src/agent-runtime/converact/media-control/processing.js';
 
 describe('processing terminal event handoff', () => {
   it('durably accepts each event before acknowledging its source', async () => {

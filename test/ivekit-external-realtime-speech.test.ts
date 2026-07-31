@@ -8,14 +8,14 @@ import {
   createExternalRealtimeSpeechFactory,
   decodeRealtimeAudioEnvelope,
   encodeRealtimeAudioEnvelope
-} from '../src/agent-runtime/ivekit/voice/adapters/external-realtime-speech.js';
+} from '../src/agent-runtime/converact/voice/adapters/external-realtime-speech.js';
 import {
   RealtimeSpeechTranslationRegistry,
   RealtimeSpeechTranslationService,
   type RealtimeAudioFrame,
   type RealtimeSpeechProviderProfile,
   type RealtimeSpeechTranslationEvent
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-translation.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-translation.js';
 
 test('realtime audio binary envelope preserves timing and payload without base64', () => {
   const frame = audioFrame(42, 20, new Uint8Array([1, 2, 3, 4]));

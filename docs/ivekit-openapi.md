@@ -2,7 +2,7 @@
 
 > 契约版本：v1-draft / 2026-07-14。Base path 为 `/api/ivekit`。本文是 LED/OPC 对接用的 Markdown 契约；真实运行能力先读取 capabilities。更完整背景见《iveKit视频IM通用能力详细设计》。
 
-本契约由独立进程 `npm run start:ivekit` 提供，正式 TypeScript 客户端为 `@opc/ivekit-sdk`。稳定域还包括 `/api/ivekit/voice/*`、`/api/ivekit/ivr/*` 和 `/api/ivekit/contact-center/*`；旧 OPC 进程在迁移期间继续提供兼容入口。
+本契约由独立进程 `npm run start:ivekit` 提供，正式 TypeScript 客户端为 `@converact/sdk`。稳定域还包括 `/api/ivekit/voice/*`、`/api/ivekit/ivr/*` 和 `/api/ivekit/contact-center/*`；旧 OPC 进程在迁移期间继续提供兼容入口。
 
 ## 1. 通用约定
 
@@ -886,7 +886,7 @@ started 或剪贴板事件时，metadata 必须额外携带 `operation_grant_id`
 
 ### 4.1 真实终端 DTO 与能力事实
 
-SDK 在 `sdk/ivekit/src/types.ts` 导出 `RustDeskTerminalProfile`、
+SDK 在 `sdk/converact/src/types.ts` 导出 `RustDeskTerminalProfile`、
 `RustDeskTerminalPlatform`、`RustDeskTerminalArchitecture`、
 `RustDeskClientVersion`、`RustDeskConfiguredFields`、
 `RustDeskRuntimeCapabilities`、`RustDeskPermissionScopes`、
@@ -1052,7 +1052,7 @@ RustPBX sidecar 实现为准。业务集成只查询录音 metadata 和订阅状
 }
 ```
 
-`actions` 支持 `answer`、`hangup`、`hold`、`resume`、`dtmf`、`blind_transfer`、`warm_transfer`、`conference`、`park`、`pickup`、`recording_start`、`recording_pause`、`recording_resume` 和 `recording_stop`。`conference` payload 使用 `operation=create|add|remove|destroy` 和 `conference_id`；`dtmf` payload 只接受经校验的数字、`*`、`#` 及受限时长；`park/pickup` payload 只接受 `{ "slot": "701" }`，slot 必须匹配 `^[A-Za-z0-9][A-Za-z0-9_*#-]{0,31}$`。profile snapshot 使用 `capability_schema_version=1`，`action_capabilities.commands` 完整列出 16 种 command，`action_capabilities.conference_operations` 完整列出 4 种会议操作。缺少字段、旧快照、未知版本、config hash 已变化或值不为 `true` 时均 fail closed。RustPBX `0.4.11` 原生 Park/Pickup capability 仍为 false；iveKit 仅在 RWI 分别具备 `call.hold` 以及 `call.unhold + call.bridge` 时开放组合式 Park/Pickup，并以 PostgreSQL/RLS 槽位状态机负责并发、重启恢复和对账。缺少原语时返回 `501 capability_unavailable`，不得伪造 command succeeded。`livekit_bridge_create` 由 `sipflow` 和独立 LiveKit SIP adapter 裁决，不冒充 RustPBX RWI action。浏览器内 DTMF 也可由 `@opc/ivekit-sdk/sip-webphone` 通过已建立的 SIP media handler 发送，两条路径都必须以当前 session/profile capability 裁决。
+`actions` 支持 `answer`、`hangup`、`hold`、`resume`、`dtmf`、`blind_transfer`、`warm_transfer`、`conference`、`park`、`pickup`、`recording_start`、`recording_pause`、`recording_resume` 和 `recording_stop`。`conference` payload 使用 `operation=create|add|remove|destroy` 和 `conference_id`；`dtmf` payload 只接受经校验的数字、`*`、`#` 及受限时长；`park/pickup` payload 只接受 `{ "slot": "701" }`，slot 必须匹配 `^[A-Za-z0-9][A-Za-z0-9_*#-]{0,31}$`。profile snapshot 使用 `capability_schema_version=1`，`action_capabilities.commands` 完整列出 16 种 command，`action_capabilities.conference_operations` 完整列出 4 种会议操作。缺少字段、旧快照、未知版本、config hash 已变化或值不为 `true` 时均 fail closed。RustPBX `0.4.11` 原生 Park/Pickup capability 仍为 false；iveKit 仅在 RWI 分别具备 `call.hold` 以及 `call.unhold + call.bridge` 时开放组合式 Park/Pickup，并以 PostgreSQL/RLS 槽位状态机负责并发、重启恢复和对账。缺少原语时返回 `501 capability_unavailable`，不得伪造 command succeeded。`livekit_bridge_create` 由 `sipflow` 和独立 LiveKit SIP adapter 裁决，不冒充 RustPBX RWI action。浏览器内 DTMF 也可由 `@converact/sdk/sip-webphone` 通过已建立的 SIP media handler 发送，两条路径都必须以当前 session/profile capability 裁决。
 
 WebPhone session plan 只返回 `wss://`、短期 SIP credential、AoR、ICE server 和布尔 capability。服务端拒绝过期计划、非 WSS、带 URL credential、越权分机、空 ICE URL 和未知 capability；客户端不得持久化 credential 或把它写入 DOM/日志。
 
@@ -1162,7 +1162,7 @@ Webhook body 是 `IveKitIntegrationWebhookDelivery`：outer delivery 包裹 sche
 
 ### 5.7 SDK 与事件映射
 
-- `IveKitVoiceHttpClient` 覆盖本节全部 Voice 配置、call、recording、bridge 和 policy 路径；`createIveKitVoiceController` 提供 durable call 高层控制；`@opc/ivekit-sdk/sip-webphone` 管理浏览器 SIP.js 生命周期。
+- `IveKitVoiceHttpClient` 覆盖本节全部 Voice 配置、call、recording、bridge 和 policy 路径；`createIveKitVoiceController` 提供 durable call 高层控制；`@converact/sdk/sip-webphone` 管理浏览器 SIP.js 生命周期。
 - `IveKitIvrHttpClient` 覆盖 flow/version/validate/publish/rollback/simulation/session/resource/settings。
 - `IveKitContactCenterHttpClient` 覆盖配置、Presence、ACD、assignment、callback、monitor 和 supervisor。
 - `IveKitNotificationHttpClient` 覆盖 inbox、偏好、模板、Endpoint、Delivery、Endpoint test、归档和 guarded retry；列表 cursor 与 tenant/filter 绑定。

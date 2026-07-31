@@ -63,7 +63,7 @@ test('Contact Center history is immutable and standalone manifests include migra
   assert.match(sql, /CREATE TRIGGER ivekit_cc_supervisor_sessions_immutable_delete[\s\S]*BEFORE DELETE ON ivekit_cc_supervisor_sessions/i);
   assert.doesNotMatch(sql, /FOREIGN KEY \(tenant_id, [^)]+\)[\s\S]{0,160}?ON DELETE SET NULL/i);
 
-  const sourcePolicy = readFileSync('services/ivekit-service/source-policy.json', 'utf8');
+  const sourcePolicy = readFileSync('services/converact-service/source-policy.json', 'utf8');
   const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
   for (const source of [sourcePolicy, delivery]) assert.match(source, /052_ivekit_contact_center\.sql/);
   assert.ok(sourcePolicy.indexOf('051_ivekit_ivr_resources.sql') < sourcePolicy.indexOf('052_ivekit_contact_center.sql'));
@@ -79,7 +79,7 @@ test('Contact Center configuration idempotency upgrades after migration 052', ()
   assert.match(table, /payload_hash TEXT NOT NULL CHECK \(char_length\(payload_hash\) = 64\)/);
   assert.match(sql, /CREATE TRIGGER ivekit_cc_configuration_idempotency_immutable_delete[\s\S]*BEFORE DELETE ON ivekit_cc_configuration_idempotency/i);
 
-  const sourcePolicy = readFileSync('services/ivekit-service/source-policy.json', 'utf8');
+  const sourcePolicy = readFileSync('services/converact-service/source-policy.json', 'utf8');
   const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
   for (const source of [sourcePolicy, delivery]) {
     assert.match(source, /053_ivekit_contact_center_configuration_idempotency\.sql/);
@@ -104,7 +104,7 @@ test('Contact Center worker migration discovers only tenants with due maintenanc
   assert.match(sql, /REVOKE ALL ON FUNCTION opc_ivekit_cc_worker_tenant_ids\(TIMESTAMPTZ, INTEGER\)\s+FROM PUBLIC/i);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION opc_ivekit_cc_worker_tenant_ids\(TIMESTAMPTZ, INTEGER\)\s+TO opc_runtime/i);
 
-  const sourcePolicy = readFileSync('services/ivekit-service/source-policy.json', 'utf8');
+  const sourcePolicy = readFileSync('services/converact-service/source-policy.json', 'utf8');
   const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
   for (const source of [sourcePolicy, delivery]) {
     assert.match(source, /054_ivekit_contact_center_worker\.sql/);
@@ -129,7 +129,7 @@ test('Contact Center callback migration discovers due and active callback tenant
   assert.match(sql, /SECURITY DEFINER/i);
   assert.match(sql, /REVOKE ALL ON FUNCTION opc_ivekit_cc_worker_tenant_ids/i);
 
-  const sourcePolicy = readFileSync('services/ivekit-service/source-policy.json', 'utf8');
+  const sourcePolicy = readFileSync('services/converact-service/source-policy.json', 'utf8');
   const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
   for (const source of [sourcePolicy, delivery]) {
     assert.match(source, /055_ivekit_contact_center_callbacks\.sql/);
@@ -155,7 +155,7 @@ test('Contact Center overflow migration is durable immutable and worker-discover
   assert.match(sql, /overflow\.state IN \('pending', 'retry_wait'\)/i);
   assert.match(sql, /overflow\.scheduled_for <= p_now/i);
 
-  const sourcePolicy = readFileSync('services/ivekit-service/source-policy.json', 'utf8');
+  const sourcePolicy = readFileSync('services/converact-service/source-policy.json', 'utf8');
   const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
   for (const source of [sourcePolicy, delivery]) {
     assert.match(source, /056_ivekit_contact_center_overflow\.sql/);

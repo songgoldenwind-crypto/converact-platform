@@ -6,10 +6,10 @@ import { IntelligenceProviderGovernanceStore } from '../src/agent-runtime/collab
 import { createIntelligenceProviderRegistry } from '../src/agent-runtime/collaboration/intelligence-provider-registry.js';
 import { IntelligenceProviderRouteError } from '../src/agent-runtime/collaboration/intelligence-provider-route.js';
 import { IntelligencePolicyStore } from '../src/agent-runtime/collaboration/intelligence-policy-store.js';
-import { VoiceError } from '../src/agent-runtime/ivekit/voice/errors.js';
+import { VoiceError } from '../src/agent-runtime/converact/voice/errors.js';
 import {
   createPolicyRealtimeSpeechRouter
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-routing.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-routing.js';
 import type {
   RealtimeAudioFrame,
   RealtimeSpeechProviderPort,
@@ -17,7 +17,7 @@ import type {
   RealtimeSpeechTranslationEvent,
   RealtimeSpeechTranslationFactory,
   RealtimeSpeechTranslationSession
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-translation.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-translation.js';
 
 test('realtime speech route fails over only while starting and holds the selected lease', async () => {
   const fixture = await routingFixture({ max_concurrency: 1 });

@@ -10,11 +10,11 @@ const SCRIPT_PATH = new URL(
   import.meta.url
 );
 const ADMISSION_FIXTURE_PATH = new URL(
-  '../services/ivekit-service/acceptance/rustpbx-recording-isolation/owner-admission.mjs',
+  '../services/converact-service/acceptance/rustpbx-recording-isolation/owner-admission.mjs',
   import.meta.url
 );
 const COMPOSE_PATH = new URL(
-  '../services/ivekit-service/acceptance/rustpbx-recording-isolation/docker-compose.yml',
+  '../services/converact-service/acceptance/rustpbx-recording-isolation/docker-compose.yml',
   import.meta.url
 );
 
@@ -108,7 +108,7 @@ test('RustPBX recording isolation runtime plan fails closed on mutable inputs', 
 test('RustPBX owner patch materializes its complete new source file', () => {
   const patch = readFileSync(
     new URL(
-      '../infra/ivekit/rustpbx/patches/rustpbx-ivekit-owner-epoch.patch',
+      '../infra/converact/rustpbx/patches/rustpbx-ivekit-owner-epoch.patch',
       import.meta.url
     ),
     'utf8'

@@ -7,19 +7,19 @@ import { WebSocket } from 'ws';
 import {
   createLiveKitRealtimeAudioTapTokenCodec,
   type LiveKitRealtimeAudioTapTokenClaims
-} from '../src/agent-runtime/ivekit/voice/livekit-realtime-audio-tap-token.js';
-import type { PolicyRealtimeSpeechRouter } from '../src/agent-runtime/ivekit/voice/realtime-speech-routing.js';
+} from '../src/agent-runtime/converact/voice/livekit-realtime-audio-tap-token.js';
+import type { PolicyRealtimeSpeechRouter } from '../src/agent-runtime/converact/voice/realtime-speech-routing.js';
 import type {
   RealtimeAudioFrame,
   RealtimeSpeechTranslationSession
-} from '../src/agent-runtime/ivekit/voice/realtime-speech-translation.js';
+} from '../src/agent-runtime/converact/voice/realtime-speech-translation.js';
 
 const NOW = new Date('2026-07-23T06:00:00.000Z');
 const SECRET = Buffer.alloc(32, 13);
 
 test('LiveKit gateway authenticates one track and forwards binary PCM without Provider backpressure', async (t) => {
   const gatewayModule = await import(
-    '../src/agent-runtime/ivekit/voice/livekit-realtime-audio-tap-gateway.js'
+    '../src/agent-runtime/converact/voice/livekit-realtime-audio-tap-gateway.js'
   ).catch(() => null);
   assert.ok(gatewayModule, 'LiveKit realtime audio tap gateway module is required');
   const started: Array<Parameters<PolicyRealtimeSpeechRouter['startSession']>[0]> = [];
@@ -140,7 +140,7 @@ test('LiveKit gateway authenticates one track and forwards binary PCM without Pr
 
 test('LiveKit gateway bounds audio while Provider startup is slow', async (t) => {
   const gatewayModule = await import(
-    '../src/agent-runtime/ivekit/voice/livekit-realtime-audio-tap-gateway.js'
+    '../src/agent-runtime/converact/voice/livekit-realtime-audio-tap-gateway.js'
   ).catch(() => null);
   assert.ok(gatewayModule, 'LiveKit realtime audio tap gateway module is required');
   const session = new FakeRealtimeSpeechSession();

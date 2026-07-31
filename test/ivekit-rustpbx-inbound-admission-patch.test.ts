@@ -5,14 +5,14 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const patchPath =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-inbound-admission.patch';
 const responseContractPatchPath =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch';
 
 test('RustPBX snapshot fork admits inbound calls before local route lookup', () => {
   const patch = readFileSync(patchPath, 'utf8');
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
-  const readme = readFileSync('infra/ivekit/rustpbx/README.md', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
+  const readme = readFileSync('infra/converact/rustpbx/README.md', 'utf8');
 
   assert.match(build, /rustpbx-ivekit-inbound-admission\.patch/);
   assert.match(patch, /IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL/);
@@ -44,7 +44,7 @@ test('RustPBX inbound admission patch is a syntactically valid git patch', () =>
 
 test('RustPBX parses the direct iveKit HTTP response after the complete patch queue', () => {
   const patch = readFileSync(responseContractPatchPath, 'utf8');
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
 
   assert.match(
     build,

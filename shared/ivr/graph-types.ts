@@ -1,1 +1,1 @@
-export * from '../../src/agent-runtime/ivekit/ivr/graph-types.js';
+export * from '../../src/agent-runtime/converact/ivr/graph-types.js';

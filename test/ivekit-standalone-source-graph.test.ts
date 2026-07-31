@@ -10,7 +10,7 @@ import {
 const repoRoot = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
 
 test('iveKit standalone graph resolves every local module and excludes OPC product domains', () => {
-  const policy = JSON.parse(readFileSync('services/ivekit-service/source-policy.json', 'utf8')) as {
+  const policy = JSON.parse(readFileSync('services/converact-service/source-policy.json', 'utf8')) as {
     entrypoints: string[];
   };
   const graph = analyzeIveKitStandaloneSourceGraph({
@@ -19,46 +19,46 @@ test('iveKit standalone graph resolves every local module and excludes OPC produ
   });
 
   assert.equal(graph.unresolved.length, 0, graph.unresolved.join('\n'));
-  assert.equal(graph.files.includes('src/ivekit-server.ts'), true);
+  assert.equal(graph.files.includes('src/converact-server.ts'), true);
   for (const path of [
     'src/agent-runtime/collaboration/intelligence-provider-registry.ts',
     'src/agent-runtime/collaboration/intelligence-policy-store.ts',
     'src/agent-runtime/collaboration/intelligence-source-service.ts',
     'src/agent-runtime/collaboration/translation-worker.ts',
-    'src/agent-runtime/ivekit/voice/types.ts',
-    'src/agent-runtime/ivekit/voice/ports.ts',
-    'src/agent-runtime/ivekit/voice/index.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/index.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/types.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/capabilities.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/closed-schema.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/route-binding.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/rsipstack-adapter.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/session-registry.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/effect-oracle.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/postgres-effect-store.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/recovery.ts',
-    'src/agent-runtime/ivekit/ivr/types.ts',
-    'src/agent-runtime/ivekit/ivr/graph-types.ts',
-    'src/agent-runtime/ivekit/ivr/ports.ts',
-    'src/agent-runtime/ivekit/ivr/index.ts',
-    'src/agent-runtime/ivekit/contact-center/types.ts',
-    'src/agent-runtime/ivekit/contact-center/index.ts',
-    'src/agent-runtime/ivekit/contact-center/configuration-service.ts',
-    'src/agent-runtime/ivekit/contact-center/http.ts',
-    'src/agent-runtime/ivekit/contact-center/ivr-queue-port.ts',
-    'src/agent-runtime/ivekit/contact-center/queue-service.ts',
-    'src/agent-runtime/ivekit/contact-center/monitor-service.ts',
-    'src/agent-runtime/ivekit/contact-center/postgres/monitor-source.ts',
-    'src/agent-runtime/ivekit/contact-center/overflow-service.ts',
-    'src/agent-runtime/ivekit/contact-center/overflow-runtime.ts',
-    'src/agent-runtime/ivekit/contact-center/voice-overflow-adapter.ts',
-    'src/agent-runtime/ivekit/contact-center/supervisor-control.ts',
-    'src/agent-runtime/ivekit/contact-center/rustpbx-supervisor-control.ts',
-    'src/agent-runtime/ivekit/contact-center/supervisor-service.ts',
-    'src/agent-runtime/ivekit/contact-center/postgres/store.ts',
-    'src/agent-runtime/ivekit/contact-center/postgres/configuration-store.ts',
-    'src/agent-runtime/ivekit/contact-center/postgres/unit-of-work.ts'
+    'src/agent-runtime/converact/voice/types.ts',
+    'src/agent-runtime/converact/voice/ports.ts',
+    'src/agent-runtime/converact/voice/index.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/index.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/types.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/capabilities.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/closed-schema.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/route-binding.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/session-registry.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/recovery.ts',
+    'src/agent-runtime/converact/ivr/types.ts',
+    'src/agent-runtime/converact/ivr/graph-types.ts',
+    'src/agent-runtime/converact/ivr/ports.ts',
+    'src/agent-runtime/converact/ivr/index.ts',
+    'src/agent-runtime/converact/contact-center/types.ts',
+    'src/agent-runtime/converact/contact-center/index.ts',
+    'src/agent-runtime/converact/contact-center/configuration-service.ts',
+    'src/agent-runtime/converact/contact-center/http.ts',
+    'src/agent-runtime/converact/contact-center/ivr-queue-port.ts',
+    'src/agent-runtime/converact/contact-center/queue-service.ts',
+    'src/agent-runtime/converact/contact-center/monitor-service.ts',
+    'src/agent-runtime/converact/contact-center/postgres/monitor-source.ts',
+    'src/agent-runtime/converact/contact-center/overflow-service.ts',
+    'src/agent-runtime/converact/contact-center/overflow-runtime.ts',
+    'src/agent-runtime/converact/contact-center/voice-overflow-adapter.ts',
+    'src/agent-runtime/converact/contact-center/supervisor-control.ts',
+    'src/agent-runtime/converact/contact-center/rustpbx-supervisor-control.ts',
+    'src/agent-runtime/converact/contact-center/supervisor-service.ts',
+    'src/agent-runtime/converact/contact-center/postgres/store.ts',
+    'src/agent-runtime/converact/contact-center/postgres/configuration-store.ts',
+    'src/agent-runtime/converact/contact-center/postgres/unit-of-work.ts'
   ]) assert.equal(graph.files.includes(path), true, path);
   assert.equal(graph.files.includes('src/server.ts'), false);
   assert.equal(graph.files.some((path) => path.startsWith('src/agent-runtime/call-center/')), false);
@@ -71,7 +71,7 @@ test('iveKit standalone graph resolves every local module and excludes OPC produ
 test('iveKit standalone graph reports runtime packages without node builtins', () => {
   const graph = analyzeIveKitStandaloneSourceGraph({
     repoRoot,
-    entrypoints: ['src/ivekit-server.ts']
+    entrypoints: ['src/converact-server.ts']
   });
 
   for (const required of ['@aws-sdk/client-s3', 'ioredis', 'livekit-server-sdk', 'pg', 'prom-client', 'ws']) {
@@ -83,7 +83,7 @@ test('iveKit standalone graph reports runtime packages without node builtins', (
 });
 
 test('standalone source policy is explicit and keeps build assets out of OPC internals', () => {
-  const policy = JSON.parse(readFileSync('services/ivekit-service/source-policy.json', 'utf8')) as {
+  const policy = JSON.parse(readFileSync('services/converact-service/source-policy.json', 'utf8')) as {
     entrypoints: string[];
     forbidden_prefixes: string[];
     assets: string[];
@@ -91,30 +91,30 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
   };
 
   assert.deepEqual(policy.entrypoints, [
-    'src/ivekit-server.ts',
-    'src/ivekit-worker.ts',
-    'src/ivekit-realtime-audio-tap-worker.ts',
-    'src/ivekit-backup.ts',
-    'src/ivekit-restore.ts',
-    'src/ivekit-migrate.ts',
-    'src/ivekit-init-runtime-role.ts',
-    'src/ivekit-tinode-bootstrap.ts',
-    'src/ivekit-intelligence-preflight.ts',
-    'src/ivekit-render-kamailio-config.ts',
-    'src/ivekit-kamailio-compose-config.ts',
-    'src/ivekit-kamailio-route-agent.ts',
-    'src/ivekit-kamailio-webphone-acceptance.ts',
-    'src/ivekit-render-rustpbx-config.ts',
-    'src/ivekit-rustpbx-route-snapshot.ts',
-    'src/ivekit-rustpbx-recording-spool.ts',
-    'src/ivekit-component-node-admission.ts',
-    'src/ivekit-placement-snapshot-projector.ts',
-    'src/ivekit-rustpbx-recovery.ts',
-    'src/ivekit-dialog-shadow-agent.ts',
-    'src/ivekit-voice-preflight.ts',
-    'src/agent-runtime/ivekit/voice/index.ts',
-    'src/agent-runtime/ivekit/ivr/index.ts',
-    'src/agent-runtime/ivekit/contact-center/index.ts'
+    'src/converact-server.ts',
+    'src/converact-worker.ts',
+    'src/converact-realtime-audio-tap-worker.ts',
+    'src/converact-backup.ts',
+    'src/converact-restore.ts',
+    'src/converact-migrate.ts',
+    'src/converact-init-runtime-role.ts',
+    'src/converact-tinode-bootstrap.ts',
+    'src/converact-intelligence-preflight.ts',
+    'src/converact-render-kamailio-config.ts',
+    'src/converact-kamailio-compose-config.ts',
+    'src/converact-kamailio-route-agent.ts',
+    'src/converact-kamailio-webphone-acceptance.ts',
+    'src/converact-render-rustpbx-config.ts',
+    'src/converact-rustpbx-route-snapshot.ts',
+    'src/converact-rustpbx-recording-spool.ts',
+    'src/converact-component-node-admission.ts',
+    'src/converact-placement-snapshot-projector.ts',
+    'src/converact-rustpbx-recovery.ts',
+    'src/converact-dialog-shadow-agent.ts',
+    'src/converact-voice-preflight.ts',
+    'src/agent-runtime/converact/voice/index.ts',
+    'src/agent-runtime/converact/ivr/index.ts',
+    'src/agent-runtime/converact/contact-center/index.ts'
   ]);
   assert.deepEqual(policy.migrations.slice(-4), [
     '104_ivekit_cell_admission_ledger_runtime.sql',
@@ -128,25 +128,25 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     'frontend/',
     'src/server.ts'
   ]) assert.equal(policy.forbidden_prefixes.includes(prefix), true, prefix);
-  assert.equal(policy.assets.includes('services/ivekit-service/package.json'), true);
-  assert.equal(policy.assets.includes('services/ivekit-service/Dockerfile'), true);
-  assert.equal(policy.assets.includes('services/ivekit-service/docker-compose.yml'), true);
-  assert.equal(policy.assets.includes('services/ivekit-service/docker-compose.voice.yml'), true);
-  assert.equal(policy.assets.includes('services/ivekit-service/init-rustpbx-database.sh'), true);
-  assert.equal(policy.assets.includes('services/ivekit-service/env.example'), true);
+  assert.equal(policy.assets.includes('services/converact-service/package.json'), true);
+  assert.equal(policy.assets.includes('services/converact-service/Dockerfile'), true);
+  assert.equal(policy.assets.includes('services/converact-service/docker-compose.yml'), true);
+  assert.equal(policy.assets.includes('services/converact-service/docker-compose.voice.yml'), true);
+  assert.equal(policy.assets.includes('services/converact-service/init-rustpbx-database.sh'), true);
+  assert.equal(policy.assets.includes('services/converact-service/env.example'), true);
 });
 
 test('standalone verifier proves the packaged dialog-shadow sidecar entrypoint', () => {
   const verifier = readFileSync('scripts/verify-ivekit-standalone-context.ts', 'utf8');
   const servicePackage = JSON.parse(
-    readFileSync('services/ivekit-service/package.json', 'utf8')
+    readFileSync('services/converact-service/package.json', 'utf8')
   ) as { scripts: Record<string, string> };
 
   assert.equal(
     servicePackage.scripts['start:dialog-shadow'],
-    'node dist/ivekit-dialog-shadow-agent.js'
+    'node dist/converact-dialog-shadow-agent.js'
   );
-  assert.match(verifier, /'ivekit-dialog-shadow-agent\.js'/);
+  assert.match(verifier, /'converact-dialog-shadow-agent\.js'/);
 });
 
 test('standalone PostgreSQL compatibility worker requires no writable application filesystem', () => {

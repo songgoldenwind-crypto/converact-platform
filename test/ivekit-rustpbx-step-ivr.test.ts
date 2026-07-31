@@ -3,8 +3,8 @@ import { test } from 'node:test';
 
 import {
   RustPbxStepIvrAdapter
-} from '../src/agent-runtime/ivekit/ivr/index.js';
-import { VoiceError } from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
+import { VoiceError } from '../src/agent-runtime/converact/voice/index.js';
 
 test('RustPBX Step IVR validates identity, sequence, revision, and safe metadata', () => {
   const adapter = new RustPbxStepIvrAdapter({ profile_id: 'profile-a' });

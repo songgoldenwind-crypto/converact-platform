@@ -5,11 +5,11 @@ import type {
   IveKitRustDeskHttpClient,
   RecordIveKitRustDeskGatewayEventInput,
   RegisterIveKitRustDeskDeviceInput
-} from '../src/agent-runtime/ivekit/index.js';
+} from '../src/agent-runtime/converact/index.js';
 import type { RustDeskDevice } from '../src/agent-runtime/collaboration/rustdesk-device-store.js';
 import {
   createIveKitRustDeskLedSdk
-} from '../src/agent-runtime/ivekit/index.js';
+} from '../src/agent-runtime/converact/index.js';
 
 test('iveKit RustDesk LED SDK reuses a registered device and starts a launchable session', async () => {
   const calls: string[] = [];

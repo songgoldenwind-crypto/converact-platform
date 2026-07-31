@@ -21,7 +21,7 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 | Collaboration Session | Tinode durable outbound、独立 IM 参考客户端、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 既有后端/Tinode server smoke 保留；本轮参考客户端双真实浏览器验收未运行，OCR/ASR/AI provider 待选型和配置 |
 | Remote Assistance | Web Assist 和 RustDesk 控制面/LED SDK/物理断开命令已完成 | RustDesk hbbs/hbbr、授权、launch、审计和撤权已通过；物理双客户端键鼠/文件/录屏仍需人工验收 |
 | Voice/IVR/Contact Center | Voice/IVR 后端、Contact Center ACD/callback/overflow/supervisor 控制面、监控投影、SDK 和 Queue Monitor 参考工作区已完成 | 受控 PostgreSQL/RustPBX 与 Queue Monitor 桌面/移动浏览器通过；真实 SIP/PSTN、浏览器媒体和 supervisor provider 保持 `not_run` |
-| SDK 与交付 | `@opc/ivekit-sdk` 已独立打包；统一客户端提供 Context、Media、Chat、Events、RustDesk、Voice、IVR 和 Contact Center；交付包包含独立服务构建上下文、migration、SBOM 和 edge 包 | SDK/edge 干净容器安装和交付包独立镜像构建已在服务器通过；provider 数据面按各自验收状态裁决 |
+| SDK 与交付 | `@converact/sdk` 已独立打包；统一客户端提供 Context、Media、Chat、Events、RustDesk、Voice、IVR 和 Contact Center；交付包包含独立服务构建上下文、migration、SBOM 和 edge 包 | SDK/edge 干净容器安装和交付包独立镜像构建已在服务器通过；provider 数据面按各自验收状态裁决 |
 
 本地完整门禁和服务器验收材料均已保留。V2 已在隔离服务器验证真实 Tinode inbound/event replay/RustDesk edge recovery，并验证最终交付包可独立构建和安装；本轮没有重跑的 LiveKit 数据面、物理 RustDesk 双客户端以及 OCR/ASR/AI provider 仍保持 `not_run_for_v2`。所有缺少外部服务或物理客户端的项目继续列在第 11 节，不以受控 E2E 结果替代。
 
@@ -31,7 +31,7 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 
 ### 3.1 推荐：独立 iveKit 服务
 
-`infra/ivekit/docker-compose.yml` 运行 `npm run start:ivekit`，启动可复用 HTTP、WebSocket、Media/Chat/RustDesk/Voice/IVR/Contact Center 模块和已启用的 worker，不启动 OPC 历史 call-center 或 SQLite runtime。OPC 和 LED 都通过公网 base URL 调用它。
+`infra/converact/docker-compose.yml` 运行 `npm run start:ivekit`，启动可复用 HTTP、WebSocket、Media/Chat/RustDesk/Voice/IVR/Contact Center 模块和已启用的 worker，不启动 OPC 历史 call-center 或 SQLite runtime。OPC 和 LED 都通过公网 base URL 调用它。
 
 无论嵌入还是抽离，LED 只能通过 iveKit facade/SDK 和标准事件访问能力，不直连 PostgreSQL、Tinode 数据库或 MinIO 管理 API。浏览器只接收短期 LiveKit/Tinode 用户凭据，不接收服务端 provider secret。
 
@@ -55,22 +55,22 @@ LiveKit     Tinode    RustDesk control plane
 
 ## 4. SDK 使用
 
-SDK 源码位于 `sdk/ivekit`，包名为 `@opc/ivekit-sdk`，Node.js 20 及以上可直接使用原生 `fetch`。仓库内验证和构建命令：
+SDK 源码位于 `sdk/converact`，包名为 `@converact/sdk`，Node.js 20 及以上可直接使用原生 `fetch`。仓库内验证和构建命令：
 
 ```bash
-npm --prefix sdk/ivekit ci
+npm --prefix sdk/converact ci
 npm run build:ivekit-sdk
 npm run pack:ivekit-sdk
 ```
 
-`pack:ivekit-sdk` 是 dry-run，不产生 tarball，用于确认发布物没有服务端源码、测试和凭据。LED 可从私有 registry 安装 `npm install @opc/ivekit-sdk`，或在联调阶段安装本地 `sdk/ivekit` 目录。
+`pack:ivekit-sdk` 是 dry-run，不产生 tarball，用于确认发布物没有服务端源码、测试和凭据。LED 可从私有 registry 安装 `npm install @converact/sdk`，或在联调阶段安装本地 `sdk/converact` 目录。
 
 参考客户端生产构建会自动运行 `check:bundle`：initial、Tinode、Media、Voice、Remote、Quality、Queue Monitor 和 LiveKit vendor 均有独立字节预算，并检查 `index.html` 不预加载 provider/workspace chunk。不要通过删除该门禁或单纯提高 Vite warning limit 接受无界增长。
 
 ### 4.1 Node 后端：API key
 
 ```ts
-import { createIveKitClient } from '@opc/ivekit-sdk';
+import { createIveKitClient } from '@converact/sdk';
 
 const ivekit = createIveKitClient({
   baseUrl: 'https://ivekit.example.com',
@@ -93,7 +93,7 @@ SDK 自动发送 `X-API-Key`、`X-Tenant-Id` 和可选 `X-User-Id`。服务端 A
 ### 4.2 浏览器：短期 Bearer token
 
 ```ts
-import { createIveKitClient } from '@opc/ivekit-sdk';
+import { createIveKitClient } from '@converact/sdk';
 
 const browserSdk = createIveKitClient({
   baseUrl: 'https://ivekit.example.com',
@@ -121,10 +121,10 @@ import {
   createIveKitClient,
   createIveKitHttpSdk,
   createIveKitRustDeskLedSdk
-} from './src/agent-runtime/ivekit/index.js';
+} from './src/agent-runtime/converact/index.js';
 ```
 
-这些 symbol 已转发到独立包源码，行为和 HTTP payload 不变。新项目必须直接依赖 `@opc/ivekit-sdk`，不要复制兼容文件。
+这些 symbol 已转发到独立包源码，行为和 HTTP payload 不变。新项目必须直接依赖 `@converact/sdk`，不要复制兼容文件。
 
 ### 4.4 错误、超时、二进制和附件
 
@@ -177,7 +177,7 @@ await ivekit.rustdesk.endGatewaySession(remote.gatewaySession.external_id, {
 
 文件传输、剪贴板同步和屏幕录制分别使用 `recordFileTransfer`、`recordClipboardSync`、`recordScreenRecording`。结束后轮询 `getGatewayDisconnectState`，并在物理客户端验收中确认画面和输入控制确实停止。
 
-仓库内 `clients/ivekit-reference` 的 **Remote** 工作区是可运行的 RustDesk 对接参考实现，LED 可以复用其流程，也可以直接嵌入 `RustDeskLaunchPanel`。组件支持通过 `initialBusinessRef`、`initialRemoteSessionId`、`initialAccessMode` 预填订单/工单和远协会话；运行时完成设备解析、scope 选择、attended/unattended 建会话、授权 scope 展示、ID/relay/API server 与 public key 手工配置展示、原生 `rustdesk://` 拉起、控制权取得/释放/转移、审计数量和物理断开状态展示。
+仓库内 `clients/converact-reference` 的 **Remote** 工作区是可运行的 RustDesk 对接参考实现，LED 可以复用其流程，也可以直接嵌入 `RustDeskLaunchPanel`。组件支持通过 `initialBusinessRef`、`initialRemoteSessionId`、`initialAccessMode` 预填订单/工单和远协会话；运行时完成设备解析、scope 选择、attended/unattended 建会话、授权 scope 展示、ID/relay/API server 与 public key 手工配置展示、原生 `rustdesk://` 拉起、控制权取得/释放/转移、审计数量和物理断开状态展示。
 
 安全与并发约束如下：
 
@@ -217,7 +217,7 @@ npm run ivekit:led-example
 - `listPage({cursor, limit})`：读取单页增量；过期、跨租户或超出 retention 时返回类型化 `snapshot_required` 页。
 - `replay({cursor, limit?, maxPages?})`：有界翻页，返回事件、下一 cursor、页数和 snapshot 状态；调用方必须保留 `maxPages` 上限。
 
-LED 浏览器建议复用 `clients/ivekit-reference/src/realtime/event-replay.ts` 的状态机：cursor 只放内存；按 `event_id` 有界去重；online、visibility 和定时恢复合并为一次进行中的 resume；消息事件做局部 projection，媒体/远控事件刷新对应 snapshot。遇到 `snapshot_required` 时依次刷新 Chat、Media、Remote，再调用 `getHeadCursor()` 建立新水位。projection 或 snapshot 任一步失败都不得推进 cursor。
+LED 浏览器建议复用 `clients/converact-reference/src/realtime/event-replay.ts` 的状态机：cursor 只放内存；按 `event_id` 有界去重；online、visibility 和定时恢复合并为一次进行中的 resume；消息事件做局部 projection，媒体/远控事件刷新对应 snapshot。遇到 `snapshot_required` 时依次刷新 Chat、Media、Remote，再调用 `getHeadCursor()` 建立新水位。projection 或 snapshot 任一步失败都不得推进 cursor。
 
 ### 4.8 最终交付包
 
@@ -473,7 +473,7 @@ RustPBX 发起呼叫沿 Path 或复制 location 到达浏览器，WebPhone dialo
 - Compose 是单实例边界，iveKit 进程可同时启用两类 gateway；RustPBX 与 iveKit 必须挂载同一 `realtime_audio_tap` 私有卷。`OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED` 与 `OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED` 用于显式拆分进程职责，二者不能同时关闭
 - RustPBX renderer 通过 `RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH`、`...CHANNEL_CAPACITY` 和 `...SEND_TIMEOUT_MS` 生成受限配置；sidecar/Provider 不可用时只丢弃辅助旁路，不能阻塞 RTP
 - `MAX_CONNECTIONS`、`PRESTART_BUFFER_MS`、`MAX_PAYLOAD_BYTES`、`IDLE_TIMEOUT_MS`、`START_TIMEOUT_MS` 和 `SHUTDOWN_TIMEOUT_MS` 都是保护边界；持续丢帧应扩容/修复 Provider，不得无限增大缓冲
-- `services/ivekit-service/helm/ivekit/profiles/ai.values.yaml` 才会启用旁路；最小 core profile 默认关闭。Secret key 名默认为 `realtime-audio-tap-hmac-secret-b64`
+- `services/converact-service/helm/ivekit/profiles/ai.values.yaml` 才会启用旁路；最小 core profile 默认关闭。Secret key 名默认为 `realtime-audio-tap-hmac-secret-b64`
 
 ### Collaboration Session
 
@@ -491,7 +491,7 @@ RustPBX 发起呼叫沿 Path 或复制 location 到达浏览器，WebPhone dialo
 
 ### Multimodal Intelligence / Translation
 
-- LED 必须通过 `@opc/ivekit-sdk` 的 `intelligence` 与 `chat` 方法访问 OCR/ASR/AI/翻译能力，不得直连 PostgreSQL、worker 表或任何 self_hosted/third_party provider。
+- LED 必须通过 `@converact/sdk` 的 `intelligence` 与 `chat` 方法访问 OCR/ASR/AI/翻译能力，不得直连 PostgreSQL、worker 表或任何 self_hosted/third_party provider。
 - 宿主按 `sdk.intelligence.getCapabilities()` 决定是否展示入口；`available=false` 时展示不可用状态，不能自行回退到另一个厂商。
 - 租户管理员通过 `getPolicy/updatePolicy` 选择 profile、third-party 开关、自动任务和目标语言；普通用户不接触 token/profile URL。
 - Quality 工作区使用租户级 `listFindings/getFinding/reviewFinding`；operator/admin 可跨本租户会话处理队列，viewer 不可审核。
@@ -511,7 +511,7 @@ RustPBX 发起呼叫沿 Path 或复制 location 到达浏览器，WebPhone dialo
 
 ### 必须一起抽离
 
-- `src/agent-runtime/ivekit/`
+- `src/agent-runtime/converact/`
 - `src/agent-runtime/livekit/`
 - `src/agent-runtime/collaboration/`
 - recording object/evidence 辅助模块
@@ -528,7 +528,7 @@ RustPBX 发起呼叫沿 Path 或复制 location 到达浏览器，WebPhone dialo
 - AI 数字人业务编排
 - LED 自己的订单、设备管理和审核工作台 UI
 
-可交付客户端边界是 `sdk/ivekit`；`src/agent-runtime/ivekit/http-sdk.ts` 等旧文件仅是兼容导出，不应再复制。独立服务入口是 `src/ivekit-server.ts`，运行生命周期由 `src/agent-runtime/ivekit/application.ts` 统一管理；服务端抽离必须连同 PostgreSQL tenant context、RLS、migration、worker 和 provider 配置一起交付。
+可交付客户端边界是 `sdk/converact`；`src/agent-runtime/converact/http-sdk.ts` 等旧文件仅是兼容导出，不应再复制。独立服务入口是 `src/converact-server.ts`，运行生命周期由 `src/agent-runtime/converact/application.ts` 统一管理；服务端抽离必须连同 PostgreSQL tenant context、RLS、migration、worker 和 provider 配置一起交付。
 
 ## 9. 错误、幂等和重试
 
@@ -581,7 +581,7 @@ WebSocket 是持久事件的加速通道。首次连接保存 `connected.data.he
 
 Webhook 使用 `x-ivekit-timestamp`、`x-ivekit-signature: v1=<hex>`、`x-ivekit-delivery`、`x-ivekit-event` 和 `x-ivekit-event-id`。签名输入是 `${timestamp}.${rawBody}`。LED Node 后端调用 SDK `verifyIveKitWebhook()`，并把 `IveKitWebhookReplayStore.claim()` 实现为 PostgreSQL/Redis 的原子 durable inbox：claim 同时持久化已验证 envelope 和 body SHA-256，重复 delivery 返回 false。签名时间窗默认 5 分钟，防重放记录默认保留 7 天；两者不能混为一谈，也不能使用进程内 Set。
 
-参考接收器位于 `sdk/ivekit/examples/webhook-receiver.ts`。它对重复投递返回 200，对签名密钥服务或 inbox 存储故障返回 503 触发安全重试，对已经取得密钥但验签失败的请求统一返回 401；实际 LED 业务 Worker 从自己的 durable inbox 异步消费并用 `tenant_id + business_ref` 绑定订单/工单，不读取 iveKit 内部表。
+参考接收器位于 `sdk/converact/examples/webhook-receiver.ts`。它对重复投递返回 200，对签名密钥服务或 inbox 存储故障返回 503 触发安全重试，对已经取得密钥但验签失败的请求统一返回 401；实际 LED 业务 Worker 从自己的 durable inbox 异步消费并用 `tenant_id + business_ref` 绑定订单/工单，不读取 iveKit 内部表。
 
 生产启用 `OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED=1` 时必须同时启用 Notification Worker 并配置独立的 Notification encryption/HMAC key。最老事件延迟和固定结果计数由 `opc_ivekit_event_webhook_oldest_event_age_seconds`、`opc_ivekit_event_webhook_operations_total` 暴露，告警和处置见 `docs/ivekit-monitoring-runbook.md`。
 
@@ -599,7 +599,7 @@ OPC_IVEKIT_DELIVERY_IMAGE_DIGEST=sha256:<64-hex> \
   npm run ivekit:delivery-bundle
 ```
 
-命令会先构建 `@opc/ivekit-sdk` 和参考客户端，再输出：
+命令会先构建 `@converact/sdk` 和参考客户端，再输出：
 
 - `sdk/*.tgz`：LED 可直接安装的 TypeScript SDK。
 - `client/`：已通过 chunk 预算的静态参考客户端。

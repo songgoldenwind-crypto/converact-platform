@@ -8,7 +8,7 @@ import {
   loadKamailioConfigRuntime,
   renderKamailioConfig,
   writeKamailioConfigRuntime
-} from '../src/agent-runtime/ivekit/voice/kamailio-config.js';
+} from '../src/agent-runtime/converact/voice/kamailio-config.js';
 
 const TOPOH_KEY = 'ivekit-topology-mask-key-1234567890abcdef';
 const RPC_TOKEN = 'ivekit-kamailio-rpc-token-1234567890abcdef';
@@ -454,7 +454,7 @@ test('Kamailio renderer has a file-only CLI and documented deployment contract',
   const [script, packageJson, envExample, referenceConfig, exampleJson] = await Promise.all([
     readFile(new URL('../scripts/render-kamailio-config.ts', import.meta.url), 'utf8'),
     readFile(new URL('../package.json', import.meta.url), 'utf8'),
-    readFile(new URL('../infra/ivekit/env.example', import.meta.url), 'utf8'),
+    readFile(new URL('../infra/converact/env.example', import.meta.url), 'utf8'),
     readFile(new URL('../infra/config/kamailio.cfg', import.meta.url), 'utf8'),
     readFile(new URL('../infra/config/kamailio.runtime.example.json', import.meta.url), 'utf8')
   ]);

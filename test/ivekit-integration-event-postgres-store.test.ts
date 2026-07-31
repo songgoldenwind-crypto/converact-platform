@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { PgQueryable } from '../src/db-pg.js';
-import { PostgresIveKitEventWebhookStore } from '../src/agent-runtime/ivekit/integration-events/postgres-store.js';
-import type { IveKitEventWebhookSubscription } from '../src/agent-runtime/ivekit/integration-events/types.js';
+import { PostgresIveKitEventWebhookStore } from '../src/agent-runtime/converact/integration-events/postgres-store.js';
+import type { IveKitEventWebhookSubscription } from '../src/agent-runtime/converact/integration-events/types.js';
 
 test('event webhook store inserts idempotently and rejects changed payloads', async () => {
   const insertedPg = new RecordingPg((sql) => /INSERT INTO ivekit_event_webhook_subscriptions/i.test(sql)

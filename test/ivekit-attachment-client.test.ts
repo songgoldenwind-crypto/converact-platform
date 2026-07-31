@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createIveKitHttpSdk } from '../sdk/ivekit/src/http-sdk.js';
-import type { IveKitUploadTransport } from '../sdk/ivekit/src/upload-transport.js';
+import { createIveKitHttpSdk } from '../sdk/converact/src/http-sdk.js';
+import type { IveKitUploadTransport } from '../sdk/converact/src/upload-transport.js';
 
 test('attachment progress upload preserves binary, auth, monotonic progress, and abort', async () => {
   const requests: Parameters<IveKitUploadTransport['upload']>[0][] = [];

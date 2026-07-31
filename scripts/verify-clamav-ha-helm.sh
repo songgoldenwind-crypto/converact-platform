@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-CHART_DIR=${1:-services/ivekit-service/helm/ivekit}
+CHART_DIR=${1:-services/converact-service/helm/converact}
 HELM_BIN=${HELM_BIN:-helm}
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT HUP INT TERM

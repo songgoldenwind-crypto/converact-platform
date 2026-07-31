@@ -18,8 +18,8 @@ import { TinodeInboundStore } from '../src/agent-runtime/collaboration/tinode-in
 import { SecureFileStore } from '../src/agent-runtime/collaboration/secure-file-store.js';
 import { TinodeInboundService } from '../src/agent-runtime/collaboration/tinode-inbound-worker.js';
 import { QualityReviewService } from '../src/agent-runtime/collaboration/quality-review.js';
-import { applyIveKitMigrations } from '../src/ivekit-migrations.js';
-import { initializeIveKitRuntimeRole } from '../src/ivekit-runtime-role.js';
+import { applyIveKitMigrations } from '../src/converact-migrations.js';
+import { initializeIveKitRuntimeRole } from '../src/converact-runtime-role.js';
 import type { PgQueryable } from '../src/db-pg.js';
 import { withPgTenant } from '../src/db-pg-tenant.js';
 

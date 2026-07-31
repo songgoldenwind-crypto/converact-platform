@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH_PATH =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch';
 const patch = readFileSync(PATCH_PATH, 'utf8');
-const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
 
 function addedSource(): string {
   return patch

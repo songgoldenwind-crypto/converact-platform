@@ -24,7 +24,7 @@ const BASELINE_COMPOSE = join(BASELINE_DIRECTORY, 'docker-compose.yml');
 const BASELINE_PREPARE = join(BASELINE_DIRECTORY, 'prepare.py');
 const SCENARIO = join(
   REPOSITORY_ROOT,
-  'services/ivekit-service/acceptance/sipp/inbound-reject-486-uac.xml'
+  'services/converact-service/acceptance/sipp/inbound-reject-486-uac.xml'
 );
 
 export interface SipKamailioStaircaseConfigInput {
@@ -531,8 +531,8 @@ async function sourceIdentity(): Promise<SipKamailioStaircaseEvidence['source']>
     'infra/capacity/rustpbx-baseline/prepare.py',
     'infra/capacity/rustpbx-baseline/docker-compose.yml',
     'infra/capacity/rustpbx-baseline/run.sh',
-    'services/ivekit-service/acceptance/sipp/inbound-reject-486-uac.xml',
-    'src/agent-runtime/ivekit/voice/kamailio-config.ts',
+    'services/converact-service/acceptance/sipp/inbound-reject-486-uac.xml',
+    'src/agent-runtime/converact/voice/kamailio-config.ts',
     'scripts/capacity/sip-kamailio-staircase.ts',
     'scripts/ivekit-capacity-sip-kamailio-staircase.ts'
   ];

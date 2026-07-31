@@ -8,7 +8,7 @@ import {
   type DialogShadowRecord,
   type DialogShadowReplicaAck,
   type DialogShadowReplicaHealth
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow.js';
 import {
   JetStreamDialogShadowReplicationBus,
   applyDialogShadowEnvelope,
@@ -16,7 +16,7 @@ import {
   type DialogShadowJetStreamEnvelope,
   type DialogShadowPairJetStreamEnvelope,
   type DialogShadowJetStreamPort
-} from '../src/agent-runtime/ivekit/voice/dialog-shadow-jetstream.js';
+} from '../src/agent-runtime/converact/voice/dialog-shadow-jetstream.js';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);

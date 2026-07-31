@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import type { ComponentNodeStateSnapshot } from '../src/agent-runtime/ivekit/placement/component-node-admission.js';
-import { ComponentNodeAdmissionController } from '../src/agent-runtime/ivekit/placement/component-node-admission.js';
-import { createComponentNodeAdmissionHttpServer } from '../src/agent-runtime/ivekit/placement/component-node-admission-http.js';
+import type { ComponentNodeStateSnapshot } from '../src/agent-runtime/converact/placement/component-node-admission.js';
+import { ComponentNodeAdmissionController } from '../src/agent-runtime/converact/placement/component-node-admission.js';
+import { createComponentNodeAdmissionHttpServer } from '../src/agent-runtime/converact/placement/component-node-admission-http.js';
 import {
   HttpKamailioCoreMetricsClient,
   HttpKamailioJsonRpcClient,
@@ -15,8 +15,8 @@ import {
   createKamailioRouteAgentHttpServer,
   loadKamailioRouteAgentRuntimeConfig,
   startKamailioRouteAgent
-} from '../src/agent-runtime/ivekit/voice/kamailio-route-agent.js';
-import { KamailioRouteSnapshotCodec } from '../src/agent-runtime/ivekit/voice/kamailio-route-snapshot.js';
+} from '../src/agent-runtime/converact/voice/kamailio-route-agent.js';
+import { KamailioRouteSnapshotCodec } from '../src/agent-runtime/converact/voice/kamailio-route-snapshot.js';
 import { listenOnRandomPort } from './test-helpers.js';
 
 const KEY = Buffer.alloc(32, 8);
@@ -640,8 +640,8 @@ test('route agent entrypoint and environment contracts require file-backed secre
   );
   for (const path of [
     'infra/env.example',
-    'infra/ivekit/env.example',
-    'services/ivekit-service/env.example'
+    'infra/converact/env.example',
+    'services/converact-service/env.example'
   ]) {
     const env = await readFile(path, 'utf8');
     assert.match(env, /^OPC_IVEKIT_KAMAILIO_TOPOLOGY_FILE=\/etc\/ivekit\/kamailio-topology\.json$/m);

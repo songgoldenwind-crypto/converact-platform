@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   ComponentNodeAdmissionController
-} from '../src/agent-runtime/ivekit/placement/index.js';
+} from '../src/agent-runtime/converact/placement/index.js';
 
 test('component node admission starts draining and requires a fresh Cell lease', () => {
   const controller = fixture();

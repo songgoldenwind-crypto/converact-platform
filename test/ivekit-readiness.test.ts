@@ -6,7 +6,7 @@ import type { PgQueryable } from '../src/db-pg.js';
 import {
   createIveKitReadinessProbe,
   REQUIRED_MIGRATIONS
-} from '../src/agent-runtime/ivekit/operations/readiness.js';
+} from '../src/agent-runtime/converact/operations/readiness.js';
 
 class ReadyPg implements PgQueryable {
   readonly queries: string[] = [];
@@ -73,7 +73,7 @@ test('root and standalone migration sets share the runtime security marker requi
     'utf8'
   );
   const standalone = readFileSync(
-    new URL('../services/ivekit-service/migrations/090_ivekit_runtime_security.sql', import.meta.url),
+    new URL('../services/converact-service/migrations/090_ivekit_runtime_security.sql', import.meta.url),
     'utf8'
   );
   assert.equal(root, standalone);

@@ -11,7 +11,7 @@ NODE_COMMAND="${IVEKIT_NODE_COMMAND:-node}"
 OPENSSL_COMMAND="${IVEKIT_OPENSSL_COMMAND:-openssl}"
 ALPINE_IMAGE="alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
-SCENARIO_FILE="$REPOSITORY_ROOT/services/ivekit-service/acceptance/sipp/inbound-reject-486-uac.xml"
+SCENARIO_FILE="$REPOSITORY_ROOT/services/converact-service/acceptance/sipp/inbound-reject-486-uac.xml"
 INCLUDE_KAMAILIO="${IVEKIT_CAPACITY_INCLUDE_KAMAILIO:-1}"
 case "$INCLUDE_KAMAILIO" in
   0) DEFAULT_SIP_TARGET_IP="172.30.44.10" ;;
@@ -68,7 +68,7 @@ set +a
 if [[ "$INCLUDE_KAMAILIO" == 1 ]]; then
   (
     cd "$REPOSITORY_ROOT"
-    "$NODE_COMMAND" --import tsx src/ivekit-kamailio-compose-config.ts
+    "$NODE_COMMAND" --import tsx src/converact-kamailio-compose-config.ts
     "$NODE_COMMAND" --import tsx scripts/render-kamailio-config.ts
   )
   printf '%s\n' \

@@ -10,21 +10,21 @@ import {
   createBackendCapabilitySet,
   selectSipFoundationAdapter,
   validateBackendRuntimeIdentity
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/capabilities.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/capabilities.js';
 import {
   RSIPSTACK_BASELINE_REQUIRED_CAPABILITIES,
   RsipstackFoundationAdapter,
   decodePreparedWireBytes
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/rsipstack-adapter.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.js';
 import {
   SipFoundationSessionRegistry
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/session-registry.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/session-registry.js';
 import {
   SIP_WIRE_BRANCH_PLACEHOLDER,
   sipRouteBindingSha256,
   sipWireAttemptFactsSha256,
   sipWireFreezeSha256
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/route-binding.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/route-binding.js';
 import {
   SipFoundationError,
   type BackendCapabilitySet,
@@ -33,7 +33,7 @@ import {
   type SipFoundationCapabilityId,
   type SipProtocolSessionBinding,
   type SipRouteBinding
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/types.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/types.js';
 
 const SOURCE_DIGEST = 'a'.repeat(64);
 const BINARY_DIGEST = 'b'.repeat(64);
@@ -1302,9 +1302,9 @@ test('route, fence, identity and wire inputs are bounded with stable error codes
 
 test('the OPC-owned seam does not import rvoip implementation types', () => {
   for (const file of [
-    'src/agent-runtime/ivekit/voice/sip-foundation/types.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/capabilities.ts',
-    'src/agent-runtime/ivekit/voice/sip-foundation/rsipstack-adapter.ts'
+    'src/agent-runtime/converact/voice/sip-foundation/types.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/capabilities.ts',
+    'src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts'
   ]) {
     const source = readFileSync(file, 'utf8');
     assert.doesNotMatch(source, /(?:import|from)[^'"]*['"][^'"]*rvoip[^'"]*['"]/i, file);

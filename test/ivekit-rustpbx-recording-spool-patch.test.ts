@@ -5,11 +5,11 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const patchPath =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-recording-spool.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-recording-spool.patch';
 
 test('RustPBX recording spool patch segments locally without object storage in the media path', () => {
   const patch = readFileSync(patchPath, 'utf8');
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
 
   assert.match(build, /rustpbx-ivekit-recording-spool\.patch/);
   assert.match(patch, /IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED/);

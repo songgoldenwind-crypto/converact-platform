@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import {
   inspectIveKitIntelligenceEnv,
   type IveKitIntelligencePreflightReport
-} from '../src/agent-runtime/ivekit/intelligence-preflight.js';
+} from '../src/agent-runtime/converact/intelligence-preflight.js';
 
 export { inspectIveKitIntelligenceEnv, type IveKitIntelligencePreflightReport };
 

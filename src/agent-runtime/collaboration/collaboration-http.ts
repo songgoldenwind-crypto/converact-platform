@@ -9,10 +9,10 @@ import type {
   ComponentPlacementAdapter,
   ComponentPlacementOwner,
   ComponentPlacementReservation
-} from '../ivekit/placement/component-placement.js';
-import { verifyWebAssistJoinToken } from '../ivekit/remote-assist-token.js';
-import { IveKitTenantEventJournal } from '../ivekit/tenant-event-store.js';
-import { IveKitUnifiedTimelineStore } from '../ivekit/unified-timeline-store.js';
+} from '../converact/placement/component-placement.js';
+import { verifyWebAssistJoinToken } from '../converact/remote-assist-token.js';
+import { IveKitTenantEventJournal } from '../converact/tenant-event-store.js';
+import { IveKitUnifiedTimelineStore } from '../converact/unified-timeline-store.js';
 import { createLiveKitMediaModule } from '../livekit/index.js';
 import { MediaCallStore } from '../livekit/media-call-store.js';
 import { recordMediaRecordingEvidence } from '../media-recording-evidence.js';
@@ -109,7 +109,7 @@ import {
 } from './rustdesk-gateway-event.js';
 import type {
   RustDeskOwnerBindingPreparePort
-} from '../ivekit/placement/rustdesk-owner-binding.js';
+} from '../converact/placement/rustdesk-owner-binding.js';
 import {
   hasRustDeskGatewayAccessModeAlias,
   hasRustDeskGatewayUnattendedAlias,

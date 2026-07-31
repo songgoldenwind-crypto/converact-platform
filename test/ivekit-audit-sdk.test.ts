@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createIveKitHttpSdk } from '../sdk/ivekit/src/http-sdk.js';
-import { createIveKitClient } from '../sdk/ivekit/src/index.js';
+import { createIveKitHttpSdk } from '../sdk/converact/src/http-sdk.js';
+import { createIveKitClient } from '../sdk/converact/src/index.js';
 
 test('iveKit SDK exposes tenant audit query and JSONL export', async () => {
   const calls: Array<{ url: string; method: string }> = [];

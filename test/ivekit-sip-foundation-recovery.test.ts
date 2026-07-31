@@ -4,17 +4,17 @@ import {
   SipFoundationRecoveryError,
   evaluateSipFoundationRecoveryEligibility,
   type SipFoundationRecoverySnapshot
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/recovery.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/recovery.js';
 import {
   SIP_FOUNDATION_CAPABILITY_IDS,
   computeBackendCapabilitySetDigest,
   createBackendCapabilitySet
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/capabilities.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/capabilities.js';
 import type {
   BackendCapabilitySet,
   BackendCapabilitySetInput,
   BackendRuntimeIdentity
-} from '../src/agent-runtime/ivekit/voice/sip-foundation/types.js';
+} from '../src/agent-runtime/converact/voice/sip-foundation/types.js';
 
 const CAPABILITY_SET = capabilitySet();
 const SESSION_GENERATION = '018f7f19-1a2b-7c3d-8e4f-123456789abc';

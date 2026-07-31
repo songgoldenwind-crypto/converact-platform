@@ -9,7 +9,7 @@ import {
   type IvrFlowRepository,
   type IvrFlowUnitOfWork,
   type IvrFlowVersion
-} from '../src/agent-runtime/ivekit/ivr/index.js';
+} from '../src/agent-runtime/converact/ivr/index.js';
 
 test('IVR flow service creates and revision-locks editable drafts', async () => {
   const fixture = createFixture();

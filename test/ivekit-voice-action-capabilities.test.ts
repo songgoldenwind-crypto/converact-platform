@@ -7,7 +7,7 @@ import {
   supportsVoiceCommand,
   VOICE_CAPABILITY_SCHEMA_VERSION,
   VOICE_COMMAND_KINDS
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('Voice action capabilities are versioned, complete, and fail closed', () => {
   const empty = normalizeVoiceActionCapabilities();

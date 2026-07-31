@@ -94,13 +94,13 @@ test('release operation validation rejects mutable or destructive instructions',
 });
 
 test('standalone Helm chart gates migration before an immutable application rollout', () => {
-  const chart = readFileSync('services/ivekit-service/helm/ivekit/Chart.yaml', 'utf8');
-  const values = readFileSync('services/ivekit-service/helm/ivekit/values.yaml', 'utf8');
-  const helpers = readFileSync('services/ivekit-service/helm/ivekit/templates/_helpers.tpl', 'utf8');
-  const migration = readFileSync('services/ivekit-service/helm/ivekit/templates/migrate-job.yaml', 'utf8');
-  const deployment = readFileSync('services/ivekit-service/helm/ivekit/templates/deployment.yaml', 'utf8');
-  const clamav = readFileSync('services/ivekit-service/helm/ivekit/templates/clamav.yaml', 'utf8');
-  const rustpbx = readFileSync('services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml', 'utf8');
+  const chart = readFileSync('services/converact-service/helm/converact/Chart.yaml', 'utf8');
+  const values = readFileSync('services/converact-service/helm/converact/values.yaml', 'utf8');
+  const helpers = readFileSync('services/converact-service/helm/converact/templates/_helpers.tpl', 'utf8');
+  const migration = readFileSync('services/converact-service/helm/converact/templates/migrate-job.yaml', 'utf8');
+  const deployment = readFileSync('services/converact-service/helm/converact/templates/deployment.yaml', 'utf8');
+  const clamav = readFileSync('services/converact-service/helm/converact/templates/clamav.yaml', 'utf8');
+  const rustpbx = readFileSync('services/converact-service/helm/converact/templates/rustpbx-deployment.yaml', 'utf8');
 
   assert.match(chart, /name: ivekit-service/);
   assert.match(values, /repository: ""[\s\S]*digest: ""/);
@@ -151,7 +151,7 @@ test('standalone Helm chart gates migration before an immutable application roll
   assert.match(clamav, /\/var\/lib\/clamav/);
   assert.doesNotMatch(clamav, /type: (?:NodePort|LoadBalancer)|hostPort:/);
   assert.doesNotMatch(deployment, /wait-for-clamav/);
-  const readme = readFileSync('services/ivekit-service/helm/ivekit/README.md', 'utf8');
+  const readme = readFileSync('services/converact-service/helm/converact/README.md', 'utf8');
   assert.match(readme, /ClamAV outage[^.]*must not gate API readiness or active communication/i);
   assert.doesNotMatch(`${values}\n${deployment}`, /opc\/platform|:latest/);
 });

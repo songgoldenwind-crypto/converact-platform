@@ -3,22 +3,22 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { parse } from 'yaml';
 
-const sourceCompose = readFileSync('infra/ivekit/docker-compose.voice.yml', 'utf8');
+const sourceCompose = readFileSync('infra/converact/docker-compose.voice.yml', 'utf8');
 const standaloneCompose = readFileSync(
-  'services/ivekit-service/docker-compose.voice.yml',
+  'services/converact-service/docker-compose.voice.yml',
   'utf8'
 );
 const envExamples = [
   readFileSync('infra/env.example', 'utf8'),
-  readFileSync('infra/ivekit/env.example', 'utf8'),
-  readFileSync('services/ivekit-service/env.example', 'utf8')
+  readFileSync('infra/converact/env.example', 'utf8'),
+  readFileSync('services/converact-service/env.example', 'utf8')
 ];
 const helmValues = readFileSync(
-  'services/ivekit-service/helm/ivekit/values.yaml',
+  'services/converact-service/helm/converact/values.yaml',
   'utf8'
 );
 const helmRustPbx = readFileSync(
-  'services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml',
+  'services/converact-service/helm/converact/templates/rustpbx-deployment.yaml',
   'utf8'
 );
 const legacyHelmValues = readFileSync('infra/k8s/values.yaml', 'utf8');
@@ -27,7 +27,7 @@ const legacyHelmRustPbx = readFileSync(
   'utf8'
 );
 const rustPbxRecoveryPatch = readFileSync(
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch',
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch',
   'utf8'
 );
 

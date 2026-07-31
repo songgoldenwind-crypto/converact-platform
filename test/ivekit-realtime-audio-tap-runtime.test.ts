@@ -8,8 +8,8 @@ import test from 'node:test';
 import {
   createConfiguredRealtimeAudioTapRuntime,
   deriveLiveKitAudioTapInstanceSecret
-} from '../src/agent-runtime/ivekit/voice/realtime-audio-tap-runtime.js';
-import type { PolicyRealtimeSpeechRouter } from '../src/agent-runtime/ivekit/voice/realtime-speech-routing.js';
+} from '../src/agent-runtime/converact/voice/realtime-audio-tap-runtime.js';
+import type { PolicyRealtimeSpeechRouter } from '../src/agent-runtime/converact/voice/realtime-speech-routing.js';
 import type { PgQueryable } from '../src/db-pg.js';
 
 const pg = {
@@ -218,7 +218,7 @@ function fakeRouter(): PolicyRealtimeSpeechRouter {
 }
 
 function fakeProjection(): Pick<import(
-  '../src/agent-runtime/ivekit/voice/realtime-speech-projection.js'
+  '../src/agent-runtime/converact/voice/realtime-speech-projection.js'
 ).RealtimeSpeechProjection, 'project'> {
   return {
     async project() {

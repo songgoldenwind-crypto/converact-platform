@@ -5,15 +5,15 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const patchPath =
-  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-owner-epoch.patch';
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-owner-epoch.patch';
 
 test('RustPBX owner epoch patch wires local component authorization outside RTP paths', () => {
   const patch = readFileSync(patchPath, 'utf8');
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
 
   assert.match(build, /rustpbx-ivekit-owner-epoch\.patch/);
   assert.match(build, /integrations\/component-hook-rs/);
-  assert.match(patch, /ivekit-component-hook/);
+  assert.match(patch, /converact-component-hook/);
   assert.match(patch, /pub mod ivekit_owner/);
   assert.match(patch, /reservation_id/);
   assert.match(patch, /owner_epoch/);

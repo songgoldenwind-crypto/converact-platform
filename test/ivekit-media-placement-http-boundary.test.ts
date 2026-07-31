@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/http-server.js';
+import { createIveKitHttpServer } from '../src/agent-runtime/converact/http-server.js';
 import type {
   MediaCallPlacementPort,
   MediaCallPlacementReservation

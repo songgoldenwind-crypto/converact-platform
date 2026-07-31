@@ -5,35 +5,35 @@ import { Pool } from 'pg';
 import {
   CellAdmissionController,
   type CellAdmissionReservationCheckpoint
-} from '../src/agent-runtime/ivekit/placement/admission.js';
+} from '../src/agent-runtime/converact/placement/admission.js';
 import {
   createCellAdmissionHttpServer,
   createCellAdmissionStandbyHttpServer
-} from '../src/agent-runtime/ivekit/placement/admission-http.js';
+} from '../src/agent-runtime/converact/placement/admission-http.js';
 import {
   CellAdmissionLedgerError,
   PostgresCellAdmissionLedger
-} from '../src/agent-runtime/ivekit/placement/admission-ledger.js';
+} from '../src/agent-runtime/converact/placement/admission-ledger.js';
 import {
   CellLeaseError,
   PostgresCellLeaseRepository,
   startCellLeaseMaintainer
-} from '../src/agent-runtime/ivekit/placement/cell-lease.js';
+} from '../src/agent-runtime/converact/placement/cell-lease.js';
 import {
   ComponentNodeSynchronizer
-} from '../src/agent-runtime/ivekit/placement/component-node-sync.js';
+} from '../src/agent-runtime/converact/placement/component-node-sync.js';
 import {
   compileAdmissionNodePools,
   cellAdmissionTopologySha256,
   validateAdmissionNodeCapacity,
   type AdmissionNodeConfig,
   type AdmissionNodePoolConfig
-} from '../src/agent-runtime/ivekit/placement/component-node-topology.js';
+} from '../src/agent-runtime/converact/placement/component-node-topology.js';
 import type {
   AdmissionState,
   FlatCapacityState,
   InteractionKind
-} from '../src/agent-runtime/ivekit/placement/types.js';
+} from '../src/agent-runtime/converact/placement/types.js';
 
 export interface CellAdmissionRuntimeConfig {
   host: string;

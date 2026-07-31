@@ -5,7 +5,7 @@ import {
   HttpRustDeskOwnerBindingPrepareClient,
   RustDeskOwnerBindingError,
   RustDeskOwnerBindingRegistry
-} from '../src/agent-runtime/ivekit/placement/rustdesk-owner-binding.js';
+} from '../src/agent-runtime/converact/placement/rustdesk-owner-binding.js';
 
 const now = new Date('2026-07-17T00:00:00.000Z');
 

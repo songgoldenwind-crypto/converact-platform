@@ -12,20 +12,20 @@ import { fileURLToPath } from 'node:url';
 import {
   IVEKIT_INTEGRATION_EVENT_CATALOG,
   normalizeIveKitEventPatterns
-} from '../src/agent-runtime/ivekit/integration-events/catalog.js';
+} from '../src/agent-runtime/converact/integration-events/catalog.js';
 import {
   projectIveKitIntegrationEvent,
   runIveKitEventWebhookBatch
-} from '../src/agent-runtime/ivekit/integration-events/worker.js';
+} from '../src/agent-runtime/converact/integration-events/worker.js';
 import type {
   IveKitEventWebhookSubscription,
   IveKitStoredIntegrationEvent,
   IveKitWebhookDeliveryEnvelope
-} from '../src/agent-runtime/ivekit/integration-events/types.js';
+} from '../src/agent-runtime/converact/integration-events/types.js';
 import {
   verifyIveKitWebhook,
   type IveKitWebhookReplayClaim
-} from '../sdk/ivekit/src/webhook.js';
+} from '../sdk/converact/src/webhook.js';
 
 const REQUIRED_EVENT_PATHS = [
   '/api/ivekit/events',

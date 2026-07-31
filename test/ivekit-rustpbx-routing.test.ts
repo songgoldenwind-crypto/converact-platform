@@ -5,7 +5,7 @@ import {
   RustPbxRouterAdapter,
   VoiceError,
   type VoiceCapability
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('RustPBX Router normalization keeps routing fields and drops unsafe payloads', () => {
   const adapter = new RustPbxRouterAdapter();

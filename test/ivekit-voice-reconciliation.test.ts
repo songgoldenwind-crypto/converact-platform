@@ -15,7 +15,7 @@ import {
   type VoiceDeploymentProfile,
   type VoiceProviderAdapter,
   type VoiceProviderFactory
-} from '../src/agent-runtime/ivekit/voice/index.js';
+} from '../src/agent-runtime/converact/voice/index.js';
 
 test('Voice reconciliation converges uncertain commands without resubmitting provider actions', async () => {
   const fixture = reconciliationFixture();

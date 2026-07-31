@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const PATCH =
-  'infra/ivekit/rustpbx/patches/rsipstack-ivekit-single-trying.patch';
+  'infra/converact/rustpbx/patches/rsipstack-ivekit-single-trying.patch';
 
 test('rsipstack gives application-initiated 100 Trying one transaction owner', () => {
   const patch = readFileSync(PATCH, 'utf8');
@@ -49,8 +49,8 @@ test('rsipstack gives application-initiated 100 Trying one transaction owner', (
 });
 
 test('the current patchset retains single-Trying ownership after the existing rsipstack queue', () => {
-  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
-  const readme = readFileSync('infra/ivekit/rustpbx/README.md', 'utf8');
+  const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
+  const readme = readFileSync('infra/converact/rustpbx/README.md', 'utf8');
 
   assert.match(
     build,

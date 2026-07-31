@@ -4,7 +4,7 @@ import test from 'node:test';
 
 import {
   patchLiveKitIngressDockerfile
-} from '../infra/ivekit/livekit-ingress/apply-overlay.mjs';
+} from '../infra/converact/livekit-ingress/apply-overlay.mjs';
 
 function source(path: string): string {
   assert.ok(existsSync(path), `${path} is missing`);
@@ -12,8 +12,8 @@ function source(path: string): string {
 }
 
 test('LiveKit Ingress exact source image is offline, immutable and release gated', () => {
-  const overlay = source('infra/ivekit/livekit-ingress/apply-overlay.mjs');
-  const build = source('infra/ivekit/livekit-ingress/build.sh');
+  const overlay = source('infra/converact/livekit-ingress/apply-overlay.mjs');
+  const build = source('infra/converact/livekit-ingress/build.sh');
   const workflow = source('.github/workflows/ivekit-livekit-ingress-image.yml');
   const dockerfile = patchLiveKitIngressDockerfile(ingressDockerfileFixture());
 
