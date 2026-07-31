@@ -1,0 +1,977 @@
+# OPC Platform Helm Values
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+opc:
+  replicaCount: 2
+  image:
+    repository: opc/platform
+    digest: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+  apiKey: ""
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  env:
+    PORT: "3000"
+  eventReplay:
+    enabled: "1"
+    retentionMs: "86400000"
+    maxPayloadBytes: "65536"
+    wsReplayMaxEvents: "500"
+    retentionWorkerEnabled: "1"
+    retentionIntervalMs: "60000"
+    retentionTenantLimit: "100"
+    retentionBatchSize: "1000"
+
+aiAgent:
+  replicaCount: 2
+  tmpSizeLimit: 256Mi
+  image:
+    repository: opc/ai-agent
+    digest: ""
+    pullPolicy: IfNotPresent
+  providerRuntime:
+    llmFallbackProviders: "deepseek"
+    speechAsrProvider: "funasr"
+    speechAsrFallbackProviders: "deepgram,openai"
+    speechTtsProvider: "cosyvoice"
+    speechTtsFallbackProviders: "cartesia,openai"
+    sttAttemptTimeoutMs: 2000
+    llmAttemptTimeoutMs: 1200
+    ttsAttemptTimeoutMs: 1500
+    maxUnrecoverableErrors: 3
+  providers:
+    llmBaseUrl: ""
+    llmModel: "Qwen3.6-27B"
+    llmExtraBody: '{"chat_template_kwargs":{"enable_thinking":false}}'
+    deepseekApiBase: "https://api.deepseek.com/v1"
+    deepseekModel: "deepseek-chat"
+    funasrUrl: ""
+    cosyvoiceUrl: ""
+    cosyvoiceSpeakerId: "中文女"
+    credentials:
+      existingSecret: ""
+      llmApiKeyKey: "llm-api-key"
+      deepseekApiKeyKey: "deepseek-api-key"
+      openaiApiKeyKey: "openai-api-key"
+      deepgramApiKeyKey: "deepgram-api-key"
+      cartesiaApiKeyKey: "cartesia-api-key"
+  metrics:
+    port: 9090
+    udpHost: 127.0.0.1
+    udpPort: 9125
+    serviceMonitor:
+      enabled: false
+      interval: 15s
+      scrapeTimeout: 5s
+      labels: {}
+    prometheusRule:
+      enabled: false
+      duration: 5m
+    latencyBudgetsSeconds:
+      asr_final: 0.35
+      end_of_turn: 0.5
+      llm_first_token: 0.35
+      tts_first_audio: 0.3
+      speech_to_speech: 1.2
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: opc/frontend
+    digest: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+
+postgres:
+  # external is the production contract. bundled-dev is a single-instance rollback for development only.
+  mode: external
+  external:
+    existingSecret: opc-database-runtime
+    secretKey: database-url
+  image:
+    repository: postgres
+    digest: ""
+    pullPolicy: IfNotPresent
+  connectionString: ""
+  auth:
+    username: opc
+    password: opc
+    database: opc
+  primary:
+    persistence:
+      size: 10Gi
+
+redis:
+  enabled: true
+  architecture: standalone
+  image:
+    repository: redis
+    digest: ""
+    pullPolicy: IfNotPresent
+
+livekit:
+  enabled: false
+  deploymentMode: external
+  url: ""
+  publicUrl: ""
+  apiKey: ""
+  apiSecret: ""
+  redis:
+    mode: direct
+    address: ""
+    sentinelMasterName: ""
+    sentinelAddresses: []
+    sentinelUsername: ""
+    sentinelPassword: ""
+    username: ""
+    password: ""
+    db: 0
+    dialTimeoutMs: 2000
+    readTimeoutMs: 200
+    writeTimeoutMs: 200
+    poolSize: 0
+    reconnectWaitMs: 1000
+    maxReconnectAttempts: -1
+    tls:
+      enabled: false
+      secretName: ""
+      serverName: ""
+      caKey: ca.crt
+      clientCertKey: ""
+      clientKeyKey: ""
+  image:
+    repository: ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server
+    digest: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 7880
+  rtcPort: 7881
+  udpPort: 7882
+  portRangeStart: 50000
+  portRangeEnd: 50100
+  useExternalIp: false
+  pliThrottle:
+    lowQuality: 100ms
+    midQuality: 100ms
+    highQuality: 100ms
+  emptyTimeout: 300
+  maxParticipants: 10
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+voice:
+  enabled: false
+  replicaCount: 2
+  tenantId: ""
+  profileId: ""
+  cellId: ""
+  regionId: ""
+  zoneId: ""
+  image:
+    repository: ivekit/rustpbx
+    digest: ""
+    pullPolicy: IfNotPresent
+  sipCapacity:
+    maxActiveTransactions: 65536
+    maxFinishedTransactions: 65536
+    incomingTransactionQueueCapacity: 8192
+    maxTransportConnections: 32768
+  mediaCapacity:
+    sessionCleanupConcurrency: 64
+    sessionCleanupTimeoutMs: 2000
+    recordingChannelCapacity: 256
+    recordingWorkerThreads: 4
+    recordingWorkerQueueCapacity: 4096
+    udpReceiveBufferBytes: 1048576
+    udpSendBufferBytes: 524288
+  admissionProfiles:
+    ordinary:
+      id: voice-ordinary-v1
+      dimension: voice.weighted_calls
+    t1:
+      id: voice-ha-t1-v1
+      dimension: voice.t1_shadow_slots
+    ivrTranscoding:
+      id: voice-ivr-transcoding-v1
+      dimension: voice.transcode_slots
+    recording:
+      id: voice-recording-v1
+      dimension: voice.recording_slots
+    aiTap:
+      id: voice-ai-tap-v1
+      dimension: voice.realtime_asr_streams
+  callRecordCapacity:
+    maxConcurrent: 64
+    channelCapacity: 65536
+    workerThreads: 1
+  monitoring:
+    serviceMonitor:
+      enabled: false
+      interval: 15s
+      scrapeTimeout: 10s
+      labels: {}
+    prometheusRule:
+      enabled: false
+      labels: {}
+  database:
+    username: rustpbx_app
+    name: rustpbx
+    host: ""
+    port: 5432
+    password: ""
+  managementToken: ""
+  rwiToken: ""
+  webhookToken: ""
+  cdr:
+    regionId: ""
+    endpoint: ""
+    pollIntervalMs: "500"
+    tls:
+      secretName: ""
+      serverKeyKey: server.key
+      serverCertKey: server.crt
+      clientIdentityKey: client-identity.pem
+      caKey: ca.crt
+  webphone:
+    enabled: true
+    publicWssUrl: ""
+    sipRealm: ""
+    jwtSecret: ""
+    jwtIssuer: ivekit
+    jwtAudience: rustpbx-webphone
+    ttlSeconds: "300"
+    registerExpiresSeconds: "240"
+    iceServersJson: "[]"
+    cleanup:
+      intervalMs: "60000"
+      tenantLimit: "100"
+      batchSize: "500"
+    ingress:
+      enabled: false
+      className: ""
+      annotations: {}
+      host: ""
+      path: /ws
+      tls: []
+  amiAllows:
+    - 127.0.0.1
+  addressKey: ""
+  addressHmacKey: ""
+  routeSnapshot:
+    hmacKey: ""
+    intervalMs: "1000"
+    ttlMs: "10000"
+    refreshMs: "500"
+    dependencies: ""
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+  recordingSpool:
+    enabled: true
+    leaseSecretKey: rustpbx-recording-lease-secret
+    leaseSecret: ""
+    segmentSeconds: "60"
+    segmentMaxBytes: "67108864"
+    partSizeBytes: "8388608"
+    leaseMs: "300000"
+    uploadConcurrency: "4"
+    pollIntervalMs: "1000"
+    metricsRefreshMs: "1000"
+    metricsStaleMs: "5000"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+  persistence:
+    enabled: true
+    accessMode: ReadWriteOnce
+    storageClass: ""
+    storageSize: 10Gi
+    recordingSpoolSize: 50Gi
+    recordingStateSize: 1Gi
+  componentNode:
+    enabled: false
+    tokenKey: ivekit-component-node-token
+    token: ""
+    regionId: ""
+    zoneId: ""
+    profileIds:
+      - voice-ordinary-v1
+      - voice-ha-t1-v1
+      - voice-ivr-transcoding-v1
+      - voice-recording-v1
+      - voice-ai-tap-v1
+    profileRequirementsJson: '{"voice-ordinary-v1":{"voice.weighted_calls":1},"voice-ha-t1-v1":{"voice.t1_shadow_slots":1},"voice-ivr-transcoding-v1":{"voice.transcode_slots":1},"voice-recording-v1":{"voice.recording_slots":1},"voice-ai-tap-v1":{"voice.realtime_asr_streams":1}}'
+    readinessProfileIds:
+      - voice-ordinary-v1
+    dimensionsJson: ""
+    port: 3210
+    timeoutMs: "500"
+    refreshMs: "3000"
+    drainWaitMs: "240000"
+    drainPollMs: "250"
+    terminalRetentionMs: "300000"
+    sweepIntervalMs: "1000"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  mediaControl:
+    enabled: true
+    endpoint: https://localhost:3211/
+    serviceTokenKey: rustpbx-media-control-token
+    serviceToken: ""
+    clientTlsSecretName: ""
+    identityFile: identity.pem
+    caFile: ca.pem
+    mode: ordinary_relay
+    failurePolicy: fail_closed
+    maxInflight: "2048"
+    timeoutMs: "500"
+    maxResponseBytes: "262144"
+    readinessTimeoutMs: "500"
+    readinessRefreshMs: "1000"
+    traceSampleRatio: "0.01"
+  # VOICE-HA-T1 only. Ordinary calls remain independent from PostgreSQL/NATS
+  # and work without this sidecar.
+  dialogShadow:
+    enabled: false
+    endpoint: https://localhost:3212/
+    faultDomain: ""
+    spiffeTrustDomain: ivekit.internal
+    serviceTokenKey: ivekit-dialog-shadow-token
+    serviceToken: ""
+    recoveryDatabaseUrlKey: ivekit-dialog-recovery-database-url
+    recoveryDatabaseUrl: ""
+    currentRecoveryKeyId: recovery-current
+    currentRecoveryKeyKey: ivekit-dialog-recovery-current-key
+    currentRecoveryKey: ""
+    previousRecoveryKeyId: recovery-previous
+    previousRecoveryKeyKey: ivekit-dialog-recovery-previous-key
+    previousRecoveryKey: ""
+    serverTlsSecretName: ""
+    serverTlsKeyKey: tls.key
+    serverTlsCertificateKey: tls.crt
+    serverTlsClientCaKey: ca.crt
+    clientIdentity:
+      identityFile: identity.pem
+      caFile: ca.pem
+      csi:
+        driver: ""
+        readOnly: true
+        volumeAttributes: {}
+    journal:
+      maxRecords: "1000000"
+      maxBytes: "268435456"
+      maxRecordBytes: "32768"
+      compactIntervalMs: "60000"
+    recovery:
+      tokenTtlMs: "5000"
+      nodeLeaseTtlMs: "3000"
+      postgresPoolMax: "8"
+      terminalRepairIntervalMs: "1000"
+      terminalRepairLeaseTtlMs: "10000"
+      terminalRepairTenantBatchSize: "32"
+    nats:
+      urls: []
+      tlsSecretName: ""
+      tlsCaKey: ca.crt
+      tlsCertificateKey: tls.crt
+      tlsPrivateKeyKey: tls.key
+      faultDomainsSecretName: ""
+      faultDomainsKey: fault-domains.json
+      placementCluster: ""
+      placementTags: []
+      streamName: IVEKIT_DIALOG_SHADOW
+      subjectPrefix: ivekit.dialog_shadow
+      streamReplicas: 3
+      requiredFaultDomains: 2
+      maxAgeMs: "900000"
+      ackWaitMs: "2000"
+      maxAckPending: "256"
+      quorumTimeoutMs: "500"
+    rustPbx:
+      maxInflight: "2048"
+      timeoutMs: "500"
+      maxResponseBytes: "131072"
+      heartbeatIntervalMs: "1000"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+  externalIp: ""
+  terminationGracePeriodSeconds: 300
+  drainPropagationSeconds: 15
+  network:
+    hostNetwork: true
+  scheduling:
+    zoneTopologyKey: topology.kubernetes.io/zone
+    hostnameTopologyKey: kubernetes.io/hostname
+    nodeSelector:
+      ivekit.io/media-node: "true"
+    tolerations: []
+  service:
+    managementPort: 8080
+    sip:
+      type: LoadBalancer
+      port: 5060
+    rtp:
+      type: LoadBalancer
+      startPort: 20000
+      endPort: 20100
+  workers:
+    commandIntervalMs: "1000"
+    commandBatchSize: "25"
+    commandLeaseMs: "30000"
+    commandMaxAttempts: "5"
+    commandRetryDelaysMs: "1000,5000,30000"
+    eventIntervalMs: "1000"
+    eventBatchSize: "25"
+    eventLeaseMs: "30000"
+    reconciliationIntervalMs: "5000"
+    reconciliationMaxAgeMs: "900000"
+    providerTimeoutMs: "10000"
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  disruptionBudget:
+    minAvailable: 1
+
+ivr:
+  workers:
+    enabled: "0"
+    actionIntervalMs: "1000"
+    actionBatchSize: "25"
+    actionLeaseMs: "30000"
+    actionRetryBaseMs: "1000"
+    actionRetryMaxMs: "60000"
+    reconciliationIntervalMs: "10000"
+    reconciliationLeaseMs: "30000"
+    reconciliationRetryMs: "10000"
+    reconciliationMaxAttempts: "20"
+    tenantLimit: "100"
+
+contactCenter:
+  worker:
+    enabled: "0"
+    intervalMs: "1000"
+    tenantLimit: "100"
+    batchSize: "100"
+    offerTtlSeconds: "20"
+    callbackRetryDelayMs: "30000"
+    overflowRetryDelayMs: "30000"
+
+media:
+  apiToken: ""
+  inviteSecret: ""
+  inviteTtlMs: "86400000"
+  recordingRetentionDays: "90"
+  recordingHttpAllowedOrigins: ""
+  recordingHttpTimeoutMs: "15000"
+  smokeVerifyRecordingObject: "0"
+  smokeRecordingObjectTimeoutMs: "60000"
+  smokeRecordingObjectPollIntervalMs: "2000"
+  realtimeAudioTap:
+    enabled: false
+    hmacSecretB64: ""
+    listenPort: 3010
+    path: /api/ivekit/realtime-audio-tap/livekit
+    tokenTtlSeconds: "60"
+    maxConnections: "4096"
+    prestartBufferMs: "1000"
+    maxPayloadBytes: "262144"
+    idleTimeoutMs: "60000"
+    startTimeoutMs: "5000"
+    shutdownTimeoutMs: "1000"
+    projectionQueueMaxItems: "4096"
+    projectionShutdownTimeoutMs: "1000"
+    retentionDays: "30"
+    socketVolumeSizeLimit: 4Mi
+    rustPbxChannelCapacity: "256"
+    rustPbxSendTimeoutMs: "10"
+    rustPbxGateway:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    networkPolicy:
+      enabled: true
+  objectStorage:
+    mode: external
+    authMode: secret
+    endpoint: ""
+    bucket: recordings
+    region: us-east-1
+    forcePathStyle: false
+    existingSecret: opc-object-storage-runtime
+    accessKeyIdKey: access-key-id
+    secretAccessKeyKey: secret-access-key
+  minio:
+    enabled: false
+    # Legacy development rollback only. Production uses media.objectStorage.mode=external.
+    endpoint: ""
+    bucket: recordings
+    existingSecret: opc-minio-legacy
+    accessKeyIdKey: access-key-id
+    secretAccessKeyKey: secret-access-key
+    image:
+      repository: minio/minio
+      tag: RELEASE.2025-09-07T16-13-09Z
+      digest: sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 9000
+      consolePort: 9001
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "200m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  egress:
+    enabled: false
+    image:
+      repository: ivekit/livekit-egress
+      allowedRegistries:
+        - docker.io
+      upstreamTag: v1.13.0
+      digest: ""
+      contract: ivekit-egress-pool-v1
+      pullPolicy: IfNotPresent
+    healthPort: 8091
+    prometheusPort: 9090
+    terminationGracePeriodSeconds: 300
+    capacityMetrics:
+      enabled: true
+      intervalMs: "5000"
+    monitoring:
+      prometheusAddress: http://prometheus-operated.monitoring.svc:9090
+      serviceMonitor:
+        enabled: false
+        interval: 15s
+      prometheusRule:
+        enabled: false
+        pendingAgeWarningSeconds: 60
+        spoolWarningPercent: 80
+        spoolCriticalPercent: 90
+        saturationPercent: 90
+    sessionLimits:
+      fileOutputMaxDuration: 3h
+      streamOutputMaxDuration: 3h
+      segmentOutputMaxDuration: 6h
+    storage:
+      maxRetries: 10
+      minRetryDelay: 500ms
+      maxRetryDelay: 30s
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+    pools:
+      track:
+        enabled: true
+        replicaCount: 2
+        allowedRequestTypes: ["track"]
+        maxConcurrentRequests: 64
+        cpuCost:
+          roomComposite: 100000
+          audioRoomComposite: 100000
+          web: 100000
+          audioWeb: 100000
+          participant: 100000
+          trackComposite: 100000
+          track: 1
+          maxUtilization: 0.85
+        persistence:
+          enabled: true
+          storageClass: ""
+          storageSize: 200Gi
+        nodeSelector: {}
+        tolerations: []
+        disruptionBudget:
+          minAvailable: 1
+        autoscaling:
+          enabled: false
+          provider: keda
+          minReplicas: 2
+          maxReplicas: 32
+          pollingInterval: 10
+          cooldownPeriod: 300
+          pendingJobsPerReplica: "16"
+          activeUtilizationPercent: "75"
+          spoolUtilizationPercent: "75"
+          networkTransmitBytesPerSecondPerReplica: "104857600"
+          targetCPUUtilizationPercentage: 70
+          targetMemoryUtilizationPercentage: 75
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "4"
+          limits:
+            memory: "8Gi"
+            cpu: "8"
+      composite:
+        enabled: true
+        replicaCount: 2
+        allowedRequestTypes: ["room_composite", "track_composite"]
+        maxConcurrentRequests: 4
+        cpuCost:
+          roomComposite: 3
+          audioRoomComposite: 2
+          web: 3
+          audioWeb: 2
+          participant: 2
+          trackComposite: 2
+          track: 100000
+          maxUtilization: 0.8
+        persistence:
+          enabled: true
+          storageClass: ""
+          storageSize: 100Gi
+        nodeSelector: {}
+        tolerations: []
+        disruptionBudget:
+          minAvailable: 1
+        autoscaling:
+          enabled: false
+          provider: keda
+          minReplicas: 2
+          maxReplicas: 16
+          pollingInterval: 10
+          cooldownPeriod: 600
+          pendingJobsPerReplica: "1"
+          activeUtilizationPercent: "70"
+          spoolUtilizationPercent: "70"
+          networkTransmitBytesPerSecondPerReplica: "52428800"
+          targetCPUUtilizationPercentage: 65
+          targetMemoryUtilizationPercentage: 70
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "8"
+          limits:
+            memory: "16Gi"
+            cpu: "16"
+  ingress:
+    enabled: false
+    replicaCount: 3
+    image:
+      repository: ivekit/livekit-ingress
+      digest: ""
+      pullPolicy: IfNotPresent
+    hostNetwork: true
+    rtmpPort: 1935
+    whipPort: 8080
+    rtcUdpPort: 7885
+    healthPort: 8090
+    prometheusPort: 9091
+    useExternalIp: true
+    terminationGracePeriodSeconds: 300
+    requestTimeoutMs: "15000"
+    pullHostAllowlist: ""
+    allowHttpUrl: false
+    service:
+      type: LoadBalancer
+    cpuCost:
+      rtmp: 2.0
+      whip: 2.0
+      whipBypassTranscoding: 0.1
+      url: 2.0
+      minIdleRatio: 0.2
+    disruptionBudget:
+      minAvailable: 2
+    networkPolicy:
+      publicCidrs:
+        - 0.0.0.0/0
+    nodeSelector: {}
+    tolerations: []
+    resources:
+      requests:
+        memory: "4Gi"
+        cpu: "4"
+      limits:
+        memory: "8Gi"
+        cpu: "8"
+  sip:
+    enabled: false
+    gatewayEnabled: false
+    bridgeTarget: ""
+    rustpbxTrunk: ""
+    rustpbxRwiUrl: ""
+    image:
+      repository: ghcr.io/songgoldenwind-crypto/opc-livekit-sip
+      digest: ""
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 5061
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "300m"
+
+tinode:
+  baseUrl: ""
+  wsUrl: ""
+  publicBaseUrl: ""
+  publicWsUrl: ""
+  apiKey: ""
+  rootApiKey: ""
+  authToken: ""
+  basicUser: ""
+  basicPassword: ""
+  userPasswordSecret: ""
+  requestTimeoutMs: "5000"
+  messageMutationWindowMs: "900000"
+  deliveryWorker:
+    enabled: "1"
+    intervalMs: "5000"
+    batchSize: "50"
+    maxAttempts: "3"
+    claimLeaseMs: "30000"
+    retryDelaysMs: "2000,10000"
+  inboundWorker:
+    enabled: "1"
+    intervalMs: "5000"
+    tenantLimit: "100"
+    pullLimit: "100"
+    claimLeaseMs: "60000"
+    retryDelayMs: "10000"
+    deadLetterMaxAttempts: "3"
+    attachmentAllowedHosts: ""
+
+intelligence:
+  providerProfilesJson: "[]"
+  ocrToken: ""
+  asrToken: ""
+  qualityToken: ""
+  translationToken: ""
+  translationWorker:
+    enabled: "0"
+    intervalMs: "5000"
+    batchSize: "25"
+    maxAttempts: "3"
+    claimLeaseMs: "120000"
+    retryDelaysMs: "5000,30000"
+
+attachmentProcessing:
+  attachmentMaxBytes: "26214400"
+  ocrProviderMode: third_party
+  ocrProviderName: ""
+  ocrBaseUrl: ""
+  ocrEndpoint: /v1/ocr
+  ocrToken: ""
+  ocrTimeoutMs: "30000"
+  asrProviderMode: third_party
+  asrProviderName: ""
+  asrBaseUrl: ""
+  asrEndpoint: /v1/asr
+  asrToken: ""
+  asrTimeoutMs: "30000"
+  worker:
+    enabled: "0"
+    intervalMs: "5000"
+    batchSize: "25"
+    maxAttempts: "3"
+    claimLeaseMs: "120000"
+    retryDelaysMs: "5000,30000"
+
+qualityReview:
+  providerMode: third_party
+  providerName: ""
+  baseUrl: ""
+  endpoint: /v1/quality-review
+  token: ""
+  timeoutMs: "30000"
+  autoEnqueue: "0"
+  worker:
+    enabled: "0"
+    intervalMs: "5000"
+    batchSize: "25"
+    maxAttempts: "3"
+    claimLeaseMs: "120000"
+    retryDelaysMs: "5000,30000"
+
+rustdesk:
+  enabled: true
+  provider: rustdesk
+  serverVersion: "1.1.16"
+  clientVersion: "1.4.9"
+  clientProfileTtlSeconds: "900"
+  clientArtifactsJson: ""
+  publicHost: rustdesk.example.com
+  relayHost: ""
+  apiServer: ""
+  controlPlaneBaseUrl: ""
+  publicKey: ""
+  publicKeyFile: /rustdesk/id_ed25519.pub
+  launchBaseUrl: https://opc.example.com
+  launchSecret: ""
+  authorizationCodeSecret: ""
+  requireAuthorizationCode: "0"
+  edgeTokenSecret: ""
+  launchTokenTtlMs: "900000"
+  protocolUrlTemplate: ""
+  requireProtocolUrl: "0"
+  requireDeviceOnline: "0"
+  requirePhysicalDisconnect: "0"
+  deviceOnlineTtlMs: "300000"
+  checkDeviceOnline: "0"
+  checkOperationAudit: "1"
+  checkServerPorts: "0"
+  checkHost: ""
+  checkTcpPorts: "21115,21116,21117,21118,21119"
+  checkUdpPorts: "21116"
+  checkTimeoutMs: "1500"
+  readinessCheckDeviceOnline: "1"
+  readinessCheckOperationAudit: "1"
+  readinessCheckServerPorts: "1"
+  readinessRequireProtocolUrl: "1"
+  readinessCheckLaunchUrl: "1"
+  readinessRequireHttpsLaunchUrl: "1"
+  readinessCheckPhysicalDisconnect: "0"
+  remoteGatewayTenantId: tenant_led
+  remoteGatewayTargetType: device
+  remoteGatewayTargetId: ""
+  remoteGatewayTargetDisplayName: Remote gateway smoke device
+  remoteGatewayActorIdentity: agent_remote_gateway_smoke
+  remoteGatewayConsentScopes: view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard
+  remoteGatewayCheckLaunchUrl: "0"
+  serverKey: ""
+  apiToken: ""
+  alwaysUseRelay: "N"
+  hostNetwork: false
+  image:
+    repository: ghcr.io/songgoldenwind-crypto/opc-rustdesk-server
+    digest: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: LoadBalancer
+    ports:
+      hbbsNatTest: 21115
+      hbbsSignal: 21116
+      hbbrRelay: 21117
+      hbbsWebSocket: 21118
+      hbbrWebSocket: 21119
+  persistence:
+    enabled: true
+    size: 5Gi
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "300m"
+
+nats:
+  enabled: true
+  replicaCount: 3
+  storage: 100Gi
+  storageClass: ""
+  maxMemoryStore: 2GB
+  maxFileStore: 100GB
+  image:
+    repository: nats
+    digest: ""
+    pullPolicy: IfNotPresent
+  auth:
+    existingSecret: ""
+    userKey: client-user
+    passwordKey: client-password
+    routeUserKey: route-user
+    routePasswordKey: route-password
+  tls:
+    enabled: true
+    secretName: ""
+    caKey: ca.crt
+    certKey: tls.crt
+    keyKey: tls.key
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "4000m"
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: opc.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: opc
+        - path: /
+          pathType: Prefix
+          backend: frontend
+  tls: []

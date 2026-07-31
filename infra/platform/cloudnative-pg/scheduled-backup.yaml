@@ -1,0 +1,18 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: opc-postgres-daily
+  labels:
+    app.kubernetes.io/name: opc-postgres-backup
+    app.kubernetes.io/part-of: ivekit-platform
+spec:
+  schedule: "0 15 2 * * *"
+  backupOwnerReference: self
+  immediate: true
+  suspend: false
+  cluster:
+    name: opc-postgres
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  target: prefer-standby

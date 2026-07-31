@@ -1,0 +1,44 @@
+diff --git a/src/handler/ami.rs b/src/handler/ami.rs
+index 2bd94d0..fa70faa 100644
+--- a/src/handler/ami.rs
++++ b/src/handler/ami.rs
+@@ -124,16 +124,37 @@ trait DialogInfo {
+ impl DialogInfo for rsipstack::dialog::dialog::Dialog {
+     fn to_json(&self) -> serde_json::Value {
+         let state = self.state();
++        let id = state.id();
+         serde_json::json!({
++            "dialog_id": id.to_string(),
++            "call_id": id.call_id.clone(),
+             "state": state.to_string(),
+             "from": self.from().to_string(),
+-            "to": self.to().to_string()
++            "to": self.to().to_string(),
++            "source": "sip_dialog_layer"
+         })
+     }
+ }
+ 
+ async fn list_dialogs(State(state): State<AppState>) -> Response {
+-    let mut result = Vec::new();
++    let registry = state.sip_server().inner.active_call_registry.clone();
++    let mut result: Vec<_> = registry
++        .list_recent(500)
++        .into_iter()
++        .map(|entry| {
++            let call_id = entry.session_id.clone();
++            serde_json::json!({
++                "id": call_id,
++                "call_id": call_id,
++                "provider_call_id": call_id,
++                "state": entry.status.to_string(),
++                "from": entry.caller,
++                "to": entry.callee,
++                "direction": entry.direction,
++                "source": "active_call_registry"
++            })
++        })
++        .collect();
+     let ids = state.sip_server().inner.dialog_layer.all_dialog_ids();
+     for id in ids {
+         if let Some(dialog) = state.sip_server().inner.dialog_layer.get_dialog_with(&id) {

@@ -1,0 +1,18 @@
+{{- if .Values.tinode.enabled }}
+{{- include "ivekit.tinodeValidate" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ivekit.tinodeFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tinode
+data:
+  STORE_USE_ADAPTER: postgres
+  RESET_DB: "false"
+  WEBRTC_ENABLED: "false"
+  SAMPLE_DATA: ""
+  UPGRADE_DB: {{ .Values.tinode.config.upgradeDatabase | quote }}
+  ACC_GC_ENABLED: {{ .Values.tinode.config.accountGarbageCollectionEnabled | quote }}
+  SERVER_STATUS_PATH: /health
+{{- end }}

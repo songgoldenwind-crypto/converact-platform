@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<scenario name="iveKit Kamailio forged owner header UAC">
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: ivekit-acceptance <sip:acceptance@[local_ip]>;tag=[call_number]
+      To: sut <sip:[service]@[remote_ip]>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:acceptance@[local_ip]:[local_port]>
+      Max-Forwards: 16
+      X-IveKit-Node-ID: attacker-node
+      X-IveKit-Pin-Set: 999999
+      X-IveKit-Cell-ID: attacker-cell
+      X-IveKit-Cell-Lease-Epoch: 4294967295
+      Content-Length: 0
+    ]]>
+  </send>
+  <recv response="100" optional="true" />
+  <recv response="180" optional="true" />
+  <recv response="200" rrs="true" />
+  <send>
+    <![CDATA[
+      ACK sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      From: ivekit-acceptance <sip:acceptance@[local_ip]>;tag=[call_number]
+      To: sut <sip:[service]@[remote_ip]>[peer_tag_param]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Max-Forwards: 16
+      Content-Length: 0
+    ]]>
+  </send>
+  <send retrans="500">
+    <![CDATA[
+      BYE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      [routes]
+      From: ivekit-acceptance <sip:acceptance@[local_ip]>;tag=[call_number]
+      To: sut <sip:[service]@[remote_ip]>[peer_tag_param]
+      Call-ID: [call_id]
+      CSeq: 2 BYE
+      Max-Forwards: 16
+      Content-Length: 0
+    ]]>
+  </send>
+  <recv response="200" />
+</scenario>

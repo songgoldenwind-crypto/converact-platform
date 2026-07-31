@@ -1,0 +1,238 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ivekit-tinode-cell
+  labels:
+    app.kubernetes.io/name: ivekit-tinode-cell
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: ivekit-tinode-cell
+  ports:
+    - name: http
+      port: 6060
+      targetPort: http
+    - name: cluster
+      port: 12000
+      targetPort: cluster
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ivekit-tinode-client
+  labels:
+    app.kubernetes.io/name: ivekit-tinode-cell
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ivekit-tinode-cell
+  ports:
+    - name: http
+      port: 6060
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ivekit-tinode-cell
+  labels:
+    app.kubernetes.io/name: ivekit-tinode-cell
+spec:
+  serviceName: ivekit-tinode-cell
+  replicas: 3
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ivekit-tinode-cell
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ivekit-tinode-cell
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: ivekit-tinode-cell
+      containers:
+        - name: tinode
+          image: replace.example.com/ivekit/tinode@sha256:replace-with-tinode-fork-digest
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/etc/tinode/tinode.conf"]
+          env:
+            - name: IVEKIT_COMPONENT_NODE_ENDPOINT
+              value: http://127.0.0.1:3210
+            - name: IVEKIT_COMPONENT_NODE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-component-node
+                  key: service-token
+            - name: IVEKIT_COMPONENT_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: IVEKIT_OWNER_GUARD_REQUIRED
+              value: "1"
+            - name: IVEKIT_TINODE_CLUSTER_MODE
+              value: "clustered"
+            - name: IVEKIT_OWNER_REFRESH_INTERVAL_MS
+              value: "3000"
+            - name: IVEKIT_OWNER_REFRESH_TIMEOUT_MS
+              value: "1000"
+            - name: IVEKIT_TINODE_OWNER_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-tinode-owner
+                  key: service-token
+          ports:
+            - name: http
+              containerPort: 6060
+              protocol: TCP
+            - name: cluster
+              containerPort: 12000
+              protocol: TCP
+          volumeMounts:
+            - name: tinode-config
+              mountPath: /etc/tinode
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 3
+            timeoutSeconds: 1
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 4
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "8"
+              memory: 16Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+        - name: component-node-admission
+          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
+          imagePullPolicy: IfNotPresent
+          command:
+            ["node", "--import", "tsx", "scripts/ivekit-component-node-admission.ts"]
+          ports:
+            - name: node-admission
+              containerPort: 3210
+              protocol: TCP
+          env:
+            - name: OPC_IVEKIT_COMPONENT_NODE_HOST
+              value: "0.0.0.0"
+            - name: OPC_IVEKIT_COMPONENT_NODE_PORT
+              value: "3210"
+            - name: OPC_IVEKIT_COMPONENT_NODE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-component-node
+                  key: service-token
+            - name: OPC_IVEKIT_COMPONENT_NODE_COMPONENT
+              value: tinode
+            - name: OPC_IVEKIT_COMPONENT_NODE_REGION_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-tinode-cell
+                  key: region-id
+            - name: OPC_IVEKIT_COMPONENT_NODE_ZONE_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-tinode-cell
+                  key: zone-id
+            - name: OPC_IVEKIT_COMPONENT_NODE_CELL_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-tinode-cell
+                  key: cell-id
+            - name: OPC_IVEKIT_COMPONENT_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-tinode-cell
+                  key: profile-ids
+            - name: OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS
+              value: tinode_im
+            - name: OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-tinode-cell
+                  key: dimensions-json
+            - name: OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS
+              value: "300000"
+            - name: OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS
+              value: "1000"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: node-admission
+            periodSeconds: 3
+            timeoutSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: node-admission
+            periodSeconds: 10
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: tinode-config
+          secret:
+            secretName: ivekit-tinode-config
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ivekit-tinode-cell
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ivekit-tinode-cell

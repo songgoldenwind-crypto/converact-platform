@@ -1,0 +1,494 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opc.local/schemas/voice-media-profile.schema.json",
+  "title": "iveKit role-specific voice media capacity profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile_id",
+    "revision",
+    "status",
+    "description",
+    "source_identity",
+    "primary_sut",
+    "auxiliary_topology",
+    "workload",
+    "phases",
+    "thresholds",
+    "finalizer",
+    "external_dependencies",
+    "claim"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "profile_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,127}-v[1-9][0-9]*$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": ["target", "verified", "retired"]
+    },
+    "description": {
+      "type": "string",
+      "minLength": 20
+    },
+    "source_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fork_manifest_path",
+        "component_id",
+        "upstream_version",
+        "upstream_commit",
+        "archive_sha256"
+      ],
+      "properties": {
+        "fork_manifest_path": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "component_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,63}$"
+        },
+        "upstream_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upstream_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "archive_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "primary_sut": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "component_id", "node_count", "hardware"],
+      "properties": {
+        "role": {
+          "enum": ["rtp_fast_path", "processing", "transcoder", "recorder"]
+        },
+        "component_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,63}$"
+        },
+        "node_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "hardware": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "qualification",
+            "deployment_model",
+            "cpu_architecture",
+            "physical_cores",
+            "logical_cpus",
+            "memory_bytes",
+            "nic_bps",
+            "numa_nodes"
+          ],
+          "properties": {
+            "qualification": {
+              "enum": ["required_exact", "minimum", "record_only"]
+            },
+            "deployment_model": {
+              "enum": ["bare_metal", "cloud_vm"]
+            },
+            "cpu_architecture": {
+              "enum": ["x86_64", "aarch64"]
+            },
+            "physical_cores": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "logical_cpus": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "memory_bytes": {
+              "type": "integer",
+              "minimum": 1073741824
+            },
+            "nic_bps": {
+              "type": "integer",
+              "minimum": 1000000000
+            },
+            "numa_nodes": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "auxiliary_topology": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "component_id",
+          "node_count",
+          "qualification",
+          "included_in_primary_claim"
+        ],
+        "properties": {
+          "role": {
+            "enum": [
+              "sip_edge",
+              "call_control",
+              "load_generator",
+              "metrics",
+              "packet_capture"
+            ]
+          },
+          "component_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,63}$"
+          },
+          "node_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "qualification": {
+            "enum": ["required", "optional", "external"]
+          },
+          "included_in_primary_claim": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "traffic_model",
+        "media_path",
+        "transport",
+        "codec",
+        "clock_rate_hz",
+        "packetization_ms",
+        "payload_bytes_per_packet",
+        "wire_bytes_per_packet",
+        "srtp",
+        "recording",
+        "transcoding",
+        "active_calls",
+        "rtp_legs",
+        "bidirectional_streams",
+        "rtp_rx_pps",
+        "rtp_tx_pps",
+        "aggregate_pps",
+        "wire_rx_bps",
+        "wire_tx_bps",
+        "steady_cps",
+        "burst_cps",
+        "mean_hold_seconds"
+      ],
+      "properties": {
+        "traffic_model": {
+          "const": "bidirectional_two_leg_relay"
+        },
+        "media_path": {
+          "enum": [
+            "kernel_fast_path",
+            "userspace_relay",
+            "processing_inserted",
+            "transcoding_inserted",
+            "recording_fork"
+          ]
+        },
+        "transport": {
+          "enum": ["RTP_UDP", "SRTP_UDP"]
+        },
+        "codec": {
+          "enum": ["PCMU", "PCMA", "OPUS", "G722"]
+        },
+        "clock_rate_hz": {
+          "type": "integer",
+          "minimum": 8000
+        },
+        "packetization_ms": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 60
+        },
+        "payload_bytes_per_packet": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "wire_bytes_per_packet": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "srtp": {
+          "type": "boolean"
+        },
+        "recording": {
+          "enum": ["none", "proc", "pcap", "external_fork"]
+        },
+        "transcoding": {
+          "type": "boolean"
+        },
+        "active_calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rtp_legs": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "bidirectional_streams": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "rtp_rx_pps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rtp_tx_pps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "aggregate_pps": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "wire_rx_bps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "wire_tx_bps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "steady_cps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "burst_cps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mean_hold_seconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phase_id", "purpose", "duration_seconds", "load_ratio"],
+        "properties": {
+          "phase_id": {
+            "enum": ["warmup", "staircase", "steady", "frontier", "endurance"]
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 10
+          },
+          "duration_seconds": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "load_ratio": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1.25
+          }
+        }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "setup_success_ratio",
+        "server_packet_loss_ratio",
+        "relay_latency_p99_seconds",
+        "steady_cpu_utilization_ratio",
+        "burst_cpu_utilization_ratio",
+        "nic_utilization_ratio",
+        "reconciliation_delta",
+        "unexpected_process_restart_count",
+        "oom_kill_count"
+      ],
+      "properties": {
+        "setup_success_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "server_packet_loss_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "relay_latency_p99_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "steady_cpu_utilization_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "burst_cpu_utilization_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "nic_utilization_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "reconciliation_delta": {
+          "const": 0
+        },
+        "unexpected_process_restart_count": {
+          "const": 0
+        },
+        "oom_kill_count": {
+          "const": 0
+        }
+      }
+    },
+    "finalizer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entrypoint",
+        "adapter_status",
+        "minimum_repetitions",
+        "preserve_all_attempts",
+        "invalidate_on_generator_failure",
+        "reconciliation_counters",
+        "invalidation_reasons"
+      ],
+      "properties": {
+        "entrypoint": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "adapter_status": {
+          "enum": ["skeleton", "implemented", "verified"]
+        },
+        "minimum_repetitions": {
+          "type": "integer",
+          "minimum": 3
+        },
+        "preserve_all_attempts": {
+          "const": true
+        },
+        "invalidate_on_generator_failure": {
+          "const": true
+        },
+        "reconciliation_counters": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["attempted", "connected", "failed", "active", "completed"]
+          }
+        },
+        "invalidation_reasons": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "generator_capacity_exhausted",
+              "generator_clock_invalid",
+              "generator_packet_loss_exceeded",
+              "counter_reconciliation_failed",
+              "evidence_incomplete",
+              "sut_identity_mismatch"
+            ]
+          }
+        }
+      }
+    },
+    "external_dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "dependency_id",
+          "status",
+          "required_for_verified_claim"
+        ],
+        "properties": {
+          "dependency_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{2,127}$"
+          },
+          "status": {
+            "enum": ["not_run", "passed", "failed", "not_applicable"]
+          },
+          "required_for_verified_claim": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "capacity_claim",
+        "verified_at",
+        "evidence_manifest"
+      ],
+      "properties": {
+        "status": {
+          "enum": ["target", "verified", "invalid", "retired"]
+        },
+        "capacity_claim": {
+          "enum": ["none", "single_node", "cell", "region"]
+        },
+        "verified_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "evidence_manifest": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/repositoryPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "repositoryPath": {
+      "type": "string",
+      "pattern": "^(docs|scripts|artifacts)/[A-Za-z0-9._/-]+$"
+    }
+  }
+}

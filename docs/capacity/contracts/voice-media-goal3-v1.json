@@ -1,0 +1,354 @@
+{
+  "schema_version": "1.0.0",
+  "contract_id": "voice-media-goal3-v1",
+  "revision": 2,
+  "status": "target",
+  "generated_at": "2026-07-26T20:07:18.000Z",
+  "sources": {
+    "rustpbx": {
+      "repository": "https://github.com/restsend/rustpbx",
+      "commit": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
+    },
+    "rsipstack": {
+      "repository": "https://github.com/restsend/rsipstack",
+      "commit": "8318e97b1170de4e5245b120afec1cdf53e3d716"
+    },
+    "rustrtc": {
+      "repository": "https://github.com/restsend/rustrtc",
+      "commit": "166c6d22984429eb6b509920c14fcd69f974f0b3"
+    },
+    "rtpengine": {
+      "repository": "https://github.com/sipwise/rtpengine",
+      "commit": "506cfa74386a5373e40fca139a932917f22f0524"
+    }
+  },
+  "required_patch_ids": [
+    "rustpbx-ivekit-media-control-client-v1",
+    "rustpbx-ivekit-media-lifecycle-v1",
+    "rustpbx-ivekit-dialog-shadow-v1",
+    "rustpbx-ivekit-dialog-recovery-v1",
+    "rustpbx-ivekit-dual-leg-cdr-v1",
+    "rustpbx-ivekit-cdr-mtls-noop-v1"
+  ],
+  "authority": {
+    "call_dialog_owner": "rustpbx",
+    "logical_media_graph_owner": "rustpbx",
+    "wire_transport_owner": "rtpengine",
+    "effective_wire_sdp_owner": "rtpengine",
+    "command_authority": "media_control_agent",
+    "reservation_authority": "component_node_admission",
+    "route_snapshot_authority": "cell_route_agent",
+    "packet_path_remote_dependency": false,
+    "ordinary_profile_sync_shadow_quorum": false,
+    "t1_profile_sync_shadow_quorum": true
+  },
+  "media_actions": [
+    "offer",
+    "answer",
+    "update",
+    "delete",
+    "query",
+    "reconcile",
+    "inject_dtmf",
+    "media_timeout",
+    "drain",
+    "owner_takeover"
+  ],
+  "sip_scenarios": [
+    "invite",
+    "180",
+    "183",
+    "prack",
+    "update",
+    "200",
+    "ack",
+    "cancel",
+    "487",
+    "bye",
+    "reinvite",
+    "hold",
+    "resume",
+    "session_timer"
+  ],
+  "legs": [
+    "caller",
+    "callee"
+  ],
+  "profiles": [
+    {
+      "profile_id": "voice-ordinary",
+      "shadow_quorum_required": false,
+      "shadow_fault_domains": 0,
+      "takeover_rto_target_ms": null,
+      "rustpbx_failure_media_behavior": "continue_media_control_recovery_required",
+      "verification": "not_run"
+    },
+    {
+      "profile_id": "voice-ha-t1",
+      "shadow_quorum_required": true,
+      "shadow_fault_domains": 2,
+      "takeover_rto_target_ms": 5000,
+      "rustpbx_failure_media_behavior": "continue_and_shadow_takeover",
+      "verification": "not_run"
+    }
+  ],
+  "lifecycle_states": [
+    "unallocated",
+    "preparing",
+    "prepared",
+    "early",
+    "committed",
+    "updating",
+    "deleting",
+    "cancelling",
+    "uncertain",
+    "reconciling",
+    "closed",
+    "expired"
+  ],
+  "command_rules": {
+    "owner_epoch_monotonic": true,
+    "takeover_first_sequence": 1,
+    "sequence_strictly_increasing": true,
+    "stable_idempotency_key": true,
+    "unknown_requires_reconcile": true,
+    "unknown_blocks_new_mutation": true,
+    "effective_sdp_before_visible_sip": true,
+    "cleanup_bounded": true,
+    "orphan_recovery_seconds": 60
+  },
+  "shadow": {
+    "scope": "cell_local_two_fault_domains",
+    "transport": "nats_jetstream",
+    "local_wal": "bounded_checksummed_fsync",
+    "quorum_ack_before_visible_sip": true,
+    "max_record_bytes": 32768,
+    "forbidden_fields": [
+      "bearer_token",
+      "private_key",
+      "authorization_header",
+      "raw_phone_number",
+      "unbounded_sip_body",
+      "provider_secret"
+    ],
+    "verification": "not_run"
+  },
+  "cdr": {
+    "leg_scope": "caller_and_callee",
+    "sequence_monotonic_across_takeover": true,
+    "cell_local_state": "pending_unacknowledged",
+    "region_committed_state": "quorum_backed",
+    "packet_path_dependency": false,
+    "verification": "not_run"
+  },
+  "failure_matrix": [
+    {
+      "failure_id": "unknown-command-outcome",
+      "established_media": "continue",
+      "new_admission": "unknown_then_reconcile",
+      "control_behavior": "freeze_mutations_then_reconcile",
+      "claim_effect": "none",
+      "required_evidence": [
+        "stable_command_identity",
+        "reconciliation_result"
+      ]
+    },
+    {
+      "failure_id": "stale-owner-epoch",
+      "established_media": "continue",
+      "new_admission": "reject_stale_owner",
+      "control_behavior": "reject_before_transport",
+      "claim_effect": "none",
+      "required_evidence": [
+        "rustpbx_epoch_rejection",
+        "rtpengine_epoch_rejection"
+      ]
+    },
+    {
+      "failure_id": "command-sequence-gap",
+      "established_media": "continue",
+      "new_admission": "reject",
+      "control_behavior": "reject_before_transport",
+      "claim_effect": "none",
+      "required_evidence": [
+        "expected_sequence",
+        "rejected_sequence"
+      ]
+    },
+    {
+      "failure_id": "media-capacity-rejected",
+      "established_media": "continue",
+      "new_admission": "reject",
+      "control_behavior": "reject_before_transport",
+      "claim_effect": "degraded",
+      "required_evidence": [
+        "capacity_rejection",
+        "existing_rtp_continuity"
+      ]
+    },
+    {
+      "failure_id": "media-control-restart",
+      "established_media": "continue",
+      "new_admission": "continue",
+      "control_behavior": "freeze_mutations_then_reconcile",
+      "claim_effect": "none",
+      "required_evidence": [
+        "rtp_continuity",
+        "wal_reopen",
+        "command_reconcile"
+      ]
+    },
+    {
+      "failure_id": "rustpbx-owner-restart",
+      "established_media": "continue",
+      "new_admission": "continue",
+      "control_behavior": "ordinary_recovery_t1_takeover",
+      "claim_effect": "separate_profile",
+      "required_evidence": [
+        "rtp_continuity",
+        "ordinary_recovery",
+        "t1_takeover"
+      ]
+    },
+    {
+      "failure_id": "rtpengine-restart",
+      "established_media": "interrupt_visible",
+      "new_admission": "reject",
+      "control_behavior": "endpoint_recovery_or_fail",
+      "claim_effect": "invalidate_failure_run",
+      "required_evidence": [
+        "affected_sessions",
+        "reinvite_recovery",
+        "orphan_cleanup"
+      ]
+    },
+    {
+      "failure_id": "shadow-quorum-unavailable",
+      "established_media": "continue",
+      "new_admission": "reject_profile",
+      "control_behavior": "continue",
+      "claim_effect": "production_blocked",
+      "required_evidence": [
+        "ordinary_admission_unaffected",
+        "t1_admission_rejected"
+      ]
+    },
+    {
+      "failure_id": "postgres-unavailable",
+      "established_media": "continue",
+      "new_admission": "reject",
+      "control_behavior": "continue",
+      "claim_effect": "degraded",
+      "required_evidence": [
+        "rtp_continuity",
+        "durable_admission_rejected",
+        "local_cdr_pending"
+      ]
+    },
+    {
+      "failure_id": "nats-unavailable",
+      "established_media": "continue",
+      "new_admission": "reject_profile",
+      "control_behavior": "continue",
+      "claim_effect": "production_blocked",
+      "required_evidence": [
+        "rtp_continuity",
+        "ordinary_admission_unaffected",
+        "t1_admission_rejected"
+      ]
+    },
+    {
+      "failure_id": "recorder-unavailable",
+      "established_media": "continue",
+      "new_admission": "continue",
+      "control_behavior": "degrade_evidence_only",
+      "claim_effect": "separate_profile",
+      "required_evidence": [
+        "rtp_continuity",
+        "recording_state"
+      ]
+    },
+    {
+      "failure_id": "object-storage-unavailable",
+      "established_media": "continue",
+      "new_admission": "continue",
+      "control_behavior": "degrade_evidence_only",
+      "claim_effect": "degraded",
+      "required_evidence": [
+        "rtp_continuity",
+        "bounded_spool",
+        "upload_recovery"
+      ]
+    }
+  ],
+  "evidence": {
+    "required_identity": [
+      "rustpbx_commit",
+      "rsipstack_commit",
+      "rustrtc_commit",
+      "rtpengine_commit",
+      "rustpbx_patch_set_sha256",
+      "rtpengine_patch_set_sha256",
+      "opc_image_digest",
+      "media_control_image_digest",
+      "rustpbx_image_digest",
+      "rtpengine_image_digest",
+      "runtime_config_sha256",
+      "host_kernel"
+    ],
+    "retain_invalid_attempts": true,
+    "forbid_secret_material": true,
+    "required_sip_evidence": [
+      "scenario_results",
+      "sip_final_codes",
+      "dialog_sequences",
+      "cancel_races",
+      "session_timer_results",
+      "owner_epoch_transitions"
+    ],
+    "required_media_evidence": [
+      "effective_sdp_hashes",
+      "rtp_packet_counts",
+      "rtcp_packet_counts",
+      "sequence_continuity",
+      "reservation_lifecycle",
+      "orphan_recovery"
+    ],
+    "required_takeover_evidence": [
+      "shadow_quorum_ack",
+      "takeover_epoch",
+      "takeover_rto_ms",
+      "duplicate_side_effects",
+      "cdr_sequence_convergence"
+    ]
+  },
+  "verification": {
+    "source_identity": "not_run",
+    "patch_apply": "not_run",
+    "rust_unit": "not_run",
+    "typescript_unit": "not_run",
+    "exact_source_compile": "not_run",
+    "integration": "not_run",
+    "real_environment": "not_run",
+    "ordinary_failure_matrix": "not_run",
+    "t1_takeover": "not_run",
+    "supply_chain": "not_run",
+    "benchmark": "not_run"
+  },
+  "claim": {
+    "functional": "not_run",
+    "production": "not_run",
+    "benchmark": "not_run",
+    "capacity_claim": "none",
+    "production_eligible": false,
+    "blocking_reasons": [
+      "rustpbx-patch-queue-not-run",
+      "exact-source-compile-not-run",
+      "real-media-not-run",
+      "ordinary-failure-matrix-not-run",
+      "t1-takeover-not-run",
+      "supply-chain-not-run",
+      "capacity-not-run"
+    ]
+  }
+}

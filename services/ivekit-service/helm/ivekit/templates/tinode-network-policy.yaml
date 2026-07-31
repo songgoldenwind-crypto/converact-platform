@@ -1,0 +1,38 @@
+{{- if and .Values.tinode.enabled .Values.tinode.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ivekit.tinodeFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tinode
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: tinode
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: api
+        {{- with .Values.tinode.networkPolicy.additionalIngressFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - port: {{ .Values.tinode.service.port }}
+          protocol: TCP
+    {{- if eq .Values.tinode.mode "cluster" }}
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: tinode
+      ports:
+        - port: {{ .Values.tinode.cluster.clusterPort }}
+          protocol: TCP
+    {{- end }}
+{{- end }}

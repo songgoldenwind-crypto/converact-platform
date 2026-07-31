@@ -1,0 +1,19 @@
+{{- if and .Values.tinode.enabled .Values.tinode.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ivekit.tinodeFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tinode
+spec:
+  {{- if eq .Values.tinode.mode "cluster" }}
+  minAvailable: 2
+  {{- else }}
+  minAvailable: {{ .Values.tinode.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: tinode
+{{- end }}

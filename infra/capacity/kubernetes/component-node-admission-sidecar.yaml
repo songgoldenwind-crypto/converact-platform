@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: replace-component-node
+  labels:
+    app.kubernetes.io/name: replace-component-node
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: replace-component-node
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: replace-component-node
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: component
+          image: replace.example.com/upstream/component@sha256:replace-with-component-digest
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+        - name: node-admission
+          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
+          imagePullPolicy: IfNotPresent
+          command:
+            ["node", "--import", "tsx", "scripts/ivekit-component-node-admission.ts"]
+          ports:
+            - name: node-admission
+              containerPort: 3210
+          env:
+            - name: OPC_IVEKIT_COMPONENT_NODE_HOST
+              value: "0.0.0.0"
+            - name: OPC_IVEKIT_COMPONENT_NODE_PORT
+              value: "3210"
+            - name: OPC_IVEKIT_COMPONENT_NODE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-component-node
+                  key: service-token
+            - name: OPC_IVEKIT_COMPONENT_NODE_COMPONENT
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-component-node
+                  key: component
+            - name: OPC_IVEKIT_COMPONENT_NODE_REGION_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-component-node
+                  key: region-id
+            - name: OPC_IVEKIT_COMPONENT_NODE_ZONE_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-component-node
+                  key: zone-id
+            - name: OPC_IVEKIT_COMPONENT_NODE_CELL_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-component-node
+                  key: cell-id
+            - name: OPC_IVEKIT_COMPONENT_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-component-node
+                  key: profile-ids
+            - name: OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-component-node
+                  key: interaction-kinds
+            - name: OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-component-node
+                  key: dimensions-json
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: node-admission
+            periodSeconds: 3
+            timeoutSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: node-admission
+            periodSeconds: 10
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]

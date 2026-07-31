@@ -1,0 +1,74 @@
+{{- if .Values.media.sip.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-livekit-sip-config
+type: Opaque
+stringData:
+  sip.yaml: |
+    api_key: {{ include "opc.livekitApiKey" . | quote }}
+    api_secret: {{ include "opc.livekitApiSecret" . | quote }}
+    ws_url: {{ include "opc.livekitInternalUrl" . | quote }}
+    redis:
+      {{- include "opc.livekitRedisConfig" . | nindent 6 }}
+    sip_port: {{ .Values.media.sip.service.port | default 5061 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-livekit-sip
+  labels:
+    app: livekit-sip
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: livekit-sip
+  template:
+    metadata:
+      labels:
+        app: livekit-sip
+    spec:
+      containers:
+        - name: livekit-sip
+          image: {{ include "opc.livekitSipImage" . | quote }}
+          imagePullPolicy: {{ .Values.media.sip.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: sip-udp
+              containerPort: 5061
+              protocol: UDP
+            - name: sip-tcp
+              containerPort: 5061
+              protocol: TCP
+          volumeMounts:
+            - name: livekit-sip-config
+              mountPath: /sip/config.yaml
+              subPath: sip.yaml
+              readOnly: true
+            {{- include "opc.livekitRedisTLSVolumeMount" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.media.sip.resources | nindent 12 }}
+      volumes:
+        - name: livekit-sip-config
+          secret:
+            secretName: {{ .Release.Name }}-livekit-sip-config
+        {{- include "opc.livekitRedisTLSVolume" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-livekit-sip
+spec:
+  type: {{ .Values.media.sip.service.type }}
+  selector:
+    app: livekit-sip
+  ports:
+    - name: sip-udp
+      port: {{ .Values.media.sip.service.port | default 5061 }}
+      targetPort: 5061
+      protocol: UDP
+    - name: sip-tcp
+      port: {{ .Values.media.sip.service.port | default 5061 }}
+      targetPort: 5061
+      protocol: TCP
+{{- end }}

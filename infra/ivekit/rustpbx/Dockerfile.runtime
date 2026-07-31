@@ -1,0 +1,53 @@
+FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818
+
+ARG TARGETARCH
+ARG RUSTPBX_COMMIT
+ARG RSIPSTACK_COMMIT
+ARG RUSTRTC_COMMIT
+ARG OPC_SOURCE_COMMIT
+ARG IVEKIT_PATCHSET
+ARG IVEKIT_PATCH_SET_SHA256
+
+LABEL org.opencontainers.image.source="https://github.com/songgoldenwind-crypto/opc-platform"
+LABEL org.opencontainers.image.revision="${OPC_SOURCE_COMMIT}"
+LABEL org.opencontainers.image.description="iveKit RustPBX with reliable TCP reconnect"
+LABEL io.ivekit.rustpbx.commit="${RUSTPBX_COMMIT}"
+LABEL io.ivekit.rsipstack.commit="${RSIPSTACK_COMMIT}"
+LABEL io.ivekit.rustrtc.commit="${RUSTRTC_COMMIT}"
+LABEL io.ivekit.rustpbx.patchset="${IVEKIT_PATCHSET}"
+LABEL io.ivekit.rustpbx.patch-set-sha256="${IVEKIT_PATCH_SET_SHA256}"
+
+ENV LANG=C.UTF-8
+ENV TZ=UTC
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+RUN mkdir -p /app/config /app/sounds /app/templates
+
+COPY bin/${TARGETARCH}/rustpbx /app/rustpbx
+COPY bin/${TARGETARCH}/sipflow /app/sipflow
+COPY entrypoint.ivekit.sh /app/entrypoint.sh
+RUN chmod 0755 /app/rustpbx /app/sipflow /app/entrypoint.sh
+
+COPY static /app/static
+COPY templates /app/templates
+COPY locales /app/locales
+COPY config/sounds /app/sounds
+
+COPY src/addons/acme/static /app/static/acme
+COPY src/addons/transcript/static /app/static/transcript
+COPY src/addons/queue/static /app/static/queue
+COPY src/addons/acme/templates /app/templates/acme
+COPY src/addons/archive/templates /app/templates/archive
+COPY src/addons/queue/templates /app/templates/queue
+COPY src/addons/transcript/templates /app/templates/transcript
+
+COPY src/addons/acme/locales /app/locales/acme
+COPY src/addons/archive/locales /app/locales/archive
+COPY src/addons/queue/locales /app/locales/queue
+COPY src/addons/transcript/locales /app/locales/transcript
+
+ENTRYPOINT ["/app/entrypoint.sh"]

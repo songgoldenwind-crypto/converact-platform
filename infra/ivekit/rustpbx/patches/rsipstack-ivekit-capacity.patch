@@ -1,0 +1,905 @@
+diff --git a/src/transaction/endpoint.rs b/src/transaction/endpoint.rs
+index d204586..c02a4ae 100644
+--- a/src/transaction/endpoint.rs
++++ b/src/transaction/endpoint.rs
+@@ -12,12 +12,18 @@ use crate::{
+     Error, Result, VERSION,
+ };
+ use async_trait::async_trait;
+-use dashmap::DashMap;
++use dashmap::{mapref::entry::Entry, DashMap};
+ use parking_lot::Mutex;
+-use std::{sync::Arc, time::Duration};
++use std::{
++    sync::{
++        atomic::{AtomicU64, AtomicUsize, Ordering},
++        Arc,
++    },
++    time::Duration,
++};
+ use tokio::{
+     select,
+-    sync::mpsc::{error, unbounded_channel},
++    sync::mpsc::{channel, error},
+ };
+ use tokio_util::sync::CancellationToken;
+ use tracing::{debug, info, trace, warn};
+@@ -57,10 +63,187 @@ impl Default for EndpointOption {
+     }
+ }
+ 
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct EndpointCapacityLimits {
++    pub max_active_transactions: usize,
++    pub max_finished_transactions: usize,
++    pub incoming_transaction_queue_capacity: usize,
++    pub max_transport_connections: usize,
++}
++
++impl EndpointCapacityLimits {
++    pub fn try_new(
++        max_active_transactions: usize,
++        max_finished_transactions: usize,
++        incoming_transaction_queue_capacity: usize,
++        max_transport_connections: usize,
++    ) -> Result<Self> {
++        if max_active_transactions == 0
++            || max_finished_transactions == 0
++            || incoming_transaction_queue_capacity == 0
++            || max_transport_connections == 0
++        {
++            return Err(Error::EndpointError(
++                "SIP capacity limits must be greater than zero".to_string(),
++            ));
++        }
++        Ok(Self {
++            max_active_transactions,
++            max_finished_transactions,
++            incoming_transaction_queue_capacity,
++            max_transport_connections,
++        })
++    }
++}
++
++impl Default for EndpointCapacityLimits {
++    fn default() -> Self {
++        Self {
++            max_active_transactions: usize::MAX,
++            max_finished_transactions: usize::MAX,
++            incoming_transaction_queue_capacity: 65_536,
++            max_transport_connections: usize::MAX,
++        }
++    }
++}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub struct EndpointStats {
+     pub running_transactions: usize,
+     pub finished_transactions: usize,
+     pub waiting_ack: usize,
++    pub timer_tasks: usize,
++    pub incoming_queue_depth: usize,
++    pub max_active_transactions: usize,
++    pub max_finished_transactions: usize,
++    pub incoming_transaction_queue_capacity: usize,
++    pub max_transport_connections: usize,
++    pub active_limit_rejections_total: u64,
++    pub incoming_queue_rejections_total: u64,
++    pub finished_cache_drops_total: u64,
++    pub active_transport_connections: usize,
++    pub transport_connection_limit_rejections_total: u64,
++}
++
++struct EndpointCapacityState {
++    limits: EndpointCapacityLimits,
++    active_transactions: AtomicUsize,
++    finished_transactions: AtomicUsize,
++    active_limit_rejections_total: AtomicU64,
++    incoming_queue_rejections_total: AtomicU64,
++    finished_cache_drops_total: AtomicU64,
++}
++
++impl EndpointCapacityState {
++    fn new(limits: EndpointCapacityLimits) -> Self {
++        Self {
++            limits,
++            active_transactions: AtomicUsize::new(0),
++            finished_transactions: AtomicUsize::new(0),
++            active_limit_rejections_total: AtomicU64::new(0),
++            incoming_queue_rejections_total: AtomicU64::new(0),
++            finished_cache_drops_total: AtomicU64::new(0),
++        }
++    }
++
++    fn try_acquire_active_transaction(&self) -> bool {
++        if try_acquire_bounded(
++            &self.active_transactions,
++            self.limits.max_active_transactions,
++        ) {
++            true
++        } else {
++            self.active_limit_rejections_total
++                .fetch_add(1, Ordering::Relaxed);
++            false
++        }
++    }
++
++    fn release_active_transaction(&self) {
++        release_bounded(&self.active_transactions);
++    }
++
++    fn try_acquire_finished_transaction(&self) -> bool {
++        if try_acquire_bounded(
++            &self.finished_transactions,
++            self.limits.max_finished_transactions,
++        ) {
++            true
++        } else {
++            self.finished_cache_drops_total
++                .fetch_add(1, Ordering::Relaxed);
++            false
++        }
++    }
++
++    fn release_finished_transaction(&self) {
++        release_bounded(&self.finished_transactions);
++    }
++
++    fn record_incoming_queue_rejection(&self) {
++        self.incoming_queue_rejections_total
++            .fetch_add(1, Ordering::Relaxed);
++    }
++
++    fn snapshot(&self, incoming_queue_depth: usize, timer_tasks: usize) -> EndpointStats {
++        EndpointStats {
++            running_transactions: self.active_transactions.load(Ordering::Acquire),
++            finished_transactions: self.finished_transactions.load(Ordering::Acquire),
++            waiting_ack: 0,
++            timer_tasks,
++            incoming_queue_depth,
++            max_active_transactions: self.limits.max_active_transactions,
++            max_finished_transactions: self.limits.max_finished_transactions,
++            incoming_transaction_queue_capacity: self.limits.incoming_transaction_queue_capacity,
++            max_transport_connections: self.limits.max_transport_connections,
++            active_limit_rejections_total: self
++                .active_limit_rejections_total
++                .load(Ordering::Relaxed),
++            incoming_queue_rejections_total: self
++                .incoming_queue_rejections_total
++                .load(Ordering::Relaxed),
++            finished_cache_drops_total: self.finished_cache_drops_total.load(Ordering::Relaxed),
++            active_transport_connections: 0,
++            transport_connection_limit_rejections_total: 0,
++        }
++    }
++}
++
++fn try_acquire_bounded(counter: &AtomicUsize, limit: usize) -> bool {
++    let mut current = counter.load(Ordering::Acquire);
++    loop {
++        if current >= limit {
++            return false;
++        }
++        match counter.compare_exchange_weak(
++            current,
++            current + 1,
++            Ordering::AcqRel,
++            Ordering::Acquire,
++        ) {
++            Ok(_) => return true,
++            Err(actual) => current = actual,
++        }
++    }
++}
++
++fn release_bounded(counter: &AtomicUsize) {
++    let mut current = counter.load(Ordering::Acquire);
++    loop {
++        if current == 0 {
++            debug_assert!(false, "SIP capacity counter release underflow");
++            return;
++        }
++        match counter.compare_exchange_weak(
++            current,
++            current - 1,
++            Ordering::AcqRel,
++            Ordering::Acquire,
++        ) {
++            Ok(_) => return,
++            Err(actual) => current = actual,
++        }
++    }
+ }
+ 
+ /// SIP Endpoint Core Implementation
+@@ -105,6 +288,7 @@ pub struct EndpointInner {
+     pub waiting_ack: DashMap<DialogId, TransactionKey>,
+     incoming_sender: TransactionSender,
+     incoming_receiver: Mutex<Option<TransactionReceiver>>,
++    capacity: EndpointCapacityState,
+     cancel_token: CancellationToken,
+     #[allow(dead_code)]
+     timer_interval: Duration,
+@@ -144,6 +328,7 @@ pub struct EndpointBuilder {
+     target_locator: Option<Box<dyn TargetLocator>>,
+     transport_inspector: Option<Box<dyn TransportEventInspector>>,
+     domain_resolver: Option<Box<dyn DomainResolver>>,
++    capacity_limits: Option<EndpointCapacityLimits>,
+ }
+ 
+ /// SIP Endpoint
+@@ -212,8 +397,10 @@ impl EndpointInner {
+         message_inspector: Option<Box<dyn MessageInspector>>,
+         locator: Option<Box<dyn TargetLocator>>,
+         transport_inspector: Option<Box<dyn TransportEventInspector>>,
++        capacity_limits: EndpointCapacityLimits,
+     ) -> Arc<Self> {
+-        let (incoming_sender, incoming_receiver) = unbounded_channel();
++        let (incoming_sender, incoming_receiver) =
++            channel(capacity_limits.incoming_transaction_queue_capacity);
+         Arc::new(EndpointInner {
+             allows: Mutex::new(Some(allows)),
+             user_agent,
+@@ -226,6 +413,7 @@ impl EndpointInner {
+             cancel_token,
+             incoming_sender,
+             incoming_receiver: Mutex::new(Some(incoming_receiver)),
++            capacity: EndpointCapacityState::new(capacity_limits),
+             option: option.unwrap_or_default(),
+             message_inspector,
+             locator,
+@@ -293,7 +481,9 @@ impl EndpointInner {
+                 if let TransactionTimer::TimerCleanup(key) = t {
+                     trace!(%key, "TimerCleanup");
+                     self.transactions.remove(&key);
+-                    self.finished_transactions.remove(&key);
++                    if self.finished_transactions.remove(&key).is_some() {
++                        self.capacity.release_finished_transaction();
++                    }
+                     continue;
+                 }
+ 
+@@ -479,29 +669,88 @@ impl EndpointInner {
+             _ => {}
+         }
+ 
++        let reject_connection = connection.clone();
+         let tx =
+             Transaction::new_server(key.clone(), request.clone(), self.clone(), Some(connection));
+ 
+-        self.incoming_sender.send(tx).ok();
++        if !tx.is_admitted() {
++            self.reject_overloaded_request(&request, &reject_connection)
++                .await?;
++            return Ok(());
++        }
++
++        if let Err(error) = self.incoming_sender.try_send(tx) {
++            let rejected = error.into_inner();
++            drop(rejected);
++            self.capacity.record_incoming_queue_rejection();
++            self.reject_overloaded_request(&request, &reject_connection)
++                .await?;
++        }
+         Ok(())
+     }
+ 
+-    pub fn attach_transaction(&self, key: &TransactionKey, tu_sender: TransactionEventSender) {
++    async fn reject_overloaded_request(
++        &self,
++        request: &crate::sip::Request,
++        connection: &SipConnection,
++    ) -> Result<()> {
++        let mut response =
++            self.make_response(request, crate::sip::StatusCode::ServiceUnavailable, None);
++        response
++            .headers
++            .push(crate::sip::Header::Other("Retry-After".into(), "1".into()));
++        let response = if let Some(ref inspector) = self.message_inspector {
++            inspector.before_send(response.into(), None)
++        } else {
++            response.into()
++        };
++        let destination = if !connection.is_reliable() {
++            self.get_destination_from_request(request).await
++        } else {
++            None
++        };
++        connection.send(response, destination.as_ref()).await
++    }
++
++    pub fn attach_transaction(
++        &self,
++        key: &TransactionKey,
++        tu_sender: TransactionEventSender,
++    ) -> bool {
+         trace!(%key, "attach transaction");
+-        self.transactions.insert(key.clone(), tu_sender);
++        match self.transactions.entry(key.clone()) {
++            Entry::Occupied(_) => false,
++            Entry::Vacant(entry) => {
++                if !self.capacity.try_acquire_active_transaction() {
++                    return false;
++                }
++                entry.insert(tu_sender);
++                true
++            }
++        }
+     }
+ 
+     pub fn detach_transaction(&self, key: &TransactionKey, last_message: Option<SipMessage>) {
+         trace!(%key, "detach transaction");
+-        self.transactions.remove(key);
++        if self.transactions.remove(key).is_some() {
++            self.capacity.release_active_transaction();
++        }
+ 
+         if let Some(msg) = last_message {
+-            self.timers.timeout(
+-                self.option.t1x64,
+-                TransactionTimer::TimerCleanup(key.clone()), // maybe use TimerK ???
+-            );
+-
+-            self.finished_transactions.insert(key.clone(), Some(msg));
++            match self.finished_transactions.entry(key.clone()) {
++                Entry::Occupied(mut entry) => {
++                    entry.insert(Some(msg));
++                }
++                Entry::Vacant(entry) => {
++                    if self.capacity.try_acquire_finished_transaction() {
++                        self.timers.timeout(
++                            self.option.t1x64,
++                            TransactionTimer::TimerCleanup(key.clone()), // maybe use TimerK ???
++                        );
++                        entry.insert(Some(msg));
++                    }
++                }
++            }
+         }
+     }
+ 
+@@ -564,15 +813,14 @@ impl EndpointInner {
+     }
+ 
+     pub fn get_stats(&self) -> EndpointStats {
+-        let waiting_ack = self.waiting_ack.len();
+-        let running_transactions = self.transactions.len();
+-        let finished_transactions = self.finished_transactions.len();
+-
+-        EndpointStats {
+-            running_transactions,
+-            finished_transactions,
+-            waiting_ack,
+-        }
++        let queue_depth = self.incoming_sender.max_capacity() - self.incoming_sender.capacity();
++        let mut stats = self.capacity.snapshot(queue_depth, self.timers.len());
++        stats.waiting_ack = self.waiting_ack.len();
++        let transport = self.transport_layer.get_capacity_stats();
++        stats.active_transport_connections = transport.active_connections;
++        stats.transport_connection_limit_rejections_total =
++            transport.connection_limit_rejections_total;
++        stats
+     }
+ }
+ 
+@@ -595,6 +843,7 @@ impl EndpointBuilder {
+             target_locator: None,
+             transport_inspector: None,
+             domain_resolver: None,
++            capacity_limits: None,
+         }
+     }
+ 
+@@ -648,6 +897,11 @@ impl EndpointBuilder {
+         self
+     }
+ 
++    pub fn with_capacity_limits(&mut self, limits: EndpointCapacityLimits) -> &mut Self {
++        self.capacity_limits = Some(limits);
++        self
++    }
++
+     pub fn build(&mut self) -> Endpoint {
+         let cancel_token = self.cancel_token.take().unwrap_or_default();
+         let transport_layer = self.transport_layer.take().unwrap_or_else(|| {
+@@ -657,6 +911,10 @@ impl EndpointBuilder {
+                 TransportLayer::new(cancel_token.clone())
+             }
+         });
++        let capacity_limits = self.capacity_limits.take().unwrap_or_default();
++        transport_layer
++            .set_max_connections(capacity_limits.max_transport_connections)
++            .expect("validated endpoint transport capacity");
+ 
+         let allows = self.allows.to_owned();
+         let user_agent = self.user_agent.to_owned();
+@@ -676,6 +934,7 @@ impl EndpointBuilder {
+             message_inspector,
+             locator,
+             transport_inspector,
++            capacity_limits,
+         );
+ 
+         Endpoint { inner: core }
+@@ -715,3 +974,63 @@ impl Endpoint {
+         self.inner.transport_layer.get_addrs()
+     }
+ }
++
++#[cfg(test)]
++mod capacity_tests {
++    use super::*;
++
++    #[test]
++    fn endpoint_capacity_limits_reject_zero_values() {
++        assert!(EndpointCapacityLimits::try_new(0, 1, 1, 1).is_err());
++        assert!(EndpointCapacityLimits::try_new(1, 0, 1, 1).is_err());
++        assert!(EndpointCapacityLimits::try_new(1, 1, 0, 1).is_err());
++        assert!(EndpointCapacityLimits::try_new(1, 1, 1, 0).is_err());
++    }
++
++    #[test]
++    fn active_transaction_reservations_are_strictly_bounded() {
++        let state = EndpointCapacityState::new(
++            EndpointCapacityLimits::try_new(2, 3, 4, 5).expect("valid limits"),
++        );
++
++        assert!(state.try_acquire_active_transaction());
++        assert!(state.try_acquire_active_transaction());
++        assert!(!state.try_acquire_active_transaction());
++        assert_eq!(state.snapshot(0, 0).running_transactions, 2);
++        assert_eq!(state.snapshot(0, 0).active_limit_rejections_total, 1);
++
++        state.release_active_transaction();
++        assert!(state.try_acquire_active_transaction());
++        assert_eq!(state.snapshot(0, 0).running_transactions, 2);
++    }
++
++    #[test]
++    fn finished_transaction_reservations_are_strictly_bounded() {
++        let state = EndpointCapacityState::new(
++            EndpointCapacityLimits::try_new(2, 1, 4, 5).expect("valid limits"),
++        );
++
++        assert!(state.try_acquire_finished_transaction());
++        assert!(!state.try_acquire_finished_transaction());
++        assert_eq!(state.snapshot(0, 0).finished_transactions, 1);
++        assert_eq!(state.snapshot(0, 0).finished_cache_drops_total, 1);
++
++        state.release_finished_transaction();
++        assert!(state.try_acquire_finished_transaction());
++    }
++
++    #[test]
++    fn queue_rejections_are_counted_without_high_cardinality_labels() {
++        let state = EndpointCapacityState::new(
++            EndpointCapacityLimits::try_new(2, 2, 4, 5).expect("valid limits"),
++        );
++        state.record_incoming_queue_rejection();
++        state.record_incoming_queue_rejection();
++
++        let stats = state.snapshot(3, 7);
++        assert_eq!(stats.incoming_queue_depth, 3);
++        assert_eq!(stats.timer_tasks, 7);
++        assert_eq!(stats.incoming_queue_rejections_total, 2);
++        assert_eq!(stats.max_transport_connections, 5);
++    }
++}
+diff --git a/src/transaction/mod.rs b/src/transaction/mod.rs
+index fc6c862..7b9b242 100644
+--- a/src/transaction/mod.rs
++++ b/src/transaction/mod.rs
+@@ -1,7 +1,7 @@
+ use crate::transport::{SipAddr, SipConnection};
+ use key::TransactionKey;
+ use std::time::Duration;
+-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
++use tokio::sync::mpsc::{Receiver, Sender};
+ use transaction::Transaction;
+ 
+ pub mod endpoint;
+@@ -11,6 +11,8 @@ mod timer;
+ pub mod transaction;
+ pub use endpoint::Endpoint;
+ pub use endpoint::EndpointBuilder;
++pub use endpoint::EndpointCapacityLimits;
++pub use endpoint::EndpointStats;
+ #[cfg(test)]
+ mod tests;
+ 
+@@ -24,8 +26,8 @@ pub struct IncomingRequest {
+     pub from: SipAddr,
+ }
+ 
+-pub type TransactionReceiver = UnboundedReceiver<Transaction>;
+-pub type TransactionSender = UnboundedSender<Transaction>;
++pub type TransactionReceiver = Receiver<Transaction>;
++pub type TransactionSender = Sender<Transaction>;
+ 
+ /// SIP Transaction State
+ ///
+diff --git a/src/transaction/transaction.rs b/src/transaction/transaction.rs
+index aa6db95..bf9ddb7 100644
+--- a/src/transaction/transaction.rs
++++ b/src/transaction/transaction.rs
+@@ -179,6 +179,7 @@ pub struct Transaction {
+     pub timer_d: Option<u64>,
+     pub timer_k: Option<u64>, // server invite only
+     pub timer_g: Option<u64>, // server invite only
++    admitted: bool,
+     is_cleaned_up: bool,
+ }
+ 
+@@ -200,7 +201,7 @@ impl Transaction {
+             TransactionState::Nothing
+         };
+         trace!(%key, %state, "transaction created");
+-        let tx = Self {
++        let mut tx = Self {
+             transaction_type,
+             endpoint_inner,
+             connection,
+@@ -216,11 +217,13 @@ impl Transaction {
+             timer_d: None,
+             timer_k: None,
+             timer_g: None,
++            admitted: false,
+             tu_receiver,
+             tu_sender,
+             is_cleaned_up: false,
+         };
+-        tx.endpoint_inner
++        tx.admitted = tx
++            .endpoint_inner
+             .attach_transaction(&tx.key, tx.tu_sender.clone());
+         tx
+     }
+@@ -250,8 +253,19 @@ impl Transaction {
+         };
+         Transaction::new(tx_type, key, original, connection, endpoint_inner)
+     }
++
++    pub fn is_admitted(&self) -> bool {
++        self.admitted
++    }
++
+     // send client request
+     pub async fn send(&mut self) -> Result<()> {
++        if !self.admitted {
++            return Err(Error::TransactionError(
++                "SIP active transaction capacity exceeded".to_string(),
++                self.key.clone(),
++            ));
++        }
+         match self.transaction_type {
+             TransactionType::ClientInvite | TransactionType::ClientNonInvite => {}
+             _ => {
+@@ -977,6 +991,10 @@ impl Transaction {
+         self.is_cleaned_up = true;
+         self.cleanup_timer();
+ 
++        if !self.admitted {
++            return;
++        }
++
+         match self.last_response {
+             Some(ref resp) => match DialogId::try_from((resp, self.role())) {
+                 Ok(dialog_id) => self
+diff --git a/src/transport/mod.rs b/src/transport/mod.rs
+index 67e895f..3795bf0 100644
+--- a/src/transport/mod.rs
++++ b/src/transport/mod.rs
+@@ -13,6 +13,7 @@ pub use connection::TransportEvent;
+ pub use sip_addr::SipAddr;
+ pub use tcp_listener::TcpListenerConnection;
+ pub use tls::{TlsConfig, TlsListenerConnection};
++pub use transport_layer::TransportCapacityStats;
+ pub use transport_layer::TransportLayer;
+ pub use transport_layer::TransportWhitelist;
+ pub use websocket::WebSocketListenerConnection;
+diff --git a/src/transport/tcp_listener.rs b/src/transport/tcp_listener.rs
+index 92deb09..3a4dca8 100644
+--- a/src/transport/tcp_listener.rs
++++ b/src/transport/tcp_listener.rs
+@@ -77,7 +77,11 @@ impl TcpListenerConnection {
+                     }
+                 };
+                 let sip_connection = SipConnection::Tcp(tcp_connection.clone());
+-                transport_layer_inner.add_connection(sip_connection.clone());
++                if !transport_layer_inner.add_connection(sip_connection.clone()) {
++                    debug!(?local_addr, "tcp connection rejected by capacity limit");
++                    sip_connection.close().await.ok();
++                    continue;
++                }
+                 debug!(?local_addr, "new tcp connection");
+             }
+         });
+diff --git a/src/transport/tls.rs b/src/transport/tls.rs
+index 7733285..eec2f7e 100644
+--- a/src/transport/tls.rs
++++ b/src/transport/tls.rs
+@@ -363,7 +363,14 @@ impl TlsListenerConnection {
+                     };
+ 
+                     let sip_connection = SipConnection::Tls(tls_connection.clone());
+-                    transport_layer_inner_ref.add_connection(sip_connection.clone());
++                    if !transport_layer_inner_ref.add_connection(sip_connection.clone()) {
++                        debug!(
++                            ?remote_sip_addr,
++                            "tls connection rejected by capacity limit"
++                        );
++                        sip_connection.close().await.ok();
++                        return;
++                    }
+                     debug!(?remote_sip_addr, "new tls connection");
+                 });
+             }
+diff --git a/src/transport/transport_layer.rs b/src/transport/transport_layer.rs
+index c0c5b5b..aef815a 100644
+--- a/src/transport/transport_layer.rs
++++ b/src/transport/transport_layer.rs
+@@ -10,7 +10,10 @@ use async_trait::async_trait;
+ use parking_lot::{Mutex, RwLock};
+ use std::collections::HashMap;
+ use std::net::IpAddr;
+-use std::sync::Arc;
++use std::sync::{
++    atomic::{AtomicU64, AtomicUsize, Ordering},
++    Arc,
++};
+ use tokio::select;
+ use tokio::sync::mpsc;
+ use tokio_util::sync::CancellationToken;
+@@ -106,6 +109,7 @@ pub struct TransportLayerInner {
+     pub domain_resolver: Box<dyn DomainResolver>,
+     whitelist: RwLock<Option<TransportWhitelistRef>>,
+     tls_config: RwLock<Option<TlsConfig>>,
++    capacity: TransportCapacityState,
+ }
+ pub(crate) type TransportLayerInnerRef = Arc<TransportLayerInner>;
+ 
+@@ -115,6 +119,111 @@ pub struct TransportLayer {
+     pub inner: TransportLayerInnerRef,
+ }
+ 
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct TransportCapacityStats {
++    pub active_connections: usize,
++    pub max_connections: usize,
++    pub connection_limit_rejections_total: u64,
++}
++
++struct TransportCapacityState {
++    active_connections: AtomicUsize,
++    max_connections: AtomicUsize,
++    connection_limit_rejections_total: AtomicU64,
++}
++
++struct TransportConnectionCapacityGuard {
++    inner: TransportLayerInnerRef,
++}
++
++impl Drop for TransportConnectionCapacityGuard {
++    fn drop(&mut self) {
++        self.inner.capacity.release_connection();
++    }
++}
++
++impl TransportCapacityState {
++    fn new(max_connections: usize) -> Result<Self> {
++        if max_connections == 0 {
++            return Err(crate::Error::EndpointError(
++                "SIP transport connection limit must be greater than zero".to_string(),
++            ));
++        }
++        Ok(Self {
++            active_connections: AtomicUsize::new(0),
++            max_connections: AtomicUsize::new(max_connections),
++            connection_limit_rejections_total: AtomicU64::new(0),
++        })
++    }
++
++    fn set_limit(&self, max_connections: usize) -> Result<()> {
++        if max_connections == 0 {
++            return Err(crate::Error::EndpointError(
++                "SIP transport connection limit must be greater than zero".to_string(),
++            ));
++        }
++        let active = self.active_connections.load(Ordering::Acquire);
++        if active > max_connections {
++            return Err(crate::Error::EndpointError(format!(
++                "SIP transport connection limit {max_connections} is below {active} active connections"
++            )));
++        }
++        self.max_connections
++            .store(max_connections, Ordering::Release);
++        Ok(())
++    }
++
++    fn try_acquire_connection(&self) -> bool {
++        let mut current = self.active_connections.load(Ordering::Acquire);
++        loop {
++            let limit = self.max_connections.load(Ordering::Acquire);
++            if current >= limit {
++                self.connection_limit_rejections_total
++                    .fetch_add(1, Ordering::Relaxed);
++                return false;
++            }
++            match self.active_connections.compare_exchange_weak(
++                current,
++                current + 1,
++                Ordering::AcqRel,
++                Ordering::Acquire,
++            ) {
++                Ok(_) => return true,
++                Err(actual) => current = actual,
++            }
++        }
++    }
++
++    fn release_connection(&self) {
++        let mut current = self.active_connections.load(Ordering::Acquire);
++        loop {
++            if current == 0 {
++                debug_assert!(false, "SIP transport capacity counter release underflow");
++                return;
++            }
++            match self.active_connections.compare_exchange_weak(
++                current,
++                current - 1,
++                Ordering::AcqRel,
++                Ordering::Acquire,
++            ) {
++                Ok(_) => return,
++                Err(actual) => current = actual,
++            }
++        }
++    }
++
++    fn snapshot(&self) -> TransportCapacityStats {
++        TransportCapacityStats {
++            active_connections: self.active_connections.load(Ordering::Acquire),
++            max_connections: self.max_connections.load(Ordering::Acquire),
++            connection_limit_rejections_total: self
++                .connection_limit_rejections_total
++                .load(Ordering::Relaxed),
++        }
++    }
++}
++
+ impl TransportLayer {
+     pub fn new_with_domain_resolver(
+         cancel_token: CancellationToken,
+@@ -130,6 +239,8 @@ impl TransportLayer {
+             domain_resolver,
+             whitelist: RwLock::new(None),
+             tls_config: RwLock::new(None),
++            capacity: TransportCapacityState::new(usize::MAX)
++                .expect("unbounded transport capacity is valid"),
+         };
+         Self {
+             outbound: None,
+@@ -150,14 +261,22 @@ impl TransportLayer {
+         self.inner.del_listener(addr)
+     }
+ 
+-    pub fn add_connection(&self, connection: SipConnection) {
+-        self.inner.add_connection(connection);
++    pub fn add_connection(&self, connection: SipConnection) -> bool {
++        self.inner.add_connection(connection)
+     }
+ 
+     pub fn del_connection(&self, addr: &SipAddr) {
+         self.inner.del_connection(addr)
+     }
+ 
++    pub fn set_max_connections(&self, max_connections: usize) -> Result<()> {
++        self.inner.capacity.set_limit(max_connections)
++    }
++
++    pub fn get_capacity_stats(&self) -> TransportCapacityStats {
++        self.inner.capacity.snapshot()
++    }
++
+     pub(crate) fn del_connection_if_same(&self, connection: &SipConnection) {
+         self.inner.del_connection_if_same(connection)
+     }
+@@ -252,14 +371,19 @@ impl TransportLayerInner {
+         self.listens.write().retain(|t| t.get_addr() != addr);
+     }
+ 
+-    pub(super) fn add_connection(self: &Arc<Self>, connection: SipConnection) {
++    pub(super) fn add_connection(self: &Arc<Self>, connection: SipConnection) -> bool {
+         if let Some(remote_addr) = connection.get_remote_addr().cloned() {
++            if !self.capacity.try_acquire_connection() {
++                return false;
++            }
+             let mut connections = self.connections.write();
+             connections.insert(remote_addr, connection.clone());
+             drop(connections);
+             self.serve_connection(connection);
++            true
+         } else {
+             warn!(addr = %connection.get_addr(), "connection has no remote address");
++            false
+         }
+     }
+ 
+@@ -346,7 +470,13 @@ impl TransportLayerInner {
+                     ));
+                 }
+             };
+-            self.add_connection(sip_connection.clone());
++            if !self.add_connection(sip_connection.clone()) {
++                sip_connection.close().await.ok();
++                return Err(crate::Error::TransportLayerError(
++                    "SIP transport connection capacity exceeded".to_string(),
++                    target.clone(),
++                ));
++            }
+             return Ok((sip_connection, target.clone()));
+         }
+ 
+@@ -410,12 +540,17 @@ impl TransportLayerInner {
+         info!(addr=%transport.get_addr(), remote=%remote_addr, "serve_connection: starting serve_loop");
+         let transport_layer = self.clone();
+         tokio::spawn(async move {
++            let _capacity_guard = TransportConnectionCapacityGuard {
++                inner: transport_layer.clone(),
++            };
+             match sender_clone.send(TransportEvent::New(transport.clone())) {
+                 Ok(()) => {
+                     info!(addr=%transport.get_addr(), remote=%remote_addr, "serve_connection: New event sent");
+                 }
+                 Err(e) => {
+                     warn!(addr=%transport.get_addr(), remote=%remote_addr, error = ?e, "Error sending new connection event");
++                    transport_layer.del_connection_if_same(&transport);
++                    transport.close().await.ok();
+                     return;
+                 }
+             }
+@@ -613,4 +748,24 @@ mod tests {
+         server.abort();
+         Ok(())
+     }
++
++    #[test]
++    fn connection_limit_rejects_overflow_and_recovers_after_release() {
++        let state = super::TransportCapacityState::new(2).expect("valid limit");
++
++        assert!(state.try_acquire_connection());
++        assert!(state.try_acquire_connection());
++        assert!(!state.try_acquire_connection());
++        assert_eq!(state.snapshot().active_connections, 2);
++        assert_eq!(state.snapshot().connection_limit_rejections_total, 1);
++
++        state.release_connection();
++        assert!(state.try_acquire_connection());
++        assert_eq!(state.snapshot().active_connections, 2);
++    }
++
++    #[test]
++    fn connection_limit_rejects_zero() {
++        assert!(super::TransportCapacityState::new(0).is_err());
++    }
+ }
+diff --git a/src/transport/websocket.rs b/src/transport/websocket.rs
+index ab13c5f..f23083d 100644
+--- a/src/transport/websocket.rs
++++ b/src/transport/websocket.rs
+@@ -163,7 +163,14 @@ impl WebSocketListenerConnection {
+                     };
+                     let sip_connection = SipConnection::WebSocket(connection.clone());
+                     let connection_addr = connection.get_addr().clone();
+-                    transport_layer_inner_ref.add_connection(sip_connection.clone());
++                    if !transport_layer_inner_ref.add_connection(sip_connection.clone()) {
++                        debug!(
++                            ?connection_addr,
++                            "websocket connection rejected by capacity limit"
++                        );
++                        sip_connection.close().await.ok();
++                        return;
++                    }
+                     debug!(?connection_addr, "new websocket connection");
+                 });
+             }

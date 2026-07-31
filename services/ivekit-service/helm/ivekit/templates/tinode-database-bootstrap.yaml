@@ -1,0 +1,128 @@
+{{- if and .Values.tinode.enabled (eq .Values.tinode.mode "cluster") }}
+{{- include "ivekit.tinodeValidate" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ivekit.tinodeFullname" . }}-database-bootstrap
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tinode-database-bootstrap
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.tinode.cluster.databaseBootstrap.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.tinode.cluster.databaseBootstrap.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: tinode-database-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.tinode.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: database-bootstrap
+          image: {{ include "ivekit.tinodeImage" . | quote }}
+          imagePullPolicy: {{ .Values.tinode.image.pullPolicy }}
+          env:
+            # Hooks execute before ordinary ConfigMaps on first install, so the
+            # bootstrap contract is deliberately self-contained.
+            - name: STORE_USE_ADAPTER
+              value: postgres
+            - name: RESET_DB
+              value: "false"
+            - name: UPGRADE_DB
+              value: {{ .Values.tinode.config.upgradeDatabase | quote }}
+            - name: WEBRTC_ENABLED
+              value: "false"
+            - name: ACC_GC_ENABLED
+              value: {{ .Values.tinode.config.accountGarbageCollectionEnabled | quote }}
+            - name: SERVER_STATUS_PATH
+              value: /health
+            - name: POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.postgresDsnKey }}
+            - name: API_KEY_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.apiKeySaltKey }}
+            - name: AUTH_TOKEN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.authTokenKeyKey }}
+            - name: UID_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.uidEncryptionKeyKey }}
+            - name: TINODE_INIT_ONLY
+              value: "1"
+            - name: NO_DB_INIT
+              value: "false"
+            - name: SAMPLE_DATA
+              value: ""
+            - name: TINODE_RUNTIME_DIR
+              value: /var/lib/tinode-runtime
+            - name: EXT_STATIC_DIR
+              value: /var/lib/tinode-runtime/static
+            - name: MEDIA_HANDLER
+              value: "s3"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.accessKeyIdKey }}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.secretAccessKeyKey }}
+            - name: AWS_REGION
+              value: {{ .Values.tinode.cluster.media.region | quote }}
+            - name: AWS_S3_BUCKET
+              value: {{ .Values.tinode.cluster.media.bucket | quote }}
+            - name: AWS_S3_ENDPOINT
+              value: {{ .Values.tinode.cluster.media.endpoint | quote }}
+            - name: AWS_FORCE_PATH_STYLE
+              value: {{ .Values.tinode.cluster.media.forcePathStyle | quote }}
+            - name: AWS_CORS_ORIGINS
+              value: {{ .Values.tinode.cluster.media.corsOrigins | quote }}
+          securityContext:
+            {{- toYaml .Values.tinode.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.tinode.cluster.databaseBootstrap.resources | nindent 12 }}
+          volumeMounts:
+            - name: runtime
+              mountPath: /var/lib/tinode-runtime
+            - name: botdata
+              mountPath: /botdata
+            - name: logs
+              mountPath: /var/log
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: runtime
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: botdata
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: logs
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}

@@ -1,0 +1,45 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: opc-postgres-recovery
+  labels:
+    app.kubernetes.io/name: opc-postgres-recovery
+    app.kubernetes.io/part-of: ivekit-platform
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie@sha256:4e4ac3fb2c914cfb44f80f0b8be8aa550e83b80bf5220df49c3a8780c1f79bc8
+  bootstrap:
+    recovery:
+      source: source
+      recoveryTarget:
+        targetTime: "2026-07-23 00:00:00+00"
+  externalClusters:
+    - name: source
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: opc-postgres-backup
+          serverName: opc-postgres
+  storage:
+    size: 200Gi
+  walStorage:
+    size: 50Gi
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          cnpg.io/cluster: opc-postgres-recovery
+          cnpg.io/podRole: instance
+  resources:
+    requests:
+      cpu: "2"
+      memory: 8Gi
+    limits:
+      cpu: "8"
+      memory: 16Gi

@@ -1,0 +1,210 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "wave1-homer-postgres-hep-server-validation-2026-07-24",
+  "generated_at": "2026-07-25T00:23:35+08:00",
+  "status": "passed_controlled_server",
+  "verification_scope": "controlled_server_homer_postgres_hep",
+  "production_capacity_evidence": false,
+  "capacity_claim": "none",
+  "source": {
+    "repository": "https://github.com/sipcapture/homer",
+    "version": "11.0.297",
+    "commit": "ac4e1ae7f63660a655a5ef42e6607ab4cefc1c6b",
+    "overlay_sha256": "76806d5aba1fa460d3490c338ffd169268be5ed5f63e2be2c6ea93294e76d66e",
+    "build_script_sha256": "f7c88e6beba04aba1d01a453e7acf3d56a1fd0806de661162b60965c5cced4e7",
+    "postgres_catalog_test_sha256": "da73fe938d2f5a198218bcbaf8e2dcaec5e90159442a73bb359449f1803105b6",
+    "statefulset_sha256": "bcc95654ef21d85528acc980bd3e7289dbdfc604abdf0b37effccc761a299279",
+    "workflow_sha256": "502c53c772a353ae8bdd01898fcd625d48f5f88ac93b1de86db0cf2e6d43d5f1",
+    "repository_contract_test_sha256": "26237046d011c584ec5ea6e23c77730f157e2e4ddd5954ac6d9ff8066db7b1cb"
+  },
+  "server": {
+    "operating_system": "Linux 6.8.0-124-generic x86_64",
+    "logical_cpu_count": 4,
+    "memory_kib": 8131784,
+    "docker_server_version": "29.1.3",
+    "generator_and_sut_share_host": true
+  },
+  "build": {
+    "result": "passed",
+    "target": "linux/amd64",
+    "go_version": "go1.26.5",
+    "immutable_base_images": {
+      "go": "golang@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651",
+      "node": "node@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3",
+      "runtime": "debian@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818"
+    },
+    "candidate_image": {
+      "reference": "ivekit/homer:11.0.297-ivekit.1-ac4e1ae7",
+      "id": "sha256:fe0d45edc33c23b5047258690ca7ecf95bed93a164d7cfdb9ab499cbc83c893d",
+      "inspect_size_bytes": 121407366,
+      "user": "10001:10001",
+      "version_output": "homer-core 11.0.297",
+      "binary_commit": "ac4e1ae7f63660a655a5ef42e6607ab4cefc1c6b",
+      "built_at_utc": "2026-07-24T16:17:23Z",
+      "revision_label": "ac4e1ae7f63660a655a5ef42e6607ab4cefc1c6b",
+      "component_label": "homer",
+      "registry_digest": null,
+      "production_artifact": false
+    },
+    "contracts": {
+      "exact_tag_and_commit": "passed",
+      "overlay_replay": "passed",
+      "postgres_catalog_go_tests": "passed",
+      "go_compile": "passed",
+      "frontend_npm_ci": "passed",
+      "binary_revision_injection": "passed",
+      "builder_frontend_dependency_cleanup": "passed",
+      "offline_runtime_extension_startup": "passed"
+    }
+  },
+  "runtime_hardening": {
+    "state": "running",
+    "oom_killed": false,
+    "restart_count": 0,
+    "read_only_root_filesystem": true,
+    "user": "10001:10001",
+    "arguments": [
+      "--config-path",
+      "/etc/homer",
+      "--pid-file",
+      "/tmp/homer-core.pid"
+    ],
+    "pid_file": {
+      "path": "/tmp/homer-core.pid",
+      "uid": 10001,
+      "gid": 10001,
+      "mode": "0644"
+    },
+    "node_binary_present": false,
+    "npm_binary_present": false,
+    "node_artifact_path_count": 0
+  },
+  "postgres_catalog": {
+    "result": "passed",
+    "catalog_type": "postgres",
+    "ducklake_metadata_table_count": 28,
+    "sqlite_cli_present": false,
+    "sqlite_scanner_bundled": false,
+    "dsn_exposed_in_evidence": false,
+    "one_writer_per_cell_contract": true
+  },
+  "hep_ingest": {
+    "result": "passed",
+    "transport": "HEPv3/UDP",
+    "capture_id": 2001,
+    "full_call_flow": {
+      "call_id_sha256": "e2d8075fc4a80e90739711a8d2ac04d11f75dce5ebeae7563d73f353f5fdbf85",
+      "search_window_start_utc": "2026-07-24T15:10:45Z",
+      "search_window_end_utc": "2026-07-24T15:11:05Z",
+      "row_count": 14,
+      "first_timestamp_utc": "2026-07-24T15:10:57.599346Z",
+      "last_timestamp_utc": "2026-07-24T15:11:02.643146Z",
+      "methods": [
+        "INVITE",
+        "100",
+        "180",
+        "200",
+        "ACK",
+        "BYE",
+        "200"
+      ],
+      "complete_dialog_observed": true
+    },
+    "final_candidate_fresh_write": {
+      "candidate_image_id": "sha256:fe0d45edc33c23b5047258690ca7ecf95bed93a164d7cfdb9ab499cbc83c893d",
+      "call_id_sha256": "b636bb31bd4157372d397f5d27370e0d1be7b7a5eeb824395c46874efa4d1d9b",
+      "sip_responses": [
+        100,
+        486
+      ],
+      "stored_rows": 8,
+      "first_timestamp_utc": "2026-07-24T16:22:59.244814Z",
+      "last_timestamp_utc": "2026-07-24T16:22:59.277675Z"
+    },
+    "production_exclusions": {
+      "include_options": false,
+      "options": {
+        "sip_response": 200,
+        "call_id_sha256": "44da9a3e5ea51bf184810015f7df01ded839be5867bfe5fbb7f4f7d31c13998d",
+        "stored_rows": 0
+      },
+      "kdmq": {
+        "sip_response": 403,
+        "call_id_sha256": "edf9a3b25cff87baf146d109839b105c6c0f51dd2eb08166e7dba52134962317",
+        "stored_rows": 0
+      }
+    }
+  },
+  "collector_outage": {
+    "result": "passed_controlled_server",
+    "collector_state_during_calls": "stopped",
+    "calls": 5,
+    "calls_per_second": 2,
+    "uac_successful_calls": 5,
+    "uas_successful_calls": 5,
+    "failed_calls": 0,
+    "sip_retransmissions": 0,
+    "rtp_packet_coverage_ratio": 0.9936,
+    "durable_loss_packet_count": 0,
+    "sequence_gap_packet_count": 0,
+    "duplicate_packet_count": 0,
+    "reordered_packet_count": 0,
+    "main_media_result": "controlled_pass",
+    "collector_restart_result": "healthy"
+  },
+  "postgres_outage": {
+    "result": "passed_controlled_server",
+    "postgres_state_during_calls": "stopped",
+    "homer_state_during_outage": "running",
+    "calls": 3,
+    "calls_per_second": 1,
+    "uac_successful_calls": 3,
+    "uas_successful_calls": 3,
+    "failed_calls": 0,
+    "sip_retransmissions": 0,
+    "rtp_packet_coverage_ratio": 0.992,
+    "durable_loss_packet_count": 0,
+    "sequence_gap_packet_count": 0,
+    "duplicate_packet_count": 0,
+    "reordered_packet_count": 0,
+    "main_media_result": "controlled_pass",
+    "postgres_restart_result": "healthy",
+    "post_recovery_fresh_write": {
+      "call_id_sha256": "c7f08ae239fd02f20a57070bbafe874f7094a1763c0e5c11ea4be833a98820f6",
+      "sip_responses": [
+        100,
+        486
+      ],
+      "stored_rows": 8,
+      "first_timestamp_utc": "2026-07-24T15:26:07.032899Z",
+      "last_timestamp_utc": "2026-07-24T15:26:07.040914Z",
+      "homer_restart_required": false
+    }
+  },
+  "supply_chain_security": {
+    "upstream_frontend_lockfile_audit": {
+      "total": 8,
+      "critical": 0,
+      "high": 3,
+      "moderate": 4,
+      "low": 1,
+      "scope": "build_time_frontend_toolchain",
+      "present_in_final_runtime_image": false
+    },
+    "shared_oci_release_gate_executed": false,
+    "sbom_status": "not_run",
+    "registry_vulnerability_scan_status": "not_run",
+    "cosign_status": "not_run",
+    "provenance_status": "not_run",
+    "production_eligible": false
+  },
+  "not_run": [
+    "HEP enabled versus disabled same-hardware capacity and latency A/B",
+    "HEP loss, queue high-water, live trace disable and overload recovery",
+    "retention, compaction, export audit, deletion and long-duration storage growth",
+    "target Kubernetes install, upgrade, rollback and NetworkPolicy runtime enforcement",
+    "dual-Zone scheduling, node loss, production PostgreSQL failover and target storage failure",
+    "independent generator and SUT, long soak, Cell-10K and MIX-100K",
+    "GHCR multi-architecture publication, immutable registry digest, SBOM, final vulnerability gate, Cosign and provenance"
+  ]
+}

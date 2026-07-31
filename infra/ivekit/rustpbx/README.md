@@ -1,0 +1,716 @@
+# iveKit RustPBX image
+
+This directory builds the RustPBX image used by iveKit Voice Foundation.
+
+## Why it exists
+
+RustPBX `0.4.11` uses rsipstack `0.5.18`. The upstream transport cache keeps a
+closed outbound TCP connection and the next call to the same SIP target can fail
+with `Broken pipe`. The included patch removes only the matching stale connection
+and retries one failed TCP transaction send on a new connection.
+
+The build also pins `rustrtc` to `0.3.90`. RustPBX commit `6c49ee76` was written
+for that API, while an unconstrained Cargo resolution currently selects `0.3.91`.
+
+RustPBX `0.4.11` returns AMI dialogs without identifiers. The iveKit AMI patch
+adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
+RWI originate can be reconciled by the deterministic `call_id` supplied by the
+client. The endpoint remains protected by the existing AMI authentication and
+network allowlist.
+
+The upstream RWI originate command handler only cancelled its task after
+`call.hangup`; it did not terminate the established SIP dialog. The iveKit RWI
+hangup patch sends CANCEL before answer and BYE after answer, so a successful
+hangup command also clears the downstream SIP leg.
+
+The iveKit route snapshot patch removes the per-INVITE control-plane HTTP and
+PostgreSQL lookup from the configured RustPBX data path. A sidecar publishes a
+signed, short-lived snapshot by atomic rename. RustPBX verifies the signature,
+tenant/profile identity, sequence and expiry, derives the same tenant-scoped
+voice-address lookup key as iveKit, and performs one HMAC plus an in-memory map
+lookup. Snapshot files contain only the existing `e164_hmac` values, never clear
+or encrypted phone numbers. Missing, invalid or stale snapshots fail closed with
+SIP 503; unknown numbers return 404.
+
+The on-disk wire format is one fixed version/signature header followed by the
+canonical JSON body. It does not wrap JSON inside another escaped JSON string,
+so a normal 100,000-DID snapshot stays within the enforced 64 MiB file limit and
+avoids a redundant parse/copy. The RustPBX refresh loop reads only the bounded
+signature header on each poll and performs the full file read, HMAC verification
+and JSON decode only after the signature changes.
+
+Route snapshots deliberately remove dynamic routing from the INVITE hot path,
+but every accepted inbound call must still acquire an authoritative Cell owner.
+The inbound-admission patch sends one bounded authenticated request to the
+profile `/inbound-admission` endpoint before the local route snapshot lookup.
+The request declares the receiving RustPBX Cell and node. iveKit
+reserves that exact owner, persists the call and placement atomically, and rejects
+stale, draining, unavailable or mismatched nodes. Admission timeout, malformed
+responses and non-success responses fail closed with SIP 503; RustPBX never falls
+back to an unfenced local route.
+
+The owner-epoch patch then binds the admitted provider call to the same durable
+reservation through the local component-node agent. The first open and periodic
+lease refresh use RustPBX's asynchronous HTTP client outside RTP processing.
+Tracked RWI mutations compare the supplied epoch against the in-process guard;
+bridge, transfer, ringback and supervisor commands validate every referenced
+call ID. No RTP packet, codec, mixer or recording frame path calls the agent.
+
+The HTTP-capacity patch keeps DNS and connection establishment from becoming a
+second signaling bottleneck. Reqwest uses its asynchronous Hickory resolver,
+dynamic call routing and CDR delivery use the same keepalive client policy, and
+the pool retains up to 64 idle connections per host. The concurrency limit still
+comes from the bounded call-record runtime; the larger pool avoids serial
+connection churn but does not create unbounded HTTP work.
+
+iveKit sends owner contracts in the RWI envelope's internal `ivekit_owners`
+field, outside the public voice command payload. Parking pickup resolves both
+call owners and fails before RWI execution when the legs are assigned to
+different RustPBX nodes.
+
+Migration `079_ivekit_voice_route_snapshot_revision.sql` maintains one monotonic
+source revision per tenant/profile. DID, trunk, route, published version,
+capability and profile changes bump it transactionally. The projector normally
+reads only that one row; it reloads and recompiles the bounded route set only
+when the revision changes, and otherwise rewrites the snapshot only near expiry.
+This prevents a 100,000-DID profile from becoming a periodic full-table polling
+load.
+
+Snapshot mode is enabled only when `IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE` is set.
+It also requires:
+
+- `IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY`
+- `IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY`
+- `IVEKIT_RUSTPBX_ROUTE_TENANT_ID`
+- `IVEKIT_RUSTPBX_ROUTE_PROFILE_ID`
+
+Snapshot admission additionally requires:
+
+- `IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL`
+- `IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY`
+- `IVEKIT_RUSTPBX_CELL_ID`
+- `IVEKIT_RUSTPBX_OWNER_NODE_ID`
+
+`IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS` defaults to 250 ms and is bounded
+to 20-2000 ms. The service key must resolve to the same profile-scoped
+`webhook_service_key` used for the RustPBX provider. Cell and node identifiers
+must match the active placement topology; they are not advisory labels.
+
+Owner-epoch enforcement is opt-in for compatibility. Set
+`IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED=true` only when the local sidecar is
+deployed and synchronized by the Cell admission service. It additionally
+requires:
+
+- `IVEKIT_RUSTPBX_COMPONENT_NODE_URL=http://127.0.0.1:3210`
+- `IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN`
+- `IVEKIT_RUSTPBX_COMPONENT_NODE_TIMEOUT_MS` (default `500`)
+- `IVEKIT_RUSTPBX_COMPONENT_NODE_REFRESH_MS` (default `3000`)
+
+Compose uses the additional `voice-capacity` profile. Helm uses
+`voice.componentNode.enabled`. The agent starts draining and does not become
+ready until the Cell sends a current lease and completes checkpoint replay.
+
+The lookup root must equal iveKit's `OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY`. The
+snapshot signing key must be a distinct random 32-byte canonical base64 secret.
+
+## Recording spool
+
+iveKit recording mode is enabled with
+`IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED=true`. RustPBX writes bounded local
+segments under `IVEKIT_RUSTPBX_RECORDING_SPOOL_DIR`; it never uploads from the
+RTP or recorder sample path. Region, Zone, Cell and owner-node identity are
+required and become part of every immutable segment manifest.
+
+The separate `ivekit-rustpbx-recording-spool` process validates stable regular
+files and SHA-256, registers the exact owner epoch, resumes persisted multipart
+parts, and removes local files only after server completion. Its service key and
+lease secret are mounted as read-only files. The component-node process reads
+only the sidecar's atomic `metrics.json` in the background; it does not read the
+filesystem per INVITE. New reservations carrying `data.local_spool_bytes` fail
+closed when the observation is stale or projected usage crosses 90 percent.
+Existing reservations and cleanup remain available.
+
+Object storage and the upload sidecar are downstream-only dependencies. An
+outage can delay or lose recording evidence, but cannot stop an established SIP
+dialog or its RTP forwarding. RustPBX does not depend on the uploader service;
+the uploader depends on RustPBX and shares only the durable spool volume. If the
+local recording writer itself fails, the first failed write opens a per-recording
+circuit breaker. Later samples are counted as dropped without another disk write
+or per-packet warning, while RTP forwarding continues through the independent
+non-blocking path. Affected recordings must be marked incomplete and alerted;
+they must never be reported as successfully recorded.
+
+Recorder creation and finalization also run on a separate fixed four-thread,
+512-entry lifecycle executor. SIP recording start is fire-and-forget;
+StopRecording schedules finalization without awaiting its reply; pause/resume
+update the atomic gate and use only `try_write` for optional spool events.
+Session destruction and the reaper use the same deduplicated finalizer. The
+Recorder destructor performs no synchronous flush or spool I/O. If lifecycle
+workers or their queue are unavailable, RustPBX emits `RecordingFailed` and
+preserves call/RTP progress instead of applying backpressure to signaling.
+Before finalization, the lifecycle worker waits for already accepted capture
+items with a bounded deadline, disables new capture if the first deadline
+expires, and never falls back from `try_write` to a blocking recorder lock.
+Drain or lock timeout fails only the recording and resets finalization for a
+later cleanup attempt; it never waits on the signaling or RTP thread.
+
+Channel saturation remains non-blocking: the forwarding path increments a
+shared `AtomicU64` only when recorder `try_send` returns `Full`. The recorder
+drains that counter at segment close and publishes an owner-fenced
+`sample_dropped` event with the exact count. After the last segment is durable,
+RustPBX atomically writes `recording-completed.json`. The uploader retains and
+uploads the evidence, but manifest finalization sums all owner-fenced
+`sample_dropped` events. Any non-zero total produces terminal
+`recording_samples_dropped` failure rather than `uploaded_unverified`, even if
+every segment reached object storage. The shared drop counter is registered
+idempotently when the asynchronous recorder becomes available, so samples seen
+before recorder creation cannot disappear from the final integrity decision.
+retries that marker until iveKit confirms that sequences `1..N` all exist and
+are uploaded, then removes the local indexes and marker. A missing segment can
+therefore delay finalization but cannot be silently skipped.
+
+## Goal 3 media orchestration and rolling rollback
+
+Ordinary relay, T1 shadow, IVR/transcoding, recording, and AI audio tap use
+separate admission profiles and capacity dimensions. Ordinary relay uses the
+bounded media-control semaphore and response limit. Recording uses its own
+non-blocking capture queue, lifecycle executor, spool waterline, and uploader
+resources. AI tap uses a separate bounded Unix-socket channel and gateway
+resources. Exhausting recording or AI tap capacity degrades only that optional
+profile; it does not make the ordinary relay profile or an established RTP
+session unavailable.
+
+The component-node operational endpoint combines the current Cell lease and
+recovery state with the signed route snapshot, node-local media-control
+readiness, and required profile capacity, but deliberately ignores the current
+admission state. Capacity projection uses that endpoint so a cold Cell can
+observe the node before authorizing new calls. The readiness endpoint adds the
+accepting/degraded admission requirement. Liveness remains process-local and
+does not depend on object storage, recording, ASR, translation, or other
+external providers. Prometheus exposes explicit route drain separately from a
+temporary recovery drain and scrapes both RustPBX management and component-node
+media-profile metrics. Metric labels are bounded to operational enums such as
+`failure_stage` and `profile`; they never contain tenant IDs, call IDs, numbers,
+SDP, tokens, or certificate material.
+
+The Goal 3 rolling rollback contract is:
+
+1. Set the selected RustPBX Pod to draining through component-node admission.
+   Kamailio observes that state and removes the Pod's new-call weight.
+2. Wait for route propagation, then block new local reservations and wait for
+   reserved/active dialog checkpoints to reach zero before replacing the Pod.
+   Existing RTPengine sessions remain authoritative while the owner drains.
+3. Roll back one RustPBX/media-control Pod at a time under the PDB and
+   cross-Zone topology constraints, using the previous immutable image digest
+   and matching configuration identity.
+4. A rollback must not restart the entire Cell RTPengine. RTPengine replacement,
+   when independently required, is drained and rolled one media node at a time.
+5. If drain times out, stop the rollout and preserve the Pod and evidence. Do
+   not force a Cell-wide restart or convert an uncertain media command into a
+   successful result.
+
+RustPBX media-control requests carry a W3C `traceparent` generated without the
+raw call identifier. All commands for one call share a deterministic SHA-256
+trace identifier and receive distinct command span identifiers. Sampling is
+deterministic and configured by
+`IVEKIT_RUSTPBX_MEDIA_CONTROL_TRACE_SAMPLE_RATIO`; the deployment default is
+`0.01`. The patch does not add SDP, number, authorization, token, or certificate
+data to logs or trace headers and does not modify RTP packet forwarding.
+
+The co-located media-control process can export its own bounded OpenTelemetry
+spans through `OPC_OTEL_*`. Export is disabled by default and, when enabled,
+uses explicit queue, batch, delay, timeout, endpoint, and sample-ratio limits.
+The exact ivekit.34 patch queue applies and its changed Rust files pass Rustfmt.
+Locked native compilation, image build, multi-Pod trace continuity, and an
+enabled-versus-disabled overhead comparison remain `not_run`.
+
+The internal provider endpoints are:
+
+- `POST /api/ivekit/voice/providers/:profile_id/recording-spool/segments`
+- `PUT /api/ivekit/voice/providers/:profile_id/recording-spool/segments/:segment_id/parts/:part_number`
+- `POST /api/ivekit/voice/providers/:profile_id/recording-spool/segments/:segment_id/complete`
+- `POST /api/ivekit/voice/providers/:profile_id/recording-spool/recordings/:recording_id/complete`
+
+All derive the tenant from the profile service key; body tenant fields are not
+trusted. The recording completion route also rechecks the current placement
+owner and exact Region/Zone/Cell/node identity.
+
+Compose requires `RUSTPBX_RECORDING_SERVICE_KEY_FILE` and
+`RUSTPBX_RECORDING_LEASE_SECRET_FILE`. The service-key file contains the same
+profile-scoped webhook service key; the lease secret must be distinct and at
+least 32 characters. Use the `voice-capacity` profile to enable the local
+component-node waterline gate.
+
+## SIP capacity and overload behavior
+
+The rsipstack capacity patch replaces the unbounded incoming transaction
+channel with a bounded queue and adds strict atomic limits for active
+transactions, finished retransmission state, and reliable transport
+connections. TCP, TLS, and WebSocket connections share the transport limit.
+When a new server transaction cannot be admitted, rsipstack returns SIP 503
+with `Retry-After: 1`; outbound transactions fail explicitly instead of being
+accepted into unbounded memory. Duplicate transaction keys do not replace an
+existing owner or consume/release a second capacity slot.
+
+RustPBX validates and applies these profile-tunable values at startup:
+
+| Environment variable | TOML field | Default |
+| --- | --- | ---: |
+| `RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS` | `sip_max_active_transactions` | 65536 |
+| `RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS` | `sip_max_finished_transactions` | 65536 |
+| `RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY` | `sip_incoming_transaction_queue_capacity` | 8192 |
+| `RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS` | `sip_max_transport_connections` | 32768 |
+
+All values must be integers from 1 through 10,000,000. They are memory-safety
+and overload-control limits, not measured capacity. Tune them only with the
+same hardware, SIP profile, SLO, soak duration, and failure reserve used by the
+capacity harness.
+
+RustPBX exports current usage, configured limits, timer task count, queue depth,
+finished-cache drops, and rejection counters under the `rustpbx_sip_*` metric
+prefix. Compose, the OPC Helm chart, and the standalone iveKit Helm chart carry
+the same defaults. Both charts expose `/metrics`; optional ServiceMonitor and
+PrometheusRule resources alert before a hard limit and on any overload
+rejection. Metrics contain no tenant, call, interaction, or phone-number labels.
+
+## Call-record persistence isolation
+
+iveKit sends CDRs to its authenticated HTTP endpoint and disables RustPBX's
+second direct database write with `persist_to_database = false`. The upstream
+default remains `true`, so deployments that do not use iveKit keep their
+original persistence behavior. HTTP saver execution remains asynchronous and
+does not block SIP or RTP processing.
+
+`RUSTPBX_CALL_RECORD_MAX_CONCURRENT` maps to `callrecord.max_concurrent`,
+defaults to 64, and accepts 1 through 4096. It bounds concurrent CDR saver
+tasks. A 256-task setting exhausted the shared Router on the controlled
+four-vCPU baseline, while 64 preserved exact INVITE and CDR parity at 1,400
+CPS. `RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY` maps to
+`callrecord.channel_capacity`, defaults to 65,536, and accepts 1 through
+262,144. It bounds the queued CDR backlog; increasing it consumes more memory
+and cannot repair a persistently unavailable downstream endpoint.
+
+`RUSTPBX_CALL_RECORD_WORKER_THREADS` maps to `callrecord.worker_threads`,
+defaults to 1, and accepts 1 through 16. The patched runtime executes the
+CallRecordManager on these dedicated threads, so CDR HTTP, database, object
+storage and hook latency cannot consume SIP transaction workers. The queue
+remains bounded and its producer remains non-blocking; sink failure may delay
+or eventually drop CDR delivery, but it must not stall an active call.
+
+Sink failures increment
+`rustpbx_call_record_sink_failures_total{stage="save|hook"}`. The stage set is
+fixed and contains no tenant, call or endpoint labels. Warning output is shared
+across sinks and limited to one line every five seconds, preventing a failed
+endpoint from producing one log line per CDR.
+
+Compose and both Helm surfaces carry the same defaults. Capacity profiles may
+override them only after measuring CDR endpoint latency, queue saturation,
+memory growth and recovery while active media remains unaffected.
+
+The exact rsipstack and RustPBX patch queues apply cleanly to their pinned
+commits and the rsipstack tree passes Rustfmt. The exact ivekit.16 amd64 Linux
+image was built on the controlled four-vCPU server. Its strict 1,400-CPS
+signaling run completed 42,000 of 42,000 calls with zero failures, zero
+remaining calls, zero retransmissions and exact Router/CDR parity. A CDR-sink
+outage run completed the same 42,000 calls with exact Router parity, zero CDR
+delivery, no queue drops and seven rate-limited warning lines over 30 seconds.
+The outage runner reports failure by design because its CDR parity and drain
+checks cannot pass.
+
+The same shared-host topology did not pass the strict 1,500-CPS boundary: 20
+calls remained active and Router/CDR counts exceeded the target by four. Treat
+1,400 CPS as the controlled signaling baseline for this hardware. It does not
+prove RTP, PSTN, WSS, sustained recovery, Cell-10K or MIX-100K capacity.
+
+The exact ivekit.18 amd64 Linux image adds asynchronous DNS and the shared
+64-idle-connection HTTP policy. On the same controlled four-vCPU host, a
+60-second direct RustPBX run at 1,000 target CPS completed 60,000 of 60,000
+calls with zero failures, remaining calls, retransmissions, or queue drops;
+Router and CDR deltas were both exactly 60,000, with SIP route P95/P99 of
+3/5 ms. The full SIPp -> Kamailio -> RustPBX run also completed 60,000 of
+60,000 with exact Kamailio/Router/CDR parity, zero retransmissions, and route
+P95/P99 of 8/19 ms. These are sustained signaling regression gates, not a new
+maximum-CPS claim. See
+`docs/evidence/wave3-rustpbx-kamailio-sip-capacity-server-validation-2026-07-24.md`.
+
+## RTP UDP socket capacity
+
+The ivekit.19 and later images pin `rustrtc` commit
+`166c6d22984429eb6b509920c14fcd69f974f0b3` and applies the UDP socket
+capacity patch before building RustPBX. RTP and direct RTCP sockets use
+non-blocking `socket2` creation and may request explicit kernel buffers:
+
+- `RUSTRTC_UDP_RECEIVE_BUFFER_BYTES`
+- `RUSTRTC_UDP_SEND_BUFFER_BYTES`
+
+Unset values preserve the operating-system default. Configured values must be
+between 65,536 and 16,777,216 bytes. Linux commonly reports an effective value
+larger than the request because it includes kernel accounting overhead. The
+limit is not pre-allocated per socket, but it is a permitted queue ceiling:
+raising it increases the amount of packet memory that a stalled media worker
+can retain. Admission limits and pod memory budgets must therefore be tuned
+together with the socket values.
+
+The controlled media baseline requests a 1 MiB receive buffer and 512 KiB send
+buffer. These values absorb short scheduler stalls; they do not compensate for
+sustained CPU saturation or an undersized media worker topology. Every
+capacity run gates Linux `RcvbufErrors`, `SndbufErrors`, `InErrors`, SIP
+reconciliation and expected RTP datagram coverage.
+
+Shared-host SIPp evidence can prove a controlled regression but cannot assign
+the combined host's saturation boundary to RustPBX. A production capacity
+claim requires an independent load generator, separate resource telemetry,
+strict packet-sequence evidence below the throughput frontier, and a zero
+kernel-drop throughput staircase at the claimed point.
+
+## Recording media hot path
+
+The iveKit media patch removes recorder codec conversion, mixing, flushing and
+disk writes from BridgePeer RTP forwarding loops. BridgePeer and
+ForwardingTrack now publish recording copies with non-blocking `try_send` into
+bounded queues backed by a fixed-size Crossbeam worker pool. A capture is
+assigned to one worker shard so its samples remain serialized; no call owns a
+blocking OS thread and no `spawn_blocking` backlog can grow without a limit.
+Queue pressure can drop a recording copy, but it cannot block live RTP
+forwarding or allocate an unbounded backlog.
+
+`RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY` maps to
+`media_recording_channel_capacity` and defaults to 256 entries. Valid values are
+1 through 65,536. It is a per-capture burst buffer, not a throughput claim;
+raising it increases memory and only delays overload when recorder workers or
+storage remain slower than ingress.
+
+`RUSTPBX_MEDIA_RECORDING_WORKER_THREADS` maps to
+`media_recording_worker_threads`, defaults to 4, and accepts 1 through 64.
+`RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY` maps to
+`media_recording_worker_queue_capacity`, defaults to 4096 per worker, and
+accepts 1 through 65,536. More workers increase codec parallelism and possible
+storage concurrency; tune worker count before queue depth. The process rejects
+incompatible reinitialization because this executor is process-global.
+
+`rustpbx_media_recording_queue_capacity` exposes the configured size and
+`rustpbx_media_recording_queue_drops_total` reports overflow without tenant,
+call or interaction labels. Its bounded `reason` label distinguishes capture,
+worker saturation, worker shutdown and the first writer failure. Worker count
+and per-worker queue limit are exported by `rustpbx_media_recording_worker_threads` and
+`rustpbx_media_recording_worker_queue_capacity`. Any drop triggers
+`IveKitRustPbxRecordingQueueDrops`. Preserve the affected recording manifest
+and pod metrics, drain new recording work, then investigate codec CPU, storage
+latency and spool uploader backpressure. The complete patch queue compiles in
+the exact ivekit.16 amd64 Linux image and the no-PSTN SIPp signaling suite
+passes; RTP packet continuity, a real object-store outage/resume drill and
+overflow recovery remain `not_run`.
+
+The Rust unit gate `test_recording_stop_does_not_block_engine_on_busy_recorder`
+holds the recorder write lock while StopRecording and PauseRecording are sent;
+the pause event must still arrive within 250 ms. This proves command-loop lock
+isolation, not physical RTP continuity or stalled-filesystem behavior.
+
+## Realtime speech audio tap
+
+The realtime audio tap is an opt-in, per-session speech fork for streaming ASR,
+translation and voice-agent Providers. RustPBX accepts the
+`x-ivekit-audio-tap-token` only from the trusted HTTP router result stored in
+`dialplan.routed_headers`; an untrusted inbound SIP header cannot enable the
+tap. Dynamic routing returns the token as an internal route header, while
+snapshot routing receives it from authenticated inbound admission and injects
+the same trusted header. The opaque token is sent once in the local
+session-start message and must
+be verified by the co-located gateway against tenant, interaction, participant,
+purpose, consent, expiry and nonce.
+
+The forwarding path shares the existing `Arc<MediaSample>` and calls only
+`try_send` on a bounded per-session channel. A full or closed channel drops the
+auxiliary copy and increments a low-cardinality counter; it never waits on the
+gateway or a Provider. Codec decoding and resampling run in the asynchronous tap
+worker after the media handoff. Negotiated caller and callee speech is emitted
+as mono PCM16 at 16 kHz. Telephone-event payloads are excluded, codec profiles
+are updated after re-INVITE, and enabling the tap disables the raw RTP transport
+shortcut that would otherwise bypass the depacketized media track.
+
+Configure the RustPBX TOML fields only when the local gateway is present:
+
+| TOML field | Default | Valid range |
+| --- | --- | --- |
+| `realtime_audio_tap_socket_path` | unset/disabled | absolute Unix socket path, at most 100 bytes |
+| `realtime_audio_tap_channel_capacity` | `256` | 1 through 65,536 |
+| `realtime_audio_tap_send_timeout_ms` | `10` | 1 through 1,000 ms |
+
+The local stream protocol prefixes every message with a four-byte big-endian
+length, then uses `IATJ` JSON start/end controls or an `IAT1` 48-byte binary PCM
+header. The PCM header carries protocol version, leg,
+session-key digest, sequence, capture timestamp, sample rate and sample count.
+No tenant identifier, phone number or authorization token appears in per-frame
+payloads. Socket creation, connection, send, decode or gateway failure may
+disable or degrade realtime intelligence, but it cannot terminate the SIP
+dialog or block RTP forwarding.
+
+The exact ivekit.17 source passes `cargo check --locked` and ten focused Rust
+tests on the controlled amd64 Linux server. Those tests cover authorization,
+snapshot token propagation and validation, envelope bounds,
+PCMU-to-16-kHz normalization and both forwarding implementations under a full
+tap queue. The Node gateway token, nonce replay and real Unix socket contract
+tests also pass. Cross-process RustPBX RTP capture, external Provider streaming
+and physical capacity remain `not_run`.
+
+## Session teardown isolation
+
+The iveKit cleanup patch removes the last session-destruction waits from the
+single MediaEngine command loop. Destroy and stale-session reap first remove the
+session from active state, atomically pause recording, and submit the deduplicated
+recording finalizer. Playback-track stop, MCU switch-back, and bridge release then
+run in a bounded background task. `SessionDestroyed` acknowledges control-plane
+removal; it no longer claims that recording persistence has completed.
+
+`RUSTPBX_MEDIA_SESSION_CLEANUP_CONCURRENCY` maps to
+`media_session_cleanup_concurrency`, defaults to 64, and accepts 1 through 4096.
+`RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS` maps to
+`media_session_cleanup_timeout_ms`, defaults to 2000, and accepts 1 through
+60,000. A full executor or elapsed deadline force-drops the remaining resources
+instead of waiting in the media command loop. Outcomes are counted by
+`rustpbx_media_session_cleanup_total{outcome="completed|timed_out|capacity_exhausted"}`;
+timeout or exhaustion raises `IveKitRustPbxSessionCleanupDegraded`.
+
+Object storage and the uploader are not dependencies of RustPBX. A local writer
+or filesystem stall can consume recording workers and cause incomplete evidence,
+but recording capture uses non-blocking bounded queues and session teardown has
+its own deadline. The intended failure preference is explicit: preserve live RTP
+and call control, then surface recording or cleanup loss for audit and recovery.
+Exact patch replay, static contracts, and the ivekit.16 amd64 Linux image build
+pass; real blocked-filesystem injection, RTP continuity, and process-level fault
+recovery remain `not_run`.
+
+## WebPhone pre-authentication registry
+
+The upstream WebSocket pre-authentication registry serializes all registrations,
+lookups and removals through one `Mutex<Vec<_>>`. Once 256 entries exist, every
+new registration also scans the full vector and removes entries older than five
+minutes, including live long-running WebPhone connections. That makes lookup
+O(n), creates one global lock hot spot and can revoke an active connection.
+
+The iveKit WebPhone registry patch replaces that vector with an O(1) keyed
+`RwLock<HashMap<SipAddr, _>>`. Registration returns a connection-lifetime guard;
+normal completion, cancellation and panic drop the guard and remove only its
+generation. A stale guard cannot delete a newer connection that reused the same
+address. The embedded Rust tests cover replacement fencing, explicit removal,
+guard cleanup and 10,000 simultaneous keyed entries. Patch application,
+formatting, and the ivekit.16 amd64 Linux image build pass on the exact upstream
+commit; runtime WSS load remains `not_run`.
+
+## VOICE-HA-T1 dialog recovery
+
+The ivekit.27 patch set keeps RustPBX authoritative for Call, Leg, Dialog and
+the logical media graph while RTPengine remains authoritative for effective
+wire SDP, ports and transport runtime. A confirmed T1 B2BUA session stores two
+reciprocal, bounded AES-256-GCM recovery capsules. The shadow service commits
+the caller and callee records as one hash-bound WAL and JetStream operation
+before exposing a state-changing SIP success.
+
+A replacement owner may claim a higher epoch only through the cell-local
+takeover coordinator. The claim requires a complete, non-terminal T1 pair from
+two RustPBX fault domains and returns a single-use token. The new owner prepares
+both restored records, reconciles the existing RTPengine reservation, commits
+the pair under the new epoch, consumes the token and only then becomes the
+active mutation authority. Unknown token-consume outcomes are resolved through
+the authoritative owner endpoint; they are never guessed or replayed as a new
+mutation.
+
+The recovered controller serializes both dialog receivers. It relays INFO,
+OPTIONS, NOTIFY, REFER, MESSAGE and PUBLISH, runs re-INVITE and UPDATE through
+the restored media lifecycle, atomically advances both shadow records, strips
+hop, dialog, authentication and recovery identity headers, and bounds terminal
+BYE, media delete and owner cleanup. Its event queue is bounded at 64 entries;
+a terminal event waits at most 100 ms for queue admission. Any unknown shadow
+write or required reconciliation freezes the recovered controller instead of
+issuing another mutation. Normal session cleanup commits both legs as one
+recoverable terminal pair and duplicate cleanup is a no-op. Successful INVITE
+and UPDATE responses also refresh the rsipstack remote target from their unique
+Contact before the next in-dialog request is created.
+
+Dialog recovery is opt-in. Compose enables the complete dual-owner voice stack
+and both node-local sidecars through the self-contained `voice-t1` profile; no
+second profile is required to satisfy its local dependency graph. Helm requires
+persistent WAL, mounted service/recovery secrets, TLS-only NATS, a three- or
+five-node cross-fault-domain stream and a per-Pod CSI client identity whose URI
+SAN matches the RustPBX owner. Projected secret targets may be `0400`, `0600`,
+`0440` or `0640`: owner read is mandatory, group read is allowed for the
+constrained Pod `fsGroup`, and group write/execute or any world permission is
+rejected. Kubernetes atomic-writer symlinks are accepted only when their
+canonical targets remain inside the mounted secret directory. The agent listens
+only on `127.0.0.1:3212`; ordinary voice profiles do not wait for the shadow
+service, NATS or PostgreSQL.
+
+The exact clean-source ivekit.27 queue applies all 28 patches and passes locked
+library compilation, 19 Rust recovery contract tests, four recovered-media
+takeover tests and the complete 247-test rsipstack library suite. The standalone
+source graph also builds the packaged dialog-shadow executable. This is code and
+reproducibility evidence only. Physical dual-node failover, real RTP continuity,
+three-node JetStream fault domains, Kubernetes CSI identity mounting and the
+five-second takeover RTO remain `not_run`.
+
+## Dual-leg CDR durable convergence
+
+The ivekit.28 queue adds an owner-fenced dual-leg terminal CDR without changing
+the RTP forwarding path. Caller and callee outcomes are derived independently;
+one leg cannot copy the other leg's final SIP code, hangup cause, timing or
+media result. Each leg carries a hashed dialog identity, direction, reservation
+reference, owner epoch and exact route-snapshot revision. Call-level state
+records the real winning branch, early media, transfer chain and media timeout.
+
+RustPBX writes only `pending_unacknowledged` records to its per-owner persistent
+spool. A dedicated writer has a hard queue limit of 4096 records and acknowledges
+the terminal call path only after file sync, atomic rename and directory sync;
+the normal path performs those syscalls on the dedicated thread. Startup creates
+and verifies this writer before readiness can admit calls. Queue saturation
+marks admission unhealthy and immediately fences future calls without marking a
+working spool unhealthy or cancelling terminal persistence for existing calls.
+Full-queue producers apply bounded backpressure through the same single writer,
+awaiting Tokio MPSC capacity and a oneshot durability ACK as futures; they do not
+occupy OS or Tokio worker threads and do not fan out synchronous fsync calls.
+The writer retains a failed batch, retries it with bounded backoff, and acknowledges
+only after durability is re-proven. A disconnected writer uses one globally
+serialized asynchronous lock and one blocking emergency writer, retaining the
+request until it is durable. Successful durability restores admission health.
+Established media continues throughout. Spool
+directories and records use mode `0700` and `0600`; temporary names include a
+process-incarnation nonce, so startup removes abandoned records without deleting
+the current process's write.
+
+The uploader keeps a bounded directory cursor across passes, scans at most 4096
+entries per pass and sends at most 64 concurrently. T1 exact Region commits use
+a separate 64-slot semaphore and never hold a process-global lock across network
+I/O. Slot exhaustion fences only new T1 admission. A T1 record is fsynced as an
+exclusive `.t1pending` file; failure or process restart atomically releases it
+as `.json` for background replay, so exact commit and the scanner cannot race
+the same record. Its backlog gauge is the
+larger of the last complete scan count and the current partial-cycle count, not
+an instantaneous full-directory enumeration. Secret reads, directory and record
+I/O, hashes, retry sidecars, quarantine and deletion run on blocking workers.
+Each record has a persistent retry sidecar and independent
+bounded exponential backoff with jitter. A delayed or poisoned record therefore
+cannot starve healthy CDRs. A permanent protocol failure moves only that record
+into `quarantine/`. The uploader rejects redirects and insecure production
+endpoints, re-reads the file-backed service key on every pass for restart-free
+projected-Secret rotation, and deletes a spool file only after a matching
+`committed` receipt acknowledges the exact sequence and payload hash. Restart
+resumes the existing spool before the node accepts a new owner-authorized call.
+CDR API, PostgreSQL and object-storage failures never enter the RTP packet path.
+
+iveKit accepts a new durable receipt only from the active
+`OPC_IVEKIT_CDR_REGION_ID` contract. RustPBX independently requires
+`IVEKIT_RUSTPBX_CDR_REGION_ID` and rejects a successful response whose receipt
+names any other Region. The contract must represent synchronous
+quorum across at least two distinct Zones. Missing Region identity or contract
+keeps the CDR pending. A higher sequence after Region takeover uses the new
+Region contract, while exact historical replay returns its original receipt.
+For `VOICE-HA-T1`, the PostgreSQL transaction locks the authoritative dialog
+owner and accepts an unjournaled submission only from the exact Cell, RustPBX
+node and owner epoch when no takeover is pending and the ownership row is
+non-terminal. An exact sequence and payload hash already present in the
+append-only submission journal may retrieve or finish its receipt after
+takeover; it cannot introduce new data. The transaction
+maintains the latest call projection, both leg projections, an append-only
+submission-hash journal and an append-only receipt journal. A retained leg from
+an earlier owner epoch remains recoverable after takeover, but cannot authorize
+a new submission. A composite foreign key binds every receipt to the exact
+submitted sequence and payload hash; unknown or changed historical payloads
+fail with 409, stale unjournaled owners remain fenced, and replay cannot
+duplicate the billing event.
+The receipt transaction also terminally fences the exact owner and stores
+`terminal_cdr_sequence`, `terminal_cdr_payload_hash` and
+`terminal_shadow_pending=true`. Observing the matching terminal shadow clears
+that pending repair flag. A missing terminal-shadow ACK can therefore require
+repair, but can never reopen an ended call for takeover.
+
+Both current and legacy Compose/Helm entry points mount a dedicated file-backed
+CDR service key and persistent per-node spool. Both Helm charts reject
+`voice.persistence.enabled=false`; an ephemeral CDR spool is not a supported
+production mode. Helm projects the key group-readable for the constrained Pod
+`fsGroup`; RustPBX accepts the projected symlink only when its canonical target
+remains inside the configured Secret mount. Voice deployments require an
+independent API CDR Region; it is not inferred from placement. Compose defaults
+RustPBX to production and requires an explicit HTTPS CDR endpoint. On a non-empty
+`ivekit_tenant_events` table, the migration runner validates and creates or
+repairs the composite unique index concurrently before the transactional
+migration revalidates and attaches it as a constraint. Contract activation,
+quorum-loss handling, quarantine recovery, monitoring and rollback are defined in
+`docs/ivekit-voice-cdr-durability-runbook.md`.
+
+The exact ivekit.28 queue contains 29 patches. Locked Rust compilation, 64
+iveKit-focused Rust tests, the independent missing-callee test, 20 dialog
+shadow/recovery contract tests and the TypeScript regressions are reproducibility
+evidence only.
+Physical cross-Zone PostgreSQL quorum, process restart, sustained spool replay,
+real RTP continuity during store loss and capacity remain `not_run`.
+
+`VOICE-HA-T1` first commits a reciprocal `terminating` shadow quorum, then
+enforces local file and directory sync, an exact configured-Region cross-Zone
+`committed` receipt and the database terminal fence, and only then the
+reciprocal `terminated` shadow quorum. A failed Region commit leaves the shadow
+in `terminating`; a higher-epoch takeover is finalization-only and does not
+restore SIP dialogs, RTPengine sessions or media control. A process loss after
+the receipt cannot lose the already committed CDR, and a failed final shadow
+commit remains blocked by the database terminal fence. Recovered finalizers use
+the same receipt-before-terminal-shadow ordering with bounded retry. The Drop
+reporter is only a best-effort safety net and never marks a CDR sent before
+durability.
+
+`VOICE-ORDINARY` intentionally has no replicated shadow dependency and treats
+the local durable spool as its success boundary. Loss of its sole spool while
+the process is then killed is an unprotected double failure. Tenants requiring
+zero terminal-CDR loss under that fault combination must use `VOICE-HA-T1`;
+ordinary mode must not be described as providing it.
+
+## Reproducibility
+
+- RustPBX: `6c49ee76baa54fdbf8f98020cc9bee158c7c15de`
+- rsipstack: `8318e97b1170de4e5245b120afec1cdf53e3d716`
+- Rust builder: pinned by digest in `build.sh`
+- Cargo dependency graph: `Cargo.lock`, built with `--locked`
+- Runtime base: pinned by digest in `Dockerfile.runtime`
+
+Run on a native amd64 or arm64 Docker host:
+
+```bash
+npm run ivekit:rustpbx-build
+```
+
+Run the same exact-source patch application plus fmt, check, clippy and focused
+behavior gates without publishing an image:
+
+```bash
+IVEKIT_RUSTPBX_VERIFY_ONLY=1 bash infra/ivekit/rustpbx/build.sh
+```
+
+The RustPBX image workflow runs this verification before either architecture
+build and also runs it for pull requests without GHCR publication.
+
+Override the output image with `IVEKIT_RUSTPBX_IMAGE`. Cross compilation is
+rejected so an image cannot be mislabeled with binaries from another architecture.
+
+Constrained builders may set `IVEKIT_RUSTPBX_BUILD_CPUS`,
+`IVEKIT_RUSTPBX_BUILD_MEMORY`, and `IVEKIT_RUSTPBX_BUILD_JOBS`. Set
+`IVEKIT_RUSTPBX_CARGO_HOME` to a host directory to retain the Cargo registry
+between clean source builds. These controls only bound the build container;
+they do not change the release profile or runtime image.
+
+## Acceptance
+
+The delivery bundle exposes three separate engineering checks:
+
+```bash
+npm run ivekit:rustpbx-management-acceptance
+npm run ivekit:rustpbx-rwi-acceptance
+npm run ivekit:rustpbx-sipp-acceptance
+```
+
+The RWI check authenticates with the production client, runs `session.list_calls`,
+originates with a deterministic call ID, finds that ID through AMI, and hangs up
+the same call. Acceptance must also observe the downstream SIPp UAS receiving
+BYE; the RWI command result alone is not sufficient evidence. This proves
+signaling and reconciliation, not RTP media quality.
+
+`npm run ivekit:rustpbx-sipp-acceptance` includes `answer-tcp` followed by
+`answer-tcp-reconnect`. The downstream SIPp UAS is destroyed between the two
+calls while RustPBX remains running. Both scenarios must pass with Router and CDR
+evidence.

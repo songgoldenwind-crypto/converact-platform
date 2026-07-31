@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0.0",
+  "status_id": "ivekit-capacity-phase1-controlled-20260716",
+  "generated_at": "2026-07-16T07:05:33Z",
+  "status": "controlled_implementation_pass",
+  "evidence_level": "controlled",
+  "capacity_claim": "none",
+  "source": {
+    "base_commit": "738c29b839fe18e08e6c6da293169940a3ec8674",
+    "working_tree_dirty": true,
+    "generator_release_id": "not_available_until_committed_and_built"
+  },
+  "verification": {
+    "focused_test_command": "node --import tsx --test test/ivekit-capacity-*.test.ts",
+    "focused_test_status": "passed",
+    "focused_test_count": 35,
+    "typecheck_command": "npm run typecheck",
+    "typecheck_status": "passed",
+    "json_syntax_status": "passed"
+  },
+  "implemented": [
+    "deterministic_profile_compiler",
+    "immutable_run_manifest_sha256",
+    "interaction_and_connection_shards",
+    "required_protocol_gate",
+    "monotonic_shard_lease_fencing",
+    "generator_capacity_qualification",
+    "three_plane_evidence_validator",
+    "ivekit_event_websocket_controlled_generator",
+    "tinode_controlled_generator",
+    "sipp_capacity_plan_runner_and_parser",
+    "single_unit_frontier_runner",
+    "measured_1_2_4_8_curve_runner",
+    "manifest_compile_and_validate_cli"
+  ],
+  "controlled_protocol_results": {
+    "ivekit_event_websocket": "passed_loopback_real_websocket",
+    "tinode": "passed_loopback_real_websocket",
+    "sipp": "passed_controlled_executor_and_statistics_parser"
+  },
+  "not_run": [
+    "real_sipp_process_on_this_workstation",
+    "rustpbx_sip_rtp_recording_single_node_frontier",
+    "tinode_deployed_service_single_node_frontier",
+    "ivekit_edge_deployed_service_single_node_frontier",
+    "livekit_multi_room_turn_egress_single_node_frontier",
+    "rustdesk_hbbs_hbbr_synthetic_frontier",
+    "rustdesk_real_windows_correctness_lane",
+    "component_1_2_4_8_physical_curve",
+    "cell_10k_physical_run",
+    "mix_100k_physical_run"
+  ],
+  "truth_constraints": [
+    "This status proves harness implementation behavior only.",
+    "No C_hard, C_safe, Cell-10K, MIX-100K, PSTN, RTP, TURN, Egress, Windows, or production capacity result is claimed.",
+    "A committed immutable generator release and qualified physical generator fleet are required before capacity execution evidence can pass."
+  ]
+}

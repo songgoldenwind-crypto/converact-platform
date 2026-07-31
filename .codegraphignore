@@ -1,0 +1,19 @@
+# CodeGraph index exclusions for OPC.
+# Keep files on disk but exclude them from the knowledge graph,
+# so codegraph_explore / search results stay focused on the active mainline.
+
+# Archived legacy "broad platform" code — superseded; see OPC开发主线约束.md §2.
+docs-archive/
+
+# Old git worktrees — full source copies that would produce duplicate symbols.
+.worktrees/
+
+# Build artifacts.
+node_modules/
+services/voice-media-rs/target/
+**/__pycache__/
+**/target/
+
+# Local data / logs.
+data/
+*.log

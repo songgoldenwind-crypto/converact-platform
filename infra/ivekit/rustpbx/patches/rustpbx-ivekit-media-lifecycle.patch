@@ -1,0 +1,3545 @@
+diff --git a/src/ivekit_media_control.rs b/src/ivekit_media_control.rs
+index 6c468728..ec143bc9 100644
+--- a/src/ivekit_media_control.rs
++++ b/src/ivekit_media_control.rs
+@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
+ use serde_json::{Map, Value};
+ use sha2::{Digest, Sha256};
+ use std::fs;
++use std::future::Future;
+ use std::path::{Path, PathBuf};
+ use std::sync::Arc;
+ use std::sync::atomic::{AtomicU32, Ordering};
+@@ -11,10 +12,129 @@ use std::time::Duration;
+ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+ 
+ pub const MEDIA_CONTROL_PROTOCOL_VERSION: &str = "ivekit.media-control.v1";
++pub const MEDIA_CONTROL_EVENT_PROTOCOL_VERSION: &str = "ivekit.media-event.v1";
+ const MAX_REQUEST_BYTES: usize = 128 * 1024;
+ const MAX_SECRET_BYTES: usize = 64 * 1024;
+ const MAX_CA_BYTES: usize = 1024 * 1024;
+ 
++#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
++pub struct MediaControlDtmfEvent {
++    pub protocol_version: String,
++    pub event_sequence: u64,
++    pub event_type: String,
++    pub tenant_id: String,
++    pub call_id: String,
++    pub cell_id: String,
++    pub owner_node_id: String,
++    pub owner_epoch: String,
++    pub source_tag: String,
++    pub digit: String,
++    pub duration: u16,
++    pub volume: u8,
++    pub rtp_timestamp: u64,
++}
++
++impl MediaControlDtmfEvent {
++    pub fn validate_for_owner(&self, owner_node_id: &str) -> Result<(), &'static str> {
++        if self.protocol_version != MEDIA_CONTROL_EVENT_PROTOCOL_VERSION
++            || self.event_sequence == 0
++            || self.event_type != "dtmf"
++            || !valid_identifier(&self.tenant_id, "tenant_id").is_ok()
++            || !valid_identifier(&self.call_id, "call_id").is_ok()
++            || !valid_identifier(&self.cell_id, "cell_id").is_ok()
++            || !valid_identifier(&self.owner_node_id, "owner_node_id").is_ok()
++            || !valid_event_sip_tag(&self.source_tag)
++            || !matches!(
++                self.digit.as_str(),
++                "0" | "1"
++                    | "2"
++                    | "3"
++                    | "4"
++                    | "5"
++                    | "6"
++                    | "7"
++                    | "8"
++                    | "9"
++                    | "*"
++                    | "#"
++                    | "A"
++                    | "B"
++                    | "C"
++                    | "D"
++            )
++            || self.volume > 63
++            || self
++                .owner_epoch
++                .parse::<u64>()
++                .ok()
++                .filter(|value| *value > 0)
++                .is_none()
++        {
++            return Err("media_event_invalid");
++        }
++        if self.owner_node_id != owner_node_id {
++            return Err("media_event_owner_mismatch");
++        }
++        Ok(())
++    }
++}
++
++fn valid_event_sip_tag(value: &str) -> bool {
++    !value.is_empty()
++        && value.len() <= 256
++        && value.bytes().all(|byte| {
++            byte.is_ascii_alphanumeric()
++                || matches!(
++                    byte,
++                    b'-' | b'.' | b'!' | b'%' | b'*' | b'_' | b'+' | b'`' | b'\'' | b'~'
++                )
++        })
++}
++
++pub struct MediaControlEventDecoder {
++    line: Vec<u8>,
++    max_line_bytes: usize,
++}
++
++impl MediaControlEventDecoder {
++    pub fn new(max_line_bytes: usize) -> Result<Self, &'static str> {
++        if !(256..=1_048_576).contains(&max_line_bytes) {
++            return Err("media_event_line_limit_invalid");
++        }
++        Ok(Self {
++            line: Vec::with_capacity(max_line_bytes.min(8_192)),
++            max_line_bytes,
++        })
++    }
++
++    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<MediaControlDtmfEvent>, &'static str> {
++        let mut events = Vec::new();
++        for byte in chunk {
++            if *byte != b'\n' {
++                if self.line.len() >= self.max_line_bytes {
++                    return Err("media_event_line_too_large");
++                }
++                self.line.push(*byte);
++                continue;
++            }
++            if self.line.last() == Some(&b'\r') {
++                self.line.pop();
++            }
++            if self.line.is_empty() {
++                continue;
++            }
++            let event: MediaControlDtmfEvent =
++                serde_json::from_slice(&self.line).map_err(|_| "media_event_invalid")?;
++            event
++                .validate_for_owner(&event.owner_node_id)
++                .map_err(|_| "media_event_invalid")?;
++            events.push(event);
++            self.line.clear();
++        }
++        Ok(events)
++    }
++}
++
+ #[derive(Clone)]
+ pub struct MediaControlClientConfig {
+     pub endpoint: Url,
+@@ -204,6 +324,88 @@ impl MediaControlClient {
+         Ok(envelope.data)
+     }
+ 
++    pub async fn consume_events<F, Fut>(
++        &self,
++        owner_node_id: &str,
++        after_sequence: &mut u64,
++        mut handle: F,
++    ) -> Result<(), MediaControlClientError>
++    where
++        F: FnMut(MediaControlDtmfEvent) -> Fut,
++        Fut: Future<Output = Result<(), &'static str>>,
++    {
++        valid_identifier(owner_node_id, "owner_node_id")?;
++        let mut url = self.endpoint.join("v1/events").map_err(|_| {
++            MediaControlClientError::Configuration("media_control_endpoint_invalid")
++        })?;
++        url.query_pairs_mut()
++            .append_pair("owner_node_id", owner_node_id)
++            .append_pair("after_sequence", &after_sequence.to_string());
++        let response = self
++            .client
++            .get(url)
++            .bearer_auth(&self.service_token)
++            .header(reqwest::header::ACCEPT, "application/x-ndjson")
++            .send()
++            .await
++            .map_err(|_| MediaControlClientError::UnknownAfterTransport {
++                code: "media_event_stream_unavailable",
++            })?;
++        if !response.status().is_success() {
++            let status = response.status();
++            let body = read_bounded_response(response, self.max_response_bytes).await?;
++            return Err(project_rejection(status, &body));
++        }
++        let content_type = response
++            .headers()
++            .get(reqwest::header::CONTENT_TYPE)
++            .and_then(|value| value.to_str().ok())
++            .unwrap_or("");
++        if !content_type
++            .to_ascii_lowercase()
++            .starts_with("application/x-ndjson")
++        {
++            return Err(MediaControlClientError::UnknownAfterTransport {
++                code: "media_event_stream_invalid",
++            });
++        }
++
++        let mut decoder = MediaControlEventDecoder::new(self.max_response_bytes)
++            .map_err(|code| MediaControlClientError::Configuration(code))?;
++        let mut stream = response.bytes_stream();
++        while let Some(chunk) = stream.next().await {
++            let chunk = chunk.map_err(|_| MediaControlClientError::UnknownAfterTransport {
++                code: "media_event_stream_unavailable",
++            })?;
++            for event in decoder
++                .push(&chunk)
++                .map_err(|code| MediaControlClientError::UnknownAfterTransport { code })?
++            {
++                event
++                    .validate_for_owner(owner_node_id)
++                    .map_err(|code| MediaControlClientError::UnknownAfterTransport { code })?;
++                let expected = after_sequence.checked_add(1).ok_or(
++                    MediaControlClientError::UnknownAfterTransport {
++                        code: "media_event_sequence_exhausted",
++                    },
++                )?;
++                if event.event_sequence != expected {
++                    return Err(MediaControlClientError::UnknownAfterTransport {
++                        code: "media_event_sequence_gap",
++                    });
++                }
++                let sequence = event.event_sequence;
++                handle(event)
++                    .await
++                    .map_err(|code| MediaControlClientError::UnknownAfterTransport { code })?;
++                *after_sequence = sequence;
++            }
++        }
++        Err(MediaControlClientError::UnknownAfterTransport {
++            code: "media_event_stream_closed",
++        })
++    }
++
+     fn acquire_before_transport(&self) -> Result<OwnedSemaphorePermit, MediaControlClientError> {
+         self.inflight
+             .clone()
+@@ -294,6 +496,30 @@ impl MediaControlClient {
+     }
+ }
+ 
++async fn read_bounded_response(
++    response: reqwest::Response,
++    maximum_bytes: usize,
++) -> Result<Vec<u8>, MediaControlClientError> {
++    if response
++        .content_length()
++        .is_some_and(|length| length > maximum_bytes as u64)
++    {
++        return Err(MediaControlClientError::UnknownAfterTransport {
++            code: "response_too_large",
++        });
++    }
++    let mut stream = response.bytes_stream();
++    let mut body = Vec::new();
++    while let Some(chunk) = stream.next().await {
++        let chunk = chunk.map_err(|_| MediaControlClientError::UnknownAfterTransport {
++            code: "media_control_unavailable",
++        })?;
++        append_bounded(&mut body, &chunk, maximum_bytes)
++            .map_err(|code| MediaControlClientError::UnknownAfterTransport { code })?;
++    }
++    Ok(body)
++}
++
+ pub struct CallMediaSequenceAllocator {
+     next_sequence: AtomicU32,
+ }
+@@ -906,4 +1132,34 @@ mod tests {
+             }
+         ));
+     }
++
++    #[test]
++    fn media_event_decoder_is_incremental_and_owner_bound() {
++        let mut decoder = MediaControlEventDecoder::new(4_096).unwrap();
++        let line = br##"{"protocol_version":"ivekit.media-event.v1","event_sequence":7,"event_type":"dtmf","tenant_id":"tenant-1","call_id":"call-1","cell_id":"cell-1","owner_node_id":"rustpbx-1","owner_epoch":"4294967297","source_tag":"caller-tag","digit":"#","duration":160,"volume":10,"rtp_timestamp":1234}
++"##;
++        assert!(decoder.push(&line[..80]).unwrap().is_empty());
++        let events = decoder.push(&line[80..]).unwrap();
++        assert_eq!(events.len(), 1);
++        assert_eq!(events[0].event_sequence, 7);
++        assert_eq!(events[0].digit, "#");
++        events[0].validate_for_owner("rustpbx-1").unwrap();
++        assert_eq!(
++            events[0].validate_for_owner("rustpbx-2"),
++            Err("media_event_owner_mismatch")
++        );
++    }
++
++    #[test]
++    fn media_event_decoder_rejects_invalid_protocol_and_unbounded_lines() {
++        let mut decoder = MediaControlEventDecoder::new(256).unwrap();
++        assert_eq!(
++            decoder.push(&vec![b'x'; 257]),
++            Err("media_event_line_too_large")
++        );
++        let invalid = br#"{"protocol_version":"wrong","event_sequence":1,"event_type":"dtmf","tenant_id":"tenant-1","call_id":"call-1","cell_id":"cell-1","owner_node_id":"rustpbx-1","owner_epoch":"1","source_tag":"tag-1","digit":"5","duration":0,"volume":0,"rtp_timestamp":0}
++"#;
++        let mut decoder = MediaControlEventDecoder::new(4_096).unwrap();
++        assert_eq!(decoder.push(invalid), Err("media_event_invalid"));
++    }
+ }
+diff --git a/src/ivekit_media_lifecycle.rs b/src/ivekit_media_lifecycle.rs
+new file mode 100644
+index 00000000..7c480e36
+--- /dev/null
++++ b/src/ivekit_media_lifecycle.rs
+@@ -0,0 +1,2460 @@
++use std::collections::HashMap;
++use std::path::PathBuf;
++use std::sync::Arc;
++use std::sync::OnceLock;
++use std::time::Duration;
++
++use crate::ivekit_media_control::{
++    MEDIA_CONTROL_PROTOCOL_VERSION, MediaControlAction, MediaControlClient,
++    MediaControlClientError, MediaControlCommand, MediaControlResult, MediaSessionSnapshot,
++    command_id_for, payload_hash,
++};
++use reqwest::Url;
++use serde_json::Value;
++use sha2::{Digest, Sha256};
++use tokio_util::sync::CancellationToken;
++use tracing::{info, warn};
++
++pub const MAX_MEDIA_LEGS: usize = 32;
++pub const MAX_MEDIA_BRANCHES: usize = 16;
++const MAX_IDENTIFIER_BYTES: usize = 256;
++const MAX_SDP_BYTES: usize = 128 * 1024;
++
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct MediaAdmissionBinding {
++    tenant_id: String,
++    call_id: String,
++    cell_id: String,
++    owner_node_id: String,
++    owner_epoch: String,
++    admission_reservation_id: String,
++    media_profile_id: String,
++}
++
++impl MediaAdmissionBinding {
++    #[allow(clippy::too_many_arguments)]
++    pub fn new(
++        tenant_id: &str,
++        call_id: &str,
++        cell_id: &str,
++        owner_node_id: &str,
++        owner_epoch: &str,
++        admission_reservation_id: &str,
++        media_profile_id: &str,
++    ) -> Result<Self, MediaLifecycleError> {
++        for (name, value) in [
++            ("tenant_id", tenant_id),
++            ("call_id", call_id),
++            ("cell_id", cell_id),
++            ("owner_node_id", owner_node_id),
++            ("admission_reservation_id", admission_reservation_id),
++            ("media_profile_id", media_profile_id),
++        ] {
++            valid_identifier(value)
++                .then_some(())
++                .ok_or(MediaLifecycleError::InvalidBinding(name))?;
++        }
++        owner_epoch
++            .parse::<u64>()
++            .ok()
++            .filter(|value| *value > 0)
++            .ok_or(MediaLifecycleError::InvalidBinding("owner_epoch"))?;
++        Ok(Self {
++            tenant_id: tenant_id.to_string(),
++            call_id: call_id.to_string(),
++            cell_id: cell_id.to_string(),
++            owner_node_id: owner_node_id.to_string(),
++            owner_epoch: owner_epoch.to_string(),
++            admission_reservation_id: admission_reservation_id.to_string(),
++            media_profile_id: media_profile_id.to_string(),
++        })
++    }
++
++    pub fn owner_epoch(&self) -> &str {
++        &self.owner_epoch
++    }
++
++    pub fn tenant_id(&self) -> &str {
++        &self.tenant_id
++    }
++
++    pub fn call_id(&self) -> &str {
++        &self.call_id
++    }
++
++    pub fn cell_id(&self) -> &str {
++        &self.cell_id
++    }
++
++    pub fn owner_node_id(&self) -> &str {
++        &self.owner_node_id
++    }
++
++    pub fn media_profile_id(&self) -> &str {
++        &self.media_profile_id
++    }
++
++    pub fn admission_reservation_id(&self) -> &str {
++        &self.admission_reservation_id
++    }
++
++    pub fn media_reservation_id(&self, leg_id: &str) -> Result<String, MediaLifecycleError> {
++        if !valid_identifier(leg_id) {
++            return Err(MediaLifecycleError::InvalidLeg);
++        }
++        let value = format!("{}/{leg_id}", self.admission_reservation_id);
++        if value.len() > MAX_IDENTIFIER_BYTES {
++            return Err(MediaLifecycleError::InvalidLeg);
++        }
++        Ok(value)
++    }
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum LocalMediaReason {
++    Ivr,
++    Conference,
++    Queue,
++    Recording,
++    AudioTap,
++    WebRtcBridge,
++    Transcoding,
++    ParallelFork,
++    Offerless,
++    MediaControlDisabled,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum MediaDialogSide {
++    Caller,
++    Callee,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum MediaExecutionProfile {
++    OrdinaryRelay,
++    LocalMediaGraph(LocalMediaReason),
++    ExplicitBypass,
++    FailClosed,
++    ExplicitFallback,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum MediaControlFailurePolicy {
++    FailClosed,
++    ExplicitFallback,
++}
++
++impl MediaControlFailurePolicy {
++    fn parse(value: Option<&str>) -> Result<Self, MediaLifecycleError> {
++        match value.unwrap_or("fail_closed") {
++            "fail_closed" => Ok(Self::FailClosed),
++            "explicit_fallback" => Ok(Self::ExplicitFallback),
++            _ => Err(MediaLifecycleError::ConfigurationInvalid),
++        }
++    }
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum MediaControlRuntimeMode {
++    OrdinaryRelay,
++}
++
++impl MediaControlRuntimeMode {
++    fn parse(value: Option<&str>) -> Result<Self, MediaLifecycleError> {
++        match value {
++            Some("ordinary_relay") => Ok(Self::OrdinaryRelay),
++            _ => Err(MediaLifecycleError::ConfigurationInvalid),
++        }
++    }
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct MediaExecutionFacts {
++    pub media_control_enabled: bool,
++    pub media_proxy_enabled: bool,
++    pub explicit_bypass: bool,
++    pub application_flow: bool,
++    pub queue_flow: bool,
++    pub parallel_fork: bool,
++    pub recording: bool,
++    pub audio_tap: bool,
++    pub caller_webrtc: bool,
++    pub callee_webrtc: bool,
++    pub transcoding: bool,
++    pub offerless: bool,
++}
++
++impl MediaExecutionFacts {
++    pub fn ordinary() -> Self {
++        Self {
++            media_control_enabled: true,
++            media_proxy_enabled: true,
++            explicit_bypass: false,
++            application_flow: false,
++            queue_flow: false,
++            parallel_fork: false,
++            recording: false,
++            audio_tap: false,
++            caller_webrtc: false,
++            callee_webrtc: false,
++            transcoding: false,
++            offerless: false,
++        }
++    }
++
++    #[cfg(test)]
++    fn for_local_reason(reason: LocalMediaReason) -> Self {
++        let mut facts = Self::ordinary();
++        match reason {
++            LocalMediaReason::Ivr | LocalMediaReason::Conference => facts.application_flow = true,
++            LocalMediaReason::Queue => facts.queue_flow = true,
++            LocalMediaReason::Recording => facts.recording = true,
++            LocalMediaReason::AudioTap => facts.audio_tap = true,
++            LocalMediaReason::WebRtcBridge => facts.caller_webrtc = true,
++            LocalMediaReason::Transcoding => facts.transcoding = true,
++            LocalMediaReason::ParallelFork => facts.parallel_fork = true,
++            LocalMediaReason::Offerless => facts.offerless = true,
++            LocalMediaReason::MediaControlDisabled => facts.media_control_enabled = false,
++        }
++        facts
++    }
++}
++
++pub fn classify_media_execution(facts: &MediaExecutionFacts) -> MediaExecutionProfile {
++    if facts.explicit_bypass || !facts.media_proxy_enabled {
++        return MediaExecutionProfile::ExplicitBypass;
++    }
++    if !facts.media_control_enabled {
++        return MediaExecutionProfile::LocalMediaGraph(LocalMediaReason::MediaControlDisabled);
++    }
++    if facts.queue_flow {
++        return MediaExecutionProfile::LocalMediaGraph(LocalMediaReason::Queue);
++    }
++    if facts.application_flow {
++        return MediaExecutionProfile::LocalMediaGraph(LocalMediaReason::Ivr);
++    }
++    if facts.parallel_fork {
++        return MediaExecutionProfile::LocalMediaGraph(LocalMediaReason::ParallelFork);
++    }
++    if facts.recording {
++        return MediaExecutionProfile::LocalMediaGraph(LocalMediaReason::Recording);
++    }
++    if facts.audio_tap {
++        return MediaExecutionProfile::LocalMediaGraph(LocalMediaReason::AudioTap);
++    }
++    if facts.caller_webrtc || facts.callee_webrtc {
++        return MediaExecutionProfile::LocalMediaGraph(LocalMediaReason::WebRtcBridge);
++    }
++    if facts.transcoding {
++        return MediaExecutionProfile::LocalMediaGraph(LocalMediaReason::Transcoding);
++    }
++    if facts.offerless {
++        return MediaExecutionProfile::LocalMediaGraph(LocalMediaReason::Offerless);
++    }
++    MediaExecutionProfile::OrdinaryRelay
++}
++
++pub fn stable_dialog_branch_id(call_id: &str, local_tag: &str, remote_tag: &str) -> String {
++    let mut digest = Sha256::new();
++    for value in [call_id, local_tag, remote_tag] {
++        digest.update((value.len() as u64).to_be_bytes());
++        digest.update(value.as_bytes());
++    }
++    let digest = digest.finalize();
++    let mut encoded = String::with_capacity(55);
++    encoded.push_str("branch-");
++    for byte in digest.iter().take(24) {
++        use std::fmt::Write;
++        write!(&mut encoded, "{byte:02x}").expect("writing to String cannot fail");
++    }
++    encoded
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum NegotiationState {
++    Unallocated,
++    OfferlessInvite,
++    Preparing,
++    Prepared,
++    Updating,
++    EarlyMedia,
++    Committed,
++    AwaitingAckAnswer,
++    Unknown,
++    Closed,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum BranchDisposition {
++    Early,
++    Winner,
++    Deleted,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum MediaMutationKind {
++    Offer,
++    EarlyAnswer,
++    FinalAnswer,
++    MidDialogOffer,
++    MidDialogAnswer,
++    Dtmf,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum MediaCloseOutcome {
++    NotAllocated,
++    Closed,
++    AlreadyClosed,
++}
++
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct MediaMutation {
++    pub sequence: u32,
++    pub branch_id: String,
++    pub kind: MediaMutationKind,
++}
++
++#[derive(Clone, Debug)]
++struct MediaBranch {
++    disposition: BranchDisposition,
++}
++
++#[derive(Clone, Debug)]
++pub struct PerLegMediaState {
++    leg_id: String,
++    logical_sdp: Option<String>,
++    effective_sdp: Option<String>,
++    state: NegotiationState,
++    next_sequence: u32,
++    pending_previous_state: Option<NegotiationState>,
++    pending_kind: Option<MediaMutationKind>,
++    pending_branch: Option<String>,
++    unknown_command_id: Option<String>,
++    branches: HashMap<String, MediaBranch>,
++    winning_branch: Option<String>,
++    sent_487: bool,
++}
++
++impl PerLegMediaState {
++    pub fn new(leg_id: &str, logical_offer: Option<&str>) -> Result<Self, MediaLifecycleError> {
++        if !valid_identifier(leg_id) {
++            return Err(MediaLifecycleError::InvalidLeg);
++        }
++        if logical_offer.is_some_and(|sdp| sdp.len() > MAX_SDP_BYTES || sdp.contains('\0')) {
++            return Err(MediaLifecycleError::InvalidSdp);
++        }
++        Ok(Self {
++            leg_id: leg_id.to_string(),
++            logical_sdp: logical_offer.map(ToString::to_string),
++            effective_sdp: None,
++            state: if logical_offer.is_some() {
++                NegotiationState::Unallocated
++            } else {
++                NegotiationState::OfferlessInvite
++            },
++            next_sequence: 1,
++            pending_previous_state: None,
++            pending_kind: None,
++            pending_branch: None,
++            unknown_command_id: None,
++            branches: HashMap::new(),
++            winning_branch: None,
++            sent_487: false,
++        })
++    }
++
++    pub fn state(&self) -> NegotiationState {
++        self.state
++    }
++
++    pub fn next_sequence(&self) -> u32 {
++        self.next_sequence
++    }
++
++    pub fn effective_sdp(&self) -> Option<&str> {
++        self.effective_sdp.as_deref()
++    }
++
++    pub fn logical_sdp(&self) -> Option<&str> {
++        self.logical_sdp.as_deref()
++    }
++
++    pub fn leg_id(&self) -> &str {
++        &self.leg_id
++    }
++
++    pub fn reconcile_required(&self) -> bool {
++        self.state == NegotiationState::Unknown
++    }
++
++    pub fn winning_branch(&self) -> Option<&str> {
++        self.winning_branch.as_deref()
++    }
++
++    pub fn begin_offer(&mut self, branch_id: &str) -> Result<MediaMutation, MediaLifecycleError> {
++        if self.state != NegotiationState::Unallocated || self.logical_sdp.is_none() {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        self.register_early_branch(branch_id)?;
++        self.begin_mutation(
++            MediaMutationKind::Offer,
++            branch_id,
++            NegotiationState::Preparing,
++        )
++    }
++
++    pub fn commit_offer(
++        &mut self,
++        branch_id: &str,
++        effective_sdp: &str,
++    ) -> Result<(), MediaLifecycleError> {
++        self.commit_mutation(
++            MediaMutationKind::Offer,
++            branch_id,
++            effective_sdp,
++            NegotiationState::Prepared,
++        )
++    }
++
++    pub fn begin_early_media(
++        &mut self,
++        branch_id: &str,
++    ) -> Result<MediaMutation, MediaLifecycleError> {
++        if !matches!(
++            self.state,
++            NegotiationState::Prepared | NegotiationState::EarlyMedia
++        ) {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        self.register_early_branch(branch_id)?;
++        self.begin_mutation(
++            MediaMutationKind::EarlyAnswer,
++            branch_id,
++            NegotiationState::Updating,
++        )
++    }
++
++    pub fn commit_early_media(
++        &mut self,
++        branch_id: &str,
++        effective_sdp: &str,
++    ) -> Result<(), MediaLifecycleError> {
++        self.commit_mutation(
++            MediaMutationKind::EarlyAnswer,
++            branch_id,
++            effective_sdp,
++            NegotiationState::EarlyMedia,
++        )
++    }
++
++    pub fn begin_final_answer(
++        &mut self,
++        branch_id: &str,
++    ) -> Result<MediaMutation, MediaLifecycleError> {
++        if !matches!(
++            self.state,
++            NegotiationState::Prepared | NegotiationState::EarlyMedia
++        ) {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        self.register_early_branch(branch_id)?;
++        self.begin_mutation(
++            MediaMutationKind::FinalAnswer,
++            branch_id,
++            NegotiationState::Updating,
++        )
++    }
++
++    pub fn commit_final_answer(
++        &mut self,
++        branch_id: &str,
++        effective_sdp: &str,
++    ) -> Result<(), MediaLifecycleError> {
++        self.commit_mutation(
++            MediaMutationKind::FinalAnswer,
++            branch_id,
++            effective_sdp,
++            NegotiationState::Committed,
++        )?;
++        self.select_winning_branch(branch_id)
++    }
++
++    pub fn begin_mid_dialog_offer(&mut self) -> Result<MediaMutation, MediaLifecycleError> {
++        self.begin_committed_mutation(MediaMutationKind::MidDialogOffer)
++    }
++
++    pub fn commit_mid_dialog_offer(
++        &mut self,
++        branch_id: &str,
++        effective_sdp: &str,
++    ) -> Result<(), MediaLifecycleError> {
++        self.commit_mutation(
++            MediaMutationKind::MidDialogOffer,
++            branch_id,
++            effective_sdp,
++            NegotiationState::Committed,
++        )
++    }
++
++    pub fn begin_mid_dialog_answer(&mut self) -> Result<MediaMutation, MediaLifecycleError> {
++        self.begin_committed_mutation(MediaMutationKind::MidDialogAnswer)
++    }
++
++    pub fn commit_mid_dialog_answer(
++        &mut self,
++        branch_id: &str,
++        effective_sdp: &str,
++    ) -> Result<(), MediaLifecycleError> {
++        self.commit_mutation(
++            MediaMutationKind::MidDialogAnswer,
++            branch_id,
++            effective_sdp,
++            NegotiationState::Committed,
++        )
++    }
++
++    pub fn begin_dtmf(&mut self) -> Result<MediaMutation, MediaLifecycleError> {
++        self.begin_committed_mutation(MediaMutationKind::Dtmf)
++    }
++
++    pub fn commit_dtmf(
++        &mut self,
++        branch_id: &str,
++        effective_sdp: &str,
++    ) -> Result<(), MediaLifecycleError> {
++        self.commit_mutation(
++            MediaMutationKind::Dtmf,
++            branch_id,
++            effective_sdp,
++            NegotiationState::Committed,
++        )
++    }
++
++    pub fn note_late_offer(
++        &mut self,
++        branch_id: &str,
++        offer_sdp: &str,
++    ) -> Result<(), MediaLifecycleError> {
++        if self.state != NegotiationState::OfferlessInvite {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        checked_sdp(offer_sdp)?;
++        self.register_early_branch(branch_id)?;
++        self.logical_sdp = Some(offer_sdp.to_string());
++        self.state = NegotiationState::AwaitingAckAnswer;
++        Ok(())
++    }
++
++    pub fn register_early_branch(&mut self, branch_id: &str) -> Result<(), MediaLifecycleError> {
++        if !valid_identifier(branch_id) {
++            return Err(MediaLifecycleError::InvalidBranch);
++        }
++        if self.branches.contains_key(branch_id) {
++            return Ok(());
++        }
++        if self.branches.len() >= MAX_MEDIA_BRANCHES {
++            return Err(MediaLifecycleError::BranchCapacity);
++        }
++        self.branches.insert(
++            branch_id.to_string(),
++            MediaBranch {
++                disposition: BranchDisposition::Early,
++            },
++        );
++        Ok(())
++    }
++
++    pub fn select_winning_branch(&mut self, branch_id: &str) -> Result<(), MediaLifecycleError> {
++        if self
++            .winning_branch
++            .as_deref()
++            .is_some_and(|winner| winner != branch_id)
++        {
++            return Err(MediaLifecycleError::WinnerConflict);
++        }
++        let branch = self
++            .branches
++            .get_mut(branch_id)
++            .ok_or(MediaLifecycleError::InvalidBranch)?;
++        if branch.disposition == BranchDisposition::Deleted {
++            return Err(MediaLifecycleError::InvalidBranch);
++        }
++        branch.disposition = BranchDisposition::Winner;
++        self.winning_branch = Some(branch_id.to_string());
++        Ok(())
++    }
++
++    pub fn delete_losing_branch(
++        &mut self,
++        branch_id: &str,
++    ) -> Result<BranchDisposition, MediaLifecycleError> {
++        if self.winning_branch.as_deref() == Some(branch_id) {
++            return Err(MediaLifecycleError::WinnerConflict);
++        }
++        let branch = self
++            .branches
++            .get_mut(branch_id)
++            .ok_or(MediaLifecycleError::InvalidBranch)?;
++        branch.disposition = BranchDisposition::Deleted;
++        Ok(branch.disposition)
++    }
++
++    pub fn mark_unknown(&mut self, command_id: &str) -> Result<(), MediaLifecycleError> {
++        if self.pending_kind.is_none() || !valid_identifier(command_id) {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        self.unknown_command_id = Some(command_id.to_string());
++        self.state = NegotiationState::Unknown;
++        Ok(())
++    }
++
++    pub fn reconcile_committed(
++        &mut self,
++        command_id: &str,
++        recovered_state: NegotiationState,
++        effective_sdp: &str,
++    ) -> Result<(), MediaLifecycleError> {
++        if self.state != NegotiationState::Unknown
++            || self.unknown_command_id.as_deref() != Some(command_id)
++            || !matches!(
++                recovered_state,
++                NegotiationState::Prepared
++                    | NegotiationState::EarlyMedia
++                    | NegotiationState::Committed
++                    | NegotiationState::Closed
++            )
++        {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        checked_sdp(effective_sdp)?;
++        self.state = recovered_state;
++        self.effective_sdp = Some(effective_sdp.to_string());
++        self.pending_kind = None;
++        self.pending_branch = None;
++        self.pending_previous_state = None;
++        self.unknown_command_id = None;
++        Ok(())
++    }
++
++    pub fn cancel_before_answer(&mut self) -> Result<(), MediaLifecycleError> {
++        if matches!(
++            self.state,
++            NegotiationState::Committed | NegotiationState::Closed
++        ) {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        self.state = NegotiationState::Closed;
++        Ok(())
++    }
++
++    fn reserve_close_sequence(&mut self) -> Result<u32, MediaLifecycleError> {
++        if self.reconcile_required() || self.pending_kind.is_some() {
++            return Err(MediaLifecycleError::ReconcileRequired);
++        }
++        if matches!(
++            self.state,
++            NegotiationState::Unallocated
++                | NegotiationState::OfferlessInvite
++                | NegotiationState::Closed
++        ) {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        let sequence = self.next_sequence;
++        self.next_sequence = self
++            .next_sequence
++            .checked_add(1)
++            .ok_or(MediaLifecycleError::SequenceExhausted)?;
++        Ok(sequence)
++    }
++
++    fn mark_close_unknown(&mut self, command_id: &str) -> Result<(), MediaLifecycleError> {
++        if !valid_identifier(command_id) {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        self.unknown_command_id = Some(command_id.to_string());
++        self.state = NegotiationState::Unknown;
++        Ok(())
++    }
++
++    fn commit_close(&mut self) {
++        self.pending_previous_state = None;
++        self.pending_kind = None;
++        self.pending_branch = None;
++        self.unknown_command_id = None;
++        self.state = NegotiationState::Closed;
++    }
++
++    pub fn send_487_once(&mut self) -> bool {
++        if self.sent_487 {
++            return false;
++        }
++        self.sent_487 = true;
++        true
++    }
++
++    fn begin_mutation(
++        &mut self,
++        kind: MediaMutationKind,
++        branch_id: &str,
++        transient_state: NegotiationState,
++    ) -> Result<MediaMutation, MediaLifecycleError> {
++        if self.reconcile_required() || self.pending_kind.is_some() {
++            return Err(MediaLifecycleError::ReconcileRequired);
++        }
++        let sequence = self.next_sequence;
++        self.next_sequence = self
++            .next_sequence
++            .checked_add(1)
++            .ok_or(MediaLifecycleError::SequenceExhausted)?;
++        self.pending_previous_state = Some(self.state);
++        self.pending_kind = Some(kind);
++        self.pending_branch = Some(branch_id.to_string());
++        self.state = transient_state;
++        Ok(MediaMutation {
++            sequence,
++            branch_id: branch_id.to_string(),
++            kind,
++        })
++    }
++
++    fn begin_committed_mutation(
++        &mut self,
++        kind: MediaMutationKind,
++    ) -> Result<MediaMutation, MediaLifecycleError> {
++        if self.state != NegotiationState::Committed {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        let branch_id = self
++            .winning_branch
++            .clone()
++            .ok_or(MediaLifecycleError::InvalidBranch)?;
++        self.begin_mutation(kind, &branch_id, NegotiationState::Updating)
++    }
++
++    fn commit_mutation(
++        &mut self,
++        kind: MediaMutationKind,
++        branch_id: &str,
++        effective_sdp: &str,
++        committed_state: NegotiationState,
++    ) -> Result<(), MediaLifecycleError> {
++        if self.pending_kind != Some(kind) || self.pending_branch.as_deref() != Some(branch_id) {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        checked_sdp(effective_sdp)?;
++        self.effective_sdp = Some(effective_sdp.to_string());
++        self.pending_previous_state = None;
++        self.pending_kind = None;
++        self.pending_branch = None;
++        self.state = committed_state;
++        Ok(())
++    }
++
++    fn reject_pending(&mut self) -> Result<(), MediaLifecycleError> {
++        let previous = self
++            .pending_previous_state
++            .take()
++            .ok_or(MediaLifecycleError::InvalidTransition)?;
++        self.pending_kind = None;
++        self.pending_branch = None;
++        self.state = previous;
++        Ok(())
++    }
++}
++
++#[async_trait::async_trait]
++pub trait MediaControlExecutor: Send + Sync {
++    async fn execute(
++        &self,
++        command: &MediaControlCommand,
++    ) -> Result<MediaControlResult, MediaControlClientError>;
++}
++
++#[async_trait::async_trait]
++impl MediaControlExecutor for MediaControlClient {
++    async fn execute(
++        &self,
++        command: &MediaControlCommand,
++    ) -> Result<MediaControlResult, MediaControlClientError> {
++        MediaControlClient::execute(self, command).await
++    }
++}
++
++pub struct IveKitMediaLifecycle {
++    binding: MediaAdmissionBinding,
++    executor: Arc<dyn MediaControlExecutor>,
++    from_tag: String,
++    to_tag: Option<String>,
++    callee: PerLegMediaState,
++    close_command: Option<MediaControlCommand>,
++    close_confirmed: bool,
++}
++
++impl IveKitMediaLifecycle {
++    pub fn new(
++        binding: MediaAdmissionBinding,
++        executor: Arc<dyn MediaControlExecutor>,
++        from_tag: &str,
++        caller_offer: Option<&str>,
++    ) -> Result<Self, MediaLifecycleError> {
++        if !valid_sip_tag(from_tag) {
++            return Err(MediaLifecycleError::InvalidBinding("from_tag"));
++        }
++        Ok(Self {
++            binding,
++            executor,
++            from_tag: from_tag.to_string(),
++            to_tag: None,
++            callee: PerLegMediaState::new("callee", caller_offer)?,
++            close_command: None,
++            close_confirmed: false,
++        })
++    }
++
++    pub fn state(&self) -> NegotiationState {
++        self.callee.state()
++    }
++
++    pub fn reconcile_required(&self) -> bool {
++        self.callee.reconcile_required()
++    }
++
++    pub async fn prepare_ordinary_relay_offer(
++        &mut self,
++        branch_id: &str,
++    ) -> Result<String, MediaLifecycleError> {
++        let mutation = self.callee.begin_offer(branch_id)?;
++        let offer_sdp = self
++            .callee
++            .logical_sdp()
++            .ok_or(MediaLifecycleError::InvalidTransition)?
++            .to_string();
++        let payload = serde_json::json!({
++            "from_tag": self.from_tag,
++            "media_profile_id": self.binding.media_profile_id(),
++            "offer_sdp": offer_sdp,
++        });
++        let command = self.build_command(MediaControlAction::Offer, mutation.sequence, payload)?;
++        let session = self.execute_mutation(&command).await?;
++        self.require_committed_session(&command, &session, &["prepared"])?;
++        self.callee
++            .commit_offer(branch_id, &session.effective_sdp)?;
++        Ok(session.effective_sdp)
++    }
++
++    pub async fn commit_early_media(
++        &mut self,
++        branch_id: &str,
++        to_tag: &str,
++        callee_sdp: &str,
++    ) -> Result<String, MediaLifecycleError> {
++        checked_sdp(callee_sdp)?;
++        if !valid_sip_tag(to_tag) {
++            return Err(MediaLifecycleError::InvalidBinding("to_tag"));
++        }
++        let mutation = self.callee.begin_early_media(branch_id)?;
++        let payload = serde_json::json!({
++            "from_tag": self.from_tag,
++            "negotiation_role": "answer",
++            "sdp": callee_sdp,
++            "to_tag": to_tag,
++        });
++        let command = self.build_command(MediaControlAction::Update, mutation.sequence, payload)?;
++        let session = self.execute_mutation(&command).await?;
++        self.require_committed_session(&command, &session, &["prepared", "committed"])?;
++        self.callee
++            .commit_early_media(branch_id, &session.effective_sdp)?;
++        self.to_tag = Some(to_tag.to_string());
++        Ok(session.effective_sdp)
++    }
++
++    pub async fn commit_final_answer(
++        &mut self,
++        branch_id: &str,
++        to_tag: &str,
++        callee_sdp: &str,
++    ) -> Result<String, MediaLifecycleError> {
++        checked_sdp(callee_sdp)?;
++        if !valid_sip_tag(to_tag) {
++            return Err(MediaLifecycleError::InvalidBinding("to_tag"));
++        }
++        let mutation = self.callee.begin_final_answer(branch_id)?;
++        let payload = serde_json::json!({
++            "answer_sdp": callee_sdp,
++            "from_tag": self.from_tag,
++            "to_tag": to_tag,
++        });
++        let command = self.build_command(MediaControlAction::Answer, mutation.sequence, payload)?;
++        let session = self.execute_mutation(&command).await?;
++        self.require_committed_session(&command, &session, &["committed"])?;
++        self.callee
++            .commit_final_answer(branch_id, &session.effective_sdp)?;
++        self.to_tag = Some(to_tag.to_string());
++        Ok(session.effective_sdp)
++    }
++
++    pub async fn prepare_mid_dialog_offer(
++        &mut self,
++        side: MediaDialogSide,
++        offer_sdp: &str,
++    ) -> Result<String, MediaLifecycleError> {
++        checked_sdp(offer_sdp)?;
++        let (from_tag, to_tag) = self.dialog_tags(side)?;
++        let mutation = self.callee.begin_mid_dialog_offer()?;
++        let payload = serde_json::json!({
++            "from_tag": from_tag,
++            "negotiation_role": "offer",
++            "sdp": offer_sdp,
++            "to_tag": to_tag,
++        });
++        let command = self.build_command(MediaControlAction::Update, mutation.sequence, payload)?;
++        let session = self.execute_mutation(&command).await?;
++        self.require_committed_session(&command, &session, &["committed"])?;
++        self.callee
++            .commit_mid_dialog_offer(&mutation.branch_id, &session.effective_sdp)?;
++        Ok(session.effective_sdp)
++    }
++
++    pub async fn commit_mid_dialog_answer(
++        &mut self,
++        side: MediaDialogSide,
++        answer_sdp: &str,
++    ) -> Result<String, MediaLifecycleError> {
++        checked_sdp(answer_sdp)?;
++        let (from_tag, to_tag) = self.dialog_tags(side)?;
++        let mutation = self.callee.begin_mid_dialog_answer()?;
++        // RTPengine keeps the offerer's tag orientation for its matching answer.
++        let payload = serde_json::json!({
++            "from_tag": from_tag,
++            "negotiation_role": "answer",
++            "sdp": answer_sdp,
++            "to_tag": to_tag,
++        });
++        let command = self.build_command(MediaControlAction::Update, mutation.sequence, payload)?;
++        let session = self.execute_mutation(&command).await?;
++        self.require_committed_session(&command, &session, &["committed"])?;
++        self.callee
++            .commit_mid_dialog_answer(&mutation.branch_id, &session.effective_sdp)?;
++        Ok(session.effective_sdp)
++    }
++
++    pub async fn inject_rtp_dtmf(
++        &mut self,
++        side: MediaDialogSide,
++        digit: &str,
++        duration: u16,
++        volume: u8,
++        pause: u16,
++    ) -> Result<(), MediaLifecycleError> {
++        if !matches!(
++            digit.as_bytes(),
++            [b'0'..=b'9'] | [b'*'] | [b'#'] | [b'A'..=b'D']
++        ) || !(100..=5_000).contains(&duration)
++            || volume > 63
++            || !(100..=5_000).contains(&pause)
++        {
++            return Err(MediaLifecycleError::InvalidDtmf);
++        }
++        let (from_tag, to_tag) = self.dialog_tags(side)?;
++        let mutation = self.callee.begin_dtmf()?;
++        let payload = serde_json::json!({
++            "digit": digit,
++            "duration": duration,
++            "from_tag": from_tag,
++            "pause": pause,
++            "to_tag": to_tag,
++            "volume": volume,
++        });
++        let command =
++            self.build_command(MediaControlAction::InjectDtmf, mutation.sequence, payload)?;
++        let session = self.execute_mutation(&command).await?;
++        self.require_committed_session(&command, &session, &["committed"])?;
++        self.callee
++            .commit_dtmf(&mutation.branch_id, &session.effective_sdp)
++    }
++
++    pub async fn close_media(&mut self) -> Result<MediaCloseOutcome, MediaLifecycleError> {
++        if self.close_confirmed {
++            return Ok(MediaCloseOutcome::AlreadyClosed);
++        }
++        if self.close_command.is_none() {
++            if matches!(
++                self.callee.state(),
++                NegotiationState::Unallocated | NegotiationState::OfferlessInvite
++            ) {
++                self.callee.cancel_before_answer()?;
++                self.close_confirmed = true;
++                return Ok(MediaCloseOutcome::NotAllocated);
++            }
++            if self.callee.state() == NegotiationState::Closed {
++                self.close_confirmed = true;
++                return Ok(MediaCloseOutcome::AlreadyClosed);
++            }
++            let sequence = self.callee.reserve_close_sequence()?;
++            let mut payload = serde_json::Map::new();
++            payload.insert("from_tag".to_string(), Value::String(self.from_tag.clone()));
++            if let Some(to_tag) = &self.to_tag {
++                payload.insert("to_tag".to_string(), Value::String(to_tag.clone()));
++            }
++            self.close_command = Some(self.build_command(
++                MediaControlAction::Delete,
++                sequence,
++                Value::Object(payload),
++            )?);
++        }
++        let command = self
++            .close_command
++            .clone()
++            .ok_or(MediaLifecycleError::CommandInvalid)?;
++        match self.executor.execute(&command).await {
++            Ok(MediaControlResult::Committed {
++                command_id,
++                session,
++                ..
++            })
++            | Ok(MediaControlResult::Replayed {
++                command_id,
++                session,
++                ..
++            }) if command_id == command.command_id => {
++                if require_close_session(&self.binding, &command, &session).is_err() {
++                    self.callee.mark_close_unknown(&command.command_id)?;
++                    return Err(MediaLifecycleError::OutcomeUnknown);
++                }
++                self.callee.commit_close();
++                self.close_confirmed = true;
++                Ok(MediaCloseOutcome::Closed)
++            }
++            Ok(MediaControlResult::Unknown { command_id, .. })
++                if command_id == command.command_id =>
++            {
++                self.callee.mark_close_unknown(&command.command_id)?;
++                Err(MediaLifecycleError::OutcomeUnknown)
++            }
++            Ok(MediaControlResult::RejectedCapacity { error_code, .. })
++            | Ok(MediaControlResult::RejectedEpoch { error_code, .. })
++            | Ok(MediaControlResult::TerminalError { error_code, .. }) => {
++                Err(MediaLifecycleError::ControlRejected { code: error_code })
++            }
++            Ok(_) => {
++                self.callee.mark_close_unknown(&command.command_id)?;
++                Err(MediaLifecycleError::OutcomeUnknown)
++            }
++            Err(MediaControlClientError::UnknownAfterTransport { .. }) => {
++                self.callee.mark_close_unknown(&command.command_id)?;
++                Err(MediaLifecycleError::OutcomeUnknown)
++            }
++            Err(error) => Err(MediaLifecycleError::ControlRejected {
++                code: error.failure_code().to_string(),
++            }),
++        }
++    }
++
++    fn dialog_tags(&self, side: MediaDialogSide) -> Result<(String, String), MediaLifecycleError> {
++        let to_tag = self
++            .to_tag
++            .as_deref()
++            .ok_or(MediaLifecycleError::InvalidTransition)?;
++        Ok(match side {
++            MediaDialogSide::Caller => (self.from_tag.clone(), to_tag.to_string()),
++            MediaDialogSide::Callee => (to_tag.to_string(), self.from_tag.clone()),
++        })
++    }
++
++    #[cfg(test)]
++    fn preview_command_id(
++        &self,
++        action: MediaControlAction,
++        sequence: u32,
++        payload: Value,
++    ) -> Result<String, MediaLifecycleError> {
++        Ok(self.build_command(action, sequence, payload)?.command_id)
++    }
++
++    fn build_command(
++        &self,
++        action: MediaControlAction,
++        sequence: u32,
++        payload: Value,
++    ) -> Result<MediaControlCommand, MediaLifecycleError> {
++        let payload = match payload {
++            Value::Object(payload) => payload,
++            _ => return Err(MediaLifecycleError::CommandInvalid),
++        };
++        let payload_hash =
++            payload_hash(&payload).map_err(|_| MediaLifecycleError::CommandInvalid)?;
++        let expires_at = (chrono::Utc::now() + chrono::Duration::seconds(30))
++            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
++        let leg_id = self.callee.leg_id().to_string();
++        let media_reservation_id = self.binding.media_reservation_id(&leg_id)?;
++        let mut command = MediaControlCommand {
++            protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++            action,
++            command_id: "pending".to_string(),
++            tenant_id: self.binding.tenant_id().to_string(),
++            call_id: self.binding.call_id().to_string(),
++            leg_id: leg_id.clone(),
++            cell_id: self.binding.cell_id().to_string(),
++            owner_node_id: self.binding.owner_node_id().to_string(),
++            owner_epoch: self.binding.owner_epoch().to_string(),
++            admission_reservation_id: self.binding.admission_reservation_id().to_string(),
++            media_reservation_id,
++            command_sequence: sequence,
++            idempotency_key: format!(
++                "rustpbx/{}/{}/{}/{}/{}",
++                self.binding.cell_id(),
++                self.binding.call_id(),
++                leg_id,
++                self.binding.owner_epoch(),
++                sequence
++            ),
++            expires_at,
++            payload,
++            payload_hash,
++        };
++        command.command_id =
++            command_id_for(&command).map_err(|_| MediaLifecycleError::CommandInvalid)?;
++        Ok(command)
++    }
++
++    async fn execute_mutation(
++        &mut self,
++        command: &MediaControlCommand,
++    ) -> Result<MediaSessionSnapshot, MediaLifecycleError> {
++        match self.executor.execute(command).await {
++            Ok(MediaControlResult::Committed {
++                command_id,
++                session,
++                ..
++            })
++            | Ok(MediaControlResult::Replayed {
++                command_id,
++                session,
++                ..
++            }) if command_id == command.command_id => Ok(session),
++            Ok(MediaControlResult::Unknown { command_id, .. })
++                if command_id == command.command_id =>
++            {
++                self.callee.mark_unknown(&command.command_id)?;
++                Err(MediaLifecycleError::OutcomeUnknown)
++            }
++            Ok(MediaControlResult::RejectedCapacity { error_code, .. })
++            | Ok(MediaControlResult::RejectedEpoch { error_code, .. })
++            | Ok(MediaControlResult::TerminalError { error_code, .. }) => {
++                self.callee.reject_pending()?;
++                Err(MediaLifecycleError::ControlRejected { code: error_code })
++            }
++            Ok(_) => {
++                self.callee.mark_unknown(&command.command_id)?;
++                Err(MediaLifecycleError::OutcomeUnknown)
++            }
++            Err(MediaControlClientError::UnknownAfterTransport { .. }) => {
++                self.callee.mark_unknown(&command.command_id)?;
++                Err(MediaLifecycleError::OutcomeUnknown)
++            }
++            Err(error) => {
++                self.callee.reject_pending()?;
++                Err(MediaLifecycleError::ControlRejected {
++                    code: error.failure_code().to_string(),
++                })
++            }
++        }
++    }
++
++    fn require_committed_session(
++        &mut self,
++        command: &MediaControlCommand,
++        session: &MediaSessionSnapshot,
++        allowed_states: &[&str],
++    ) -> Result<(), MediaLifecycleError> {
++        if require_session_identity(&self.binding, command, session, allowed_states).is_err() {
++            self.callee.mark_unknown(&command.command_id)?;
++            return Err(MediaLifecycleError::OutcomeUnknown);
++        }
++        Ok(())
++    }
++}
++
++fn require_session_identity(
++    binding: &MediaAdmissionBinding,
++    command: &MediaControlCommand,
++    session: &MediaSessionSnapshot,
++    allowed_states: &[&str],
++) -> Result<(), MediaLifecycleError> {
++    if session.media_reservation_id != command.media_reservation_id
++        || session.call_id != binding.call_id()
++        || session.owner_epoch != binding.owner_epoch()
++        || session.last_sequence != command.command_sequence
++        || !allowed_states.contains(&session.state.as_str())
++        || session.effective_sdp.is_empty()
++        || session.effective_sdp.len() > MAX_SDP_BYTES
++        || session.effective_sdp.contains('\0')
++    {
++        return Err(MediaLifecycleError::OutcomeUnknown);
++    }
++    Ok(())
++}
++
++fn require_close_session(
++    binding: &MediaAdmissionBinding,
++    command: &MediaControlCommand,
++    session: &MediaSessionSnapshot,
++) -> Result<(), MediaLifecycleError> {
++    if session.media_reservation_id != command.media_reservation_id
++        || session.call_id != binding.call_id()
++        || session.owner_epoch != binding.owner_epoch()
++        || session.last_sequence != command.command_sequence
++        || session.state != "closed"
++    {
++        return Err(MediaLifecycleError::OutcomeUnknown);
++    }
++    Ok(())
++}
++
++#[derive(Debug, thiserror::Error, PartialEq, Eq)]
++pub enum MediaLifecycleError {
++    #[error("media_binding_invalid:{0}")]
++    InvalidBinding(&'static str),
++    #[error("media_leg_invalid")]
++    InvalidLeg,
++    #[error("media_branch_invalid")]
++    InvalidBranch,
++    #[error("media_branch_capacity")]
++    BranchCapacity,
++    #[error("media_winner_conflict")]
++    WinnerConflict,
++    #[error("media_sdp_invalid")]
++    InvalidSdp,
++    #[error("media_dtmf_invalid")]
++    InvalidDtmf,
++    #[error("media_transition_invalid")]
++    InvalidTransition,
++    #[error("media_reconcile_required")]
++    ReconcileRequired,
++    #[error("media_sequence_exhausted")]
++    SequenceExhausted,
++    #[error("media_command_invalid")]
++    CommandInvalid,
++    #[error("media_control_rejected:{code}")]
++    ControlRejected { code: String },
++    #[error("media_control_outcome_unknown")]
++    OutcomeUnknown,
++    #[error("media_control_configuration_invalid")]
++    ConfigurationInvalid,
++}
++
++impl MediaLifecycleError {
++    pub fn failure_code(&self) -> &str {
++        match self {
++            Self::InvalidBinding(code) => code,
++            Self::InvalidLeg => "media_leg_invalid",
++            Self::InvalidBranch => "media_branch_invalid",
++            Self::BranchCapacity => "media_branch_capacity",
++            Self::WinnerConflict => "media_winner_conflict",
++            Self::InvalidSdp => "media_sdp_invalid",
++            Self::InvalidDtmf => "media_dtmf_invalid",
++            Self::InvalidTransition => "media_transition_invalid",
++            Self::ReconcileRequired => "media_reconcile_required",
++            Self::SequenceExhausted => "media_sequence_exhausted",
++            Self::CommandInvalid => "media_command_invalid",
++            Self::ControlRejected { code } => code,
++            Self::OutcomeUnknown => "media_control_outcome_unknown",
++            Self::ConfigurationInvalid => "media_control_configuration_invalid",
++        }
++    }
++}
++
++pub fn explicit_fallback_allowed(error: &MediaLifecycleError) -> bool {
++    matches!(error, MediaLifecycleError::ControlRejected { .. })
++}
++
++struct MediaControlRuntimeConfig {
++    executor: Arc<MediaControlClient>,
++    failure_policy: MediaControlFailurePolicy,
++}
++
++static MEDIA_CONTROL_RUNTIME: OnceLock<
++    Result<Option<Arc<MediaControlRuntimeConfig>>, &'static str>,
++> = OnceLock::new();
++
++pub enum IveKitMediaRuntime {
++    Disabled,
++    Ready {
++        lifecycle: IveKitMediaLifecycle,
++        failure_policy: MediaControlFailurePolicy,
++    },
++    FailClosed {
++        error_code: &'static str,
++    },
++}
++
++impl IveKitMediaRuntime {
++    pub fn bootstrap(session_id: &str, caller_from_tag: &str, caller_offer: Option<&str>) -> Self {
++        let config = match media_control_runtime_config() {
++            Ok(Some(config)) => config,
++            Ok(None) => return Self::Disabled,
++            Err(error_code) => return Self::FailClosed { error_code },
++        };
++        let Some(owner) = crate::ivekit_owner::owner_contract(session_id) else {
++            return Self::FailClosed {
++                error_code: "media_control_owner_binding_missing",
++            };
++        };
++        let binding = match MediaAdmissionBinding::new(
++            &required_env("IVEKIT_RUSTPBX_ROUTE_TENANT_ID").unwrap_or_default(),
++            &owner.interaction_id,
++            &required_env("IVEKIT_RUSTPBX_CELL_ID").unwrap_or_default(),
++            &required_env("IVEKIT_RUSTPBX_OWNER_NODE_ID").unwrap_or_default(),
++            &owner.owner_epoch,
++            &owner.reservation_id,
++            &required_env("IVEKIT_RUSTPBX_MEDIA_PROFILE_ID").unwrap_or_default(),
++        ) {
++            Ok(binding) => binding,
++            Err(_) => {
++                return Self::FailClosed {
++                    error_code: "media_control_admission_binding_invalid",
++                };
++            }
++        };
++        match IveKitMediaLifecycle::new(
++            binding,
++            config.executor.clone(),
++            caller_from_tag,
++            caller_offer,
++        ) {
++            Ok(lifecycle) => Self::Ready {
++                lifecycle,
++                failure_policy: config.failure_policy,
++            },
++            Err(_) => Self::FailClosed {
++                error_code: "media_control_session_binding_invalid",
++            },
++        }
++    }
++
++    pub fn is_ready(&self) -> bool {
++        matches!(self, Self::Ready { .. })
++    }
++
++    pub fn failure_policy(&self) -> MediaControlFailurePolicy {
++        match self {
++            Self::Ready { failure_policy, .. } => *failure_policy,
++            Self::Disabled | Self::FailClosed { .. } => MediaControlFailurePolicy::FailClosed,
++        }
++    }
++
++    pub fn lifecycle_mut(&mut self) -> Option<&mut IveKitMediaLifecycle> {
++        match self {
++            Self::Ready { lifecycle, .. } => Some(lifecycle),
++            Self::Disabled | Self::FailClosed { .. } => None,
++        }
++    }
++
++    pub fn failure_code(&self) -> Option<&'static str> {
++        match self {
++            Self::FailClosed { error_code } => Some(*error_code),
++            Self::Disabled | Self::Ready { .. } => None,
++        }
++    }
++}
++
++pub fn media_control_requested() -> bool {
++    required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT").is_some()
++}
++
++pub fn spawn_media_control_event_listener(
++    registry: Arc<crate::proxy::active_call_registry::ActiveProxyCallRegistry>,
++    cancel: CancellationToken,
++) {
++    if !media_control_requested() {
++        return;
++    }
++    let config = match media_control_runtime_config() {
++        Ok(Some(config)) => config.clone(),
++        Ok(None) => return,
++        Err(error) => {
++            warn!(
++                error_code = error,
++                "iveKit media event listener is not configured"
++            );
++            return;
++        }
++    };
++    let Some(owner_node_id) = required_env("IVEKIT_RUSTPBX_OWNER_NODE_ID") else {
++        warn!("iveKit media event listener owner node is missing");
++        return;
++    };
++    info!(owner_node_id, "iveKit media event listener started");
++    tokio::spawn(async move {
++        let mut after_sequence = 0_u64;
++        let mut retry_delay = Duration::from_millis(100);
++        loop {
++            let before = after_sequence;
++            let result = tokio::select! {
++                _ = cancel.cancelled() => return,
++                result = config.executor.consume_events(
++                    &owner_node_id,
++                    &mut after_sequence,
++                    |event| {
++                        let registry = registry.clone();
++                        async move {
++                            let Some(handle) = registry.get_handle(&event.call_id) else {
++                                return Ok(());
++                            };
++                            if handle
++                                .send_command_async(crate::call::domain::CallCommand::InjectAppEvent {
++                                    event: crate::call::domain::AppEvent::Dtmf {
++                                        digit: event.digit,
++                                    },
++                                })
++                                .await
++                                .is_err()
++                            {
++                                return Ok(());
++                            }
++                            Ok(())
++                        }
++                    },
++                ) => result,
++            };
++            if cancel.is_cancelled() {
++                return;
++            }
++            if after_sequence > before {
++                retry_delay = Duration::from_millis(100);
++            }
++            warn!(
++                owner_node_id,
++                after_sequence,
++                error = %result.expect_err("media event stream is long-lived"),
++                "iveKit media event stream disconnected"
++            );
++            tokio::select! {
++                _ = cancel.cancelled() => return,
++                _ = tokio::time::sleep(retry_delay) => {}
++            }
++            retry_delay = (retry_delay * 2).min(Duration::from_secs(5));
++        }
++    });
++}
++
++fn media_control_runtime_config()
++-> Result<Option<&'static Arc<MediaControlRuntimeConfig>>, &'static str> {
++    match MEDIA_CONTROL_RUNTIME.get_or_init(build_media_control_runtime_config) {
++        Ok(Some(config)) => Ok(Some(config)),
++        Ok(None) => Ok(None),
++        Err(error) => Err(*error),
++    }
++}
++
++fn build_media_control_runtime_config()
++-> Result<Option<Arc<MediaControlRuntimeConfig>>, &'static str> {
++    let Some(endpoint) = required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT") else {
++        return Ok(None);
++    };
++    MediaControlRuntimeMode::parse(required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_MODE").as_deref())
++        .map_err(|_| "media_control_mode_invalid")?;
++    let failure_policy = MediaControlFailurePolicy::parse(
++        required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_FAILURE_POLICY").as_deref(),
++    )
++    .map_err(|_| "media_control_failure_policy_invalid")?;
++    let endpoint = Url::parse(&endpoint).map_err(|_| "media_control_endpoint_invalid")?;
++    let service_token_file = required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_TOKEN_FILE")
++        .ok_or("media_control_token_file_missing")?;
++    let production = parsed_bool_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_PRODUCTION", true)?;
++    let max_inflight = parsed_usize_env(
++        "IVEKIT_RUSTPBX_MEDIA_CONTROL_MAX_INFLIGHT",
++        2_048,
++        1,
++        1_000_000,
++    )?;
++    let request_timeout_ms =
++        parsed_u64_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_TIMEOUT_MS", 500, 50, 30_000)?;
++    let max_response_bytes = parsed_usize_env(
++        "IVEKIT_RUSTPBX_MEDIA_CONTROL_MAX_RESPONSE_BYTES",
++        262_144,
++        1_024,
++        1_048_576,
++    )?;
++    for name in [
++        "IVEKIT_RUSTPBX_ROUTE_TENANT_ID",
++        "IVEKIT_RUSTPBX_CELL_ID",
++        "IVEKIT_RUSTPBX_OWNER_NODE_ID",
++        "IVEKIT_RUSTPBX_MEDIA_PROFILE_ID",
++    ] {
++        let value = required_env(name).ok_or("media_control_binding_config_missing")?;
++        if !valid_identifier(&value) {
++            return Err("media_control_binding_config_invalid");
++        }
++    }
++    let client = MediaControlClient::new(crate::ivekit_media_control::MediaControlClientConfig {
++        endpoint,
++        service_token_file: PathBuf::from(service_token_file),
++        tls_identity_file: required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_IDENTITY_FILE")
++            .map(PathBuf::from),
++        tls_ca_file: required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_CA_FILE").map(PathBuf::from),
++        production,
++        max_inflight,
++        request_timeout: Duration::from_millis(request_timeout_ms),
++        max_response_bytes,
++    })
++    .map_err(|_| "media_control_client_invalid")?;
++    Ok(Some(Arc::new(MediaControlRuntimeConfig {
++        executor: Arc::new(client),
++        failure_policy,
++    })))
++}
++
++fn required_env(name: &str) -> Option<String> {
++    std::env::var(name)
++        .ok()
++        .filter(|value| !value.trim().is_empty() && value.trim() == value)
++}
++
++fn parsed_bool_env(name: &str, default: bool) -> Result<bool, &'static str> {
++    match required_env(name).as_deref() {
++        None => Ok(default),
++        Some("true") => Ok(true),
++        Some("false") => Ok(false),
++        Some(_) => Err("media_control_boolean_invalid"),
++    }
++}
++
++fn parsed_usize_env(
++    name: &str,
++    default: usize,
++    minimum: usize,
++    maximum: usize,
++) -> Result<usize, &'static str> {
++    let value = match required_env(name) {
++        Some(value) => value
++            .parse::<usize>()
++            .map_err(|_| "media_control_integer_invalid")?,
++        None => default,
++    };
++    if !(minimum..=maximum).contains(&value) {
++        return Err("media_control_integer_invalid");
++    }
++    Ok(value)
++}
++
++fn parsed_u64_env(
++    name: &str,
++    default: u64,
++    minimum: u64,
++    maximum: u64,
++) -> Result<u64, &'static str> {
++    let value = match required_env(name) {
++        Some(value) => value
++            .parse::<u64>()
++            .map_err(|_| "media_control_integer_invalid")?,
++        None => default,
++    };
++    if !(minimum..=maximum).contains(&value) {
++        return Err("media_control_integer_invalid");
++    }
++    Ok(value)
++}
++
++fn checked_sdp(value: &str) -> Result<(), MediaLifecycleError> {
++    if value.is_empty() || value.len() > MAX_SDP_BYTES || value.contains('\0') {
++        return Err(MediaLifecycleError::InvalidSdp);
++    }
++    Ok(())
++}
++
++fn valid_identifier(value: &str) -> bool {
++    !value.is_empty()
++        && value.len() <= MAX_IDENTIFIER_BYTES
++        && value.bytes().all(|byte| {
++            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'@' | b'/' | b'-')
++        })
++}
++
++fn valid_sip_tag(value: &str) -> bool {
++    !value.is_empty()
++        && value.len() <= MAX_IDENTIFIER_BYTES
++        && value.bytes().all(|byte| {
++            byte.is_ascii_alphanumeric()
++                || matches!(
++                    byte,
++                    b'-' | b'.' | b'!' | b'%' | b'*' | b'_' | b'+' | b'`' | b'\'' | b'~'
++                )
++        })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::ivekit_media_control::{
++        MEDIA_CONTROL_PROTOCOL_VERSION, MediaControlAction, MediaControlClientError,
++        MediaControlCommand, MediaControlResult, MediaSessionSnapshot,
++    };
++    use parking_lot::Mutex;
++    use std::collections::VecDeque;
++    use std::sync::Arc;
++
++    fn binding() -> MediaAdmissionBinding {
++        MediaAdmissionBinding::new(
++            "tenant-a",
++            "call-a",
++            "cell-a",
++            "rustpbx-a",
++            "4294967297",
++            "admission-a",
++            "g711-relay-v1",
++        )
++        .unwrap()
++    }
++
++    #[test]
++    fn sip_tags_follow_rfc_3261_token_grammar() {
++        assert!(valid_sip_tag("Az09-.!%*_+`'~"));
++        for invalid in [
++            "tag with space",
++            "tag:with-colon",
++            "tag/with-slash",
++            "tag\r\nwith-control",
++        ] {
++            assert!(!valid_sip_tag(invalid));
++        }
++        assert!(!valid_sip_tag(&"x".repeat(MAX_IDENTIFIER_BYTES + 1)));
++    }
++
++    #[test]
++    fn admission_binding_is_bounded_and_requires_owner_epoch() {
++        assert_eq!(binding().owner_epoch(), "4294967297");
++        assert!(
++            MediaAdmissionBinding::new(
++                "tenant-a",
++                "call-a",
++                "cell-a",
++                "rustpbx-a",
++                "",
++                "admission-a",
++                "g711-relay-v1",
++            )
++            .is_err()
++        );
++        assert!(
++            MediaAdmissionBinding::new(
++                &"t".repeat(257),
++                "call-a",
++                "cell-a",
++                "rustpbx-a",
++                "1",
++                "admission-a",
++                "g711-relay-v1",
++            )
++            .is_err()
++        );
++    }
++
++    #[test]
++    fn execution_profile_keeps_non_relay_workloads_local() {
++        assert_eq!(
++            classify_media_execution(&MediaExecutionFacts {
++                media_control_enabled: true,
++                media_proxy_enabled: true,
++                explicit_bypass: false,
++                application_flow: false,
++                queue_flow: false,
++                parallel_fork: false,
++                recording: false,
++                audio_tap: false,
++                caller_webrtc: false,
++                callee_webrtc: false,
++                transcoding: false,
++                offerless: false,
++            }),
++            MediaExecutionProfile::OrdinaryRelay
++        );
++        for reason in [
++            LocalMediaReason::Ivr,
++            LocalMediaReason::Queue,
++            LocalMediaReason::Recording,
++            LocalMediaReason::WebRtcBridge,
++            LocalMediaReason::Transcoding,
++        ] {
++            let facts = MediaExecutionFacts::for_local_reason(reason);
++            assert_eq!(
++                classify_media_execution(&facts),
++                MediaExecutionProfile::LocalMediaGraph(reason)
++            );
++        }
++        assert_eq!(
++            classify_media_execution(&MediaExecutionFacts {
++                explicit_bypass: true,
++                ..MediaExecutionFacts::ordinary()
++            }),
++            MediaExecutionProfile::ExplicitBypass
++        );
++    }
++
++    #[test]
++    fn offerless_invite_waits_for_late_offer_without_allocating_media() {
++        let mut state = PerLegMediaState::new("callee", None).unwrap();
++        assert_eq!(state.state(), NegotiationState::OfferlessInvite);
++        assert_eq!(state.next_sequence(), 1);
++        state.note_late_offer("branch-a", "v=0\r\n").unwrap();
++        assert_eq!(state.state(), NegotiationState::AwaitingAckAnswer);
++        assert_eq!(state.next_sequence(), 1);
++    }
++
++    #[test]
++    fn offer_early_and_final_answer_sequences_are_monotonic() {
++        let mut state = PerLegMediaState::new("callee", Some("v=0\r\n")).unwrap();
++        let offer = state.begin_offer("branch-a").unwrap();
++        assert_eq!(offer.sequence, 1);
++        state
++            .commit_offer("branch-a", "v=0\r\na=offer\r\n")
++            .unwrap();
++        let early = state.begin_early_media("branch-a").unwrap();
++        assert_eq!(early.sequence, 2);
++        state
++            .commit_early_media("branch-a", "v=0\r\na=early\r\n")
++            .unwrap();
++        let answer = state.begin_final_answer("branch-a").unwrap();
++        assert_eq!(answer.sequence, 3);
++        state
++            .commit_final_answer("branch-a", "v=0\r\na=answer\r\n")
++            .unwrap();
++        assert_eq!(state.state(), NegotiationState::Committed);
++        assert_eq!(state.effective_sdp(), Some("v=0\r\na=answer\r\n"));
++        assert_eq!(state.next_sequence(), 4);
++    }
++
++    #[test]
++    fn unknown_freezes_mutations_until_reconcile() {
++        let mut state = PerLegMediaState::new("callee", Some("v=0\r\n")).unwrap();
++        state.begin_offer("branch-a").unwrap();
++        state.mark_unknown("cmd-a").unwrap();
++        assert!(state.begin_early_media("branch-a").is_err());
++        assert!(state.reconcile_required());
++        state
++            .reconcile_committed("cmd-a", NegotiationState::Prepared, "v=0\r\na=offer\r\n")
++            .unwrap();
++        assert!(!state.reconcile_required());
++        assert_eq!(state.begin_early_media("branch-a").unwrap().sequence, 2);
++    }
++
++    #[test]
++    fn only_one_early_branch_can_win() {
++        let mut state = PerLegMediaState::new("callee", Some("v=0\r\n")).unwrap();
++        state.begin_offer("branch-a").unwrap();
++        state.commit_offer("branch-a", "v=0\r\n").unwrap();
++        state.register_early_branch("branch-a").unwrap();
++        state.register_early_branch("branch-b").unwrap();
++        state.select_winning_branch("branch-b").unwrap();
++        assert_eq!(state.winning_branch(), Some("branch-b"));
++        assert_eq!(
++            state.delete_losing_branch("branch-a").unwrap(),
++            BranchDisposition::Deleted
++        );
++        assert!(state.select_winning_branch("branch-a").is_err());
++    }
++
++    #[test]
++    fn branch_and_leg_limits_are_enforced() {
++        assert_eq!(MAX_MEDIA_LEGS, 32);
++        assert_eq!(MAX_MEDIA_BRANCHES, 16);
++        let mut state = PerLegMediaState::new("callee", Some("v=0\r\n")).unwrap();
++        for index in 0..MAX_MEDIA_BRANCHES {
++            state
++                .register_early_branch(&format!("branch-{index}"))
++                .unwrap();
++        }
++        assert!(state.register_early_branch("overflow").is_err());
++    }
++
++    #[test]
++    fn dialog_branch_identity_is_stable_bounded_and_pii_free() {
++        let first = stable_dialog_branch_id("call-123@example.net", "local-tag", "remote-tag");
++        let second = stable_dialog_branch_id("call-123@example.net", "local-tag", "remote-tag");
++        assert_eq!(first, second);
++        assert!(first.starts_with("branch-"));
++        assert_eq!(first.len(), 55);
++        assert!(!first.contains("call-123"));
++        assert_ne!(
++            first,
++            stable_dialog_branch_id("call-123@example.net", "local-tag", "other-tag",)
++        );
++    }
++
++    #[test]
++    fn fallback_policy_must_be_explicit() {
++        assert_eq!(
++            MediaControlFailurePolicy::parse(None).unwrap(),
++            MediaControlFailurePolicy::FailClosed
++        );
++        assert_eq!(
++            MediaControlFailurePolicy::parse(Some("fail_closed")).unwrap(),
++            MediaControlFailurePolicy::FailClosed
++        );
++        assert_eq!(
++            MediaControlFailurePolicy::parse(Some("explicit_fallback")).unwrap(),
++            MediaControlFailurePolicy::ExplicitFallback
++        );
++        assert!(MediaControlFailurePolicy::parse(Some("fallback")).is_err());
++        assert!(explicit_fallback_allowed(
++            &MediaLifecycleError::ControlRejected {
++                code: "call_id".to_string(),
++            }
++        ));
++        assert!(!explicit_fallback_allowed(
++            &MediaLifecycleError::OutcomeUnknown
++        ));
++        assert!(!explicit_fallback_allowed(
++            &MediaLifecycleError::ReconcileRequired
++        ));
++    }
++
++    #[test]
++    fn runtime_mode_accepts_only_the_ordinary_relay_profile() {
++        assert_eq!(
++            MediaControlRuntimeMode::parse(Some("ordinary_relay")).unwrap(),
++            MediaControlRuntimeMode::OrdinaryRelay
++        );
++        assert!(MediaControlRuntimeMode::parse(None).is_err());
++        assert!(MediaControlRuntimeMode::parse(Some("all")).is_err());
++    }
++
++    struct StubExecutor {
++        commands: Mutex<Vec<MediaControlCommand>>,
++        results: Mutex<VecDeque<Result<MediaControlResult, MediaControlClientError>>>,
++    }
++
++    #[async_trait::async_trait]
++    impl MediaControlExecutor for StubExecutor {
++        async fn execute(
++            &self,
++            command: &MediaControlCommand,
++        ) -> Result<MediaControlResult, MediaControlClientError> {
++            self.commands.lock().push(command.clone());
++            self.results
++                .lock()
++                .pop_front()
++                .expect("stub result is required")
++        }
++    }
++
++    fn committed(
++        command_id: &str,
++        sequence: u32,
++        state: &str,
++        effective_sdp: &str,
++    ) -> MediaControlResult {
++        MediaControlResult::Committed {
++            protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++            command_id: command_id.to_string(),
++            session: MediaSessionSnapshot {
++                media_reservation_id: "admission-a/callee".to_string(),
++                call_id: "call-a".to_string(),
++                owner_epoch: "4294967297".to_string(),
++                last_sequence: sequence,
++                state: state.to_string(),
++                transport_session_id: "rtpengine-a".to_string(),
++                effective_sdp: effective_sdp.to_string(),
++                expires_at: "2026-07-26T12:00:30.000Z".to_string(),
++                updated_at: "2026-07-26T12:00:00.000Z".to_string(),
++            },
++        }
++    }
++
++    fn executor_with_results(results: Vec<MediaControlResult>) -> Arc<StubExecutor> {
++        Arc::new(StubExecutor {
++            commands: Mutex::new(Vec::new()),
++            results: Mutex::new(results.into_iter().map(Ok).collect()),
++        })
++    }
++
++    #[tokio::test]
++    async fn ordinary_relay_uses_effective_offer_before_outbound_invite() {
++        let executor = executor_with_results(vec![committed(
++            "placeholder",
++            1,
++            "prepared",
++            "v=0\r\na=effective-offer\r\n",
++        )]);
++        let mut lifecycle = IveKitMediaLifecycle::new(
++            binding(),
++            executor.clone(),
++            "caller-tag",
++            Some("v=0\r\na=logical-offer\r\n"),
++        )
++        .unwrap();
++        executor.results.lock()[0] = Ok(committed(
++            &lifecycle
++                .preview_command_id(
++                    MediaControlAction::Offer,
++                    1,
++                    serde_json::json!({
++                        "from_tag": "caller-tag",
++                        "media_profile_id": "g711-relay-v1",
++                        "offer_sdp": "v=0\r\na=logical-offer\r\n"
++                    }),
++                )
++                .unwrap(),
++            1,
++            "prepared",
++            "v=0\r\na=effective-offer\r\n",
++        ));
++
++        let sdp = lifecycle
++            .prepare_ordinary_relay_offer("branch-a")
++            .await
++            .unwrap();
++
++        assert_eq!(sdp, "v=0\r\na=effective-offer\r\n");
++        let commands = executor.commands.lock();
++        assert_eq!(commands.len(), 1);
++        assert!(matches!(commands[0].action, MediaControlAction::Offer));
++        assert_eq!(commands[0].command_sequence, 1);
++        assert_eq!(
++            commands[0]
++                .payload
++                .get("offer_sdp")
++                .and_then(|v| v.as_str()),
++            Some("v=0\r\na=logical-offer\r\n")
++        );
++    }
++
++    #[tokio::test]
++    async fn early_and_final_answer_return_committed_effective_sdp() {
++        let executor = executor_with_results(Vec::new());
++        let mut lifecycle = IveKitMediaLifecycle::new(
++            binding(),
++            executor.clone(),
++            "caller-tag",
++            Some("v=0\r\na=logical-offer\r\n"),
++        )
++        .unwrap();
++        for (action, sequence, state, sdp) in [
++            (
++                MediaControlAction::Offer,
++                1,
++                "prepared",
++                "v=0\r\na=effective-offer\r\n",
++            ),
++            (
++                MediaControlAction::Update,
++                2,
++                "prepared",
++                "v=0\r\na=effective-early\r\n",
++            ),
++            (
++                MediaControlAction::Answer,
++                3,
++                "committed",
++                "v=0\r\na=effective-final\r\n",
++            ),
++        ] {
++            let payload = match action {
++                MediaControlAction::Offer => serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "media_profile_id": "g711-relay-v1",
++                    "offer_sdp": "v=0\r\na=logical-offer\r\n"
++                }),
++                MediaControlAction::Update => serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "negotiation_role": "answer",
++                    "sdp": "v=0\r\na=callee-early\r\n",
++                    "to_tag": "callee-tag"
++                }),
++                MediaControlAction::Answer => serde_json::json!({
++                    "answer_sdp": "v=0\r\na=callee-final\r\n",
++                    "from_tag": "caller-tag",
++                    "to_tag": "callee-tag"
++                }),
++                _ => unreachable!(),
++            };
++            let command_id = lifecycle
++                .preview_command_id(action, sequence, payload)
++                .unwrap();
++            executor
++                .results
++                .lock()
++                .push_back(Ok(committed(&command_id, sequence, state, sdp)));
++        }
++
++        lifecycle
++            .prepare_ordinary_relay_offer("branch-a")
++            .await
++            .unwrap();
++        assert_eq!(
++            lifecycle
++                .commit_early_media("branch-a", "callee-tag", "v=0\r\na=callee-early\r\n",)
++                .await
++                .unwrap(),
++            "v=0\r\na=effective-early\r\n"
++        );
++        assert_eq!(
++            lifecycle
++                .commit_final_answer("branch-a", "callee-tag", "v=0\r\na=callee-final\r\n",)
++                .await
++                .unwrap(),
++            "v=0\r\na=effective-final\r\n"
++        );
++
++        for (action, sequence, state, sdp, payload) in [
++            (
++                MediaControlAction::Update,
++                4,
++                "committed",
++                "v=0\r\na=effective-hold-offer\r\n",
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "negotiation_role": "offer",
++                    "sdp": "v=0\r\na=sendonly\r\n",
++                    "to_tag": "callee-tag"
++                }),
++            ),
++            (
++                MediaControlAction::Update,
++                5,
++                "committed",
++                "v=0\r\na=effective-hold-answer\r\n",
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "negotiation_role": "answer",
++                    "sdp": "v=0\r\na=recvonly\r\n",
++                    "to_tag": "callee-tag"
++                }),
++            ),
++            (
++                MediaControlAction::Update,
++                6,
++                "committed",
++                "v=0\r\na=effective-resume-offer\r\n",
++                serde_json::json!({
++                    "from_tag": "callee-tag",
++                    "negotiation_role": "offer",
++                    "sdp": "v=0\r\na=sendrecv\r\n",
++                    "to_tag": "caller-tag"
++                }),
++            ),
++            (
++                MediaControlAction::Update,
++                7,
++                "committed",
++                "v=0\r\na=effective-resume-answer\r\n",
++                serde_json::json!({
++                    "from_tag": "callee-tag",
++                    "negotiation_role": "answer",
++                    "sdp": "v=0\r\na=sendrecv\r\n",
++                    "to_tag": "caller-tag"
++                }),
++            ),
++            (
++                MediaControlAction::InjectDtmf,
++                8,
++                "committed",
++                "v=0\r\na=effective-resume-answer\r\n",
++                serde_json::json!({
++                    "digit": "5",
++                    "duration": 180,
++                    "from_tag": "callee-tag",
++                    "pause": 120,
++                    "to_tag": "caller-tag",
++                    "volume": 8
++                }),
++            ),
++        ] {
++            let command_id = lifecycle
++                .preview_command_id(action, sequence, payload)
++                .unwrap();
++            executor
++                .results
++                .lock()
++                .push_back(Ok(committed(&command_id, sequence, state, sdp)));
++        }
++
++        assert_eq!(
++            lifecycle
++                .prepare_mid_dialog_offer(MediaDialogSide::Caller, "v=0\r\na=sendonly\r\n",)
++                .await
++                .unwrap(),
++            "v=0\r\na=effective-hold-offer\r\n"
++        );
++        assert_eq!(
++            lifecycle
++                .commit_mid_dialog_answer(MediaDialogSide::Caller, "v=0\r\na=recvonly\r\n",)
++                .await
++                .unwrap(),
++            "v=0\r\na=effective-hold-answer\r\n"
++        );
++        assert_eq!(
++            lifecycle
++                .prepare_mid_dialog_offer(MediaDialogSide::Callee, "v=0\r\na=sendrecv\r\n",)
++                .await
++                .unwrap(),
++            "v=0\r\na=effective-resume-offer\r\n"
++        );
++        assert_eq!(
++            lifecycle
++                .commit_mid_dialog_answer(MediaDialogSide::Callee, "v=0\r\na=sendrecv\r\n",)
++                .await
++                .unwrap(),
++            "v=0\r\na=effective-resume-answer\r\n"
++        );
++        lifecycle
++            .inject_rtp_dtmf(MediaDialogSide::Callee, "5", 180, 8, 120)
++            .await
++            .unwrap();
++
++        let commands = executor.commands.lock();
++        for command in &commands[3..] {
++            assert_eq!(
++                command.media_reservation_id,
++                commands[0].media_reservation_id
++            );
++        }
++        for (index, command) in commands[3..].iter().enumerate() {
++            assert_eq!(command.command_sequence, index as u32 + 4);
++        }
++        for command in &commands[3..=4] {
++            assert_eq!(
++                command.payload.get("from_tag").and_then(|v| v.as_str()),
++                Some("caller-tag")
++            );
++            assert_eq!(
++                command.payload.get("to_tag").and_then(|v| v.as_str()),
++                Some("callee-tag")
++            );
++        }
++        for command in &commands[5..=7] {
++            assert_eq!(
++                command.payload.get("from_tag").and_then(|v| v.as_str()),
++                Some("callee-tag")
++            );
++            assert_eq!(
++                command.payload.get("to_tag").and_then(|v| v.as_str()),
++                Some("caller-tag")
++            );
++        }
++        assert!(matches!(commands[7].action, MediaControlAction::InjectDtmf));
++    }
++
++    #[tokio::test]
++    async fn mismatched_committed_snapshot_is_treated_as_unknown() {
++        let executor = executor_with_results(Vec::new());
++        let mut lifecycle = IveKitMediaLifecycle::new(
++            binding(),
++            executor.clone(),
++            "caller-tag",
++            Some("v=0\r\na=logical-offer\r\n"),
++        )
++        .unwrap();
++        let payload = serde_json::json!({
++            "from_tag": "caller-tag",
++            "media_profile_id": "g711-relay-v1",
++            "offer_sdp": "v=0\r\na=logical-offer\r\n"
++        });
++        let command_id = lifecycle
++            .preview_command_id(MediaControlAction::Offer, 1, payload)
++            .unwrap();
++        let mut result = committed(&command_id, 1, "prepared", "v=0\r\na=effective-offer\r\n");
++        if let MediaControlResult::Committed { session, .. } = &mut result {
++            session.owner_epoch = "4294967298".to_string();
++        }
++        executor.results.lock().push_back(Ok(result));
++
++        assert_eq!(
++            lifecycle.prepare_ordinary_relay_offer("branch-a").await,
++            Err(MediaLifecycleError::OutcomeUnknown)
++        );
++        assert!(lifecycle.reconcile_required());
++    }
++
++    #[tokio::test]
++    async fn cancel_before_offer_does_not_allocate_or_delete() {
++        let executor = executor_with_results(Vec::new());
++        let mut lifecycle = IveKitMediaLifecycle::new(
++            binding(),
++            executor.clone(),
++            "caller-tag",
++            Some("v=0\r\na=logical-offer\r\n"),
++        )
++        .unwrap();
++
++        assert_eq!(
++            lifecycle.close_media().await.unwrap(),
++            MediaCloseOutcome::NotAllocated
++        );
++        assert!(executor.commands.lock().is_empty());
++    }
++
++    #[tokio::test]
++    async fn non_2xx_ack_does_not_allocate_media() {
++        let executor = executor_with_results(Vec::new());
++        let mut lifecycle =
++            IveKitMediaLifecycle::new(binding(), executor.clone(), "caller-tag", None).unwrap();
++
++        assert_eq!(
++            lifecycle.close_media().await.unwrap(),
++            MediaCloseOutcome::NotAllocated
++        );
++        assert!(executor.commands.lock().is_empty());
++    }
++
++    #[tokio::test]
++    async fn delete_is_replayed_with_stable_identity_after_unknown() {
++        let executor = executor_with_results(Vec::new());
++        let mut lifecycle = IveKitMediaLifecycle::new(
++            binding(),
++            executor.clone(),
++            "caller-tag",
++            Some("v=0\r\na=logical-offer\r\n"),
++        )
++        .unwrap();
++        let offer_id = lifecycle
++            .preview_command_id(
++                MediaControlAction::Offer,
++                1,
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "media_profile_id": "g711-relay-v1",
++                    "offer_sdp": "v=0\r\na=logical-offer\r\n"
++                }),
++            )
++            .unwrap();
++        executor.results.lock().push_back(Ok(committed(
++            &offer_id,
++            1,
++            "prepared",
++            "v=0\r\na=effective-offer\r\n",
++        )));
++        lifecycle
++            .prepare_ordinary_relay_offer("branch-a")
++            .await
++            .unwrap();
++        let delete_id = lifecycle
++            .preview_command_id(
++                MediaControlAction::Delete,
++                2,
++                serde_json::json!({ "from_tag": "caller-tag" }),
++            )
++            .unwrap();
++        executor
++            .results
++            .lock()
++            .push_back(Ok(MediaControlResult::Unknown {
++                protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++                command_id: delete_id.clone(),
++                error_code: "transport_timeout".to_string(),
++                retryable: true,
++                session: None,
++            }));
++        executor
++            .results
++            .lock()
++            .push_back(Ok(MediaControlResult::Replayed {
++                protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++                command_id: delete_id,
++                session: MediaSessionSnapshot {
++                    media_reservation_id: "admission-a/callee".to_string(),
++                    call_id: "call-a".to_string(),
++                    owner_epoch: "4294967297".to_string(),
++                    last_sequence: 2,
++                    state: "closed".to_string(),
++                    transport_session_id: "rtpengine-a".to_string(),
++                    effective_sdp: "v=0\r\na=effective-offer\r\n".to_string(),
++                    expires_at: "2026-07-26T12:00:30.000Z".to_string(),
++                    updated_at: "2026-07-26T12:00:00.000Z".to_string(),
++                },
++            }));
++
++        assert_eq!(
++            lifecycle.close_media().await,
++            Err(MediaLifecycleError::OutcomeUnknown)
++        );
++        assert_eq!(
++            lifecycle.close_media().await.unwrap(),
++            MediaCloseOutcome::Closed
++        );
++        let commands = executor.commands.lock();
++        assert_eq!(commands.len(), 3);
++        assert!(matches!(commands[1].action, MediaControlAction::Delete));
++        assert_eq!(commands[1].command_id, commands[2].command_id);
++        assert_eq!(commands[1].idempotency_key, commands[2].idempotency_key);
++        assert_eq!(commands[1].command_sequence, 2);
++    }
++
++    #[tokio::test]
++    async fn close_after_early_media_uses_both_dialog_tags() {
++        let executor = executor_with_results(Vec::new());
++        let mut lifecycle = IveKitMediaLifecycle::new(
++            binding(),
++            executor.clone(),
++            "caller-tag",
++            Some("v=0\r\na=logical-offer\r\n"),
++        )
++        .unwrap();
++        for (action, sequence, state, payload, sdp) in [
++            (
++                MediaControlAction::Offer,
++                1,
++                "prepared",
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "media_profile_id": "g711-relay-v1",
++                    "offer_sdp": "v=0\r\na=logical-offer\r\n"
++                }),
++                "v=0\r\na=effective-offer\r\n",
++            ),
++            (
++                MediaControlAction::Update,
++                2,
++                "prepared",
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "negotiation_role": "answer",
++                    "sdp": "v=0\r\na=callee-early\r\n",
++                    "to_tag": "callee-tag"
++                }),
++                "v=0\r\na=effective-early\r\n",
++            ),
++        ] {
++            let command_id = lifecycle
++                .preview_command_id(action, sequence, payload)
++                .unwrap();
++            executor
++                .results
++                .lock()
++                .push_back(Ok(committed(&command_id, sequence, state, sdp)));
++        }
++        lifecycle
++            .prepare_ordinary_relay_offer("branch-a")
++            .await
++            .unwrap();
++        lifecycle
++            .commit_early_media("branch-a", "callee-tag", "v=0\r\na=callee-early\r\n")
++            .await
++            .unwrap();
++        let delete_id = lifecycle
++            .preview_command_id(
++                MediaControlAction::Delete,
++                3,
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "to_tag": "callee-tag"
++                }),
++            )
++            .unwrap();
++        executor.results.lock().push_back(Ok(committed(
++            &delete_id,
++            3,
++            "closed",
++            "v=0\r\na=effective-early\r\n",
++        )));
++
++        assert_eq!(
++            lifecycle.close_media().await.unwrap(),
++            MediaCloseOutcome::Closed
++        );
++        let commands = executor.commands.lock();
++        assert_eq!(
++            commands[2]
++                .payload
++                .get("to_tag")
++                .and_then(|value| value.as_str()),
++            Some("callee-tag")
++        );
++    }
++
++    #[tokio::test]
++    async fn close_after_early_and_final_media_is_idempotent() {
++        let executor = executor_with_results(Vec::new());
++        let mut lifecycle = IveKitMediaLifecycle::new(
++            binding(),
++            executor.clone(),
++            "caller-tag",
++            Some("v=0\r\na=logical-offer\r\n"),
++        )
++        .unwrap();
++        for (action, sequence, state, payload, sdp) in [
++            (
++                MediaControlAction::Offer,
++                1,
++                "prepared",
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "media_profile_id": "g711-relay-v1",
++                    "offer_sdp": "v=0\r\na=logical-offer\r\n"
++                }),
++                "v=0\r\na=effective-offer\r\n",
++            ),
++            (
++                MediaControlAction::Update,
++                2,
++                "prepared",
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "negotiation_role": "answer",
++                    "sdp": "v=0\r\na=callee-early\r\n",
++                    "to_tag": "callee-tag"
++                }),
++                "v=0\r\na=effective-early\r\n",
++            ),
++            (
++                MediaControlAction::Answer,
++                3,
++                "committed",
++                serde_json::json!({
++                    "answer_sdp": "v=0\r\na=callee-final\r\n",
++                    "from_tag": "caller-tag",
++                    "to_tag": "callee-tag"
++                }),
++                "v=0\r\na=effective-final\r\n",
++            ),
++        ] {
++            let command_id = lifecycle
++                .preview_command_id(action, sequence, payload)
++                .unwrap();
++            executor
++                .results
++                .lock()
++                .push_back(Ok(committed(&command_id, sequence, state, sdp)));
++        }
++        lifecycle
++            .prepare_ordinary_relay_offer("branch-a")
++            .await
++            .unwrap();
++        lifecycle
++            .commit_early_media("branch-a", "callee-tag", "v=0\r\na=callee-early\r\n")
++            .await
++            .unwrap();
++        lifecycle
++            .commit_final_answer("branch-a", "callee-tag", "v=0\r\na=callee-final\r\n")
++            .await
++            .unwrap();
++        let delete_id = lifecycle
++            .preview_command_id(
++                MediaControlAction::Delete,
++                4,
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "to_tag": "callee-tag"
++                }),
++            )
++            .unwrap();
++        executor.results.lock().push_back(Ok(committed(
++            &delete_id,
++            4,
++            "closed",
++            "v=0\r\na=effective-final\r\n",
++        )));
++
++        assert_eq!(
++            lifecycle.close_media().await.unwrap(),
++            MediaCloseOutcome::Closed
++        );
++        assert_eq!(
++            lifecycle.close_media().await.unwrap(),
++            MediaCloseOutcome::AlreadyClosed
++        );
++        assert_eq!(executor.commands.lock().len(), 4);
++    }
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index 06e799f9..a54f514b 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -14,6 +14,7 @@ pub mod license;
+ 
+ pub mod http_util;
+ pub mod ivekit_audio_tap;
++pub mod ivekit_media_lifecycle;
+ pub mod ivekit_media_control;
+ pub mod ivekit_owner;
+ pub mod ivekit_recording;
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index 2ef75577..8a79cdc3 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -172,6 +172,8 @@ pub struct SipSession {
+     pub pending_hangup: HashSet<DialogId>,
+     pub meta: crate::proxy::proxy_call::call_meta::CallMeta,
+     pub media: crate::proxy::proxy_call::media_state::MediaState,
++    pub ivekit_media: crate::ivekit_media_lifecycle::IveKitMediaRuntime,
++    pub ivekit_execution_profile: crate::ivekit_media_lifecycle::MediaExecutionProfile,
+ 
+     timers: HashMap<DialogId, SessionTimerState>,
+     update_refresh_disabled: HashSet<DialogId>,
+@@ -211,6 +213,7 @@ pub struct SipSessionHandle {
+ }
+ 
+ const CMD_CHANNEL_CAPACITY: usize = 256;
++const MEDIA_CONTROL_CLEANUP_TIMEOUT: Duration = Duration::from_millis(250);
+ 
+ /// Custom SIP INFO content type for rustpbx call-control commands.
+ /// The body is a JSON object with `action` and optional `params` fields.
+@@ -536,6 +539,7 @@ impl AppFactory for BuiltinAppFactory {
+ }
+ 
+ const MID_DIALOG_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
++const MAX_MID_DIALOG_GLARE_RETRIES: usize = 1;
+ 
+ /// Parse trunk dest to extract (host, port). Handles both SIP URIs and bare host:port.
+ fn trunk_host_port(dest: &str) -> Option<(String, u16)> {
+@@ -1013,6 +1017,11 @@ impl SipSession {
+ 
+         let initial = server_dialog.initial_request();
+         let caller_offer = Self::extract_sdp(initial.body());
++        let ivekit_media = crate::ivekit_media_lifecycle::IveKitMediaRuntime::bootstrap(
++            &session_id_str,
++            &server_dialog.id().remote_tag,
++            caller_offer.as_deref(),
++        );
+         let realtime_audio_tap_capture = if use_media_proxy {
+             Self::setup_realtime_audio_tap(&server, &context)
+         } else {
+@@ -1053,6 +1062,11 @@ impl SipSession {
+             cancel_token,
+             meta,
+             media: crate::proxy::proxy_call::media_state::MediaState::new(caller_offer),
++            ivekit_media,
++            ivekit_execution_profile:
++                crate::ivekit_media_lifecycle::MediaExecutionProfile::LocalMediaGraph(
++                    crate::ivekit_media_lifecycle::LocalMediaReason::MediaControlDisabled,
++                ),
+             timers: HashMap::new(),
+             update_refresh_disabled: HashSet::new(),
+             timer_queue: DelayQueue::new(),
+@@ -1103,7 +1117,12 @@ impl SipSession {
+             .get_or_create_server_invite(tx, state_tx, None, local_contact.clone())
+             .map_err(|e| anyhow!("Failed to create server dialog: {}", e))?;
+ 
+-        let use_media_proxy = Self::check_media_proxy(&context, &context.dialplan.media.proxy_mode);
++        let explicit_media_bypass = matches!(
++            context.dialplan.media.proxy_mode,
++            MediaProxyMode::None | MediaProxyMode::Bypass
++        );
++        let use_media_proxy = Self::check_media_proxy(&context, &context.dialplan.media.proxy_mode)
++            || (crate::ivekit_media_lifecycle::media_control_requested() && !explicit_media_bypass);
+ 
+         let caller_media_builder = crate::media::MediaStreamBuilder::new()
+             .with_id(format!("{}-caller", session_id))
+@@ -1132,12 +1151,6 @@ impl SipSession {
+             call_record_sender: session.call_record_sender.clone(),
+         });
+ 
+-        if use_media_proxy {
+-            let offer_sdp =
+-                String::from_utf8_lossy(server_dialog.initial_request().body()).to_string();
+-            session.media.caller_offer = Some(offer_sdp);
+-        }
+-
+         let dialog_guard = ServerDialogGuard::new(server.dialog_layer.clone(), server_dialog.id());
+ 
+         let (callee_state_tx, callee_state_rx) = mpsc::unbounded_channel();
+@@ -1411,6 +1424,59 @@ impl SipSession {
+         Ok((status, answer_sdp))
+     }
+ 
++    async fn relay_ordinary_media_control_offer(
++        &mut self,
++        side: DialogSide,
++        method: rsipstack::sip::Method,
++        offer_sdp: &str,
++    ) -> Result<(StatusCode, Option<String>)> {
++        let media_side = match side {
++            DialogSide::Caller => crate::ivekit_media_lifecycle::MediaDialogSide::Caller,
++            DialogSide::Callee => crate::ivekit_media_lifecycle::MediaDialogSide::Callee,
++        };
++        let target_side = match side {
++            DialogSide::Caller => DialogSide::Callee,
++            DialogSide::Callee => DialogSide::Caller,
++        };
++        let mut glare_retries = 0usize;
++        let (status, answer_sdp) = loop {
++            let effective_offer = self
++                .ivekit_media
++                .lifecycle_mut()
++                .ok_or_else(|| anyhow!("Media-control lifecycle unavailable"))?
++                .prepare_mid_dialog_offer(media_side, offer_sdp)
++                .await
++                .map_err(|error| anyhow!("Media-control mid-dialog offer failed: {error}"))?;
++            let result = self
++                .send_mid_dialog_offer_once_with_fallback(
++                    target_side,
++                    method.clone(),
++                    &effective_offer,
++                )
++                .await?;
++            if result.0 == StatusCode::RequestPending
++                && glare_retries < MAX_MID_DIALOG_GLARE_RETRIES
++            {
++                tokio::time::sleep(Self::mid_dialog_glare_backoff(glare_retries)).await;
++                glare_retries += 1;
++                continue;
++            }
++            break result;
++        };
++        if status.kind() != rsipstack::sip::status_code::StatusCodeKind::Successful {
++            return Ok((status, None));
++        }
++        let effective_answer = self
++            .ivekit_media
++            .lifecycle_mut()
++            .ok_or_else(|| anyhow!("Media-control lifecycle unavailable"))?
++            .commit_mid_dialog_answer(media_side, &answer_sdp)
++            .await
++            .map_err(|error| anyhow!("Media-control mid-dialog answer failed: {error}"))?;
++        self.committed_mid_dialog_leg_state(side, offer_sdp, &effective_answer)?;
++        Ok((status, Some(effective_answer)))
++    }
++
+     async fn relay_bridged_dialog_offer(
+         &mut self,
+         side: DialogSide,
+@@ -1883,6 +1949,26 @@ impl SipSession {
+         target_side: DialogSide,
+         method: rsipstack::sip::Method,
+         offer_sdp: &str,
++    ) -> Result<(StatusCode, String)> {
++        let mut retries = 0usize;
++        loop {
++            let result = self
++                .send_mid_dialog_offer_once_with_fallback(target_side, method.clone(), offer_sdp)
++                .await?;
++            if result.0 == StatusCode::RequestPending && retries < MAX_MID_DIALOG_GLARE_RETRIES {
++                tokio::time::sleep(Self::mid_dialog_glare_backoff(retries)).await;
++                retries += 1;
++                continue;
++            }
++            return Ok(result);
++        }
++    }
++
++    async fn send_mid_dialog_offer_once_with_fallback(
++        &mut self,
++        target_side: DialogSide,
++        method: rsipstack::sip::Method,
++        offer_sdp: &str,
+     ) -> Result<(StatusCode, String)> {
+         let headers = Self::sdp_headers();
+         let response_result = self
+@@ -1895,34 +1981,15 @@ impl SipSession {
+             .await;
+ 
+         let response = match response_result {
+-            Ok(Some(resp))
+-                if resp.status_code.kind()
+-                    == rsipstack::sip::status_code::StatusCodeKind::Successful
+-                    || method != rsipstack::sip::Method::Update =>
++            Ok(Some(response))
++                if method == rsipstack::sip::Method::Update
++                    && Self::should_fallback_to_reinvite(response.status_code.clone()) =>
+             {
+-                resp
+-            }
+-            Ok(Some(resp)) => {
+                 warn!(
+                     session_id = %self.context.session_id,
+                     target_side = ?target_side,
+-                    status = %resp.status_code,
+-                    "Bridged UPDATE was rejected; retrying as re-INVITE"
+-                );
+-                self.send_mid_dialog_request_to_side(
+-                    target_side,
+-                    rsipstack::sip::Method::Invite,
+-                    headers,
+-                    Some(offer_sdp.as_bytes().to_vec()),
+-                )
+-                .await?
+-                .ok_or_else(|| anyhow!("Bridged re-INVITE timed out"))?
+-            }
+-            Ok(None) if method == rsipstack::sip::Method::Update => {
+-                warn!(
+-                    session_id = %self.context.session_id,
+-                    target_side = ?target_side,
+-                    "Bridged UPDATE timed out; retrying as re-INVITE"
++                    status = %response.status_code,
++                    "UPDATE unsupported; retrying the same offer as re-INVITE"
+                 );
+                 self.send_mid_dialog_request_to_side(
+                     target_side,
+@@ -1933,23 +2000,8 @@ impl SipSession {
+                 .await?
+                 .ok_or_else(|| anyhow!("Bridged re-INVITE timed out"))?
+             }
++            Ok(Some(response)) => response,
+             Ok(None) => return Err(anyhow!("{} timed out", method)),
+-            Err(error) if method == rsipstack::sip::Method::Update => {
+-                warn!(
+-                    session_id = %self.context.session_id,
+-                    target_side = ?target_side,
+-                    error = %error,
+-                    "Bridged UPDATE failed; retrying as re-INVITE"
+-                );
+-                self.send_mid_dialog_request_to_side(
+-                    target_side,
+-                    rsipstack::sip::Method::Invite,
+-                    headers,
+-                    Some(offer_sdp.as_bytes().to_vec()),
+-                )
+-                .await?
+-                .ok_or_else(|| anyhow!("Bridged re-INVITE timed out"))?
+-            }
+             Err(error) => return Err(error),
+         };
+ 
+@@ -2238,6 +2290,8 @@ impl SipSession {
+                         reason = %reason,
+                         "RTP timeout detected, terminating session"
+                     );
++                    // This stable CDR cause terminates the interaction; the
++                    // bounded cleanup path then closes its media reservation.
+                     self.meta.hangup_reason = Some(CallRecordHangupReason::RtpTimeout);
+                     self.cancel_token.cancel();
+                 }
+@@ -2380,7 +2434,7 @@ impl SipSession {
+             self.callee_transport_mode(callee_is_webrtc),
+         );
+ 
+-        let offer = self.prepare_callee_media_offer(target).await;
++        let offer = self.prepare_callee_media_offer(target).await?;
+         let content_type = offer.as_ref().map(|_| "application/sdp".to_string());
+ 
+         let contact_uri = self
+@@ -2540,7 +2594,19 @@ impl SipSession {
+                             .any(|section| section.kind == rustrtc::MediaKind::Video)
+                     })
+                     .unwrap_or(false);
+-            let answer_result = if self.bypasses_local_media() {
++            let answer_result = if self.ivekit_execution_profile
++                == crate::ivekit_media_lifecycle::MediaExecutionProfile::OrdinaryRelay
++            {
++                self.relay_ordinary_media_control_offer(side, request.method.clone(), &offer_sdp)
++                    .await
++                    .map_err(|e| {
++                        (
++                            rsipstack::sip::StatusCode::ServiceUnavailable,
++                            "Failed to commit ordinary relay dialog negotiation",
++                            e,
++                        )
++                    })
++            } else if self.bypasses_local_media() {
+                 self.relay_signaling_only_offer(side, request.method.clone(), &offer_sdp)
+                     .await
+                     .map_err(|e| {
+@@ -4705,7 +4771,7 @@ impl SipSession {
+                 }
+ 
+                 state = callee_state_rx.recv() => {
+-                    if let Some(DialogState::Early(_, ref response)) = state {
++                    if let Some(DialogState::Early(ref early_dialog_id, ref response)) = state {
+                         // Any provisional response (100/180/183) proves the downstream
+                         // trunk is alive; dismiss the no-trying timer from now on.
+                         no_trying_dismissed = true;
+@@ -4719,39 +4785,29 @@ impl SipSession {
+                             self.media.early_media_sent = true;
+                             self.update_leg_state(&LegId::from("callee"), LegState::EarlyMedia);
+ 
+-                            if self.media_profile.path == MediaPathMode::Anchored {
+-                                let caller_sdp = self
+-                                    .prepare_caller_answer_from_callee_sdp(
+-                                        Some(callee_sdp),
+-                                        false,
+-                                        true,
+-                                    )
+-                                    .await;
+-
+-                                if let Err(e) = self.server_dialog.ringing(
+-                                    Some(Self::sdp_headers()),
+-                                    caller_sdp.map(|sdp| sdp.into_bytes()),
+-                                ) {
+-                                    warn!(
+-                                        session_id = %self.context.session_id,
+-                                        error = %e,
+-                                        "Failed to send 183 Session Progress"
+-                                    );
+-                                }
+-                            } else {
+-                                if let Err(e) = self
+-                                    .server_dialog
+-                                    .ringing(
+-                                        Some(Self::sdp_headers()),
+-                                        Some(callee_sdp.into_bytes()),
+-                                    )
+-                                {
+-                                    warn!(
+-                                        session_id = %self.context.session_id,
+-                                        error = %e,
+-                                        "Failed to relay provisional SDP"
+-                                    );
++                            let caller_sdp = match self
++                                .commit_early_media_before_caller_183(
++                                    early_dialog_id,
++                                    &callee_sdp,
++                                )
++                                .await
++                            {
++                                Ok(caller_sdp) => caller_sdp,
++                                Err(error) => {
++                                    self.cancel_token.cancel();
++                                    break Err(error);
+                                 }
++                            };
++
++                            if let Err(e) = self.server_dialog.ringing(
++                                Some(Self::sdp_headers()),
++                                caller_sdp.map(|sdp| sdp.into_bytes()),
++                            ) {
++                                warn!(
++                                    session_id = %self.context.session_id,
++                                    error = %e,
++                                    "Failed to send 183 Session Progress"
++                                );
+                             }
+                         } else {
+                             if !self.media.early_media_sent {
+@@ -4829,8 +4885,8 @@ impl SipSession {
+         }
+ 
+         let caller_answer = self
+-            .prepare_caller_answer_from_callee_sdp(callee_sdp, false, false)
+-            .await;
++            .commit_final_answer_before_caller_200(&dialog_id, callee_sdp)
++            .await?;
+ 
+         self.meta.connected_callee_dialog_id = Some(dialog_id.clone());
+         self.callee_dialogs.insert(dialog_id.clone(), ());
+@@ -4880,7 +4936,93 @@ impl SipSession {
+     async fn prepare_callee_media_offer(
+         &mut self,
+         target: &crate::call::Location,
+-    ) -> Option<Vec<u8>> {
++    ) -> Result<Option<Vec<u8>>, CalleeError> {
++        use crate::call::{DialStrategy, DialplanFlow};
++        use crate::ivekit_media_lifecycle::{
++            MediaControlFailurePolicy, MediaExecutionFacts, MediaExecutionProfile,
++            classify_media_execution,
++        };
++
++        let explicit_bypass = matches!(
++            self.context.dialplan.media.proxy_mode,
++            MediaProxyMode::None | MediaProxyMode::Bypass
++        );
++        let application_flow =
++            matches!(self.context.dialplan.flow, DialplanFlow::Application { .. });
++        let queue_flow = matches!(self.context.dialplan.flow, DialplanFlow::Queue { .. });
++        let parallel_fork = matches!(
++            self.context.dialplan.flow,
++            DialplanFlow::Targets(DialStrategy::Parallel(_))
++        );
++        let profile = classify_media_execution(&MediaExecutionFacts {
++            media_control_enabled: crate::ivekit_media_lifecycle::media_control_requested(),
++            media_proxy_enabled: self.media_profile.path == MediaPathMode::Anchored,
++            explicit_bypass,
++            application_flow,
++            queue_flow,
++            parallel_fork,
++            recording: self.context.dialplan.recording.enabled,
++            audio_tap: self.realtime_audio_tap_capture.is_some(),
++            caller_webrtc: self.is_caller_webrtc(),
++            callee_webrtc: target.supports_webrtc,
++            transcoding: false,
++            offerless: self.media.caller_offer.is_none(),
++        });
++        self.ivekit_execution_profile = profile;
++
++        if profile == MediaExecutionProfile::OrdinaryRelay {
++            let failure_policy = self.ivekit_media.failure_policy();
++            let result = match self.ivekit_media.lifecycle_mut() {
++                Some(lifecycle) => lifecycle
++                    .prepare_ordinary_relay_offer("callee")
++                    .await
++                    .map(Some),
++                None => {
++                    Err(crate::ivekit_media_lifecycle::MediaLifecycleError::ConfigurationInvalid)
++                }
++            };
++            match result {
++                Ok(effective_sdp) => {
++                    self.media.callee_offer = effective_sdp.clone();
++                    return Ok(effective_sdp.map(String::into_bytes));
++                }
++                Err(error)
++                    if failure_policy == MediaControlFailurePolicy::ExplicitFallback
++                        && crate::ivekit_media_lifecycle::explicit_fallback_allowed(&error) =>
++                {
++                    warn!(
++                        session_id = %self.context.session_id,
++                        error = %error,
++                        "Explicit media-control fallback selected before outbound INVITE"
++                    );
++                    self.ivekit_execution_profile = MediaExecutionProfile::ExplicitFallback;
++                }
++                Err(error) => {
++                    warn!(
++                        session_id = %self.context.session_id,
++                        error = %error,
++                        failure_code = error.failure_code(),
++                        bootstrap_failure_code = ?self.ivekit_media.failure_code(),
++                        "Media-control offer failed closed before outbound INVITE"
++                    );
++                    self.ivekit_execution_profile = MediaExecutionProfile::FailClosed;
++                    return Err(into_callee_err(
++                        &StatusCode::ServiceUnavailable,
++                        Some("Media relay unavailable".to_string()),
++                    ));
++                }
++            }
++        }
++
++        let callee_sdp = self.prepare_local_callee_media_offer(target).await;
++        self.media.callee_offer = callee_sdp.clone();
++        Ok(callee_sdp.map(String::into_bytes))
++    }
++
++    async fn prepare_local_callee_media_offer(
++        &mut self,
++        target: &crate::call::Location,
++    ) -> Option<String> {
+         let callee_is_webrtc = target.supports_webrtc;
+         let caller_is_webrtc = self.is_caller_webrtc();
+         let callee_sdp = if self.bypasses_local_media() && caller_is_webrtc == callee_is_webrtc {
+@@ -4920,8 +5061,104 @@ impl SipSession {
+         } else {
+             self.create_callee_track(callee_is_webrtc).await.ok()
+         };
+-        self.media.callee_offer = callee_sdp.clone();
+-        callee_sdp.map(|s| s.into_bytes())
++        callee_sdp
++    }
++
++    async fn commit_early_media_before_caller_183(
++        &mut self,
++        dialog_id: &DialogId,
++        callee_sdp: &str,
++    ) -> Result<Option<String>, CalleeError> {
++        if self.ivekit_execution_profile
++            == crate::ivekit_media_lifecycle::MediaExecutionProfile::OrdinaryRelay
++        {
++            let session_id = self.context.session_id.clone();
++            let branch_id = crate::ivekit_media_lifecycle::stable_dialog_branch_id(
++                &dialog_id.call_id,
++                &dialog_id.local_tag,
++                &dialog_id.remote_tag,
++            );
++            let lifecycle = self.ivekit_media.lifecycle_mut().ok_or_else(|| {
++                into_callee_err(
++                    &StatusCode::ServiceUnavailable,
++                    Some("Media relay state unavailable".to_string()),
++                )
++            })?;
++            let effective_sdp = lifecycle
++                .commit_early_media(&branch_id, &dialog_id.remote_tag, callee_sdp)
++                .await
++                .map_err(|error| {
++                    warn!(
++                        session_id = %session_id,
++                        error = %error,
++                        "Media-control early answer failed before caller 183"
++                    );
++                    into_callee_err(
++                        &StatusCode::ServiceUnavailable,
++                        Some("Early media relay unavailable".to_string()),
++                    )
++                })?;
++            self.media.callee_answer_sdp = Some(callee_sdp.to_string());
++            self.media.answer = Some(effective_sdp.clone());
++            return Ok(Some(effective_sdp));
++        }
++
++        if self.media_profile.path == MediaPathMode::Anchored {
++            return Ok(self
++                .prepare_caller_answer_from_callee_sdp(Some(callee_sdp.to_string()), false, true)
++                .await);
++        }
++        Ok(Some(callee_sdp.to_string()))
++    }
++
++    async fn commit_final_answer_before_caller_200(
++        &mut self,
++        dialog_id: &DialogId,
++        callee_sdp: Option<String>,
++    ) -> Result<Option<String>, CalleeError> {
++        if self.ivekit_execution_profile
++            == crate::ivekit_media_lifecycle::MediaExecutionProfile::OrdinaryRelay
++        {
++            let callee_sdp = callee_sdp.ok_or_else(|| {
++                into_callee_err(
++                    &StatusCode::NotAcceptableHere,
++                    Some("Callee answer SDP is required".to_string()),
++                )
++            })?;
++            let session_id = self.context.session_id.clone();
++            let branch_id = crate::ivekit_media_lifecycle::stable_dialog_branch_id(
++                &dialog_id.call_id,
++                &dialog_id.local_tag,
++                &dialog_id.remote_tag,
++            );
++            let lifecycle = self.ivekit_media.lifecycle_mut().ok_or_else(|| {
++                into_callee_err(
++                    &StatusCode::ServiceUnavailable,
++                    Some("Media relay state unavailable".to_string()),
++                )
++            })?;
++            let effective_sdp = lifecycle
++                .commit_final_answer(&branch_id, &dialog_id.remote_tag, &callee_sdp)
++                .await
++                .map_err(|error| {
++                    warn!(
++                        session_id = %session_id,
++                        error = %error,
++                        "Media-control final answer failed before caller 200"
++                    );
++                    into_callee_err(
++                        &StatusCode::ServiceUnavailable,
++                        Some("Media relay answer unavailable".to_string()),
++                    )
++                })?;
++            self.media.callee_answer_sdp = Some(callee_sdp);
++            self.media.answer = Some(effective_sdp.clone());
++            return Ok(Some(effective_sdp));
++        }
++
++        Ok(self
++            .prepare_caller_answer_from_callee_sdp(callee_sdp, false, false)
++            .await)
+     }
+ 
+     async fn prepare_caller_answer_from_callee_sdp(
+@@ -7027,6 +7264,54 @@ impl SipSession {
+         !matches!(direction, rustrtc::Direction::SendRecv)
+     }
+ 
++    fn committed_mid_dialog_leg_state(
++        &mut self,
++        side: DialogSide,
++        logical_offer_sdp: &str,
++        effective_answer_sdp: &str,
++    ) -> Result<()> {
++        let parsed = Self::parse_sdp(
++            rustrtc::SdpType::Offer,
++            logical_offer_sdp,
++            "ordinary relay mid-dialog offer",
++        )?;
++        let offer_direction = parsed
++            .media_sections
++            .iter()
++            .find(|section| section.kind == rustrtc::MediaKind::Audio)
++            .map(|section| {
++                if section.port == 0 {
++                    rustrtc::Direction::Inactive
++                } else {
++                    section.direction
++                }
++            });
++        let leg_id = match side {
++            DialogSide::Caller => {
++                self.media.caller_offer = Some(logical_offer_sdp.to_string());
++                self.media.answer = Some(effective_answer_sdp.to_string());
++                LegId::from("caller")
++            }
++            DialogSide::Callee => {
++                self.media.callee_offer = Some(logical_offer_sdp.to_string());
++                self.media.callee_answer_sdp = Some(effective_answer_sdp.to_string());
++                LegId::from("callee")
++            }
++        };
++        if let Some(direction) = offer_direction {
++            self.update_leg_state(
++                &leg_id,
++                if Self::is_hold_direction(direction) {
++                    LegState::Hold
++                } else {
++                    LegState::Connected
++                },
++            );
++        }
++        self.update_snapshot_cache();
++        Ok(())
++    }
++
+     async fn get_local_reinvite_pc(&self, side: DialogSide) -> Option<rustrtc::PeerConnection> {
+         if let Some(bridge) = &self.media.media_bridge {
+             let bridge_endpoint = match side {
+@@ -7750,6 +8035,30 @@ impl SipSession {
+     async fn cleanup(&mut self) {
+         trace!(session_id = %self.context.session_id, "Cleaning up session");
+ 
++        if self.ivekit_execution_profile
++            == crate::ivekit_media_lifecycle::MediaExecutionProfile::OrdinaryRelay
++        {
++            if let Some(lifecycle) = self.ivekit_media.lifecycle_mut() {
++                // The media-control agent persists uncertain deletes. This
++                // deadline keeps SIP BYE independent while orphan recovery
++                // provides durable reconciliation after a timeout.
++                match tokio::time::timeout(MEDIA_CONTROL_CLEANUP_TIMEOUT, lifecycle.close_media())
++                    .await
++                {
++                    Ok(Ok(_)) => {}
++                    Ok(Err(error)) => warn!(
++                        session_id = %self.context.session_id,
++                        error = %error,
++                        "media_control_cleanup_unconfirmed"
++                    ),
++                    Err(_) => warn!(
++                        session_id = %self.context.session_id,
++                        "media_control_cleanup_unconfirmed"
++                    ),
++                }
++            }
++        }
++
+         self.stop_caller_ingress_monitor().await;
+ 
+         // Ensure the running app (IVR/voicemail/queue) is notified of session end.
+@@ -8089,6 +8398,12 @@ impl SipSession {
+         )
+     }
+ 
++    fn mid_dialog_glare_backoff(attempt: usize) -> Duration {
++        let bounded_attempt = attempt.min(MAX_MID_DIALOG_GLARE_RETRIES);
++        let jitter_ms = u64::from(rand::random::<u16>()) % 501;
++        Duration::from_millis((250 + jitter_ms) * (bounded_attempt as u64 + 1))
++    }
++
+     fn should_try_update_refresh(&self, dialog_id: &DialogId) -> bool {
+         !self.update_refresh_disabled.contains(dialog_id)
+     }
+@@ -8579,6 +8894,20 @@ impl SipSession {
+             },
+ 
+             CallCommand::InjectAppEvent { event } => {
++                if let crate::call::domain::AppEvent::Dtmf { digit } = &event {
++                    if let Some(value) = digit.chars().next() {
++                        self.dtmf_digits.push(value);
++                    }
++                    self.emit_typed_rwi_event(&crate::rwi::Dtmf {
++                        call_id: self.context.session_id.clone(),
++                        digit: digit.clone(),
++                        leg_id: None,
++                        extra: Some(serde_json::json!({
++                            "transport": "rtpengine",
++                            "source": "media_control_event"
++                        })),
++                    });
++                }
+                 let event_value = serde_json::to_value(&event).unwrap_or(serde_json::Value::Null);
+                 match self.app_runtime.inject_event(event_value) {
+                     Ok(()) => CommandResult::success(),
+@@ -9884,6 +10213,38 @@ impl SipSession {
+             return Err(anyhow!("No valid DTMF digits provided: {}", digits));
+         }
+ 
++        if self.ivekit_execution_profile
++            == crate::ivekit_media_lifecycle::MediaExecutionProfile::OrdinaryRelay
++        {
++            let media_side = if leg_id == LegId::from("caller") {
++                crate::ivekit_media_lifecycle::MediaDialogSide::Caller
++            } else if leg_id == LegId::from("callee") {
++                crate::ivekit_media_lifecycle::MediaDialogSide::Callee
++            } else {
++                return Err(anyhow!(
++                    "RTPengine DTMF injection does not support leg {}",
++                    leg_id
++                ));
++            };
++            let lifecycle = self
++                .ivekit_media
++                .lifecycle_mut()
++                .ok_or_else(|| anyhow!("Media-control lifecycle unavailable"))?;
++            for digit in &valid_digits {
++                lifecycle
++                    .inject_rtp_dtmf(media_side, &digit.to_string(), 160, 8, 100)
++                    .await
++                    .map_err(|error| anyhow!("RTPengine DTMF injection failed: {error}"))?;
++                self.dtmf_digits.push(*digit);
++            }
++            info!(
++                %leg_id,
++                digits = %valid_digits.iter().collect::<String>(),
++                "DTMF sent through RTPengine media-control"
++            );
++            return Ok(());
++        }
++
+         let dtmf_body = valid_digits
+             .iter()
+             .map(|d| format!("Signal={}\nDuration=160", d))
+@@ -10247,6 +10608,8 @@ fn parse_sipfrag_status(body: &str) -> Option<u16> {
+ 
+ impl Drop for SipSession {
+     fn drop(&mut self) {
++        // Media-control cleanup requires the frozen reservation and owner
++        // identity, so it is deliberately never attempted from Drop.
+         self.cancel_token.cancel();
+ 
+         self.callee_guards.clear();
+diff --git a/src/proxy/server.rs b/src/proxy/server.rs
+index 4bac4683..e8a39af6 100644
+--- a/src/proxy/server.rs
++++ b/src/proxy/server.rs
+@@ -19,7 +19,9 @@ use crate::{
+         auth::AuthBackend,
+         call::{CallRouter, DialplanInspector},
+         cluster_event::{ClusterEventHub, ClusterEventModule},
+-        locator::{DialogTargetLocator, LocatorEvent, LocatorEventSender, TransportInspectorLocator},
++        locator::{
++            DialogTargetLocator, LocatorEvent, LocatorEventSender, TransportInspectorLocator,
++        },
+         pre_auth_registry::PreAuthRegistry,
+         presence::PresenceManager,
+     },
+@@ -843,6 +845,10 @@ impl SipServerBuilder {
+         }
+ 
+         let active_call_registry = Arc::new(ActiveProxyCallRegistry::new());
++        crate::ivekit_media_lifecycle::spawn_media_control_event_listener(
++            active_call_registry.clone(),
++            cancel_token.child_token(),
++        );
+         let presence_manager = Arc::new(PresenceManager::new(database.clone()));
+         presence_manager.load_from_db().await.ok();
+ 
+@@ -998,9 +1004,7 @@ impl SipServerBuilder {
+                 let _task = engine.spawn(handle);
+                 engine
+             },
+-            trunk_rate_limiter: Arc::new(
+-                crate::proxy::trunk_rate_limiter::TrunkRateLimiter::new(),
+-            ),
++            trunk_rate_limiter: Arc::new(crate::proxy::trunk_rate_limiter::TrunkRateLimiter::new()),
+         });
+ 
+         let inner_weak = Arc::downgrade(&inner);
+@@ -1313,8 +1317,7 @@ impl SipServer {
+                         .unwrap_or_else(|| "unknown".to_string());
+                     if tx.original.method == rsipstack::sip::Method::Options {
+                         let is_trunk = if let Some(ref ip) = via_ip {
+-                            let inbound_trunks =
+-                                self.inner.data_context.acl_inbound_trunks.load();
++                            let inbound_trunks = self.inner.data_context.acl_inbound_trunks.load();
+                             let source_network = ipnet::IpNet::from(*ip);
+                             inbound_trunks
+                                 .cover_values(&source_network)

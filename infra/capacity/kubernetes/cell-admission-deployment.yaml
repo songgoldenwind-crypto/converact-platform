@@ -1,0 +1,254 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ivekit-cell-admission
+  labels:
+    app.kubernetes.io/name: ivekit-cell-admission
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ivekit-cell-admission
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ivekit-cell-admission
+    spec:
+      terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: ivekit-cell-admission
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: ivekit-cell-admission
+      containers:
+        - name: admission
+          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "--import", "tsx", "scripts/ivekit-cell-admission.ts"]
+          ports:
+            - name: http
+              containerPort: 3200
+          env:
+            - name: OPC_IVEKIT_CELL_ADMISSION_HOST
+              value: "0.0.0.0"
+            - name: OPC_IVEKIT_CELL_ADMISSION_PORT
+              value: "3200"
+            - name: OPC_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-capacity-runtime
+                  key: database-url
+            - name: OPC_IVEKIT_CELL_ADMISSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-cell-admission
+                  key: admission-token
+            - name: OPC_IVEKIT_CELL_REGION_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: region-id
+            - name: OPC_IVEKIT_CELL_ZONE_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: zone-id
+            - name: OPC_IVEKIT_CELL_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: cell-id
+            - name: OPC_IVEKIT_CELL_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_CELL_LEASE_TTL_MS
+              value: "30000"
+            - name: OPC_IVEKIT_CELL_LEASE_CLAIM_RETRY_MS
+              value: "1000"
+            - name: OPC_IVEKIT_CELL_PROFILE_IDS
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: profile-ids
+            - name: OPC_IVEKIT_CELL_INTERACTION_KINDS
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: interaction-kinds
+            - name: OPC_IVEKIT_CELL_RESERVATION_TTL_MS
+              value: "10000"
+            - name: OPC_IVEKIT_CELL_TERMINAL_RETENTION_MS
+              value: "300000"
+            - name: OPC_IVEKIT_CELL_SWEEP_INTERVAL_MS
+              value: "1000"
+            - name: OPC_IVEKIT_CELL_INITIAL_STATE
+              value: "draining"
+            - name: OPC_IVEKIT_CELL_DIMENSIONS_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: dimensions-json
+            - name: OPC_IVEKIT_CELL_NODES_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: nodes-json
+                  optional: true
+            - name: OPC_IVEKIT_CELL_NODE_POOLS_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: node-pools-json
+                  optional: true
+            - name: OPC_IVEKIT_COMPONENT_NODE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-cell-admission
+                  key: component-node-token
+            - name: OPC_IVEKIT_COMPONENT_NODE_LEASE_TTL_MS
+              value: "10000"
+            - name: OPC_IVEKIT_COMPONENT_NODE_HEARTBEAT_INTERVAL_MS
+              value: "3000"
+            - name: OPC_IVEKIT_COMPONENT_NODE_TIMEOUT_MS
+              value: "2000"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+        - name: capacity-projector
+          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
+          imagePullPolicy: IfNotPresent
+          command:
+            ["node", "--import", "tsx", "scripts/ivekit-cell-capacity-projector.ts"]
+          env:
+            - name: OPC_IVEKIT_CELL_ADMISSION_ENDPOINT
+              value: "http://127.0.0.1:3200"
+            - name: OPC_IVEKIT_CELL_ADMISSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-cell-admission
+                  key: admission-token
+            - name: OPC_IVEKIT_CELL_REGION_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: region-id
+            - name: OPC_IVEKIT_CELL_ZONE_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: zone-id
+            - name: OPC_IVEKIT_CELL_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: cell-id
+            - name: OPC_IVEKIT_CELL_CAPACITY_PROFILE_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: capacity-profile-id
+            - name: OPC_IVEKIT_CELL_CAPACITY_PROFILE_SHA256
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: capacity-profile-sha256
+            - name: OPC_IVEKIT_CELL_PROBE_INTERVAL_MS
+              value: "2000"
+            - name: OPC_IVEKIT_CELL_OBSERVATION_TTL_MS
+              value: "10000"
+            - name: OPC_IVEKIT_CELL_DIMENSIONS_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: dimensions-json
+            - name: OPC_IVEKIT_CELL_NODES_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: nodes-json
+                  optional: true
+            - name: OPC_IVEKIT_CELL_NODE_POOLS_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: node-pools-json
+                  optional: true
+            - name: OPC_IVEKIT_CELL_PROBES_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: ivekit-cell-admission
+                  key: probes-json
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ivekit-cell-admission
+spec:
+  selector:
+    app.kubernetes.io/name: ivekit-cell-admission
+  ports:
+    - name: http
+      port: 3200
+      targetPort: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ivekit-cell-admission
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ivekit-cell-admission

@@ -1,0 +1,182 @@
+diff --git a/src/config.rs b/src/config.rs
+index 393ec6b..f1acf8b 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -830,6 +830,14 @@ pub struct ProxyConfig {
+     pub sip_worker_threads: usize,
+     #[serde(default = "default_media_worker_threads")]
+     pub media_worker_threads: usize,
++    #[serde(default = "default_sip_max_active_transactions")]
++    pub sip_max_active_transactions: usize,
++    #[serde(default = "default_sip_max_finished_transactions")]
++    pub sip_max_finished_transactions: usize,
++    #[serde(default = "default_sip_incoming_transaction_queue_capacity")]
++    pub sip_incoming_transaction_queue_capacity: usize,
++    #[serde(default = "default_sip_max_transport_connections")]
++    pub sip_max_transport_connections: usize,
+     pub ws_handler: Option<String>,
+     pub ami_path: Option<String>,
+     pub rwi_path: Option<String>,
+@@ -980,6 +988,22 @@ fn default_sip_worker_threads() -> usize {
+     }
+ }
+ 
++fn default_sip_max_active_transactions() -> usize {
++    65_536
++}
++
++fn default_sip_max_finished_transactions() -> usize {
++    65_536
++}
++
++fn default_sip_incoming_transaction_queue_capacity() -> usize {
++    8_192
++}
++
++fn default_sip_max_transport_connections() -> usize {
++    32_768
++}
++
+ fn default_media_worker_threads() -> usize {
+     let n = available_parallelism();
+     let sip = default_sip_worker_threads();
+@@ -1331,6 +1355,11 @@ impl Default for ProxyConfig {
+             jwt_auth: None,
+             sip_worker_threads: default_sip_worker_threads(),
+             media_worker_threads: default_media_worker_threads(),
++            sip_max_active_transactions: default_sip_max_active_transactions(),
++            sip_max_finished_transactions: default_sip_max_finished_transactions(),
++            sip_incoming_transaction_queue_capacity:
++                default_sip_incoming_transaction_queue_capacity(),
++            sip_max_transport_connections: default_sip_max_transport_connections(),
+         }
+     }
+ }
+diff --git a/src/metrics.rs b/src/metrics.rs
+index e122f9e..7535690 100644
+--- a/src/metrics.rs
++++ b/src/metrics.rs
+@@ -109,6 +109,42 @@ pub mod transaction {
+     pub fn set_endpoint_waiting_ack(count: usize) {
+         metrics::gauge!("rustpbx_sip_endpoint_waiting_ack").set(count as f64);
+     }
++
++    pub fn set_endpoint_timer_tasks(count: usize) {
++        metrics::gauge!("rustpbx_sip_endpoint_timer_tasks").set(count as f64);
++    }
++
++    pub fn set_endpoint_incoming_queue(depth: usize, capacity: usize) {
++        metrics::gauge!("rustpbx_sip_endpoint_incoming_queue_depth").set(depth as f64);
++        metrics::gauge!("rustpbx_sip_endpoint_incoming_queue_capacity").set(capacity as f64);
++    }
++
++    pub fn set_endpoint_transaction_limits(active: usize, finished: usize) {
++        metrics::gauge!("rustpbx_sip_endpoint_active_transaction_limit").set(active as f64);
++        metrics::gauge!("rustpbx_sip_endpoint_finished_transaction_limit").set(finished as f64);
++    }
++
++    pub fn set_endpoint_transport_connections(active: usize, limit: usize) {
++        metrics::gauge!("rustpbx_sip_transport_connections_active").set(active as f64);
++        metrics::gauge!("rustpbx_sip_transport_connection_limit").set(limit as f64);
++    }
++
++    pub fn active_limit_rejected(count: u64) {
++        metrics::counter!("rustpbx_sip_endpoint_active_limit_rejections_total").increment(count);
++    }
++
++    pub fn incoming_queue_rejected(count: u64) {
++        metrics::counter!("rustpbx_sip_endpoint_incoming_queue_rejections_total").increment(count);
++    }
++
++    pub fn finished_cache_dropped(count: u64) {
++        metrics::counter!("rustpbx_sip_endpoint_finished_cache_drops_total").increment(count);
++    }
++
++    pub fn transport_connection_rejected(count: u64) {
++        metrics::counter!("rustpbx_sip_transport_connection_limit_rejections_total")
++            .increment(count);
++    }
+ }
+ 
+ pub mod trunk {
+diff --git a/src/proxy/server.rs b/src/proxy/server.rs
+index 3bf7d92..fbf7285 100644
+--- a/src/proxy/server.rs
++++ b/src/proxy/server.rs
+@@ -700,9 +700,17 @@ impl SipServerBuilder {
+         }
+ 
+         let endpoint_local_addrs = transport_layer.get_addrs();
++        let endpoint_capacity = rsipstack::transaction::EndpointCapacityLimits::try_new(
++            config.sip_max_active_transactions,
++            config.sip_max_finished_transactions,
++            config.sip_incoming_transaction_queue_capacity,
++            config.sip_max_transport_connections,
++        )
++        .map_err(|error| anyhow!("invalid SIP capacity configuration: {error}"))?;
+         let mut endpoint_builder = endpoint_builder
+             .with_cancel_token(cancel_token.clone())
+             .with_option(endpoint_option)
++            .with_capacity_limits(endpoint_capacity)
+             .with_transport_layer(transport_layer);
+ 
+         let advertised_methods = Arc::new(OnceLock::new());
+@@ -1115,6 +1123,57 @@ impl SipServer {
+             }
+         });
+ 
++        let capacity_endpoint = self.inner.endpoint.inner.clone();
++        let capacity_cancel = cancel_token.clone();
++        crate::utils::spawn(async move {
++            let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
++            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
++            let mut previous = capacity_endpoint.get_stats();
++
++            loop {
++                tokio::select! {
++                    _ = capacity_cancel.cancelled() => break,
++                    _ = interval.tick() => {
++                        let stats = capacity_endpoint.get_stats();
++                        crate::metrics::transaction::set_endpoint_running(stats.running_transactions);
++                        crate::metrics::transaction::set_endpoint_finished(stats.finished_transactions);
++                        crate::metrics::transaction::set_endpoint_waiting_ack(stats.waiting_ack);
++                        crate::metrics::transaction::set_endpoint_timer_tasks(stats.timer_tasks);
++                        crate::metrics::transaction::set_endpoint_incoming_queue(
++                            stats.incoming_queue_depth,
++                            stats.incoming_transaction_queue_capacity,
++                        );
++                        crate::metrics::transaction::set_endpoint_transaction_limits(
++                            stats.max_active_transactions,
++                            stats.max_finished_transactions,
++                        );
++                        crate::metrics::transaction::set_endpoint_transport_connections(
++                            stats.active_transport_connections,
++                            stats.max_transport_connections,
++                        );
++                        crate::metrics::transaction::active_limit_rejected(
++                            stats.active_limit_rejections_total
++                                .saturating_sub(previous.active_limit_rejections_total),
++                        );
++                        crate::metrics::transaction::incoming_queue_rejected(
++                            stats.incoming_queue_rejections_total
++                                .saturating_sub(previous.incoming_queue_rejections_total),
++                        );
++                        crate::metrics::transaction::finished_cache_dropped(
++                            stats.finished_cache_drops_total
++                                .saturating_sub(previous.finished_cache_drops_total),
++                        );
++                        crate::metrics::transaction::transport_connection_rejected(
++                            stats.transport_connection_limit_rejections_total.saturating_sub(
++                                previous.transport_connection_limit_rejections_total,
++                            ),
++                        );
++                        previous = stats;
++                    }
++                }
++            }
++        });
++
+         tokio::select! {
+             _ = cancel_token.cancelled() => {
+                 info!("cancelled");
+

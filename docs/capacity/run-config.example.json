@@ -1,0 +1,65 @@
+{
+  "run": {
+    "runId": "<replace-with-unique-run-id>",
+    "seed": "<replace-with-recorded-seed>",
+    "runEpoch": "<replace-with-ISO-8601-run-epoch>",
+    "sutReleaseId": "<replace-with-immutable-sut-release>",
+    "generatorReleaseId": "<replace-with-immutable-generator-release>",
+    "startNotBefore": "<replace-with-ISO-8601-start-time>",
+    "evidencePrefix": "capacity/<replace-with-run-id>"
+  },
+  "topology": {
+    "fleets": [
+      {
+        "fleet_id": "tinode",
+        "worker_count": 5,
+        "protocols": [
+          "tinode_websocket"
+        ]
+      },
+      {
+        "fleet_id": "ivekit_event_ws",
+        "worker_count": 5,
+        "protocols": [
+          "ivekit_event_websocket"
+        ]
+      },
+      {
+        "fleet_id": "sip",
+        "worker_count": 5,
+        "protocols": [
+          "sip",
+          "rtp",
+          "sip_websocket"
+        ]
+      },
+      {
+        "fleet_id": "livekit",
+        "worker_count": 5,
+        "protocols": [
+          "livekit_webrtc"
+        ]
+      },
+      {
+        "fleet_id": "rustdesk",
+        "worker_count": 5,
+        "protocols": [
+          "rustdesk_native"
+        ]
+      }
+    ]
+  },
+  "shardSizeByWorkloadId": {
+    "tinode_im": 1200,
+    "sip_voice": 500,
+    "livekit_av": 200,
+    "livekit_screen": 60,
+    "rustdesk_remote": 40,
+    "tinode_websocket": 1800,
+    "ivekit_event_websocket": 1000,
+    "sip_registration": 500,
+    "sip_websocket": 200,
+    "livekit_participant": 520,
+    "rustdesk_endpoint": 80
+  }
+}

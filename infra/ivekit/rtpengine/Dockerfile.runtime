@@ -1,0 +1,176 @@
+# syntax=docker/dockerfile:1
+
+ARG IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE
+ARG IVEKIT_RTPENGINE_SOURCE_COMMIT
+ARG IVEKIT_RTPENGINE_ARCHIVE_SHA256
+ARG IVEKIT_RTPENGINE_PATCH_SET_SHA256
+ARG IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE_ID
+ARG TARGETARCH
+
+FROM ${IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE} AS source-base
+
+WORKDIR /workspace/source
+COPY source/ ./
+
+FROM source-base AS relay-build
+
+ARG IVEKIT_BUILD_JOBS=1
+
+RUN make -C daemon -j"${IVEKIT_BUILD_JOBS}" rtpengine \
+    && strip -o /workspace/rtpengine daemon/rtpengine
+
+FROM source-base AS recording-build
+
+ARG IVEKIT_BUILD_JOBS=1
+
+RUN make -C recording-daemon -j"${IVEKIT_BUILD_JOBS}" rtpengine-recording \
+    && strip -o /workspace/rtpengine-recording \
+      recording-daemon/rtpengine-recording
+
+FROM scratch AS userspace
+
+ARG IVEKIT_RTPENGINE_SOURCE_COMMIT
+ARG IVEKIT_RTPENGINE_ARCHIVE_SHA256
+ARG IVEKIT_RTPENGINE_PATCH_SET_SHA256
+ARG IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE_ID
+ARG TARGETARCH
+
+LABEL org.opencontainers.image.source="https://github.com/songgoldenwind-crypto/opc-platform"
+LABEL org.opencontainers.image.description="iveKit RTPengine userspace media relay"
+LABEL io.ivekit.rtpengine.source-commit="${IVEKIT_RTPENGINE_SOURCE_COMMIT}"
+LABEL io.ivekit.rtpengine.archive-sha256="${IVEKIT_RTPENGINE_ARCHIVE_SHA256}"
+LABEL io.ivekit.rtpengine.patch-set-sha256="${IVEKIT_RTPENGINE_PATCH_SET_SHA256}"
+LABEL io.ivekit.toolchain.image-id="${IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE_ID}"
+LABEL io.ivekit.target-architecture="${TARGETARCH}"
+LABEL io.ivekit.runtime-mode="userspace"
+
+COPY --from=source-base /opt/ivekit-runtime-rootfs/ /
+COPY --from=relay-build /workspace/rtpengine /usr/local/bin/rtpengine
+COPY entrypoint.sh /usr/local/bin/ivekit-rtpengine-entrypoint
+COPY rtpengine.conf.template /etc/ivekit/rtpengine.conf.template
+
+ENV IVEKIT_RTPENGINE_RUNTIME_MODE=userspace
+ENV IVEKIT_RTPENGINE_CONFIG_TEMPLATE=/etc/ivekit/rtpengine.conf.template
+ENV IVEKIT_RTPENGINE_CONFIG_PATH=/run/ivekit-rtpengine/rtpengine.conf
+
+USER 10001:10001
+VOLUME ["/rec", "/run/ivekit-rtpengine", "/var/lib/ivekit-rtpengine"]
+EXPOSE 22222/tcp 22222/udp 8080/tcp 23000-32768/udp
+ENTRYPOINT ["/usr/local/bin/ivekit-rtpengine-entrypoint"]
+
+FROM scratch AS recording
+
+ARG IVEKIT_RTPENGINE_SOURCE_COMMIT
+ARG IVEKIT_RTPENGINE_ARCHIVE_SHA256
+ARG IVEKIT_RTPENGINE_PATCH_SET_SHA256
+ARG IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE_ID
+ARG TARGETARCH
+
+LABEL org.opencontainers.image.source="https://github.com/songgoldenwind-crypto/opc-platform"
+LABEL org.opencontainers.image.description="iveKit RTPengine recording daemon"
+LABEL io.ivekit.rtpengine.source-commit="${IVEKIT_RTPENGINE_SOURCE_COMMIT}"
+LABEL io.ivekit.rtpengine.archive-sha256="${IVEKIT_RTPENGINE_ARCHIVE_SHA256}"
+LABEL io.ivekit.rtpengine.patch-set-sha256="${IVEKIT_RTPENGINE_PATCH_SET_SHA256}"
+LABEL io.ivekit.toolchain.image-id="${IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE_ID}"
+LABEL io.ivekit.target-architecture="${TARGETARCH}"
+LABEL io.ivekit.runtime-mode="recording"
+
+COPY --from=source-base /opt/ivekit-runtime-rootfs/ /
+COPY --from=recording-build /workspace/rtpengine-recording /usr/local/bin/rtpengine-recording
+
+USER 10001:10001
+VOLUME ["/rec", "/run/ivekit-rtpengine", "/var/lib/ivekit-rtpengine"]
+ENTRYPOINT ["/usr/local/bin/rtpengine-recording"]
+
+FROM source-base AS kernel-build
+
+ARG IVEKIT_KERNEL_RELEASE
+
+COPY kernel-headers/ /opt/ivekit-kernel-headers/
+
+RUN test -n "${IVEKIT_KERNEL_RELEASE}" \
+    && test -f /opt/ivekit-kernel-headers/Makefile \
+    && make -C kernel-module \
+      KSRC=/opt/ivekit-kernel-headers \
+      KERNELRELEASE="${IVEKIT_KERNEL_RELEASE}" \
+      modules \
+    && install -D -m 0644 kernel-module/nft_rtpengine.ko \
+      /workspace/kernel/nft_rtpengine.ko \
+    && module_sha256="$(sha256sum /workspace/kernel/nft_rtpengine.ko | cut -d' ' -f1)" \
+    && module_srcversion="$(modinfo -F srcversion /workspace/kernel/nft_rtpengine.ko)" \
+    && test -n "${module_srcversion}" \
+    && printf '%s\n' "${module_srcversion}" \
+      > /workspace/kernel/module-srcversion \
+    && printf '%s\n' \
+      '{' \
+      "  \"kernel_release\": \"${IVEKIT_KERNEL_RELEASE}\"," \
+      "  \"module_sha256\": \"${module_sha256}\"," \
+      "  \"module_srcversion\": \"${module_srcversion}\"" \
+      '}' \
+      > /workspace/kernel/module-identity.json
+
+FROM scratch AS kernel-artifact
+
+ARG IVEKIT_RTPENGINE_SOURCE_COMMIT
+ARG IVEKIT_RTPENGINE_ARCHIVE_SHA256
+ARG IVEKIT_RTPENGINE_PATCH_SET_SHA256
+ARG IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE_ID
+ARG IVEKIT_KERNEL_RELEASE
+ARG TARGETARCH
+
+LABEL org.opencontainers.image.source="https://github.com/songgoldenwind-crypto/opc-platform"
+LABEL org.opencontainers.image.description="iveKit RTPengine nftables kernel artifact"
+LABEL io.ivekit.rtpengine.source-commit="${IVEKIT_RTPENGINE_SOURCE_COMMIT}"
+LABEL io.ivekit.rtpengine.archive-sha256="${IVEKIT_RTPENGINE_ARCHIVE_SHA256}"
+LABEL io.ivekit.rtpengine.patch-set-sha256="${IVEKIT_RTPENGINE_PATCH_SET_SHA256}"
+LABEL io.ivekit.toolchain.image-id="${IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE_ID}"
+LABEL io.ivekit.target-architecture="${TARGETARCH}"
+LABEL io.ivekit.runtime-mode="kernel-artifact"
+LABEL io.ivekit.kernel-release="${IVEKIT_KERNEL_RELEASE}"
+
+COPY --from=kernel-build /workspace/kernel/ /
+
+FROM kernel-build AS kernel-runtime-identity
+
+ARG IVEKIT_KERNEL_SRCVERSION
+
+RUN test -n "${IVEKIT_KERNEL_SRCVERSION}" \
+    && test "$(cat /workspace/kernel/module-srcversion)" \
+      = "${IVEKIT_KERNEL_SRCVERSION}"
+
+FROM scratch AS kernel-runtime
+
+ARG IVEKIT_RTPENGINE_SOURCE_COMMIT
+ARG IVEKIT_RTPENGINE_ARCHIVE_SHA256
+ARG IVEKIT_RTPENGINE_PATCH_SET_SHA256
+ARG IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE_ID
+ARG IVEKIT_KERNEL_RELEASE
+ARG IVEKIT_KERNEL_SRCVERSION
+ARG TARGETARCH
+
+LABEL org.opencontainers.image.source="https://github.com/songgoldenwind-crypto/opc-platform"
+LABEL org.opencontainers.image.description="iveKit RTPengine kernel-mode media relay"
+LABEL io.ivekit.rtpengine.source-commit="${IVEKIT_RTPENGINE_SOURCE_COMMIT}"
+LABEL io.ivekit.rtpengine.archive-sha256="${IVEKIT_RTPENGINE_ARCHIVE_SHA256}"
+LABEL io.ivekit.rtpengine.patch-set-sha256="${IVEKIT_RTPENGINE_PATCH_SET_SHA256}"
+LABEL io.ivekit.toolchain.image-id="${IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE_ID}"
+LABEL io.ivekit.target-architecture="${TARGETARCH}"
+LABEL io.ivekit.runtime-mode="kernel"
+LABEL io.ivekit.kernel-release="${IVEKIT_KERNEL_RELEASE}"
+LABEL io.ivekit.kernel-srcversion="${IVEKIT_KERNEL_SRCVERSION}"
+
+COPY --from=source-base /opt/ivekit-runtime-rootfs/ /
+COPY --from=relay-build /workspace/rtpengine /usr/local/bin/rtpengine
+COPY entrypoint.sh /usr/local/bin/ivekit-rtpengine-entrypoint
+COPY rtpengine.conf.template /etc/ivekit/rtpengine.conf.template
+COPY --from=kernel-runtime-identity /workspace/kernel/module-srcversion \
+  /usr/share/ivekit-rtpengine/kernel/module-srcversion
+
+ENV IVEKIT_RTPENGINE_RUNTIME_MODE=kernel
+ENV IVEKIT_RTPENGINE_CONFIG_TEMPLATE=/etc/ivekit/rtpengine.conf.template
+ENV IVEKIT_RTPENGINE_CONFIG_PATH=/run/ivekit-rtpengine/rtpengine.conf
+
+USER 10001:10001
+VOLUME ["/rec", "/run/ivekit-rtpengine", "/var/lib/ivekit-rtpengine"]
+EXPOSE 22222/tcp 22222/udp 8080/tcp 23000-32768/udp
+ENTRYPOINT ["/usr/local/bin/ivekit-rtpengine-entrypoint"]

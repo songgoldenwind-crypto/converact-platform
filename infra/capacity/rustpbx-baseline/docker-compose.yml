@@ -1,0 +1,146 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE is required}
+    environment:
+      POSTGRES_USER: rustpbx_app
+      POSTGRES_PASSWORD: ${RUSTPBX_DB_PASSWORD:?RUSTPBX_DB_PASSWORD is required}
+      POSTGRES_DB: rustpbx
+    tmpfs:
+      - /var/lib/postgresql/data:size=536870912,mode=0700
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rustpbx_app -d rustpbx"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks:
+      baseline:
+        ipv4_address: 172.30.44.11
+    security_opt:
+      - no-new-privileges:true
+
+  router:
+    image: ${CAPACITY_TOOLS_IMAGE:?CAPACITY_TOOLS_IMAGE is required}
+    command: ["node", "--import", "tsx", "scripts/capacity/fixtures/rustpbx-router.ts"]
+    environment:
+      RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
+      IVEKIT_CAPACITY_ROUTER_HOST: 0.0.0.0
+      IVEKIT_CAPACITY_ROUTER_PORT: "8081"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8081/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks:
+      baseline:
+        ipv4_address: 172.30.44.12
+    security_opt:
+      - no-new-privileges:true
+
+  rustpbx:
+    image: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
+    command: ["--conf", "/app/config/rustpbx.toml"]
+    environment:
+      RUSTRTC_UDP_RECEIVE_BUFFER_BYTES: ${RUSTRTC_UDP_RECEIVE_BUFFER_BYTES:?RUSTRTC_UDP_RECEIVE_BUFFER_BYTES is required}
+      RUSTRTC_UDP_SEND_BUFFER_BYTES: ${RUSTRTC_UDP_SEND_BUFFER_BYTES:?RUSTRTC_UDP_SEND_BUFFER_BYTES is required}
+    init: true
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    depends_on:
+      postgres:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    volumes:
+      - ${RUSTPBX_CONFIG_FILE:?RUSTPBX_CONFIG_FILE is required}:/app/config/rustpbx.toml:ro
+    tmpfs:
+      - /app/generated:size=16777216,mode=0750
+      - /app/storage:size=268435456,mode=0750
+    healthcheck:
+      test: ["CMD", "/app/rustpbx", "--version"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+    networks:
+      baseline:
+        ipv4_address: 172.30.44.10
+    security_opt:
+      - no-new-privileges:true
+
+  kamailio:
+    image: ${KAMAILIO_IMAGE:?KAMAILIO_IMAGE is required}
+    command:
+      - -DD
+      - -E
+      - -x
+      - ${KAMAILIO_SHM_ALLOCATOR:?KAMAILIO_SHM_ALLOCATOR is required}
+      - -m
+      - ${KAMAILIO_SHM_MEMORY_MB:?KAMAILIO_SHM_MEMORY_MB is required}
+      - -M
+      - ${KAMAILIO_PKG_MEMORY_MB:?KAMAILIO_PKG_MEMORY_MB is required}
+      - -f
+      - /etc/kamailio/kamailio.cfg
+    init: true
+    depends_on:
+      rustpbx:
+        condition: service_healthy
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - ${KAMAILIO_CONFIG_FILE:?KAMAILIO_CONFIG_FILE is required}:/etc/kamailio/kamailio.cfg:ro
+      - ${KAMAILIO_TLS_CONFIG_FILE:?KAMAILIO_TLS_CONFIG_FILE is required}:/etc/kamailio/tls.cfg:ro
+      - ${KAMAILIO_DISPATCHER_FILE:?KAMAILIO_DISPATCHER_FILE is required}:/var/lib/kamailio/dispatcher.list:ro
+      - ${KAMAILIO_TLS_KEY_FILE:?KAMAILIO_TLS_KEY_FILE is required}:/run/secrets/kamailio-tls-key:ro
+      - ${KAMAILIO_TLS_CERT_FILE:?KAMAILIO_TLS_CERT_FILE is required}:/run/secrets/kamailio-tls-cert:ro
+      - ${KAMAILIO_TLS_CA_FILE:?KAMAILIO_TLS_CA_FILE is required}:/run/secrets/kamailio-tls-ca:ro
+      - ${KAMAILIO_WEBPHONE_JWT_SECRET_FILE:?KAMAILIO_WEBPHONE_JWT_SECRET_FILE is required}:/run/secrets/kamailio-webphone-jwt-secret:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16777216,mode=1777
+      - /var/run/kamailio:size=16777216,mode=0750,uid=10001,gid=10001
+    healthcheck:
+      test: ["CMD", "/opt/kamailio/sbin/kamailio", "-c", "-f", "/etc/kamailio/kamailio.cfg"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 3s
+    networks:
+      baseline:
+        ipv4_address: 172.30.44.9
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  bootstrap:
+    image: ${PYTHON_IMAGE:?PYTHON_IMAGE is required}
+    command: ["python", "/bootstrap/bootstrap-inbound-trunk.py"]
+    environment:
+      RUSTPBX_BASE_URL: http://rustpbx:8080
+      RUSTPBX_MANAGEMENT_TOKEN: ${RUSTPBX_MANAGEMENT_TOKEN:?RUSTPBX_MANAGEMENT_TOKEN is required}
+      RUSTPBX_TRUNK_CREDENTIAL: ${RUSTPBX_TRUNK_CREDENTIAL:?RUSTPBX_TRUNK_CREDENTIAL is required}
+      RUSTPBX_ACCEPTANCE_UAC_IP: ${RUSTPBX_ACCEPTANCE_TRUNK_IP:-172.30.44.20}
+    volumes:
+      - ./bootstrap-inbound-trunk.py:/bootstrap/bootstrap-inbound-trunk.py:ro
+    depends_on:
+      rustpbx:
+        condition: service_healthy
+    networks:
+      baseline: {}
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  baseline:
+    name: ivekit-rustpbx-baseline
+    ipam:
+      config:
+        - subnet: 172.30.44.0/24

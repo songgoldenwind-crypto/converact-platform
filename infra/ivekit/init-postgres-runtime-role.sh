@@ -1,0 +1,94 @@
+#!/bin/sh
+set -eu
+
+: "${POSTGRES_USER:?POSTGRES_USER is required}"
+: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+: "${POSTGRES_DB:?POSTGRES_DB is required}"
+: "${OPC_RUNTIME_DB_PASSWORD:?OPC_RUNTIME_DB_PASSWORD is required}"
+: "${TINODE_DB_PASSWORD:?TINODE_DB_PASSWORD is required}"
+
+export PGPASSWORD="$POSTGRES_PASSWORD"
+psql -X -h postgres -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -v ON_ERROR_STOP=1 \
+  -v runtime_password="$OPC_RUNTIME_DB_PASSWORD" \
+  -v tinode_password="$TINODE_DB_PASSWORD" <<'SQL'
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'opc_runtime') THEN
+      CREATE ROLE opc_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'tinode_app') THEN
+    CREATE ROLE tinode_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+  END IF;
+END
+$$;
+
+SELECT format('ALTER ROLE opc_runtime PASSWORD %L', :'runtime_password') \gexec
+SELECT format('ALTER ROLE tinode_app PASSWORD %L', :'tinode_password') \gexec
+SELECT 'CREATE DATABASE tinode OWNER tinode_app'
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'tinode') \gexec
+ALTER DATABASE tinode OWNER TO tinode_app;
+
+REVOKE CONNECT ON DATABASE opc FROM PUBLIC;
+GRANT CONNECT ON DATABASE opc TO opc_runtime;
+REVOKE CONNECT ON DATABASE tinode FROM PUBLIC;
+GRANT CONNECT ON DATABASE tinode TO tinode_app;
+GRANT USAGE ON SCHEMA public TO opc_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO opc_runtime;
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO opc_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO opc_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin IN SCHEMA public
+  GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO opc_runtime;
+DO $$
+BEGIN
+  IF to_regclass('public.schema_migrations') IS NOT NULL THEN
+    REVOKE ALL PRIVILEGES ON TABLE schema_migrations FROM opc_runtime;
+  END IF;
+  IF to_regprocedure('public.opc_ivekit_cc_worker_tenant_ids(timestamp with time zone,integer)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.opc_ivekit_cc_worker_tenant_ids(TIMESTAMPTZ, INTEGER) TO opc_runtime;
+  END IF;
+END
+$$;
+
+\connect tinode
+GRANT USAGE, CREATE ON SCHEMA public TO tinode_app;
+GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON ALL TABLES IN SCHEMA public TO tinode_app;
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO tinode_app;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO tinode_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO tinode_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin IN SCHEMA public
+  GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO tinode_app;
+SQL
+
+if [ -n "${RUSTPBX_DB_PASSWORD:-}" ]; then
+  export RUSTPBX_DB_PASSWORD
+  psql -X -h postgres -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+    -v ON_ERROR_STOP=1 <<'SQL'
+\getenv rustpbx_password RUSTPBX_DB_PASSWORD
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'rustpbx_app') THEN
+    CREATE ROLE rustpbx_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+  END IF;
+END
+$$;
+
+SELECT format('ALTER ROLE rustpbx_app PASSWORD %L', :'rustpbx_password') \gexec
+SELECT 'CREATE DATABASE rustpbx OWNER rustpbx_app'
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'rustpbx') \gexec
+ALTER DATABASE rustpbx OWNER TO rustpbx_app;
+REVOKE CONNECT ON DATABASE rustpbx FROM PUBLIC;
+REVOKE CONNECT ON DATABASE rustpbx FROM opc_runtime;
+GRANT CONNECT ON DATABASE rustpbx TO rustpbx_app;
+
+\connect rustpbx
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE, CREATE ON SCHEMA public TO rustpbx_app;
+ALTER SCHEMA public OWNER TO rustpbx_app;
+SQL
+  unset RUSTPBX_DB_PASSWORD
+fi
+unset PGPASSWORD

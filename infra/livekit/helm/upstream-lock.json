@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0.0",
+  "repository": "https://github.com/livekit/livekit-helm.git",
+  "commit": "8f0ad0809c2be8cbed375a6f8bef10625e5e8a2b",
+  "chart_path": "livekit-server",
+  "chart_version": "1.11.0",
+  "app_version": "v1.11.0",
+  "upstream_sha256": {
+    "Chart.yaml": "d05320080ad0cbe108fcccc7cea5ea0a44b72bc4c933aff4ecbec8f4aaa7b3ce",
+    "templates/configmap.yaml": "b8f04a0c10f6681ff70415d9425d0d90f17a76c573676f338992c193e97a5ef4",
+    "templates/deployment.yaml": "3c18f1705e46ce83e7fcbd9c8aad8a3edec17262115610fa8f5d51e9bf2db57e",
+    "values.yaml": "e449d2e01767c118d3fd0e7727136b5c54b87a2439f1adbbca4003a3b6e25f8b"
+  }
+}

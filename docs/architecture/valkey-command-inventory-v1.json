@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0.0",
+  "inventory_id": "ivekit-valkey-command-surface-2026-07",
+  "audited_at": "2026-07-23",
+  "target": {
+    "implementation": "Valkey",
+    "version_line": "9.1.x",
+    "topology": "one writable primary, persistent replicas and exactly three Sentinel voters"
+  },
+  "authority": "PostgreSQL remains the only transactional authority; Valkey contains rebuildable coordination, cache and at-most-once Pub/Sub state only.",
+  "status": "controlled_sentinel_failover_passed_livekit_runtime_pending",
+  "constraints": {
+    "lua": "not_observed",
+    "streams": "not_observed",
+    "cluster": "not_approved",
+    "numbered_databases": "not_observed"
+  },
+  "command_groups": [
+    {
+      "id": "opc-kv-and-idempotency",
+      "owner": "OPC/iveKit application runtime",
+      "clients": ["ioredis 5.11.1 through src/redis-client.ts"],
+      "commands": ["GET", "SET EX", "SET EX NX", "DEL"],
+      "semantics": "Bounded-TTL cache and idempotency keys. SET EX NX is an atomic first-writer claim; SET EX refreshes a rebuildable value.",
+      "durability_class": "ephemeral_rebuildable",
+      "failover_expectation": "Reconnect through Sentinel. Callers must use idempotent retry after an ambiguous acknowledged write; PostgreSQL or the originating event remains authoritative.",
+      "evidence_state": "source_proven_set_get_controlled_sentinel_failover_passed_partial_command_runtime",
+      "source_refs": ["src/redis-client.ts", "test/redis-connection-options.test.ts", "test/redis-client-configuration.test.ts"],
+      "evidence_refs": ["docs/evidence/wave2-valkey-sentinel-runtime-2026-07-23.json"]
+    },
+    {
+      "id": "opc-hash-and-ttl",
+      "owner": "OPC/iveKit application runtime",
+      "clients": ["ioredis 5.11.1 through src/redis-client.ts"],
+      "commands": ["HSET", "EXPIRE"],
+      "semantics": "Small rebuildable field maps with an explicit expiration. No hash is a source of record.",
+      "durability_class": "ephemeral_rebuildable",
+      "failover_expectation": "Reconnect through Sentinel and rebuild from PostgreSQL or upstream events when the update result is ambiguous.",
+      "evidence_state": "source_proven_client_contract_passed_runtime_failover_pending",
+      "source_refs": ["src/redis-client.ts"],
+      "evidence_refs": []
+    },
+    {
+      "id": "opc-websocket-pubsub",
+      "owner": "OPC WebSocket fanout runtime",
+      "clients": ["ioredis publisher plus duplicated subscriber connection"],
+      "commands": ["PUBLISH", "SUBSCRIBE"],
+      "semantics": "At-most-once cross-instance notification fanout. Pub/Sub is not a durable event log and messages can be lost during disconnect or failover.",
+      "durability_class": "ephemeral_at_most_once",
+      "failover_expectation": "Publisher and subscriber reconnect through Sentinel; clients recover durable user-visible events through the PostgreSQL-backed replay cursor rather than expecting Pub/Sub replay.",
+      "evidence_state": "source_proven_controlled_sentinel_pubsub_failover_passed",
+      "source_refs": ["src/redis-pubsub.ts", "src/ws.ts", "test/ws-targeted-broadcast.test.ts"],
+      "evidence_refs": ["docs/evidence/wave2-valkey-sentinel-runtime-2026-07-23.json"]
+    },
+    {
+      "id": "connection-auth-and-sentinel-discovery",
+      "owner": "Platform data service and client libraries",
+      "clients": ["ioredis", "LiveKit shared protocol Redis client", "controlled acceptance runner"],
+      "commands": ["AUTH", "PING", "ROLE", "INFO REPLICATION", "SENTINEL GET-MASTER-ADDR-BY-NAME", "SENTINEL REPLICAS", "SENTINEL SENTINELS", "SENTINEL CKQUORUM", "QUIT"],
+      "semantics": "Authenticate data and Sentinel connections independently, discover the elected primary, inspect role/offset during acceptance and close connections cleanly.",
+      "durability_class": "control_plane_discovery",
+      "failover_expectation": "Exactly three Sentinel voters must elect a different writable primary within a bounded interval; clients must rediscover it without a direct primary address.",
+      "evidence_state": "configuration_contract_and_controlled_sentinel_failover_passed",
+      "source_refs": ["src/infra/redis-connection-options.ts", "infra/k8s/templates/_helpers.tpl", "scripts/render-media-configs.ts"],
+      "evidence_refs": ["docs/evidence/wave2-valkey-sentinel-runtime-2026-07-23.json"]
+    }
+  ],
+  "integration_gates": [
+    {
+      "id": "opc-ivekit-sentinel-failover",
+      "owner": "OPC/iveKit platform",
+      "scope": "Three persistent Valkey data nodes, three Sentinel voters, data canaries and Pub/Sub before and after elected-primary loss.",
+      "state": "passed_controlled_server",
+      "success_criteria": ["primary changes", "pre-failover canary survives", "post-failover write succeeds", "Pub/Sub works before and after failover", "all waits are bounded"],
+      "evidence_refs": [
+        "docs/evidence/wave2-valkey-sentinel-runtime-2026-07-23.json",
+        "docs/evidence/wave2-valkey-sentinel-validation-2026-07-23.md"
+      ]
+    },
+    {
+      "id": "livekit-shared-redis-runtime",
+      "owner": "LiveKit Server/Egress/Ingress/SIP deployment",
+      "scope": "Use exact pinned component versions against one Sentinel topology without guessing their internal queue or PSRPC command surface.",
+      "state": "not_run",
+      "success_criteria": ["all components connect", "room signaling remains valid", "Egress, Ingress and SIP requests traverse shared Redis", "primary failover behavior is measured"],
+      "evidence_refs": ["scripts/verify-livekit-redis-topology.sh"]
+    },
+    {
+      "id": "tinode-valkey-consumer",
+      "owner": "Tinode deployment",
+      "scope": "Tinode v0.25.3 uses PostgreSQL, S3 and its native three-node ring in the approved architecture; no Valkey command dependency is configured.",
+      "state": "not_applicable",
+      "success_criteria": ["no Redis or Valkey endpoint is required by the Tinode deployment contract"],
+      "evidence_refs": ["docs/evidence/wave2-tinode-three-node-cluster-validation-2026-07-23.md"]
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0.0",
+  "region_id": "region-a",
+  "zone_id": "zone-a",
+  "cell_id": "cell-a",
+  "cell_lease_epoch": 1,
+  "default_pool_id": 100,
+  "dispatcher_file": "/var/lib/kamailio/dispatcher.list",
+  "tls_config_file": "/etc/kamailio/tls.cfg",
+  "udp_listener": {
+    "host": "0.0.0.0", "port": 5060,
+    "advertise": { "host": "sip.cell-a.example.com", "port": 5060 }
+  },
+  "tcp_listener": {
+    "host": "0.0.0.0", "port": 5060,
+    "advertise": { "host": "sip.cell-a.example.com", "port": 5060 }
+  },
+  "tls_listener": {
+    "host": "0.0.0.0", "port": 5061,
+    "advertise": { "host": "sip.cell-a.example.com", "port": 5061 }
+  },
+  "wss_listener": {
+    "host": "0.0.0.0", "port": 7443,
+    "advertise": { "host": "wss.cell-a.example.com", "port": 443 }
+  },
+  "rpc_listener": { "host": "127.0.0.1", "port": 5065 },
+  "trusted_source_cidrs": ["10.20.0.0/16"],
+  "rustpbx_source_cidrs": ["10.30.0.0/16"],
+  "dmq_source_cidrs": ["10.20.0.0/16"],
+  "allow_public_wss": true,
+  "webphone_auth": {
+    "jwt_issuer": "ivekit",
+    "jwt_audience": "rustpbx-webphone",
+    "jwt_secret_file": "/run/secrets/kamailio-webphone-jwt-secret",
+    "allowed_origins": ["https://led.example.com"],
+    "max_token_bytes": 4096,
+    "max_registration_expires_seconds": 240
+  },
+  "dmq": {
+    "enabled": true,
+    "server_host": "10.20.0.10",
+    "server_port": 5066,
+    "notification_addresses": [
+      "sip:ivekit-kamailio-0.ivekit-kamailio-headless:5066",
+      "sip:ivekit-kamailio-1.ivekit-kamailio-headless:5066"
+    ],
+    "num_workers": 4,
+    "ping_interval_seconds": 30,
+    "sync_batch_size": 4000,
+    "sync_batch_usleep": 1000,
+    "sync_message_contacts": 50
+  },
+  "sip_trace": {
+    "enabled": false,
+    "collector_host": "127.0.0.1",
+    "collector_port": 9060,
+    "capture_id": 101,
+    "include_options": false,
+    "initial_mode": "full"
+  },
+  "max_message_bytes": 65535,
+  "per_source_invite_cps": 100,
+  "global_invite_cps": 5000,
+  "pike_sampling_seconds": 2,
+  "pike_request_density": 30,
+  "max_failovers": 3,
+  "retry_after_seconds": 2,
+  "tls": {
+    "private_key_file": "/run/secrets/kamailio-tls-key.pem",
+    "certificate_file": "/run/secrets/kamailio-tls-cert.pem",
+    "ca_file": "/run/secrets/kamailio-ca.pem",
+    "require_client_certificate": false
+  }
+}

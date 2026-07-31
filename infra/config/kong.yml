@@ -1,0 +1,34 @@
+_format_version: "3.0"
+
+services:
+  - name: opc-api
+    url: http://opc:3000
+    routes:
+      - name: opc-api-route
+        paths:
+          - /api
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          hour: 1000
+          policy: redis
+          redis_host: redis
+          redis_port: 6379
+      - name: cors
+        config:
+          origins: ["*"]
+          methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+          headers: ["Content-Type", "Authorization", "X-API-Key", "X-Tenant-Id"]
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 10
+
+  - name: frontend
+    url: http://frontend:80
+    routes:
+      - name: frontend-route
+        paths:
+          - /
+        strip_path: false

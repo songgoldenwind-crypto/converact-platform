@@ -1,0 +1,83 @@
+name: iveKit Component Hooks
+
+on:
+  push:
+    paths:
+      - "integrations/component-hook-go/**"
+      - "integrations/livekit-v1.13.4/**"
+      - "integrations/tinode-v0.25.3/**"
+      - "integrations/component-hook-rs/**"
+      - "infra/ivekit/livekit/**"
+      - "infra/ivekit/tinode/**"
+      - "infra/ivekit/rustdesk-server/**"
+      - "src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts"
+      - "scripts/ivekit-rustdesk-owner-binding.ts"
+      - ".github/workflows/ivekit-component-hooks-ci.yml"
+  pull_request:
+    paths:
+      - "integrations/component-hook-go/**"
+      - "integrations/livekit-v1.13.4/**"
+      - "integrations/tinode-v0.25.3/**"
+      - "integrations/component-hook-rs/**"
+      - "infra/ivekit/livekit/**"
+      - "infra/ivekit/tinode/**"
+      - "infra/ivekit/rustdesk-server/**"
+      - "src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts"
+      - "scripts/ivekit-rustdesk-owner-binding.ts"
+      - ".github/workflows/ivekit-component-hooks-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  go-hook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: integrations/component-hook-go/go.mod
+      - run: go test ./...
+        working-directory: integrations/component-hook-go
+
+  livekit-owner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: integrations/livekit-v1.13.4/go.mod
+      - run: go test ./...
+        working-directory: integrations/livekit-v1.13.4
+
+  tinode-owner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: integrations/tinode-v0.25.3/go.mod
+      - run: go test ./...
+        working-directory: integrations/tinode-v0.25.3
+
+  rust-hook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --locked
+        working-directory: integrations/component-hook-rs
+
+  rustdesk-owner-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: >-
+          node --import tsx --test
+          test/ivekit-rustdesk-server-owner-patch.test.ts
+          test/ivekit-rustdesk-owner-binding.test.ts

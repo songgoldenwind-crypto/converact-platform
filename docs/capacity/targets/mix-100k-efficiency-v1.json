@@ -1,0 +1,151 @@
+{
+  "$schema": "../schemas/scaling-efficiency.schema.json",
+  "schema_version": "1.0.0",
+  "contract_id": "mix-100k-efficiency-v1",
+  "revision": 1,
+  "status": "target",
+  "workload_profile_id": "mix-100k-v1",
+  "priority_order": [
+    "single_node_safe_density",
+    "marginal_capacity_retention",
+    "endpoint_concurrency"
+  ],
+  "endpoint_target_interactions": 100000,
+  "capacity_definition": {
+    "unit": "profile_equivalent_active_interactions",
+    "safe_capacity_formula": "C_safe(n) is the largest profile-equivalent active-interaction load that passes every workload SLO, keeps the declared production headroom, and includes the required failure reserve at topology size n.",
+    "hard_capacity_formula": "C_hard(n) is the largest profile-equivalent load that still passes functional SLOs before production headroom is reserved; it is reported for optimization and cannot be admitted in production.",
+    "aggregate_linearity_formula": "L(n) = C_safe(n) / (n * C_safe(1))",
+    "segment_marginal_efficiency_formula": "M(a,b) = (C_safe(b) - C_safe(a)) / ((b - a) * C_safe(1))",
+    "result_statistic": "minimum_of_successful_repetitions"
+  },
+  "single_node": {
+    "required": true,
+    "search_method": "step_ramp_then_binary_search_at_full_slo",
+    "minimum_repetitions": 3,
+    "production_headroom_ratio": 0.2,
+    "maximum_release_regression_ratio": 0.03,
+    "required_component_roles": [
+      "sip_edge",
+      "rustpbx_voice",
+      "livekit_sfu_turn",
+      "livekit_egress",
+      "tinode_im",
+      "ivekit_realtime_edge",
+      "rustdesk_rendezvous_relay",
+      "recording_evidence_worker",
+      "shared_data_service"
+    ],
+    "required_efficiency_metrics": [
+      "profile_interactions_per_physical_core",
+      "safe_capacity_per_gib",
+      "safe_capacity_per_host",
+      "rtp_legs_per_physical_core",
+      "packet_operations_per_physical_core",
+      "subscribed_tracks_per_physical_core",
+      "websocket_connections_per_physical_core",
+      "messages_per_second_per_physical_core",
+      "relay_mbps_per_physical_core",
+      "recording_slots_per_physical_core",
+      "safe_capacity_per_1000_cost_unit"
+    ],
+    "optimization_exit_rules": [
+      "A component cannot exit density optimization while a repeatable dominant bottleneck has an untested source-level remedy with a credible five-percent-or-greater safe-capacity gain.",
+      "A higher hard capacity does not count when safe capacity, correctness, quality, isolation, drain, recovery, or failure reserve regresses.",
+      "If two consecutive source-level experiments each improve safe capacity by less than three percent and profiling shows no new dominant software bottleneck, record the measured frontier and move to the next component.",
+      "Hardware-specific acceleration requires a separate cost and operations ADR; standard Linux networking remains the baseline."
+    ]
+  },
+  "scaling_curves": [
+    {
+      "curve_id": "homogeneous-component-pool-1-8",
+      "scope": "component_node_pool",
+      "homogeneous_unit": "one node of an unchanged role-specific hardware and configuration class",
+      "node_or_unit_points": [1, 2, 4, 8],
+      "minimum_repetitions_per_point": 3,
+      "aggregate_linearity_floors": [
+        { "point": 1, "minimum_ratio": 1 },
+        { "point": 2, "minimum_ratio": 0.95 },
+        { "point": 4, "minimum_ratio": 0.93 },
+        { "point": 8, "minimum_ratio": 0.91 }
+      ],
+      "segment_marginal_efficiency_floor": 0.9,
+      "maximum_adjacent_segment_drop_ratio": 0.03,
+      "trend_policy": "non_decreasing_with_configured_tolerance",
+      "failure_reserve_included": true,
+      "notes": [
+        "Each component role is measured separately before a mixed Cell curve is accepted.",
+        "A passing endpoint total cannot hide a component pool whose added nodes contribute less than the marginal floor."
+      ]
+    },
+    {
+      "curve_id": "cell-addition-to-100k",
+      "scope": "cell",
+      "homogeneous_unit": "one calibrated Cell with the same role mix, profile slice, hardware classes, and failure reserve",
+      "node_or_unit_points": [1, 2, 4, 8, 10],
+      "minimum_repetitions_per_point": 3,
+      "aggregate_linearity_floors": [
+        { "point": 1, "minimum_ratio": 1 },
+        { "point": 2, "minimum_ratio": 0.98 },
+        { "point": 4, "minimum_ratio": 0.97 },
+        { "point": 8, "minimum_ratio": 0.96 },
+        { "point": 10, "minimum_ratio": 0.95 }
+      ],
+      "segment_marginal_efficiency_floor": 0.95,
+      "maximum_adjacent_segment_drop_ratio": 0.02,
+      "trend_policy": "non_decreasing_with_configured_tolerance",
+      "failure_reserve_included": true,
+      "notes": [
+        "Cell placement and durable data shards must prevent a growing global coordination tax.",
+        "If the curve bends, the shared bottleneck is sharded or removed before more servers are added."
+      ]
+    },
+    {
+      "curve_id": "shared-data-plane-per-cell-load",
+      "scope": "shared_data_plane",
+      "homogeneous_unit": "one additional Cell-equivalent durable write, event, presence, directory, and object-ingest load slice",
+      "node_or_unit_points": [1, 2, 4, 8, 10],
+      "minimum_repetitions_per_point": 3,
+      "aggregate_linearity_floors": [
+        { "point": 1, "minimum_ratio": 1 },
+        { "point": 2, "minimum_ratio": 0.98 },
+        { "point": 4, "minimum_ratio": 0.97 },
+        { "point": 8, "minimum_ratio": 0.96 },
+        { "point": 10, "minimum_ratio": 0.95 }
+      ],
+      "segment_marginal_efficiency_floor": 0.95,
+      "maximum_adjacent_segment_drop_ratio": 0.02,
+      "trend_policy": "non_decreasing_with_configured_tolerance",
+      "failure_reserve_included": true,
+      "notes": [
+        "PostgreSQL, Redis, NATS, object storage, owner directory, and event fanout are measured as shared services rather than hidden inside Cell totals.",
+        "A shared service that fails this curve must partition, shard, batch, cache, or leave the synchronous hot path."
+      ]
+    }
+  ],
+  "deployment_policy": {
+    "preallocate_endpoint_capacity": false,
+    "scale_from_measured_safe_capacity": true,
+    "scale_out_trigger_dominant_utilization_ratio": 0.65,
+    "scale_in_requires_drain": true,
+    "small_deployment_preserves_public_contract": true,
+    "core_zone_failure_reserve_ratio": 0.5
+  },
+  "evidence_requirements": {
+    "same_profile": true,
+    "same_hardware_class": true,
+    "same_failure_reserve": true,
+    "generator_qualified": true,
+    "all_capacity_vector_dimensions_reported": true,
+    "per_point_raw_evidence_required": true,
+    "endpoint_pass_cannot_override_efficiency_failure": true
+  },
+  "x-ivekit-invariants": [
+    "Every scaling curve starts at point one with aggregate linearity one.",
+    "Every aggregate-linearity point exists in node_or_unit_points and appears exactly once.",
+    "node_or_unit_points and aggregate-linearity points are strictly increasing.",
+    "C_safe is computed with the same workload profile, hardware class, configuration class, and failure reserve at every point.",
+    "A 100,000-interaction endpoint run fails the architecture gate when any required single-node density or marginal-efficiency gate fails.",
+    "Production deployment scales from measured demand and safe capacity; it does not reserve 100,000 interactions when actual demand is lower."
+  ]
+}

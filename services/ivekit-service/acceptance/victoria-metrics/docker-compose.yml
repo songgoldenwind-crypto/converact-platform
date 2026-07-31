@@ -1,0 +1,94 @@
+services:
+  source:
+    image: node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d
+    command: ["node", "/app/source.mjs"]
+    volumes:
+      - ./source.mjs:/app/source.mjs:ro
+    ports:
+      - "127.0.0.1::9100"
+    networks: [acceptance]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics@sha256:407013e902f9a0ba1d4b2d4c077c47bbaf917c893c52ff39b19efe83a654afda
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:size=64m
+    command:
+      - -storageDataPath=/storage
+      - -retentionPeriod=1d
+      - -snapshotsMaxAge=1h
+      - -httpListenAddr=:8428
+      - -loggerFormat=json
+      - -memory.allowedPercent=30
+    volumes:
+      - ${VM_ACCEPT_DATA_DIR:?VM_ACCEPT_DATA_DIR is required}:/storage
+    ports:
+      - "127.0.0.1::8428"
+    networks: [acceptance]
+  prometheus:
+    image: prom/prometheus@sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=1h
+      - --web.listen-address=0.0.0.0:9090
+    depends_on:
+      source:
+        condition: service_healthy
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1::9090"
+    networks: [acceptance]
+  backup:
+    image: victoriametrics/vmbackup@sha256:1d01f330d98d9bd3d13afb05da0efedccf885165365c7ebf14849c219353a63b
+    profiles: [tools]
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:size=64m
+    command:
+      - -storageDataPath=/storage
+      - -snapshot.createURL=http://victoria-metrics:8428/snapshot/create
+      - -dst=fs:///backup/latest
+      - -concurrency=2
+      - -loggerFormat=json
+    volumes:
+      - ${VM_ACCEPT_DATA_DIR:?VM_ACCEPT_DATA_DIR is required}:/storage:ro
+      - ${VM_ACCEPT_BACKUP_DIR:?VM_ACCEPT_BACKUP_DIR is required}:/backup
+    networks: [acceptance]
+  restore:
+    image: victoriametrics/vmrestore@sha256:9a35e0b371f7afa435e6425afeaf5091fbf436dfc0e5273d63e096749a17b3dd
+    profiles: [tools]
+    network_mode: none
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:size=64m
+    command:
+      - -storageDataPath=/storage
+      - -src=fs:///backup/latest
+      - -concurrency=2
+      - -loggerFormat=json
+    volumes:
+      - ${VM_ACCEPT_DATA_DIR:?VM_ACCEPT_DATA_DIR is required}:/storage
+      - ${VM_ACCEPT_BACKUP_DIR:?VM_ACCEPT_BACKUP_DIR is required}:/backup:ro
+
+networks:
+  acceptance:
+    driver: bridge
+
+volumes:
+  prometheus-data:

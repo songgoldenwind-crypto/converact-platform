@@ -1,0 +1,1265 @@
+{
+  "campaign_id": "hep-ab-20260724T171001Z-1ffffe9a",
+  "capacity_claim": "none",
+  "configuration": {
+    "balanced_order": true,
+    "duration_seconds": 20,
+    "expected_hep_rows_per_successful_call": 8,
+    "points": [
+      400,
+      700,
+      900
+    ],
+    "repetitions": 2
+  },
+  "containers": {
+    "ivekit-homer-acceptance": {
+      "health": null,
+      "image_id": "sha256:fe0d45edc33c23b5047258690ca7ecf95bed93a164d7cfdb9ab499cbc83c893d",
+      "restart_count": 0,
+      "state": "running"
+    },
+    "ivekit-homer-acceptance-kamailio": {
+      "health": null,
+      "image_id": "sha256:7f07e0f0e5d5b1736f91b4e05a4ae984f7ed1511355b29318825b17bd7f2a762",
+      "restart_count": 0,
+      "state": "running"
+    },
+    "ivekit-homer-acceptance-postgres": {
+      "health": "healthy",
+      "image_id": "sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297",
+      "restart_count": 0,
+      "state": "running"
+    },
+    "ivekit-rustpbx-baseline-kamailio-1": {
+      "health": "healthy",
+      "image_id": "sha256:7f07e0f0e5d5b1736f91b4e05a4ae984f7ed1511355b29318825b17bd7f2a762",
+      "restart_count": 0,
+      "state": "running"
+    },
+    "ivekit-rustpbx-baseline-postgres-1": {
+      "health": "healthy",
+      "image_id": "sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297",
+      "restart_count": 0,
+      "state": "running"
+    },
+    "ivekit-rustpbx-baseline-router-1": {
+      "health": "healthy",
+      "image_id": "sha256:da697467bb2ecadb09feae2bb232949aec26320ee5236ef7c9d14008ac65aebc",
+      "restart_count": 0,
+      "state": "running"
+    },
+    "ivekit-rustpbx-baseline-rustpbx-1": {
+      "health": "healthy",
+      "image_id": "sha256:da8407a298fe782d082c1d1f0f63609e1958f6f3f04b98d70324b7ff68a288cb",
+      "restart_count": 0,
+      "state": "running"
+    }
+  },
+  "generated_at": "2026-07-24T17:29:15.074368+00:00",
+  "production_capacity_evidence": false,
+  "runs": [
+    {
+      "actual_cumulative_cps": 394.672,
+      "artifact_sha256": {
+        "container-exit-code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "docker-stats.csv": "df69b543700b1151f802f7eb71126355d0d2c21758b18fb0c1dc4b49b1196975",
+        "end-utc.txt": "d8f11b1b9a7aa735b3c0387cc6d2897184df219c645cafb6e336f699f3a7268a",
+        "hep-rows-after.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "df0f5c17271d14ede4d565e6fc3b23182659ef543ec2e50a08a74d7e921b2295",
+        "homer.log": "0cb1229bcc2f2a822b618773a53ff2d9ca28586a384c575ad2ca28fc00a97910",
+        "host-vmstat.log": "7b292d7de1c32c30fd0eb18a2ea27788d656c2ec6135160701aca4de8ae8235b",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "9bc33049ca34bad5cf2a5ebb0d72de0a901759114e4500c179f50fe3e419a9b7",
+        "router-before.json": "bd93eb89ddd4760f2e1437cbe9e63564fb612d18cc9f5bb6e2dfc13348e64c2e",
+        "scenario_1_rtt.csv": "2c4c527bd6f6fe7efc9c1edf68efb1698800def2dfad5534cb858e25f631f923",
+        "sipp-state.json": "c26bb4279f642e93c0278a4fb9ce7adc04d4469e9babb6ad2b19c05a42c99164",
+        "sipp.log": "a668c21e30539a1140842521f0b2a9856cc6c675b971ae11d419260f12741752",
+        "start-utc.txt": "d174a70543549b3922bd6cc5b50c7881d54cffb0effaf6f33ec7846696066170",
+        "statistics.csv": "e77bde6366021bf1d0ea80b310c5c8326da7489a45401b4c3d69759ce4306ba1"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 8000,
+      "checks": {
+        "cdr_delta": true,
+        "container_exit_code": true,
+        "failed_calls": true,
+        "hep_rows": true,
+        "remaining_calls": true,
+        "retransmissions": true,
+        "route_samples": true,
+        "router_delta": true,
+        "successful_calls": true
+      },
+      "config_sha256": "2b5f273e6999ea26d64a2e063006fdc86f110270aa21e9e72c74591aacc6b482",
+      "container_exit_code": 0,
+      "duration_seconds": 20,
+      "expected_calls": 8000,
+      "failed_calls": 0,
+      "hep_actual_rows": 0,
+      "hep_expected_rows": 0,
+      "hep_extra_rows": 0,
+      "hep_loss_rows": 0,
+      "mode": "disabled",
+      "remaining_calls": 0,
+      "repetition": 1,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 8.9,
+          "memory_max_bytes": 264031436,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 43.36,
+          "memory_max_bytes": 87168122,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 6.38,
+          "memory_max_bytes": 34162606,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 51.46,
+          "memory_max_bytes": 180984217,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 4.96,
+          "memory_max_bytes": 82145443,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 47.39,
+          "memory_max_bytes": 93155491,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 49.27,
+          "memory_max_bytes": 59548631,
+          "sample_count": 7
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r1-disabled-q400": {
+          "cpu_max_percent": 24.47,
+          "memory_max_bytes": 4832886,
+          "sample_count": 7
+        }
+      },
+      "retransmissions": 0,
+      "router_delta": 8000,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r1-disabled-q400",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 6.0,
+      "sip_route_p99_ms": 8.0,
+      "sip_route_sample_count": 8000,
+      "status": "controlled_pass",
+      "successful_calls": 8000,
+      "target_cps": 400
+    },
+    {
+      "actual_cumulative_cps": 687.623,
+      "artifact_sha256": {
+        "container-exit-code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "docker-stats.csv": "ada363dd9ea2721b7d6b418ca98c8cc88df90ce600bb5ccfd47b9964677e1134",
+        "end-utc.txt": "38846bea47b9f1dd17e6c7da01dfa56dc81f60a85f382410d4495fa66f6c4aa4",
+        "hep-rows-after.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "e414b0bd5e750e824b83e77ef2e07f59ea6e7cc5f584102bf1d01c1bfe7456b2",
+        "homer.log": "cd2c4f328f8763e98f0f48da49c1f6b729583aa58cbeeabe0f3a53a6f9d644b7",
+        "host-vmstat.log": "02ebfe579cd4da8f65a91217bfed554dd0555ee302052da9f01f4b7a3e747555",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "d7271d1e30f7735c05c931e80d956c5a13eb3bb29e5832bc408904ab8c0bbb42",
+        "router-before.json": "6b631f4e5304e464014423e9ef5b45ba4472c9d0ea9d0063c52a3709041f8928",
+        "scenario_1_rtt.csv": "683f8e645502d1414c26b26a5ff4c73565f2fc2e909c751617d98be957762dec",
+        "sipp-state.json": "547a8a3543331c73e46eda78ded6962012d13dc6f786578ce8e0ea5e2cb54b47",
+        "sipp.log": "e6d00b0ed2d8bbde4af91649a921c1a4fcd7b0d5f12bbf71ada1be79280d7eda",
+        "start-utc.txt": "bf5372e1b60cc42ef15405311435f4d5d412b36f65183889890d6dfa7593727a",
+        "statistics.csv": "b111aee8e2b06b05c948c845c0bb43ca262e027822aa56150ed02fa3018c2099"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 14000,
+      "checks": {
+        "cdr_delta": true,
+        "container_exit_code": true,
+        "failed_calls": true,
+        "hep_rows": true,
+        "remaining_calls": true,
+        "retransmissions": true,
+        "route_samples": true,
+        "router_delta": true,
+        "successful_calls": true
+      },
+      "config_sha256": "2b5f273e6999ea26d64a2e063006fdc86f110270aa21e9e72c74591aacc6b482",
+      "container_exit_code": 0,
+      "duration_seconds": 20,
+      "expected_calls": 14000,
+      "failed_calls": 0,
+      "hep_actual_rows": 0,
+      "hep_expected_rows": 0,
+      "hep_extra_rows": 0,
+      "hep_loss_rows": 0,
+      "mode": "disabled",
+      "remaining_calls": 0,
+      "repetition": 1,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 12.41,
+          "memory_max_bytes": 249875660,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 86.84,
+          "memory_max_bytes": 124256256,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 6.66,
+          "memory_max_bytes": 34215034,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 93.56,
+          "memory_max_bytes": 182452224,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 5.7,
+          "memory_max_bytes": 82145443,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 65.87,
+          "memory_max_bytes": 95776931,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 96.44,
+          "memory_max_bytes": 63690506,
+          "sample_count": 7
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r1-disabled-q700": {
+          "cpu_max_percent": 48.28,
+          "memory_max_bytes": 7303331,
+          "sample_count": 7
+        }
+      },
+      "retransmissions": 0,
+      "router_delta": 14000,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r1-disabled-q700",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 72.001,
+      "sip_route_p99_ms": 159.002,
+      "sip_route_sample_count": 14000,
+      "status": "controlled_pass",
+      "successful_calls": 14000,
+      "target_cps": 700
+    },
+    {
+      "actual_cumulative_cps": 875.785,
+      "artifact_sha256": {
+        "container-exit-code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "docker-stats.csv": "ca80e3e5423ae0af6b11316be10111ff34acf2c7e461c3cd210ccae376dd2a2b",
+        "end-utc.txt": "e9e6e67be3eafd25da070da3842a3661f14b6e2c50a77a20d265a6e8982dd6c3",
+        "hep-rows-after.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "89de5dbb896d72f3d17d88dc347856264c656178b28cc532bf8f9ba21b3fa013",
+        "homer.log": "8254db4dadb2a60225ee15deb27fa7eff3f510658ab0e8ec952a3e30fdc69f9b",
+        "host-vmstat.log": "9be5590e875b7cad91cd32ab370a3b7a6774cd0e6cc17064e5c82e46b6430f76",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "5d73d8b45d255f44d4a404bedc2ed2bf1e71683f6a70e78944836aed27d88efa",
+        "router-before.json": "99fe49b9189c45b787040a72561ce480dc51bc22b4378bd66e9ac9d419498b30",
+        "scenario_1_rtt.csv": "c37140d5d8b88cb646b099ef52a608a6e7c84cf70610365497662faee75d80d1",
+        "sipp-state.json": "844377138ef71f1b260311efa29c863029911f846f6a329c832246cbc2119f48",
+        "sipp.log": "3fa3d829769255dd6d4283f402575c76bb40d035cf348b828189374baaa29dd1",
+        "start-utc.txt": "146dfd743f26c5eb52c7a666d5ba43961160de94066a489ffd0c91d62742f2b3",
+        "statistics.csv": "4cf9a7fa8ff28620ced2a7aa0ec7765f79025667c60ad002554ff6845f27a6d6"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 18000,
+      "checks": {
+        "cdr_delta": true,
+        "container_exit_code": true,
+        "failed_calls": true,
+        "hep_rows": true,
+        "remaining_calls": true,
+        "retransmissions": true,
+        "route_samples": true,
+        "router_delta": true,
+        "successful_calls": true
+      },
+      "config_sha256": "2b5f273e6999ea26d64a2e063006fdc86f110270aa21e9e72c74591aacc6b482",
+      "container_exit_code": 0,
+      "duration_seconds": 20,
+      "expected_calls": 18000,
+      "failed_calls": 0,
+      "hep_actual_rows": 0,
+      "hep_expected_rows": 0,
+      "hep_extra_rows": 0,
+      "hep_loss_rows": 0,
+      "mode": "disabled",
+      "remaining_calls": 0,
+      "repetition": 1,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 10.48,
+          "memory_max_bytes": 233937305,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 86.37,
+          "memory_max_bytes": 149107507,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 7.85,
+          "memory_max_bytes": 34256977,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 94.05,
+          "memory_max_bytes": 183081369,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 7.17,
+          "memory_max_bytes": 82155929,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 69.84,
+          "memory_max_bytes": 110310195,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 85.11,
+          "memory_max_bytes": 61037608,
+          "sample_count": 7
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r1-disabled-q900": {
+          "cpu_max_percent": 48.03,
+          "memory_max_bytes": 9671016,
+          "sample_count": 7
+        }
+      },
+      "retransmissions": 0,
+      "router_delta": 18000,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r1-disabled-q900",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 230.004,
+      "sip_route_p99_ms": 645.011,
+      "sip_route_sample_count": 18000,
+      "status": "controlled_pass",
+      "successful_calls": 18000,
+      "target_cps": 900
+    },
+    {
+      "actual_cumulative_cps": 394.594,
+      "artifact_sha256": {
+        "container-exit-code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "docker-stats.csv": "b324de9dd0af3f38fc22aeb29a9d355efb6e33a2898c9421e85713869bb5024b",
+        "end-utc.txt": "a65e3200edbd0f22a00f0d8de77d2cac5dce1f3216299422c7850f215dd61abc",
+        "hep-rows-after.txt": "55858cff5dc1b6213086a5c639f50c159a1f2558f865547061032193650712c0",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "4b61b056053986ba3cfb4a3d096f6724bbc2d6a08daa4003d09758b0cac60acc",
+        "homer.log": "e4cf45b22d82bc7d6b0185f1b972583a98f28fb1d968ca2a681d323891d2e6c7",
+        "host-vmstat.log": "1849102d2e2c456965fa6244acd3ae685a8ec5a3e0e1a8f46558e2115e50a105",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "6b631f4e5304e464014423e9ef5b45ba4472c9d0ea9d0063c52a3709041f8928",
+        "router-before.json": "9bc33049ca34bad5cf2a5ebb0d72de0a901759114e4500c179f50fe3e419a9b7",
+        "scenario_1_rtt.csv": "c6cc18506c07aeca4119defdf9b36b350d6b18445f0026692cf2be048085a97a",
+        "sipp-state.json": "3896bdbae616ba26d7c91b8f050b4461d9eb4508e4b65362af56eb64226d71c0",
+        "sipp.log": "14b93a99fca7949dc0827e02e168a348bba6f627c6002817624215969701c3b2",
+        "start-utc.txt": "1e8c32fbaa03b4efd28afeb70ae13feec0a31e0ed944cdeae91c6f3bb9980596",
+        "statistics.csv": "80e7ddefae4a96e70dc3996885d7b0e933da3fdacaac18bc4a3c917eb5c032b2"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 8000,
+      "checks": {
+        "cdr_delta": true,
+        "container_exit_code": true,
+        "failed_calls": true,
+        "hep_rows": true,
+        "remaining_calls": true,
+        "retransmissions": true,
+        "route_samples": true,
+        "router_delta": true,
+        "successful_calls": true
+      },
+      "config_sha256": "a1a30cc203e01b5b865b84b54a4d87fd60594a69f75eaa3d8f42119bf2b801cb",
+      "container_exit_code": 0,
+      "duration_seconds": 20,
+      "expected_calls": 8000,
+      "failed_calls": 0,
+      "hep_actual_rows": 64000,
+      "hep_expected_rows": 64000,
+      "hep_extra_rows": 0,
+      "hep_loss_rows": 0,
+      "mode": "enabled",
+      "remaining_calls": 0,
+      "repetition": 1,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 55.85,
+          "memory_max_bytes": 381367091,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 59.29,
+          "memory_max_bytes": 87272980,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 6.94,
+          "memory_max_bytes": 34194063,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 54.22,
+          "memory_max_bytes": 180984217,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 4.67,
+          "memory_max_bytes": 82145443,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 47.76,
+          "memory_max_bytes": 104134082,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 56.94,
+          "memory_max_bytes": 59601059,
+          "sample_count": 7
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r1-enabled-q400": {
+          "cpu_max_percent": 25.48,
+          "memory_max_bytes": 4493148,
+          "sample_count": 7
+        }
+      },
+      "retransmissions": 0,
+      "router_delta": 8000,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r1-enabled-q400",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 9.0,
+      "sip_route_p99_ms": 14.0,
+      "sip_route_sample_count": 8000,
+      "status": "controlled_pass",
+      "successful_calls": 8000,
+      "target_cps": 400
+    },
+    {
+      "actual_cumulative_cps": 688.062,
+      "artifact_sha256": {
+        "container-exit-code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "docker-stats.csv": "1e77617e43bf6d76e0ff496b31cf6ac2f77d98b661b452e589c7255adfb540d4",
+        "end-utc.txt": "3a88c7166b3fe3a3bda3610036d7ebccdbe0ea99a0b3fdd2a29920380aa209e1",
+        "hep-rows-after.txt": "847ee02aa1e5a77c5a716d1ed52b846e2c3c798f2867b9405921a06d882475ab",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "c6223a6411009cff1fbba80d45d91512d8e3d4f18bd450d34b84709098c04ee1",
+        "homer.log": "969009ac97ba3cf0282a4d7a9b6b001b1a67ea3776b3834bd27a34b537fc84a4",
+        "host-vmstat.log": "d644619eb636db71ce3229636a1d5dfcb8382cef4df2d7d469b64acd38a8b12b",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "99fe49b9189c45b787040a72561ce480dc51bc22b4378bd66e9ac9d419498b30",
+        "router-before.json": "d7271d1e30f7735c05c931e80d956c5a13eb3bb29e5832bc408904ab8c0bbb42",
+        "scenario_1_rtt.csv": "5b551ad7e5df14d7345c46010c31d19610af1b5c4577f0d72e95962ecd24dea8",
+        "sipp-state.json": "fee826ecb6660ca9868585caca5f0c0c26258381dfab160bff8a5e72d2868caf",
+        "sipp.log": "caaa932b045a5e7673a090f6ae96281b840cf65d051f8608500cccd67d36175f",
+        "start-utc.txt": "8dfd45b0059c113ce7f7eae0da763032d59e473c5e7b8a45369983b924681bf7",
+        "statistics.csv": "aaff996088cbc7365b2de2f6125879c0ab4f2c54b741d335ba977053648a850f"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 14000,
+      "checks": {
+        "cdr_delta": true,
+        "container_exit_code": true,
+        "failed_calls": true,
+        "hep_rows": true,
+        "remaining_calls": true,
+        "retransmissions": true,
+        "route_samples": true,
+        "router_delta": true,
+        "successful_calls": true
+      },
+      "config_sha256": "a1a30cc203e01b5b865b84b54a4d87fd60594a69f75eaa3d8f42119bf2b801cb",
+      "container_exit_code": 0,
+      "duration_seconds": 20,
+      "expected_calls": 14000,
+      "failed_calls": 0,
+      "hep_actual_rows": 112000,
+      "hep_expected_rows": 112000,
+      "hep_extra_rows": 0,
+      "hep_loss_rows": 0,
+      "mode": "enabled",
+      "remaining_calls": 0,
+      "repetition": 1,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 71.13,
+          "memory_max_bytes": 407581491,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 90.09,
+          "memory_max_bytes": 123207680,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 7.88,
+          "memory_max_bytes": 34246492,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 77.03,
+          "memory_max_bytes": 184759091,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 5.39,
+          "memory_max_bytes": 82554388,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 57.37,
+          "memory_max_bytes": 102403932,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 74.14,
+          "memory_max_bytes": 59894661,
+          "sample_count": 7
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r1-enabled-q700": {
+          "cpu_max_percent": 43.47,
+          "memory_max_bytes": 8371830,
+          "sample_count": 7
+        }
+      },
+      "retransmissions": 0,
+      "router_delta": 14000,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r1-enabled-q700",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 61.001,
+      "sip_route_p99_ms": 99.002,
+      "sip_route_sample_count": 14000,
+      "status": "controlled_pass",
+      "successful_calls": 14000,
+      "target_cps": 700
+    },
+    {
+      "actual_cumulative_cps": 129.636,
+      "artifact_sha256": {
+        "container-exit-code.txt": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "docker-stats.csv": "d06c5a5ba0143bce3146b5f84573b1b3406d1cd7e73c2840b67a8e8a90c3a9ad",
+        "end-utc.txt": "752775be8698d0f9865e9c3ee0eee54caca1257601d016da4b05dfa28f9e2dc4",
+        "errors.log": "fe1ae0554d147ca4530be8ee31a40722aacbc3afad1414fee3f5aefbaf2cda5f",
+        "hep-rows-after.txt": "af6980330490662c984f1770a44146087268a4e16cd89a413da4d4076bf6fab3",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "fcecc4a8908ebb0a075c9f99364f98bc9fe9305b79d142b38e271445edd9dd36",
+        "homer.log": "4fab7b20101820f2627fad5e36d2c7d29c6b03be5bcd121b05ddaed7cba6c292",
+        "host-vmstat.log": "cac659ed1352bbf99bb74169faa748f26462b3668b2ad2ec66dd120aebe07d44",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "4e764c122b80a2ff165176e4f79fcc451d973bfa9d5aa08b446674a6ee8ead96",
+        "router-before.json": "5d73d8b45d255f44d4a404bedc2ed2bf1e71683f6a70e78944836aed27d88efa",
+        "scenario_1_rtt.csv": "f6658d44d3c252897b15b7f5a0845f1bf658b0f42b0f31cc6646de5d7976bae1",
+        "sipp-state.json": "ffcfa87acf8e35c33e835dcb2f50b5d379cc7ecda05cddc55bba99842638359d",
+        "sipp.log": "3453c3fb89faf24ba23723ac1f9687e25a372f089f75f5a81bb8202d738b0c7c",
+        "start-utc.txt": "a80e0b79967923501c16713acf6ff240fe3ddb762749f18c1701aa5fae7497b3",
+        "statistics.csv": "93b46075cf505065debf90218fbcc41512857815ad0235dd6d1e8c1e78d04aa6"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 18006,
+      "checks": {
+        "cdr_delta": false,
+        "container_exit_code": false,
+        "failed_calls": false,
+        "hep_rows": false,
+        "remaining_calls": true,
+        "retransmissions": false,
+        "route_samples": false,
+        "router_delta": false,
+        "successful_calls": false
+      },
+      "config_sha256": "a1a30cc203e01b5b865b84b54a4d87fd60594a69f75eaa3d8f42119bf2b801cb",
+      "container_exit_code": 1,
+      "duration_seconds": 20,
+      "expected_calls": 18000,
+      "failed_calls": 12,
+      "hep_actual_rows": 144650,
+      "hep_expected_rows": 143904,
+      "hep_extra_rows": 746,
+      "hep_loss_rows": 0,
+      "mode": "enabled",
+      "remaining_calls": 0,
+      "repetition": 1,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 71.92,
+          "memory_max_bytes": 471020339,
+          "sample_count": 45
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 97.7,
+          "memory_max_bytes": 147744358,
+          "sample_count": 45
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 8.41,
+          "memory_max_bytes": 34655436,
+          "sample_count": 45
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 78.96,
+          "memory_max_bytes": 183500800,
+          "sample_count": 45
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 5.78,
+          "memory_max_bytes": 84798341,
+          "sample_count": 45
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 51.87,
+          "memory_max_bytes": 112092774,
+          "sample_count": 45
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 72.84,
+          "memory_max_bytes": 60733521,
+          "sample_count": 45
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r1-enabled-q900": {
+          "cpu_max_percent": 43.6,
+          "memory_max_bytes": 15833497,
+          "sample_count": 45
+        }
+      },
+      "retransmissions": 624,
+      "router_delta": 18006,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r1-enabled-q900",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 846.014,
+      "sip_route_p99_ms": 1650.03,
+      "sip_route_sample_count": 17988,
+      "status": "controlled_failed",
+      "successful_calls": 17988,
+      "target_cps": 900
+    },
+    {
+      "actual_cumulative_cps": 394.672,
+      "artifact_sha256": {
+        "container-exit-code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "docker-stats.csv": "37b05e47b20b2249097cf61c26dd83d1c5847b9c10d935fdc81a764643c50d11",
+        "end-utc.txt": "2b16ea10fe9cff05dced9255571763e114017fbf5790381f90aa8164d9fec353",
+        "hep-rows-after.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "9c190530afc609eadbd7c355585779d66878762486950a8f5c8677fe4f0cd930",
+        "homer.log": "1603df7db0743e6f4f3713c053590918d069b480566bb4094046021aacc91f70",
+        "host-vmstat.log": "2e1397bbaea35fcf5b172810fd7bd3c10f67942e101435d9043ea50be5b9452e",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "181dae6b230607763bea0443fdf7c38d0985cdb0fd00085c7edcd36ee4f7a7a6",
+        "router-before.json": "a431b0b8d270ca34a672a7746110d5f2f885d69f74934c764508272e0166f31d",
+        "scenario_1_rtt.csv": "9f650d0912c4ea520e8cbd7d14374dd661e0953be1f5fd174c2c514e1b79219c",
+        "sipp-state.json": "8760b86e993e9490a05ebd5339f443087882286b94751bf4aed42e65ba073aa4",
+        "sipp.log": "ef7739f68f39df688800078599f3ae7febf542d457c8e4c7fefe60053a5a3296",
+        "start-utc.txt": "05b0e133acf977edc140889a2c5b615753565e4a2491ee8a791b06792028a81c",
+        "statistics.csv": "b27dd56b5a56a81bab2f88a6bc5353590f88b4581c91735740fb2ead1d3eb83e"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 8000,
+      "checks": {
+        "cdr_delta": true,
+        "container_exit_code": true,
+        "failed_calls": true,
+        "hep_rows": true,
+        "remaining_calls": true,
+        "retransmissions": true,
+        "route_samples": true,
+        "router_delta": true,
+        "successful_calls": true
+      },
+      "config_sha256": "2b5f273e6999ea26d64a2e063006fdc86f110270aa21e9e72c74591aacc6b482",
+      "container_exit_code": 0,
+      "duration_seconds": 20,
+      "expected_calls": 8000,
+      "failed_calls": 0,
+      "hep_actual_rows": 0,
+      "hep_expected_rows": 0,
+      "hep_extra_rows": 0,
+      "hep_loss_rows": 0,
+      "mode": "disabled",
+      "remaining_calls": 0,
+      "repetition": 2,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 8.33,
+          "memory_max_bytes": 258264268,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 41.41,
+          "memory_max_bytes": 86811607,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 6.1,
+          "memory_max_bytes": 34540093,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 51.78,
+          "memory_max_bytes": 182661939,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 2.78,
+          "memory_max_bytes": 84682997,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 42.35,
+          "memory_max_bytes": 84745912,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 49.34,
+          "memory_max_bytes": 59674460,
+          "sample_count": 7
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r2-disabled-q400": {
+          "cpu_max_percent": 23.2,
+          "memory_max_bytes": 4873781,
+          "sample_count": 7
+        }
+      },
+      "retransmissions": 0,
+      "router_delta": 8000,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r2-disabled-q400",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 6.0,
+      "sip_route_p99_ms": 10.0,
+      "sip_route_sample_count": 8000,
+      "status": "controlled_pass",
+      "successful_calls": 8000,
+      "target_cps": 400
+    },
+    {
+      "actual_cumulative_cps": 687.117,
+      "artifact_sha256": {
+        "container-exit-code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "docker-stats.csv": "e9e20db97d783a44ad624cdf00c7781b7b079f8c2deb56805bbd8c9c38798198",
+        "end-utc.txt": "806407d00dd8750d37d393b30a12f2ecc2182cd03dc4885fe13f391325a7ce19",
+        "hep-rows-after.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "393f7910af38b5a40083ee6a775a4b37768bdbd31e26432bdfbb63e6bb02811f",
+        "homer.log": "c210894c904af5f935323adedcd39465fdfdf7567a1f20435a96290f77937975",
+        "host-vmstat.log": "f9778ecb490f1cfd655ca85d37c28658d9e3ae902d88fbcd865ed704d2616fe2",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "f0fa9568b09727f8923f55b072b1551180a9935876ee8ef1e085afc4b0a3473a",
+        "router-before.json": "eee5821f5b753bf0bd988ab151c88ae4c24196e94506071a4f5a49863de784d3",
+        "scenario_1_rtt.csv": "e1bc8622278d1e2786696688c256c0eaca9e869b2a54e164ec2e521a60295e36",
+        "sipp-state.json": "58e860c57777a1d2339a2178d6efad525654a201c622fe860ec8897d1491b4b1",
+        "sipp.log": "05a1753649dfada916b46c56b40247e9bfebdf054dfc2203710cd4d6d4f93c69",
+        "start-utc.txt": "d660622f7ce86034766db7af2d938a8829666579189586767a745c5101920e53",
+        "statistics.csv": "18fa620f842d4f6667536c6d23635607c4f1b972239ec87a375664233bdbe1e4"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 14000,
+      "checks": {
+        "cdr_delta": true,
+        "container_exit_code": true,
+        "failed_calls": true,
+        "hep_rows": true,
+        "remaining_calls": true,
+        "retransmissions": true,
+        "route_samples": true,
+        "router_delta": true,
+        "successful_calls": true
+      },
+      "config_sha256": "2b5f273e6999ea26d64a2e063006fdc86f110270aa21e9e72c74591aacc6b482",
+      "container_exit_code": 0,
+      "duration_seconds": 20,
+      "expected_calls": 14000,
+      "failed_calls": 0,
+      "hep_actual_rows": 0,
+      "hep_expected_rows": 0,
+      "hep_extra_rows": 0,
+      "hep_loss_rows": 0,
+      "mode": "disabled",
+      "remaining_calls": 0,
+      "repetition": 2,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 15.87,
+          "memory_max_bytes": 314992230,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 79.7,
+          "memory_max_bytes": 124046540,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 8.71,
+          "memory_max_bytes": 37014732,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 90.83,
+          "memory_max_bytes": 183710515,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 5.83,
+          "memory_max_bytes": 82145443,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 64.01,
+          "memory_max_bytes": 79293317,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 88.89,
+          "memory_max_bytes": 59957575,
+          "sample_count": 7
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r2-disabled-q700": {
+          "cpu_max_percent": 43.26,
+          "memory_max_bytes": 7671382,
+          "sample_count": 7
+        }
+      },
+      "retransmissions": 0,
+      "router_delta": 14000,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r2-disabled-q700",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 29.001,
+      "sip_route_p99_ms": 46.001,
+      "sip_route_sample_count": 14000,
+      "status": "controlled_pass",
+      "successful_calls": 14000,
+      "target_cps": 700
+    },
+    {
+      "actual_cumulative_cps": 884.0,
+      "artifact_sha256": {
+        "container-exit-code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "docker-stats.csv": "1874633d6b6726906057a0d788d69e68f37b8fa74c59834fe9cc89b77e805dcc",
+        "end-utc.txt": "96ea27f6fd305b6a0f0eea7d91fd09ad0d2edb6f15d63a4adda0361c42ab2ebc",
+        "hep-rows-after.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "97032791db4c54ba46cdf40ae4875a87900639a08daee5899ec46c5292384aae",
+        "homer.log": "9f4fbd9f3edca28f2d0087950a82540164f338cba79819905db5e9f1a93b0070",
+        "host-vmstat.log": "222d1f74b4a7615e1b5e0b8817701afc1d507da1afa72b681f4dbf459e269815",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "7ea4c398ee9f9f93b685d6cfe58a247966afb2f320e9953aa63978efcd09b4c9",
+        "router-before.json": "670ff557b651dde5349fbba05445d317c11c1417c558e6eae880a944d2075f5a",
+        "scenario_1_rtt.csv": "8a45715d413f40ab80053a876df6cc3fa6a97805a12b4c854f1d8fc7778dc697",
+        "sipp-state.json": "8e8cfca626971d6183d59c334361f802352d4647bb7315df634741c26dcd5e54",
+        "sipp.log": "4b0b46a3c5625233df3955e22afabc51368ccb0f34162bc54f34d2cb02ade9e5",
+        "start-utc.txt": "0fb61d020656aaca164ce41c6edaf998196a7d07c69ea888182307653d72056d",
+        "statistics.csv": "24bfd0e13fc071f49edbfbee0b23bbd2bf2133d6e997b2069a1e4b03a8be2273"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 18000,
+      "checks": {
+        "cdr_delta": true,
+        "container_exit_code": true,
+        "failed_calls": true,
+        "hep_rows": true,
+        "remaining_calls": true,
+        "retransmissions": true,
+        "route_samples": true,
+        "router_delta": true,
+        "successful_calls": true
+      },
+      "config_sha256": "2b5f273e6999ea26d64a2e063006fdc86f110270aa21e9e72c74591aacc6b482",
+      "container_exit_code": 0,
+      "duration_seconds": 20,
+      "expected_calls": 18000,
+      "failed_calls": 0,
+      "hep_actual_rows": 0,
+      "hep_expected_rows": 0,
+      "hep_extra_rows": 0,
+      "hep_loss_rows": 0,
+      "mode": "disabled",
+      "remaining_calls": 0,
+      "repetition": 2,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 13.29,
+          "memory_max_bytes": 342674636,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 84.88,
+          "memory_max_bytes": 148688076,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 8.08,
+          "memory_max_bytes": 34728837,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 94.25,
+          "memory_max_bytes": 181403648,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 6.0,
+          "memory_max_bytes": 82145443,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 60.75,
+          "memory_max_bytes": 105381888,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 81.59,
+          "memory_max_bytes": 61771612,
+          "sample_count": 7
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r2-disabled-q900": {
+          "cpu_max_percent": 43.48,
+          "memory_max_bytes": 10367270,
+          "sample_count": 7
+        }
+      },
+      "retransmissions": 0,
+      "router_delta": 18000,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r2-disabled-q900",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 31.001,
+      "sip_route_p99_ms": 80.001,
+      "sip_route_sample_count": 18000,
+      "status": "controlled_pass",
+      "successful_calls": 18000,
+      "target_cps": 900
+    },
+    {
+      "actual_cumulative_cps": 394.477,
+      "artifact_sha256": {
+        "container-exit-code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "docker-stats.csv": "a165e4d5f17065009787d205031f93e5303db887fc708fe70c8cd5e386682d82",
+        "end-utc.txt": "b9620e66dd06a36440c460a5828d2e7dd830c004bda964ef680c5ca0af32eb51",
+        "hep-rows-after.txt": "55858cff5dc1b6213086a5c639f50c159a1f2558f865547061032193650712c0",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "48019758e1a38ec64f242f4d46a2ecbea7e825da33fb8dec8d2d6e00feffad40",
+        "homer.log": "7c48e367387144bb616468d29432163b365e83e467e4c1aa9cad3b945ea94559",
+        "host-vmstat.log": "ad581ddd98020da68f01069f316d5a42c1f84634dbf85a7240e12256e2928728",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "a431b0b8d270ca34a672a7746110d5f2f885d69f74934c764508272e0166f31d",
+        "router-before.json": "4e764c122b80a2ff165176e4f79fcc451d973bfa9d5aa08b446674a6ee8ead96",
+        "scenario_1_rtt.csv": "35130c04fddfe9a4d6a636e255946c4a454568ec5aca89088275f827019c87de",
+        "sipp-state.json": "d6a581c4c7b1dc0ae79c5f724aa2a2960d17fda6e82cddf7e037170f728ec871",
+        "sipp.log": "4a6ea9a388b639d8b82e2cf3f55827074220a482cd2d1d28bc1a668e7742c3c0",
+        "start-utc.txt": "378639c3261b5e378a783ca88c007c4b00d7f85d512015ff3d33fb70d73b25e3",
+        "statistics.csv": "f108e84ab0dda74c13603a38bb5fa0eb00cce3cfab8d484aa94d1f5c2b1905e6"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 8000,
+      "checks": {
+        "cdr_delta": true,
+        "container_exit_code": true,
+        "failed_calls": true,
+        "hep_rows": true,
+        "remaining_calls": true,
+        "retransmissions": true,
+        "route_samples": true,
+        "router_delta": true,
+        "successful_calls": true
+      },
+      "config_sha256": "a1a30cc203e01b5b865b84b54a4d87fd60594a69f75eaa3d8f42119bf2b801cb",
+      "container_exit_code": 0,
+      "duration_seconds": 20,
+      "expected_calls": 8000,
+      "failed_calls": 0,
+      "hep_actual_rows": 64000,
+      "hep_expected_rows": 64000,
+      "hep_extra_rows": 0,
+      "hep_loss_rows": 0,
+      "mode": "enabled",
+      "remaining_calls": 0,
+      "repetition": 2,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 57.36,
+          "memory_max_bytes": 353789542,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 63.74,
+          "memory_max_bytes": 87314923,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 8.45,
+          "memory_max_bytes": 34529607,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 52.7,
+          "memory_max_bytes": 181193932,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 5.06,
+          "memory_max_bytes": 82145443,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 52.41,
+          "memory_max_bytes": 78517370,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 56.89,
+          "memory_max_bytes": 59695431,
+          "sample_count": 7
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r2-enabled-q400": {
+          "cpu_max_percent": 26.28,
+          "memory_max_bytes": 4877975,
+          "sample_count": 7
+        }
+      },
+      "retransmissions": 0,
+      "router_delta": 8000,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r2-enabled-q400",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 11.0,
+      "sip_route_p99_ms": 16.001,
+      "sip_route_sample_count": 8000,
+      "status": "controlled_pass",
+      "successful_calls": 8000,
+      "target_cps": 400
+    },
+    {
+      "actual_cumulative_cps": 688.536,
+      "artifact_sha256": {
+        "container-exit-code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "docker-stats.csv": "2031e6faa52d3ca57ac0d3d389df271b6a85f714b2de5a4f2e925b0dd036367a",
+        "end-utc.txt": "1a295cb7b0ba18cac665cdac74a823a5d19c891c5d4311b3f71576a3a4c4fd30",
+        "hep-rows-after.txt": "847ee02aa1e5a77c5a716d1ed52b846e2c3c798f2867b9405921a06d882475ab",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "5e133993322baf05bd59c4d481bfe451c22b5148f66682c6355abea941defb8d",
+        "homer.log": "b09f55d6a9b5cac284039274f51194772db0abd0ee34a0456cf3ad8b902f175c",
+        "host-vmstat.log": "b9284f1cf500a4c5f43fa3739f52283d16b2b9b10b7523d456516ff82c4cfd6c",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "eee5821f5b753bf0bd988ab151c88ae4c24196e94506071a4f5a49863de784d3",
+        "router-before.json": "181dae6b230607763bea0443fdf7c38d0985cdb0fd00085c7edcd36ee4f7a7a6",
+        "scenario_1_rtt.csv": "2d521c3049121766a8e0647bb86f6259de327cb951c7f8f4d4839145f24efbb0",
+        "sipp-state.json": "c9c1f3f16761ac5b555b8f2cc278f8a168720681e7351cbf3d31a14790afc631",
+        "sipp.log": "99bffd73da3299d6e1c66e490d36b0ce474d16a0cd635fc9a620968465f4be81",
+        "start-utc.txt": "2a11490a97af0d1da41325ab36246a00b2a4397a6602e2c51100cb887ee46a13",
+        "statistics.csv": "4ffc88df8bcad0b008e907521f3e21104c6bf8700f2111f8d14bd28b98e26640"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 14000,
+      "checks": {
+        "cdr_delta": true,
+        "container_exit_code": true,
+        "failed_calls": true,
+        "hep_rows": true,
+        "remaining_calls": true,
+        "retransmissions": true,
+        "route_samples": true,
+        "router_delta": true,
+        "successful_calls": true
+      },
+      "config_sha256": "a1a30cc203e01b5b865b84b54a4d87fd60594a69f75eaa3d8f42119bf2b801cb",
+      "container_exit_code": 0,
+      "duration_seconds": 20,
+      "expected_calls": 14000,
+      "failed_calls": 0,
+      "hep_actual_rows": 112000,
+      "hep_expected_rows": 112000,
+      "hep_extra_rows": 0,
+      "hep_loss_rows": 0,
+      "mode": "enabled",
+      "remaining_calls": 0,
+      "repetition": 2,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 63.27,
+          "memory_max_bytes": 394579148,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 86.56,
+          "memory_max_bytes": 124361113,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 8.2,
+          "memory_max_bytes": 34582036,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 75.13,
+          "memory_max_bytes": 181193932,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 5.04,
+          "memory_max_bytes": 82145443,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 50.16,
+          "memory_max_bytes": 78171340,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 69.66,
+          "memory_max_bytes": 60114862,
+          "sample_count": 7
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r2-enabled-q700": {
+          "cpu_max_percent": 36.88,
+          "memory_max_bytes": 8236564,
+          "sample_count": 7
+        }
+      },
+      "retransmissions": 0,
+      "router_delta": 14000,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r2-enabled-q700",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 34.001,
+      "sip_route_p99_ms": 65.001,
+      "sip_route_sample_count": 14000,
+      "status": "controlled_pass",
+      "successful_calls": 14000,
+      "target_cps": 700
+    },
+    {
+      "actual_cumulative_cps": 882.613,
+      "artifact_sha256": {
+        "container-exit-code.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "docker-stats.csv": "1256c1e7504772e06a975501ba18293a2ac72e8c0d4f514745b7727e4f8193db",
+        "end-utc.txt": "b8b7c16357296cfdd0cd7e60e51cccc7c82abc6f3300522e07abd6ff2d57e996",
+        "hep-rows-after.txt": "19be19a9f341f7852cedb92cc66d478c8936cf0fb2e0b516ab8db2d856d1ff11",
+        "hep-rows-before.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "homer-cooldown-before.csv": "84febbcee20fd5b78668fd8a2ec87ad10c2f5d7a772012ce9723ce64ca6bb2a7",
+        "homer.log": "170f76a5f891f8b4d2863fc93e02f682f262ad8e05f2c6c3dac33aa64a34dd53",
+        "host-vmstat.log": "96d8dec540df0549814a69256900f5ce5a34e6f32b898840e70d7823502acb36",
+        "kamailio-edge.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "router-after.json": "670ff557b651dde5349fbba05445d317c11c1417c558e6eae880a944d2075f5a",
+        "router-before.json": "f0fa9568b09727f8923f55b072b1551180a9935876ee8ef1e085afc4b0a3473a",
+        "scenario_1_rtt.csv": "cdbd7702433c8d5f5293f6c52ac346424bf8067278e016c1e2cf0621289d3f38",
+        "sipp-state.json": "8aaf6b0a5342b006e02b36dca041a110106825025a2dced6499b28b5c2e78fcb",
+        "sipp.log": "f8fc77b5e722e8f08615af6527de5ab8bbdff6edcd47ff0df07aa8352b585201",
+        "start-utc.txt": "b8cf019d03a5b2c322e83f9189328082e24a0e9a1687d89de599a593f86e2bc6",
+        "statistics.csv": "789b97b8df33e8e0735f82fac758cea84f438314dc39c352f8616725fcdda633"
+      },
+      "capacity_claim": "none",
+      "cdr_delta": 18000,
+      "checks": {
+        "cdr_delta": true,
+        "container_exit_code": true,
+        "failed_calls": true,
+        "hep_rows": true,
+        "remaining_calls": true,
+        "retransmissions": true,
+        "route_samples": true,
+        "router_delta": true,
+        "successful_calls": true
+      },
+      "config_sha256": "a1a30cc203e01b5b865b84b54a4d87fd60594a69f75eaa3d8f42119bf2b801cb",
+      "container_exit_code": 0,
+      "duration_seconds": 20,
+      "expected_calls": 18000,
+      "failed_calls": 0,
+      "hep_actual_rows": 144000,
+      "hep_expected_rows": 144000,
+      "hep_extra_rows": 0,
+      "hep_loss_rows": 0,
+      "mode": "enabled",
+      "remaining_calls": 0,
+      "repetition": 2,
+      "resources": {
+        "ivekit-homer-acceptance": {
+          "cpu_max_percent": 84.31,
+          "memory_max_bytes": 496081305,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-kamailio": {
+          "cpu_max_percent": 91.59,
+          "memory_max_bytes": 148058931,
+          "sample_count": 7
+        },
+        "ivekit-homer-acceptance-postgres": {
+          "cpu_max_percent": 7.12,
+          "memory_max_bytes": 36563845,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "cpu_max_percent": 78.76,
+          "memory_max_bytes": 182766796,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "cpu_max_percent": 5.26,
+          "memory_max_bytes": 82145443,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "cpu_max_percent": 55.6,
+          "memory_max_bytes": 93606379,
+          "sample_count": 7
+        },
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "cpu_max_percent": 72.9,
+          "memory_max_bytes": 60639150,
+          "sample_count": 7
+        },
+        "ivekit-sipp-hep-ab-20260724T171001Z-1ffffe9a-r2-enabled-q900": {
+          "cpu_max_percent": 42.91,
+          "memory_max_bytes": 9531555,
+          "sample_count": 7
+        }
+      },
+      "retransmissions": 0,
+      "router_delta": 18000,
+      "run_id": "hep-ab-20260724T171001Z-1ffffe9a-r2-enabled-q900",
+      "schema_version": "1.0.0",
+      "scope": "controlled_server_same_host",
+      "sip_route_p95_ms": 151.003,
+      "sip_route_p99_ms": 330.006,
+      "sip_route_sample_count": 18000,
+      "status": "controlled_pass",
+      "successful_calls": 18000,
+      "target_cps": 900
+    }
+  ],
+  "schema_version": "1.0.0",
+  "scope": "controlled_server_same_host",
+  "sensitive_inputs_removed": true,
+  "source": {
+    "disabled_config_sha256": "2b5f273e6999ea26d64a2e063006fdc86f110270aa21e9e72c74591aacc6b482",
+    "enabled_config_sha256": "a1a30cc203e01b5b865b84b54a4d87fd60594a69f75eaa3d8f42119bf2b801cb",
+    "runner_sha256": "817b5bab99b36eacc957f36e45045d80b268ba60bef8e2e7e93120df8646c3dc",
+    "sipp_binary_sha256": "8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef",
+    "sipp_scenario_sha256": "970324a194b40851f5a651b6ef92335895c929050b6064b5352c7a4eb42798f8"
+  },
+  "started_at": "2026-07-24T17:10:01Z",
+  "status": "controlled_failed",
+  "suite": "iveKit HOMER HEP enabled/disabled A/B"
+}

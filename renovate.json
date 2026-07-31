@@ -1,0 +1,92 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:pinDigests",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "timezone": "Asia/Shanghai",
+  "schedule": ["before 6am on monday"],
+  "dependencyDashboard": true,
+  "automerge": false,
+  "prConcurrentLimit": 8,
+  "prHourlyLimit": 4,
+  "minimumReleaseAge": "3 days",
+  "rangeStrategy": "pin",
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    ".worktrees/**",
+    "delivery/**"
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 5am on the first monday of the month"]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Discover tagged iveKit upstream releases without changing the authoritative fork manifest",
+      "managerFilePatterns": ["/^\\.github\\/renovate-upstreams\\.env$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>github-tags) depName=(?<depName>[^\\s]+) versioning=(?<versioning>[^\\s]+) depType=(?<depType>ivekit-upstream)\\s+[A-Z0-9_]+_VERSION=(?<currentValue>\\S+)"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Update immutable Docker references in environment examples and the fork manifest",
+      "managerFilePatterns": [
+        "/(^|/)(?:\\.env|env)\\.example$/",
+        "/^docs\\/capacity\\/forks\\/ivekit-forks-v1\\.json$/"
+      ],
+      "matchStrings": [
+        "(?<depName>[a-z0-9][a-z0-9._/-]*):(?<currentValue>[A-Za-z0-9][A-Za-z0-9._-]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker",
+      "depTypeTemplate": "container-digest"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Fork discovery PRs require patch replay, exact commit resolution and the full release gate",
+      "matchDepTypes": ["ivekit-upstream"],
+      "automerge": false,
+      "labels": ["dependencies", "ivekit-upstream"],
+      "minimumReleaseAge": "7 days",
+      "prBodyNotes": [
+        "This PR is upgrade discovery only. Resolve the tag to an exact 40-character commit, replay iveKit patches, update the fork manifest, and run component plus OCI release gates before merge."
+      ]
+    },
+    {
+      "description": "Digest changes stay reviewable and must pass image verification",
+      "matchDepTypes": ["container-digest"],
+      "automerge": false,
+      "labels": ["dependencies", "container-digest"]
+    },
+    {
+      "description": "GitHub Actions remain full-SHA pinned and reviewable",
+      "matchManagers": ["github-actions"],
+      "automerge": false,
+      "labels": ["dependencies", "github-actions"]
+    },
+    {
+      "description": "Do not query generated placeholders or unpublished iveKit candidate images",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "ghcr.io/songgoldenwind-crypto/**",
+        "registry.example.invalid/**",
+        "registry.example.com/**",
+        "replace.example.com/**"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Major dependency changes require explicit dashboard approval",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    }
+  ]
+}

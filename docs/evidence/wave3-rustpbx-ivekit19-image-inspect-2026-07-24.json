@@ -1,0 +1,70 @@
+[
+    {
+        "Architecture": "amd64",
+        "Config": {
+            "Entrypoint": [
+                "/app/entrypoint.sh"
+            ],
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG=C.UTF-8",
+                "TZ=UTC"
+            ],
+            "Labels": {
+                "io.ivekit.rsipstack.commit": "8318e97b1170de4e5245b120afec1cdf53e3d716",
+                "io.ivekit.rustpbx.commit": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
+                "io.ivekit.rustpbx.patchset": "ivekit.19",
+                "io.ivekit.rustrtc.commit": "166c6d22984429eb6b509920c14fcd69f974f0b3",
+                "org.opencontainers.image.description": "iveKit RustPBX with reliable TCP reconnect",
+                "org.opencontainers.image.source": "https://github.com/songgoldenwind-crypto/opc-platform"
+            },
+            "WorkingDir": "/app"
+        },
+        "Created": "2026-07-24T13:00:47.736959764Z",
+        "Descriptor": {
+            "digest": "sha256:da8407a298fe782d082c1d1f0f63609e1958f6f3f04b98d70324b7ff68a288cb",
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "size": 5172
+        },
+        "Id": "sha256:da8407a298fe782d082c1d1f0f63609e1958f6f3f04b98d70324b7ff68a288cb",
+        "Metadata": {
+            "LastTagTime": "2026-07-24T13:00:48.094964579Z"
+        },
+        "Os": "linux",
+        "Parent": "sha256:7d9b64e33934138901586305337d7d95693df822019f0dca54b9497a74cbea3f",
+        "RepoDigests": [
+            "ivekit/rustpbx@sha256:da8407a298fe782d082c1d1f0f63609e1958f6f3f04b98d70324b7ff68a288cb"
+        ],
+        "RepoTags": [
+            "ivekit/rustpbx:0.4.11-ivekit.19-6c49ee76"
+        ],
+        "RootFS": {
+            "Layers": [
+                "sha256:81f823b9617547261c907396f63f770deaa554748ff739bedfa650e3bb74595a",
+                "sha256:5c1edae91f9df17a1c553c8561d522c6cad16bb3ac91e67b2b2efb8806204aeb",
+                "sha256:3373e875a981ddd85d37d9c9c103fc30e25806b9af9ea2be34e1de0098674c3f",
+                "sha256:a7492be53a98216313541b96f860ae3550ecf2c55695505b5664e42ba90bcb41",
+                "sha256:fc7430822d60456e5bc69aaf606a78b058eb9b69f12325060687f8d51a87fb1c",
+                "sha256:89327d18ee7649a704730c2bdfcc9ec61f95d51fabd036f65ef80c7f283e442b",
+                "sha256:90e663903ffc7b2e619fd5434510f45e4266d938c3eaecba8e3f539c9a7803e1",
+                "sha256:1c38e2134f3867bae5d2eea09274ec605c86ff9deb2e3949fad78096d972c044",
+                "sha256:d66eb8bb599931cc478c2a99ae7d2d63be35f371d5e7eef1e0ba92a69df5ab7e",
+                "sha256:19c2cc09f5ff7333475abd3973cd75ad413dccabb79ee0ad65f6e40c13c72f17",
+                "sha256:aac036512005983f1c714bcba3f6f282dd9991dc1841ab153668ae67ee7bfd7c",
+                "sha256:ae4c4f8e3d9c3e669d63a0284adff9366de5135ee6a9c2592d82cdb05c13ae4e",
+                "sha256:1071b65a41a33fdec9bcb29ab511a46f988c4cae0e68b64b226b4f443ea1fbf7",
+                "sha256:ab8a91146a84b24d4b99ea071de18f7e973549214d0410809706cc352757517b",
+                "sha256:079e0a3864b6fae6887d697a3ebd3af6850644b11814cc707a51dde9a806a197",
+                "sha256:2fdfbe291d3d0eb23f6e18bbd8de6765894f27cf424d9b05b1043edb68124cdf",
+                "sha256:44582346afc00da63caeb9ecc0e9cf7a5ef801a31e9f2c96286b153067566cd3",
+                "sha256:ee2d5592db3e1b048781d15f9c2859458531b4dc8e927bd06706007e2a705325",
+                "sha256:c77a290f8ff916476b9f74e565b06ec6b051584e7e216594d26f03f25049c9f6",
+                "sha256:0fc846626b4adaec177ee93e2d691572ca66a28916f867161679964731d8ce4d",
+                "sha256:f3188e66cc7c66ce94b91a06de4e86e2435fc2dc1c0610532088cc7a98eb20ae",
+                "sha256:84afe59342a1c2bbc18abd57e80c48cff6c5a179ea3e1fef97a15645807f897f"
+            ],
+            "Type": "layers"
+        },
+        "Size": 71169211
+    }
+]

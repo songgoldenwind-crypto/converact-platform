@@ -1,0 +1,474 @@
+{
+  "schema_version": "1.0.0",
+  "suite": "iveKit SIPp -> Kamailio -> RustPBX strict staircase",
+  "run_id": "sip-kamailio-staircase-20260724T094942Z-73aa993a",
+  "status": "controlled_failed",
+  "capacity_claim": "none",
+  "generated_at": "2026-07-24T09:49:42.704Z",
+  "completed_at": "2026-07-24T09:56:58.576Z",
+  "configuration": {
+    "points": [
+      1000,
+      1200,
+      1400,
+      1600
+    ],
+    "duration_seconds": 60,
+    "rate_tolerance_ratio": 0.03,
+    "maximum_route_p95_ms": 150,
+    "maximum_route_p99_ms": 250,
+    "cdr_drain_seconds": 60,
+    "kamailio_shm_allocator": "fm",
+    "kamailio_shm_memory_mb": 512,
+    "kamailio_pkg_memory_mb": 32
+  },
+  "source": {
+    "git_commit": null,
+    "dirty": true,
+    "files": {
+      "infra/capacity/rustpbx-baseline/prepare.py": "28dbbb8c3a547f63c784b5f99309d4f255e7a0b1f0eec11be1b68fa7c8ebdc06",
+      "infra/capacity/rustpbx-baseline/docker-compose.yml": "14a65461197d36b0dea8db51deaa6ebaed71eb5659fef5b22dd00a2940ed9238",
+      "infra/capacity/rustpbx-baseline/run.sh": "91a6225647fd1c0ac990ca4ad92b675c11f7f5a9f4d0c20a2f1aa4976ae6ea71",
+      "services/ivekit-service/acceptance/sipp/inbound-reject-486-uac.xml": "970324a194b40851f5a651b6ef92335895c929050b6064b5352c7a4eb42798f8",
+      "src/agent-runtime/ivekit/voice/kamailio-config.ts": "a21d5a8c2b7cb8bb7b2919238a9cf059e427fce72882176a6228242873f6b205",
+      "scripts/capacity/sip-kamailio-staircase.ts": "11f07fc5b6137e7dee9e5403ae60fdccee2c9ebb0d7c7fda0385fd8140f9f0ca",
+      "scripts/ivekit-capacity-sip-kamailio-staircase.ts": "86ec80c9bf50fe4707d526a178144df674d3db501b19765e589bbc1c7d836a84"
+    }
+  },
+  "machine": {
+    "platform": "linux",
+    "release": "6.8.0-124-generic",
+    "architecture": "x64",
+    "logical_cpu_count": 4,
+    "cpu_model": "DO-Regular",
+    "memory_bytes": 8326946816,
+    "docker_version": "29.1.3"
+  },
+  "tools": {
+    "sipp_version": "SIPp v3.7.7-PCAP.",
+    "sipp_sha256": "8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef"
+  },
+  "images": {
+    "rustpbx": {
+      "reference": "ivekit/rustpbx:0.4.11-ivekit.18-6c49ee76",
+      "image_id": "sha256:d36c5b94a1f63dfc5c1536f7bd00d6a23e5a3eecee26e6dfc7ebf3dd95c16b22",
+      "repo_digests": [
+        "ivekit/rustpbx@sha256:d36c5b94a1f63dfc5c1536f7bd00d6a23e5a3eecee26e6dfc7ebf3dd95c16b22"
+      ],
+      "created_at": "2026-07-23T19:26:09.255889771Z"
+    },
+    "kamailio": {
+      "reference": "ivekit/kamailio:6.0.7-capacity-ced1eeb0",
+      "image_id": "sha256:7f07e0f0e5d5b1736f91b4e05a4ae984f7ed1511355b29318825b17bd7f2a762",
+      "repo_digests": [
+        "ivekit/kamailio@sha256:7f07e0f0e5d5b1736f91b4e05a4ae984f7ed1511355b29318825b17bd7f2a762"
+      ],
+      "created_at": "2026-07-23T16:17:58.326170944Z"
+    },
+    "postgres": {
+      "reference": "postgres@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297",
+      "image_id": "sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297",
+      "repo_digests": [
+        "postgres@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297"
+      ],
+      "created_at": "2025-10-15T18:23:03Z"
+    },
+    "python": {
+      "reference": "python@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0",
+      "image_id": "sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0",
+      "repo_digests": [
+        "python@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0"
+      ],
+      "created_at": "2026-06-16T00:25:55.706932917Z"
+    },
+    "capacity_tools": {
+      "reference": "ivekit/capacity-tools:0.1.0-rustpbx-router-v1",
+      "image_id": "sha256:da697467bb2ecadb09feae2bb232949aec26320ee5236ef7c9d14008ac65aebc",
+      "repo_digests": [
+        "ivekit/capacity-tools@sha256:da697467bb2ecadb09feae2bb232949aec26320ee5236ef7c9d14008ac65aebc"
+      ],
+      "created_at": "2026-07-21T03:25:12.707100109Z"
+    }
+  },
+  "preserved_containers": {
+    "before": [
+      {
+        "id": "3fd4cc7bc9b9e4a4f5b8d278d47b234ae8425dd206cb8084a56fca8258f92f35",
+        "name": "led-platform-admin-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "df9d49121c757fcd1698246d7523fbecd2dcad190502664dce23bd31fb3db3b5",
+        "name": "led-platform-api-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "ec3e48bfe10afd23da28cf1953d3163f2437e52ed7a86c9484576442df1713c7",
+        "name": "led-platform-edge-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "0370f283569f07b54cf01f91da6eee37dc5fa66ea96aa67120388ae59cf44c82",
+        "name": "led-platform-minio-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "594393c7da2827ad530b163077f8580c8fbf7b8f529ffdcb5af2373d7a6c42af",
+        "name": "led-platform-minio-init-1",
+        "state": "exited",
+        "health": null,
+        "restart_count": 0
+      },
+      {
+        "id": "48cdeab7afdc253b5af62f989159705104e093f9dfcbd056974e8a251bb1d168",
+        "name": "led-platform-postgres-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "89786d93bc72d24ff253fbfbf89562f105c7edd3a5600d6485c39ff65fcc4731",
+        "name": "led-platform-system-tasks-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "4b7933dc8f67b8aa0268c445760ced793bafca5c4c2bc455d36e60f22fc3e172",
+        "name": "led-platform-web-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      }
+    ],
+    "after": [
+      {
+        "id": "3fd4cc7bc9b9e4a4f5b8d278d47b234ae8425dd206cb8084a56fca8258f92f35",
+        "name": "led-platform-admin-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "df9d49121c757fcd1698246d7523fbecd2dcad190502664dce23bd31fb3db3b5",
+        "name": "led-platform-api-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "ec3e48bfe10afd23da28cf1953d3163f2437e52ed7a86c9484576442df1713c7",
+        "name": "led-platform-edge-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "0370f283569f07b54cf01f91da6eee37dc5fa66ea96aa67120388ae59cf44c82",
+        "name": "led-platform-minio-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "594393c7da2827ad530b163077f8580c8fbf7b8f529ffdcb5af2373d7a6c42af",
+        "name": "led-platform-minio-init-1",
+        "state": "exited",
+        "health": null,
+        "restart_count": 0
+      },
+      {
+        "id": "48cdeab7afdc253b5af62f989159705104e093f9dfcbd056974e8a251bb1d168",
+        "name": "led-platform-postgres-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "89786d93bc72d24ff253fbfbf89562f105c7edd3a5600d6485c39ff65fcc4731",
+        "name": "led-platform-system-tasks-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      },
+      {
+        "id": "4b7933dc8f67b8aa0268c445760ced793bafca5c4c2bc455d36e60f22fc3e172",
+        "name": "led-platform-web-1",
+        "state": "exited",
+        "health": "unhealthy",
+        "restart_count": 0
+      }
+    ],
+    "unchanged": true
+  },
+  "points": [
+    {
+      "target_cps": 1000,
+      "duration_seconds": 60,
+      "expected_calls": 60000,
+      "status": "controlled_pass",
+      "capacity_claim": "none",
+      "baseline": {
+        "container_exit_code": 0,
+        "wall_timeout": false,
+        "calls_created": 60000,
+        "successful_calls": 60000,
+        "failed_calls": 0,
+        "current_calls": 0,
+        "retransmissions": 0,
+        "target_cps": 1000,
+        "actual_cumulative_cps": 990.377,
+        "rate_tolerance_ratio": 0.03,
+        "rate_conformant": true,
+        "router_delta": 60000,
+        "cdr_delta": 60000,
+        "kamailio_new_invites_delta": 60000,
+        "sip_route_sample_count": 60000,
+        "sip_route_p95_ms": 15,
+        "sip_route_p99_ms": 44.001,
+        "kamailio_error_log_lines": 0,
+        "cdr_drained": true,
+        "rustpbx_log_lines": 66,
+        "queue_drop_log_lines": 0,
+        "status": "passed",
+        "failed_checks": []
+      },
+      "resources": {
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "sample_count": 20,
+          "cpu_max_percent": 96.44,
+          "memory_max_bytes": 24096276,
+          "pids_max": 11
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "sample_count": 20,
+          "cpu_max_percent": 89.28,
+          "memory_max_bytes": 79534490,
+          "pids_max": 26
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "sample_count": 20,
+          "cpu_max_percent": 12.19,
+          "memory_max_bytes": 84389396,
+          "pids_max": 9
+        },
+        "ivekit-sipp-sip-kamailio-staircase-20260724T094942Z-73aa993a-q1000": {
+          "sample_count": 20,
+          "cpu_max_percent": 55,
+          "memory_max_bytes": 19398656,
+          "pids_max": 1
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "sample_count": 20,
+          "cpu_max_percent": 109.85,
+          "memory_max_bytes": 167562445,
+          "pids_max": 30
+        }
+      },
+      "artifact_sha256": {
+        "docker-stats.csv": "5adbf94240438d1f71ad13c3a95ac3bfaf2027ce57ea1d8dfa07b9f368ca98de",
+        "host-vmstat.log": "55be6de287bedba1d4fda1e6e6d92f9650d9afddaab4a2d74ab42b530352ea4e",
+        "kamailio-metrics-after.txt": "6c956c9616fa627ecfb86296dc2f0549c0135d124108a7b103e5ce052d61500a",
+        "kamailio-metrics-before.txt": "709370f12ea66c4fcf816f7dfbc58084f81c3cc1d66e533336fed9a595c7e168",
+        "kamailio.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "route-preflight-attempts.txt": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "route-preflight-evidence.json": "1836e6b68523cb5313405d2c34077b49589669eb404640dd88192ce8b4cf4ceb",
+        "router-evidence-after.json": "8d1c1d5cc191c918d1161665fc2013bf9fef30246a37c7bd854dad32ce5ed394",
+        "router-evidence-before.json": "b4475a165dabbee96264fe6b2d543e72aedf236d05b97f473f9e22bd716de685",
+        "rustpbx.log": "f9c12de98df6072c355943e588454c858d0463f9ec02382d3354badab4133c8a",
+        "scenario_1_rtt.csv": "b2e1c82afd6dd1de73a527bcc92c680c2074a4e0334b1df150e166b7abe2a018",
+        "sipp.log": "1814302e6ea65c0866e78835f9019a88a8fe8438b65f08015bc398ed84946d83",
+        "statistics.csv": "90501a11c90df1661f577f1ec18c593ec6766f8f4d92a68bd21f44a434b7dd11",
+        "summary.json": "1908e58ea42be4a40f250f592538ae17397cb991eecf4b4ae8ec712b975002c9"
+      },
+      "artifact_set_sha256": "d2a9856389b70934c7f0db6fabae28c300cbd7d3aec71c3b71aa6514ac8444d6"
+    },
+    {
+      "target_cps": 1200,
+      "duration_seconds": 60,
+      "expected_calls": 72000,
+      "status": "controlled_pass",
+      "capacity_claim": "none",
+      "baseline": {
+        "container_exit_code": 0,
+        "wall_timeout": false,
+        "calls_created": 72000,
+        "successful_calls": 72000,
+        "failed_calls": 0,
+        "current_calls": 0,
+        "retransmissions": 0,
+        "target_cps": 1200,
+        "actual_cumulative_cps": 1188.099,
+        "rate_tolerance_ratio": 0.03,
+        "rate_conformant": true,
+        "router_delta": 72000,
+        "cdr_delta": 72000,
+        "kamailio_new_invites_delta": 72000,
+        "sip_route_sample_count": 72000,
+        "sip_route_p95_ms": 20,
+        "sip_route_p99_ms": 51.001,
+        "kamailio_error_log_lines": 0,
+        "cdr_drained": true,
+        "rustpbx_log_lines": 66,
+        "queue_drop_log_lines": 0,
+        "status": "passed",
+        "failed_checks": []
+      },
+      "resources": {
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "sample_count": 20,
+          "cpu_max_percent": 105.08,
+          "memory_max_bytes": 27116175,
+          "pids_max": 11
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "sample_count": 20,
+          "cpu_max_percent": 81.48,
+          "memory_max_bytes": 86685778,
+          "pids_max": 25
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "sample_count": 20,
+          "cpu_max_percent": 6.89,
+          "memory_max_bytes": 84378911,
+          "pids_max": 15
+        },
+        "ivekit-sipp-sip-kamailio-staircase-20260724T094942Z-73aa993a-q1200": {
+          "sample_count": 20,
+          "cpu_max_percent": 59.93,
+          "memory_max_bytes": 22900900,
+          "pids_max": 1
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "sample_count": 20,
+          "cpu_max_percent": 112.88,
+          "memory_max_bytes": 196922573,
+          "pids_max": 26
+        }
+      },
+      "artifact_sha256": {
+        "docker-stats.csv": "6d56e7850208efe6d2eaa5e9df8aaaf35a4b8d176fe48b3b5f218e7e0b155a0a",
+        "host-vmstat.log": "ab749f7366f02dbdd0459b0fc0269b16307a67875a4b294500a0210c611538f4",
+        "kamailio-metrics-after.txt": "eb90bf61302e4d275e4880c80bf0ee0acf2ded409171c86300f1ab623ee9f37b",
+        "kamailio-metrics-before.txt": "0f8132d8b39d899893b7f2a9ffbd45efd80ea5de969efd090a260b1619f5cada",
+        "kamailio.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "route-preflight-attempts.txt": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "route-preflight-evidence.json": "1836e6b68523cb5313405d2c34077b49589669eb404640dd88192ce8b4cf4ceb",
+        "router-evidence-after.json": "780abacf92771e9ccd086a187ee1b21326f0648e2c4cfe829ddfe89686ae7ba5",
+        "router-evidence-before.json": "b4475a165dabbee96264fe6b2d543e72aedf236d05b97f473f9e22bd716de685",
+        "rustpbx.log": "0f5acbc2af20d4380ecbbcd094cf8eade78903385728419683db544568735c1b",
+        "scenario_1_rtt.csv": "6361a26d14deecc842af0afd28eeb404bbd317a5c9cadc76bf35bb7d770af40e",
+        "sipp.log": "8257346a28920f85dbc9904c356878294a224e3fb725a1ac934d14c6d8e093f2",
+        "statistics.csv": "b1f3442ddf00364f34a76feedc0393dd7903737f4a1f2610d60138b3e953e184",
+        "summary.json": "e3969be7307d1b114f5a838f3c5ca101db246f6687d2b19d8f1362f3ac25f295"
+      },
+      "artifact_set_sha256": "2b0e998c8d0de1bb5e27b0f95aebe9205cdc3983ace06e311518c10fd2faabc7"
+    },
+    {
+      "target_cps": 1400,
+      "duration_seconds": 60,
+      "expected_calls": 84000,
+      "status": "controlled_failed",
+      "capacity_claim": "none",
+      "baseline": {
+        "container_exit_code": 0,
+        "wall_timeout": true,
+        "calls_created": 84000,
+        "successful_calls": 83651,
+        "failed_calls": 0,
+        "current_calls": 349,
+        "retransmissions": 577,
+        "target_cps": 1400,
+        "actual_cumulative_cps": 700.777,
+        "rate_tolerance_ratio": 0.03,
+        "rate_conformant": false,
+        "router_delta": 84033,
+        "cdr_delta": 84033,
+        "kamailio_new_invites_delta": 84000,
+        "sip_route_sample_count": 83651,
+        "sip_route_p95_ms": 1915.03,
+        "sip_route_p99_ms": 7756.13,
+        "kamailio_error_log_lines": 0,
+        "cdr_drained": true,
+        "rustpbx_log_lines": 126,
+        "queue_drop_log_lines": 0,
+        "status": "failed",
+        "failed_checks": [
+          "wall_timeout",
+          "successful_calls",
+          "current_calls",
+          "rate_conformant",
+          "router_delta",
+          "cdr_delta",
+          "sip_route_sample_count",
+          "sip_route_p95_ms",
+          "sip_route_p99_ms"
+        ]
+      },
+      "resources": {
+        "ivekit-rustpbx-baseline-rustpbx-1": {
+          "sample_count": 39,
+          "cpu_max_percent": 120.37,
+          "memory_max_bytes": 100600381,
+          "pids_max": 18
+        },
+        "ivekit-rustpbx-baseline-router-1": {
+          "sample_count": 39,
+          "cpu_max_percent": 90.51,
+          "memory_max_bytes": 95944704,
+          "pids_max": 25
+        },
+        "ivekit-rustpbx-baseline-postgres-1": {
+          "sample_count": 39,
+          "cpu_max_percent": 15.99,
+          "memory_max_bytes": 86318776,
+          "pids_max": 15
+        },
+        "ivekit-sipp-sip-kamailio-staircase-20260724T094942Z-73aa993a-q1400": {
+          "sample_count": 39,
+          "cpu_max_percent": 70.64,
+          "memory_max_bytes": 39311114,
+          "pids_max": 1
+        },
+        "ivekit-rustpbx-baseline-kamailio-1": {
+          "sample_count": 39,
+          "cpu_max_percent": 123.05,
+          "memory_max_bytes": 268225741,
+          "pids_max": 30
+        }
+      },
+      "artifact_sha256": {
+        "docker-stats.csv": "a875bb422ee973bea80d64a7f77d73efe7ce1379c3d108a987766385041fc277",
+        "errors.log": "e1288706c19d7e859b28ffc170acf666a49e2ca49ddbf9edf204cc731c67270a",
+        "host-vmstat.log": "45419d3f2dd221c5745dfa81ba1317837675b1007447b4bddba0d4ad487037af",
+        "kamailio-metrics-after.txt": "9784f520fcce5a70dba906a6a58cca88d989e122be661cdb0bb4ad4843e2f7c1",
+        "kamailio-metrics-before.txt": "1de17eaeffb7835007556f33038f69705015767055c39aa37fa613752d4704fd",
+        "kamailio.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "route-preflight-attempts.txt": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "route-preflight-evidence.json": "1836e6b68523cb5313405d2c34077b49589669eb404640dd88192ce8b4cf4ceb",
+        "router-evidence-after.json": "abf041bd44366b8a5aef17256d84a9579760181cd6313466a484855a659ceb86",
+        "router-evidence-before.json": "b4475a165dabbee96264fe6b2d543e72aedf236d05b97f473f9e22bd716de685",
+        "rustpbx.log": "b8963e0bcb3daf1a3929c4aae2d3f281e3d3bd5d8f556d61e4b5dc6950ec5bc2",
+        "scenario_1_rtt.csv": "84c930a424c9dc176b96335c26ce057e1238aed99d1384f4117e8c8698024d4d",
+        "sipp.log": "4b4684693c9126068e9a4bc7cb8582b141aa37f01ed3dd872243bec3851cd29b",
+        "statistics.csv": "43d237aa8bab73e07dd21e2e58517135434a9cd4beea5b731a94ed25c317e59b",
+        "summary.json": "d6e540bb8e3d011d2e6c5d20c432c07eb36b16f448643f09d102a0873cf99862"
+      },
+      "artifact_set_sha256": "0e8c57f34f872df4ac8e6074e7bf2eb2d6b342736c1af681729aaf8218545667"
+    }
+  ],
+  "cleanup": {
+    "runtime_removed": true,
+    "baseline_containers_remaining": []
+  },
+  "sensitive_inputs_removed": true,
+  "errors": []
+}

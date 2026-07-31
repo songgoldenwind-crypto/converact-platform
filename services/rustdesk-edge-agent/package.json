@@ -1,0 +1,12 @@
+{
+  "name": "@opc/ivekit-rustdesk-edge-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node dist/rustdesk-edge-agent.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

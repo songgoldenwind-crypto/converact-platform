@@ -1,0 +1,61 @@
+{
+  "name": "@opc/ivekit-service",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "backup": "node dist/ivekit-backup.js",
+    "bootstrap:tinode": "node dist/ivekit-tinode-bootstrap.js",
+    "admit:component-node": "node dist/ivekit-component-node-admission.js",
+    "init:runtime-role": "node dist/ivekit-init-runtime-role.js",
+    "migrate": "node dist/ivekit-migrate.js",
+    "preflight:intelligence": "node dist/ivekit-intelligence-preflight.js",
+    "preflight:voice": "node dist/ivekit-voice-preflight.js",
+    "project:rustpbx-routes": "node dist/ivekit-rustpbx-route-snapshot.js",
+    "upload:rustpbx-recordings": "node dist/ivekit-rustpbx-recording-spool.js",
+    "project:placement": "node dist/ivekit-placement-snapshot-projector.js",
+    "render:kamailio": "node dist/ivekit-render-kamailio-config.js",
+    "render:kamailio-compose": "node dist/ivekit-kamailio-compose-config.js",
+    "render:rustpbx": "node dist/ivekit-render-rustpbx-config.js",
+    "route:kamailio": "node dist/ivekit-kamailio-route-agent.js",
+    "accept:kamailio-webphone": "node dist/ivekit-kamailio-webphone-acceptance.js",
+    "recover:rustpbx": "node dist/ivekit-rustpbx-recovery.js",
+    "start:dialog-shadow": "node dist/ivekit-dialog-shadow-agent.js",
+    "restore": "node dist/ivekit-restore.js",
+    "start": "node --import dist/telemetry.js dist/ivekit-server.js",
+    "start:worker": "node --import dist/telemetry.js dist/ivekit-worker.js",
+    "start:realtime-audio-tap": "node dist/ivekit-realtime-audio-tap-worker.js"
+  },
+  "engines": {
+    "node": ">=24.0.0 <25.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1092.0",
+    "@nats-io/jetstream": "3.4.0",
+    "@nats-io/nats-core": "3.4.0",
+    "@nats-io/transport-node": "3.4.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.220.0",
+    "@opentelemetry/instrumentation-http": "0.220.0",
+    "@opentelemetry/instrumentation-pg": "0.72.0",
+    "@opentelemetry/instrumentation-undici": "0.30.0",
+    "@opentelemetry/resources": "2.9.0",
+    "@opentelemetry/sdk-node": "0.220.0",
+    "@opentelemetry/sdk-trace-base": "2.9.0",
+    "ajv": "8.20.0",
+    "file-type": "22.0.1",
+    "ioredis": "5.11.1",
+    "livekit-server-sdk": "2.17.0",
+    "nodemailer": "9.0.3",
+    "pg": "8.22.0",
+    "prom-client": "15.1.3",
+    "ws": "8.21.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/nodemailer": "8.0.1",
+    "@types/pg": "8.20.0",
+    "@types/ws": "8.18.1",
+    "typescript": "5.9.3"
+  }
+}

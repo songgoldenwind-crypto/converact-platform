@@ -1,0 +1,2278 @@
+diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
+new file mode 100644
+index 00000000..dcaf02e6
+--- /dev/null
++++ b/src/ivekit_dialog_shadow.rs
+@@ -0,0 +1,887 @@
++use async_trait::async_trait;
++use serde::de::DeserializeOwned;
++use serde::{Deserialize, Serialize};
++use sha2::{Digest, Sha256};
++use std::collections::{HashMap, HashSet};
++use std::path::PathBuf;
++use std::sync::{Arc, OnceLock};
++use std::time::Duration;
++use tokio::sync::Semaphore;
++
++const PROFILE_T1: &str = "VOICE-HA-T1";
++const MAX_RECORD_BYTES: usize = 32 * 1024;
++const MAX_ROUTE_SET: usize = 16;
++const MAX_ROUTE_BYTES: usize = 512;
++
++#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(rename_all = "snake_case")]
++pub enum DialogShadowState {
++    Trying,
++    Early,
++    Confirmed,
++    Updating,
++    Terminating,
++    Terminated,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct DialogShadowBinding {
++    tenant_id: String,
++    cell_id: String,
++    owner_node_id: String,
++    owner_fault_domain: String,
++    interaction_id: String,
++    owner_epoch: u64,
++    auth_context_ref: String,
++}
++
++impl DialogShadowBinding {
++    pub fn new(
++        tenant_id: &str,
++        cell_id: &str,
++        owner_node_id: &str,
++        owner_fault_domain: &str,
++        interaction_id: &str,
++        owner_epoch: u64,
++        auth_context_ref: &str,
++    ) -> Result<Self, DialogShadowError> {
++        for value in [
++            tenant_id,
++            cell_id,
++            owner_node_id,
++            owner_fault_domain,
++            interaction_id,
++            auth_context_ref,
++        ] {
++            if !valid_identifier(value) {
++                return Err(DialogShadowError::InvalidBinding);
++            }
++        }
++        if owner_epoch == 0 {
++            return Err(DialogShadowError::InvalidBinding);
++        }
++        Ok(Self {
++            tenant_id: tenant_id.to_string(),
++            cell_id: cell_id.to_string(),
++            owner_node_id: owner_node_id.to_string(),
++            owner_fault_domain: owner_fault_domain.to_string(),
++            interaction_id: interaction_id.to_string(),
++            owner_epoch,
++            auth_context_ref: auth_context_ref.to_string(),
++        })
++    }
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct DialogShadowEvent {
++    pub state: DialogShadowState,
++    pub raw_call_id: String,
++    pub dialog_id: String,
++    pub local_tag: String,
++    pub remote_tag: Option<String>,
++    pub route_set: Vec<String>,
++    pub local_cseq: u32,
++    pub remote_cseq: u32,
++    pub raw_branch_identity: String,
++    pub final_response_identity: Option<String>,
++    pub logical_offer_sdp: Option<String>,
++    pub logical_answer_sdp: Option<String>,
++    pub media_reservation_id: Option<String>,
++    pub provider_session_ref: Option<String>,
++    pub cdr_sequence: u64,
++    pub terminal: bool,
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++pub struct DialogShadowRecord {
++    pub schema_version: u8,
++    pub tenant_id: String,
++    pub cell_id: String,
++    pub dialog_id: String,
++    pub call_id_hash: String,
++    pub owner_node_id: String,
++    pub owner_fault_domain: String,
++    pub owner_epoch: u64,
++    pub sequence: u32,
++    pub state: DialogShadowState,
++    pub local_tag: String,
++    pub remote_tag: Option<String>,
++    pub route_set: Vec<String>,
++    pub local_cseq: u32,
++    pub remote_cseq: u32,
++    pub branch_hash: String,
++    pub final_response_hash: Option<String>,
++    pub auth_context_ref: String,
++    pub logical_offer_hash: Option<String>,
++    pub logical_answer_hash: Option<String>,
++    pub media_reservation_id: Option<String>,
++    pub provider_session_ref: Option<String>,
++    pub cdr_sequence: u64,
++    pub recorded_at: String,
++    pub terminal: bool,
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++pub struct DialogShadowCommitRequest {
++    pub profile: String,
++    pub record: DialogShadowRecord,
++}
++
++impl DialogShadowCommitRequest {
++    pub fn record_hash(&self) -> Result<String, DialogShadowError> {
++        hash_json(&self.record)
++    }
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++pub struct DialogShadowCommitProof {
++    pub status: String,
++    pub record_hash: String,
++    pub fault_domains: Vec<String>,
++    pub owner_epoch: u64,
++    pub sequence: u32,
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++pub struct DialogShadowAdmissionProof {
++    pub status: String,
++    pub fault_domains: Vec<String>,
++}
++
++impl DialogShadowAdmissionProof {
++    pub fn validate(mut self) -> Result<Self, DialogShadowError> {
++        if self.status != "ready"
++            || self.fault_domains.len() < 2
++            || self.fault_domains.len() > 16
++            || self
++                .fault_domains
++                .iter()
++                .any(|value| !valid_identifier(value))
++        {
++            return Err(DialogShadowError::Unavailable);
++        }
++        self.fault_domains.sort();
++        self.fault_domains.dedup();
++        if self.fault_domains.len() < 2 {
++            return Err(DialogShadowError::Unavailable);
++        }
++        Ok(self)
++    }
++}
++
++#[async_trait]
++pub trait DialogShadowCommitExecutor: Send + Sync {
++    async fn assert_admission(&self) -> Result<DialogShadowAdmissionProof, DialogShadowError>;
++
++    async fn commit(
++        &self,
++        request: &DialogShadowCommitRequest,
++    ) -> Result<DialogShadowCommitProof, DialogShadowError>;
++}
++
++#[derive(Clone, Debug)]
++pub struct DialogShadowHttpClientConfig {
++    pub endpoint: reqwest::Url,
++    pub service_token_file: PathBuf,
++    pub tls_identity_file: Option<PathBuf>,
++    pub tls_ca_file: Option<PathBuf>,
++    pub production: bool,
++    pub max_inflight: usize,
++    pub request_timeout: Duration,
++    pub max_response_bytes: usize,
++}
++
++pub struct DialogShadowHttpClient {
++    endpoint: reqwest::Url,
++    service_token: String,
++    client: reqwest::Client,
++    capacity: Semaphore,
++    request_timeout: Duration,
++    max_response_bytes: usize,
++}
++
++impl DialogShadowHttpClient {
++    pub fn new(config: DialogShadowHttpClientConfig) -> Result<Self, DialogShadowError> {
++        validate_http_config(&config)?;
++        let service_token = read_service_token(&config.service_token_file, config.production)?;
++        let mut builder = reqwest::Client::builder()
++            .https_only(config.production)
++            .use_rustls_tls()
++            .pool_idle_timeout(Duration::from_secs(30))
++            .pool_max_idle_per_host(config.max_inflight.min(1024));
++        if config.production {
++            let identity = std::fs::read(
++                config
++                    .tls_identity_file
++                    .as_ref()
++                    .ok_or(DialogShadowError::InvalidBinding)?,
++            )
++            .map_err(|_| DialogShadowError::InvalidBinding)
++            .and_then(|pem| {
++                reqwest::Identity::from_pem(&pem).map_err(|_| DialogShadowError::InvalidBinding)
++            })?;
++            let ca = std::fs::read(
++                config
++                    .tls_ca_file
++                    .as_ref()
++                    .ok_or(DialogShadowError::InvalidBinding)?,
++            )
++            .map_err(|_| DialogShadowError::InvalidBinding)
++            .and_then(|pem| {
++                reqwest::Certificate::from_pem(&pem).map_err(|_| DialogShadowError::InvalidBinding)
++            })?;
++            builder = builder.identity(identity).add_root_certificate(ca);
++        }
++        let client = builder
++            .build()
++            .map_err(|_| DialogShadowError::InvalidBinding)?;
++        Ok(Self {
++            endpoint: config.endpoint,
++            service_token,
++            client,
++            capacity: Semaphore::new(config.max_inflight),
++            request_timeout: config.request_timeout,
++            max_response_bytes: config.max_response_bytes,
++        })
++    }
++
++    async fn post_json<T: Serialize + ?Sized, R: DeserializeOwned>(
++        &self,
++        path: &str,
++        request: &T,
++    ) -> Result<R, DialogShadowError> {
++        let _permit = self
++            .capacity
++            .acquire()
++            .await
++            .map_err(|_| DialogShadowError::Unavailable)?;
++        let endpoint = self
++            .endpoint
++            .join(path)
++            .map_err(|_| DialogShadowError::InvalidBinding)?;
++        let response = tokio::time::timeout(
++            self.request_timeout,
++            self.client
++                .post(endpoint)
++                .bearer_auth(&self.service_token)
++                .json(request)
++                .send(),
++        )
++        .await
++        .map_err(|_| DialogShadowError::OutcomeUnknown)?
++        .map_err(|_| DialogShadowError::OutcomeUnknown)?;
++        if !response.status().is_success() {
++            return Err(DialogShadowError::Unavailable);
++        }
++        if response
++            .content_length()
++            .is_some_and(|size| size > self.max_response_bytes as u64)
++        {
++            return Err(DialogShadowError::OutcomeUnknown);
++        }
++        let mut response = response;
++        let mut body = Vec::new();
++        while let Some(chunk) = response
++            .chunk()
++            .await
++            .map_err(|_| DialogShadowError::OutcomeUnknown)?
++        {
++            if body.len().saturating_add(chunk.len()) > self.max_response_bytes {
++                return Err(DialogShadowError::OutcomeUnknown);
++            }
++            body.extend_from_slice(&chunk);
++        }
++        serde_json::from_slice::<R>(&body).map_err(|_| DialogShadowError::OutcomeUnknown)
++    }
++}
++
++#[async_trait]
++impl DialogShadowCommitExecutor for DialogShadowHttpClient {
++    async fn assert_admission(&self) -> Result<DialogShadowAdmissionProof, DialogShadowError> {
++        #[derive(Serialize)]
++        struct AdmissionRequest {
++            profile: &'static str,
++        }
++        self.post_json::<_, DialogShadowAdmissionProof>(
++            "/internal/ivekit/v1/dialog-shadow/admission",
++            &AdmissionRequest {
++                profile: PROFILE_T1,
++            },
++        )
++        .await
++        .map_err(|_| DialogShadowError::Unavailable)?
++        .validate()
++    }
++
++    async fn commit(
++        &self,
++        request: &DialogShadowCommitRequest,
++    ) -> Result<DialogShadowCommitProof, DialogShadowError> {
++        self.post_json("/internal/ivekit/v1/dialog-shadow/commit", request)
++            .await
++    }
++}
++
++pub struct DialogShadowLifecycle {
++    binding: DialogShadowBinding,
++    executor: Arc<dyn DialogShadowCommitExecutor>,
++    next_sequence: u32,
++    pending: Option<(DialogShadowEvent, DialogShadowCommitRequest)>,
++}
++
++struct DialogShadowRuntimeConfig {
++    executor: Arc<DialogShadowHttpClient>,
++}
++
++static DIALOG_SHADOW_RUNTIME: OnceLock<
++    Result<Option<Arc<DialogShadowRuntimeConfig>>, &'static str>,
++> = OnceLock::new();
++
++pub enum IveKitDialogShadowRuntime {
++    Disabled,
++    Ready {
++        binding: DialogShadowBinding,
++        executor: Arc<DialogShadowHttpClient>,
++        dialogs: HashMap<String, DialogShadowLifecycle>,
++    },
++    FailClosed {
++        error_code: &'static str,
++    },
++}
++
++impl IveKitDialogShadowRuntime {
++    pub fn bootstrap(session_id: &str) -> Self {
++        let Some(owner) = crate::ivekit_owner::owner_contract(session_id) else {
++            return Self::Disabled;
++        };
++        match owner.availability_profile.as_str() {
++            "VOICE-ORDINARY" => return Self::Disabled,
++            PROFILE_T1 => {}
++            _ => {
++                return Self::FailClosed {
++                    error_code: "dialog_shadow_profile_invalid",
++                };
++            }
++        }
++        let config = match dialog_shadow_runtime_config() {
++            Ok(Some(config)) => config,
++            Ok(None) => {
++                return Self::FailClosed {
++                    error_code: "dialog_shadow_not_configured",
++                };
++            }
++            Err(error_code) => return Self::FailClosed { error_code },
++        };
++        let auth_context_ref = match owner.auth_context_ref.as_deref() {
++            Some(value) => value,
++            None => {
++                return Self::FailClosed {
++                    error_code: "dialog_shadow_auth_context_missing",
++                };
++            }
++        };
++        let owner_epoch = match owner.owner_epoch.parse::<u64>() {
++            Ok(value) if value > 0 => value,
++            _ => {
++                return Self::FailClosed {
++                    error_code: "dialog_shadow_owner_epoch_invalid",
++                };
++            }
++        };
++        let binding = match DialogShadowBinding::new(
++            required_env("IVEKIT_RUSTPBX_ROUTE_TENANT_ID")
++                .as_deref()
++                .unwrap_or_default(),
++            required_env("IVEKIT_RUSTPBX_CELL_ID")
++                .as_deref()
++                .unwrap_or_default(),
++            required_env("IVEKIT_RUSTPBX_OWNER_NODE_ID")
++                .as_deref()
++                .unwrap_or_default(),
++            required_env("IVEKIT_RUSTPBX_FAULT_DOMAIN")
++                .as_deref()
++                .unwrap_or_default(),
++            &owner.interaction_id,
++            owner_epoch,
++            auth_context_ref,
++        ) {
++            Ok(binding) => binding,
++            Err(_) => {
++                return Self::FailClosed {
++                    error_code: "dialog_shadow_binding_invalid",
++                };
++            }
++        };
++        Self::Ready {
++            binding,
++            executor: config.executor.clone(),
++            dialogs: HashMap::new(),
++        }
++    }
++
++    pub fn is_required(&self) -> bool {
++        !matches!(self, Self::Disabled)
++    }
++
++    pub fn failure_code(&self) -> Option<&'static str> {
++        match self {
++            Self::FailClosed { error_code } => Some(*error_code),
++            Self::Disabled | Self::Ready { .. } => None,
++        }
++    }
++
++    pub async fn assert_admission(&self) -> Result<(), DialogShadowError> {
++        match self {
++            Self::Disabled => Ok(()),
++            Self::Ready { executor, .. } => executor.assert_admission().await.map(|_| ()),
++            Self::FailClosed { .. } => Err(DialogShadowError::Unavailable),
++        }
++    }
++
++    pub async fn commit(
++        &mut self,
++        event: DialogShadowEvent,
++    ) -> Result<Option<DialogShadowCommitProof>, DialogShadowError> {
++        match self {
++            Self::Disabled => Ok(None),
++            Self::Ready {
++                binding,
++                executor,
++                dialogs,
++            } => {
++                let lifecycle = dialogs.entry(event.dialog_id.clone()).or_insert_with(|| {
++                    DialogShadowLifecycle::new(binding.clone(), executor.clone())
++                });
++                lifecycle.commit(event).await.map(Some)
++            }
++            Self::FailClosed { .. } => Err(DialogShadowError::Unavailable),
++        }
++    }
++}
++
++impl DialogShadowLifecycle {
++    pub fn new(
++        binding: DialogShadowBinding,
++        executor: Arc<dyn DialogShadowCommitExecutor>,
++    ) -> Self {
++        Self {
++            binding,
++            executor,
++            next_sequence: 1,
++            pending: None,
++        }
++    }
++
++    pub fn preview_request(
++        &mut self,
++        event: &DialogShadowEvent,
++    ) -> Result<DialogShadowCommitRequest, DialogShadowError> {
++        self.reserve(event)
++    }
++
++    pub async fn commit(
++        &mut self,
++        event: DialogShadowEvent,
++    ) -> Result<DialogShadowCommitProof, DialogShadowError> {
++        let request = self.reserve(&event)?;
++        match self.executor.commit(&request).await {
++            Ok(proof) if valid_proof(&request, &proof) => {
++                self.pending = None;
++                self.next_sequence = self
++                    .next_sequence
++                    .checked_add(1)
++                    .ok_or(DialogShadowError::SequenceExhausted)?;
++                Ok(proof)
++            }
++            Ok(_) => Err(DialogShadowError::OutcomeUnknown),
++            Err(error) => Err(error),
++        }
++    }
++
++    pub fn next_sequence(&self) -> u32 {
++        self.next_sequence
++    }
++
++    pub fn has_pending_commit(&self) -> bool {
++        self.pending.is_some()
++    }
++
++    fn reserve(
++        &mut self,
++        event: &DialogShadowEvent,
++    ) -> Result<DialogShadowCommitRequest, DialogShadowError> {
++        if let Some((pending_event, request)) = &self.pending {
++            return if pending_event == event {
++                Ok(request.clone())
++            } else {
++                Err(DialogShadowError::ReconcileRequired)
++            };
++        }
++        let request = self.build_request(event)?;
++        self.pending = Some((event.clone(), request.clone()));
++        Ok(request)
++    }
++
++    fn build_request(
++        &self,
++        event: &DialogShadowEvent,
++    ) -> Result<DialogShadowCommitRequest, DialogShadowError> {
++        validate_event(event)?;
++        let record = DialogShadowRecord {
++            schema_version: 1,
++            tenant_id: self.binding.tenant_id.clone(),
++            cell_id: self.binding.cell_id.clone(),
++            dialog_id: event.dialog_id.clone(),
++            call_id_hash: sha256(&event.raw_call_id),
++            owner_node_id: self.binding.owner_node_id.clone(),
++            owner_fault_domain: self.binding.owner_fault_domain.clone(),
++            owner_epoch: self.binding.owner_epoch,
++            sequence: self.next_sequence,
++            state: event.state,
++            local_tag: event.local_tag.clone(),
++            remote_tag: event.remote_tag.clone(),
++            route_set: event.route_set.clone(),
++            local_cseq: event.local_cseq,
++            remote_cseq: event.remote_cseq,
++            branch_hash: sha256(&event.raw_branch_identity),
++            final_response_hash: event.final_response_identity.as_deref().map(sha256),
++            auth_context_ref: self.binding.auth_context_ref.clone(),
++            logical_offer_hash: event.logical_offer_sdp.as_deref().map(sha256),
++            logical_answer_hash: event.logical_answer_sdp.as_deref().map(sha256),
++            media_reservation_id: event.media_reservation_id.clone(),
++            provider_session_ref: event.provider_session_ref.clone(),
++            cdr_sequence: event.cdr_sequence,
++            recorded_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
++            terminal: event.terminal,
++        };
++        let request = DialogShadowCommitRequest {
++            profile: PROFILE_T1.to_string(),
++            record,
++        };
++        if serde_json::to_vec(&request)
++            .map_err(|_| DialogShadowError::InvalidRecord)?
++            .len()
++            > MAX_RECORD_BYTES
++        {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        Ok(request)
++    }
++}
++
++#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
++pub enum DialogShadowError {
++    #[error("dialog_shadow_invalid_binding")]
++    InvalidBinding,
++    #[error("dialog_shadow_invalid_record")]
++    InvalidRecord,
++    #[error("dialog_shadow_reconcile_required")]
++    ReconcileRequired,
++    #[error("dialog_shadow_outcome_unknown")]
++    OutcomeUnknown,
++    #[error("dialog_shadow_unavailable")]
++    Unavailable,
++    #[error("dialog_shadow_sequence_exhausted")]
++    SequenceExhausted,
++}
++
++fn valid_proof(request: &DialogShadowCommitRequest, proof: &DialogShadowCommitProof) -> bool {
++    let Ok(expected_hash) = request.record_hash() else {
++        return false;
++    };
++    let domains = proof
++        .fault_domains
++        .iter()
++        .filter(|domain| valid_identifier(domain))
++        .collect::<HashSet<_>>();
++    proof.status == "committed"
++        && proof.record_hash == expected_hash
++        && proof.owner_epoch == request.record.owner_epoch
++        && proof.sequence == request.record.sequence
++        && domains.len() >= 2
++}
++
++fn validate_event(event: &DialogShadowEvent) -> Result<(), DialogShadowError> {
++    if event.raw_call_id.is_empty()
++        || event.raw_call_id.len() > 1024
++        || !valid_identifier(&event.dialog_id)
++        || !valid_sip_tag(&event.local_tag)
++        || event
++            .remote_tag
++            .as_deref()
++            .is_some_and(|tag| !valid_sip_tag(tag))
++        || event.raw_branch_identity.is_empty()
++        || event.raw_branch_identity.len() > 2048
++        || event
++            .final_response_identity
++            .as_deref()
++            .is_some_and(|value| value.len() > 4096)
++        || event
++            .logical_offer_sdp
++            .as_deref()
++            .is_some_and(|value| value.len() > 64 * 1024)
++        || event
++            .logical_answer_sdp
++            .as_deref()
++            .is_some_and(|value| value.len() > 64 * 1024)
++        || event.route_set.len() > MAX_ROUTE_SET
++        || event.route_set.iter().any(|route| !valid_route(route))
++        || event
++            .media_reservation_id
++            .as_deref()
++            .is_some_and(|value| !valid_identifier(value))
++        || event
++            .provider_session_ref
++            .as_deref()
++            .is_some_and(|value| !valid_identifier(value))
++        || event.terminal != (event.state == DialogShadowState::Terminated)
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(())
++}
++
++fn valid_identifier(value: &str) -> bool {
++    !value.is_empty()
++        && value.len() <= 128
++        && value.bytes().enumerate().all(|(index, byte)| match byte {
++            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' => true,
++            b'.' | b'_' | b':' | b'-' if index > 0 => true,
++            _ => false,
++        })
++}
++
++fn valid_sip_tag(value: &str) -> bool {
++    !value.is_empty()
++        && value.len() <= 256
++        && value.bytes().all(|byte| {
++            byte.is_ascii_alphanumeric()
++                || matches!(
++                    byte,
++                    b'.' | b'!' | b'%' | b'*' | b'_' | b'+' | b'`' | b'\'' | b'~' | b'-'
++                )
++        })
++}
++
++fn valid_route(value: &str) -> bool {
++    if value.is_empty()
++        || value.len() > MAX_ROUTE_BYTES
++        || value.contains('@')
++        || !(value.starts_with("sip:") || value.starts_with("sips:"))
++    {
++        return false;
++    }
++    value.bytes().all(|byte| {
++        byte.is_ascii_alphanumeric()
++            || matches!(
++                byte,
++                b'.' | b'-'
++                    | b':'
++                    | b';'
++                    | b'='
++                    | b'_'
++                    | b'~'
++                    | b'!'
++                    | b'$'
++                    | b'&'
++                    | b'\''
++                    | b'('
++                    | b')'
++                    | b'*'
++                    | b'+'
++                    | b','
++                    | b'%'
++            )
++    })
++}
++
++fn hash_json<T: Serialize>(value: &T) -> Result<String, DialogShadowError> {
++    let encoded = serde_json::to_vec(value).map_err(|_| DialogShadowError::InvalidRecord)?;
++    Ok(hex_sha256(Sha256::digest(encoded)))
++}
++
++fn sha256(value: &str) -> String {
++    hex_sha256(Sha256::digest(value.as_bytes()))
++}
++
++pub fn stable_dialog_shadow_id(raw_call_id: &str, local_tag: &str, remote_tag: &str) -> String {
++    sha256(&format!("{raw_call_id}\0{local_tag}\0{remote_tag}"))
++}
++
++fn hex_sha256(digest: impl AsRef<[u8]>) -> String {
++    const HEX: &[u8; 16] = b"0123456789abcdef";
++    let bytes = digest.as_ref();
++    let mut encoded = String::with_capacity(bytes.len() * 2);
++    for byte in bytes {
++        encoded.push(HEX[(byte >> 4) as usize] as char);
++        encoded.push(HEX[(byte & 0x0f) as usize] as char);
++    }
++    encoded
++}
++
++fn validate_http_config(config: &DialogShadowHttpClientConfig) -> Result<(), DialogShadowError> {
++    let loopback = config
++        .endpoint
++        .host_str()
++        .is_some_and(|host| matches!(host, "localhost" | "127.0.0.1" | "::1"));
++    let endpoint_allowed = if config.production {
++        config.endpoint.scheme() == "https"
++    } else {
++        config.endpoint.scheme() == "https" || (config.endpoint.scheme() == "http" && loopback)
++    };
++    if config.endpoint.username() != ""
++        || config.endpoint.password().is_some()
++        || config.endpoint.query().is_some()
++        || config.endpoint.fragment().is_some()
++        || !endpoint_allowed
++        || config.max_inflight == 0
++        || config.max_inflight > 1_000_000
++        || config.request_timeout < Duration::from_millis(50)
++        || config.request_timeout > Duration::from_secs(10)
++        || !(1024..=1024 * 1024).contains(&config.max_response_bytes)
++        || (config.production
++            && (config.tls_identity_file.is_none() || config.tls_ca_file.is_none()))
++    {
++        return Err(DialogShadowError::InvalidBinding);
++    }
++    Ok(())
++}
++
++fn read_service_token(path: &PathBuf, production: bool) -> Result<String, DialogShadowError> {
++    if production {
++        #[cfg(unix)]
++        {
++            use std::os::unix::fs::PermissionsExt;
++            let mode = std::fs::metadata(path)
++                .map_err(|_| DialogShadowError::InvalidBinding)?
++                .permissions()
++                .mode();
++            if mode & 0o077 != 0 {
++                return Err(DialogShadowError::InvalidBinding);
++            }
++        }
++    }
++    let raw = std::fs::read_to_string(path).map_err(|_| DialogShadowError::InvalidBinding)?;
++    let token = raw.trim_end_matches(['\r', '\n']);
++    if !(16..=4096).contains(&token.len())
++        || token.chars().any(char::is_control)
++        || token.trim() != token
++    {
++        return Err(DialogShadowError::InvalidBinding);
++    }
++    Ok(token.to_string())
++}
++
++fn dialog_shadow_runtime_config()
++-> Result<Option<&'static Arc<DialogShadowRuntimeConfig>>, &'static str> {
++    match DIALOG_SHADOW_RUNTIME.get_or_init(build_dialog_shadow_runtime_config) {
++        Ok(Some(config)) => Ok(Some(config)),
++        Ok(None) => Ok(None),
++        Err(error) => Err(*error),
++    }
++}
++
++fn build_dialog_shadow_runtime_config()
++-> Result<Option<Arc<DialogShadowRuntimeConfig>>, &'static str> {
++    let Some(endpoint) = required_env("IVEKIT_RUSTPBX_DIALOG_SHADOW_ENDPOINT") else {
++        return Ok(None);
++    };
++    let endpoint = reqwest::Url::parse(&endpoint).map_err(|_| "dialog_shadow_endpoint_invalid")?;
++    let service_token_file = required_env("IVEKIT_RUSTPBX_DIALOG_SHADOW_TOKEN_FILE")
++        .ok_or("dialog_shadow_token_file_missing")?;
++    let production = parsed_bool_env("IVEKIT_RUSTPBX_DIALOG_SHADOW_PRODUCTION", true)?;
++    let max_inflight = parsed_usize_env(
++        "IVEKIT_RUSTPBX_DIALOG_SHADOW_MAX_INFLIGHT",
++        2_048,
++        1,
++        1_000_000,
++    )?;
++    let request_timeout_ms =
++        parsed_u64_env("IVEKIT_RUSTPBX_DIALOG_SHADOW_TIMEOUT_MS", 500, 50, 10_000)?;
++    let max_response_bytes = parsed_usize_env(
++        "IVEKIT_RUSTPBX_DIALOG_SHADOW_MAX_RESPONSE_BYTES",
++        16 * 1024,
++        1_024,
++        1024 * 1024,
++    )?;
++    for name in [
++        "IVEKIT_RUSTPBX_ROUTE_TENANT_ID",
++        "IVEKIT_RUSTPBX_CELL_ID",
++        "IVEKIT_RUSTPBX_OWNER_NODE_ID",
++        "IVEKIT_RUSTPBX_FAULT_DOMAIN",
++    ] {
++        if !required_env(name).as_deref().is_some_and(valid_identifier) {
++            return Err("dialog_shadow_binding_config_invalid");
++        }
++    }
++    let executor = DialogShadowHttpClient::new(DialogShadowHttpClientConfig {
++        endpoint,
++        service_token_file: PathBuf::from(service_token_file),
++        tls_identity_file: required_env("IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_IDENTITY_FILE")
++            .map(PathBuf::from),
++        tls_ca_file: required_env("IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_CA_FILE").map(PathBuf::from),
++        production,
++        max_inflight,
++        request_timeout: Duration::from_millis(request_timeout_ms),
++        max_response_bytes,
++    })
++    .map_err(|_| "dialog_shadow_client_invalid")?;
++    Ok(Some(Arc::new(DialogShadowRuntimeConfig {
++        executor: Arc::new(executor),
++    })))
++}
++
++fn required_env(name: &str) -> Option<String> {
++    std::env::var(name)
++        .ok()
++        .filter(|value| !value.trim().is_empty() && value.trim() == value)
++}
++
++fn parsed_bool_env(name: &str, default: bool) -> Result<bool, &'static str> {
++    match required_env(name).as_deref() {
++        None => Ok(default),
++        Some("true") => Ok(true),
++        Some("false") => Ok(false),
++        Some(_) => Err("dialog_shadow_boolean_invalid"),
++    }
++}
++
++fn parsed_usize_env(
++    name: &str,
++    default: usize,
++    minimum: usize,
++    maximum: usize,
++) -> Result<usize, &'static str> {
++    let value = required_env(name)
++        .map(|value| {
++            value
++                .parse::<usize>()
++                .map_err(|_| "dialog_shadow_integer_invalid")
++        })
++        .transpose()?
++        .unwrap_or(default);
++    if !(minimum..=maximum).contains(&value) {
++        return Err("dialog_shadow_integer_invalid");
++    }
++    Ok(value)
++}
++
++fn parsed_u64_env(
++    name: &str,
++    default: u64,
++    minimum: u64,
++    maximum: u64,
++) -> Result<u64, &'static str> {
++    let value = required_env(name)
++        .map(|value| {
++            value
++                .parse::<u64>()
++                .map_err(|_| "dialog_shadow_integer_invalid")
++        })
++        .transpose()?
++        .unwrap_or(default);
++    if !(minimum..=maximum).contains(&value) {
++        return Err("dialog_shadow_integer_invalid");
++    }
++    Ok(value)
++}
+diff --git a/src/ivekit_owner.rs b/src/ivekit_owner.rs
+index 9026dbd0..18d51e6f 100644
+--- a/src/ivekit_owner.rs
++++ b/src/ivekit_owner.rs
+@@ -1,38 +1,40 @@
+ use anyhow::{Result, anyhow};
+ use async_trait::async_trait;
+ use dashmap::DashMap;
+ use ivekit_component_hook::{
+     Authorization, AuthorizationRequest, Authorizer, Guard, Operation, Request,
+ };
+ use serde::{Deserialize, Serialize};
+ use std::error::Error as StdError;
+ use std::sync::{Arc, OnceLock};
+ use std::time::{Duration, SystemTime, UNIX_EPOCH};
+ 
+ use crate::proxy::proxy_call::session_hooks::{CallSessionContext, CallSessionHook};
+ 
+ #[derive(Clone, Debug, Deserialize, Serialize)]
+ pub struct OwnerContract {
+     pub reservation_id: String,
+     pub interaction_id: String,
+     pub owner_epoch: String,
++    pub availability_profile: String,
++    pub auth_context_ref: Option<String>,
+ }
+ 
+ struct DisabledAuthorizer;
+ 
+ impl Authorizer for DisabledAuthorizer {
+     fn authorize(
+         &self,
+         _request: AuthorizationRequest,
+     ) -> std::result::Result<Authorization, Box<dyn StdError + Send + Sync>> {
+         Err("ivekit owner uses the host async HTTP client".into())
+     }
+ }
+ 
+ struct OwnerEntry {
+     contract: OwnerContract,
+     guard: Guard<DisabledAuthorizer>,
+ }
+ 
+ #[derive(Clone)]
+ struct OwnerConfig {
+@@ -64,66 +66,70 @@ struct WireAuthorization {
+     node_id: String,
+     cell_lease_epoch: u64,
+     owner_epoch: String,
+     state_sequence: u64,
+     lease_expires_at: String,
+ }
+ 
+ static CONFIG: OnceLock<std::result::Result<Option<OwnerConfig>, String>> = OnceLock::new();
+ static OWNERS: OnceLock<DashMap<String, Arc<OwnerEntry>>> = OnceLock::new();
+ 
+ pub async fn ensure_owner(provider_call_id: &str, contract: OwnerContract) -> Result<()> {
+     valid_provider_call_id(provider_call_id)?;
+     let Some(config) = config()? else {
+         return Ok(());
+     };
+     let owners = owners();
+     if let Some(existing) = owners.get(provider_call_id) {
+         if existing.contract.reservation_id != contract.reservation_id
+             || existing.contract.interaction_id != contract.interaction_id
+             || existing.contract.owner_epoch != contract.owner_epoch
++            || existing.contract.availability_profile != contract.availability_profile
++            || existing.contract.auth_context_ref != contract.auth_context_ref
+         {
+             return Err(anyhow!("owner contract conflict"));
+         }
+         existing
+             .guard
+             .assert_mutation(&contract.owner_epoch, now_unix_ms())
+             .map_err(|error| anyhow!("owner guard rejected: {error}"))?;
+         return Ok(());
+     }
+ 
+     let request = hook_request(&contract);
+     let authorization = authorize(config, &contract, Operation::Open).await?;
+     let guard = Guard::new(DisabledAuthorizer);
+     guard
+         .open_authorized(request, authorization, now_unix_ms())
+         .map_err(|error| anyhow!("owner open rejected: {error}"))?;
+     let entry = Arc::new(OwnerEntry {
+         contract: contract.clone(),
+         guard,
+     });
+     match owners.entry(provider_call_id.to_string()) {
+         dashmap::mapref::entry::Entry::Occupied(existing) => {
+             let current = existing.get();
+             if current.contract.reservation_id != contract.reservation_id
+                 || current.contract.interaction_id != contract.interaction_id
+                 || current.contract.owner_epoch != contract.owner_epoch
++                || current.contract.availability_profile != contract.availability_profile
++                || current.contract.auth_context_ref != contract.auth_context_ref
+             {
+                 return Err(anyhow!("owner contract conflict"));
+             }
+         }
+         dashmap::mapref::entry::Entry::Vacant(vacant) => {
+             vacant.insert(entry);
+             start_refresh(provider_call_id.to_string());
+         }
+     }
+     Ok(())
+ }
+ 
+ pub fn assert_mutation(provider_call_id: &str, supplied_epoch: Option<&str>) -> Result<()> {
+     let Some(entry) = owners().get(provider_call_id) else {
+         return Ok(());
+     };
+     let supplied_epoch = supplied_epoch.ok_or_else(|| anyhow!("owner epoch is required"))?;
+     entry
+         .guard
+         .assert_mutation(supplied_epoch, now_unix_ms())
+@@ -352,43 +358,62 @@ fn env_u64(name: &str, fallback: u64, minimum: u64, maximum: u64) -> Result<u64,
+ fn valid_provider_call_id(value: &str) -> Result<()> {
+     let mut words = value.split('@');
+     let left = words.next().unwrap_or_default();
+     let right = words.next();
+     if value.len() > 255
+         || !valid_call_id_word(left)
+         || right.is_some_and(|word| !valid_call_id_word(word))
+         || words.next().is_some()
+     {
+         return Err(anyhow!("invalid SIP Call-ID"));
+     }
+     Ok(())
+ }
+ 
+ fn valid_call_id_word(value: &str) -> bool {
+     !value.is_empty()
+         && value.bytes().all(|byte| {
+             byte.is_ascii_alphanumeric()
+                 || matches!(
+                     byte,
+-                    b'-' | b'.' | b'!' | b'%' | b'*' | b'_' | b'+' | b'`' | b'\''
+-                        | b'~' | b'(' | b')' | b'<' | b'>' | b':' | b'\\' | b'"' | b'/'
+-                        | b'[' | b']' | b'?' | b'{' | b'}'
++                    b'-' | b'.'
++                        | b'!'
++                        | b'%'
++                        | b'*'
++                        | b'_'
++                        | b'+'
++                        | b'`'
++                        | b'\''
++                        | b'~'
++                        | b'('
++                        | b')'
++                        | b'<'
++                        | b'>'
++                        | b':'
++                        | b'\\'
++                        | b'"'
++                        | b'/'
++                        | b'['
++                        | b']'
++                        | b'?'
++                        | b'{'
++                        | b'}'
+                 )
+         })
+ }
+ 
+ fn valid_node_identifier(value: &str) -> Result<()> {
+     if value.is_empty()
+         || value.len() > 255
+         || !value.chars().enumerate().all(|(index, character)| {
+             character.is_ascii_alphanumeric()
+                 || (index > 0 && matches!(character, '.' | '_' | ':' | '-'))
+         })
+     {
+         return Err(anyhow!("invalid owner identifier"));
+     }
+     Ok(())
+ }
+ 
+ fn owners() -> &'static DashMap<String, Arc<OwnerEntry>> {
+     OWNERS.get_or_init(DashMap::new)
+ }
+diff --git a/src/lib.rs b/src/lib.rs
+index a54f514b..887bb012 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,36 +1,37 @@
+ pub mod addons;
+ #[cfg(feature = "console")]
+ pub mod api;
+ pub mod app;
+ pub mod auth;
+ pub mod auto_external_ip;
+ pub mod call;
+ pub mod callrecord;
+ pub mod config;
+ #[cfg(feature = "console")]
+ pub mod console;
+ pub mod handler;
+ pub mod license;
+ 
+ pub mod http_util;
+ pub mod ivekit_audio_tap;
++pub mod ivekit_dialog_shadow;
+ pub mod ivekit_media_lifecycle;
+ pub mod ivekit_media_control;
+ pub mod ivekit_owner;
+ pub mod ivekit_recording;
+ pub mod media;
+ pub mod metrics;
+ pub mod models;
+ pub mod observability;
+ pub mod preflight;
+ pub mod proxy;
+ pub mod rwi;
+ pub mod sipflow;
+ pub mod storage;
+ pub mod tls_reloader;
+ pub mod tts;
+ pub mod utils;
+ pub mod version;
+ 
+ #[cfg(test)]
+ #[ctor::ctor(unsafe)]
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index 8a79cdc3..1f678045 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -155,40 +155,41 @@ pub struct SipSession {
+     pub legs: crate::proxy::proxy_call::leg_registry::LegRegistry,
+     #[allow(dead_code)]
+     pub policy: SessionPolicy,
+     pub bridge: BridgeConfig,
+     pub media_profile: MediaRuntimeProfile,
+     pub app_runtime: Arc<dyn AppRuntime>,
+     pub snapshot_cache: Arc<RwLock<Option<SessionSnapshot>>>,
+ 
+     pub server: SipServerRef,
+     pub server_dialog: ServerInviteDialog,
+     pub callee_dialogs: Arc<DashMap<DialogId, ()>>,
+     pub supervisor_mixer: Option<Arc<SupervisorSession>>,
+ 
+     pub context: CallContext,
+     pub call_record_sender: Option<CallRecordSender>,
+ 
+     pub cancel_token: CancellationToken,
+     pub pending_hangup: HashSet<DialogId>,
+     pub meta: crate::proxy::proxy_call::call_meta::CallMeta,
+     pub media: crate::proxy::proxy_call::media_state::MediaState,
++    pub ivekit_dialog_shadow: crate::ivekit_dialog_shadow::IveKitDialogShadowRuntime,
+     pub ivekit_media: crate::ivekit_media_lifecycle::IveKitMediaRuntime,
+     pub ivekit_execution_profile: crate::ivekit_media_lifecycle::MediaExecutionProfile,
+ 
+     timers: HashMap<DialogId, SessionTimerState>,
+     update_refresh_disabled: HashSet<DialogId>,
+     timer_queue: DelayQueue<DialogId>,
+     timer_keys: HashMap<DialogId, delay_queue::Key>,
+ 
+     pub callee_event_tx: Option<mpsc::UnboundedSender<DialogState>>,
+     pub callee_guards: Vec<ClientDialogGuard>,
+ 
+     pub dtmf_digits: Vec<char>,
+ 
+     pub reporter: Option<CallReporter>,
+     cdr_sent: Arc<std::sync::atomic::AtomicBool>,
+     pub recorder: Arc<RwLock<Option<Recorder>>>,
+     pub recording_paused: Arc<std::sync::atomic::AtomicBool>,
+ 
+     pub app_event_bridge: Arc<RwLock<Option<crate::proxy::proxy_call::state::SipSessionHandle>>>,
+ 
+@@ -1005,80 +1006,83 @@ impl SipSession {
+             .with_factory(Arc::new(BuiltinAppFactory {
+                 #[cfg(feature = "addon-voicemail")]
+                 addon_registry: server.addon_registry.clone(),
+             })),
+         );
+ 
+         let mut meta = crate::proxy::proxy_call::call_meta::CallMeta::new();
+         meta.routed_caller = context.dialplan.caller.as_ref().map(|uri| uri.to_string());
+         meta.routed_callee = context
+             .dialplan
+             .first_target()
+             .map(|target| target.aor.to_string());
+ 
+         let initial = server_dialog.initial_request();
+         let caller_offer = Self::extract_sdp(initial.body());
+         let ivekit_media = crate::ivekit_media_lifecycle::IveKitMediaRuntime::bootstrap(
+             &session_id_str,
+             &server_dialog.id().remote_tag,
+             caller_offer.as_deref(),
+         );
++        let ivekit_dialog_shadow =
++            crate::ivekit_dialog_shadow::IveKitDialogShadowRuntime::bootstrap(&session_id_str);
+         let realtime_audio_tap_capture = if use_media_proxy {
+             Self::setup_realtime_audio_tap(&server, &context)
+         } else {
+             None
+         };
+ 
+         let session = Self {
+             id: session_id.clone(),
+             state: SessionState::Initializing,
+             policy: SessionPolicy::inbound_sip(),
+             bridge: BridgeConfig::new(),
+             media_profile: media_profile.clone(),
+             app_runtime,
+             snapshot_cache: snapshot_cache.clone(),
+             server,
+             server_dialog: server_dialog.clone(),
+             callee_dialogs: Arc::new(DashMap::new()),
+             supervisor_mixer: None,
+             legs: {
+                 use crate::proxy::proxy_call::leg_registry::LegRegistry;
+                 let mut lr = LegRegistry::new();
+                 let caller_id = LegId::from("caller");
+                 let caller_dialog =
+                     rsipstack::dialog::dialog::Dialog::ServerInvite(server_dialog.clone());
+                 lr.add_leg(
+                     caller_id.clone(),
+                     Leg::new(caller_id),
+                     caller_peer.clone(),
+                     Some(caller_dialog),
+                 );
+                 // callee peer registered without a dialog until it answers
+                 lr.set_peer(LegId::from("callee"), callee_peer.clone());
+                 lr
+             },
+             pending_hangup: HashSet::new(),
+             context,
+             call_record_sender,
+             cancel_token,
+             meta,
+             media: crate::proxy::proxy_call::media_state::MediaState::new(caller_offer),
++            ivekit_dialog_shadow,
+             ivekit_media,
+             ivekit_execution_profile:
+                 crate::ivekit_media_lifecycle::MediaExecutionProfile::LocalMediaGraph(
+                     crate::ivekit_media_lifecycle::LocalMediaReason::MediaControlDisabled,
+                 ),
+             timers: HashMap::new(),
+             update_refresh_disabled: HashSet::new(),
+             timer_queue: DelayQueue::new(),
+             timer_keys: HashMap::new(),
+             callee_event_tx: None,
+             callee_guards: Vec::new(),
+             reporter: None,
+             cdr_sent: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+             recorder: Arc::new(RwLock::new(None)),
+             recording_paused: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+             app_event_bridge: app_event_bridge.clone(),
+             conference_bridge: crate::call::runtime::SessionConferenceBridge::new(),
+             realtime_audio_tap_capture,
+             cmd_tx: Some(cmd_tx.clone()),
+             dtmf_digits: Vec::new(),
+@@ -1128,40 +1132,51 @@ impl SipSession {
+             .with_id(format!("{}-caller", session_id))
+             .with_cancel_token(cancel_token.child_token());
+         let caller_peer = Arc::new(VoiceEnginePeer::new(Arc::new(caller_media_builder.build())));
+ 
+         let callee_media_builder = crate::media::MediaStreamBuilder::new()
+             .with_id(format!("{}-callee", session_id))
+             .with_cancel_token(cancel_token.child_token());
+         let callee_peer = Arc::new(VoiceEnginePeer::new(Arc::new(callee_media_builder.build())));
+ 
+         let (mut session, handle, cmd_rx) = SipSession::new(
+             server.clone(),
+             cancel_token.clone(),
+             call_record_sender,
+             context,
+             server_dialog.clone(),
+             use_media_proxy,
+             caller_peer,
+             callee_peer,
+         );
+ 
++        session
++            .ivekit_dialog_shadow
++            .assert_admission()
++            .await
++            .map_err(|error| {
++                anyhow!(
++                    "T1 dialog shadow admission failed: {error}; runtime={:?}",
++                    session.ivekit_dialog_shadow.failure_code()
++                )
++            })?;
++
+         session.reporter = Some(CallReporter {
+             server: server.clone(),
+             context: session.context.clone(),
+             call_record_sender: session.call_record_sender.clone(),
+         });
+ 
+         let dialog_guard = ServerDialogGuard::new(server.dialog_layer.clone(), server_dialog.id());
+ 
+         let (callee_state_tx, callee_state_rx) = mpsc::unbounded_channel();
+         session.callee_event_tx = Some(callee_state_tx);
+ 
+         server
+             .active_call_registry
+             .register_handle(session_id.clone(), handle.clone());
+ 
+         server
+             .active_call_registry
+             .register_dialog(server_dialog.id().to_string(), handle.clone());
+ 
+         // Emit CallIncoming event via RWI gateway if configured.
+@@ -2567,41 +2582,41 @@ impl SipSession {
+         }
+ 
+         let mut status = if update_result.is_ok() {
+             rsipstack::sip::StatusCode::OK
+         } else {
+             rsipstack::sip::StatusCode::SessionIntervalTooSmall
+         };
+ 
+         let mut headers = if update_result.is_err() {
+             self.timers.get(&dialog_id).map(|timer| {
+                 vec![rsipstack::sip::Header::Other(
+                     HEADER_MIN_SE.to_string(),
+                     timer.min_se.as_secs().to_string(),
+                 )]
+             })
+         } else {
+             self.successful_refresh_response_headers(&dialog_id)
+         }
+         .unwrap_or_default();
+ 
+-        let body = if update_result.is_ok() && !request.body.is_empty() {
++        let mut body = if update_result.is_ok() && !request.body.is_empty() {
+             let offer_sdp = String::from_utf8_lossy(&request.body).to_string();
+             let bridged_video_offer = self.media.media_bridge.is_some()
+                 && rustrtc::SessionDescription::parse(rustrtc::SdpType::Offer, &offer_sdp)
+                     .map(|desc| {
+                         desc.media_sections
+                             .iter()
+                             .any(|section| section.kind == rustrtc::MediaKind::Video)
+                     })
+                     .unwrap_or(false);
+             let answer_result = if self.ivekit_execution_profile
+                 == crate::ivekit_media_lifecycle::MediaExecutionProfile::OrdinaryRelay
+             {
+                 self.relay_ordinary_media_control_offer(side, request.method.clone(), &offer_sdp)
+                     .await
+                     .map_err(|e| {
+                         (
+                             rsipstack::sip::StatusCode::ServiceUnavailable,
+                             "Failed to commit ordinary relay dialog negotiation",
+                             e,
+                         )
+@@ -2653,40 +2668,67 @@ impl SipSession {
+                     } else {
+                         None
+                     }
+                 }
+                 Err((error_status, message, error)) => {
+                     warn!(
+                         %dialog_id,
+                         error = %error,
+                         side = ?side,
+                         "{message}"
+                     );
+                     status = error_status;
+                     headers.clear();
+                     None
+                 }
+             }
+         } else {
+             None
+         };
+ 
++        if update_result.is_ok()
++            && status.kind() == rsipstack::sip::status_code::StatusCodeKind::Successful
++        {
++            let logical_offer = Self::extract_sdp(&request.body);
++            let logical_answer = body.as_deref().and_then(Self::extract_sdp);
++            if let Err(error) = self
++                .commit_dialog_shadow_before_visible_response(
++                    &dialog_id,
++                    crate::ivekit_dialog_shadow::DialogShadowState::Updating,
++                    Some(format!("{} {}", status.code(), request.method)),
++                    logical_offer,
++                    logical_answer,
++                )
++                .await
++            {
++                warn!(
++                    %dialog_id,
++                    error = %error,
++                    side = ?side,
++                    "Dialog shadow failed before in-dialog success response"
++                );
++                status = rsipstack::sip::StatusCode::ServiceUnavailable;
++                headers.clear();
++                body = None;
++            }
++        }
++
+         let _ = tx_handle
+             .respond(status, (!headers.is_empty()).then_some(headers), body)
+             .await;
+         Ok(())
+     }
+ 
+     async fn handle_dialog_state(&mut self, state: DialogState) -> Result<()> {
+         debug!(
+             session_id = %self.context.session_id,
+             state = %state,
+             "Caller dialog state"
+         );
+         match state {
+             DialogState::Confirmed(_, _) => {
+                 self.update_leg_state(&LegId::from("caller"), LegState::Connected);
+             }
+             DialogState::Updated(dialog_id, request, tx_handle) => {
+                 self.handle_updated_dialog(DialogSide::Caller, dialog_id, request, tx_handle)
+                     .await?;
+             }
+@@ -4781,55 +4823,97 @@ impl SipSession {
+                         }
+ 
+                         let callee_sdp = String::from_utf8_lossy(response.body()).to_string();
+                         if !callee_sdp.is_empty() && callee_sdp.contains("v=0") {
+                             self.media.early_media_sent = true;
+                             self.update_leg_state(&LegId::from("callee"), LegState::EarlyMedia);
+ 
+                             let caller_sdp = match self
+                                 .commit_early_media_before_caller_183(
+                                     early_dialog_id,
+                                     &callee_sdp,
+                                 )
+                                 .await
+                             {
+                                 Ok(caller_sdp) => caller_sdp,
+                                 Err(error) => {
+                                     self.cancel_token.cancel();
+                                     break Err(error);
+                                 }
+                             };
++                            if let Err(error) = self
++                                .commit_dialog_shadow_before_visible_response(
++                                    early_dialog_id,
++                                    crate::ivekit_dialog_shadow::DialogShadowState::Early,
++                                    Some("183 Session Progress".to_string()),
++                                    self.media.caller_offer.clone(),
++                                    caller_sdp.clone(),
++                                )
++                                .await
++                            {
++                                warn!(
++                                    session_id = %self.context.session_id,
++                                    error = %error,
++                                    "Dialog shadow failed before caller 183"
++                                );
++                                self.cancel_token.cancel();
++                                break Err(into_callee_err(
++                                    &StatusCode::ServiceUnavailable,
++                                    Some("T1 dialog shadow unavailable".to_string()),
++                                ));
++                            }
+ 
+                             if let Err(e) = self.server_dialog.ringing(
+                                 Some(Self::sdp_headers()),
+                                 caller_sdp.map(|sdp| sdp.into_bytes()),
+                             ) {
+                                 warn!(
+                                     session_id = %self.context.session_id,
+                                     error = %e,
+                                     "Failed to send 183 Session Progress"
+                                 );
+                             }
+                         } else {
+                             if !self.media.early_media_sent {
+                                 self.update_leg_state(&LegId::from("callee"), LegState::Ringing);
+                             }
++                            if let Err(error) = self
++                                .commit_dialog_shadow_before_visible_response(
++                                    early_dialog_id,
++                                    crate::ivekit_dialog_shadow::DialogShadowState::Early,
++                                    Some("180 Ringing".to_string()),
++                                    self.media.caller_offer.clone(),
++                                    None,
++                                )
++                                .await
++                            {
++                                warn!(
++                                    session_id = %self.context.session_id,
++                                    error = %error,
++                                    "Dialog shadow failed before caller 180"
++                                );
++                                self.cancel_token.cancel();
++                                break Err(into_callee_err(
++                                    &StatusCode::ServiceUnavailable,
++                                    Some("T1 dialog shadow unavailable".to_string()),
++                                ));
++                            }
+                             if let Err(e) = self.server_dialog.ringing(None, None) {
+                                 warn!(
+                                     session_id = %self.context.session_id,
+                                     error = %e,
+                                     "Failed to send 180 Ringing"
+                                 );
+                             }
+ 
+                             self.emit_typed_rwi_event(&crate::rwi::CallRinging {
+                                 call_id: self.context.session_id.clone(),
+                             });
+ 
+                             // Fire on_call_ringing hooks
+                             if !self.server.session_hooks.is_empty() {
+                                 let ctx = self.session_hook_ctx();
+                                 for hook in self.server.session_hooks.iter() {
+                                     hook.on_call_ringing(&ctx).await;
+                                 }
+                             }
+                         }
+@@ -4870,40 +4954,59 @@ impl SipSession {
+         if let Some(track_id) = stop_playback_on_answer {
+             self.stop_playback_track(track_id, false).await;
+         }
+ 
+         // Stop playback (if any) before transitioning to confirmed call.
+         if self.media.early_media_sent {
+             let early_track_ids: Vec<String> = self
+                 .media
+                 .bridge_playback_track_ids
+                 .values()
+                 .cloned()
+                 .collect();
+             for track_id in early_track_ids {
+                 self.stop_playback_track(&track_id, false).await;
+             }
+         }
+ 
+         let caller_answer = self
+             .commit_final_answer_before_caller_200(&dialog_id, callee_sdp)
+             .await?;
++        self.commit_dialog_shadow_before_visible_response(
++            &dialog_id,
++            crate::ivekit_dialog_shadow::DialogShadowState::Confirmed,
++            Some("200 OK".to_string()),
++            self.media.caller_offer.clone(),
++            caller_answer.clone(),
++        )
++        .await
++        .map_err(|error| {
++            warn!(
++                session_id = %self.context.session_id,
++                error = %error,
++                "Dialog shadow failed before caller 200"
++            );
++            into_callee_err(
++                &StatusCode::ServiceUnavailable,
++                Some("T1 dialog shadow unavailable".to_string()),
++            )
++        })?;
+ 
+         self.meta.connected_callee_dialog_id = Some(dialog_id.clone());
+         self.callee_dialogs.insert(dialog_id.clone(), ());
+         self.callee_guards.push(ClientDialogGuard::new(
+             self.server.dialog_layer.clone(),
+             dialog_id.clone(),
+         ));
+ 
+         self.accept_call(
+             Some(callee_uri.to_string()),
+             caller_answer,
+             Some(dialog_id.to_string()),
+         )
+         .await
+         .map_err(|e| into_callee_err(&StatusCode::ServerInternalError, Some(e.to_string())))?;
+ 
+         // Register callee dialog in unified map
+         if let Some(dlg) = self.server.dialog_layer.get_dialog(&dialog_id) {
+             self.legs.set_dialog(LegId::from("callee"), dlg);
+         }
+@@ -5047,40 +5150,133 @@ impl SipSession {
+                             warn!(
+                                 session_id = %self.context.session_id,
+                                 context = "bypass callee offer",
+                                 "Failed to rewrite pass-through SDP offer to selected audio codec list"
+                             );
+                             caller_offer.clone()
+                         }))
+                     }
+                 } else {
+                     self.media.caller_offer.clone()
+                 }
+             } else {
+                 self.media.caller_offer.clone()
+             }
+         } else {
+             self.create_callee_track(callee_is_webrtc).await.ok()
+         };
+         callee_sdp
+     }
+ 
++    fn dialog_shadow_event(
++        &self,
++        dialog_id: &DialogId,
++        state: crate::ivekit_dialog_shadow::DialogShadowState,
++        final_response_identity: Option<String>,
++        logical_offer_sdp: Option<String>,
++        logical_answer_sdp: Option<String>,
++    ) -> Result<crate::ivekit_dialog_shadow::DialogShadowEvent> {
++        let dialog = self
++            .server
++            .dialog_layer
++            .get_dialog(dialog_id)
++            .or_else(|| {
++                (self.server_dialog.id() == *dialog_id)
++                    .then(|| Dialog::ServerInvite(self.server_dialog.clone()))
++            })
++            .ok_or_else(|| anyhow!("dialog shadow source dialog is unavailable"))?;
++        let snapshot = match dialog {
++            Dialog::ServerInvite(dialog) => dialog.snapshot(),
++            Dialog::ClientInvite(dialog) => dialog.snapshot(),
++            _ => return Err(anyhow!("dialog shadow requires an INVITE dialog")),
++        };
++        let owner = crate::ivekit_owner::owner_contract(&self.context.session_id)
++            .ok_or_else(|| anyhow!("dialog shadow owner contract is unavailable"))?;
++        let remote_tag =
++            (!snapshot.id.remote_tag.is_empty()).then(|| snapshot.id.remote_tag.clone());
++        Ok(crate::ivekit_dialog_shadow::DialogShadowEvent {
++            state,
++            raw_call_id: snapshot.id.call_id.clone(),
++            dialog_id: crate::ivekit_dialog_shadow::stable_dialog_shadow_id(
++                &snapshot.id.call_id,
++                &snapshot.id.local_tag,
++                &snapshot.id.remote_tag,
++            ),
++            local_tag: snapshot.id.local_tag.clone(),
++            remote_tag,
++            route_set: snapshot.route_set.iter().map(ToString::to_string).collect(),
++            local_cseq: snapshot.local_cseq,
++            remote_cseq: snapshot.remote_cseq,
++            raw_branch_identity: format!(
++                "{}\0{}\0{}",
++                snapshot.id.call_id, snapshot.id.local_tag, snapshot.id.remote_tag
++            ),
++            final_response_identity,
++            logical_offer_sdp,
++            logical_answer_sdp,
++            media_reservation_id: Some(owner.reservation_id),
++            provider_session_ref: None,
++            cdr_sequence: 0,
++            terminal: state == crate::ivekit_dialog_shadow::DialogShadowState::Terminated,
++        })
++    }
++
++    async fn commit_dialog_shadow_before_visible_response(
++        &mut self,
++        dialog_id: &DialogId,
++        state: crate::ivekit_dialog_shadow::DialogShadowState,
++        final_response_identity: Option<String>,
++        logical_offer_sdp: Option<String>,
++        logical_answer_sdp: Option<String>,
++    ) -> Result<()> {
++        if !self.ivekit_dialog_shadow.is_required() {
++            return Ok(());
++        }
++        let mut dialogs = vec![dialog_id.clone(), self.server_dialog.id()];
++        if let Some(callee) = self.meta.connected_callee_dialog_id.clone() {
++            dialogs.push(callee);
++        }
++        let mut seen = HashSet::new();
++        for candidate in dialogs {
++            if !seen.insert(candidate.clone()) {
++                continue;
++            }
++            let event = self.dialog_shadow_event(
++                &candidate,
++                state,
++                final_response_identity.clone(),
++                logical_offer_sdp.clone(),
++                logical_answer_sdp.clone(),
++            )?;
++            self.ivekit_dialog_shadow
++                .commit(event)
++                .await
++                .map_err(|error| {
++                    anyhow!(
++                        "dialog shadow commit failed: {error}; runtime={:?}",
++                        self.ivekit_dialog_shadow.failure_code()
++                    )
++                })?;
++        }
++        Ok(())
++    }
++
+     async fn commit_early_media_before_caller_183(
+         &mut self,
+         dialog_id: &DialogId,
+         callee_sdp: &str,
+     ) -> Result<Option<String>, CalleeError> {
+         if self.ivekit_execution_profile
+             == crate::ivekit_media_lifecycle::MediaExecutionProfile::OrdinaryRelay
+         {
+             let session_id = self.context.session_id.clone();
+             let branch_id = crate::ivekit_media_lifecycle::stable_dialog_branch_id(
+                 &dialog_id.call_id,
+                 &dialog_id.local_tag,
+                 &dialog_id.remote_tag,
+             );
+             let lifecycle = self.ivekit_media.lifecycle_mut().ok_or_else(|| {
+                 into_callee_err(
+                     &StatusCode::ServiceUnavailable,
+                     Some("Media relay state unavailable".to_string()),
+                 )
+             })?;
+diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
+index e80c846b..9bdd0f09 100644
+--- a/src/proxy/routing/http.rs
++++ b/src/proxy/routing/http.rs
+@@ -48,42 +48,43 @@ impl HttpCallRouter {
+             config,
+             rtp_config,
+             default_media_proxy_mode,
+             enable_latching,
+             probation_max_packets,
+             route_snapshot_config_from_env(),
+         )
+     }
+ 
+     fn new_with_snapshot(
+         config: HttpRouterConfig,
+         rtp_config: RtpConfig,
+         default_media_proxy_mode: MediaProxyMode,
+         enable_latching: bool,
+         probation_max_packets: Option<u8>,
+         snapshot_config: Option<HttpRouteSnapshotConfig>,
+     ) -> Self {
+         let timeout = Duration::from_millis(config.timeout_ms.unwrap_or(5_000));
+         let client = crate::http_util::build_keepalive_client(Some(timeout), None)
+             .unwrap_or_else(|_| reqwest::Client::new());
+-        let snapshot_admission =
+-            snapshot_config.as_ref().and_then(|_| snapshot_admission_config_from_env());
++        let snapshot_admission = snapshot_config
++            .as_ref()
++            .and_then(|_| snapshot_admission_config_from_env());
+         let snapshot = Arc::new(ArcSwapOption::empty());
+         let mut snapshot_observation = None;
+         if let Some(snapshot_config) = snapshot_config.as_ref() {
+             refresh_snapshot(snapshot_config, &snapshot, &mut snapshot_observation);
+         }
+         if let Some(refresh_config) = snapshot_config.clone() {
+             let refresh_target = snapshot.clone();
+             crate::utils::spawn(async move {
+                 let interval = Duration::from_millis(refresh_config.refresh_ms);
+                 let mut observation = snapshot_observation;
+                 loop {
+                     tokio::time::sleep(interval).await;
+                     refresh_snapshot(&refresh_config, &refresh_target, &mut observation);
+                 }
+             });
+         }
+         Self {
+             config,
+             rtp_config,
+             default_media_proxy_mode,
+@@ -271,85 +272,84 @@ impl HttpCallRouter {
+             .as_ref()
+             .map(ToString::to_string)
+             .unwrap_or_else(|| "sip:anonymous@invalid.local".to_string());
+         let payload = HttpSnapshotAdmissionPayload {
+             call_id,
+             from: &from,
+             to: destination,
+             source_addr: "rustpbx-snapshot",
+             direction: "inbound",
+             method: "INVITE",
+             uri: destination,
+             ivekit_cell_id: &config.cell_id,
+             ivekit_owner_node_id: &config.owner_node_id,
+         };
+         let request = self
+             .client
+             .post(&config.url)
+             .header("x-pbx-key", &config.service_key)
+             .json(&payload)
+             .send();
+-        let response = tokio::time::timeout(
+-            Duration::from_millis(config.timeout_ms),
+-            request,
+-        )
+-        .await
+-        .map_err(|_| RouteError {
+-            error: anyhow!("snapshot inbound admission timed out"),
+-            status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+-            extensions: None,
+-        })?
+-        .map_err(|error| RouteError {
+-            error: anyhow!("snapshot inbound admission failed: {error}"),
+-            status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+-            extensions: None,
+-        })?;
++        let response = tokio::time::timeout(Duration::from_millis(config.timeout_ms), request)
++            .await
++            .map_err(|_| RouteError {
++                error: anyhow!("snapshot inbound admission timed out"),
++                status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++                extensions: None,
++            })?
++            .map_err(|error| RouteError {
++                error: anyhow!("snapshot inbound admission failed: {error}"),
++                status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++                extensions: None,
++            })?;
+         let status = response.status();
+         if !status.is_success() {
+             warn!(%call_id, %status, "snapshot inbound admission rejected");
+             return Err(RouteError {
+                 error: anyhow!("snapshot inbound admission rejected"),
+                 status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+                 extensions: None,
+             });
+         }
+         let admitted = response
+             .json::<HttpSnapshotAdmissionEnvelope>()
+             .await
+             .map_err(|_| RouteError {
+                 error: anyhow!("snapshot inbound admission response is invalid"),
+                 status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+                 extensions: None,
+             })?;
+         if !admitted.data.accepted {
+             return Err(RouteError {
+                 error: anyhow!("snapshot inbound admission rejected"),
+                 status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+                 extensions: None,
+             });
+         }
+         crate::ivekit_owner::ensure_owner(
+             call_id,
+             crate::ivekit_owner::OwnerContract {
+                 reservation_id: admitted.data.reservation_id,
+                 interaction_id: admitted.data.call_id,
+                 owner_epoch: admitted.data.owner_epoch,
++                availability_profile: admitted.data.availability_profile,
++                auth_context_ref: admitted.data.auth_context_ref,
+             },
+         )
+         .await
+         .map_err(|error| RouteError {
+             error: anyhow!("snapshot owner authorization failed: {error}"),
+             status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+             extensions: None,
+         })?;
+         Ok(admitted
+             .data
+             .audio_tap_token
+             .and_then(validated_audio_tap_token))
+     }
+ }
+ 
+ #[derive(Serialize)]
+ struct HttpRequestPayload {
+     pub call_id: String,
+     pub from: String,
+     pub to: String,
+@@ -429,80 +429,87 @@ struct HttpSnapshotAdmissionPayload<'a> {
+     to: &'a str,
+     source_addr: &'a str,
+     direction: &'a str,
+     method: &'a str,
+     uri: &'a str,
+     ivekit_cell_id: &'a str,
+     ivekit_owner_node_id: &'a str,
+ }
+ 
+ #[derive(Deserialize)]
+ struct HttpSnapshotAdmissionEnvelope {
+     data: HttpSnapshotAdmissionResponse,
+ }
+ 
+ #[derive(Deserialize)]
+ struct HttpSnapshotAdmissionResponse {
+     accepted: bool,
+     call_id: String,
+     reservation_id: String,
+     owner_epoch: String,
++    #[serde(default = "ordinary_availability_profile")]
++    availability_profile: String,
++    #[serde(default)]
++    auth_context_ref: Option<String>,
+     #[serde(default)]
+     audio_tap_token: Option<String>,
+ }
+ 
++fn ordinary_availability_profile() -> String {
++    "VOICE-ORDINARY".to_string()
++}
++
+ fn validated_audio_tap_token(token: String) -> Option<String> {
+     let trimmed = token.trim();
+     if trimmed.len() != token.len()
+         || !(32..=2048).contains(&token.len())
+         || token.chars().any(|character| character.is_control())
+     {
+         warn!("snapshot admission returned an invalid audio tap token");
+         return None;
+     }
+     Some(token)
+ }
+ 
+ fn attach_audio_tap_token(result: &mut HttpResponsePayload, token: Option<String>) {
+     let Some(token) = token else {
+         return;
+     };
+     result.headers.get_or_insert_with(HashMap::new).insert(
+         crate::ivekit_audio_tap::AUDIO_TAP_TOKEN_HEADER.to_string(),
+         token,
+     );
+ }
+ 
+ fn snapshot_admission_config_from_env() -> Option<HttpSnapshotAdmissionConfig> {
+     let url = std::env::var("IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL")
+         .ok()
+         .filter(|value| !value.trim().is_empty())?;
+     let parsed = reqwest::Url::parse(&url).ok()?;
+     if !matches!(parsed.scheme(), "http" | "https")
+         || !parsed.username().is_empty()
+         || parsed.password().is_some()
+         || !parsed.path().ends_with("/inbound-admission")
+     {
+         return None;
+     }
+-    let service_key =
+-        std::env::var("IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY").ok()?;
++    let service_key = std::env::var("IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY").ok()?;
+     if service_key.len() < 16
+         || service_key.len() > 512
+         || service_key.bytes().any(|byte| byte.is_ascii_control())
+     {
+         return None;
+     }
+     let cell_id = std::env::var("IVEKIT_RUSTPBX_CELL_ID").ok()?;
+     let owner_node_id = std::env::var("IVEKIT_RUSTPBX_OWNER_NODE_ID").ok()?;
+     if !valid_snapshot_identifier(&cell_id) || !valid_snapshot_identifier(&owner_node_id) {
+         return None;
+     }
+     let timeout_ms = std::env::var("IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS")
+         .ok()
+         .and_then(|value| value.parse::<u64>().ok())
+         .unwrap_or(250)
+         .clamp(20, 2_000);
+     Some(HttpSnapshotAdmissionConfig {
+         url,
+         service_key,
+         cell_id,
+diff --git a/tests/ivekit_dialog_shadow_contract_test.rs b/tests/ivekit_dialog_shadow_contract_test.rs
+new file mode 100644
+index 00000000..26e5ef5a
+--- /dev/null
++++ b/tests/ivekit_dialog_shadow_contract_test.rs
+@@ -0,0 +1,330 @@
++use async_trait::async_trait;
++use rustpbx::ivekit_dialog_shadow::{
++    DialogShadowAdmissionProof, DialogShadowBinding, DialogShadowCommitExecutor,
++    DialogShadowCommitProof, DialogShadowCommitRequest, DialogShadowError, DialogShadowEvent,
++    DialogShadowHttpClient, DialogShadowHttpClientConfig, DialogShadowLifecycle, DialogShadowState,
++};
++use std::collections::VecDeque;
++use std::path::PathBuf;
++use std::sync::{Arc, Mutex};
++use std::time::Duration;
++use tokio::io::{AsyncReadExt, AsyncWriteExt};
++use tokio::net::TcpListener;
++
++#[derive(Default)]
++struct ScriptedExecutor {
++    requests: Mutex<Vec<DialogShadowCommitRequest>>,
++    results: Mutex<VecDeque<Result<DialogShadowCommitProof, DialogShadowError>>>,
++    admissions: Mutex<VecDeque<Result<DialogShadowAdmissionProof, DialogShadowError>>>,
++}
++
++#[async_trait]
++impl DialogShadowCommitExecutor for ScriptedExecutor {
++    async fn assert_admission(&self) -> Result<DialogShadowAdmissionProof, DialogShadowError> {
++        self.admissions
++            .lock()
++            .unwrap()
++            .pop_front()
++            .unwrap_or(Err(DialogShadowError::Unavailable))
++            .and_then(DialogShadowAdmissionProof::validate)
++    }
++
++    async fn commit(
++        &self,
++        request: &DialogShadowCommitRequest,
++    ) -> Result<DialogShadowCommitProof, DialogShadowError> {
++        self.requests.lock().unwrap().push(request.clone());
++        self.results
++            .lock()
++            .unwrap()
++            .pop_front()
++            .unwrap_or(Err(DialogShadowError::Unavailable))
++    }
++}
++
++#[tokio::test]
++async fn t1_admission_requires_two_fault_domains() {
++    let executor = ScriptedExecutor::default();
++    executor
++        .admissions
++        .lock()
++        .unwrap()
++        .push_back(Ok(DialogShadowAdmissionProof {
++            status: "ready".into(),
++            fault_domains: vec!["zone-a-rack-1".into()],
++        }));
++    assert_eq!(
++        executor.assert_admission().await.unwrap_err(),
++        DialogShadowError::Unavailable
++    );
++}
++
++fn binding() -> DialogShadowBinding {
++    DialogShadowBinding::new(
++        "tenant-a",
++        "cell-a",
++        "rustpbx-a",
++        "zone-a-rack-1",
++        "interaction-a",
++        7,
++        "auth-context-a",
++    )
++    .unwrap()
++}
++
++fn event(state: DialogShadowState) -> DialogShadowEvent {
++    DialogShadowEvent {
++        state,
++        raw_call_id: "call-with-private-number@example.invalid".into(),
++        dialog_id: "dialog-a".into(),
++        local_tag: "caller-tag".into(),
++        remote_tag: Some("callee-tag".into()),
++        route_set: vec!["sip:edge-a.internal:5061;transport=tls;lr".into()],
++        local_cseq: 1,
++        remote_cseq: 1,
++        raw_branch_identity: "branch-with-private-number".into(),
++        final_response_identity: None,
++        logical_offer_sdp: Some("v=0\r\na=offer\r\n".into()),
++        logical_answer_sdp: None,
++        media_reservation_id: Some("reservation-a-caller".into()),
++        provider_session_ref: None,
++        cdr_sequence: 1,
++        terminal: false,
++    }
++}
++
++fn proof(request: &DialogShadowCommitRequest) -> DialogShadowCommitProof {
++    DialogShadowCommitProof {
++        status: "committed".into(),
++        record_hash: request.record_hash().unwrap(),
++        fault_domains: vec!["zone-a-rack-1".into(), "zone-b-rack-1".into()],
++        owner_epoch: request.record.owner_epoch,
++        sequence: request.record.sequence,
++    }
++}
++
++#[tokio::test]
++async fn shadow_records_hash_sensitive_dialog_material() {
++    let executor = Arc::new(ScriptedExecutor::default());
++    let mut lifecycle = DialogShadowLifecycle::new(binding(), executor.clone());
++    let preview = lifecycle
++        .preview_request(&event(DialogShadowState::Early))
++        .unwrap();
++    executor
++        .results
++        .lock()
++        .unwrap()
++        .push_back(Ok(proof(&preview)));
++
++    lifecycle
++        .commit(event(DialogShadowState::Early))
++        .await
++        .unwrap();
++
++    let request = executor.requests.lock().unwrap()[0].clone();
++    let encoded = serde_json::to_string(&request).unwrap();
++    assert!(!encoded.contains("private-number"));
++    assert!(!encoded.contains("v=0"));
++    assert_eq!(request.record.call_id_hash.len(), 64);
++    assert_eq!(request.record.branch_hash.len(), 64);
++    assert_eq!(
++        request.record.logical_offer_hash.as_ref().unwrap().len(),
++        64
++    );
++    assert!(request.record.route_set[0].starts_with("sip:edge-a.internal"));
++}
++
++#[tokio::test]
++async fn unknown_commit_replays_the_exact_shadow_identity() {
++    let executor = Arc::new(ScriptedExecutor::default());
++    executor
++        .results
++        .lock()
++        .unwrap()
++        .push_back(Err(DialogShadowError::OutcomeUnknown));
++    let mut lifecycle = DialogShadowLifecycle::new(binding(), executor.clone());
++    let value = event(DialogShadowState::Early);
++    let preview = lifecycle.preview_request(&value).unwrap();
++    executor
++        .results
++        .lock()
++        .unwrap()
++        .push_back(Ok(proof(&preview)));
++
++    assert_eq!(
++        lifecycle.commit(value.clone()).await.unwrap_err(),
++        DialogShadowError::OutcomeUnknown
++    );
++    lifecycle.commit(value).await.unwrap();
++
++    let requests = executor.requests.lock().unwrap();
++    assert_eq!(requests.len(), 2);
++    assert_eq!(requests[0].record.sequence, 1);
++    assert_eq!(
++        requests[0].record_hash().unwrap(),
++        requests[1].record_hash().unwrap()
++    );
++}
++
++#[tokio::test]
++async fn mismatched_proof_freezes_the_sequence() {
++    let executor = Arc::new(ScriptedExecutor::default());
++    let mut lifecycle = DialogShadowLifecycle::new(binding(), executor.clone());
++    let preview = lifecycle
++        .preview_request(&event(DialogShadowState::Early))
++        .unwrap();
++    let mut mismatch = proof(&preview);
++    mismatch.record_hash = "f".repeat(64);
++    executor.results.lock().unwrap().push_back(Ok(mismatch));
++
++    assert_eq!(
++        lifecycle
++            .commit(event(DialogShadowState::Early))
++            .await
++            .unwrap_err(),
++        DialogShadowError::OutcomeUnknown
++    );
++    assert_eq!(lifecycle.next_sequence(), 1);
++    assert!(lifecycle.has_pending_commit());
++}
++
++#[tokio::test]
++async fn committed_states_advance_monotonically() {
++    let executor = Arc::new(ScriptedExecutor::default());
++    let mut lifecycle = DialogShadowLifecycle::new(binding(), executor.clone());
++    for (index, state) in [
++        DialogShadowState::Early,
++        DialogShadowState::Confirmed,
++        DialogShadowState::Updating,
++    ]
++    .into_iter()
++    .enumerate()
++    {
++        let mut value = event(state);
++        value.local_cseq = index as u32 + 1;
++        value.remote_cseq = index as u32 + 1;
++        value.cdr_sequence = index as u64 + 1;
++        let preview = lifecycle.preview_request(&value).unwrap();
++        executor
++            .results
++            .lock()
++            .unwrap()
++            .push_back(Ok(proof(&preview)));
++        lifecycle.commit(value).await.unwrap();
++    }
++    let requests = executor.requests.lock().unwrap();
++    assert_eq!(
++        requests
++            .iter()
++            .map(|request| request.record.sequence)
++            .collect::<Vec<_>>(),
++        vec![1, 2, 3]
++    );
++}
++
++#[test]
++fn route_set_rejects_userinfo_and_unbounded_entries() {
++    let executor = Arc::new(ScriptedExecutor::default());
++    let mut lifecycle = DialogShadowLifecycle::new(binding(), executor);
++    let mut with_userinfo = event(DialogShadowState::Early);
++    with_userinfo.route_set = vec!["sip:+8613800138000@edge.internal;lr".into()];
++    assert_eq!(
++        lifecycle.preview_request(&with_userinfo).unwrap_err(),
++        DialogShadowError::InvalidRecord
++    );
++
++    let mut unbounded = event(DialogShadowState::Early);
++    unbounded.route_set = vec![format!("sip:{}.internal;lr", "a".repeat(4096))];
++    assert_eq!(
++        lifecycle.preview_request(&unbounded).unwrap_err(),
++        DialogShadowError::InvalidRecord
++    );
++}
++
++#[tokio::test]
++async fn http_client_sends_bounded_authenticated_commit() {
++    let _ = rustls::crypto::ring::default_provider().install_default();
++    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
++    let address = listener.local_addr().unwrap();
++    let token_path = temporary_token_file();
++    std::fs::write(&token_path, "shadow-service-token-aa").unwrap();
++
++    let server = tokio::spawn(async move {
++        let (mut stream, _) = listener.accept().await.unwrap();
++        let mut received = Vec::new();
++        let mut buffer = [0_u8; 4096];
++        let mut expected_bytes;
++        loop {
++            let read = stream.read(&mut buffer).await.unwrap();
++            assert!(read > 0);
++            received.extend_from_slice(&buffer[..read]);
++            let Some(header_end) = received.windows(4).position(|part| part == b"\r\n\r\n") else {
++                continue;
++            };
++            let headers = String::from_utf8_lossy(&received[..header_end]);
++            assert!(headers.starts_with("POST /internal/ivekit/v1/dialog-shadow/commit HTTP/1.1"));
++            assert!(
++                headers
++                    .to_ascii_lowercase()
++                    .contains("authorization: bearer shadow-service-token-aa")
++            );
++            let content_length = headers
++                .lines()
++                .find_map(|line| {
++                    line.to_ascii_lowercase()
++                        .strip_prefix("content-length:")
++                        .map(str::trim)
++                        .and_then(|value| value.parse::<usize>().ok())
++                })
++                .unwrap();
++            expected_bytes = header_end + 4 + content_length;
++            if received.len() >= expected_bytes {
++                break;
++            }
++        }
++        let header_end = received
++            .windows(4)
++            .position(|part| part == b"\r\n\r\n")
++            .unwrap();
++        let request: DialogShadowCommitRequest =
++            serde_json::from_slice(&received[header_end + 4..expected_bytes]).unwrap();
++        let body = serde_json::to_vec(&proof(&request)).unwrap();
++        let response = format!(
++            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
++            body.len()
++        );
++        stream.write_all(response.as_bytes()).await.unwrap();
++        stream.write_all(&body).await.unwrap();
++        stream.shutdown().await.unwrap();
++    });
++
++    let client = DialogShadowHttpClient::new(DialogShadowHttpClientConfig {
++        endpoint: format!("http://{address}").parse().unwrap(),
++        service_token_file: token_path.clone(),
++        tls_identity_file: None,
++        tls_ca_file: None,
++        production: false,
++        max_inflight: 8,
++        request_timeout: Duration::from_millis(500),
++        max_response_bytes: 16 * 1024,
++    })
++    .unwrap();
++    let executor = Arc::new(ScriptedExecutor::default());
++    let mut lifecycle = DialogShadowLifecycle::new(binding(), executor);
++    let request = lifecycle
++        .preview_request(&event(DialogShadowState::Early))
++        .unwrap();
++    let committed = client.commit(&request).await.unwrap();
++    assert_eq!(committed, proof(&request));
++
++    server.await.unwrap();
++    std::fs::remove_file(token_path).unwrap();
++}
++
++fn temporary_token_file() -> PathBuf {
++    std::env::temp_dir().join(format!(
++        "ivekit-dialog-shadow-token-{}-{}",
++        std::process::id(),
++        rand::random::<u64>()
++    ))
++}

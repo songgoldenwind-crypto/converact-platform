@@ -1,0 +1,107 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ivekit-victoria-metrics-backup
+  labels:
+    app.kubernetes.io/name: ivekit-victoria-metrics
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "17 2 * * *"
+  timeZone: Etc/UTC
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 1800
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 21600
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: ivekit-victoria-metrics
+            app.kubernetes.io/component: backup
+            opc.ivekit.io/victoria-metrics-role: backup
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: vmbackup
+              image: victoriametrics/vmbackup@sha256:1d01f330d98d9bd3d13afb05da0efedccf885165365c7ebf14849c219353a63b
+              imagePullPolicy: IfNotPresent
+              args:
+                - -envflag.enable
+                - -envflag.prefix=VM_
+                - -storageDataPath=/storage
+                - -snapshot.createURL=http://ivekit-victoria-metrics:8428/snapshot/create
+                - -concurrency=2
+                - -maxBytesPerSecond=104857600
+                - -loggerFormat=json
+              env:
+                - name: VM_dst
+                  valueFrom:
+                    secretKeyRef:
+                      name: ivekit-victoria-metrics-backup
+                      key: destination
+                - name: VM_customS3Endpoint
+                  valueFrom:
+                    secretKeyRef:
+                      name: ivekit-victoria-metrics-backup
+                      key: endpoint
+                      optional: true
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: ivekit-victoria-metrics-backup
+                      key: accessKeyId
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: ivekit-victoria-metrics-backup
+                      key: secretAccessKey
+                - name: AWS_SESSION_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ivekit-victoria-metrics-backup
+                      key: sessionToken
+                      optional: true
+                - name: AWS_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      name: ivekit-victoria-metrics-backup
+                      key: region
+                      optional: true
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+              volumeMounts:
+                - name: data
+                  mountPath: /storage
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: ivekit-victoria-metrics-data
+            - name: tmp
+              emptyDir:
+                sizeLimit: 128Mi

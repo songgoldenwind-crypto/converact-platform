@@ -1,0 +1,941 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>一人公司的 AI 获客与跟进助手</title>
+  <link rel="stylesheet" href="/assets/styles.css?v=three-zone-20260527-ui6" />
+</head>
+<body data-page="commander">
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-dot" aria-hidden="true"></span>
+      <span class="brand-name">OPC</span>
+    </a>
+    <div class="topbar-product">今日主线：筛线索 → 打电话 → 写结果 → 下一步</div>
+    <div class="topbar-call-control" aria-label="固定呼叫栏">
+      <label class="call-number-field" for="call-phone">
+        <span>号码</span>
+        <input id="call-phone" name="phone" form="call-outbound-form" inputmode="tel" placeholder="输入号码" autocomplete="tel" />
+      </label>
+      <span id="call-context-pill" class="call-context-pill" hidden></span>
+      <div class="call-control-actions">
+        <div class="callbar-call-wrap">
+          <button id="callbar-call-button" type="button" class="button primary" data-call-action="quick-call" aria-expanded="false" aria-controls="call-dialpad-popover">呼叫</button>
+          <div id="call-dialpad-popover" class="call-dialpad-popover" hidden>
+            <div class="call-dialpad-head">
+              <strong>拨号盘</strong>
+              <span>点号码后再点呼叫</span>
+            </div>
+            <div class="dialpad compact" aria-label="悬浮拨号盘">
+              <button type="button" data-dial-key="1">1</button>
+              <button type="button" data-dial-key="2">2<span>ABC</span></button>
+              <button type="button" data-dial-key="3">3<span>DEF</span></button>
+              <button type="button" data-dial-key="4">4<span>GHI</span></button>
+              <button type="button" data-dial-key="5">5<span>JKL</span></button>
+              <button type="button" data-dial-key="6">6<span>MNO</span></button>
+              <button type="button" data-dial-key="7">7<span>PQRS</span></button>
+              <button type="button" data-dial-key="8">8<span>TUV</span></button>
+              <button type="button" data-dial-key="9">9<span>WXYZ</span></button>
+              <button type="button" data-dial-key="*">*</button>
+              <button type="button" data-dial-key="0">0<span>+</span></button>
+              <button type="button" data-dial-key="#">#</button>
+            </div>
+            <div class="call-action-row">
+              <button type="button" class="button ghost" data-call-action="delete-digit">删除</button>
+              <button type="button" class="button ghost" data-call-action="clear-dial">清空</button>
+              <button type="button" class="button primary" data-call-action="quick-call">呼叫</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="button danger" data-call-action="hangup-active-call">挂断</button>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div id="tenant-status" class="tenant-status">还未开始</div>
+      <button id="bootstrap" class="button secondary topbar-cta" title="创建默认工作区" aria-label="创建默认工作区">
+        开始使用
+      </button>
+      <button id="refresh" class="icon-button" title="刷新数据" aria-label="刷新数据">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.36L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.36L3 16"/><path d="M3 21v-5h5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="今日获客工作流">
+      <div class="sidebar-head">
+        <p>Today workflow</p>
+        <strong>今天先联系谁</strong>
+        <small>Commander / Today / Result</small>
+      </div>
+      <nav class="sidenav" aria-label="单屏获客执行舱">
+        <a href="/" data-page-link="commander">
+          <span>01</span>
+          <div><strong>Commander</strong><small>目标 / 今日主动作</small></div>
+        </a>
+        <a href="/today" data-page-link="today">
+          <span>02</span>
+          <div><strong>Today</strong><small>联系 / 记录 / 下一步</small></div>
+        </a>
+        <a href="/result" data-page-link="result">
+          <span>03</span>
+          <div><strong>Result</strong><small>交付状态 / 明天继续</small></div>
+        </a>
+      </nav>
+      <div class="sidebar-note">
+        <strong>原则</strong>
+        <p>普通用户只处理当前获客执行；支撑能力进入当前动作的依据、抽屉或确认层，不作为主导航 support shell。</p>
+      </div>
+    </aside>
+    <div class="workspace">
+      <header class="page-intro" data-pages="pipeline tools customers review support demo-flow resources">
+        <p id="workspace-eyebrow" class="eyebrow">当前 run / 今日动作 / 结果回写</p>
+        <h1 id="workspace-title">围绕当前获客执行，继续处理今天最该做的动作</h1>
+        <p id="workspace-copy" class="muted">这里默认只保留线索、话术、呼叫、结果回写和下一步，让你不用在后台模块之间来回找入口。</p>
+      </header>
+
+      <main>
+        <section id="commander-center" class="commander-stage commander-homepage" data-pages="commander">
+          <div id="commander-hero-shell" class="commander-hero-shell">
+            <div class="commander-greeting">
+              <p class="commander-eyebrow">Today first</p>
+              <h1 id="commander-title">今天先联系哪些更可能成交的客户？</h1>
+              <p id="commander-copy" class="commander-sub">输入目标后，系统先给出推荐线索、建议开口、呼叫入口和回写下一步；你只处理最关键的联系动作。</p>
+            </div>
+            <form id="commander-form" class="commander-form">
+              <div id="commander-command-deck" class="commander-command-deck">
+                <div class="commander-input">
+                  <textarea id="commander-goal" name="goal" rows="3" placeholder="例如：在杭州找 20 家可能需要代理记账的小公司，筛出今天最该打的 5 个并给我开口话术"></textarea>
+                  <div id="commander-field-grid" class="command-field-grid"></div>
+                  <div id="commander-goal-guard" class="commander-goal-guard"></div>
+                  <div class="commander-input-bar">
+                    <span id="commander-mode-chip" class="mode-chip">今日获客执行</span>
+                    <div class="commander-input-actions">
+                      <button class="button ghost" type="submit">先看执行建议</button>
+                      <button id="commander-run" class="button primary" type="button">
+                        <span>创建获客执行</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="prompt-strip">
+                  <button type="button" class="prompt-chip" data-commander-template="lead_acquisition">本周拿 10 个高质量咨询</button>
+                  <button type="button" class="prompt-chip" data-commander-template="lead_acquisition">从地图找客户并预约</button>
+                  <button type="button" class="prompt-chip" data-commander-template="lead_acquisition">先补证据再联系</button>
+                  <button type="button" class="prompt-chip" data-commander-template="voice_followup">先筛高意向线索再发起外呼</button>
+                  <button type="button" class="prompt-chip" data-commander-template="weekly_review">看看哪些动作值得继续</button>
+                </div>
+              </div>
+              <div id="commander-summary-rail" class="commander-summary-rail commander-mainline-grid" aria-label="Commander 首屏主链摘要">
+                <div id="commander-run-brief" class="commander-mainline-slot"></div>
+                <div id="commander-priority-entry" class="commander-mainline-slot"></div>
+              </div>
+              <div id="commander-workflow-rail" class="commander-workflow-rail commander-focus-strip" aria-label="今日执行聚焦">
+                <article class="commander-focus-card">
+                  <strong>先联系谁</strong>
+                  <p>把高优先级线索和今天必须联系的人先推到最前。</p>
+                </article>
+                <article class="commander-focus-card">
+                  <strong>为什么现在</strong>
+                  <p>先看推荐理由、来源证据和跟进窗口，不先看模块目录。</p>
+                </article>
+                <article class="commander-focus-card">
+                  <strong>怎么开口</strong>
+                  <p>每个推荐对象都优先配一段可直接照读的开口话术。</p>
+                </article>
+                <article class="commander-focus-card">
+                  <strong>打完怎么记</strong>
+                  <p>结果、回拨时间和下一步保持在同一条动作链里完成。</p>
+                </article>
+              </div>
+            </form>
+          </div>
+          <aside class="commander-progress" hidden>
+            <p class="panel-label">System progress</p>
+            <div id="commander-progress-list" class="focus-list"></div>
+          </aside>
+        </section>
+
+
+        <div id="mobile-mainline-dock" class="mobile-mainline-dock" data-pages="commander" aria-live="polite"></div>
+
+        <section id="active-lead-run" class="section-block lead-run-section" data-pages="commander today result" data-home-panel="workflow">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Lead Acquisition Run</p>
+              <h2>当前获客执行</h2>
+              <p class="section-desc">这里只显示目标、线索、话术、任务、呼叫结果和下一步，不展示 DAG / provider / 后台配置。</p>
+            </div>
+            <span id="lead-run-updated" class="meta-pill">等待执行</span>
+          </div>
+          <div id="single-screen-workbench" class="single-screen-workbench" aria-label="单屏获客执行舱" data-reference-layout="tob-ai-three-zone">
+            <section id="workbench-run-header" class="workbench-run-header" aria-label="当前获客执行目标"></section>
+            <section id="workbench-focus-queue" class="workbench-focus-queue" aria-label="资产管理与历史记录"></section>
+            <section id="workbench-action-stage" class="workbench-action-stage" aria-label="一切业务抽象实体"></section>
+            <section id="workbench-outcome-dock" class="workbench-outcome-dock" aria-label="Agent 干活区">
+              <div class="workbench-call-console" aria-live="polite">
+                <div class="workbench-call-console-head">
+                  <div>
+                    <p class="workbench-zone-kicker">Agent</p>
+                    <strong>呼叫模块加载中</strong>
+                    <small>右侧干活区会承接当前线索、话术、呼叫和结果回写。</small>
+                  </div>
+                </div>
+                <div class="workbench-call-script">
+                  <p>如果这里长时间没有更新，请刷新页面并确认地址为最新工作台。</p>
+                </div>
+              </div>
+            </section>
+            <div id="lead-run-result-summary-strip" class="lead-run-result-summary-strip"></div>
+            <aside id="workbench-detail-drawer" class="workbench-detail-drawer" aria-label="当前动作依据" aria-hidden="true"></aside>
+          </div>
+        </section>
+
+        <section id="default-recipes" class="recipes-band" data-pages="commander" data-home-panel="templates">
+          <div class="recipes-band-head">
+            <p class="eyebrow">Full-flow templates</p>
+            <h2>不想搭流程？直接挑一个一人公司常用目标</h2>
+          </div>
+          <div id="recipe-grid" class="recipe-grid"></div>
+        </section>
+
+        <section id="tool-node-catalog" class="section-block tool-node-section" data-pages="commander tools pipeline" data-home-panel="tools">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Tool nodes</p>
+              <h2>这些节点只为当前获客执行服务</h2>
+              <p class="section-desc">地图获客、内容、外呼、落地页和 CRM 都应回到当前 run，不单独长成一个工具平台。</p>
+            </div>
+          </div>
+          <div class="tool-node-grid">
+            <article class="tool-node-card"><span>MAP</span><strong>地图获客</strong><p>按地区、行业和关键词找到真实线索，直接补进当前 run。</p><a href="/pipeline">接入当前执行</a></article>
+            <article class="tool-node-card"><span>R&D</span><strong>研究与竞品</strong><p>把客户问题、竞品切口和行业背景整理成推荐理由与话术素材。</p><a href="/">回到今日主线</a></article>
+            <article class="tool-node-card"><span>MSG</span><strong>内容生成</strong><p>生成私信、邮件、跟进内容，并绑定承接动作和来源追踪。</p><a href="/pipeline">连接承接链路</a></article>
+            <article class="tool-node-card"><span>LP</span><strong>落地页 / 预约页</strong><p>承接表单、预约和咨询，再把有效信号送回当前 run。</p><a href="/pipeline">查看承接路径</a></article>
+            <article class="tool-node-card"><span>BOT</span><strong>机器人客服</strong><p>回答 FAQ、识别高意向问题，并把复杂情况转成人工跟进。</p><a href="/customers">进入客户跟进</a></article>
+            <article class="tool-node-card"><span>CALL</span><strong>AI / 人工外呼</strong><p>回访、预约确认、未接通重拨和结果回写统一放进跟进链。</p><a href="/call-center">打开呼叫节点</a></article>
+            <article class="tool-node-card"><span>CRM</span><strong>CRM 跟进</strong><p>让线索、任务、通话、预约和下一步都落在今天要做里。</p><a href="/customers">处理今日任务</a></article>
+            <article class="tool-node-card"><span>REV</span><strong>轻复盘优化</strong><p>把有效渠道、话术和动作收敛成明日队列与下一轮建议。</p><a href="/review">查看复盘建议</a></article>
+          </div>
+        </section>
+
+        <section id="marketing-journey" class="section-block marketing-journey-section" data-pages="commander pipeline" data-home-panel="tools">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Workflow chain</p>
+              <h2>工具只有接回这条执行链，才算当前主链能力</h2>
+              <p class="section-desc">先看今天的执行，再看这些节点如何围绕当前 run 衔接，不把首页做成模块目录。</p>
+            </div>
+          </div>
+          <div class="journey-rail">
+            <article><span>01</span><strong>找到可联系线索</strong><p>公开来源、导入名单和证据汇总先进入当前 run。</p></article>
+            <article><span>02</span><strong>排今天优先级</strong><p>先判断谁更值得联系、为什么现在就联系。</p></article>
+            <article><span>03</span><strong>准备开口话术</strong><p>给每条重点线索配开口、异议回应和预约推进话术。</p></article>
+            <article><span>04</span><strong>发起联系</strong><p>人工外呼、消息触达和承接入口都只是动作节点。</p></article>
+            <article><span>05</span><strong>回写业务结果</strong><p>把预约、回拨、未接通和无效号码立刻写回主链。</p></article>
+            <article><span>06</span><strong>推下一步建议</strong><p>自动整理明日队列、轻复盘和下一批补线索方向。</p></article>
+          </div>
+        </section>
+
+        <section id="commander-results" class="section-block" data-pages="commander" data-home-panel="results">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Result page</p>
+              <h2>执行结果与下一步</h2>
+              <p class="section-desc">所有 Commander 结果都按“结论 / 已自动完成 / 需要确认 / 下一步”组织，而不是抛一段 AI 文本给用户。</p>
+            </div>
+            <span id="commander-updated" class="meta-pill">未执行</span>
+          </div>
+          <div id="commander-result-grid" class="two-column-grid">
+            <article class="detail-panel">
+              <div class="card-heading">
+                <span class="icon-badge">PL</span>
+                <div>
+                  <h3>计划摘要</h3>
+                  <p>系统理解了什么、要调用哪个 Agent 和 playbook。</p>
+                </div>
+              </div>
+              <div id="commander-plan-panel"></div>
+            </article>
+            <article class="detail-panel">
+              <div class="card-heading">
+                <span class="icon-badge">NX</span>
+                <div>
+                  <h3>下一步</h3>
+                  <p>如果还缺信息、需要确认，或者已经完成，这里直接告诉用户下一步。</p>
+                </div>
+              </div>
+              <div id="commander-next-panel"></div>
+            </article>
+          </div>
+          <div class="four-card-grid">
+            <article class="ops-card">
+              <h3>系统理解</h3>
+              <div id="commander-summary-stack" class="metric-stack"></div>
+            </article>
+            <article class="ops-card">
+              <h3>系统已完成</h3>
+              <div id="commander-auto-panel" class="review-list"></div>
+            </article>
+            <article class="ops-card">
+              <h3>需要你确认</h3>
+              <div id="commander-confirm-panel" class="review-list"></div>
+            </article>
+            <article class="ops-card">
+              <h3>下一步推荐命令</h3>
+              <div id="commander-suggestions-panel" class="review-list"></div>
+            </article>
+          </div>
+          <div id="commander-result-actions" class="result-action-row"></div>
+          <div id="commander-basis-panel" class="basis-panel" hidden></div>
+        </section>
+
+        <section id="today-workbench" class="section-block user-workbench" data-pages="commander customers" data-home-panel="today">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Today</p>
+              <h2>今天你只需要看这三类事</h2>
+              <p class="section-desc">一人公司不该每天翻后台。系统把必须处理、AI 已完成、需要确认的事收敛在这里。</p>
+            </div>
+            <span id="workbench-updated" class="meta-pill">等待数据</span>
+          </div>
+          <div id="today-mainline-strip" class="today-mainline-strip"></div>
+          <div class="today-followup-rail">
+            <div id="today-inline-writeback-panel"></div>
+            <div id="today-next-step-timer-card"></div>
+          </div>
+          <div id="workbench-summary-strip" class="workbench-summary-strip"></div>
+          <div class="four-card-grid founder-today-grid">
+            <article class="ops-card next-action-card">
+              <div class="card-heading">
+                <span class="icon-badge">01</span>
+                <div>
+                  <h3>今天必须处理</h3>
+                  <p>最多 3-5 件真正影响成交和跟进的动作。</p>
+                </div>
+              </div>
+              <div id="next-action-list" class="action-stack"></div>
+            </article>
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">AI</span>
+                <div>
+                  <h3>AI 已帮你完成</h3>
+                  <p>研究、内容、页面、线索筛选、复盘等自动结果。</p>
+                </div>
+              </div>
+              <div id="agent-completed-list" class="review-list"></div>
+            </article>
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">OK</span>
+                <div>
+                  <h3>需要你确认</h3>
+                  <p>外呼、发布、报价、转人工等需要业务判断的动作。</p>
+                </div>
+              </div>
+              <div id="user-confirm-list" class="review-list"></div>
+            </article>
+            <article class="ops-card crm-handoff-card">
+              <div class="card-heading">
+                <span class="icon-badge">CRM</span>
+                <div>
+                  <h3>统一 CRM 承接</h3>
+                  <p>线索、任务、跟进和外呼的最小闭环。</p>
+                </div>
+              </div>
+              <div id="crm-handoff-list" class="action-stack"></div>
+            </article>
+          </div>
+          <div class="four-card-grid secondary-detail-grid">
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">TD</span>
+                <div>
+                  <h3>今日必须处理</h3>
+                  <p>P0/P1 且已逾期或今天到期的任务。</p>
+                </div>
+              </div>
+              <div id="must-do-list" class="action-stack"></div>
+            </article>
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">HI</span>
+                <div>
+                  <h3>高意向商机</h3>
+                  <p>高分线索和已进入商机阶段的客户。</p>
+                </div>
+              </div>
+              <div id="high-intent-list" class="action-stack"></div>
+            </article>
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">EX</span>
+                <div>
+                  <h3>异常任务</h3>
+                  <p>失败、逾期、缺字段阻断和其他异常项。</p>
+                </div>
+              </div>
+              <div id="exception-list" class="action-stack"></div>
+            </article>
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">AC</span>
+                <div>
+                  <h3>自动完成记录</h3>
+                  <p>系统已执行完成、无需人工继续处理的结果。</p>
+                </div>
+              </div>
+              <div id="auto-completed-list" class="review-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="weekly-campaign" class="section-block campaign-section" data-pages="pipeline">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Active workflow</p>
+              <h2>当前营销流程跑到哪里了</h2>
+              <p class="section-desc">用户不需要理解所有 Agent，只需要知道目标、渠道、页面、线索、客服/外呼、跟进、结果和下一步。</p>
+            </div>
+            <span id="campaign-updated" class="meta-pill">等待数据</span>
+          </div>
+          <div class="campaign-layout">
+            <article class="campaign-goal-card">
+              <p class="eyebrow">This week goal</p>
+              <h3 id="campaign-goal-title">本周多拿 10 个高质量咨询</h3>
+              <p id="campaign-goal-copy">选择默认模板或运行 Commander 后，这里会自动汇总本周战役。</p>
+              <div class="campaign-action-row">
+                <button id="run-campaign" class="button primary" data-campaign-action="run">一键运行本周战役</button>
+                <button id="restore-campaign" class="button secondary" data-campaign-action="restore">恢复上次战役</button>
+              </div>
+              <div id="campaign-metric-row" class="campaign-metric-row"></div>
+              <div id="campaign-runner-status" class="campaign-runner-status"></div>
+              <div id="campaign-history-list" class="campaign-history-list"></div>
+            </article>
+            <div id="campaign-timeline" class="campaign-timeline"></div>
+          </div>
+        </section>
+
+        <section id="customer-timeline" class="section-block timeline-section" data-pages="customers">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Customer timeline</p>
+              <h2>客户时间线</h2>
+              <p class="section-desc">把来源、落地页、咨询、线索、跟进任务和 Commander 结果串起来，用户只看客户下一步，不看 CRM 后台。</p>
+            </div>
+            <span id="timeline-updated" class="meta-pill">等待数据</span>
+          </div>
+          <div id="customer-timeline-list" class="customer-timeline-list"></div>
+        </section>
+
+        <section id="call-center" class="section-block call-center-section" data-pages="tools customers call-center">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Call node</p>
+              <h2>外呼/呼入只是客户跟进里的一个工具节点</h2>
+              <p class="section-desc">用于回访、预约确认、客服转人工和客户维护；结果必须回写到客户与任务，而不是成为独立后台。</p>
+            </div>
+            <span id="call-center-updated" class="meta-pill">等待数据</span>
+          </div>
+
+          <div id="call-center-summary" class="workbench-summary-strip"></div>
+
+          <div class="call-center-layout">
+            <article class="call-panel dialer-panel">
+              <div class="card-heading">
+                <span class="icon-badge">CL</span>
+                <div>
+                  <h3>人工外呼</h3>
+                  <p>输入号码或从拨号盘点击，按下外呼后自动生成通话会话。</p>
+                </div>
+              </div>
+              <div id="call-run-context"></div>
+              <form id="call-outbound-form" class="call-form">
+                <label>
+                  关联线索（可选）
+                  <select id="call-lead-select" name="lead_id"></select>
+                </label>
+                <textarea name="script" rows="3" placeholder="本次外呼提示：先确认需求，再确认预约或回拨时间。"></textarea>
+                <p class="muted">号码和呼叫动作固定在页面顶端；这里仅补充关联线索和本次话术。</p>
+              </form>
+            </article>
+
+            <article class="call-panel active-call-panel">
+              <div class="card-heading">
+                <span class="icon-badge">ON</span>
+                <div>
+                  <h3>当前通话</h3>
+                  <p>只记录业务结果与下一步，不假装接入真实媒体线路。</p>
+                </div>
+              </div>
+              <div id="active-call-context"></div>
+              <div id="active-call-card" class="active-call-card"></div>
+              <form id="call-disposition-form" class="call-form">
+                <input type="hidden" id="call-session-id" name="call_session_id" />
+                <input type="hidden" id="call-outcome-tag" name="outcome_tag" />
+                <input type="hidden" id="call-next-step-type" name="next_step_type" />
+                <label>
+                  <span id="call-outcome-select-label">通话结果</span>
+                  <select name="disposition" id="call-disposition">
+                    <option value="connected_booked">已接通并预约</option>
+                    <option value="connected_callback">已接通，客户要求回拨</option>
+                    <option value="completed">已接通，继续跟进</option>
+                    <option value="no_answer">未接通</option>
+                    <option value="transfer_required">需要升级人工/主管</option>
+                    <option value="connected_not_interested">暂不考虑</option>
+                    <option value="invalid_number">号码无效</option>
+                  </select>
+                </label>
+                <textarea name="summary" rows="3" placeholder="通话摘要：客户需求、异议、承诺事项"></textarea>
+                <label id="call-next-step-due-label">
+                  <span id="call-next-step-due-label-text">下一步时间（可选）</span>
+                  <input id="call-next-step-due-at" name="next_step_due_at" type="datetime-local" />
+                </label>
+                <div id="call-writeback-quick-actions" class="one-click-outcomes"></div>
+                <p id="call-writeback-hint" class="muted call-writeback-hint">结束后回写结果，系统会自动接下一步。</p>
+                <button id="call-disposition-submit" type="submit" class="button primary">结束并回写 CRM</button>
+              </form>
+            </article>
+
+            <article class="call-panel inbound-panel">
+              <div class="card-heading">
+                <span class="icon-badge">IN</span>
+                <div>
+                  <h3>呼入承接</h3>
+                  <p>记录来电、进入队列、接听并形成后续任务。</p>
+                </div>
+              </div>
+              <form id="call-inbound-form" class="call-form compact">
+                <input name="phone" inputmode="tel" placeholder="来电号码" autocomplete="tel" />
+                <input name="caller_name" placeholder="来电人（可选）" />
+                <input name="intent" placeholder="来电目的，例如：咨询价格 / 改约 / 投诉" />
+                <button type="submit" class="button secondary">记录呼入</button>
+              </form>
+              <div id="inbound-queue" class="call-list"></div>
+            </article>
+
+            <article class="call-panel history-panel">
+              <div class="card-heading">
+                <span class="icon-badge">LOG</span>
+                <div>
+                  <h3>最近通话</h3>
+                  <p>外呼、呼入、结果和下一步任务统一回看。</p>
+                </div>
+              </div>
+              <div id="call-history" class="call-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="support-layer" class="section-block support-layer-banner" data-pages="support">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Supporting layer</p>
+              <h2>下面这些是支撑运营层，不是最终客户主界面</h2>
+              <p class="section-desc">它们服务于最终的“一句话目标 → 自动执行 → 结果复盘”，但不能替代 Commander 主入口。</p>
+            </div>
+            <span id="ops-updated" class="meta-pill">未刷新</span>
+          </div>
+        </section>
+
+        <section id="admin-ops" class="section-block" data-pages="support">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Support overview</p>
+              <h2>支撑运营层概览</h2>
+              <p class="section-desc">审批、quota、provider、sidecar、voice、geo 等底座信号集中在这里，用来保证最终用户主路径稳定可控。</p>
+            </div>
+          </div>
+          <div id="kpi-grid" class="kpi-grid"></div>
+        </section>
+
+        <section id="provider-crm" class="section-block" data-pages="support">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">P1 Operations</p>
+              <h2>Provider / CRM / Billing</h2>
+              <p class="section-desc">把 provider routing、CRM sync、billing quota 变成可运营 read model。</p>
+            </div>
+          </div>
+          <div class="three-column-grid">
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">PR</span>
+                <div>
+                  <h3>Provider Routing</h3>
+                  <p>provider、model、policy、health、cost</p>
+                </div>
+              </div>
+              <div id="provider-summary" class="metric-stack"></div>
+            </article>
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">CM</span>
+                <div>
+                  <h3>CRM Sync Mapping</h3>
+                  <p>字段映射、线索、任务、异常项</p>
+                </div>
+              </div>
+              <div id="crm-summary" class="metric-stack"></div>
+            </article>
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">BQ</span>
+                <div>
+                  <h3>Billing / Quota</h3>
+                  <p>quota、usage ledger、model cost</p>
+                </div>
+              </div>
+              <div id="billing-summary" class="metric-stack"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="knowledge-quality" class="section-block" data-pages="support">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Grounding & Contracts</p>
+              <h2>Knowledge / Notebook / Quality</h2>
+              <p class="section-desc">知识来源、notebook grounding、工具契约、quality gate 与 artifact review。</p>
+            </div>
+          </div>
+          <div class="two-column-grid">
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">KG</span>
+                <div>
+                  <h3>Knowledge Grounding</h3>
+                  <p>source、wiki page、notebook、review artifact</p>
+                </div>
+              </div>
+              <div id="knowledge-summary" class="metric-stack"></div>
+            </article>
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">QC</span>
+                <div>
+                  <h3>Quality Contract</h3>
+                  <p>tool contract、completion report、失败与 concern</p>
+                </div>
+              </div>
+              <div id="quality-summary" class="metric-stack"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="p1-drilldowns" class="section-block" data-pages="support">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Drill-down</p>
+              <h2>P1 运营详情</h2>
+              <p class="section-desc">把 overview 里的 read model 展开成可排障、可审查、可继续产品化的详情面板。</p>
+            </div>
+          </div>
+          <div class="detail-grid">
+            <article class="detail-panel span-2">
+              <div class="card-heading">
+                <span class="icon-badge">MX</span>
+                <div>
+                  <h3>Provider Routing Matrix</h3>
+                  <p>配置、模型、健康快照和策略覆盖关系。</p>
+                </div>
+              </div>
+              <div id="provider-matrix"></div>
+            </article>
+            <article class="detail-panel">
+              <div class="card-heading">
+                <span class="icon-badge">QM</span>
+                <div>
+                  <h3>Quota Meters</h3>
+                  <p>soft/hard limit 和当前用量。</p>
+                </div>
+              </div>
+              <div id="quota-meters" class="meter-list"></div>
+            </article>
+            <article class="detail-panel">
+              <div class="card-heading">
+                <span class="icon-badge">FM</span>
+                <div>
+                  <h3>CRM Field Mapping</h3>
+                  <p>OPC 字段、外部字段和必填状态。</p>
+                </div>
+              </div>
+              <div id="crm-mapping-table"></div>
+            </article>
+            <article class="detail-panel">
+              <div class="card-heading">
+                <span class="icon-badge">KG</span>
+                <div>
+                  <h3>Knowledge Grounding</h3>
+                  <p>notebook/source/wiki/artifact grounding 状态。</p>
+                </div>
+              </div>
+              <div id="knowledge-grounding-panel"></div>
+            </article>
+            <article class="detail-panel">
+              <div class="card-heading">
+                <span class="icon-badge">CT</span>
+                <div>
+                  <h3>Contract Coverage</h3>
+                  <p>工具契约、审批工具和缺口。</p>
+                </div>
+              </div>
+              <div id="quality-contract-panel"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="ops-domains" class="section-block" data-pages="support">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Operational domains</p>
+              <h2>呼叫中心 / 媒体 / Geo / Sidecar</h2>
+              <p class="section-desc">把 P0 底座里的呼叫、录音、geo routing、sidecar readiness 直接变成运营卡片。</p>
+            </div>
+          </div>
+          <div class="four-card-grid">
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">CC</span>
+                <div>
+                  <h3>Call Center</h3>
+                  <p>坐席、队列、路由溢出。</p>
+                </div>
+              </div>
+              <div id="callcenter-panel" class="metric-stack"></div>
+            </article>
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">MD</span>
+                <div>
+                  <h3>Media Ops</h3>
+                  <p>录音留存、归档、清理。</p>
+                </div>
+              </div>
+              <div id="media-panel" class="metric-stack"></div>
+            </article>
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">GR</span>
+                <div>
+                  <h3>Geo Routing</h3>
+                  <p>策略、审批、action history。</p>
+                </div>
+              </div>
+              <div id="geo-panel" class="metric-stack"></div>
+            </article>
+            <article class="ops-card">
+              <div class="card-heading">
+                <span class="icon-badge">SC</span>
+                <div>
+                  <h3>Sidecars</h3>
+                  <p>Go / Python / Rust readiness。</p>
+                </div>
+              </div>
+              <div id="sidecar-panel" class="sidecar-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="ops-review-queue" class="section-block" data-pages="support">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Review Queue</p>
+              <h2>需要处理的事项</h2>
+              <p class="section-desc">来自 admin remediation 和 P1 readiness 的建议动作。</p>
+            </div>
+          </div>
+          <div id="remediation-list" class="review-list"></div>
+        </section>
+
+        <section id="growth-flow" class="section-block" data-pages="tools demo-flow">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Manual workflow input</p>
+              <h2>手动补一个获客链路样本</h2>
+              <p class="section-desc">当用户暂时没有接真实渠道时，可以先补一个来源、页面和咨询样本，让系统形成可复盘的最小闭环。</p>
+            </div>
+          </div>
+          <div class="three-column-grid">
+            <article class="ops-card">
+              <h3>1. 来源打标</h3>
+              <form id="source-form" class="form-stack">
+                <label>平台
+                  <select name="platform_code">
+                    <option value="xiaohongshu">小红书</option>
+                    <option value="linkedin">LinkedIn</option>
+                    <option value="reddit">Reddit</option>
+                    <option value="tiktok">TikTok</option>
+                    <option value="google">Google SEO</option>
+                  </select>
+                </label>
+                <label>入口<input name="entry_point" placeholder="例如 bio_link / dm / webinar" /></label>
+                <button class="button primary">创建渠道和来源链接</button>
+              </form>
+              <div class="inline-note">最新来源链接</div>
+              <div id="active-link" class="link-box empty">还没有来源链接</div>
+              <pre id="source-output"></pre>
+            </article>
+
+            <article class="ops-card">
+              <h3>2. 落地页</h3>
+              <form id="page-form" class="form-stack">
+                <label>标题<input name="title" placeholder="例如 免费增长诊断" /></label>
+                <label>Slug<input name="slug" placeholder="例如 growth-diagnosis" /></label>
+                <label>主标题<input name="headline" placeholder="例如 帮你判断下一步最值得做的获客动作" /></label>
+                <button class="button primary">创建落地页</button>
+              </form>
+              <div class="inline-note">公开页面</div>
+              <div id="page-link" class="link-box empty">还没有落地页</div>
+              <pre id="page-output"></pre>
+            </article>
+
+            <article class="ops-card">
+              <h3>3. 模拟咨询提交</h3>
+              <form id="inquiry-form" class="form-stack">
+                <label>姓名<input name="name" placeholder="例如 张先生 / Anna" /></label>
+                <label>邮箱<input name="email" placeholder="例如 you@example.com" /></label>
+                <label>电话<input name="phone" placeholder="例如 +86138..." /></label>
+                <label>问题<textarea name="message" placeholder="例如 我想预约一次诊断，看看价格和下一步方案。"></textarea></label>
+                <button class="button primary">提交并自动评分</button>
+              </form>
+              <pre id="inquiry-output"></pre>
+            </article>
+          </div>
+        </section>
+
+        <section id="crm-detail" class="section-block" data-pages="customers">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Unified inbox</p>
+              <h2>客户、咨询、线索与任务</h2>
+              <p class="section-desc">把客户信号统一承接，不让一人公司创业者在多个后台之间切换。</p>
+            </div>
+          </div>
+          <div class="three-column-grid">
+            <article class="ops-card">
+              <h3>待处理任务</h3>
+              <div id="task-list" class="stack-list"></div>
+            </article>
+            <article class="ops-card">
+              <h3>最近咨询</h3>
+              <div id="inquiries-table"></div>
+            </article>
+            <article class="ops-card">
+              <h3>最近线索</h3>
+              <div id="leads-table"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="growth-analytics" class="section-block" data-pages="review">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Review</p>
+              <h2>复盘优化</h2>
+              <p class="section-desc">看哪些渠道、内容、页面、跟进动作有效，并把建议转成下一轮营销流程。</p>
+            </div>
+          </div>
+          <div class="three-column-grid">
+            <article class="ops-card">
+              <h3>周报建议</h3>
+              <div id="weekly-report" class="report-box"></div>
+            </article>
+            <article class="ops-card">
+              <h3>漏斗</h3>
+              <div id="funnel-table"></div>
+            </article>
+            <article class="ops-card">
+              <h3>渠道表现</h3>
+              <div id="channels-table"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="resources" class="section-block" data-pages="pipeline tools">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Workflow outputs</p>
+              <h2>来源链接与承接页面</h2>
+              <p class="section-desc">它们是获客流水线的产物，不再作为孤立资源页放在主导航里。</p>
+            </div>
+          </div>
+          <div class="three-column-grid">
+            <article class="ops-card">
+              <h3>来源标签</h3>
+              <div id="source-tags-table"></div>
+            </article>
+            <article class="ops-card">
+              <h3>落地页</h3>
+              <div id="pages-table"></div>
+            </article>
+            <article class="ops-card soft-card">
+              <h3>公开访问</h3>
+              <p class="muted">打开公开链接会自动记录 page_view；提交表单会记录 cta_click 和 form_submit。</p>
+              <div id="landing-preview" class="link-box empty">创建落地页后这里会出现可打开的链接</div>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="task-outcome-dialog" class="task-outcome-dialog">
+    <form id="task-outcome-form" class="task-outcome-form" method="dialog">
+      <div class="task-outcome-head">
+        <div>
+          <p class="eyebrow">Task outcome</p>
+          <h3 id="task-outcome-title">记录任务结果</h3>
+          <p id="task-outcome-meta" class="muted">完成后系统会自动承接下一步。</p>
+        </div>
+        <button id="task-outcome-cancel" class="button ghost" type="button">取消</button>
+      </div>
+      <div id="task-outcome-context"></div>
+      <div class="task-outcome-grid">
+        <label>
+          处理结果
+          <select id="task-outcome-result" name="completion_result">
+            <option value="contacted">已联系上，继续推进</option>
+            <option value="callback_requested">客户要求回拨</option>
+            <option value="appointment_booked">已经约好沟通</option>
+            <option value="no_response">暂未联系上</option>
+            <option value="disqualified">暂不继续跟进</option>
+            <option value="won">已成交</option>
+            <option value="completed">仅标记已完成</option>
+          </select>
+        </label>
+        <label>
+          系统接哪一步
+          <select id="task-outcome-next-step" name="next_step_type">
+            <option value="followup">继续跟进</option>
+            <option value="callback">安排回拨</option>
+            <option value="appointment">预约准备</option>
+            <option value="none">不需要下一步</option>
+          </select>
+        </label>
+        <label>
+          下一步时间
+          <input id="task-outcome-due-at" name="next_step_due_at" type="datetime-local" />
+        </label>
+        <label class="span-2">
+          备注 / 原因
+          <textarea id="task-outcome-reason" name="completion_reason" rows="4" placeholder="例如：客户要求今天 16:00 回拨，重点确认预算和参与人数"></textarea>
+        </label>
+      </div>
+      <div class="task-outcome-inline-note">
+        <strong>系统会自动做两件事：</strong>
+        <span id="task-outcome-hint">完成当前任务，并按结果自动接下一步。</span>
+      </div>
+      <div class="task-outcome-actions">
+        <button class="button secondary" type="submit">保存结果并继续闭环</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/assets/app.js?v=three-zone-20260527-ui6"></script>
+</body>
+</html>

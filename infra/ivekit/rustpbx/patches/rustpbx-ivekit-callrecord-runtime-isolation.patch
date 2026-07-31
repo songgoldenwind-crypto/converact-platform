@@ -1,0 +1,165 @@
+diff --git a/src/app.rs b/src/app.rs
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -505,7 +505,7 @@ impl AppStateBuilder {
+         }
+ 
+         if let Some(mut manager) = callrecord_manager {
+-            crate::utils::spawn(async move {
++            crate::utils::callrecord_spawn(async move {
+                 manager.serve().await;
+             });
+         }
+diff --git a/src/bin/rustpbx.rs b/src/bin/rustpbx.rs
+--- a/src/bin/rustpbx.rs
++++ b/src/bin/rustpbx.rs
+@@ -272,14 +272,22 @@ fn main() -> Result<()> {
+     println!("Start at {}", Utc::now());
+     println!("{}", version::get_version_info());
+ 
+-    // ---- Dual tokio runtime setup -----------------------------------------
++    // ---- Isolated tokio runtime setup -------------------------------------
+     // SIP runtime: few threads (signalling is lightweight).
+     // Media runtime: the rest of the cores — dedicated worker threads so that
+     // heavy RTP forwarding does not starve SIP timer/transaction tasks.
+     let sip_workers = config.proxy.sip_worker_threads.max(1);
+     let media_workers = config.proxy.media_worker_threads.max(1);
++    let callrecord_workers = config
++        .callrecord
++        .as_ref()
++        .map_or(1, |callrecord| callrecord.worker_threads)
++        .clamp(1, 16);
+ 
+-    println!("SIP workers={} Media workers={}", sip_workers, media_workers);
++    println!(
++        "SIP workers={} Media workers={} Call record workers={}",
++        sip_workers, media_workers, callrecord_workers
++    );
+ 
+     let media_runtime = tokio::runtime::Builder::new_multi_thread()
+         .worker_threads(media_workers)
+@@ -289,6 +297,14 @@ fn main() -> Result<()> {
+         .map_err(|e| anyhow::anyhow!("Failed to build media runtime: {}", e))?;
+     rustpbx::utils::set_media_runtime(media_runtime.handle().clone());
+ 
++    let callrecord_runtime = tokio::runtime::Builder::new_multi_thread()
++        .worker_threads(callrecord_workers)
++        .thread_name("callrecord-worker")
++        .enable_all()
++        .build()
++        .map_err(|e| anyhow::anyhow!("Failed to build call-record runtime: {}", e))?;
++    rustpbx::utils::set_callrecord_runtime(callrecord_runtime.handle().clone());
++
+     let sip_runtime = tokio::runtime::Builder::new_multi_thread()
+         .worker_threads(sip_workers)
+         .thread_name("sip-worker")
+diff --git a/src/callrecord/tests.rs b/src/callrecord/tests.rs
+--- a/src/callrecord/tests.rs
++++ b/src/callrecord/tests.rs
+@@ -58,6 +58,7 @@ async fn test_database_saver_requires_database_url() {
+         .with_config(CallRecordConfig {
+             max_concurrent: 64,
+             channel_capacity: DEFAULT_CALL_RECORD_CHANNEL_CAPACITY,
++            worker_threads: 1,
+             persist_to_database: true,
+             storage: CallRecordStorageConfig::Database {
+                 database_url: None,
+diff --git a/src/config.rs b/src/config.rs
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -472,6 +472,10 @@ fn default_call_record_channel_capacity() -> usize {
+     DEFAULT_CALL_RECORD_CHANNEL_CAPACITY
+ }
+ 
++fn default_call_record_worker_threads() -> usize {
++    1
++}
++
+ fn default_call_record_persist_to_database() -> bool {
+     true
+ }
+@@ -484,6 +488,9 @@ pub struct CallRecordConfig {
+     /// Bounded handoff capacity between call teardown and asynchronous sinks.
+     #[serde(default = "default_call_record_channel_capacity")]
+     pub channel_capacity: usize,
++    /// Dedicated runtime threads for call-record sinks and hooks.
++    #[serde(default = "default_call_record_worker_threads")]
++    pub worker_threads: usize,
+     /// Persist the canonical CDR in RustPBX in addition to configured sinks.
+     #[serde(default = "default_call_record_persist_to_database")]
+     pub persist_to_database: bool,
+@@ -1421,6 +1428,7 @@ impl Default for CallRecordConfig {
+         Self {
+             max_concurrent: default_call_record_max_concurrent(),
+             channel_capacity: default_call_record_channel_capacity(),
++            worker_threads: default_call_record_worker_threads(),
+             persist_to_database: default_call_record_persist_to_database(),
+             storage: CallRecordStorageConfig::Local {
+                 #[cfg(target_os = "windows")]
+@@ -1572,9 +1580,24 @@ mod tests {
+         )
+         .unwrap();
+         assert_eq!(defaulted.max_concurrent, DEFAULT_CALL_RECORD_MAX_CONCURRENT);
++        assert_eq!(defaulted.worker_threads, 1);
+     }
+ 
+     #[test]
++    fn callrecord_worker_threads_are_configurable() {
++        let callrecord: CallRecordConfig = toml::from_str(
++            r#"
++            type = "http"
++            url = "https://example.com/cdr"
++            worker_threads = 3
++            "#,
++        )
++        .unwrap();
++
++        assert_eq!(callrecord.worker_threads, 3);
++    }
++
++    #[test]
+     fn callrecord_database_persistence_defaults_to_enabled() {
+         let callrecord: CallRecordConfig = toml::from_str(
+             r#"
+diff --git a/src/utils.rs b/src/utils.rs
+--- a/src/utils.rs
++++ b/src/utils.rs
+@@ -155,6 +155,38 @@ pub fn spawn<T>(future: T) -> tokio::task::JoinHandle<T::Output>
+         let _guard = _guard;
+         future.await
+     })
++}
++
++// Call-record sinks may block on HTTP, databases or object storage. Keep
++// their scheduling independent from SIP transaction timers.
++static CALL_RECORD_RUNTIME: OnceLock<Handle> = OnceLock::new();
++
++pub fn set_callrecord_runtime(handle: Handle) {
++    CALL_RECORD_RUNTIME
++        .set(handle)
++        .expect("set_callrecord_runtime called more than once");
++}
++
++#[track_caller]
++pub fn callrecord_spawn<T>(future: T) -> tokio::task::JoinHandle<T::Output>
++where
++    T: std::future::Future + Send + 'static,
++    T::Output: Send + 'static,
++{
++    let location = std::panic::Location::caller();
++    let loc = format!("{}:{}", location.file(), location.line());
++    let _guard = TaskGuard::new(loc);
++    if let Some(handle) = CALL_RECORD_RUNTIME.get() {
++        handle.spawn(async move {
++            let _guard = _guard;
++            future.await
++        })
++    } else {
++        tokio::spawn(async move {
++            let _guard = _guard;
++            future.await
++        })
++    }
+ }
+ 
+ // ---------------------------------------------------------------------------

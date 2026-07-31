@@ -1,0 +1,160 @@
+# syntax=docker/dockerfile:1
+
+FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd AS snapshot-base
+
+ARG DEBIAN_SNAPSHOT=20260725T000000Z
+
+RUN printf '%s\n' \
+      'Acquire::Check-Valid-Until "false";' \
+      'Acquire::Retries "3";' \
+      'Acquire::https::Timeout "30";' \
+      > /etc/apt/apt.conf.d/99ivekit-snapshot \
+    && printf '%s\n' \
+      "deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT} trixie main" \
+      "deb [check-valid-until=no] https://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT} trixie-security main" \
+      > /etc/apt/sources.list \
+    && rm -f /etc/apt/sources.list.d/debian.sources \
+    && printf '%s\n' 'Acquire::https::Verify-Peer "false";' \
+      > /etc/apt/apt.conf.d/98ivekit-ca-bootstrap \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates \
+    && rm -f /etc/apt/apt.conf.d/98ivekit-ca-bootstrap \
+    && apt-get update
+
+FROM snapshot-base AS runtime-rootfs
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates \
+      iproute2 \
+      iptables \
+      libavcodec-extra \
+      libavfilter10 \
+      libbcg729-0 \
+      libcurl4t64 \
+      libevent-2.1-7t64 \
+      libevent-pthreads-2.1-7t64 \
+      libglib2.0-0t64 \
+      libhiredis1.1.0 \
+      libip4tc2 \
+      libip6tc2 \
+      libjson-glib-1.0-0 \
+      libjwt2 \
+      libmariadb3 \
+      libmnl0 \
+      libncursesw6 \
+      libnftnl11 \
+      libopus0 \
+      libpcap0.8t64 \
+      libpcre2-8-0 \
+      libspandsp2 \
+      libssl3t64 \
+      libsystemd0 \
+      libwebsockets19t64 \
+      nftables \
+      procps \
+      tzdata \
+    && groupadd --gid 10001 ivekit-rtpengine \
+    && useradd --uid 10001 --gid 10001 --no-create-home \
+      --home-dir /var/lib/ivekit-rtpengine --shell /usr/sbin/nologin \
+      ivekit-rtpengine \
+    && install -d -o 10001 -g 10001 -m 0750 \
+      /rec \
+      /run/ivekit-rtpengine \
+      /var/lib/ivekit-rtpengine \
+    && install -d -o root -g root -m 0755 /etc/ivekit \
+    && dpkg-query -W -f='${Package}=${Version}\n' \
+      | LC_ALL=C sort > /usr/share/ivekit-runtime-packages.txt \
+    && install -m 0444 /var/lib/dpkg/status \
+      /usr/share/ivekit-runtime-dpkg-status \
+    && rm -f \
+      /usr/bin/apt \
+      /usr/bin/apt-cache \
+      /usr/bin/apt-cdrom \
+      /usr/bin/apt-config \
+      /usr/bin/apt-get \
+      /usr/bin/apt-mark \
+      /usr/bin/dpkg \
+      /usr/bin/dpkg-deb \
+      /usr/bin/dpkg-divert \
+      /usr/bin/dpkg-maintscript-helper \
+      /usr/bin/dpkg-query \
+      /usr/bin/dpkg-realpath \
+      /usr/bin/dpkg-split \
+      /usr/bin/dpkg-statoverride \
+      /usr/bin/dpkg-trigger \
+      /usr/bin/gcc \
+      /usr/bin/g++ \
+      /usr/bin/make \
+    && rm -rf \
+      /etc/apt \
+      /usr/lib/apt \
+      /usr/lib/dpkg \
+      /var/cache/apt \
+      /var/lib/apt \
+      /var/lib/dpkg \
+      /var/log/apt \
+      /usr/share/doc \
+      /usr/share/man \
+    && install -d -o root -g root -m 0755 /var/lib/dpkg \
+    && install -m 0444 /usr/share/ivekit-runtime-dpkg-status \
+      /var/lib/dpkg/status \
+    && find /var/log -type f -exec truncate -s 0 {} +
+
+FROM snapshot-base AS toolchain
+
+ARG DEBIAN_SNAPSHOT=20260725T000000Z
+
+LABEL org.opencontainers.image.source="https://github.com/songgoldenwind-crypto/opc-platform"
+LABEL org.opencontainers.image.description="iveKit reproducible RTPengine toolchain"
+LABEL io.ivekit.toolchain.base="debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd"
+LABEL io.ivekit.toolchain.snapshot="${DEBIAN_SNAPSHOT}"
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      bc \
+      bison \
+      build-essential \
+      ca-certificates \
+      curl \
+      default-libmysqlclient-dev \
+      flex \
+      g++ \
+      gcc \
+      git \
+      gperf \
+      iproute2 \
+      iptables \
+      kmod \
+      libavcodec-extra \
+      libavfilter-dev \
+      libbcg729-dev \
+      libcurl4-openssl-dev \
+      libevent-dev \
+      libhiredis-dev \
+      libiptc-dev \
+      libjson-glib-dev \
+      libjwt-dev \
+      libmnl-dev \
+      libncurses-dev \
+      libnftnl-dev \
+      libopus-dev \
+      libpcap-dev \
+      libpcre2-dev \
+      libspandsp-dev \
+      libssl-dev \
+      libsystemd-dev \
+      libwebsockets-dev \
+      make \
+      markdown \
+      nodejs \
+      patch \
+      pkg-config \
+      xz-utils \
+    && dpkg-query -W -f='${Package}=${Version}\n' \
+      | LC_ALL=C sort > /usr/share/ivekit-toolchain-packages.txt \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=runtime-rootfs / /opt/ivekit-runtime-rootfs
+
+WORKDIR /workspace

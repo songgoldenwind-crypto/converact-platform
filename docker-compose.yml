@@ -1,0 +1,13 @@
+services:
+  opc:
+    build: .
+    ports:
+      - "${OPC_HOST_PORT:-3000}:3000"
+    environment:
+      PORT: "3000"
+      OPC_DB_PATH: "/data/opc.sqlite"
+    volumes:
+      - opc_data:/data
+
+volumes:
+  opc_data:

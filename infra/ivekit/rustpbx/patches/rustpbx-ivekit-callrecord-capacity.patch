@@ -1,0 +1,225 @@
+diff --git a/src/app.rs b/src/app.rs
+index e91f9118..00d06ccf 100644
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -322,2 +322,3 @@ impl AppStateBuilder {
+                 builder = builder.with_max_concurrent(callrecord.max_concurrent);
++                builder = builder.with_channel_capacity(callrecord.channel_capacity);
+                 builder = builder.with_config(callrecord.clone());
+diff --git a/src/callrecord/mod.rs b/src/callrecord/mod.rs
+index df48a02d..7b0ae973 100644
+--- a/src/callrecord/mod.rs
++++ b/src/callrecord/mod.rs
+@@ -1,3 +1,6 @@
+ use crate::{
+-    config::{CallRecordConfig, CallRecordStorageConfig, DEFAULT_CALL_RECORD_MAX_CONCURRENT},
++    config::{
++        CallRecordConfig, CallRecordStorageConfig, DEFAULT_CALL_RECORD_CHANNEL_CAPACITY,
++        DEFAULT_CALL_RECORD_MAX_CONCURRENT, MAX_CALL_RECORD_CHANNEL_CAPACITY,
++    },
+     utils::sanitize_id,
+@@ -28,3 +31,3 @@ use tokio::{
+ use tokio_util::sync::CancellationToken;
+-use tracing::{info, warn};
++use tracing::{debug, info, warn};
+
+@@ -342,3 +345,2 @@ pub trait CallRecordHook: Send + Sync {
+ /// the cap under normal load — the bound is a safety net, not a target.
+-pub const CALL_RECORD_CHANNEL_CAPACITY: usize = 1024;
+ pub type CallRecordSender = tokio::sync::mpsc::Sender<CallRecord>;
+@@ -472,2 +474,3 @@ pub struct CallRecordManagerBuilder {
+     pub max_concurrent: Option<usize>,
++    pub channel_capacity: Option<usize>,
+     hooks: Vec<Box<dyn CallRecordHook>>,
+@@ -487,2 +490,3 @@ impl CallRecordManagerBuilder {
+             max_concurrent: None,
++            channel_capacity: None,
+             hooks: Vec::new(),
+@@ -510,2 +514,7 @@ impl CallRecordManagerBuilder {
+
++    pub fn with_channel_capacity(mut self, channel_capacity: usize) -> Self {
++        self.channel_capacity = Some(channel_capacity);
++        self
++    }
++
+     pub async fn build(self) -> Result<CallRecordManager> {
+@@ -515,2 +524,3 @@ impl CallRecordManagerBuilder {
+             max_concurrent,
++            channel_capacity,
+             hooks,
+@@ -518,3 +528,10 @@ impl CallRecordManagerBuilder {
+         let cancel_token = cancel_token.unwrap_or_default();
+-        let (sender, receiver) = tokio::sync::mpsc::channel(CALL_RECORD_CHANNEL_CAPACITY);
++        let channel_capacity = channel_capacity.unwrap_or(DEFAULT_CALL_RECORD_CHANNEL_CAPACITY);
++        if !(1..=MAX_CALL_RECORD_CHANNEL_CAPACITY).contains(&channel_capacity) {
++            return Err(anyhow::anyhow!(
++                "call record channel capacity must be between 1 and {}",
++                MAX_CALL_RECORD_CHANNEL_CAPACITY
++            ));
++        }
++        let (sender, receiver) = tokio::sync::mpsc::channel(channel_capacity);
+         let saver: Box<dyn CallRecordSaver> = match config.map(|config| config.storage) {
+@@ -820,3 +837,3 @@ impl CallRecordManager {
+                                 let elapsed = start_time.elapsed();
+-                                info!(
++                                debug!(
+                                     ?elapsed,
+diff --git a/src/callrecord/tests.rs b/src/callrecord/tests.rs
+index c87896f8..1fd3f26f 100644
+--- a/src/callrecord/tests.rs
++++ b/src/callrecord/tests.rs
+@@ -25,2 +25,31 @@ async fn test_builder_without_callrecord_config_uses_noop_saver() {
+
++#[tokio::test]
++async fn test_builder_applies_bounded_call_record_channel_capacity() {
++    let manager = CallRecordManagerBuilder::new()
++        .with_channel_capacity(17)
++        .build()
++        .await
++        .unwrap();
++
++    assert_eq!(manager.sender.max_capacity(), 17);
++}
++
++#[tokio::test]
++async fn test_builder_rejects_invalid_call_record_channel_capacity() {
++    for capacity in [0, MAX_CALL_RECORD_CHANNEL_CAPACITY + 1] {
++        let error = CallRecordManagerBuilder::new()
++            .with_channel_capacity(capacity)
++            .build()
++            .await
++            .err()
++            .unwrap();
++
++        assert!(
++            error
++                .to_string()
++                .contains("call record channel capacity must be between")
++        );
++    }
++}
++
+ #[tokio::test]
+@@ -30,2 +59,3 @@ async fn test_database_saver_requires_database_url() {
+             max_concurrent: 64,
++            channel_capacity: DEFAULT_CALL_RECORD_CHANNEL_CAPACITY,
+             storage: CallRecordStorageConfig::Database {
+diff --git a/src/config.rs b/src/config.rs
+index f275873b..c642b43c 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -463,2 +463,4 @@ pub use crate::storage::S3Vendor;
+ pub const DEFAULT_CALL_RECORD_MAX_CONCURRENT: usize = 64;
++pub const DEFAULT_CALL_RECORD_CHANNEL_CAPACITY: usize = 65_536;
++pub const MAX_CALL_RECORD_CHANNEL_CAPACITY: usize = 262_144;
+
+@@ -468,2 +470,6 @@ fn default_call_record_max_concurrent() -> usize {
+
++fn default_call_record_channel_capacity() -> usize {
++    DEFAULT_CALL_RECORD_CHANNEL_CAPACITY
++}
++
+ #[derive(Debug, Deserialize, Clone, Serialize)]
+@@ -473,2 +479,5 @@ pub struct CallRecordConfig {
+     pub max_concurrent: usize,
++    /// Bounded handoff capacity between call teardown and asynchronous sinks.
++    #[serde(default = "default_call_record_channel_capacity")]
++    pub channel_capacity: usize,
+     #[serde(flatten)]
+@@ -1406,2 +1415,3 @@ impl Default for CallRecordConfig {
+             max_concurrent: default_call_record_max_concurrent(),
++            channel_capacity: default_call_record_channel_capacity(),
+             storage: CallRecordStorageConfig::Local {
+diff --git a/src/proxy/call.rs b/src/proxy/call.rs
+index 7e15ab33..094d6126 100644
+--- a/src/proxy/call.rs
++++ b/src/proxy/call.rs
+@@ -1701,3 +1701,3 @@ impl CallModule {
+             Err(route_err) => {
+-                warn!(key = %tx.key, "failed to build dialplan");
++                debug!(key = %tx.key, "failed to build dialplan");
+                 return self.reply_route_error(tx, &cookie, route_err).await;
+@@ -2245,3 +2245,3 @@ impl ProxyModule for CallModule {
+             DialogId::try_from((&tx.original, TransactionRole::Server)).map_err(|e| anyhow!(e))?;
+-        info!(
++        debug!(
+             %dialog_id,
+diff --git a/src/proxy/tests/cdr_capture.rs b/src/proxy/tests/cdr_capture.rs
+--- a/src/proxy/tests/cdr_capture.rs
++++ b/src/proxy/tests/cdr_capture.rs
+@@ -18,3 +18,3 @@ impl CdrCapture {
+         let (sender, mut receiver) = tokio::sync::mpsc::channel::<CallRecord>(
+-            crate::callrecord::CALL_RECORD_CHANNEL_CAPACITY,
++            crate::config::DEFAULT_CALL_RECORD_CHANNEL_CAPACITY,
+         );
+diff --git a/src/proxy/proxy_call/reporter.rs b/src/proxy/proxy_call/reporter.rs
+index 0f3701a6..4bbb60b1 100644
+--- a/src/proxy/proxy_call/reporter.rs
++++ b/src/proxy/proxy_call/reporter.rs
+@@ -205,3 +205,3 @@ impl CallReporter {
+         }
+-        tracing::info!(
++        tracing::debug!(
+             recording = ?self.context.dialplan.recording,
+@@ -323,8 +323,25 @@ impl CallReporter {
+         if let Some(ref sender) = self.call_record_sender {
+-            // Bounded channel: drop new records (with a warn log) if the
+-            // saver has fallen behind, instead of buffering indefinitely.
+-            // `try_send` is sync, so the existing synchronous emit path is
+-            // preserved.
+-            if let Err(tokio::sync::mpsc::error::TrySendError::Full(_)) = sender.try_send(record) {
+-                tracing::warn!("call record channel full; dropping record to bound memory");
++            let result = sender.try_send(record);
++            metrics::gauge!("rustpbx_call_record_queue_capacity")
++                .set(sender.max_capacity() as f64);
++            metrics::gauge!("rustpbx_call_record_queue_available")
++                .set(sender.capacity() as f64);
++            match result {
++                Ok(()) => {}
++                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
++                    metrics::counter!(
++                        "rustpbx_call_record_queue_dropped_total",
++                        "reason" => "full"
++                    )
++                    .increment(1);
++                    warn_call_record_drop("full");
++                }
++                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
++                    metrics::counter!(
++                        "rustpbx_call_record_queue_dropped_total",
++                        "reason" => "closed"
++                    )
++                    .increment(1);
++                    warn_call_record_drop("closed");
++                }
+             }
+@@ -334,2 +351,21 @@ impl CallReporter {
+
++fn warn_call_record_drop(reason: &'static str) {
++    use std::sync::atomic::{AtomicU64, Ordering};
++    use std::time::{SystemTime, UNIX_EPOCH};
++
++    static LAST_WARNING_EPOCH_SECS: AtomicU64 = AtomicU64::new(0);
++    let now = SystemTime::now()
++        .duration_since(UNIX_EPOCH)
++        .unwrap_or_default()
++        .as_secs();
++    let previous = LAST_WARNING_EPOCH_SECS.load(Ordering::Relaxed);
++    if now.saturating_sub(previous) >= 5
++        && LAST_WARNING_EPOCH_SECS
++            .compare_exchange(previous, now, Ordering::Relaxed, Ordering::Relaxed)
++            .is_ok()
++    {
++        tracing::warn!(reason, "call record queue dropped records to bound memory");
++    }
++}
++
+ fn build_sip_leg_roles(snapshot: &CallSessionRecordSnapshot) -> HashMap<String, String> {
+diff --git a/tests/helpers/cdr_verifier.rs b/tests/helpers/cdr_verifier.rs
+--- a/tests/helpers/cdr_verifier.rs
++++ b/tests/helpers/cdr_verifier.rs
+@@ -168,3 +168,3 @@ impl CdrVerifier {
+         let (sender, mut receiver) = tokio::sync::mpsc::channel::<CallRecord>(
+-            rustpbx::callrecord::CALL_RECORD_CHANNEL_CAPACITY,
++            rustpbx::config::DEFAULT_CALL_RECORD_CHANNEL_CAPACITY,
+         );

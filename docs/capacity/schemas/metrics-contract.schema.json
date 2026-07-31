@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ivekit.local/schemas/capacity/metrics-contract-v1.schema.json",
+  "title": "iveKit Metrics Contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "contract_id",
+    "status",
+    "clock",
+    "forbidden_labels",
+    "metrics"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "contract_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]*$"
+    },
+    "status": {
+      "enum": [
+        "target",
+        "implemented",
+        "verified"
+      ]
+    },
+    "clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maximum_ntp_offset_seconds",
+        "required_metadata"
+      ],
+      "properties": {
+        "maximum_ntp_offset_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "required_metadata": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "clock_source"
+            },
+            {
+              "const": "ntp_offset_seconds"
+            },
+            {
+              "const": "captured_at"
+            }
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        }
+      }
+    },
+    "forbidden_labels": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    },
+    "metrics": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "$ref": "#/$defs/metric"
+      }
+    }
+  },
+  "$defs": {
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type",
+        "unit",
+        "help",
+        "labels",
+        "cardinality_bound"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^ivekit_voice_[a-z0-9_]+$"
+        },
+        "type": {
+          "enum": [
+            "counter",
+            "gauge",
+            "histogram"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "help": {
+          "type": "string",
+          "minLength": 1
+        },
+        "labels": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        },
+        "buckets": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "aggregation_window": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cardinality_bound": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "histogram"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "buckets"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

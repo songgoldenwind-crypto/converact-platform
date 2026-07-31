@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ivekit-victoria-metrics
+  labels:
+    app.kubernetes.io/name: ivekit-victoria-metrics
+    app.kubernetes.io/component: metrics-storage
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ivekit-victoria-metrics
+    app.kubernetes.io/component: metrics-storage
+  ports:
+    - name: http
+      port: 8428
+      targetPort: http

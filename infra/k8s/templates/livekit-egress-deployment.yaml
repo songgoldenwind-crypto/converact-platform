@@ -1,0 +1,432 @@
+{{- if .Values.media.egress.enabled }}
+{{- $root := . }}
+{{- $egressImageRepository := required "media.egress.image.repository is required when LiveKit Egress is enabled" .Values.media.egress.image.repository }}
+{{- $egressImageRepositoryNormalized := lower $egressImageRepository }}
+{{- if not (regexMatch "(^|/)ivekit/livekit-egress$" $egressImageRepositoryNormalized) }}
+{{- fail "media.egress.image.repository must identify an iveKit custom image ending with ivekit/livekit-egress" }}
+{{- end }}
+{{- $egressImageRepositoryParts := splitList "/" $egressImageRepositoryNormalized }}
+{{- $egressImageRegistry := "docker.io" }}
+{{- if gt (len $egressImageRepositoryParts) 2 }}
+{{- $egressImageRegistry = index $egressImageRepositoryParts 0 }}
+{{- end }}
+{{- $egressImageAllowedRegistries := required "media.egress.image.allowedRegistries must contain at least one approved registry" .Values.media.egress.image.allowedRegistries }}
+{{- $egressImageRegistryAllowed := false }}
+{{- range $allowedRegistry := $egressImageAllowedRegistries }}
+{{- if eq (lower $allowedRegistry) $egressImageRegistry }}
+{{- $egressImageRegistryAllowed = true }}
+{{- end }}
+{{- end }}
+{{- if not $egressImageRegistryAllowed }}
+{{- fail (printf "Egress image registry %s is not listed in media.egress.image.allowedRegistries" $egressImageRegistry) }}
+{{- end }}
+{{- if ne .Values.media.egress.image.contract "ivekit-egress-pool-v1" }}
+{{- fail "media.egress.image.contract must be ivekit-egress-pool-v1" }}
+{{- end }}
+{{- $egressImageDigest := required "media.egress.image.digest is required when LiveKit Egress is enabled" .Values.media.egress.image.digest }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $egressImageDigest) }}
+{{- fail "media.egress.image.digest must be an immutable sha256 digest" }}
+{{- end }}
+{{- $livekitInternalUrl := include "opc.livekitInternalUrl" . }}
+{{- range $poolName, $pool := .Values.media.egress.pools }}
+{{- if $pool.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}-config
+type: Opaque
+stringData:
+  egress.yaml: |
+    logging:
+      level: info
+      json: true
+    api_key: {{ include "opc.livekitApiKey" $root | quote }}
+    api_secret: {{ include "opc.livekitApiSecret" $root | quote }}
+    ws_url: {{ $livekitInternalUrl | quote }}
+    insecure: {{ hasPrefix "ws://" $livekitInternalUrl }}
+    redis:
+      {{- include "opc.livekitRedisConfig" $root | nindent 6 }}
+    health_port: {{ $root.Values.media.egress.healthPort | default 8091 }}
+    prometheus_port: {{ $root.Values.media.egress.prometheusPort | default 9090 }}
+    backup_storage: /var/lib/livekit-egress/backup
+    cpu_cost:
+      room_composite_cpu_cost: {{ $pool.cpuCost.roomComposite }}
+      audio_room_composite_cpu_cost: {{ $pool.cpuCost.audioRoomComposite }}
+      web_cpu_cost: {{ $pool.cpuCost.web }}
+      audio_web_cpu_cost: {{ $pool.cpuCost.audioWeb }}
+      participant_cpu_cost: {{ $pool.cpuCost.participant }}
+      track_composite_cpu_cost: {{ $pool.cpuCost.trackComposite }}
+      track_cpu_cost: {{ $pool.cpuCost.track }}
+      max_cpu_utilization: {{ $pool.cpuCost.maxUtilization }}
+    session_limits:
+      file_output_max_duration: {{ $root.Values.media.egress.sessionLimits.fileOutputMaxDuration | quote }}
+      stream_output_max_duration: {{ $root.Values.media.egress.sessionLimits.streamOutputMaxDuration | quote }}
+      segment_output_max_duration: {{ $root.Values.media.egress.sessionLimits.segmentOutputMaxDuration | quote }}
+    storage:
+      s3:
+        access_key: ""
+        secret: ""
+        region: {{ include "opc.objectStorageRegion" $root | quote }}
+        endpoint: {{ include "opc.objectStorageEndpoint" $root | quote }}
+        bucket: {{ include "opc.objectStorageBucket" $root | quote }}
+        force_path_style: {{ include "opc.objectStorageForcePathStyle" $root }}
+        max_retries: {{ $root.Values.media.egress.storage.maxRetries | default 10 }}
+        min_retry_delay: {{ $root.Values.media.egress.storage.minRetryDelay | default "500ms" | quote }}
+        max_retry_delay: {{ $root.Values.media.egress.storage.maxRetryDelay | default "30s" | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}
+  labels:
+    app.kubernetes.io/name: livekit-egress
+    ivekit.io/egress-pool: {{ $poolName }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: livekit-egress
+    ivekit.io/egress-pool: {{ $poolName }}
+  ports:
+    - name: health
+      port: {{ $root.Values.media.egress.healthPort | default 8091 }}
+      targetPort: health
+    - name: metrics
+      port: {{ $root.Values.media.egress.prometheusPort | default 9090 }}
+      targetPort: metrics
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}
+  labels:
+    app.kubernetes.io/name: livekit-egress
+    ivekit.io/egress-pool: {{ $poolName }}
+spec:
+  serviceName: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}
+  podManagementPolicy: Parallel
+  replicas: {{ $pool.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: livekit-egress
+      ivekit.io/egress-pool: {{ $poolName }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: livekit-egress
+        ivekit.io/egress-pool: {{ $poolName }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $root.Values.media.egress.prometheusPort | default 9090 | quote }}
+        prometheus.io/path: /metrics
+        ivekit.io/egress-image-contract: {{ $root.Values.media.egress.image.contract | quote }}
+    spec:
+      terminationGracePeriodSeconds: {{ $root.Values.media.egress.terminationGracePeriodSeconds | default 300 }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: livekit-egress
+              ivekit.io/egress-pool: {{ $poolName }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: livekit-egress
+                    ivekit.io/egress-pool: {{ $poolName }}
+      {{- with $pool.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $pool.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: livekit-egress
+          image: "{{ $egressImageRepository }}@{{ $egressImageDigest }}"
+          imagePullPolicy: {{ $root.Values.media.egress.image.pullPolicy | default "IfNotPresent" }}
+          env:
+            - name: EGRESS_CONFIG_FILE
+              value: /etc/livekit-egress/egress.yaml
+            - name: IVEKIT_EGRESS_POOL_NAME
+              value: {{ $poolName | quote }}
+            - name: IVEKIT_EGRESS_ALLOWED_REQUEST_TYPES
+              value: {{ join "," $pool.allowedRequestTypes | quote }}
+            - name: IVEKIT_EGRESS_MAX_CONCURRENT_REQUESTS
+              value: {{ $pool.maxConcurrentRequests | quote }}
+            - name: IVEKIT_EGRESS_DRAIN_FILE
+              value: /var/run/ivekit-egress/draining
+            - name: IVEKIT_EGRESS_SPOOL_PATH
+              value: /var/lib/livekit-egress/backup
+            {{ include "opc.objectStorageEnv" $root | nindent 12 }}
+          ports:
+            - name: health
+              containerPort: {{ $root.Values.media.egress.healthPort | default 8091 }}
+            - name: metrics
+              containerPort: {{ $root.Values.media.egress.prometheusPort | default 9090 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: ["SYS_ADMIN"]
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "touch /var/run/ivekit-egress/draining"]
+          volumeMounts:
+            - name: egress-config
+              mountPath: /etc/livekit-egress/egress.yaml
+              subPath: egress.yaml
+              readOnly: true
+            - name: backup-spool
+              mountPath: /var/lib/livekit-egress/backup
+            - name: runtime-state
+              mountPath: /var/run/ivekit-egress
+            {{- include "opc.livekitRedisTLSVolumeMount" $root | nindent 12 }}
+          resources:
+            {{- toYaml $pool.resources | nindent 12 }}
+      volumes:
+        - name: egress-config
+          secret:
+            secretName: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}-config
+        - name: runtime-state
+          emptyDir: {}
+        {{- include "opc.livekitRedisTLSVolume" $root | nindent 8 }}
+      {{- if not $pool.persistence.enabled }}
+        - name: backup-spool
+          emptyDir:
+            sizeLimit: {{ $pool.persistence.storageSize }}
+      {{- end }}
+  {{- if $pool.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: backup-spool
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if $pool.persistence.storageClass }}
+        storageClassName: {{ $pool.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $pool.persistence.storageSize }}
+  {{- end }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}
+spec:
+  minAvailable: {{ $pool.disruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: livekit-egress
+      ivekit.io/egress-pool: {{ $poolName }}
+---
+{{- if and $pool.autoscaling.enabled (eq $pool.autoscaling.provider "keda") }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}
+  pollingInterval: {{ $pool.autoscaling.pollingInterval }}
+  cooldownPeriod: {{ $pool.autoscaling.cooldownPeriod }}
+  minReplicaCount: {{ $pool.autoscaling.minReplicas }}
+  maxReplicaCount: {{ $pool.autoscaling.maxReplicas }}
+  fallback:
+    failureThreshold: 3
+    replicas: {{ $pool.autoscaling.minReplicas }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 60
+            - type: Pods
+              value: 4
+              periodSeconds: 60
+          selectPolicy: Max
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 25
+              periodSeconds: 120
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: {{ $root.Values.media.egress.monitoring.prometheusAddress | quote }}
+        metricName: ivekit_livekit_egress_pending_jobs_{{ $poolName }}
+        query: {{ printf "sum(ivekit_livekit_egress_pending_jobs{pool=\"%s\"})" $poolName | quote }}
+        threshold: {{ $pool.autoscaling.pendingJobsPerReplica | quote }}
+        activationThreshold: "1"
+    - type: prometheus
+      metadata:
+        serverAddress: {{ $root.Values.media.egress.monitoring.prometheusAddress | quote }}
+        metricName: ivekit_livekit_egress_active_utilization_{{ $poolName }}
+        query: {{ printf "100 * sum(ivekit_livekit_egress_active_requests{pool=\"%s\"}) / clamp_min(sum(ivekit_livekit_egress_max_concurrent_requests{pool=\"%s\"}), 1)" $poolName $poolName | quote }}
+        threshold: {{ $pool.autoscaling.activeUtilizationPercent | quote }}
+    - type: prometheus
+      metadata:
+        serverAddress: {{ $root.Values.media.egress.monitoring.prometheusAddress | quote }}
+        metricName: ivekit_livekit_egress_spool_utilization_{{ $poolName }}
+        query: {{ printf "100 * sum(ivekit_livekit_egress_spool_used_bytes{pool=\"%s\"}) / clamp_min(sum(ivekit_livekit_egress_spool_capacity_bytes{pool=\"%s\"}), 1)" $poolName $poolName | quote }}
+        threshold: {{ $pool.autoscaling.spoolUtilizationPercent | quote }}
+    - type: prometheus
+      metadata:
+        serverAddress: {{ $root.Values.media.egress.monitoring.prometheusAddress | quote }}
+        metricName: ivekit_livekit_egress_network_transmit_{{ $poolName }}
+        query: {{ printf "sum(rate(ivekit_livekit_egress_network_transmit_bytes_total{pool=\"%s\"}[2m]))" $poolName | quote }}
+        threshold: {{ $pool.autoscaling.networkTransmitBytesPerSecondPerReplica | quote }}
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: {{ $pool.autoscaling.targetCPUUtilizationPercentage | quote }}
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: {{ $pool.autoscaling.targetMemoryUtilizationPercentage | quote }}
+---
+{{- else if and $pool.autoscaling.enabled (eq $pool.autoscaling.provider "hpa") }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}
+  minReplicas: {{ $pool.autoscaling.minReplicas }}
+  maxReplicas: {{ $pool.autoscaling.maxReplicas }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+        - type: Pods
+          value: 4
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $pool.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $pool.autoscaling.targetMemoryUtilizationPercentage }}
+---
+{{- end }}
+{{ end }}
+{{ end }}
+{{- if .Values.media.egress.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-livekit-egress
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: livekit-egress
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.media.egress.monitoring.serviceMonitor.interval }}
+---
+{{- end }}
+{{- if .Values.media.egress.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}-livekit-egress
+spec:
+  groups:
+    - name: ivekit-livekit-egress
+      rules:
+        - alert: IveKitLiveKitEgressPendingStuck
+          expr: max by (pool) (ivekit_livekit_egress_oldest_pending_age_seconds) > {{ .Values.media.egress.monitoring.prometheusRule.pendingAgeWarningSeconds }}
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: LiveKit Egress pending work is not draining
+        - alert: IveKitLiveKitEgressPoolSaturated
+          expr: (100 * sum by (pool) (ivekit_livekit_egress_active_requests) / clamp_min(sum by (pool) (ivekit_livekit_egress_max_concurrent_requests), 1)) >= {{ .Values.media.egress.monitoring.prometheusRule.saturationPercent }} and on(pool) ivekit_livekit_egress_pending_jobs > 0
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: LiveKit Egress pool is saturated with pending work
+        - alert: IveKitLiveKitEgressSpoolHigh
+          expr: (100 * sum by (pool) (ivekit_livekit_egress_spool_used_bytes) / clamp_min(sum by (pool) (ivekit_livekit_egress_spool_capacity_bytes), 1)) >= {{ .Values.media.egress.monitoring.prometheusRule.spoolWarningPercent }}
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: LiveKit Egress backup spool is above the warning watermark
+        - alert: IveKitLiveKitEgressSpoolCritical
+          expr: (100 * sum by (pool) (ivekit_livekit_egress_spool_used_bytes) / clamp_min(sum by (pool) (ivekit_livekit_egress_spool_capacity_bytes), 1)) >= {{ .Values.media.egress.monitoring.prometheusRule.spoolCriticalPercent }}
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: LiveKit Egress backup spool is near exhaustion
+        - alert: IveKitLiveKitEgressUploadStalled
+          expr: sum by (pool) (ivekit_livekit_egress_spool_used_bytes) > 0 and on(pool) sum by (pool) (rate(ivekit_livekit_egress_network_transmit_bytes_total[5m])) == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: LiveKit Egress has backup spool data but no outbound transfer
+        - alert: IveKitLiveKitEgressPolicyRejecting
+          expr: sum by (pool, reason) (increase(ivekit_livekit_egress_policy_rejections_total[5m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: LiveKit Egress source policy is rejecting work
+---
+{{- end }}
+{{ end }}

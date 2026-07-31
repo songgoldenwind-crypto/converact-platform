@@ -1,0 +1,440 @@
+{{- if and .Values.voice.enabled .Values.voice.kamailio.enabled }}
+{{- $kamailio := .Values.voice.kamailio -}}
+{{- $kamailioImage := include "ivekit.kamailioImage" . -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "ivekit.kamailioFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kamailio
+spec:
+  serviceName: {{ include "ivekit.kamailioFullname" . }}-dmq
+  podManagementPolicy: Parallel
+  replicas: {{ .Values.voice.kamailio.replicaCount }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: kamailio
+  template:
+    metadata:
+      annotations:
+        checksum/kamailio-config: {{ include (print $.Template.BasePath "/kamailio-config.yaml") . | sha256sum }}
+      labels:
+        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: kamailio
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ $kamailio.terminationGracePeriodSeconds }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ $kamailio.scheduling.zoneTopologyKey | quote }}
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: kamailio
+        - maxSkew: 1
+          topologyKey: {{ $kamailio.scheduling.hostnameTopologyKey | quote }}
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: kamailio
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: {{ $kamailio.scheduling.hostnameTopologyKey | quote }}
+              labelSelector:
+                matchLabels:
+                  {{- include "ivekit.selectorLabels" . | nindent 18 }}
+                  app.kubernetes.io/component: kamailio
+      {{- with $kamailio.scheduling.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $kamailio.scheduling.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: render-config
+          image: {{ include "ivekit.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "dist/ivekit-render-kamailio-config.js"]
+          env:
+            - name: OPC_IVEKIT_KAMAILIO_CONFIG_FILE
+              value: /etc/ivekit-kamailio/kamailio-runtime.json
+            - name: OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE
+              value: /run/ivekit-kamailio-secrets/topoh-key
+            - name: OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE
+              value: /run/ivekit-kamailio-secrets/rpc-token
+            - name: OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE
+              value: /run/ivekit-kamailio-secrets/webphone-jwt-secret
+            - name: OPC_IVEKIT_KAMAILIO_DMQ_SERVER_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: OPC_IVEKIT_KAMAILIO_OUTPUT_FILE
+              value: /etc/kamailio/kamailio.cfg
+            - name: OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE
+              value: /etc/kamailio/tls.cfg
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /etc/ivekit-kamailio
+              readOnly: true
+            - name: generated-config
+              mountPath: /etc/kamailio
+            - name: kamailio-secrets
+              mountPath: /run/ivekit-kamailio-secrets
+              readOnly: true
+        - name: bootstrap-state
+          image: {{ include "ivekit.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-ec", "umask 077; printf '# waiting for signed route snapshot\\n' > /var/lib/kamailio/dispatcher.list"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: route-state
+              mountPath: /var/lib/kamailio
+      containers:
+        - name: route-agent
+          image: {{ include "ivekit.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "dist/ivekit-kamailio-route-agent.js"]
+          ports:
+            - name: route-metrics
+              containerPort: {{ $kamailio.listeners.metricsPort }}
+              protocol: TCP
+          env:
+            - name: OPC_IVEKIT_KAMAILIO_TOPOLOGY_FILE
+              value: /etc/ivekit-kamailio/kamailio-topology.json
+            - name: OPC_IVEKIT_KAMAILIO_CURRENT_KEY_FILE
+              value: /run/ivekit-kamailio-secrets/route-current-key
+            - name: OPC_IVEKIT_KAMAILIO_CURRENT_KEY_ID
+              value: {{ $kamailio.routeAgent.currentKeyId | quote }}
+            {{- if $kamailio.routeAgent.previousKeyId }}
+            - name: OPC_IVEKIT_KAMAILIO_PREVIOUS_KEY_FILE
+              value: /run/ivekit-kamailio-secrets/route-previous-key
+            - name: OPC_IVEKIT_KAMAILIO_PREVIOUS_KEY_ID
+              value: {{ $kamailio.routeAgent.previousKeyId | quote }}
+            {{- end }}
+            - name: OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE
+              value: /run/ivekit-kamailio-secrets/rpc-token
+            - name: OPC_IVEKIT_KAMAILIO_SNAPSHOT_PATH
+              value: /var/lib/kamailio/routes.snapshot
+            - name: OPC_IVEKIT_KAMAILIO_DISPATCHER_PATH
+              value: /var/lib/kamailio/dispatcher.list
+            - name: OPC_IVEKIT_KAMAILIO_HOST
+              value: 0.0.0.0
+            - name: OPC_IVEKIT_KAMAILIO_PORT
+              value: {{ $kamailio.listeners.metricsPort | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_POLL_INTERVAL_MS
+              value: {{ $kamailio.routeAgent.pollIntervalMs | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_REGION_ID
+              value: {{ .Values.voice.regionId | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_ZONE_ID
+              value: {{ .Values.voice.zoneId | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_CELL_ID
+              value: {{ .Values.voice.cellId | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_CELL_LEASE_EPOCH
+              value: {{ $kamailio.cellLeaseEpoch | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_EDGE_REPLICA_COUNT
+              value: {{ $kamailio.routeAgent.edgeReplicaCount | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_SNAPSHOT_TTL_MS
+              value: {{ $kamailio.routeAgent.snapshotTtlMs | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_DEGRADED_WEIGHT_FACTOR
+              value: {{ $kamailio.routeAgent.degradedWeightFactor | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_MAX_PARALLEL_POLLS
+              value: {{ $kamailio.routeAgent.maxParallelPolls | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_RPC_ENDPOINT
+              value: {{ printf "http://127.0.0.1:%v/RPC" $kamailio.listeners.rpcPort | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_RPC_MAX_ATTEMPTS
+              value: {{ $kamailio.routeAgent.rpcMaxAttempts | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_RPC_RETRY_DELAY_MS
+              value: {{ $kamailio.routeAgent.rpcRetryDelayMs | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_RPC_TIMEOUT_MS
+              value: {{ $kamailio.routeAgent.rpcTimeoutMs | quote }}
+            {{- if and $kamailio.sipTrace.enabled $kamailio.sipTrace.highWater.enabled }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED
+              value: "true"
+            - name: OPC_IVEKIT_KAMAILIO_HOMER_METRICS_ENDPOINT
+              value: {{ printf "http://%s:%v/metrics" $kamailio.sipTrace.collectorHost $kamailio.sipTrace.metricsPort | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_POLL_INTERVAL_MS
+              value: {{ $kamailio.sipTrace.highWater.pollIntervalMs | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_METRICS_TIMEOUT_MS
+              value: {{ $kamailio.sipTrace.highWater.metricsTimeoutMs | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_SAMPLE_PERCENT
+              value: {{ $kamailio.sipTrace.highWater.samplePercent | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_RECOVER_RATIO
+              value: {{ $kamailio.sipTrace.highWater.queueRecoverRatio | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_SAMPLE_RATIO
+              value: {{ $kamailio.sipTrace.highWater.queueSampleRatio | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_OFF_RATIO
+              value: {{ $kamailio.sipTrace.highWater.queueOffRatio | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_RECOVER_CORES
+              value: {{ $kamailio.sipTrace.highWater.cpuRecoverCores | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_SAMPLE_CORES
+              value: {{ $kamailio.sipTrace.highWater.cpuSampleCores | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_OFF_CORES
+              value: {{ $kamailio.sipTrace.highWater.cpuOffCores | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_RECOVER_PER_SECOND
+              value: {{ $kamailio.sipTrace.highWater.packetsRecoverPerSecond | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_SAMPLE_PER_SECOND
+              value: {{ $kamailio.sipTrace.highWater.packetsSamplePerSecond | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_OFF_PER_SECOND
+              value: {{ $kamailio.sipTrace.highWater.packetsOffPerSecond | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_RECOVER_PER_SECOND
+              value: {{ $kamailio.sipTrace.highWater.processingGapRecoverPerSecond | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_SAMPLE_PER_SECOND
+              value: {{ $kamailio.sipTrace.highWater.processingGapSamplePerSecond | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_OFF_PER_SECOND
+              value: {{ $kamailio.sipTrace.highWater.processingGapOffPerSecond | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_FAILURE_SAMPLES_TO_OFF
+              value: {{ $kamailio.sipTrace.highWater.failureSamplesToOff | quote }}
+            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_RECOVERY_SAMPLES
+              value: {{ $kamailio.sipTrace.highWater.recoverySamples | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: route-metrics
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: route-metrics
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml $kamailio.routeAgentResources | nindent 12 }}
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /etc/ivekit-kamailio
+              readOnly: true
+            - name: route-state
+              mountPath: /var/lib/kamailio
+            - name: kamailio-secrets
+              mountPath: /run/ivekit-kamailio-secrets
+              readOnly: true
+        - name: kamailio
+          image: {{ $kamailioImage | quote }}
+          imagePullPolicy: {{ $kamailio.image.pullPolicy }}
+          args:
+            - "-DD"
+            - "-E"
+            - "-x"
+            - {{ $kamailio.runtime.sharedMemoryAllocator | quote }}
+            - "-m"
+            - {{ $kamailio.runtime.sharedMemoryMegabytes | quote }}
+            - "-M"
+            - {{ $kamailio.runtime.privateMemoryMegabytes | quote }}
+            - "-f"
+            - "/etc/kamailio/kamailio.cfg"
+          ports:
+            - name: sip-udp
+              containerPort: {{ $kamailio.listeners.sipPort }}
+              protocol: UDP
+            - name: sip-tcp
+              containerPort: {{ $kamailio.listeners.sipPort }}
+              protocol: TCP
+            - name: sip-tls
+              containerPort: {{ $kamailio.listeners.tlsPort }}
+              protocol: TCP
+            - name: sip-wss
+              containerPort: {{ $kamailio.listeners.wssPort }}
+              protocol: TCP
+            - name: dmq-udp
+              containerPort: {{ $kamailio.listeners.dmqPort }}
+              protocol: UDP
+          readinessProbe:
+            tcpSocket:
+              port: sip-tcp
+            initialDelaySeconds: 2
+            periodSeconds: 3
+            timeoutSeconds: 1
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: sip-tcp
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml $kamailio.resources | nindent 12 }}
+          volumeMounts:
+            - name: generated-config
+              mountPath: /etc/kamailio
+              readOnly: true
+            - name: route-state
+              mountPath: /var/lib/kamailio
+              readOnly: true
+            - name: kamailio-secrets
+              mountPath: /run/ivekit-kamailio-secrets
+              readOnly: true
+            - name: run
+              mountPath: /var/run/kamailio
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: runtime-config
+          configMap:
+            name: {{ include "ivekit.kamailioFullname" . }}-config
+        - name: generated-config
+          emptyDir: {}
+        - name: route-state
+          emptyDir: {}
+        - name: kamailio-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ include "ivekit.secretName" . }}
+                  items:
+                    - key: {{ $kamailio.secretKeys.topohKey }}
+                      path: topoh-key
+                    - key: {{ $kamailio.secretKeys.rpcToken }}
+                      path: rpc-token
+                    - key: {{ $kamailio.secretKeys.routeCurrentKey }}
+                      path: route-current-key
+                    {{- if $kamailio.routeAgent.previousKeyId }}
+                    - key: {{ $kamailio.secretKeys.routePreviousKey }}
+                      path: route-previous-key
+                    {{- end }}
+                    - key: {{ .Values.voice.componentNode.tokenKey }}
+                      path: component-node-token
+                    - key: {{ .Values.voice.webphone.jwtSecretKey }}
+                      path: webphone-jwt-secret
+                    - key: {{ $kamailio.secretKeys.tlsPrivateKey }}
+                      path: tls-key.pem
+                    - key: {{ $kamailio.secretKeys.tlsCertificate }}
+                      path: tls-cert.pem
+                    - key: {{ $kamailio.secretKeys.tlsCa }}
+                      path: tls-ca.pem
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ivekit.kamailioFullname" . }}-dmq
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kamailio
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: kamailio
+  ports:
+    - name: dmq-udp
+      port: {{ $kamailio.listeners.dmqPort }}
+      targetPort: dmq-udp
+      protocol: UDP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ivekit.kamailioFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kamailio
+  {{- with $kamailio.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $kamailio.service.type }}
+  externalTrafficPolicy: {{ $kamailio.service.externalTrafficPolicy }}
+  sessionAffinity: {{ $kamailio.service.sessionAffinity }}
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: {{ $kamailio.service.sessionAffinityTimeoutSeconds }}
+  {{- with $kamailio.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: kamailio
+  ports:
+    - name: sip-udp
+      port: {{ $kamailio.advertise.sipPort }}
+      targetPort: sip-udp
+      protocol: UDP
+    - name: sip-tcp
+      port: {{ $kamailio.advertise.sipPort }}
+      targetPort: sip-tcp
+      protocol: TCP
+    - name: sip-tls
+      port: {{ $kamailio.advertise.tlsPort }}
+      targetPort: sip-tls
+      protocol: TCP
+    - name: sip-wss
+      port: {{ $kamailio.advertise.wssPort }}
+      targetPort: sip-wss
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ivekit.kamailioFullname" . }}-metrics
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kamailio
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: kamailio
+  ports:
+    - name: route-metrics
+      port: {{ $kamailio.listeners.metricsPort }}
+      targetPort: route-metrics
+      protocol: TCP
+{{- if $kamailio.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ivekit.kamailioFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kamailio
+spec:
+  minAvailable: {{ $kamailio.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: kamailio
+{{- end }}
+{{- end }}

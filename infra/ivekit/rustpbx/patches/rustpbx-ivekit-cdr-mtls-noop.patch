@@ -1,0 +1,270 @@
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -502,6 +502,7 @@
+ #[serde(tag = "type")]
+ #[serde(rename_all = "snake_case")]
+ pub enum CallRecordStorageConfig {
++    Noop,
+     Local {
+         root: String,
+     },
+--- a/src/callrecord/mod.rs
++++ b/src/callrecord/mod.rs
+@@ -565,6 +565,7 @@
+         let (sender, receiver) = tokio::sync::mpsc::channel(channel_capacity);
+         let saver: Box<dyn CallRecordSaver> = match config.map(|config| config.storage) {
+             None => Box::new(NoopCallRecordSaver),
++            Some(CallRecordStorageConfig::Noop) => Box::new(NoopCallRecordSaver),
+             Some(CallRecordStorageConfig::Local { root }) => {
+                 if !Path::new(&root).exists() {
+                     match std::fs::create_dir_all(&root) {
+--- a/src/callrecord/storage.rs
++++ b/src/callrecord/storage.rs
+@@ -53,6 +53,7 @@
+ 
+ pub fn resolve_storage(config: Option<&CallRecordConfig>) -> Result<Option<CdrStorage>> {
+     match config.map(|config| &config.storage) {
++        Some(CallRecordStorageConfig::Noop) => Ok(None),
+         Some(CallRecordStorageConfig::Local { root }) => {
+             let storage_config = StorageConfig::Local { path: root.clone() };
+             let storage = Storage::new(&storage_config)?;
+--- a/src/callrecord/tests.rs
++++ b/src/callrecord/tests.rs
+@@ -30,6 +30,28 @@
+ 
+     let result = manager.saver.save(&record).await.unwrap();
+     assert_eq!(result, "");
++}
++
++#[tokio::test]
++async fn test_builder_with_explicit_noop_preserves_bounded_queue() {
++    let manager = CallRecordManagerBuilder::new()
++        .with_channel_capacity(17)
++        .with_config(CallRecordConfig {
++            max_concurrent: 2,
++            channel_capacity: 17,
++            worker_threads: 1,
++            persist_to_database: false,
++            storage: CallRecordStorageConfig::Noop,
++        })
++        .build()
++        .await
++        .unwrap();
++
++    assert_eq!(manager.sender.max_capacity(), 17);
++    assert_eq!(
++        manager.saver.save(&CallRecord::default()).await.unwrap(),
++        ""
++    );
+ }
+ 
+ #[tokio::test]
+--- a/src/console/handlers/setting.rs
++++ b/src/console/handlers/setting.rs
+@@ -744,6 +744,15 @@
+     let recorder_path = config.recorder_path();
+ 
+     let (mode, callrecord_profile) = match config.callrecord.as_ref().map(|cfg| &cfg.storage) {
++        Some(CallRecordStorageConfig::Noop) => {
++            let mut profile = Profile::new(
++                "callrecord-noop",
++                "Call recordings",
++                "Legacy call-record sink disabled; authoritative iveKit CDR spool is active",
++            );
++            profile.insert("type", json!("noop"));
++            ("noop".to_string(), profile)
++        }
+         Some(CallRecordStorageConfig::Local { root }) => {
+             let mut profile = Profile::new(
+                 "callrecord-local",
+@@ -1452,6 +1461,10 @@
+ 
+ fn summarize_callrecord(config: Option<&CallRecordConfig>) -> Option<JsonValue> {
+     match &config?.storage {
++        CallRecordStorageConfig::Noop => Some(json!({
++            "label": "Call record storage",
++            "value": "iveKit durable spool (legacy sink disabled)",
++        })),
+         CallRecordStorageConfig::Local { root } => Some(json!({
+             "label": "Call record storage",
+             "value": format!("Local ({})", root),
+--- a/src/ivekit_dual_leg_cdr.rs
++++ b/src/ivekit_dual_leg_cdr.rs
+@@ -1,6 +1,6 @@
+ use anyhow::{Result, anyhow};
+ use futures::{StreamExt, stream};
+-use reqwest::Url;
++use reqwest::{Certificate, Identity, Url};
+ use serde::{Deserialize, Serialize};
+ use serde_json::Value;
+ use sha2::{Digest, Sha256};
+@@ -23,6 +23,7 @@
+ const MAX_SPOOL_WRITER_QUEUE: usize = 4096;
+ const MAX_SPOOL_WRITE_RETRY_MS: u64 = 1_000;
+ const MAX_RETRY_METADATA_BYTES: usize = 1024;
++const MAX_TLS_PEM_BYTES: usize = 256 * 1024;
+ const MAX_SAFE_DECIMAL: u64 = 9_007_199_254_740_991;
+ const MAX_T1_OWNER_EPOCH: u64 = 4_294_967_295;
+ const PROFILE_T1: &str = "VOICE-HA-T1";
+@@ -1318,20 +1319,28 @@
+     let endpoint = std::env::var("IVEKIT_RUSTPBX_CDR_ENDPOINT").ok();
+     let service_key_file = std::env::var("IVEKIT_RUSTPBX_CDR_SERVICE_KEY_FILE").ok();
+     let region_id = std::env::var("IVEKIT_RUSTPBX_CDR_REGION_ID").ok();
+-    if spool.is_none() && endpoint.is_none() && service_key_file.is_none() && region_id.is_none() {
++    let tls_identity_file = std::env::var("IVEKIT_RUSTPBX_CDR_TLS_IDENTITY_FILE").ok();
++    let tls_ca_file = std::env::var("IVEKIT_RUSTPBX_CDR_TLS_CA_FILE").ok();
++    if spool.is_none()
++        && endpoint.is_none()
++        && service_key_file.is_none()
++        && region_id.is_none()
++        && tls_identity_file.is_none()
++        && tls_ca_file.is_none()
++    {
+         return Ok(None);
+     }
++    let production = std::env::var("RUSTPBX_ENV")
++        .map(|value| value == "production")
++        .unwrap_or(false);
++    let tls_paths = cdr_tls_paths(production, tls_identity_file, tls_ca_file)?;
+     let spool_dir = PathBuf::from(required(spool, "IVEKIT_RUSTPBX_CDR_SPOOL_DIR")?.as_str());
+     if !spool_dir.is_absolute() || spool_dir.components().any(|part| part.as_os_str() == "..") {
+         return Err("iveKit CDR spool path is invalid".to_string());
+     }
+     let endpoint = Url::parse(&required(endpoint, "IVEKIT_RUSTPBX_CDR_ENDPOINT")?)
+         .map_err(|_| "iveKit CDR endpoint is invalid".to_string())?;
+-    if endpoint.scheme() != "https"
+-        && std::env::var("RUSTPBX_ENV")
+-            .map(|value| value == "production")
+-            .unwrap_or(false)
+-    {
++    if endpoint.scheme() != "https" && production {
+         return Err("iveKit CDR endpoint must use HTTPS in production".to_string());
+     }
+     let service_key_path = PathBuf::from(required(
+@@ -1359,11 +1368,21 @@
+         .and_then(|value| value.parse::<u64>().ok())
+         .unwrap_or(500)
+         .clamp(100, 60_000);
+-    let client = reqwest::Client::builder()
++    let mut client_builder = reqwest::Client::builder()
+         .connect_timeout(Duration::from_secs(2))
+         .timeout(Duration::from_secs(5))
+         .redirect(reqwest::redirect::Policy::none())
+-        .no_gzip()
++        .no_gzip();
++    if let Some((identity_path, ca_path)) = tls_paths {
++        let identity_pem = read_tls_pem(&identity_path, true, "identity")?;
++        let ca_pem = read_tls_pem(&ca_path, false, "CA")?;
++        let identity = Identity::from_pem(&identity_pem)
++            .map_err(|_| "iveKit CDR TLS identity is invalid".to_string())?;
++        let ca = Certificate::from_pem(&ca_pem)
++            .map_err(|_| "iveKit CDR TLS CA is invalid".to_string())?;
++        client_builder = client_builder.identity(identity).tls_certs_only([ca]);
++    }
++    let client = client_builder
+         .build()
+         .map_err(|error| format!("iveKit CDR HTTP client failed: {error}"))?;
+     Ok(Some(CdrConfig {
+@@ -1378,8 +1397,78 @@
+         spool_scanner: Arc::new(Mutex::new(SpoolScanner::default())),
+         region_commit_slots: Arc::new(Semaphore::new(REGION_COMMIT_MAX_CONCURRENT)),
+     }))
++}
++
++fn cdr_tls_paths(
++    production: bool,
++    identity_file: Option<String>,
++    ca_file: Option<String>,
++) -> std::result::Result<Option<(PathBuf, PathBuf)>, String> {
++    match (identity_file, ca_file) {
++        (Some(identity), Some(ca)) if !identity.trim().is_empty() && !ca.trim().is_empty() => {
++            let identity = PathBuf::from(identity);
++            let ca = PathBuf::from(ca);
++            if !identity.is_absolute() || !ca.is_absolute() {
++                return Err("iveKit CDR TLS files must use absolute paths".to_string());
++            }
++            Ok(Some((identity, ca)))
++        }
++        (None, None) if !production => Ok(None),
++        (None, None) => Err(
++            "IVEKIT_RUSTPBX_CDR_TLS_IDENTITY_FILE and IVEKIT_RUSTPBX_CDR_TLS_CA_FILE are required in production"
++                .to_string(),
++        ),
++        _ => Err(
++            "IVEKIT_RUSTPBX_CDR_TLS_IDENTITY_FILE and IVEKIT_RUSTPBX_CDR_TLS_CA_FILE must be configured together"
++                .to_string(),
++        ),
++    }
+ }
+ 
++fn read_tls_pem(path: &Path, secret: bool, kind: &str) -> std::result::Result<Vec<u8>, String> {
++    let link_metadata = std::fs::symlink_metadata(path)
++        .map_err(|_| format!("iveKit CDR TLS {kind} file is unavailable"))?;
++    let metadata = std::fs::metadata(path)
++        .map_err(|_| format!("iveKit CDR TLS {kind} file is unavailable"))?;
++    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > MAX_TLS_PEM_BYTES as u64 {
++        return Err(format!("iveKit CDR TLS {kind} file is invalid"));
++    }
++    if link_metadata.file_type().is_symlink() {
++        let parent = path
++            .parent()
++            .ok_or_else(|| format!("iveKit CDR TLS {kind} file is invalid"))?;
++        let canonical_parent = std::fs::canonicalize(parent)
++            .map_err(|_| format!("iveKit CDR TLS {kind} file is invalid"))?;
++        let canonical_target = std::fs::canonicalize(path)
++            .map_err(|_| format!("iveKit CDR TLS {kind} file is invalid"))?;
++        if !canonical_target.starts_with(canonical_parent) {
++            return Err(format!("iveKit CDR TLS {kind} file is invalid"));
++        }
++    } else if !link_metadata.is_file() {
++        return Err(format!("iveKit CDR TLS {kind} file is invalid"));
++    }
++    #[cfg(unix)]
++    if secret {
++        use std::os::unix::fs::PermissionsExt;
++        if metadata.permissions().mode() & 0o037 != 0 {
++            return Err(format!(
++                "iveKit CDR TLS {kind} file permissions are too broad"
++            ));
++        }
++    }
++    let mut value = Vec::with_capacity(metadata.len() as usize);
++    File::open(path)
++        .and_then(|file| {
++            file.take(MAX_TLS_PEM_BYTES as u64 + 1)
++                .read_to_end(&mut value)
++        })
++        .map_err(|_| format!("iveKit CDR TLS {kind} file cannot be read"))?;
++    if value.is_empty() || value.len() > MAX_TLS_PEM_BYTES {
++        return Err(format!("iveKit CDR TLS {kind} file is invalid"));
++    }
++    Ok(value)
++}
++
+ fn read_secret(path: &Path) -> std::result::Result<String, String> {
+     let link_metadata = std::fs::symlink_metadata(path)
+         .map_err(|_| "iveKit CDR service key file is unavailable".to_string())?;
+@@ -1561,6 +1650,23 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++
++    #[test]
++    fn production_cdr_requires_mtls_files() {
++        assert!(cdr_tls_paths(true, None, None).is_err());
++        assert!(
++            cdr_tls_paths(true, Some("/run/secrets/cdr-client.pem".to_string()), None,).is_err()
++        );
++        assert!(
++            cdr_tls_paths(
++                true,
++                Some("/run/secrets/cdr-client.pem".to_string()),
++                Some("/run/secrets/cdr-ca.pem".to_string()),
++            )
++            .is_ok()
++        );
++        assert_eq!(cdr_tls_paths(false, None, None).unwrap(), None);
++    }
+ 
+     fn terminal_input() -> TerminalCdrInput {
+         TerminalCdrInput {

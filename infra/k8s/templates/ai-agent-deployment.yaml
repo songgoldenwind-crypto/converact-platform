@@ -1,0 +1,241 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-ai-agent
+  labels:
+    app: ai-agent
+spec:
+  replicas: {{ .Values.aiAgent.replicaCount }}
+  selector:
+    matchLabels:
+      app: ai-agent
+  template:
+    metadata:
+      labels:
+        app: ai-agent
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ai-agent
+          image: {{ include "opc.aiAgentImage" . | quote }}
+          imagePullPolicy: {{ .Values.aiAgent.image.pullPolicy }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.aiAgent.metrics.port }}
+              protocol: TCP
+          env:
+            - name: LIVEKIT_URL
+              value: {{ include "opc.livekitInternalUrl" . | quote }}
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: livekit-api-key
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: livekit-api-secret
+            - name: OPC_API_URL
+              value: http://{{ .Release.Name }}-opc:3000
+            - name: OPC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: opc-api-key
+            - name: LLM_BASE_URL
+              value: {{ .Values.aiAgent.providers.llmBaseUrl | quote }}
+            - name: LLM_MODEL
+              value: {{ .Values.aiAgent.providers.llmModel | quote }}
+            - name: LLM_EXTRA_BODY
+              value: {{ .Values.aiAgent.providers.llmExtraBody | quote }}
+            - name: LLM_FALLBACK_PROVIDERS
+              value: {{ .Values.aiAgent.providerRuntime.llmFallbackProviders | quote }}
+            - name: DEEPSEEK_API_BASE
+              value: {{ .Values.aiAgent.providers.deepseekApiBase | quote }}
+            - name: DEEPSEEK_MODEL
+              value: {{ .Values.aiAgent.providers.deepseekModel | quote }}
+            - name: SPEECH_ASR_PROVIDER
+              value: {{ .Values.aiAgent.providerRuntime.speechAsrProvider | quote }}
+            - name: SPEECH_ASR_FALLBACK_PROVIDERS
+              value: {{ .Values.aiAgent.providerRuntime.speechAsrFallbackProviders | quote }}
+            - name: SPEECH_TTS_PROVIDER
+              value: {{ .Values.aiAgent.providerRuntime.speechTtsProvider | quote }}
+            - name: SPEECH_TTS_FALLBACK_PROVIDERS
+              value: {{ .Values.aiAgent.providerRuntime.speechTtsFallbackProviders | quote }}
+            - name: FUNASR_URL
+              value: {{ .Values.aiAgent.providers.funasrUrl | quote }}
+            - name: COSYVOICE_URL
+              value: {{ .Values.aiAgent.providers.cosyvoiceUrl | quote }}
+            - name: COSYVOICE_SPK_ID
+              value: {{ .Values.aiAgent.providers.cosyvoiceSpeakerId | quote }}
+            - name: AI_AGENT_STT_ATTEMPT_TIMEOUT_MS
+              value: {{ .Values.aiAgent.providerRuntime.sttAttemptTimeoutMs | quote }}
+            - name: AI_AGENT_LLM_ATTEMPT_TIMEOUT_MS
+              value: {{ .Values.aiAgent.providerRuntime.llmAttemptTimeoutMs | quote }}
+            - name: AI_AGENT_TTS_ATTEMPT_TIMEOUT_MS
+              value: {{ .Values.aiAgent.providerRuntime.ttsAttemptTimeoutMs | quote }}
+            - name: AI_AGENT_MAX_UNRECOVERABLE_PROVIDER_ERRORS
+              value: {{ .Values.aiAgent.providerRuntime.maxUnrecoverableErrors | quote }}
+            {{ if .Values.aiAgent.providers.credentials.existingSecret }}
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.aiAgent.providers.credentials.existingSecret }}
+                  key: {{ .Values.aiAgent.providers.credentials.llmApiKeyKey }}
+                  optional: true
+            - name: DEEPSEEK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.aiAgent.providers.credentials.existingSecret }}
+                  key: {{ .Values.aiAgent.providers.credentials.deepseekApiKeyKey }}
+                  optional: true
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.aiAgent.providers.credentials.existingSecret }}
+                  key: {{ .Values.aiAgent.providers.credentials.openaiApiKeyKey }}
+                  optional: true
+            - name: DEEPGRAM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.aiAgent.providers.credentials.existingSecret }}
+                  key: {{ .Values.aiAgent.providers.credentials.deepgramApiKeyKey }}
+                  optional: true
+            - name: CARTESIA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.aiAgent.providers.credentials.existingSecret }}
+                  key: {{ .Values.aiAgent.providers.credentials.cartesiaApiKeyKey }}
+                  optional: true
+            {{ end }}
+            - name: AI_AGENT_PROMETHEUS_PORT
+              value: {{ .Values.aiAgent.metrics.port | quote }}
+            - name: AI_AGENT_VOICE_METRICS_UDP_HOST
+              value: {{ .Values.aiAgent.metrics.udpHost | quote }}
+            - name: AI_AGENT_VOICE_METRICS_UDP_PORT
+              value: {{ .Values.aiAgent.metrics.udpPort | quote }}
+            {{ if .Values.nats.enabled }}
+            - name: NATS_URL
+              {{ if .Values.nats.tls.enabled }}
+              value: tls://{{ .Release.Name }}-nats:4222
+              {{ else }}
+              value: nats://{{ .Release.Name }}-nats:4222
+              {{ end }}
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "nats.auth.existingSecret is required when NATS is enabled" .Values.nats.auth.existingSecret }}
+                  key: {{ .Values.nats.auth.userKey }}
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "nats.auth.existingSecret is required when NATS is enabled" .Values.nats.auth.existingSecret }}
+                  key: {{ .Values.nats.auth.passwordKey }}
+            - name: NATS_TLS_MODE
+              value: {{ ternary "required" "disabled" .Values.nats.tls.enabled | quote }}
+            {{ if .Values.nats.tls.enabled }}
+            - name: NATS_TLS_CA_FILE
+              value: /etc/nats/tls/{{ .Values.nats.tls.caKey }}
+            - name: NATS_TLS_CERT_FILE
+              value: /etc/nats/tls/{{ .Values.nats.tls.certKey }}
+            - name: NATS_TLS_KEY_FILE
+              value: /etc/nats/tls/{{ .Values.nats.tls.keyKey }}
+            {{ end }}
+            {{ end }}
+          resources:
+            {{- toYaml .Values.aiAgent.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          {{ if and .Values.nats.enabled .Values.nats.tls.enabled }}
+            - name: nats-tls
+              mountPath: /etc/nats/tls
+              readOnly: true
+          {{ end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.aiAgent.tmpSizeLimit }}
+      {{ if and .Values.nats.enabled .Values.nats.tls.enabled }}
+        - name: nats-tls
+          secret:
+            secretName: {{ required "nats.tls.secretName is required when NATS TLS is enabled" .Values.nats.tls.secretName }}
+      {{ end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-ai-agent-metrics
+  labels:
+    app: ai-agent
+spec:
+  selector:
+    app: ai-agent
+  ports:
+    - name: metrics
+      port: {{ .Values.aiAgent.metrics.port }}
+      targetPort: metrics
+      protocol: TCP
+{{- if .Values.aiAgent.metrics.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-ai-agent
+  {{- with .Values.aiAgent.metrics.serviceMonitor.labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      app: ai-agent
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.aiAgent.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.aiAgent.metrics.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- if .Values.aiAgent.metrics.prometheusRule.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}-ai-agent-voice-latency
+spec:
+  groups:
+    - name: opc-ai-agent-voice-latency
+      rules:
+      {{- range $stage, $budget := .Values.aiAgent.metrics.latencyBudgetsSeconds }}
+        - alert: OpcAIAgentVoiceStageLatencyHigh
+          expr: histogram_quantile(0.95, sum by (le, media_source) (rate(opc_ai_voice_stage_latency_seconds_bucket{stage="{{ $stage }}"}[5m]))) > {{ $budget }}
+          for: {{ $.Values.aiAgent.metrics.prometheusRule.duration }}
+          labels:
+            severity: warning
+            stage: {{ $stage | quote }}
+          annotations:
+            summary: AI Agent voice stage P95 exceeds its latency budget
+      {{- end }}
+        - alert: OpcAIAgentVoiceProviderUnavailable
+          expr: sum by (capability, provider) (increase(opc_ai_voice_provider_transitions_total{state="unavailable"}[5m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: AI Agent voice provider became unavailable
+{{- end }}

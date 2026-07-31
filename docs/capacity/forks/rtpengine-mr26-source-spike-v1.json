@@ -1,0 +1,235 @@
+{
+  "$schema": "../schemas/source-capability-spike.schema.json",
+  "schema_version": "1.0.0",
+  "spike_id": "rtpengine-mr26-source-spike-v1",
+  "status": "source_reviewed",
+  "reviewed_at": "2026-07-25T11:49:03+08:00",
+  "upstream": {
+    "repository": "https://github.com/sipwise/rtpengine",
+    "version": "mr26.0.1.13",
+    "release_ref": "mr26.0.1.13",
+    "commit": "506cfa74386a5373e40fca139a932917f22f0524",
+    "archive_url": "https://codeload.github.com/sipwise/rtpengine/tar.gz/refs/tags/mr26.0.1.13",
+    "archive_sha256": "a6d23de8f656c3ad54e4060813c230861d100b79fb45ba1ce728ad2cef780143",
+    "archive_size_bytes": 6987926,
+    "license": "GPL-3.0-only"
+  },
+  "dependency_inventory": {
+    "source": "debian/control at commit 506cfa74386a5373e40fca139a932917f22f0524",
+    "build_system": "Debian debhelper/DKMS plus GNU make",
+    "required_families": [
+      "FFmpeg libavcodec/libavfilter/libavformat/libavutil/libswresample",
+      "GLib and JSON-GLib",
+      "OpenSSL and libjwt",
+      "libevent and liburing",
+      "libpcap and libpcre2",
+      "libopus and SpanDSP",
+      "nftables/xtables kernel headers",
+      "systemd and pkgconf",
+      "zlib"
+    ],
+    "optional_families": [
+      "bcg729",
+      "hiredis",
+      "libmosquitto",
+      "libwebsockets",
+      "MySQL client",
+      "ngcp-libcodec-chain"
+    ]
+  },
+  "capabilities": [
+    {
+      "capability_id": "ng-offer-answer",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "docs/ng_control_protocol.md",
+          "locator": "offer Message; answer Message",
+          "assertion": "The NG protocol accepts complete SDP offer/answer bodies and returns rewritten SDP."
+        }
+      ]
+    },
+    {
+      "capability_id": "ng-delete-query",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "docs/ng_control_protocol.md",
+          "locator": "delete Message; query Message",
+          "assertion": "The NG protocol can delete a branch/call and query current call facts."
+        }
+      ]
+    },
+    {
+      "capability_id": "ng-recording-control",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "docs/ng_control_protocol.md",
+          "locator": "start recording; stop recording; pause recording",
+          "assertion": "Recording can be started, stopped, paused and resumed per call."
+        }
+      ]
+    },
+    {
+      "capability_id": "ng-forwarding-control",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "docs/ng_control_protocol.md",
+          "locator": "start forwarding and stop forwarding Messages",
+          "assertion": "Media forwarding/forking can be controlled independently from call deletion."
+        }
+      ]
+    },
+    {
+      "capability_id": "rtp-rtcp-relay",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "docs/architecture.md",
+          "locator": "Processing of RTP/RTCP packets",
+          "assertion": "Packet streams maintain separate RTP/RTCP sinks and forwarding handlers."
+        }
+      ]
+    },
+    {
+      "capability_id": "kernel-forwarding",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "README.md",
+          "locator": "Features",
+          "assertion": "The source declares in-kernel packet forwarding for low latency and CPU."
+        }
+      ]
+    },
+    {
+      "capability_id": "userspace-fallback",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "README.md",
+          "locator": "Features",
+          "assertion": "The daemon automatically falls back to userspace when the kernel module is unavailable."
+        }
+      ]
+    },
+    {
+      "capability_id": "ice-bridge",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "README.md",
+          "locator": "ICE support",
+          "assertion": "ICE-aware and ICE-unaware endpoints can be bridged with relay and ICE-lite modes."
+        }
+      ]
+    },
+    {
+      "capability_id": "srtp-sdes",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "README.md",
+          "locator": "SRTP support",
+          "assertion": "SDES SRTP and RTP/SRTP bridging are implemented."
+        }
+      ]
+    },
+    {
+      "capability_id": "dtls-srtp",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "README.md",
+          "locator": "SRTP support",
+          "assertion": "DTLS-SRTP and supported SRTP crypto suites are implemented."
+        }
+      ]
+    },
+    {
+      "capability_id": "transcoding",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "docs/transcoding.md",
+          "locator": "Transcoding",
+          "assertion": "Codec transcoding and repacketization are part of the source tree."
+        }
+      ]
+    },
+    {
+      "capability_id": "t38-pcm",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "README.md",
+          "locator": "Features",
+          "assertion": "T.38 to PCM/G.711 transcoding is declared."
+        }
+      ]
+    },
+    {
+      "capability_id": "media-forking",
+      "status": "source_confirmed",
+      "evidence": [
+        {
+          "path": "README.md",
+          "locator": "Features",
+          "assertion": "Media forking and N-to-N publish/subscribe forwarding are implemented."
+        }
+      ]
+    }
+  ],
+  "constraints": [
+    {
+      "constraint_id": "pcap-recording-disables-kernel-forwarding",
+      "effect": "separate_profile_required",
+      "evidence": {
+        "path": "docs/rtpengine.md",
+        "locator": "recording-method=pcap",
+        "assertion": "Direct PCAP recording runs in userspace and prevents in-kernel forwarding for recorded calls."
+      },
+      "required_action": "V2 must use a separately measured proc/recording-daemon or media-fork design; PCAP results cannot inherit V1 kernel capacity."
+    },
+    {
+      "constraint_id": "proc-recording-consumer-can-drop",
+      "effect": "fail_closed_required",
+      "evidence": {
+        "path": "docs/rtpengine.md",
+        "locator": "recording-method=proc",
+        "assertion": "Only a bounded number of packets are retained per stream and late consumers lose packets."
+      },
+      "required_action": "Expose recording consumer lag/drop metrics and stop new mandatory-recording admission before accepted evidence is lost."
+    },
+    {
+      "constraint_id": "linux-only-runtime",
+      "effect": "platform_constraint",
+      "evidence": {
+        "path": "README.md",
+        "locator": "What is rtpengine?",
+        "assertion": "GNU/Linux is the supported runtime platform."
+      },
+      "required_action": "Keep rtpengine in Linux Cell media pools; Windows endpoints remain clients only."
+    },
+    {
+      "constraint_id": "kernel-module-version-coupling",
+      "effect": "runtime_validation_required",
+      "evidence": {
+        "path": "debian/control",
+        "locator": "ngcp-rtpengine-kernel-dkms",
+        "assertion": "The high-performance kernel path is delivered as a DKMS/nftables module coupled to the host kernel."
+      },
+      "required_action": "Pin and validate the target kernel/nftables matrix; userspace fallback has a distinct capacity profile."
+    }
+  ],
+  "open_gaps": [
+    "No iveKit owner epoch fencing exists in the pinned upstream source.",
+    "No iveKit role-specific capacity reservation contract exists.",
+    "No reproducible offline builder, immutable runtime artifact, SBOM, signature or provenance exists.",
+    "No RustPBX NG client, idempotency layer or unknown-result reconciliation exists.",
+    "No target-kernel userspace/kernel fallback benchmark has run.",
+    "No VOS-EQ SRTP, recording, transcoding, fault or long-call campaign has run."
+  ]
+}

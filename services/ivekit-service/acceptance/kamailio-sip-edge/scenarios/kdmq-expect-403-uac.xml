@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<scenario name="iveKit Kamailio public KDMQ rejection UAC">
+  <send retrans="500">
+    <![CDATA[
+      KDMQ sip:dmq@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: ivekit-acceptance <sip:acceptance@[local_ip]>;tag=[call_number]
+      To: dmq <sip:dmq@[remote_ip]>
+      Call-ID: [call_id]
+      CSeq: 1 KDMQ
+      Max-Forwards: 16
+      Content-Length: 0
+    ]]>
+  </send>
+  <recv response="403" />
+  <ResponseTimeRepartition value="10,20,50,100,150,200,500,1000" />
+</scenario>

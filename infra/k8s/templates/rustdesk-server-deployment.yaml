@@ -1,0 +1,131 @@
+{{- if .Values.rustdesk.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-rustdesk-data
+  labels:
+    app: rustdesk
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.rustdesk.persistence.size | default "5Gi" | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-rustdesk
+  labels:
+    app: rustdesk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rustdesk
+  template:
+    metadata:
+      labels:
+        app: rustdesk
+    spec:
+      hostNetwork: {{ .Values.rustdesk.hostNetwork | default false }}
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: hbbs
+          image: {{ include "opc.rustdeskImage" . | quote }}
+          imagePullPolicy: {{ .Values.rustdesk.image.pullPolicy | default "IfNotPresent" }}
+          command: ["hbbs"]
+          env:
+            - name: ALWAYS_USE_RELAY
+              value: {{ .Values.rustdesk.alwaysUseRelay | default "N" | quote }}
+          ports:
+            - name: hbbs-nat-test
+              containerPort: 21115
+              protocol: TCP
+            - name: hbbs-signal
+              containerPort: 21116
+              protocol: TCP
+            - name: hbbs-heartbeat
+              containerPort: 21116
+              protocol: UDP
+            - name: hbbs-ws
+              containerPort: 21118
+              protocol: TCP
+          volumeMounts:
+            - name: rustdesk-data
+              mountPath: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.rustdesk.resources | nindent 12 }}
+        - name: hbbr
+          image: {{ include "opc.rustdeskImage" . | quote }}
+          imagePullPolicy: {{ .Values.rustdesk.image.pullPolicy | default "IfNotPresent" }}
+          command: ["hbbr"]
+          ports:
+            - name: hbbr-relay
+              containerPort: 21117
+              protocol: TCP
+            - name: hbbr-ws
+              containerPort: 21119
+              protocol: TCP
+          volumeMounts:
+            - name: rustdesk-data
+              mountPath: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.rustdesk.resources | nindent 12 }}
+      volumes:
+        - name: rustdesk-data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-rustdesk-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-rustdesk
+  labels:
+    app: rustdesk
+spec:
+  type: {{ .Values.rustdesk.service.type }}
+  ports:
+    - name: hbbs-nat-test
+      port: {{ .Values.rustdesk.service.ports.hbbsNatTest }}
+      targetPort: 21115
+      protocol: TCP
+    - name: hbbs-signal-tcp
+      port: {{ .Values.rustdesk.service.ports.hbbsSignal }}
+      targetPort: 21116
+      protocol: TCP
+    - name: hbbs-signal-udp
+      port: {{ .Values.rustdesk.service.ports.hbbsSignal }}
+      targetPort: 21116
+      protocol: UDP
+    - name: hbbr-relay
+      port: {{ .Values.rustdesk.service.ports.hbbrRelay }}
+      targetPort: 21117
+      protocol: TCP
+    - name: hbbs-websocket
+      port: {{ .Values.rustdesk.service.ports.hbbsWebSocket }}
+      targetPort: 21118
+      protocol: TCP
+    - name: hbbr-websocket
+      port: {{ .Values.rustdesk.service.ports.hbbrWebSocket }}
+      targetPort: 21119
+      protocol: TCP
+  selector:
+    app: rustdesk
+{{- end }}

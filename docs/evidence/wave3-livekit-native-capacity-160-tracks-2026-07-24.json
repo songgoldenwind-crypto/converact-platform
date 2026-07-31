@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "protocol": "livekit_webrtc_native_load",
+  "evidence_level": "controlled",
+  "capacity_claim": "none",
+  "status": "invalid_generator_capacity",
+  "failure_class": "generator",
+  "run_id": "livekit-native-v4-a4-s20-3x3-60s-20260724",
+  "expected_tracks": 160,
+  "maximum_packet_loss_ratio": 0.001,
+  "reasons": [
+    "LiveKit load generator host CPU P95 exceeds 85%",
+    "LiveKit SUT host CPU P95 exceeds 85%"
+  ],
+  "summary": {
+    "received_tracks": 160,
+    "expected_tracks": 160,
+    "aggregate_bitrate_bps": 77700000,
+    "average_subscriber_bitrate_bps": 3900000,
+    "packet_loss_count": 0,
+    "packet_loss_ratio": 0,
+    "error_count": 0
+  },
+  "generator": {
+    "schema_version": "1.0.0",
+    "mode": "run",
+    "observed_pid": 541288,
+    "executable": "/opt/opc-wave123-validation-20260722/tools/livekit-cli/2.18.1/lk",
+    "exit_code": 0,
+    "signal": null,
+    "generator_observation_source": "linux_proc_tree",
+    "generator_observation_sample_count": 66,
+    "generator_network_interface": "lo",
+    "generator_nic_capacity_bps": 1000000000,
+    "generator_cpu_p95_ratio": 0.4392059553349876,
+    "host_cpu_p95_ratio": 0.9849624060150376,
+    "generator_nic_p95_ratio": 0.12212141911112868,
+    "host_packet_drop_count": 0
+  },
+  "sut": {
+    "schema_version": "1.0.0",
+    "mode": "pid",
+    "observed_pid": 529640,
+    "duration_seconds": 70,
+    "generator_observation_source": "linux_proc_tree",
+    "generator_observation_sample_count": 70,
+    "generator_network_interface": "lo",
+    "generator_nic_capacity_bps": 1000000000,
+    "generator_cpu_p95_ratio": 0.4371859296482412,
+    "host_cpu_p95_ratio": 0.985,
+    "generator_nic_p95_ratio": 0.11466924935090636,
+    "host_packet_drop_count": 0
+  }
+}

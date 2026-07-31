@@ -1,0 +1,492 @@
+{{- if .Values.realtimeAudioTap.enabled }}
+{{- if or (lt (int .Values.realtimeAudioTap.projectionQueueMaxItems) 1) (gt (int .Values.realtimeAudioTap.projectionQueueMaxItems) 100000) }}
+{{- fail "realtimeAudioTap.projectionQueueMaxItems must be between 1 and 100000" }}
+{{- end }}
+{{- if or (lt (int .Values.realtimeAudioTap.projectionShutdownTimeoutMs) 10) (gt (int .Values.realtimeAudioTap.projectionShutdownTimeoutMs) 30000) }}
+{{- fail "realtimeAudioTap.projectionShutdownTimeoutMs must be between 10 and 30000" }}
+{{- end }}
+{{- end }}
+{{- if .Values.voice.enabled }}
+{{- required "voice.cdr.regionId is required when voice is enabled" .Values.voice.cdr.regionId }}
+{{- required "voice.cdr.tls.secretName is required when voice is enabled" .Values.voice.cdr.tls.secretName }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ivekit.fullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.topologySpreadConstraints.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: {{ .Values.topologySpreadConstraints.maxSkew }}
+          topologyKey: {{ .Values.topologySpreadConstraints.topologyKey | quote }}
+          whenUnsatisfiable: {{ .Values.topologySpreadConstraints.whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: api
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tinode.enabled }}
+      initContainers:
+        - name: tinode-service-account-bootstrap
+          image: {{ include "ivekit.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "dist/ivekit-tinode-bootstrap.js"]
+          env:
+            - name: TINODE_WS_URL
+              value: {{ printf "ws://%s:%v/v0/channels" (include "ivekit.tinodeFullname" .) .Values.tinode.service.port | quote }}
+            - name: TINODE_ROOT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.rootApiKeyKey }}
+            - name: TINODE_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.postgresDsnKey }}
+            - name: TINODE_BASIC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.basicUserKey }}
+            - name: TINODE_BASIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.basicPasswordKey }}
+            - name: TINODE_BOOTSTRAP_TIMEOUT_MS
+              value: {{ .Values.tinode.config.bootstrapTimeoutMs | quote }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      {{- end }}
+      containers:
+        {{- if .Values.placement.enabled }}
+        - name: placement-snapshot-projector
+          image: {{ include "ivekit.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "dist/ivekit-placement-snapshot-projector.js"]
+          env:
+            - name: OPC_IVEKIT_PLACEMENT_SNAPSHOT_FILE
+              value: /run/ivekit-placement/placement.json
+            - name: OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.placement.secrets.snapshotHmacKeysKey }}
+            - name: OPC_IVEKIT_PLACEMENT_SNAPSHOT_KEY_ID
+              value: {{ .Values.placement.snapshotKeyId | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_PROFILE_ID
+              value: {{ .Values.placement.profileId | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_TOPOLOGY_JSON
+              value: {{ .Values.placement.topologyJson | quote }}
+            - name: OPC_IVEKIT_CELL_ADMISSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.placement.secrets.admissionTokenKey }}
+            - name: OPC_IVEKIT_PLACEMENT_PROJECTOR_INTERVAL_MS
+              value: {{ .Values.placement.projectorIntervalMs | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_SNAPSHOT_TTL_MS
+              value: {{ .Values.placement.snapshotTtlMs | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_PROJECTOR_TIMEOUT_MS
+              value: {{ .Values.placement.projectorTimeoutMs | quote }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.placement.resources | nindent 12 }}
+          volumeMounts:
+            - name: placement-snapshot
+              mountPath: /run/ivekit-placement
+        {{- end }}
+        - name: ivekit
+          image: {{ include "ivekit.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.telemetry.enabled }}
+          command: ["node", "--import", "dist/telemetry.js", "dist/ivekit-server.js"]
+          {{- else }}
+          command: ["node", "dist/ivekit-server.js"]
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+            {{- if .Values.voice.enabled }}
+            - name: internal-tls
+              containerPort: 3443
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.realtimeAudioTap.enabled }}
+            - name: audio-tap
+              containerPort: {{ .Values.realtimeAudioTap.listenPort }}
+              protocol: TCP
+            {{- end }}
+          {{- with .Values.secrets.runtimeEnvironmentSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ . }}
+          {{- end }}
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3000"
+            {{- if .Values.voice.enabled }}
+            - name: OPC_IVEKIT_INTERNAL_TLS_PORT
+              value: "3443"
+            - name: OPC_IVEKIT_INTERNAL_TLS_KEY_FILE
+              value: /run/ivekit-cdr-tls/server.key
+            - name: OPC_IVEKIT_INTERNAL_TLS_CERT_FILE
+              value: /run/ivekit-cdr-tls/server.crt
+            - name: OPC_IVEKIT_INTERNAL_TLS_CLIENT_CA_FILE
+              value: /run/ivekit-cdr-tls/ca.crt
+            {{- end }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.secrets.runtimeDatabaseUrlKey }}
+            - name: OPC_SCHEMA_MANAGED_BY_MIGRATIONS
+              value: "1"
+            - name: OPC_OTEL_ENABLED
+              value: {{ ternary "1" "0" .Values.telemetry.enabled | quote }}
+            - name: OPC_OTEL_SERVICE_NAME
+              value: ivekit-api
+            - name: OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: {{ .Values.telemetry.collectorEndpoint | quote }}
+            - name: OPC_OTEL_TRACE_SAMPLE_RATIO
+              value: {{ .Values.telemetry.sampleRatio | quote }}
+            - name: OPC_OTEL_MAX_QUEUE_SIZE
+              value: {{ .Values.telemetry.maxQueueSize | quote }}
+            - name: OPC_OTEL_MAX_EXPORT_BATCH_SIZE
+              value: {{ .Values.telemetry.maxExportBatchSize | quote }}
+            - name: OPC_OTEL_SCHEDULED_DELAY_MS
+              value: {{ .Values.telemetry.scheduledDelayMs | quote }}
+            - name: OPC_OTEL_EXPORT_TIMEOUT_MS
+              value: {{ .Values.telemetry.exportTimeoutMs | quote }}
+            - name: OPC_OBJECT_STORAGE_REQUIRED
+              value: "1"
+            - name: OPC_IVEKIT_AUDIT_IP_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.secrets.auditIpHmacKeyKey }}
+            - name: OPC_IVEKIT_RATE_LIMIT_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.secrets.rateLimitHmacKeyKey }}
+            - name: OPC_IVEKIT_ALLOWED_ORIGINS
+              value: {{ .Values.config.allowedOrigins | quote }}
+            {{- if .Values.voice.enabled }}
+            - name: OPC_IVEKIT_CDR_REGION_ID
+              value: {{ .Values.voice.cdr.regionId | quote }}
+            {{- end }}
+            {{- if .Values.realtimeAudioTap.enabled }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.secrets.realtimeAudioTapHmacSecretKey }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
+              value: {{ .Values.realtimeAudioTap.tokenTtlSeconds | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_HOST
+              value: 0.0.0.0
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_PORT
+              value: {{ .Values.realtimeAudioTap.listenPort | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PATH
+              value: {{ .Values.realtimeAudioTap.path | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL
+              value: {{ printf "ws://$(POD_NAME).%s-audio-tap.%s.svc:%v%s" (include "ivekit.fullname" .) .Release.Namespace .Values.realtimeAudioTap.listenPort .Values.realtimeAudioTap.path | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS
+              value: {{ .Values.realtimeAudioTap.maxConnections | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS
+              value: {{ .Values.realtimeAudioTap.prestartBufferMs | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES
+              value: {{ .Values.realtimeAudioTap.maxPayloadBytes | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_IDLE_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.idleTimeoutMs | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_START_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.startTimeoutMs | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.shutdownTimeoutMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS
+              value: {{ .Values.realtimeAudioTap.projectionQueueMaxItems | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.projectionShutdownTimeoutMs | quote }}
+            - name: OPC_REALTIME_SPEECH_RETENTION_DAYS
+              value: {{ .Values.realtimeAudioTap.retentionDays | quote }}
+            {{- end }}
+            {{- if .Values.placement.enabled }}
+            - name: OPC_IVEKIT_PLACEMENT_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_PLACEMENT_SNAPSHOT_FILE
+              value: /run/ivekit-placement/placement.json
+            - name: OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.placement.secrets.snapshotHmacKeysKey }}
+            - name: OPC_IVEKIT_PLACEMENT_TOKEN_HMAC_KEYS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.placement.secrets.tokenHmacKeysKey }}
+            - name: OPC_IVEKIT_PLACEMENT_TOKEN_KEY_ID
+              value: {{ .Values.placement.tokenKeyId | quote }}
+            - name: OPC_IVEKIT_CELL_ADMISSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.placement.secrets.admissionTokenKey }}
+            - name: OPC_IVEKIT_PLACEMENT_HOME_REGION_ID
+              value: {{ .Values.placement.homeRegionId | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_FAILOVER_REGION_IDS
+              value: {{ .Values.placement.failoverRegionIds | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_MEDIA_POLICY_JSON
+              value: {{ .Values.placement.mediaPolicyJson | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_EGRESS_TRACK_POLICY_JSON
+              value: {{ .Values.placement.egressTrackPolicyJson | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON
+              value: {{ .Values.placement.egressCompositePolicyJson | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_VOICE_POLICY_JSON
+              value: {{ .Values.placement.voicePolicyJson | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_TINODE_POLICY_JSON
+              value: {{ .Values.placement.tinodePolicyJson | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_RUSTDESK_POLICY_JSON
+              value: {{ .Values.placement.rustdeskPolicyJson | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_SNAPSHOT_REFRESH_MS
+              value: {{ .Values.placement.snapshotRefreshMs | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_STALE_GRACE_MS
+              value: {{ .Values.placement.staleGraceMs | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_ADMISSION_TIMEOUT_MS
+              value: {{ .Values.placement.admissionTimeoutMs | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_WORKER_INTERVAL_MS
+              value: {{ .Values.placement.workerIntervalMs | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_WORKER_TENANT_LIMIT
+              value: {{ .Values.placement.workerTenantLimit | quote }}
+            - name: OPC_IVEKIT_PLACEMENT_WORKER_BATCH_SIZE
+              value: {{ .Values.placement.workerBatchSize | quote }}
+            {{- end }}
+            {{- if and .Values.voice.enabled .Values.voice.webphone.enabled }}
+            - name: OPC_IVEKIT_WEBPHONE_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_WEBPHONE_WSS_URL
+              value: {{ .Values.voice.webphone.publicWssUrl | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SIP_REALM
+              value: {{ .Values.voice.webphone.sipRealm | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.voice.webphone.jwtSecretKey }}
+            - name: OPC_IVEKIT_WEBPHONE_JWT_ISSUER
+              value: {{ .Values.voice.webphone.jwtIssuer | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE
+              value: {{ .Values.voice.webphone.jwtAudience | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_TTL_SECONDS
+              value: {{ .Values.voice.webphone.ttlSeconds | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_REGISTER_EXPIRES_SECONDS
+              value: {{ .Values.voice.webphone.registerExpiresSeconds | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_ICE_SERVERS_JSON
+              value: {{ .Values.voice.webphone.iceServersJson | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_INTERVAL_MS
+              value: {{ .Values.voice.webphone.cleanup.intervalMs | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT
+              value: {{ .Values.voice.webphone.cleanup.tenantLimit | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE
+              value: {{ .Values.voice.webphone.cleanup.batchSize | quote }}
+            {{- end }}
+            - name: OPC_FILE_SECURITY_SCANNER_MODE
+              value: {{ .Values.fileSecurity.scannerMode | quote }}
+            - name: OPC_FILE_SECURITY_SCAN_WORKER_ENABLED
+              value: {{ .Values.fileSecurity.scanWorkerEnabled | quote }}
+            - name: OPC_FILE_SECURITY_SCAN_INTERVAL_MS
+              value: {{ .Values.fileSecurity.scanIntervalMs | quote }}
+            - name: OPC_FILE_SECURITY_SCAN_BATCH_SIZE
+              value: {{ .Values.fileSecurity.scanBatchSize | quote }}
+            - name: OPC_FILE_SECURITY_SCAN_LEASE_MS
+              value: {{ .Values.fileSecurity.scanLeaseMs | quote }}
+            - name: OPC_FILE_SECURITY_SCAN_MAX_BYTES
+              value: {{ .Values.fileSecurity.scanMaxBytes | quote }}
+            - name: OPC_FILE_SECURITY_MIME_CONFLICT_ACTION
+              value: {{ .Values.fileSecurity.mimeConflictAction | quote }}
+            - name: OPC_FILE_SECURITY_ALLOW_CONTROLLED
+              value: "0"
+            - name: OPC_FILE_SECURITY_CLAMD_HOST
+              value: {{ ternary (include "ivekit.clamavFullname" .) .Values.fileSecurity.clamdHost .Values.clamav.enabled | quote }}
+            - name: OPC_FILE_SECURITY_CLAMD_PORT
+              value: {{ .Values.fileSecurity.clamdPort | quote }}
+            - name: OPC_FILE_DERIVATIVE_PROVIDER_MODE
+              value: {{ .Values.fileSecurity.derivativeProviderMode | quote }}
+            - name: OPC_FILE_DERIVATIVE_WORKER_ENABLED
+              value: {{ .Values.fileSecurity.derivativeWorkerEnabled | quote }}
+            - name: OPC_FILE_DERIVATIVE_INTERVAL_MS
+              value: {{ .Values.fileSecurity.derivativeIntervalMs | quote }}
+            - name: OPC_FILE_DERIVATIVE_BATCH_SIZE
+              value: {{ .Values.fileSecurity.derivativeBatchSize | quote }}
+            - name: OPC_FILE_DERIVATIVE_LEASE_MS
+              value: {{ .Values.fileSecurity.derivativeLeaseMs | quote }}
+            - name: OPC_FILE_DERIVATIVE_FFMPEG_EXECUTABLE
+              value: ffmpeg
+            - name: OPC_FILE_CLEANUP_WORKER_ENABLED
+              value: {{ .Values.fileSecurity.cleanupWorkerEnabled | quote }}
+            - name: OPC_FILE_CLEANUP_CONFIRM
+              value: {{ .Values.fileSecurity.cleanupConfirm | quote }}
+            {{- range $name, $value := .Values.config.env }}
+            {{- if not (and $.Values.tinode.enabled (or (eq $name "OPC_TINODE_DELIVERY_WORKER_ENABLED") (eq $name "OPC_TINODE_INBOUND_WORKER_ENABLED"))) }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.tinode.enabled }}
+            - name: TINODE_DEPLOYMENT_MODE
+              value: self_hosted
+            - name: TINODE_BASE_URL
+              value: {{ printf "http://%s:%v" (include "ivekit.tinodeFullname" .) .Values.tinode.service.port | quote }}
+            - name: TINODE_WS_URL
+              value: {{ printf "ws://%s:%v/v0/channels" (include "ivekit.tinodeFullname" .) .Values.tinode.service.port | quote }}
+            - name: TINODE_PUBLIC_BASE_URL
+              value: {{ .Values.tinode.publicBaseUrl | quote }}
+            - name: TINODE_PUBLIC_WS_URL
+              value: {{ .Values.tinode.publicWsUrl | quote }}
+            - name: TINODE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.apiKeyKey }}
+            - name: TINODE_ROOT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.rootApiKeyKey }}
+            - name: TINODE_BASIC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.basicUserKey }}
+            - name: TINODE_BASIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.basicPasswordKey }}
+            - name: TINODE_USER_PASSWORD_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.userPasswordSecretKey }}
+            - name: OPC_TINODE_DELIVERY_WORKER_ENABLED
+              value: {{ .Values.tinode.config.deliveryWorkerEnabled | quote }}
+            - name: OPC_TINODE_INBOUND_WORKER_ENABLED
+              value: {{ .Values.tinode.config.inboundWorkerEnabled | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 4
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep {{ .Values.preStopDelaySeconds }}"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.voice.enabled }}
+            - name: ivekit-cdr-tls
+              mountPath: /run/ivekit-cdr-tls
+              readOnly: true
+            {{- end }}
+            {{- if .Values.placement.enabled }}
+            - name: placement-snapshot
+              mountPath: /run/ivekit-placement
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.voice.enabled }}
+        - name: ivekit-cdr-tls
+          secret:
+            secretName: {{ required "voice.cdr.tls.secretName is required when voice is enabled" .Values.voice.cdr.tls.secretName }}
+            defaultMode: 0400
+            items:
+              - key: {{ .Values.voice.cdr.tls.serverKeyKey }}
+                path: server.key
+              - key: {{ .Values.voice.cdr.tls.serverCertKey }}
+                path: server.crt
+              - key: {{ .Values.voice.cdr.tls.caKey }}
+                path: ca.crt
+        {{- end }}
+        {{- if .Values.placement.enabled }}
+        - name: placement-snapshot
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.placement.snapshotVolumeSizeLimit | quote }}
+        {{- end }}

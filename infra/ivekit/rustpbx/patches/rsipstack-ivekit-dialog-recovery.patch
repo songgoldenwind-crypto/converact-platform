@@ -1,0 +1,246 @@
+diff --git a/src/dialog/dialog.rs b/src/dialog/dialog.rs
+index 0ed9556..98aa6f9 100644
+--- a/src/dialog/dialog.rs
++++ b/src/dialog/dialog.rs
+@@ -967,6 +967,7 @@ impl DialogInner {
+                     if !matches!(method, Method::PRack) {
+                         self.clear_remote_reliable();
+                     }
++                    self.refresh_remote_target_from_response(&method, &resp)?;
+                     return Ok(Some(resp));
+                 }
+                 _ => break,
+@@ -979,6 +980,31 @@ impl DialogInner {
+         self.send_dialog_request(request).boxed().await
+     }
+ 
++    fn refresh_remote_target_from_response(
++        &self,
++        method: &Method,
++        response: &Response,
++    ) -> Result<()> {
++        if !matches!(method, Method::Invite | Method::Update)
++            || response.status_code.kind() != StatusCodeKind::Successful
++        {
++            return Ok(());
++        }
++        let mut contacts = response.typed_contact_headers()?;
++        if contacts.is_empty() {
++            return Ok(());
++        }
++        if contacts.len() != 1 {
++            return Err(crate::Error::Error(
++                "target refresh response must contain one Contact".to_string(),
++            ));
++        }
++        let contact = contacts.remove(0);
++        let remote_uri = contact.uri.clone();
++        self.set_remote_target(remote_uri, Some(contact.into()));
++        Ok(())
++    }
++
+     pub fn snapshot(&self) -> DialogSnapshot {
+         let id = self.id.lock().clone();
+ 
+@@ -1163,7 +1189,10 @@ impl DialogInner {
+ 
+         match state {
+             DialogState::Updated(_, _, _)
++            | DialogState::Publish(_, _, _)
+             | DialogState::Notify(_, _, _)
++            | DialogState::Refer(_, _, _)
++            | DialogState::Message(_, _, _)
+             | DialogState::Info(_, _, _)
+             | DialogState::Options(_, _, _) => {
+                 return Ok(());
+@@ -1269,6 +1298,17 @@ impl Dialog {
+         }
+     }
+ 
++    pub fn snapshot(&self) -> DialogSnapshot {
++        match self {
++            Dialog::ServerInvite(d) => d.inner.snapshot(),
++            Dialog::ClientInvite(d) => d.inner.snapshot(),
++            Dialog::ServerSubscription(d) => d.inner.snapshot(),
++            Dialog::ClientSubscription(d) => d.inner.snapshot(),
++            Dialog::ServerPublication(d) => d.inner.snapshot(),
++            Dialog::ClientPublication(d) => d.inner.snapshot(),
++        }
++    }
++
+     pub fn from(&self) -> &crate::sip::typed::From {
+         match self {
+             Dialog::ServerInvite(d) => &d.inner.from,
+diff --git a/src/dialog/tests/test_client_dialog.rs b/src/dialog/tests/test_client_dialog.rs
+index 035173f..726f797 100644
+--- a/src/dialog/tests/test_client_dialog.rs
++++ b/src/dialog/tests/test_client_dialog.rs
+@@ -816,6 +816,7 @@ async fn test_ack_sent_to_domain_name_from_contact() -> crate::Result<()> {
+ 
+     // Oneshot channel to receive the ACK for verification
+     let (ack_sender, ack_receiver) = oneshot::channel::<Request>();
++    let (info_uri_sender, info_uri_receiver) = oneshot::channel::<Uri>();
+ 
+     // UAS handler - wait for INVITE, respond with 200 OK containing domain Contact
+     tokio::spawn(async move {
+@@ -844,6 +845,35 @@ async fn test_ack_sent_to_domain_name_from_contact() -> crate::Result<()> {
+                 }
+             }
+         }
++
++        let mut update_tx = uas_incoming
++            .recv()
++            .await
++            .expect("failed to receive UPDATE transaction");
++        assert_eq!(update_tx.original.method, crate::sip::Method::Update);
++        let refreshed_contact = Contact::new(&format!(
++            "<sip:bob@refreshed.example.com:{};transport=udp>",
++            uas_port
++        ));
++        update_tx
++            .reply_with(
++                StatusCode::OK,
++                vec![refreshed_contact.into()],
++                Some(b"v=0\r\na=sendrecv\r\n".to_vec()),
++            )
++            .await
++            .expect("failed to respond to UPDATE");
++
++        let mut info_tx = uas_incoming
++            .recv()
++            .await
++            .expect("failed to receive INFO transaction");
++        assert_eq!(info_tx.original.method, crate::sip::Method::Info);
++        let _ = info_uri_sender.send(info_tx.original.uri.clone());
++        info_tx
++            .reply(StatusCode::OK)
++            .await
++            .expect("failed to respond to INFO");
+     });
+ 
+     // ========== UAC: Create and process INVITE ==========
+@@ -889,6 +919,34 @@ async fn test_ack_sent_to_domain_name_from_contact() -> crate::Result<()> {
+         "Dialog should be confirmed after 200 OK"
+     );
+ 
++    let update_response = client_dialog
++        .request(
++            crate::sip::Method::Update,
++            Some(vec![
++                ContentType::new("application/sdp").into(),
++                Contact::new(&format!("<sip:alice@127.0.0.1:{}>", uac_port)).into(),
++            ]),
++            Some(b"v=0\r\na=sendrecv\r\n".to_vec()),
++        )
++        .await?
++        .expect("missing UPDATE response");
++    assert_eq!(update_response.status_code, StatusCode::OK);
++
++    let info_response = client_dialog
++        .request(crate::sip::Method::Info, None, None)
++        .await?
++        .expect("missing INFO response");
++    assert_eq!(info_response.status_code, StatusCode::OK);
++    let info_uri = tokio::time::timeout(std::time::Duration::from_secs(2), info_uri_receiver)
++        .await
++        .expect("timeout receiving INFO")
++        .expect("INFO URI channel closed");
++    assert_eq!(
++        info_uri.host_with_port.host,
++        crate::sip::Host::Domain("refreshed.example.com".into())
++    );
++    assert_eq!(info_uri.host_with_port.port, Some(uas_port.into()));
++
+     uas_token.cancel();
+ 
+     Ok(())
+diff --git a/src/dialog/tests/test_dialog_states.rs b/src/dialog/tests/test_dialog_states.rs
+index 400d440..0bf8cea 100644
+--- a/src/dialog/tests/test_dialog_states.rs
++++ b/src/dialog/tests/test_dialog_states.rs
+@@ -328,8 +328,85 @@ async fn test_dialog_in_dialog_requests() -> crate::Result<()> {
+     let (handle, _) = TransactionHandle::new();
+     dialog_inner.transition(DialogState::Options(dialog_id.clone(), options_req, handle))?;
+ 
++    for (method, state) in [
++        (
++            crate::sip::Method::Refer,
++            DialogState::Refer(
++                dialog_id.clone(),
++                Request {
++                    method: crate::sip::Method::Refer,
++                    ..create_invite_request(
++                        "alice-tag-456",
++                        "bob-tag-789",
++                        "test-call-id-in-dialog-123",
++                    )
++                },
++                TransactionHandle::new().0,
++            ),
++        ),
++        (
++            crate::sip::Method::Message,
++            DialogState::Message(
++                dialog_id.clone(),
++                Request {
++                    method: crate::sip::Method::Message,
++                    ..create_invite_request(
++                        "alice-tag-456",
++                        "bob-tag-789",
++                        "test-call-id-in-dialog-123",
++                    )
++                },
++                TransactionHandle::new().0,
++            ),
++        ),
++        (
++            crate::sip::Method::Notify,
++            DialogState::Notify(
++                dialog_id.clone(),
++                Request {
++                    method: crate::sip::Method::Notify,
++                    ..create_invite_request(
++                        "alice-tag-456",
++                        "bob-tag-789",
++                        "test-call-id-in-dialog-123",
++                    )
++                },
++                TransactionHandle::new().0,
++            ),
++        ),
++        (
++            crate::sip::Method::Publish,
++            DialogState::Publish(
++                dialog_id.clone(),
++                Request {
++                    method: crate::sip::Method::Publish,
++                    ..create_invite_request(
++                        "alice-tag-456",
++                        "bob-tag-789",
++                        "test-call-id-in-dialog-123",
++                    )
++                },
++                TransactionHandle::new().0,
++            ),
++        ),
++    ] {
++        dialog_inner.transition(state)?;
++        assert!(
++            dialog_inner.is_confirmed(),
++            "{method} must not replace the durable dialog state"
++        );
++    }
++
+     // Dialog should still be confirmed after in-dialog requests
+     assert!(dialog_inner.is_confirmed());
++    let dialog = crate::dialog::dialog::Dialog::from_inner(
++        TransactionRole::Client,
++        std::sync::Arc::new(dialog_inner),
++    );
++    assert_eq!(
++        dialog.snapshot().state,
++        crate::dialog::dialog::DialogSnapshotState::Confirmed
++    );
+ 
+     Ok(())
+ }

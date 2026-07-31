@@ -1,0 +1,484 @@
+{
+  "schema_version": "1.0.0",
+  "matrix_id": "ivekit-component-authority-2026-07",
+  "audited_at": "2026-07-22",
+  "default_profile": "core",
+  "principles": [
+    "One capability domain has exactly one primary runtime authority.",
+    "Profiles select deployment intent; they do not create a second implementation authority.",
+    "POC components are benchmark-only, disabled by default, and excluded from production delivery.",
+    "Replacement periods are time-bounded and end with removal of the old component.",
+    "Every production image rendered by the iveKit Chart uses an immutable sha256 digest."
+  ],
+  "profiles": {
+    "core": {
+      "id": "core",
+      "default": true,
+      "production_eligible": true,
+      "purpose": "Minimal shared communication control plane and approved communication authorities.",
+      "components": [
+        "ivekit-service", "node-runtime", "typescript", "nodemailer", "kamailio", "rustpbx",
+        "rsipstack", "livekit-server", "livekit-sip", "livekit-egress", "livekit-ingress",
+        "livekit-turn", "tinode", "rustdesk-server", "rustdesk-client", "guacamole", "postgresql",
+        "cloudnative-pg", "redis-to-valkey", "nats-server", "nats-js-client", "keda", "minio",
+        "seaweedfs", "clamav", "supply-chain"
+      ]
+    },
+    "ai": {
+      "id": "ai",
+      "default": false,
+      "production_eligible": true,
+      "purpose": "Optional realtime AI, OCR, ASR, translation and quality-processing workers.",
+      "components": ["livekit-agents", "realtime-voice-pipeline", "external-intelligence-providers", "keda"]
+    },
+    "observability": {
+      "id": "observability",
+      "default": false,
+      "production_eligible": true,
+      "purpose": "Optional off-path metrics, traces, SIP forensics and analytics stores.",
+      "components": ["homer", "sip-exporter", "clickhouse", "opentelemetry", "victoriametrics", "keda"]
+    },
+    "benchmark": {
+      "id": "benchmark",
+      "default": false,
+      "production_eligible": false,
+      "purpose": "Isolated comparison and capacity evidence; never a production deployment profile.",
+      "components": ["rtpengine", "siphon-sip", "centrifugo", "cilium-hubble"]
+    }
+  },
+  "components": [
+    {
+      "id": "ivekit-service", "baseline_decision_id": null,
+      "purpose": "Stable OPC and LED communication API, policy and orchestration boundary.",
+      "status": "implemented", "hot_path": false, "dependencies": ["postgresql"],
+      "authority": {"domain": "communication-control-plane", "role": "primary"},
+      "profiles": ["core"], "default_enabled": true, "config_switch": "always-on core workload",
+      "delivery": "production", "rollback": "Deploy the previous schema-compatible immutable image.",
+      "resource_budget": {"scope": "per-pod", "requests": "200m CPU/256Mi", "limits": "1 CPU/1Gi", "notes": "Scale API and worker pools independently."},
+      "image_contract": {"policy": "immutable", "values_path": "image.digest", "helper": "ivekit.image"}
+    },
+    {
+      "id": "node-runtime", "baseline_decision_id": "node-runtime",
+      "purpose": "Supported JavaScript runtime for iveKit services and tooling.",
+      "status": "build_only", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "javascript-runtime", "role": "tooling"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "Dockerfile and engines.node",
+      "delivery": "production", "rollback": "Rebuild from the previous supported LTS lock.",
+      "resource_budget": {"scope": "build", "requests": "n/a", "limits": "n/a", "notes": "Runtime cost belongs to each Node workload."}
+    },
+    {
+      "id": "typescript", "baseline_decision_id": "typescript",
+      "purpose": "Compile-time type checking for communication services.",
+      "status": "planned", "hot_path": false, "dependencies": ["node-runtime"],
+      "authority": {"domain": "typescript-compiler", "role": "tooling"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "package.json devDependency",
+      "delivery": "production", "rollback": "Restore the prior compiler lock and compatibility flags.",
+      "resource_budget": {"scope": "build", "requests": "n/a", "limits": "n/a", "notes": "No production process."}
+    },
+    {
+      "id": "nodemailer", "baseline_decision_id": "nodemailer",
+      "purpose": "SMTP adapter behind the notification provider boundary.",
+      "status": "implemented", "hot_path": false, "dependencies": ["node-runtime"],
+      "authority": {"domain": "smtp-client", "role": "adapter"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "notification provider profile",
+      "delivery": "production", "rollback": "Disable SMTP provider and retain webhook or alternate providers.",
+      "resource_budget": {"scope": "shared-worker", "requests": "within API/worker budget", "limits": "bounded provider concurrency", "notes": "Never runs on media paths."}
+    },
+    {
+      "id": "kamailio", "baseline_decision_id": "kamailio",
+      "purpose": "SIP edge, admission, routing, WSS and dialog affinity.",
+      "status": "implemented", "hot_path": true, "dependencies": ["rustpbx"],
+      "authority": {"domain": "sip-edge-routing", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "voice.enabled and voice.kamailio.enabled",
+      "delivery": "production", "rollback": "Drain the edge and restore the previous exact image/config snapshot.",
+      "resource_budget": {"scope": "per-pod", "requests": "250m CPU/256Mi", "limits": "2 CPU/1Gi", "notes": "Two replicas per Cell in production."},
+      "image_contract": {"policy": "immutable", "values_path": "voice.kamailio.image.digest", "helper": "ivekit.kamailioImage"}
+    },
+    {
+      "id": "rustpbx", "baseline_decision_id": "rustpbx",
+      "purpose": "B2BUA, IVR, RTP session ownership and isolated recording fork.",
+      "status": "implemented", "hot_path": true, "dependencies": ["rsipstack", "postgresql"],
+      "authority": {"domain": "voice-session-media", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "voice.enabled",
+      "delivery": "production", "rollback": "Drain the node and deploy the prior compatible patched fork image.",
+      "resource_budget": {"scope": "per-pod", "requests": "200m CPU/256Mi", "limits": "1 CPU/1Gi", "notes": "Final limits are capacity-profile evidence, not defaults."},
+      "image_contract": {"policy": "immutable", "values_path": "voice.image.digest", "helper": "ivekit.rustpbxImage"}
+    },
+    {
+      "id": "rsipstack", "baseline_decision_id": "rsipstack",
+      "purpose": "SIP transactions and transports embedded in RustPBX.",
+      "status": "build_only", "hot_path": true, "dependencies": [],
+      "authority": {"domain": "rust-sip-stack", "role": "extension"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "RustPBX Cargo source lock",
+      "delivery": "production", "rollback": "Revert the RustPBX patch queue to the prior rsipstack commit.",
+      "resource_budget": {"scope": "embedded", "requests": "RustPBX budget", "limits": "bounded transaction tables", "notes": "No independent deployment."}
+    },
+    {
+      "id": "rtpengine", "baseline_decision_id": "rtpengine",
+      "purpose": "Measure optional RTP anchoring, legacy interop and transcoding tradeoffs.",
+      "status": "poc", "hot_path": true, "dependencies": ["kamailio"],
+      "authority": {"domain": "rtp-anchor-candidate", "role": "candidate"},
+      "profiles": ["benchmark"], "default_enabled": false, "config_switch": "benchmark harness only",
+      "delivery": "excluded", "rollback": "Remove the benchmark hop and return RTP ownership to RustPBX.",
+      "resource_budget": {"scope": "benchmark", "requests": "explicit per run", "limits": "isolated nodes", "notes": "No production reservation."}
+    },
+    {
+      "id": "homer", "baseline_decision_id": "homer",
+      "purpose": "Off-path HEP SIP call-flow forensics.",
+      "status": "implemented", "hot_path": false, "dependencies": ["kamailio", "postgresql"],
+      "authority": {"domain": "sip-forensics", "role": "primary"},
+      "profiles": ["observability"], "default_enabled": false, "config_switch": "voice.kamailio.sipTrace.enabled",
+      "delivery": "production", "rollback": "Disable fail-open HEP export and remove the collector.",
+      "resource_budget": {"scope": "per-Cell collector", "requests": "2 CPU/6Gi", "limits": "8 CPU/12Gi plus bounded persistent volumes", "notes": "One writer and one PostgreSQL DuckLake catalog per Cell; never writes on the call path."},
+      "image_contract": {"policy": "immutable", "values_path": "image.digest", "helper": "ivekit-homer.image", "chart_root": "infra/ivekit/homer/helm/ivekit-homer"}
+    },
+    {
+      "id": "opensips", "baseline_decision_id": "opensips",
+      "purpose": "Rejected alternative SIP edge that duplicates Kamailio.",
+      "status": "rejected", "hot_path": true, "dependencies": [],
+      "authority": {"domain": "sip-edge-routing", "role": "rejected"},
+      "profiles": [], "default_enabled": false, "config_switch": "none",
+      "delivery": "excluded", "rollback": "Not applicable; no runtime integration.",
+      "resource_budget": {"scope": "none", "requests": "0", "limits": "0", "notes": "No deployment artifacts."}
+    },
+    {
+      "id": "livekit-server", "baseline_decision_id": "livekit-server",
+      "purpose": "WebRTC signaling and selective forwarding for realtime rooms.",
+      "status": "implemented", "hot_path": true, "dependencies": ["redis-to-valkey"],
+      "authority": {"domain": "webrtc-sfu", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "external LiveKit deployment",
+      "delivery": "production", "rollback": "Drain nodes and restore the prior exact-source fork image.",
+      "resource_budget": {"scope": "external-media-node", "requests": "capacity profile", "limits": "NIC and track admission", "notes": "Not rendered by this application Chart."}
+    },
+    {
+      "id": "livekit-sip", "baseline_decision_id": "livekit-sip",
+      "purpose": "Bridge SIP participants into LiveKit rooms.",
+      "status": "implemented", "hot_path": true, "dependencies": ["livekit-server", "redis-to-valkey"],
+      "authority": {"domain": "sip-webrtc-bridge", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "external LiveKit SIP deployment",
+      "delivery": "production", "rollback": "Disable bridge dispatch and restore prior exact image.",
+      "resource_budget": {"scope": "external-worker", "requests": "capacity profile", "limits": "bounded call slots", "notes": "Independent from the API process; v1.7.0 image workflow implemented but not run."}
+    },
+    {
+      "id": "livekit-egress", "baseline_decision_id": "livekit-egress",
+      "purpose": "Isolated room recording and streaming jobs.",
+      "status": "implemented", "hot_path": false, "dependencies": ["livekit-server", "seaweedfs"],
+      "authority": {"domain": "webrtc-egress", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "external egress worker pool",
+      "delivery": "production", "rollback": "Stop accepting jobs without interrupting active rooms.",
+      "resource_budget": {"scope": "external-worker", "requests": "per egress type", "limits": "job-slot admission", "notes": "Storage failure cannot terminate rooms."}
+    },
+    {
+      "id": "livekit-ingress", "baseline_decision_id": "livekit-ingress",
+      "purpose": "RTMP, WHIP, HLS and file ingestion into LiveKit rooms.",
+      "status": "implemented", "hot_path": true, "dependencies": ["livekit-server", "redis-to-valkey"],
+      "authority": {"domain": "webrtc-ingress", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "external ingress worker pool",
+      "delivery": "production", "rollback": "Stop ingress jobs; room and SFU authority remain unchanged.",
+      "resource_budget": {"scope": "external-worker", "requests": "per input profile", "limits": "job-slot admission", "notes": "Transcoding pools scale independently."}
+    },
+    {
+      "id": "livekit-agents", "baseline_decision_id": "livekit-agents",
+      "purpose": "Realtime multimodal AI participant and job runtime.",
+      "status": "implemented", "hot_path": false, "dependencies": ["livekit-server", "external-intelligence-providers"],
+      "authority": {"domain": "realtime-ai-session-runtime", "role": "primary"},
+      "profiles": ["ai"], "default_enabled": false, "config_switch": "AI worker deployment",
+      "delivery": "production", "rollback": "Stop AI dispatch while preserving human rooms and calls.",
+      "resource_budget": {"scope": "external-worker", "requests": "per model/provider", "limits": "bounded concurrent jobs", "notes": "Not part of default core."}
+    },
+    {
+      "id": "realtime-voice-pipeline", "baseline_decision_id": "realtime-voice-pipeline",
+      "purpose": "Low-latency STT, reasoning, TTS, barge-in and heard-transcript pipeline.",
+      "status": "implemented", "hot_path": true, "dependencies": ["livekit-agents", "external-intelligence-providers"],
+      "authority": {"domain": "realtime-ai-session-runtime", "role": "extension"},
+      "profiles": ["ai"], "default_enabled": false, "config_switch": "AI worker deployment and provider profile",
+      "delivery": "production", "rollback": "Disable AI participant dispatch and transfer to human handling.",
+      "resource_budget": {"scope": "AI-job", "requests": "provider dependent", "limits": "bounded endpointing and output queues", "notes": "Provider outage must not end calls."}
+    },
+    {
+      "id": "siphon-sip", "baseline_decision_id": "siphon-sip",
+      "purpose": "Benchmark Rust SIP signaling patterns against the current edge.",
+      "status": "poc", "hot_path": true, "dependencies": [],
+      "authority": {"domain": "sip-edge-candidate", "role": "candidate"},
+      "profiles": ["benchmark"], "default_enabled": false, "config_switch": "benchmark harness only",
+      "delivery": "excluded", "rollback": "Delete the isolated benchmark deployment.",
+      "resource_budget": {"scope": "benchmark", "requests": "explicit per run", "limits": "isolated nodes", "notes": "Never co-deployed as a second SIP authority."}
+    },
+    {
+      "id": "sip-exporter", "baseline_decision_id": "sip-exporter",
+      "purpose": "Passive eBPF SIP and RTP Prometheus telemetry.",
+      "status": "planned", "hot_path": false, "dependencies": ["kamailio", "rustpbx"],
+      "authority": {"domain": "sip-passive-telemetry", "role": "observer"},
+      "profiles": ["observability"], "default_enabled": false, "config_switch": "monitoring.sipExporter.enabled",
+      "delivery": "production", "rollback": "Disable and remove the DaemonSet; calls remain unaffected.",
+      "resource_budget": {"scope": "per-voice-node", "requests": "50m CPU/64Mi", "limits": "1 CPU/256Mi", "notes": "Runtime evidence required before enablement."},
+      "image_contract": {"policy": "immutable", "values_path": "monitoring.sipExporter.image.digest", "helper": "ivekit.sipExporterImage"}
+    },
+    {
+      "id": "ccs-callreport", "baseline_decision_id": "ccs-callreport",
+      "purpose": "Rejected legacy reporting UI; report fields only inform projections.",
+      "status": "rejected", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "voice-reporting", "role": "rejected"},
+      "profiles": [], "default_enabled": false, "config_switch": "none",
+      "delivery": "excluded", "rollback": "Not applicable; no code imported.",
+      "resource_budget": {"scope": "none", "requests": "0", "limits": "0", "notes": "No PHP or MySQL runtime."}
+    },
+    {
+      "id": "livekit-turn", "baseline_decision_id": "livekit-turn",
+      "purpose": "TURN UDP and TLS traversal for LiveKit clients.",
+      "status": "implemented", "hot_path": true, "dependencies": ["livekit-server"],
+      "authority": {"domain": "webrtc-turn", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "external LiveKit configuration",
+      "delivery": "production", "rollback": "Revert TURN listener configuration or drain independent relays.",
+      "resource_budget": {"scope": "external-media-edge", "requests": "bandwidth profile", "limits": "port and bandwidth admission", "notes": "Embedded TURN is the default authority."}
+    },
+    {
+      "id": "tinode", "baseline_decision_id": "tinode",
+      "purpose": "Durable IM topics, history, receipts and synchronization.",
+      "status": "implemented", "hot_path": true, "dependencies": ["postgresql"],
+      "authority": {"domain": "durable-im", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "tinode.enabled or external Tinode endpoint",
+      "delivery": "production", "rollback": "Drain the bundled ring and restore its prior immutable image, or disable bundled mode and point iveKit at the previous compatible external cluster.",
+      "resource_budget": {"scope": "compact-or-three-node-cluster", "requests": "compact 100m CPU/128Mi; cluster 2 CPU/4Gi per Pod", "limits": "compact 1 CPU/512Mi; cluster 8 CPU/16Gi per Pod", "notes": "Compact is exactly one replica with persistent local media. Cluster is exactly three StatefulSet replicas and requires shared S3-compatible media."},
+      "image_contract": {"policy": "immutable", "values_path": "tinode.image.digest", "helper": "ivekit.tinodeImage"}
+    },
+    {
+      "id": "centrifugo", "baseline_decision_id": "centrifugo",
+      "purpose": "Benchmark high-scale ephemeral fanout without replacing durable IM.",
+      "status": "poc", "hot_path": true, "dependencies": ["nats-server"],
+      "authority": {"domain": "ephemeral-fanout-candidate", "role": "candidate"},
+      "profiles": ["benchmark"], "default_enabled": false, "config_switch": "benchmark harness only",
+      "delivery": "excluded", "rollback": "Remove the fanout experiment and retain Tinode/NATS authorities.",
+      "resource_budget": {"scope": "benchmark", "requests": "explicit per run", "limits": "isolated namespace", "notes": "No durable message ownership."}
+    },
+    {
+      "id": "rustdesk-server", "baseline_decision_id": "rustdesk-server",
+      "purpose": "Remote-assistance rendezvous and relay services.",
+      "status": "implemented", "hot_path": true, "dependencies": [],
+      "authority": {"domain": "remote-assistance-relay", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "external RustDesk deployment",
+      "delivery": "production", "rollback": "Restore prior pinned relay image and keep iveKit session records.",
+      "resource_budget": {"scope": "external-relay", "requests": "bandwidth profile", "limits": "session and egress admission", "notes": "Scales independently from API."}
+    },
+    {
+      "id": "rustdesk-client", "baseline_decision_id": "rustdesk-client",
+      "purpose": "Windows native screen, control, clipboard, file and recording client.",
+      "status": "implemented", "hot_path": true, "dependencies": ["rustdesk-server"],
+      "authority": {"domain": "native-remote-client", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "signed client package/profile",
+      "delivery": "production", "rollback": "Roll clients back through the signed version matrix.",
+      "resource_budget": {"scope": "endpoint", "requests": "endpoint dependent", "limits": "capture and codec policy", "notes": "Not a Kubernetes workload."}
+    },
+    {
+      "id": "guacamole", "baseline_decision_id": "guacamole",
+      "purpose": "Optional browser gateway for RDP, VNC and SSH interop.",
+      "status": "optional", "hot_path": true, "dependencies": [],
+      "authority": {"domain": "browser-remote-gateway", "role": "adapter"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "remote provider profile",
+      "delivery": "production", "rollback": "Disable the provider while RustDesk remains authoritative for native control.",
+      "resource_budget": {"scope": "external-gateway", "requests": "per active tunnel", "limits": "bounded sessions", "notes": "Not enabled by the core Chart."}
+    },
+    {
+      "id": "postgresql", "baseline_decision_id": "postgresql",
+      "purpose": "Authoritative transactional state for iveKit domains.",
+      "status": "implemented", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "transactional-data", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "external database URL Secret",
+      "delivery": "production", "rollback": "Restore from verified backup; schema migrations remain forward-only.",
+      "resource_budget": {"scope": "external-database", "requests": "workload profile", "limits": "connection and IOPS admission", "notes": "Never embedded as SQLite."}
+    },
+    {
+      "id": "cloudnative-pg", "baseline_decision_id": "cloudnative-pg",
+      "purpose": "Kubernetes lifecycle, failover and backup operator for PostgreSQL.",
+      "status": "planned", "hot_path": false, "dependencies": ["postgresql"],
+      "authority": {"domain": "postgresql-operations", "role": "operator"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "platform-managed database profile",
+      "delivery": "production", "rollback": "Return database lifecycle to the existing managed PostgreSQL process.",
+      "resource_budget": {"scope": "platform", "requests": "operator plus database profile", "limits": "separate from application Chart", "notes": "Not installed by iveKit Chart."}
+    },
+    {
+      "id": "redis-to-valkey", "baseline_decision_id": "redis-to-valkey",
+      "purpose": "Replace Redis coordination with protocol-compatible Valkey.",
+      "status": "replacement", "hot_path": true, "dependencies": [],
+      "authority": {"domain": "ephemeral-coordination", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "external coordination endpoint",
+      "delivery": "production", "rollback": "Point clients back to the frozen Redis cluster before old-cluster removal.",
+      "resource_budget": {"scope": "external-store", "requests": "workload profile", "limits": "connections, memory and eviction policy", "notes": "No per-request dual writes."},
+      "replacement": {"replaces": "Redis 7 deployment", "retirement_deadline": "2026-12-31", "exit_gate": "Controlled single-host Sentinel failover passed; production cutover still requires LiveKit runtime compatibility, target Kubernetes, cross-Zone partition, soak and rollback evidence"}
+    },
+    {
+      "id": "nats-server", "baseline_decision_id": "nats-server",
+      "purpose": "Durable integration-event and asynchronous command backbone.",
+      "status": "implemented", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "integration-event-backbone", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "external NATS endpoint",
+      "delivery": "production", "rollback": "Restore the previous pinned cluster after draining publishers.",
+      "resource_budget": {"scope": "external-cluster", "requests": "stream profile", "limits": "storage, consumers and publish rate", "notes": "Not used for RTP or SFU forwarding."}
+    },
+    {
+      "id": "nats-js-client", "baseline_decision_id": "nats-js-client",
+      "purpose": "Replace the legacy Node NATS package with the maintained transport client.",
+      "status": "replacement", "hot_path": false, "dependencies": ["nats-server", "node-runtime"],
+      "authority": {"domain": "nats-node-client", "role": "adapter"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "application dependency lock",
+      "delivery": "production", "rollback": "Restore the previous client lock before API compatibility removal.",
+      "resource_budget": {"scope": "embedded", "requests": "application budget", "limits": "bounded subscriptions and reconnect queues", "notes": "No second broker authority."},
+      "replacement": {"replaces": "legacy nats Node package", "retirement_deadline": "2026-09-30", "exit_gate": "All publishers and consumers use @nats-io/transport-node"}
+    },
+    {
+      "id": "keda", "baseline_decision_id": "keda",
+      "purpose": "Backlog-driven scaling for off-path workers.",
+      "status": "implemented", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "worker-autoscaling", "role": "operator"},
+      "profiles": ["core", "ai", "observability"], "default_enabled": false, "config_switch": "workerPools.*.autoscaling.enabled",
+      "delivery": "production", "rollback": "Remove ScaledObjects and retain fixed worker replica counts.",
+      "resource_budget": {"scope": "platform", "requests": "operator budget", "limits": "min/max/fallback replicas, cooldown and stabilization per worker", "notes": "Six allowlisted off-path pools use aggregate PostgreSQL backlog depth/age through Prometheus. Never scales SIP/media on queue depth; target KEDA operator and Kubernetes rollout remain not_run."}
+    },
+    {
+      "id": "minio", "baseline_decision_id": "minio",
+      "purpose": "Legacy S3-compatible object storage being retired.",
+      "status": "replacement", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "object-storage", "role": "legacy"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "S3 endpoint compatibility setting",
+      "delivery": "production", "rollback": "Keep the old read endpoint during the bounded migration window.",
+      "resource_budget": {"scope": "external-store", "requests": "legacy only", "limits": "frozen capacity", "notes": "No new product dependency on MinIO-specific APIs."},
+      "replacement": {"replaces": "bundled MinIO deployment", "retirement_deadline": "2026-12-31", "exit_gate": "Objects reconciled and production endpoint switched to SeaweedFS"}
+    },
+    {
+      "id": "seaweedfs", "baseline_decision_id": "seaweedfs",
+      "purpose": "S3-compatible recording, attachment and evidence object storage.",
+      "status": "implemented", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "object-storage", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "external S3-compatible endpoint",
+      "delivery": "production", "rollback": "Switch the endpoint back during the migration window; media sessions remain isolated.",
+      "resource_budget": {"scope": "external-store", "requests": "capacity and durability profile", "limits": "IOPS, bandwidth and retention", "notes": "Generic S3 integration and controlled SeaweedFS 4.40 matrix passed; target Kubernetes, cross-Zone and real Egress outage tests remain. WORM requires a verified external provider."}
+    },
+    {
+      "id": "clickhouse", "baseline_decision_id": "clickhouse",
+      "purpose": "Asynchronous high-volume analytics projections.",
+      "status": "planned", "hot_path": false, "dependencies": ["nats-server"],
+      "authority": {"domain": "analytics-store", "role": "primary"},
+      "profiles": ["observability"], "default_enabled": false, "config_switch": "analytics projection profile",
+      "delivery": "production", "rollback": "Stop projectors; PostgreSQL remains transactional authority.",
+      "resource_budget": {"scope": "external-store", "requests": "volume gated", "limits": "ingestion and retention", "notes": "Never queried synchronously by call admission."}
+    },
+    {
+      "id": "opentelemetry", "baseline_decision_id": "opentelemetry",
+      "purpose": "Vendor-neutral distributed trace instrumentation and export.",
+      "status": "implemented", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "telemetry-instrumentation", "role": "primary"},
+      "profiles": ["observability"], "default_enabled": false, "config_switch": "observability profile and OTLP endpoint",
+      "delivery": "production", "rollback": "Disable exporters; local bounded metrics remain available.",
+      "resource_budget": {"scope": "per-workload", "requests": "bounded batching", "limits": "queue, batch, sample and export timeouts", "notes": "Trace-only SDK and two-replica Collector gateway; Prometheus remains metrics authority. Controlled Collector outage passed fail-open; target Kubernetes and real trace backend remain not_run."}
+    },
+    {
+      "id": "victoriametrics", "baseline_decision_id": "victoriametrics",
+      "purpose": "Long-retention Prometheus-compatible metrics storage.",
+      "status": "implemented", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "metrics-storage", "role": "primary"},
+      "profiles": ["observability"], "default_enabled": false, "config_switch": "external metrics platform",
+      "delivery": "production", "rollback": "Point remote write back to the previous metrics store.",
+      "resource_budget": {"scope": "external-store", "requests": "1 CPU/2 GiB and 200 GiB starting profile", "limits": "4 CPU/8 GiB, 30-day retention and bounded label/query limits", "notes": "v1.148.0 vmsingle platform profile; Prometheus remote-write/WAL and community vmbackup/vmrestore passed controlled-server recovery. Not installed by the application Chart; production object store, target Kubernetes, dual Zone and capacity remain not_run."}
+    },
+    {
+      "id": "gateway-api-envoy", "baseline_decision_id": "gateway-api-envoy",
+      "purpose": "Deferred candidate for a separately governed platform HTTP edge migration.",
+      "status": "deferred", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "http-edge-candidate", "role": "candidate"},
+      "profiles": [], "default_enabled": false, "config_switch": "separate platform migration approval required",
+      "delivery": "excluded", "rollback": "Not applicable; the current HTTP edge remains authoritative.",
+      "resource_budget": {"scope": "none", "requests": "0", "limits": "0", "notes": "Not a Wave 3 artifact and never proxies RTP."}
+    },
+    {
+      "id": "cilium-hubble", "baseline_decision_id": "cilium-hubble",
+      "purpose": "Benchmark eBPF network policy and flow visibility at platform scale.",
+      "status": "poc", "hot_path": true, "dependencies": [],
+      "authority": {"domain": "network-platform-candidate", "role": "candidate"},
+      "profiles": ["benchmark"], "default_enabled": false, "config_switch": "dedicated benchmark cluster only",
+      "delivery": "excluded", "rollback": "Destroy the benchmark cluster; never swap CNI in place.",
+      "resource_budget": {"scope": "benchmark-cluster", "requests": "explicit per run", "limits": "isolated nodes", "notes": "No production Chart artifact."}
+    },
+    {
+      "id": "clamav", "baseline_decision_id": "clamav",
+      "purpose": "Attachment malware scanning outside communication hot paths.",
+      "status": "implemented", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "malware-scanning", "role": "primary"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "clamav.enabled",
+      "delivery": "production", "rollback": "Disable scanner workload and quarantine pending files.",
+      "resource_budget": {"scope": "per-pod", "requests": "250m CPU/2Gi", "limits": "2 CPU/4Gi", "notes": "Optional and no longer enabled by default."},
+      "image_contract": {"policy": "immutable", "values_path": "clamav.image.digest", "helper": "ivekit.clamavImage"}
+    },
+    {
+      "id": "external-intelligence-providers", "baseline_decision_id": "external-intelligence-providers",
+      "purpose": "Switchable realtime/offline OCR, ASR, translation, TTS and quality providers.",
+      "status": "implemented", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "intelligence-provider-routing", "role": "primary"},
+      "profiles": ["ai"], "default_enabled": false, "config_switch": "AI profile and provider registry",
+      "delivery": "production", "rollback": "Open provider circuit, fail over or transfer to human handling.",
+      "resource_budget": {"scope": "provider-gateway", "requests": "bounded worker concurrency", "limits": "quota, timeout and circuit breaker", "notes": "No model is bundled by default."}
+    },
+    {
+      "id": "paddleocr", "baseline_decision_id": "paddleocr",
+      "purpose": "Deferred self-hosted OCR provider candidate.",
+      "status": "deferred", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "ocr-provider-candidate", "role": "candidate"},
+      "profiles": [], "default_enabled": false, "config_switch": "provider selection decision required",
+      "delivery": "excluded", "rollback": "Not applicable; use external provider contracts.",
+      "resource_budget": {"scope": "none", "requests": "0", "limits": "0", "notes": "No bundled model or image."}
+    },
+    {
+      "id": "sherpa-onnx", "baseline_decision_id": "sherpa-onnx",
+      "purpose": "Deferred self-hosted streaming ASR/TTS provider candidate.",
+      "status": "deferred", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "speech-provider-candidate", "role": "candidate"},
+      "profiles": [], "default_enabled": false, "config_switch": "provider selection decision required",
+      "delivery": "excluded", "rollback": "Not applicable; use external provider contracts.",
+      "resource_budget": {"scope": "none", "requests": "0", "limits": "0", "notes": "No bundled model or image."}
+    },
+    {
+      "id": "llm-serving", "baseline_decision_id": "llm-serving",
+      "purpose": "Deferred self-hosted LLM serving candidate.",
+      "status": "deferred", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "llm-provider-candidate", "role": "candidate"},
+      "profiles": [], "default_enabled": false, "config_switch": "provider selection decision required",
+      "delivery": "excluded", "rollback": "Not applicable; use external provider contracts.",
+      "resource_budget": {"scope": "none", "requests": "0", "limits": "0", "notes": "No bundled model or image."}
+    },
+    {
+      "id": "supply-chain", "baseline_decision_id": "supply-chain",
+      "purpose": "SBOM, provenance, signature and vulnerability delivery gates.",
+      "status": "implemented", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "software-supply-chain", "role": "tooling"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "release CI",
+      "delivery": "production", "rollback": "Release is blocked; runtime rollback is not applicable.",
+      "resource_budget": {"scope": "build", "requests": "CI budget", "limits": "bounded scanners", "notes": "Renovate discovery and the shared digest gate for HOMER, RustPBX and LiveKit SIP are implemented; execution and remaining image onboarding are tracked separately."}
+    },
+    {
+      "id": "kafka-redpanda", "baseline_decision_id": "kafka-redpanda",
+      "purpose": "Deferred event-backbone alternative pending NATS limits.",
+      "status": "deferred", "hot_path": false, "dependencies": [],
+      "authority": {"domain": "event-backbone-candidate", "role": "candidate"},
+      "profiles": [], "default_enabled": false, "config_switch": "measured benchmark decision required",
+      "delivery": "excluded", "rollback": "Not applicable; NATS remains authoritative.",
+      "resource_budget": {"scope": "none", "requests": "0", "limits": "0", "notes": "No deployment artifact."}
+    },
+    {
+      "id": "service-mesh-media-plane", "baseline_decision_id": "service-mesh-media-plane",
+      "purpose": "Rejected transparent service mesh on RTP/SFU/relay hot paths.",
+      "status": "rejected", "hot_path": true, "dependencies": [],
+      "authority": {"domain": "media-service-mesh", "role": "rejected"},
+      "profiles": [], "default_enabled": false, "config_switch": "none",
+      "delivery": "excluded", "rollback": "Not applicable; no runtime integration.",
+      "resource_budget": {"scope": "none", "requests": "0", "limits": "0", "notes": "Control-plane mesh remains a separate platform decision."}
+    },
+    {
+      "id": "dpdk-quic-default", "baseline_decision_id": "dpdk-quic-default",
+      "purpose": "Deferred DPDK or QUIC replacement for default media transport.",
+      "status": "deferred", "hot_path": true, "dependencies": [],
+      "authority": {"domain": "media-transport-candidate", "role": "candidate"},
+      "profiles": [], "default_enabled": false, "config_switch": "profile-gated benchmark decision required",
+      "delivery": "excluded", "rollback": "Retain WebRTC UDP/TURN transport authority.",
+      "resource_budget": {"scope": "none", "requests": "0", "limits": "0", "notes": "Research only; no Chart artifact."}
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{{- if and .Values.voice.enabled .Values.voice.kamailio.enabled .Values.voice.kamailio.networkPolicy.enabled }}
+{{- $kamailio := .Values.voice.kamailio -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ivekit.kamailioFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kamailio
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: kamailio
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - {{- with $kamailio.networkPolicy.ingressCidrs }}
+      from:
+        {{- range . }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      {{- end }}
+      ports:
+        - port: {{ $kamailio.listeners.sipPort }}
+          protocol: UDP
+        - port: {{ $kamailio.listeners.sipPort }}
+          protocol: TCP
+        - port: {{ $kamailio.listeners.tlsPort }}
+          protocol: TCP
+        - port: {{ $kamailio.listeners.wssPort }}
+          protocol: TCP
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace | quote }}
+      ports:
+        - port: {{ $kamailio.listeners.metricsPort }}
+          protocol: TCP
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: kamailio
+      ports:
+        - port: {{ $kamailio.listeners.dmqPort }}
+          protocol: UDP
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml $kamailio.networkPolicy.dnsNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $kamailio.networkPolicy.dnsPodSelector | nindent 14 }}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: rustpbx
+        # hostNetwork Pods may be represented as node IPs rather than selected
+        # Pod IPs by the CNI, so both identities are intentionally allowed.
+        {{- range $kamailio.networkPolicy.rustpbxNodeCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - port: {{ .Values.voice.componentNode.port }}
+          protocol: TCP
+        - port: {{ .Values.voice.sipPort }}
+          protocol: UDP
+        - port: {{ .Values.voice.sipPort }}
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: kamailio
+      ports:
+        - port: {{ $kamailio.listeners.dmqPort }}
+          protocol: UDP
+    {{- if $kamailio.sipTrace.enabled }}
+    - to:
+        {{- if and (not (empty $kamailio.networkPolicy.hepCollectorNamespaceSelector)) (not (empty $kamailio.networkPolicy.hepCollectorPodSelector)) }}
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml $kamailio.networkPolicy.hepCollectorNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $kamailio.networkPolicy.hepCollectorPodSelector | nindent 14 }}
+        {{- end }}
+        {{- range $kamailio.networkPolicy.hepCollectorCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - port: {{ $kamailio.sipTrace.collectorPort }}
+          protocol: UDP
+        {{- if $kamailio.sipTrace.highWater.enabled }}
+        - port: {{ $kamailio.sipTrace.metricsPort }}
+          protocol: TCP
+        {{- end }}
+    {{- end }}
+{{- end }}

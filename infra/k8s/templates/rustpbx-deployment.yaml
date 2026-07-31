@@ -1,0 +1,1449 @@
+{{- if .Values.voice.enabled }}
+{{- $repository := required "voice.image.repository is required" .Values.voice.image.repository -}}
+{{- if regexMatch "(^|/)restsend/rustpbx$" $repository -}}
+{{- fail "voice.image.repository must reference the iveKit-patched RustPBX image, not the unpatched upstream image" -}}
+{{- end -}}
+{{- $digest := required "voice.image.digest is required" .Values.voice.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "voice.image.digest must be an immutable sha256 digest" -}}
+{{- end -}}
+{{- $rustpbxImage := printf "%s@%s" $repository $digest -}}
+{{- if ne .Values.voice.database.username "rustpbx_app" -}}
+{{- fail "voice.database.username must be rustpbx_app" -}}
+{{- end -}}
+{{- if ne .Values.voice.database.name "rustpbx" -}}
+{{- fail "voice.database.name must be rustpbx" -}}
+{{- end -}}
+{{- $cdrEndpoint := required "voice.cdr.endpoint is required when voice is enabled" .Values.voice.cdr.endpoint -}}
+{{- $_ := required "voice.cdr.regionId is required when voice is enabled" .Values.voice.cdr.regionId -}}
+{{- $admissionProfileIds := list .Values.voice.admissionProfiles.ordinary.id .Values.voice.admissionProfiles.t1.id .Values.voice.admissionProfiles.ivrTranscoding.id .Values.voice.admissionProfiles.recording.id .Values.voice.admissionProfiles.aiTap.id -}}
+{{- if ne (len $admissionProfileIds) (len (uniq $admissionProfileIds)) -}}
+{{- fail "RustPBX admission profile ids must be distinct" -}}
+{{- end -}}
+{{- if not (hasPrefix "https://" $cdrEndpoint) -}}
+{{- fail "voice.cdr.endpoint must use HTTPS" -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.cdr.pollIntervalMs) 100) (gt (int .Values.voice.cdr.pollIntervalMs) 60000) -}}
+{{- fail "voice.cdr.pollIntervalMs must be between 100 and 60000" -}}
+{{- end -}}
+{{- if not .Values.voice.persistence.enabled -}}
+{{- fail "voice.persistence.enabled must be true for the durable CDR spool" -}}
+{{- end -}}
+{{- range $name, $value := dict "maxActiveTransactions" .Values.voice.sipCapacity.maxActiveTransactions "maxFinishedTransactions" .Values.voice.sipCapacity.maxFinishedTransactions "incomingTransactionQueueCapacity" .Values.voice.sipCapacity.incomingTransactionQueueCapacity "maxTransportConnections" .Values.voice.sipCapacity.maxTransportConnections -}}
+{{- if or (lt (int $value) 1) (gt (int $value) 10000000) -}}
+{{- fail (printf "voice.sipCapacity.%s must be between 1 and 10000000" $name) -}}
+{{- end -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.sessionCleanupConcurrency) 1) (gt (int .Values.voice.mediaCapacity.sessionCleanupConcurrency) 4096) -}}
+{{- fail "voice.mediaCapacity.sessionCleanupConcurrency must be between 1 and 4096" -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.sessionCleanupTimeoutMs) 1) (gt (int .Values.voice.mediaCapacity.sessionCleanupTimeoutMs) 60000) -}}
+{{- fail "voice.mediaCapacity.sessionCleanupTimeoutMs must be between 1 and 60000" -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.recordingChannelCapacity) 1) (gt (int .Values.voice.mediaCapacity.recordingChannelCapacity) 65536) -}}
+{{- fail "voice.mediaCapacity.recordingChannelCapacity must be between 1 and 65536" -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.recordingWorkerThreads) 1) (gt (int .Values.voice.mediaCapacity.recordingWorkerThreads) 64) -}}
+{{- fail "voice.mediaCapacity.recordingWorkerThreads must be between 1 and 64" -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity) 1) (gt (int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity) 65536) -}}
+{{- fail "voice.mediaCapacity.recordingWorkerQueueCapacity must be between 1 and 65536" -}}
+{{- end -}}
+{{- range $name, $value := dict "udpReceiveBufferBytes" .Values.voice.mediaCapacity.udpReceiveBufferBytes "udpSendBufferBytes" .Values.voice.mediaCapacity.udpSendBufferBytes -}}
+{{- if or (lt (int $value) 65536) (gt (int $value) 16777216) -}}
+{{- fail (printf "voice.mediaCapacity.%s must be between 65536 and 16777216" $name) -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.media.realtimeAudioTap.enabled -}}
+{{- if or (lt (int .Values.media.realtimeAudioTap.rustPbxChannelCapacity) 1) (gt (int .Values.media.realtimeAudioTap.rustPbxChannelCapacity) 65536) -}}
+{{- fail "media.realtimeAudioTap.rustPbxChannelCapacity must be between 1 and 65536" -}}
+{{- end -}}
+{{- if or (lt (int .Values.media.realtimeAudioTap.rustPbxSendTimeoutMs) 1) (gt (int .Values.media.realtimeAudioTap.rustPbxSendTimeoutMs) 1000) -}}
+{{- fail "media.realtimeAudioTap.rustPbxSendTimeoutMs must be between 1 and 1000" -}}
+{{- end -}}
+{{- if or (lt (int .Values.media.realtimeAudioTap.projectionQueueMaxItems) 1) (gt (int .Values.media.realtimeAudioTap.projectionQueueMaxItems) 100000) -}}
+{{- fail "media.realtimeAudioTap.projectionQueueMaxItems must be between 1 and 100000" -}}
+{{- end -}}
+{{- if or (lt (int .Values.media.realtimeAudioTap.projectionShutdownTimeoutMs) 10) (gt (int .Values.media.realtimeAudioTap.projectionShutdownTimeoutMs) 30000) -}}
+{{- fail "media.realtimeAudioTap.projectionShutdownTimeoutMs must be between 10 and 30000" -}}
+{{- end -}}
+{{- end -}}
+{{- $sipPort := int .Values.voice.service.sip.port -}}
+{{- $managementPort := int .Values.voice.service.managementPort -}}
+{{- $rtpStart := int .Values.voice.service.rtp.startPort -}}
+{{- $rtpEnd := int .Values.voice.service.rtp.endPort -}}
+{{- if or (lt (sub $rtpEnd $rtpStart) 99) (gt (sub $rtpEnd $rtpStart) 10000) -}}
+{{- fail "voice RTP range must contain 100 to 10001 ascending ports" -}}
+{{- end -}}
+{{- if or (and (ge $sipPort $rtpStart) (le $sipPort $rtpEnd)) (and (ge $managementPort $rtpStart) (le $managementPort $rtpEnd)) -}}
+{{- fail "voice RTP range must not overlap SIP or Management ports" -}}
+{{- end -}}
+{{- $profileId := required "voice.profileId is required" .Values.voice.profileId -}}
+{{- $tenantId := required "voice.tenantId is required" .Values.voice.tenantId -}}
+{{- $cellId := required "voice.cellId is required" .Values.voice.cellId -}}
+{{- if .Values.voice.recordingSpool.enabled -}}
+{{- $_ := required "voice.regionId is required when recording spool is enabled" .Values.voice.regionId -}}
+{{- $_ := required "voice.zoneId is required when recording spool is enabled" .Values.voice.zoneId -}}
+{{- if ne .Values.voice.recordingSpool.leaseSecretKey "rustpbx-recording-lease-secret" -}}
+{{- fail "voice.recordingSpool.leaseSecretKey must be rustpbx-recording-lease-secret" -}}
+{{- end -}}
+{{- $partSizeBytes := int .Values.voice.recordingSpool.partSizeBytes -}}
+{{- if or (lt $partSizeBytes 5242880) (gt $partSizeBytes 16777216) -}}
+{{- fail "voice.recordingSpool.partSizeBytes must be between 5 MiB and 16 MiB" -}}
+{{- end -}}
+{{- $uploadConcurrency := int .Values.voice.recordingSpool.uploadConcurrency -}}
+{{- if or (lt $uploadConcurrency 1) (gt $uploadConcurrency 64) -}}
+{{- fail "voice.recordingSpool.uploadConcurrency must be between 1 and 64" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.voice.componentNode.enabled -}}
+{{- if ne (int .Values.voice.componentNode.port) 3210 -}}
+{{- fail "voice.componentNode.port must be 3210" -}}
+{{- end -}}
+{{- if ne .Values.voice.componentNode.tokenKey "ivekit-component-node-token" -}}
+{{- fail "voice.componentNode.tokenKey must be ivekit-component-node-token" -}}
+{{- end -}}
+{{- $_ := required "voice.componentNode.regionId is required when component-node is enabled" .Values.voice.componentNode.regionId -}}
+{{- $_ := required "voice.componentNode.zoneId is required when component-node is enabled" .Values.voice.componentNode.zoneId -}}
+{{- $_ := required "voice.componentNode.dimensionsJson is required when component-node is enabled" .Values.voice.componentNode.dimensionsJson -}}
+{{- $_ := required "voice.componentNode.token is required when component-node is enabled" .Values.voice.componentNode.token -}}
+{{- if empty .Values.voice.componentNode.profileIds -}}
+{{- fail "voice.componentNode.profileIds is required when component-node is enabled" -}}
+{{- end -}}
+{{- if ne (len .Values.voice.componentNode.profileIds) (len $admissionProfileIds) -}}
+{{- fail "voice.componentNode.profileIds must contain every RustPBX admission profile" -}}
+{{- end -}}
+{{- range $admissionProfileIds -}}
+{{- if not (has . $.Values.voice.componentNode.profileIds) -}}
+{{- fail "voice.componentNode.profileIds must contain every RustPBX admission profile" -}}
+{{- end -}}
+{{- end -}}
+{{- $_ := required "voice.componentNode.profileRequirementsJson is required" .Values.voice.componentNode.profileRequirementsJson -}}
+{{- if empty .Values.voice.componentNode.readinessProfileIds -}}
+{{- fail "voice.componentNode.readinessProfileIds is required" -}}
+{{- end -}}
+{{- $componentDimensions := fromJson .Values.voice.componentNode.dimensionsJson -}}
+{{- range $profile := list .Values.voice.admissionProfiles.ordinary .Values.voice.admissionProfiles.t1 .Values.voice.admissionProfiles.ivrTranscoding .Values.voice.admissionProfiles.recording .Values.voice.admissionProfiles.aiTap -}}
+{{- if not (hasKey $componentDimensions $profile.dimension) -}}
+{{- fail (printf "voice.componentNode.dimensionsJson must contain %s" $profile.dimension) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.voice.mediaControl.enabled -}}
+{{- if ne .Values.voice.mediaControl.endpoint "https://localhost:3211/" -}}
+{{- fail "voice.mediaControl.endpoint must be https://localhost:3211/" -}}
+{{- end -}}
+{{- $_ := required "voice.mediaControl.serviceTokenKey is required" .Values.voice.mediaControl.serviceTokenKey -}}
+{{- $_ := required "voice.mediaControl.serviceToken is required" .Values.voice.mediaControl.serviceToken -}}
+{{- $_ := required "voice.mediaControl.clientTlsSecretName is required" .Values.voice.mediaControl.clientTlsSecretName -}}
+{{- if or (ne .Values.voice.mediaControl.mode "ordinary_relay") (ne .Values.voice.mediaControl.failurePolicy "fail_closed") -}}
+{{- fail "voice.mediaControl must use ordinary_relay and fail_closed" -}}
+{{- end -}}
+{{- if not (regexMatch "^(0(\\.[0-9]+)?|1(\\.0+)?)$" .Values.voice.mediaControl.traceSampleRatio) -}}
+{{- fail "voice.mediaControl.traceSampleRatio must be between 0 and 1" -}}
+{{- end -}}
+{{- range $name, $value := dict "identityFile" .Values.voice.mediaControl.identityFile "caFile" .Values.voice.mediaControl.caFile -}}
+{{- if not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" $value) -}}
+{{- fail (printf "voice.mediaControl.%s must be a filename" $name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.voice.dialogShadow.enabled -}}
+{{- if not .Values.voice.persistence.enabled -}}
+{{- fail "voice.persistence.enabled must be true when dialog shadow is enabled" -}}
+{{- end -}}
+{{- if not (regexMatch "^https://localhost:3212/?$" (required "voice.dialogShadow.endpoint is required" .Values.voice.dialogShadow.endpoint)) -}}
+{{- fail "voice.dialogShadow.endpoint must be node-local https://localhost:3212/" -}}
+{{- end -}}
+{{- $_ := required "voice.dialogShadow.faultDomain is required" .Values.voice.dialogShadow.faultDomain -}}
+{{- if not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" .Values.voice.dialogShadow.faultDomain) -}}
+{{- fail "voice.dialogShadow.faultDomain is invalid" -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9.]{0,61}[a-z0-9])?$" .Values.voice.dialogShadow.faultDomain) -}}
+{{- fail "voice.dialogShadow.faultDomain must be a Kubernetes fault-domain label" -}}
+{{- end -}}
+{{- if not (regexMatch "(^[a-z0-9]$)|(^[a-z0-9][a-z0-9.-]{0,251}[a-z0-9]$)" (required "voice.dialogShadow.spiffeTrustDomain is required" .Values.voice.dialogShadow.spiffeTrustDomain)) -}}
+{{- fail "voice.dialogShadow.spiffeTrustDomain is invalid" -}}
+{{- end -}}
+{{- $_ := required "voice.dialogShadow.serviceTokenKey is required" .Values.voice.dialogShadow.serviceTokenKey -}}
+{{- $_ := required "voice.dialogShadow.serviceToken is required" .Values.voice.dialogShadow.serviceToken -}}
+{{- $_ := required "voice.dialogShadow.recoveryDatabaseUrlKey is required" .Values.voice.dialogShadow.recoveryDatabaseUrlKey -}}
+{{- $_ := required "voice.dialogShadow.recoveryDatabaseUrl is required" .Values.voice.dialogShadow.recoveryDatabaseUrl -}}
+{{- $_ := required "voice.dialogShadow.currentRecoveryKeyId is required" .Values.voice.dialogShadow.currentRecoveryKeyId -}}
+{{- $_ := required "voice.dialogShadow.currentRecoveryKeyKey is required" .Values.voice.dialogShadow.currentRecoveryKeyKey -}}
+{{- $_ := required "voice.dialogShadow.currentRecoveryKey is required" .Values.voice.dialogShadow.currentRecoveryKey -}}
+{{- $_ := required "voice.dialogShadow.previousRecoveryKeyId is required" .Values.voice.dialogShadow.previousRecoveryKeyId -}}
+{{- $_ := required "voice.dialogShadow.previousRecoveryKeyKey is required" .Values.voice.dialogShadow.previousRecoveryKeyKey -}}
+{{- $_ := required "voice.dialogShadow.previousRecoveryKey is required" .Values.voice.dialogShadow.previousRecoveryKey -}}
+{{- if eq .Values.voice.dialogShadow.currentRecoveryKeyId .Values.voice.dialogShadow.previousRecoveryKeyId -}}
+{{- fail "voice.dialogShadow recovery key ids must be distinct" -}}
+{{- end -}}
+{{- $_ := required "voice.dialogShadow.serverTlsSecretName is required" .Values.voice.dialogShadow.serverTlsSecretName -}}
+{{- $_ := required "voice.dialogShadow.clientIdentity.csi.driver is required" .Values.voice.dialogShadow.clientIdentity.csi.driver -}}
+{{- if empty .Values.voice.dialogShadow.clientIdentity.csi.volumeAttributes -}}
+{{- fail "voice.dialogShadow.clientIdentity.csi.volumeAttributes must identify a per-Pod certificate provider" -}}
+{{- end -}}
+{{- range $name, $value := dict "identityFile" .Values.voice.dialogShadow.clientIdentity.identityFile "caFile" .Values.voice.dialogShadow.clientIdentity.caFile -}}
+{{- if not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" $value) -}}
+{{- fail (printf "voice.dialogShadow.clientIdentity.%s must be a filename" $name) -}}
+{{- end -}}
+{{- end -}}
+{{- if empty .Values.voice.dialogShadow.nats.urls -}}
+{{- fail "voice.dialogShadow.nats.urls must contain TLS NATS endpoints" -}}
+{{- end -}}
+{{- range .Values.voice.dialogShadow.nats.urls -}}
+{{- if not (regexMatch "^tls://[^/@[:space:]]+(:[0-9]+)?$" .) -}}
+{{- fail "voice.dialogShadow.nats.urls must contain credential-free tls:// endpoints" -}}
+{{- end -}}
+{{- end -}}
+{{- $_ := required "voice.dialogShadow.nats.tlsSecretName is required" .Values.voice.dialogShadow.nats.tlsSecretName -}}
+{{- $_ := required "voice.dialogShadow.nats.faultDomainsSecretName is required" .Values.voice.dialogShadow.nats.faultDomainsSecretName -}}
+{{- $_ := required "voice.dialogShadow.nats.placementCluster is required" .Values.voice.dialogShadow.nats.placementCluster -}}
+{{- if empty .Values.voice.dialogShadow.nats.placementTags -}}
+{{- fail "voice.dialogShadow.nats.placementTags is required" -}}
+{{- end -}}
+{{- $streamReplicas := int .Values.voice.dialogShadow.nats.streamReplicas -}}
+{{- if not (or (eq $streamReplicas 3) (eq $streamReplicas 5)) -}}
+{{- fail "voice.dialogShadow.nats.streamReplicas must be 3 or 5" -}}
+{{- end -}}
+{{- $requiredFaultDomains := int .Values.voice.dialogShadow.nats.requiredFaultDomains -}}
+{{- if or (lt $requiredFaultDomains 2) (gt $requiredFaultDomains $streamReplicas) -}}
+{{- fail "voice.dialogShadow.nats.requiredFaultDomains must be between 2 and streamReplicas" -}}
+{{- end -}}
+{{- if ge (int .Values.voice.dialogShadow.rustPbx.heartbeatIntervalMs) (int .Values.voice.dialogShadow.recovery.nodeLeaseTtlMs) -}}
+{{- fail "voice.dialogShadow.rustPbx.heartbeatIntervalMs must be lower than recovery.nodeLeaseTtlMs" -}}
+{{- end -}}
+{{- end -}}
+{{- $opcImage := include "opc.opcImage" . -}}
+{{- $databasePassword := required "voice.database.password is required" .Values.voice.database.password -}}
+{{- $databaseHost := .Values.voice.database.host | default (printf "%s-postgres" .Release.Name) -}}
+{{- $databaseUrl := printf "postgresql://rustpbx_app:%s@%s:%v/rustpbx" ($databasePassword | urlquery) $databaseHost .Values.voice.database.port -}}
+{{- $managementToken := required "voice.managementToken is required" .Values.voice.managementToken -}}
+{{- $rwiToken := required "voice.rwiToken is required" .Values.voice.rwiToken -}}
+{{- if eq $managementToken $rwiToken -}}
+{{- fail "voice.managementToken and voice.rwiToken must be distinct" -}}
+{{- end -}}
+{{- $webhookToken := required "voice.webhookToken is required" .Values.voice.webhookToken -}}
+{{- if not (has "127.0.0.1" .Values.voice.amiAllows) -}}
+{{- fail "voice.amiAllows must include 127.0.0.1 for local runtime recovery" -}}
+{{- end -}}
+{{- if has "*" .Values.voice.amiAllows -}}
+{{- fail "voice.amiAllows must not contain a wildcard" -}}
+{{- end -}}
+{{- if .Values.voice.webphone.enabled -}}
+{{- $webphoneSecret := required "voice.webphone.jwtSecret is required when WebPhone is enabled" .Values.voice.webphone.jwtSecret -}}
+{{- $_ := required "voice.webphone.publicWssUrl is required when WebPhone is enabled" .Values.voice.webphone.publicWssUrl -}}
+{{- $_ := required "voice.webphone.sipRealm is required when WebPhone is enabled" .Values.voice.webphone.sipRealm -}}
+{{- if lt (len $webphoneSecret) 32 -}}
+{{- fail "voice.webphone.jwtSecret must contain at least 32 characters" -}}
+{{- end -}}
+{{- if or (eq $webphoneSecret $managementToken) (eq $webphoneSecret $rwiToken) (eq $webphoneSecret $webhookToken) -}}
+{{- fail "voice.webphone.jwtSecret must be distinct from RustPBX runtime secrets" -}}
+{{- end -}}
+{{- if .Values.voice.webphone.ingress.enabled -}}
+{{- $_ := required "voice.webphone.ingress.host is required when WebPhone ingress is enabled" .Values.voice.webphone.ingress.host -}}
+{{- end -}}
+{{- end -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-rustpbx-config
+type: Opaque
+stringData:
+  rustpbx.toml: |
+    # Generated by the OPC Helm chart. Do not edit in the running pod.
+    http_addr = "0.0.0.0:{{ $managementPort }}"
+    log_level = "info"
+    database_url = {{ $databaseUrl | quote }}
+    rtp_start_port = {{ $rtpStart }}
+    rtp_end_port = {{ $rtpEnd }}
+    {{- with .Values.voice.externalIp }}
+    external_ip = {{ . | quote }}
+    {{- end }}
+    storage_dir = "/app/storage"
+
+    [console]
+    base_path = "/console"
+    api_prefix = "/api"
+    allow_registration = false
+    secure_cookie = false
+
+    [[console.api_tokens]]
+    token = {{ $managementToken | quote }}
+    scopes = ["extensions.write", "trunks.write", "routing.write"]
+    description = "iveKit management adapter"
+
+    [ami]
+    allows = [{{- range $index, $allow := .Values.voice.amiAllows }}{{ if $index }}, {{ end }}{{ $allow | quote }}{{- end }}]
+
+    [proxy]
+    addr = "0.0.0.0"
+    generated_dir = "/app/generated"
+    udp_port = {{ $sipPort }}
+    tcp_port = {{ $sipPort }}
+    modules = ["acl", "auth", "presence", "registrar", "call"]
+    media_proxy = "auto"
+    ensure_user = true
+    {{- if .Values.voice.webphone.enabled }}
+    ws_handler = "/ws"
+    {{- end }}
+    acl_rules = ["allow all", "deny all"]
+    sip_max_active_transactions = {{ int .Values.voice.sipCapacity.maxActiveTransactions }}
+    sip_max_finished_transactions = {{ int .Values.voice.sipCapacity.maxFinishedTransactions }}
+    sip_incoming_transaction_queue_capacity = {{ int .Values.voice.sipCapacity.incomingTransactionQueueCapacity }}
+    sip_max_transport_connections = {{ int .Values.voice.sipCapacity.maxTransportConnections }}
+    media_session_cleanup_concurrency = {{ int .Values.voice.mediaCapacity.sessionCleanupConcurrency }}
+    media_session_cleanup_timeout_ms = {{ int .Values.voice.mediaCapacity.sessionCleanupTimeoutMs }}
+    media_recording_channel_capacity = {{ int .Values.voice.mediaCapacity.recordingChannelCapacity }}
+    media_recording_worker_threads = {{ int .Values.voice.mediaCapacity.recordingWorkerThreads }}
+    media_recording_worker_queue_capacity = {{ int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity }}
+    {{- if .Values.media.realtimeAudioTap.enabled }}
+    realtime_audio_tap_socket_path = "/run/ivekit/realtime-audio-tap.sock"
+    realtime_audio_tap_channel_capacity = {{ int .Values.media.realtimeAudioTap.rustPbxChannelCapacity }}
+    realtime_audio_tap_send_timeout_ms = {{ int .Values.media.realtimeAudioTap.rustPbxSendTimeoutMs }}
+    {{- end }}
+
+    {{- if .Values.voice.webphone.enabled }}
+    [proxy.jwt_auth]
+    enabled = true
+    secret = {{ .Values.voice.webphone.jwtSecret | quote }}
+    user_id_claim = "sub"
+    issuer = {{ .Values.voice.webphone.jwtIssuer | quote }}
+    audience = {{ .Values.voice.webphone.jwtAudience | quote }}
+    check_local_user = true
+    ws_token_param = "token"
+    dev_mint_enabled = false
+    {{- end }}
+
+    [[proxy.user_backends]]
+    type = "extension"
+    ttl = 30
+
+    [proxy.http_router]
+    url = {{ printf "http://%s-opc:3000/api/ivekit/voice/providers/%s/router" .Release.Name $profileId | quote }}
+    timeout_ms = 3000
+    fallback_to_static = false
+    fallback_action = "reject"
+
+    [proxy.http_router.headers]
+    X-PBX-Key = {{ $webhookToken | quote }}
+
+    [rwi]
+    enabled = true
+    max_connections = 2000
+    max_calls_per_connection = 200
+    orphan_hold_secs = 30
+    originate_rate_limit = 10
+
+    [[rwi.tokens]]
+    token = {{ $rwiToken | quote }}
+    scopes = ["call.control", "queue.control", "record.control", "supervisor.control", "media.stream"]
+
+    [callrecord]
+    type = "http"
+    max_concurrent = {{ int .Values.voice.callRecordCapacity.maxConcurrent }}
+    channel_capacity = {{ int .Values.voice.callRecordCapacity.channelCapacity }}
+    worker_threads = {{ int .Values.voice.callRecordCapacity.workerThreads }}
+    persist_to_database = false
+    url = {{ printf "http://%s-opc:3000/api/ivekit/voice/providers/%s/cdrs" .Release.Name $profileId | quote }}
+    headers = { "X-PBX-Key" = {{ $webhookToken | quote }} }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-rustpbx
+  labels:
+    app: rustpbx
+spec:
+  serviceName: {{ .Release.Name }}-rustpbx-internal
+  podManagementPolicy: Parallel
+  replicas: {{ .Values.voice.replicaCount }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: rustpbx
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $managementPort | quote }}
+        prometheus.io/path: /metrics
+      labels:
+        app: rustpbx
+        {{- if .Values.voice.dialogShadow.enabled }}
+        ivekit.io/t1-shadow-fault-domain: {{ .Values.voice.dialogShadow.faultDomain | quote }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.voice.terminationGracePeriodSeconds }}
+      hostNetwork: {{ .Values.voice.network.hostNetwork }}
+      dnsPolicy: ClusterFirstWithHostNet
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ .Values.voice.scheduling.hostnameTopologyKey | quote }}
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: rustpbx
+        - maxSkew: 1
+          topologyKey: {{ .Values.voice.scheduling.zoneTopologyKey | quote }}
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: rustpbx
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: {{ .Values.voice.scheduling.hostnameTopologyKey | quote }}
+              labelSelector:
+                matchLabels:
+                  app: rustpbx
+      nodeSelector:
+        {{- toYaml .Values.voice.scheduling.nodeSelector | nindent 8 }}
+      {{- with .Values.voice.scheduling.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.voice.podSecurityContext | nindent 8 }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: route-snapshot-projector
+          image: {{ $opcImage | quote }}
+          imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
+          command: ["node", "--import", "tsx", "src/ivekit-rustpbx-route-snapshot.ts"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opc.databaseUrlSecretName" . }}
+                  key: {{ include "opc.databaseUrlSecretKey" . }}
+            - name: IVEKIT_RUSTPBX_ROUTE_TENANT_ID
+              value: {{ $tenantId | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_PROFILE_ID
+              value: {{ $profileId | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE
+              value: /app/route-snapshot/routes.json
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustpbx-route-snapshot-hmac-key
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_INTERVAL_MS
+              value: {{ .Values.voice.routeSnapshot.intervalMs | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_TTL_MS
+              value: {{ .Values.voice.routeSnapshot.ttlMs | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_DEPENDENCIES
+              value: {{ .Values.voice.routeSnapshot.dependencies | quote }}
+          volumeMounts:
+            - name: route-snapshot
+              mountPath: /app/route-snapshot
+          securityContext:
+            {{- toYaml .Values.voice.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.voice.routeSnapshot.resources | nindent 12 }}
+        {{- if .Values.voice.recordingSpool.enabled }}
+        - name: recording-spool-uploader
+          image: {{ $opcImage | quote }}
+          imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
+          command: ["node", "--import", "tsx", "src/ivekit-rustpbx-recording-spool.ts"]
+          env:
+            - name: OPC_IVEKIT_RECORDING_BASE_URL
+              value: {{ printf "http://%s-opc:3000" .Release.Name | quote }}
+            - name: OPC_IVEKIT_RECORDING_PROFILE_ID
+              value: {{ $profileId | quote }}
+            - name: OPC_IVEKIT_RECORDING_WORKER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_RECORDING_SPOOL_DIR
+              value: /app/recording-spool
+            - name: OPC_IVEKIT_RECORDING_STATE_DIR
+              value: /app/recording-state
+            - name: OPC_IVEKIT_RECORDING_SERVICE_KEY_FILE
+              value: /run/ivekit-recording-secrets/rustpbx-recording-service-key
+            - name: OPC_IVEKIT_RECORDING_LEASE_SECRET_FILE
+              value: /run/ivekit-recording-secrets/rustpbx-recording-lease-secret
+            - name: OPC_IVEKIT_RECORDING_PART_SIZE_BYTES
+              value: {{ .Values.voice.recordingSpool.partSizeBytes | quote }}
+            - name: OPC_IVEKIT_RECORDING_LEASE_MS
+              value: {{ .Values.voice.recordingSpool.leaseMs | quote }}
+            - name: OPC_IVEKIT_RECORDING_UPLOAD_CONCURRENCY
+              value: {{ .Values.voice.recordingSpool.uploadConcurrency | quote }}
+            - name: OPC_IVEKIT_RECORDING_POLL_INTERVAL_MS
+              value: {{ .Values.voice.recordingSpool.pollIntervalMs | quote }}
+          volumeMounts:
+            - name: recording-spool
+              mountPath: /app/recording-spool
+            - name: recording-state
+              mountPath: /app/recording-state
+            - name: recording-secrets
+              mountPath: /run/ivekit-recording-secrets
+              readOnly: true
+          securityContext:
+            {{- toYaml .Values.voice.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.voice.recordingSpool.resources | nindent 12 }}
+        {{- end }}
+        {{- if .Values.voice.componentNode.enabled }}
+        - name: component-node-admission
+          image: {{ $opcImage | quote }}
+          imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
+          command: ["node", "--import", "tsx", "scripts/ivekit-component-node-admission.ts"]
+          ports:
+            - name: component-node
+              containerPort: {{ .Values.voice.componentNode.port }}
+              protocol: TCP
+          env:
+            - name: OPC_IVEKIT_COMPONENT_NODE_HOST
+              value: "0.0.0.0"
+            - name: OPC_IVEKIT_COMPONENT_NODE_PORT
+              value: {{ .Values.voice.componentNode.port | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: {{ .Values.voice.componentNode.tokenKey }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_COMPONENT
+              value: rustpbx
+            - name: OPC_IVEKIT_COMPONENT_NODE_REGION_ID
+              value: {{ .Values.voice.componentNode.regionId | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_ZONE_ID
+              value: {{ .Values.voice.componentNode.zoneId | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_CELL_ID
+              value: {{ $cellId | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS
+              value: {{ join "," .Values.voice.componentNode.profileIds | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON
+              value: {{ .Values.voice.componentNode.profileRequirementsJson | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_READINESS_PROFILE_IDS
+              value: {{ join "," .Values.voice.componentNode.readinessProfileIds | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS
+              value: sip_voice
+            - name: OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON
+              value: {{ .Values.voice.componentNode.dimensionsJson | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_ENABLED
+              value: {{ ternary "true" "false" .Values.voice.mediaControl.enabled | quote }}
+            {{- if .Values.voice.mediaControl.enabled }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE
+              value: /app/route-snapshot/routes.json
+            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_HMAC_KEY_FILE
+              value: /run/rustpbx-route-secrets/hmac-key
+            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_TENANT_ID
+              value: {{ $tenantId | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_PROFILE_ID
+              value: {{ $profileId | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT
+              value: {{ .Values.voice.mediaControl.endpoint | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE
+              value: {{ printf "/run/media-control-client-tls/%s" .Values.voice.mediaControl.identityFile | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_CA_FILE
+              value: {{ printf "/run/media-control-client-tls/%s" .Values.voice.mediaControl.caFile | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TIMEOUT_MS
+              value: {{ .Values.voice.mediaControl.readinessTimeoutMs | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS
+              value: {{ .Values.voice.mediaControl.readinessRefreshMs | quote }}
+            {{- end }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS
+              value: {{ .Values.voice.componentNode.terminalRetentionMs | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS
+              value: {{ .Values.voice.componentNode.sweepIntervalMs | quote }}
+            {{- if .Values.voice.recordingSpool.enabled }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE
+              value: /app/recording-state/metrics.json
+            - name: OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_REFRESH_MS
+              value: {{ .Values.voice.recordingSpool.metricsRefreshMs | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_STALE_MS
+              value: {{ .Values.voice.recordingSpool.metricsStaleMs | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: component-node
+            periodSeconds: 3
+            timeoutSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: component-node
+            periodSeconds: 10
+            timeoutSeconds: 2
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -ec
+                  - sleep {{ add (div (int .Values.voice.componentNode.drainWaitMs) 1000) .Values.voice.drainPropagationSeconds 5 }}
+          securityContext:
+            {{- toYaml .Values.voice.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.voice.componentNode.resources | nindent 12 }}
+          volumeMounts:
+            - name: route-snapshot
+              mountPath: /app/route-snapshot
+              readOnly: true
+            {{- if .Values.voice.mediaControl.enabled }}
+            - name: rustpbx-route-secrets
+              mountPath: /run/rustpbx-route-secrets
+              readOnly: true
+            - name: media-control-client-tls
+              mountPath: /run/media-control-client-tls
+              readOnly: true
+            {{- end }}
+            {{- if .Values.voice.recordingSpool.enabled }}
+            - name: recording-state
+              mountPath: /app/recording-state
+              readOnly: true
+            {{- end }}
+        {{- end }}
+        {{- if .Values.media.realtimeAudioTap.enabled }}
+        - name: realtime-audio-tap-gateway
+          image: {{ $opcImage | quote }}
+          imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
+          command: ["node", "--import", "tsx", "src/ivekit-realtime-audio-tap-worker.ts"]
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opc.databaseUrlSecretName" . }}
+                  key: {{ include "opc.databaseUrlSecretKey" . }}
+            {{ include "opc.redisClientEnv" . | nindent 12 }}
+            - name: OPC_IVEKIT_PROVIDER_PROFILES_JSON
+              value: {{ .Values.intelligence.providerProfilesJson | default "[]" | quote }}
+            - name: OPC_IVEKIT_OCR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-ocr-provider-token
+            - name: OPC_IVEKIT_ASR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-asr-provider-token
+            - name: OPC_IVEKIT_QUALITY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-quality-provider-token
+            - name: OPC_IVEKIT_TRANSLATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-translation-provider-token
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: realtime-audio-tap-hmac-secret-b64
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
+              value: {{ .Values.media.realtimeAudioTap.tokenTtlSeconds | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_SOCKET_PATH
+              value: /run/ivekit/realtime-audio-tap.sock
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_MAX_CONNECTIONS
+              value: {{ .Values.media.realtimeAudioTap.maxConnections | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_PRESTART_BUFFER_MS
+              value: {{ .Values.media.realtimeAudioTap.prestartBufferMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_IDLE_TIMEOUT_MS
+              value: {{ .Values.media.realtimeAudioTap.idleTimeoutMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.media.realtimeAudioTap.shutdownTimeoutMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS
+              value: {{ .Values.media.realtimeAudioTap.projectionQueueMaxItems | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.media.realtimeAudioTap.projectionShutdownTimeoutMs | quote }}
+            - name: OPC_REALTIME_SPEECH_RETENTION_DAYS
+              value: {{ .Values.media.realtimeAudioTap.retentionDays | quote }}
+          readinessProbe:
+            exec:
+              command: ["sh", "-ec", "test -S /run/ivekit/realtime-audio-tap.sock"]
+            periodSeconds: 3
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: realtime-audio-tap
+              mountPath: /run/ivekit
+          securityContext:
+            {{- toYaml .Values.voice.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.media.realtimeAudioTap.rustPbxGateway.resources | nindent 12 }}
+        {{- end }}
+        {{- if .Values.voice.dialogShadow.enabled }}
+        - name: dialog-shadow-agent
+          image: {{ $opcImage | quote }}
+          imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
+          command: ["node", "dist/ivekit-dialog-shadow-agent.js"]
+          env:
+            - name: IVEKIT_DIALOG_SHADOW_PRODUCTION
+              value: "true"
+            - name: IVEKIT_DIALOG_SHADOW_HOST
+              value: "127.0.0.1"
+            - name: IVEKIT_DIALOG_SHADOW_PORT
+              value: "3212"
+            - name: IVEKIT_DIALOG_SHADOW_CELL_ID
+              value: {{ $cellId | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: IVEKIT_DIALOG_SHADOW_FAULT_DOMAIN
+              value: {{ .Values.voice.dialogShadow.faultDomain | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_PATH
+              value: /app/dialog-shadow/dialog-shadow.wal
+            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORDS
+              value: {{ .Values.voice.dialogShadow.journal.maxRecords | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_BYTES
+              value: {{ .Values.voice.dialogShadow.journal.maxBytes | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES
+              value: {{ .Values.voice.dialogShadow.journal.maxRecordBytes | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_COMPACT_INTERVAL_MS
+              value: {{ .Values.voice.dialogShadow.journal.compactIntervalMs | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_SERVICE_TOKEN_FILE
+              value: /run/dialog-shadow-secrets/service-token
+            - name: IVEKIT_DIALOG_SHADOW_TLS_KEY_FILE
+              value: /run/dialog-shadow-server-tls/server.key
+            - name: IVEKIT_DIALOG_SHADOW_TLS_CERT_FILE
+              value: /run/dialog-shadow-server-tls/server.crt
+            - name: IVEKIT_DIALOG_SHADOW_TLS_CA_FILE
+              value: /run/dialog-shadow-server-tls/client-ca.crt
+            - name: IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN
+              value: {{ .Values.voice.dialogShadow.spiffeTrustDomain | quote }}
+            - name: IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE
+              value: /run/dialog-shadow-agent-secrets/database-url
+            - name: IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_ID
+              value: {{ .Values.voice.dialogShadow.currentRecoveryKeyId | quote }}
+            - name: IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_FILE
+              value: /run/dialog-shadow-secrets/recovery-current-key
+            - name: IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_ID
+              value: {{ .Values.voice.dialogShadow.previousRecoveryKeyId | quote }}
+            - name: IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_FILE
+              value: /run/dialog-shadow-secrets/recovery-previous-key
+            - name: IVEKIT_DIALOG_RECOVERY_TOKEN_TTL_MS
+              value: {{ .Values.voice.dialogShadow.recovery.tokenTtlMs | quote }}
+            - name: IVEKIT_DIALOG_RECOVERY_NODE_LEASE_TTL_MS
+              value: {{ .Values.voice.dialogShadow.recovery.nodeLeaseTtlMs | quote }}
+            - name: IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX
+              value: {{ .Values.voice.dialogShadow.recovery.postgresPoolMax | quote }}
+            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS
+              value: {{ .Values.voice.dialogShadow.recovery.terminalRepairIntervalMs | quote }}
+            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS
+              value: {{ .Values.voice.dialogShadow.recovery.terminalRepairLeaseTtlMs | quote }}
+            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE
+              value: {{ .Values.voice.dialogShadow.recovery.terminalRepairTenantBatchSize | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE
+              value: /run/dialog-shadow-nats-fault-domains/fault-domains.json
+            - name: IVEKIT_DIALOG_SHADOW_NATS_STREAM
+              value: {{ .Values.voice.dialogShadow.nats.streamName | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_SUBJECT_PREFIX
+              value: {{ .Values.voice.dialogShadow.nats.subjectPrefix | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER
+              value: {{ .Values.voice.dialogShadow.nats.placementCluster | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_TAGS
+              value: {{ join "," .Values.voice.dialogShadow.nats.placementTags | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_STREAM_REPLICAS
+              value: {{ .Values.voice.dialogShadow.nats.streamReplicas | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS
+              value: {{ .Values.voice.dialogShadow.nats.requiredFaultDomains | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_MAX_AGE_MS
+              value: {{ .Values.voice.dialogShadow.nats.maxAgeMs | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_ACK_WAIT_MS
+              value: {{ .Values.voice.dialogShadow.nats.ackWaitMs | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_MAX_ACK_PENDING
+              value: {{ .Values.voice.dialogShadow.nats.maxAckPending | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_QUORUM_TIMEOUT_MS
+              value: {{ .Values.voice.dialogShadow.nats.quorumTimeoutMs | quote }}
+            - name: NATS_URL
+              value: {{ join "," .Values.voice.dialogShadow.nats.urls | quote }}
+            - name: NATS_TLS_MODE
+              value: required
+            - name: NATS_TLS_CA_FILE
+              value: /run/dialog-shadow-nats-tls/ca.crt
+            - name: NATS_TLS_CERT_FILE
+              value: /run/dialog-shadow-nats-tls/client.crt
+            - name: NATS_TLS_KEY_FILE
+              value: /run/dialog-shadow-nats-tls/client.key
+          readinessProbe:
+            tcpSocket:
+              port: 3212
+            periodSeconds: 3
+            timeoutSeconds: 1
+          livenessProbe:
+            tcpSocket:
+              port: 3212
+            periodSeconds: 10
+            timeoutSeconds: 2
+          volumeMounts:
+            - name: storage
+              mountPath: /app/dialog-shadow
+            - name: dialog-shadow-shared-secrets
+              mountPath: /run/dialog-shadow-secrets
+              readOnly: true
+            - name: dialog-shadow-agent-secrets
+              mountPath: /run/dialog-shadow-agent-secrets
+              readOnly: true
+            - name: dialog-shadow-server-tls
+              mountPath: /run/dialog-shadow-server-tls
+              readOnly: true
+            - name: dialog-shadow-nats-tls
+              mountPath: /run/dialog-shadow-nats-tls
+              readOnly: true
+            - name: dialog-shadow-nats-fault-domains
+              mountPath: /run/dialog-shadow-nats-fault-domains
+              readOnly: true
+          securityContext:
+            {{- toYaml .Values.voice.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.voice.dialogShadow.resources | nindent 12 }}
+        {{- end }}
+        - name: rustpbx
+          image: {{ $rustpbxImage | quote }}
+          imagePullPolicy: {{ .Values.voice.image.pullPolicy | default "IfNotPresent" }}
+          args: ["--conf", "/app/config/rustpbx.toml"]
+          env:
+            - name: RUSTPBX_ENV
+              value: production
+            - name: RUSTRTC_UDP_RECEIVE_BUFFER_BYTES
+              value: {{ .Values.voice.mediaCapacity.udpReceiveBufferBytes | quote }}
+            - name: RUSTRTC_UDP_SEND_BUFFER_BYTES
+              value: {{ .Values.voice.mediaCapacity.udpSendBufferBytes | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE
+              value: /app/route-snapshot/routes.json
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustpbx-route-snapshot-hmac-key
+            - name: IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-voice-address-hmac-key
+            - name: IVEKIT_RUSTPBX_ROUTE_TENANT_ID
+              value: {{ $tenantId | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_PROFILE_ID
+              value: {{ $profileId | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS
+              value: {{ .Values.voice.routeSnapshot.refreshMs | quote }}
+            - name: IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL
+              value: {{ printf "http://%s-opc:3000/api/ivekit/voice/providers/%s/inbound-admission" .Release.Name $profileId | quote }}
+            - name: IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustpbx-webhook-token
+            - name: IVEKIT_RUSTPBX_CELL_ID
+              value: {{ $cellId | quote }}
+            - name: IVEKIT_RUSTPBX_OWNER_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{- if .Values.voice.mediaControl.enabled }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT
+              value: {{ .Values.voice.mediaControl.endpoint | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_TOKEN_FILE
+              value: /run/media-control-secrets/service-token
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_PRODUCTION
+              value: "true"
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_MODE
+              value: {{ .Values.voice.mediaControl.mode | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_FAILURE_POLICY
+              value: {{ .Values.voice.mediaControl.failurePolicy | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_MAX_INFLIGHT
+              value: {{ .Values.voice.mediaControl.maxInflight | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_TIMEOUT_MS
+              value: {{ .Values.voice.mediaControl.timeoutMs | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_MAX_RESPONSE_BYTES
+              value: {{ .Values.voice.mediaControl.maxResponseBytes | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_TRACE_SAMPLE_RATIO
+              value: {{ .Values.voice.mediaControl.traceSampleRatio | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_IDENTITY_FILE
+              value: {{ printf "/run/media-control-client-tls/%s" .Values.voice.mediaControl.identityFile | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_CA_FILE
+              value: {{ printf "/run/media-control-client-tls/%s" .Values.voice.mediaControl.caFile | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_PROFILE_ID
+              value: {{ .Values.voice.admissionProfiles.ordinary.id | quote }}
+            {{- end }}
+            {{- if .Values.voice.dialogShadow.enabled }}
+            - name: IVEKIT_RUSTPBX_FAULT_DOMAIN
+              value: {{ .Values.voice.dialogShadow.faultDomain | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_ENDPOINT
+              value: {{ .Values.voice.dialogShadow.endpoint | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_TOKEN_FILE
+              value: /run/dialog-shadow-secrets/service-token
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_PRODUCTION
+              value: "true"
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_IDENTITY_FILE
+              value: {{ printf "/run/dialog-shadow-client-tls/%s" .Values.voice.dialogShadow.clientIdentity.identityFile | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_CA_FILE
+              value: {{ printf "/run/dialog-shadow-client-tls/%s" .Values.voice.dialogShadow.clientIdentity.caFile | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_MAX_INFLIGHT
+              value: {{ .Values.voice.dialogShadow.rustPbx.maxInflight | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_TIMEOUT_MS
+              value: {{ .Values.voice.dialogShadow.rustPbx.timeoutMs | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_MAX_RESPONSE_BYTES
+              value: {{ .Values.voice.dialogShadow.rustPbx.maxResponseBytes | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_HEARTBEAT_INTERVAL_MS
+              value: {{ .Values.voice.dialogShadow.rustPbx.heartbeatIntervalMs | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_ID
+              value: {{ .Values.voice.dialogShadow.currentRecoveryKeyId | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_FILE
+              value: /run/dialog-shadow-secrets/recovery-current-key
+            - name: IVEKIT_RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_ID
+              value: {{ .Values.voice.dialogShadow.previousRecoveryKeyId | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_FILE
+              value: /run/dialog-shadow-secrets/recovery-previous-key
+            {{- end }}
+            - name: IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS
+              value: "250"
+            - name: IVEKIT_RUSTPBX_CDR_SPOOL_DIR
+              value: /app/storage/cdr-spool
+            - name: IVEKIT_RUSTPBX_CDR_ENDPOINT
+              value: {{ $cdrEndpoint | quote }}
+            - name: IVEKIT_RUSTPBX_CDR_REGION_ID
+              value: {{ .Values.voice.cdr.regionId | quote }}
+            - name: IVEKIT_RUSTPBX_CDR_SERVICE_KEY_FILE
+              value: /run/cdr-secrets/service-key
+            - name: IVEKIT_RUSTPBX_CDR_TLS_IDENTITY_FILE
+              value: /run/cdr-secrets/client-identity.pem
+            - name: IVEKIT_RUSTPBX_CDR_TLS_CA_FILE
+              value: /run/cdr-secrets/ca.crt
+            - name: IVEKIT_RUSTPBX_CDR_POLL_MS
+              value: {{ .Values.voice.cdr.pollIntervalMs | quote }}
+            - name: IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED
+              value: {{ ternary "true" "false" .Values.voice.recordingSpool.enabled | quote }}
+            {{- if .Values.voice.recordingSpool.enabled }}
+            - name: IVEKIT_RUSTPBX_RECORDING_SPOOL_DIR
+              value: /app/recording-spool
+            - name: IVEKIT_RUSTPBX_RECORDING_SEGMENT_SECONDS
+              value: {{ .Values.voice.recordingSpool.segmentSeconds | quote }}
+            - name: IVEKIT_RUSTPBX_RECORDING_SEGMENT_MAX_BYTES
+              value: {{ .Values.voice.recordingSpool.segmentMaxBytes | quote }}
+            - name: IVEKIT_REGION_ID
+              value: {{ .Values.voice.regionId | quote }}
+            - name: IVEKIT_ZONE_ID
+              value: {{ .Values.voice.zoneId | quote }}
+            {{- end }}
+            {{- if .Values.voice.componentNode.enabled }}
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED
+              value: "true"
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_URL
+              value: "http://127.0.0.1:3210"
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: {{ .Values.voice.componentNode.tokenKey }}
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_TIMEOUT_MS
+              value: {{ .Values.voice.componentNode.timeoutMs | quote }}
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_REFRESH_MS
+              value: {{ .Values.voice.componentNode.refreshMs | quote }}
+            {{- else }}
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED
+              value: "false"
+            {{- end }}
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/bash
+                  - -ec
+                  - |
+                    reload_trunks() {
+                      local status=""
+                      exec 3<>/dev/tcp/127.0.0.1/{{ $managementPort }} || return 1
+                      printf 'POST /ami/v1/reload/trunks HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Length: 0\r\n\r\n' >&3
+                      IFS= read -r status <&3 || return 1
+                      exec 3>&- 3<&-
+                      [[ "$status" == *" 200 "* ]]
+                    }
+                    attempt=0
+                    until reload_trunks; do
+                      attempt=$((attempt + 1))
+                      [ "$attempt" -lt 60 ] || exit 1
+                      sleep 1
+                    done
+            {{- if .Values.voice.componentNode.enabled }}
+            preStop:
+              exec:
+                command:
+                  - /bin/bash
+                  - -ec
+                  - |
+                    drain_component_node() {
+                      local status=""
+                      local payload
+                      payload='{"propagation_delay_ms":{{ mul .Values.voice.drainPropagationSeconds 1000 }},"wait_for_reservations_ms":{{ .Values.voice.componentNode.drainWaitMs }},"poll_interval_ms":{{ .Values.voice.componentNode.drainPollMs }}}'
+                      exec 3<>/dev/tcp/127.0.0.1/3210 || return 1
+                      printf 'POST /v1/drain HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer %s\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s' "$IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN" "${#payload}" "$payload" >&3
+                      IFS= read -r status <&3 || return 1
+                      exec 3>&- 3<&-
+                      [[ "$status" == *" 200 "* ]]
+                    }
+                    drain_component_node
+            {{- end }}
+          ports:
+            - name: management
+              containerPort: {{ $managementPort }}
+              protocol: TCP
+            - name: sip-udp
+              containerPort: {{ $sipPort }}
+              protocol: UDP
+            - name: sip-tcp
+              containerPort: {{ $sipPort }}
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: generated
+              mountPath: /app/generated
+            - name: route-snapshot
+              mountPath: /app/route-snapshot
+              readOnly: true
+            - name: storage
+              mountPath: /app/storage
+            - name: cdr-secrets
+              mountPath: /run/cdr-secrets
+              readOnly: true
+            {{- if .Values.voice.mediaControl.enabled }}
+            - name: media-control-secrets
+              mountPath: /run/media-control-secrets
+              readOnly: true
+            - name: media-control-client-tls
+              mountPath: /run/media-control-client-tls
+              readOnly: true
+            {{- end }}
+            {{- if .Values.voice.recordingSpool.enabled }}
+            - name: recording-spool
+              mountPath: /app/recording-spool
+            {{- end }}
+            {{- if .Values.media.realtimeAudioTap.enabled }}
+            - name: realtime-audio-tap
+              mountPath: /run/ivekit
+            {{- end }}
+            {{- if .Values.voice.dialogShadow.enabled }}
+            - name: dialog-shadow-shared-secrets
+              mountPath: /run/dialog-shadow-secrets
+              readOnly: true
+            - name: dialog-shadow-client-tls
+              mountPath: /run/dialog-shadow-client-tls
+              readOnly: true
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            {{- toYaml .Values.voice.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.voice.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: management
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            tcpSocket:
+              port: management
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 4
+      volumes:
+        - name: config
+          secret:
+            secretName: {{ .Release.Name }}-rustpbx-config
+            defaultMode: 0440
+        - name: generated
+          emptyDir: {}
+        - name: route-snapshot
+          emptyDir: {}
+        - name: cdr-secrets
+          projected:
+            defaultMode: 0400
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: rustpbx-webhook-token
+                      path: service-key
+              - secret:
+                  name: {{ required "voice.cdr.tls.secretName is required when voice is enabled" .Values.voice.cdr.tls.secretName }}
+                  items:
+                    - key: {{ .Values.voice.cdr.tls.clientIdentityKey }}
+                      path: client-identity.pem
+                    - key: {{ .Values.voice.cdr.tls.caKey }}
+                      path: ca.crt
+        {{- if .Values.voice.mediaControl.enabled }}
+        - name: media-control-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: {{ .Values.voice.mediaControl.serviceTokenKey }}
+                      path: service-token
+        - name: rustpbx-route-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: rustpbx-route-snapshot-hmac-key
+                      path: hmac-key
+        - name: media-control-client-tls
+          secret:
+            secretName: {{ .Values.voice.mediaControl.clientTlsSecretName }}
+            defaultMode: 0440
+        {{- end }}
+        {{- if not .Values.voice.persistence.enabled }}
+        - name: storage
+          emptyDir: {}
+        {{- if .Values.voice.recordingSpool.enabled }}
+        - name: recording-spool
+          emptyDir: {}
+        - name: recording-state
+          emptyDir: {}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.voice.recordingSpool.enabled }}
+        - name: recording-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: rustpbx-webhook-token
+                      path: rustpbx-recording-service-key
+                    - key: {{ .Values.voice.recordingSpool.leaseSecretKey }}
+                      path: rustpbx-recording-lease-secret
+        {{- end }}
+        {{- if .Values.voice.dialogShadow.enabled }}
+        - name: dialog-shadow-shared-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: {{ .Values.voice.dialogShadow.serviceTokenKey }}
+                      path: service-token
+                    - key: {{ .Values.voice.dialogShadow.currentRecoveryKeyKey }}
+                      path: recovery-current-key
+                    - key: {{ .Values.voice.dialogShadow.previousRecoveryKeyKey }}
+                      path: recovery-previous-key
+        - name: dialog-shadow-agent-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: {{ .Values.voice.dialogShadow.recoveryDatabaseUrlKey }}
+                      path: database-url
+        - name: dialog-shadow-server-tls
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Values.voice.dialogShadow.serverTlsSecretName }}
+                  items:
+                    - key: {{ .Values.voice.dialogShadow.serverTlsKeyKey }}
+                      path: server.key
+                    - key: {{ .Values.voice.dialogShadow.serverTlsCertificateKey }}
+                      path: server.crt
+                    - key: {{ .Values.voice.dialogShadow.serverTlsClientCaKey }}
+                      path: client-ca.crt
+        - name: dialog-shadow-client-tls
+          csi:
+            driver: {{ .Values.voice.dialogShadow.clientIdentity.csi.driver | quote }}
+            readOnly: {{ .Values.voice.dialogShadow.clientIdentity.csi.readOnly }}
+            volumeAttributes:
+              {{- toYaml .Values.voice.dialogShadow.clientIdentity.csi.volumeAttributes | nindent 14 }}
+        - name: dialog-shadow-nats-tls
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Values.voice.dialogShadow.nats.tlsSecretName }}
+                  items:
+                    - key: {{ .Values.voice.dialogShadow.nats.tlsCaKey }}
+                      path: ca.crt
+                    - key: {{ .Values.voice.dialogShadow.nats.tlsCertificateKey }}
+                      path: client.crt
+                    - key: {{ .Values.voice.dialogShadow.nats.tlsPrivateKeyKey }}
+                      path: client.key
+        - name: dialog-shadow-nats-fault-domains
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Values.voice.dialogShadow.nats.faultDomainsSecretName }}
+                  items:
+                    - key: {{ .Values.voice.dialogShadow.nats.faultDomainsKey }}
+                      path: fault-domains.json
+        {{- end }}
+        {{- if .Values.media.realtimeAudioTap.enabled }}
+        - name: realtime-audio-tap
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.media.realtimeAudioTap.socketVolumeSizeLimit }}
+        {{- end }}
+        - name: tmp
+          emptyDir: {}
+  {{- if .Values.voice.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: storage
+      spec:
+        accessModes: [{{ .Values.voice.persistence.accessMode | quote }}]
+        {{- with .Values.voice.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.voice.persistence.storageSize }}
+    {{- if .Values.voice.recordingSpool.enabled }}
+    - metadata:
+        name: recording-spool
+      spec:
+        accessModes: [{{ .Values.voice.persistence.accessMode | quote }}]
+        {{- with .Values.voice.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.voice.persistence.recordingSpoolSize }}
+    - metadata:
+        name: recording-state
+      spec:
+        accessModes: [{{ .Values.voice.persistence.accessMode | quote }}]
+        {{- with .Values.voice.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.voice.persistence.recordingStateSize }}
+    {{- end }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-rustpbx-internal
+  labels:
+    app: rustpbx
+spec:
+  clusterIP: None
+  selector:
+    app: rustpbx
+  ports:
+    - name: management
+      port: {{ $managementPort }}
+      targetPort: management
+      protocol: TCP
+    {{- if .Values.voice.componentNode.enabled }}
+    - name: component-node
+      port: 3210
+      targetPort: component-node
+      protocol: TCP
+    {{- end }}
+{{- if and .Values.voice.webphone.enabled .Values.voice.webphone.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-rustpbx-webphone
+  {{- with .Values.voice.webphone.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.voice.webphone.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.voice.webphone.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.voice.webphone.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.voice.webphone.ingress.path | quote }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ .Release.Name }}-rustpbx-internal
+                port:
+                  name: management
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-rustpbx-sip
+spec:
+  type: {{ .Values.voice.service.sip.type }}
+  selector:
+    app: rustpbx
+  ports:
+    - name: sip-udp
+      port: {{ $sipPort }}
+      targetPort: {{ $sipPort }}
+      protocol: UDP
+    - name: sip-tcp
+      port: {{ $sipPort }}
+      targetPort: {{ $sipPort }}
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-rustpbx-rtp
+spec:
+  type: {{ .Values.voice.service.rtp.type }}
+  selector:
+    app: rustpbx
+  ports:
+    {{- range $port := untilStep $rtpStart (add1 $rtpEnd | int) 1 }}
+    - name: rtp-{{ $port }}
+      port: {{ $port }}
+      targetPort: {{ $port }}
+      protocol: UDP
+    {{- end }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-rustpbx
+spec:
+  minAvailable: {{ .Values.voice.disruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: rustpbx
+{{- if .Values.voice.monitoring.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-rustpbx
+  labels:
+    app: rustpbx
+    {{- with .Values.voice.monitoring.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: rustpbx
+  endpoints:
+    - port: management
+      path: /metrics
+      interval: {{ .Values.voice.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.voice.monitoring.serviceMonitor.scrapeTimeout }}
+    {{- if .Values.voice.componentNode.enabled }}
+    - port: component-node
+      path: /metrics
+      interval: {{ .Values.voice.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.voice.monitoring.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+{{- end }}
+{{- if .Values.voice.monitoring.prometheusRule.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}-rustpbx-capacity
+  labels:
+    app: rustpbx
+    {{- with .Values.voice.monitoring.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: ivekit.rustpbx.capacity
+      rules:
+        - alert: IveKitRustPbxSipTransactionSaturation
+          expr: 100 * rustpbx_sip_endpoint_running_transactions / clamp_min(rustpbx_sip_endpoint_active_transaction_limit, 1) > 90
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: RustPBX SIP active transaction capacity is above 90 percent
+        - alert: IveKitRustPbxSipQueueSaturation
+          expr: 100 * rustpbx_sip_endpoint_incoming_queue_depth / clamp_min(rustpbx_sip_endpoint_incoming_queue_capacity, 1) > 80
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: RustPBX SIP transaction queue is above 80 percent
+        - alert: IveKitRustPbxSipTransportSaturation
+          expr: 100 * rustpbx_sip_transport_connections_active / clamp_min(rustpbx_sip_transport_connection_limit, 1) > 90
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: RustPBX SIP transport connection capacity is above 90 percent
+        - alert: IveKitRustPbxSipOverloadRejections
+          expr: sum(increase({__name__=~"rustpbx_sip_(endpoint_(active_limit|incoming_queue)_rejections|transport_connection_limit_rejections)_total"}[5m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: RustPBX rejected SIP work because a bounded capacity limit was reached
+        - alert: IveKitRustPbxRecordingQueueDrops
+          expr: sum(increase(rustpbx_media_recording_queue_drops_total[5m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: RustPBX dropped recording samples to protect live RTP forwarding
+        - alert: IveKitRustPbxSessionCleanupDegraded
+          expr: sum(increase(rustpbx_media_session_cleanup_total{outcome=~"timed_out|capacity_exhausted"}[5m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: RustPBX force-dropped session resources to keep the media loop responsive
+        - alert: IveKitRustPbxOrdinaryRelayCapacityUnavailable
+          expr: min(ivekit_rustpbx_media_profile_ready{profile="voice-ordinary-v1"}) < 1
+          for: 30s
+          labels:
+            severity: critical
+          annotations:
+            summary: A RustPBX node cannot admit ordinary relayed calls
+        - alert: IveKitRustPbxRecordingProfileExhausted
+          expr: min(ivekit_rustpbx_media_profile_ready{profile="voice-recording-v1"}) < 1
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: A RustPBX recording profile is out of safe capacity
+        - alert: IveKitRustPbxAiTapProfileExhausted
+          expr: min(ivekit_rustpbx_media_profile_ready{profile="voice-ai-tap-v1"}) < 1
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: A RustPBX AI audio-tap profile is out of safe capacity
+{{- end }}
+{{- end }}

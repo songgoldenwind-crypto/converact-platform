@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ivekit-rtpengine
+  labels:
+    app.kubernetes.io/name: ivekit-rtpengine
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: ivekit-rtpengine
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: metrics
+      protocol: TCP
+    - name: media-control
+      port: 3211
+      targetPort: media-control
+      protocol: TCP

@@ -1,0 +1,34 @@
+route:
+  receiver: default-slack
+  group_by: ['alertname', 'tenant_id']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers:
+        - severity = "critical"
+      receiver: slack-ops
+      continue: false
+    - matchers:
+        - severity = "warning"
+      receiver: slack-info
+      continue: false
+
+receivers:
+  - name: default-slack
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/REPLACE_ME'
+        channel: '#opc-alerts'
+        send_resolved: true
+  - name: slack-ops
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/REPLACE_ME'
+        channel: '#opc-ops'
+        send_resolved: true
+        title: '{{ .CommonLabels.alertname }}'
+        text: '{{ .CommonAnnotations.summary }}'
+  - name: slack-info
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/REPLACE_ME'
+        channel: '#opc-info'
+        send_resolved: true

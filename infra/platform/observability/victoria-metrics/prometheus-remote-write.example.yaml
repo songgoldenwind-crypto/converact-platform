@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ivekit-victoria-metrics-prometheus-example
+data:
+  prometheus-remote-write.yaml: |
+    remote_write:
+      - name: ivekit-victoria-metrics
+        url: http://ivekit-victoria-metrics:8428/api/v1/write
+        remote_timeout: 10s
+        queue_config:
+          capacity: 20000
+          min_shards: 1
+          max_shards: 8
+          max_samples_per_send: 2000
+          batch_send_deadline: 5s
+          min_backoff: 100ms
+          max_backoff: 5s
+        metadata_config:
+          send: true

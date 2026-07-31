@@ -1,0 +1,68 @@
+services:
+  master:
+    image: ${SEAWEEDFS_IMAGE:?SEAWEEDFS_IMAGE immutable digest reference is required}
+    command:
+      - master
+      - -ip=master
+      - -ip.bind=0.0.0.0
+      - -mdir=/data
+      - -volumeSizeLimitMB=1024
+      - -metricsPort=9324
+    volumes:
+      - master-data:/data
+    networks: [seaweedfs]
+
+  volume:
+    image: ${SEAWEEDFS_IMAGE:?SEAWEEDFS_IMAGE immutable digest reference is required}
+    command:
+      - volume
+      - -ip=volume
+      - -ip.bind=0.0.0.0
+      - -master=master:9333
+      - -dir=/data
+      - -max=8
+      - -port=8080
+      - -metricsPort=9325
+    depends_on: [master]
+    volumes:
+      - volume-data:/data
+    networks: [seaweedfs]
+
+  filer:
+    image: ${SEAWEEDFS_IMAGE:?SEAWEEDFS_IMAGE immutable digest reference is required}
+    command:
+      - filer
+      - -ip=filer
+      - -ip.bind=0.0.0.0
+      - -master=master:9333
+      - -port=8888
+      - -metricsPort=9326
+    depends_on: [master, volume]
+    volumes:
+      - filer-data:/data
+    networks: [seaweedfs]
+
+  s3:
+    image: ${SEAWEEDFS_IMAGE:?SEAWEEDFS_IMAGE immutable digest reference is required}
+    command:
+      - s3
+      - -filer=filer:8888
+      - -ip.bind=0.0.0.0
+      - -port=8333
+      - -metricsPort=9327
+    environment:
+      AWS_ACCESS_KEY_ID: ${SEAWEEDFS_ACCESS_KEY:?SEAWEEDFS_ACCESS_KEY is required}
+      AWS_SECRET_ACCESS_KEY: ${SEAWEEDFS_SECRET_KEY:?SEAWEEDFS_SECRET_KEY is required}
+    depends_on: [master, volume, filer]
+    ports:
+      - 127.0.0.1:${SEAWEEDFS_S3_HOST_PORT:?SEAWEEDFS_S3_HOST_PORT is required}:8333
+    networks: [seaweedfs]
+
+networks:
+  seaweedfs:
+    name: ${COMPOSE_PROJECT_NAME:-ivekit-seaweedfs}-network
+
+volumes:
+  master-data:
+  volume-data:
+  filer-data:

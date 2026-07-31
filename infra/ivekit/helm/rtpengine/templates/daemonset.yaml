@@ -1,0 +1,303 @@
+{{- if not (has .Values.runtimeMode (list "userspace" "kernel")) }}
+{{- fail "runtimeMode must be userspace or kernel" }}
+{{- end }}
+{{- if and (eq .Values.runtimeMode "kernel") (not .Values.kernel.hostMounts) }}
+{{- fail "kernel mode requires kernel.hostMounts=true" }}
+{{- end }}
+{{- if and (not .Values.rtpengine.interfaceFromHostIP) (not .Values.rtpengine.interface) }}
+{{- fail "rtpengine.interface must be the node media interface and address" }}
+{{- end }}
+{{- if or (lt (int .Values.rtpengine.mediaPorts.minimum) 1024) (ge (int .Values.rtpengine.mediaPorts.minimum) (int .Values.rtpengine.mediaPorts.maximum)) (gt (int .Values.rtpengine.mediaPorts.maximum) 65535) }}
+{{- fail "rtpengine.mediaPorts must be a bounded non-empty UDP range" }}
+{{- end }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.rtpengine.image.digest) }}
+{{- fail "rtpengine.image.digest must be an immutable sha256 digest" }}
+{{- end }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.mediaControl.image.digest) }}
+{{- fail "mediaControl.image.digest must be an immutable sha256 digest" }}
+{{- end }}
+{{- if not (regexMatch "^(0(\\.[0-9]+)?|1(\\.0+)?)$" .Values.mediaControl.telemetry.sampleRatio) }}
+{{- fail "mediaControl.telemetry.sampleRatio must be between 0 and 1" }}
+{{- end }}
+{{- if and (not .Values.mediaControl.admissionRequireMtls) (ne .Values.mediaControl.admissionEndpoint "http://127.0.0.1:3210") }}
+{{- fail "mediaControl admission without mTLS must use http://127.0.0.1:3210" }}
+{{- end }}
+{{- if and .Values.mediaControl.admissionRequireMtls (not (hasPrefix "https://" .Values.mediaControl.admissionEndpoint)) }}
+{{- fail "mediaControl admission mTLS requires an HTTPS endpoint" }}
+{{- end }}
+{{- if .Values.mediaControl.telemetry.enabled }}
+{{- if not (regexMatch "^https?://[^/@]+(:[0-9]+)?(/[^@]*)?/v1/traces$" (required "mediaControl.telemetry.collectorEndpoint is required when telemetry is enabled" .Values.mediaControl.telemetry.collectorEndpoint)) }}
+{{- fail "mediaControl.telemetry.collectorEndpoint must be a credential-free HTTP(S) /v1/traces endpoint" }}
+{{- end }}
+{{- end }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ivekit-rtpengine
+  labels:
+    app.kubernetes.io/name: ivekit-rtpengine
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ivekit-rtpengine
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ivekit-rtpengine
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      containers:
+        - name: rtpengine
+          image: "{{ .Values.rtpengine.image.repository }}@{{ .Values.rtpengine.image.digest }}"
+          imagePullPolicy: {{ .Values.rtpengine.image.pullPolicy }}
+          env:
+            - name: IVEKIT_RTPENGINE_RUNTIME_MODE
+              value: {{ .Values.runtimeMode | quote }}
+            - name: IVEKIT_RTPENGINE_INTERFACE
+{{- if .Values.rtpengine.interfaceFromHostIP }}
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.hostIP
+{{- else }}
+              value: {{ .Values.rtpengine.interface | quote }}
+{{- end }}
+            - name: IVEKIT_RTPENGINE_LISTEN_NG
+              value: "127.0.0.1:22222"
+            - name: IVEKIT_RTPENGINE_LISTEN_TCP_NG
+              value: "127.0.0.1:22222"
+            - name: IVEKIT_RTPENGINE_LISTEN_HTTP
+              value: "0.0.0.0:8080"
+            - name: IVEKIT_RTPENGINE_PORT_MIN
+              value: {{ .Values.rtpengine.mediaPorts.minimum | quote }}
+            - name: IVEKIT_RTPENGINE_PORT_MAX
+              value: {{ .Values.rtpengine.mediaPorts.maximum | quote }}
+            - name: IVEKIT_RTPENGINE_MAX_ACTIVE_CALLS
+              value: {{ .Values.rtpengine.activeCallLimit | quote }}
+            - name: IVEKIT_RTPENGINE_GUARD_MAX_ENTRIES
+              value: {{ .Values.rtpengine.guardEntryLimit | quote }}
+            - name: IVEKIT_RTPENGINE_REPLAY_SDP_MAX_BYTES
+              value: {{ .Values.rtpengine.replaySdpMaxBytes | quote }}
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 20"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+{{- if eq .Values.runtimeMode "kernel" }}
+              add:
+                - NET_ADMIN
+{{- end }}
+          resources:
+{{ toYaml .Values.rtpengine.resources | indent 12 }}
+          volumeMounts:
+            - name: rtpengine-runtime
+              mountPath: /run/ivekit-rtpengine
+            - name: rtpengine-recording
+              mountPath: /rec
+{{- if eq .Values.runtimeMode "kernel" }}
+            - name: host-sys
+              mountPath: /sys
+              readOnly: true
+            - name: host-modules
+              mountPath: /lib/modules
+              readOnly: true
+{{- end }}
+        - name: media-control
+          image: "{{ .Values.mediaControl.image.repository }}@{{ .Values.mediaControl.image.digest }}"
+          imagePullPolicy: {{ .Values.mediaControl.image.pullPolicy }}
+          env:
+            - name: IVEKIT_MEDIA_CONTROL_PRODUCTION
+              value: "true"
+            - name: IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS
+              value: "true"
+            - name: IVEKIT_MEDIA_CONTROL_TRANSPORT
+              value: rtpengine
+            - name: IVEKIT_MEDIA_CONTROL_HOST
+              value: {{ .Values.mediaControl.host | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_PORT
+              value: "3211"
+            - name: IVEKIT_MEDIA_CONTROL_TOKEN_FILE
+              value: /run/secrets/service-token
+            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_ENDPOINT
+              value: {{ .Values.mediaControl.admissionEndpoint | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TOKEN_FILE
+              value: /run/secrets/admission-token
+            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS
+              value: {{ ternary "true" "false" .Values.mediaControl.admissionRequireMtls | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_TLS_KEY_FILE
+              value: /run/tls/tls.key
+            - name: IVEKIT_MEDIA_CONTROL_TLS_CERT_FILE
+              value: /run/tls/tls.crt
+            - name: IVEKIT_MEDIA_CONTROL_TLS_CA_FILE
+              value: /run/tls/ca.crt
+            {{- if .Values.mediaControl.admissionRequireMtls }}
+            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_KEY_FILE
+              value: /run/tls/tls.key
+            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CERT_FILE
+              value: /run/tls/tls.crt
+            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CA_FILE
+              value: /run/tls/ca.crt
+            {{- end }}
+            - name: IVEKIT_MEDIA_CONTROL_MAX_RESERVATIONS
+              value: {{ .Values.mediaControl.maxReservations | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_MAX_TERMINAL_RESERVATIONS
+              value: {{ .Values.mediaControl.maxTerminalReservations | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_MAX_COMMANDS_PER_RESERVATION
+              value: {{ .Values.mediaControl.maxCommandsPerReservation | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_TERMINAL_RETENTION_MS
+              value: {{ .Values.mediaControl.terminalRetentionMs | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_EVENT_MAX_BINDINGS
+              value: {{ .Values.mediaControl.eventMaxBindings | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_EVENT_REPLAY_CAPACITY
+              value: {{ .Values.mediaControl.eventReplayCapacity | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_EVENT_MAX_SUBSCRIBERS_PER_OWNER
+              value: {{ .Values.mediaControl.eventMaxSubscribersPerOwner | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_ORPHAN_BATCH_SIZE
+              value: {{ .Values.mediaControl.orphanBatchSize | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_ORPHAN_SWEEP_INTERVAL_MS
+              value: {{ .Values.mediaControl.orphanSweepIntervalMs | quote }}
+            - name: OPC_OTEL_ENABLED
+              value: {{ ternary "1" "0" .Values.mediaControl.telemetry.enabled | quote }}
+            - name: OPC_OTEL_SERVICE_NAME
+              value: ivekit-media-control
+            - name: OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: {{ .Values.mediaControl.telemetry.collectorEndpoint | quote }}
+            - name: OPC_OTEL_TRACE_SAMPLE_RATIO
+              value: {{ .Values.mediaControl.telemetry.sampleRatio | quote }}
+            - name: OPC_OTEL_MAX_QUEUE_SIZE
+              value: {{ .Values.mediaControl.telemetry.maxQueueSize | quote }}
+            - name: OPC_OTEL_MAX_EXPORT_BATCH_SIZE
+              value: {{ .Values.mediaControl.telemetry.maxExportBatchSize | quote }}
+            - name: OPC_OTEL_SCHEDULED_DELAY_MS
+              value: {{ .Values.mediaControl.telemetry.scheduledDelayMs | quote }}
+            - name: OPC_OTEL_EXPORT_TIMEOUT_MS
+              value: {{ .Values.mediaControl.telemetry.exportTimeoutMs | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_WAL_DIRECTORY
+              value: /var/lib/ivekit-media-control
+            - name: IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORDS
+              value: {{ .Values.mediaControl.wal.maxRecords | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_WAL_MAX_BYTES
+              value: {{ .Values.mediaControl.wal.maxBytes | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORD_BYTES
+              value: {{ .Values.mediaControl.wal.maxRecordBytes | quote }}
+            - name: IVEKIT_RTPENGINE_NG_ENDPOINT
+              value: tcp://127.0.0.1:22222
+            - name: IVEKIT_RTPENGINE_RUNTIME_MODE
+              value: {{ .Values.runtimeMode | quote }}
+            - name: IVEKIT_RTPENGINE_MAX_CONNECTIONS
+              value: {{ .Values.mediaControl.rtpengine.maxConnections | quote }}
+            - name: IVEKIT_RTPENGINE_MAX_IN_FLIGHT
+              value: {{ .Values.mediaControl.rtpengine.maxInFlight | quote }}
+            - name: IVEKIT_RTPENGINE_MAX_REQUEST_BYTES
+              value: {{ .Values.mediaControl.rtpengine.maxRequestBytes | quote }}
+            - name: IVEKIT_RTPENGINE_MAX_RESPONSE_BYTES
+              value: {{ .Values.mediaControl.rtpengine.maxResponseBytes | quote }}
+            - name: IVEKIT_RTPENGINE_MAX_QUEUED_BYTES
+              value: {{ .Values.mediaControl.rtpengine.maxQueuedBytes | quote }}
+            - name: IVEKIT_RTPENGINE_REQUEST_TIMEOUT_MS
+              value: {{ .Values.mediaControl.rtpengine.requestTimeoutMs | quote }}
+            - name: IVEKIT_RTPENGINE_RECOVERY_CONCURRENCY
+              value: {{ .Values.mediaControl.rtpengine.recoveryConcurrency | quote }}
+            - name: IVEKIT_RTPENGINE_MAX_SESSIONS
+              value: {{ .Values.mediaControl.rtpengine.maxSessions | quote }}
+            - name: IVEKIT_RTPENGINE_MAX_COMMANDS
+              value: {{ .Values.mediaControl.rtpengine.maxCommands | quote }}
+          ports:
+            - name: media-control
+              containerPort: 3211
+              protocol: TCP
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - node
+                  - --import
+                  - tsx
+                  - scripts/ivekit-rtpengine-drain.ts
+          livenessProbe:
+            tcpSocket:
+              port: media-control
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: media-control
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+{{ toYaml .Values.mediaControl.resources | indent 12 }}
+          volumeMounts:
+            - name: media-control-wal
+              mountPath: /var/lib/ivekit-media-control
+            - name: media-control-secret
+              mountPath: /run/secrets
+              readOnly: true
+            - name: media-control-tls
+              mountPath: /run/tls
+              readOnly: true
+      volumes:
+        - name: rtpengine-runtime
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.rtpengine.runtimeVolume.sizeLimit }}
+        - name: rtpengine-recording
+          emptyDir:
+            sizeLimit: {{ .Values.rtpengine.recordingVolume.sizeLimit }}
+        - hostPath:
+            path: {{ .Values.mediaControl.wal.hostPath | quote }}
+            type: Directory
+          name: media-control-wal
+        - name: media-control-secret
+          secret:
+            secretName: {{ .Values.mediaControl.existingSecret }}
+            defaultMode: 0440
+        - name: media-control-tls
+          secret:
+            secretName: {{ .Values.mediaControl.tlsSecret }}
+            defaultMode: 0440
+{{- if eq .Values.runtimeMode "kernel" }}
+        - name: host-sys
+          hostPath:
+            path: /sys
+            type: Directory
+        - name: host-modules
+          hostPath:
+            path: /lib/modules
+            type: Directory
+{{- end }}

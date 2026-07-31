@@ -1,0 +1,66 @@
+diff --git a/daemon/control_ng.c b/daemon/control_ng.c
+index eb466d8..3e8a41e 100644
+--- a/daemon/control_ng.c
++++ b/daemon/control_ng.c
+@@ -32,6 +32,8 @@ GHashTable *tcp_connections_hash;
+ static struct cookie_cache ng_cookie_cache;
+ static bool trace_ng = false;
+ 
++static size_t ivekit_ng_max_frame_bytes = 262144;
++
+ const char magic_load_limit_strings[__LOAD_LIMIT_MAX][64] = {
+ 	[LOAD_LIMIT_MAX_SESSIONS] = "Parallel session limit reached",
+ 	[LOAD_LIMIT_CPU] = "CPU usage limit exceeded",
+@@ -1105,8 +1107,15 @@ static str *chunk_message(struct streambuf *b) {
+ }
+ 
+ static void control_stream_readable(struct streambuf_stream *s) {
++	size_t buffered;
+ 	str *data;
+ 
++	buffered = streambuf_bufsize(s->inbuf);
++	if (buffered > ivekit_ng_max_frame_bytes) {
++		ilog(LOG_WARNING, "TCP NG frame exceeds iveKit limit from %s: %zu > %zu",
++				s->addr, buffered, ivekit_ng_max_frame_bytes);
++		goto close;
++	}
+ 	ilog(LOG_DEBUG, "Got %zu bytes from %s", s->inbuf->buf->len, s->addr);
+ 	while ((data = chunk_message(s->inbuf))) {
+ 		ilog(LOG_DEBUG, "Got control ng message from %s", s->addr);
+@@ -1114,8 +1123,10 @@ static void control_stream_readable(struct streambuf_stream *s) {
+ 		free(data);
+ 	}
+ 
+-	if (streambuf_bufsize(s->inbuf) > 1024) {
+-		ilog(LOG_WARNING, "Buffer length exceeded in control connection from %s", s->addr);
++	buffered = streambuf_bufsize(s->inbuf);
++	if (buffered > ivekit_ng_max_frame_bytes) {
++		ilog(LOG_WARNING, "Incomplete TCP NG frame exceeds iveKit limit from %s: %zu > %zu",
++				s->addr, buffered, ivekit_ng_max_frame_bytes);
+ 		goto close;
+ 	}
+ 
+@@ -1202,7 +1213,23 @@ void notify_ng_tcp_clients(str *data) {
+ 	mutex_unlock(&tcp_connections_lock);
+ }
+ 
++static void ivekit_ng_frame_limit_init(void) {
++	const char *value = g_getenv("IVEKIT_RTPENGINE_NG_MAX_FRAME_BYTES");
++	if (!value || !*value)
++		return;
++
++	char *end = NULL;
++	guint64 parsed = g_ascii_strtoull(value, &end, 10);
++	if (!end || *end || parsed < 16384 || parsed > 1048576)
++		die("Invalid IVEKIT_RTPENGINE_NG_MAX_FRAME_BYTES: expected 16384..1048576");
++
++	ivekit_ng_max_frame_bytes = (size_t) parsed;
++}
++
+ void control_ng_init(void) {
++	ivekit_ng_frame_limit_init();
++	ilog(LOG_INFO, "iveKit TCP NG frame limit is %zu bytes", ivekit_ng_max_frame_bytes);
++
+ 	mutex_init(&rtpe_cngs_lock);
+ 	rtpe_cngs_hash = g_hash_table_new(sockaddr_t_hash, sockaddr_t_eq);
+ 	cookie_cache_init(&ng_cookie_cache);

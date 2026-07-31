@@ -1,0 +1,71 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: opc-postgres
+  labels:
+    app.kubernetes.io/name: opc-postgres
+    app.kubernetes.io/part-of: ivekit-platform
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie@sha256:4e4ac3fb2c914cfb44f80f0b8be8aa550e83b80bf5220df49c3a8780c1f79bc8
+  imagePullPolicy: IfNotPresent
+  primaryUpdateStrategy: unsupervised
+  primaryUpdateMethod: switchover
+  failoverDelay: 10
+  switchoverDelay: 3600
+  smartShutdownTimeout: 180
+  stopDelay: 1800
+  enablePDB: true
+  bootstrap:
+    initdb:
+      database: opc
+      owner: opc_app
+      secret:
+        name: opc-postgres-bootstrap
+  postgresql:
+    synchronous:
+      method: any
+      number: 1
+      dataDurability: required
+    parameters:
+      max_connections: "500"
+      shared_buffers: 2GB
+      effective_cache_size: 6GB
+      work_mem: 8MB
+      maintenance_work_mem: 512MB
+      wal_compression: "on"
+      max_wal_size: 8GB
+      min_wal_size: 2GB
+      idle_in_transaction_session_timeout: 60s
+      statement_timeout: 30s
+      log_min_duration_statement: 500ms
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          cnpg.io/cluster: opc-postgres
+          cnpg.io/podRole: instance
+  resources:
+    requests:
+      cpu: "2"
+      memory: 8Gi
+    limits:
+      cpu: "8"
+      memory: 16Gi
+  storage:
+    size: 200Gi
+  walStorage:
+    size: 50Gi
+  monitoring:
+    enablePodMonitor: true
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: opc-postgres-backup

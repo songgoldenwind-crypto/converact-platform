@@ -1,0 +1,281 @@
+diff --git a/src/relay_server.rs b/src/relay_server.rs
+index c3f8da4..b2b401c 100644
+--- a/src/relay_server.rs
++++ b/src/relay_server.rs
+@@ -2,7 +2,7 @@ use async_speed_limit::Limiter;
+ use async_trait::async_trait;
+ use hbb_common::{
+     allow_err, bail,
+-    bytes::{Bytes, BytesMut},
++    bytes::Bytes,
+     futures_util::{sink::SinkExt, stream::StreamExt},
+     log,
+     protobuf::Message as _,
+@@ -25,14 +25,94 @@ use std::{
+     io::prelude::*,
+     io::Error,
+     net::SocketAddr,
+-    sync::atomic::{AtomicUsize, Ordering},
++    sync::{
++        atomic::{AtomicUsize, Ordering},
++        Arc,
++    },
+ };
+ 
+ type Usage = (usize, usize, usize, usize);
+ 
++#[derive(Default)]
++struct UsageCounters {
++    sequence: AtomicUsize,
++    elapsed: AtomicUsize,
++    total: AtomicUsize,
++    highest: AtomicUsize,
++    speed: AtomicUsize,
++}
++
++impl UsageCounters {
++    fn update(&self, elapsed: usize, total: usize, highest: usize, speed: usize) {
++        self.sequence.fetch_add(1, Ordering::Relaxed);
++        self.elapsed.store(elapsed, Ordering::Relaxed);
++        self.total.store(total, Ordering::Relaxed);
++        self.highest.store(highest, Ordering::Relaxed);
++        self.speed.store(speed, Ordering::Relaxed);
++        self.sequence.fetch_add(1, Ordering::Release);
++    }
++
++    fn snapshot(&self) -> Usage {
++        loop {
++            let sequence = self.sequence.load(Ordering::Acquire);
++            if sequence % 2 != 0 {
++                std::hint::spin_loop();
++                continue;
++            }
++            let snapshot = (
++                self.elapsed.load(Ordering::Relaxed),
++                self.total.load(Ordering::Relaxed),
++                self.highest.load(Ordering::Relaxed),
++                self.speed.load(Ordering::Relaxed),
++            );
++            if self.sequence.load(Ordering::Acquire) == sequence {
++                return snapshot;
++            }
++        }
++    }
++}
++
++enum RelayFrame {
++    Raw(Bytes),
++    WebSocket(Vec<u8>),
++}
++
++impl RelayFrame {
++    fn len(&self) -> usize {
++        self.as_ref().len()
++    }
++
++    fn is_empty(&self) -> bool {
++        self.as_ref().is_empty()
++    }
++
++    fn into_raw(self) -> Bytes {
++        match self {
++            Self::Raw(bytes) => bytes,
++            Self::WebSocket(bytes) => Bytes::from(bytes),
++        }
++    }
++
++    fn into_websocket(self) -> Vec<u8> {
++        match self {
++            Self::Raw(bytes) => bytes.to_vec(),
++            Self::WebSocket(bytes) => bytes,
++        }
++    }
++}
++
++impl AsRef<[u8]> for RelayFrame {
++    fn as_ref(&self) -> &[u8] {
++        match self {
++            Self::Raw(bytes) => bytes.as_ref(),
++            Self::WebSocket(bytes) => bytes.as_slice(),
++        }
++    }
++}
++
+ lazy_static::lazy_static! {
+     static ref PEERS: Mutex<HashMap<String, Box<dyn StreamTrait>>> = Default::default();
+-    static ref USAGE: RwLock<HashMap<String, Usage>> = Default::default();
++    static ref USAGE: RwLock<HashMap<String, Arc<UsageCounters>>> = Default::default();
+     static ref BLACKLIST: RwLock<HashSet<String>> = Default::default();
+     static ref BLOCKLIST: RwLock<HashSet<String>> = Default::default();
+ }
+@@ -301,7 +381,7 @@ async fn check_cmd(cmd: &str, limiter: Limiter) -> String {
+                 .read()
+                 .await
+                 .iter()
+-                .map(|x| (x.0.clone(), *x.1))
++                .map(|x| (x.0.clone(), x.1.snapshot()))
+                 .collect();
+             tmp.sort_by(|a, b| ((b.1).1).partial_cmp(&(a.1).1).unwrap());
+             for (ip, (elapsed, total, highest, speed)) in tmp {
+@@ -427,7 +507,7 @@ async fn make_pair(
+ async fn make_pair_(stream: impl StreamTrait, addr: SocketAddr, key: &str, limiter: Limiter) {
+     let mut stream = stream;
+     if let Ok(Some(Ok(bytes))) = timeout(30_000, stream.recv()).await {
+-        if let Ok(msg_in) = RendezvousMessage::parse_from_bytes(&bytes) {
++        if let Ok(msg_in) = RendezvousMessage::parse_from_bytes(bytes.as_ref()) {
+             if let Some(rendezvous_message::Union::RequestRelay(rf)) = msg_in.union {
+                 if !key.is_empty() && rf.licence_key != key {
+                     log::warn!("Relay authentication failed from {} - invalid key", addr);
+@@ -435,20 +515,34 @@ async fn make_pair_(stream: impl StreamTrait, addr: SocketAddr, key: &str, limit
+                 }
+                 if !rf.uuid.is_empty() {
+                     if let Err(err) = crate::ivekit_owner::open_or_assert_relay(&rf.uuid).await {
+-                        log::warn!("ivekit RustDesk relay owner rejected: relay_uuid={} err={}", rf.uuid, err);
++                        log::warn!(
++                            "ivekit RustDesk relay owner rejected: relay_uuid={} err={}",
++                            rf.uuid,
++                            err
++                        );
+                         return;
+                     }
+                     let mut peer = PEERS.lock().await.remove(&rf.uuid);
+                     if let Some(peer) = peer.as_mut() {
+                         log::info!("Relayrequest {} from {} got paired", rf.uuid, addr);
+                         let id = format!("{}:{}", addr.ip(), addr.port());
+-                        USAGE.write().await.insert(id.clone(), Default::default());
++                        let usage = Arc::new(UsageCounters::default());
++                        USAGE.write().await.insert(id.clone(), Arc::clone(&usage));
+                         if !stream.is_ws() && !peer.is_ws() {
+                             peer.set_raw();
+                             stream.set_raw();
+                             log::info!("Both are raw");
+                         }
+-                        if let Err(err) = relay(addr, &mut stream, peer, limiter, id.clone(), rf.uuid.clone()).await
++                        if let Err(err) = relay(
++                            addr,
++                            &mut stream,
++                            peer,
++                            limiter,
++                            id.clone(),
++                            rf.uuid.clone(),
++                            usage,
++                        )
++                        .await
+                         {
+                             log::info!("Relay of {} closed: {}", addr, err);
+                         } else {
+@@ -477,6 +571,7 @@ async fn relay(
+     total_limiter: Limiter,
+     id: String,
+     owner_relay_uuid: String,
++    usage: Arc<UsageCounters>,
+ ) -> ResultType<()> {
+     let ip = addr.ip().to_string();
+     let mut tm = std::time::Instant::now();
+@@ -555,10 +650,7 @@ async fn relay(
+                 highest_s = speed;
+             }
+             elapsed += n;
+-            USAGE.write().await.insert(
+-                id.clone(),
+-                (elapsed as _, total as _, highest_s as _, speed as _),
+-            );
++            usage.update(elapsed, total, highest_s, speed);
+             total_s = 0;
+             if elapsed > DOWNGRADE_START_CHECK.load(Ordering::SeqCst)
+                 && !downgrade
+@@ -600,20 +692,22 @@ fn get_server_sk(key: &str) -> String {
+ 
+ #[async_trait]
+ trait StreamTrait: Send + Sync + 'static {
+-    async fn recv(&mut self) -> Option<Result<BytesMut, Error>>;
+-    async fn send_raw(&mut self, bytes: Bytes) -> ResultType<()>;
++    async fn recv(&mut self) -> Option<Result<RelayFrame, Error>>;
++    async fn send_raw(&mut self, bytes: RelayFrame) -> ResultType<()>;
+     fn is_ws(&self) -> bool;
+     fn set_raw(&mut self);
+ }
+ 
+ #[async_trait]
+ impl StreamTrait for FramedStream {
+-    async fn recv(&mut self) -> Option<Result<BytesMut, Error>> {
+-        self.next().await
++    async fn recv(&mut self) -> Option<Result<RelayFrame, Error>> {
++        self.next()
++            .await
++            .map(|result| result.map(|bytes| RelayFrame::Raw(bytes.freeze())))
+     }
+ 
+-    async fn send_raw(&mut self, bytes: Bytes) -> ResultType<()> {
+-        self.send_bytes(bytes).await
++    async fn send_raw(&mut self, bytes: RelayFrame) -> ResultType<()> {
++        self.send_bytes(bytes.into_raw()).await
+     }
+ 
+     fn is_ws(&self) -> bool {
+@@ -627,17 +721,13 @@ impl StreamTrait for FramedStream {
+ 
+ #[async_trait]
+ impl StreamTrait for tokio_tungstenite::WebSocketStream<TcpStream> {
+-    async fn recv(&mut self) -> Option<Result<BytesMut, Error>> {
++    async fn recv(&mut self) -> Option<Result<RelayFrame, Error>> {
+         if let Some(msg) = self.next().await {
+             match msg {
+-                Ok(msg) => {
+-                    match msg {
+-                        tungstenite::Message::Binary(bytes) => {
+-                            Some(Ok(bytes[..].into())) // to-do: poor performance
+-                        }
+-                        _ => Some(Ok(BytesMut::new())),
+-                    }
+-                }
++                Ok(msg) => match msg {
++                    tungstenite::Message::Binary(bytes) => Some(Ok(RelayFrame::WebSocket(bytes))),
++                    _ => Some(Ok(RelayFrame::WebSocket(Vec::new()))),
++                },
+                 Err(err) => Some(Err(Error::new(std::io::ErrorKind::Other, err.to_string()))),
+             }
+         } else {
+@@ -645,10 +735,10 @@ impl StreamTrait for tokio_tungstenite::WebSocketStream<TcpStream> {
+         }
+     }
+ 
+-    async fn send_raw(&mut self, bytes: Bytes) -> ResultType<()> {
++    async fn send_raw(&mut self, bytes: RelayFrame) -> ResultType<()> {
+         Ok(self
+-            .send(tungstenite::Message::Binary(bytes.to_vec()))
+-            .await?) // to-do: poor performance
++            .send(tungstenite::Message::Binary(bytes.into_websocket()))
++            .await?)
+     }
+ 
+     fn is_ws(&self) -> bool {
+@@ -657,3 +747,28 @@ impl StreamTrait for tokio_tungstenite::WebSocketStream<TcpStream> {
+ 
+     fn set_raw(&mut self) {}
+ }
++
++#[cfg(test)]
++mod ivekit_hot_path_tests {
++    use super::*;
++
++    #[test]
++    fn same_protocol_frames_keep_their_allocations() {
++        let websocket = vec![1, 2, 3, 4];
++        let websocket_ptr = websocket.as_ptr();
++        let websocket = RelayFrame::WebSocket(websocket).into_websocket();
++        assert_eq!(websocket.as_ptr(), websocket_ptr);
++
++        let raw = Bytes::from(vec![5, 6, 7, 8]);
++        let raw_ptr = raw.as_ptr();
++        let raw = RelayFrame::Raw(raw).into_raw();
++        assert_eq!(raw.as_ptr(), raw_ptr);
++    }
++
++    #[test]
++    fn usage_updates_do_not_require_the_global_session_map() {
++        let usage = UsageCounters::default();
++        usage.update(1_000, 8_192, 16, 8);
++        assert_eq!(usage.snapshot(), (1_000, 8_192, 16, 8));
++    }
++}

@@ -1,0 +1,797 @@
+diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
+index 30ead67..285d611 100644
+--- a/src/proxy/routing/http.rs
++++ b/src/proxy/routing/http.rs
+@@ -6,13 +6,23 @@ use crate::call::{
+ use crate::config::{HttpRouterConfig, MediaProxyMode, RecordingPolicy, RtpConfig};
+ use crate::proxy::call::{CallRouter, RouteError, apply_allowed_codecs};
+ use anyhow::{Result, anyhow};
++use arc_swap::ArcSwapOption;
+ use async_trait::async_trait;
++use base64::{
++    Engine as _,
++    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
++};
++use chrono::{DateTime, Utc};
++use hmac::{Hmac, KeyInit, Mac};
+ use rsipstack::sip::prelude::*;
+ use rsipstack::transport::SipConnection;
+ use serde::{Deserialize, Serialize};
++use sha2::Sha256;
+ use std::collections::HashMap;
++use std::io::Read;
++use std::sync::Arc;
+ use std::time::{Duration, Instant};
+-use tracing::{info, warn};
++use tracing::{trace, warn};
+ 
+ pub struct HttpCallRouter {
+     pub config: HttpRouterConfig,
+@@ -21,6 +31,8 @@ pub struct HttpCallRouter {
+     pub enable_latching: bool,
+     pub probation_max_packets: Option<u8>,
+     pub client: reqwest::Client,
++    snapshot: Arc<ArcSwapOption<HttpRouteSnapshotBody>>,
++    snapshot_enabled: bool,
+ }
+ 
+ impl HttpCallRouter {
+@@ -30,6 +42,24 @@ impl HttpCallRouter {
+         default_media_proxy_mode: MediaProxyMode,
+         enable_latching: bool,
+         probation_max_packets: Option<u8>,
++    ) -> Self {
++        Self::new_with_snapshot(
++            config,
++            rtp_config,
++            default_media_proxy_mode,
++            enable_latching,
++            probation_max_packets,
++            route_snapshot_config_from_env(),
++        )
++    }
++
++    fn new_with_snapshot(
++        config: HttpRouterConfig,
++        rtp_config: RtpConfig,
++        default_media_proxy_mode: MediaProxyMode,
++        enable_latching: bool,
++        probation_max_packets: Option<u8>,
++        snapshot_config: Option<HttpRouteSnapshotConfig>,
+     ) -> Self {
+         let mut builder = reqwest::Client::builder();
+         builder = builder
+@@ -41,6 +71,22 @@ impl HttpCallRouter {
+         } else {
+             builder = builder.timeout(Duration::from_secs(5));
+         }
++        let snapshot = Arc::new(ArcSwapOption::empty());
++        let mut snapshot_observation = None;
++        if let Some(snapshot_config) = snapshot_config.as_ref() {
++            refresh_snapshot(snapshot_config, &snapshot, &mut snapshot_observation);
++        }
++        if let Some(refresh_config) = snapshot_config.clone() {
++            let refresh_target = snapshot.clone();
++            crate::utils::spawn(async move {
++                let interval = Duration::from_millis(refresh_config.refresh_ms);
++                let mut observation = snapshot_observation;
++                loop {
++                    tokio::time::sleep(interval).await;
++                    refresh_snapshot(&refresh_config, &refresh_target, &mut observation);
++                }
++            });
++        }
+         Self {
+             config,
+             rtp_config,
+@@ -48,6 +94,167 @@ impl HttpCallRouter {
+             enable_latching,
+             probation_max_packets,
+             client: builder.build().unwrap_or_default(),
++            snapshot,
++            snapshot_enabled: snapshot_config.is_some(),
++        }
++    }
++
++    fn snapshot_result(&self, destination: &str) -> Result<HttpResponsePayload, RouteError> {
++        let snapshot = self.snapshot.load_full().ok_or_else(|| RouteError {
++            error: anyhow!("route snapshot is unavailable"),
++            status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++            extensions: None,
++        })?;
++        let expires_at =
++            DateTime::parse_from_rfc3339(&snapshot.expires_at).map_err(|_| RouteError {
++                error: anyhow!("route snapshot expiration is invalid"),
++                status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++                extensions: None,
++            })?;
++        if expires_at.with_timezone(&Utc) <= Utc::now() {
++            return Err(RouteError {
++                error: anyhow!("route snapshot is stale"),
++                status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++                extensions: None,
++            });
++        }
++        let key = destination_e164(destination).ok_or_else(|| RouteError {
++            error: anyhow!("route destination is invalid"),
++            status: Some(rsipstack::sip::StatusCode::NotFound),
++            extensions: None,
++        })?;
++        let key =
++            voice_address_lookup_hmac(&snapshot.lookup_hmac_key, &key).map_err(|_| RouteError {
++                error: anyhow!("route snapshot lookup key is invalid"),
++                status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++                extensions: None,
++            })?;
++        snapshot
++            .routes
++            .get(&key)
++            .cloned()
++            .ok_or_else(|| RouteError {
++                error: anyhow!("route not found in snapshot"),
++                status: Some(rsipstack::sip::StatusCode::NotFound),
++                extensions: None,
++            })
++    }
++
++    fn apply_result(
++        &self,
++        result: HttpResponsePayload,
++        call_id: String,
++        original: &rsipstack::sip::Request,
++        direction: DialDirection,
++        caller: &SipUser,
++        cookie: &TransactionCookie,
++    ) -> Result<Dialplan, RouteError> {
++        match result.action {
++            HttpRouteAction::Spam => {
++                cookie.mark_as_spam(SpamResult::Spam);
++                Err(RouteError {
++                    error: anyhow!(
++                        result
++                            .reason
++                            .unwrap_or_else(|| "marked as spam by HTTP router".to_string())
++                    ),
++                    status: Some(rsipstack::sip::StatusCode::Forbidden),
++                    extensions: result.extensions,
++                })
++            }
++            HttpRouteAction::Reject | HttpRouteAction::Abort => {
++                let status = result
++                    .status
++                    .map(rsipstack::sip::StatusCode::from)
++                    .unwrap_or(rsipstack::sip::StatusCode::Forbidden);
++                Err(RouteError {
++                    error: anyhow!(
++                        result
++                            .reason
++                            .unwrap_or_else(|| "rejected by HTTP router".to_string())
++                    ),
++                    status: Some(status),
++                    extensions: result.extensions,
++                })
++            }
++            HttpRouteAction::NotHandled => Err(RouteError {
++                error: anyhow!("not handled by HTTP router"),
++                status: None,
++                extensions: result.extensions,
++            }),
++            HttpRouteAction::Forward => {
++                let mut locs = Vec::new();
++                let custom_headers = result.headers.map(|h| {
++                    h.iter()
++                        .map(|(k, v)| rsipstack::sip::Header::Other(k.clone(), v.clone()))
++                        .collect::<Vec<_>>()
++                });
++                if let Some(targets) = result.targets {
++                    for target in targets {
++                        if let Ok(uri) = rsipstack::sip::Uri::try_from(target) {
++                            locs.push(Location {
++                                aor: uri,
++                                headers: custom_headers.clone(),
++                                ..Default::default()
++                            });
++                        }
++                    }
++                }
++                if locs.is_empty() {
++                    return Err(RouteError {
++                        error: anyhow!("route snapshot contains no valid targets"),
++                        status: Some(rsipstack::sip::StatusCode::ServerInternalError),
++                        extensions: result.extensions,
++                    });
++                }
++                let strategy = match result.strategy {
++                    Some(HttpRouteStrategy::Parallel) => DialStrategy::Parallel(locs),
++                    _ => DialStrategy::Sequential(locs),
++                };
++                let mut dialplan = Dialplan::new(call_id, original.clone(), direction);
++                dialplan.media.proxy_mode = self.default_media_proxy_mode;
++                dialplan.media.external_ip = self.rtp_config.external_ip.clone();
++                dialplan.media.bind_ip = self.rtp_config.bind_ip.clone();
++                dialplan.media.rtp_start_port = self.rtp_config.start_port;
++                dialplan.media.rtp_end_port = self.rtp_config.end_port;
++                dialplan.media.webrtc_port_start = self.rtp_config.webrtc_start_port;
++                dialplan.media.webrtc_port_end = self.rtp_config.webrtc_end_port;
++                dialplan.media.ice_servers = self.rtp_config.ice_servers.clone();
++                dialplan.media.enable_latching = self.enable_latching;
++                dialplan.media.probation_max_packets = self.probation_max_packets;
++                if let Some(from) = caller.from.as_ref() {
++                    dialplan = dialplan.with_caller(from.clone());
++                }
++                dialplan = dialplan.with_targets(strategy);
++                if let Some(record) = result.record {
++                    dialplan.recording.enabled = record;
++                    dialplan.recording_policy = Some(RecordingPolicy {
++                        enabled: Some(record),
++                        ..Default::default()
++                    });
++                }
++                if let Some(mode) = result.media_proxy {
++                    dialplan.media.proxy_mode = mode;
++                }
++                if let Some(with_orig) = result.with_original_headers {
++                    dialplan.with_original_headers = with_orig;
++                }
++                if let Some(exts) = result.extensions {
++                    dialplan = dialplan.with_extension(exts);
++                }
++                if let Some(timeout) = result.timeout {
++                    dialplan.max_call_duration = Some(Duration::from_secs(timeout as u64));
++                }
++                if let Some(max_ring_time) = result.max_ring_time {
++                    dialplan.max_ring_time = Duration::from_secs(max_ring_time as u64);
++                }
++                if let Some(rtp_timeout) = result.rtp_timeout {
++                    dialplan.rtp_timeout =
++                        (rtp_timeout > 0).then(|| Duration::from_secs(rtp_timeout as u64));
++                }
++                apply_allowed_codecs(&mut dialplan, result.allow_codecs.as_deref(), None);
++                Ok(dialplan)
++            }
+         }
+     }
+ }
+@@ -65,7 +272,7 @@ struct HttpRequestPayload {
+     pub body: String,
+ }
+ 
+-#[derive(Deserialize, Serialize, Debug, PartialEq)]
++#[derive(Clone, Deserialize, Serialize, Debug, PartialEq)]
+ #[serde(rename_all = "snake_case")]
+ enum HttpRouteAction {
+     Forward,
+@@ -75,14 +282,14 @@ enum HttpRouteAction {
+     Spam,
+ }
+ 
+-#[derive(Deserialize, Serialize, Debug, PartialEq)]
++#[derive(Clone, Deserialize, Serialize, Debug, PartialEq)]
+ #[serde(rename_all = "snake_case")]
+ enum HttpRouteStrategy {
+     Sequential,
+     Parallel,
+ }
+ 
+-#[derive(Deserialize)]
++#[derive(Clone, Debug, Deserialize, Serialize)]
+ struct HttpResponsePayload {
+     pub action: HttpRouteAction,
+     pub targets: Option<Vec<String>>,
+@@ -107,6 +314,270 @@ struct HttpResponsePayload {
+     pub allow_codecs: Option<Vec<String>>,
+ }
+ 
++#[derive(Clone)]
++struct HttpRouteSnapshotConfig {
++    path: String,
++    encoded_hmac_key: String,
++    encoded_lookup_hmac_root: String,
++    tenant_id: String,
++    profile_id: String,
++    refresh_ms: u64,
++}
++
++fn route_snapshot_config_from_env() -> Option<HttpRouteSnapshotConfig> {
++    let path = std::env::var("IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE")
++        .ok()
++        .filter(|value| !value.trim().is_empty())?;
++    let encoded_hmac_key =
++        std::env::var("IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY").unwrap_or_default();
++    let encoded_lookup_hmac_root =
++        std::env::var("IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY").unwrap_or_default();
++    let tenant_id = std::env::var("IVEKIT_RUSTPBX_ROUTE_TENANT_ID").unwrap_or_default();
++    let profile_id = std::env::var("IVEKIT_RUSTPBX_ROUTE_PROFILE_ID").unwrap_or_default();
++    let refresh_ms = std::env::var("IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS")
++        .ok()
++        .and_then(|value| value.parse::<u64>().ok())
++        .unwrap_or(1000)
++        .clamp(100, 60_000);
++    Some(HttpRouteSnapshotConfig {
++        path,
++        encoded_hmac_key,
++        encoded_lookup_hmac_root,
++        tenant_id,
++        profile_id,
++        refresh_ms,
++    })
++}
++
++#[derive(Deserialize)]
++struct HttpRouteSnapshotBody {
++    schema_version: String,
++    sequence: u64,
++    source_revision: u64,
++    tenant_id: String,
++    profile_id: String,
++    generated_at: String,
++    expires_at: String,
++    routes: HashMap<String, HttpResponsePayload>,
++    #[serde(skip)]
++    lookup_hmac_key: Vec<u8>,
++}
++
++fn refresh_snapshot(
++    config: &HttpRouteSnapshotConfig,
++    target: &Arc<ArcSwapOption<HttpRouteSnapshotBody>>,
++    observation: &mut Option<String>,
++) {
++    let signature = match snapshot_wire_signature(&config.path) {
++        Ok(signature) => signature,
++        Err(error) => {
++            let marker = format!("io:{:?}", error.kind());
++            if observation.as_ref() != Some(&marker) {
++                if error.kind() == std::io::ErrorKind::NotFound {
++                    trace!(path = %config.path, "route snapshot is not published yet");
++                } else {
++                    warn!(path = %config.path, "route snapshot header read failed: {}", error);
++                }
++                *observation = Some(marker);
++            }
++            return;
++        }
++    };
++    let marker = format!("signature:{signature}");
++    if observation.as_ref() == Some(&marker) {
++        return;
++    }
++    *observation = Some(marker);
++    match load_snapshot(config) {
++        Ok(snapshot) => {
++            let current_sequence = target
++                .load_full()
++                .map(|current| current.sequence)
++                .unwrap_or_default();
++            if snapshot.sequence > current_sequence {
++                trace!(
++                    path = %config.path,
++                    sequence = snapshot.sequence,
++                    source_revision = snapshot.source_revision,
++                    generated_at = %snapshot.generated_at,
++                    routes = snapshot.routes.len(),
++                    "loaded route snapshot"
++                );
++                target.store(Some(Arc::new(snapshot)));
++            }
++        }
++        Err(error) => {
++            warn!(path = %config.path, "route snapshot refresh failed: {}", error);
++        }
++    }
++}
++
++fn snapshot_wire_signature(path: &str) -> std::io::Result<String> {
++    let mut file = std::fs::File::open(path)?;
++    let mut bytes = [0_u8; 128];
++    let count = file.read(&mut bytes)?;
++    let newline = bytes[..count]
++        .iter()
++        .position(|byte| *byte == b'\n')
++        .ok_or_else(|| {
++            std::io::Error::new(
++                std::io::ErrorKind::InvalidData,
++                "route snapshot wire header is invalid",
++            )
++        })?;
++    let header = std::str::from_utf8(&bytes[..newline])
++        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
++    let signature = header
++        .strip_prefix("ivekit-route-snapshot-v1.")
++        .filter(|value| value.len() == 43)
++        .ok_or_else(|| {
++            std::io::Error::new(
++                std::io::ErrorKind::InvalidData,
++                "route snapshot wire header is invalid",
++            )
++        })?;
++    Ok(signature.to_string())
++}
++
++fn load_snapshot(config: &HttpRouteSnapshotConfig) -> Result<HttpRouteSnapshotBody> {
++    let key = STANDARD
++        .decode(&config.encoded_hmac_key)
++        .map_err(|_| anyhow!("route snapshot HMAC key is invalid"))?;
++    if key.len() != 32 {
++        return Err(anyhow!("route snapshot HMAC key must decode to 32 bytes"));
++    }
++    let lookup_hmac_root = STANDARD
++        .decode(&config.encoded_lookup_hmac_root)
++        .map_err(|_| anyhow!("route snapshot lookup HMAC root key is invalid"))?;
++    if lookup_hmac_root.len() != 32 {
++        return Err(anyhow!(
++            "route snapshot lookup HMAC root key must decode to 32 bytes"
++        ));
++    }
++    if !valid_snapshot_identifier(&config.tenant_id)
++        || !valid_snapshot_identifier(&config.profile_id)
++    {
++        return Err(anyhow!("route snapshot identity is invalid"));
++    }
++    let bytes = std::fs::read(&config.path)?;
++    if bytes.len() > 64 * 1024 * 1024 {
++        return Err(anyhow!("route snapshot exceeds 64 MiB"));
++    }
++    let newline = bytes
++        .iter()
++        .position(|byte| *byte == b'\n')
++        .ok_or_else(|| anyhow!("route snapshot wire header is invalid"))?;
++    let header = std::str::from_utf8(&bytes[..newline])?;
++    let signature = header
++        .strip_prefix("ivekit-route-snapshot-v1.")
++        .filter(|value| value.len() == 43)
++        .ok_or_else(|| anyhow!("route snapshot wire header is invalid"))?;
++    let body = bytes
++        .get(newline + 1..)
++        .filter(|value| !value.is_empty())
++        .ok_or_else(|| anyhow!("route snapshot body is missing"))?;
++    let signature = URL_SAFE_NO_PAD
++        .decode(signature)
++        .map_err(|_| anyhow!("route snapshot signature is invalid"))?;
++    let mut mac = Hmac::<Sha256>::new_from_slice(&key)
++        .map_err(|_| anyhow!("route snapshot HMAC key is invalid"))?;
++    mac.update(body);
++    mac.verify_slice(&signature)
++        .map_err(|_| anyhow!("route snapshot signature mismatch"))?;
++    let mut snapshot: HttpRouteSnapshotBody = serde_json::from_slice(body)?;
++    if snapshot.schema_version != "1.0.0" || snapshot.sequence == 0 || snapshot.source_revision == 0
++    {
++        return Err(anyhow!("route snapshot schema or sequence is invalid"));
++    }
++    if snapshot.tenant_id != config.tenant_id || snapshot.profile_id != config.profile_id {
++        return Err(anyhow!("route snapshot identity mismatch"));
++    }
++    let generated_at = DateTime::parse_from_rfc3339(&snapshot.generated_at)?;
++    let expires_at = DateTime::parse_from_rfc3339(&snapshot.expires_at)?;
++    if expires_at <= generated_at || expires_at.with_timezone(&Utc) <= Utc::now() {
++        return Err(anyhow!("route snapshot is expired"));
++    }
++    if snapshot.routes.len() > 100_000
++        || snapshot
++            .routes
++            .keys()
++            .any(|key| !is_voice_address_hmac(key))
++    {
++        return Err(anyhow!("route snapshot routes are invalid"));
++    }
++    snapshot.lookup_hmac_key =
++        derive_voice_address_lookup_key(&lookup_hmac_root, &snapshot.tenant_id)?;
++    Ok(snapshot)
++}
++
++fn derive_voice_address_lookup_key(root: &[u8], tenant_id: &str) -> Result<Vec<u8>> {
++    if root.len() != 32 || !valid_snapshot_identifier(tenant_id) {
++        return Err(anyhow!("voice address lookup key input is invalid"));
++    }
++    let mut extract = Hmac::<Sha256>::new_from_slice(b"ivekit-voice-address-v1")
++        .map_err(|_| anyhow!("voice address HKDF salt is invalid"))?;
++    extract.update(root);
++    let prk = extract.finalize().into_bytes();
++    let mut expand = Hmac::<Sha256>::new_from_slice(&prk)
++        .map_err(|_| anyhow!("voice address HKDF extract is invalid"))?;
++    expand.update(format!("hmac:{tenant_id}").as_bytes());
++    expand.update(&[1]);
++    Ok(expand.finalize().into_bytes().to_vec())
++}
++
++fn voice_address_lookup_hmac(lookup_key: &[u8], normalized: &str) -> Result<String> {
++    if lookup_key.len() != 32 || !is_e164(normalized) {
++        return Err(anyhow!("voice address lookup input is invalid"));
++    }
++    let mut mac = Hmac::<Sha256>::new_from_slice(lookup_key)
++        .map_err(|_| anyhow!("voice address lookup key is invalid"))?;
++    mac.update(b"e164\0");
++    mac.update(normalized.as_bytes());
++    Ok(lower_hex(&mac.finalize().into_bytes()))
++}
++
++fn lower_hex(bytes: &[u8]) -> String {
++    const HEX: &[u8; 16] = b"0123456789abcdef";
++    let mut result = String::with_capacity(bytes.len() * 2);
++    for byte in bytes {
++        result.push(HEX[(byte >> 4) as usize] as char);
++        result.push(HEX[(byte & 0x0f) as usize] as char);
++    }
++    result
++}
++
++fn is_voice_address_hmac(value: &str) -> bool {
++    value.len() == 64
++        && value
++            .bytes()
++            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
++}
++
++fn valid_snapshot_identifier(value: &str) -> bool {
++    !value.is_empty() && value.len() <= 256 && !value.bytes().any(|byte| byte.is_ascii_control())
++}
++
++fn destination_e164(value: &str) -> Option<String> {
++    let trimmed = value.trim();
++    let candidate = trimmed
++        .split_once('<')
++        .and_then(|(_, rest)| rest.split_once('>').map(|(uri, _)| uri))
++        .unwrap_or(trimmed);
++    let candidate = candidate
++        .strip_prefix("sip:")
++        .or_else(|| candidate.strip_prefix("sips:"))
++        .unwrap_or(candidate);
++    let user = candidate.split(['@', ';']).next()?;
++    is_e164(user).then(|| user.to_string())
++}
++
++fn is_e164(value: &str) -> bool {
++    let digits = value.strip_prefix('+').unwrap_or_default();
++    (7..=15).contains(&digits.len())
++        && !digits.starts_with('0')
++        && digits.bytes().all(|value| value.is_ascii_digit())
++}
++
+ #[async_trait]
+ impl CallRouter for HttpCallRouter {
+     async fn resolve(
+@@ -135,6 +606,12 @@ impl CallRouter for HttpCallRouter {
+             .map(|h| h.value().to_string())
+             .unwrap_or_default();
+ 
++        if self.snapshot_enabled {
++            let result = self.snapshot_result(&to)?;
++            trace!(%call_id, %to, action = ?result.action, "snapshot router resolved route");
++            return self.apply_result(result, call_id, original, direction, caller, cookie);
++        }
++
+         let mut headers = HashMap::new();
+         for header in original.headers.iter() {
+             let h_str = header.to_string();
+@@ -206,7 +683,7 @@ impl CallRouter for HttpCallRouter {
+             extensions: None,
+         })?;
+ 
+-        info!(
++        trace!(
+             %call_id,
+             from = %payload.from,
+             to = %payload.to,
+@@ -215,126 +692,109 @@ impl CallRouter for HttpCallRouter {
+             "HTTP router resolved route"
+         );
+ 
+-        match result.action {
+-            HttpRouteAction::Spam => {
+-                cookie.mark_as_spam(SpamResult::Spam);
+-                return Err(RouteError {
+-                    error: anyhow!(
+-                        result
+-                            .reason
+-                            .unwrap_or_else(|| "marked as spam by HTTP router".to_string())
+-                    ),
+-                    status: Some(rsipstack::sip::StatusCode::Forbidden),
+-                    extensions: result.extensions,
+-                });
+-            }
+-            HttpRouteAction::Reject | HttpRouteAction::Abort => {
+-                let status = result
+-                    .status
+-                    .map(rsipstack::sip::StatusCode::from)
+-                    .unwrap_or(rsipstack::sip::StatusCode::Forbidden);
+-                return Err(RouteError {
+-                    error: anyhow!(
+-                        result
+-                            .reason
+-                            .unwrap_or_else(|| "rejected by HTTP router".to_string())
+-                    ),
+-                    status: Some(status),
+-                    extensions: result.extensions,
+-                });
+-            }
+-            HttpRouteAction::NotHandled => {
+-                return Err(RouteError {
+-                    error: anyhow!("not handled by HTTP router"),
+-                    status: None,
+-                    extensions: result.extensions,
+-                });
+-            }
+-            HttpRouteAction::Forward => {
+-                let mut locs = Vec::new();
+-                let custom_headers = result.headers.map(|h| {
+-                    h.iter()
+-                        .map(|(k, v)| rsipstack::sip::Header::Other(k.clone(), v.clone()))
+-                        .collect::<Vec<_>>()
+-                });
+-
+-                if let Some(targets) = result.targets {
+-                    for target in targets {
+-                        if let Ok(uri) = rsipstack::sip::Uri::try_from(target.clone()) {
+-                            locs.push(Location {
+-                                aor: uri,
+-                                headers: custom_headers.clone(),
+-                                ..Default::default()
+-                            });
+-                        }
+-                    }
+-                }
+-
+-                let strategy = match result.strategy {
+-                    Some(HttpRouteStrategy::Parallel) => DialStrategy::Parallel(locs),
+-                    _ => DialStrategy::Sequential(locs),
+-                };
+-
+-                let mut dialplan = Dialplan::new(call_id, original.clone(), direction);
+-
+-                // Start from server defaults, then let HTTP router override individual fields.
+-                dialplan.media.proxy_mode = self.default_media_proxy_mode;
+-                dialplan.media.external_ip = self.rtp_config.external_ip.clone();
+-                dialplan.media.bind_ip = self.rtp_config.bind_ip.clone();
+-                dialplan.media.rtp_start_port = self.rtp_config.start_port;
+-                dialplan.media.rtp_end_port = self.rtp_config.end_port;
+-                dialplan.media.webrtc_port_start = self.rtp_config.webrtc_start_port;
+-                dialplan.media.webrtc_port_end = self.rtp_config.webrtc_end_port;
+-                dialplan.media.ice_servers = self.rtp_config.ice_servers.clone();
+-                dialplan.media.enable_latching = self.enable_latching;
+-                dialplan.media.probation_max_packets = self.probation_max_packets;
+-
+-                if let Some(from) = caller.from.as_ref() {
+-                    dialplan = dialplan.with_caller(from.clone());
+-                }
+-
+-                dialplan = dialplan.with_targets(strategy);
+-
+-                if let Some(record) = result.record {
+-                    dialplan.recording.enabled = record;
+-                    dialplan.recording_policy = Some(RecordingPolicy {
+-                        enabled: Some(record),
+-                        ..Default::default()
+-                    });
+-                }
+-
+-                if let Some(mode) = result.media_proxy {
+-                    dialplan.media.proxy_mode = mode;
+-                }
+-
+-                if let Some(with_orig) = result.with_original_headers {
+-                    dialplan.with_original_headers = with_orig;
+-                }
++        self.apply_result(result, call_id, original, direction, caller, cookie)
++    }
++}
+ 
+-                if let Some(exts) = result.extensions {
+-                    dialplan = dialplan.with_extension(exts);
+-                }
++#[cfg(test)]
++mod snapshot_tests {
++    use super::*;
++    use std::io::Write;
+ 
+-                if let Some(timeout) = result.timeout {
+-                    dialplan.max_call_duration = Some(Duration::from_secs(timeout as u64));
++    #[tokio::test]
++    async fn signed_snapshot_routes_without_an_http_request() {
++        let signing_key = [7_u8; 32];
++        let lookup_root = [8_u8; 32];
++        let generated_at = Utc::now();
++        let body = serde_json::json!({
++            "schema_version": "1.0.0",
++            "sequence": 1,
++            "source_revision": 11,
++            "tenant_id": "tenant-a",
++            "profile_id": "profile-a",
++            "generated_at": generated_at.to_rfc3339(),
++            "expires_at": (generated_at + chrono::Duration::seconds(60)).to_rfc3339(),
++            "routes": {
++                "4c93c707248e9918e06eb5eb429812184e08486b4211568a936e938b393d4393": {
++                    "action": "forward",
++                    "targets": ["sip:1001@127.0.0.1"],
++                    "record": false
+                 }
++            }
++        })
++        .to_string();
++        let mut mac = Hmac::<Sha256>::new_from_slice(&signing_key).unwrap();
++        mac.update(body.as_bytes());
++        let wire = format!(
++            "ivekit-route-snapshot-v1.{}\n{}",
++            URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes()),
++            body
++        );
++        let mut file = tempfile::NamedTempFile::new().unwrap();
++        file.write_all(wire.as_bytes()).unwrap();
++        file.flush().unwrap();
+ 
+-                if let Some(max_ring_time) = result.max_ring_time {
+-                    dialplan.max_ring_time = Duration::from_secs(max_ring_time as u64);
+-                }
++        let router = HttpCallRouter::new_with_snapshot(
++            HttpRouterConfig {
++                url: "http://127.0.0.1:1/unused".to_string(),
++                headers: None,
++                fallback_to_static: false,
++                timeout_ms: Some(100),
++            },
++            RtpConfig::default(),
++            MediaProxyMode::None,
++            true,
++            None,
++            Some(HttpRouteSnapshotConfig {
++                path: file.path().to_string_lossy().to_string(),
++                encoded_hmac_key: STANDARD.encode(signing_key),
++                encoded_lookup_hmac_root: STANDARD.encode(lookup_root),
++                tenant_id: "tenant-a".to_string(),
++                profile_id: "profile-a".to_string(),
++                refresh_ms: 1000,
++            }),
++        );
+ 
+-                if let Some(rtp_timeout) = result.rtp_timeout {
+-                    if rtp_timeout > 0 {
+-                        dialplan.rtp_timeout = Some(Duration::from_secs(rtp_timeout as u64));
+-                    } else {
+-                        dialplan.rtp_timeout = None;
+-                    }
+-                }
++        let result = router
++            .snapshot_result(r#""iveKit RTP Route" <sip:+8613800138000@pbx.invalid>"#)
++            .unwrap();
++        assert_eq!(router.snapshot.load_full().unwrap().source_revision, 11);
++        assert_eq!(result.action, HttpRouteAction::Forward);
++        assert_eq!(
++            snapshot_wire_signature(file.path().to_str().unwrap()).unwrap(),
++            wire.split_once('\n')
++                .unwrap()
++                .0
++                .trim_start_matches("ivekit-route-snapshot-v1.")
++        );
++        let missing = router
++            .snapshot_result("sip:+8613800138001@pbx.invalid")
++            .unwrap_err();
++        assert_eq!(missing.status, Some(rsipstack::sip::StatusCode::NotFound));
++    }
+ 
+-                apply_allowed_codecs(&mut dialplan, result.allow_codecs.as_deref(), None);
++    #[test]
++    fn signed_snapshot_rejects_tampering() {
++        let mut file = tempfile::NamedTempFile::new().unwrap();
++        file.write_all(b"ivekit-route-snapshot-v1.invalid\n{\"schema_version\":\"1.0.0\"}")
++            .unwrap();
++        let config = HttpRouteSnapshotConfig {
++            path: file.path().to_string_lossy().to_string(),
++            encoded_hmac_key: STANDARD.encode([9_u8; 32]),
++            encoded_lookup_hmac_root: STANDARD.encode([8_u8; 32]),
++            tenant_id: "tenant-a".to_string(),
++            profile_id: "profile-a".to_string(),
++            refresh_ms: 1000,
++        };
++        assert!(load_snapshot(&config).is_err());
++    }
+ 
+-                Ok(dialplan)
+-            }
+-        }
++    #[test]
++    fn voice_address_lookup_matches_ivekit_node_contract() {
++        let lookup_key = derive_voice_address_lookup_key(&[8_u8; 32], "tenant-a").unwrap();
++        assert_eq!(
++            voice_address_lookup_hmac(&lookup_key, "+8613800138000").unwrap(),
++            "4c93c707248e9918e06eb5eb429812184e08486b4211568a936e938b393d4393"
++        );
+     }
+ }

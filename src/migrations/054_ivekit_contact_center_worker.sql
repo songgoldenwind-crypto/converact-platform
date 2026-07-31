@@ -1,0 +1,81 @@
+CREATE INDEX IF NOT EXISTS idx_ivekit_cc_queue_entries_timeout
+  ON ivekit_cc_queue_entries(tenant_id, timeout_at, id)
+  WHERE state = 'waiting' AND timeout_at IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION opc_ivekit_cc_worker_tenant_ids(
+  p_now TIMESTAMPTZ,
+  p_limit INTEGER
+)
+RETURNS TABLE (tenant_id TEXT)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+  SELECT pending.tenant_id
+  FROM (
+    SELECT assignment.tenant_id, min(assignment.offer_expires_at) AS due_at
+    FROM public.ivekit_cc_assignments assignment
+    WHERE assignment.state = 'offered' AND assignment.offer_expires_at <= p_now
+    GROUP BY assignment.tenant_id
+
+    UNION ALL
+
+    SELECT entry.tenant_id, min(entry.timeout_at) AS due_at
+    FROM public.ivekit_cc_queue_entries entry
+    WHERE entry.state = 'waiting' AND entry.timeout_at IS NOT NULL
+      AND entry.timeout_at <= p_now
+    GROUP BY entry.tenant_id
+
+    UNION ALL
+
+    SELECT entry.tenant_id, min(entry.entered_at) AS due_at
+    FROM public.ivekit_cc_queue_entries entry
+    JOIN public.ivekit_cc_queues queue
+      ON queue.tenant_id = entry.tenant_id AND queue.id = entry.queue_id
+    WHERE entry.state = 'waiting' AND queue.status = 'active'
+      AND (entry.timeout_at IS NULL OR entry.timeout_at > p_now)
+      AND EXISTS (
+        SELECT 1
+        FROM public.ivekit_cc_queue_memberships membership
+        JOIN public.ivekit_cc_agents agent
+          ON agent.tenant_id = membership.tenant_id AND agent.id = membership.agent_id
+        JOIN public.ivekit_cc_agent_presence presence
+          ON presence.tenant_id = membership.tenant_id
+         AND presence.agent_id = membership.agent_id
+        WHERE membership.tenant_id = entry.tenant_id
+          AND membership.queue_id = entry.queue_id
+          AND membership.enabled = TRUE AND agent.status = 'active'
+          AND presence.state IN ('available', 'busy')
+          AND presence.active_voice_count < presence.voice_capacity
+          AND NOT EXISTS (
+            SELECT 1
+            FROM public.ivekit_cc_queue_skill_requirements requirement
+            LEFT JOIN public.ivekit_cc_agent_skills required_skill
+              ON required_skill.tenant_id = requirement.tenant_id
+             AND required_skill.agent_id = membership.agent_id
+             AND required_skill.skill_id = requirement.skill_id
+            WHERE requirement.tenant_id = membership.tenant_id
+              AND requirement.queue_id = membership.queue_id
+              AND (required_skill.agent_id IS NULL
+                OR required_skill.proficiency < requirement.minimum_proficiency)
+          )
+      )
+    GROUP BY entry.tenant_id
+  ) pending
+  GROUP BY pending.tenant_id
+  ORDER BY min(pending.due_at), pending.tenant_id
+  LIMIT least(greatest(p_limit, 1), 1000);
+$$;
+
+REVOKE ALL ON FUNCTION opc_ivekit_cc_worker_tenant_ids(TIMESTAMPTZ, INTEGER)
+  FROM PUBLIC;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'opc_runtime') THEN
+    GRANT EXECUTE ON FUNCTION opc_ivekit_cc_worker_tenant_ids(TIMESTAMPTZ, INTEGER)
+      TO opc_runtime;
+  END IF;
+END
+$$;

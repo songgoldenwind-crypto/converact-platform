@@ -1,0 +1,58 @@
+<service>
+  <id>{{SERVICE_NAME}}</id>
+  <name>{{SERVICE_NAME}}</name>
+  <description>iveKit device-bound RustDesk companion</description>
+  <executable>{{NODE_EXE}}</executable>
+  <arguments>&quot;{{INSTALL_ROOT}}\edge\rustdesk-edge-agent.js&quot;</arguments>
+  <workingdirectory>{{INSTALL_ROOT}}</workingdirectory>
+  <serviceaccount>
+    <username>LocalSystem</username>
+  </serviceaccount>
+  <startmode>Automatic</startmode>
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <resetfailure>1 hour</resetfailure>
+  <stoptimeout>30 sec</stoptimeout>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+  <env name="OPC_RUSTDESK_EDGE_BASE_URL" value="{{BASE_URL}}" />
+  <env name="OPC_RUSTDESK_EDGE_TENANT_ID" value="{{TENANT_ID}}" />
+  <env name="OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE" value="{{BUSINESS_REF_TYPE}}" />
+  <env name="OPC_RUSTDESK_EDGE_BUSINESS_REF_ID" value="{{BUSINESS_REF_ID}}" />
+  <env name="OPC_RUSTDESK_EDGE_RUSTDESK_ID" value="{{RUSTDESK_ID}}" />
+  <env name="OPC_RUSTDESK_EDGE_DEVICE_DISPLAY_NAME" value="{{DISPLAY_NAME}}" />
+  <env name="OPC_RUSTDESK_EDGE_ACTOR_IDENTITY" value="rustdesk-windows-companion" />
+  <env name="OPC_RUSTDESK_EDGE_INSTANCE_ID" value="{{EDGE_INSTANCE_ID}}" />
+  <env name="OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE" value="{{TOKEN_FILE}}" />
+  <env name="OPC_RUSTDESK_EDGE_CLIENT_VERSION" value="1.4.9" />
+  <env name="OPC_RUSTDESK_EDGE_OS" value="windows" />
+  <env name="OPC_IVEKIT_PLACEMENT_ENABLED" value="{{PLACEMENT_ENABLED}}" />
+  <env name="OPC_RUSTDESK_NATIVE_CONTROL_PROTOCOL" value="{{NATIVE_CONTROL_PROTOCOL}}" />
+  <env name="OPC_RUSTDESK_EDGE_SPOOL_DIR" value="{{INSTALL_ROOT}}\spool\commands" />
+  <env name="OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR" value="{{INSTALL_ROOT}}\observations\inbox" />
+  <env name="OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR" value="{{INSTALL_ROOT}}\observations\spool" />
+  <env name="OPC_RUSTDESK_EDGE_OBSERVATION_POLL_INTERVAL_MS" value="2000" />
+  <env name="OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR" value="{{INSTALL_ROOT}}\evidence\inbox" />
+  <env name="OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR" value="{{INSTALL_ROOT}}\evidence\spool" />
+  <env name="OPC_RUSTDESK_EDGE_EVIDENCE_POLL_INTERVAL_MS" value="2000" />
+  <env name="OPC_RUSTDESK_EDGE_EVIDENCE_SINGLE_UPLOAD_MAX_BYTES" value="67108864" />
+  <env name="OPC_RUSTDESK_EDGE_EVIDENCE_PART_SIZE_BYTES" value="8388608" />
+  <env name="OPC_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS" value="604800000" />
+  <env name="OPC_RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR" value="{{NATIVE_EVIDENCE_EVENT_DIR}}" />
+  <env name="OPC_RUSTDESK_NATIVE_EVIDENCE_CANDIDATE_DIR" value="{{NATIVE_EVIDENCE_CANDIDATE_DIR}}" />
+  <env name="OPC_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR" value="{{NATIVE_EVIDENCE_SPOOL_DIR}}" />
+  <env name="OPC_RUSTDESK_NATIVE_EVIDENCE_MAX_CANDIDATE_BYTES" value="4294967296" />
+  <env name="OPC_RUSTDESK_NATIVE_EVIDENCE_MAX_PENDING_MS" value="900000" />
+  <env name="OPC_RUSTDESK_NATIVE_FILE_ROOTS_JSON" value="{{NATIVE_FILE_ROOTS_JSON}}" />
+  <env name="OPC_RUSTDESK_NATIVE_RECORDING_ROOTS_JSON" value="{{NATIVE_RECORDING_ROOTS_JSON}}" />
+  <env name="OPC_RUSTDESK_NATIVE_EVIDENCE_STABLE_MS" value="2000" />
+  <env name="OPC_RUSTDESK_PRECISE_DISCONNECT_SCRIPT" value="{{PRECISE_DISCONNECT_SCRIPT}}" />
+  <env name="OPC_RUSTDESK_SESSION_REGISTRY_FILE" value="{{SESSION_REGISTRY_FILE}}" />
+  <env name="OPC_RUSTDESK_NATIVE_CONTROL_PIPE" value="{{NATIVE_CONTROL_PIPE}}" />
+  <env name="OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE" value="{{POWERSHELL_EXE}}" />
+  <env name="OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON" value="{{DISCONNECT_ARGS_JSON}}" />
+  <env name="OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE" value="{{POWERSHELL_EXE}}" />
+  <env name="OPC_RUSTDESK_EDGE_RESTART_ARGS_JSON" value="{{RESTART_ARGS_JSON}}" />
+</service>

@@ -1,0 +1,432 @@
+{
+  "$schema": "../schemas/workload-profile.schema.json",
+  "schema_version": "1.3.0",
+  "profile_id": "mix-100k-v1",
+  "revision": 3,
+  "status": "target",
+  "evidence_level": "target",
+  "description": "One unified iveKit platform serving 100,000 pairwise-disjoint active interactions across Tinode IM, SIP voice, LiveKit A/V, LiveKit screen collaboration, and RustDesk remote assistance.",
+  "interactions": {
+    "total": 100000,
+    "id_uniqueness": "globally_unique_and_cross_category_disjoint",
+    "categories": [
+      {
+        "id": "tinode_im",
+        "kind": "tinode_im",
+        "count": 60000,
+        "active_definition": "An active customer-service topic producing business messages during the steady window; 60,000 customers are served by 20,000 agents or bots averaging three simultaneous topics.",
+        "disjoint_from": ["sip_voice", "livekit_av", "livekit_screen", "rustdesk_remote"],
+        "participants": 120000,
+        "logical_identities": 80000
+      },
+      {
+        "id": "sip_voice",
+        "kind": "sip_voice",
+        "count": 25000,
+        "active_definition": "A connected two-party logical SIP call with two base RTP legs.",
+        "disjoint_from": ["tinode_im", "livekit_av", "livekit_screen", "rustdesk_remote"],
+        "participants": 50000
+      },
+      {
+        "id": "livekit_av",
+        "kind": "livekit_av",
+        "count": 10000,
+        "active_definition": "A distinct LiveKit one-to-one room with two connected participants publishing audio and camera video.",
+        "disjoint_from": ["tinode_im", "sip_voice", "livekit_screen", "rustdesk_remote"],
+        "participants": 20000
+      },
+      {
+        "id": "livekit_screen",
+        "kind": "livekit_screen",
+        "count": 3000,
+        "active_definition": "A distinct LiveKit collaboration room with one screen publisher and one subscriber; its interaction ID is not one of the 10,000 A/V room IDs.",
+        "disjoint_from": ["tinode_im", "sip_voice", "livekit_av", "rustdesk_remote"],
+        "participants": 6000
+      },
+      {
+        "id": "rustdesk_remote",
+        "kind": "rustdesk_remote",
+        "count": 2000,
+        "active_definition": "An authorized RustDesk remote-assistance session with two connected endpoints and active screen updates.",
+        "disjoint_from": ["tinode_im", "sip_voice", "livekit_av", "livekit_screen"],
+        "participants": 4000
+      }
+    ]
+  },
+  "connections": [
+    {
+      "id": "tinode_websocket",
+      "kind": "tinode_websocket",
+      "count": 90000,
+      "idle_only_forbidden": true,
+      "activity_contract": "80,000 logical identities with an average of 1.125 connected devices; active topics, receipts, presence, typing, and reconnect behavior are enabled."
+    },
+    {
+      "id": "ivekit_event_websocket",
+      "kind": "ivekit_event_websocket",
+      "count": 50000,
+      "idle_only_forbidden": true,
+      "activity_contract": "Connections receive interaction, audit, notification, and state events at the profile event rate."
+    },
+    {
+      "id": "sip_registration",
+      "kind": "sip_registration",
+      "count": 25000,
+      "idle_only_forbidden": true,
+      "activity_contract": "Registered contacts refresh normally and participate in call setup and failure recovery."
+    },
+    {
+      "id": "sip_websocket",
+      "kind": "sip_websocket",
+      "count": 10000,
+      "idle_only_forbidden": true,
+      "activity_contract": "SIP over WSS contacts are a measured subset of registered contacts."
+    },
+    {
+      "id": "livekit_participant",
+      "kind": "livekit_participant",
+      "count": 26000,
+      "idle_only_forbidden": true,
+      "activity_contract": "All participants publish or subscribe to the media required by their interaction category."
+    },
+    {
+      "id": "rustdesk_endpoint",
+      "kind": "rustdesk_endpoint",
+      "count": 4000,
+      "idle_only_forbidden": true,
+      "activity_contract": "Each endpoint is attached to one authorized remote session and emits native session/audit evidence."
+    }
+  ],
+  "signaling": {
+    "sip": {
+      "active_calls": 25000,
+      "base_rtp_legs": 50000,
+      "average_call_duration_seconds": 180,
+      "steady_invite_cps": 139,
+      "burst_invite_cps": 1000,
+      "burst_duration_seconds": 60,
+      "registered_contacts": 25000,
+      "sip_over_wss_contacts": 10000,
+      "tls_ratio": 0.4,
+      "srtp_ratio": 0.4,
+      "ownership": {
+        "dialog_owner": "rustpbx",
+        "rtp_owner": "rustpbx",
+        "recording_owner": "rustpbx",
+        "admission_owner": "rustpbx",
+        "livekit_sip": {
+          "mode": "optional_bridge_excluded",
+          "enabled_in_profile": false,
+          "counts_toward_profile": false,
+          "owns_dialogs": false,
+          "owns_rtp": false,
+          "owns_recording": false,
+          "owns_admission": false
+        }
+      }
+    }
+  },
+  "messaging": {
+    "business_messages_per_second": 5000,
+    "burst_messages_per_second": 20000,
+    "burst_duration_seconds": 60,
+    "activity_mix": {
+      "one_to_one_ratio": 0.95,
+      "group_ratio": 0.05
+    },
+    "receipts_enabled": true,
+    "presence_enabled": true,
+    "typing_enabled": true,
+    "attachment_message_ratio": 0.1,
+    "attachment_payload": {
+      "average_bytes": 524288,
+      "p95_bytes": 5242880,
+      "maximum_bytes": 26214400
+    },
+    "hot_topic": {
+      "subscriber_count": 10000,
+      "messages_per_second": 10
+    }
+  },
+  "media": {
+    "voice": {
+      "codec": "PCMU",
+      "packetization_ms": 20,
+      "payload_kbps": 64,
+      "rtp_header_bytes": 40,
+      "base_calls": 25000,
+      "base_rtp_legs": 50000,
+      "supervisor_or_consult_ratio": 0.1
+    },
+    "livekit": {
+      "av": {
+        "rooms": 10000,
+        "participants": 20000,
+        "audio_codec": "OPUS",
+        "audio_kbps_per_publisher": 32,
+        "video_resolution": "720p",
+        "video_fps": 30,
+        "video_average_kbps_per_publisher": 1500,
+        "simulcast": true
+      },
+      "screen": {
+        "rooms": 3000,
+        "participants": 6000,
+        "publishers_per_room": 1,
+        "subscribers_per_room": 1,
+        "resolution": "1080p",
+        "fps": 15,
+        "average_kbps_per_publisher": 2000,
+        "peak_kbps_per_publisher": 4000,
+        "camera_video_enabled": false
+      },
+      "turn_participant_ratio": 0.2,
+      "forced_turn_profile_required": true,
+      "overlay_test": {
+        "enabled": true,
+        "av_rooms_with_added_screen_ratio": 0.3,
+        "counts_toward_interaction_total": false
+      }
+    },
+    "rustdesk": {
+      "sessions": 2000,
+      "endpoints": 4000,
+      "relay_ratio": 0.4,
+      "office_average_kbps_per_relay": 800,
+      "high_motion_peak_kbps_per_relay": 24000,
+      "forced_relay_profile_required": true
+    }
+  },
+  "recording": {
+    "failure_isolation": {
+      "established_media": "continue_fail_open",
+      "storage_dependency": "downstream_only",
+      "media_hot_path_backpressure": "forbidden",
+      "queue_policy": "bounded_non_blocking",
+      "overload_action": "drop_or_fail_recording_only"
+    },
+    "voice": {
+      "interaction_ratio": 0.5,
+      "mode": "encoded_fork",
+      "hot_path": "local_spool_then_upload",
+      "counts_as_core_admission": true,
+      "selection_scope": "sip_voice_interactions",
+      "selected_artifact": "dual_leg_encoded_voice_recording"
+    },
+    "livekit_track": {
+      "interaction_ratio": 0.2,
+      "mode": "track_egress",
+      "hot_path": "separate_egress_pool",
+      "counts_as_core_admission": true,
+      "selection_scope": "livekit_av_interactions",
+      "selected_artifact": "all_published_audio_camera_tracks"
+    },
+    "livekit_room_composite": {
+      "interaction_ratio": 0.01,
+      "mode": "room_composite",
+      "hot_path": "separate_egress_pool",
+      "counts_as_core_admission": false,
+      "selection_scope": "livekit_av_interactions",
+      "selected_artifact": "room_composite_output",
+      "output_average_kbps": 2500
+    },
+    "screen_track": {
+      "interaction_ratio": 0.2,
+      "mode": "track_egress",
+      "hot_path": "separate_egress_pool",
+      "counts_as_core_admission": true,
+      "selection_scope": "livekit_screen_interactions",
+      "selected_artifact": "published_screen_track"
+    },
+    "rustdesk": {
+      "interaction_ratio": 0.1,
+      "mode": "local_edge_upload",
+      "hot_path": "local_spool_then_upload",
+      "counts_as_core_admission": false,
+      "selection_scope": "rustdesk_remote_interactions",
+      "selected_artifact": "rustdesk_local_recording"
+    }
+  },
+  "intelligence": {
+    "realtime_voice_asr_ratio": 0.2,
+    "post_call_asr_ratio": 0.8,
+    "ocr_attachment_ratio": 1,
+    "translation_message_ratio": 0.2,
+    "ai_quality_interaction_ratio": 1,
+    "backpressure_policy": "durable_queue_and_never_block_realtime_ack"
+  },
+  "durations": {
+    "ramp_minutes": 60,
+    "steady_minutes": 120,
+    "burst_seconds": 60,
+    "endurance_hours": 24,
+    "endurance_load_ratio": 0.7
+  },
+  "failure_model": {
+    "node_failure_repetitions": 3,
+    "zone_failure_repetitions": 3,
+    "reconnect_client_ratio": 0.2,
+    "reconnect_window_seconds": 60,
+    "quorum_failures": [
+      "postgresql_leader",
+      "redis_primary",
+      "nats_leader",
+      "network_partition"
+    ]
+  },
+  "slos": {
+    "sip_setup_success_ratio": 0.9999,
+    "sip_route_p99_ms": 150,
+    "rtp_server_packet_loss_ratio": 0.001,
+    "im_ack_p99_ms": 500,
+    "durable_loss_count": 0,
+    "livekit_join_p99_ms": 5000,
+    "new_admission_recovery_seconds": 30,
+    "four_node_linearity_ratio": 0.93,
+    "eight_node_linearity_ratio": 0.91
+  },
+  "performance_contract": {
+    "schema_version": "1.0.0",
+    "measurement_scope": "same_region_controlled_endpoint_to_endpoint",
+    "clock_sync": {
+      "method": "monotonic_clock_with_observed_ntp_offset",
+      "maximum_offset_ms": 5
+    },
+    "required_quantiles": ["p50", "p95", "p99"],
+    "latency_ms": {
+      "im_send_to_ack_p95": 200,
+      "im_send_to_ack_p99": 500,
+      "sip_route_p99": 150,
+      "sip_post_dial_p95": 800,
+      "sip_post_dial_p99": 1500,
+      "voice_mouth_to_ear_p95": 150,
+      "voice_mouth_to_ear_p99": 250,
+      "livekit_join_p95": 3000,
+      "livekit_join_p99": 5000,
+      "livekit_first_audio_p99": 1500,
+      "livekit_first_video_frame_p99": 2000,
+      "livekit_glass_to_glass_p95": 250,
+      "livekit_glass_to_glass_p99": 400,
+      "screen_first_frame_p99": 2000,
+      "screen_glass_to_glass_p95": 300,
+      "rustdesk_input_to_photon_p95": 200,
+      "rustdesk_input_to_photon_p99": 350
+    },
+    "media_quality": {
+      "server_packet_loss_ratio": 0.001,
+      "endpoint_packet_loss_p95_ratio": 0.01,
+      "jitter_p95_ms": 20,
+      "jitter_p99_ms": 30,
+      "video_freeze_ratio": 0.01,
+      "video_freezes_per_minute": 1,
+      "camera_receiver_frames_per_second_min": 24,
+      "video_frame_gap_p95_ms": 100,
+      "video_frame_gap_p99_ms": 150,
+      "av_sync_absolute_p95_ms": 80,
+      "minimum_voice_mos_p50": 4
+    },
+    "reliability": {
+      "connection_success_ratio": 0.999,
+      "sip_setup_success_ratio": 0.9999,
+      "reconnect_success_ratio": 0.999,
+      "durable_loss_count": 0,
+      "duplicate_delivery_count": 0,
+      "out_of_order_delivery_count": 0
+    },
+    "recovery_ms": {
+      "reconnect_p99": 5000,
+      "network_handoff_p99": 5000,
+      "bandwidth_step_p99": 3000,
+      "new_admission_after_node_failure_p99": 30000
+    },
+    "overload": {
+      "queue_policy": "bounded",
+      "slow_consumer_policy": "disconnect_or_degrade",
+      "minimum_jain_fairness_index": 0.95,
+      "maximum_noisy_neighbor_p99_degradation_ratio": 0.2,
+      "degradation_order": [
+        "preserve_audio",
+        "reduce_video_layers",
+        "reduce_video_frame_rate",
+        "drop_auxiliary_realtime_copies",
+        "reject_new_admission"
+      ]
+    },
+    "security_performance": {
+      "authorization_p99_ms": 50,
+      "rate_limit_decision_p99_ms": 10,
+      "overload_rejection_p99_ms": 100,
+      "new_admission_fails_closed": true,
+      "established_media_avoids_remote_authorization": true
+    },
+    "required_resource_metrics": [
+      "server_cpu_p95_ratio",
+      "server_memory_per_1000_connections_bytes",
+      "server_egress_bits_per_second",
+      "client_cpu_p95_ratio",
+      "client_memory_p95_bytes",
+      "generator_cpu_p95_ratio",
+      "generator_nic_p95_ratio",
+      "cost_per_1000_active_interactions"
+    ],
+    "impairment_profiles": [
+      {
+        "id": "baseline",
+        "round_trip_time_ms": 30,
+        "jitter_ms": 5,
+        "packet_loss_ratio": 0,
+        "downstream_kbps": 10000,
+        "upstream_kbps": 10000,
+        "blackout_ms": 0
+      },
+      {
+        "id": "constrained_bandwidth",
+        "round_trip_time_ms": 80,
+        "jitter_ms": 20,
+        "packet_loss_ratio": 0.01,
+        "downstream_kbps": 1500,
+        "upstream_kbps": 750,
+        "blackout_ms": 0
+      },
+      {
+        "id": "lossy_jitter",
+        "round_trip_time_ms": 120,
+        "jitter_ms": 40,
+        "packet_loss_ratio": 0.05,
+        "downstream_kbps": 3000,
+        "upstream_kbps": 1500,
+        "blackout_ms": 0
+      },
+      {
+        "id": "network_handoff",
+        "round_trip_time_ms": 80,
+        "jitter_ms": 20,
+        "packet_loss_ratio": 0.01,
+        "downstream_kbps": 3000,
+        "upstream_kbps": 1500,
+        "blackout_ms": 2000
+      },
+      {
+        "id": "cross_region",
+        "round_trip_time_ms": 180,
+        "jitter_ms": 30,
+        "packet_loss_ratio": 0.01,
+        "downstream_kbps": 5000,
+        "upstream_kbps": 2500,
+        "blackout_ms": 0
+      }
+    ]
+  },
+  "external_dependencies": [
+    { "id": "pstn_sip_trunk", "status": "not_run", "required_for_production_pass": true },
+    { "id": "public_network", "status": "not_run", "required_for_production_pass": true },
+    { "id": "real_turn", "status": "not_run", "required_for_production_pass": true },
+    { "id": "livekit_egress", "status": "controlled", "required_for_production_pass": true },
+    { "id": "object_storage", "status": "not_run", "required_for_production_pass": true },
+    { "id": "ocr_provider", "status": "not_run", "required_for_production_pass": true },
+    { "id": "asr_provider", "status": "not_run", "required_for_production_pass": true },
+    { "id": "translation_provider", "status": "not_run", "required_for_production_pass": true },
+    { "id": "ai_provider", "status": "not_run", "required_for_production_pass": true },
+    { "id": "windows_endpoints", "status": "not_run", "required_for_production_pass": true }
+  ]
+}

@@ -1,0 +1,281 @@
+{
+  "$schema": "../schemas/metrics-contract.schema.json",
+  "schema_version": "1.0.0",
+  "contract_id": "voice-media-metrics-v1",
+  "status": "target",
+  "clock": {
+    "maximum_ntp_offset_seconds": 0.005,
+    "required_metadata": [
+      "clock_source",
+      "ntp_offset_seconds",
+      "captured_at"
+    ]
+  },
+  "forbidden_labels": [
+    "tenant_id",
+    "call_id",
+    "phone_number",
+    "ip_address",
+    "dialog_id",
+    "reservation_id",
+    "recording_id"
+  ],
+  "metrics": [
+    {
+      "name": "ivekit_voice_rtp_rx_packets_total",
+      "type": "counter",
+      "unit": "packets",
+      "help": "RTP and RTCP packets accepted by the media node.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "profile",
+        "protocol"
+      ],
+      "aggregation_window": "rate_1m_5m",
+      "cardinality_bound": 4096
+    },
+    {
+      "name": "ivekit_voice_rtp_tx_packets_total",
+      "type": "counter",
+      "unit": "packets",
+      "help": "RTP and RTCP packets emitted by the media node.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "profile",
+        "protocol"
+      ],
+      "aggregation_window": "rate_1m_5m",
+      "cardinality_bound": 4096
+    },
+    {
+      "name": "ivekit_voice_rtp_rx_bytes_total",
+      "type": "counter",
+      "unit": "bytes",
+      "help": "RTP and RTCP bytes accepted by the media node.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "profile"
+      ],
+      "aggregation_window": "rate_1m_5m",
+      "cardinality_bound": 2048
+    },
+    {
+      "name": "ivekit_voice_rtp_tx_bytes_total",
+      "type": "counter",
+      "unit": "bytes",
+      "help": "RTP and RTCP bytes emitted by the media node.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "profile"
+      ],
+      "aggregation_window": "rate_1m_5m",
+      "cardinality_bound": 2048
+    },
+    {
+      "name": "ivekit_voice_media_sessions",
+      "type": "gauge",
+      "unit": "sessions",
+      "help": "Current media sessions by execution mode and profile.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "profile",
+        "execution_mode"
+      ],
+      "cardinality_bound": 4096
+    },
+    {
+      "name": "ivekit_voice_media_packet_drops_total",
+      "type": "counter",
+      "unit": "packets",
+      "help": "Packets dropped by a bounded media stage.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "stage",
+        "reason"
+      ],
+      "aggregation_window": "rate_1m_5m",
+      "cardinality_bound": 4096
+    },
+    {
+      "name": "ivekit_voice_reservations",
+      "type": "gauge",
+      "unit": "reservations",
+      "help": "Current reservation saga resources by role and state.",
+      "labels": [
+        "zone",
+        "cell",
+        "role",
+        "profile",
+        "state"
+      ],
+      "cardinality_bound": 2048
+    },
+    {
+      "name": "ivekit_voice_reservation_reconciliation_total",
+      "type": "counter",
+      "unit": "operations",
+      "help": "Reservation facts reconciled after unknown or partial commit.",
+      "labels": [
+        "zone",
+        "cell",
+        "role",
+        "outcome"
+      ],
+      "aggregation_window": "rate_5m",
+      "cardinality_bound": 1024
+    },
+    {
+      "name": "ivekit_voice_recording_spool_bytes",
+      "type": "gauge",
+      "unit": "bytes",
+      "help": "Cell-local recording recovery spool usage.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "watermark"
+      ],
+      "cardinality_bound": 1024
+    },
+    {
+      "name": "ivekit_voice_recording_upload_bytes_total",
+      "type": "counter",
+      "unit": "bytes",
+      "help": "Recording bytes uploaded to the Region object store.",
+      "labels": [
+        "zone",
+        "cell",
+        "source",
+        "outcome"
+      ],
+      "aggregation_window": "rate_1m_5m",
+      "cardinality_bound": 1024
+    },
+    {
+      "name": "ivekit_voice_durable_spool_bytes",
+      "type": "gauge",
+      "unit": "bytes",
+      "help": "Pending-unacknowledged durable fact spool usage.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "fact_class",
+        "watermark"
+      ],
+      "cardinality_bound": 2048
+    },
+    {
+      "name": "ivekit_voice_owner_takeover_seconds",
+      "type": "histogram",
+      "unit": "seconds",
+      "help": "RustPBX owner takeover duration for a declared HA profile.",
+      "labels": [
+        "zone",
+        "cell",
+        "profile",
+        "outcome"
+      ],
+      "buckets": [
+        0.1,
+        0.25,
+        0.5,
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "cardinality_bound": 1024
+    },
+    {
+      "name": "ivekit_voice_rtcp_jitter_seconds",
+      "type": "histogram",
+      "unit": "seconds",
+      "help": "RTCP-observed interarrival jitter by bounded media profile.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "profile"
+      ],
+      "buckets": [
+        0.001,
+        0.002,
+        0.005,
+        0.01,
+        0.02,
+        0.04,
+        0.08,
+        0.16
+      ],
+      "cardinality_bound": 2048
+    },
+    {
+      "name": "ivekit_voice_srtp_failures_total",
+      "type": "counter",
+      "unit": "failures",
+      "help": "SRTP authentication, replay or crypto failures.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "stage",
+        "reason"
+      ],
+      "aggregation_window": "rate_5m",
+      "cardinality_bound": 2048
+    },
+    {
+      "name": "ivekit_voice_transcode_slots",
+      "type": "gauge",
+      "unit": "slots",
+      "help": "Safe, reserved or used transcode slots by codec pair.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "codec_pair",
+        "state"
+      ],
+      "cardinality_bound": 4096
+    },
+    {
+      "name": "ivekit_voice_control_queue_depth",
+      "type": "gauge",
+      "unit": "items",
+      "help": "Bounded media-control queue depth.",
+      "labels": [
+        "zone",
+        "cell",
+        "node",
+        "queue"
+      ],
+      "cardinality_bound": 1024
+    },
+    {
+      "name": "ivekit_voice_generator_clock_offset_seconds",
+      "type": "gauge",
+      "unit": "seconds",
+      "help": "Observed absolute generator or receiver clock offset.",
+      "labels": [
+        "fleet",
+        "host",
+        "clock_source"
+      ],
+      "cardinality_bound": 2048
+    }
+  ]
+}

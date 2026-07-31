@@ -1,0 +1,63 @@
+diff --git a/src/rwi/processor.rs b/src/rwi/processor.rs
+index 2483bd4..ae152dd 100644
+--- a/src/rwi/processor.rs
++++ b/src/rwi/processor.rs
+@@ -1970,6 +1970,7 @@ impl RwiCommandProcessor {
+             };
+ 
+             tokio::select! {
++                biased;
+                 _ = tokio::time::sleep(std::time::Duration::from_secs(timeout_secs as u64)) => {
+                     {
+                         let gw = gateway.read();
+@@ -2018,7 +2019,7 @@ impl RwiCommandProcessor {
+                     }
+                 } => {
+                     match result {
+-                        Ok((dialog_id, Some(resp))) if resp.status_code.kind() == rsipstack::sip::StatusCodeKind::Successful => {
++                        Ok((dialog, Some(resp))) if resp.status_code.kind() == rsipstack::sip::StatusCodeKind::Successful => {
+ 
+                             cdr_answered.store(true, std::sync::atomic::Ordering::Relaxed);
+ 
+@@ -2053,7 +2054,6 @@ impl RwiCommandProcessor {
+ 
+ 
+                             let _ = caller_peer;
+-                            let _ = dialog_id;
+ 
+ 
+                             use crate::proxy::active_call_registry::ActiveProxyCallStatus;
+@@ -2088,6 +2088,13 @@ impl RwiCommandProcessor {
+                                     }
+                                 } => {}
+                             }
++                            if let Err(e) = dialog.hangup().await {
++                                tracing::warn!(
++                                    %call_id,
++                                    error = %e,
++                                    "Failed to hang up RWI-originated SIP dialog"
++                                );
++                            }
+                             {
+                                 let gw = gateway.read();
+                                 gw.send_event_to_call_owner(
+@@ -2102,6 +2109,7 @@ impl RwiCommandProcessor {
+                                     ),
+                                 );
+                             }
++                            registry.remove(&call_id);
+                             cleanup().await;
+                         }
+                         Ok((_dialog_id, resp_opt)) => {
+@@ -2149,6 +2157,11 @@ impl RwiCommandProcessor {
+                         }
+                     }
+                 }
++                _ = cancel_token.cancelled() => {
++                    tracing::info!(%call_id, "RWI originate cancelled before answer");
++                    registry.remove(&call_id);
++                    cleanup().await;
++                }
+             }
+         });
+ 

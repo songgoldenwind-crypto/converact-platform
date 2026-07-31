@@ -1,0 +1,84 @@
+{
+  "title": "OPC 运维总览",
+  "uid": "opc-ops-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "活跃通话",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "sum(opc_active_calls)", "legendFormat": "active" }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 2, "type": "stat", "title": "HTTP QPS",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "sum(rate(opc_http_requests_total[1m]))", "legendFormat": "qps" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 3, "type": "stat", "title": "5xx 错误率",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [{
+        "expr": "sum(rate(opc_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(opc_http_requests_total[5m]))",
+        "legendFormat": "error rate"
+      }],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "thresholds": { "mode": "absolute", "steps": [
+        { "color": "green", "value": null },
+        { "color": "yellow", "value": 0.02 },
+        { "color": "red", "value": 0.05 }
+      ]}}}
+    },
+    {
+      "id": 4, "type": "stat", "title": "LLM QPS",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [{ "expr": "sum(rate(opc_llm_requests_total[1m]))", "legendFormat": "llm qps" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "HTTP 请求延迟 (P50/P95/P99)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(opc_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(opc_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(opc_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "LLM 请求延迟",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(opc_llm_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(opc_llm_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P95" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "通话量趋势",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "sum(rate(opc_calls_total{direction=\"inbound\"}[5m]))", "legendFormat": "Inbound" },
+        { "expr": "sum(rate(opc_calls_total{direction=\"outbound\"}[5m]))", "legendFormat": "Outbound" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "cps" } }
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "QM 评分分布",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(opc_qm_score_bucket[1h])) by (le, tenant_id))", "legendFormat": "{{tenant_id}} P50" },
+        { "expr": "histogram_quantile(0.10, sum(rate(opc_qm_score_bucket[1h])) by (le, tenant_id))", "legendFormat": "{{tenant_id}} P10" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none", "max": 1, "min": 0 } }
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "拨号器活动任务",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "targets": [{ "expr": "opc_dialer_active_tasks", "legendFormat": "{{tenant_id}}" }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    }
+  ]
+}

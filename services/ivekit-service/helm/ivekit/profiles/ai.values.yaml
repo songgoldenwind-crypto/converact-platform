@@ -1,0 +1,17 @@
+deploymentProfiles:
+  core: true
+  ai: true
+
+realtimeAudioTap:
+  enabled: true
+
+# Provider credentials and endpoints remain in the runtime Secret. AI work is
+# isolated from API Pods and each backlog can scale independently.
+workerPools:
+  pools:
+    attachment:
+      enabled: true
+    quality:
+      enabled: true
+    translation:
+      enabled: true

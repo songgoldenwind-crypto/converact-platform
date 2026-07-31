@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ivekit-homer.fullname" . }}-hep
+  labels:
+    {{- include "ivekit-homer.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.service.annotations | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "ivekit-homer.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: hep
+      port: {{ .Values.homer.ingest.udpPort }}
+      targetPort: hep
+      protocol: UDP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ivekit-homer.fullname" . }}
+  labels:
+    {{- include "ivekit-homer.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    {{- include "ivekit-homer.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.homer.coordinator.port }}
+      targetPort: http
+      protocol: TCP
+    - name: flight
+      port: {{ .Values.homer.node.flightPort }}
+      targetPort: flight
+      protocol: TCP
+    - name: metrics
+      port: {{ .Values.homer.metrics.port }}
+      targetPort: metrics
+      protocol: TCP

@@ -1,0 +1,1012 @@
+deploymentProfiles:
+  # core is the mandatory base. Optional capability groups require an explicit
+  # overlay from profiles/ and cannot silently enable themselves.
+  core: true
+  ai: false
+  observability: false
+  benchmark: false
+
+replicaCount: 2
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+terminationGracePeriodSeconds: 60
+preStopDelaySeconds: 10
+
+topologySpreadConstraints:
+  enabled: true
+  topologyKey: kubernetes.io/hostname
+  maxSkew: 1
+  whenUnsatisfiable: ScheduleAnyway
+
+telemetry:
+  enabled: false
+  collectorEndpoint: ""
+  sampleRatio: "0.1"
+  maxQueueSize: "2048"
+  maxExportBatchSize: "256"
+  scheduledDelayMs: "5000"
+  exportTimeoutMs: "3000"
+
+image:
+  repository: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+secrets:
+  existingSecret: ""
+  runtimeEnvironmentSecret: ""
+  adminDatabaseUrlKey: admin-database-url
+  runtimeDatabaseUrlKey: runtime-database-url
+  runtimeDatabasePasswordKey: runtime-database-password
+  auditIpHmacKeyKey: audit-ip-hmac-key
+  rateLimitHmacKeyKey: rate-limit-hmac-key
+  realtimeAudioTapHmacSecretKey: realtime-audio-tap-hmac-secret-b64
+
+config:
+  allowedOrigins: ""
+  env:
+    OPC_IVEKIT_EVENT_REPLAY_ENABLED: "1"
+    OPC_IVEKIT_RATE_LIMIT_ENABLED: "1"
+    OPC_IVEKIT_RATE_LIMIT_NOTIFICATION_TENANT_PER_MINUTE: "1000"
+    OPC_IVEKIT_RATE_LIMIT_NOTIFICATION_ACTOR_PER_MINUTE: "60"
+    OPC_IVEKIT_RATE_LIMIT_NOTIFICATION_SOURCE_IP_PER_MINUTE: "120"
+    OPC_IVEKIT_RATE_LIMIT_NOTIFICATION_RECIPIENT_PER_MINUTE: "10"
+    OPC_IVEKIT_RATE_LIMIT_RECEIPT_TENANT_PER_MINUTE: "5000"
+    OPC_IVEKIT_RATE_LIMIT_RECEIPT_PROVIDER_PER_MINUTE: "600"
+    OPC_IVEKIT_RATE_LIMIT_RECEIPT_SOURCE_IP_PER_MINUTE: "1200"
+    OPC_IVEKIT_RATE_LIMIT_EVENT_WEBHOOK_TENANT_PER_MINUTE: "120"
+    OPC_IVEKIT_RATE_LIMIT_EVENT_WEBHOOK_ACTOR_PER_MINUTE: "30"
+    OPC_IVEKIT_RATE_LIMIT_EVENT_WEBHOOK_SOURCE_IP_PER_MINUTE: "60"
+    OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED: "0"
+    OPC_IVEKIT_NOTIFICATION_INTERVAL_MS: "5000"
+    OPC_IVEKIT_NOTIFICATION_BATCH_SIZE: "25"
+    OPC_IVEKIT_NOTIFICATION_TENANT_LIMIT: "100"
+    OPC_IVEKIT_NOTIFICATION_LEASE_MS: "120000"
+    OPC_IVEKIT_NOTIFICATION_PARTITION_COUNT: "1"
+    OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX: "0"
+    OPC_IVEKIT_NOTIFICATION_RETRY_DELAYS_MS: "5000,30000,120000,600000"
+    OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED: "0"
+    OPC_IVEKIT_EVENT_WEBHOOK_INTERVAL_MS: "5000"
+    OPC_IVEKIT_EVENT_WEBHOOK_TENANT_LIMIT: "100"
+    OPC_IVEKIT_EVENT_WEBHOOK_SUBSCRIPTION_LIMIT: "25"
+    OPC_IVEKIT_EVENT_WEBHOOK_EVENT_BATCH_SIZE: "100"
+    OPC_IVEKIT_EVENT_WEBHOOK_LEASE_MS: "120000"
+    OPC_IVEKIT_EVENT_WEBHOOK_RETRY_DELAYS_MS: "5000,30000,120000,600000"
+    OPC_IVEKIT_NOTIFICATION_WEBHOOK_SECRET_ENV_NAMES: ""
+    OPC_IVEKIT_NOTIFICATION_PROVIDER_SECRET_ENV_NAMES: ""
+    OPC_IVEKIT_NOTIFICATION_HEALTH_WORKER_ENABLED: "0"
+    OPC_IVEKIT_NOTIFICATION_HEALTH_INTERVAL_MS: "60000"
+    OPC_IVEKIT_NOTIFICATION_HEALTH_STALE_MS: "300000"
+    OPC_IVEKIT_NOTIFICATION_HEALTH_LEASE_MS: "120000"
+    OPC_IVEKIT_NOTIFICATION_HEALTH_TENANT_LIMIT: "100"
+    OPC_IVEKIT_NOTIFICATION_HEALTH_BATCH_SIZE: "25"
+    OPC_IVEKIT_NOTIFICATION_HEALTH_CONCURRENCY: "5"
+    OPC_IVEKIT_NOTIFICATION_ALLOW_CONTROLLED: "0"
+    OPC_IVEKIT_READINESS_REQUIRE_HEALTHY_NOTIFICATION_PROVIDER: "0"
+    OPC_IVEKIT_RETENTION_WORKER_ENABLED: "0"
+    OPC_IVEKIT_RETENTION_INTERVAL_MS: "60000"
+    OPC_IVEKIT_RETENTION_TENANT_LIMIT: "100"
+    OPC_IVEKIT_RETENTION_POLICY_LIMIT: "20"
+    OPC_IVEKIT_RETENTION_LEASE_MS: "120000"
+    OPC_IVEKIT_RUNTIME_HEARTBEAT_ENABLED: "1"
+    OPC_IVEKIT_RUNTIME_HEARTBEAT_INTERVAL_MS: "10000"
+    OPC_IVEKIT_RUNTIME_HEARTBEAT_STALE_AFTER_MS: "45000"
+    OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED: "0"
+    OPC_IVEKIT_WORKER_BACKLOG_METRICS_INTERVAL_MS: "5000"
+    OPC_IVEKIT_EVENT_RETENTION_MS: "86400000"
+    OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES: "65536"
+    OPC_IVEKIT_WS_REPLAY_MAX_EVENTS: "500"
+    OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED: "1"
+    OPC_IVEKIT_EVENT_RETENTION_INTERVAL_MS: "60000"
+    OPC_IVEKIT_EVENT_RETENTION_TENANT_LIMIT: "100"
+    OPC_IVEKIT_EVENT_RETENTION_BATCH_SIZE: "1000"
+    OPC_TINODE_DELIVERY_WORKER_ENABLED: "0"
+    OPC_TINODE_INBOUND_WORKER_ENABLED: "0"
+    OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED: "0"
+    OPC_QUALITY_REVIEW_WORKER_ENABLED: "0"
+    OPC_TRANSLATION_WORKER_ENABLED: "0"
+    OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED: "0"
+    OPC_LIVEKIT_EGRESS_RECONCILIATION_ENABLED: "0"
+    OPC_LIVEKIT_EGRESS_RECONCILIATION_INTERVAL_MS: "10000"
+    OPC_LIVEKIT_EGRESS_RECONCILIATION_BATCH_SIZE: "25"
+    OPC_LIVEKIT_EGRESS_RECONCILIATION_TENANT_LIMIT: "100"
+    OPC_LIVEKIT_EGRESS_RECONCILIATION_LEASE_MS: "30000"
+    OPC_LIVEKIT_EGRESS_RECONCILIATION_STALE_MS: "30000"
+    OPC_LIVEKIT_EGRESS_RECONCILIATION_RETRY_BASE_MS: "5000"
+    OPC_LIVEKIT_EGRESS_RECONCILIATION_RETRY_MAX_MS: "300000"
+    OPC_LIVEKIT_EGRESS_RECONCILIATION_MAX_MISSING: "2"
+    OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED: "0"
+    OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_INTERVAL_MS: "5000"
+    OPC_LIVEKIT_INGRESS_ENABLED: "0"
+    OPC_LIVEKIT_INGRESS_REQUEST_TIMEOUT_MS: "15000"
+    OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST: ""
+    OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL: "0"
+    OPC_IVEKIT_IVR_WORKERS_ENABLED: "0"
+    OPC_IVEKIT_VOICE_WORKERS_ENABLED: "0"
+    OPC_IVEKIT_VOICE_SECRET_ENV_NAMES: "RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN"
+    OPC_IVEKIT_VOICE_WEBHOOK_SECRET_ENV_NAMES: "RUSTPBX_WEBHOOK_TOKEN"
+    OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED: "0"
+    OPC_SIP_VOLTE_ENABLED: "0"
+    LIVEKIT_SIP_BRIDGE_TARGET: ""
+    RUSTPBX_LIVEKIT_TRUNK: ""
+    RUSTPBX_RWI_URL: ""
+
+placement:
+  enabled: false
+  profileId: cell-10k-v1
+  homeRegionId: region-a
+  failoverRegionIds: ""
+  topologyJson: ""
+  mediaPolicyJson: '{"profile_id":"cell-10k-v1","fixed_capacity":{},"per_participant_capacity":{"video.participants":1}}'
+  egressTrackPolicyJson: '{"profile_id":"cell-10k-v1","fixed_capacity":{"workers.track_egress_slots":1}}'
+  egressCompositePolicyJson: '{"profile_id":"cell-10k-v1","fixed_capacity":{"workers.composite_egress_slots":1}}'
+  voicePolicyJson: '{"profile_id":"cell-10k-v1","fixed_capacity":{"voice.weighted_calls":1}}'
+  tinodePolicyJson: '{"profile_id":"cell-10k-v1","fixed_capacity":{"im.presence_sessions":1}}'
+  rustdeskPolicyJson: '{"profile_id":"cell-10k-v1","fixed_capacity":{"remote.active_sessions":1}}'
+  snapshotKeyId: snapshot-v1
+  tokenKeyId: placement-v1
+  projectorIntervalMs: "2000"
+  projectorTimeoutMs: "2000"
+  snapshotTtlMs: "10000"
+  snapshotRefreshMs: "1000"
+  staleGraceMs: "30000"
+  admissionTimeoutMs: "2000"
+  workerIntervalMs: "250"
+  workerTenantLimit: "100"
+  workerBatchSize: "50"
+  snapshotVolumeSizeLimit: 16Mi
+  secrets:
+    snapshotHmacKeysKey: placement-snapshot-hmac-keys-json
+    tokenHmacKeysKey: placement-token-hmac-keys-json
+    admissionTokenKey: cell-admission-token
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+service:
+  type: ClusterIP
+  port: 3000
+
+realtimeAudioTap:
+  enabled: false
+  listenPort: 3010
+  path: /api/ivekit/realtime-audio-tap/livekit
+  tokenTtlSeconds: "60"
+  maxConnections: "4096"
+  prestartBufferMs: "1000"
+  maxPayloadBytes: "262144"
+  idleTimeoutMs: "60000"
+  startTimeoutMs: "5000"
+  shutdownTimeoutMs: "1000"
+  projectionQueueMaxItems: "4096"
+  projectionShutdownTimeoutMs: "1000"
+  retentionDays: "30"
+  socketVolumeSizeLimit: 4Mi
+  rustPbxChannelCapacity: "256"
+  rustPbxSendTimeoutMs: "10"
+  rustPbxGateway:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  networkPolicy:
+    enabled: true
+    aiAgentPodSelector:
+      app: ai-agent
+    aiAgentNamespaceSelector: {}
+    additionalIngressFrom: []
+
+monitoring:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+  prometheusRule:
+    enabled: false
+    labels: {}
+  grafanaDashboard:
+    enabled: false
+    labels:
+      grafana_dashboard: "1"
+  # Passive eBPF SIP/RTP observer. It is intentionally off-path and disabled
+  # until an exact host interface and voice-node selector are provided.
+  sipExporter:
+    enabled: false
+    image:
+      repository: frzq/sip-exporter
+      digest: ""
+      pullPolicy: IfNotPresent
+    interface: ""
+    httpPort: 2112
+    sipPort: 5060
+    sipsPort: 5061
+    rtpCapture: true
+    rtpStreamTtl: 30s
+    ignoreOutgoing: false
+    hostLabels: false
+    telemetry: false
+    nodeSelector: {}
+    tolerations: []
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: "1"
+        memory: 256Mi
+
+migration:
+  activeDeadlineSeconds: 900
+  backoffLimit: 1
+
+backup:
+  enabled: false
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  activeDeadlineSeconds: 21600
+  backoffLimit: 1
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  backupRoot: /backups
+  persistence:
+    existingClaim: ""
+  localObjectStorage:
+    existingClaim: ""
+    mountPath: /objects
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+notificationWorker:
+  enabled: false
+  replicaCount: 2
+  intervalMs: "5000"
+  batchSize: "25"
+  tenantLimit: "100"
+  leaseMs: "120000"
+  retryDelaysMs: "5000,30000,120000,600000"
+  terminationGracePeriodSeconds: 60
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  autoscaling:
+    enabled: false
+    prometheusAddress: ""
+    minReplicas: 1
+    maxReplicas: 32
+    pollingInterval: 15
+    cooldownPeriod: 180
+    fallbackFailureThreshold: 3
+    fallbackReplicas: 2
+    scaleDownStabilizationSeconds: 300
+    depthPerReplica: "50"
+    oldestAgeThresholdSeconds: "30"
+    oldestAgeActivationSeconds: "5"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+# Fixed, allow-listed asynchronous worker pools. Values cannot add arbitrary
+# worker switches; each pool maps to one reviewed environment contract in the
+# template. KEDA is optional and requires the external operator plus a
+# Prometheus-compatible query endpoint.
+workerPools:
+  prometheusAddress: ""
+  pollingInterval: 15
+  cooldownPeriod: 180
+  scaleDownStabilizationSeconds: 300
+  fallbackFailureThreshold: 3
+  terminationGracePeriodSeconds: 120
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 0
+  pools:
+    eventWebhook:
+      enabled: false
+      replicaCount: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 0
+        maxReplicas: 16
+        fallbackReplicas: 1
+        depthPerReplica: "50"
+        oldestAgeThresholdSeconds: "30"
+        oldestAgeActivationSeconds: "5"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+    attachment:
+      enabled: false
+      replicaCount: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 0
+        maxReplicas: 32
+        fallbackReplicas: 1
+        depthPerReplica: "10"
+        oldestAgeThresholdSeconds: "15"
+        oldestAgeActivationSeconds: "3"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "2"
+          memory: 2Gi
+    quality:
+      enabled: false
+      replicaCount: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 0
+        maxReplicas: 32
+        fallbackReplicas: 1
+        depthPerReplica: "10"
+        oldestAgeThresholdSeconds: "15"
+        oldestAgeActivationSeconds: "3"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: "2"
+          memory: 1Gi
+    translation:
+      enabled: false
+      replicaCount: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 0
+        maxReplicas: 32
+        fallbackReplicas: 1
+        depthPerReplica: "10"
+        oldestAgeThresholdSeconds: "15"
+        oldestAgeActivationSeconds: "3"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: "2"
+          memory: 1Gi
+    fileSecurity:
+      enabled: false
+      replicaCount: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 16
+        fallbackReplicas: 1
+        depthPerReplica: "10"
+        oldestAgeThresholdSeconds: "30"
+        oldestAgeActivationSeconds: "5"
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: "4"
+          memory: 4Gi
+
+fileSecurity:
+  scannerMode: clamd
+  scanWorkerEnabled: "0"
+  scanIntervalMs: "5000"
+  scanBatchSize: "25"
+  scanLeaseMs: "60000"
+  scanMaxBytes: "104857600"
+  mimeConflictAction: quarantine
+  clamdHost: ""
+  clamdPort: "3310"
+  derivativeProviderMode: local_ffmpeg
+  derivativeWorkerEnabled: "0"
+  derivativeIntervalMs: "5000"
+  derivativeBatchSize: "10"
+  derivativeLeaseMs: "120000"
+  cleanupWorkerEnabled: "0"
+  cleanupConfirm: "0"
+
+clamav:
+  enabled: false
+  replicaCount: 2
+  signatureMaxAgeMinutes: 4320
+  image:
+    repository: clamav/clamav:1.5.2_base
+    digest: sha256:3aa0c6d6a966dc062899e070fb13f87485acf0cbb710fccaae9a848cd5f5b09a
+    pullPolicy: IfNotPresent
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  podAntiAffinity:
+    enabled: true
+    topologyKey: kubernetes.io/hostname
+  topologySpreadConstraints:
+    enabled: true
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+  networkPolicy:
+    enabled: true
+    dnsNamespaceSelector:
+      kubernetes.io/metadata.name: kube-system
+    dnsPodSelector:
+      k8s-app: kube-dns
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    runAsGroup: 101
+    fsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+  resources:
+    requests:
+      cpu: 250m
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+voice:
+  enabled: false
+  replicaCount: 2
+  tenantId: ""
+  profileId: ""
+  cellId: ""
+  regionId: ""
+  zoneId: ""
+  image:
+    repository: ghcr.io/songgoldenwind-crypto/opc-rustpbx
+    digest: ""
+    pullPolicy: IfNotPresent
+  sipCapacity:
+    maxActiveTransactions: 65536
+    maxFinishedTransactions: 65536
+    incomingTransactionQueueCapacity: 8192
+    maxTransportConnections: 32768
+  mediaCapacity:
+    sessionCleanupConcurrency: 64
+    sessionCleanupTimeoutMs: 2000
+    recordingChannelCapacity: 256
+    recordingWorkerThreads: 4
+    recordingWorkerQueueCapacity: 4096
+    udpReceiveBufferBytes: 1048576
+    udpSendBufferBytes: 524288
+  admissionProfiles:
+    ordinary:
+      id: voice-ordinary-v1
+      dimension: voice.weighted_calls
+    t1:
+      id: voice-ha-t1-v1
+      dimension: voice.t1_shadow_slots
+    ivrTranscoding:
+      id: voice-ivr-transcoding-v1
+      dimension: voice.transcode_slots
+    recording:
+      id: voice-recording-v1
+      dimension: voice.recording_slots
+    aiTap:
+      id: voice-ai-tap-v1
+      dimension: voice.realtime_asr_streams
+  callRecordCapacity:
+    maxConcurrent: 64
+    channelCapacity: 65536
+    workerThreads: 1
+  databaseUrlKey: rustpbx-database-url
+  databasePasswordKey: rustpbx-database-password
+  managementTokenKey: rustpbx-management-token
+  rwiTokenKey: rustpbx-rwi-token
+  webhookTokenKey: rustpbx-webhook-token
+  cdr:
+    regionId: ""
+    endpoint: ""
+    pollIntervalMs: "500"
+    tls:
+      secretName: ""
+      serverKeyKey: server.key
+      serverCertKey: server.crt
+      clientIdentityKey: client-identity.pem
+      caKey: ca.crt
+  webphone:
+    enabled: true
+    publicWssUrl: ""
+    sipRealm: ""
+    # Exact HTTPS origins allowed to open the Kamailio WSS endpoint.
+    allowedOrigins: []
+    jwtSecretKey: rustpbx-webphone-jwt-secret
+    jwtIssuer: ivekit
+    jwtAudience: rustpbx-webphone
+    ttlSeconds: "300"
+    registerExpiresSeconds: "240"
+    iceServersJson: "[]"
+    cleanup:
+      intervalMs: "60000"
+      tenantLimit: "100"
+      batchSize: "500"
+  addressHmacKeyKey: ivekit-voice-address-hmac-key
+  routeSnapshot:
+    hmacKeyKey: rustpbx-route-snapshot-hmac-key
+    intervalMs: "1000"
+    ttlMs: "10000"
+    refreshMs: "500"
+    dependencies: ""
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+  recordingSpool:
+    enabled: true
+    leaseSecretKey: rustpbx-recording-lease-secret
+    segmentSeconds: "60"
+    segmentMaxBytes: "67108864"
+    partSizeBytes: "8388608"
+    leaseMs: "300000"
+    uploadConcurrency: "4"
+    pollIntervalMs: "1000"
+    metricsRefreshMs: "1000"
+    metricsStaleMs: "5000"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+  componentNode:
+    enabled: true
+    tokenKey: ivekit-component-node-token
+    regionId: ""
+    zoneId: ""
+    profileIds:
+      - voice-ordinary-v1
+      - voice-ha-t1-v1
+      - voice-ivr-transcoding-v1
+      - voice-recording-v1
+      - voice-ai-tap-v1
+    profileRequirementsJson: '{"voice-ordinary-v1":{"voice.weighted_calls":1},"voice-ha-t1-v1":{"voice.t1_shadow_slots":1},"voice-ivr-transcoding-v1":{"voice.transcode_slots":1},"voice-recording-v1":{"voice.recording_slots":1},"voice-ai-tap-v1":{"voice.realtime_asr_streams":1}}'
+    readinessProfileIds:
+      - voice-ordinary-v1
+    dimensionsJson: ""
+    port: 3210
+    timeoutMs: "500"
+    refreshMs: "3000"
+    drainWaitMs: "240000"
+    drainPollMs: "250"
+    terminalRetentionMs: "300000"
+    sweepIntervalMs: "1000"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  mediaControl:
+    enabled: true
+    endpoint: https://localhost:3211/
+    serviceTokenKey: rustpbx-media-control-token
+    clientTlsSecretName: ""
+    identityFile: identity.pem
+    caFile: ca.pem
+    mode: ordinary_relay
+    failurePolicy: fail_closed
+    maxInflight: "2048"
+    timeoutMs: "500"
+    maxResponseBytes: "262144"
+    readinessTimeoutMs: "500"
+    readinessRefreshMs: "1000"
+    traceSampleRatio: "0.01"
+  # VOICE-HA-T1 only. Ordinary calls remain independent from PostgreSQL/NATS
+  # and work without this sidecar.
+  dialogShadow:
+    enabled: false
+    endpoint: https://localhost:3212/
+    faultDomain: ""
+    spiffeTrustDomain: ivekit.internal
+    serviceTokenKey: ivekit-dialog-shadow-token
+    recoveryDatabaseUrlKey: ivekit-dialog-recovery-database-url
+    currentRecoveryKeyId: recovery-current
+    currentRecoveryKeyKey: ivekit-dialog-recovery-current-key
+    previousRecoveryKeyId: recovery-previous
+    previousRecoveryKeyKey: ivekit-dialog-recovery-previous-key
+    serverTlsSecretName: ""
+    serverTlsKeyKey: tls.key
+    serverTlsCertificateKey: tls.crt
+    serverTlsClientCaKey: ca.crt
+    # The CSI provider must issue a unique identity for each Pod. identity.pem
+    # is a combined private key + certificate whose single URI SAN is:
+    # spiffe://<trust>/cells/<cell>/fault-domains/<fault>/nodes/<pod-name>
+    clientIdentity:
+      identityFile: identity.pem
+      caFile: ca.pem
+      csi:
+        driver: ""
+        readOnly: true
+        volumeAttributes: {}
+    journal:
+      maxRecords: "1000000"
+      maxBytes: "268435456"
+      maxRecordBytes: "32768"
+      compactIntervalMs: "60000"
+    recovery:
+      tokenTtlMs: "5000"
+      nodeLeaseTtlMs: "3000"
+      postgresPoolMax: "8"
+      terminalRepairIntervalMs: "1000"
+      terminalRepairLeaseTtlMs: "10000"
+      terminalRepairTenantBatchSize: "32"
+    nats:
+      urls: []
+      tlsSecretName: ""
+      tlsCaKey: ca.crt
+      tlsCertificateKey: tls.crt
+      tlsPrivateKeyKey: tls.key
+      faultDomainsSecretName: ""
+      faultDomainsKey: fault-domains.json
+      placementCluster: ""
+      placementTags: []
+      streamName: IVEKIT_DIALOG_SHADOW
+      subjectPrefix: ivekit.dialog_shadow
+      streamReplicas: 3
+      requiredFaultDomains: 2
+      maxAgeMs: "900000"
+      ackWaitMs: "2000"
+      maxAckPending: "256"
+      quorumTimeoutMs: "500"
+    rustPbx:
+      maxInflight: "2048"
+      timeoutMs: "500"
+      maxResponseBytes: "131072"
+      heartbeatIntervalMs: "1000"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+  amiAllows:
+    - 127.0.0.1
+  externalIp: ""
+  sipPort: 5060
+  rtpStartPort: 20000
+  rtpEndPort: 20100
+  terminationGracePeriodSeconds: 300
+  drainPropagationSeconds: 15
+  network:
+    hostNetwork: true
+  scheduling:
+    zoneTopologyKey: topology.kubernetes.io/zone
+    hostnameTopologyKey: kubernetes.io/hostname
+    nodeSelector:
+      ivekit.io/media-node: "true"
+    tolerations: []
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  kamailio:
+    enabled: true
+    replicaCount: 2
+    cellLeaseEpoch: 1
+    image:
+      repository: ghcr.io/songgoldenwind-crypto/opc-kamailio
+      digest: ""
+      pullPolicy: IfNotPresent
+    runtime:
+      sharedMemoryAllocator: fm
+      sharedMemoryMegabytes: 512
+      privateMemoryMegabytes: 32
+    advertise:
+      sipHost: ""
+      wssHost: ""
+      sipPort: 5060
+      tlsPort: 5061
+      wssPort: 443
+    listeners:
+      sipPort: 5060
+      tlsPort: 5061
+      wssPort: 7443
+      rpcPort: 5065
+      dmqPort: 5066
+      metricsPort: 3220
+    trustedSourceCidrs:
+      - 10.0.0.0/8
+    # Source identities accepted from the host-network RustPBX pool and from
+    # peer Kamailio Pods. Keep both lists scoped to this Cell.
+    rustpbxSourceCidrs:
+      - 10.0.0.0/8
+    dmqSourceCidrs:
+      - 10.0.0.0/8
+    allowPublicWss: true
+    requireClientCertificate: false
+    dmq:
+      enabled: true
+      numWorkers: 4
+      pingIntervalSeconds: 30
+      syncBatchSize: 4000
+      syncBatchUsleep: 1000
+      syncMessageContacts: 50
+    # Optional HOMER 11 (or any HEPv3-compatible collector) integration. HEP
+    # mirroring is disabled by default and never participates in call admission.
+    sipTrace:
+      enabled: false
+      collectorHost: 127.0.0.1
+      collectorPort: 9060
+      metricsPort: 9090
+      captureId: 101
+      includeOptions: false
+      highWater:
+        enabled: true
+        pollIntervalMs: 1000
+        metricsTimeoutMs: 1000
+        samplePercent: 10
+        queueRecoverRatio: 0.2
+        queueSampleRatio: 0.5
+        queueOffRatio: 0.8
+        cpuRecoverCores: 0.3
+        cpuSampleCores: 0.7
+        cpuOffCores: 1.5
+        packetsRecoverPerSecond: 2000
+        packetsSamplePerSecond: 5000
+        packetsOffPerSecond: 10000
+        processingGapRecoverPerSecond: 25
+        processingGapSamplePerSecond: 250
+        processingGapOffPerSecond: 1000
+        failureSamplesToOff: 3
+        recoverySamples: 5
+    limits:
+      maxMessageBytes: 65535
+      perSourceInviteCps: 100
+      cellInviteCps: 5000
+      pikeSamplingSeconds: 2
+      pikeRequestDensity: 30
+      maxFailovers: 3
+      retryAfterSeconds: 2
+    routeAgent:
+      edgeReplicaCount: 2
+      pollIntervalMs: 1000
+      snapshotTtlMs: 10000
+      degradedWeightFactor: "0.5"
+      maxParallelPolls: 16
+      rpcMaxAttempts: 3
+      rpcRetryDelayMs: 100
+      rpcTimeoutMs: 1000
+      currentKeyId: route-v1
+      previousKeyId: ""
+    pool:
+      id: 100
+      capacityDimension: voice.weighted_calls
+      pinSetBase: 10000
+      priority: 10
+      safeCapacityFallback: 2500
+    secretKeys:
+      topohKey: kamailio-topoh-key
+      rpcToken: kamailio-rpc-token
+      routeCurrentKey: kamailio-route-current-key
+      routePreviousKey: kamailio-route-previous-key
+      tlsPrivateKey: kamailio-tls-key.pem
+      tlsCertificate: kamailio-tls-cert.pem
+      tlsCa: kamailio-ca.pem
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      sessionAffinity: ClientIP
+      sessionAffinityTimeoutSeconds: 10800
+      annotations: {}
+      loadBalancerSourceRanges: []
+    networkPolicy:
+      enabled: true
+      ingressCidrs: []
+      # hostNetwork RustPBX Pods are addressed through node IPs; set this to the
+      # exact node subnet(s) used by the Cell in production.
+      rustpbxNodeCidrs:
+        - 10.0.0.0/8
+      # When sipTrace.enabled=true, allow the in-cluster HOMER workload by exact
+      # namespace and Pod labels. Narrow CIDRs remain available for an external
+      # HEP collector; never open HEP egress to a default route.
+      hepCollectorNamespaceSelector: {}
+      hepCollectorPodSelector:
+        app.kubernetes.io/component: homer
+      hepCollectorCidrs: []
+      dnsNamespaceSelector:
+        kubernetes.io/metadata.name: kube-system
+      dnsPodSelector:
+        k8s-app: kube-dns
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    terminationGracePeriodSeconds: 60
+    scheduling:
+      zoneTopologyKey: topology.kubernetes.io/zone
+      hostnameTopologyKey: kubernetes.io/hostname
+      nodeSelector: {}
+      tolerations: []
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: "2"
+        memory: 1Gi
+    routeAgentResources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+# compact is a single-node deployment. cluster is the fixed three-node native
+# Tinode ring used by production Cells.
+tinode:
+  enabled: false
+  mode: compact
+  replicaCount: 1
+  image:
+    repository: ghcr.io/songgoldenwind-crypto/opc-ivekit-tinode-server
+    digest: ""
+    pullPolicy: IfNotPresent
+    allowedRepositories:
+      - ghcr.io/songgoldenwind-crypto/opc-ivekit-tinode-server
+  secrets:
+    postgresDsnKey: tinode-postgres-dsn
+    apiKeySaltKey: tinode-api-key-salt
+    apiKeyKey: tinode-api-key
+    rootApiKeyKey: tinode-root-api-key
+    authTokenKeyKey: tinode-auth-token-key
+    uidEncryptionKeyKey: tinode-uid-encryption-key
+    basicUserKey: tinode-basic-user
+    basicPasswordKey: tinode-basic-password
+    userPasswordSecretKey: tinode-user-password-secret
+    accessKeyIdKey: tinode-s3-access-key-id
+    secretAccessKeyKey: tinode-s3-secret-access-key
+  config:
+    upgradeDatabase: "false"
+    accountGarbageCollectionEnabled: "true"
+    bootstrapTimeoutMs: "10000"
+    deliveryWorkerEnabled: "1"
+    inboundWorkerEnabled: "1"
+  publicBaseUrl: ""
+  publicWsUrl: ""
+  service:
+    type: ClusterIP
+    port: 6060
+  persistence:
+    enabled: true
+    existingClaim: ""
+    size: 5Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  cluster:
+    replicaCount: 3
+    clusterPort: 12000
+    terminationGracePeriodSeconds: 60
+    runtimeVolumeSizeLimit: 2Gi
+    logVolumeSizeLimit: 1Gi
+    media:
+      handler: s3
+      region: ""
+      bucket: ""
+      endpoint: ""
+      forcePathStyle: false
+      corsOrigins: '["*"]'
+    databaseBootstrap:
+      backoffLimit: 6
+      activeDeadlineSeconds: 900
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+    scheduling:
+      zoneTopologyKey: topology.kubernetes.io/zone
+      hostnameTopologyKey: kubernetes.io/hostname
+      nodeSelector: {}
+      tolerations: []
+    resources:
+      requests:
+        cpu: "2"
+        memory: 4Gi
+      limits:
+        cpu: "8"
+        memory: 16Gi
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  networkPolicy:
+    enabled: false
+    additionalIngressFrom: []
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi

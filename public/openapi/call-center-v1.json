@@ -1,0 +1,56 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "OPC Call Center API",
+    "version": "1.0.0",
+    "description": "呼叫中心开放平台 API（Sprint 10）"
+  },
+  "servers": [{ "url": "/" }],
+  "paths": {
+    "/api/call-center/campaigns": {
+      "get": { "summary": "List campaigns", "parameters": [{ "name": "Authorization", "in": "header", "schema": { "type": "string" } }] },
+      "post": { "summary": "Create campaign" }
+    },
+    "/api/call-center/omni/inbox": {
+      "get": { "summary": "Unified inbox conversations" }
+    },
+    "/api/call-center/omni/chat": {
+      "post": { "summary": "Web chat widget message (public)" }
+    },
+    "/api/call-center/journey/unified": {
+      "get": {
+        "summary": "Customer journey timeline",
+        "parameters": [
+          { "name": "phone", "in": "query", "schema": { "type": "string" } },
+          { "name": "email", "in": "query", "schema": { "type": "string" } }
+        ]
+      }
+    },
+    "/api/call-center/recordings/batch-analyze": {
+      "post": { "summary": "Batch analyze recordings" }
+    },
+    "/api/knowledge/analytics": {
+      "get": { "summary": "Knowledge base usage analytics" }
+    },
+    "/api/webhooks/subscriptions": {
+      "get": { "summary": "List webhook subscriptions" },
+      "post": { "summary": "Create webhook subscription" }
+    },
+    "/api/webhooks/deliveries": {
+      "get": { "summary": "Webhook delivery logs" }
+    },
+    "/api/call-center/video/start": {
+      "post": { "summary": "Agent initiate video call" }
+    },
+    "/api/livekit/token": {
+      "get": { "summary": "Issue LiveKit join token" }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": { "type": "apiKey", "in": "header", "name": "X-API-Key" },
+      "BearerAuth": { "type": "http", "scheme": "bearer" }
+    }
+  },
+  "security": [{ "BearerAuth": [] }]
+}

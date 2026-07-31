@@ -1,0 +1,367 @@
+diff --git a/src/config.rs b/src/config.rs
+index c2e175e0..f275873b 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -863,6 +863,10 @@ pub struct ProxyConfig {
+     pub media_cmd_channel_capacity: usize,
+     #[serde(default = "default_media_event_channel_capacity")]
+     pub media_event_channel_capacity: usize,
++    #[serde(default = "default_media_session_cleanup_concurrency")]
++    pub media_session_cleanup_concurrency: usize,
++    #[serde(default = "default_media_session_cleanup_timeout_ms")]
++    pub media_session_cleanup_timeout_ms: usize,
+     #[serde(default = "default_media_recording_channel_capacity")]
+     pub media_recording_channel_capacity: usize,
+     #[serde(default = "default_media_recording_worker_threads")]
+@@ -978,6 +982,12 @@ fn default_media_cmd_channel_capacity() -> usize {
+ fn default_media_event_channel_capacity() -> usize {
+     1024
+ }
++fn default_media_session_cleanup_concurrency() -> usize {
++    64
++}
++fn default_media_session_cleanup_timeout_ms() -> usize {
++    2000
++}
+ fn default_media_recording_channel_capacity() -> usize {
+     256
+ }
+@@ -1341,6 +1351,8 @@ impl Default for ProxyConfig {
+             session_state_channel_capacity: default_session_state_channel_capacity(),
+             media_cmd_channel_capacity: default_media_cmd_channel_capacity(),
+             media_event_channel_capacity: default_media_event_channel_capacity(),
++            media_session_cleanup_concurrency: default_media_session_cleanup_concurrency(),
++            media_session_cleanup_timeout_ms: default_media_session_cleanup_timeout_ms(),
+             media_recording_channel_capacity: default_media_recording_channel_capacity(),
+             media_recording_worker_threads: default_media_recording_worker_threads(),
+             media_recording_worker_queue_capacity: default_media_recording_worker_queue_capacity(),
+diff --git a/src/console/handlers/setting.rs b/src/console/handlers/setting.rs
+index 3d0dcb9d..f866f3e9 100644
+--- a/src/console/handlers/setting.rs
++++ b/src/console/handlers/setting.rs
+@@ -527,6 +527,8 @@ async fn build_settings_payload(state: &ConsoleState) -> JsonValue {
+             "session_state_channel_capacity": config.proxy.session_state_channel_capacity,
+             "media_cmd_channel_capacity": config.proxy.media_cmd_channel_capacity,
+             "media_event_channel_capacity": config.proxy.media_event_channel_capacity,
++            "media_session_cleanup_concurrency": config.proxy.media_session_cleanup_concurrency,
++            "media_session_cleanup_timeout_ms": config.proxy.media_session_cleanup_timeout_ms,
+             "media_recording_channel_capacity": config.proxy.media_recording_channel_capacity,
+             "media_recording_worker_threads": config.proxy.media_recording_worker_threads,
+             "media_recording_worker_queue_capacity": config.proxy.media_recording_worker_queue_capacity,
+@@ -1630,6 +1632,8 @@ pub(crate) struct SecuritySettingsPayload {
+     session_state_channel_capacity: Option<usize>,
+     media_cmd_channel_capacity: Option<usize>,
+     media_event_channel_capacity: Option<usize>,
++    media_session_cleanup_concurrency: Option<usize>,
++    media_session_cleanup_timeout_ms: Option<usize>,
+     media_recording_channel_capacity: Option<usize>,
+     media_recording_worker_threads: Option<usize>,
+     media_recording_worker_queue_capacity: Option<usize>,
+@@ -2105,6 +2109,8 @@ pub(crate) async fn update_security_settings(
+         set_opt!(session_state_channel_capacity, i64);
+         set_opt!(media_cmd_channel_capacity, i64);
+         set_opt!(media_event_channel_capacity, i64);
++        set_opt!(media_session_cleanup_concurrency, i64);
++        set_opt!(media_session_cleanup_timeout_ms, i64);
+         set_opt!(media_recording_channel_capacity, i64);
+         set_opt!(media_recording_worker_threads, i64);
+         set_opt!(media_recording_worker_queue_capacity, i64);
+diff --git a/src/media/engine/mod.rs b/src/media/engine/mod.rs
+index 98449d72..ce5e6981 100644
+--- a/src/media/engine/mod.rs
++++ b/src/media/engine/mod.rs
+@@ -39,7 +39,7 @@ use std::time::Duration;
+
+ use anyhow::{Result, anyhow};
+ use parking_lot::RwLock;
+-use tokio::sync::{broadcast, mpsc};
++use tokio::sync::{Semaphore, broadcast, mpsc};
+ use tracing::{debug, error, info, warn};
+
+ use crate::media::Track as _;
+@@ -47,6 +47,8 @@ use crate::media::bridge::RecorderCapture;
+
+ const DEFAULT_RECORDING_LIFECYCLE_WORKERS: usize = 4;
+ const DEFAULT_RECORDING_LIFECYCLE_QUEUE_CAPACITY: usize = 512;
++const DEFAULT_SESSION_CLEANUP_CONCURRENCY: usize = 64;
++const DEFAULT_SESSION_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
+ static RECORDING_LIFECYCLE_EXECUTOR: OnceLock<RecordingLifecycleExecutor> = OnceLock::new();
+
+ enum RecordingLifecycleTask {
+@@ -290,6 +292,10 @@ fn spawn_recording_finalizer(task: RecordingLifecycleTask) -> bool {
+ pub struct MediaEngineConfig {
+     pub command_channel_capacity: usize,
+     pub event_channel_capacity: usize,
++    /// Maximum number of session resource cleanup jobs allowed to run at once.
++    pub session_cleanup_concurrency: usize,
++    /// Hard deadline for playback, MCU, and bridge cleanup after a session is removed.
++    pub session_cleanup_timeout: Duration,
+     /// How often the reaper sweeps the session map for stale entries.
+     pub session_reaper_interval: Duration,
+     /// A session whose `last_activity` is older than this is considered stale
+@@ -303,6 +309,8 @@ impl Default for MediaEngineConfig {
+         Self {
+             command_channel_capacity: 512,
+             event_channel_capacity: 1024,
++            session_cleanup_concurrency: DEFAULT_SESSION_CLEANUP_CONCURRENCY,
++            session_cleanup_timeout: DEFAULT_SESSION_CLEANUP_TIMEOUT,
+             session_reaper_interval: Duration::from_secs(60),
+             session_idle_ttl: Duration::from_secs(7200),
+         }
+@@ -323,6 +331,8 @@ pub struct MediaEngine {
+     event_tx: broadcast::Sender<MediaEvent>,
+     reaper_interval: Duration,
+     session_idle_ttl: Duration,
++    session_cleanup_concurrency: usize,
++    session_cleanup_timeout: Duration,
+     #[cfg(test)]
+     sessions: Arc<RwLock<HashMap<String, session::MediaSession>>>,
+ }
+@@ -350,6 +360,8 @@ impl MediaEngine {
+             event_tx: event_tx.clone(),
+             reaper_interval: config.session_reaper_interval,
+             session_idle_ttl: config.session_idle_ttl,
++            session_cleanup_concurrency: config.session_cleanup_concurrency.max(1),
++            session_cleanup_timeout: config.session_cleanup_timeout.max(Duration::from_millis(1)),
+             #[cfg(test)]
+             sessions: sessions.clone(),
+         };
+@@ -371,6 +383,8 @@ impl MediaEngine {
+             sessions: handle.sessions,
+             reaper_interval: self.reaper_interval,
+             session_idle_ttl: self.session_idle_ttl,
++            session_cleanup_permits: Arc::new(Semaphore::new(self.session_cleanup_concurrency)),
++            session_cleanup_timeout: self.session_cleanup_timeout,
+         };
+         crate::utils::media_spawn(async move {
+             core.run().await;
+@@ -414,6 +428,8 @@ struct EngineCore {
+     sessions: Arc<RwLock<HashMap<String, session::MediaSession>>>,
+     reaper_interval: Duration,
+     session_idle_ttl: Duration,
++    session_cleanup_permits: Arc<Semaphore>,
++    session_cleanup_timeout: Duration,
+ }
+
+ impl EngineCore {
+@@ -450,7 +466,7 @@ impl EngineCore {
+                     }
+                 }
+                 _ = reaper.tick() => {
+-                    self.reap_stale_sessions().await;
++                    self.reap_stale_sessions();
+                 }
+             }
+         }
+@@ -503,7 +519,7 @@ impl EngineCore {
+                     sessions.remove(&session_id)
+                 };
+                 if let Some(sess) = sess {
+-                    self.finalize_session_resources(sess).await;
++                    self.schedule_session_cleanup(sess);
+                 }
+                 info!(session_id = %session_id, "MediaEngine session destroyed");
+                 let _ = self
+@@ -1057,22 +1073,10 @@ impl EngineCore {
+         Ok(())
+     }
+
+-    /// Tear down all resources owned by a [`session::MediaSession`] *outside*
+-    /// the sessions write lock (tracks and MCU require `.await`).
+-    ///
+-    /// Shared by `DestroySession` dispatch and the periodic reaper so both
+-    /// paths produce identical cleanup.
+-    async fn finalize_session_resources(&self, mut sess: session::MediaSession) {
+-        // Stop playback tracks (drain avoids cloning each FileTrack).
+-        for (_, track) in sess.playback_tracks.drain() {
+-            track.stop().await;
+-        }
+-
+-        // Switch MCU back to bridge mode (releases mixer task if active).
+-        if sess.mcu.mode() == mcu_switch::MediaMode::Mcu {
+-            sess.mcu.switch_to_bridge().await.ok();
+-        }
+-
++    /// Remove recording from the media path immediately, then perform the
++    /// remaining async teardown on a bounded, deadline-protected task. Session
++    /// destruction must never wait for a filesystem, playback source, or MCU.
++    fn schedule_session_cleanup(&self, mut sess: session::MediaSession) {
+         sess.recording_paused.store(true, Ordering::Release);
+         if !sess
+             .recording_finalization_started
+@@ -1096,9 +1100,42 @@ impl EngineCore {
+             });
+         }
+
+-        // Drop the bridge reference. BridgePeer::Drop calls close_sync() which
+-        // cancels forwarding tasks and closes both PeerConnections.
+-        sess.bridge = None;
++        let session_id = sess.session_id.clone();
++        let Ok(permit) = Arc::clone(&self.session_cleanup_permits).try_acquire_owned() else {
++            crate::metrics::media::session_cleanup_outcome("capacity_exhausted");
++            warn!(
++                session_id = %session_id,
++                "Session cleanup capacity exhausted; dropping resources without async teardown"
++            );
++            return;
++        };
++        let cleanup_timeout = self.session_cleanup_timeout;
++        crate::utils::media_spawn(async move {
++            let cleanup = async {
++                for (_, track) in sess.playback_tracks.drain() {
++                    track.stop().await;
++                }
++                if sess.mcu.mode() == mcu_switch::MediaMode::Mcu {
++                    sess.mcu.switch_to_bridge().await.ok();
++                }
++                // BridgePeer::Drop calls close_sync(), cancelling forwarding
++                // tasks and closing both PeerConnections.
++                sess.bridge = None;
++            };
++
++            match tokio::time::timeout(cleanup_timeout, cleanup).await {
++                Ok(()) => crate::metrics::media::session_cleanup_outcome("completed"),
++                Err(_) => {
++                    crate::metrics::media::session_cleanup_outcome("timed_out");
++                    warn!(
++                        session_id = %session_id,
++                        timeout_ms = cleanup_timeout.as_millis(),
++                        "Session resource cleanup timed out; resources force-dropped"
++                    );
++                }
++            }
++            drop(permit);
++        });
+     }
+
+     /// Periodic sweep: remove sessions whose `last_activity` is older than
+@@ -1108,7 +1145,7 @@ impl EngineCore {
+     /// (e.g. command channel was full so `try_send` failed). Without this
+     /// sweep the `MediaSession` would leak forever because the engine session
+     /// map has no other eviction mechanism.
+-    async fn reap_stale_sessions(&self) {
++    fn reap_stale_sessions(&self) {
+         let ttl = self.session_idle_ttl;
+         let now = std::time::Instant::now();
+
+@@ -1149,10 +1186,10 @@ impl EngineCore {
+                 .collect()
+         };
+
+-        // Step 3: async cleanup outside the lock.
++        // Step 3: bounded async cleanup outside the lock.
+         let count = stale.len();
+         for (sid, sess) in stale_ids.into_iter().zip(stale) {
+-            self.finalize_session_resources(sess).await;
++            self.schedule_session_cleanup(sess);
+             let _ = self
+                 .event_tx
+                 .send(MediaEvent::SessionDestroyed { session_id: sid });
+@@ -1203,6 +1240,8 @@ mod tests {
+         let (engine, handle) = MediaEngine::new(MediaEngineConfig {
+             command_channel_capacity: 64,
+             event_channel_capacity: 64,
++            session_cleanup_concurrency: 4,
++            session_cleanup_timeout: Duration::from_secs(1),
+             // Short reaper interval for tests so sweep tests don't take long.
+             session_reaper_interval: Duration::from_millis(100),
+             session_idle_ttl: Duration::from_millis(300),
+@@ -1747,13 +1786,30 @@ mod tests {
+         reply_rx.await.unwrap();
+         let _ = event_rx.recv().await;
+
+-        // Destroy session — should finalize the recorder
++        // Destroy acknowledgement is decoupled from recorder I/O, but both
++        // events must arrive and the file must eventually be finalized.
+         engine
+             .send(MediaCommand::DestroySession {
+                 session_id: "cln1".into(),
+             })
+             .unwrap();
+-        let _ = event_rx.recv().await; // SessionDestroyed
++        let mut destroyed = false;
++        let mut recording_stopped = false;
++        tokio::time::timeout(Duration::from_secs(2), async {
++            while !destroyed || !recording_stopped {
++                match event_rx.recv().await.unwrap() {
++                    MediaEvent::SessionDestroyed { session_id } if session_id == "cln1" => {
++                        destroyed = true;
++                    }
++                    MediaEvent::RecordingStopped { session_id, .. } if session_id == "cln1" => {
++                        recording_stopped = true;
++                    }
++                    _ => {}
++                }
++            }
++        })
++        .await
++        .expect("session cleanup events timed out");
+
+         // The WAV file should have been finalized (header with data_size)
+         let meta = std::fs::metadata(&tmp).unwrap();
+diff --git a/src/media/media_engine_tests.rs b/src/media/media_engine_tests.rs
+index 1c15b54a..cfe93ba4 100644
+--- a/src/media/media_engine_tests.rs
++++ b/src/media/media_engine_tests.rs
+@@ -273,6 +273,8 @@ use crate::media::engine::event::MediaEvent;
+         let (engine, handle) = MediaEngine::new(MediaEngineConfig {
+             command_channel_capacity: 8192,
+             event_channel_capacity: 8192,
++            session_cleanup_concurrency: 64,
++            session_cleanup_timeout: std::time::Duration::from_secs(2),
+             session_reaper_interval: std::time::Duration::from_secs(3600),
+             session_idle_ttl: std::time::Duration::from_secs(7200),
+         });
+diff --git a/src/metrics.rs b/src/metrics.rs
+index 9e3fc21b..18080dfa 100644
+--- a/src/metrics.rs
++++ b/src/metrics.rs
+@@ -257,6 +257,14 @@ pub mod media {
+         metrics::gauge!("rustpbx_media_recording_worker_threads").set(worker_threads as f64);
+         metrics::gauge!("rustpbx_media_recording_worker_queue_capacity").set(queue_capacity as f64);
+     }
++
++    pub fn session_cleanup_outcome(outcome: &'static str) {
++        metrics::counter!(
++            "rustpbx_media_session_cleanup_total",
++            "outcome" => outcome
++        )
++        .increment(1);
++    }
+ }
+
+ pub mod system {
+diff --git a/src/proxy/server.rs b/src/proxy/server.rs
+index a26e885b..4bac4683 100644
+--- a/src/proxy/server.rs
++++ b/src/proxy/server.rs
+@@ -700,6 +700,18 @@ impl SipServerBuilder {
+         }
+
+         let endpoint_local_addrs = transport_layer.get_addrs();
++        if !(1..=4096).contains(&config.media_session_cleanup_concurrency) {
++            return Err(anyhow!(
++                "invalid media_session_cleanup_concurrency {}; expected 1..=4096",
++                config.media_session_cleanup_concurrency
++            ));
++        }
++        if !(1..=60_000).contains(&config.media_session_cleanup_timeout_ms) {
++            return Err(anyhow!(
++                "invalid media_session_cleanup_timeout_ms {}; expected 1..=60000",
++                config.media_session_cleanup_timeout_ms
++            ));
++        }
+         if !(1..=65_536).contains(&config.media_recording_channel_capacity) {
+             return Err(anyhow!(
+                 "invalid media_recording_channel_capacity {}; expected 1..=65536",
+@@ -977,6 +989,10 @@ impl SipServerBuilder {
+                 let (engine, handle) = MediaEngine::new(MediaEngineConfig {
+                     command_channel_capacity: self.config.media_cmd_channel_capacity,
+                     event_channel_capacity: self.config.media_event_channel_capacity,
++                    session_cleanup_concurrency: self.config.media_session_cleanup_concurrency,
++                    session_cleanup_timeout: Duration::from_millis(
++                        self.config.media_session_cleanup_timeout_ms as u64,
++                    ),
+                     ..MediaEngineConfig::default()
+                 });
+                 let _task = engine.spawn(handle);

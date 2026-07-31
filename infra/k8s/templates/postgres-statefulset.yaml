@@ -1,0 +1,62 @@
+{{- if eq (include "opc.postgresMode" .) "bundled-dev" }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-postgres
+  labels:
+    opc.ivekit.io/deployment-profile: bundled-dev
+    opc.ivekit.io/production-eligible: "false"
+  annotations:
+    opc.ivekit.io/warning: "Single-instance PostgreSQL is development-only"
+spec:
+  serviceName: {{ .Release.Name }}-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+        opc.ivekit.io/deployment-profile: bundled-dev
+        opc.ivekit.io/production-eligible: "false"
+    spec:
+      containers:
+        - name: postgres
+          image: {{ include "opc.postgresImage" . | quote }}
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy | default "IfNotPresent" }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.auth.username | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.postgres.auth.password | default "opc" | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.auth.database | quote }}
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.postgres.primary.persistence.size | default "10Gi" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-postgres
+  labels:
+    opc.ivekit.io/deployment-profile: bundled-dev
+    opc.ivekit.io/production-eligible: "false"
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+{{- end }}

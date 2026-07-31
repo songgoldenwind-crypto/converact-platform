@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0.0",
+  "status": "passed_controlled_server",
+  "server": "64.225.122.227",
+  "collector_version": "0.153.0",
+  "collector_image_id": "sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
+  "initial_delivery": {
+    "mode": "strict",
+    "canary_completed": true,
+    "span_recording": true,
+    "span_sampled": true,
+    "export_succeeded": true,
+    "elapsed_ms": 569
+  },
+  "collector_outage": {
+    "mode": "fail-open",
+    "canary_completed": true,
+    "span_recording": true,
+    "span_sampled": true,
+    "export_succeeded": false,
+    "elapsed_ms": 1474
+  },
+  "recovered_delivery": {
+    "mode": "strict",
+    "canary_completed": true,
+    "span_recording": true,
+    "span_sampled": true,
+    "export_succeeded": true,
+    "elapsed_ms": 599
+  },
+  "backend_delivery_count": 2,
+  "communication_hot_path_dependency": false,
+  "led_container_invariant": "passed",
+  "target_kubernetes": "not_run",
+  "dual_zone": "not_run",
+  "capacity_and_soak": "not_run"
+}

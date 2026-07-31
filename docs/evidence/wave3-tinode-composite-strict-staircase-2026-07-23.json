@@ -1,0 +1,1493 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "tinode-composite-strict-staircase-20260723T153945Z-9ad698cf",
+  "captured_at": "2026-07-23T15:39:45.923Z",
+  "status": "controlled_pass",
+  "evidence_level": "controlled",
+  "capacity_claim": "none",
+  "observation_scope": "client_and_sut_single_node",
+  "verification_scope": "Current-source single-node Tinode WebSocket connection and interaction staircase with strict start-rate gates",
+  "server": {
+    "hostname": "pmt-web-test-sfo2",
+    "platform": "linux",
+    "kernel_release": "6.8.0-124-generic",
+    "logical_cpu_count": 4,
+    "cpu_model": "DO-Regular",
+    "memory_bytes": 8326946816,
+    "docker_server_version": "29.1.3"
+  },
+  "source": {
+    "git_commit": "578a78bf42e3703a9d78fc0766be6a3b3cd5c35e",
+    "relevant_files_dirty": true,
+    "sha256": {
+      "scripts/capacity/generators/tinode-composite.ts": "b1a1b7da8bcabcbbbc74d5ef28876023bc4d07aca8c0d1c007afab5eef6200ee",
+      "scripts/capacity/generators/tinode-composite-provisioner.ts": "a1442c9c5a96ab3fe09df86abb2eabd6f5598d488acb95357e1004456378bf42",
+      "scripts/capacity/generators/tinode-composite-runner.ts": "9154f9bad030ace705861c736e200ebcda64495d98a35052a7eb6c6395cd36d8",
+      "scripts/capacity/tinode-staircase.ts": "b6e3303968ff6f90e2e1cf5bc4a3d8f654241ab60797c71a0868759b431bc5d3",
+      "scripts/ivekit-capacity-tinode-staircase.ts": "08230d4fcd787048a0d429f9b40f56c6c6a037d749c01aa6a339d38c380d6ed2"
+    }
+  },
+  "images": {
+    "tinode": {
+      "requested_reference": "ivekit/tinode:v0.25.3-ivekit.3-22a7c18e-amd64",
+      "image_id": "sha256:6c83d13fc244b000b5bd0b2489a918b3fd4ac90bbab46039fea6656fa41b6650",
+      "architecture": "amd64",
+      "operating_system": "linux",
+      "size_bytes": 46880001,
+      "repo_digests": [
+        "ivekit/tinode@sha256:6c83d13fc244b000b5bd0b2489a918b3fd4ac90bbab46039fea6656fa41b6650"
+      ]
+    },
+    "postgres": {
+      "requested_reference": "postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20",
+      "image_id": "sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20",
+      "architecture": "amd64",
+      "operating_system": "linux",
+      "size_bytes": 160198148,
+      "repo_digests": [
+        "postgres@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20"
+      ]
+    }
+  },
+  "workload": {
+    "points": [
+      100,
+      250,
+      500,
+      1000
+    ],
+    "messages_per_interaction": 2,
+    "message_body_bytes": 256,
+    "connection_ramp_per_second": 100,
+    "interaction_start_rate_per_second": 33,
+    "connection_hold_ms": 10000,
+    "resource_sample_interval_target_ms": 500,
+    "receipts_enabled": true,
+    "topology": "one customer device per interaction; agent identities serve bounded topic sets; remaining connections are second agent devices"
+  },
+  "controls": {
+    "isolated_docker_network_per_point": true,
+    "read_only_tinode_rootfs": true,
+    "capabilities_dropped": true,
+    "no_new_privileges": true,
+    "credential_bundle_mode": "0600",
+    "credential_bundle_removed_after_run": true,
+    "source_tree_dirty_recorded": true,
+    "led_containers_before": [
+      {
+        "name": "led-platform-admin-1",
+        "status": "1e275a95cf077d1d6c03925ee54547acc95a4969b0e5c3cde669c09e43960f55|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-api-1",
+        "status": "85aff22dcad464e1c6e25e8d2ddf6e3475cb5df91d547dd976e30cd47a982a88|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-edge-1",
+        "status": "a486377cc6ef4c2bdb0a39a0b3b1b1518f7b8a87db901660e799bdc93d93383e|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-minio-1",
+        "status": "0370f283569f07b54cf01f91da6eee37dc5fa66ea96aa67120388ae59cf44c82|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-postgres-1",
+        "status": "0d7eb65687c8a694a1258bb75f18a3e043e5e825f110ae14949ddedcf0a8ff36|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-system-tasks-1",
+        "status": "f47709c1751fd9a4fdb37d92b9ba4ec10f29c88734834af045d0b043bb7d16fa|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-web-1",
+        "status": "2f7cebba5cf7a21ecf24826d2a092ecd6c194230a39c58a1787b3a3f8ea51222|running|healthy|restarts=0"
+      }
+    ],
+    "led_containers_after": [
+      {
+        "name": "led-platform-admin-1",
+        "status": "1e275a95cf077d1d6c03925ee54547acc95a4969b0e5c3cde669c09e43960f55|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-api-1",
+        "status": "85aff22dcad464e1c6e25e8d2ddf6e3475cb5df91d547dd976e30cd47a982a88|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-edge-1",
+        "status": "a486377cc6ef4c2bdb0a39a0b3b1b1518f7b8a87db901660e799bdc93d93383e|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-minio-1",
+        "status": "0370f283569f07b54cf01f91da6eee37dc5fa66ea96aa67120388ae59cf44c82|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-postgres-1",
+        "status": "0d7eb65687c8a694a1258bb75f18a3e043e5e825f110ae14949ddedcf0a8ff36|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-system-tasks-1",
+        "status": "f47709c1751fd9a4fdb37d92b9ba4ec10f29c88734834af045d0b043bb7d16fa|running|healthy|restarts=0"
+      },
+      {
+        "name": "led-platform-web-1",
+        "status": "2f7cebba5cf7a21ecf24826d2a092ecd6c194230a39c58a1787b3a3f8ea51222|running|healthy|restarts=0"
+      }
+    ],
+    "led_state_preserved": true,
+    "test_resources_remaining": 0
+  },
+  "points": [
+    {
+      "connections": 100,
+      "interactions": 66,
+      "logical_identities": 88,
+      "topics": 66,
+      "messages": 132,
+      "status": "controlled_pass",
+      "capacity_claim": "none",
+      "observation_scope": "client_and_sut_single_node",
+      "provision_result_sha256": "d763311707c242a1cf0a9a39c99144ff96551dd249a4eba3f0e9376a5883785c",
+      "result_sha256": "ab630835c5c88d0275df62d9cf3af157d2fad1f096516e5435f45e4395900362",
+      "credential_bundle_sha256": "6affdae8e0986a5793fef9acacf2252c74b963139ca5ecbe4f17ba07366fe21d",
+      "client": {
+        "protocol": "tinode_websocket",
+        "evidence_level": "controlled",
+        "status": "controlled_pass",
+        "run_id": "tinode-strict-100-0",
+        "shard_id": "composite/tinode/0-100",
+        "worker_id": "tinode-staircase-worker",
+        "lease_epoch": "1",
+        "connection_attempted_count": 100,
+        "connection_accepted_count": 100,
+        "connection_active_peak_count": 100,
+        "connection_closed_count": 100,
+        "connection_start_window_ms": 1069.476,
+        "connection_rate_conformant": true,
+        "connection_max_starts_per_second": 93,
+        "connection_open_sample_count": 100,
+        "connection_open_p50_ms": 3.92,
+        "connection_open_p95_ms": 5.441,
+        "connection_open_p99_ms": 10.175,
+        "interaction_attempted_count": 66,
+        "interaction_active_count": 66,
+        "interaction_start_window_ms": 2061.208,
+        "interaction_rate_conformant": true,
+        "interaction_max_starts_per_second": 32,
+        "socket_attempt_count": 100,
+        "reconnect_count": 0,
+        "published_message_count": 132,
+        "message_send_window_ms": 2065.647,
+        "published_messages_per_second": 63.902,
+        "receipt_note_count": 264,
+        "send_to_ack_sample_count": 132,
+        "send_to_ack_p50_ms": 2.432,
+        "send_to_ack_p95_ms": 3.307,
+        "send_to_ack_p99_ms": 4.191,
+        "delivered_message_count": 132,
+        "send_to_delivery_sample_count": 132,
+        "send_to_delivery_p50_ms": 2.404,
+        "send_to_delivery_p95_ms": 3.359,
+        "send_to_delivery_p99_ms": 4.354,
+        "durable_message_loss_count": 0,
+        "duplicate_message_count": 0,
+        "out_of_order_message_count": 0,
+        "quality_gate_passed": true,
+        "quality_reasons": [],
+        "error_count": 0,
+        "errors": [],
+        "elapsed_ms": 13438.945,
+        "journal_sha256": "7f9cbb25698949997e1ee09a60ccd72aa75b90ed3cb702630eec0d7a3a7273de"
+      },
+      "reconciliation": {
+        "client_attempted": 100,
+        "client_accepted": 100,
+        "client_active_peak": 100,
+        "client_closed": 100,
+        "sut_live_sessions_max": 100,
+        "exact_match": true
+      },
+      "tinode_resources": {
+        "cpu_max_percent": 18.86,
+        "memory_max_bytes": 26088570.88,
+        "pids_max": 10,
+        "network_rx_max_bytes": 988000,
+        "network_tx_max_bytes": 1580000
+      },
+      "generator_resources": {
+        "cpu_max_percent": 23.736,
+        "rss_max_bytes": 120410112
+      },
+      "resource_samples": [
+        {
+          "elapsed_ms": 1039.812,
+          "sample_interval_ms": 1039.532,
+          "tinode": {
+            "cpu_percent": 18.86,
+            "memory_bytes": 26088570.88,
+            "pids": 10,
+            "network_rx_bytes": 687000,
+            "network_tx_bytes": 946000,
+            "block_read_bytes": 24600,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 96,
+          "generator": {
+            "cpu_percent": 23.736,
+            "rss_bytes": 107741184
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 3046.78,
+          "sample_interval_ms": 2006.968,
+          "tinode": {
+            "cpu_percent": 17.28,
+            "memory_bytes": 26057113.6,
+            "pids": 10,
+            "network_rx_bytes": 969000,
+            "network_tx_bytes": 1520000,
+            "block_read_bytes": 24600,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 100,
+          "generator": {
+            "cpu_percent": 9.206,
+            "rss_bytes": 110100480
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 5053.419,
+          "sample_interval_ms": 2006.639,
+          "tinode": {
+            "cpu_percent": 0,
+            "memory_bytes": 26067599.36,
+            "pids": 10,
+            "network_rx_bytes": 986000,
+            "network_tx_bytes": 1560000,
+            "block_read_bytes": 24600,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 100,
+          "generator": {
+            "cpu_percent": 4.591,
+            "rss_bytes": 119623680
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 7059.295,
+          "sample_interval_ms": 2005.876,
+          "tinode": {
+            "cpu_percent": 0,
+            "memory_bytes": 26088570.88,
+            "pids": 10,
+            "network_rx_bytes": 987000,
+            "network_tx_bytes": 1560000,
+            "block_read_bytes": 24600,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 100,
+          "generator": {
+            "cpu_percent": 0.459,
+            "rss_bytes": 119754752
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 9067.216,
+          "sample_interval_ms": 2007.921,
+          "tinode": {
+            "cpu_percent": 0,
+            "memory_bytes": 26088570.88,
+            "pids": 10,
+            "network_rx_bytes": 987000,
+            "network_tx_bytes": 1570000,
+            "block_read_bytes": 24600,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 100,
+          "generator": {
+            "cpu_percent": 0.466,
+            "rss_bytes": 119885824
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 11081.271,
+          "sample_interval_ms": 2014.056,
+          "tinode": {
+            "cpu_percent": 0,
+            "memory_bytes": 26088570.88,
+            "pids": 10,
+            "network_rx_bytes": 988000,
+            "network_tx_bytes": 1570000,
+            "block_read_bytes": 24600,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 100,
+          "generator": {
+            "cpu_percent": 0.624,
+            "rss_bytes": 120016896
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 13089.211,
+          "sample_interval_ms": 2007.94,
+          "tinode": {
+            "cpu_percent": 0.84,
+            "memory_bytes": 26088570.88,
+            "pids": 10,
+            "network_rx_bytes": 988000,
+            "network_tx_bytes": 1580000,
+            "block_read_bytes": 24600,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 100,
+          "generator": {
+            "cpu_percent": 1.674,
+            "rss_bytes": 120410112
+          },
+          "errors": []
+        }
+      ],
+      "sampling_error_count": 0,
+      "sensitive_inputs_removed": true
+    },
+    {
+      "connections": 250,
+      "interactions": 166,
+      "logical_identities": 222,
+      "topics": 166,
+      "messages": 332,
+      "status": "controlled_pass",
+      "capacity_claim": "none",
+      "observation_scope": "client_and_sut_single_node",
+      "provision_result_sha256": "f74c6313f1045beae57537d228e85fac10e51a694aa15d1dfaa06c38d38d58de",
+      "result_sha256": "6d254d5e297ca1f5bd52c86c0ceb466b9060785465f0fd5616f0ef7562496138",
+      "credential_bundle_sha256": "63793444bb7975ec6d4251e41a54a529e279c08a983d3e4316f0f64558e4946f",
+      "client": {
+        "protocol": "tinode_websocket",
+        "evidence_level": "controlled",
+        "status": "controlled_pass",
+        "run_id": "tinode-strict-250-1",
+        "shard_id": "composite/tinode/0-250",
+        "worker_id": "tinode-staircase-worker",
+        "lease_epoch": "1",
+        "connection_attempted_count": 250,
+        "connection_accepted_count": 250,
+        "connection_active_peak_count": 250,
+        "connection_closed_count": 250,
+        "connection_start_window_ms": 2654.192,
+        "connection_rate_conformant": true,
+        "connection_max_starts_per_second": 95,
+        "connection_open_sample_count": 250,
+        "connection_open_p50_ms": 4.495,
+        "connection_open_p95_ms": 6.565,
+        "connection_open_p99_ms": 9.368,
+        "interaction_attempted_count": 166,
+        "interaction_active_count": 166,
+        "interaction_start_window_ms": 5190.279,
+        "interaction_rate_conformant": true,
+        "interaction_max_starts_per_second": 32,
+        "socket_attempt_count": 250,
+        "reconnect_count": 0,
+        "published_message_count": 332,
+        "message_send_window_ms": 5195.462,
+        "published_messages_per_second": 63.902,
+        "receipt_note_count": 664,
+        "send_to_ack_sample_count": 332,
+        "send_to_ack_p50_ms": 2.679,
+        "send_to_ack_p95_ms": 3.944,
+        "send_to_ack_p99_ms": 6.252,
+        "delivered_message_count": 332,
+        "send_to_delivery_sample_count": 332,
+        "send_to_delivery_p50_ms": 2.689,
+        "send_to_delivery_p95_ms": 3.855,
+        "send_to_delivery_p99_ms": 6.384,
+        "durable_message_loss_count": 0,
+        "duplicate_message_count": 0,
+        "out_of_order_message_count": 0,
+        "quality_gate_passed": true,
+        "quality_reasons": [],
+        "error_count": 0,
+        "errors": [],
+        "elapsed_ms": 18174.767,
+        "journal_sha256": "fc5152d3a7796f3b8509a569c10e11924db2e25b8e72aafa1038caf13917b97e"
+      },
+      "reconciliation": {
+        "client_attempted": 250,
+        "client_accepted": 250,
+        "client_active_peak": 250,
+        "client_closed": 250,
+        "sut_live_sessions_max": 250,
+        "exact_match": true
+      },
+      "tinode_resources": {
+        "cpu_max_percent": 23.95,
+        "memory_max_bytes": 37056675.84,
+        "pids_max": 11,
+        "network_rx_max_bytes": 2480000,
+        "network_tx_max_bytes": 3910000
+      },
+      "generator_resources": {
+        "cpu_max_percent": 24.27,
+        "rss_max_bytes": 136007680
+      },
+      "resource_samples": [
+        {
+          "elapsed_ms": 1052.144,
+          "sample_interval_ms": 1052.119,
+          "tinode": {
+            "cpu_percent": 20.32,
+            "memory_bytes": 29664215.04,
+            "pids": 11,
+            "network_rx_bytes": 1480000,
+            "network_tx_bytes": 2080000,
+            "block_read_bytes": 32800,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 98,
+          "generator": {
+            "cpu_percent": 24.27,
+            "rss_bytes": 127094784
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 3057.997,
+          "sample_interval_ms": 2005.852,
+          "tinode": {
+            "cpu_percent": 23.95,
+            "memory_bytes": 34236006.4,
+            "pids": 11,
+            "network_rx_bytes": 1780000,
+            "network_tx_bytes": 2480000,
+            "block_read_bytes": 32800,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 250,
+          "generator": {
+            "cpu_percent": 22.349,
+            "rss_bytes": 128143360
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 5068.212,
+          "sample_interval_ms": 2010.216,
+          "tinode": {
+            "cpu_percent": 16.45,
+            "memory_bytes": 34099691.52,
+            "pids": 11,
+            "network_rx_bytes": 2060000,
+            "network_tx_bytes": 3090000,
+            "block_read_bytes": 32800,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 250,
+          "generator": {
+            "cpu_percent": 12.386,
+            "rss_bytes": 129716224
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 7068.928,
+          "sample_interval_ms": 2000.716,
+          "tinode": {
+            "cpu_percent": 16.42,
+            "memory_bytes": 35892756.48,
+            "pids": 11,
+            "network_rx_bytes": 2330000,
+            "network_tx_bytes": 3610000,
+            "block_read_bytes": 32800,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 250,
+          "generator": {
+            "cpu_percent": 7.836,
+            "rss_bytes": 129716224
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 9075.849,
+          "sample_interval_ms": 2006.921,
+          "tinode": {
+            "cpu_percent": 0,
+            "memory_bytes": 37014732.8,
+            "pids": 11,
+            "network_rx_bytes": 2440000,
+            "network_tx_bytes": 3820000,
+            "block_read_bytes": 32800,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 250,
+          "generator": {
+            "cpu_percent": 3.648,
+            "rss_bytes": 130371584
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 11081.886,
+          "sample_interval_ms": 2006.037,
+          "tinode": {
+            "cpu_percent": 0,
+            "memory_bytes": 37014732.8,
+            "pids": 11,
+            "network_rx_bytes": 2440000,
+            "network_tx_bytes": 3830000,
+            "block_read_bytes": 32800,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 250,
+          "generator": {
+            "cpu_percent": 0.366,
+            "rss_bytes": 130502656
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 13088.778,
+          "sample_interval_ms": 2006.892,
+          "tinode": {
+            "cpu_percent": 0.26,
+            "memory_bytes": 37014732.8,
+            "pids": 11,
+            "network_rx_bytes": 2440000,
+            "network_tx_bytes": 3840000,
+            "block_read_bytes": 32800,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 250,
+          "generator": {
+            "cpu_percent": 0.386,
+            "rss_bytes": 130502656
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 15094.916,
+          "sample_interval_ms": 2006.137,
+          "tinode": {
+            "cpu_percent": 0.51,
+            "memory_bytes": 37046190.08,
+            "pids": 11,
+            "network_rx_bytes": 2440000,
+            "network_tx_bytes": 3840000,
+            "block_read_bytes": 32800,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 250,
+          "generator": {
+            "cpu_percent": 0.361,
+            "rss_bytes": 130895872
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 17098.998,
+          "sample_interval_ms": 2004.083,
+          "tinode": {
+            "cpu_percent": 0.62,
+            "memory_bytes": 37056675.84,
+            "pids": 11,
+            "network_rx_bytes": 2440000,
+            "network_tx_bytes": 3850000,
+            "block_read_bytes": 32800,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 250,
+          "generator": {
+            "cpu_percent": 0.35,
+            "rss_bytes": 130895872
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 19105.852,
+          "sample_interval_ms": 2006.854,
+          "tinode": {
+            "cpu_percent": 3,
+            "memory_bytes": 36909875.2,
+            "pids": 11,
+            "network_rx_bytes": 2480000,
+            "network_tx_bytes": 3910000,
+            "block_read_bytes": 32800,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 0,
+          "generator": {
+            "cpu_percent": 3.797,
+            "rss_bytes": 136007680
+          },
+          "errors": []
+        }
+      ],
+      "sampling_error_count": 0,
+      "sensitive_inputs_removed": true
+    },
+    {
+      "connections": 500,
+      "interactions": 333,
+      "logical_identities": 444,
+      "topics": 333,
+      "messages": 666,
+      "status": "controlled_pass",
+      "capacity_claim": "none",
+      "observation_scope": "client_and_sut_single_node",
+      "provision_result_sha256": "7753cb5f3ed72739b2e23eab3c9581f8f102085e4fec4df23505a709d9ee121d",
+      "result_sha256": "6f1e894466890959f1d962219608dea262e797031a491bfad51ad5c0f20e6550",
+      "credential_bundle_sha256": "7c794ae4f5c67968ea51e0721466a349fb173f9f1fe31c09203e63f011f6d98e",
+      "client": {
+        "protocol": "tinode_websocket",
+        "evidence_level": "controlled",
+        "status": "controlled_pass",
+        "run_id": "tinode-strict-500-2",
+        "shard_id": "composite/tinode/0-500",
+        "worker_id": "tinode-staircase-worker",
+        "lease_epoch": "1",
+        "connection_attempted_count": 500,
+        "connection_accepted_count": 500,
+        "connection_active_peak_count": 500,
+        "connection_closed_count": 500,
+        "connection_start_window_ms": 5394.368,
+        "connection_rate_conformant": true,
+        "connection_max_starts_per_second": 94,
+        "connection_open_sample_count": 500,
+        "connection_open_p50_ms": 3.989,
+        "connection_open_p95_ms": 5.341,
+        "connection_open_p99_ms": 9.65,
+        "interaction_attempted_count": 333,
+        "interaction_active_count": 333,
+        "interaction_start_window_ms": 10515.372,
+        "interaction_rate_conformant": true,
+        "interaction_max_starts_per_second": 32,
+        "socket_attempt_count": 500,
+        "reconnect_count": 0,
+        "published_message_count": 666,
+        "message_send_window_ms": 10521.925,
+        "published_messages_per_second": 63.296,
+        "receipt_note_count": 1332,
+        "send_to_ack_sample_count": 666,
+        "send_to_ack_p50_ms": 2.618,
+        "send_to_ack_p95_ms": 3.686,
+        "send_to_ack_p99_ms": 7.692,
+        "delivered_message_count": 666,
+        "send_to_delivery_sample_count": 666,
+        "send_to_delivery_p50_ms": 2.593,
+        "send_to_delivery_p95_ms": 3.699,
+        "send_to_delivery_p99_ms": 7.803,
+        "durable_message_loss_count": 0,
+        "duplicate_message_count": 0,
+        "out_of_order_message_count": 0,
+        "quality_gate_passed": true,
+        "quality_reasons": [],
+        "error_count": 0,
+        "errors": [],
+        "elapsed_ms": 26270.185,
+        "journal_sha256": "c61eaa143a95fae72c2c4af3421eaa06307895613d15dcb7ff89c2c9d163557e"
+      },
+      "reconciliation": {
+        "client_attempted": 500,
+        "client_accepted": 500,
+        "client_active_peak": 500,
+        "client_closed": 500,
+        "sut_live_sessions_max": 500,
+        "exact_match": true
+      },
+      "tinode_resources": {
+        "cpu_max_percent": 24.74,
+        "memory_max_bytes": 58625884.16,
+        "pids_max": 11,
+        "network_rx_max_bytes": 4980000,
+        "network_tx_max_bytes": 7810000
+      },
+      "generator_resources": {
+        "cpu_max_percent": 21.824,
+        "rss_max_bytes": 146624512
+      },
+      "resource_samples": [
+        {
+          "elapsed_ms": 1049.717,
+          "sample_interval_ms": 1049.657,
+          "tinode": {
+            "cpu_percent": 19.81,
+            "memory_bytes": 37906022.4,
+            "pids": 11,
+            "network_rx_bytes": 2800000,
+            "network_tx_bytes": 4000000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 96,
+          "generator": {
+            "cpu_percent": 21.824,
+            "rss_bytes": 137973760
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 3060.829,
+          "sample_interval_ms": 2011.111,
+          "tinode": {
+            "cpu_percent": 17.58,
+            "memory_bytes": 40779120.64,
+            "pids": 11,
+            "network_rx_bytes": 3050000,
+            "network_tx_bytes": 4270000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 283,
+          "generator": {
+            "cpu_percent": 19.514,
+            "rss_bytes": 137973760
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 5070.199,
+          "sample_interval_ms": 2009.37,
+          "tinode": {
+            "cpu_percent": 24.74,
+            "memory_bytes": 49272586.24,
+            "pids": 11,
+            "network_rx_bytes": 3360000,
+            "network_tx_bytes": 4620000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 468,
+          "generator": {
+            "cpu_percent": 21.793,
+            "rss_bytes": 137973760
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 7074.916,
+          "sample_interval_ms": 2004.717,
+          "tinode": {
+            "cpu_percent": 16.44,
+            "memory_bytes": 49492787.2,
+            "pids": 11,
+            "network_rx_bytes": 3660000,
+            "network_tx_bytes": 5200000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 500,
+          "generator": {
+            "cpu_percent": 10.348,
+            "rss_bytes": 140201984
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 9081.086,
+          "sample_interval_ms": 2006.17,
+          "tinode": {
+            "cpu_percent": 15.28,
+            "memory_bytes": 49650073.6,
+            "pids": 11,
+            "network_rx_bytes": 3940000,
+            "network_tx_bytes": 5820000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 500,
+          "generator": {
+            "cpu_percent": 8.042,
+            "rss_bytes": 143085568
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 11087.532,
+          "sample_interval_ms": 2006.446,
+          "tinode": {
+            "cpu_percent": 14.64,
+            "memory_bytes": 51873054.72,
+            "pids": 11,
+            "network_rx_bytes": 4220000,
+            "network_tx_bytes": 6410000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 500,
+          "generator": {
+            "cpu_percent": 7.177,
+            "rss_bytes": 143085568
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 13094.848,
+          "sample_interval_ms": 2007.316,
+          "tinode": {
+            "cpu_percent": 15.92,
+            "memory_bytes": 54788096,
+            "pids": 11,
+            "network_rx_bytes": 4480000,
+            "network_tx_bytes": 6910000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 500,
+          "generator": {
+            "cpu_percent": 7.64,
+            "rss_bytes": 144789504
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 15102.122,
+          "sample_interval_ms": 2007.275,
+          "tinode": {
+            "cpu_percent": 20.1,
+            "memory_bytes": 58500055.04,
+            "pids": 11,
+            "network_rx_bytes": 4740000,
+            "network_tx_bytes": 7420000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 500,
+          "generator": {
+            "cpu_percent": 8.864,
+            "rss_bytes": 146231296
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 17114.71,
+          "sample_interval_ms": 2012.588,
+          "tinode": {
+            "cpu_percent": 0.72,
+            "memory_bytes": 58625884.16,
+            "pids": 11,
+            "network_rx_bytes": 4850000,
+            "network_tx_bytes": 7630000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 500,
+          "generator": {
+            "cpu_percent": 3.516,
+            "rss_bytes": 146493440
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 19115.609,
+          "sample_interval_ms": 2000.899,
+          "tinode": {
+            "cpu_percent": 0.58,
+            "memory_bytes": 58625884.16,
+            "pids": 11,
+            "network_rx_bytes": 4850000,
+            "network_tx_bytes": 7640000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 500,
+          "generator": {
+            "cpu_percent": 0.374,
+            "rss_bytes": 146493440
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 21121.95,
+          "sample_interval_ms": 2006.341,
+          "tinode": {
+            "cpu_percent": 0.59,
+            "memory_bytes": 58625884.16,
+            "pids": 11,
+            "network_rx_bytes": 4860000,
+            "network_tx_bytes": 7650000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 500,
+          "generator": {
+            "cpu_percent": 0.371,
+            "rss_bytes": 146493440
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 23128.861,
+          "sample_interval_ms": 2006.911,
+          "tinode": {
+            "cpu_percent": 0.66,
+            "memory_bytes": 58625884.16,
+            "pids": 11,
+            "network_rx_bytes": 4870000,
+            "network_tx_bytes": 7670000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 500,
+          "generator": {
+            "cpu_percent": 0.294,
+            "rss_bytes": 146493440
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 25135.114,
+          "sample_interval_ms": 2006.252,
+          "tinode": {
+            "cpu_percent": 0.69,
+            "memory_bytes": 58625884.16,
+            "pids": 11,
+            "network_rx_bytes": 4890000,
+            "network_tx_bytes": 7690000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 500,
+          "generator": {
+            "cpu_percent": 0.35,
+            "rss_bytes": 146493440
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 27142.473,
+          "sample_interval_ms": 2007.359,
+          "tinode": {
+            "cpu_percent": 4.97,
+            "memory_bytes": 57860423.68,
+            "pids": 11,
+            "network_rx_bytes": 4980000,
+            "network_tx_bytes": 7810000,
+            "block_read_bytes": 221000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 0,
+          "generator": {
+            "cpu_percent": 6.357,
+            "rss_bytes": 146624512
+          },
+          "errors": []
+        }
+      ],
+      "sampling_error_count": 0,
+      "sensitive_inputs_removed": true
+    },
+    {
+      "connections": 1000,
+      "interactions": 666,
+      "logical_identities": 888,
+      "topics": 666,
+      "messages": 1332,
+      "status": "controlled_pass",
+      "capacity_claim": "none",
+      "observation_scope": "client_and_sut_single_node",
+      "provision_result_sha256": "d6203ca5fb307333caa6fd355bf8e8e901f61f74d981e79d489f04ec025121be",
+      "result_sha256": "0a1a6dcf1022e14f19868a78c442dbe00a93a85b0f986af4bded89acb21d234b",
+      "credential_bundle_sha256": "27a1346bb6913141f8508af2b79e920258a14f9fa4eafe79d88b66ee9a9c95c9",
+      "client": {
+        "protocol": "tinode_websocket",
+        "evidence_level": "controlled",
+        "status": "controlled_pass",
+        "run_id": "tinode-strict-1000-3",
+        "shard_id": "composite/tinode/0-1000",
+        "worker_id": "tinode-staircase-worker",
+        "lease_epoch": "1",
+        "connection_attempted_count": 1000,
+        "connection_accepted_count": 1000,
+        "connection_active_peak_count": 1000,
+        "connection_closed_count": 1000,
+        "connection_start_window_ms": 10768.755,
+        "connection_rate_conformant": true,
+        "connection_max_starts_per_second": 94,
+        "connection_open_sample_count": 1000,
+        "connection_open_p50_ms": 4.475,
+        "connection_open_p95_ms": 6.342,
+        "connection_open_p99_ms": 9.603,
+        "interaction_attempted_count": 666,
+        "interaction_active_count": 666,
+        "interaction_start_window_ms": 21043.103,
+        "interaction_rate_conformant": true,
+        "interaction_max_starts_per_second": 33,
+        "socket_attempt_count": 1000,
+        "reconnect_count": 0,
+        "published_message_count": 1332,
+        "message_send_window_ms": 21048.549,
+        "published_messages_per_second": 63.282,
+        "receipt_note_count": 2664,
+        "send_to_ack_sample_count": 1332,
+        "send_to_ack_p50_ms": 2.606,
+        "send_to_ack_p95_ms": 3.715,
+        "send_to_ack_p99_ms": 5.874,
+        "delivered_message_count": 1332,
+        "send_to_delivery_sample_count": 1332,
+        "send_to_delivery_p50_ms": 2.593,
+        "send_to_delivery_p95_ms": 3.728,
+        "send_to_delivery_p99_ms": 5.689,
+        "durable_message_loss_count": 0,
+        "duplicate_message_count": 0,
+        "out_of_order_message_count": 0,
+        "quality_gate_passed": true,
+        "quality_reasons": [],
+        "error_count": 0,
+        "errors": [],
+        "elapsed_ms": 42273.675,
+        "journal_sha256": "0da378d955853b26289a6b7d94e59b784b035733125e29b4964fcb10ae69ca8f"
+      },
+      "reconciliation": {
+        "client_attempted": 1000,
+        "client_accepted": 1000,
+        "client_active_peak": 1000,
+        "client_closed": 1000,
+        "sut_live_sessions_max": 1000,
+        "exact_match": true
+      },
+      "tinode_resources": {
+        "cpu_max_percent": 29.85,
+        "memory_max_bytes": 92620718.08,
+        "pids_max": 12,
+        "network_rx_max_bytes": 10400000,
+        "network_tx_max_bytes": 16000000
+      },
+      "generator_resources": {
+        "cpu_max_percent": 20.107,
+        "rss_max_bytes": 156241920
+      },
+      "resource_samples": [
+        {
+          "elapsed_ms": 1051.858,
+          "sample_interval_ms": 1051.813,
+          "tinode": {
+            "cpu_percent": 16.77,
+            "memory_bytes": 45004881.92,
+            "pids": 12,
+            "network_rx_bytes": 5450000,
+            "network_tx_bytes": 7840000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 95,
+          "generator": {
+            "cpu_percent": 19.951,
+            "rss_bytes": 148639744
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 3057.004,
+          "sample_interval_ms": 2005.145,
+          "tinode": {
+            "cpu_percent": 22.69,
+            "memory_bytes": 55259955.2,
+            "pids": 12,
+            "network_rx_bytes": 5700000,
+            "network_tx_bytes": 8100000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 282,
+          "generator": {
+            "cpu_percent": 18.356,
+            "rss_bytes": 150474752
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 5061.723,
+          "sample_interval_ms": 2004.72,
+          "tinode": {
+            "cpu_percent": 24.55,
+            "memory_bytes": 55868129.28,
+            "pids": 12,
+            "network_rx_bytes": 6130000,
+            "network_tx_bytes": 8540000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 468,
+          "generator": {
+            "cpu_percent": 19.222,
+            "rss_bytes": 150736896
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 7070.19,
+          "sample_interval_ms": 2008.467,
+          "tinode": {
+            "cpu_percent": 29.85,
+            "memory_bytes": 66930606.08,
+            "pids": 12,
+            "network_rx_bytes": 6540000,
+            "network_tx_bytes": 8920000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 655,
+          "generator": {
+            "cpu_percent": 19.971,
+            "rss_bytes": 150736896
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 9075.417,
+          "sample_interval_ms": 2005.227,
+          "tinode": {
+            "cpu_percent": 23.67,
+            "memory_bytes": 69793218.56,
+            "pids": 12,
+            "network_rx_bytes": 6880000,
+            "network_tx_bytes": 9330000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 841,
+          "generator": {
+            "cpu_percent": 20.107,
+            "rss_bytes": 150736896
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 11081.834,
+          "sample_interval_ms": 2006.417,
+          "tinode": {
+            "cpu_percent": 19.81,
+            "memory_bytes": 76525076.48,
+            "pids": 12,
+            "network_rx_bytes": 7190000,
+            "network_tx_bytes": 9720000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 17.65,
+            "rss_bytes": 151785472
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 13088.545,
+          "sample_interval_ms": 2006.711,
+          "tinode": {
+            "cpu_percent": 16.61,
+            "memory_bytes": 79870033.92,
+            "pids": 12,
+            "network_rx_bytes": 7480000,
+            "network_tx_bytes": 10300000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 7.227,
+            "rss_bytes": 151916544
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 15106.175,
+          "sample_interval_ms": 2017.631,
+          "tinode": {
+            "cpu_percent": 15.65,
+            "memory_bytes": 83089162.24,
+            "pids": 12,
+            "network_rx_bytes": 7760000,
+            "network_tx_bytes": 11000000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 6.902,
+            "rss_bytes": 151916544
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 17103.906,
+          "sample_interval_ms": 1997.731,
+          "tinode": {
+            "cpu_percent": 15.78,
+            "memory_bytes": 83225477.12,
+            "pids": 12,
+            "network_rx_bytes": 8039999.999999999,
+            "network_tx_bytes": 11600000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 7.061,
+            "rss_bytes": 153096192
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 19109.209,
+          "sample_interval_ms": 2005.303,
+          "tinode": {
+            "cpu_percent": 15.34,
+            "memory_bytes": 83330334.72,
+            "pids": 12,
+            "network_rx_bytes": 8330000,
+            "network_tx_bytes": 12200000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 6.52,
+            "rss_bytes": 153358336
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 21118.431,
+          "sample_interval_ms": 2009.222,
+          "tinode": {
+            "cpu_percent": 19.35,
+            "memory_bytes": 83445678.08,
+            "pids": 12,
+            "network_rx_bytes": 8620000,
+            "network_tx_bytes": 12800000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 7.664,
+            "rss_bytes": 153358336
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 23127.242,
+          "sample_interval_ms": 2008.811,
+          "tinode": {
+            "cpu_percent": 17.31,
+            "memory_bytes": 83550535.68,
+            "pids": 12,
+            "network_rx_bytes": 8890000,
+            "network_tx_bytes": 13300000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 8.166,
+            "rss_bytes": 153489408
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 25135.171,
+          "sample_interval_ms": 2007.929,
+          "tinode": {
+            "cpu_percent": 16.76,
+            "memory_bytes": 83665879.04,
+            "pids": 12,
+            "network_rx_bytes": 9200000,
+            "network_tx_bytes": 13900000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 10.431,
+            "rss_bytes": 154800128
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 27140.531,
+          "sample_interval_ms": 2005.36,
+          "tinode": {
+            "cpu_percent": 18.27,
+            "memory_bytes": 83938508.8,
+            "pids": 12,
+            "network_rx_bytes": 9480000,
+            "network_tx_bytes": 14400000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 7.035,
+            "rss_bytes": 154931200
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 29145.01,
+          "sample_interval_ms": 2004.48,
+          "tinode": {
+            "cpu_percent": 16.13,
+            "memory_bytes": 87314923.52,
+            "pids": 12,
+            "network_rx_bytes": 9760000,
+            "network_tx_bytes": 14900000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 6.901,
+            "rss_bytes": 154931200
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 31152.448,
+          "sample_interval_ms": 2007.437,
+          "tinode": {
+            "cpu_percent": 14.79,
+            "memory_bytes": 91194654.72,
+            "pids": 12,
+            "network_rx_bytes": 10000000,
+            "network_tx_bytes": 15500000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 6.237,
+            "rss_bytes": 154931200
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 33159.013,
+          "sample_interval_ms": 2006.565,
+          "tinode": {
+            "cpu_percent": 0.61,
+            "memory_bytes": 92180316.16,
+            "pids": 12,
+            "network_rx_bytes": 10200000,
+            "network_tx_bytes": 15700000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 2.49,
+            "rss_bytes": 154931200
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 35164.057,
+          "sample_interval_ms": 2005.044,
+          "tinode": {
+            "cpu_percent": 0.63,
+            "memory_bytes": 92201287.68,
+            "pids": 12,
+            "network_rx_bytes": 10200000,
+            "network_tx_bytes": 15700000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 0.307,
+            "rss_bytes": 154931200
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 37173.403,
+          "sample_interval_ms": 2009.346,
+          "tinode": {
+            "cpu_percent": 0.62,
+            "memory_bytes": 92232744.96,
+            "pids": 12,
+            "network_rx_bytes": 10200000,
+            "network_tx_bytes": 15700000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 0.317,
+            "rss_bytes": 154931200
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 39176.186,
+          "sample_interval_ms": 2002.783,
+          "tinode": {
+            "cpu_percent": 0.62,
+            "memory_bytes": 92264202.24,
+            "pids": 12,
+            "network_rx_bytes": 10200000,
+            "network_tx_bytes": 15700000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 0.334,
+            "rss_bytes": 154931200
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 41181.824,
+          "sample_interval_ms": 2005.638,
+          "tinode": {
+            "cpu_percent": 0.54,
+            "memory_bytes": 92285173.76,
+            "pids": 12,
+            "network_rx_bytes": 10200000,
+            "network_tx_bytes": 15700000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 1000,
+          "generator": {
+            "cpu_percent": 0.348,
+            "rss_bytes": 154931200
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 43192.608,
+          "sample_interval_ms": 2010.784,
+          "tinode": {
+            "cpu_percent": 6.47,
+            "memory_bytes": 92620718.08,
+            "pids": 12,
+            "network_rx_bytes": 10400000,
+            "network_tx_bytes": 16000000,
+            "block_read_bytes": 115000,
+            "block_write_bytes": 0
+          },
+          "tinode_live_sessions": 0,
+          "generator": {
+            "cpu_percent": 11.291,
+            "rss_bytes": 156241920
+          },
+          "errors": []
+        }
+      ],
+      "sampling_error_count": 0,
+      "sensitive_inputs_removed": true
+    }
+  ],
+  "limitations": [
+    "This is controlled single-node evidence, not a production capacity claim.",
+    "The generator and SUT share one host, so generator contention is measured but not eliminated.",
+    "This run does not prove multi-node scaling, failure recovery, weak-network behavior or long-duration stability."
+  ]
+}

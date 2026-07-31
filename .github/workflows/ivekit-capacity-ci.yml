@@ -1,0 +1,113 @@
+name: iveKit Capacity Contracts
+
+on:
+  push:
+    paths:
+      - ".github/workflows/ivekit-capacity-ci.yml"
+      - "docs/capacity/**"
+      - "infra/capacity/**"
+      - "infra/ivekit/livekit/**"
+      - "infra/ivekit/rustdesk-server/**"
+      - "infra/ivekit/rustpbx/**"
+      - "infra/ivekit/tinode/**"
+      - "integrations/component-hook-go/**"
+      - "integrations/component-hook-rs/**"
+      - "integrations/livekit-v1.13.4/**"
+      - "integrations/tinode-v0.25.3/**"
+      - "scripts/capacity/**"
+      - "scripts/ivekit-capacity*.ts"
+      - "scripts/ivekit-cell-*.ts"
+      - "scripts/ivekit-component-node-admission.ts"
+      - "scripts/ivekit-rustdesk-owner-binding.ts"
+      - "src/agent-runtime/ivekit/placement/**"
+      - "src/agent-runtime/collaboration/collaboration-http.ts"
+      - "src/agent-runtime/ivekit/media-http.ts"
+      - "src/agent-runtime/ivekit/voice/**"
+      - "src/agent-runtime/livekit/**"
+      - "src/ivekit-component-node-admission.ts"
+      - "src/ivekit-placement-snapshot-projector.ts"
+      - "src/ivekit-rustpbx-route-snapshot.ts"
+      - "src/migrations/077_ivekit_capacity_orchestrator.sql"
+      - "src/migrations/078_ivekit_cell_leases.sql"
+      - "src/migrations/080_ivekit_interaction_placements.sql"
+      - "src/migrations/082_ivekit_capacity_worker_checkpoints.sql"
+      - "src/migrations/083_ivekit_cell_admission_reservations.sql"
+      - "src/migrations/084_ivekit_cell_lease_topology.sql"
+      - "test/ivekit-capacity-*.test.ts"
+      - "test/ivekit-cell-*.test.ts"
+      - "test/ivekit-component-*.test.ts"
+      - "test/ivekit-*-placement*.test.ts"
+      - "test/ivekit-livekit-owner-patch.test.ts"
+      - "test/ivekit-rustdesk-*.test.ts"
+      - "test/ivekit-rustpbx-*.test.ts"
+      - "test/ivekit-tinode-owner-patch.test.ts"
+      - "package.json"
+      - "package-lock.json"
+  pull_request:
+    paths:
+      - ".github/workflows/ivekit-capacity-ci.yml"
+      - "docs/capacity/**"
+      - "infra/capacity/**"
+      - "infra/ivekit/livekit/**"
+      - "infra/ivekit/rustdesk-server/**"
+      - "infra/ivekit/rustpbx/**"
+      - "infra/ivekit/tinode/**"
+      - "integrations/component-hook-go/**"
+      - "integrations/component-hook-rs/**"
+      - "integrations/livekit-v1.13.4/**"
+      - "integrations/tinode-v0.25.3/**"
+      - "scripts/capacity/**"
+      - "scripts/ivekit-capacity*.ts"
+      - "scripts/ivekit-cell-*.ts"
+      - "scripts/ivekit-component-node-admission.ts"
+      - "scripts/ivekit-rustdesk-owner-binding.ts"
+      - "src/agent-runtime/ivekit/placement/**"
+      - "src/agent-runtime/collaboration/collaboration-http.ts"
+      - "src/agent-runtime/ivekit/media-http.ts"
+      - "src/agent-runtime/ivekit/voice/**"
+      - "src/agent-runtime/livekit/**"
+      - "src/ivekit-component-node-admission.ts"
+      - "src/ivekit-placement-snapshot-projector.ts"
+      - "src/ivekit-rustpbx-route-snapshot.ts"
+      - "src/migrations/077_ivekit_capacity_orchestrator.sql"
+      - "src/migrations/078_ivekit_cell_leases.sql"
+      - "src/migrations/080_ivekit_interaction_placements.sql"
+      - "src/migrations/082_ivekit_capacity_worker_checkpoints.sql"
+      - "src/migrations/083_ivekit_cell_admission_reservations.sql"
+      - "src/migrations/084_ivekit_cell_lease_topology.sql"
+      - "test/ivekit-capacity-*.test.ts"
+      - "test/ivekit-cell-*.test.ts"
+      - "test/ivekit-component-*.test.ts"
+      - "test/ivekit-*-placement*.test.ts"
+      - "test/ivekit-livekit-owner-patch.test.ts"
+      - "test/ivekit-rustdesk-*.test.ts"
+      - "test/ivekit-rustpbx-*.test.ts"
+      - "test/ivekit-tinode-owner-patch.test.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capacity-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm run typecheck:ivekit:capacity-runtime
+      - run: npm run test:ivekit:capacity
+      - run: npm run test:ivekit:capacity:loopback
+      - run: >-
+          COMPOSE_DISABLE_ENV_FILE=1 docker compose
+          --env-file infra/capacity/env.example
+          -f infra/capacity/docker-compose.yml
+          config --quiet
+      - run: jq empty docs/capacity/*.json docs/capacity/forks/*.json

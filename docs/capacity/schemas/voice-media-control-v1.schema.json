@@ -1,0 +1,287 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opc.local/schemas/voice-media-control-v1.schema.json",
+  "title": "iveKit Voice Media Control Protocol v1",
+  "x-ivekit-limits": {
+    "payload_bytes": 131072,
+    "sdp_bytes": 16384,
+    "json_depth": 16,
+    "json_nodes": 4096,
+    "object_properties": 64,
+    "array_items": 1024
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/command" },
+    { "$ref": "#/$defs/reconcile" },
+    { "$ref": "#/$defs/result" }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._:@/-]+$"
+    },
+    "sip_tag": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9.!%*_+`'~-]+$"
+    },
+    "owner_epoch": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    },
+    "canonical_date_time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "media_reservation_id",
+        "call_id",
+        "owner_epoch",
+        "last_sequence",
+        "state",
+        "transport_session_id",
+        "effective_sdp",
+        "expires_at",
+        "updated_at"
+      ],
+      "properties": {
+        "media_reservation_id": { "$ref": "#/$defs/identifier" },
+        "call_id": { "$ref": "#/$defs/identifier" },
+        "owner_epoch": { "$ref": "#/$defs/owner_epoch" },
+        "last_sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "state": {
+          "enum": [
+            "prepared",
+            "committed",
+            "cancelled",
+            "closed",
+            "expired"
+          ]
+        },
+        "transport_session_id": { "$ref": "#/$defs/identifier" },
+        "effective_sdp": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "expires_at": {
+          "$ref": "#/$defs/canonical_date_time"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/canonical_date_time"
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "action",
+        "command_id",
+        "tenant_id",
+        "call_id",
+        "leg_id",
+        "cell_id",
+        "owner_node_id",
+        "owner_epoch",
+        "admission_reservation_id",
+        "media_reservation_id",
+        "command_sequence",
+        "idempotency_key",
+        "expires_at",
+        "payload",
+        "payload_hash"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": "ivekit.media-control.v1"
+        },
+        "action": {
+          "enum": [
+            "offer",
+            "answer",
+            "update",
+            "delete",
+            "query",
+            "block_media",
+            "unblock_media",
+            "start_forward",
+            "stop_forward",
+            "start_recording_fork",
+            "stop_recording_fork",
+            "play_media",
+            "stop_media",
+            "inject_dtmf",
+            "subscribe_quality",
+            "drain_node"
+          ]
+        },
+        "command_id": { "$ref": "#/$defs/identifier" },
+        "tenant_id": { "$ref": "#/$defs/identifier" },
+        "call_id": { "$ref": "#/$defs/identifier" },
+        "leg_id": { "$ref": "#/$defs/identifier" },
+        "cell_id": { "$ref": "#/$defs/identifier" },
+        "owner_node_id": { "$ref": "#/$defs/identifier" },
+        "owner_epoch": { "$ref": "#/$defs/owner_epoch" },
+        "admission_reservation_id": { "$ref": "#/$defs/identifier" },
+        "media_reservation_id": { "$ref": "#/$defs/identifier" },
+        "command_sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "expires_at": {
+          "$ref": "#/$defs/canonical_date_time"
+        },
+        "idempotency_key": { "$ref": "#/$defs/identifier" },
+        "payload": {
+          "type": "object",
+          "maxProperties": 64,
+          "properties": {
+            "from_tag": { "$ref": "#/$defs/sip_tag" },
+            "to_tag": { "$ref": "#/$defs/sip_tag" }
+          }
+        },
+        "payload_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "action": { "const": "offer" }
+            },
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["offer_sdp", "media_profile_id"],
+                "properties": {
+                  "offer_sdp": {
+                    "type": "string",
+                    "maxLength": 16384
+                  },
+                  "media_profile_id": {
+                    "$ref": "#/$defs/identifier"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "reconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "action",
+        "command"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": "ivekit.media-control.v1"
+        },
+        "action": {
+          "const": "reconcile"
+        },
+        "command": { "$ref": "#/$defs/command" }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "result_class",
+        "command_id"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": "ivekit.media-control.v1"
+        },
+        "result_class": {
+          "enum": [
+            "committed",
+            "replayed",
+            "rejected_capacity",
+            "rejected_epoch",
+            "terminal_error",
+            "unknown"
+          ]
+        },
+        "command_id": { "$ref": "#/$defs/identifier" },
+        "error_code": { "$ref": "#/$defs/identifier" },
+        "retryable": { "type": "boolean" },
+        "session": { "$ref": "#/$defs/session" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "result_class": { "enum": ["committed", "replayed"] }
+            },
+            "required": ["result_class"]
+          },
+          "then": {
+            "required": ["session"],
+            "not": {
+              "anyOf": [
+                { "required": ["error_code"] },
+                { "required": ["retryable"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "result_class": {
+                "enum": [
+                  "rejected_capacity",
+                  "rejected_epoch",
+                  "terminal_error",
+                  "unknown"
+                ]
+              }
+            },
+            "required": ["result_class"]
+          },
+          "then": {
+            "required": ["error_code", "retryable"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "result_class": { "const": "unknown" }
+            },
+            "required": ["result_class"]
+          },
+          "then": {
+            "properties": {
+              "retryable": { "const": true }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

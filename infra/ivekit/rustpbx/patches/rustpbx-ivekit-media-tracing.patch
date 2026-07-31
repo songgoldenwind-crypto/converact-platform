@@ -1,0 +1,246 @@
+diff --git a/src/ivekit_media_control.rs b/src/ivekit_media_control.rs
+index ec143bc9..7377248c 100644
+--- a/src/ivekit_media_control.rs
++++ b/src/ivekit_media_control.rs
+@@ -145,6 +145,7 @@ pub struct MediaControlClientConfig {
+     pub max_inflight: usize,
+     pub request_timeout: Duration,
+     pub max_response_bytes: usize,
++    pub trace_sample_ratio: f64,
+ }
+ 
+ impl MediaControlClientConfig {
+@@ -189,6 +190,11 @@ impl MediaControlClientConfig {
+                 "media_control_max_response_invalid",
+             ));
+         }
++        if !self.trace_sample_ratio.is_finite() || !(0.0..=1.0).contains(&self.trace_sample_ratio) {
++            return Err(MediaControlClientError::Configuration(
++                "media_control_trace_sample_ratio_invalid",
++            ));
++        }
+         Ok(())
+     }
+ }
+@@ -200,6 +206,7 @@ pub struct MediaControlClient {
+     inflight: Arc<Semaphore>,
+     request_timeout: Duration,
+     max_response_bytes: usize,
++    trace_sample_ratio: f64,
+ }
+ 
+ impl MediaControlClient {
+@@ -252,6 +259,7 @@ impl MediaControlClient {
+             inflight: Arc::new(Semaphore::new(config.max_inflight)),
+             request_timeout: config.request_timeout,
+             max_response_bytes: config.max_response_bytes,
++            trace_sample_ratio: config.trace_sample_ratio,
+         })
+     }
+ 
+@@ -261,6 +269,7 @@ impl MediaControlClient {
+     ) -> Result<MediaControlResult, MediaControlClientError> {
+         command.validate()?;
+         let command_id = command.command_id.clone();
++        let traceparent = media_control_traceparent(command, self.trace_sample_ratio);
+         let body = serde_json::to_vec(command)
+             .map_err(|_| MediaControlClientError::InvalidCommand("command_json_invalid"))?;
+         if body.len() > MAX_REQUEST_BYTES {
+@@ -272,7 +281,8 @@ impl MediaControlClient {
+         let url = self.endpoint.join("v1/commands").map_err(|_| {
+             MediaControlClientError::Configuration("media_control_endpoint_invalid")
+         })?;
+-        self.command_request(url, body, command_id).await
++        self.command_request(url, body, command_id, traceparent)
++            .await
+     }
+ 
+     pub async fn reconcile(
+@@ -281,6 +291,7 @@ impl MediaControlClient {
+     ) -> Result<MediaControlResult, MediaControlClientError> {
+         input.validate()?;
+         let command_id = input.command.command_id.clone();
++        let traceparent = media_control_traceparent(&input.command, self.trace_sample_ratio);
+         let body = serde_json::to_vec(input)
+             .map_err(|_| MediaControlClientError::InvalidCommand("reconcile_json_invalid"))?;
+         if body.len() > MAX_REQUEST_BYTES {
+@@ -292,7 +303,8 @@ impl MediaControlClient {
+         let url = self.endpoint.join("v1/reconcile").map_err(|_| {
+             MediaControlClientError::Configuration("media_control_endpoint_invalid")
+         })?;
+-        self.command_request(url, body, command_id).await
++        self.command_request(url, body, command_id, traceparent)
++            .await
+     }
+ 
+     pub async fn session(
+@@ -309,7 +321,7 @@ impl MediaControlClient {
+                 MediaControlClientError::Configuration("media_control_endpoint_invalid")
+             })?;
+         let response = self
+-            .send(Method::GET, url, None)
++            .send(Method::GET, url, None, None)
+             .await
+             .map_err(|code| MediaControlClientError::UnknownAfterTransport { code })?;
+         if !response.status.is_success() {
+@@ -418,8 +430,12 @@ impl MediaControlClient {
+         url: Url,
+         body: Vec<u8>,
+         command_id: String,
++        traceparent: String,
+     ) -> Result<MediaControlResult, MediaControlClientError> {
+-        let response = match self.send(Method::POST, url, Some(body)).await {
++        let response = match self
++            .send(Method::POST, url, Some(body), Some(&traceparent))
++            .await
++        {
+             Ok(response) => response,
+             Err(code) => return Ok(unknown_after_transport_failure(command_id, code)),
+         };
+@@ -460,12 +476,16 @@ impl MediaControlClient {
+         method: Method,
+         url: Url,
+         body: Option<Vec<u8>>,
++        traceparent: Option<&str>,
+     ) -> Result<BoundedResponse, &'static str> {
+         let mut request = self
+             .client
+             .request(method, url)
+             .bearer_auth(&self.service_token)
+             .header(reqwest::header::ACCEPT, "application/json");
++        if let Some(traceparent) = traceparent {
++            request = request.header("traceparent", traceparent);
++        }
+         if let Some(body) = body {
+             request = request
+                 .header(reqwest::header::CONTENT_TYPE, "application/json")
+@@ -496,6 +516,49 @@ impl MediaControlClient {
+     }
+ }
+ 
++fn media_control_traceparent(command: &MediaControlCommand, sample_ratio: f64) -> String {
++    let trace_digest = Sha256::digest(
++        [
++            b"ivekit-media-trace\0".as_slice(),
++            command.call_id.as_bytes(),
++        ]
++        .concat(),
++    );
++    let span_digest = Sha256::digest(
++        [
++            b"ivekit-media-span\0".as_slice(),
++            command.command_id.as_bytes(),
++        ]
++        .concat(),
++    );
++    let sample_value = u64::from_be_bytes(
++        trace_digest[..8]
++            .try_into()
++            .expect("SHA-256 trace sample prefix"),
++    );
++    let sampled = sample_ratio >= 1.0
++        || (sample_ratio > 0.0 && (sample_value as f64 / u64::MAX as f64) < sample_ratio);
++    format!(
++        "00-{}-{}-{}",
++        nonzero_lower_hex(&trace_digest[..16]),
++        nonzero_lower_hex(&span_digest[..8]),
++        if sampled { "01" } else { "00" }
++    )
++}
++
++fn nonzero_lower_hex(bytes: &[u8]) -> String {
++    const HEX: &[u8; 16] = b"0123456789abcdef";
++    let mut encoded = String::with_capacity(bytes.len() * 2);
++    for byte in bytes {
++        encoded.push(HEX[(byte >> 4) as usize] as char);
++        encoded.push(HEX[(byte & 0x0f) as usize] as char);
++    }
++    if bytes.iter().all(|byte| *byte == 0) {
++        encoded.replace_range(encoded.len() - 1.., "1");
++    }
++    encoded
++}
++
+ async fn read_bounded_response(
+     response: reqwest::Response,
+     maximum_bytes: usize,
+@@ -1071,6 +1134,7 @@ mod tests {
+             max_inflight: 32,
+             request_timeout: Duration::from_secs(2),
+             max_response_bytes: 262_144,
++            trace_sample_ratio: 0.01,
+         };
+         assert!(matches!(
+             config.validate(),
+@@ -1103,6 +1167,7 @@ mod tests {
+             max_inflight: 1,
+             request_timeout: Duration::from_millis(50),
+             max_response_bytes: 1_024,
++            trace_sample_ratio: 0.01,
+         })
+         .unwrap();
+         let _held = client.inflight.clone().try_acquire_owned().unwrap();
+@@ -1123,6 +1188,22 @@ mod tests {
+         assert_eq!(second.next().unwrap(), 1);
+     }
+ 
++    #[test]
++    fn traceparent_is_stable_per_call_and_bounded_by_sampling() {
++        let first = valid_command();
++        let mut second = first.clone();
++        second.command_id = "different-command-id".to_string();
++        let first_unsampled = media_control_traceparent(&first, 0.0);
++        let second_unsampled = media_control_traceparent(&second, 0.0);
++        assert_eq!(first_unsampled.len(), 55);
++        assert!(first_unsampled.ends_with("-00"));
++        assert!(media_control_traceparent(&first, 1.0).ends_with("-01"));
++        assert_eq!(&first_unsampled[3..35], &second_unsampled[3..35]);
++        assert_ne!(&first_unsampled[36..52], &second_unsampled[36..52]);
++        assert!(!first_unsampled.contains(&first.call_id));
++        assert!(!first_unsampled.contains(&first.command_id));
++    }
++
+     #[test]
+     fn malformed_rejection_is_not_projected_as_deterministic() {
+         assert!(matches!(
+diff --git a/src/ivekit_media_lifecycle.rs b/src/ivekit_media_lifecycle.rs
+index 29bfb783..e4b3fcb2 100644
+--- a/src/ivekit_media_lifecycle.rs
++++ b/src/ivekit_media_lifecycle.rs
+@@ -1737,6 +1737,8 @@ fn build_media_control_runtime_config()
+         1_024,
+         1_048_576,
+     )?;
++    let trace_sample_ratio =
++        parsed_ratio_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_TRACE_SAMPLE_RATIO", 0.01)?;
+     for name in [
+         "IVEKIT_RUSTPBX_ROUTE_TENANT_ID",
+         "IVEKIT_RUSTPBX_CELL_ID",
+@@ -1758,6 +1760,7 @@ fn build_media_control_runtime_config()
+         max_inflight,
+         request_timeout: Duration::from_millis(request_timeout_ms),
+         max_response_bytes,
++        trace_sample_ratio,
+     })
+     .map_err(|_| "media_control_client_invalid")?;
+     Ok(Some(Arc::new(MediaControlRuntimeConfig {
+@@ -1781,6 +1784,19 @@ fn parsed_bool_env(name: &str, default: bool) -> Result<bool, &'static str> {
+     }
+ }
+ 
++fn parsed_ratio_env(name: &str, default: f64) -> Result<f64, &'static str> {
++    let value = match required_env(name) {
++        Some(value) => value
++            .parse::<f64>()
++            .map_err(|_| "media_control_ratio_invalid")?,
++        None => default,
++    };
++    if !value.is_finite() || !(0.0..=1.0).contains(&value) {
++        return Err("media_control_ratio_invalid");
++    }
++    Ok(value)
++}
++
+ fn parsed_usize_env(
+     name: &str,
+     default: usize,

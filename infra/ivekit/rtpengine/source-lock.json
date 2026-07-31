@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "component_id": "rtpengine",
+  "upstream": {
+    "repository": "https://github.com/sipwise/rtpengine",
+    "version": "mr26.0.1.13",
+    "release_ref": "mr26.0.1.13",
+    "commit": "506cfa74386a5373e40fca139a932917f22f0524",
+    "archive_url": "https://codeload.github.com/sipwise/rtpengine/tar.gz/refs/tags/mr26.0.1.13",
+    "archive_sha256": "a6d23de8f656c3ad54e4060813c230861d100b79fb45ba1ce728ad2cef780143",
+    "archive_size_bytes": 6987926,
+    "license": "GPL-3.0-only"
+  },
+  "patch_set": {
+    "id": "ivekit-rtpengine-mr26.0.1.13.2",
+    "patches": [
+      {
+        "id": "rtpengine-tcp-ng-bounded-frame-v1",
+        "path": "patches/0001-tcp-ng-bounded-frame.patch"
+      },
+      {
+        "id": "rtpengine-ivekit-owner-fence-v1",
+        "path": "patches/0002-ivekit-owner-fence.patch"
+      },
+      {
+        "id": "rtpengine-ivekit-drain-capacity-v1",
+        "path": "patches/0003-ivekit-drain-capacity.patch"
+      },
+      {
+        "id": "rtpengine-ivekit-low-cardinality-metrics-v1",
+        "path": "patches/0004-ivekit-metrics.patch"
+      },
+      {
+        "id": "rtpengine-ivekit-durable-replay-v1",
+        "path": "patches/0005-ivekit-durable-replay.patch"
+      }
+    ]
+  }
+}

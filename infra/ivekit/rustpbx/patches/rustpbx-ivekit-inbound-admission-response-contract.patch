@@ -1,0 +1,66 @@
+diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
+index 94bf4484..11ffd36d 100644
+--- a/src/proxy/routing/http.rs
++++ b/src/proxy/routing/http.rs
+@@ -323,16 +323,16 @@ impl HttpCallRouter {
+             });
+         }
+         let admitted = response
+-            .json::<HttpSnapshotAdmissionEnvelope>()
++            .json::<HttpSnapshotAdmissionResponse>()
+             .await
+             .map_err(|_| RouteError {
+                 error: anyhow!("snapshot inbound admission response is invalid"),
+                 status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+                 extensions: None,
+             })?;
+-        if !admitted.data.accepted
+-            || admitted.data.route_snapshot_revision == 0
+-            || admitted.data.route_snapshot_revision != route_snapshot_revision
++        if !admitted.accepted
++            || admitted.route_snapshot_revision == 0
++            || admitted.route_snapshot_revision != route_snapshot_revision
+         {
+             return Err(RouteError {
+                 error: anyhow!("snapshot inbound admission route revision mismatch"),
+@@ -343,12 +343,12 @@ impl HttpCallRouter {
+         crate::ivekit_owner::ensure_owner(
+             call_id,
+             crate::ivekit_owner::OwnerContract {
+-                reservation_id: admitted.data.reservation_id,
+-                interaction_id: admitted.data.call_id,
+-                owner_epoch: admitted.data.owner_epoch,
+-                route_snapshot_revision: admitted.data.route_snapshot_revision,
+-                availability_profile: admitted.data.availability_profile,
+-                auth_context_ref: admitted.data.auth_context_ref,
++                reservation_id: admitted.reservation_id,
++                interaction_id: admitted.call_id,
++                owner_epoch: admitted.owner_epoch,
++                route_snapshot_revision: admitted.route_snapshot_revision,
++                availability_profile: admitted.availability_profile,
++                auth_context_ref: admitted.auth_context_ref,
+             },
+         )
+         .await
+@@ -357,10 +357,7 @@ impl HttpCallRouter {
+             status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+             extensions: None,
+         })?;
+-        Ok(admitted
+-            .data
+-            .audio_tap_token
+-            .and_then(validated_audio_tap_token))
++        Ok(admitted.audio_tap_token.and_then(validated_audio_tap_token))
+     }
+ }
+ 
+@@ -452,9 +449,4 @@ struct HttpSnapshotAdmissionPayload<'a> {
+ }
+ 
+-#[derive(Deserialize)]
+-struct HttpSnapshotAdmissionEnvelope {
+-    data: HttpSnapshotAdmissionResponse,
+-}
+-
+ #[derive(Deserialize)]
+ struct HttpSnapshotAdmissionResponse {

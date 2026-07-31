@@ -1,0 +1,36 @@
+{
+  "name": "@opc/ivekit-reference-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && npm run check:bundle",
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "test": "node --import tsx --test 'src/**/*.test.ts' 'src/**/*.test.tsx'",
+    "test:e2e": "playwright test",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@opc/ivekit-sdk": "file:../../sdk/ivekit",
+    "@xyflow/react": "^12.11.1",
+    "livekit-client": "^2.19.2",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tinode-sdk": "^0.25.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/jsdom": "^28.0.3",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "jsdom": "^27.0.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.0.0",
+    "ws": "^8.21.0"
+  }
+}

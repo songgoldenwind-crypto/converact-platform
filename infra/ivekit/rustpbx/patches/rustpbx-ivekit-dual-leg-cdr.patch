@@ -1,0 +1,4214 @@
+diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
+index b1a9b9d1..ab0365f9 100644
+--- a/src/ivekit_dialog_shadow.rs
++++ b/src/ivekit_dialog_shadow.rs
+@@ -146,7 +146,17 @@ pub struct DialogRecoveryCapsulePayload {
+     pub remote_cseq: u32,
+     pub supports_100rel: bool,
+     pub media_reservation_id: String,
++    #[serde(default)]
++    pub started_at: Option<String>,
++    #[serde(default)]
++    pub answered_at: Option<String>,
+     pub cdr_sequence: u64,
++    #[serde(default = "default_route_snapshot_revision")]
++    pub route_snapshot_revision: u64,
++}
++
++fn default_route_snapshot_revision() -> u64 {
++    1
+ }
+ 
+ #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+@@ -265,12 +275,14 @@ impl DialogRecoveryCapsuleCodec {
+             return Err(DialogShadowError::InvalidRecord);
+         }
+         let text = std::str::from_utf8(&plaintext).map_err(|_| DialogShadowError::InvalidRecord)?;
+-        let payload: DialogRecoveryCapsulePayload =
++        let raw: serde_json::Value =
+             serde_json::from_str(text).map_err(|_| DialogShadowError::InvalidRecord)?;
+-        validate_recovery_payload(&payload)?;
+-        if canonical_json(&payload)? != text {
++        if canonical_json_value(&raw)? != text {
+             return Err(DialogShadowError::InvalidRecord);
+         }
++        let payload: DialogRecoveryCapsulePayload =
++            serde_json::from_value(raw).map_err(|_| DialogShadowError::InvalidRecord)?;
++        validate_recovery_payload(&payload)?;
+         Ok(payload)
+     }
+ }
+@@ -445,6 +457,7 @@ pub struct DialogOwnerTakeoverClaimRequest {
+ #[serde(deny_unknown_fields)]
+ pub struct DialogOwnerTakeoverClaimResponse {
+     pub status: String,
++    pub recovery_mode: String,
+     pub takeover_id: String,
+     pub owner_node_id: String,
+     pub owner_epoch: u64,
+@@ -1121,6 +1134,30 @@ impl IveKitDialogShadowRuntime {
+         }
+         self.commit_pair([events.remove(0), events.remove(0)]).await
+     }
++
++    pub async fn begin_termination_pair(
++        &mut self,
++        reason: &str,
++    ) -> Result<Option<DialogShadowPairCommitProof>, DialogShadowError> {
++        if reason.is_empty() || reason.len() > 4096 {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        let mut events = match self {
++            Self::Disabled => return Ok(None),
++            Self::FailClosed { .. } => return Err(DialogShadowError::Unavailable),
++            Self::Ready { dialogs, .. } => dialogs
++                .values()
++                .filter_map(|lifecycle| lifecycle.termination_event(reason))
++                .collect::<Vec<_>>(),
++        };
++        if events.is_empty() {
++            return Ok(None);
++        }
++        if events.len() != 2 {
++            return Err(DialogShadowError::ReconcileRequired);
++        }
++        self.commit_pair([events.remove(0), events.remove(0)]).await
++    }
+ }
+ 
+ impl DialogShadowLifecycle {
+@@ -1190,7 +1227,9 @@ impl DialogShadowLifecycle {
+         }
+         if !matches!(
+             event.state,
+-            DialogShadowState::Confirmed | DialogShadowState::Updating
++            DialogShadowState::Confirmed
++                | DialogShadowState::Updating
++                | DialogShadowState::Terminating
+         ) {
+             return None;
+         }
+@@ -1200,6 +1239,23 @@ impl DialogShadowLifecycle {
+         Some(event)
+     }
+ 
++    fn termination_event(&self, reason: &str) -> Option<DialogShadowEvent> {
++        let mut event = self.last_committed.clone()?;
++        if event.state == DialogShadowState::Terminating {
++            return None;
++        }
++        if !matches!(
++            event.state,
++            DialogShadowState::Confirmed | DialogShadowState::Updating
++        ) {
++            return None;
++        }
++        event.state = DialogShadowState::Terminating;
++        event.terminal = false;
++        event.final_response_identity = Some(reason.to_string());
++        Some(event)
++    }
++
+     fn accept_reserved(
+         &mut self,
+         request: &DialogShadowCommitRequest,
+@@ -1432,6 +1488,7 @@ fn validate_event(event: &DialogShadowEvent) -> Result<(), DialogShadowError> {
+             event.state,
+             DialogShadowState::Confirmed
+                 | DialogShadowState::Updating
++                | DialogShadowState::Terminating
+                 | DialogShadowState::Terminated
+         ) || event.provider_session_ref.as_deref() != Some(payload.call_session_ref.as_str())
+             || event.dialog_id != payload.dialog_id
+@@ -1558,6 +1615,26 @@ fn validate_recovery_payload(
+         || value.remote_cseq > 0x7fff_ffff
+         || !valid_media_reservation_id(&value.media_reservation_id)
+         || value.cdr_sequence > 9_007_199_254_740_991
++        || value.route_snapshot_revision == 0
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    let started_at = value
++        .started_at
++        .as_deref()
++        .map(chrono::DateTime::parse_from_rfc3339)
++        .transpose()
++        .map_err(|_| DialogShadowError::InvalidRecord)?;
++    let answered_at = value
++        .answered_at
++        .as_deref()
++        .map(chrono::DateTime::parse_from_rfc3339)
++        .transpose()
++        .map_err(|_| DialogShadowError::InvalidRecord)?;
++    if answered_at.is_some() && started_at.is_none()
++        || answered_at
++            .zip(started_at)
++            .is_some_and(|(answered, started)| answered < started)
+     {
+         return Err(DialogShadowError::InvalidRecord);
+     }
+@@ -1596,6 +1673,7 @@ fn validate_takeover_claim_response(
+     mut value: DialogOwnerTakeoverClaimResponse,
+ ) -> Result<DialogOwnerTakeoverClaimResponse, DialogShadowError> {
+     if value.status != "claimed"
++        || !matches!(value.recovery_mode.as_str(), "resume" | "finalize")
+         || !valid_identifier(&value.takeover_id)
+         || value.owner_node_id != expected_owner_node_id
+         || !(2..=u32::MAX as u64).contains(&value.owner_epoch)
+@@ -1610,7 +1688,10 @@ fn validate_takeover_claim_response(
+         .sort_by(|left, right| left.dialog_id.cmp(&right.dialog_id));
+     let first = &value.shadow_records[0];
+     let second = &value.shadow_records[1];
++    let recovery_mode = recovery_mode_for_records(&value.shadow_records)
++        .ok_or(DialogShadowError::OutcomeUnknown)?;
+     if first.dialog_id == second.dialog_id
++        || recovery_mode != value.recovery_mode
+         || !value
+             .shadow_records
+             .iter()
+@@ -1626,7 +1707,9 @@ fn validate_takeover_claim_response(
+                 || record.terminal
+                 || !matches!(
+                     record.state,
+-                    DialogShadowState::Confirmed | DialogShadowState::Updating
++                    DialogShadowState::Confirmed
++                        | DialogShadowState::Updating
++                        | DialogShadowState::Terminating
+                 )
+                 || record.remote_tag.is_none()
+                 || record.media_reservation_id.is_none()
+@@ -1642,6 +1725,27 @@ fn validate_takeover_claim_response(
+     Ok(value)
+ }
+ 
++fn recovery_mode_for_records(records: &[DialogShadowRecord]) -> Option<&'static str> {
++    if records.len() != 2 {
++        return None;
++    }
++    if records
++        .iter()
++        .all(|record| record.state == DialogShadowState::Terminating)
++    {
++        return Some("finalize");
++    }
++    if records.iter().all(|record| {
++        matches!(
++            record.state,
++            DialogShadowState::Confirmed | DialogShadowState::Updating
++        )
++    }) {
++        return Some("resume");
++    }
++    None
++}
++
+ fn validate_takeover_consume_request(
+     value: &DialogOwnerTakeoverConsumeRequest,
+ ) -> Result<(), DialogShadowError> {
+@@ -1759,6 +1863,8 @@ pub fn open_recovery_pair(
+     records.sort_by(|left, right| left.dialog_id.cmp(&right.dialog_id));
+     let first = &records[0];
+     let second = &records[1];
++    let recovery_mode =
++        recovery_mode_for_records(&records).ok_or(DialogShadowError::InvalidRecord)?;
+     if first.dialog_id == second.dialog_id
+         || first.tenant_id != second.tenant_id
+         || first.cell_id != second.cell_id
+@@ -1772,7 +1878,9 @@ pub fn open_recovery_pair(
+                 || record.terminal
+                 || !matches!(
+                     record.state,
+-                    DialogShadowState::Confirmed | DialogShadowState::Updating
++                    DialogShadowState::Confirmed
++                        | DialogShadowState::Updating
++                        | DialogShadowState::Terminating
+                 )
+                 || record.remote_tag.is_none()
+                 || record.media_reservation_id.is_none()
+@@ -1781,6 +1889,13 @@ pub fn open_recovery_pair(
+     {
+         return Err(DialogShadowError::InvalidRecord);
+     }
++    if recovery_mode == "finalize"
++        && records
++            .iter()
++            .any(|record| record.state != DialogShadowState::Terminating)
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
+     let payloads = records
+         .iter()
+         .map(|record| {
+@@ -1834,6 +1949,9 @@ pub fn open_recovery_pair(
+         || caller.call_session_ref != callee.call_session_ref
+         || caller.interaction_id != callee.interaction_id
+         || caller.media_reservation_id != callee.media_reservation_id
++        || caller.route_snapshot_revision != callee.route_snapshot_revision
++        || caller.started_at != callee.started_at
++        || caller.answered_at != callee.answered_at
+     {
+         return Err(DialogShadowError::InvalidRecord);
+     }
+@@ -1887,10 +2005,33 @@ pub async fn recover_dialog_pair(
+     let call_session_ref = requested_payload.call_session_ref.clone();
+     let interaction_id = requested_payload.interaction_id.clone();
+     let previous_owner_epoch = claim.shadow_records[0].owner_epoch;
++    let caller = payloads
++        .iter()
++        .find(|payload| payload.leg == "caller")
++        .ok_or(DialogShadowError::InvalidRecord)?;
+     let callee = payloads
+         .iter()
+         .find(|payload| payload.leg == "callee")
+         .ok_or(DialogShadowError::InvalidRecord)?;
++    if claim.recovery_mode == "finalize" {
++        finalize_recovered_dialog_pair(
++            config,
++            &tenant_id,
++            &cell_id,
++            &owner_node_id,
++            &owner_fault_domain,
++            &claim,
++            &call_session_ref,
++            &interaction_id,
++            &auth_context_ref,
++            &payloads,
++        )
++        .await?;
++        return Err(DialogShadowError::AbsentOrTerminal);
++    }
++    if claim.recovery_mode != "resume" {
++        return Err(DialogShadowError::InvalidRecord);
++    }
+     let snapshots = payloads
+         .iter()
+         .map(recovery_payload_to_dialog_snapshot)
+@@ -1940,6 +2081,7 @@ pub async fn recover_dialog_pair(
+         &call_session_ref,
+         &auth_context_ref,
+         &payloads,
++        DialogShadowState::Confirmed,
+     )
+     .await
+     {
+@@ -2020,12 +2162,17 @@ pub async fn recover_dialog_pair(
+         .strip_suffix("/callee")
+         .ok_or(DialogShadowError::InvalidRecord)?
+         .to_string();
++    if caller.route_snapshot_revision != callee.route_snapshot_revision {
++        remove_restored_dialogs(dialog_layer, &restored_ids);
++        return Err(DialogShadowError::InvalidRecord);
++    }
+     if crate::ivekit_owner::ensure_owner(
+         &call_session_ref,
+         crate::ivekit_owner::OwnerContract {
+             reservation_id,
+             interaction_id,
+             owner_epoch: claim.owner_epoch.to_string(),
++            route_snapshot_revision: callee.route_snapshot_revision,
+             availability_profile: PROFILE_T1.to_string(),
+             auth_context_ref: Some(auth_context_ref.clone()),
+         },
+@@ -2616,19 +2763,25 @@ impl RecoveredDialogController {
+         let callee_snapshot = callee.snapshot();
+         let previous_caller = self.payload(RecoveredDialogSide::Caller)?;
+         let previous_callee = self.payload(RecoveredDialogSide::Callee)?;
+-        let caller_payload = recovery_payload_from_dialog_snapshots(
++        let caller_payload = recovery_payload_from_dialog_snapshots_with_timing(
+             &self.context.call_session_ref,
+             &previous_caller.interaction_id,
+             &previous_caller.media_reservation_id,
+             previous_caller.cdr_sequence,
++            previous_caller.route_snapshot_revision,
++            previous_caller.started_at.as_deref(),
++            previous_caller.answered_at.as_deref(),
+             &caller_snapshot,
+             &callee_snapshot,
+         )?;
+-        let callee_payload = recovery_payload_from_dialog_snapshots(
++        let callee_payload = recovery_payload_from_dialog_snapshots_with_timing(
+             &self.context.call_session_ref,
+             &previous_callee.interaction_id,
+             &previous_callee.media_reservation_id,
+             previous_callee.cdr_sequence,
++            previous_callee.route_snapshot_revision,
++            previous_callee.started_at.as_deref(),
++            previous_callee.answered_at.as_deref(),
+             &callee_snapshot,
+             &caller_snapshot,
+         )?;
+@@ -2654,6 +2807,43 @@ impl RecoveredDialogController {
+                 "recovered media close failed"
+             );
+         }
++        let previous_cdr_sequence = self
++            .payloads
++            .iter()
++            .map(|payload| payload.cdr_sequence)
++            .max()
++            .unwrap_or_default();
++        let cdr_sequence = crate::ivekit_dual_leg_cdr::fenced_recovered_sequence(
++            previous_cdr_sequence,
++            self.context.owner_epoch,
++        );
++        if cdr_sequence > 9_007_199_254_740_991 {
++            tracing::error!(
++                call_session_ref = %self.context.call_session_ref,
++                "recovered terminal CDR sequence exceeded the durability contract"
++            );
++            return;
++        }
++        for payload in &mut self.payloads {
++            payload.cdr_sequence = cdr_sequence;
++        }
++        let ended_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
++        if let Err(error) = crate::ivekit_dual_leg_cdr::emit_recovered_terminal_cdr(
++            &self.payloads,
++            self.context.owner_epoch,
++            reason,
++            cdr_sequence,
++            &ended_at,
++        )
++        .await
++        {
++            tracing::error!(
++                call_session_ref = %self.context.call_session_ref,
++                error = %error,
++                "recovered terminal CDR did not reach Region durability; shadow remains recoverable"
++            );
++            return;
++        }
+         if let Some(sequence) = self.sequence.checked_add(1) {
+             match recovered_shadow_pair_request(
+                 &self.context,
+@@ -2891,6 +3081,246 @@ fn relay_headers(headers: &[rsipstack::sip::Header]) -> Vec<rsipstack::sip::Head
+         .collect()
+ }
+ 
++#[allow(clippy::too_many_arguments)]
++async fn finalize_recovered_dialog_pair(
++    config: &DialogShadowRuntimeConfig,
++    tenant_id: &str,
++    cell_id: &str,
++    owner_node_id: &str,
++    owner_fault_domain: &str,
++    claim: &DialogOwnerTakeoverClaimResponse,
++    call_session_ref: &str,
++    interaction_id: &str,
++    auth_context_ref: &str,
++    payloads: &[DialogRecoveryCapsulePayload],
++) -> Result<(), DialogShadowError> {
++    commit_recovered_shadow_pair(
++        config,
++        tenant_id,
++        cell_id,
++        owner_node_id,
++        owner_fault_domain,
++        claim.owner_epoch,
++        &claim.takeover_id,
++        call_session_ref,
++        auth_context_ref,
++        payloads,
++        DialogShadowState::Terminating,
++    )
++    .await?;
++    let consume_request = DialogOwnerTakeoverConsumeRequest {
++        tenant_id: tenant_id.to_string(),
++        cell_id: cell_id.to_string(),
++        call_session_ref: call_session_ref.to_string(),
++        takeover_id: claim.takeover_id.clone(),
++        owner_epoch: claim.owner_epoch,
++        takeover_token: claim.takeover_token.clone(),
++    };
++    let consumed = config
++        .executor
++        .consume_takeover(&consume_request, owner_node_id)
++        .await;
++    let authority_active = if consumed.is_ok() {
++        true
++    } else {
++        config
++            .executor
++            .check_authority(
++                &DialogOwnerAuthorityRequest {
++                    tenant_id: tenant_id.to_string(),
++                    cell_id: cell_id.to_string(),
++                    call_session_ref: call_session_ref.to_string(),
++                    owner_epoch: claim.owner_epoch,
++                },
++                owner_node_id,
++            )
++            .await
++            .is_ok_and(|authority| authority.status == "active")
++    };
++    if !authority_active {
++        return Err(DialogShadowError::OutcomeUnknown);
++    }
++    let callee = payloads
++        .iter()
++        .find(|payload| payload.leg == "callee")
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    let reservation_id = callee
++        .media_reservation_id
++        .strip_suffix("/callee")
++        .ok_or(DialogShadowError::InvalidRecord)?
++        .to_string();
++    if crate::ivekit_owner::ensure_owner(
++        call_session_ref,
++        crate::ivekit_owner::OwnerContract {
++            reservation_id,
++            interaction_id: interaction_id.to_string(),
++            owner_epoch: claim.owner_epoch.to_string(),
++            route_snapshot_revision: callee.route_snapshot_revision,
++            availability_profile: PROFILE_T1.to_string(),
++            auth_context_ref: Some(auth_context_ref.to_string()),
++        },
++    )
++    .await
++    .is_err()
++    {
++        return Err(DialogShadowError::Unavailable);
++    }
++    let previous_sequence = payloads
++        .iter()
++        .map(|payload| payload.cdr_sequence)
++        .max()
++        .unwrap_or_default();
++    let cdr_sequence =
++        crate::ivekit_dual_leg_cdr::fenced_recovered_sequence(previous_sequence, claim.owner_epoch);
++    if cdr_sequence > 9_007_199_254_740_991 {
++        return Err(DialogShadowError::SequenceExhausted);
++    }
++    let mut final_payloads = payloads.to_vec();
++    for payload in &mut final_payloads {
++        payload.cdr_sequence = cdr_sequence;
++    }
++    let context = RecoveredShadowPairContext {
++        tenant_id: tenant_id.to_string(),
++        cell_id: cell_id.to_string(),
++        owner_node_id: owner_node_id.to_string(),
++        owner_fault_domain: owner_fault_domain.to_string(),
++        owner_epoch: claim.owner_epoch,
++        takeover_id: claim.takeover_id.clone(),
++        call_session_ref: call_session_ref.to_string(),
++        auth_context_ref: auth_context_ref.to_string(),
++    };
++    let terminal_request = recovered_shadow_pair_request(
++        &context,
++        &config.recovery_codec,
++        &final_payloads,
++        DialogShadowState::Terminated,
++        2,
++        Some("recovered_termination_finalize"),
++        None,
++        None,
++    )?;
++    let ended_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
++    let cdr_committed = crate::ivekit_dual_leg_cdr::emit_recovered_terminal_cdr(
++        &final_payloads,
++        context.owner_epoch,
++        "recovered_termination_finalize",
++        cdr_sequence,
++        &ended_at,
++    )
++    .await
++    .is_ok();
++    if cdr_committed {
++        match config.executor.commit_pair(&terminal_request).await {
++            Ok(_) => crate::ivekit_owner::close_owner(call_session_ref).await,
++            Err(error) => {
++                tracing::warn!(
++                    %call_session_ref,
++                    error = %error,
++                    "recovered terminal shadow remains pending; background shadow retry started"
++                );
++                spawn_recovered_terminal_shadow_retry(
++                    Arc::clone(&config.executor),
++                    terminal_request,
++                    call_session_ref.to_string(),
++                );
++            }
++        }
++    } else {
++        tracing::warn!(
++            %call_session_ref,
++            "recovered terminal CDR remains pending; background exact CDR retry started"
++        );
++        spawn_recovered_cdr_then_shadow_retry(
++            Arc::clone(&config.executor),
++            terminal_request,
++            final_payloads,
++            context.owner_epoch,
++            cdr_sequence,
++            ended_at,
++            call_session_ref.to_string(),
++        );
++    }
++    Ok(())
++}
++
++fn spawn_recovered_terminal_shadow_retry(
++    executor: Arc<DialogShadowHttpClient>,
++    request: DialogShadowCommitPairRequest,
++    call_session_ref: String,
++) {
++    crate::utils::spawn(async move {
++        retry_recovered_terminal_shadow(&executor, &request, &call_session_ref).await;
++    });
++}
++
++fn spawn_recovered_cdr_then_shadow_retry(
++    executor: Arc<DialogShadowHttpClient>,
++    request: DialogShadowCommitPairRequest,
++    payloads: Vec<DialogRecoveryCapsulePayload>,
++    owner_epoch: u64,
++    cdr_sequence: u64,
++    ended_at: String,
++    call_session_ref: String,
++) {
++    crate::utils::spawn(async move {
++        let mut retry_streak = 0_u32;
++        loop {
++            retry_streak = retry_streak.saturating_add(1);
++            retry_delay(retry_streak).await;
++            match crate::ivekit_dual_leg_cdr::emit_recovered_terminal_cdr(
++                &payloads,
++                owner_epoch,
++                "recovered_termination_finalize",
++                cdr_sequence,
++                &ended_at,
++            )
++            .await
++            {
++                Ok(()) => break,
++                Err(error) => tracing::warn!(
++                    %call_session_ref,
++                    retry_streak,
++                    error = %error,
++                    "recovered exact terminal CDR retry remains pending"
++                ),
++            }
++        }
++        retry_recovered_terminal_shadow(&executor, &request, &call_session_ref).await;
++    });
++}
++
++async fn retry_recovered_terminal_shadow(
++    executor: &DialogShadowHttpClient,
++    request: &DialogShadowCommitPairRequest,
++    call_session_ref: &str,
++) {
++    let mut retry_streak = 0_u32;
++    loop {
++        retry_streak = retry_streak.saturating_add(1);
++        retry_delay(retry_streak).await;
++        match executor.commit_pair(request).await {
++            Ok(_) => {
++                crate::ivekit_owner::close_owner(call_session_ref).await;
++                break;
++            }
++            Err(error) => tracing::warn!(
++                %call_session_ref,
++                retry_streak,
++                error = %error,
++                "recovered terminal shadow retry remains pending"
++            ),
++        }
++    }
++}
++
++async fn retry_delay(retry_streak: u32) {
++    let exponent = retry_streak.min(6);
++    tokio::time::sleep(Duration::from_millis(
++        250_u64.saturating_mul(1_u64 << exponent),
++    ))
++    .await;
++}
++
+ #[allow(clippy::too_many_arguments)]
+ async fn commit_recovered_shadow_pair(
+     config: &DialogShadowRuntimeConfig,
+@@ -2903,6 +3333,7 @@ async fn commit_recovered_shadow_pair(
+     call_session_ref: &str,
+     auth_context_ref: &str,
+     payloads: &[DialogRecoveryCapsulePayload],
++    state: DialogShadowState,
+ ) -> Result<[DialogShadowRecord; 2], DialogShadowError> {
+     let request = recovered_shadow_pair_request(
+         &RecoveredShadowPairContext {
+@@ -2917,7 +3348,7 @@ async fn commit_recovered_shadow_pair(
+         },
+         &config.recovery_codec,
+         payloads,
+-        DialogShadowState::Confirmed,
++        state,
+         1,
+         None,
+         None,
+@@ -2943,6 +3374,50 @@ pub fn recovery_payload_from_dialog_snapshots(
+     cdr_sequence: u64,
+     snapshot: &rsipstack::dialog::dialog::DialogSnapshot,
+     peer: &rsipstack::dialog::dialog::DialogSnapshot,
++) -> Result<DialogRecoveryCapsulePayload, DialogShadowError> {
++    recovery_payload_from_dialog_snapshots_with_route_revision(
++        call_session_ref,
++        interaction_id,
++        media_reservation_id,
++        cdr_sequence,
++        1,
++        snapshot,
++        peer,
++    )
++}
++
++pub fn recovery_payload_from_dialog_snapshots_with_route_revision(
++    call_session_ref: &str,
++    interaction_id: &str,
++    media_reservation_id: &str,
++    cdr_sequence: u64,
++    route_snapshot_revision: u64,
++    snapshot: &rsipstack::dialog::dialog::DialogSnapshot,
++    peer: &rsipstack::dialog::dialog::DialogSnapshot,
++) -> Result<DialogRecoveryCapsulePayload, DialogShadowError> {
++    recovery_payload_from_dialog_snapshots_with_timing(
++        call_session_ref,
++        interaction_id,
++        media_reservation_id,
++        cdr_sequence,
++        route_snapshot_revision,
++        None,
++        None,
++        snapshot,
++        peer,
++    )
++}
++
++pub fn recovery_payload_from_dialog_snapshots_with_timing(
++    call_session_ref: &str,
++    interaction_id: &str,
++    media_reservation_id: &str,
++    cdr_sequence: u64,
++    route_snapshot_revision: u64,
++    started_at: Option<&str>,
++    answered_at: Option<&str>,
++    snapshot: &rsipstack::dialog::dialog::DialogSnapshot,
++    peer: &rsipstack::dialog::dialog::DialogSnapshot,
+ ) -> Result<DialogRecoveryCapsulePayload, DialogShadowError> {
+     use rsipstack::dialog::dialog::DialogSnapshotState;
+     use rsipstack::transaction::key::TransactionRole;
+@@ -3001,7 +3476,10 @@ pub fn recovery_payload_from_dialog_snapshots(
+         remote_cseq: snapshot.remote_cseq,
+         supports_100rel: snapshot.supports_100rel,
+         media_reservation_id: media_reservation_id.to_string(),
++        started_at: started_at.map(str::to_string),
++        answered_at: answered_at.map(str::to_string),
+         cdr_sequence,
++        route_snapshot_revision,
+     };
+     validate_recovery_payload(&payload)?;
+     Ok(payload)
+@@ -3329,7 +3807,10 @@ mod tests {
+             remote_cseq: 18,
+             supports_100rel: true,
+             media_reservation_id: "reservation-a/callee".into(),
++            started_at: Some("2026-07-27T01:00:00.000Z".into()),
++            answered_at: Some("2026-07-27T01:00:02.000Z".into()),
+             cdr_sequence: 12,
++            route_snapshot_revision: 42,
+         }
+     }
+ 
+@@ -3376,6 +3857,53 @@ mod tests {
+         assert_eq!(request.pair_hash().unwrap().len(), 64);
+     }
+ 
++    #[test]
++    fn recovered_terminating_pair_is_finalization_only_and_keeps_recovery_capsules() {
++        let codec = DialogRecoveryCapsuleCodec::new(
++            DialogRecoveryCapsuleKey::new("recovery-2026-07", &[0x56; 32]).unwrap(),
++            None,
++        )
++        .unwrap();
++        let payloads = [
++            recovery_payload("dialog-a", "dialog-b", "caller", "uas"),
++            recovery_payload("dialog-b", "dialog-a", "callee", "uac"),
++        ];
++        let request = recovered_shadow_pair_request(
++            &RecoveredShadowPairContext {
++                tenant_id: "tenant-a".into(),
++                cell_id: "cell-a".into(),
++                owner_node_id: "rustpbx-b".into(),
++                owner_fault_domain: "zone-b-rack-1".into(),
++                owner_epoch: 8,
++                takeover_id: "takeover-a".into(),
++                call_session_ref: "call-session-a".into(),
++                auth_context_ref: "auth-context-a".into(),
++            },
++            &codec,
++            &payloads,
++            DialogShadowState::Terminating,
++            1,
++            Some("normal_session_cleanup"),
++            None,
++            None,
++        )
++        .unwrap();
++
++        assert_eq!(
++            recovery_mode_for_records(&request.records),
++            Some("finalize")
++        );
++        assert!(request.records.iter().all(|record| {
++            record.state == DialogShadowState::Terminating
++                && !record.terminal
++                && record.recovery_capsule.is_some()
++        }));
++        assert_eq!(
++            open_recovery_pair(&codec, &request.records).unwrap(),
++            payloads
++        );
++    }
++
+     #[test]
+     fn relayed_headers_drop_dialog_transaction_and_authentication_identity() {
+         use rsipstack::sip::Header;
+diff --git a/src/ivekit_dual_leg_cdr.rs b/src/ivekit_dual_leg_cdr.rs
+new file mode 100644
+index 00000000..8b969918
+--- /dev/null
++++ b/src/ivekit_dual_leg_cdr.rs
+@@ -0,0 +1,2072 @@
++use anyhow::{Result, anyhow};
++use futures::{StreamExt, stream};
++use reqwest::Url;
++use serde::{Deserialize, Serialize};
++use serde_json::Value;
++use sha2::{Digest, Sha256};
++use std::collections::BTreeMap;
++use std::fs::{File, OpenOptions, ReadDir};
++use std::io::{Read, Write};
++use std::path::{Path, PathBuf};
++use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
++use std::sync::{Arc, Mutex, OnceLock};
++use std::time::{Duration, SystemTime, UNIX_EPOCH};
++use tokio::sync::mpsc::error::{TryRecvError, TrySendError};
++use tokio::sync::{Mutex as AsyncMutex, Semaphore, mpsc, oneshot};
++
++const MAX_CDR_BYTES: usize = 128 * 1024;
++const MAX_RECEIPT_BYTES: usize = 64 * 1024;
++const MAX_SCAN_FILES: usize = 4096;
++const MAX_UPLOAD_CONCURRENCY: usize = 64;
++const REGION_COMMIT_MAX_CONCURRENT: usize = 64;
++const MAX_SPOOL_WRITE_BATCH: usize = 256;
++const MAX_SPOOL_WRITER_QUEUE: usize = 4096;
++const MAX_SPOOL_WRITE_RETRY_MS: u64 = 1_000;
++const MAX_RETRY_METADATA_BYTES: usize = 1024;
++const MAX_SAFE_DECIMAL: u64 = 9_007_199_254_740_991;
++const MAX_T1_OWNER_EPOCH: u64 = 4_294_967_295;
++const PROFILE_T1: &str = "VOICE-HA-T1";
++const SPOOL_RECORD_EXTENSION: &str = "json";
++const REGION_UPLOAD_CLAIM_EXTENSION: &str = "t1pending";
++
++#[derive(Clone, Debug)]
++pub struct TerminalCdrInput {
++    pub cell_id: String,
++    pub owner_node_id: String,
++    pub availability_profile: String,
++    pub interaction_id: String,
++    pub provider_call_id: String,
++    pub cdr_sequence: u64,
++    pub started_at: String,
++    pub answered_at: Option<String>,
++    pub ended_at: String,
++    pub caller: TerminalCdrLegInput,
++    pub callee: TerminalCdrLegInput,
++    pub owner_epoch: u64,
++    pub route_snapshot_revision: u64,
++    pub winning_branch_hash: Option<String>,
++    pub early_media: bool,
++    pub transfer_chain_hashes: Vec<String>,
++    pub media_timeout: bool,
++}
++
++#[derive(Clone, Debug)]
++pub struct TerminalCdrLegInput {
++    pub dialog_id_hash: String,
++    pub direction: String,
++    pub sip_final_code: u16,
++    pub hangup_cause: String,
++    pub answered_at: Option<String>,
++    pub ended_at: String,
++    pub media_result: String,
++    pub reservation_ref: String,
++}
++
++#[derive(Clone, Debug, Deserialize, Serialize)]
++#[serde(deny_unknown_fields)]
++struct DualLegCdrEnvelope {
++    schema_version: String,
++    state: String,
++    interaction_id: String,
++    provider_call_id: String,
++    cell_id: String,
++    owner_node_id: String,
++    expected_region_id: String,
++    availability_profile: String,
++    owner_epoch: String,
++    sequence: String,
++    call: CallSummary,
++    legs: Vec<LegSummary>,
++}
++
++#[derive(Clone, Debug, Deserialize, Serialize)]
++#[serde(deny_unknown_fields)]
++struct CallSummary {
++    winning_branch_hash: Option<String>,
++    early_media: bool,
++    transfer_chain_hashes: Vec<String>,
++    media_timeout: bool,
++    started_at: String,
++    answered_at: Option<String>,
++    ended_at: String,
++}
++
++#[derive(Clone, Debug, Deserialize, Serialize)]
++#[serde(deny_unknown_fields)]
++struct LegSummary {
++    role: String,
++    dialog_id_hash: String,
++    direction: String,
++    sip_final_code: u16,
++    hangup_cause: String,
++    answered_at: Option<String>,
++    ended_at: String,
++    media_result: String,
++    reservation_ref: Option<String>,
++    owner_epoch: String,
++    route_snapshot_revision: String,
++}
++
++#[derive(Debug, Deserialize)]
++#[serde(deny_unknown_fields)]
++struct DurableReceipt {
++    schema_version: String,
++    state: String,
++    receipt_id: Option<String>,
++    interaction_id: String,
++    provider_call_id: String,
++    acknowledged_sequence: String,
++    committed_sequence: Option<String>,
++    acknowledged_payload_hash: String,
++    region_id: Option<String>,
++    durability_contract_id: Option<String>,
++    committed_at: Option<String>,
++    replayed: bool,
++}
++
++#[derive(Clone)]
++struct CdrConfig {
++    spool_dir: PathBuf,
++    endpoint: Url,
++    service_key_path: PathBuf,
++    region_id: String,
++    cell_id: String,
++    owner_node_id: String,
++    client: reqwest::Client,
++    poll_interval: Duration,
++    spool_scanner: Arc<Mutex<SpoolScanner>>,
++    region_commit_slots: Arc<Semaphore>,
++}
++
++struct SpoolWriteRequest {
++    payload: DualLegCdrEnvelope,
++    bytes: Vec<u8>,
++    payload_hash: String,
++    record_extension: &'static str,
++    acknowledgement: oneshot::Sender<std::result::Result<(), String>>,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++#[serde(deny_unknown_fields)]
++struct RetrySchedule {
++    attempts: u32,
++    next_attempt_unix_ms: u64,
++}
++
++#[derive(Default)]
++struct SpoolScanner {
++    entries: Option<ReadDir>,
++    cycle_backlog: usize,
++    last_complete_backlog: usize,
++}
++
++struct SpoolScanBatch {
++    paths: Vec<PathBuf>,
++    backlog: usize,
++}
++
++static CONFIG: OnceLock<std::result::Result<Option<CdrConfig>, String>> = OnceLock::new();
++static UPLOADER: OnceLock<()> = OnceLock::new();
++static SPOOL_WRITER: OnceLock<std::result::Result<mpsc::Sender<SpoolWriteRequest>, String>> =
++    OnceLock::new();
++static PROCESS_NONCE: OnceLock<String> = OnceLock::new();
++static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(1);
++static SPOOL_HEALTHY: AtomicBool = AtomicBool::new(true);
++static ADMISSION_HEALTHY: AtomicBool = AtomicBool::new(true);
++static REGION_COMMIT_HEALTHY: AtomicBool = AtomicBool::new(true);
++static EMERGENCY_WRITE_LOCK: AsyncMutex<()> = AsyncMutex::const_new(());
++
++pub fn start_uploader() -> Result<()> {
++    let Some(config) = config()?.cloned() else {
++        return Ok(());
++    };
++    ensure_spool_directory(&config.spool_dir)?;
++    remove_stale_temporary_files(&config.spool_dir)?;
++    recover_region_upload_claims(&config.spool_dir)?;
++    if let Err(error) = spool_writer(&config) {
++        SPOOL_HEALTHY.store(false, Ordering::Release);
++        return Err(error);
++    }
++    if UPLOADER.set(()).is_err() {
++        return Ok(());
++    }
++    let handle = tokio::runtime::Handle::try_current()
++        .map_err(|_| anyhow!("iveKit CDR uploader requires a Tokio runtime"))?;
++    handle.spawn(async move {
++        let mut retry_streak = 0_u32;
++        loop {
++            let pass_failed = match upload_pending(&config).await {
++                Ok(retryable_failures) => {
++                    if retryable_failures > 0 {
++                        metrics::counter!(
++                            "rustpbx_ivekit_cdr_upload_total",
++                            "result" => "retryable_failure"
++                        )
++                        .increment(retryable_failures as u64);
++                    }
++                    false
++                }
++                Err(error) => {
++                    tracing::warn!(error = %error, "iveKit CDR upload pass failed");
++                    true
++                }
++            };
++            if pass_failed {
++                retry_streak = retry_streak.saturating_add(1);
++            } else {
++                retry_streak = 0;
++            }
++            tokio::time::sleep(retry_delay(config.poll_interval, retry_streak)).await;
++        }
++    });
++    Ok(())
++}
++
++pub fn assert_admission_ready(availability_profile: &str) -> Result<()> {
++    let config = config()?.ok_or_else(|| anyhow!("iveKit CDR durable spool is not configured"))?;
++    if !SPOOL_HEALTHY.load(Ordering::Acquire) || !ADMISSION_HEALTHY.load(Ordering::Acquire) {
++        return Err(anyhow!("iveKit CDR durable spool is unhealthy"));
++    }
++    if availability_profile == PROFILE_T1
++        && (!REGION_COMMIT_HEALTHY.load(Ordering::Acquire)
++            || config.region_commit_slots.available_permits() == 0)
++    {
++        return Err(anyhow!("iveKit CDR Region commit capacity is unavailable"));
++    }
++    ensure_spool_directory(&config.spool_dir)?;
++    if let Err(error) = spool_writer(config) {
++        SPOOL_HEALTHY.store(false, Ordering::Release);
++        return Err(error);
++    }
++    Ok(())
++}
++
++pub async fn emit_terminal_cdr(input: TerminalCdrInput) -> Result<()> {
++    let config = config()?.ok_or_else(|| anyhow!("iveKit CDR durable spool is not configured"))?;
++    let requires_region_commit = input.availability_profile == PROFILE_T1;
++    let payload = payload(input, &config.region_id)?;
++    let bytes = serde_json::to_vec(&payload)?;
++    if bytes.len() > MAX_CDR_BYTES {
++        return Err(anyhow!("iveKit CDR exceeds the bounded spool record size"));
++    }
++    let payload_hash = payload_hash(&payload)?;
++    let record_extension = if requires_region_commit {
++        REGION_UPLOAD_CLAIM_EXTENSION
++    } else {
++        SPOOL_RECORD_EXTENSION
++    };
++    let path = persist_terminal_cdr(config, payload, bytes, payload_hash, record_extension).await?;
++    metrics::counter!(
++        "rustpbx_ivekit_cdr_spool_total",
++        "result" => "persisted"
++    )
++    .increment(1);
++    let region_result = if !requires_region_commit {
++        Ok(())
++    } else {
++        let permit = Arc::clone(&config.region_commit_slots)
++            .try_acquire_owned()
++            .map_err(|_| anyhow!("iveKit CDR Region commit capacity is exhausted"));
++        match permit {
++            Ok(permit) => {
++                let result = upload_exact_record(config, &path).await;
++                drop(permit);
++                if result.is_err() {
++                    REGION_COMMIT_HEALTHY.store(false, Ordering::Release);
++                    release_region_upload_claim(&config.spool_dir, &path).await?;
++                }
++                result
++            }
++            Err(error) => {
++                release_region_upload_claim(&config.spool_dir, &path).await?;
++                Err(error)
++            }
++        }
++    };
++    start_uploader()?;
++    region_result
++}
++
++pub async fn emit_recovered_terminal_cdr(
++    payloads: &[crate::ivekit_dialog_shadow::DialogRecoveryCapsulePayload],
++    owner_epoch: u64,
++    reason: &str,
++    cdr_sequence: u64,
++    ended_at: &str,
++) -> Result<()> {
++    if payloads.len() != 2 || cdr_sequence == 0 {
++        return Err(anyhow!("recovered CDR requires exactly two dialog legs"));
++    }
++    let caller = payloads
++        .iter()
++        .find(|payload| payload.leg == "caller")
++        .ok_or_else(|| anyhow!("recovered caller CDR leg is missing"))?;
++    let callee = payloads
++        .iter()
++        .find(|payload| payload.leg == "callee")
++        .ok_or_else(|| anyhow!("recovered callee CDR leg is missing"))?;
++    if caller.interaction_id != callee.interaction_id
++        || caller.call_session_ref != callee.call_session_ref
++        || caller.route_snapshot_revision != callee.route_snapshot_revision
++        || caller.started_at != callee.started_at
++        || caller.answered_at != callee.answered_at
++    {
++        return Err(anyhow!("recovered CDR leg binding mismatch"));
++    }
++    let ended_at = chrono::DateTime::parse_from_rfc3339(ended_at)
++        .map_err(|_| anyhow!("recovered CDR ended_at is invalid"))?
++        .to_utc()
++        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
++    let started_at = caller
++        .started_at
++        .clone()
++        .unwrap_or_else(|| ended_at.clone());
++    let (cell_id, owner_node_id) = node_identity()?;
++    let cause = token(reason);
++    emit_terminal_cdr(TerminalCdrInput {
++        cell_id,
++        owner_node_id,
++        availability_profile: PROFILE_T1.to_string(),
++        interaction_id: caller.interaction_id.clone(),
++        provider_call_id: caller.call_session_ref.clone(),
++        cdr_sequence,
++        started_at,
++        answered_at: caller.answered_at.clone(),
++        ended_at: ended_at.clone(),
++        caller: TerminalCdrLegInput {
++            dialog_id_hash: caller.dialog_id.clone(),
++            direction: "inbound".to_string(),
++            sip_final_code: 200,
++            hangup_cause: cause.clone(),
++            answered_at: caller.answered_at.clone(),
++            ended_at: ended_at.clone(),
++            media_result: "relayed".to_string(),
++            reservation_ref: recovered_leg_reservation(&caller.media_reservation_id, "caller"),
++        },
++        callee: TerminalCdrLegInput {
++            dialog_id_hash: callee.dialog_id.clone(),
++            direction: "outbound".to_string(),
++            sip_final_code: 200,
++            hangup_cause: cause,
++            answered_at: callee.answered_at.clone(),
++            ended_at,
++            media_result: "relayed".to_string(),
++            reservation_ref: recovered_leg_reservation(&callee.media_reservation_id, "callee"),
++        },
++        owner_epoch,
++        route_snapshot_revision: caller.route_snapshot_revision,
++        winning_branch_hash: Some(callee.dialog_id.clone()),
++        early_media: false,
++        transfer_chain_hashes: Vec::new(),
++        media_timeout: reason.to_ascii_lowercase().contains("timeout"),
++    })
++    .await
++}
++
++pub fn fenced_recovered_sequence(previous_sequence: u64, owner_epoch: u64) -> u64 {
++    previous_sequence.saturating_add(1).max(owner_epoch)
++}
++
++fn recovered_leg_reservation(reservation: &str, role: &str) -> String {
++    let base = reservation
++        .strip_suffix("/caller")
++        .or_else(|| reservation.strip_suffix("/callee"))
++        .unwrap_or(reservation);
++    format!("{base}/{role}")
++}
++
++pub fn node_identity() -> Result<(String, String)> {
++    let config = config()?.ok_or_else(|| anyhow!("iveKit CDR durable spool is not configured"))?;
++    Ok((config.cell_id.clone(), config.owner_node_id.clone()))
++}
++
++pub fn stable_cdr_identity_hash(scope: &str, values: &[&str]) -> String {
++    let mut digest = Sha256::new();
++    digest.update((scope.len() as u64).to_be_bytes());
++    digest.update(scope.as_bytes());
++    for value in values {
++        digest.update((value.len() as u64).to_be_bytes());
++        digest.update(value.as_bytes());
++    }
++    lower_hex(&digest.finalize())
++}
++
++fn payload(input: TerminalCdrInput, expected_region_id: &str) -> Result<DualLegCdrEnvelope> {
++    if !valid_identifier(&input.interaction_id)
++        || !valid_provider_call_id(&input.provider_call_id)
++        || !valid_identifier(&input.cell_id)
++        || !valid_identifier(&input.owner_node_id)
++        || !valid_identifier(expected_region_id)
++        || !matches!(
++            input.availability_profile.as_str(),
++            "VOICE-ORDINARY" | "VOICE-HA-T1"
++        )
++        || input.cdr_sequence == 0
++        || input.cdr_sequence > MAX_SAFE_DECIMAL
++        || input.owner_epoch == 0
++        || input.owner_epoch > MAX_SAFE_DECIMAL
++        || (input.availability_profile == "VOICE-HA-T1" && input.owner_epoch > MAX_T1_OWNER_EPOCH)
++        || input.route_snapshot_revision == 0
++        || input.route_snapshot_revision > MAX_SAFE_DECIMAL
++        || input.transfer_chain_hashes.len() > 32
++        || input
++            .transfer_chain_hashes
++            .iter()
++            .any(|value| !valid_hash(value))
++        || input
++            .winning_branch_hash
++            .as_ref()
++            .is_some_and(|value| !valid_hash(value))
++    {
++        return Err(anyhow!("iveKit CDR identity is invalid"));
++    }
++    if !valid_timestamp_range(
++        &input.started_at,
++        input.answered_at.as_deref(),
++        &input.ended_at,
++    ) {
++        return Err(anyhow!("iveKit CDR call timestamps are invalid"));
++    }
++    let owner_epoch = input.owner_epoch.to_string();
++    let route_snapshot_revision = input.route_snapshot_revision.to_string();
++    let caller = leg_summary(
++        "caller",
++        input.caller,
++        &owner_epoch,
++        &route_snapshot_revision,
++    )?;
++    let callee = leg_summary(
++        "callee",
++        input.callee,
++        &owner_epoch,
++        &route_snapshot_revision,
++    )?;
++    Ok(DualLegCdrEnvelope {
++        schema_version: "1.0.0".to_string(),
++        state: "pending_unacknowledged".to_string(),
++        interaction_id: input.interaction_id,
++        provider_call_id: input.provider_call_id,
++        cell_id: input.cell_id,
++        owner_node_id: input.owner_node_id,
++        expected_region_id: expected_region_id.to_string(),
++        availability_profile: input.availability_profile,
++        owner_epoch,
++        sequence: input.cdr_sequence.to_string(),
++        call: CallSummary {
++            winning_branch_hash: input.winning_branch_hash,
++            early_media: input.early_media,
++            transfer_chain_hashes: input.transfer_chain_hashes,
++            media_timeout: input.media_timeout,
++            started_at: input.started_at,
++            answered_at: input.answered_at,
++            ended_at: input.ended_at,
++        },
++        legs: vec![caller, callee],
++    })
++}
++
++fn leg_summary(
++    role: &str,
++    input: TerminalCdrLegInput,
++    owner_epoch: &str,
++    route_snapshot_revision: &str,
++) -> Result<LegSummary> {
++    let expected_direction = if role == "caller" {
++        "inbound"
++    } else {
++        "outbound"
++    };
++    if !valid_hash(&input.dialog_id_hash)
++        || input.direction != expected_direction
++        || (input.sip_final_code != 0 && !(100..=699).contains(&input.sip_final_code))
++        || !valid_timestamp_range(
++            input.answered_at.as_deref().unwrap_or(&input.ended_at),
++            input.answered_at.as_deref(),
++            &input.ended_at,
++        )
++        || (!input.reservation_ref.is_empty() && !valid_identifier(&input.reservation_ref))
++    {
++        return Err(anyhow!("iveKit CDR leg is invalid"));
++    }
++    let media_result = match input.media_result.as_str() {
++        "not_started" | "relayed" | "bypassed" | "transcoded" | "timeout" | "failed" => {
++            input.media_result
++        }
++        _ => return Err(anyhow!("iveKit CDR media result is invalid")),
++    };
++    Ok(LegSummary {
++        role: role.to_string(),
++        dialog_id_hash: input.dialog_id_hash,
++        direction: input.direction,
++        sip_final_code: input.sip_final_code,
++        hangup_cause: token(&input.hangup_cause),
++        answered_at: input.answered_at,
++        ended_at: input.ended_at,
++        media_result,
++        reservation_ref: (!input.reservation_ref.is_empty()).then_some(input.reservation_ref),
++        owner_epoch: owner_epoch.to_string(),
++        route_snapshot_revision: route_snapshot_revision.to_string(),
++    })
++}
++
++fn write_atomic(
++    directory: &Path,
++    payload: &DualLegCdrEnvelope,
++    bytes: &[u8],
++    payload_hash: &str,
++    record_extension: &str,
++) -> Result<()> {
++    ensure_spool_directory(directory)?;
++    if write_atomic_record(directory, payload, bytes, payload_hash, record_extension)? {
++        File::open(directory)?.sync_all()?;
++    }
++    Ok(())
++}
++
++fn write_atomic_record(
++    directory: &Path,
++    payload: &DualLegCdrEnvelope,
++    bytes: &[u8],
++    payload_hash: &str,
++    record_extension: &str,
++) -> Result<bool> {
++    let final_path = spool_record_path(directory, payload, payload_hash, record_extension);
++    if final_path.exists() {
++        return Ok(false);
++    }
++    let temporary = temporary_path(directory, &payload.sequence, payload_hash);
++    let mut options = OpenOptions::new();
++    options.write(true).create_new(true);
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::OpenOptionsExt;
++        options.mode(0o600);
++    }
++    let mut file = options.open(&temporary)?;
++    file.write_all(bytes)?;
++    file.sync_all()?;
++    drop(file);
++    match std::fs::rename(&temporary, &final_path) {
++        Ok(()) => {}
++        Err(error) if final_path.exists() => {
++            let _ = std::fs::remove_file(&temporary);
++            if error.kind() != std::io::ErrorKind::AlreadyExists {
++                tracing::debug!(error = %error, "iveKit CDR spool replay already exists");
++            }
++        }
++        Err(error) => {
++            let _ = std::fs::remove_file(&temporary);
++            return Err(error.into());
++        }
++    }
++    Ok(true)
++}
++
++fn spool_record_path(
++    directory: &Path,
++    payload: &DualLegCdrEnvelope,
++    payload_hash: &str,
++    record_extension: &str,
++) -> PathBuf {
++    directory.join(format!(
++        "{}.{}.{}",
++        payload.sequence, payload_hash, record_extension
++    ))
++}
++
++fn ensure_spool_directory(directory: &Path) -> Result<()> {
++    std::fs::create_dir_all(directory)?;
++    let metadata = std::fs::symlink_metadata(directory)?;
++    if metadata.file_type().is_symlink() || !metadata.is_dir() {
++        return Err(anyhow!("iveKit CDR spool directory is invalid"));
++    }
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::PermissionsExt;
++        std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700))?;
++    }
++    Ok(())
++}
++
++fn remove_stale_temporary_files(directory: &Path) -> Result<()> {
++    for entry in std::fs::read_dir(directory)? {
++        let path = entry?.path();
++        if path
++            .file_name()
++            .and_then(|value| value.to_str())
++            .is_some_and(|value| {
++                value.starts_with('.')
++                    && value.ends_with(".tmp")
++                    && !temporary_file_belongs_to_current_process(value)
++            })
++        {
++            std::fs::remove_file(path)?;
++        }
++    }
++    File::open(directory)?.sync_all()?;
++    Ok(())
++}
++
++fn recover_region_upload_claims(directory: &Path) -> Result<()> {
++    let claims = std::fs::read_dir(directory)?
++        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
++        .filter(|path| {
++            path.extension()
++                .is_some_and(|extension| extension == REGION_UPLOAD_CLAIM_EXTENSION)
++        })
++        .collect::<Vec<_>>();
++    for claim in claims {
++        release_region_upload_claim_sync(directory, &claim)?;
++    }
++    Ok(())
++}
++
++async fn release_region_upload_claim(directory: &Path, claim: &Path) -> Result<PathBuf> {
++    let directory = directory.to_path_buf();
++    let claim = claim.to_path_buf();
++    tokio::task::spawn_blocking(move || release_region_upload_claim_sync(&directory, &claim))
++        .await
++        .map_err(|error| anyhow!("iveKit CDR Region claim recovery task failed: {error}"))?
++}
++
++fn release_region_upload_claim_sync(directory: &Path, claim: &Path) -> Result<PathBuf> {
++    if claim.parent() != Some(directory)
++        || claim
++            .extension()
++            .is_none_or(|extension| extension != REGION_UPLOAD_CLAIM_EXTENSION)
++    {
++        return Err(anyhow!("iveKit CDR Region upload claim is invalid"));
++    }
++    let pending = claim.with_extension(SPOOL_RECORD_EXTENSION);
++    if pending.exists() {
++        let claimed_bytes = read_bounded(claim, MAX_CDR_BYTES)?;
++        let pending_bytes = read_bounded(&pending, MAX_CDR_BYTES)?;
++        if claimed_bytes != pending_bytes {
++            return Err(anyhow!(
++                "iveKit CDR Region upload claim conflicts with pending data"
++            ));
++        }
++        std::fs::remove_file(claim)?;
++    } else {
++        std::fs::rename(claim, &pending)?;
++    }
++    File::open(directory)?.sync_all()?;
++    Ok(pending)
++}
++
++fn temporary_file_belongs_to_current_process(name: &str) -> bool {
++    let parts = name.split('.').collect::<Vec<_>>();
++    parts.len() == 6 && parts[3] == process_nonce()
++}
++
++fn temporary_path(directory: &Path, sequence: &str, payload_hash: &str) -> PathBuf {
++    let attempt = TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
++    directory.join(format!(
++        ".{sequence}.{payload_hash}.{}.{}.tmp",
++        process_nonce(),
++        attempt
++    ))
++}
++
++fn process_nonce() -> &'static str {
++    PROCESS_NONCE.get_or_init(|| {
++        let started = SystemTime::now()
++            .duration_since(UNIX_EPOCH)
++            .unwrap_or_default()
++            .as_nanos();
++        format!("{}-{started:x}", std::process::id())
++    })
++}
++
++async fn persist_terminal_cdr(
++    config: &CdrConfig,
++    payload: DualLegCdrEnvelope,
++    bytes: Vec<u8>,
++    payload_hash: String,
++    record_extension: &'static str,
++) -> Result<PathBuf> {
++    let writer = spool_writer(config)?;
++    persist_with_writer(
++        writer,
++        &config.spool_dir,
++        payload,
++        bytes,
++        payload_hash,
++        record_extension,
++    )
++    .await
++}
++
++fn spool_writer(config: &CdrConfig) -> Result<&'static mpsc::Sender<SpoolWriteRequest>> {
++    match SPOOL_WRITER.get_or_init(|| {
++        spawn_spool_writer(config.spool_dir.clone()).map_err(|error| error.to_string())
++    }) {
++        Ok(writer) => Ok(writer),
++        Err(error) => Err(anyhow!(error.clone())),
++    }
++}
++
++fn spawn_spool_writer(directory: PathBuf) -> Result<mpsc::Sender<SpoolWriteRequest>> {
++    ensure_spool_directory(&directory)?;
++    let (sender, receiver) = mpsc::channel(MAX_SPOOL_WRITER_QUEUE);
++    std::thread::Builder::new()
++        .name("ivekit-cdr-spool".to_string())
++        .spawn(move || spool_writer_loop(directory, receiver))
++        .map_err(|error| anyhow!("iveKit CDR spool writer could not start: {error}"))?;
++    Ok(sender)
++}
++
++async fn persist_with_writer(
++    writer: &mpsc::Sender<SpoolWriteRequest>,
++    directory: &Path,
++    payload: DualLegCdrEnvelope,
++    bytes: Vec<u8>,
++    payload_hash: String,
++    record_extension: &'static str,
++) -> Result<PathBuf> {
++    let path = spool_record_path(directory, &payload, &payload_hash, record_extension);
++    let (acknowledgement, receipt) = oneshot::channel();
++    let request = SpoolWriteRequest {
++        payload,
++        bytes,
++        payload_hash,
++        record_extension,
++        acknowledgement,
++    };
++    match writer.try_send(request) {
++        Ok(()) => {}
++        Err(TrySendError::Full(request)) => {
++            ADMISSION_HEALTHY.store(false, Ordering::Release);
++            metrics::counter!(
++                "rustpbx_ivekit_cdr_spool_total",
++                "result" => "writer_overload_backpressure"
++            )
++            .increment(1);
++            if let Err(error) = writer.send(request).await {
++                return write_direct_fallback(directory, error.0, true).await;
++            }
++        }
++        Err(TrySendError::Closed(request)) => {
++            metrics::counter!(
++                "rustpbx_ivekit_cdr_spool_total",
++                "result" => "writer_disconnected_fallback"
++            )
++            .increment(1);
++            return write_direct_fallback(directory, request, true).await;
++        }
++    }
++    let result = receipt
++        .await
++        .map_err(|_| anyhow!("iveKit CDR spool writer acknowledgement was lost"))
++        .and_then(|result| result.map_err(anyhow::Error::msg));
++    if result.is_err() {
++        SPOOL_HEALTHY.store(false, Ordering::Release);
++    } else {
++        ADMISSION_HEALTHY.store(true, Ordering::Release);
++    }
++    result.map(|()| path)
++}
++
++async fn write_direct_fallback(
++    directory: &Path,
++    request: SpoolWriteRequest,
++    fence_future_admissions: bool,
++) -> Result<PathBuf> {
++    let _guard = EMERGENCY_WRITE_LOCK.lock().await;
++    let directory = directory.to_path_buf();
++    tokio::task::spawn_blocking(move || {
++        write_direct_fallback_blocking(&directory, request, fence_future_admissions)
++    })
++    .await
++    .map_err(|error| anyhow!("iveKit CDR emergency writer task failed: {error}"))?
++}
++
++fn write_direct_fallback_blocking(
++    directory: &Path,
++    request: SpoolWriteRequest,
++    fence_future_admissions: bool,
++) -> Result<PathBuf> {
++    if fence_future_admissions {
++        SPOOL_HEALTHY.store(false, Ordering::Release);
++    }
++    let mut retry_streak = 0_u32;
++    loop {
++        match write_atomic(
++            directory,
++            &request.payload,
++            &request.bytes,
++            &request.payload_hash,
++            request.record_extension,
++        ) {
++            Ok(()) => {
++                ADMISSION_HEALTHY.store(true, Ordering::Release);
++                return Ok(spool_record_path(
++                    directory,
++                    &request.payload,
++                    &request.payload_hash,
++                    request.record_extension,
++                ));
++            }
++            Err(error) => {
++                SPOOL_HEALTHY.store(false, Ordering::Release);
++                retry_streak = retry_streak.saturating_add(1);
++                metrics::counter!(
++                    "rustpbx_ivekit_cdr_spool_total",
++                    "result" => "emergency_retry"
++                )
++                .increment(1);
++                tracing::warn!(
++                    retry_streak,
++                    error = %error,
++                    "iveKit CDR emergency writer is retaining the terminal record"
++                );
++                std::thread::sleep(spool_write_retry_delay(retry_streak));
++            }
++        }
++    }
++}
++
++fn spool_writer_loop(directory: PathBuf, mut receiver: mpsc::Receiver<SpoolWriteRequest>) {
++    while let Some(first) = receiver.blocking_recv() {
++        let mut batch = Vec::with_capacity(MAX_SPOOL_WRITE_BATCH);
++        batch.push(first);
++        while batch.len() < MAX_SPOOL_WRITE_BATCH {
++            match receiver.try_recv() {
++                Ok(request) => batch.push(request),
++                Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
++            }
++        }
++        let mut pending = batch;
++        let mut retry_streak = 0_u32;
++        while !pending.is_empty() {
++            let mut retry = Vec::new();
++            for (request, result) in write_spool_batch(&directory, pending) {
++                match result {
++                    Ok(()) => {
++                        let _ = request.acknowledgement.send(Ok(()));
++                    }
++                    Err(error) => {
++                        tracing::warn!(
++                            error,
++                            "iveKit CDR spool writer is retaining a failed terminal record"
++                        );
++                        retry.push(request);
++                    }
++                }
++            }
++            if retry.is_empty() {
++                SPOOL_HEALTHY.store(true, Ordering::Release);
++                ADMISSION_HEALTHY.store(true, Ordering::Release);
++                break;
++            }
++            SPOOL_HEALTHY.store(false, Ordering::Release);
++            retry_streak = retry_streak.saturating_add(1);
++            metrics::counter!(
++                "rustpbx_ivekit_cdr_spool_total",
++                "result" => "writer_retry"
++            )
++            .increment(retry.len() as u64);
++            pending = retry;
++            std::thread::sleep(spool_write_retry_delay(retry_streak));
++        }
++    }
++}
++
++fn write_spool_batch(
++    directory: &Path,
++    batch: Vec<SpoolWriteRequest>,
++) -> Vec<(SpoolWriteRequest, std::result::Result<(), String>)> {
++    let mut results = Vec::with_capacity(batch.len());
++    let mut directory_sync_required = false;
++    for request in batch {
++        let result = write_atomic_record(
++            directory,
++            &request.payload,
++            &request.bytes,
++            &request.payload_hash,
++            request.record_extension,
++        )
++        .map(|_| ())
++        .map_err(|error| error.to_string());
++        if result.is_ok() {
++            directory_sync_required = true;
++        }
++        results.push((request, result));
++    }
++    let directory_result = if directory_sync_required {
++        File::open(directory)
++            .and_then(|file| file.sync_all())
++            .map_err(|error| error.to_string())
++    } else {
++        Ok(())
++    };
++    results
++        .into_iter()
++        .map(|(request, result)| {
++            let result = result.and_then(|()| directory_result.clone());
++            (request, result)
++        })
++        .collect()
++}
++
++fn spool_write_retry_delay(retry_streak: u32) -> Duration {
++    let exponent = retry_streak.saturating_sub(1).min(6);
++    Duration::from_millis(
++        25_u64
++            .saturating_mul(1_u64 << exponent)
++            .min(MAX_SPOOL_WRITE_RETRY_MS),
++    )
++}
++
++#[derive(Debug)]
++enum UploadFailure {
++    Retryable(anyhow::Error),
++    Permanent(anyhow::Error),
++}
++
++async fn upload_pending(config: &CdrConfig) -> Result<usize> {
++    let now = SystemTime::now();
++    let service_key_path = config.service_key_path.clone();
++    let spool_dir = config.spool_dir.clone();
++    let scanner = Arc::clone(&config.spool_scanner);
++    let (service_key, scan) = tokio::task::spawn_blocking(move || {
++        let service_key = read_secret(&service_key_path).map_err(anyhow::Error::msg)?;
++        let scan = scan_spool_batch(&spool_dir, &scanner, now, MAX_SCAN_FILES)?;
++        Ok::<_, anyhow::Error>((service_key, scan))
++    })
++    .await
++    .map_err(|error| anyhow!("iveKit CDR spool scan task failed: {error}"))??;
++    metrics::gauge!("rustpbx_ivekit_cdr_spool_backlog").set(scan.backlog as f64);
++    let service_key = service_key.as_str();
++    let results = stream::iter(scan.paths)
++        .map(|path| async move {
++            let result = upload_one(config, service_key, &path).await;
++            (path, result)
++        })
++        .buffer_unordered(MAX_UPLOAD_CONCURRENCY)
++        .collect::<Vec<_>>()
++        .await;
++    let mut retryable_failures = 0;
++    for (path, result) in results {
++        match result {
++            Ok(()) => {}
++            Err(UploadFailure::Retryable(error)) => {
++                retryable_failures += 1;
++                let retry_path = path.clone();
++                tokio::task::spawn_blocking(move || schedule_retry(&retry_path, now))
++                    .await
++                    .map_err(|error| anyhow!("iveKit CDR retry task failed: {error}"))??;
++                tracing::debug!(error = %error, "iveKit CDR upload remains pending");
++            }
++            Err(UploadFailure::Permanent(error)) => {
++                let quarantine_directory = config.spool_dir.clone();
++                let quarantine_path = path.clone();
++                let quarantine = tokio::task::spawn_blocking(move || {
++                    quarantine_permanent_failure(&quarantine_directory, &quarantine_path)
++                })
++                .await
++                .map_err(|join_error| anyhow!("iveKit CDR quarantine task failed: {join_error}"))?;
++                if let Err(quarantine_error) = quarantine {
++                    retryable_failures += 1;
++                    tracing::warn!(
++                        error = %quarantine_error,
++                        "iveKit CDR permanent failure could not be quarantined"
++                    );
++                } else {
++                    metrics::counter!(
++                        "rustpbx_ivekit_cdr_upload_total",
++                        "result" => "quarantined"
++                    )
++                    .increment(1);
++                    tracing::error!(
++                        error = %error,
++                        "iveKit CDR record quarantined after permanent failure"
++                    );
++                }
++            }
++        }
++    }
++    Ok(retryable_failures)
++}
++
++async fn upload_exact_record(config: &CdrConfig, path: &Path) -> Result<()> {
++    let service_key_path = config.service_key_path.clone();
++    let service_key = tokio::task::spawn_blocking(move || read_secret(&service_key_path))
++        .await
++        .map_err(|error| anyhow!("iveKit CDR service-key task failed: {error}"))?
++        .map_err(anyhow::Error::msg)?;
++    match upload_one(config, &service_key, path).await {
++        Ok(()) => Ok(()),
++        Err(UploadFailure::Retryable(error) | UploadFailure::Permanent(error)) => Err(error),
++    }
++}
++
++fn scan_spool_batch(
++    spool_dir: &Path,
++    scanner: &Mutex<SpoolScanner>,
++    now: SystemTime,
++    max_entries: usize,
++) -> Result<SpoolScanBatch> {
++    let mut scanner = scanner
++        .lock()
++        .map_err(|_| anyhow!("iveKit CDR spool scanner lock is poisoned"))?;
++    if scanner.entries.is_none() {
++        scanner.entries = Some(std::fs::read_dir(spool_dir)?);
++        scanner.cycle_backlog = 0;
++    }
++    let mut paths = Vec::with_capacity(max_entries);
++    for _ in 0..max_entries {
++        let next = scanner
++            .entries
++            .as_mut()
++            .expect("spool scanner is initialized")
++            .next();
++        let Some(entry) = next else {
++            scanner.entries = None;
++            scanner.last_complete_backlog = scanner.cycle_backlog;
++            scanner.cycle_backlog = 0;
++            return Ok(SpoolScanBatch {
++                paths,
++                backlog: scanner.last_complete_backlog,
++            });
++        };
++        let path = entry?.path();
++        if path.extension().is_none_or(|extension| extension != "json") {
++            continue;
++        }
++        scanner.cycle_backlog = scanner.cycle_backlog.saturating_add(1);
++        match retry_ready(&path, now) {
++            Ok(true) => paths.push(path),
++            Ok(false) => {}
++            Err(error) => {
++                tracing::warn!(
++                    path = %path.display(),
++                    error = %error,
++                    "iveKit CDR retry metadata is invalid; retrying the record"
++                );
++                let _ = std::fs::remove_file(retry_metadata_path(&path));
++                paths.push(path);
++            }
++        }
++    }
++    Ok(SpoolScanBatch {
++        paths,
++        backlog: scanner.last_complete_backlog.max(scanner.cycle_backlog),
++    })
++}
++
++async fn upload_one(
++    config: &CdrConfig,
++    service_key: &str,
++    path: &Path,
++) -> std::result::Result<(), UploadFailure> {
++    let read_path = path.to_path_buf();
++    let (bytes, payload, expected_hash) = tokio::task::spawn_blocking(move || {
++        let bytes = read_bounded(&read_path, MAX_CDR_BYTES)?;
++        let payload: DualLegCdrEnvelope = serde_json::from_slice(&bytes)?;
++        let expected_hash = payload_hash(&payload)?;
++        Ok::<_, anyhow::Error>((bytes, payload, expected_hash))
++    })
++    .await
++    .map_err(|error| UploadFailure::Retryable(anyhow!("iveKit CDR read task failed: {error}")))?
++    .map_err(UploadFailure::Permanent)?;
++    let response = config
++        .client
++        .post(config.endpoint.clone())
++        .header("x-pbx-key", service_key)
++        .header("content-type", "application/json")
++        .body(bytes)
++        .send()
++        .await
++        .map_err(|error| UploadFailure::Retryable(error.into()))?;
++    if response.status() != reqwest::StatusCode::OK {
++        let error = anyhow!("iveKit CDR endpoint returned {}", response.status());
++        return if retryable_status(response.status()) {
++            Err(UploadFailure::Retryable(error))
++        } else {
++            Err(UploadFailure::Permanent(error))
++        };
++    }
++    let receipt_bytes = bounded_response(response, MAX_RECEIPT_BYTES)
++        .await
++        .map_err(UploadFailure::Permanent)?;
++    let envelope: Value = serde_json::from_slice(&receipt_bytes)
++        .map_err(|error| UploadFailure::Permanent(error.into()))?;
++    let receipt_data = envelope.get("data").cloned().ok_or_else(|| {
++        UploadFailure::Permanent(anyhow!("iveKit CDR receipt envelope is invalid"))
++    })?;
++    let receipt: DurableReceipt = serde_json::from_value(receipt_data)
++        .map_err(|error| UploadFailure::Permanent(error.into()))?;
++    validate_receipt(&payload, &expected_hash, &config.region_id, &receipt)
++        .map_err(UploadFailure::Permanent)?;
++    let committed_path = path.to_path_buf();
++    let spool_dir = config.spool_dir.clone();
++    tokio::task::spawn_blocking(move || finalize_uploaded_record(&spool_dir, &committed_path))
++        .await
++        .map_err(|error| {
++            UploadFailure::Retryable(anyhow!("iveKit CDR finalize task failed: {error}"))
++        })?
++        .map_err(UploadFailure::Retryable)?;
++    metrics::counter!(
++        "rustpbx_ivekit_cdr_upload_total",
++        "result" => "committed"
++    )
++    .increment(1);
++    REGION_COMMIT_HEALTHY.store(true, Ordering::Release);
++    Ok(())
++}
++
++fn finalize_uploaded_record(spool_dir: &Path, path: &Path) -> Result<()> {
++    std::fs::remove_file(path)?;
++    let retry_metadata = retry_metadata_path(path);
++    if retry_metadata.exists() {
++        std::fs::remove_file(retry_metadata)?;
++    }
++    File::open(spool_dir)?.sync_all()?;
++    Ok(())
++}
++
++fn retry_metadata_path(path: &Path) -> PathBuf {
++    let name = path
++        .file_name()
++        .and_then(|value| value.to_str())
++        .unwrap_or("invalid");
++    path.with_file_name(format!(".{name}.retry"))
++}
++
++fn retry_ready(path: &Path, now: SystemTime) -> Result<bool> {
++    let metadata_path = retry_metadata_path(path);
++    if !metadata_path.exists() {
++        return Ok(true);
++    }
++    let bytes = read_bounded(&metadata_path, MAX_RETRY_METADATA_BYTES)?;
++    let schedule: RetrySchedule = serde_json::from_slice(&bytes)?;
++    Ok(unix_millis(now) >= schedule.next_attempt_unix_ms)
++}
++
++fn schedule_retry(path: &Path, now: SystemTime) -> Result<()> {
++    let metadata_path = retry_metadata_path(path);
++    let previous = if metadata_path.exists() {
++        read_bounded(&metadata_path, MAX_RETRY_METADATA_BYTES)
++            .ok()
++            .and_then(|bytes| serde_json::from_slice::<RetrySchedule>(&bytes).ok())
++    } else {
++        None
++    };
++    let attempts = previous
++        .map(|schedule| schedule.attempts)
++        .unwrap_or(0)
++        .saturating_add(1);
++    let delay = retry_record_delay(path, attempts);
++    let schedule = RetrySchedule {
++        attempts,
++        next_attempt_unix_ms: unix_millis(now)
++            .saturating_add(u64::try_from(delay.as_millis()).unwrap_or(u64::MAX)),
++    };
++    write_private_atomic(&metadata_path, &serde_json::to_vec(&schedule)?)
++}
++
++fn retry_record_delay(path: &Path, attempts: u32) -> Duration {
++    let multiplier = 1_u64 << attempts.min(7);
++    let base_ms = 500_u64.saturating_mul(multiplier);
++    let mut digest = Sha256::new();
++    digest.update(path.as_os_str().as_encoded_bytes());
++    digest.update(attempts.to_be_bytes());
++    let hash = digest.finalize();
++    let jitter_ms = u16::from_be_bytes([hash[0], hash[1]]) as u64 % 251;
++    Duration::from_millis(base_ms.saturating_add(jitter_ms).min(60_000))
++}
++
++fn unix_millis(time: SystemTime) -> u64 {
++    u64::try_from(
++        time.duration_since(UNIX_EPOCH)
++            .unwrap_or_default()
++            .as_millis(),
++    )
++    .unwrap_or(u64::MAX)
++}
++
++fn write_private_atomic(destination: &Path, bytes: &[u8]) -> Result<()> {
++    if bytes.len() > MAX_RETRY_METADATA_BYTES {
++        return Err(anyhow!("iveKit CDR retry metadata exceeds the limit"));
++    }
++    let parent = destination
++        .parent()
++        .ok_or_else(|| anyhow!("iveKit CDR retry metadata path is invalid"))?;
++    let name = destination
++        .file_name()
++        .and_then(|value| value.to_str())
++        .ok_or_else(|| anyhow!("iveKit CDR retry metadata path is invalid"))?;
++    let temporary = parent.join(format!(
++        ".{name}.{}.{}.tmp",
++        process_nonce(),
++        TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++    ));
++    let mut options = OpenOptions::new();
++    options.write(true).create_new(true);
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::OpenOptionsExt;
++        options.mode(0o600);
++    }
++    let mut file = options.open(&temporary)?;
++    let write_result = (|| -> Result<()> {
++        file.write_all(bytes)?;
++        file.sync_all()?;
++        drop(file);
++        std::fs::rename(&temporary, destination)?;
++        File::open(parent)?.sync_all()?;
++        Ok(())
++    })();
++    if write_result.is_err() {
++        let _ = std::fs::remove_file(temporary);
++    }
++    write_result
++}
++
++fn retryable_status(status: reqwest::StatusCode) -> bool {
++    status.is_server_error()
++        || matches!(
++            status,
++            reqwest::StatusCode::ACCEPTED
++                | reqwest::StatusCode::UNAUTHORIZED
++                | reqwest::StatusCode::FORBIDDEN
++                | reqwest::StatusCode::NOT_FOUND
++                | reqwest::StatusCode::REQUEST_TIMEOUT
++                | reqwest::StatusCode::TOO_EARLY
++                | reqwest::StatusCode::TOO_MANY_REQUESTS
++        )
++}
++
++fn quarantine_permanent_failure(directory: &Path, path: &Path) -> Result<()> {
++    let quarantine = directory.join("quarantine");
++    ensure_spool_directory(&quarantine)?;
++    let name = path
++        .file_name()
++        .ok_or_else(|| anyhow!("iveKit CDR quarantine source is invalid"))?;
++    let destination = quarantine.join(name);
++    if destination.exists() {
++        std::fs::remove_file(path)?;
++    } else {
++        std::fs::rename(path, destination)?;
++    }
++    let retry_metadata = retry_metadata_path(path);
++    if retry_metadata.exists() {
++        std::fs::remove_file(retry_metadata)?;
++    }
++    File::open(directory)?.sync_all()?;
++    File::open(&quarantine)?.sync_all()?;
++    Ok(())
++}
++
++fn retry_delay(poll_interval: Duration, retry_streak: u32) -> Duration {
++    if retry_streak == 0 {
++        return poll_interval;
++    }
++    let multiplier = 1_u32 << retry_streak.min(6);
++    let base = poll_interval.saturating_mul(multiplier);
++    let jitter = Duration::from_millis(TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed) % 251);
++    base.saturating_add(jitter).min(Duration::from_secs(60))
++}
++
++fn validate_receipt(
++    payload: &DualLegCdrEnvelope,
++    expected_hash: &str,
++    expected_region_id: &str,
++    receipt: &DurableReceipt,
++) -> Result<()> {
++    let committed_sequence = receipt
++        .committed_sequence
++        .as_deref()
++        .ok_or_else(|| anyhow!("iveKit CDR committed sequence is missing"))?
++        .parse::<u64>()
++        .map_err(|_| anyhow!("iveKit CDR committed sequence is invalid"))?;
++    if receipt.schema_version != "1.0.0"
++        || receipt.state != "committed"
++        || receipt.receipt_id.as_deref().is_none_or(str::is_empty)
++        || receipt.interaction_id != payload.interaction_id
++        || receipt.provider_call_id != payload.provider_call_id
++        || receipt.acknowledged_sequence != payload.sequence
++        || receipt.acknowledged_payload_hash != expected_hash
++        || committed_sequence
++            < payload
++                .sequence
++                .parse::<u64>()
++                .map_err(|_| anyhow!("iveKit CDR sequence is invalid"))?
++        || receipt.region_id.as_deref() != Some(expected_region_id)
++        || receipt
++            .durability_contract_id
++            .as_deref()
++            .is_none_or(str::is_empty)
++        || receipt.committed_at.as_deref().is_none_or(str::is_empty)
++    {
++        return Err(anyhow!("iveKit CDR durable receipt validation failed"));
++    }
++    let _ = receipt.replayed;
++    Ok(())
++}
++
++fn config() -> Result<Option<&'static CdrConfig>> {
++    match CONFIG.get_or_init(load_config) {
++        Ok(value) => Ok(value.as_ref()),
++        Err(error) => Err(anyhow!(error.clone())),
++    }
++}
++
++fn load_config() -> std::result::Result<Option<CdrConfig>, String> {
++    let spool = std::env::var("IVEKIT_RUSTPBX_CDR_SPOOL_DIR").ok();
++    let endpoint = std::env::var("IVEKIT_RUSTPBX_CDR_ENDPOINT").ok();
++    let service_key_file = std::env::var("IVEKIT_RUSTPBX_CDR_SERVICE_KEY_FILE").ok();
++    let region_id = std::env::var("IVEKIT_RUSTPBX_CDR_REGION_ID").ok();
++    if spool.is_none() && endpoint.is_none() && service_key_file.is_none() && region_id.is_none() {
++        return Ok(None);
++    }
++    let spool_dir = PathBuf::from(required(spool, "IVEKIT_RUSTPBX_CDR_SPOOL_DIR")?.as_str());
++    if !spool_dir.is_absolute() || spool_dir.components().any(|part| part.as_os_str() == "..") {
++        return Err("iveKit CDR spool path is invalid".to_string());
++    }
++    let endpoint = Url::parse(&required(endpoint, "IVEKIT_RUSTPBX_CDR_ENDPOINT")?)
++        .map_err(|_| "iveKit CDR endpoint is invalid".to_string())?;
++    if endpoint.scheme() != "https"
++        && std::env::var("RUSTPBX_ENV")
++            .map(|value| value == "production")
++            .unwrap_or(false)
++    {
++        return Err("iveKit CDR endpoint must use HTTPS in production".to_string());
++    }
++    let service_key_path = PathBuf::from(required(
++        service_key_file,
++        "IVEKIT_RUSTPBX_CDR_SERVICE_KEY_FILE",
++    )?);
++    read_secret(&service_key_path)?;
++    let cell_id = required(
++        std::env::var("IVEKIT_RUSTPBX_CELL_ID").ok(),
++        "IVEKIT_RUSTPBX_CELL_ID",
++    )?;
++    let owner_node_id = required(
++        std::env::var("IVEKIT_RUSTPBX_OWNER_NODE_ID").ok(),
++        "IVEKIT_RUSTPBX_OWNER_NODE_ID",
++    )?;
++    let region_id = required(region_id, "IVEKIT_RUSTPBX_CDR_REGION_ID")?;
++    if !valid_identifier(&cell_id)
++        || !valid_identifier(&owner_node_id)
++        || !valid_identifier(&region_id)
++    {
++        return Err("iveKit CDR node identity is invalid".to_string());
++    }
++    let poll_ms = std::env::var("IVEKIT_RUSTPBX_CDR_POLL_MS")
++        .ok()
++        .and_then(|value| value.parse::<u64>().ok())
++        .unwrap_or(500)
++        .clamp(100, 60_000);
++    let client = reqwest::Client::builder()
++        .connect_timeout(Duration::from_secs(2))
++        .timeout(Duration::from_secs(5))
++        .redirect(reqwest::redirect::Policy::none())
++        .no_gzip()
++        .build()
++        .map_err(|error| format!("iveKit CDR HTTP client failed: {error}"))?;
++    Ok(Some(CdrConfig {
++        spool_dir,
++        endpoint,
++        service_key_path,
++        region_id,
++        cell_id,
++        owner_node_id,
++        client,
++        poll_interval: Duration::from_millis(poll_ms),
++        spool_scanner: Arc::new(Mutex::new(SpoolScanner::default())),
++        region_commit_slots: Arc::new(Semaphore::new(REGION_COMMIT_MAX_CONCURRENT)),
++    }))
++}
++
++fn read_secret(path: &Path) -> std::result::Result<String, String> {
++    let link_metadata = std::fs::symlink_metadata(path)
++        .map_err(|_| "iveKit CDR service key file is unavailable".to_string())?;
++    let metadata = std::fs::metadata(path)
++        .map_err(|_| "iveKit CDR service key file is unavailable".to_string())?;
++    if !metadata.is_file() {
++        return Err("iveKit CDR service key file is invalid".to_string());
++    }
++    if link_metadata.file_type().is_symlink() {
++        let parent = path
++            .parent()
++            .ok_or_else(|| "iveKit CDR service key file is invalid".to_string())?;
++        let canonical_parent = std::fs::canonicalize(parent)
++            .map_err(|_| "iveKit CDR service key file is invalid".to_string())?;
++        let canonical_target = std::fs::canonicalize(path)
++            .map_err(|_| "iveKit CDR service key file is invalid".to_string())?;
++        if !canonical_target.starts_with(canonical_parent) {
++            return Err("iveKit CDR service key file is invalid".to_string());
++        }
++    } else if !link_metadata.is_file() {
++        return Err("iveKit CDR service key file is invalid".to_string());
++    }
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::PermissionsExt;
++        let mode = metadata.permissions().mode() & 0o777;
++        if mode & 0o137 != 0 || mode & 0o400 == 0 {
++            return Err("iveKit CDR service key file permissions are too broad".to_string());
++        }
++    }
++    let mut value = String::new();
++    File::open(path)
++        .and_then(|file| file.take(4097).read_to_string(&mut value))
++        .map_err(|_| "iveKit CDR service key file cannot be read".to_string())?;
++    let value = value.trim();
++    if !(32..=4096).contains(&value.len()) || value.chars().any(char::is_control) {
++        return Err("iveKit CDR service key is invalid".to_string());
++    }
++    Ok(value.to_string())
++}
++
++fn payload_hash(payload: &DualLegCdrEnvelope) -> Result<String> {
++    let value = serde_json::to_value(payload)?;
++    Ok(lower_hex(&Sha256::digest(
++        canonical_json(&value)?.as_bytes(),
++    )))
++}
++
++fn canonical_json(value: &Value) -> Result<String> {
++    match value {
++        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
++            Ok(serde_json::to_string(value)?)
++        }
++        Value::Array(values) => {
++            let encoded = values
++                .iter()
++                .map(canonical_json)
++                .collect::<Result<Vec<_>>>()?;
++            Ok(format!("[{}]", encoded.join(",")))
++        }
++        Value::Object(values) => {
++            let ordered = values
++                .iter()
++                .map(|(key, value)| Ok((key, canonical_json(value)?)))
++                .collect::<Result<BTreeMap<_, _>>>()?;
++            let encoded = ordered
++                .into_iter()
++                .map(|(key, value)| Ok(format!("{}:{value}", serde_json::to_string(key)?)))
++                .collect::<Result<Vec<_>>>()?;
++            Ok(format!("{{{}}}", encoded.join(",")))
++        }
++    }
++}
++
++async fn bounded_response(mut response: reqwest::Response, maximum: usize) -> Result<Vec<u8>> {
++    if response
++        .content_length()
++        .is_some_and(|length| length > maximum as u64)
++    {
++        return Err(anyhow!("iveKit CDR receipt exceeds the response limit"));
++    }
++    let mut bytes = Vec::new();
++    while let Some(chunk) = response.chunk().await? {
++        if bytes.len().saturating_add(chunk.len()) > maximum {
++            return Err(anyhow!("iveKit CDR receipt exceeds the response limit"));
++        }
++        bytes.extend_from_slice(&chunk);
++    }
++    Ok(bytes)
++}
++
++fn read_bounded(path: &Path, maximum: usize) -> Result<Vec<u8>> {
++    let metadata = std::fs::symlink_metadata(path)?;
++    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > maximum as u64 {
++        return Err(anyhow!("iveKit CDR spool record is invalid"));
++    }
++    let mut bytes = Vec::with_capacity(metadata.len() as usize);
++    File::open(path)?
++        .take(maximum as u64 + 1)
++        .read_to_end(&mut bytes)?;
++    if bytes.len() > maximum {
++        return Err(anyhow!("iveKit CDR spool record exceeds the limit"));
++    }
++    Ok(bytes)
++}
++
++fn required(value: Option<String>, name: &str) -> std::result::Result<String, String> {
++    value
++        .filter(|value| !value.trim().is_empty())
++        .ok_or_else(|| format!("{name} is required when iveKit CDR is configured"))
++}
++
++fn valid_identifier(value: &str) -> bool {
++    !value.is_empty()
++        && value.len() <= 128
++        && value
++            .bytes()
++            .all(|byte| byte.is_ascii_alphanumeric() || b"_.:/-".contains(&byte))
++}
++
++fn valid_provider_call_id(value: &str) -> bool {
++    !value.is_empty() && value.len() <= 256 && !value.bytes().any(|byte| byte.is_ascii_control())
++}
++
++fn valid_hash(value: &str) -> bool {
++    value.len() == 64
++        && value
++            .bytes()
++            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
++}
++
++fn valid_timestamp_range(started_at: &str, answered_at: Option<&str>, ended_at: &str) -> bool {
++    let Ok(started) = chrono::DateTime::parse_from_rfc3339(started_at) else {
++        return false;
++    };
++    let Ok(ended) = chrono::DateTime::parse_from_rfc3339(ended_at) else {
++        return false;
++    };
++    if ended < started {
++        return false;
++    }
++    answered_at.is_none_or(|value| {
++        chrono::DateTime::parse_from_rfc3339(value)
++            .is_ok_and(|answered| answered >= started && answered <= ended)
++    })
++}
++
++fn token(value: &str) -> String {
++    let mut result = String::with_capacity(value.len().min(64));
++    for character in value.chars() {
++        if result.len() >= 64 {
++            break;
++        }
++        let character = character.to_ascii_lowercase();
++        if character.is_ascii_alphanumeric() {
++            result.push(character);
++        } else if !result.ends_with('_') {
++            result.push('_');
++        }
++    }
++    let result = result.trim_matches('_');
++    if result.is_empty() {
++        "unknown".to_string()
++    } else {
++        result.to_string()
++    }
++}
++
++fn lower_hex(bytes: &[u8]) -> String {
++    const HEX: &[u8; 16] = b"0123456789abcdef";
++    let mut value = String::with_capacity(bytes.len() * 2);
++    for byte in bytes {
++        value.push(HEX[(byte >> 4) as usize] as char);
++        value.push(HEX[(byte & 0x0f) as usize] as char);
++    }
++    value
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn terminal_input() -> TerminalCdrInput {
++        TerminalCdrInput {
++            cell_id: "cell-a".to_string(),
++            owner_node_id: "rustpbx-a".to_string(),
++            availability_profile: "VOICE-HA-T1".to_string(),
++            interaction_id: "interaction-1".to_string(),
++            provider_call_id: "call-1@example.invalid".to_string(),
++            cdr_sequence: 1,
++            started_at: "2026-07-27T00:00:00.000Z".to_string(),
++            answered_at: None,
++            ended_at: "2026-07-27T00:00:02.000Z".to_string(),
++            caller: TerminalCdrLegInput {
++                dialog_id_hash: "a".repeat(64),
++                direction: "inbound".to_string(),
++                sip_final_code: 487,
++                hangup_cause: "caller_cancelled".to_string(),
++                answered_at: None,
++                ended_at: "2026-07-27T00:00:01.000Z".to_string(),
++                media_result: "not_started".to_string(),
++                reservation_ref: "reservation-1/caller".to_string(),
++            },
++            callee: TerminalCdrLegInput {
++                dialog_id_hash: "b".repeat(64),
++                direction: "outbound".to_string(),
++                sip_final_code: 503,
++                hangup_cause: "callee_unavailable".to_string(),
++                answered_at: None,
++                ended_at: "2026-07-27T00:00:02.000Z".to_string(),
++                media_result: "failed".to_string(),
++                reservation_ref: "reservation-1/callee".to_string(),
++            },
++            owner_epoch: 7,
++            route_snapshot_revision: 11,
++            winning_branch_hash: None,
++            early_media: false,
++            transfer_chain_hashes: Vec::new(),
++            media_timeout: false,
++        }
++    }
++
++    #[test]
++    fn payload_preserves_real_sip_call_id_and_absent_winning_branch() {
++        let cdr = payload(terminal_input(), "region-a").expect("valid CDR");
++
++        assert_eq!(cdr.provider_call_id, "call-1@example.invalid");
++        assert_eq!(cdr.call.winning_branch_hash, None);
++        assert_eq!(cdr.legs.len(), 2);
++        assert_eq!(cdr.cell_id, "cell-a");
++        assert_eq!(cdr.owner_node_id, "rustpbx-a");
++        assert_eq!(cdr.expected_region_id, "region-a");
++        assert_eq!(cdr.availability_profile, "VOICE-HA-T1");
++        assert_eq!(cdr.owner_epoch, "7");
++        assert_eq!(cdr.legs[0].sip_final_code, 487);
++        assert_eq!(cdr.legs[1].sip_final_code, 503);
++        assert_ne!(cdr.legs[0].hangup_cause, cdr.legs[1].hangup_cause);
++    }
++
++    #[test]
++    fn recovered_sequence_is_fenced_by_owner_epoch() {
++        assert_eq!(fenced_recovered_sequence(0, 8), 8);
++        assert_eq!(fenced_recovered_sequence(12, 8), 13);
++    }
++
++    #[test]
++    fn recovered_reservations_are_scoped_to_distinct_legs() {
++        assert_eq!(
++            recovered_leg_reservation("reservation-1", "caller"),
++            "reservation-1/caller"
++        );
++        assert_eq!(
++            recovered_leg_reservation("reservation-1/caller", "callee"),
++            "reservation-1/callee"
++        );
++    }
++
++    #[test]
++    fn uploader_retries_configuration_and_transient_statuses_only() {
++        for status in [
++            reqwest::StatusCode::ACCEPTED,
++            reqwest::StatusCode::UNAUTHORIZED,
++            reqwest::StatusCode::FORBIDDEN,
++            reqwest::StatusCode::NOT_FOUND,
++            reqwest::StatusCode::REQUEST_TIMEOUT,
++            reqwest::StatusCode::TOO_EARLY,
++            reqwest::StatusCode::TOO_MANY_REQUESTS,
++            reqwest::StatusCode::SERVICE_UNAVAILABLE,
++        ] {
++            assert!(retryable_status(status), "{status} must remain pending");
++        }
++        for status in [
++            reqwest::StatusCode::BAD_REQUEST,
++            reqwest::StatusCode::CONFLICT,
++            reqwest::StatusCode::PAYLOAD_TOO_LARGE,
++            reqwest::StatusCode::UNPROCESSABLE_ENTITY,
++        ] {
++            assert!(!retryable_status(status), "{status} must be quarantined");
++        }
++    }
++
++    #[test]
++    fn concurrent_spool_attempts_use_distinct_temporary_paths() {
++        let directory = Path::new("/var/lib/rustpbx/cdr");
++        let first = temporary_path(directory, "1", &"a".repeat(64));
++        let second = temporary_path(directory, "1", &"a".repeat(64));
++
++        assert_ne!(first, second);
++        assert!(temporary_file_belongs_to_current_process(
++            first.file_name().unwrap().to_str().unwrap()
++        ));
++        assert!(!temporary_file_belongs_to_current_process(&format!(
++            ".1.{}.{}-0.1.tmp",
++            "a".repeat(64),
++            std::process::id()
++        )));
++    }
++
++    #[test]
++    fn durable_receipt_must_match_the_configured_region() {
++        let cdr = payload(terminal_input(), "region-a").expect("valid CDR");
++        let hash = payload_hash(&cdr).expect("hash CDR");
++        let receipt = DurableReceipt {
++            schema_version: "1.0.0".into(),
++            state: "committed".into(),
++            receipt_id: Some("receipt-a".into()),
++            interaction_id: cdr.interaction_id.clone(),
++            provider_call_id: cdr.provider_call_id.clone(),
++            acknowledged_sequence: cdr.sequence.clone(),
++            committed_sequence: Some(cdr.sequence.clone()),
++            acknowledged_payload_hash: hash.clone(),
++            region_id: Some("region-a".into()),
++            durability_contract_id: Some("durability-a".into()),
++            committed_at: Some("2026-07-27T01:00:03.000Z".into()),
++            replayed: false,
++        };
++
++        validate_receipt(&cdr, &hash, "region-a", &receipt).expect("matching Region receipt");
++        assert!(validate_receipt(&cdr, &hash, "region-b", &receipt).is_err());
++    }
++
++    #[test]
++    fn startup_recovers_t1_region_upload_claim_for_background_replay() {
++        let directory = std::env::temp_dir().join(format!(
++            "ivekit-cdr-region-claim-{}-{}",
++            std::process::id(),
++            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        ));
++        ensure_spool_directory(&directory).expect("create spool");
++        let cdr = payload(terminal_input(), "region-a").expect("valid CDR");
++        let bytes = serde_json::to_vec(&cdr).expect("encode CDR");
++        let hash = payload_hash(&cdr).expect("hash CDR");
++        write_atomic(
++            &directory,
++            &cdr,
++            &bytes,
++            &hash,
++            REGION_UPLOAD_CLAIM_EXTENSION,
++        )
++        .expect("write Region upload claim");
++
++        recover_region_upload_claims(&directory).expect("recover Region upload claim");
++
++        assert!(!directory.join(format!("1.{hash}.t1pending")).exists());
++        assert!(directory.join(format!("1.{hash}.json")).exists());
++        std::fs::remove_dir_all(directory).expect("remove spool");
++    }
++
++    #[tokio::test]
++    async fn bounded_spool_writer_persists_before_acknowledgement() {
++        let directory = std::env::temp_dir().join(format!(
++            "ivekit-cdr-writer-{}-{}",
++            std::process::id(),
++            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        ));
++        ensure_spool_directory(&directory).expect("create spool");
++        let cdr = payload(terminal_input(), "region-a").expect("valid CDR");
++        let bytes = serde_json::to_vec(&cdr).expect("encode CDR");
++        let hash = payload_hash(&cdr).expect("hash CDR");
++        let writer = spawn_spool_writer(directory.clone()).expect("start writer");
++
++        persist_with_writer(
++            &writer,
++            &directory,
++            cdr,
++            bytes,
++            hash.clone(),
++            SPOOL_RECORD_EXTENSION,
++        )
++        .await
++        .expect("durable acknowledgement");
++
++        assert!(directory.join(format!("1.{hash}.json")).exists());
++        drop(writer);
++        std::fs::remove_dir_all(&directory).expect("remove spool");
++    }
++
++    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++    async fn saturated_spool_writer_backpressure_does_not_block_os_threads() {
++        let directory = std::env::temp_dir().join(format!(
++            "ivekit-cdr-writer-backpressure-{}-{}",
++            std::process::id(),
++            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        ));
++        ensure_spool_directory(&directory).expect("create spool");
++        let cdr = payload(terminal_input(), "region-a").expect("valid CDR");
++        let bytes = serde_json::to_vec(&cdr).expect("encode CDR");
++        let hash = payload_hash(&cdr).expect("hash CDR");
++        let (writer, mut receiver) = mpsc::channel(1);
++        let (block_acknowledgement, _block_receipt) = oneshot::channel();
++        assert!(
++            writer
++                .try_send(SpoolWriteRequest {
++                    payload: cdr.clone(),
++                    bytes: bytes.clone(),
++                    payload_hash: hash.clone(),
++                    record_extension: SPOOL_RECORD_EXTENSION,
++                    acknowledgement: block_acknowledgement,
++                })
++                .is_ok(),
++            "fill writer queue"
++        );
++        let writer_directory = directory.clone();
++        let writer_task = tokio::spawn(async move {
++            tokio::time::sleep(Duration::from_millis(50)).await;
++            let first = receiver.recv().await.expect("receive queued record");
++            let _ = first.acknowledgement.send(Ok(()));
++            let request = receiver.recv().await.expect("receive backpressured record");
++            let result = write_atomic(
++                &writer_directory,
++                &request.payload,
++                &request.bytes,
++                &request.payload_hash,
++                request.record_extension,
++            )
++            .map_err(|error| error.to_string());
++            let _ = request.acknowledgement.send(result);
++        });
++
++        let pending = persist_with_writer(
++            &writer,
++            &directory,
++            cdr,
++            bytes,
++            hash.clone(),
++            SPOOL_RECORD_EXTENSION,
++        );
++        tokio::pin!(pending);
++        assert!(
++            tokio::time::timeout(Duration::from_millis(10), &mut pending)
++                .await
++                .is_err(),
++            "full writer queue must apply asynchronous backpressure"
++        );
++        pending.await.expect("durable bounded writer");
++
++        assert!(directory.join(format!("1.{hash}.json")).exists());
++        writer_task.await.expect("writer task");
++        SPOOL_HEALTHY.store(true, Ordering::Release);
++        std::fs::remove_dir_all(&directory).expect("remove spool");
++    }
++
++    #[tokio::test]
++    async fn spool_writer_retries_failed_batch_without_acknowledging_loss() {
++        let directory = std::env::temp_dir().join(format!(
++            "ivekit-cdr-writer-retry-{}-{}",
++            std::process::id(),
++            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        ));
++        let holding = directory.with_extension("holding");
++        ensure_spool_directory(&directory).expect("create spool");
++        let cdr = payload(terminal_input(), "region-a").expect("valid CDR");
++        let bytes = serde_json::to_vec(&cdr).expect("encode CDR");
++        let hash = payload_hash(&cdr).expect("hash CDR");
++        let writer = spawn_spool_writer(directory.clone()).expect("start writer");
++
++        std::fs::rename(&directory, &holding).expect("move spool aside");
++        std::fs::write(&directory, b"temporarily unavailable").expect("block spool path");
++        let retry_writer = writer.clone();
++        let retry_directory = directory.clone();
++        let retry_hash = hash.clone();
++        let pending = tokio::spawn(async move {
++            persist_with_writer(
++                &retry_writer,
++                &retry_directory,
++                cdr,
++                bytes,
++                retry_hash,
++                SPOOL_RECORD_EXTENSION,
++            )
++            .await
++        });
++
++        tokio::time::sleep(Duration::from_millis(100)).await;
++        assert!(!pending.is_finished());
++        assert!(!SPOOL_HEALTHY.load(Ordering::Acquire));
++
++        std::fs::remove_file(&directory).expect("remove blocking file");
++        std::fs::rename(&holding, &directory).expect("restore spool");
++        pending
++            .await
++            .expect("retry thread")
++            .expect("durable retry acknowledgement");
++
++        assert!(directory.join(format!("1.{hash}.json")).exists());
++        SPOOL_HEALTHY.store(true, Ordering::Release);
++        drop(writer);
++        std::fs::remove_dir_all(directory).expect("remove spool");
++    }
++
++    #[test]
++    fn retry_schedule_is_persistent_and_per_record() {
++        let directory = std::env::temp_dir().join(format!(
++            "ivekit-cdr-retry-{}-{}",
++            std::process::id(),
++            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        ));
++        ensure_spool_directory(&directory).expect("create spool");
++        let first = directory.join("1.deadbeef.json");
++        let second = directory.join("2.deadbeef.json");
++        std::fs::write(&first, b"first").expect("write first record");
++        std::fs::write(&second, b"second").expect("write second record");
++        let now = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
++
++        schedule_retry(&first, now).expect("schedule first retry");
++
++        assert!(!retry_ready(&first, now).expect("read first retry"));
++        assert!(retry_ready(&second, now).expect("read second retry"));
++        assert!(retry_ready(&first, now + Duration::from_secs(61)).expect("retry becomes due"));
++        std::fs::remove_dir_all(directory).expect("remove spool");
++    }
++
++    #[test]
++    fn spool_scanner_bounds_each_pass_and_eventually_visits_the_cycle() {
++        let directory = std::env::temp_dir().join(format!(
++            "ivekit-cdr-scanner-{}-{}",
++            std::process::id(),
++            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        ));
++        ensure_spool_directory(&directory).expect("create spool");
++        std::fs::write(directory.join("1.deadbeef.json"), b"first").expect("write first");
++        std::fs::write(directory.join("2.deadbeef.json"), b"second").expect("write second");
++        let scanner = Mutex::new(SpoolScanner::default());
++        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
++        let mut visited = Vec::new();
++
++        for _ in 0..3 {
++            visited.extend(
++                scan_spool_batch(&directory, &scanner, now, 1)
++                    .expect("scan bounded pass")
++                    .paths,
++            );
++        }
++
++        visited.sort();
++        assert_eq!(visited.len(), 2);
++        assert_eq!(
++            visited
++                .iter()
++                .filter_map(|path| path.file_name())
++                .collect::<Vec<_>>(),
++            ["1.deadbeef.json", "2.deadbeef.json"]
++        );
++        std::fs::remove_dir_all(directory).expect("remove spool");
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn projected_service_key_allows_group_read_but_rejects_group_write() {
++        use std::os::unix::fs::PermissionsExt;
++
++        let path = std::env::temp_dir().join(format!(
++            "ivekit-cdr-service-key-{}-{}",
++            std::process::id(),
++            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        ));
++        std::fs::write(&path, "0123456789abcdef0123456789abcdef").expect("write service key");
++        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o440))
++            .expect("set projected secret permissions");
++        assert_eq!(
++            read_secret(&path).expect("group-readable projected secret"),
++            "0123456789abcdef0123456789abcdef"
++        );
++        let rotated_path = path.with_extension("rotated");
++        std::fs::write(&rotated_path, "fedcba9876543210fedcba9876543210")
++            .expect("write rotated service key");
++        std::fs::set_permissions(&rotated_path, std::fs::Permissions::from_mode(0o440))
++            .expect("set rotated projected secret permissions");
++        std::fs::rename(rotated_path, &path).expect("atomically rotate service key");
++        assert_eq!(
++            read_secret(&path).expect("read rotated projected secret"),
++            "fedcba9876543210fedcba9876543210"
++        );
++
++        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o460))
++            .expect("set unsafe permissions");
++        assert!(read_secret(&path).is_err());
++        std::fs::remove_file(path).expect("remove service key");
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn projected_service_key_symlink_must_resolve_inside_mount() {
++        use std::os::unix::fs::{PermissionsExt, symlink};
++
++        let root = std::env::temp_dir().join(format!(
++            "ivekit-cdr-projected-secret-{}-{}",
++            std::process::id(),
++            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        ));
++        let version = root.join("..2026_07_27_00_00_00");
++        std::fs::create_dir_all(&version).expect("create projected secret version");
++        let target = version.join("service-key");
++        std::fs::write(&target, "0123456789abcdef0123456789abcdef")
++            .expect("write projected service key");
++        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o440))
++            .expect("set projected key mode");
++        symlink("..2026_07_27_00_00_00", root.join("..data")).expect("link projected data");
++        symlink("..data/service-key", root.join("service-key")).expect("link projected key");
++        assert_eq!(
++            read_secret(&root.join("service-key")).expect("read projected key"),
++            "0123456789abcdef0123456789abcdef"
++        );
++
++        let outside = std::env::temp_dir().join(format!(
++            "ivekit-cdr-outside-secret-{}-{}",
++            std::process::id(),
++            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        ));
++        std::fs::write(&outside, "0123456789abcdef0123456789abcdef").expect("write outside key");
++        std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o440))
++            .expect("set outside key mode");
++        symlink(&outside, root.join("escaped-key")).expect("link escaped key");
++        assert!(read_secret(&root.join("escaped-key")).is_err());
++        std::fs::remove_dir_all(root).expect("remove projected secret");
++        std::fs::remove_file(outside).expect("remove outside key");
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn spool_records_are_private_and_stale_temporary_files_are_removed() {
++        use std::os::unix::fs::PermissionsExt;
++
++        let directory = std::env::temp_dir().join(format!(
++            "ivekit-cdr-spool-{}-{}",
++            std::process::id(),
++            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        ));
++        ensure_spool_directory(&directory).expect("create private spool");
++        let cdr = payload(terminal_input(), "region-a").expect("valid CDR");
++        let bytes = serde_json::to_vec(&cdr).expect("encode CDR");
++        let hash = payload_hash(&cdr).expect("hash CDR");
++        write_atomic(&directory, &cdr, &bytes, &hash, SPOOL_RECORD_EXTENSION).expect("write CDR");
++        let record = std::fs::read_dir(&directory)
++            .expect("read spool")
++            .filter_map(Result::ok)
++            .map(|entry| entry.path())
++            .find(|path| path.extension().is_some_and(|value| value == "json"))
++            .expect("spool record");
++        assert_eq!(
++            std::fs::metadata(&record)
++                .expect("record metadata")
++                .permissions()
++                .mode()
++                & 0o777,
++            0o600
++        );
++        let stale = directory.join(".stale.tmp");
++        std::fs::write(&stale, b"partial").expect("write stale temporary file");
++        let active = temporary_path(&directory, "2", &"b".repeat(64));
++        std::fs::write(&active, b"in-flight").expect("write active temporary file");
++        remove_stale_temporary_files(&directory).expect("remove stale temporary files");
++        assert!(!stale.exists());
++        assert!(active.exists());
++        assert!(record.exists());
++        std::fs::remove_dir_all(directory).expect("remove spool");
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn permanent_failure_is_quarantined_without_blocking_the_spool() {
++        use std::os::unix::fs::PermissionsExt;
++
++        let directory = std::env::temp_dir().join(format!(
++            "ivekit-cdr-quarantine-{}-{}",
++            std::process::id(),
++            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        ));
++        ensure_spool_directory(&directory).expect("create spool");
++        let record = directory.join("1.deadbeef.json");
++        std::fs::write(&record, b"invalid").expect("write poison record");
++        std::fs::set_permissions(&record, std::fs::Permissions::from_mode(0o600))
++            .expect("set record mode");
++
++        quarantine_permanent_failure(&directory, &record).expect("quarantine record");
++
++        assert!(!record.exists());
++        let quarantined = directory.join("quarantine/1.deadbeef.json");
++        assert!(quarantined.exists());
++        assert_eq!(
++            std::fs::metadata(&quarantined)
++                .expect("quarantine metadata")
++                .permissions()
++                .mode()
++                & 0o777,
++            0o600
++        );
++        std::fs::remove_dir_all(directory).expect("remove spool");
++    }
++}
+diff --git a/src/ivekit_owner.rs b/src/ivekit_owner.rs
+index 1d0b9e5c..feddf4a6 100644
+--- a/src/ivekit_owner.rs
++++ b/src/ivekit_owner.rs
+@@ -16,6 +16,7 @@ pub struct OwnerContract {
+     pub reservation_id: String,
+     pub interaction_id: String,
+     pub owner_epoch: String,
++    pub route_snapshot_revision: u64,
+     pub availability_profile: String,
+     pub auth_context_ref: Option<String>,
+ }
+@@ -83,6 +84,7 @@ pub async fn ensure_owner(provider_call_id: &str, contract: OwnerContract) -> Re
+         if existing.contract.reservation_id != contract.reservation_id
+             || existing.contract.interaction_id != contract.interaction_id
+             || existing.contract.owner_epoch != contract.owner_epoch
++            || existing.contract.route_snapshot_revision != contract.route_snapshot_revision
+             || existing.contract.availability_profile != contract.availability_profile
+             || existing.contract.auth_context_ref != contract.auth_context_ref
+         {
+@@ -111,6 +113,7 @@ pub async fn ensure_owner(provider_call_id: &str, contract: OwnerContract) -> Re
+             if current.contract.reservation_id != contract.reservation_id
+                 || current.contract.interaction_id != contract.interaction_id
+                 || current.contract.owner_epoch != contract.owner_epoch
++                || current.contract.route_snapshot_revision != contract.route_snapshot_revision
+                 || current.contract.availability_profile != contract.availability_profile
+                 || current.contract.auth_context_ref != contract.auth_context_ref
+             {
+diff --git a/src/lib.rs b/src/lib.rs
+index 887bb012..265b0c8d 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -15,8 +15,9 @@ pub mod license;
+ pub mod http_util;
+ pub mod ivekit_audio_tap;
+ pub mod ivekit_dialog_shadow;
+-pub mod ivekit_media_lifecycle;
++pub mod ivekit_dual_leg_cdr;
+ pub mod ivekit_media_control;
++pub mod ivekit_media_lifecycle;
+ pub mod ivekit_owner;
+ pub mod ivekit_recording;
+ pub mod media;
+diff --git a/src/proxy/proxy_call.rs b/src/proxy/proxy_call.rs
+index ec96bd38..b5fa8ffc 100644
+--- a/src/proxy/proxy_call.rs
++++ b/src/proxy/proxy_call.rs
+@@ -16,9 +16,9 @@ pub(crate) mod dtmf;
+ pub(crate) mod leg_registry;
+ pub(crate) mod media_peer;
+ pub(crate) mod media_state;
+-pub(crate) mod session_registry;
+ pub(crate) mod reporter;
+ pub(crate) mod session_hooks;
++pub(crate) mod session_registry;
+ pub(crate) mod session_timer;
+ pub(crate) mod sip_session;
+ pub(crate) mod state;
+@@ -140,8 +140,8 @@ impl CallSessionBuilder {
+ 
+         #[cfg(feature = "addon-wholesale")]
+         {
+-            if let Some(ctx) = cookie
+-                .get_extension::<crate::addons::wholesale::route::WholesaleBillingContext>()
++            if let Some(ctx) =
++                cookie.get_extension::<crate::addons::wholesale::route::WholesaleBillingContext>()
+             {
+                 dialplan.extensions.insert(ctx);
+             }
+@@ -206,10 +206,15 @@ impl CallSessionBuilder {
+                 local_tag: "".into(),
+                 remote_tag: "".into(),
+             },
++            connected_callee_dialog_hash: None,
++            early_media: false,
++            transfer_chain_hashes: Vec::new(),
++            media_result: "failed".into(),
++            cdr_sequence: 1,
+             extensions: dialplan.extensions.clone(),
+         };
+ 
+-        reporter.report(snapshot);
++        reporter.report_in_background(snapshot);
+         Ok(())
+     }
+ }
+diff --git a/src/proxy/proxy_call/call_meta.rs b/src/proxy/proxy_call/call_meta.rs
+index 3aa00405..490b4b3f 100644
+--- a/src/proxy/proxy_call/call_meta.rs
++++ b/src/proxy/proxy_call/call_meta.rs
+@@ -8,6 +8,7 @@ use std::time::Instant;
+ pub struct CallMeta {
+     pub connected_callee: Option<String>,
+     pub connected_callee_dialog_id: Option<DialogId>,
++    pub connected_callee_dialog_hash: Option<String>,
+     pub callee_call_ids: HashSet<String>,
+     pub ring_time: Option<Instant>,
+     pub answer_time: Option<Instant>,
+@@ -19,6 +20,7 @@ pub struct CallMeta {
+     pub routed_contact: Option<String>,
+     pub routed_destination: Option<String>,
+     pub queue_name: Option<String>,
++    pub transfer_chain_hashes: Vec<String>,
+ }
+ 
+ impl CallMeta {
+@@ -26,6 +28,7 @@ impl CallMeta {
+         Self {
+             connected_callee: None,
+             connected_callee_dialog_id: None,
++            connected_callee_dialog_hash: None,
+             callee_call_ids: HashSet::new(),
+             ring_time: None,
+             answer_time: None,
+@@ -37,6 +40,7 @@ impl CallMeta {
+             routed_contact: None,
+             routed_destination: None,
+             queue_name: None,
++            transfer_chain_hashes: Vec::new(),
+         }
+     }
+ }
+diff --git a/src/proxy/proxy_call/reporter.rs b/src/proxy/proxy_call/reporter.rs
+index 4bbb60b1..fd0127dd 100644
+--- a/src/proxy/proxy_call/reporter.rs
++++ b/src/proxy/proxy_call/reporter.rs
+@@ -15,6 +15,7 @@ use chrono::{Duration, Utc};
+ use rsipstack::sip::prelude::HeadersExt;
+ use std::{collections::HashMap, fs};
+ 
++#[derive(Clone)]
+ pub struct CallReporter {
+     pub server: SipServerRef,
+     pub context: CallContext,
+@@ -22,7 +23,33 @@ pub struct CallReporter {
+ }
+ 
+ impl CallReporter {
+-    pub(super) fn report(&self, snapshot: CallSessionRecordSnapshot) {
++    pub(super) fn report_in_background(&self, snapshot: CallSessionRecordSnapshot) {
++        let reporter = self.clone();
++        match tokio::runtime::Handle::try_current() {
++            Ok(handle) => {
++                handle.spawn(async move {
++                    if !reporter.report(snapshot).await {
++                        tracing::error!(
++                            "iveKit Drop safety-net CDR did not reach its durability contract"
++                        );
++                    }
++                });
++            }
++            Err(error) => {
++                metrics::counter!(
++                    "rustpbx_ivekit_cdr_spool_total",
++                    "result" => "drop_runtime_unavailable"
++                )
++                .increment(1);
++                tracing::error!(
++                    error = %error,
++                    "iveKit Drop safety-net CDR requires a live Tokio runtime"
++                );
++            }
++        }
++    }
++
++    pub(super) async fn report(&self, snapshot: CallSessionRecordSnapshot) -> bool {
+         let now = Utc::now();
+         let start_time =
+             now - Duration::from_std(self.context.start_time.elapsed()).unwrap_or_default();
+@@ -302,6 +329,109 @@ impl CallReporter {
+             details.recording_duration_secs = Some((now - start_time).num_seconds().max(0) as i32);
+         }
+ 
++        let mut ivekit_cdr_committed = true;
++        if let Some(owner) = crate::ivekit_owner::owner_contract(&self.context.session_id) {
++            let caller_dialog_id_hash = crate::ivekit_dialog_shadow::stable_dialog_shadow_id(
++                &snapshot.server_dialog_id.call_id,
++                &snapshot.server_dialog_id.local_tag,
++                &snapshot.server_dialog_id.remote_tag,
++            );
++            let callee_dialog_id_hash = snapshot
++                .connected_callee_dialog_hash
++                .clone()
++                .unwrap_or_else(|| {
++                    crate::ivekit_dual_leg_cdr::stable_cdr_identity_hash(
++                        "unallocated-callee-dialog",
++                        &[&self.context.session_id],
++                    )
++                });
++            let owner_epoch = owner.owner_epoch.parse::<u64>().unwrap_or_default();
++            let ended_at = now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
++            let answered_at =
++                answer_time.map(|value| value.to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
++            let caller_cause = hangup_reason
++                .as_ref()
++                .map(ToString::to_string)
++                .unwrap_or_else(|| "unknown".to_string());
++            let callee_message = hangup_messages.last();
++            let (callee_code, callee_cause, callee_media_result) = terminal_callee_outcome(
++                callee_message.map(|message| message.code),
++                callee_message.and_then(|message| message.reason.as_deref()),
++                snapshot
++                    .last_error
++                    .as_ref()
++                    .map(|(code, _)| u16::from(code.clone())),
++                snapshot
++                    .last_error
++                    .as_ref()
++                    .and_then(|(_, reason)| reason.as_deref()),
++                &snapshot.media_result,
++            );
++            let caller_media_result = if snapshot.media_result == "timeout" {
++                "timeout".to_string()
++            } else if call_was_accepted {
++                snapshot.media_result.clone()
++            } else {
++                "not_started".to_string()
++            };
++            let result: anyhow::Result<()> = async {
++                let (cell_id, owner_node_id) = crate::ivekit_dual_leg_cdr::node_identity()?;
++                crate::ivekit_dual_leg_cdr::emit_terminal_cdr(
++                    crate::ivekit_dual_leg_cdr::TerminalCdrInput {
++                        cell_id,
++                        owner_node_id,
++                        availability_profile: owner.availability_profile.clone(),
++                        interaction_id: owner.interaction_id.clone(),
++                        provider_call_id: self.context.session_id.clone(),
++                        cdr_sequence: snapshot.cdr_sequence,
++                        started_at: start_time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
++                        answered_at: answered_at.clone(),
++                        ended_at: ended_at.clone(),
++                        caller: crate::ivekit_dual_leg_cdr::TerminalCdrLegInput {
++                            dialog_id_hash: caller_dialog_id_hash,
++                            direction: "inbound".to_string(),
++                            sip_final_code: if call_was_accepted { 200 } else { status_code },
++                            hangup_cause: caller_cause,
++                            answered_at: answered_at.clone(),
++                            ended_at: ended_at.clone(),
++                            media_result: caller_media_result,
++                            reservation_ref: format!("{}/caller", owner.reservation_id),
++                        },
++                        callee: crate::ivekit_dual_leg_cdr::TerminalCdrLegInput {
++                            dialog_id_hash: callee_dialog_id_hash.clone(),
++                            direction: "outbound".to_string(),
++                            sip_final_code: callee_code,
++                            hangup_cause: callee_cause,
++                            answered_at,
++                            ended_at,
++                            media_result: callee_media_result,
++                            reservation_ref: format!("{}/callee", owner.reservation_id),
++                        },
++                        owner_epoch,
++                        route_snapshot_revision: owner.route_snapshot_revision,
++                        winning_branch_hash: snapshot.connected_callee_dialog_hash.clone(),
++                        early_media: snapshot.early_media,
++                        transfer_chain_hashes: snapshot.transfer_chain_hashes.clone(),
++                        media_timeout: snapshot.media_result == "timeout",
++                    },
++                )
++                .await
++            }
++            .await;
++            if let Err(error) = result {
++                ivekit_cdr_committed = false;
++                metrics::counter!(
++                    "rustpbx_ivekit_cdr_spool_total",
++                    "result" => "terminal_failure"
++                )
++                .increment(1);
++                tracing::error!(
++                    error = %error,
++                    "iveKit terminal CDR could not be durably spooled"
++                );
++            }
++        }
++
+         let record = CallRecord {
+             call_id: self.context.session_id.clone(),
+             start_time,
+@@ -322,10 +452,8 @@ impl CallReporter {
+ 
+         if let Some(ref sender) = self.call_record_sender {
+             let result = sender.try_send(record);
+-            metrics::gauge!("rustpbx_call_record_queue_capacity")
+-                .set(sender.max_capacity() as f64);
+-            metrics::gauge!("rustpbx_call_record_queue_available")
+-                .set(sender.capacity() as f64);
++            metrics::gauge!("rustpbx_call_record_queue_capacity").set(sender.max_capacity() as f64);
++            metrics::gauge!("rustpbx_call_record_queue_available").set(sender.capacity() as f64);
+             match result {
+                 Ok(()) => {}
+                 Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+@@ -346,6 +474,7 @@ impl CallReporter {
+                 }
+             }
+         }
++        ivekit_cdr_committed
+     }
+ }
+ 
+@@ -368,6 +497,30 @@ fn warn_call_record_drop(reason: &'static str) {
+     }
+ }
+ 
++fn terminal_callee_outcome(
++    final_code: Option<u16>,
++    final_reason: Option<&str>,
++    last_error_code: Option<u16>,
++    last_error_reason: Option<&str>,
++    media_result: &str,
++) -> (u16, String, String) {
++    let code = final_code.or(last_error_code).unwrap_or(0);
++    let cause = final_reason
++        .or(last_error_reason)
++        .unwrap_or("unknown")
++        .to_string();
++    let media = if media_result == "timeout" {
++        "timeout"
++    } else if code == 0 {
++        "not_started"
++    } else if code >= 300 {
++        "failed"
++    } else {
++        media_result
++    };
++    (code, cause, media.to_string())
++}
++
+ fn build_sip_leg_roles(snapshot: &CallSessionRecordSnapshot) -> HashMap<String, String> {
+     let mut sip_leg_roles = HashMap::new();
+     let caller_call_id = snapshot.server_dialog_id.call_id.clone();
+@@ -568,6 +721,11 @@ mod tests {
+                 local_tag: "local".to_string(),
+                 remote_tag: "remote".to_string(),
+             },
++            connected_callee_dialog_hash: None,
++            early_media: false,
++            transfer_chain_hashes: Vec::new(),
++            media_result: "not_started".into(),
++            cdr_sequence: 1,
+             extensions: http::Extensions::new(),
+         };
+ 
+@@ -582,4 +740,12 @@ mod tests {
+             Some("callee")
+         );
+     }
++
++    #[test]
++    fn missing_callee_terminal_data_stays_independent_from_the_caller() {
++        assert_eq!(
++            terminal_callee_outcome(None, None, None, None, "relayed"),
++            (0, "unknown".to_string(), "not_started".to_string())
++        );
++    }
+ }
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index f32531ab..b4cd5603 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -188,6 +188,7 @@ pub struct SipSession {
+ 
+     pub reporter: Option<CallReporter>,
+     cdr_sent: Arc<std::sync::atomic::AtomicBool>,
++    cdr_sequence: Arc<std::sync::atomic::AtomicU64>,
+     pub recorder: Arc<RwLock<Option<Recorder>>>,
+     pub recording_paused: Arc<std::sync::atomic::AtomicBool>,
+ 
+@@ -1079,6 +1080,7 @@ impl SipSession {
+             callee_guards: Vec::new(),
+             reporter: None,
+             cdr_sent: Arc::new(std::sync::atomic::AtomicBool::new(false)),
++            cdr_sequence: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+             recorder: Arc::new(RwLock::new(None)),
+             recording_paused: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+             app_event_bridge: app_event_bridge.clone(),
+@@ -1148,6 +1150,10 @@ impl SipSession {
+             caller_peer,
+             callee_peer,
+         );
++        if let Some(owner) = crate::ivekit_owner::owner_contract(&session.context.session_id) {
++            crate::ivekit_dual_leg_cdr::assert_admission_ready(&owner.availability_profile)
++                .map_err(|error| anyhow!("iveKit CDR durable spool is unavailable: {error}"))?;
++        }
+ 
+         session
+             .ivekit_dialog_shadow
+@@ -4992,6 +4998,12 @@ impl SipSession {
+         })?;
+ 
+         self.meta.connected_callee_dialog_id = Some(dialog_id.clone());
++        self.meta.connected_callee_dialog_hash =
++            Some(crate::ivekit_dialog_shadow::stable_dialog_shadow_id(
++                &dialog_id.call_id,
++                &dialog_id.local_tag,
++                &dialog_id.remote_tag,
++            ));
+         self.callee_dialogs.insert(dialog_id.clone(), ());
+         self.callee_guards.push(ClientDialogGuard::new(
+             self.server.dialog_layer.clone(),
+@@ -5206,12 +5218,31 @@ impl SipSession {
+                 | crate::ivekit_dialog_shadow::DialogShadowState::Updating
+                 | crate::ivekit_dialog_shadow::DialogShadowState::Terminated
+         ) {
++            let started_at = chrono::DateTime::parse_from_rfc3339(&self.context.created_at)
++                .map(|value| value.with_timezone(&chrono::Utc))
++                .unwrap_or_else(|_| {
++                    chrono::Utc::now()
++                        - chrono::Duration::from_std(self.context.start_time.elapsed())
++                            .unwrap_or_default()
++                });
++            let answered_at = self
++                .meta
++                .answer_time
++                .and_then(|value| value.checked_duration_since(self.context.start_time))
++                .and_then(|value| chrono::Duration::from_std(value).ok())
++                .map(|elapsed| {
++                    (started_at + elapsed).to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
++                });
++            let started_at = started_at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+             Some(
+-                crate::ivekit_dialog_shadow::recovery_payload_from_dialog_snapshots(
++                crate::ivekit_dialog_shadow::recovery_payload_from_dialog_snapshots_with_timing(
+                     &self.context.session_id,
+                     &owner.interaction_id,
+                     &format!("{}/callee", owner.reservation_id),
+-                    0,
++                    self.cdr_sequence.load(std::sync::atomic::Ordering::Acquire),
++                    owner.route_snapshot_revision,
++                    Some(&started_at),
++                    answered_at.as_deref(),
+                     snapshot,
+                     peer_snapshot
+                         .ok_or_else(|| anyhow!("dialog shadow recovery peer is unavailable"))?,
+@@ -5247,7 +5278,11 @@ impl SipSession {
+             logical_answer_sdp,
+             media_reservation_id: Some(format!("{}/callee", owner.reservation_id)),
+             provider_session_ref: Some(self.context.session_id.clone()),
+-            cdr_sequence: 0,
++            cdr_sequence: if state == crate::ivekit_dialog_shadow::DialogShadowState::Terminated {
++                self.terminal_cdr_sequence()
++            } else {
++                self.cdr_sequence.load(std::sync::atomic::Ordering::Acquire)
++            },
+             terminal: state == crate::ivekit_dialog_shadow::DialogShadowState::Terminated,
+             recovery_payload,
+         })
+@@ -8296,24 +8331,60 @@ impl SipSession {
+     async fn cleanup(&mut self) {
+         trace!(session_id = %self.context.session_id, "Cleaning up session");
+ 
++        let termination_intent_committed = if self.ivekit_dialog_shadow.is_required() {
++            match self
++                .ivekit_dialog_shadow
++                .begin_termination_pair("normal_session_cleanup")
++                .await
++            {
++                Ok(Some(_)) => true,
++                Ok(None) => false,
++                Err(error) => {
++                    warn!(
++                        session_id = %self.context.session_id,
++                        error = %error,
++                        "dialog_shadow_termination_intent_unconfirmed"
++                    );
++                    false
++                }
++            }
++        } else {
++            false
++        };
++        let t1_cdr_committed = if self.ivekit_dialog_shadow.is_required() {
++            match &self.reporter {
++                Some(reporter) => {
++                    let snapshot = self.record_snapshot();
++                    let committed = reporter.report(snapshot).await;
++                    if committed {
++                        self.cdr_sent
++                            .store(true, std::sync::atomic::Ordering::Release);
++                    }
++                    committed
++                }
++                None => false,
++            }
++        } else {
++            false
++        };
++
+         if self.ivekit_dialog_shadow.is_required() {
+-            match tokio::time::timeout(
+-                Duration::from_millis(500),
+-                self.ivekit_dialog_shadow
+-                    .terminate_pair("normal_session_cleanup"),
+-            )
+-            .await
++            if !t1_cdr_committed {
++                warn!(
++                    session_id = %self.context.session_id,
++                    termination_intent_committed,
++                    "dialog_shadow_terminal_commit_deferred_until_region_cdr_recovery"
++                );
++            } else if let Err(error) = self
++                .ivekit_dialog_shadow
++                .terminate_pair("normal_session_cleanup")
++                .await
+             {
+-                Ok(Ok(_)) => {}
+-                Ok(Err(error)) => warn!(
++                warn!(
+                     session_id = %self.context.session_id,
+                     error = %error,
+-                    "dialog_shadow_terminal_commit_unconfirmed"
+-                ),
+-                Err(_) => warn!(
+-                    session_id = %self.context.session_id,
+-                    "dialog_shadow_terminal_commit_unconfirmed"
+-                ),
++                    "dialog_shadow_terminal_commit_unconfirmed_after_region_cdr"
++                );
+             }
+         }
+ 
+@@ -8420,11 +8491,14 @@ impl SipSession {
+             .active_call_registry
+             .remove(&self.context.session_id);
+ 
+-        if let Some(reporter) = &self.reporter {
++        if !self.ivekit_dialog_shadow.is_required()
++            && let Some(reporter) = &self.reporter
++        {
+             let snapshot = self.record_snapshot();
+-            reporter.report(snapshot);
+-            self.cdr_sent
+-                .store(true, std::sync::atomic::Ordering::Relaxed);
++            if reporter.report(snapshot).await {
++                self.cdr_sent
++                    .store(true, std::sync::atomic::Ordering::Release);
++            }
+         }
+ 
+         // Fire on_call_ended hooks.
+@@ -9031,6 +9105,30 @@ impl SipSession {
+             extensions.insert(meta);
+         }
+ 
++        let media_timeout = matches!(
++            self.meta.hangup_reason.as_ref(),
++            Some(CallRecordHangupReason::RtpTimeout)
++        );
++        let media_result = if media_timeout {
++            "timeout"
++        } else {
++            match self.ivekit_execution_profile {
++                crate::ivekit_media_lifecycle::MediaExecutionProfile::ExplicitBypass => "bypassed",
++                crate::ivekit_media_lifecycle::MediaExecutionProfile::LocalMediaGraph(
++                    crate::ivekit_media_lifecycle::LocalMediaReason::Transcoding,
++                ) => "transcoded",
++                crate::ivekit_media_lifecycle::MediaExecutionProfile::FailClosed => "failed",
++                crate::ivekit_media_lifecycle::MediaExecutionProfile::OrdinaryRelay
++                | crate::ivekit_media_lifecycle::MediaExecutionProfile::LocalMediaGraph(_)
++                | crate::ivekit_media_lifecycle::MediaExecutionProfile::ExplicitFallback => {
++                    if self.meta.answer_time.is_some() {
++                        "relayed"
++                    } else {
++                        "not_started"
++                    }
++                }
++            }
++        };
+         CallSessionRecordSnapshot {
+             ring_time: self.meta.ring_time,
+             answer_time: self.meta.answer_time,
+@@ -9047,10 +9145,26 @@ impl SipSession {
+             last_queue_name: self.meta.queue_name.clone(),
+             callee_call_ids: self.meta.callee_call_ids.iter().cloned().collect(),
+             server_dialog_id: self.server_dialog.id(),
++            connected_callee_dialog_hash: self.meta.connected_callee_dialog_hash.clone(),
++            early_media: self.media.early_media_sent,
++            transfer_chain_hashes: self.meta.transfer_chain_hashes.clone(),
++            media_result: media_result.to_string(),
++            cdr_sequence: self.terminal_cdr_sequence(),
+             extensions,
+         }
+     }
+ 
++    fn terminal_cdr_sequence(&self) -> u64 {
++        self.cdr_sequence
++            .fetch_update(
++                std::sync::atomic::Ordering::AcqRel,
++                std::sync::atomic::Ordering::Acquire,
++                |current| (current == 0).then_some(1),
++            )
++            .map(|previous| previous.saturating_add(1))
++            .unwrap_or_else(|current| current)
++    }
++
+     fn recorded_hangup_messages(&self) -> Vec<CallRecordHangupMessage> {
+         self.meta
+             .hangup_messages
+@@ -10979,10 +11093,8 @@ impl Drop for SipSession {
+         if !self.cdr_sent.load(std::sync::atomic::Ordering::Relaxed) {
+             if let Some(reporter) = &self.reporter {
+                 let snapshot = self.record_snapshot();
+-                reporter.report(snapshot);
+-                self.cdr_sent
+-                    .store(true, std::sync::atomic::Ordering::Relaxed);
+-                debug!(session_id = %self.context.session_id, "CDR sent from Drop safety net");
++                reporter.report_in_background(snapshot);
++                debug!(session_id = %self.context.session_id, "CDR scheduled from Drop safety net");
+             }
+         }
+ 
+diff --git a/src/proxy/proxy_call/sip_session/transfer.rs b/src/proxy/proxy_call/sip_session/transfer.rs
+index 9cfad863..86b5852d 100644
+--- a/src/proxy/proxy_call/sip_session/transfer.rs
++++ b/src/proxy/proxy_call/sip_session/transfer.rs
+@@ -194,6 +194,11 @@ impl SipSession {
+                 leg.state
+             ));
+         }
++        if self.meta.transfer_chain_hashes.len() < 32 {
++            self.meta.transfer_chain_hashes.push(
++                crate::ivekit_dual_leg_cdr::stable_cdr_identity_hash("transfer-target", &[&target]),
++            );
++        }
+ 
+         if attended {
+             if !target.is_empty() {
+diff --git a/src/proxy/proxy_call/state.rs b/src/proxy/proxy_call/state.rs
+index 8a392b9b..79a5cca3 100644
+--- a/src/proxy/proxy_call/state.rs
++++ b/src/proxy/proxy_call/state.rs
+@@ -33,6 +33,11 @@ pub struct CallSessionRecordSnapshot {
+     pub last_queue_name: Option<String>,
+     pub callee_call_ids: Vec<String>,
+     pub server_dialog_id: DialogId,
++    pub connected_callee_dialog_hash: Option<String>,
++    pub early_media: bool,
++    pub transfer_chain_hashes: Vec<String>,
++    pub media_result: String,
++    pub cdr_sequence: u64,
+     pub extensions: http::Extensions,
+ }
+ 
+diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
+index 9bdd0f09..589cacd5 100644
+--- a/src/proxy/routing/http.rs
++++ b/src/proxy/routing/http.rs
+@@ -97,7 +97,16 @@ impl HttpCallRouter {
+         }
+     }
+ 
++    #[cfg(test)]
+     fn snapshot_result(&self, destination: &str) -> Result<HttpResponsePayload, RouteError> {
++        self.snapshot_result_with_revision(destination)
++            .map(|(result, _)| result)
++    }
++
++    fn snapshot_result_with_revision(
++        &self,
++        destination: &str,
++    ) -> Result<(HttpResponsePayload, u64), RouteError> {
+         let snapshot = self.snapshot.load_full().ok_or_else(|| RouteError {
+             error: anyhow!("route snapshot is unavailable"),
+             status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+@@ -127,7 +136,7 @@ impl HttpCallRouter {
+                 status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+                 extensions: None,
+             })?;
+-        snapshot
++        let result = snapshot
+             .routes
+             .get(&key)
+             .cloned()
+@@ -135,7 +144,8 @@ impl HttpCallRouter {
+                 error: anyhow!("route not found in snapshot"),
+                 status: Some(rsipstack::sip::StatusCode::NotFound),
+                 extensions: None,
+-            })
++            })?;
++        Ok((result, snapshot.source_revision))
+     }
+ 
+     fn apply_result(
+@@ -261,6 +271,7 @@ impl HttpCallRouter {
+         call_id: &str,
+         destination: &str,
+         caller: &SipUser,
++        route_snapshot_revision: u64,
+     ) -> Result<Option<String>, RouteError> {
+         let config = self.snapshot_admission.as_ref().ok_or_else(|| RouteError {
+             error: anyhow!("snapshot inbound admission is not configured"),
+@@ -282,6 +293,7 @@ impl HttpCallRouter {
+             uri: destination,
+             ivekit_cell_id: &config.cell_id,
+             ivekit_owner_node_id: &config.owner_node_id,
++            route_snapshot_revision,
+         };
+         let request = self
+             .client
+@@ -318,9 +330,12 @@ impl HttpCallRouter {
+                 status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+                 extensions: None,
+             })?;
+-        if !admitted.data.accepted {
++        if !admitted.data.accepted
++            || admitted.data.route_snapshot_revision == 0
++            || admitted.data.route_snapshot_revision != route_snapshot_revision
++        {
+             return Err(RouteError {
+-                error: anyhow!("snapshot inbound admission rejected"),
++                error: anyhow!("snapshot inbound admission route revision mismatch"),
+                 status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+                 extensions: None,
+             });
+@@ -331,6 +346,7 @@ impl HttpCallRouter {
+                 reservation_id: admitted.data.reservation_id,
+                 interaction_id: admitted.data.call_id,
+                 owner_epoch: admitted.data.owner_epoch,
++                route_snapshot_revision: admitted.data.route_snapshot_revision,
+                 availability_profile: admitted.data.availability_profile,
+                 auth_context_ref: admitted.data.auth_context_ref,
+             },
+@@ -433,6 +449,7 @@ struct HttpSnapshotAdmissionPayload<'a> {
+     uri: &'a str,
+     ivekit_cell_id: &'a str,
+     ivekit_owner_node_id: &'a str,
++    route_snapshot_revision: u64,
+ }
+ 
+ #[derive(Deserialize)]
+@@ -446,6 +463,7 @@ struct HttpSnapshotAdmissionResponse {
+     call_id: String,
+     reservation_id: String,
+     owner_epoch: String,
++    route_snapshot_revision: u64,
+     #[serde(default = "ordinary_availability_profile")]
+     availability_profile: String,
+     #[serde(default)]
+@@ -801,8 +819,10 @@ impl CallRouter for HttpCallRouter {
+             .unwrap_or_default();
+ 
+         if self.snapshot_enabled {
+-            let audio_tap_token = self.admit_snapshot_call(&call_id, &to, caller).await?;
+-            let mut result = self.snapshot_result(&to)?;
++            let (mut result, route_snapshot_revision) = self.snapshot_result_with_revision(&to)?;
++            let audio_tap_token = self
++                .admit_snapshot_call(&call_id, &to, caller, route_snapshot_revision)
++                .await?;
+             attach_audio_tap_token(&mut result, audio_tap_token);
+             trace!(%call_id, %to, action = ?result.action, "snapshot router resolved route");
+             return self.apply_result(result, call_id, original, direction, caller, cookie);
+diff --git a/src/proxy/server.rs b/src/proxy/server.rs
+index e8a39af6..b82ae5e6 100644
+--- a/src/proxy/server.rs
++++ b/src/proxy/server.rs
+@@ -1132,6 +1132,7 @@ impl SipServer {
+     }
+ 
+     pub async fn serve(&self) -> Result<()> {
++        crate::ivekit_dual_leg_cdr::start_uploader()?;
+         let incoming = self.inner.endpoint.incoming_transactions()?;
+         let cancel_token = self.inner.cancel_token.clone();
+ 
+diff --git a/tests/b2bua_audio_regression_e2e_test.rs b/tests/b2bua_audio_regression_e2e_test.rs
+index cee68f41..1f399cde 100644
+--- a/tests/b2bua_audio_regression_e2e_test.rs
++++ b/tests/b2bua_audio_regression_e2e_test.rs
+@@ -109,7 +109,11 @@ async fn assert_b2bua_bidirectional_audio(
+         if alice_q.has_audio() && bob_q.has_audio() {
+             info!(
+                 "[{}] bidirectional audio confirmed: alice total={} silence={}, bob total={} silence={}",
+-                label, alice_q.total_frames, alice_q.silence_frames, bob_q.total_frames, bob_q.silence_frames
++                label,
++                alice_q.total_frames,
++                alice_q.silence_frames,
++                bob_q.total_frames,
++                bob_q.silence_frames
+             );
+             assert!(alice.has_rtp_rx(), "[{}] alice RX RTP missing", label);
+             assert!(bob.has_rtp_rx(), "[{}] bob RX RTP missing", label);
+@@ -129,8 +133,14 @@ async fn assert_b2bua_bidirectional_audio(
+     panic!(
+         "[{}] bidirectional audio timeout. alice rx={} tx={} total={} silence={}; bob rx={} tx={} total={} silence={}",
+         label,
+-        alice.has_rtp_rx(), alice.has_rtp_tx(), alice_q.total_frames, alice_q.silence_frames,
+-        bob.has_rtp_rx(), bob.has_rtp_tx(), bob_q.total_frames, bob_q.silence_frames,
++        alice.has_rtp_rx(),
++        alice.has_rtp_tx(),
++        alice_q.total_frames,
++        alice_q.silence_frames,
++        bob.has_rtp_rx(),
++        bob.has_rtp_tx(),
++        bob_q.total_frames,
++        bob_q.silence_frames,
+     );
+ }
+ 
+@@ -140,9 +150,7 @@ async fn assert_b2bua_bidirectional_audio(
+ #[tokio::test]
+ async fn test_b2bua_same_codec_fast_path_audio() {
+     let _ = tracing_subscriber::fmt()
+-        .with_env_filter(
+-            tracing_subscriber::EnvFilter::try_new("rustpbx=info").unwrap(),
+-        )
++        .with_env_filter(tracing_subscriber::EnvFilter::try_new("rustpbx=info").unwrap())
+         .try_init();
+     let sip_port = portpicker::pick_unused_port().expect("no free SIP port");
+     assert_b2bua_bidirectional_audio(
+@@ -161,9 +169,7 @@ async fn test_b2bua_same_codec_fast_path_audio() {
+ #[tokio::test]
+ async fn test_b2bua_transcode_slow_path_audio() {
+     let _ = tracing_subscriber::fmt()
+-        .with_env_filter(
+-            tracing_subscriber::EnvFilter::try_new("rustpbx=info").unwrap(),
+-        )
++        .with_env_filter(tracing_subscriber::EnvFilter::try_new("rustpbx=info").unwrap())
+         .try_init();
+     let sip_port = portpicker::pick_unused_port().expect("no free SIP port");
+     assert_b2bua_bidirectional_audio(
+diff --git a/tests/cc_openapi_contract_test.rs b/tests/cc_openapi_contract_test.rs
+index 3819f198..157f9443 100644
+--- a/tests/cc_openapi_contract_test.rs
++++ b/tests/cc_openapi_contract_test.rs
+@@ -14,13 +14,11 @@
+ use std::path::PathBuf;
+ 
+ fn spec_path() -> PathBuf {
+-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+-        .join("src/addons/cc/openapi/cc-agent-cti.yaml")
++    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/addons/cc/openapi/cc-agent-cti.yaml")
+ }
+ 
+ fn static_spec_path() -> PathBuf {
+-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+-        .join("src/addons/cc/static/cc-agent-cti.yaml")
++    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/addons/cc/static/cc-agent-cti.yaml")
+ }
+ 
+ fn load() -> String {
+@@ -32,9 +30,9 @@ fn load() -> String {
+ /// starts with exactly 4 spaces followed by a non-space character.
+ fn schema_block<'a>(raw: &'a str, name: &str) -> &'a str {
+     let needle = format!("    {}:", name);
+-    let idx = raw.find(&needle).unwrap_or_else(|| {
+-        panic!("schema {} not found", name)
+-    });
++    let idx = raw
++        .find(&needle)
++        .unwrap_or_else(|| panic!("schema {} not found", name));
+     let after = &raw[idx + needle.len()..];
+     let mut search = 0;
+     let end: usize;
+@@ -123,7 +121,10 @@ fn test_skill_groups_delete_hard_delete_and_204() {
+         .map(|i| paths_idx + i)
+         .unwrap();
+     let after = &raw[sg_path..];
+-    let next_path = after[1..].find("\n  /cc").map(|i| 1 + i).unwrap_or(after.len());
++    let next_path = after[1..]
++        .find("\n  /cc")
++        .map(|i| 1 + i)
++        .unwrap_or(after.len());
+     let block = &after[..next_path];
+     let del = block.find("    delete:").unwrap();
+     let del_block = &block[del..];
+@@ -152,9 +153,7 @@ fn test_skill_group_response_documents_acd_policy() {
+         // Find the field under SkillGroupResponse (the 2nd occurrence for
+         // overflow_groups is in CreateSkillGroupRequest — both must be nullable
+         // in the Response, so search after "SkillGroupResponse").
+-        let sg_idx = raw
+-            .find("SkillGroupResponse:")
+-            .expect("SkillGroupResponse");
++        let sg_idx = raw.find("SkillGroupResponse:").expect("SkillGroupResponse");
+         let search_zone = &raw[sg_idx..sg_idx + 2000];
+         let fidx = search_zone
+             .find(field)
+@@ -213,7 +212,13 @@ fn test_supervisor_sessions_has_required_fields() {
+     // Drift #10 (severe)
+     let raw = load();
+     let block = schema_block(&raw, "MonitorStartRequest");
+-    for field in &["supervisor_id", "target_call_id", "agent_leg", "monitor_type", "supervisor_call_id"] {
++    for field in &[
++        "supervisor_id",
++        "target_call_id",
++        "agent_leg",
++        "monitor_type",
++        "supervisor_call_id",
++    ] {
+         assert!(
+             block.contains(field),
+             "MonitorStartRequest must document {}",
+@@ -222,7 +227,10 @@ fn test_supervisor_sessions_has_required_fields() {
+     }
+     let req_idx = block.find("required:").expect("required list");
+     let req_block = &block[req_idx..req_idx + 150];
+-    assert!(req_block.contains("supervisor_id"), "supervisor_id in required");
++    assert!(
++        req_block.contains("supervisor_id"),
++        "supervisor_id in required"
++    );
+     assert!(req_block.contains("agent_leg"), "agent_leg in required");
+ }
+ 
+diff --git a/tests/helpers/rwi_collector.rs b/tests/helpers/rwi_collector.rs
+index 53ae7c9e..bdacd3db 100644
+--- a/tests/helpers/rwi_collector.rs
++++ b/tests/helpers/rwi_collector.rs
+@@ -218,9 +218,11 @@ impl RwiCollector {
+ 
+         while start.elapsed() < timeout {
+             let responses = self.responses.read().await;
+-            if let Some(resp) = responses.iter().rev().find(|&v| {
+-                v.get("action_id").and_then(|a| a.as_str()) == Some(action_id)
+-            }) {
++            if let Some(resp) = responses
++                .iter()
++                .rev()
++                .find(|&v| v.get("action_id").and_then(|a| a.as_str()) == Some(action_id))
++            {
+                 return Some(resp.clone());
+             }
+             drop(responses);
+diff --git a/tests/helpers/sipbot_helper.rs b/tests/helpers/sipbot_helper.rs
+index 58eee391..4c8f78b8 100644
+--- a/tests/helpers/sipbot_helper.rs
++++ b/tests/helpers/sipbot_helper.rs
+@@ -400,7 +400,7 @@ impl TestUa {
+             Some(dtmf_flows.to_string()),
+             None,
+         )
+-            .await
++        .await
+     }
+ 
+     async fn caller_with_options(
+diff --git a/tests/ivekit_dialog_shadow_contract_test.rs b/tests/ivekit_dialog_shadow_contract_test.rs
+index 8f3313bf..b77d96a9 100644
+--- a/tests/ivekit_dialog_shadow_contract_test.rs
++++ b/tests/ivekit_dialog_shadow_contract_test.rs
+@@ -9,7 +9,7 @@ use rustpbx::ivekit_dialog_shadow::{
+     DialogShadowError, DialogShadowEvent, DialogShadowHttpClient, DialogShadowHttpClientConfig,
+     DialogShadowLifecycle, DialogShadowPairCommitProof, DialogShadowState,
+     IveKitDialogShadowRuntime, open_recovery_pair, recovery_payload_from_dialog_snapshots,
+-    recovery_payload_to_dialog_snapshot,
++    recovery_payload_from_dialog_snapshots_with_timing, recovery_payload_to_dialog_snapshot,
+ };
+ use std::collections::{HashMap, VecDeque};
+ use std::path::PathBuf;
+@@ -142,6 +142,9 @@ fn typescript_recovery_capsule_fixture_opens_and_authenticates_all_binding_field
+             remote_cseq: 18,
+             supports_100rel: true,
+             media_reservation_id: "reservation-caller".into(),
++            started_at: None,
++            answered_at: None,
++            route_snapshot_revision: 1,
+             cdr_sequence: 12,
+         }
+     );
+@@ -280,6 +283,9 @@ fn recovery_payload() -> DialogRecoveryCapsulePayload {
+         remote_cseq: 1,
+         supports_100rel: true,
+         media_reservation_id: "reservation-a-caller".into(),
++        started_at: Some("2026-07-27T01:00:00.000Z".into()),
++        answered_at: Some("2026-07-27T01:00:02.000Z".into()),
++        route_snapshot_revision: 42,
+         cdr_sequence: 1,
+     }
+ }
+@@ -426,6 +432,41 @@ fn confirmed_dialog_snapshots_produce_reciprocal_caller_and_callee_payloads() {
+     assert_eq!(rebuilt_callee.cdr_sequence, 10);
+ }
+ 
++#[test]
++fn recovery_capsule_preserves_original_call_timing_for_takeover_cdr() {
++    let caller_payload = recovery_payload();
++    let mut callee_payload = recovery_payload();
++    callee_payload.leg = "callee".into();
++    callee_payload.dialog_role = "uac".into();
++    callee_payload.raw_call_id = "callee-call-id@example.invalid".into();
++    callee_payload.local_tag = "callee-local".into();
++    callee_payload.remote_tag = "callee-remote".into();
++    let caller = recovery_payload_to_dialog_snapshot(&caller_payload).unwrap();
++    let callee = recovery_payload_to_dialog_snapshot(&callee_payload).unwrap();
++
++    let rebuilt = recovery_payload_from_dialog_snapshots_with_timing(
++        "call-session-a",
++        "interaction-a",
++        "reservation-a/caller",
++        11,
++        42,
++        Some("2026-07-27T01:00:00.000Z"),
++        Some("2026-07-27T01:00:02.000Z"),
++        &caller,
++        &callee,
++    )
++    .unwrap();
++
++    assert_eq!(
++        rebuilt.started_at.as_deref(),
++        Some("2026-07-27T01:00:00.000Z")
++    );
++    assert_eq!(
++        rebuilt.answered_at.as_deref(),
++        Some("2026-07-27T01:00:02.000Z")
++    );
++}
++
+ #[test]
+ fn encrypted_shadow_records_open_only_as_a_reciprocal_two_leg_pair() {
+     let codec = DialogRecoveryCapsuleCodec::new(
+@@ -874,6 +915,7 @@ async fn http_client_claims_takeover_by_dialog_without_client_supplied_authority
+         );
+         let response = serde_json::json!({
+             "status": "claimed",
++            "recovery_mode": "resume",
+             "takeover_id": "takeover-a",
+             "owner_node_id": "rustpbx-b",
+             "owner_epoch": 8,
+@@ -901,6 +943,7 @@ async fn http_client_claims_takeover_by_dialog_without_client_supplied_authority
+         .unwrap();
+ 
+     assert_eq!(response.status, "claimed");
++    assert_eq!(response.recovery_mode, "resume");
+     assert_eq!(response.takeover_id, "takeover-a");
+     assert_eq!(response.owner_node_id, "rustpbx-b");
+     assert_eq!(response.owner_epoch, 8);
+diff --git a/tests/ivr_greeting_audio_e2e_test.rs b/tests/ivr_greeting_audio_e2e_test.rs
+index e24801f0..50f98e8e 100644
+--- a/tests/ivr_greeting_audio_e2e_test.rs
++++ b/tests/ivr_greeting_audio_e2e_test.rs
+@@ -14,7 +14,10 @@
+ 
+ mod helpers;
+ 
+-use helpers::audio_verifier::{compute_rms, extract_audio_region, find_dominant_frequency, find_signal_start, generate_sine_wav, has_audio_content, read_wav_stereo};
++use helpers::audio_verifier::{
++    compute_rms, extract_audio_region, find_dominant_frequency, find_signal_start,
++    generate_sine_wav, has_audio_content, read_wav_stereo,
++};
+ use helpers::sipbot_helper::TestUa;
+ use helpers::test_server::{TestPbx, TestPbxInject};
+ use rustpbx::call::SipUser;
+@@ -126,21 +129,33 @@ file = "{}"
+             got_audio = true;
+             info!(
+                 "IVR greeting delivered: caller total={} silence={} has_audio={}",
+-                q.total_frames, q.silence_frames, q.has_audio()
++                q.total_frames,
++                q.silence_frames,
++                q.has_audio()
+             );
+             break;
+         }
+         sleep(Duration::from_millis(200)).await;
+     }
+-    assert!(got_audio, "caller should receive non-silent IVR greeting audio");
+-    assert!(caller.has_rtp_rx(), "caller should have RX RTP from IVR greeting");
++    assert!(
++        got_audio,
++        "caller should receive non-silent IVR greeting audio"
++    );
++    assert!(
++        caller.has_rtp_rx(),
++        "caller should have RX RTP from IVR greeting"
++    );
+ 
+     // Best-effort frequency check on the caller recording.
+     caller.stop();
+     sleep(Duration::from_millis(400)).await;
+     if caller_record.exists() {
+         let (rx_ch, _tx_ch, rec_sr) = read_wav_stereo(&caller_record);
+-        info!("caller recording: {} RX samples at {} Hz", rx_ch.len(), rec_sr);
++        info!(
++            "caller recording: {} RX samples at {} Hz",
++            rx_ch.len(),
++            rec_sr
++        );
+         if !rx_ch.is_empty() {
+             let start = find_signal_start(&rx_ch, 0.01, rec_sr as usize / 50);
+             let region = extract_audio_region(&rx_ch, rec_sr, start, 1500);
+@@ -154,7 +169,9 @@ file = "{}"
+                 info!("IVR greeting 440 Hz verified in caller recording");
+             }
+         } else {
+-            info!("caller recording has 0 RX samples (sipbot caller recording limitation); verified via audio_quality instead");
++            info!(
++                "caller recording has 0 RX samples (sipbot caller recording limitation); verified via audio_quality instead"
++            );
+         }
+     }
+ 
+diff --git a/tests/ivr_multi_key_dtmf_e2e_test.rs b/tests/ivr_multi_key_dtmf_e2e_test.rs
+index de57a5f2..586a1118 100644
+--- a/tests/ivr_multi_key_dtmf_e2e_test.rs
++++ b/tests/ivr_multi_key_dtmf_e2e_test.rs
+@@ -160,7 +160,9 @@ file = "{}"
+         assert!(
+             routed,
+             "digit '{}' should route to registered callee {}; callee stats={}",
+-            digit, target_user, callee.rtp_stats_summary()
++            digit,
++            target_user,
++            callee.rtp_stats_summary()
+         );
+         info!("digit '{}' routed to {}", digit, target_user);
+         caller.stop();
+diff --git a/tests/ivr_publish_version_e2e_test.rs b/tests/ivr_publish_version_e2e_test.rs
+index 83483d40..615cce1b 100644
+--- a/tests/ivr_publish_version_e2e_test.rs
++++ b/tests/ivr_publish_version_e2e_test.rs
+@@ -15,7 +15,7 @@
+ mod helpers;
+ 
+ use helpers::sipbot_helper::TestUa;
+-use helpers::test_server::{TestPbxInject, TestPbx};
++use helpers::test_server::{TestPbx, TestPbxInject};
+ use rustpbx::call::SipUser;
+ use rustpbx::config::{ProxyConfig, UserBackendConfig};
+ use rustpbx::proxy::routing::RouteRule;
+@@ -121,32 +121,17 @@ async fn test_publish_v1_then_v2_uses_latest_toml() {
+     // Register both dest sipbots up front (they need valid credentials).
+     let dest_a_port = portpicker::pick_unused_port().expect("destA port");
+     let dest_b_port = portpicker::pick_unused_port().expect("destB port");
+-    let dest_a = TestUa::registered_callee(
+-        dest_a_port,
+-        2,
+-        "destA",
+-        "pass",
+-        &domain,
+-        &proxy_addr,
+-    )
+-    .await;
+-    let dest_b = TestUa::registered_callee(
+-        dest_b_port,
+-        2,
+-        "destB",
+-        "pass",
+-        &domain,
+-        &proxy_addr,
+-    )
+-    .await;
++    let dest_a =
++        TestUa::registered_callee(dest_a_port, 2, "destA", "pass", &domain, &proxy_addr).await;
++    let dest_b =
++        TestUa::registered_callee(dest_b_port, 2, "destB", "pass", &domain, &proxy_addr).await;
+     // Let registrations settle.
+     tokio::time::sleep(Duration::from_secs(1)).await;
+ 
+     // ── Call #1 against v1 TOML -> destA should answer ──────────────────
+     let caller1_port = portpicker::pick_unused_port().expect("caller1 port");
+     let target = format!("sip:ivr@127.0.0.1:{}", sip_port);
+-    let caller1 =
+-        TestUa::caller_with_dtmf(caller1_port, "caller1", target.clone(), "2s:1").await;
++    let caller1 = TestUa::caller_with_dtmf(caller1_port, "caller1", target.clone(), "2s:1").await;
+     tokio::time::sleep(Duration::from_secs(12)).await;
+ 
+     assert!(
+@@ -169,8 +154,7 @@ async fn test_publish_v1_then_v2_uses_latest_toml() {
+ 
+     // ── Call #2 against v2 TOML -> destB should answer ──────────────────
+     let caller2_port = portpicker::pick_unused_port().expect("caller2 port");
+-    let caller2 =
+-        TestUa::caller_with_dtmf(caller2_port, "caller2", target, "2s:1").await;
++    let caller2 = TestUa::caller_with_dtmf(caller2_port, "caller2", target, "2s:1").await;
+     tokio::time::sleep(Duration::from_secs(12)).await;
+ 
+     assert!(
+diff --git a/tests/rwi_cc_phone_lifecycle_e2e_test.rs b/tests/rwi_cc_phone_lifecycle_e2e_test.rs
+index a6808001..965ce9cd 100644
+--- a/tests/rwi_cc_phone_lifecycle_e2e_test.rs
++++ b/tests/rwi_cc_phone_lifecycle_e2e_test.rs
+@@ -17,7 +17,10 @@ async fn test_rwi_lifecycle_answer_hold_hangup() {
+     let mut rwi = RwiCollector::connect(&pbx.rwi_url, TEST_TOKEN).await;
+ 
+     let subscribe = rwi
+-        .send_command("session.subscribe", serde_json::json!({"contexts": ["default"]}))
++        .send_command(
++            "session.subscribe",
++            serde_json::json!({"contexts": ["default"]}),
++        )
+         .await;
+     assert_eq!(subscribe["status"], "success");
+ 
+@@ -83,7 +86,10 @@ async fn test_rwi_lifecycle_reject_busy() {
+     let mut rwi = RwiCollector::connect(&pbx.rwi_url, TEST_TOKEN).await;
+ 
+     let subscribe = rwi
+-        .send_command("session.subscribe", serde_json::json!({"contexts": ["default"]}))
++        .send_command(
++            "session.subscribe",
++            serde_json::json!({"contexts": ["default"]}),
++        )
+         .await;
+     assert_eq!(subscribe["status"], "success");
+ 
+@@ -106,7 +112,10 @@ async fn test_rwi_lifecycle_reject_busy() {
+     let no_answer = rwi.wait_for_event_type("call_no_answer", 1).await;
+     let hangup = rwi.wait_for_event_type("call_hangup", 1).await;
+ 
+-    let matched = busy.or(no_answer).or(hangup).expect("missing reject outcome event");
++    let matched = busy
++        .or(no_answer)
++        .or(hangup)
++        .expect("missing reject outcome event");
+     assert!(matched.to_string().contains(&call_id));
+ 
+     rejecting.stop();
+diff --git a/tests/rwi_resume_e2e_test.rs b/tests/rwi_resume_e2e_test.rs
+index 796ab1ad..7fdd8785 100644
+--- a/tests/rwi_resume_e2e_test.rs
++++ b/tests/rwi_resume_e2e_test.rs
+@@ -275,7 +275,10 @@ async fn test_full_session_resume_flow() {
+         // Verify each event has required fields
+         for event in events {
+             assert!(event["sequence"].is_u64(), "Event should have sequence");
+-            assert!(event["timestamp"].is_string(), "Event should have timestamp");
++            assert!(
++                event["timestamp"].is_string(),
++                "Event should have timestamp"
++            );
+             assert!(event["call_id"].is_string(), "Event should have call_id");
+             assert!(event["event"].is_object(), "Event should have event data");
+         }
+diff --git a/tests/sdp_bridge_e2e_test.rs b/tests/sdp_bridge_e2e_test.rs
+index ef4fdfe1..8355709f 100644
+--- a/tests/sdp_bridge_e2e_test.rs
++++ b/tests/sdp_bridge_e2e_test.rs
+@@ -1404,8 +1404,5 @@ async fn test_srtp_track_creates_sdes_sdp() {
+         !sdp.contains("a=fingerprint"),
+         "SRTP track must not have DTLS fingerprint"
+     );
+-    assert!(
+-        !sdp.contains("a=ice-ufrag"),
+-        "SRTP track must not have ICE"
+-    );
++    assert!(!sdp.contains("a=ice-ufrag"), "SRTP track must not have ICE");
+ }
+diff --git a/tests/telephone_event_dtmf_e2e_test.rs b/tests/telephone_event_dtmf_e2e_test.rs
+index f0edd397..c49dddc4 100644
+--- a/tests/telephone_event_dtmf_e2e_test.rs
++++ b/tests/telephone_event_dtmf_e2e_test.rs
+@@ -70,8 +70,24 @@ file = "{}"
+         ivr_path.display()
+     );
+     let users = vec![
+-        SipUser { id: 0, enabled: true, username: "teivr".into(), password: None, realm: None, allow_guest_calls: true, ..Default::default() },
+-        SipUser { id: 1, enabled: true, username: "destE".into(), password: Some("p".to_string()), realm: None, allow_guest_calls: true, ..Default::default() },
++        SipUser {
++            id: 0,
++            enabled: true,
++            username: "teivr".into(),
++            password: None,
++            realm: None,
++            allow_guest_calls: true,
++            ..Default::default()
++        },
++        SipUser {
++            id: 1,
++            enabled: true,
++            username: "destE".into(),
++            password: Some("p".to_string()),
++            realm: None,
++            allow_guest_calls: true,
++            ..Default::default()
++        },
+     ];
+     let pbx = TestPbx::start_with_inject(
+         sip_port,
+diff --git a/tests/voicemail_real_flow_e2e_test.rs b/tests/voicemail_real_flow_e2e_test.rs
+index 6bb117d0..703ee9c2 100644
+--- a/tests/voicemail_real_flow_e2e_test.rs
++++ b/tests/voicemail_real_flow_e2e_test.rs
+@@ -116,7 +116,10 @@ greeting_path = "{}"
+         Some(p) => p,
+         None => panic!("voicemail recording file not found under /tmp/voicemail_1001_*"),
+     };
+-    info!(?recording, "found voicemail recording (VoicemailApp.start_recording ran)");
++    info!(
++        ?recording,
++        "found voicemail recording (VoicemailApp.start_recording ran)"
++    );
+ 
+     // Forward audio path: the caller must have received the greeting + beep
+     // (PBX → caller). This is the audio-forwarding guarantee for voicemail.
+@@ -128,7 +131,9 @@ greeting_path = "{}"
+     let q = caller.audio_quality_summary();
+     info!(
+         "caller audio quality: total={} silence={} has_audio={}",
+-        q.total_frames, q.silence_frames, q.has_audio()
++        q.total_frames,
++        q.silence_frames,
++        q.has_audio()
+     );
+ 
+     // The recording file's existence + the call tearing down after the caller's
+@@ -137,7 +142,11 @@ greeting_path = "{}"
+     // only in this in-process app-bridge path (the recorder tap doesn't capture
+     // the caller leg here); the caller RX check above covers the audio path.
+     let (samples, sr) = read_wav_mono(&recording);
+-    info!("recording: {} samples at {} Hz (header-only is a known app-bridge recorder limitation)", samples.len(), sr);
++    info!(
++        "recording: {} samples at {} Hz (header-only is a known app-bridge recorder limitation)",
++        samples.len(),
++        sr
++    );
+ 
+     caller.stop();
+     pbx.stop();
+diff --git a/tests/voip_bridge_sipbot_e2e_test.rs b/tests/voip_bridge_sipbot_e2e_test.rs
+index 1a0d5ee5..1f170844 100644
+--- a/tests/voip_bridge_sipbot_e2e_test.rs
++++ b/tests/voip_bridge_sipbot_e2e_test.rs
+@@ -37,8 +37,8 @@ use helpers::audio_verifier::{
+ };
+ use helpers::sipbot_helper::TestUa;
+ use helpers::test_server::{TestPbx, TestPbxInject};
+-use rustpbx::call::domain::{CallCommand, LegId};
+ use rustpbx::call::SipUser;
++use rustpbx::call::domain::{CallCommand, LegId};
+ use rustpbx::config::{MediaProxyMode, ProxyConfig, UserBackendConfig};
+ use rustpbx::proxy::active_call_registry::ActiveProxyCallStatus;
+ use rustpbx::proxy::routing::RouteRule;
+@@ -148,7 +148,13 @@ impl ToneWsServer {
+             }
+         });
+ 
+-        Self { addr, connections, frames_received, last_samples, stop }
++        Self {
++            addr,
++            connections,
++            frames_received,
++            last_samples,
++            stop,
++        }
+     }
+ 
+     async fn connection_count(&self) -> u32 {
+@@ -393,7 +399,11 @@ async fn test_voip_bridge_sipbot_bidirectional_audio() {
+ 
+     if record_path.exists() {
+         let (rx_ch, _tx_ch, rec_sr) = read_wav_stereo(&record_path);
+-        info!("alice recording: {} RX samples at {} Hz", rx_ch.len(), rec_sr);
++        info!(
++            "alice recording: {} RX samples at {} Hz",
++            rx_ch.len(),
++            rec_sr
++        );
+         if !rx_ch.is_empty() {
+             let start = find_signal_start(&rx_ch, 0.01, rec_sr as usize / 50);
+             let region = extract_audio_region(&rx_ch, rec_sr, start, 1500);
+@@ -575,7 +585,10 @@ file = "{}"
+         }
+         sleep(Duration::from_millis(100)).await;
+     }
+-    assert!(connected, "VoipBridge never connected to the WS server (IVR flow)");
++    assert!(
++        connected,
++        "VoipBridge never connected to the WS server (IVR flow)"
++    );
+ 
+     sleep(Duration::from_secs(5)).await;
+ 

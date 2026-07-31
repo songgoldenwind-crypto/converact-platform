@@ -1,0 +1,1706 @@
+diff --git a/src/callrecord/recording_upload.rs b/src/callrecord/recording_upload.rs
+index 846478b..b528fa7 100644
+--- a/src/callrecord/recording_upload.rs
++++ b/src/callrecord/recording_upload.rs
+@@ -175,6 +175,15 @@ impl CallRecordHook for RecordingUploadHook {
+ 
+         let mut first_uploaded_url = None;
+         for index in 0..record.recorder.len() {
++            if record.recorder[index]
++                .extra
++                .as_ref()
++                .and_then(|extra| extra.get("ivekitSpool"))
++                .and_then(serde_json::Value::as_bool)
++                == Some(true)
++            {
++                continue;
++            }
+             let (track_id, path) = {
+                 let media = &record.recorder[index];
+                 (media.track_id.clone(), media.path.clone())
+diff --git a/src/ivekit_owner.rs b/src/ivekit_owner.rs
+index 9babc06..a6a3ce2 100644
+--- a/src/ivekit_owner.rs
++++ b/src/ivekit_owner.rs
+@@ -130,6 +130,12 @@ pub fn assert_mutation(provider_call_id: &str, supplied_epoch: Option<&str>) ->
+         .map_err(|error| anyhow!("owner mutation rejected: {error}"))
+ }
+ 
++pub fn owner_contract(provider_call_id: &str) -> Option<OwnerContract> {
++    owners()
++        .get(provider_call_id)
++        .map(|entry| entry.contract.clone())
++}
++
+ pub fn session_hook() -> Result<Option<Arc<dyn CallSessionHook>>> {
+     Ok(config()?.map(|_| Arc::new(IveKitOwnerSessionHook) as Arc<dyn CallSessionHook>))
+ }
+diff --git a/src/ivekit_recording.rs b/src/ivekit_recording.rs
+new file mode 100644
+index 0000000..8f0cb82
+--- /dev/null
++++ b/src/ivekit_recording.rs
+@@ -0,0 +1,589 @@
++use anyhow::{anyhow, Result};
++use serde::{Deserialize, Serialize};
++use sha2::{Digest, Sha256};
++use std::fs::{File, OpenOptions};
++use std::io::Write;
++use std::path::{Path, PathBuf};
++use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
++
++use crate::ivekit_owner::OwnerContract;
++
++const DEFAULT_SEGMENT_SECONDS: u64 = 60;
++const DEFAULT_SEGMENT_BYTES: u64 = 64 * 1024 * 1024;
++
++#[derive(Debug, Clone, Serialize, Deserialize)]
++pub struct RecordingSpoolConfig {
++    pub root: PathBuf,
++    pub recording_id: String,
++    pub interaction_id: String,
++    pub reservation_id: String,
++    pub owner_epoch: String,
++    pub region_id: String,
++    pub zone_id: String,
++    pub cell_id: String,
++    pub recorder_node_id: String,
++    pub segment_duration_secs: u64,
++    pub segment_max_bytes: u64,
++}
++
++impl RecordingSpoolConfig {
++    pub fn from_env(contract: &OwnerContract) -> Result<Option<Self>> {
++        if !env_enabled("IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED")? {
++            return Ok(None);
++        }
++        let root = PathBuf::from(required_env("IVEKIT_RUSTPBX_RECORDING_SPOOL_DIR")?);
++        if !root.is_absolute() {
++            return Err(anyhow!("recording spool directory must be absolute"));
++        }
++        let region_id = required_identifier_env("IVEKIT_REGION_ID")?;
++        let zone_id = required_identifier_env("IVEKIT_ZONE_ID")?;
++        let cell_id = required_identifier_env("IVEKIT_RUSTPBX_CELL_ID")?;
++        let recorder_node_id = required_identifier_env("IVEKIT_RUSTPBX_OWNER_NODE_ID")?;
++        let segment_duration_secs = env_u64(
++            "IVEKIT_RUSTPBX_RECORDING_SEGMENT_SECONDS",
++            DEFAULT_SEGMENT_SECONDS,
++            5,
++            600,
++        )?;
++        let segment_max_bytes = env_u64(
++            "IVEKIT_RUSTPBX_RECORDING_SEGMENT_MAX_BYTES",
++            DEFAULT_SEGMENT_BYTES,
++            1024 * 1024,
++            1024 * 1024 * 1024,
++        )?;
++        let recording_id = format!(
++            "vrec_{}",
++            hex_lower(Sha256::digest(
++                format!(
++                    "{}\0{}\0{}",
++                    contract.interaction_id, contract.reservation_id, contract.owner_epoch
++                )
++                .as_bytes()
++            ))
++        );
++        Ok(Some(Self {
++            root,
++            recording_id,
++            interaction_id: valid_identifier(&contract.interaction_id)?,
++            reservation_id: valid_identifier(&contract.reservation_id)?,
++            owner_epoch: valid_owner_epoch(&contract.owner_epoch)?,
++            region_id,
++            zone_id,
++            cell_id,
++            recorder_node_id,
++            segment_duration_secs,
++            segment_max_bytes,
++        }))
++    }
++
++    pub fn recording_directory(&self) -> PathBuf {
++        self.root.join(&self.recording_id)
++    }
++
++    pub fn first_segment_path(&self) -> PathBuf {
++        self.segment_final_path(1)
++    }
++
++    fn segment_partial_path(&self, sequence: u64) -> PathBuf {
++        self.recording_directory()
++            .join(format!("segment-{sequence:06}.wav.partial"))
++    }
++
++    fn segment_final_path(&self, sequence: u64) -> PathBuf {
++        self.recording_directory()
++            .join(format!("segment-{sequence:06}.wav"))
++    }
++
++    fn segment_manifest_path(&self, sequence: u64) -> PathBuf {
++        self.recording_directory()
++            .join(format!("segment-{sequence:06}.json"))
++    }
++
++    fn completion_path(&self) -> PathBuf {
++        self.recording_directory().join("recording-completed.json")
++    }
++}
++
++pub struct RecordingSpoolState {
++    config: RecordingSpoolConfig,
++    sequence: u64,
++    event_sequence: u64,
++    segment_started_at: SystemTime,
++    segment_started: Instant,
++    payload_hasher: Sha256,
++    current_closed: bool,
++    last_segment_ended_at: Option<SystemTime>,
++    finalized: bool,
++}
++
++impl RecordingSpoolState {
++    pub fn new(config: RecordingSpoolConfig) -> Result<Self> {
++        let directory = config.recording_directory();
++        std::fs::create_dir_all(&directory)?;
++        sync_directory(&directory)?;
++        Ok(Self {
++            config,
++            sequence: 1,
++            event_sequence: 0,
++            segment_started_at: SystemTime::now(),
++            segment_started: Instant::now(),
++            payload_hasher: Sha256::new(),
++            current_closed: false,
++            last_segment_ended_at: None,
++            finalized: false,
++        })
++    }
++
++    pub fn config(&self) -> &RecordingSpoolConfig {
++        &self.config
++    }
++
++    pub fn current_partial_path(&self) -> PathBuf {
++        self.config.segment_partial_path(self.sequence)
++    }
++
++    pub fn current_final_path(&self) -> PathBuf {
++        self.config.segment_final_path(self.sequence)
++    }
++
++    pub fn observe_payload(&mut self, bytes: &[u8]) {
++        self.payload_hasher.update(bytes);
++    }
++
++    pub fn should_rotate(&self, payload_bytes: u64) -> bool {
++        !self.finalized
++            && (payload_bytes >= self.config.segment_max_bytes
++                || self.segment_started.elapsed()
++                    >= Duration::from_secs(self.config.segment_duration_secs))
++    }
++
++    pub fn close_current(
++        &mut self,
++        payload_bytes: u64,
++        written_samples: u64,
++        sample_rate_hz: u32,
++        channels: u16,
++        codec: &str,
++    ) -> Result<PathBuf> {
++        if self.finalized || self.current_closed {
++            return Ok(self.current_final_path());
++        }
++        if payload_bytes == 0 || written_samples == 0 {
++            return Err(anyhow!(
++                "recording segment cannot be closed without encoded media"
++            ));
++        }
++        let partial_path = self.current_partial_path();
++        let final_path = self.current_final_path();
++        File::open(&partial_path)?.sync_all()?;
++        std::fs::rename(&partial_path, &final_path)?;
++        sync_directory(&self.config.recording_directory())?;
++        let size_bytes = std::fs::metadata(&final_path)?.len();
++        let payload_sha256 = hex_lower(self.payload_hasher.finalize_reset());
++        let ended_at = SystemTime::now();
++        let segment_id = segment_id(&self.config.recording_id, self.sequence);
++        let manifest = SegmentManifest {
++            schema_version: 1,
++            recording_id: &self.config.recording_id,
++            segment_id: &segment_id,
++            interaction_id: &self.config.interaction_id,
++            reservation_id: &self.config.reservation_id,
++            owner_epoch: &self.config.owner_epoch,
++            region_id: &self.config.region_id,
++            zone_id: &self.config.zone_id,
++            cell_id: &self.config.cell_id,
++            recorder_node_id: &self.config.recorder_node_id,
++            sequence: self.sequence,
++            track_id: "mixed",
++            payload_filename: final_path
++                .file_name()
++                .and_then(|value| value.to_str())
++                .ok_or_else(|| anyhow!("recording segment filename is invalid"))?,
++            container: "wav",
++            codec,
++            channels,
++            sample_rate_hz,
++            size_bytes,
++            encoded_payload_bytes: payload_bytes,
++            encoded_payload_sha256: &payload_sha256,
++            checksum_scope: "encoded_payload",
++            written_samples,
++            started_at: unix_millis(self.segment_started_at)?,
++            ended_at: unix_millis(ended_at)?,
++        };
++        let serialized = serde_json::to_vec(&manifest)?;
++        write_atomic(
++            &self.config.segment_manifest_path(self.sequence),
++            &serialized,
++        )?;
++        append_durable(
++            &self.config.recording_directory().join("segments.ndjson"),
++            &serialized,
++        )?;
++        self.current_closed = true;
++        self.last_segment_ended_at = Some(ended_at);
++        Ok(final_path)
++    }
++
++    pub fn advance(&mut self) {
++        self.sequence += 1;
++        self.segment_started_at = SystemTime::now();
++        self.segment_started = Instant::now();
++        self.current_closed = false;
++    }
++
++    pub fn discard_empty_current(&mut self) -> Result<bool> {
++        if self.finalized || self.current_closed {
++            return Ok(false);
++        }
++        if self.sequence <= 1 || self.last_segment_ended_at.is_none() {
++            return Ok(false);
++        }
++        let partial_path = self.current_partial_path();
++        match std::fs::remove_file(&partial_path) {
++            Ok(()) => sync_directory(&self.config.recording_directory())?,
++            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
++            Err(error) => return Err(error.into()),
++        }
++        self.sequence -= 1;
++        self.current_closed = true;
++        self.payload_hasher = Sha256::new();
++        Ok(true)
++    }
++
++    pub fn finalize(&mut self) -> Result<()> {
++        if self.finalized {
++            return Ok(());
++        }
++        if !self.current_closed {
++            return Err(anyhow!(
++                "recording segment must be closed before completion"
++            ));
++        }
++        let completion = RecordingCompletion {
++            schema_version: 1,
++            recording_id: &self.config.recording_id,
++            interaction_id: &self.config.interaction_id,
++            reservation_id: &self.config.reservation_id,
++            owner_epoch: &self.config.owner_epoch,
++            region_id: &self.config.region_id,
++            zone_id: &self.config.zone_id,
++            cell_id: &self.config.cell_id,
++            recorder_node_id: &self.config.recorder_node_id,
++            segment_count: self.sequence,
++            last_segment_sequence: self.sequence,
++            ended_at: unix_millis(
++                self.last_segment_ended_at
++                    .ok_or_else(|| anyhow!("recording completion time is missing"))?,
++            )?,
++        };
++        write_atomic(
++            &self.config.completion_path(),
++            &serde_json::to_vec(&completion)?,
++        )?;
++        self.finalized = true;
++        Ok(())
++    }
++
++    pub fn is_finalized(&self) -> bool {
++        self.finalized
++    }
++
++    pub fn record_control_event(&mut self, event_type: &'static str) -> Result<()> {
++        self.record_event(event_type, None)
++    }
++
++    pub fn record_sample_dropped(&mut self, dropped_samples: u64) -> Result<()> {
++        if dropped_samples == 0 {
++            return Ok(());
++        }
++        self.record_event("sample_dropped", Some(dropped_samples))
++    }
++
++    fn record_event(
++        &mut self,
++        event_type: &'static str,
++        dropped_samples: Option<u64>,
++    ) -> Result<()> {
++        if self.finalized {
++            return Ok(());
++        }
++        self.event_sequence += 1;
++        let segment_id = segment_id(&self.config.recording_id, self.sequence);
++        let event = SegmentEvent {
++            schema_version: 1,
++            recording_id: &self.config.recording_id,
++            segment_id: &segment_id,
++            interaction_id: &self.config.interaction_id,
++            reservation_id: &self.config.reservation_id,
++            owner_epoch: &self.config.owner_epoch,
++            event_sequence: self.event_sequence,
++            event_type,
++            dropped_samples,
++            occurred_at: unix_millis(SystemTime::now())?,
++        };
++        let serialized = serde_json::to_vec(&event)?;
++        let path = self
++            .config
++            .recording_directory()
++            .join(format!("event-{:06}.json", self.event_sequence));
++        write_atomic(&path, &serialized)?;
++        append_durable(
++            &self.config.recording_directory().join("events.ndjson"),
++            &serialized,
++        )
++    }
++}
++
++#[derive(Serialize)]
++struct SegmentManifest<'a> {
++    schema_version: u8,
++    recording_id: &'a str,
++    segment_id: &'a str,
++    interaction_id: &'a str,
++    reservation_id: &'a str,
++    owner_epoch: &'a str,
++    region_id: &'a str,
++    zone_id: &'a str,
++    cell_id: &'a str,
++    recorder_node_id: &'a str,
++    sequence: u64,
++    track_id: &'static str,
++    payload_filename: &'a str,
++    container: &'static str,
++    codec: &'a str,
++    channels: u16,
++    sample_rate_hz: u32,
++    size_bytes: u64,
++    encoded_payload_bytes: u64,
++    encoded_payload_sha256: &'a str,
++    checksum_scope: &'static str,
++    written_samples: u64,
++    started_at: u64,
++    ended_at: u64,
++}
++
++#[derive(Serialize)]
++struct SegmentEvent<'a> {
++    schema_version: u8,
++    recording_id: &'a str,
++    segment_id: &'a str,
++    interaction_id: &'a str,
++    reservation_id: &'a str,
++    owner_epoch: &'a str,
++    event_sequence: u64,
++    event_type: &'static str,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    dropped_samples: Option<u64>,
++    occurred_at: u64,
++}
++
++#[derive(Serialize)]
++struct RecordingCompletion<'a> {
++    schema_version: u8,
++    recording_id: &'a str,
++    interaction_id: &'a str,
++    reservation_id: &'a str,
++    owner_epoch: &'a str,
++    region_id: &'a str,
++    zone_id: &'a str,
++    cell_id: &'a str,
++    recorder_node_id: &'a str,
++    segment_count: u64,
++    last_segment_sequence: u64,
++    ended_at: u64,
++}
++
++fn segment_id(recording_id: &str, sequence: u64) -> String {
++    format!(
++        "vseg_{}",
++        hex_lower(Sha256::digest(
++            format!("{recording_id}\0mixed\0{sequence}").as_bytes()
++        ))
++    )
++}
++
++fn hex_lower(bytes: impl AsRef<[u8]>) -> String {
++    const HEX: &[u8; 16] = b"0123456789abcdef";
++    let bytes = bytes.as_ref();
++    let mut value = String::with_capacity(bytes.len() * 2);
++    for byte in bytes {
++        value.push(HEX[(byte >> 4) as usize] as char);
++        value.push(HEX[(byte & 0x0f) as usize] as char);
++    }
++    value
++}
++
++fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
++    let parent = path
++        .parent()
++        .ok_or_else(|| anyhow!("recording manifest parent is missing"))?;
++    let temporary = parent.join(format!(
++        ".{}.tmp-{}-{}",
++        path.file_name()
++            .and_then(|value| value.to_str())
++            .unwrap_or("manifest"),
++        std::process::id(),
++        uuid::Uuid::new_v4()
++    ));
++    let mut file = OpenOptions::new()
++        .create_new(true)
++        .write(true)
++        .open(&temporary)?;
++    file.write_all(bytes)?;
++    file.write_all(b"\n")?;
++    file.sync_all()?;
++    std::fs::rename(&temporary, path)?;
++    sync_directory(parent)
++}
++
++fn append_durable(path: &Path, bytes: &[u8]) -> Result<()> {
++    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
++    file.write_all(bytes)?;
++    file.write_all(b"\n")?;
++    Ok(file.sync_all()?)
++}
++
++fn sync_directory(path: &Path) -> Result<()> {
++    File::open(path)?.sync_all()?;
++    Ok(())
++}
++
++fn unix_millis(value: SystemTime) -> Result<u64> {
++    Ok(value.duration_since(UNIX_EPOCH)?.as_millis() as u64)
++}
++
++fn required_env(name: &str) -> Result<String> {
++    std::env::var(name)
++        .ok()
++        .filter(|value| !value.trim().is_empty())
++        .ok_or_else(|| anyhow!("{name} is required"))
++}
++
++fn required_identifier_env(name: &str) -> Result<String> {
++    valid_identifier(&required_env(name)?)
++}
++
++fn valid_identifier(value: &str) -> Result<String> {
++    let valid = !value.is_empty()
++        && value.len() <= 255
++        && value
++            .bytes()
++            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'));
++    valid
++        .then(|| value.to_string())
++        .ok_or_else(|| anyhow!("recording identifier is invalid"))
++}
++
++fn valid_owner_epoch(value: &str) -> Result<String> {
++    if value.len() <= 20 && value.bytes().all(|byte| byte.is_ascii_digit()) {
++        Ok(value.to_string())
++    } else {
++        Err(anyhow!("recording owner epoch is invalid"))
++    }
++}
++
++fn env_enabled(name: &str) -> Result<bool> {
++    match std::env::var(name) {
++        Ok(value) if matches!(value.as_str(), "1" | "true") => Ok(true),
++        Ok(value) if matches!(value.as_str(), "0" | "false") => Ok(false),
++        Ok(_) => Err(anyhow!("{name} is invalid")),
++        Err(_) => Ok(false),
++    }
++}
++
++fn env_u64(name: &str, default: u64, min: u64, max: u64) -> Result<u64> {
++    let value = std::env::var(name)
++        .ok()
++        .map(|value| value.parse::<u64>())
++        .transpose()
++        .map_err(|_| anyhow!("{name} is invalid"))?
++        .unwrap_or(default);
++    if value < min || value > max {
++        return Err(anyhow!("{name} is outside the supported range"));
++    }
++    Ok(value)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn spool_publishes_opaque_segment_manifest_and_durable_index() {
++        let root = tempfile::tempdir().unwrap();
++        let config = RecordingSpoolConfig {
++            root: root.path().to_path_buf(),
++            recording_id: "vrec_test".to_string(),
++            interaction_id: "call-a".to_string(),
++            reservation_id: "reservation-a".to_string(),
++            owner_epoch: "7".to_string(),
++            region_id: "region-a".to_string(),
++            zone_id: "zone-a".to_string(),
++            cell_id: "cell-a".to_string(),
++            recorder_node_id: "rustpbx-a".to_string(),
++            segment_duration_secs: 60,
++            segment_max_bytes: 1024 * 1024,
++        };
++        let mut spool = RecordingSpoolState::new(config).unwrap();
++        std::fs::write(spool.current_partial_path(), b"wav").unwrap();
++        spool.observe_payload(b"encoded");
++        let final_path = spool.close_current(7, 160, 8000, 2, "PCMU").unwrap();
++        spool.finalize().unwrap();
++        assert!(final_path.exists());
++        let manifest =
++            std::fs::read_to_string(root.path().join("vrec_test/segment-000001.json")).unwrap();
++        assert!(manifest.contains("\"checksum_scope\":\"encoded_payload\""));
++        assert!(!manifest.contains("phone"));
++        assert!(
++            std::fs::read_to_string(root.path().join("vrec_test/segments.ndjson"))
++                .unwrap()
++                .contains("\"segment_id\":\"vseg_")
++        );
++        let completion =
++            std::fs::read_to_string(root.path().join("vrec_test/recording-completed.json"))
++                .unwrap();
++        assert!(completion.contains("\"segment_count\":1"));
++        assert!(completion.contains("\"last_segment_sequence\":1"));
++    }
++
++    #[test]
++    fn spool_discards_empty_segment_created_after_rotation() {
++        let root = tempfile::tempdir().unwrap();
++        let config = RecordingSpoolConfig {
++            root: root.path().to_path_buf(),
++            recording_id: "vrec_rotated".to_string(),
++            interaction_id: "call-b".to_string(),
++            reservation_id: "reservation-b".to_string(),
++            owner_epoch: "8".to_string(),
++            region_id: "region-a".to_string(),
++            zone_id: "zone-a".to_string(),
++            cell_id: "cell-a".to_string(),
++            recorder_node_id: "rustpbx-a".to_string(),
++            segment_duration_secs: 60,
++            segment_max_bytes: 1024 * 1024,
++        };
++        let mut spool = RecordingSpoolState::new(config).unwrap();
++        std::fs::write(spool.current_partial_path(), b"wav-one").unwrap();
++        spool.observe_payload(b"encoded");
++        spool.close_current(7, 160, 8000, 2, "PCMU").unwrap();
++        spool.advance();
++        let empty_path = spool.current_partial_path();
++        std::fs::write(&empty_path, b"wav-header-only").unwrap();
++
++        assert!(spool.discard_empty_current().unwrap());
++        spool.record_sample_dropped(3).unwrap();
++        spool.finalize().unwrap();
++
++        assert!(!empty_path.exists());
++        let completion =
++            std::fs::read_to_string(root.path().join("vrec_rotated/recording-completed.json"))
++                .unwrap();
++        assert!(completion.contains("\"segment_count\":1"));
++        assert!(completion.contains("\"last_segment_sequence\":1"));
++        let event =
++            std::fs::read_to_string(root.path().join("vrec_rotated/event-000001.json")).unwrap();
++        assert!(event.contains("\"segment_id\":\"vseg_"));
++        assert!(event.contains("\"dropped_samples\":3"));
++    }
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index 6dfa59d..c5820c7 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -14,6 +14,7 @@ pub mod license;
+ 
+ pub mod http_util;
+ pub mod ivekit_owner;
++pub mod ivekit_recording;
+ pub mod media;
+ pub mod metrics;
+ pub mod models;
+diff --git a/src/media/engine/command.rs b/src/media/engine/command.rs
+index 1e08c9e..a145a4c 100644
+--- a/src/media/engine/command.rs
++++ b/src/media/engine/command.rs
+@@ -162,6 +162,8 @@ pub struct RecordConfig {
+     pub max_duration_secs: Option<u32>,
+     pub beep: bool,
+     pub format: Option<String>,
++    #[serde(default)]
++    pub ivekit_spool: Option<crate::ivekit_recording::RecordingSpoolConfig>,
+ }
+ 
+ // ---------------------------------------------------------------------------
+@@ -329,7 +331,6 @@ pub enum MediaCommand {
+         recorder: Arc<RwLock<Option<crate::media::recorder::Recorder>>>,
+         paused: Arc<AtomicBool>,
+     },
+-
+ }
+ 
+ impl MediaCommand {
+diff --git a/src/media/engine/mod.rs b/src/media/engine/mod.rs
+index 469f72a..1a8a4ac 100644
+--- a/src/media/engine/mod.rs
++++ b/src/media/engine/mod.rs
+@@ -498,8 +498,11 @@ impl EngineCore {
+                     .and_then(|p| p.audio.as_ref())
+                     .map(|c| c.codec)
+                     .unwrap_or(audio_codec::CodecType::PCMU);
+-                let mut recorder =
+-                    crate::media::recorder::Recorder::new(&config.path, recorder_codec)?;
++                let mut recorder = crate::media::recorder::Recorder::new_with_spool(
++                    &config.path,
++                    recorder_codec,
++                    config.ivekit_spool,
++                )?;
+                 if let Some(profile) = caller_profile {
+                     recorder.set_leg_profile(crate::media::recorder::Leg::A, profile);
+                 }
+@@ -571,6 +574,9 @@ impl EngineCore {
+                     // Release ensures the bridge forwarding thread sees the flag
+                     // before the RecordingPaused event reaches subscribers.
+                     sess.recording_paused.store(true, Ordering::Release);
++                    if let Some(recorder) = sess.recorder.write().as_mut() {
++                        let _ = recorder.record_control_event("paused");
++                    }
+                 }
+                 let _ = self
+                     .event_tx
+@@ -582,6 +588,9 @@ impl EngineCore {
+                 if let Some(sess) = sessions.get(&session_id) {
+                     use std::sync::atomic::Ordering;
+                     sess.recording_paused.store(false, Ordering::Release);
++                    if let Some(recorder) = sess.recorder.write().as_mut() {
++                        let _ = recorder.record_control_event("resumed");
++                    }
+                 }
+                 let _ = self
+                     .event_tx
+@@ -1106,6 +1115,7 @@ mod tests {
+                     max_duration_secs: None,
+                     beep: false,
+                     format: None,
++                    ivekit_spool: None,
+                 },
+                 caller_profile: None,
+                 callee_profile: None,
+@@ -1177,6 +1187,7 @@ mod tests {
+                     max_duration_secs: None,
+                     beep: false,
+                     format: None,
++                    ivekit_spool: None,
+                 },
+                 caller_profile: None,
+                 callee_profile: None,
+@@ -1231,6 +1242,7 @@ mod tests {
+                     max_duration_secs: None,
+                     beep: false,
+                     format: None,
++                    ivekit_spool: None,
+                 },
+                 caller_profile: None,
+                 callee_profile: None,
+@@ -1249,6 +1261,7 @@ mod tests {
+                     max_duration_secs: None,
+                     beep: false,
+                     format: None,
++                    ivekit_spool: None,
+                 },
+                 caller_profile: None,
+                 callee_profile: None,
+@@ -1426,6 +1439,7 @@ mod tests {
+                     max_duration_secs: None,
+                     beep: false,
+                     format: None,
++                    ivekit_spool: None,
+                 },
+                 caller_profile: None,
+                 callee_profile: None,
+@@ -1515,6 +1529,7 @@ mod tests {
+                     max_duration_secs: None,
+                     beep: false,
+                     format: None,
++                    ivekit_spool: None,
+                 },
+                 caller_profile: None,
+                 callee_profile: None,
+@@ -1875,6 +1890,7 @@ mod tests {
+                     max_duration_secs: None,
+                     beep: false,
+                     format: None,
++                    ivekit_spool: None,
+                 },
+                 caller_profile: Some(caller_profile),
+                 callee_profile: None,
+@@ -1924,6 +1940,7 @@ mod tests {
+                     max_duration_secs: None,
+                     beep: false,
+                     format: None,
++                    ivekit_spool: None,
+                 },
+                 caller_profile: None,
+                 callee_profile: None,
+@@ -2285,6 +2302,7 @@ mod tests {
+                     max_duration_secs: None,
+                     beep: false,
+                     format: None,
++                    ivekit_spool: None,
+                 },
+                 caller_profile: None,
+                 callee_profile: None,
+diff --git a/src/media/forwarding_track.rs b/src/media/forwarding_track.rs
+index b87441c..62d32f9 100644
+--- a/src/media/forwarding_track.rs
++++ b/src/media/forwarding_track.rs
+@@ -9,6 +9,7 @@ use rustrtc::media::error::MediaResult;
+ use rustrtc::media::frame::{MediaKind, MediaSample};
+ use rustrtc::media::track::{MediaStreamTrack, TrackState};
+ use std::sync::Arc;
++use std::sync::atomic::{AtomicU64, Ordering};
+ use tokio::sync::mpsc;
+ use tracing::trace;
+ 
+@@ -45,6 +46,7 @@ pub struct ForwardingTrack {
+     audio_timing: Mutex<Option<RtpTiming>>,
+     dtmf_timing: Mutex<Option<RtpTiming>>,
+     recorder_tx: Option<mpsc::Sender<(Leg, SharedMediaSample)>>,
++    recorder_drop_counter: Option<Arc<AtomicU64>>,
+     sipflow_tx: Option<mpsc::Sender<(Leg, SharedMediaSample, u64)>>,
+     receive_clock: ReceiveTimestampClock,
+     recorder_leg: Leg,
+@@ -80,6 +82,7 @@ impl ForwardingTrack {
+             audio_timing: Mutex::new(None),
+             dtmf_timing: Mutex::new(None),
+             recorder_tx,
++            recorder_drop_counter: None,
+             sipflow_tx,
+             receive_clock: ReceiveTimestampClock::new(),
+             recorder_leg,
+@@ -87,6 +90,11 @@ impl ForwardingTrack {
+         }
+     }
+ 
++    pub fn with_recorder_drop_counter(mut self, counter: Arc<AtomicU64>) -> Self {
++        self.recorder_drop_counter = Some(counter);
++        self
++    }
++
+     pub fn stage_ingress_profile(&self, profile: NegotiatedLegProfile) {
+         *self.update_ingress_profile.lock() = Some(profile);
+     }
+@@ -200,11 +208,17 @@ impl ForwardingTrack {
+ 
+         if let (Some(tx), Some(shared)) = (&self.recorder_tx, &shared) {
+             if let Err(e) = tx.try_send((self.recorder_leg, Arc::clone(shared))) {
+-                trace!(track_id = %self.track_id, "ForwardingTrack recorder channel full: {e}");
++                if matches!(&e, tokio::sync::mpsc::error::TrySendError::Full(_))
++                    && let Some(counter) = &self.recorder_drop_counter
++                {
++                    counter.fetch_add(1, Ordering::Relaxed);
++                }
++                trace!(track_id = %self.track_id, "ForwardingTrack recorder channel unavailable: {e}");
+             }
+         }
+         if let (Some(tx), Some(shared)) = (&self.sipflow_tx, &shared) {
+-            if let Err(e) = tx.try_send((self.recorder_leg, Arc::clone(shared), received_at_micros)) {
++            if let Err(e) = tx.try_send((self.recorder_leg, Arc::clone(shared), received_at_micros))
++            {
+                 trace!(track_id = %self.track_id, "ForwardingTrack sipflow channel full: {e}");
+             }
+         }
+@@ -383,7 +397,8 @@ impl MediaStreamTrack for ForwardingTrack {
+                     return Ok(result);
+                 }
+ 
+-                if let Some(result) = self.try_transcode_audio(frame, &audio_mapping, matched_audio) {
++                if let Some(result) = self.try_transcode_audio(frame, &audio_mapping, matched_audio)
++                {
+                     return Ok(result);
+                 }
+             }
+@@ -602,6 +617,30 @@ mod tests {
+         assert!(result.is_ok());
+     }
+ 
++    #[tokio::test]
++    async fn recorder_full_channel_counts_drop_without_blocking() {
++        let (rec_tx, _rec_rx) = mpsc::channel::<(Leg, SharedMediaSample)>(1);
++        let _ = rec_tx.try_send((Leg::A, Arc::new(audio_sample(0))));
++        let drops = Arc::new(AtomicU64::new(0));
++        let ft = ForwardingTrack::new(
++            "test-recorder-full".to_string(),
++            OneShotTrack::new(audio_sample(0)),
++            Some(rec_tx),
++            None,
++            Leg::A,
++            NegotiatedLegProfile::default(),
++            NegotiatedLegProfile::default(),
++        )
++        .with_recorder_drop_counter(drops.clone());
++
++        let result = tokio::time::timeout(std::time::Duration::from_millis(100), ft.recv())
++            .await
++            .expect("recv must not block when recorder channel is full");
++
++        assert!(result.is_ok());
++        assert_eq!(drops.load(Ordering::Relaxed), 1);
++    }
++
+     fn make_profile_with_dtmf(
+         audio_codec: audio_codec::CodecType,
+         audio_pt: u8,
+diff --git a/src/media/recorder.rs b/src/media/recorder.rs
+index 6ded30c..326fe3d 100644
+--- a/src/media/recorder.rs
++++ b/src/media/recorder.rs
+@@ -1,14 +1,17 @@
+-use crate::media::StreamWriter;
++use crate::ivekit_recording::{RecordingSpoolConfig, RecordingSpoolState};
+ use crate::media::negotiate::NegotiatedLegProfile;
+ use crate::media::wav_writer::CodecWavWriter;
++use crate::media::StreamWriter;
+ use anyhow::Result;
+-use audio_codec::{CodecType, Decoder, Encoder, create_decoder, create_encoder};
++use audio_codec::{create_decoder, create_encoder, CodecType, Decoder, Encoder};
+ use bytes::Bytes;
+ use rustrtc::media::MediaSample;
+ use serde::{Deserialize, Serialize};
+ use std::collections::{BTreeMap, HashMap};
+ use std::fs::File;
+ use std::path::PathBuf;
++use std::sync::atomic::{AtomicU64, Ordering};
++use std::sync::Arc;
+ use std::time::{Duration, Instant};
+ use tracing::{debug, trace};
+ 
+@@ -22,6 +25,8 @@ pub struct RecorderOption {
+     pub samplerate: u32,
+     #[serde(default)]
+     pub ptime: u32,
++    #[serde(default)]
++    pub ivekit_spool: Option<RecordingSpoolConfig>,
+ }
+ 
+ impl RecorderOption {
+@@ -39,6 +44,7 @@ impl Default for RecorderOption {
+             recorder_file: "".to_string(),
+             samplerate: 16000,
+             ptime: 200,
++            ivekit_spool: None,
+         }
+     }
+ }
+@@ -93,16 +99,40 @@ pub struct Recorder {
+ 
+     written_samples: u64,
+     writer: Box<dyn StreamWriter>,
++    spool: Option<RecordingSpoolState>,
++    drop_counters: Vec<Arc<AtomicU64>>,
+ }
+ 
+ impl Recorder {
+     pub fn new(path: &str, codec: CodecType) -> Result<Self> {
++        Self::new_with_spool(path, codec, None)
++    }
++
++    pub fn new_with_spool(
++        path: &str,
++        codec: CodecType,
++        spool_config: Option<RecordingSpoolConfig>,
++    ) -> Result<Self> {
++        let spool = spool_config.map(RecordingSpoolState::new).transpose()?;
++        let writer_path = spool
++            .as_ref()
++            .map(RecordingSpoolState::current_partial_path)
++            .unwrap_or_else(|| PathBuf::from(path));
++        let public_path = spool
++            .as_ref()
++            .map(RecordingSpoolState::current_final_path)
++            .unwrap_or_else(|| PathBuf::from(path));
+         // ensure the directory exists
+-        if let Some(parent) = PathBuf::from(path).parent() {
++        if let Some(parent) = writer_path.parent() {
+             std::fs::create_dir_all(parent).ok();
+         }
+-        let file = File::create(path)
+-            .map_err(|e| anyhow::anyhow!("Failed to create recorder file {}: {}", path, e))?;
++        let file = File::create(&writer_path).map_err(|e| {
++            anyhow::anyhow!(
++                "Failed to create recorder file {}: {}",
++                writer_path.display(),
++                e
++            )
++        })?;
+ 
+         let src_codec = codec;
+         let codec = match codec {
+@@ -115,7 +145,9 @@ impl Recorder {
+         let encoder = Some(create_encoder(codec));
+         debug!(
+             "Creating recorder: path={}, src_codec={:?} codec={:?}",
+-            path, src_codec, codec
++            public_path.display(),
++            src_codec,
++            codec
+         );
+         // PCMU/PCMA are mono codecs (1 channel), we force stereo (2 channels) for better separation
+         // of leg A and leg B audio in the recording.
+@@ -129,7 +161,7 @@ impl Recorder {
+         writer.write_header()?;
+ 
+         Ok(Self {
+-            path: path.to_string(),
++            path: public_path.to_string_lossy().to_string(),
+             codec,
+             written_bytes: 0,
+             sample_rate,
+@@ -156,6 +188,8 @@ impl Recorder {
+             written_samples: 0,
+             writer,
+             ptime: Duration::from_millis(200),
++            spool,
++            drop_counters: Vec::new(),
+         })
+     }
+ 
+@@ -166,6 +200,10 @@ impl Recorder {
+         }
+     }
+ 
++    pub fn add_drop_counter(&mut self, counter: Arc<AtomicU64>) {
++        self.drop_counters.push(counter);
++    }
++
+     fn profile_for_leg(&self, leg: Leg) -> &NegotiatedLegProfile {
+         match leg {
+             Leg::A => &self.profile_a,
+@@ -263,6 +301,7 @@ impl Recorder {
+         self.insert_audio_block(leg, absolute_ts, encoded);
+         if self.last_flush.elapsed() >= self.ptime {
+             self.flush()?;
++            self.rotate_segment_if_needed()?;
+         }
+         Ok(())
+     }
+@@ -587,6 +626,7 @@ impl Recorder {
+ 
+         if end_bit {
+             self.flush()?;
++            self.rotate_segment_if_needed()?;
+         }
+         Ok(())
+     }
+@@ -637,6 +677,7 @@ impl Recorder {
+         self.overlay_dtmf_range(leg, ts, end_ts, encoded);
+ 
+         self.flush()?;
++        self.rotate_segment_if_needed()?;
+         Ok(())
+     }
+ 
+@@ -696,6 +737,9 @@ impl Recorder {
+         };
+ 
+         self.writer.write_packet(&output, flush_len as usize)?;
++        if let Some(spool) = self.spool.as_mut() {
++            spool.observe_payload(&output);
++        }
+         self.written_bytes += output.len() as u32;
+         self.written_samples += flush_len as u64;
+ 
+@@ -703,11 +747,100 @@ impl Recorder {
+     }
+ 
+     pub fn finalize(&mut self) -> Result<()> {
++        if self
++            .spool
++            .as_ref()
++            .is_some_and(RecordingSpoolState::is_finalized)
++        {
++            return Ok(());
++        }
+         self.flush()?;
++        let dropped_samples = self.take_dropped_samples();
+         self.writer.finalize()?;
++        if let Some(spool) = self.spool.as_mut() {
++            if self.written_bytes == 0 {
++                if !spool.discard_empty_current()? {
++                    return Err(anyhow::anyhow!(
++                        "recording cannot be finalized without encoded media"
++                    ));
++                }
++                spool.record_sample_dropped(dropped_samples)?;
++            } else {
++                spool.record_sample_dropped(dropped_samples)?;
++                spool.close_current(
++                    self.written_bytes as u64,
++                    self.written_samples,
++                    self.sample_rate,
++                    self.channels,
++                    &format!("{:?}", self.codec),
++                )?;
++            }
++            self.path = spool.current_final_path().to_string_lossy().to_string();
++            spool.finalize()?;
++        }
+         Ok(())
+     }
+ 
++    pub fn record_control_event(&mut self, event_type: &'static str) -> Result<()> {
++        if let Some(spool) = self.spool.as_mut() {
++            spool.record_control_event(event_type)?;
++        }
++        Ok(())
++    }
++
++    fn rotate_segment_if_needed(&mut self) -> Result<()> {
++        let should_rotate = self
++            .spool
++            .as_ref()
++            .is_some_and(|spool| spool.should_rotate(self.written_bytes as u64));
++        if !should_rotate {
++            return Ok(());
++        }
++        self.flush_drop_evidence()?;
++        self.writer.finalize()?;
++        let spool = self
++            .spool
++            .as_mut()
++            .ok_or_else(|| anyhow::anyhow!("recording spool state is missing"))?;
++        spool.close_current(
++            self.written_bytes as u64,
++            self.written_samples,
++            self.sample_rate,
++            self.channels,
++            &format!("{:?}", self.codec),
++        )?;
++        spool.advance();
++        let next_path = spool.current_partial_path();
++        let file = File::create(&next_path)?;
++        let mut writer = Box::new(CodecWavWriter::new(
++            file,
++            self.sample_rate,
++            self.channels,
++            Some(self.codec),
++        ));
++        writer.write_header()?;
++        self.writer = writer;
++        self.path = spool.current_final_path().to_string_lossy().to_string();
++        self.written_bytes = 0;
++        self.written_samples = 0;
++        Ok(())
++    }
++
++    fn flush_drop_evidence(&mut self) -> Result<()> {
++        let dropped = self.take_dropped_samples();
++        if let Some(spool) = self.spool.as_mut() {
++            spool.record_sample_dropped(dropped)?;
++        }
++        Ok(())
++    }
++
++    fn take_dropped_samples(&self) -> u64 {
++        self.drop_counters
++            .iter()
++            .map(|counter| counter.swap(0, Ordering::AcqRel))
++            .sum()
++    }
++
+     fn block_info(&self) -> (u32, usize) {
+         match self.codec {
+             CodecType::G729 => (80, 10),
+@@ -943,7 +1076,7 @@ impl DtmfGenerator {
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+-    use audio_codec::{CodecType, create_decoder, create_encoder};
++    use audio_codec::{create_decoder, create_encoder, CodecType};
+ 
+     #[test]
+     fn test_mix_pcmu_both_silent() {
+diff --git a/src/proxy/call.rs b/src/proxy/call.rs
+index a829708..7e15ab3 100644
+--- a/src/proxy/call.rs
++++ b/src/proxy/call.rs
+@@ -1137,6 +1137,36 @@ impl CallModule {
+         if let Some(ptime) = policy.ptime {
+             option.ptime = ptime;
+         }
++        if matches!(
++            std::env::var("IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED").as_deref(),
++            Ok("1" | "true")
++        ) {
++            match crate::ivekit_owner::owner_contract(&session_id) {
++                Some(contract) => {
++                    match crate::ivekit_recording::RecordingSpoolConfig::from_env(&contract) {
++                        Ok(Some(spool)) => {
++                            option.recorder_file =
++                                spool.first_segment_path().to_string_lossy().to_string();
++                            option.ivekit_spool = Some(spool);
++                        }
++                        Ok(None) => {}
++                        Err(error) => {
++                            warn!(
++                                %session_id,
++                                error = %error,
++                                "iveKit recording spool configuration rejected; using legacy local recording"
++                            );
++                        }
++                    }
++                }
++                None => {
++                    warn!(
++                        %session_id,
++                        "iveKit recording spool has no owner contract; using legacy local recording"
++                    );
++                }
++            }
++        }
+         Some(option)
+     }
+ 
+diff --git a/src/proxy/proxy_call/reporter.rs b/src/proxy/proxy_call/reporter.rs
+index cac8cf2..0f3701a 100644
+--- a/src/proxy/proxy_call/reporter.rs
++++ b/src/proxy/proxy_call/reporter.rs
+@@ -147,17 +147,28 @@ impl CallReporter {
+             (None, None)
+         };
+ 
+-        let outbound_trunk_context = self.context.cookie.get_extension::<crate::call::OutboundTrunkContext>()
+-            .or_else(|| self.context.dialplan.extensions.get::<crate::call::OutboundTrunkContext>().cloned());
++        let outbound_trunk_context = self
++            .context
++            .cookie
++            .get_extension::<crate::call::OutboundTrunkContext>()
++            .or_else(|| {
++                self.context
++                    .dialplan
++                    .extensions
++                    .get::<crate::call::OutboundTrunkContext>()
++                    .cloned()
++            });
+         let outbound_sip_trunk_id = outbound_trunk_context.as_ref().and_then(|ctx| ctx.id);
+ 
+         let mut recorder = Vec::new();
++        let mut ivekit_spool = None;
+ 
+         if call_was_accepted
+             && self.context.dialplan.recording.enabled
+             && let Some(recorder_config) = self.context.dialplan.recording.option.as_ref()
+             && !recorder_config.recorder_file.is_empty()
+         {
++            ivekit_spool = recorder_config.ivekit_spool.clone();
+             let size = fs::metadata(&recorder_config.recorder_file)
+                 .map(|meta| meta.len())
+                 .unwrap_or(0);
+@@ -165,7 +176,31 @@ impl CallReporter {
+                 track_id: "mixed".to_string(),
+                 path: recorder_config.recorder_file.clone(),
+                 size,
+-                extra: None,
++                extra: recorder_config.ivekit_spool.as_ref().map(|spool| {
++                    HashMap::from([
++                        ("ivekitSpool".to_string(), serde_json::json!(true)),
++                        (
++                            "recordingId".to_string(),
++                            serde_json::json!(&spool.recording_id),
++                        ),
++                        (
++                            "interactionId".to_string(),
++                            serde_json::json!(&spool.interaction_id),
++                        ),
++                        (
++                            "reservationId".to_string(),
++                            serde_json::json!(&spool.reservation_id),
++                        ),
++                        (
++                            "ownerEpoch".to_string(),
++                            serde_json::json!(&spool.owner_epoch),
++                        ),
++                        (
++                            "manifestDirectory".to_string(),
++                            serde_json::json!(spool.recording_directory()),
++                        ),
++                    ])
++                }),
+             });
+         }
+         tracing::info!(
+@@ -178,7 +213,11 @@ impl CallReporter {
+         // Copy values from cookie to extras_map
+         // (Removed as TransactionCookie no longer has values)
+ 
+-        let recording_path_for_db = recorder.first().map(|media| media.path.clone());
++        let recording_path_for_db = if ivekit_spool.is_some() {
++            None
++        } else {
++            recorder.first().map(|media| media.path.clone())
++        };
+ 
+         let mut metadata_map = snapshot
+             .extensions
+@@ -192,6 +231,21 @@ impl CallReporter {
+                 metadata_map.insert("outbound_trunk_dest".to_string(), dest.clone());
+             }
+         }
++        if let Some(spool) = ivekit_spool.as_ref() {
++            metadata_map.insert(
++                "ivekit_recording_id".to_string(),
++                spool.recording_id.clone(),
++            );
++            metadata_map.insert(
++                "ivekit_interaction_id".to_string(),
++                spool.interaction_id.clone(),
++            );
++            metadata_map.insert(
++                "ivekit_reservation_id".to_string(),
++                spool.reservation_id.clone(),
++            );
++            metadata_map.insert("ivekit_owner_epoch".to_string(), spool.owner_epoch.clone());
++        }
+ 
+         let mut details = CallDetails {
+             direction,
+@@ -209,7 +263,11 @@ impl CallReporter {
+             recording_url: recording_path_for_db,
+             rewrite,
+             last_error,
+-            metadata: if metadata_map.is_empty() { None } else { Some(metadata_map) },
++            metadata: if metadata_map.is_empty() {
++                None
++            } else {
++                Some(metadata_map)
++            },
+             ..Default::default()
+         };
+ 
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index b04a757..04f0457 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -34,11 +34,12 @@ use crate::call::sip::{ClientDialogGuard, ServerDialogGuard};
+ use crate::callrecord::{CallRecordHangupMessage, CallRecordHangupReason, CallRecordSender};
+ use crate::config::MediaProxyMode;
+ use crate::media::bridge::{BridgeEndpoint, BridgePeerBuilder};
+-use crate::proxy::proxy_call::session_registry::SupervisorSession;
+ use crate::media::negotiate::{CodecInfo, MediaNegotiator};
+ use crate::media::recorder::Recorder;
+ use crate::media::{FileTrack, PlaybackEndReason, RtpTrackBuilder, Track};
+ use crate::proxy::call::parse_allowed_codecs;
++use crate::proxy::proxy_call::media_state::AnchoredMediaMode;
++use crate::proxy::proxy_call::session_registry::SupervisorSession;
+ use crate::proxy::proxy_call::{
+     dtmf::RtpDtmfDetector,
+     media_peer::{MediaPeer, VoiceEnginePeer},
+@@ -52,7 +53,6 @@ use crate::proxy::proxy_call::{
+     },
+     state::{CallContext, CallSessionRecordSnapshot},
+ };
+-use crate::proxy::proxy_call::media_state::AnchoredMediaMode;
+ use crate::proxy::server::SipServerRef;
+ use anyhow::{Result, anyhow};
+ use audio_codec::CodecType;
+@@ -3195,9 +3195,7 @@ impl SipSession {
+                         if self.context.dialplan.voicemail_enabled
+                             && !self.server_dialog.state().is_terminated()
+                         {
+-                            if let Some(ext) =
+-                                extract_sip_username(&self.context.original_callee)
+-                            {
++                            if let Some(ext) = extract_sip_username(&self.context.original_callee) {
+                                 info!(
+                                     session_id = %self.context.session_id,
+                                     extension = %ext,
+@@ -3355,11 +3353,8 @@ impl SipSession {
+                     // Enrich via queue_location_enricher if configured
+                     let resolved_agents =
+                         if let Some(enricher) = &self.server.queue_location_enricher {
+-                            let caller_headers: Vec<rsipstack::sip::Header> = self
+-                                .server_dialog
+-                                .initial_request()
+-                                .headers
+-                                .into();
++                            let caller_headers: Vec<rsipstack::sip::Header> =
++                                self.server_dialog.initial_request().headers.into();
+                             enricher
+                                 .enrich(
+                                     resolved_agents,
+@@ -3838,10 +3833,9 @@ impl SipSession {
+             {
+                 warn!(session_id = %self.context.session_id, error = %e, "Failed to play progress audio");
+             }
+-            self.media.bridge_playback_track_ids.insert(
+-                "caller".to_string(),
+-                "progress-media".to_string(),
+-            );
++            self.media
++                .bridge_playback_track_ids
++                .insert("caller".to_string(), "progress-media".to_string());
+             self.media
+                 .playback_tracks
+                 .insert("progress-media".to_string(), track);
+@@ -5022,7 +5016,10 @@ impl SipSession {
+                     );
+                 }
+ 
+-                let cancel_token = self.caller_peer().map(|p| p.cancel_token()).unwrap_or_default();
++                let cancel_token = self
++                    .caller_peer()
++                    .map(|p| p.cancel_token())
++                    .unwrap_or_default();
+                 let mut track_builder = self.build_rtp_track_builder(
+                     Self::CALLER_TRACK_ID.to_string(),
+                     cancel_token,
+@@ -5759,8 +5756,7 @@ impl SipSession {
+         // Recording / sipflow are never enabled together with the fast-path
+         // (fast-path eligibility requires !recording.enabled), so we pass None
+         // here — no recording is lost by the downgrade.
+-        let recorder: Arc<RwLock<Option<crate::media::recorder::Recorder>>> =
+-            self.recorder.clone();
++        let recorder: Arc<RwLock<Option<crate::media::recorder::Recorder>>> = self.recorder.clone();
+         self.wire_both_forwarding_tracks(
+             &caller_pc,
+             &callee_pc,
+@@ -6149,6 +6145,13 @@ impl SipSession {
+         // asynchronously; the ForwardingTrack just does a non-blocking
+         // try_send per sample — if the channel is full the sample is dropped
+         // rather than allowing unbounded memory growth under disk pressure.
++        let recorder_drop_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
++        {
++            let mut guard = recorder.write();
++            if let Some(recorder) = guard.as_mut() {
++                recorder.add_drop_counter(recorder_drop_counter.clone());
++            }
++        }
+         let recorder_tx = {
+             use tokio::sync::mpsc;
+             // 256 slots ≈ 5 seconds of 20 ms packets at 8 kHz — enough to
+@@ -6172,15 +6175,18 @@ impl SipSession {
+             tx
+         };
+ 
+-        let forwarding = Arc::new(ForwardingTrack::new(
+-            track_id.to_string(),
+-            receiver_track,
+-            Some(recorder_tx),
+-            sipflow_tx,
+-            leg,
+-            ingress_profile,
+-            egress_profile,
+-        ));
++        let forwarding = Arc::new(
++            ForwardingTrack::new(
++                track_id.to_string(),
++                receiver_track,
++                Some(recorder_tx),
++                sipflow_tx,
++                leg,
++                ingress_profile,
++                egress_profile,
++            )
++            .with_recorder_drop_counter(recorder_drop_counter),
++        );
+ 
+         let mut sender_builder = rustrtc::RtpSender::builder(
+             forwarding.clone() as Arc<dyn rustrtc::media::MediaStreamTrack>,
+@@ -6317,8 +6323,10 @@ impl SipSession {
+         let caller_is_webrtc = self.is_caller_webrtc();
+         let caller_mode = self.caller_transport_mode();
+         let callee_mode = self.callee_transport_mode(callee_is_webrtc);
+-        self.legs.set_transport(LegId::from("caller"), caller_mode.clone());
+-        self.legs.set_transport(LegId::from("callee"), callee_mode.clone());
++        self.legs
++            .set_transport(LegId::from("caller"), caller_mode.clone());
++        self.legs
++            .set_transport(LegId::from("callee"), callee_mode.clone());
+ 
+         let media_proxy_enabled = self.media_profile.path == MediaPathMode::Anchored;
+ 
+@@ -6623,7 +6631,10 @@ impl SipSession {
+             }
+         } else if media_proxy_enabled {
+             self.media.callee_offer_uses_media_bridge = false;
+-            let cancel_token = self.callee_peer().map(|p| p.cancel_token()).unwrap_or_default();
++            let cancel_token = self
++                .callee_peer()
++                .map(|p| p.cancel_token())
++                .unwrap_or_default();
+             let mut track_builder = self.build_rtp_track_builder(
+                 track_id.clone(),
+                 cancel_token,
+@@ -6676,7 +6687,10 @@ impl SipSession {
+             Ok(sdp)
+         } else {
+             self.media.callee_offer_uses_media_bridge = false;
+-            let cancel_token = self.callee_peer().map(|p| p.cancel_token()).unwrap_or_default();
++            let cancel_token = self
++                .callee_peer()
++                .map(|p| p.cancel_token())
++                .unwrap_or_default();
+             let mut track_builder = RtpTrackBuilder::new(track_id.clone())
+                 .with_mode(self.callee_transport_mode(callee_is_webrtc))
+                 .with_cancel_token(cancel_token)
+@@ -6736,7 +6750,10 @@ impl SipSession {
+             );
+         }
+ 
+-        let cancel_token = self.caller_peer().map(|p| p.cancel_token()).unwrap_or_default();
++        let cancel_token = self
++            .caller_peer()
++            .map(|p| p.cancel_token())
++            .unwrap_or_default();
+         let mut track_builder = self.build_rtp_track_builder(
+             Self::CALLER_TRACK_ID.to_string(),
+             cancel_token,
+@@ -7476,18 +7493,38 @@ impl SipSession {
+ 
+         // Resolve leg profiles from forwarding tracks (preferred) or raw SDP.
+         let caller_profile = match self.caller_peer() {
+-            Some(peer) => match Self::get_forwarding_track(peer, Self::CALLER_FORWARDING_TRACK_ID).await {
+-                Some(forwarding) => forwarding.ingress_profile(),
+-                None => self.media.answer.as_deref().map(MediaNegotiator::extract_leg_profile),
+-            },
+-            None => self.media.answer.as_deref().map(MediaNegotiator::extract_leg_profile),
++            Some(peer) => {
++                match Self::get_forwarding_track(peer, Self::CALLER_FORWARDING_TRACK_ID).await {
++                    Some(forwarding) => forwarding.ingress_profile(),
++                    None => self
++                        .media
++                        .answer
++                        .as_deref()
++                        .map(MediaNegotiator::extract_leg_profile),
++                }
++            }
++            None => self
++                .media
++                .answer
++                .as_deref()
++                .map(MediaNegotiator::extract_leg_profile),
+         };
+         let callee_profile = match self.callee_peer() {
+-            Some(peer) => match Self::get_forwarding_track(peer, Self::CALLEE_FORWARDING_TRACK_ID).await {
+-                Some(forwarding) => forwarding.ingress_profile(),
+-                None => self.media.callee_answer_sdp.as_deref().map(MediaNegotiator::extract_leg_profile),
+-            },
+-            None => self.media.callee_answer_sdp.as_deref().map(MediaNegotiator::extract_leg_profile),
++            Some(peer) => {
++                match Self::get_forwarding_track(peer, Self::CALLEE_FORWARDING_TRACK_ID).await {
++                    Some(forwarding) => forwarding.ingress_profile(),
++                    None => self
++                        .media
++                        .callee_answer_sdp
++                        .as_deref()
++                        .map(MediaNegotiator::extract_leg_profile),
++                }
++            }
++            None => self
++                .media
++                .callee_answer_sdp
++                .as_deref()
++                .map(MediaNegotiator::extract_leg_profile),
+         };
+ 
+         // Delegate recorder creation (with leg profiles) to the engine.
+@@ -7505,6 +7542,14 @@ impl SipSession {
+                         max_duration_secs: max_duration.map(|d| d.as_secs() as u32),
+                         beep: false,
+                         format: None,
++                        ivekit_spool: self
++                            .context
++                            .dialplan
++                            .recording
++                            .option
++                            .as_ref()
++                            .filter(|option| option.recorder_file == path)
++                            .and_then(|option| option.ivekit_spool.clone()),
+                     },
+                     caller_profile,
+                     callee_profile,
+@@ -7782,8 +7827,8 @@ impl SipSession {
+         // ── 1. Queue abandon catch-all ──────────────────────────────
+         // Covers the CallApp-based queue path (where execute_queue is not
+         // called and meta.queue_name may not be set via the SIP layer).
+-        let in_queue = self.meta.queue_name.is_some()
+-            || self.app_runtime.get_queue_name().is_some();
++        let in_queue =
++            self.meta.queue_name.is_some() || self.app_runtime.get_queue_name().is_some();
+         if in_queue
+             && self.meta.connected_callee.is_none()
+             && matches!(
+@@ -9181,7 +9226,7 @@ impl SipSession {
+ 
+         match active_count {
+             2 => {
+-                 // Direct bridge: caller ↔ callee (or caller ↔ target)
++                // Direct bridge: caller ↔ callee (or caller ↔ target)
+                 info!(session_id = %self.id, "Switching to direct bridge mode");
+                 // Clean up conference bridges if any
+                 self.stop_conference_bridges().await;
+@@ -11036,14 +11081,12 @@ mod tests {
+         );
+ 
+         // Register legs as WebRTC caller + RTP callee (typical browser↔MicroSIP)
+-        session.legs.set_transport(
+-            LegId::from("caller"),
+-            rustrtc::TransportMode::WebRtc,
+-        );
+-        session.legs.set_transport(
+-            LegId::from("callee"),
+-            rustrtc::TransportMode::Rtp,
+-        );
++        session
++            .legs
++            .set_transport(LegId::from("caller"), rustrtc::TransportMode::WebRtc);
++        session
++            .legs
++            .set_transport(LegId::from("callee"), rustrtc::TransportMode::Rtp);
+ 
+         // Create media bridge via app caller path
+         let answer = session
+@@ -11113,11 +11156,11 @@ mod tests {
+     #[tokio::test]
+     async fn test_handle_play_callee_uses_callee_codec_not_callers() {
+         use crate::call::{DialDirection, Dialplan, TransactionCookie};
+-        use audio_codec::CodecType;
+         use crate::proxy::proxy_call::test_util::tests::MockMediaPeer;
+         use crate::proxy::tests::common::{
+             create_test_request, create_test_server, create_transaction,
+         };
++        use audio_codec::CodecType;
+ 
+         let (server, _) = create_test_server().await;
+         let request = create_test_request(
+@@ -11197,14 +11240,12 @@ mod tests {
+             .to_string(),
+         );
+ 
+-        session.legs.set_transport(
+-            LegId::from("caller"),
+-            rustrtc::TransportMode::WebRtc,
+-        );
+-        session.legs.set_transport(
+-            LegId::from("callee"),
+-            rustrtc::TransportMode::Rtp,
+-        );
++        session
++            .legs
++            .set_transport(LegId::from("caller"), rustrtc::TransportMode::WebRtc);
++        session
++            .legs
++            .set_transport(LegId::from("callee"), rustrtc::TransportMode::Rtp);
+ 
+         // Create media bridge — this sets session.media.answer from bridge negotiation
+         let _answer = session
+@@ -11298,8 +11339,7 @@ mod tests {
+ 
+         // Caller and callee must use DIFFERENT codecs when their negotiated codecs differ
+         assert_ne!(
+-            caller_codec.codec,
+-            callee_codec.codec,
++            caller_codec.codec, callee_codec.codec,
+             "caller and callee must use different codecs when negotiated codecs differ"
+         );
+ 
+diff --git a/src/proxy/proxy_call/sip_session/conference.rs b/src/proxy/proxy_call/sip_session/conference.rs
+index 728cda3..3fd7b4e 100644
+--- a/src/proxy/proxy_call/sip_session/conference.rs
++++ b/src/proxy/proxy_call/sip_session/conference.rs
+@@ -191,9 +191,19 @@ impl SipSession {
+             self.stop_caller_ingress_monitor().await;
+         }
+         let (peer, track_id) = if is_callee {
+-            (self.callee_peer().cloned().ok_or_else(|| anyhow!("Missing callee peer"))?, Self::CALLEE_TRACK_ID)
++            (
++                self.callee_peer()
++                    .cloned()
++                    .ok_or_else(|| anyhow!("Missing callee peer"))?,
++                Self::CALLEE_TRACK_ID,
++            )
+         } else {
+-            (self.caller_peer().cloned().ok_or_else(|| anyhow!("Missing caller peer"))?, Self::CALLER_TRACK_ID)
++            (
++                self.caller_peer()
++                    .cloned()
++                    .ok_or_else(|| anyhow!("Missing caller peer"))?,
++                Self::CALLER_TRACK_ID,
++            )
+         };
+ 
+         let (audio_sender, track, _feedback_rx) = sample_track(MediaKind::Audio, 100);
+diff --git a/src/proxy/proxy_call/sip_session/queue.rs b/src/proxy/proxy_call/sip_session/queue.rs
+index d040b1d..ef29a8b 100644
+--- a/src/proxy/proxy_call/sip_session/queue.rs
++++ b/src/proxy/proxy_call/sip_session/queue.rs
+@@ -117,15 +117,16 @@ impl SipSession {
+         };
+ 
+         let result = match &plan.dial_strategy {
+-            Some(DialStrategy::Sequential(_)) => self
+-                .dial_queue_sequential(
++            Some(DialStrategy::Sequential(_)) => {
++                self.dial_queue_sequential(
+                     &resolved_agents,
+                     plan.ring_timeout,
+                     callee_state_rx,
+                     plan.no_trying_timeout,
+                     plan.retry_codes.as_deref(),
+                 )
+-                .await,
++                .await
++            }
+             Some(DialStrategy::Parallel(_)) => {
+                 self.dial_queue_parallel(&resolved_agents, plan.ring_timeout, callee_state_rx)
+                     .await
+diff --git a/src/proxy/proxy_call/sip_session/transfer.rs b/src/proxy/proxy_call/sip_session/transfer.rs
+index c3b3afe..9cfad86 100644
+--- a/src/proxy/proxy_call/sip_session/transfer.rs
++++ b/src/proxy/proxy_call/sip_session/transfer.rs
+@@ -12,8 +12,8 @@ use tracing::{info, warn};
+ // Re-export for peer access
+ use crate::call::runtime::conference_media_bridge::AudioReceiver;
+ use crate::proxy::proxy_call::sip_session::PeerConnectionAudioReceiver;
+-use rustrtc::media::SampleStreamSource;
+ use rustrtc::PeerConnection;
++use rustrtc::media::SampleStreamSource;
+ use std::collections::HashMap;
+ use std::time::Duration;
+ 
+@@ -608,7 +608,11 @@ impl SipSession {
+             // is anchored on. The callee leg (if any) is on the opposite side.
+             let is_caller = leg_id == LegId::from("caller");
+             let caller_is_webrtc = self.is_caller_webrtc();
+-            let sip_leg_is_webrtc = if is_caller { caller_is_webrtc } else { !caller_is_webrtc };
++            let sip_leg_is_webrtc = if is_caller {
++                caller_is_webrtc
++            } else {
++                !caller_is_webrtc
++            };
+             bridge.stop_forwarding();
+             if sip_leg_is_webrtc {
+                 pc = Some(bridge.caller_pc().clone());
