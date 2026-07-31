@@ -82,6 +82,7 @@
     "test:fast": "node --import tsx --test test/business-tool-registration.test.ts test/harness.test.ts test/dag-engine.test.ts test/sprint8-campaign.test.ts test/sprint9-omni.test.ts test/sprint10-platform.test.ts test/sprint11-compliance.test.ts test/sprint12-differentiation.test.ts test/db-pg-tenant.test.ts test/db-rls-integration.test.ts test/ivr-real-io-integration.test.ts test/ivr-transfer-production-bridge.test.ts",
     "verify:technology-baseline": "node --import tsx scripts/verify-communication-technology-baseline.ts",
     "verify:component-governance": "node --import tsx scripts/verify-component-governance.ts",
+    "verify:converact-naming": "node --import tsx scripts/verify-converact-naming.ts",
     "seed": "tsx scripts/seed.ts",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm test && npm run check:sidecars",

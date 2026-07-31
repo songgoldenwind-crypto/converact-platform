@@ -29,6 +29,27 @@
         "reason": "The migration contract, verifier, tests, and guide must name legacy inputs explicitly.",
         "owner": "platform-foundation",
         "removal_condition": "Retain while any supported legacy alias or historical repository redirect exists."
+      },
+      {
+        "id": "environment_compatibility_alias",
+        "path_globs": [
+          "src/config/converact-env.ts",
+          "services/ai-agent-py/converact_env.py",
+          "test/converact-env.test.ts",
+          "services/ai-agent-py/tests/test_converact_env.py"
+        ],
+        "tokens": ["OPC_", "OPC_IVEKIT_"],
+        "reason": "Supported legacy environment keys are parsed only by tested compatibility boundaries.",
+        "owner": "platform-foundation",
+        "removal_condition": "Remove after the documented compatibility window and observed legacy-use count reach zero."
+      },
+      {
+        "id": "repository_rename_record",
+        "path_globs": ["docs/operations/converact-repository-rename-runbook.md"],
+        "tokens": ["OPC", "iveKit", "songgoldenwind-crypto/opc-platform"],
+        "reason": "The repository migration record must identify both ends of the completed rename.",
+        "owner": "platform-foundation",
+        "removal_condition": "Retain permanently as an operational migration record."
       }
     ],
     "historical": [

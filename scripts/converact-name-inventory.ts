@@ -3,7 +3,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export type FindingDisposition = 'rename' | 'compatibility' | 'historical' | 'external';
+export type AllowedFindingDisposition = 'compatibility' | 'historical' | 'external';
+export type FindingDisposition = 'rename' | 'unclassified' | AllowedFindingDisposition;
 
 export interface NamingClassificationRule {
   id: string;
@@ -29,7 +30,7 @@ export interface ConveractNamingPolicy {
     legacyPrefixes: string[];
     currentPrefixes: string[];
   };
-  classifications: Record<Exclude<FindingDisposition, 'rename'>, NamingClassificationRule[]>;
+  classifications: Record<AllowedFindingDisposition, NamingClassificationRule[]>;
 }
 
 export interface LegacyNameFinding {
@@ -47,7 +48,7 @@ interface LegacyTokenMatch {
   token: string;
 }
 
-const dispositionOrder: Exclude<FindingDisposition, 'rename'>[] = [
+const dispositionOrder: AllowedFindingDisposition[] = [
   'historical',
   'external',
   'compatibility',
@@ -74,22 +75,23 @@ function tokenMatchesRule(found: string, allowed: string): boolean {
   return normalizedFound === normalizedAllowed || normalizedFound.startsWith(normalizedAllowed);
 }
 
-function findRule(
+function findRules(
   path: string,
   token: string,
   policy: ConveractNamingPolicy,
-): { disposition: Exclude<FindingDisposition, 'rename'>; id: string } | undefined {
+): Array<{ disposition: AllowedFindingDisposition; id: string }> {
+  const matches: Array<{ disposition: AllowedFindingDisposition; id: string }> = [];
   for (const disposition of dispositionOrder) {
     for (const rule of policy.classifications[disposition]) {
       if (
         rule.path_globs.some((glob) => globToRegExp(glob).test(path)) &&
         rule.tokens.some((allowed) => tokenMatchesRule(token, allowed))
       ) {
-        return { disposition, id: rule.id };
+        matches.push({ disposition, id: rule.id });
       }
     }
   }
-  return undefined;
+  return matches;
 }
 
 function collectMatches(value: string, policy: ConveractNamingPolicy): LegacyTokenMatch[] {
@@ -146,15 +148,28 @@ function makeFinding(
   token: string,
   policy: ConveractNamingPolicy,
 ): LegacyNameFinding {
-  const classified = findRule(path, token, policy);
+  const classified = findRules(path, token, policy);
+  const dispositions = new Set(classified.map((match) => match.disposition));
+  if (dispositions.size > 1) {
+    return {
+      path,
+      source,
+      line,
+      column,
+      token,
+      disposition: 'unclassified',
+      rule: 'ambiguous_policy_rules',
+    };
+  }
+  const match = classified[0];
   return {
     path,
     source,
     line,
     column,
     token,
-    disposition: classified?.disposition ?? 'rename',
-    rule: classified?.id ?? 'legacy_product_name',
+    disposition: match?.disposition ?? 'rename',
+    rule: match?.id ?? 'legacy_product_name',
   };
 }
 
@@ -222,7 +237,7 @@ function isNamingPolicy(value: unknown): value is ConveractNamingPolicy {
   );
 }
 
-function gitPaths(root: string): string[] {
+export function listRepositoryPaths(root: string): string[] {
   const output = execFileSync(
     'git',
     ['-C', root, 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
@@ -275,6 +290,7 @@ function markdownReport(findings: LegacyNameFinding[], root: string): string {
     '| Disposition | Occurrences |',
     '| --- | ---: |',
     `| rename | ${count('rename')} |`,
+    `| unclassified | ${count('unclassified')} |`,
     `| compatibility | ${count('compatibility')} |`,
     `| historical | ${count('historical')} |`,
     `| external | ${count('external')} |`,
@@ -330,7 +346,11 @@ function runCli(): void {
   const generatedOutputs = [options.json, options.markdown].filter(
     (output): output is string => output !== undefined,
   );
-  const paths = excludeGeneratedOutputs(gitPaths(options.root), options.root, generatedOutputs);
+  const paths = excludeGeneratedOutputs(
+    listRepositoryPaths(options.root),
+    options.root,
+    generatedOutputs,
+  );
   const findings = scanLegacyNames(options.root, policy, paths);
   if (options.json) {
     writeOutput(options.root, options.json, `${JSON.stringify({ schema_version: 1, findings }, null, 2)}\n`);
@@ -343,7 +363,7 @@ function runCli(): void {
       result[finding.disposition] += 1;
       return result;
     },
-    { rename: 0, compatibility: 0, historical: 0, external: 0 },
+    { rename: 0, unclassified: 0, compatibility: 0, historical: 0, external: 0 },
   );
   process.stdout.write(`${JSON.stringify(counts)}\n`);
 }

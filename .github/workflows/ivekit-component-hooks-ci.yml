@@ -12,6 +12,13 @@ on:
       - "infra/ivekit/rustdesk-server/**"
       - "src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts"
       - "scripts/ivekit-rustdesk-owner-binding.ts"
+      - "config/branding/**"
+      - "scripts/converact-name-inventory.ts"
+      - "scripts/verify-converact-naming.ts"
+      - "test/converact-name-inventory.test.ts"
+      - "test/converact-naming-policy.test.ts"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/ivekit-component-hooks-ci.yml"
   pull_request:
     paths:
@@ -24,13 +31,36 @@ on:
       - "infra/ivekit/rustdesk-server/**"
       - "src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts"
       - "scripts/ivekit-rustdesk-owner-binding.ts"
+      - "config/branding/**"
+      - "scripts/converact-name-inventory.ts"
+      - "scripts/verify-converact-naming.ts"
+      - "test/converact-name-inventory.test.ts"
+      - "test/converact-naming-policy.test.ts"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/ivekit-component-hooks-ci.yml"
 
 permissions:
   contents: read
 
 jobs:
+  naming-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: >-
+          node --import tsx --test
+          test/converact-name-inventory.test.ts
+          test/converact-naming-policy.test.ts
+      - run: npm run verify:converact-naming
+
   go-hook:
+    needs: naming-policy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +71,7 @@ jobs:
         working-directory: integrations/component-hook-go
 
   livekit-owner:
+    needs: naming-policy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,6 +82,7 @@ jobs:
         working-directory: integrations/livekit-v1.13.4
 
   tinode-owner:
+    needs: naming-policy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +93,7 @@ jobs:
         working-directory: integrations/tinode-v0.25.3
 
   rust-hook:
+    needs: naming-policy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,6 +102,7 @@ jobs:
         working-directory: integrations/component-hook-rs
 
   rustdesk-owner-boundary:
+    needs: naming-policy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

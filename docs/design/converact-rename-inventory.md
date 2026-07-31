@@ -9,7 +9,8 @@ This is a migration inventory, not completion evidence. A `rename` item remains 
 | Disposition | Occurrences |
 | --- | ---: |
 | rename | 45127 |
-| compatibility | 149 |
+| unclassified | 0 |
+| compatibility | 187 |
 | historical | 2432 |
 | external | 0 |
 
@@ -156,7 +157,7 @@ This is a migration inventory, not completion evidence. A `rename` item remains 
 | `clients/ivekit-reference/vite.config.ts` | rename:1 |
 | `config/alert-rules.yml` | rename:13 |
 | `config/alertmanager.yml` | rename:3 |
-| `config/branding/converact-naming-policy.json` | compatibility:21 |
+| `config/branding/converact-naming-policy.json` | compatibility:26 |
 | `config/grafana/dashboards/ops-overview.json` | rename:17 |
 | `config/grafana/provisioning/dashboards/opc.yml` | rename:3 |
 | `config/ivr/opc_m1.toml` | rename:3 |
@@ -398,6 +399,7 @@ This is a migration inventory, not completion evidence. A `rename` item remains 
 | `docs/livekit-im-full-capability-plan.md` | rename:116 |
 | `docs/MIX-100K双Zone与Cell架构评审.md` | rename:19 |
 | `docs/openapi.yaml` | rename:379 |
+| `docs/operations/converact-repository-rename-runbook.md` | compatibility:11 |
 | `docs/phase0-detailed-design.md` | rename:35 |
 | `docs/phase1-detailed-design.md` | rename:26 |
 | `docs/phase2-detailed-design.md` | rename:4 |
@@ -1605,6 +1607,7 @@ This is a migration inventory, not completion evidence. A `rename` item remains 
 | `test/compliance-store.test.ts` | rename:1 |
 | `test/component-governance.test.ts` | rename:3 |
 | `test/converact-name-inventory.test.ts` | compatibility:14 |
+| `test/converact-naming-policy.test.ts` | compatibility:22 |
 | `test/db-pg-config.test.ts` | rename:19 |
 | `test/db-pg-migration-files.test.ts` | rename:5 |
 | `test/db-pg-runtime-schema.test.ts` | rename:8 |
