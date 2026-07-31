@@ -419,13 +419,13 @@ test('route agent runtime config loads topology and secrets only from bounded fi
     }]
   }), { mode: 0o600 });
   const env = runtimeEnv(directory, {
-    OPC_IVEKIT_KAMAILIO_TOPOLOGY_FILE: topologyFile,
-    OPC_IVEKIT_KAMAILIO_CURRENT_KEY_FILE: currentKeyFile,
-    OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE: rpcTokenFile,
-    OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED: 'true',
-    OPC_IVEKIT_KAMAILIO_HOMER_METRICS_ENDPOINT: 'http://homer.observability:9090/metrics',
-    OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_SAMPLE_PERCENT: '12.5',
-    OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_SAMPLE_PER_SECOND: '300'
+    CONVERACT_FABRIC_KAMAILIO_TOPOLOGY_FILE: topologyFile,
+    CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_FILE: currentKeyFile,
+    CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE: rpcTokenFile,
+    CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_ENABLED: 'true',
+    CONVERACT_FABRIC_KAMAILIO_HOMER_METRICS_ENDPOINT: 'http://homer.observability:9090/metrics',
+    CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_SAMPLE_PERCENT: '12.5',
+    CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_SAMPLE_PER_SECOND: '300'
   });
 
   const config = await loadKamailioRouteAgentRuntimeConfig(env);
@@ -439,14 +439,14 @@ test('route agent runtime config loads topology and secrets only from bounded fi
   await assert.rejects(
     () => loadKamailioRouteAgentRuntimeConfig({
       ...env,
-      OPC_IVEKIT_KAMAILIO_CURRENT_KEY: KEY.toString('base64')
+      CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY: KEY.toString('base64')
     }),
     /inline.*secret/i
   );
   await assert.rejects(
     () => loadKamailioRouteAgentRuntimeConfig({
       ...env,
-      OPC_IVEKIT_KAMAILIO_HOMER_METRICS_ENDPOINT: 'http://user:secret@homer:9090/metrics'
+      CONVERACT_FABRIC_KAMAILIO_HOMER_METRICS_ENDPOINT: 'http://user:secret@homer:9090/metrics'
     }),
     /endpoint/i
   );
@@ -644,10 +644,10 @@ test('route agent entrypoint and environment contracts require file-backed secre
     'services/converact-service/env.example'
   ]) {
     const env = await readFile(path, 'utf8');
-    assert.match(env, /^OPC_IVEKIT_KAMAILIO_TOPOLOGY_FILE=\/etc\/ivekit\/kamailio-topology\.json$/m);
-    assert.match(env, /^OPC_IVEKIT_KAMAILIO_CURRENT_KEY_FILE=\/run\/secrets\//m);
-    assert.match(env, /^OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE=\/run\/secrets\//m);
-    assert.doesNotMatch(env, /^OPC_IVEKIT_KAMAILIO_(?:CURRENT_KEY|RPC_TOKEN)=/m);
+    assert.match(env, /^CONVERACT_FABRIC_KAMAILIO_TOPOLOGY_FILE=\/etc\/ivekit\/kamailio-topology\.json$/m);
+    assert.match(env, /^CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_FILE=\/run\/secrets\//m);
+    assert.match(env, /^CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE=\/run\/secrets\//m);
+    assert.doesNotMatch(env, /^CONVERACT_FABRIC_KAMAILIO_(?:CURRENT_KEY|RPC_TOKEN)=/m);
   }
 });
 
@@ -736,20 +736,20 @@ function verification(lastSequence: number, now: Date) {
 
 function runtimeEnv(directory: string, overrides: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
-    OPC_IVEKIT_KAMAILIO_HOST: '127.0.0.1',
-    OPC_IVEKIT_KAMAILIO_PORT: '3220',
-    OPC_IVEKIT_KAMAILIO_REGION_ID: 'region-a',
-    OPC_IVEKIT_KAMAILIO_ZONE_ID: 'zone-a',
-    OPC_IVEKIT_KAMAILIO_CELL_ID: 'cell-a',
-    OPC_IVEKIT_KAMAILIO_CELL_LEASE_EPOCH: '7',
-    OPC_IVEKIT_KAMAILIO_EDGE_REPLICA_COUNT: '2',
-    OPC_IVEKIT_KAMAILIO_TOPOLOGY_FILE: join(directory, 'topology.json'),
-    OPC_IVEKIT_KAMAILIO_CURRENT_KEY_ID: 'route-key-1',
-    OPC_IVEKIT_KAMAILIO_CURRENT_KEY_FILE: join(directory, 'current-key'),
-    OPC_IVEKIT_KAMAILIO_SNAPSHOT_PATH: join(directory, 'route.snapshot'),
-    OPC_IVEKIT_KAMAILIO_DISPATCHER_PATH: join(directory, 'dispatcher.list'),
-    OPC_IVEKIT_KAMAILIO_RPC_ENDPOINT: 'http://127.0.0.1:5060/RPC',
-    OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE: join(directory, 'rpc-token'),
+    CONVERACT_FABRIC_KAMAILIO_HOST: '127.0.0.1',
+    CONVERACT_FABRIC_KAMAILIO_PORT: '3220',
+    CONVERACT_FABRIC_KAMAILIO_REGION_ID: 'region-a',
+    CONVERACT_FABRIC_KAMAILIO_ZONE_ID: 'zone-a',
+    CONVERACT_FABRIC_KAMAILIO_CELL_ID: 'cell-a',
+    CONVERACT_FABRIC_KAMAILIO_CELL_LEASE_EPOCH: '7',
+    CONVERACT_FABRIC_KAMAILIO_EDGE_REPLICA_COUNT: '2',
+    CONVERACT_FABRIC_KAMAILIO_TOPOLOGY_FILE: join(directory, 'topology.json'),
+    CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_ID: 'route-key-1',
+    CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_FILE: join(directory, 'current-key'),
+    CONVERACT_FABRIC_KAMAILIO_SNAPSHOT_PATH: join(directory, 'route.snapshot'),
+    CONVERACT_FABRIC_KAMAILIO_DISPATCHER_PATH: join(directory, 'dispatcher.list'),
+    CONVERACT_FABRIC_KAMAILIO_RPC_ENDPOINT: 'http://127.0.0.1:5060/RPC',
+    CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE: join(directory, 'rpc-token'),
     ...overrides
   };
 }

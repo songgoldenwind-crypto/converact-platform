@@ -25,11 +25,11 @@ describe('iveKit media control deployment', () => {
     assert.match(dockerfile, /^USER node:node$/m);
     assert.match(
       dockerfile,
-      /LABEL org\.opencontainers\.image\.revision="\$\{OPC_SOURCE_COMMIT\}"/
+      /LABEL org\.opencontainers\.image\.revision="\$\{CONVERACT_SOURCE_COMMIT\}"/
     );
     assert.equal(
-      compose.services['media-control'].build.args.OPC_SOURCE_COMMIT,
-      '${OPC_SOURCE_COMMIT:-unknown}'
+      compose.services['media-control'].build.args.CONVERACT_SOURCE_COMMIT,
+      '${CONVERACT_SOURCE_COMMIT:-unknown}'
     );
     assert.match(
       dockerfile,
@@ -109,12 +109,12 @@ describe('iveKit media control deployment', () => {
     assert.equal(service.ports, undefined);
     assert.deepEqual(service.expose, ['3200']);
     assert.equal(
-      service.environment.OPC_IVEKIT_CELL_NODES_JSON,
+      service.environment.CONVERACT_FABRIC_CELL_NODES_JSON,
       '${IVEKIT_CELL_NODES_JSON:-${RUSTPBX_CELL_NODES_JSON:?RUSTPBX_CELL_NODES_JSON is required}}'
     );
     assert.equal(
-      service.environment.OPC_IVEKIT_COMPONENT_NODE_TOKEN,
-      '${OPC_IVEKIT_COMPONENT_NODE_TOKEN:?OPC_IVEKIT_COMPONENT_NODE_TOKEN is required}'
+      service.environment.CONVERACT_FABRIC_COMPONENT_NODE_TOKEN,
+      '${CONVERACT_FABRIC_COMPONENT_NODE_TOKEN:?CONVERACT_FABRIC_COMPONENT_NODE_TOKEN is required}'
     );
     assert.match(service.healthcheck.test.join(' '), /\/readyz/);
     assert.equal(
@@ -151,7 +151,7 @@ describe('iveKit media control deployment', () => {
     );
     assert.equal(
       compose.services['rustpbx-component-node']
-        .environment.OPC_IVEKIT_COMPONENT_NODE_REQUIRE_MTLS,
+        .environment.CONVERACT_FABRIC_COMPONENT_NODE_REQUIRE_MTLS,
       'false'
     );
     assert.equal(

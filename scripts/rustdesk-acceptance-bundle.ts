@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,11 +44,11 @@ export interface RustDeskAcceptanceBundleWriteResult {
 }
 
 export function createRustDeskAcceptanceBundleConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskAcceptanceBundleConfig {
-  const outputDir = String(env.OPC_RUSTDESK_ACCEPTANCE_BUNDLE_DIR || '').trim();
-  if (!outputDir) throw new Error('OPC_RUSTDESK_ACCEPTANCE_BUNDLE_DIR is required');
+  const outputDir = String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_BUNDLE_DIR') || '').trim();
+  if (!outputDir) throw new Error('CONVERACT_RUSTDESK_ACCEPTANCE_BUNDLE_DIR is required');
   return {
     outputDir,
-    title: String(env.OPC_RUSTDESK_ACCEPTANCE_BUNDLE_TITLE || 'RustDesk Acceptance Bundle').trim()
+    title: String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_BUNDLE_TITLE') || 'RustDesk Acceptance Bundle').trim()
   };
 }
 
@@ -89,13 +90,13 @@ export function writeRustDeskAcceptanceBundle(
   writeRustDeskClientAcceptanceTemplate(
     createRustDeskClientAcceptanceTemplateConfigFromEnv({
       ...env,
-      OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE: paths.clientAcceptanceTemplate
+      CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE: paths.clientAcceptanceTemplate
     })
   );
   writeRustDeskClientAcceptanceRunbook(
     createRustDeskClientAcceptanceRunbookConfigFromEnv({
       ...env,
-      OPC_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE: paths.clientAcceptanceRunbook
+      CONVERACT_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE: paths.clientAcceptanceRunbook
     })
   );
   mkdirSync(paths.observationsDir, { recursive: true });
@@ -109,7 +110,7 @@ export function writeRustDeskAcceptanceBundle(
   writeRustDeskEventTemplate(
     createRustDeskEventForwarderConfigFromEnv({
       ...env,
-      OPC_RUSTDESK_EVENT_TEMPLATE_FILE: paths.eventTemplate
+      CONVERACT_RUSTDESK_EVENT_TEMPLATE_FILE: paths.eventTemplate
     })
   );
   writeFileSync(paths.eventForwarderRunbook, renderRustDeskEventForwarderRunbook(config, paths), 'utf8');
@@ -164,24 +165,24 @@ export function writeRustDeskAcceptanceBundle(
       readiness_report: {
         label: 'Server readiness JSON report generated after real hbbs/hbbr and OPC deployment checks',
         expected_path: paths.readinessReport,
-        command: 'OPC_RUSTDESK_READINESS_REPORT_FILE=<bundle>/readiness.json npm run rustdesk:readiness'
+        command: 'CONVERACT_RUSTDESK_READINESS_REPORT_FILE=<bundle>/readiness.json npm run rustdesk:readiness'
       }
     },
     expected_artifacts: {
       server_evidence: {
         label: 'Server runtime evidence JSON report generated from real hbbs/hbbr, key, ports, DNS, TLS, and Ingress checks',
         expected_path: paths.serverEvidence,
-        command: 'OPC_RUSTDESK_SERVER_EVIDENCE_FILE=<bundle>/server-evidence.json npm run rustdesk:server-evidence'
+        command: 'CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE=<bundle>/server-evidence.json npm run rustdesk:server-evidence'
       },
       readiness_report: {
         label: 'Server readiness JSON report generated after real hbbs/hbbr and OPC deployment checks',
         expected_path: paths.readinessReport,
-        command: 'OPC_RUSTDESK_READINESS_REPORT_FILE=<bundle>/readiness.json npm run rustdesk:readiness'
+        command: 'CONVERACT_RUSTDESK_READINESS_REPORT_FILE=<bundle>/readiness.json npm run rustdesk:readiness'
       },
       client_config_pack: {
         label: 'RustDesk client install/config handoff pack generated from iveKit client-config and optional launch plan',
         expected_path: paths.clientConfigPack,
-        command: 'OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE=<bundle>/client-config-pack.md OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID=<external_id> OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID=<rustdesk_id> npm run rustdesk:client-config-pack'
+        command: 'CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE=<bundle>/client-config-pack.md CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID=<external_id> CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID=<rustdesk_id> npm run rustdesk:client-config-pack'
       },
       real_operation_event_file: {
         label: 'Real RustDesk operation event JSONL captured by the client sidecar or helper process',
@@ -191,7 +192,7 @@ export function writeRustDeskAcceptanceBundle(
       filled_client_acceptance_report: {
         label: 'Filled copy of client-acceptance-template.json after real RustDesk client operation',
         expected_path: paths.clientAcceptanceTemplate,
-        command: 'OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE=<bundle>/client-acceptance-template.json OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE=<bundle>/audit-export.jsonl npm run rustdesk:client-acceptance'
+        command: 'CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE=<bundle>/client-acceptance-template.json CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE=<bundle>/audit-export.jsonl npm run rustdesk:client-acceptance'
       },
       real_terminal_observations: {
         label: 'One unique SHA-256-bound JSON observation per acceptance check',
@@ -201,12 +202,12 @@ export function writeRustDeskAcceptanceBundle(
       audit_export: {
         label: 'Real RustDesk operation audit export for the same gateway external_id',
         expected_path: paths.auditExport,
-        command: 'OPC_RUSTDESK_AUDIT_EXPORT_FILE=<bundle>/audit-export.jsonl OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<external_id> npm run rustdesk:audit-export'
+        command: 'CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE=<bundle>/audit-export.jsonl CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<external_id> npm run rustdesk:audit-export'
       },
       audit_coverage_report: {
         label: 'RustDesk audit coverage JSON report generated from real operation audit export',
         expected_path: paths.auditCoverageReport,
-        command: 'OPC_RUSTDESK_AUDIT_COVERAGE_FILE=<bundle>/audit-export.jsonl OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=<bundle>/audit-coverage.json npm run rustdesk:audit-coverage'
+        command: 'CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE=<bundle>/audit-export.jsonl CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=<bundle>/audit-coverage.json npm run rustdesk:audit-coverage'
       }
     },
     evidence_pack: {
@@ -216,9 +217,9 @@ export function writeRustDeskAcceptanceBundle(
     next_steps: [
       'Run deployment-commands.md and server-readiness-runbook.md in the target server environment.',
       'Share led-integration-quickstart.md with LED or other consuming project developers.',
-      'Run rustdesk:server-evidence with OPC_RUSTDESK_SERVER_EVIDENCE_FILE pointing at server-evidence.json.',
-      'Run rustdesk:readiness with OPC_RUSTDESK_READINESS_REPORT_FILE pointing at readiness.json.',
-      'Run rustdesk:client-config-pack with OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE pointing at client-config-pack.md before client setup.',
+      'Run rustdesk:server-evidence with CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE pointing at server-evidence.json.',
+      'Run rustdesk:readiness with CONVERACT_RUSTDESK_READINESS_REPORT_FILE pointing at readiness.json.',
+      'Run rustdesk:client-config-pack with CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE pointing at client-config-pack.md before client setup.',
       'Record exact server/client versions, platforms, architectures, target ID, key fingerprint, ID/relay path, and distinct operator/QA identities.',
       'Perform real RustDesk client screen, keyboard/mouse, multi-display, file, clipboard, recording, reconnect, revoke, physical-disconnect, and old-link checks.',
       'Use event-forwarder-runbook.md to validate and forward real operation events from the RustDesk client sidecar or helper process.',
@@ -270,8 +271,8 @@ function renderRustDeskServerReadinessRunbook(
     '## 1. Write Local Artifacts',
     '',
     '```bash',
-    `OPC_RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE=${paths.envChecklist} \\`,
-    `OPC_RUSTDESK_PREFLIGHT_REPORT_FILE=${paths.preflightReport} \\`,
+    `CONVERACT_RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE=${paths.envChecklist} \\`,
+    `CONVERACT_RUSTDESK_PREFLIGHT_REPORT_FILE=${paths.preflightReport} \\`,
     'npm run rustdesk:deployment-preflight',
     '```',
     '',
@@ -280,7 +281,7 @@ function renderRustDeskServerReadinessRunbook(
     '## 2. Collect Server Runtime Evidence',
     '',
     '```bash',
-    `OPC_RUSTDESK_SERVER_EVIDENCE_FILE=${paths.serverEvidence} \\`,
+    `CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE=${paths.serverEvidence} \\`,
     'npm run rustdesk:server-evidence',
     '```',
     '',
@@ -289,7 +290,7 @@ function renderRustDeskServerReadinessRunbook(
     '## 3. Run Server Readiness',
     '',
     '```bash',
-    `OPC_RUSTDESK_READINESS_REPORT_FILE=${paths.readinessReport} \\`,
+    `CONVERACT_RUSTDESK_READINESS_REPORT_FILE=${paths.readinessReport} \\`,
     'npm run rustdesk:readiness',
     '```',
     '',
@@ -298,9 +299,9 @@ function renderRustDeskServerReadinessRunbook(
     '## 4. Generate Client Config Pack',
     '',
     '```bash',
-    `OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE=${paths.clientConfigPack} \\`,
-    'OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
-    'OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID=<rustdesk-runtime-id> \\',
+    `CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE=${paths.clientConfigPack} \\`,
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID=<rustdesk-runtime-id> \\',
     'npm run rustdesk:client-config-pack',
     '```',
     '',
@@ -317,10 +318,10 @@ function renderRustDeskServerReadinessRunbook(
     '## 6. Prepare Real Client Evidence',
     '',
     '```bash',
-    `OPC_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE=${paths.clientAcceptanceRunbook} \\`,
+    `CONVERACT_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE=${paths.clientAcceptanceRunbook} \\`,
     'npm run rustdesk:client-acceptance',
     '',
-    `OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=${paths.clientAcceptanceTemplate} \\`,
+    `CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=${paths.clientAcceptanceTemplate} \\`,
     'npm run rustdesk:client-acceptance',
     '```',
     '',
@@ -329,8 +330,8 @@ function renderRustDeskServerReadinessRunbook(
     '## 7. Validate Real Client Evidence',
     '',
     '```bash',
-    `OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE=${paths.clientAcceptanceTemplate} \\`,
-    `OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE=${paths.auditExport} \\`,
+    `CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE=${paths.clientAcceptanceTemplate} \\`,
+    `CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE=${paths.auditExport} \\`,
     'npm run rustdesk:client-acceptance',
     '```',
     '',
@@ -338,20 +339,20 @@ function renderRustDeskServerReadinessRunbook(
     '',
     '## 8. Validate Audit Coverage',
     '',
-    `Export the real RustDesk operation audit for the same \`external_id\` to \`${paths.auditExport}\`. The export command reuses \`OPC_RUSTDESK_IVEKIT_BASE_URL\`, \`OPC_BASE_URL\`, \`OPC_COLLABORATION_API_KEY\`, and tenant fallbacks when focused audit-export env is not set.`,
+    `Export the real RustDesk operation audit for the same \`external_id\` to \`${paths.auditExport}\`. The export command reuses \`CONVERACT_RUSTDESK_IVEKIT_BASE_URL\`, \`CONVERACT_BASE_URL\`, \`CONVERACT_COLLABORATION_API_KEY\`, and tenant fallbacks when focused audit-export env is not set.`,
     '',
     '```bash',
-    `OPC_RUSTDESK_AUDIT_EXPORT_FILE=${paths.auditExport} \\`,
-    'OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
+    `CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE=${paths.auditExport} \\`,
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
     'npm run rustdesk:audit-export',
     '```',
     '',
     'Then run:',
     '',
     '```bash',
-    `OPC_RUSTDESK_AUDIT_COVERAGE_FILE=${paths.auditExport} \\`,
-    'OPC_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
-    `OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=${paths.auditCoverageReport} \\`,
+    `CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE=${paths.auditExport} \\`,
+    'CONVERACT_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
+    `CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=${paths.auditCoverageReport} \\`,
     'npm run rustdesk:audit-coverage',
     '```',
     '',
@@ -360,18 +361,18 @@ function renderRustDeskServerReadinessRunbook(
     '## 9. Regenerate Final Evidence Pack',
     '',
     '```bash',
-    `OPC_RUSTDESK_EVIDENCE_PACK_FILE=${paths.evidencePack} \\`,
-    `OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE=${paths.deploymentCommands} \\`,
-    `OPC_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE=${paths.envChecklist} \\`,
-    `OPC_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE=${paths.preflightReport} \\`,
-    `OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=${paths.serverEvidence} \\`,
-    `OPC_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE=${paths.readinessReport} \\`,
-    `OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=${paths.clientConfigPack} \\`,
-    `OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE=${paths.clientAcceptanceTemplate} \\`,
-    `OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_AUDIT_FILE=${paths.auditExport} \\`,
-    `OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE=${paths.auditCoverageReport} \\`,
-    `OPC_RUSTDESK_EVIDENCE_EVENT_TEMPLATE_FILE=${paths.eventTemplate} \\`,
-    `OPC_RUSTDESK_EVIDENCE_HANDOFF_FILE=${paths.handoff} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_PACK_FILE=${paths.evidencePack} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE=${paths.deploymentCommands} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE=${paths.envChecklist} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE=${paths.preflightReport} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=${paths.serverEvidence} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE=${paths.readinessReport} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=${paths.clientConfigPack} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE=${paths.clientAcceptanceTemplate} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_AUDIT_FILE=${paths.auditExport} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE=${paths.auditCoverageReport} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_EVENT_TEMPLATE_FILE=${paths.eventTemplate} \\`,
+    `CONVERACT_RUSTDESK_EVIDENCE_HANDOFF_FILE=${paths.handoff} \\`,
     'npm run rustdesk:evidence-pack',
     '```',
     '',
@@ -401,10 +402,10 @@ function renderRustDeskEventForwarderRunbook(
     '## 1. Generate Or Refresh The Template',
     '',
     '```bash',
-    `OPC_RUSTDESK_EVENT_TEMPLATE_FILE=${paths.eventTemplate} \\`,
-    'OPC_RUSTDESK_EVENT_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
-    'OPC_RUSTDESK_EVENT_ACTOR_IDENTITY=<operator-or-sidecar-id> \\',
-    'OPC_RUSTDESK_EVENT_TEMPLATE_TARGET=<rustdesk-runtime-id> \\',
+    `CONVERACT_RUSTDESK_EVENT_TEMPLATE_FILE=${paths.eventTemplate} \\`,
+    'CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
+    'CONVERACT_RUSTDESK_EVENT_ACTOR_IDENTITY=<operator-or-sidecar-id> \\',
+    'CONVERACT_RUSTDESK_EVENT_TEMPLATE_TARGET=<rustdesk-runtime-id> \\',
     'npm run rustdesk:event-forwarder',
     '```',
     '',
@@ -413,8 +414,8 @@ function renderRustDeskEventForwarderRunbook(
     '## 2. Validate The Edited Event File Locally',
     '',
     '```bash',
-    `OPC_RUSTDESK_EVENT_FILE=${paths.eventTemplate} \\`,
-    'OPC_RUSTDESK_EVENT_VALIDATE_ONLY=1 \\',
+    `CONVERACT_RUSTDESK_EVENT_FILE=${paths.eventTemplate} \\`,
+    'CONVERACT_RUSTDESK_EVENT_VALIDATE_ONLY=1 \\',
     'npm run rustdesk:event-forwarder',
     '```',
     '',
@@ -423,10 +424,10 @@ function renderRustDeskEventForwarderRunbook(
     '## 3. Forward Real Operation Events',
     '',
     '```bash',
-    `OPC_RUSTDESK_EVENT_FILE=${paths.eventTemplate} \\`,
-    `OPC_RUSTDESK_EVENT_DEAD_LETTER_FILE=${deadLetterFile} \\`,
-    'OPC_RUSTDESK_EVENT_RETRY_ATTEMPTS=2 \\',
-    'OPC_RUSTDESK_EVENT_RETRY_DELAY_MS=1000 \\',
+    `CONVERACT_RUSTDESK_EVENT_FILE=${paths.eventTemplate} \\`,
+    `CONVERACT_RUSTDESK_EVENT_DEAD_LETTER_FILE=${deadLetterFile} \\`,
+    'CONVERACT_RUSTDESK_EVENT_RETRY_ATTEMPTS=2 \\',
+    'CONVERACT_RUSTDESK_EVENT_RETRY_DELAY_MS=1000 \\',
     'npm run rustdesk:event-forwarder',
     '```',
     '',
@@ -435,8 +436,8 @@ function renderRustDeskEventForwarderRunbook(
     '## 4. Replay Failed Events',
     '',
     '```bash',
-    `OPC_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE=${deadLetterFile} \\`,
-    `OPC_RUSTDESK_EVENT_REPLAY_REMAINING_FILE=${remainingFile} \\`,
+    `CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE=${deadLetterFile} \\`,
+    `CONVERACT_RUSTDESK_EVENT_REPLAY_REMAINING_FILE=${remainingFile} \\`,
     'npm run rustdesk:event-forwarder',
     '```',
     '',
@@ -445,13 +446,13 @@ function renderRustDeskEventForwarderRunbook(
     '## 5. Export And Check Audit Coverage',
     '',
     '```bash',
-    `OPC_RUSTDESK_AUDIT_EXPORT_FILE=${paths.auditExport} \\`,
-    'OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
+    `CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE=${paths.auditExport} \\`,
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
     'npm run rustdesk:audit-export',
     '',
-    `OPC_RUSTDESK_AUDIT_COVERAGE_FILE=${paths.auditExport} \\`,
-    'OPC_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
-    `OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=${paths.auditCoverageReport} \\`,
+    `CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE=${paths.auditExport} \\`,
+    'CONVERACT_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID=<rustdesk-gateway-external-id> \\',
+    `CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=${paths.auditCoverageReport} \\`,
     'npm run rustdesk:audit-coverage',
     '```',
     '',
@@ -488,21 +489,21 @@ function renderRustDeskLedIntegrationQuickstart(config: RustDeskAcceptanceBundle
     "import { createIveKitRustDeskLedSdk } from './src/agent-runtime/converact/index.js';",
     '',
     'const sdk = createIveKitRustDeskLedSdk({',
-    '  baseUrl: process.env.OPC_BASE_URL,',
-    '  apiKey: process.env.OPC_COLLABORATION_API_KEY,',
-    '  tenantId: process.env.OPC_REMOTE_GATEWAY_TENANT_ID,',
+    '  baseUrl: process.env.CONVERACT_BASE_URL,',
+    '  apiKey: process.env.CONVERACT_COLLABORATION_API_KEY,',
+    '  tenantId: process.env.CONVERACT_REMOTE_GATEWAY_TENANT_ID,',
     "  userId: 'led-service'",
     '});',
     '',
     'const session = await sdk.startSession({',
-    '  remoteSessionId: process.env.OPC_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID!,',
-    '  rustdeskId: process.env.OPC_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID!,',
+    '  remoteSessionId: process.env.CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID!,',
+    '  rustdeskId: process.env.CONVERACT_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID!,',
     '  businessRef: {',
-    '    type: process.env.OPC_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_TYPE || \"service_order\",',
-    '    id: process.env.OPC_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_ID!',
+    '    type: process.env.CONVERACT_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_TYPE || \"service_order\",',
+    '    id: process.env.CONVERACT_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_ID!',
     '  },',
-    '  deviceDisplayName: process.env.OPC_RUSTDESK_LED_EXAMPLE_DEVICE_DISPLAY_NAME || \"LED control PC\",',
-    '  actorIdentity: process.env.OPC_RUSTDESK_LED_EXAMPLE_ACTOR_IDENTITY || \"agent_led\",',
+    '  deviceDisplayName: process.env.CONVERACT_RUSTDESK_LED_EXAMPLE_DEVICE_DISPLAY_NAME || \"LED control PC\",',
+    '  actorIdentity: process.env.CONVERACT_RUSTDESK_LED_EXAMPLE_ACTOR_IDENTITY || \"agent_led\",',
     "  permissions: ['view_screen', 'control_mouse_keyboard']",
     '});',
     '',
@@ -566,18 +567,18 @@ function renderRustDeskLedIntegrationQuickstart(config: RustDeskAcceptanceBundle
     '## Runnable Example',
     '',
     '```bash',
-    'OPC_RUSTDESK_LED_EXAMPLE_BASE_URL=https://opc.example.com \\',
-    'OPC_RUSTDESK_LED_EXAMPLE_API_KEY=<api-key> \\',
-    'OPC_RUSTDESK_LED_EXAMPLE_TENANT_ID=tenant_led \\',
-    'OPC_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID=<led-session-id> \\',
-    'OPC_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID=<target-rustdesk-id> \\',
-    'OPC_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_TYPE=service_order \\',
-    'OPC_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_ID=<order-id> \\',
-    'OPC_RUSTDESK_LED_EXAMPLE_PERMISSIONS=view_screen,control_mouse_keyboard \\',
+    'CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL=https://opc.example.com \\',
+    'CONVERACT_RUSTDESK_LED_EXAMPLE_API_KEY=<api-key> \\',
+    'CONVERACT_RUSTDESK_LED_EXAMPLE_TENANT_ID=tenant_led \\',
+    'CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID=<led-session-id> \\',
+    'CONVERACT_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID=<target-rustdesk-id> \\',
+    'CONVERACT_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_TYPE=service_order \\',
+    'CONVERACT_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_ID=<order-id> \\',
+    'CONVERACT_RUSTDESK_LED_EXAMPLE_PERMISSIONS=view_screen,control_mouse_keyboard \\',
     'npm run rustdesk:led-example',
     '```',
     '',
-    'The example should return `deviceId`, `externalId`, `launchUrl`, `protocolUrl`, and client config status. Keep `OPC_RUSTDESK_LED_EXAMPLE_END_SESSION=0` while a human validates the launch flow; set it to `1` only for service-side cleanup checks.',
+    'The example should return `deviceId`, `externalId`, `launchUrl`, `protocolUrl`, and client config status. Keep `CONVERACT_RUSTDESK_LED_EXAMPLE_END_SESSION=0` while a human validates the launch flow; set it to `1` only for service-side cleanup checks.',
     '',
     '## Required Real Evidence',
     '',
@@ -600,23 +601,23 @@ function renderRustDeskLedSdkMinimalExample(): string {
     '  return value;',
     '}',
     '',
-    'const actorIdentity = process.env.OPC_RUSTDESK_LED_EXAMPLE_ACTOR_IDENTITY || "led-service";',
+    'const actorIdentity = process.env.CONVERACT_RUSTDESK_LED_EXAMPLE_ACTOR_IDENTITY || "led-service";',
     '',
     'const sdk = createIveKitRustDeskLedSdk({',
-    '  baseUrl: requiredEnv("OPC_BASE_URL"),',
-    '  apiKey: requiredEnv("OPC_COLLABORATION_API_KEY"),',
-    '  tenantId: requiredEnv("OPC_REMOTE_GATEWAY_TENANT_ID"),',
+    '  baseUrl: requiredEnv("CONVERACT_BASE_URL"),',
+    '  apiKey: requiredEnv("CONVERACT_COLLABORATION_API_KEY"),',
+    '  tenantId: requiredEnv("CONVERACT_REMOTE_GATEWAY_TENANT_ID"),',
     '  userId: actorIdentity',
     '});',
     '',
     'const session = await sdk.startSession({',
-    '  remoteSessionId: requiredEnv("OPC_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID"),',
-    '  rustdeskId: requiredEnv("OPC_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID"),',
+    '  remoteSessionId: requiredEnv("CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID"),',
+    '  rustdeskId: requiredEnv("CONVERACT_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID"),',
     '  businessRef: {',
-    '    type: process.env.OPC_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_TYPE || "service_order",',
-    '    id: requiredEnv("OPC_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_ID")',
+    '    type: process.env.CONVERACT_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_TYPE || "service_order",',
+    '    id: requiredEnv("CONVERACT_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_ID")',
     '  },',
-    '  deviceDisplayName: process.env.OPC_RUSTDESK_LED_EXAMPLE_DEVICE_DISPLAY_NAME || "LED control PC",',
+    '  deviceDisplayName: process.env.CONVERACT_RUSTDESK_LED_EXAMPLE_DEVICE_DISPLAY_NAME || "LED control PC",',
     '  actorIdentity,',
     '  permissions: ["view_screen", "control_mouse_keyboard"],',
     '  metadata: { source: "led-sdk-minimal-example" }',
@@ -643,7 +644,7 @@ function renderRustDeskLedSdkMinimalExample(): string {
     'const audit = await sdk.listGatewayAuditEvents(session.gatewaySession.external_id);',
     'console.log(`audit events: ${audit.length}`);',
     '',
-    'if (process.env.OPC_RUSTDESK_LED_EXAMPLE_END_SESSION === "1") {',
+    'if (process.env.CONVERACT_RUSTDESK_LED_EXAMPLE_END_SESSION === "1") {',
     '  await sdk.endGatewaySession(session.gatewaySession.external_id, { actor_identity: actorIdentity });',
     '}',
     ''

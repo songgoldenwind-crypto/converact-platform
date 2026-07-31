@@ -9,8 +9,8 @@ import { PolicyFindingStore } from '../src/agent-runtime/collaboration/policy-fi
 import { routeIveKitIntelligenceApi } from '../src/agent-runtime/converact/intelligence-http.js';
 
 test('tenant finding queue is authorized, filtered, cursor-paged, and deletion aware', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'review-queue-jwt-secret-with-sufficient-length';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'review-queue-jwt-secret-with-sufficient-length';
   const pg = new MemoryPg();
   const tenantId = 'tenant-review-queue';
   const otherTenantId = 'tenant-review-queue-other';
@@ -79,14 +79,14 @@ test('tenant finding queue is authorized, filtered, cursor-paged, and deletion a
       otherTenantId
     );
   } finally {
-    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousSecret;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
   }
 });
 
 test('tenant finding queue rejects invalid filters and cursors', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'review-queue-jwt-secret-with-sufficient-length';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'review-queue-jwt-secret-with-sufficient-length';
   try {
     const pg = new MemoryPg();
     const authorization = token('admin', 'tenant-review-validation', 'admin');
@@ -105,14 +105,14 @@ test('tenant finding queue rejects invalid filters and cursors', async () => {
       );
     }
   } finally {
-    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousSecret;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
   }
 });
 
 test('tenant reviewers can inspect and review queue findings without session membership', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'review-queue-jwt-secret-with-sufficient-length';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'review-queue-jwt-secret-with-sufficient-length';
   try {
     const pg = new MemoryPg();
     const tenantId = 'tenant-review-workflow';
@@ -160,8 +160,8 @@ test('tenant reviewers can inspect and review queue findings without session mem
     ) as { status: number };
     assert.equal(crossTenant.status, 404);
   } finally {
-    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousSecret;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
   }
 });
 

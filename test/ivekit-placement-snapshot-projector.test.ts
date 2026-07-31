@@ -68,14 +68,14 @@ test('placement snapshot projector config requires explicit topology and canonic
   );
   const key = Buffer.alloc(32, 7).toString('base64');
   const config = placementSnapshotProjectorConfig({
-    OPC_IVEKIT_PLACEMENT_SNAPSHOT_FILE: '/run/ivekit/placement.json',
-    OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON: JSON.stringify({
+    CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE: '/run/ivekit/placement.json',
+    CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON: JSON.stringify({
       snapshot: key
     }),
-    OPC_IVEKIT_PLACEMENT_SNAPSHOT_KEY_ID: 'snapshot',
-    OPC_IVEKIT_CELL_ADMISSION_TOKEN: 'placement-projector-token-123456789',
-    OPC_IVEKIT_PLACEMENT_TOPOLOGY_JSON: JSON.stringify(topology()),
-    OPC_IVEKIT_PLACEMENT_PROFILE_ID: 'cell-10k-v1'
+    CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_KEY_ID: 'snapshot',
+    CONVERACT_FABRIC_CELL_ADMISSION_TOKEN: 'placement-projector-token-123456789',
+    CONVERACT_FABRIC_PLACEMENT_TOPOLOGY_JSON: JSON.stringify(topology()),
+    CONVERACT_FABRIC_PLACEMENT_PROFILE_ID: 'cell-10k-v1'
   });
   assert.equal(config.interval_ms, 2_000);
   assert.equal(config.snapshot_ttl_ms, 10_000);

@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../../config/converact-env.js';
 import { readMetadata } from '../metadata-helpers.js';
 
 import type { VoiceStore } from '../../voice/voice-store.js';
@@ -27,7 +28,7 @@ export class CallHoldService {
     const musicUrl =
       holdMusicUrl ||
       (typeof metadata.hold_music_url === 'string' ? metadata.hold_music_url : null) ||
-      process.env.OPC_DEFAULT_HOLD_MUSIC_URL ||
+      resolveBrandEnv(process.env, 'DEFAULT_HOLD_MUSIC_URL') ||
       null;
     const holdStartedAt = new Date().toISOString();
     this.voiceStore.updateCallSession(tenantId, callSessionId, {

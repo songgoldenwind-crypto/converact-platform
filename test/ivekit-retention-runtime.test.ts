@@ -16,7 +16,7 @@ test('retention runtime remains idle when disabled', async () => {
   const pg = new RecordingPg();
   const handle = startPostgresIveKitRetentionWorker({
     pg,
-    env: { OPC_IVEKIT_RETENTION_WORKER_ENABLED: '0' }
+    env: { CONVERACT_FABRIC_RETENTION_WORKER_ENABLED: '0' }
   });
   await handle.stop();
   assert.equal(pg.calls.length, 0);
@@ -27,8 +27,8 @@ test('retention runtime starts a due-policy scan and stops cleanly', async () =>
   const handle = startPostgresIveKitRetentionWorker({
     pg,
     env: {
-      OPC_IVEKIT_RETENTION_WORKER_ENABLED: '1',
-      OPC_IVEKIT_RETENTION_INTERVAL_MS: '60000'
+      CONVERACT_FABRIC_RETENTION_WORKER_ENABLED: '1',
+      CONVERACT_FABRIC_RETENTION_INTERVAL_MS: '60000'
     }
   });
   await new Promise((resolve) => setImmediate(resolve));

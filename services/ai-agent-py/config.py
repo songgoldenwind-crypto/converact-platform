@@ -4,8 +4,16 @@ from __future__ import annotations
 import json
 import os
 
-OPC_API_URL = os.getenv("OPC_API_URL", "http://localhost:3000")
-OPC_API_KEY = os.getenv("OPC_API_KEY", "dev-opc-key")
+from converact_env import resolve_brand_env
+
+
+def _brand_env(suffix: str, default: str) -> str:
+    value = resolve_brand_env(os.environ, suffix)
+    return default if value is None else value
+
+
+CONVERACT_API_URL = _brand_env("API_URL", "http://localhost:3000")
+CONVERACT_API_KEY = _brand_env("API_KEY", "dev-converact-key")
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "ws://localhost:7880")
 LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "devkey")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "secret")

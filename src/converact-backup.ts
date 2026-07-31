@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from './config/converact-env.js';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -26,7 +27,7 @@ export function parseIveKitBackupCli(
   }
   backupId ||= createIveKitBackupId(now);
   if (output) return { backup_id: backupId, output_directory: resolve(output) };
-  const root = String(env.OPC_IVEKIT_BACKUP_ROOT || '').trim();
+  const root = String(resolveFabricEnv(env, 'BACKUP_ROOT') || '').trim();
   if (!root) throw cliError('backup_root_required');
   return { backup_id: backupId, output_directory: resolve(root, backupId) };
 }

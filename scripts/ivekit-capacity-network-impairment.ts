@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
@@ -29,17 +30,17 @@ interface NetworkImpairmentControl {
 export function networkImpairmentRuntimeConfig(
   env: NodeJS.ProcessEnv = process.env
 ): NetworkImpairmentRuntimeConfig {
-  const host = env.OPC_IVEKIT_NETWORK_IMPAIRMENT_HOST || '127.0.0.1';
+  const host = resolveFabricEnv(env, 'NETWORK_IMPAIRMENT_HOST') || '127.0.0.1';
   if (host !== '127.0.0.1' && host !== '::1') {
     throw new Error('network impairment sidecar must listen on loopback');
   }
-  const port = integer(env.OPC_IVEKIT_NETWORK_IMPAIRMENT_PORT || '3199', 0, 65_535, 'port');
+  const port = integer(resolveFabricEnv(env, 'NETWORK_IMPAIRMENT_PORT') || '3199', 0, 65_535, 'port');
   const interfaceName = networkInterface(
-    env.OPC_IVEKIT_NETWORK_IMPAIRMENT_INTERFACE || 'eth0',
+    resolveFabricEnv(env, 'NETWORK_IMPAIRMENT_INTERFACE') || 'eth0',
     'network interface'
   );
   const ifbInterfaceName = networkInterface(
-    env.OPC_IVEKIT_NETWORK_IMPAIRMENT_IFB_INTERFACE || 'ifb-ivekit0',
+    resolveFabricEnv(env, 'NETWORK_IMPAIRMENT_IFB_INTERFACE') || 'ifb-ivekit0',
     'IFB interface'
   );
   if (interfaceName === ifbInterfaceName) throw new Error('network and IFB interfaces must differ');

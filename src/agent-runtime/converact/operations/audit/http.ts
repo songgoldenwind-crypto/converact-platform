@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../../config/converact-env.js';
 import type { PgQueryable } from '../../../../db-pg.js';
 import { resolveAuthContext, type AuthContext } from '../../../../middleware/auth.js';
 import { iveKitCapabilityAllowed } from '../../authorization.js';
@@ -87,12 +88,12 @@ export function createPostgresIveKitAuditService(
 }
 
 export function requiredAuditIpHmacKey(env: NodeJS.ProcessEnv = process.env): string {
-  const value = String(env.OPC_IVEKIT_AUDIT_IP_HMAC_KEY || '');
+  const value = String(resolveFabricEnv(env, 'AUDIT_IP_HMAC_KEY') || '');
   const decoded = Buffer.from(value, 'base64');
   if (decoded.length !== 32 || decoded.toString('base64').replace(/=+$/, '')
     !== value.replace(/=+$/, '')) {
     throw new IveKitOperationsError('validation_failed', 500, {
-      configuration: 'OPC_IVEKIT_AUDIT_IP_HMAC_KEY'
+      configuration: 'CONVERACT_FABRIC_AUDIT_IP_HMAC_KEY'
     });
   }
   return value;

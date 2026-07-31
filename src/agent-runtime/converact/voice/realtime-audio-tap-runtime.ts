@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import { createHmac } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
@@ -71,7 +72,7 @@ export function createConfiguredRealtimeAudioTapRuntime(
   const now = options.now ?? (() => new Date());
   const repository = new PostgresRealtimeAudioTapGrantRepository(options.pg);
   const grants = new RealtimeAudioTapGrantService({ repository, now });
-  const enabled = booleanEnv(env.OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED, false);
+  const enabled = booleanEnv(resolveFabricEnv(env, 'REALTIME_AUDIO_TAP_ENABLED'), false);
   if (!enabled) return {
     enabled: false,
     grants,
@@ -83,11 +84,11 @@ export function createConfiguredRealtimeAudioTapRuntime(
     async stop() {}
   };
   const rustPbxGatewayEnabled = booleanEnv(
-    env.OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED,
+    resolveFabricEnv(env, 'RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED'),
     true
   );
   const liveKitGatewayEnabled = booleanEnv(
-    env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED,
+    resolveFabricEnv(env, 'LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED'),
     true
   );
   if (!rustPbxGatewayEnabled && !liveKitGatewayEnabled) {
@@ -96,14 +97,14 @@ export function createConfiguredRealtimeAudioTapRuntime(
 
   const projection = options.projection;
   const secret = base64Secret(
-    env.OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
+    resolveFabricEnv(env, 'REALTIME_AUDIO_TAP_HMAC_SECRET_B64')
   );
   if (!projection) throw new Error('audio_tap_projection_required');
   const tokenCodec = createRealtimeAudioTapTokenCodec({
     secret,
     now,
     ttl_seconds: integerEnv(
-      env.OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS,
+      resolveFabricEnv(env, 'REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS'),
       60,
       10,
       300,
@@ -118,11 +119,11 @@ export function createConfiguredRealtimeAudioTapRuntime(
   const liveKitTokenCodec = createLiveKitRealtimeAudioTapTokenCodec({
     secret: deriveLiveKitAudioTapInstanceSecret(
       secret,
-      env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_INSTANCE_ID || ''
+      resolveFabricEnv(env, 'LIVEKIT_AUDIO_TAP_INSTANCE_ID') || ''
     ),
     now,
     ttl_seconds: integerEnv(
-      env.OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS,
+      resolveFabricEnv(env, 'REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS'),
       60,
       10,
       300,
@@ -141,7 +142,7 @@ export function createConfiguredRealtimeAudioTapRuntime(
     env
   });
   const retentionDays = integerEnv(
-    env.OPC_REALTIME_SPEECH_RETENTION_DAYS,
+    resolveBrandEnv(env, 'REALTIME_SPEECH_RETENTION_DAYS'),
     30,
     1,
     3_650,
@@ -151,14 +152,14 @@ export function createConfiguredRealtimeAudioTapRuntime(
   const projectionDispatcher = new RealtimeSpeechProjectionDispatcher({
     projection,
     max_queue_items: integerEnv(
-      env.OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS,
+      resolveFabricEnv(env, 'REALTIME_PROJECTION_QUEUE_MAX_ITEMS'),
       4_096,
       1,
       100_000,
       'audio_tap_projection_queue_invalid'
     ),
     shutdown_timeout_ms: integerEnv(
-      env.OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS,
+      resolveFabricEnv(env, 'REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS'),
       1_000,
       10,
       30_000,
@@ -202,34 +203,34 @@ export function createConfiguredRealtimeAudioTapRuntime(
     return options.on_gateway_event?.(event);
   };
   const gateway = rustPbxGatewayEnabled ? new RustPbxRealtimeAudioTapGateway({
-    socket_path: env.OPC_IVEKIT_REALTIME_AUDIO_TAP_SOCKET_PATH
+    socket_path: resolveFabricEnv(env, 'REALTIME_AUDIO_TAP_SOCKET_PATH')
       || '/run/ivekit/realtime-audio-tap.sock',
     token_codec: tokenCodec,
     router,
     nonce_store: nonceStore,
     max_connections: integerEnv(
-      env.OPC_IVEKIT_REALTIME_AUDIO_TAP_MAX_CONNECTIONS,
+      resolveFabricEnv(env, 'REALTIME_AUDIO_TAP_MAX_CONNECTIONS'),
       4_096,
       1,
       100_000,
       'audio_tap_connection_limit_invalid'
     ),
     max_prestart_audio_ms: integerEnv(
-      env.OPC_IVEKIT_REALTIME_AUDIO_TAP_PRESTART_BUFFER_MS,
+      resolveFabricEnv(env, 'REALTIME_AUDIO_TAP_PRESTART_BUFFER_MS'),
       1_000,
       20,
       5_000,
       'audio_tap_prestart_buffer_invalid'
     ),
     idle_timeout_ms: integerEnv(
-      env.OPC_IVEKIT_REALTIME_AUDIO_TAP_IDLE_TIMEOUT_MS,
+      resolveFabricEnv(env, 'REALTIME_AUDIO_TAP_IDLE_TIMEOUT_MS'),
       60_000,
       1_000,
       300_000,
       'audio_tap_idle_timeout_invalid'
     ),
     shutdown_timeout_ms: integerEnv(
-      env.OPC_IVEKIT_REALTIME_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS,
+      resolveFabricEnv(env, 'REALTIME_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS'),
       1_000,
       100,
       30_000,
@@ -240,56 +241,56 @@ export function createConfiguredRealtimeAudioTapRuntime(
     on_translation_event: projectTranslation
   }) : null;
   const liveKitGateway = liveKitGatewayEnabled ? new LiveKitRealtimeAudioTapGateway({
-    listen_host: env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_HOST || '127.0.0.1',
+    listen_host: resolveFabricEnv(env, 'LIVEKIT_AUDIO_TAP_LISTEN_HOST') || '127.0.0.1',
     listen_port: integerEnv(
-      env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_PORT,
+      resolveFabricEnv(env, 'LIVEKIT_AUDIO_TAP_LISTEN_PORT'),
       3_010,
       0,
       65_535,
       'livekit_audio_tap_listen_port_invalid'
     ),
-    path: env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PATH
+    path: resolveFabricEnv(env, 'LIVEKIT_AUDIO_TAP_PATH')
       || '/api/ivekit/realtime-audio-tap/livekit',
     token_codec: liveKitTokenCodec,
     router,
     nonce_store: nonceStore,
     max_connections: integerEnv(
-      env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS,
+      resolveFabricEnv(env, 'LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS'),
       4_096,
       1,
       100_000,
       'livekit_audio_tap_connection_limit_invalid'
     ),
     max_prestart_audio_ms: integerEnv(
-      env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS,
+      resolveFabricEnv(env, 'LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS'),
       1_000,
       20,
       5_000,
       'livekit_audio_tap_prestart_buffer_invalid'
     ),
     max_payload_bytes: integerEnv(
-      env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES,
+      resolveFabricEnv(env, 'LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES'),
       262_144,
       1_024,
       16_777_216,
       'livekit_audio_tap_payload_limit_invalid'
     ),
     idle_timeout_ms: integerEnv(
-      env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_IDLE_TIMEOUT_MS,
+      resolveFabricEnv(env, 'LIVEKIT_AUDIO_TAP_IDLE_TIMEOUT_MS'),
       60_000,
       1_000,
       300_000,
       'livekit_audio_tap_idle_timeout_invalid'
     ),
     start_timeout_ms: integerEnv(
-      env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_START_TIMEOUT_MS,
+      resolveFabricEnv(env, 'LIVEKIT_AUDIO_TAP_START_TIMEOUT_MS'),
       5_000,
       100,
       30_000,
       'livekit_audio_tap_start_timeout_invalid'
     ),
     shutdown_timeout_ms: integerEnv(
-      env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS,
+      resolveFabricEnv(env, 'LIVEKIT_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS'),
       1_000,
       100,
       30_000,

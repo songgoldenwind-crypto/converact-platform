@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,33 +38,33 @@ const HANDOFF_SECTIONS = [
 
 export function createRustDeskHandoffPackConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskHandoffPackConfig {
   const controlPlaneBaseUrl = stripTrailingSlash(
-    env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL ||
-    env.OPC_REMOTE_GATEWAY_BASE_URL ||
-    env.OPC_BASE_URL ||
+    resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
     ''
   );
   return {
-    outputFile: optionalString(env.OPC_RUSTDESK_HANDOFF_FILE),
-    title: optionalString(env.OPC_RUSTDESK_HANDOFF_TITLE) || 'RustDesk Integration Handoff',
-    audience: optionalString(env.OPC_RUSTDESK_HANDOFF_AUDIENCE) || 'OPC, LED, deployment, and QA teams',
+    outputFile: optionalString(resolveBrandEnv(env, 'RUSTDESK_HANDOFF_FILE')),
+    title: optionalString(resolveBrandEnv(env, 'RUSTDESK_HANDOFF_TITLE')) || 'RustDesk Integration Handoff',
+    audience: optionalString(resolveBrandEnv(env, 'RUSTDESK_HANDOFF_AUDIENCE')) || 'OPC, LED, deployment, and QA teams',
     controlPlaneBaseUrl,
-    tokenConfigured: Boolean(String(env.OPC_RUSTDESK_API_TOKEN || env.OPC_REMOTE_GATEWAY_API_TOKEN || '').trim()),
-    idServer: optionalString(env.OPC_RUSTDESK_ID_SERVER) || '',
-    relayServer: optionalString(env.OPC_RUSTDESK_RELAY_SERVER) || '',
-    tenantId: optionalString(env.OPC_REMOTE_GATEWAY_TENANT_ID || env.OPC_RUSTDESK_EDGE_TENANT_ID || env.OPC_TENANT_ID) || '',
-    targetId: optionalString(env.OPC_REMOTE_GATEWAY_TARGET_ID || env.OPC_RUSTDESK_LED_EXAMPLE_DEVICE_ID) || '',
+    tokenConfigured: Boolean(String(resolveBrandEnv(env, 'RUSTDESK_API_TOKEN') || resolveBrandEnv(env, 'REMOTE_GATEWAY_API_TOKEN') || '').trim()),
+    idServer: optionalString(resolveBrandEnv(env, 'RUSTDESK_ID_SERVER')) || '',
+    relayServer: optionalString(resolveBrandEnv(env, 'RUSTDESK_RELAY_SERVER')) || '',
+    tenantId: optionalString(resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') || resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID')) || '',
+    targetId: optionalString(resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_ID') || resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_DEVICE_ID')) || '',
     publicKeySource: publicKeySource(env),
-    protocolTemplateConfigured: Boolean(String(env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE || '').trim()),
+    protocolTemplateConfigured: Boolean(String(resolveBrandEnv(env, 'RUSTDESK_PROTOCOL_URL_TEMPLATE') || '').trim()),
     launchBaseUrl: stripTrailingSlash(
-      env.OPC_RUSTDESK_LAUNCH_BASE_URL ||
-      env.OPC_BASE_URL ||
-      env.OPC_REMOTE_GATEWAY_BASE_URL ||
+      resolveBrandEnv(env, 'RUSTDESK_LAUNCH_BASE_URL') ||
+      resolveBrandEnv(env, 'BASE_URL') ||
+      resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') ||
       controlPlaneBaseUrl
     ),
-    ledBaseUrl: stripTrailingSlash(env.OPC_RUSTDESK_LED_EXAMPLE_BASE_URL || env.OPC_BASE_URL || controlPlaneBaseUrl),
-    ledTenantId: optionalString(env.OPC_RUSTDESK_LED_EXAMPLE_TENANT_ID || env.OPC_REMOTE_GATEWAY_TENANT_ID || env.OPC_TENANT_ID) || '',
-    ledRemoteSessionId: optionalString(env.OPC_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID) || '',
-    ledRustDeskId: optionalString(env.OPC_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID || env.OPC_RUSTDESK_IVEKIT_RUSTDESK_ID) || ''
+    ledBaseUrl: stripTrailingSlash(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_BASE_URL') || resolveBrandEnv(env, 'BASE_URL') || controlPlaneBaseUrl),
+    ledTenantId: optionalString(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_TENANT_ID') || resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID')) || '',
+    ledRemoteSessionId: optionalString(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID')) || '',
+    ledRustDeskId: optionalString(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_RUSTDESK_ID') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_RUSTDESK_ID')) || ''
   };
 }
 
@@ -93,7 +94,7 @@ export function renderRustDeskHandoffPack(config: RustDeskHandoffPackConfig): st
     '',
     '```bash',
     'npm run rustdesk:deployment-preflight',
-    'OPC_RUSTDESK_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json npm run rustdesk:server-evidence',
+    'CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json npm run rustdesk:server-evidence',
     'npm run rustdesk:readiness',
     '```',
     '',
@@ -104,8 +105,8 @@ export function renderRustDeskHandoffPack(config: RustDeskHandoffPackConfig): st
     'Generate a local JSONL template for the sidecar or helper process, then validate the edited file before sending it to OPC:',
     '',
     '```bash',
-    'OPC_RUSTDESK_EVENT_TEMPLATE_FILE=/tmp/rustdesk-events-template.jsonl npm run rustdesk:event-forwarder',
-    'OPC_RUSTDESK_EVENT_FILE=/tmp/rustdesk-events-template.jsonl OPC_RUSTDESK_EVENT_VALIDATE_ONLY=1 npm run rustdesk:event-forwarder',
+    'CONVERACT_RUSTDESK_EVENT_TEMPLATE_FILE=/tmp/rustdesk-events-template.jsonl npm run rustdesk:event-forwarder',
+    'CONVERACT_RUSTDESK_EVENT_FILE=/tmp/rustdesk-events-template.jsonl CONVERACT_RUSTDESK_EVENT_VALIDATE_ONLY=1 npm run rustdesk:event-forwarder',
     '```',
     '',
     'After real operation capture is wired, the same event file format should be sent without validate-only so control actions, file transfer, recording, and clipboard events enter the RustDesk gateway audit timeline.',
@@ -115,9 +116,9 @@ export function renderRustDeskHandoffPack(config: RustDeskHandoffPackConfig): st
     'Create the client configuration handoff and schema-v2 acceptance report template before the real client session, then fill evidence and audit exports after the session:',
     '',
     '```bash',
-    'OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID=<rustdesk-gateway-external-id> OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID=<rustdesk-runtime-id> npm run rustdesk:client-config-pack',
-    'OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=/tmp/rustdesk-client-acceptance.json npm run rustdesk:client-acceptance',
-    'OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE=/tmp/rustdesk-client-acceptance.json OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE=/tmp/rustdesk-audit-export.jsonl OPC_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/tmp/rustdesk-client-acceptance-summary.json npm run rustdesk:client-acceptance',
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID=<rustdesk-gateway-external-id> CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID=<rustdesk-runtime-id> npm run rustdesk:client-config-pack',
+    'CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=/tmp/rustdesk-client-acceptance.json npm run rustdesk:client-acceptance',
+    'CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE=/tmp/rustdesk-client-acceptance.json CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE=/tmp/rustdesk-audit-export.jsonl CONVERACT_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/tmp/rustdesk-client-acceptance-summary.json npm run rustdesk:client-acceptance',
     '```',
     '',
     '真实客户端验收仍需要人工完成：记录 hbbs/hbbr 和两端客户端版本、平台/架构、target ID、key fingerprint、ID/relay 路径以及不同的 operator/QA 身份；确认屏幕查看、键鼠、多显示器、文件传输、剪贴板、录屏播放、断网重连、授权撤销、物理断开和旧链接失效。',
@@ -129,9 +130,9 @@ export function renderRustDeskHandoffPack(config: RustDeskHandoffPackConfig): st
     'After real client evidence and audit exports are filled, validate audit coverage and regenerate the final customer handoff evidence pack:',
     '',
     '```bash',
-    'OPC_RUSTDESK_AUDIT_EXPORT_FILE=/tmp/rustdesk-audit-export.jsonl OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id> npm run rustdesk:audit-export',
-    'OPC_RUSTDESK_AUDIT_COVERAGE_FILE=/tmp/rustdesk-audit-export.jsonl OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=/tmp/rustdesk-audit-coverage.json npm run rustdesk:audit-coverage',
-    'OPC_RUSTDESK_EVIDENCE_PACK_FILE=/tmp/rustdesk-evidence-pack.md OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE=/tmp/rustdesk-audit-coverage.json npm run rustdesk:evidence-pack',
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE=/tmp/rustdesk-audit-export.jsonl CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id> npm run rustdesk:audit-export',
+    'CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE=/tmp/rustdesk-audit-export.jsonl CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=/tmp/rustdesk-audit-coverage.json npm run rustdesk:audit-coverage',
+    'CONVERACT_RUSTDESK_EVIDENCE_PACK_FILE=/tmp/rustdesk-evidence-pack.md CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE=/tmp/rustdesk-audit-coverage.json npm run rustdesk:evidence-pack',
     '```',
     '',
     'Customer handoff requires `rustdesk:evidence-pack` to report `ready_for_customer_review`; otherwise the server/client/audit evidence is still incomplete.',
@@ -155,7 +156,7 @@ export function renderRustDeskHandoffPack(config: RustDeskHandoffPackConfig): st
 }
 
 export function writeRustDeskHandoffPack(config: RustDeskHandoffPackConfig): RustDeskHandoffPackWriteResult {
-  if (!config.outputFile) throw new Error('OPC_RUSTDESK_HANDOFF_FILE is required when writing a handoff pack');
+  if (!config.outputFile) throw new Error('CONVERACT_RUSTDESK_HANDOFF_FILE is required when writing a handoff pack');
   mkdirSync(dirname(config.outputFile), { recursive: true });
   writeFileSync(config.outputFile, renderRustDeskHandoffPack(config), 'utf8');
   return {
@@ -165,8 +166,8 @@ export function writeRustDeskHandoffPack(config: RustDeskHandoffPackConfig): Rus
 }
 
 function publicKeySource(env: NodeJS.ProcessEnv): string {
-  if (String(env.OPC_RUSTDESK_PUBLIC_KEY || '').trim()) return 'env';
-  const filePath = optionalString(env.OPC_RUSTDESK_PUBLIC_KEY_FILE);
+  if (String(resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY') || '').trim()) return 'env';
+  const filePath = optionalString(resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY_FILE'));
   return filePath ? `file:${filePath}` : 'missing';
 }
 

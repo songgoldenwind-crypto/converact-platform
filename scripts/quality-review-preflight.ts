@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -43,9 +44,9 @@ export function inspectQualityReviewEnv(
   if (!providerConfigured) issues.push('Quality review provider base URL is required');
 
   let autoEnqueue: boolean | null = null;
-  const autoEnqueueFlag = String(env.OPC_QUALITY_REVIEW_AUTO_ENQUEUE || '').trim();
+  const autoEnqueueFlag = String(resolveBrandEnv(env, 'QUALITY_REVIEW_AUTO_ENQUEUE') || '').trim();
   if (autoEnqueueFlag && autoEnqueueFlag !== '0' && autoEnqueueFlag !== '1') {
-    issues.push('OPC_QUALITY_REVIEW_AUTO_ENQUEUE must be 0 or 1');
+    issues.push('CONVERACT_QUALITY_REVIEW_AUTO_ENQUEUE must be 0 or 1');
   } else {
     autoEnqueue = autoEnqueueFlag === '1' || (autoEnqueueFlag !== '0' && providerConfigured);
   }
@@ -57,7 +58,7 @@ export function inspectQualityReviewEnv(
     issues.push(errorMessage(error));
   }
 
-  const timeout = String(env.OPC_QUALITY_REVIEW_TIMEOUT_MS || '').trim();
+  const timeout = String(resolveBrandEnv(env, 'QUALITY_REVIEW_TIMEOUT_MS') || '').trim();
   return {
     ready: issues.length === 0,
     issues: [...new Set(issues)],
@@ -67,11 +68,11 @@ export function inspectQualityReviewEnv(
     },
     provider: {
       configured: providerConfigured,
-      mode: String(env.OPC_QUALITY_REVIEW_PROVIDER_MODE || 'self_hosted').trim(),
-      name: String(env.OPC_QUALITY_REVIEW_PROVIDER_NAME || '').trim(),
-      base_url: sanitizedUrl(env.OPC_QUALITY_REVIEW_BASE_URL),
-      endpoint: String(env.OPC_QUALITY_REVIEW_ENDPOINT || '/v1/quality-review').trim(),
-      token: secretMarker(env.OPC_QUALITY_REVIEW_TOKEN),
+      mode: String(resolveBrandEnv(env, 'QUALITY_REVIEW_PROVIDER_MODE') || 'self_hosted').trim(),
+      name: String(resolveBrandEnv(env, 'QUALITY_REVIEW_PROVIDER_NAME') || '').trim(),
+      base_url: sanitizedUrl(resolveBrandEnv(env, 'QUALITY_REVIEW_BASE_URL')),
+      endpoint: String(resolveBrandEnv(env, 'QUALITY_REVIEW_ENDPOINT') || '/v1/quality-review').trim(),
+      token: secretMarker(resolveBrandEnv(env, 'QUALITY_REVIEW_TOKEN')),
       timeout_ms: timeout ? Number(timeout) : 30_000
     },
     auto_enqueue: autoEnqueue,

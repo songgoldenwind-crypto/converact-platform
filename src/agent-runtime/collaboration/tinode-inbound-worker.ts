@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import type { PgQueryable } from '../../db-pg.js';
@@ -234,9 +235,9 @@ export class TinodeInboundWorker {
 export function tinodeInboundWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): TinodeInboundWorkerConfig {
-  const enabledFlag = String(env.OPC_TINODE_INBOUND_WORKER_ENABLED || '').trim();
+  const enabledFlag = String(resolveBrandEnv(env, 'TINODE_INBOUND_WORKER_ENABLED') || '').trim();
   if (enabledFlag && enabledFlag !== '0' && enabledFlag !== '1') {
-    throw new Error('OPC_TINODE_INBOUND_WORKER_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_TINODE_INBOUND_WORKER_ENABLED must be 0 or 1');
   }
   const providerConfigured = hasValue(env.TINODE_WS_URL) || hasValue(env.TINODE_BASE_URL);
   const authenticationConfigured = hasValue(env.TINODE_AUTH_TOKEN) || (
@@ -246,48 +247,48 @@ export function tinodeInboundWorkerConfig(
     enabled: providerConfigured && authenticationConfigured &&
       tinodeApiKeysDistinct(env) && enabledFlag !== '0',
     intervalMs: boundedInteger(
-      env.OPC_TINODE_INBOUND_INTERVAL_MS,
+      resolveBrandEnv(env, 'TINODE_INBOUND_INTERVAL_MS'),
       5_000,
       1_000,
       300_000,
-      'OPC_TINODE_INBOUND_INTERVAL_MS'
+      'CONVERACT_TINODE_INBOUND_INTERVAL_MS'
     ),
     tenantLimit: boundedInteger(
-      env.OPC_TINODE_INBOUND_TENANT_LIMIT,
+      resolveBrandEnv(env, 'TINODE_INBOUND_TENANT_LIMIT'),
       100,
       1,
       1_000,
-      'OPC_TINODE_INBOUND_TENANT_LIMIT'
+      'CONVERACT_TINODE_INBOUND_TENANT_LIMIT'
     ),
     pullLimit: boundedInteger(
-      env.OPC_TINODE_INBOUND_PULL_LIMIT,
+      resolveBrandEnv(env, 'TINODE_INBOUND_PULL_LIMIT'),
       100,
       1,
       200,
-      'OPC_TINODE_INBOUND_PULL_LIMIT'
+      'CONVERACT_TINODE_INBOUND_PULL_LIMIT'
     ),
     claimLeaseMs: boundedInteger(
-      env.OPC_TINODE_INBOUND_CLAIM_LEASE_MS,
+      resolveBrandEnv(env, 'TINODE_INBOUND_CLAIM_LEASE_MS'),
       60_000,
       5_000,
       600_000,
-      'OPC_TINODE_INBOUND_CLAIM_LEASE_MS'
+      'CONVERACT_TINODE_INBOUND_CLAIM_LEASE_MS'
     ),
     retryDelayMs: boundedInteger(
-      env.OPC_TINODE_INBOUND_RETRY_DELAY_MS,
+      resolveBrandEnv(env, 'TINODE_INBOUND_RETRY_DELAY_MS'),
       10_000,
       1_000,
       300_000,
-      'OPC_TINODE_INBOUND_RETRY_DELAY_MS'
+      'CONVERACT_TINODE_INBOUND_RETRY_DELAY_MS'
     ),
     deadLetterMaxAttempts: boundedInteger(
-      env.OPC_TINODE_INBOUND_DEAD_LETTER_MAX_ATTEMPTS,
+      resolveBrandEnv(env, 'TINODE_INBOUND_DEAD_LETTER_MAX_ATTEMPTS'),
       3,
       1,
       10,
-      'OPC_TINODE_INBOUND_DEAD_LETTER_MAX_ATTEMPTS'
+      'CONVERACT_TINODE_INBOUND_DEAD_LETTER_MAX_ATTEMPTS'
     ),
-    allowedAttachmentHosts: csvValues(env.OPC_TINODE_ATTACHMENT_ALLOWED_HOSTS)
+    allowedAttachmentHosts: csvValues(resolveBrandEnv(env, 'TINODE_ATTACHMENT_ALLOWED_HOSTS'))
   };
 }
 
@@ -313,18 +314,18 @@ export function startTinodeInboundWorker(input: {
       secureFiles,
       allowedHosts: config.allowedAttachmentHosts,
       maxBytes: boundedInteger(
-        env.OPC_TINODE_INBOUND_ATTACHMENT_MAX_BYTES,
+        resolveBrandEnv(env, 'TINODE_INBOUND_ATTACHMENT_MAX_BYTES'),
         25 * 1024 * 1024,
         1,
         512 * 1024 * 1024,
-        'OPC_TINODE_INBOUND_ATTACHMENT_MAX_BYTES'
+        'CONVERACT_TINODE_INBOUND_ATTACHMENT_MAX_BYTES'
       ),
       timeoutMs: boundedInteger(
-        env.OPC_TINODE_INBOUND_ATTACHMENT_TIMEOUT_MS,
+        resolveBrandEnv(env, 'TINODE_INBOUND_ATTACHMENT_TIMEOUT_MS'),
         30_000,
         250,
         120_000,
-        'OPC_TINODE_INBOUND_ATTACHMENT_TIMEOUT_MS'
+        'CONVERACT_TINODE_INBOUND_ATTACHMENT_TIMEOUT_MS'
       )
     });
     return new TinodeInboundService({

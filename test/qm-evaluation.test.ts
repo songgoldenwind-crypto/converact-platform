@@ -30,7 +30,7 @@ function authHeaders(): Record<string, string> {
 }
 
 before(async () => {
-  process.env.OPC_API_KEY = apiKey;
+  process.env.CONVERACT_API_KEY = apiKey;
   const tenant = createTenant(db, { name: 'QM Test' });
   tenantId = tenant.id;
   const session = voiceStore.createCallSession({

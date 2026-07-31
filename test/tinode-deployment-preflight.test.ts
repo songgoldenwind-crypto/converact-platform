@@ -23,12 +23,12 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     TINODE_AUTH_TOKEN: 'tinode-root-token',
     TINODE_USER_PASSWORD_SECRET: 'tinode-user-secret',
     TINODE_REQUEST_TIMEOUT_MS: '5000',
-    OPC_TINODE_DELIVERY_WORKER_ENABLED: '1',
-    OPC_TINODE_DELIVERY_INTERVAL_MS: '5000',
-    OPC_TINODE_DELIVERY_BATCH_SIZE: '50',
-    OPC_TINODE_DELIVERY_MAX_ATTEMPTS: '3',
-    OPC_TINODE_DELIVERY_CLAIM_LEASE_MS: '30000',
-    OPC_TINODE_DELIVERY_RETRY_DELAYS_MS: '2000,10000',
+    CONVERACT_TINODE_DELIVERY_WORKER_ENABLED: '1',
+    CONVERACT_TINODE_DELIVERY_INTERVAL_MS: '5000',
+    CONVERACT_TINODE_DELIVERY_BATCH_SIZE: '50',
+    CONVERACT_TINODE_DELIVERY_MAX_ATTEMPTS: '3',
+    CONVERACT_TINODE_DELIVERY_CLAIM_LEASE_MS: '30000',
+    CONVERACT_TINODE_DELIVERY_RETRY_DELAYS_MS: '2000,10000',
     TINODE_CHAT_SMOKE_TENANT_ID: 'tenant_tinode',
     TINODE_CHAT_SMOKE_PARTICIPANT_IDENTITY: 'customer_tinode',
     ...overrides
@@ -212,7 +212,7 @@ test('Tinode deployment preflight removes credentials and query secrets from rep
 test('Tinode deployment preflight rejects a delivery lease shorter than the provider timeout budget', () => {
   const report = createTinodeDeploymentPreflightReport(configuredEnv({
     TINODE_REQUEST_TIMEOUT_MS: '5000',
-    OPC_TINODE_DELIVERY_CLAIM_LEASE_MS: '20000'
+    CONVERACT_TINODE_DELIVERY_CLAIM_LEASE_MS: '20000'
   }));
 
   assert.equal(report.ok, false);
@@ -278,7 +278,7 @@ test('Tinode deployment env checklist masks secrets and groups variables', () =>
   assert.match(checklist, /\| TINODE_ROOT_API_KEY \| required \| `configured` \|/);
   assert.match(checklist, /\| TINODE_AUTH_TOKEN \| required \| `configured` \|/);
   assert.match(checklist, /\| TINODE_USER_PASSWORD_SECRET \| required \| `configured` \|/);
-  assert.match(checklist, /\| OPC_TINODE_DELIVERY_CLAIM_LEASE_MS \| required \| `30000` \|/);
+  assert.match(checklist, /\| CONVERACT_TINODE_DELIVERY_CLAIM_LEASE_MS \| required \| `30000` \|/);
   assert.equal(checklist.includes('tinode-root-token'), false);
   assert.equal(checklist.includes('tinode-root-api-key'), false);
   assert.equal(checklist.includes('tinode-user-secret'), false);
@@ -314,8 +314,8 @@ test('Tinode deployment preflight CLI writes requested artifacts without leaking
       env: {
         ...process.env,
         ...configuredEnv({
-          OPC_TINODE_PREFLIGHT_ENV_CHECKLIST_FILE: checklistPath,
-          OPC_TINODE_PREFLIGHT_REPORT_FILE: reportPath
+          CONVERACT_TINODE_PREFLIGHT_ENV_CHECKLIST_FILE: checklistPath,
+          CONVERACT_TINODE_PREFLIGHT_REPORT_FILE: reportPath
         })
       },
       encoding: 'utf8'
@@ -345,8 +345,8 @@ test('Tinode deployment preflight is exposed through scripts and env examples', 
     'TINODE_POSTGRES_DSN=',
     'TINODE_AUTH_TOKEN_KEY=',
     'TINODE_UID_ENCRYPTION_KEY=',
-    'OPC_TINODE_PREFLIGHT_ENV_CHECKLIST_FILE=',
-    'OPC_TINODE_PREFLIGHT_REPORT_FILE='
+    'CONVERACT_TINODE_PREFLIGHT_ENV_CHECKLIST_FILE=',
+    'CONVERACT_TINODE_PREFLIGHT_REPORT_FILE='
   ]) {
     assert.match(rootEnvExample, new RegExp(`^${key}`, 'm'));
     assert.match(infraEnvExample, new RegExp(`^${key}`, 'm'));

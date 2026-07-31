@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import {
@@ -322,7 +323,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
     adapters.startRuntimeHeartbeat({
       pg: input.pg,
       env,
-      instance_id: input.instanceId || env.OPC_IVEKIT_INSTANCE_ID || env.HOSTNAME || `ivekit-${process.pid}`,
+      instance_id: input.instanceId || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || `ivekit-${process.pid}`,
       components: iveKitRuntimeComponents(env)
     }),
     ...(backlogMetricsConfig.enabled ? [
@@ -643,7 +644,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
     adapters.startEgressReconciliation({
       pg: input.pg,
       env,
-      worker_id: input.instanceId || env.OPC_IVEKIT_INSTANCE_ID || env.HOSTNAME || `ivekit-${process.pid}`
+      worker_id: input.instanceId || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || `ivekit-${process.pid}`
     }),
     adapters.startEgressMetrics({ pg: input.pg, env }),
     ...(input.placement ? [
@@ -725,7 +726,7 @@ function createQualityReviewEnqueuer(
   const registry = createIntelligenceProviderRegistry(env);
   const enabled = registry.list().some((profile) => profile.capability === 'quality_review');
   return {
-    enabled: enabled || env.OPC_QUALITY_REVIEW_AUTO_ENQUEUE === '1',
+    enabled: enabled || resolveBrandEnv(env, 'QUALITY_REVIEW_AUTO_ENQUEUE') === '1',
     enqueueMessage: (enqueueInput, transactionPg) => {
       const servicePg = transactionPg || pg;
       return new QualityReviewService({

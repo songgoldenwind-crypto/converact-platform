@@ -14,17 +14,17 @@ test('worker backlog metrics observer is explicit and bounded', () => {
     interval_ms: 5_000
   });
   assert.deepEqual(workerBacklogMetricsConfig({
-    OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED: '1',
-    OPC_IVEKIT_WORKER_BACKLOG_METRICS_INTERVAL_MS: '12000'
+    CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_ENABLED: '1',
+    CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_INTERVAL_MS: '12000'
   }), {
     enabled: true,
     interval_ms: 12_000
   });
   assert.throws(() => workerBacklogMetricsConfig({
-    OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED: 'yes'
+    CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_ENABLED: 'yes'
   }), /must be 0 or 1/);
   assert.throws(() => workerBacklogMetricsConfig({
-    OPC_IVEKIT_WORKER_BACKLOG_METRICS_INTERVAL_MS: '999'
+    CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_INTERVAL_MS: '999'
   }), /between 1000 and 300000/);
 });
 
@@ -53,7 +53,7 @@ test('iveKit application owns backlog observer lifecycle independently', async (
   const events: string[] = [];
   const application = startIveKitApplication({
     pg: new MemoryPg(),
-    env: { OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED: '1' },
+    env: { CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_ENABLED: '1' },
     adapters: {
       startWorkerBacklogMetrics: () => {
         events.push('start:worker-backlog-metrics');

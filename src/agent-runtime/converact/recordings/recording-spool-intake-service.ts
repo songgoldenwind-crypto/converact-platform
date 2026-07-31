@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
@@ -243,9 +244,9 @@ export class RecordingSpoolIntakeError extends Error {
 export function recordingSpoolHttpPartMaxBytes(
   env: NodeJS.ProcessEnv = process.env
 ): number {
-  const value = Number(env.OPC_IVEKIT_RECORDING_PART_MAX_BYTES || 8 * 1024 * 1024);
+  const value = Number(resolveFabricEnv(env, 'RECORDING_PART_MAX_BYTES') || 8 * 1024 * 1024);
   if (!Number.isInteger(value) || value < MIN_PART_SIZE_BYTES || value > MAX_PART_SIZE_BYTES) {
-    throw new Error('OPC_IVEKIT_RECORDING_PART_MAX_BYTES is invalid');
+    throw new Error('CONVERACT_FABRIC_RECORDING_PART_MAX_BYTES is invalid');
   }
   return value;
 }

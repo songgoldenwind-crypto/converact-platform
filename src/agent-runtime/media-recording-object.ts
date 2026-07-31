@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../config/converact-env.js';
 import { createReadStream } from 'node:fs';
 import { readFile, stat, unlink } from 'node:fs/promises';
 import { isAbsolute, join, normalize, resolve, sep } from 'node:path';
@@ -240,12 +241,12 @@ export async function resolveRecordingObjectContent(
     return readFileObject(storageUrl, 'file', maxBytes);
   }
 
-  const configuredBucket = process.env.S3_BUCKET || process.env.OPC_S3_BUCKET || process.env.MINIO_BUCKET || '';
+  const configuredBucket = process.env.S3_BUCKET || resolveBrandEnv(process.env, 'S3_BUCKET') || process.env.MINIO_BUCKET || '';
   if (configuredBucket && storageUrl.startsWith(`${configuredBucket}/`)) {
     return readS3Object(configuredBucket, storageUrl.slice(configuredBucket.length + 1), maxBytes);
   }
 
-  const localRoot = process.env.OPC_RECORDING_OBJECT_DIR || process.env.LIVEKIT_EGRESS_RECORDING_DIR || '';
+  const localRoot = resolveBrandEnv(process.env, 'RECORDING_OBJECT_DIR') || process.env.LIVEKIT_EGRESS_RECORDING_DIR || '';
   if (localRoot) {
     return readFileObject(join(localRoot, safeRelativePath(storageUrl)), 'local_path', maxBytes);
   }
@@ -476,18 +477,18 @@ function s3BucketAllowed(bucket: string): boolean {
 }
 
 function recordingHttpTimeoutMs(explicit?: number): number {
-  const value = explicit ?? Number(process.env.OPC_RECORDING_HTTP_TIMEOUT_MS || 15_000);
+  const value = explicit ?? Number(resolveBrandEnv(process.env, 'RECORDING_HTTP_TIMEOUT_MS') || 15_000);
   if (!Number.isFinite(value) || value < 1 || value > 300_000) return 15_000;
   return Math.floor(value);
 }
 
 function configuredLocalRoot(): string {
-  return process.env.OPC_RECORDING_OBJECT_DIR || process.env.LIVEKIT_EGRESS_RECORDING_DIR || '';
+  return resolveBrandEnv(process.env, 'RECORDING_OBJECT_DIR') || process.env.LIVEKIT_EGRESS_RECORDING_DIR || '';
 }
 
 function localPathAllowed(path: string, allowUnsafeLocalPaths = process.env.NODE_ENV !== 'production'): boolean {
   if (allowUnsafeLocalPaths) return true;
-  const roots = [configuredLocalRoot(), process.env.OPC_UPLOAD_DIR || ''].filter(Boolean);
+  const roots = [configuredLocalRoot(), resolveBrandEnv(process.env, 'UPLOAD_DIR') || ''].filter(Boolean);
   return roots.some((root) => isWithinRoot(path, root));
 }
 
@@ -501,7 +502,7 @@ function httpOriginAllowed(storageUrl: string): boolean {
   if (process.env.NODE_ENV !== 'production') return true;
   const objectStorageEndpoint = configuredS3Connection()?.endpoint || '';
   const configured = [
-    ...(process.env.OPC_RECORDING_HTTP_ALLOWED_ORIGINS || '').split(','),
+    ...(resolveBrandEnv(process.env, 'RECORDING_HTTP_ALLOWED_ORIGINS') || '').split(','),
     process.env.S3_PUBLIC_BASE_URL || '',
     objectStorageEndpoint
   ]
@@ -562,7 +563,7 @@ async function readWebResponseBody(response: Response, maxBytes: number): Promis
 }
 
 export function recordingObjectMaxBytes(explicit?: number): number {
-  const value = explicit ?? Number(process.env.OPC_RECORDING_EXPORT_MAX_BYTES || 67_108_864);
+  const value = explicit ?? Number(resolveBrandEnv(process.env, 'RECORDING_EXPORT_MAX_BYTES') || 67_108_864);
   if (!Number.isInteger(value) || value < 1 || value > 1_073_741_824) return 67_108_864;
   return value;
 }

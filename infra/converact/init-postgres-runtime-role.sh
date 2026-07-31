@@ -1,16 +1,19 @@
 #!/bin/sh
 set -eu
 
+. /bootstrap/converact-env-compat.sh
+converact_env_install_aliases
+
 : "${POSTGRES_USER:?POSTGRES_USER is required}"
 : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
 : "${POSTGRES_DB:?POSTGRES_DB is required}"
-: "${OPC_RUNTIME_DB_PASSWORD:?OPC_RUNTIME_DB_PASSWORD is required}"
+: "${CONVERACT_RUNTIME_DB_PASSWORD:?CONVERACT_RUNTIME_DB_PASSWORD is required}"
 : "${TINODE_DB_PASSWORD:?TINODE_DB_PASSWORD is required}"
 
 export PGPASSWORD="$POSTGRES_PASSWORD"
 psql -X -h postgres -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   -v ON_ERROR_STOP=1 \
-  -v runtime_password="$OPC_RUNTIME_DB_PASSWORD" \
+  -v runtime_password="$CONVERACT_RUNTIME_DB_PASSWORD" \
   -v tinode_password="$TINODE_DB_PASSWORD" <<'SQL'
 DO $$
 BEGIN

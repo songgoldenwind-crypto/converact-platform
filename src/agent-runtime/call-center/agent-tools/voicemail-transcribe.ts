@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../../config/converact-env.js';
 import { run } from '../../../db.js';
 
 export interface TranscribeResult {
@@ -7,9 +8,9 @@ export interface TranscribeResult {
 
 function getAsrConfig() {
   return {
-    apiUrl: process.env.OPC_ASR_API_URL || process.env.ASR_API_URL || '',
-    apiKey: process.env.OPC_ASR_API_KEY || process.env.ASR_API_KEY || '',
-    model: process.env.OPC_ASR_MODEL || 'whisper-1'
+    apiUrl: resolveBrandEnv(process.env, 'ASR_API_URL') || process.env.ASR_API_URL || '',
+    apiKey: resolveBrandEnv(process.env, 'ASR_API_KEY') || process.env.ASR_API_KEY || '',
+    model: resolveBrandEnv(process.env, 'ASR_MODEL') || 'whisper-1'
   };
 }
 
@@ -46,7 +47,7 @@ export async function transcribeVoicemailRecording(recordingUrl: string): Promis
   // LLM fallback removed: text LLMs cannot transcribe audio.
   // Previously this sent the recording URL string to DeepSeek and treated
   // the LLM's hallucinated text as a transcript — that was a fake implementation.
-  // To enable transcription, configure OPC_ASR_API_URL to a real ASR service
+  // To enable transcription, configure CONVERACT_ASR_API_URL to a real ASR service
   // (Whisper API / FunASR / AmiVoice).
   return { transcript: '', source: 'empty' };
 }

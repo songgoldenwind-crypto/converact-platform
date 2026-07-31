@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,31 +28,31 @@ export interface RustDeskAuditExportResult {
 }
 
 export function createRustDeskAuditExportConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskAuditExportConfig {
-  const outputFile = requiredString(env.OPC_RUSTDESK_AUDIT_EXPORT_FILE, 'OPC_RUSTDESK_AUDIT_EXPORT_FILE is required');
-  const externalId = requiredString(env.OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID, 'OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID is required');
+  const outputFile = requiredString(resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_FILE'), 'CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE is required');
+  const externalId = requiredString(resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID'), 'CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID is required');
   const baseUrl = normalizeBaseUrl(optionalString(
-    env.OPC_RUSTDESK_AUDIT_EXPORT_BASE_URL ||
-    env.OPC_RUSTDESK_IVEKIT_BASE_URL ||
-    env.OPC_BASE_URL ||
-    env.OPC_COLLABORATION_BASE_URL
-  ), 'OPC_RUSTDESK_AUDIT_EXPORT_BASE_URL, OPC_RUSTDESK_IVEKIT_BASE_URL, OPC_BASE_URL, or OPC_COLLABORATION_BASE_URL is required');
+    resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
+    resolveBrandEnv(env, 'COLLABORATION_BASE_URL')
+  ), 'CONVERACT_RUSTDESK_AUDIT_EXPORT_BASE_URL, CONVERACT_RUSTDESK_IVEKIT_BASE_URL, CONVERACT_BASE_URL, or CONVERACT_COLLABORATION_BASE_URL is required');
   const apiKey = requiredString(
-    env.OPC_RUSTDESK_AUDIT_EXPORT_API_KEY ||
-    env.OPC_RUSTDESK_IVEKIT_API_KEY ||
-    env.OPC_COLLABORATION_API_KEY ||
-    env.OPC_API_KEY,
-    'OPC_RUSTDESK_AUDIT_EXPORT_API_KEY, OPC_RUSTDESK_IVEKIT_API_KEY, OPC_COLLABORATION_API_KEY, or OPC_API_KEY is required'
+    resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_API_KEY') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_API_KEY') ||
+    resolveBrandEnv(env, 'COLLABORATION_API_KEY') ||
+    resolveBrandEnv(env, 'API_KEY'),
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_API_KEY, CONVERACT_RUSTDESK_IVEKIT_API_KEY, CONVERACT_COLLABORATION_API_KEY, or CONVERACT_API_KEY is required'
   );
   const tenantId = requiredString(
-    env.OPC_RUSTDESK_AUDIT_EXPORT_TENANT_ID ||
-    env.OPC_RUSTDESK_IVEKIT_TENANT_ID ||
-    env.OPC_REMOTE_GATEWAY_TENANT_ID ||
-    env.OPC_RUSTDESK_EDGE_TENANT_ID ||
-    env.OPC_TENANT_ID,
-    'OPC_RUSTDESK_AUDIT_EXPORT_TENANT_ID, OPC_RUSTDESK_IVEKIT_TENANT_ID, OPC_REMOTE_GATEWAY_TENANT_ID, OPC_RUSTDESK_EDGE_TENANT_ID, or OPC_TENANT_ID is required'
+    resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_TENANT_ID') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') ||
+    resolveBrandEnv(env, 'TENANT_ID'),
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_TENANT_ID, CONVERACT_RUSTDESK_IVEKIT_TENANT_ID, CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID is required'
   );
-  const userId = optionalString(env.OPC_RUSTDESK_AUDIT_EXPORT_USER_ID);
-  const since = optionalString(env.OPC_RUSTDESK_AUDIT_EXPORT_SINCE);
+  const userId = optionalString(resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_USER_ID'));
+  const since = optionalString(resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_SINCE'));
   return {
     outputFile,
     externalId,
@@ -101,7 +102,7 @@ function normalizeBaseUrl(value: string, message: string): string {
   const raw = requiredString(value, message);
   const parsed = new URL(raw);
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('OPC_RUSTDESK_AUDIT_EXPORT_BASE_URL must use http(s)');
+    throw new Error('CONVERACT_RUSTDESK_AUDIT_EXPORT_BASE_URL must use http(s)');
   }
   return parsed.toString().replace(/\/$/, '');
 }

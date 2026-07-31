@@ -30,9 +30,9 @@ test('video readiness suite defaults to every production smoke target', () => {
 
 test('video readiness suite parses target aliases and continue mode', () => {
   const config = createVideoReadinessSuiteConfigFromEnv({
-    OPC_VIDEO_READINESS_TARGETS:
+    CONVERACT_VIDEO_READINESS_TARGETS:
       'browser, customer, web-assist, web-assist-browser, remote-assist-browser, sip, avatar, ai-callback, collab, remote, remote-assistance, gateway, remote-gateway, meshcentral, guacamole, rustdesk',
-    OPC_VIDEO_READINESS_CONTINUE_ON_FAILURE: '1'
+    CONVERACT_VIDEO_READINESS_CONTINUE_ON_FAILURE: '1'
   });
 
   assert.deepEqual(config.targets, [
@@ -50,7 +50,7 @@ test('video readiness suite parses target aliases and continue mode', () => {
 
 test('video readiness suite rejects unknown targets', () => {
   assert.throws(
-    () => createVideoReadinessSuiteConfigFromEnv({ OPC_VIDEO_READINESS_TARGETS: 'media,unknown' }),
+    () => createVideoReadinessSuiteConfigFromEnv({ CONVERACT_VIDEO_READINESS_TARGETS: 'media,unknown' }),
     /Unknown video readiness target: unknown/
   );
 });
@@ -60,11 +60,11 @@ test('video readiness suite preflight reports missing env by target', async () =
     () =>
       runVideoReadinessSuite(
         createVideoReadinessSuiteConfigFromEnv({
-          OPC_VIDEO_READINESS_TARGETS: 'media,customer-browser,collaboration'
+          CONVERACT_VIDEO_READINESS_TARGETS: 'media,customer-browser,collaboration'
         }),
         createCommandRunner()
       ),
-    /media: OPC_BASE_URL is required.*customer-browser: OPC_FRONTEND_URL is required.*collaboration: OPC_BASE_URL is required/s
+    /media: CONVERACT_BASE_URL is required.*customer-browser: CONVERACT_FRONTEND_URL is required.*collaboration: CONVERACT_BASE_URL is required/s
   );
 });
 
@@ -75,8 +75,8 @@ test('video readiness suite requires the SIP gateway switch to equal 1', async (
     () =>
       runVideoReadinessSuite(
         createVideoReadinessSuiteConfigFromEnv({
-          OPC_VIDEO_READINESS_TARGETS: 'sip-volte',
-          OPC_SIP_VOLTE_ENABLED: '0',
+          CONVERACT_VIDEO_READINESS_TARGETS: 'sip-volte',
+          CONVERACT_SIP_VOLTE_ENABLED: '0',
           LIVEKIT_URL: 'ws://livekit:7880',
           LIVEKIT_API_KEY: 'devkey',
           LIVEKIT_API_SECRET: 'secret',
@@ -87,7 +87,7 @@ test('video readiness suite requires the SIP gateway switch to equal 1', async (
         }),
         createCommandRunner({ calls })
       ),
-    /sip-volte: OPC_SIP_VOLTE_ENABLED must equal 1/
+    /sip-volte: CONVERACT_SIP_VOLTE_ENABLED must equal 1/
   );
 
   assert.deepEqual(calls, []);
@@ -96,8 +96,8 @@ test('video readiness suite requires the SIP gateway switch to equal 1', async (
 test('video readiness suite forces the SIP child check into active-gateway mode', async () => {
   const result = await runVideoReadinessSuite(
     createVideoReadinessSuiteConfigFromEnv({
-      OPC_VIDEO_READINESS_TARGETS: 'sip-volte',
-      OPC_SIP_VOLTE_ENABLED: '1',
+      CONVERACT_VIDEO_READINESS_TARGETS: 'sip-volte',
+      CONVERACT_SIP_VOLTE_ENABLED: '1',
       LIVEKIT_URL: 'ws://livekit:7880',
       LIVEKIT_API_KEY: 'devkey',
       LIVEKIT_API_SECRET: 'secret',
@@ -107,7 +107,7 @@ test('video readiness suite forces the SIP child check into active-gateway mode'
       RUSTPBX_RWI_TOKEN: 'rwi-token'
     }),
     async (_command, _args, meta) => {
-      assert.equal(meta.env.OPC_SIP_VOLTE_REQUIRE_ACTIVE, '1');
+      assert.equal(meta.env.CONVERACT_SIP_VOLTE_REQUIRE_ACTIVE, '1');
       return { exitCode: 0, stdout: 'sip active', stderr: '' };
     }
   );
@@ -120,11 +120,11 @@ test('video readiness suite preflight reports missing web assist browser env', a
     () =>
       runVideoReadinessSuite(
         createVideoReadinessSuiteConfigFromEnv({
-          OPC_VIDEO_READINESS_TARGETS: 'web-assist-browser'
+          CONVERACT_VIDEO_READINESS_TARGETS: 'web-assist-browser'
         }),
         createCommandRunner()
       ),
-    /web-assist-browser: OPC_FRONTEND_URL is required.*OPC_WEB_ASSIST_CUSTOMER_URL or OPC_REMOTE_ASSIST_CUSTOMER_URL is required.*OPC_WEB_ASSIST_ENGINEER_TOKEN is required.*OPC_WEB_ASSIST_ENGINEER_USER_ID is required.*OPC_WEB_ASSIST_TENANT_ID or OPC_TENANT_ID is required/s
+    /web-assist-browser: CONVERACT_FRONTEND_URL is required.*CONVERACT_WEB_ASSIST_CUSTOMER_URL or CONVERACT_REMOTE_ASSIST_CUSTOMER_URL is required.*CONVERACT_WEB_ASSIST_ENGINEER_TOKEN is required.*CONVERACT_WEB_ASSIST_ENGINEER_USER_ID is required.*CONVERACT_WEB_ASSIST_TENANT_ID or CONVERACT_TENANT_ID is required/s
   );
 });
 
@@ -133,14 +133,14 @@ test('video readiness suite preflight requires customer invite signing for media
     () =>
       runVideoReadinessSuite(
         createVideoReadinessSuiteConfigFromEnv({
-          OPC_VIDEO_READINESS_TARGETS: 'media',
-          OPC_BASE_URL: 'http://localhost:3000',
-          OPC_MEDIA_API_TOKEN: 'media-token',
-          OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-1'
+          CONVERACT_VIDEO_READINESS_TARGETS: 'media',
+          CONVERACT_BASE_URL: 'http://localhost:3000',
+          CONVERACT_MEDIA_API_TOKEN: 'media-token',
+          CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1'
         }),
         createCommandRunner()
       ),
-    /media: OPC_MEDIA_INVITE_SECRET or LIVEKIT_MEDIA_INVITE_SECRET is required/
+    /media: CONVERACT_MEDIA_INVITE_SECRET or LIVEKIT_MEDIA_INVITE_SECRET is required/
   );
 });
 
@@ -148,28 +148,28 @@ test('video readiness suite runs selected smoke commands in order', async () => 
   const calls: string[] = [];
   const result = await runVideoReadinessSuite(
     createVideoReadinessSuiteConfigFromEnv({
-      OPC_VIDEO_READINESS_TARGETS: 'media,avatar,ai-callback,web-assist-browser,collaboration,remote-gateway,sip-volte',
-      OPC_BASE_URL: 'http://localhost:3000',
-      OPC_FRONTEND_URL: 'http://localhost:5173',
-      OPC_MEDIA_API_TOKEN: 'media-token',
-      OPC_MEDIA_INVITE_SECRET: 'invite-secret',
-      OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
-      OPC_API_KEY: 'opc-key',
-      OPC_AI_CALLBACK_SMOKE_TENANT_ID: 'tenant-1',
-      OPC_WEB_ASSIST_CUSTOMER_URL:
+      CONVERACT_VIDEO_READINESS_TARGETS: 'media,avatar,ai-callback,web-assist-browser,collaboration,remote-gateway,sip-volte',
+      CONVERACT_BASE_URL: 'http://localhost:3000',
+      CONVERACT_FRONTEND_URL: 'http://localhost:5173',
+      CONVERACT_MEDIA_API_TOKEN: 'media-token',
+      CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
+      CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
+      CONVERACT_API_KEY: 'opc-key',
+      CONVERACT_AI_CALLBACK_SMOKE_TENANT_ID: 'tenant-1',
+      CONVERACT_WEB_ASSIST_CUSTOMER_URL:
         '/remote-assist/session?tenant_id=tenant-1&remote_session_id=remote-1&token=signed-customer',
-      OPC_WEB_ASSIST_ENGINEER_TOKEN: 'engineer-token',
-      OPC_WEB_ASSIST_ENGINEER_USER_ID: 'engineer-1',
-      OPC_TENANT_ID: 'tenant-1',
-      OPC_COLLAB_SMOKE_TENANT_ID: 'tenant-1',
-      OPC_REMOTE_GATEWAY_PROVIDER: 'meshcentral',
-      OPC_REMOTE_GATEWAY_BASE_URL: 'http://mesh.local',
-      OPC_REMOTE_GATEWAY_API_TOKEN: 'gateway-token',
-      OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1',
+      CONVERACT_WEB_ASSIST_ENGINEER_TOKEN: 'engineer-token',
+      CONVERACT_WEB_ASSIST_ENGINEER_USER_ID: 'engineer-1',
+      CONVERACT_TENANT_ID: 'tenant-1',
+      CONVERACT_COLLAB_SMOKE_TENANT_ID: 'tenant-1',
+      CONVERACT_REMOTE_GATEWAY_PROVIDER: 'meshcentral',
+      CONVERACT_REMOTE_GATEWAY_BASE_URL: 'http://mesh.local',
+      CONVERACT_REMOTE_GATEWAY_API_TOKEN: 'gateway-token',
+      CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
       LIVEKIT_URL: 'ws://livekit:7880',
       LIVEKIT_API_KEY: 'devkey',
       LIVEKIT_API_SECRET: 'secret',
-      OPC_SIP_VOLTE_ENABLED: '1',
+      CONVERACT_SIP_VOLTE_ENABLED: '1',
       LIVEKIT_SIP_BRIDGE_TARGET: 'sip:livekit-bridge@livekit-sip:5061',
       RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
       RUSTPBX_RWI_URL: 'ws://rustpbx:8080/rwi/v1',
@@ -203,10 +203,10 @@ test('video readiness suite accepts RustDesk-specific remote gateway env fallbac
   const calls: Array<{ command: string; env: NodeJS.ProcessEnv }> = [];
   const result = await runVideoReadinessSuite(
     createVideoReadinessSuiteConfigFromEnv({
-      OPC_VIDEO_READINESS_TARGETS: 'remote-gateway',
-      OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc:3000',
-      OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-      OPC_REMOTE_GATEWAY_TARGET_ID: 'rustdesk-device-1'
+      CONVERACT_VIDEO_READINESS_TARGETS: 'remote-gateway',
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc:3000',
+      CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+      CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rustdesk-device-1'
     }),
     async (command, args, meta) => {
       calls.push({ command: [command, ...args].join(' '), env: meta.env });
@@ -216,8 +216,8 @@ test('video readiness suite accepts RustDesk-specific remote gateway env fallbac
 
   assert.equal(result.ok, true);
   assert.deepEqual(calls.map((call) => call.command), ['npm run smoke:remote-gateway']);
-  assert.equal(calls[0]?.env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL, 'http://opc:3000');
-  assert.equal(calls[0]?.env.OPC_RUSTDESK_API_TOKEN, 'rustdesk-token');
+  assert.equal(calls[0]?.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL, 'http://opc:3000');
+  assert.equal(calls[0]?.env.CONVERACT_RUSTDESK_API_TOKEN, 'rustdesk-token');
 });
 
 test('video readiness suite preflight requires RustDesk device-online auth inputs', async () => {
@@ -225,15 +225,15 @@ test('video readiness suite preflight requires RustDesk device-online auth input
     () =>
       runVideoReadinessSuite(
         createVideoReadinessSuiteConfigFromEnv({
-          OPC_VIDEO_READINESS_TARGETS: 'remote-gateway',
-          OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc:3000',
-          OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-          OPC_REMOTE_GATEWAY_TARGET_ID: 'rustdesk-device-1',
-          OPC_RUSTDESK_CHECK_DEVICE_ONLINE: '1'
+          CONVERACT_VIDEO_READINESS_TARGETS: 'remote-gateway',
+          CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc:3000',
+          CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+          CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rustdesk-device-1',
+          CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: '1'
         }),
         createCommandRunner()
       ),
-    /remote-gateway: OPC_REMOTE_GATEWAY_TENANT_ID, OPC_RUSTDESK_EDGE_TENANT_ID, or OPC_TENANT_ID is required when OPC_RUSTDESK_CHECK_DEVICE_ONLINE=1.*OPC_API_KEY or OPC_COLLABORATION_API_KEY is required when OPC_RUSTDESK_CHECK_DEVICE_ONLINE=1/s
+    /remote-gateway: CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID is required when CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE=1.*CONVERACT_API_KEY or CONVERACT_COLLABORATION_API_KEY is required when CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE=1/s
   );
 });
 
@@ -241,13 +241,13 @@ test('video readiness suite accepts edge tenant fallback for RustDesk device-onl
   const calls: string[] = [];
   const result = await runVideoReadinessSuite(
     createVideoReadinessSuiteConfigFromEnv({
-      OPC_VIDEO_READINESS_TARGETS: 'remote-gateway',
-      OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc:3000',
-      OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-      OPC_REMOTE_GATEWAY_TARGET_ID: 'rustdesk-device-1',
-      OPC_RUSTDESK_CHECK_DEVICE_ONLINE: '1',
-      OPC_RUSTDESK_EDGE_TENANT_ID: 'tenant_from_edge',
-      OPC_API_KEY: 'opc-key'
+      CONVERACT_VIDEO_READINESS_TARGETS: 'remote-gateway',
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc:3000',
+      CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+      CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rustdesk-device-1',
+      CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: '1',
+      CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_from_edge',
+      CONVERACT_API_KEY: 'opc-key'
     }),
     async (command, args) => {
       calls.push([command, ...args].join(' '));
@@ -264,12 +264,12 @@ test('video readiness suite passes media smoke customer join path to customer br
   const cleanupCalls: Array<{ method: string; path: string; query: URLSearchParams }> = [];
   const result = await runVideoReadinessSuite(
     createVideoReadinessSuiteConfigFromEnv({
-      OPC_VIDEO_READINESS_TARGETS: 'media,customer-browser',
-      OPC_BASE_URL: 'http://localhost:3000',
-      OPC_FRONTEND_URL: 'http://localhost:5173',
-      OPC_MEDIA_API_TOKEN: 'media-token',
-      OPC_MEDIA_INVITE_SECRET: 'invite-secret',
-      OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-1'
+      CONVERACT_VIDEO_READINESS_TARGETS: 'media,customer-browser',
+      CONVERACT_BASE_URL: 'http://localhost:3000',
+      CONVERACT_FRONTEND_URL: 'http://localhost:5173',
+      CONVERACT_MEDIA_API_TOKEN: 'media-token',
+      CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
+      CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1'
     }),
     async (command, args, meta) => {
       calls.push({
@@ -305,12 +305,12 @@ test('video readiness suite passes media smoke customer join path to customer br
     'npm run smoke:media',
     'npm run smoke:media:customer-browser'
   ]);
-  assert.equal(calls.find((call) => call.target === 'media')?.env.OPC_MEDIA_SMOKE_KEEP_ROOM_OPEN, '1');
+  assert.equal(calls.find((call) => call.target === 'media')?.env.CONVERACT_MEDIA_SMOKE_KEEP_ROOM_OPEN, '1');
   assert.equal(
-    calls.find((call) => call.target === 'customer-browser')?.env.OPC_CUSTOMER_VIDEO_URL,
+    calls.find((call) => call.target === 'customer-browser')?.env.CONVERACT_CUSTOMER_VIDEO_URL,
     '/video?room=smoke-room&tenant_id=tenant-1'
   );
-  assert.equal(calls.find((call) => call.target === 'media')?.env.OPC_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT, '1');
+  assert.equal(calls.find((call) => call.target === 'media')?.env.CONVERACT_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT, '1');
   assert.deepEqual(cleanupCalls.map((call) => `${call.method} ${call.path}`), [
     'POST /api/media/livekit/rooms/smoke-room/close'
   ]);
@@ -323,12 +323,12 @@ test('video readiness suite cleans retained media room when a later target fails
     () =>
       runVideoReadinessSuite(
         createVideoReadinessSuiteConfigFromEnv({
-          OPC_VIDEO_READINESS_TARGETS: 'media,avatar,customer-browser',
-          OPC_BASE_URL: 'http://localhost:3000',
-          OPC_FRONTEND_URL: 'http://localhost:5173',
-          OPC_MEDIA_API_TOKEN: 'media-token',
-          OPC_MEDIA_INVITE_SECRET: 'invite-secret',
-          OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
+          CONVERACT_VIDEO_READINESS_TARGETS: 'media,avatar,customer-browser',
+          CONVERACT_BASE_URL: 'http://localhost:3000',
+          CONVERACT_FRONTEND_URL: 'http://localhost:5173',
+          CONVERACT_MEDIA_API_TOKEN: 'media-token',
+          CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
+          CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
           LIVEKIT_URL: 'ws://livekit:7880',
           LIVEKIT_API_KEY: 'devkey',
           LIVEKIT_API_SECRET: 'secret'
@@ -372,12 +372,12 @@ test('video readiness suite fails fast when media smoke does not return a custom
     () =>
       runVideoReadinessSuite(
         createVideoReadinessSuiteConfigFromEnv({
-          OPC_VIDEO_READINESS_TARGETS: 'media,customer-browser',
-          OPC_BASE_URL: 'http://localhost:3000',
-          OPC_FRONTEND_URL: 'http://localhost:5173',
-          OPC_MEDIA_API_TOKEN: 'media-token',
-          OPC_MEDIA_INVITE_SECRET: 'invite-secret',
-          OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-1'
+          CONVERACT_VIDEO_READINESS_TARGETS: 'media,customer-browser',
+          CONVERACT_BASE_URL: 'http://localhost:3000',
+          CONVERACT_FRONTEND_URL: 'http://localhost:5173',
+          CONVERACT_MEDIA_API_TOKEN: 'media-token',
+          CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
+          CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1'
         }),
         async (command, args, meta) => {
           calls.push([command, ...args].join(' '));
@@ -414,13 +414,13 @@ test('video readiness suite skips dependent customer browser when media join pat
   const calls: string[] = [];
   const result = await runVideoReadinessSuite(
     createVideoReadinessSuiteConfigFromEnv({
-      OPC_VIDEO_READINESS_TARGETS: 'media,customer-browser,avatar',
-      OPC_VIDEO_READINESS_CONTINUE_ON_FAILURE: '1',
-      OPC_BASE_URL: 'http://localhost:3000',
-      OPC_FRONTEND_URL: 'http://localhost:5173',
-      OPC_MEDIA_API_TOKEN: 'media-token',
-      OPC_MEDIA_INVITE_SECRET: 'invite-secret',
-      OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
+      CONVERACT_VIDEO_READINESS_TARGETS: 'media,customer-browser,avatar',
+      CONVERACT_VIDEO_READINESS_CONTINUE_ON_FAILURE: '1',
+      CONVERACT_BASE_URL: 'http://localhost:3000',
+      CONVERACT_FRONTEND_URL: 'http://localhost:5173',
+      CONVERACT_MEDIA_API_TOKEN: 'media-token',
+      CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
+      CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
       LIVEKIT_URL: 'ws://livekit:7880',
       LIVEKIT_API_KEY: 'devkey',
       LIVEKIT_API_SECRET: 'secret'
@@ -454,12 +454,12 @@ test('video readiness suite failure exposes a structured partial report', async 
   try {
     await runVideoReadinessSuite(
       createVideoReadinessSuiteConfigFromEnv({
-        OPC_VIDEO_READINESS_TARGETS: 'media,avatar,customer-browser',
-        OPC_BASE_URL: 'http://localhost:3000',
-        OPC_FRONTEND_URL: 'http://localhost:5173',
-        OPC_MEDIA_API_TOKEN: 'media-token',
-        OPC_MEDIA_INVITE_SECRET: 'invite-secret',
-        OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
+        CONVERACT_VIDEO_READINESS_TARGETS: 'media,avatar,customer-browser',
+        CONVERACT_BASE_URL: 'http://localhost:3000',
+        CONVERACT_FRONTEND_URL: 'http://localhost:5173',
+        CONVERACT_MEDIA_API_TOKEN: 'media-token',
+        CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
+        CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
         LIVEKIT_URL: 'ws://livekit:7880',
         LIVEKIT_API_KEY: 'devkey',
         LIVEKIT_API_SECRET: 'secret'
@@ -506,12 +506,12 @@ test('video readiness suite turns runner errors into structured failures and cle
   try {
     await runVideoReadinessSuite(
       createVideoReadinessSuiteConfigFromEnv({
-        OPC_VIDEO_READINESS_TARGETS: 'media,avatar,customer-browser',
-        OPC_BASE_URL: 'http://localhost:3000',
-        OPC_FRONTEND_URL: 'http://localhost:5173',
-        OPC_MEDIA_API_TOKEN: 'media-token',
-        OPC_MEDIA_INVITE_SECRET: 'invite-secret',
-        OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
+        CONVERACT_VIDEO_READINESS_TARGETS: 'media,avatar,customer-browser',
+        CONVERACT_BASE_URL: 'http://localhost:3000',
+        CONVERACT_FRONTEND_URL: 'http://localhost:5173',
+        CONVERACT_MEDIA_API_TOKEN: 'media-token',
+        CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
+        CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
         LIVEKIT_URL: 'ws://livekit:7880',
         LIVEKIT_API_KEY: 'devkey',
         LIVEKIT_API_SECRET: 'secret'
@@ -551,12 +551,12 @@ test('video readiness suite cleanup failure also exposes a structured report', a
   try {
     await runVideoReadinessSuite(
       createVideoReadinessSuiteConfigFromEnv({
-        OPC_VIDEO_READINESS_TARGETS: 'media,customer-browser',
-        OPC_BASE_URL: 'http://localhost:3000',
-        OPC_FRONTEND_URL: 'http://localhost:5173',
-        OPC_MEDIA_API_TOKEN: 'media-token',
-        OPC_MEDIA_INVITE_SECRET: 'invite-secret',
-        OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-1'
+        CONVERACT_VIDEO_READINESS_TARGETS: 'media,customer-browser',
+        CONVERACT_BASE_URL: 'http://localhost:3000',
+        CONVERACT_FRONTEND_URL: 'http://localhost:5173',
+        CONVERACT_MEDIA_API_TOKEN: 'media-token',
+        CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
+        CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1'
       }),
       async (_command, _args, meta) => ({
         exitCode: 0,
@@ -594,11 +594,11 @@ test('video readiness suite stops on first command failure by default', async ()
     () =>
       runVideoReadinessSuite(
         createVideoReadinessSuiteConfigFromEnv({
-        OPC_VIDEO_READINESS_TARGETS: 'media,avatar',
-        OPC_BASE_URL: 'http://localhost:3000',
-        OPC_MEDIA_API_TOKEN: 'media-token',
-        OPC_MEDIA_INVITE_SECRET: 'invite-secret',
-        OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
+        CONVERACT_VIDEO_READINESS_TARGETS: 'media,avatar',
+        CONVERACT_BASE_URL: 'http://localhost:3000',
+        CONVERACT_MEDIA_API_TOKEN: 'media-token',
+        CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
+        CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
         LIVEKIT_URL: 'ws://livekit:7880',
         LIVEKIT_API_KEY: 'devkey',
           LIVEKIT_API_SECRET: 'secret'
@@ -615,12 +615,12 @@ test('video readiness suite can continue after failures and return a failed repo
   const calls: string[] = [];
   const result = await runVideoReadinessSuite(
     createVideoReadinessSuiteConfigFromEnv({
-      OPC_VIDEO_READINESS_TARGETS: 'media,avatar',
-      OPC_VIDEO_READINESS_CONTINUE_ON_FAILURE: '1',
-      OPC_BASE_URL: 'http://localhost:3000',
-      OPC_MEDIA_API_TOKEN: 'media-token',
-      OPC_MEDIA_INVITE_SECRET: 'invite-secret',
-      OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
+      CONVERACT_VIDEO_READINESS_TARGETS: 'media,avatar',
+      CONVERACT_VIDEO_READINESS_CONTINUE_ON_FAILURE: '1',
+      CONVERACT_BASE_URL: 'http://localhost:3000',
+      CONVERACT_MEDIA_API_TOKEN: 'media-token',
+      CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
+      CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
       LIVEKIT_URL: 'ws://livekit:7880',
       LIVEKIT_API_KEY: 'devkey',
       LIVEKIT_API_SECRET: 'secret'
@@ -680,12 +680,12 @@ test('video readiness CLI writes a failed artifact when preflight stops before t
         encoding: 'utf8',
         env: {
           ...process.env,
-          OPC_VIDEO_READINESS_TARGETS: 'media',
-          OPC_VIDEO_READINESS_REPORT_FILE: outputFile,
-          OPC_BASE_URL: '',
-          OPC_MEDIA_API_TOKEN: '',
-          OPC_MEDIA_INVITE_SECRET: '',
-          OPC_MEDIA_SMOKE_TENANT_ID: ''
+          CONVERACT_VIDEO_READINESS_TARGETS: 'media',
+          CONVERACT_VIDEO_READINESS_REPORT_FILE: outputFile,
+          CONVERACT_BASE_URL: '',
+          CONVERACT_MEDIA_API_TOKEN: '',
+          CONVERACT_MEDIA_INVITE_SECRET: '',
+          CONVERACT_MEDIA_SMOKE_TENANT_ID: ''
         }
       }
     );

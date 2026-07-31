@@ -20,7 +20,7 @@ spec:
           image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
           imagePullPolicy: IfNotPresent
           env:
-            - name: OPC_DATABASE_URL
+            - name: CONVERACT_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: ivekit-capacity-runtime
@@ -48,17 +48,17 @@ spec:
               value: /etc/nats/tls/tls.crt
             - name: NATS_TLS_KEY_FILE
               value: /etc/nats/tls/tls.key
-            - name: OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS
+            - name: CONVERACT_FABRIC_CAPACITY_NATS_STREAM_REPLICAS
               value: "3"
-            - name: OPC_IVEKIT_CAPACITY_DISPATCHER_ID
+            - name: CONVERACT_FABRIC_CAPACITY_DISPATCHER_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_CAPACITY_DISPATCH_INTERVAL_MS
+            - name: CONVERACT_FABRIC_CAPACITY_DISPATCH_INTERVAL_MS
               value: "250"
-            - name: OPC_IVEKIT_CAPACITY_DISPATCH_LEASE_MS
+            - name: CONVERACT_FABRIC_CAPACITY_DISPATCH_LEASE_MS
               value: "10000"
-            - name: OPC_IVEKIT_CAPACITY_DISPATCH_BATCH_SIZE
+            - name: CONVERACT_FABRIC_CAPACITY_DISPATCH_BATCH_SIZE
               value: "100"
           volumeMounts:
             - name: nats-tls

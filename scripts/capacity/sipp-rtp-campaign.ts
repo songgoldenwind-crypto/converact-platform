@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../../src/config/converact-env.js';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -663,7 +664,7 @@ function runCommand(
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = String(env[name] || '').trim();
+  const value = String(resolveConveractEnv(env, name) || '').trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }

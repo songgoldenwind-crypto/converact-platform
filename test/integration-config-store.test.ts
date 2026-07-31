@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { test, before, after } from 'node:test';
 import { createDatabase } from '../src/db.js';
@@ -30,7 +31,7 @@ after(() => {
 });
 
 function setEnv(key: string, value: string): void {
-  if (!(key in savedEnv)) savedEnv[key] = process.env[key];
+  if (!(key in savedEnv)) savedEnv[key] = resolveConveractEnv(process.env, key);
   process.env[key] = value;
 }
 

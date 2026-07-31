@@ -9,14 +9,14 @@ if (mode !== 'strict' && mode !== 'fail-open') throw new Error('invalid mode');
 const startedAt = Date.now();
 Object.assign(process.env, {
   NODE_ENV: 'production',
-  OPC_OTEL_ENABLED: '1',
-  OPC_OTEL_SERVICE_NAME: 'ivekit-otel-acceptance',
-  OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: endpoint,
-  OPC_OTEL_TRACE_SAMPLE_RATIO: '1',
-  OPC_OTEL_MAX_QUEUE_SIZE: '128',
-  OPC_OTEL_MAX_EXPORT_BATCH_SIZE: '16',
-  OPC_OTEL_SCHEDULED_DELAY_MS: '100',
-  OPC_OTEL_EXPORT_TIMEOUT_MS: '1000'
+  CONVERACT_OTEL_ENABLED: '1',
+  CONVERACT_OTEL_SERVICE_NAME: 'ivekit-otel-acceptance',
+  CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: endpoint,
+  CONVERACT_OTEL_TRACE_SAMPLE_RATIO: '1',
+  CONVERACT_OTEL_MAX_QUEUE_SIZE: '128',
+  CONVERACT_OTEL_MAX_EXPORT_BATCH_SIZE: '16',
+  CONVERACT_OTEL_SCHEDULED_DELAY_MS: '100',
+  CONVERACT_OTEL_EXPORT_TIMEOUT_MS: '1000'
 });
 const {
   initializeOpenTelemetry,

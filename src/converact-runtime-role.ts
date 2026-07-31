@@ -9,7 +9,7 @@ export async function initializeIveKitRuntimeRole(
   pg: IveKitRuntimeRoleQueryable,
   password: string
 ): Promise<void> {
-  if (!password) throw new Error('OPC_RUNTIME_DB_PASSWORD is required');
+  if (!password) throw new Error('CONVERACT_RUNTIME_DB_PASSWORD is required');
 
   const identity = await pg.query('SELECT current_user AS current_user');
   if (String(identity.rows[0]?.current_user || '') !== 'opc_admin') {

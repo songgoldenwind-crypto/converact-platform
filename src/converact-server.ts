@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from './config/converact-env.js';
 import { startIveKitApplication } from './agent-runtime/converact/application.js';
 import {
   createIveKitHttpServer,
@@ -45,8 +46,8 @@ async function main(): Promise<void> {
   const pg = await initPostgres();
   if (!pg) throw new Error('cannot connect to Postgres');
 
-  const instanceId = process.env.OPC_IVEKIT_INSTANCE_ID || process.env.HOSTNAME || `ivekit-${process.pid}`;
-  process.env.OPC_IVEKIT_INSTANCE_ID = instanceId;
+  const instanceId = resolveFabricEnv(process.env, 'INSTANCE_ID') || process.env.HOSTNAME || `ivekit-${process.pid}`;
+  process.env.CONVERACT_FABRIC_INSTANCE_ID = instanceId;
   const db = new PgSyncDatabase();
   let application: ReturnType<typeof startIveKitApplication> | null = null;
   let realtimeAudioTap:
@@ -147,7 +148,7 @@ async function main(): Promise<void> {
         placementWorkerId: placement?.worker_id,
         realtime_audio_tap_grants: realtimeAudioTap.grants,
         livekit_realtime_audio_tap_gateway_url:
-          process.env.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL,
+          resolveFabricEnv(process.env, 'LIVEKIT_AUDIO_TAP_GATEWAY_URL'),
         ...(realtimeAudioTap.livekit_authorizer ? {
           livekit_realtime_audio_tap_authorizer:
             realtimeAudioTap.livekit_authorizer
@@ -178,7 +179,7 @@ async function main(): Promise<void> {
       : {});
     const port = Number(process.env.PORT || 3000);
     if (internalTls?.port === port) {
-      throw new Error('OPC_IVEKIT_INTERNAL_TLS_PORT must differ from PORT');
+      throw new Error('CONVERACT_FABRIC_INTERNAL_TLS_PORT must differ from PORT');
     }
     await listenHttpServer(server, port);
     console.log(`iveKit communication platform running at http://localhost:${port}`);

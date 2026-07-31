@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 import { one } from '../../db.js';
 import { broadcastOutboundTaskUpdated } from '../../call-center-events.js';
@@ -63,7 +64,7 @@ export class OutboundDialer {
     }
   }
 
-  start(intervalMs = Number(process.env.OPC_DIALER_INTERVAL_MS || 3000)): void {
+  start(intervalMs = Number(resolveBrandEnv(process.env, 'DIALER_INTERVAL_MS') || 3000)): void {
     if (this.ticker) return;
     this.ticker = setInterval(() => {
       void this.pickAndExecute().catch((error) => {
@@ -113,8 +114,8 @@ export class OutboundDialer {
             idleAgents: idle,
             busyAgents: Math.max(0, this.activeCalls.get(task.tenant_id) || 0),
             ringingCalls: 0,
-            answerRate: Number(process.env.OPC_PREDICTIVE_ANSWER_RATE || 0.35),
-            abandonRate: Number(process.env.OPC_PREDICTIVE_ABANDON_RATE || 0.02)
+            answerRate: Number(resolveBrandEnv(process.env, 'PREDICTIVE_ANSWER_RATE') || 0.35),
+            abandonRate: Number(resolveBrandEnv(process.env, 'PREDICTIVE_ABANDON_RATE') || 0.02)
           });
           tenantDialBudget.set(task.tenant_id, plan.concurrentDials);
         }
@@ -318,7 +319,7 @@ export class OutboundDialer {
       });
 
       if (dispatched) {
-        const agentJoinMs = Number(process.env.OPC_DIALER_AGENT_JOIN_TIMEOUT_MS || 10_000);
+        const agentJoinMs = Number(resolveBrandEnv(process.env, 'DIALER_AGENT_JOIN_TIMEOUT_MS') || 10_000);
         const agentJoined = await dialerWaitRegistry.waitForAgentJoin(room.room_name, agentJoinMs);
         if (!agentJoined) {
           console.warn(`[dialer] AI agent did not join room ${room.room_name} within ${agentJoinMs}ms; continuing`);
@@ -348,7 +349,7 @@ export class OutboundDialer {
         result: { rustpbx_call_id: originate.call_id }
       });
 
-      const answerTimeoutMs = Number(process.env.OPC_DIALER_ANSWER_TIMEOUT_MS || 30_000);
+      const answerTimeoutMs = Number(resolveBrandEnv(process.env, 'DIALER_ANSWER_TIMEOUT_MS') || 30_000);
       const answered = await dialerWaitRegistry.waitForCallAnswered(originate.call_id, answerTimeoutMs);
       if (!answered) {
         // Hangup the unanswered PSTN call to prevent orphan calls where
@@ -447,7 +448,7 @@ export class OutboundDialer {
         return;
       }
 
-      const customerJoinMs = Number(process.env.OPC_DIALER_CUSTOMER_JOIN_TIMEOUT_MS || 120_000);
+      const customerJoinMs = Number(resolveBrandEnv(process.env, 'DIALER_CUSTOMER_JOIN_TIMEOUT_MS') || 120_000);
       const customerJoined = await dialerWaitRegistry.waitForCustomerJoin(room.room_name, customerJoinMs);
       if (!customerJoined) {
         await this.failTask(task, 'customer_no_show', 'no_answer');
@@ -534,7 +535,7 @@ export async function createOutboundDialer(deps: {
     taskLock,
     rwiClient,
     smsSender: deps.smsSender || createSMSSender(),
-    instanceId: process.env.OPC_INSTANCE_ID || `dialer-${randomUUID().slice(0, 8)}`,
+    instanceId: resolveBrandEnv(process.env, 'INSTANCE_ID') || `dialer-${randomUUID().slice(0, 8)}`,
     sipBridgeTarget: livekit.sipBridgeTarget,
     defaultTrunk: process.env.RUSTPBX_DEFAULT_TRUNK || 'twilio-japan',
     h5BaseUrl: process.env.CUSTOMER_H5_BASE_URL || 'http://localhost:5173'

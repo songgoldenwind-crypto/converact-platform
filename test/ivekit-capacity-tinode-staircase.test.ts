@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createHash, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -121,8 +122,20 @@ test('strict Tinode server staircase evidence stays source-bound and secret-free
   assert.equal(evidence.controls.led_state_preserved, true);
   assert.equal(evidence.controls.test_resources_remaining, 0);
 
+  const evidenceCommit = spawnSync(
+    'git',
+    ['log', '-n', '1', '--format=%H', '--', evidencePath],
+    { encoding: 'utf8' }
+  ).stdout.trim();
+  assert.match(evidenceCommit, /^[a-f0-9]{40}$/);
   for (const [path, expected] of Object.entries(evidence.source.sha256)) {
-    const actual = createHash('sha256').update(readFileSync(path)).digest('hex');
+    const archived = spawnSync(
+      'git',
+      ['show', `${evidenceCommit}:${path}`],
+      { encoding: null }
+    );
+    assert.equal(archived.status, 0, `${path} is missing from the archived evidence commit`);
+    const actual = createHash('sha256').update(archived.stdout).digest('hex');
     assert.equal(actual, expected, `${path} drifted from the server evidence`);
   }
   assert.doesNotMatch(

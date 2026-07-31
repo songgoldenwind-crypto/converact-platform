@@ -55,8 +55,8 @@ test('Cell admission startup separates ledger cutoff time from recovery lease ti
 
 test('Cell admission runtime compiles stable node pools and rejects dual topology authority', () => {
   const env = validEnv();
-  delete env.OPC_IVEKIT_CELL_NODES_JSON;
-  env.OPC_IVEKIT_CELL_NODE_POOLS_JSON = JSON.stringify([
+  delete env.CONVERACT_FABRIC_CELL_NODES_JSON;
+  env.CONVERACT_FABRIC_CELL_NODE_POOLS_JSON = JSON.stringify([
     {
       component: 'rustpbx',
       node_id_prefix: 'rustpbx-a',
@@ -76,10 +76,10 @@ test('Cell admission runtime compiles stable node pools and rejects dual topolog
       }
     }
   ]);
-  env.OPC_IVEKIT_CELL_INTERACTION_KINDS = 'sip_voice';
-  env.OPC_IVEKIT_COMPONENT_NODE_TOKEN =
+  env.CONVERACT_FABRIC_CELL_INTERACTION_KINDS = 'sip_voice';
+  env.CONVERACT_FABRIC_COMPONENT_NODE_TOKEN =
     'component-node-secret-1234567890';
-  env.OPC_IVEKIT_CELL_DIMENSIONS_JSON = JSON.stringify({
+  env.CONVERACT_FABRIC_CELL_DIMENSIONS_JSON = JSON.stringify({
     'voice.weighted_calls': {
       unit: 'calls',
       safe_capacity: 2_500,
@@ -98,7 +98,7 @@ test('Cell admission runtime compiles stable node pools and rejects dual topolog
   assert.throws(
     () => cellAdmissionRuntimeConfig({
       ...env,
-      OPC_IVEKIT_CELL_NODES_JSON: JSON.stringify(config.nodes)
+      CONVERACT_FABRIC_CELL_NODES_JSON: JSON.stringify(config.nodes)
     }),
     /topology authority/i
   );
@@ -165,18 +165,18 @@ test('Cell admission runtime enables component-node sync only for explicit contr
   assert.equal(disabled.component_node_sync.enabled, false);
 
   const controlledNodes = JSON.parse(
-    String(validEnv().OPC_IVEKIT_CELL_NODES_JSON)
+    String(validEnv().CONVERACT_FABRIC_CELL_NODES_JSON)
   ).map((value: Record<string, unknown>) => ({
     ...value,
     control_endpoint: `http://${String(value.node_id)}:3210`
   }));
   const enabled = cellAdmissionRuntimeConfig({
     ...validEnv(),
-    OPC_IVEKIT_CELL_NODES_JSON: JSON.stringify(controlledNodes.slice(0, 4)),
-    OPC_IVEKIT_COMPONENT_NODE_TOKEN: 'component-node-secret-1234567890',
-    OPC_IVEKIT_COMPONENT_NODE_LEASE_TTL_MS: '10000',
-    OPC_IVEKIT_COMPONENT_NODE_HEARTBEAT_INTERVAL_MS: '3000',
-    OPC_IVEKIT_COMPONENT_NODE_TIMEOUT_MS: '1000'
+    CONVERACT_FABRIC_CELL_NODES_JSON: JSON.stringify(controlledNodes.slice(0, 4)),
+    CONVERACT_FABRIC_COMPONENT_NODE_TOKEN: 'component-node-secret-1234567890',
+    CONVERACT_FABRIC_COMPONENT_NODE_LEASE_TTL_MS: '10000',
+    CONVERACT_FABRIC_COMPONENT_NODE_HEARTBEAT_INTERVAL_MS: '3000',
+    CONVERACT_FABRIC_COMPONENT_NODE_TIMEOUT_MS: '1000'
   });
 
   assert.equal(enabled.component_node_sync.enabled, true);
@@ -187,14 +187,14 @@ test('Cell admission runtime enables component-node sync only for explicit contr
 });
 
 test('Cell admission runtime requires a production token for controlled component nodes', () => {
-  const nodes = JSON.parse(String(validEnv().OPC_IVEKIT_CELL_NODES_JSON));
+  const nodes = JSON.parse(String(validEnv().CONVERACT_FABRIC_CELL_NODES_JSON));
   for (const node of nodes) {
     node.control_endpoint = `http://${String(node.node_id)}:3210`;
   }
   assert.throws(
     () => cellAdmissionRuntimeConfig({
       ...validEnv(),
-      OPC_IVEKIT_CELL_NODES_JSON: JSON.stringify(nodes)
+      CONVERACT_FABRIC_CELL_NODES_JSON: JSON.stringify(nodes)
     }),
     /COMPONENT_NODE_TOKEN/
   );
@@ -208,21 +208,21 @@ test('Cell admission runtime refuses missing, placeholder or invented capacity',
   assert.throws(
     () => cellAdmissionRuntimeConfig({
       ...validEnv(),
-      OPC_IVEKIT_CELL_ADMISSION_TOKEN: 'replace-with-production-token-12345'
+      CONVERACT_FABRIC_CELL_ADMISSION_TOKEN: 'replace-with-production-token-12345'
     }),
     /token/i
   );
   assert.throws(
     () => cellAdmissionRuntimeConfig({
       ...validEnv(),
-      OPC_IVEKIT_CELL_DIMENSIONS_JSON: '{}'
+      CONVERACT_FABRIC_CELL_DIMENSIONS_JSON: '{}'
     }),
     /capacity dimensions/i
   );
   assert.throws(
     () => cellAdmissionRuntimeConfig({
       ...validEnv(),
-      OPC_IVEKIT_CELL_NODES_JSON: '[]'
+      CONVERACT_FABRIC_CELL_NODES_JSON: '[]'
     }),
     /at least one node/i
   );
@@ -234,10 +234,10 @@ test('capacity deployment templates contain a dedicated admission process', () =
   assert.match(compose, /capacity-projector:/);
   assert.match(compose, /ivekit-cell-admission\.ts/);
   assert.match(compose, /ivekit-cell-capacity-projector\.ts/);
-  assert.match(compose, /OPC_IVEKIT_CELL_DIMENSIONS_JSON/);
-  assert.match(compose, /OPC_IVEKIT_CELL_NODES_JSON/);
-  assert.match(compose, /OPC_IVEKIT_CELL_NODE_POOLS_JSON/);
-  assert.match(compose, /OPC_IVEKIT_COMPONENT_NODE_TOKEN/);
+  assert.match(compose, /CONVERACT_FABRIC_CELL_DIMENSIONS_JSON/);
+  assert.match(compose, /CONVERACT_FABRIC_CELL_NODES_JSON/);
+  assert.match(compose, /CONVERACT_FABRIC_CELL_NODE_POOLS_JSON/);
+  assert.match(compose, /CONVERACT_FABRIC_COMPONENT_NODE_TOKEN/);
   assert.doesNotMatch(compose, /sqlite/i);
 
   const kubernetes = readFileSync(
@@ -251,16 +251,16 @@ test('capacity deployment templates contain a dedicated admission process', () =
   assert.match(kubernetes, /maxSurge: 1/);
   assert.match(kubernetes, /readinessProbe:/);
   assert.match(kubernetes, /livenessProbe:[\s\S]*path: \/livez/);
-  assert.match(kubernetes, /OPC_DATABASE_URL/);
-  assert.match(kubernetes, /OPC_IVEKIT_CELL_INSTANCE_ID/);
-  assert.match(kubernetes, /OPC_IVEKIT_CELL_LEASE_CLAIM_RETRY_MS/);
-  assert.doesNotMatch(kubernetes, /OPC_IVEKIT_CELL_LEASE_EPOCH/);
+  assert.match(kubernetes, /CONVERACT_DATABASE_URL/);
+  assert.match(kubernetes, /CONVERACT_FABRIC_CELL_INSTANCE_ID/);
+  assert.match(kubernetes, /CONVERACT_FABRIC_CELL_LEASE_CLAIM_RETRY_MS/);
+  assert.doesNotMatch(kubernetes, /CONVERACT_FABRIC_CELL_LEASE_EPOCH/);
   assert.match(kubernetes, /secretKeyRef:[\s\S]*admission-token/);
   assert.match(kubernetes, /readOnlyRootFilesystem: true/);
   assert.match(kubernetes, /name: capacity-projector/);
-  assert.match(kubernetes, /OPC_IVEKIT_CELL_PROBES_JSON/);
-  assert.match(kubernetes, /OPC_IVEKIT_COMPONENT_NODE_TOKEN/);
-  assert.match(kubernetes, /OPC_IVEKIT_CELL_NODE_POOLS_JSON/);
+  assert.match(kubernetes, /CONVERACT_FABRIC_CELL_PROBES_JSON/);
+  assert.match(kubernetes, /CONVERACT_FABRIC_COMPONENT_NODE_TOKEN/);
+  assert.match(kubernetes, /CONVERACT_FABRIC_CELL_NODE_POOLS_JSON/);
   assert.match(kubernetes, /topologySpreadConstraints:/);
   assert.match(kubernetes, /podAntiAffinity:/);
   assert.match(kubernetes, /kind: PodDisruptionBudget/);
@@ -271,24 +271,24 @@ test('capacity deployment templates contain a dedicated admission process', () =
 function validEnv(): NodeJS.ProcessEnv {
   return {
     NODE_ENV: 'production',
-    OPC_IVEKIT_CELL_ADMISSION_HOST: '0.0.0.0',
-    OPC_IVEKIT_CELL_ADMISSION_PORT: '3200',
-    OPC_IVEKIT_CELL_ADMISSION_TOKEN: 'cell-admission-secret-1234567890',
-    OPC_IVEKIT_CELL_REGION_ID: 'region-a',
-    OPC_IVEKIT_CELL_ZONE_ID: 'zone-a',
-    OPC_IVEKIT_CELL_ID: 'cell-a',
-    OPC_DATABASE_URL: 'postgresql://opc_runtime:test@postgres/ivekit',
-    OPC_IVEKIT_CELL_INSTANCE_ID: 'cell-admission-a',
-    OPC_IVEKIT_CELL_LEASE_TTL_MS: '30000',
-    OPC_IVEKIT_CELL_LEASE_CLAIM_RETRY_MS: '1000',
-    OPC_IVEKIT_CELL_TERMINAL_RETENTION_MS: '300000',
-    OPC_IVEKIT_CELL_SWEEP_INTERVAL_MS: '1000',
-    OPC_IVEKIT_CELL_PROFILE_IDS: 'cell-10k-v1',
-    OPC_IVEKIT_CELL_INTERACTION_KINDS:
+    CONVERACT_FABRIC_CELL_ADMISSION_HOST: '0.0.0.0',
+    CONVERACT_FABRIC_CELL_ADMISSION_PORT: '3200',
+    CONVERACT_FABRIC_CELL_ADMISSION_TOKEN: 'cell-admission-secret-1234567890',
+    CONVERACT_FABRIC_CELL_REGION_ID: 'region-a',
+    CONVERACT_FABRIC_CELL_ZONE_ID: 'zone-a',
+    CONVERACT_FABRIC_CELL_ID: 'cell-a',
+    CONVERACT_DATABASE_URL: 'postgresql://opc_runtime:test@postgres/ivekit',
+    CONVERACT_FABRIC_CELL_INSTANCE_ID: 'cell-admission-a',
+    CONVERACT_FABRIC_CELL_LEASE_TTL_MS: '30000',
+    CONVERACT_FABRIC_CELL_LEASE_CLAIM_RETRY_MS: '1000',
+    CONVERACT_FABRIC_CELL_TERMINAL_RETENTION_MS: '300000',
+    CONVERACT_FABRIC_CELL_SWEEP_INTERVAL_MS: '1000',
+    CONVERACT_FABRIC_CELL_PROFILE_IDS: 'cell-10k-v1',
+    CONVERACT_FABRIC_CELL_INTERACTION_KINDS:
       'tinode_im,sip_voice,livekit_av,livekit_screen,rustdesk_remote',
-    OPC_IVEKIT_CELL_RESERVATION_TTL_MS: '10000',
-    OPC_IVEKIT_CELL_INITIAL_STATE: 'accepting',
-    OPC_IVEKIT_CELL_DIMENSIONS_JSON: JSON.stringify({
+    CONVERACT_FABRIC_CELL_RESERVATION_TTL_MS: '10000',
+    CONVERACT_FABRIC_CELL_INITIAL_STATE: 'accepting',
+    CONVERACT_FABRIC_CELL_DIMENSIONS_JSON: JSON.stringify({
       'voice.weighted_calls': {
         unit: 'calls',
         safe_capacity: 2_500,
@@ -302,7 +302,7 @@ function validEnv(): NodeJS.ProcessEnv {
         reserved: 0
       }
     }),
-    OPC_IVEKIT_CELL_NODES_JSON: JSON.stringify([
+    CONVERACT_FABRIC_CELL_NODES_JSON: JSON.stringify([
       node('tinode-a'),
       node('rustpbx-a'),
       node('livekit-a'),

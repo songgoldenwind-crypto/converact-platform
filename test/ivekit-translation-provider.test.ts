@@ -158,9 +158,9 @@ test('translation provider classifies HTTP, invalid, oversized, and timeout fail
 
 test('legacy translation environment becomes a provider without enabling tenant automation', () => {
   const provider = configuredTranslationProvider({
-    OPC_TRANSLATION_BASE_URL: 'http://translation-worker:8080',
-    OPC_TRANSLATION_PROVIDER_NAME: 'legacy-translation-provider',
-    OPC_TRANSLATION_TOKEN: 'legacy-translation-secret'
+    CONVERACT_TRANSLATION_BASE_URL: 'http://translation-worker:8080',
+    CONVERACT_TRANSLATION_PROVIDER_NAME: 'legacy-translation-provider',
+    CONVERACT_TRANSLATION_TOKEN: 'legacy-translation-secret'
   });
   assert.equal(provider?.name, 'legacy-translation-provider');
   assert.equal(provider?.profile_id, 'legacy-translation');

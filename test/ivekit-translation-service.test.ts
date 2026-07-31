@@ -86,7 +86,7 @@ test('tenant policy selects translation profile and enforces its automatic switc
   const pg = new MemoryPg();
   const source = await createSourceMessage(pg, 'tenant-translation-policy', 'policy source');
   const registry = createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
       id: 'translation-policy-profile', capability: 'translation', mode: 'self_hosted',
       base_url: 'http://translation-worker:8080'
     }])
@@ -262,7 +262,7 @@ test('expired worker and provider leases recover after restart without leaving o
   const pg = new MemoryPg();
   const source = await createSourceMessage(pg, 'tenant-translation-restart', 'restart source');
   const registry = createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
       id: 'translation-restart', capability: 'translation', mode: 'self_hosted',
       base_url: 'http://translation-restart:8080', timeout_ms: 1_000,
       reservation_ttl_ms: 6_000, max_concurrency: 1
@@ -482,9 +482,9 @@ test('message edits create a new source version while preserving authorized hist
 test('translation workers coalesce batches and concurrent scans claim a job once', async () => {
   assert.equal(translationWorkerConfig({}).enabled, false);
   const config = translationWorkerConfig({
-    OPC_TRANSLATION_BASE_URL: 'http://translation-worker:8080',
-    OPC_TRANSLATION_WORKER_ENABLED: '1',
-    OPC_TRANSLATION_BATCH_SIZE: '7'
+    CONVERACT_TRANSLATION_BASE_URL: 'http://translation-worker:8080',
+    CONVERACT_TRANSLATION_WORKER_ENABLED: '1',
+    CONVERACT_TRANSLATION_BATCH_SIZE: '7'
   });
   assert.equal(config.enabled, true);
   assert.equal(config.batchSize, 7);
@@ -538,12 +538,12 @@ test('translation workers coalesce batches and concurrent scans claim a job once
 
 test('translation worker claim lease covers the longest configured provider reservation', () => {
   const config = translationWorkerConfig({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
       id: 'slow-translation', capability: 'translation', mode: 'self_hosted',
       base_url: 'http://slow-translation:8080', timeout_ms: 300_000,
       reservation_ttl_ms: 305_000
     }]),
-    OPC_TRANSLATION_CLAIM_LEASE_MS: '120000'
+    CONVERACT_TRANSLATION_CLAIM_LEASE_MS: '120000'
   });
   assert.equal(config.claimLeaseMs >= 310_000, true);
 });

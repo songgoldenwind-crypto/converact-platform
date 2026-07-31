@@ -129,15 +129,17 @@ test('reset Wave 3 production defaults use dormant external providers, not self-
   ]);
 
   for (const env of [rootEnv, productionEnv]) {
-    assert.match(env, /^OPC_OCR_PROVIDER_MODE=third_party$/m);
-    assert.match(env, /^OPC_ASR_PROVIDER_MODE=third_party$/m);
-    assert.match(env, /^OPC_QUALITY_REVIEW_PROVIDER_MODE=third_party$/m);
+    assert.match(env, /^CONVERACT_OCR_PROVIDER_MODE=third_party$/m);
+    assert.match(env, /^CONVERACT_ASR_PROVIDER_MODE=third_party$/m);
+    assert.match(env, /^CONVERACT_QUALITY_REVIEW_PROVIDER_MODE=third_party$/m);
   }
 
   for (const variable of ['OCR', 'ASR', 'QUALITY_REVIEW']) {
     assert.match(
       compose,
-      new RegExp(`OPC_${variable}_PROVIDER_MODE: \\$\\{OPC_${variable}_PROVIDER_MODE:-third_party\\}`)
+      new RegExp(
+        `CONVERACT_${variable}_PROVIDER_MODE: \\$\\{CONVERACT_${variable}_PROVIDER_MODE:-third_party\\}`
+      )
     );
   }
   assert.match(values, /^  ocrProviderMode: third_party$/m);

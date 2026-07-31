@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from '../../config/converact-env.js';
 import {
   createServer as createHttpServer,
   type RequestListener,
@@ -187,7 +188,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
     : {});
   const readiness = input.readinessProbe || createIveKitReadinessProbe({
     pg: input.pg,
-    instanceId: process.env.OPC_IVEKIT_INSTANCE_ID,
+    instanceId: resolveFabricEnv(process.env, 'INSTANCE_ID'),
     placementProbe: input.placementReadinessProbe
   });
 
@@ -760,32 +761,32 @@ function parseJsonBody(value: string | Buffer): unknown {
 }
 
 function iveKitHttpBodyMaxBytes(): number {
-  const value = Number(process.env.OPC_IVEKIT_HTTP_BODY_MAX_BYTES || 1_048_576);
+  const value = Number(resolveFabricEnv(process.env, 'HTTP_BODY_MAX_BYTES') || 1_048_576);
   if (!Number.isInteger(value) || value < 1 || value > 26_214_400) {
-    throw new Error('OPC_IVEKIT_HTTP_BODY_MAX_BYTES is invalid');
+    throw new Error('CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES is invalid');
   }
   return value;
 }
 
 function collaborationAttachmentMaxBytes(): number {
-  const value = Number(process.env.OPC_COLLABORATION_ATTACHMENT_MAX_BYTES || 26_214_400);
+  const value = Number(resolveBrandEnv(process.env, 'COLLABORATION_ATTACHMENT_MAX_BYTES') || 26_214_400);
   if (!Number.isInteger(value) || value < 1 || value > 1_073_741_824) {
-    throw new Error('OPC_COLLABORATION_ATTACHMENT_MAX_BYTES is invalid');
+    throw new Error('CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES is invalid');
   }
   return value;
 }
 
 function secureFileUploadMaxBytes(): number {
-  const value = Number(process.env.OPC_SECURE_FILE_UPLOAD_MAX_BYTES || 64 * 1024 * 1024);
+  const value = Number(resolveBrandEnv(process.env, 'SECURE_FILE_UPLOAD_MAX_BYTES') || 64 * 1024 * 1024);
   if (!Number.isInteger(value) || value < 1 || value > 512 * 1024 * 1024) {
-    throw new Error('OPC_SECURE_FILE_UPLOAD_MAX_BYTES is invalid');
+    throw new Error('CONVERACT_SECURE_FILE_UPLOAD_MAX_BYTES is invalid');
   }
   return value;
 }
 
 function allowedCorsOrigins(): Set<string> {
   return new Set(
-    String(process.env.OPC_IVEKIT_ALLOWED_ORIGINS || '')
+    String(resolveFabricEnv(process.env, 'ALLOWED_ORIGINS') || '')
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean)

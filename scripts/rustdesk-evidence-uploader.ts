@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   chmod,
@@ -114,78 +115,78 @@ export function createRustDeskEvidenceUploaderConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): RustDeskEvidenceUploaderConfig {
   return {
-    baseUrl: normalizeBaseUrl(env.OPC_RUSTDESK_EDGE_BASE_URL || ''),
+    baseUrl: normalizeBaseUrl(resolveBrandEnv(env, 'RUSTDESK_EDGE_BASE_URL') || ''),
     deviceTokenFile: absolutePath(
-      env.OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE,
-      'OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE'
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_DEVICE_TOKEN_FILE'),
+      'CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE'
     ),
     inputDirectory: absolutePath(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR'
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_INPUT_DIR'),
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR'
     ),
     spoolDirectory: absolutePath(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR'
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR'),
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR'
     ),
     observationDirectory: absolutePath(
-      env.OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR,
-      'OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR'
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_OBSERVATION_INPUT_DIR'),
+      'CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR'
     ),
     singleUploadMaxBytes: boundedEnv(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_SINGLE_UPLOAD_MAX_BYTES,
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_SINGLE_UPLOAD_MAX_BYTES'),
       64 * 1_024 * 1_024,
       1,
       512 * 1_024 * 1_024,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_SINGLE_UPLOAD_MAX_BYTES'
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_SINGLE_UPLOAD_MAX_BYTES'
     ),
     partSizeBytes: boundedEnv(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_PART_SIZE_BYTES,
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_PART_SIZE_BYTES'),
       8 * 1_024 * 1_024,
       1,
       512 * 1_024 * 1_024,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_PART_SIZE_BYTES'
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_PART_SIZE_BYTES'
     ),
     retryDelayMs: boundedEnv(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_RETRY_DELAY_MS,
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_RETRY_DELAY_MS'),
       5_000,
       0,
       3_600_000,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_RETRY_DELAY_MS'
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_RETRY_DELAY_MS'
     ),
     maxAttempts: boundedEnv(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_MAX_ATTEMPTS,
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_MAX_ATTEMPTS'),
       10,
       1,
       100,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_MAX_ATTEMPTS'
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_MAX_ATTEMPTS'
     ),
     maxFileBytes: boundedEnv(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_MAX_FILE_BYTES,
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_MAX_FILE_BYTES'),
       10 * 1_024 * 1_024 * 1_024,
       1,
       10 * 1_024 * 1_024 * 1_024,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_MAX_FILE_BYTES'
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_MAX_FILE_BYTES'
     ),
     maxQuarantineRecords: boundedEnv(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_MAX_QUARANTINE_RECORDS,
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_MAX_QUARANTINE_RECORDS'),
       100,
       1,
       10_000,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_MAX_QUARANTINE_RECORDS'
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_MAX_QUARANTINE_RECORDS'
     ),
     maxTerminalRecords: boundedEnv(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_MAX_TERMINAL_RECORDS,
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_MAX_TERMINAL_RECORDS'),
       2_000,
       1,
       10_000,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_MAX_TERMINAL_RECORDS'
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_MAX_TERMINAL_RECORDS'
     ),
     deadLetterRetentionMs: boundedEnv(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS,
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS'),
       7 * 24 * 60 * 60_000,
       60_000,
       90 * 24 * 60 * 60_000,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS'
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS'
     )
   };
 }
@@ -1005,9 +1006,9 @@ function processIsAlive(pid: number): boolean {
 function normalizeBaseUrl(value: string): string {
   const result = String(value || '').trim().replace(/\/+$/, '');
   let url: URL;
-  try { url = new URL(result); } catch { throw new Error('OPC_RUSTDESK_EDGE_BASE_URL must be an HTTP URL'); }
+  try { url = new URL(result); } catch { throw new Error('CONVERACT_RUSTDESK_EDGE_BASE_URL must be an HTTP URL'); }
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
-    throw new Error('OPC_RUSTDESK_EDGE_BASE_URL must be an HTTP URL without credentials');
+    throw new Error('CONVERACT_RUSTDESK_EDGE_BASE_URL must be an HTTP URL without credentials');
   }
   return result;
 }

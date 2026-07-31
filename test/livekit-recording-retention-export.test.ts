@@ -673,8 +673,8 @@ test('compliance retention discovers recording cleanup candidates without deleti
 });
 
 test('iveKit HTTP export streams bytes with download headers and persists an audit log', async () => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'recording-export-api-key';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'recording-export-api-key';
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'iveKit recording export HTTP' });
   const media = createLiveKitMediaModule({ db });
@@ -736,14 +736,14 @@ test('iveKit HTTP export streams bytes with download headers and persists an aud
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(dir, { recursive: true, force: true });
     db.close();
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
   }
 });
 
 test('iveKit HTTP retention cleanup deletes the object and reconciles PostgreSQL evidence', async () => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'recording-cleanup-api-key';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'recording-cleanup-api-key';
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const tenant = createTenant(db, { name: 'iveKit recording cleanup HTTP' });
@@ -812,7 +812,7 @@ test('iveKit HTTP retention cleanup deletes the object and reconciles PostgreSQL
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(dir, { recursive: true, force: true });
     db.close();
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
   }
 });

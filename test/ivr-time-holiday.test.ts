@@ -129,7 +129,7 @@ test('time_condition node routes true on business day', async () => {
 
 test('time group preview API: holiday returns inactive', () => {
   const API_KEY = 'test-time-preview-key';
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Preview Test' });
   const store = new IvrSettingsStore(db);

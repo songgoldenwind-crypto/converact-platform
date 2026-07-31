@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../db-pg.js';
@@ -78,49 +79,49 @@ export class SecureFileCleanupWorker {
 export function secureFileCleanupWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): SecureFileCleanupWorkerConfig {
-  const enabledValue = String(env.OPC_FILE_CLEANUP_WORKER_ENABLED || '0').trim();
-  const confirmValue = String(env.OPC_FILE_CLEANUP_CONFIRM || '0').trim();
+  const enabledValue = String(resolveBrandEnv(env, 'FILE_CLEANUP_WORKER_ENABLED') || '0').trim();
+  const confirmValue = String(resolveBrandEnv(env, 'FILE_CLEANUP_CONFIRM') || '0').trim();
   if (enabledValue !== '0' && enabledValue !== '1') {
-    throw new Error('OPC_FILE_CLEANUP_WORKER_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_FILE_CLEANUP_WORKER_ENABLED must be 0 or 1');
   }
   if (confirmValue !== '0' && confirmValue !== '1') {
-    throw new Error('OPC_FILE_CLEANUP_CONFIRM must be 0 or 1');
+    throw new Error('CONVERACT_FILE_CLEANUP_CONFIRM must be 0 or 1');
   }
   if (enabledValue === '1' && confirmValue !== '1') {
-    throw new Error('enabled file cleanup worker requires OPC_FILE_CLEANUP_CONFIRM=1');
+    throw new Error('enabled file cleanup worker requires CONVERACT_FILE_CLEANUP_CONFIRM=1');
   }
   return {
     enabled: enabledValue === '1',
     intervalMs: envInteger(
-      env.OPC_FILE_CLEANUP_INTERVAL_MS,
+      resolveBrandEnv(env, 'FILE_CLEANUP_INTERVAL_MS'),
       60 * 60_000,
       60_000,
       24 * 60 * 60_000,
       'cleanup interval'
     ),
-    batchSize: envInteger(env.OPC_FILE_CLEANUP_BATCH_SIZE, 25, 1, 100, 'cleanup batch size'),
+    batchSize: envInteger(resolveBrandEnv(env, 'FILE_CLEANUP_BATCH_SIZE'), 25, 1, 100, 'cleanup batch size'),
     uploadStaleMs: envInteger(
-      env.OPC_FILE_CLEANUP_UPLOAD_STALE_MS,
+      resolveBrandEnv(env, 'FILE_CLEANUP_UPLOAD_STALE_MS'),
       24 * 60 * 60_000,
       60_000,
       30 * 24 * 60 * 60_000,
       'cleanup upload stale age'
     ),
     claimLeaseMs: envInteger(
-      env.OPC_FILE_CLEANUP_LEASE_MS,
+      resolveBrandEnv(env, 'FILE_CLEANUP_LEASE_MS'),
       120_000,
       5_000,
       30 * 60_000,
       'cleanup lease'
     ),
     retryDelayMs: envInteger(
-      env.OPC_FILE_CLEANUP_RETRY_DELAY_MS,
+      resolveBrandEnv(env, 'FILE_CLEANUP_RETRY_DELAY_MS'),
       60_000,
       1_000,
       24 * 60 * 60_000,
       'cleanup retry delay'
     ),
-    workerId: safeWorkerId(env.OPC_FILE_CLEANUP_WORKER_ID) ||
+    workerId: safeWorkerId(resolveBrandEnv(env, 'FILE_CLEANUP_WORKER_ID')) ||
       `secure-file-cleanup-${process.pid}-${randomUUID().slice(0, 8)}`
   };
 }

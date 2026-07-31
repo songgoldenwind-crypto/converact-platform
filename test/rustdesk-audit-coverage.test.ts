@@ -12,9 +12,9 @@ import {
 
 test('RustDesk audit coverage reads audit and report paths from env', () => {
   const config = createRustDeskAuditCoverageConfigFromEnv({
-    OPC_RUSTDESK_AUDIT_COVERAGE_FILE: '/tmp/rustdesk-audit.jsonl',
-    OPC_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID: 'rdgw_1',
-    OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE: '/tmp/rustdesk-audit-coverage.json'
+    CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE: '/tmp/rustdesk-audit.jsonl',
+    CONVERACT_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID: 'rdgw_1',
+    CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE: '/tmp/rustdesk-audit-coverage.json'
   });
 
   assert.equal(config.auditFile, '/tmp/rustdesk-audit.jsonl');
@@ -92,9 +92,9 @@ test('RustDesk audit coverage CLI and env samples are wired', () => {
     encoding: 'utf8',
     env: {
       ...process.env,
-      OPC_RUSTDESK_AUDIT_COVERAGE_FILE: auditFile,
-      OPC_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID: 'rdgw_cli',
-      OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE: reportFile
+      CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE: auditFile,
+      CONVERACT_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID: 'rdgw_cli',
+      CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE: reportFile
     }
   });
 
@@ -111,9 +111,9 @@ test('RustDesk audit coverage CLI and env samples are wired', () => {
   const rootEnv = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
   const productionEnv = readFileSync(new URL('../infra/env.example', import.meta.url), 'utf8');
   for (const key of [
-    'OPC_RUSTDESK_AUDIT_COVERAGE_FILE=',
-    'OPC_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID=',
-    'OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE='
+    'CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE=',
+    'CONVERACT_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID=',
+    'CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE='
   ]) {
     assert.match(rootEnv, new RegExp(`^${key}`, 'm'));
     assert.match(productionEnv, new RegExp(`^${key}`, 'm'));

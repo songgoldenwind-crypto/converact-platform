@@ -26,21 +26,21 @@ test('component node runtime rejects placeholder secrets and cross-component kin
   assert.throws(
     () => componentNodeAdmissionRuntimeConfig({
       ...validEnv(),
-      OPC_IVEKIT_COMPONENT_NODE_TOKEN: 'replace-with-node-token-123456'
+      CONVERACT_FABRIC_COMPONENT_NODE_TOKEN: 'replace-with-node-token-123456'
     }),
     /token/i
   );
   assert.throws(
     () => componentNodeAdmissionRuntimeConfig({
       ...validEnv(),
-      OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS: 'tinode_im'
+      CONVERACT_FABRIC_COMPONENT_NODE_INTERACTION_KINDS: 'tinode_im'
     }),
     /interaction kind/i
   );
   assert.throws(
     () => componentNodeAdmissionRuntimeConfig({
       ...validEnv(),
-      OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON: '{}'
+      CONVERACT_FABRIC_COMPONENT_NODE_DIMENSIONS_JSON: '{}'
     }),
     /capacity dimensions/i
   );
@@ -49,10 +49,10 @@ test('component node runtime rejects placeholder secrets and cross-component kin
 test('RustPBX component node runtime wires a fresh local recording spool gate', () => {
   const env = {
     ...validEnv(),
-    OPC_IVEKIT_COMPONENT_NODE_COMPONENT: 'rustpbx',
-    OPC_IVEKIT_COMPONENT_NODE_ID: 'rustpbx-a',
-    OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS: 'sip_voice',
-    OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON: JSON.stringify({
+    CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT: 'rustpbx',
+    CONVERACT_FABRIC_COMPONENT_NODE_ID: 'rustpbx-a',
+    CONVERACT_FABRIC_COMPONENT_NODE_INTERACTION_KINDS: 'sip_voice',
+    CONVERACT_FABRIC_COMPONENT_NODE_DIMENSIONS_JSON: JSON.stringify({
       'voice.weighted_calls': {
         unit: 'calls', safe_capacity: 2_500, used: 0, reserved: 0
       },
@@ -60,9 +60,9 @@ test('RustPBX component node runtime wires a fresh local recording spool gate', 
         unit: 'bytes', safe_capacity: 900_000_000, used: 0, reserved: 0
       }
     }),
-    OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE: '/app/recording-state/metrics.json',
-    OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_REFRESH_MS: '1000',
-    OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_STALE_MS: '5000'
+    CONVERACT_FABRIC_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE: '/app/recording-state/metrics.json',
+    CONVERACT_FABRIC_COMPONENT_NODE_RECORDING_SPOOL_REFRESH_MS: '1000',
+    CONVERACT_FABRIC_COMPONENT_NODE_RECORDING_SPOOL_STALE_MS: '5000'
   };
   const config = componentNodeAdmissionRuntimeConfig(env);
   assert.equal(config.recording_spool_metrics_file, '/app/recording-state/metrics.json');
@@ -78,7 +78,7 @@ test('RustPBX component node runtime wires a fresh local recording spool gate', 
   assert.throws(
     () => componentNodeAdmissionRuntimeConfig({
       ...validEnv(),
-      OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE: '/tmp/metrics.json'
+      CONVERACT_FABRIC_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE: '/tmp/metrics.json'
     }),
     /RustPBX/i
   );
@@ -98,21 +98,21 @@ test('capacity image and deployment templates ship the component node agent', ()
   assert.match(dockerfile, /ivekit-component-node-admission\.ts/);
   assert.match(
     dockerfile,
-    /COPY src\/ivekit-component-node-admission\.ts \.\/src\/ivekit-component-node-admission\.ts/
+    /COPY src\/converact-component-node-admission\.ts \.\/src\/converact-component-node-admission\.ts/
   );
   assert.match(
     dockerfile,
-    /COPY src\/agent-runtime\/ivekit\/recordings\/recording-manifest\.ts \.\/src\/agent-runtime\/ivekit\/recordings\/recording-manifest\.ts/
+    /COPY src\/agent-runtime\/converact\/recordings\/recording-manifest\.ts \.\/src\/agent-runtime\/converact\/recordings\/recording-manifest\.ts/
   );
   assert.match(
     dockerfile,
-    /COPY src\/agent-runtime\/ivekit\/recordings\/rustpbx-recording-spool-capacity\.ts \.\/src\/agent-runtime\/ivekit\/recordings\/rustpbx-recording-spool-capacity\.ts/
+    /COPY src\/agent-runtime\/converact\/recordings\/rustpbx-recording-spool-capacity\.ts \.\/src\/agent-runtime\/converact\/recordings\/rustpbx-recording-spool-capacity\.ts/
   );
   assert.match(compose, /component-node-admission:/);
   assert.match(compose, /profiles: \["component-node"\]/);
-  assert.match(compose, /OPC_IVEKIT_COMPONENT_NODE_COMPONENT/);
+  assert.match(compose, /CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT/);
   assert.match(kubernetes, /name: node-admission/);
-  assert.match(kubernetes, /OPC_IVEKIT_COMPONENT_NODE_ID/);
+  assert.match(kubernetes, /CONVERACT_FABRIC_COMPONENT_NODE_ID/);
   assert.match(kubernetes, /readOnlyRootFilesystem: true/);
   assert.match(kubernetes, /path: \/readyz/);
   assert.equal(
@@ -123,19 +123,19 @@ test('capacity image and deployment templates ship the component node agent', ()
 
 function validEnv(): NodeJS.ProcessEnv {
   return {
-    OPC_IVEKIT_COMPONENT_NODE_HOST: '0.0.0.0',
-    OPC_IVEKIT_COMPONENT_NODE_PORT: '3210',
-    OPC_IVEKIT_COMPONENT_NODE_TOKEN: 'component-node-secret-1234567890',
-    OPC_IVEKIT_COMPONENT_NODE_COMPONENT: 'livekit',
-    OPC_IVEKIT_COMPONENT_NODE_REGION_ID: 'region-a',
-    OPC_IVEKIT_COMPONENT_NODE_ZONE_ID: 'zone-a',
-    OPC_IVEKIT_COMPONENT_NODE_CELL_ID: 'cell-a',
-    OPC_IVEKIT_COMPONENT_NODE_ID: 'livekit-a',
-    OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS: 'cell-10k-v1',
-    OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS: 'livekit_av,livekit_screen',
-    OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS: '300000',
-    OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS: '1000',
-    OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON: JSON.stringify({
+    CONVERACT_FABRIC_COMPONENT_NODE_HOST: '0.0.0.0',
+    CONVERACT_FABRIC_COMPONENT_NODE_PORT: '3210',
+    CONVERACT_FABRIC_COMPONENT_NODE_TOKEN: 'component-node-secret-1234567890',
+    CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT: 'livekit',
+    CONVERACT_FABRIC_COMPONENT_NODE_REGION_ID: 'region-a',
+    CONVERACT_FABRIC_COMPONENT_NODE_ZONE_ID: 'zone-a',
+    CONVERACT_FABRIC_COMPONENT_NODE_CELL_ID: 'cell-a',
+    CONVERACT_FABRIC_COMPONENT_NODE_ID: 'livekit-a',
+    CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_IDS: 'cell-10k-v1',
+    CONVERACT_FABRIC_COMPONENT_NODE_INTERACTION_KINDS: 'livekit_av,livekit_screen',
+    CONVERACT_FABRIC_COMPONENT_NODE_TERMINAL_RETENTION_MS: '300000',
+    CONVERACT_FABRIC_COMPONENT_NODE_SWEEP_INTERVAL_MS: '1000',
+    CONVERACT_FABRIC_COMPONENT_NODE_DIMENSIONS_JSON: JSON.stringify({
       'video.participants': {
         unit: 'participants',
         safe_capacity: 2_000,

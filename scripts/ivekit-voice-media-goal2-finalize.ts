@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { open, readFile } from 'node:fs/promises';
 import { dirname, isAbsolute } from 'node:path';
@@ -656,7 +657,7 @@ function required(
   env: Record<string, string | undefined>,
   name: string
 ): string {
-  const value = env[name]?.trim();
+  const value = resolveConveractEnv(env, name)?.trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }

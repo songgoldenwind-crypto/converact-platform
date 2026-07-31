@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveConveractEnv } from '../src/config/converact-env.js';
 import { promises as dns } from 'node:dns';
 import { createSocket } from 'node:dgram';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -95,7 +96,7 @@ export function createLiveKitServerEvidenceConfigFromEnv(
   const publicUrl = parseCleanUrl(required(env, 'LIVEKIT_PUBLIC_URL'), 'LIVEKIT_PUBLIC_URL');
   if (publicUrl.protocol !== 'wss:') throw new Error('LIVEKIT_PUBLIC_URL must use wss://');
   const internalUrl = parseCleanUrl(
-    String(env.LIVEKIT_URL || env.OPC_LIVEKIT_URL || '').trim(),
+    String(env.LIVEKIT_URL || resolveBrandEnv(env, 'LIVEKIT_URL') || '').trim(),
     'LIVEKIT_URL'
   );
   if (internalUrl.protocol !== 'ws:' && internalUrl.protocol !== 'wss:') {
@@ -106,47 +107,47 @@ export function createLiveKitServerEvidenceConfigFromEnv(
   if (turnDomain === signalDomain) {
     throw new Error('LIVEKIT_TURN_DOMAIN must differ from LIVEKIT_PUBLIC_URL hostname');
   }
-  const topology = parseTopology(env.OPC_LIVEKIT_DEPLOYMENT_MODE);
-  const rangeStart = port(env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START, 'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START', 50_000);
-  const rangeEnd = port(env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END, 'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END', 60_000);
+  const topology = parseTopology(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE'));
+  const rangeStart = port(resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_START'), 'CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_START', 50_000);
+  const rangeEnd = port(resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_END'), 'CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_END', 60_000);
   if (rangeEnd < rangeStart) throw new Error('RTC UDP port range end must be greater than or equal to start');
 
   return {
     acceptance: createLiveKitAcceptanceMetadata(env),
-    ...(optional(env.OPC_LIVEKIT_SERVER_EVIDENCE_FILE) ? {
-      outputFile: optional(env.OPC_LIVEKIT_SERVER_EVIDENCE_FILE)
+    ...(optional(resolveBrandEnv(env, 'LIVEKIT_SERVER_EVIDENCE_FILE')) ? {
+      outputFile: optional(resolveBrandEnv(env, 'LIVEKIT_SERVER_EVIDENCE_FILE'))
     } : {}),
     topology,
     signalDomain,
     turnDomain,
     internalUrl: serializeCleanUrl(internalUrl),
     signalTlsPort: port(
-      env.OPC_LIVEKIT_SERVER_EVIDENCE_SIGNAL_TLS_PORT || publicUrl.port,
-      'OPC_LIVEKIT_SERVER_EVIDENCE_SIGNAL_TLS_PORT',
+      resolveBrandEnv(env, 'LIVEKIT_SERVER_EVIDENCE_SIGNAL_TLS_PORT') || publicUrl.port,
+      'CONVERACT_LIVEKIT_SERVER_EVIDENCE_SIGNAL_TLS_PORT',
       443
     ),
-    turnTlsPort: port(env.OPC_LIVEKIT_SERVER_EVIDENCE_TURN_TLS_PORT, 'OPC_LIVEKIT_SERVER_EVIDENCE_TURN_TLS_PORT', 443),
+    turnTlsPort: port(resolveBrandEnv(env, 'LIVEKIT_SERVER_EVIDENCE_TURN_TLS_PORT'), 'CONVERACT_LIVEKIT_SERVER_EVIDENCE_TURN_TLS_PORT', 443),
     rtcTcpPort: port(
-      env.OPC_LIVEKIT_SERVER_EVIDENCE_RTC_TCP_PORT || env.OPC_MEDIA_CONFIG_RTC_TCP_PORT,
-      'OPC_LIVEKIT_SERVER_EVIDENCE_RTC_TCP_PORT',
+      resolveBrandEnv(env, 'LIVEKIT_SERVER_EVIDENCE_RTC_TCP_PORT') || resolveBrandEnv(env, 'MEDIA_CONFIG_RTC_TCP_PORT'),
+      'CONVERACT_LIVEKIT_SERVER_EVIDENCE_RTC_TCP_PORT',
       7881
     ),
     turnUdpPort: port(
-      env.OPC_LIVEKIT_SERVER_EVIDENCE_TURN_UDP_PORT || env.OPC_LIVEKIT_EDGE_TURN_UDP_PORT,
-      'OPC_LIVEKIT_SERVER_EVIDENCE_TURN_UDP_PORT',
+      resolveBrandEnv(env, 'LIVEKIT_SERVER_EVIDENCE_TURN_UDP_PORT') || resolveBrandEnv(env, 'LIVEKIT_EDGE_TURN_UDP_PORT'),
+      'CONVERACT_LIVEKIT_SERVER_EVIDENCE_TURN_UDP_PORT',
       3478
     ),
-    rtcUdpPorts: parsePortList(env.OPC_LIVEKIT_SERVER_EVIDENCE_RTC_UDP_PORTS, rangeStart, rangeEnd),
+    rtcUdpPorts: parsePortList(resolveBrandEnv(env, 'LIVEKIT_SERVER_EVIDENCE_RTC_UDP_PORTS'), rangeStart, rangeEnd),
     timeoutMs: boundedInteger(
-      env.OPC_LIVEKIT_SERVER_EVIDENCE_TIMEOUT_MS,
-      'OPC_LIVEKIT_SERVER_EVIDENCE_TIMEOUT_MS',
+      resolveBrandEnv(env, 'LIVEKIT_SERVER_EVIDENCE_TIMEOUT_MS'),
+      'CONVERACT_LIVEKIT_SERVER_EVIDENCE_TIMEOUT_MS',
       1500,
       100,
       60_000
     ),
     minCertificateValidityDays: boundedInteger(
-      env.OPC_LIVEKIT_SERVER_EVIDENCE_MIN_CERT_VALIDITY_DAYS,
-      'OPC_LIVEKIT_SERVER_EVIDENCE_MIN_CERT_VALIDITY_DAYS',
+      resolveBrandEnv(env, 'LIVEKIT_SERVER_EVIDENCE_MIN_CERT_VALIDITY_DAYS'),
+      'CONVERACT_LIVEKIT_SERVER_EVIDENCE_MIN_CERT_VALIDITY_DAYS',
       7,
       1,
       365
@@ -245,7 +246,7 @@ export async function writeLiveKitServerEvidence(
   probes: LiveKitServerEvidenceProbes = defaultProbes()
 ): Promise<LiveKitServerEvidenceWriteResult> {
   if (!config.outputFile) {
-    throw new Error('OPC_LIVEKIT_SERVER_EVIDENCE_FILE is required when writing server evidence');
+    throw new Error('CONVERACT_LIVEKIT_SERVER_EVIDENCE_FILE is required when writing server evidence');
   }
   const result = await collectLiveKitServerEvidence(config, probes);
   mkdirSync(dirname(config.outputFile), { recursive: true });
@@ -508,13 +509,13 @@ function safeUrl(raw: string): string {
 function parseTopology(value: string | undefined): LiveKitServerEvidenceTopology {
   const normalized = String(value || 'standalone-vm').trim();
   if (normalized === 'standalone-vm' || normalized === 'external') return normalized;
-  throw new Error('OPC_LIVEKIT_DEPLOYMENT_MODE must be standalone-vm or external for server evidence');
+  throw new Error('CONVERACT_LIVEKIT_DEPLOYMENT_MODE must be standalone-vm or external for server evidence');
 }
 
 function parsePortList(value: string | undefined, start: number, end: number): number[] {
   if (!value?.trim()) return [...new Set([start, Math.floor((start + end) / 2), end])];
-  const values = value.split(',').map((item) => port(item.trim(), 'OPC_LIVEKIT_SERVER_EVIDENCE_RTC_UDP_PORTS', 0));
-  if (!values.length) throw new Error('OPC_LIVEKIT_SERVER_EVIDENCE_RTC_UDP_PORTS is required');
+  const values = value.split(',').map((item) => port(item.trim(), 'CONVERACT_LIVEKIT_SERVER_EVIDENCE_RTC_UDP_PORTS', 0));
+  if (!values.length) throw new Error('CONVERACT_LIVEKIT_SERVER_EVIDENCE_RTC_UDP_PORTS is required');
   return [...new Set(values)];
 }
 
@@ -545,7 +546,7 @@ function validDomain(value: string, key: string): string {
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = optional(env[key]);
+  const value = optional(resolveConveractEnv(env, key));
   if (!value) throw new Error(`${key} is required`);
   return value;
 }

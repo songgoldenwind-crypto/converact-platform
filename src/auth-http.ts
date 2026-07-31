@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from './config/converact-env.js';
 import type { PgQueryable } from './db-pg.js';
 import { AuthStore } from './auth-store.js';
 import {
@@ -21,7 +22,7 @@ import {
 
 function requirePostgres(pg: PgQueryable | null | undefined): PgQueryable {
   if (!pg) {
-    throw Object.assign(new Error('postgres is required for auth — set DATABASE_URL or OPC_USE_MEMORY_PG=1'), {
+    throw Object.assign(new Error('postgres is required for auth — set DATABASE_URL or CONVERACT_USE_MEMORY_PG=1'), {
       status: 503
     });
   }
@@ -227,8 +228,8 @@ export async function routeAuthApi(
     if (!tenantId) return { status: 400, data: { error: 'tenant_id is required' } };
     const config = getSsoConfig(db, tenantId);
     if (!config?.enabled) return { status: 404, data: { error: 'SSO not enabled' } };
-    const secret = process.env.OPC_JWT_SECRET;
-    if (!secret) return { status: 503, data: { error: 'OPC_JWT_SECRET not configured' } };
+    const secret = resolveBrandEnv(process.env, 'JWT_SECRET');
+    if (!secret) return { status: 503, data: { error: 'CONVERACT_JWT_SECRET not configured' } };
     const discovery = await fetchOidcDiscovery(config.issuer_url);
     const { state, nonce } = createSsoState(tenantId, secret);
     void nonce;
@@ -252,8 +253,8 @@ export async function routeAuthApi(
     if (!tenantId || !code || !state) {
       return { status: 400, data: { error: 'tenant_id, code, and state are required' } };
     }
-    const secret = process.env.OPC_JWT_SECRET;
-    if (!secret) return { status: 503, data: { error: 'OPC_JWT_SECRET not configured' } };
+    const secret = resolveBrandEnv(process.env, 'JWT_SECRET');
+    if (!secret) return { status: 503, data: { error: 'CONVERACT_JWT_SECRET not configured' } };
     verifySsoState(state, tenantId, secret);
     const config = getSsoConfig(db, tenantId);
     if (!config?.enabled) return { status: 404, data: { error: 'SSO not enabled' } };

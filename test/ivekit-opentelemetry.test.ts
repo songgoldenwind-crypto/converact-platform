@@ -18,31 +18,31 @@ test('OpenTelemetry is explicit, trace-only, bounded and secret-safe', () => {
   });
 
   assert.throws(() => resolveTelemetryConfig({
-    OPC_OTEL_ENABLED: '1'
-  }, 'ivekit-api'), /OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is required/);
+    CONVERACT_OTEL_ENABLED: '1'
+  }, 'ivekit-api'), /CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is required/);
   assert.throws(() => resolveTelemetryConfig({
-    OPC_OTEL_ENABLED: '1',
-    OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'https://user:secret@example.com/v1/traces'
+    CONVERACT_OTEL_ENABLED: '1',
+    CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'https://user:secret@example.com/v1/traces'
   }, 'ivekit-api'), /must not contain credentials/);
   assert.throws(() => resolveTelemetryConfig({
-    OPC_OTEL_ENABLED: '1',
-    OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'https://otel.example.com/v1/traces',
-    OPC_OTEL_TRACE_SAMPLE_RATIO: '1.1'
+    CONVERACT_OTEL_ENABLED: '1',
+    CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'https://otel.example.com/v1/traces',
+    CONVERACT_OTEL_TRACE_SAMPLE_RATIO: '1.1'
   }, 'ivekit-api'), /between 0 and 1/);
   assert.throws(() => resolveTelemetryConfig({
-    OPC_OTEL_ENABLED: '1',
-    OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'https://otel.example.com/v1/traces',
-    OPC_OTEL_MAX_QUEUE_SIZE: '128',
-    OPC_OTEL_MAX_EXPORT_BATCH_SIZE: '256'
+    CONVERACT_OTEL_ENABLED: '1',
+    CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'https://otel.example.com/v1/traces',
+    CONVERACT_OTEL_MAX_QUEUE_SIZE: '128',
+    CONVERACT_OTEL_MAX_EXPORT_BATCH_SIZE: '256'
   }, 'ivekit-api'), /batch size must not exceed queue size/);
 
   const enabled = resolveTelemetryConfig({
-    OPC_OTEL_ENABLED: '1',
-    OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://ivekit-otel-collector:4318/v1/traces',
-    OPC_OTEL_TRACE_SAMPLE_RATIO: '0.25',
-    OPC_OTEL_MAX_QUEUE_SIZE: '4096',
-    OPC_OTEL_MAX_EXPORT_BATCH_SIZE: '512',
-    OPC_OTEL_EXPORT_TIMEOUT_MS: '2000'
+    CONVERACT_OTEL_ENABLED: '1',
+    CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://ivekit-otel-collector:4318/v1/traces',
+    CONVERACT_OTEL_TRACE_SAMPLE_RATIO: '0.25',
+    CONVERACT_OTEL_MAX_QUEUE_SIZE: '4096',
+    CONVERACT_OTEL_MAX_EXPORT_BATCH_SIZE: '512',
+    CONVERACT_OTEL_EXPORT_TIMEOUT_MS: '2000'
   }, 'ivekit-worker');
   assert.equal(enabled.enabled, true);
   assert.equal(enabled.service_name, 'ivekit-worker');
@@ -100,8 +100,8 @@ test('iveKit workloads preload trace SDK only when telemetry is enabled', () => 
   for (const template of [api, notification, pools]) {
     assert.match(template, /--import/);
     assert.match(template, /dist\/telemetry\.js/);
-    assert.match(template, /OPC_OTEL_ENABLED/);
-    assert.match(template, /OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT/);
+    assert.match(template, /CONVERACT_OTEL_ENABLED/);
+    assert.match(template, /CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT/);
     assert.doesNotMatch(template, /OTEL_METRICS_EXPORTER/);
   }
 });

@@ -15,8 +15,8 @@ import { signAccessToken, type AuthRole } from '../src/middleware/auth.js';
 const JWT_SECRET = 'ivekit-livekit-audio-tap-api-secret-32-bytes';
 
 test('media call host controls consent-scoped LiveKit audio tap grants', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = JWT_SECRET;
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = JWT_SECRET;
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const calls = new MediaCallService(new MediaCallStore(pg));
@@ -164,13 +164,13 @@ test('media call host controls consent-scoped LiveKit audio tap grants', async (
     );
   } finally {
     db.close();
-    restoreEnv('OPC_JWT_SECRET', previousSecret);
+    restoreEnv('CONVERACT_JWT_SECRET', previousSecret);
   }
 });
 
 test('system worker receives a one-track token only for an active call participant', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = JWT_SECRET;
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = JWT_SECRET;
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const calls = new MediaCallService(new MediaCallStore(pg));
@@ -269,7 +269,7 @@ test('system worker receives a one-track token only for an active call participa
     );
   } finally {
     db.close();
-    restoreEnv('OPC_JWT_SECRET', previousSecret);
+    restoreEnv('CONVERACT_JWT_SECRET', previousSecret);
   }
 });
 

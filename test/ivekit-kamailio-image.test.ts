@@ -65,8 +65,8 @@ test('standalone iveKit image compiles the Kamailio renderer and route agent', a
   assert.ok(policy.entrypoints.includes('src/converact-kamailio-route-agent.ts'));
   assert.match(packageSource, /"render:kamailio"/);
   assert.match(packageSource, /"route:kamailio"/);
-  assert.match(verifier, /ivekit-render-kamailio-config\.js/);
-  assert.match(verifier, /ivekit-kamailio-route-agent\.js/);
+  assert.match(verifier, /converact-render-kamailio-config\.js/);
+  assert.match(verifier, /converact-kamailio-route-agent\.js/);
   assert.match(renderer, /loadKamailioConfigRuntime/);
   assert.match(agent, /loadKamailioRouteAgentRuntimeConfig/);
 });

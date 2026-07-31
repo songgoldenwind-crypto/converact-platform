@@ -70,11 +70,11 @@ test('IVR Step HTTP rejects non-RustPBX profiles and leaves unrelated routes unt
 });
 
 test('IVR HTTP exposes flow release, simulation, and session surfaces under signed tenant authority', async (t) => {
-  const previous = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'ivr-system-key';
+  const previous = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'ivr-system-key';
   t.after(() => {
-    if (previous === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previous;
+    if (previous === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previous;
   });
   const observed: unknown[] = [];
   const module = {
@@ -129,11 +129,11 @@ test('IVR HTTP exposes flow release, simulation, and session surfaces under sign
 });
 
 test('IVR HTTP exposes tenant-scoped resource catalogs and revisioned settings', async (t) => {
-  const previous = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'ivr-system-key';
+  const previous = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'ivr-system-key';
   t.after(() => {
-    if (previous === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previous;
+    if (previous === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previous;
   });
   const observed: unknown[] = [];
   const resources = {

@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -298,7 +299,7 @@ function tinodeDeploymentEnvChecklistItems(
   const publicWsConfigured = isSecureWebSocketUrl(normalizeUrl(env.TINODE_PUBLIC_WS_URL));
   const rootTokenConfigured = hasValue(env.TINODE_AUTH_TOKEN);
   const basicRootAuthConfigured = hasValue(env.TINODE_BASIC_USER) && hasValue(env.TINODE_BASIC_PASSWORD);
-  const deliveryWorkerRequired = (baseUrlConfigured || wsUrlConfigured) && String(env.OPC_TINODE_DELIVERY_WORKER_ENABLED || '1').trim() !== '0';
+  const deliveryWorkerRequired = (baseUrlConfigured || wsUrlConfigured) && String(resolveBrandEnv(env, 'TINODE_DELIVERY_WORKER_ENABLED') || '1').trim() !== '0';
 
   return [
     item('Tinode Server', 'TINODE_BASE_URL', !wsUrlConfigured, false, env.TINODE_BASE_URL, 'Tinode HTTP(S) server URL used by OPC services. Optional when TINODE_WS_URL is configured.'),
@@ -319,17 +320,17 @@ function tinodeDeploymentEnvChecklistItems(
     item('Client Plan', 'TINODE_PUBLIC_BASE_URL', productionDeployment && !publicWsConfigured, false, env.TINODE_PUBLIC_BASE_URL, 'Public Tinode HTTPS base URL exposed to browser clients; may derive the WSS endpoint.'),
     item('Client Plan', 'TINODE_PUBLIC_WS_URL', productionDeployment && !publicBaseConfigured, false, env.TINODE_PUBLIC_WS_URL, 'Public Tinode WSS URL exposed to browser clients.'),
     item('Delivery Worker', 'TINODE_REQUEST_TIMEOUT_MS', deliveryWorkerRequired, false, env.TINODE_REQUEST_TIMEOUT_MS, 'Per-stage Tinode WebSocket timeout. The claim lease must cover five stages plus margin.'),
-    item('Delivery Worker', 'OPC_TINODE_DELIVERY_WORKER_ENABLED', false, false, env.OPC_TINODE_DELIVERY_WORKER_ENABLED, 'Set to 0 to disable automatic durable provider delivery retries.'),
-    item('Delivery Worker', 'OPC_TINODE_DELIVERY_INTERVAL_MS', deliveryWorkerRequired, false, env.OPC_TINODE_DELIVERY_INTERVAL_MS, 'Polling interval for due provider deliveries.'),
-    item('Delivery Worker', 'OPC_TINODE_DELIVERY_BATCH_SIZE', deliveryWorkerRequired, false, env.OPC_TINODE_DELIVERY_BATCH_SIZE, 'Maximum due messages examined per worker run.'),
-    item('Delivery Worker', 'OPC_TINODE_DELIVERY_MAX_ATTEMPTS', deliveryWorkerRequired, false, env.OPC_TINODE_DELIVERY_MAX_ATTEMPTS, 'Maximum provider publish attempts before terminal failure.'),
-    item('Delivery Worker', 'OPC_TINODE_DELIVERY_CLAIM_LEASE_MS', deliveryWorkerRequired, false, env.OPC_TINODE_DELIVERY_CLAIM_LEASE_MS, 'Claim lease; must be at least five provider timeouts plus 1000ms.'),
-    item('Delivery Worker', 'OPC_TINODE_DELIVERY_RETRY_DELAYS_MS', deliveryWorkerRequired, false, env.OPC_TINODE_DELIVERY_RETRY_DELAYS_MS, 'Comma-separated retry delays in milliseconds.'),
+    item('Delivery Worker', 'CONVERACT_TINODE_DELIVERY_WORKER_ENABLED', false, false, resolveBrandEnv(env, 'TINODE_DELIVERY_WORKER_ENABLED'), 'Set to 0 to disable automatic durable provider delivery retries.'),
+    item('Delivery Worker', 'CONVERACT_TINODE_DELIVERY_INTERVAL_MS', deliveryWorkerRequired, false, resolveBrandEnv(env, 'TINODE_DELIVERY_INTERVAL_MS'), 'Polling interval for due provider deliveries.'),
+    item('Delivery Worker', 'CONVERACT_TINODE_DELIVERY_BATCH_SIZE', deliveryWorkerRequired, false, resolveBrandEnv(env, 'TINODE_DELIVERY_BATCH_SIZE'), 'Maximum due messages examined per worker run.'),
+    item('Delivery Worker', 'CONVERACT_TINODE_DELIVERY_MAX_ATTEMPTS', deliveryWorkerRequired, false, resolveBrandEnv(env, 'TINODE_DELIVERY_MAX_ATTEMPTS'), 'Maximum provider publish attempts before terminal failure.'),
+    item('Delivery Worker', 'CONVERACT_TINODE_DELIVERY_CLAIM_LEASE_MS', deliveryWorkerRequired, false, resolveBrandEnv(env, 'TINODE_DELIVERY_CLAIM_LEASE_MS'), 'Claim lease; must be at least five provider timeouts plus 1000ms.'),
+    item('Delivery Worker', 'CONVERACT_TINODE_DELIVERY_RETRY_DELAYS_MS', deliveryWorkerRequired, false, resolveBrandEnv(env, 'TINODE_DELIVERY_RETRY_DELAYS_MS'), 'Comma-separated retry delays in milliseconds.'),
     item('Smoke', 'TINODE_CHAT_SMOKE_TENANT_ID', true, false, env.TINODE_CHAT_SMOKE_TENANT_ID, 'Tenant used by smoke:chat:tinode.'),
     item('Smoke', 'TINODE_CHAT_SMOKE_PARTICIPANT_IDENTITY', false, false, env.TINODE_CHAT_SMOKE_PARTICIPANT_IDENTITY, 'Optional participant provisioned by the Tinode smoke.'),
     item('Smoke', 'TINODE_CHAT_SMOKE_PARTICIPANT_USER_ID', false, false, env.TINODE_CHAT_SMOKE_PARTICIPANT_USER_ID, 'Optional existing Tinode user id for the smoke participant.'),
-    item('Preflight Artifacts', 'OPC_TINODE_PREFLIGHT_ENV_CHECKLIST_FILE', false, false, env.OPC_TINODE_PREFLIGHT_ENV_CHECKLIST_FILE, 'Optional Markdown checklist output path.'),
-    item('Preflight Artifacts', 'OPC_TINODE_PREFLIGHT_REPORT_FILE', false, false, env.OPC_TINODE_PREFLIGHT_REPORT_FILE, 'Optional JSON preflight report output path.')
+    item('Preflight Artifacts', 'CONVERACT_TINODE_PREFLIGHT_ENV_CHECKLIST_FILE', false, false, resolveBrandEnv(env, 'TINODE_PREFLIGHT_ENV_CHECKLIST_FILE'), 'Optional Markdown checklist output path.'),
+    item('Preflight Artifacts', 'CONVERACT_TINODE_PREFLIGHT_REPORT_FILE', false, false, resolveBrandEnv(env, 'TINODE_PREFLIGHT_REPORT_FILE'), 'Optional JSON preflight report output path.')
   ];
 }
 
@@ -473,12 +474,12 @@ function isSecureWebSocketUrl(value: string): boolean {
 }
 
 async function main(): Promise<void> {
-  const checklistFile = String(process.env.OPC_TINODE_PREFLIGHT_ENV_CHECKLIST_FILE || '').trim();
+  const checklistFile = String(resolveBrandEnv(process.env, 'TINODE_PREFLIGHT_ENV_CHECKLIST_FILE') || '').trim();
   const envChecklist = checklistFile
     ? writeTinodeDeploymentEnvChecklist(checklistFile, process.env)
     : undefined;
   const report = createTinodeDeploymentPreflightReport(process.env);
-  const reportFilePath = String(process.env.OPC_TINODE_PREFLIGHT_REPORT_FILE || '').trim();
+  const reportFilePath = String(resolveBrandEnv(process.env, 'TINODE_PREFLIGHT_REPORT_FILE') || '').trim();
   const reportFile = reportFilePath
     ? writeTinodeDeploymentPreflightReport(reportFilePath, process.env, report)
     : undefined;

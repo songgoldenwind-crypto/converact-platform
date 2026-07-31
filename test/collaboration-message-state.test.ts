@@ -437,13 +437,13 @@ test('message mutation window is exposed across deployment surfaces', () => {
     readFileSync('infra/k8s/templates/opc-deployment.yaml', 'utf8')
   ];
   for (const source of sources) {
-    assert.match(source, /OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS|messageMutationWindowMs/);
+    assert.match(source, /CONVERACT_CHAT_MESSAGE_MUTATION_WINDOW_MS|messageMutationWindowMs/);
   }
 });
 
 test('iveKit receipt API marks the authenticated participant read and returns unread state', async () => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = API_KEY;
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const tenantId = 'tenant_message_state_http';
   const customerHeaders = authHeaders(tenantId, 'customer-http');
@@ -609,18 +609,18 @@ test('iveKit receipt API marks the authenticated participant read and returns un
     ) as { data: { job: { status: string } } };
     assert.equal(qualityStatus.data.job.status, 'cancelled');
   } finally {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
   }
 });
 
 test('JWT chat users cannot request credentials or post messages as another identity', async () => {
   const previous = {
-    apiKey: process.env.OPC_API_KEY,
-    jwtSecret: process.env.OPC_JWT_SECRET
+    apiKey: process.env.CONVERACT_API_KEY,
+    jwtSecret: process.env.CONVERACT_JWT_SECRET
   };
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_JWT_SECRET = 'message-state-jwt-secret';
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_JWT_SECRET = 'message-state-jwt-secret';
   const pg = new MemoryPg();
   const tenantId = 'tenant_message_identity';
   const token = signAccessToken({ sub: 'agent-jwt', tid: tenantId, role: 'operator' });
@@ -668,8 +668,8 @@ test('JWT chat users cannot request credentials or post messages as another iden
       data: { error: 'chat identity must match authenticated user' }
     });
   } finally {
-    restoreEnvValue('OPC_API_KEY', previous.apiKey);
-    restoreEnvValue('OPC_JWT_SECRET', previous.jwtSecret);
+    restoreEnvValue('CONVERACT_API_KEY', previous.apiKey);
+    restoreEnvValue('CONVERACT_JWT_SECRET', previous.jwtSecret);
   }
 });
 

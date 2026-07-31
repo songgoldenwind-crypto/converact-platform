@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import type { PgQueryable } from '../../db-pg.js';
@@ -105,7 +106,7 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
     apiKeysDistinct && rootAuthConfigured;
   const inboundSyncConfigured = providerUrlConfigured && rootApiKeyConfigured &&
     apiKeysDistinct && rootAuthConfigured &&
-    String(env.OPC_TINODE_INBOUND_WORKER_ENABLED || '1').trim() !== '0';
+    String(resolveBrandEnv(env, 'TINODE_INBOUND_WORKER_ENABLED') || '1').trim() !== '0';
 
   return {
     provider: providerUrlConfigured ? 'tinode' : 'local',
@@ -129,13 +130,13 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
       secure_file_scan_gate: true,
       attachment_processing: true,
       visual_observations: true,
-      ocr: hasValue(env.OPC_OCR_BASE_URL),
-      asr: hasValue(env.OPC_ASR_BASE_URL),
+      ocr: hasValue(resolveBrandEnv(env, 'OCR_BASE_URL')),
+      asr: hasValue(resolveBrandEnv(env, 'ASR_BASE_URL')),
       policy_scan: true,
       policy_findings: true,
       ai_quality_review: true,
       human_review: true,
-      translation: hasValue(env.OPC_TRANSLATION_BASE_URL) || hasValue(env.OPC_IVEKIT_PROVIDER_PROFILES_JSON),
+      translation: hasValue(resolveBrandEnv(env, 'TRANSLATION_BASE_URL')) || hasValue(resolveFabricEnv(env, 'PROVIDER_PROFILES_JSON')),
       snapshot: true,
       client_plan: providerConfigured && userProvisioningConfigured && clientWsConfigured,
       provider_inbound_sync: true,
@@ -168,8 +169,8 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
       user_provisioning_configured: userProvisioningConfigured,
       client_ws_configured: clientWsConfigured,
       inbound_sync_configured: inboundSyncConfigured,
-      quality_review_configured: hasValue(env.OPC_QUALITY_REVIEW_BASE_URL),
-      translation_configured: hasValue(env.OPC_TRANSLATION_BASE_URL) || hasValue(env.OPC_IVEKIT_PROVIDER_PROFILES_JSON),
+      quality_review_configured: hasValue(resolveBrandEnv(env, 'QUALITY_REVIEW_BASE_URL')),
+      translation_configured: hasValue(resolveBrandEnv(env, 'TRANSLATION_BASE_URL')) || hasValue(resolveFabricEnv(env, 'PROVIDER_PROFILES_JSON')),
       message_mutation_window_ms: messageMutationWindowMs(env),
       tinode_client_access_mode: TINODE_RECEIVE_ONLY_ACCESS_MODE
     },

@@ -10,13 +10,13 @@ import {
 test('derivative worker is disabled by default and validates bounded local configuration', () => {
   assert.equal(secureFileDerivativeWorkerConfig({}).enabled, false);
   const config = secureFileDerivativeWorkerConfig({
-    OPC_FILE_DERIVATIVE_PROVIDER_MODE: 'local_ffmpeg',
-    OPC_FILE_DERIVATIVE_WORKER_ENABLED: '1',
-    OPC_FILE_DERIVATIVE_INTERVAL_MS: '2500',
-    OPC_FILE_DERIVATIVE_BATCH_SIZE: '40',
-    OPC_FILE_DERIVATIVE_RETRY_DELAYS_MS: '0,3000',
-    OPC_FILE_DERIVATIVE_WORKER_ID: 'derivative worker / one',
-    OPC_FILE_DERIVATIVE_PROVIDER_PROFILE_ID: 'ffmpeg-primary'
+    CONVERACT_FILE_DERIVATIVE_PROVIDER_MODE: 'local_ffmpeg',
+    CONVERACT_FILE_DERIVATIVE_WORKER_ENABLED: '1',
+    CONVERACT_FILE_DERIVATIVE_INTERVAL_MS: '2500',
+    CONVERACT_FILE_DERIVATIVE_BATCH_SIZE: '40',
+    CONVERACT_FILE_DERIVATIVE_RETRY_DELAYS_MS: '0,3000',
+    CONVERACT_FILE_DERIVATIVE_WORKER_ID: 'derivative worker / one',
+    CONVERACT_FILE_DERIVATIVE_PROVIDER_PROFILE_ID: 'ffmpeg-primary'
   });
   assert.deepEqual({
     enabled: config.enabled,
@@ -38,27 +38,27 @@ test('derivative worker is disabled by default and validates bounded local confi
 test('derivative provider mode requires HTTP endpoint and constructs declared modes', () => {
   assert.throws(
     () => configuredFileDerivativeProvider({
-      OPC_FILE_DERIVATIVE_PROVIDER_MODE: 'http_self_hosted'
+      CONVERACT_FILE_DERIVATIVE_PROVIDER_MODE: 'http_self_hosted'
     }),
-    /OPC_FILE_DERIVATIVE_PROVIDER_URL is required/
+    /CONVERACT_FILE_DERIVATIVE_PROVIDER_URL is required/
   );
   assert.throws(
     () => secureFileDerivativeWorkerConfig({
-      OPC_FILE_DERIVATIVE_PROVIDER_MODE: 'invalid'
+      CONVERACT_FILE_DERIVATIVE_PROVIDER_MODE: 'invalid'
     }),
-    /OPC_FILE_DERIVATIVE_PROVIDER_MODE is invalid/
+    /CONVERACT_FILE_DERIVATIVE_PROVIDER_MODE is invalid/
   );
   const local = configuredFileDerivativeProvider({
-    OPC_FILE_DERIVATIVE_PROVIDER_MODE: 'local_ffmpeg',
-    OPC_FILE_DERIVATIVE_FFMPEG_EXECUTABLE: '/opt/ffmpeg/bin/ffmpeg'
+    CONVERACT_FILE_DERIVATIVE_PROVIDER_MODE: 'local_ffmpeg',
+    CONVERACT_FILE_DERIVATIVE_FFMPEG_EXECUTABLE: '/opt/ffmpeg/bin/ffmpeg'
   });
   const selfHosted = configuredFileDerivativeProvider({
-    OPC_FILE_DERIVATIVE_PROVIDER_MODE: 'http_self_hosted',
-    OPC_FILE_DERIVATIVE_PROVIDER_URL: 'http://media.internal'
+    CONVERACT_FILE_DERIVATIVE_PROVIDER_MODE: 'http_self_hosted',
+    CONVERACT_FILE_DERIVATIVE_PROVIDER_URL: 'http://media.internal'
   });
   const thirdParty = configuredFileDerivativeProvider({
-    OPC_FILE_DERIVATIVE_PROVIDER_MODE: 'http_third_party',
-    OPC_FILE_DERIVATIVE_PROVIDER_URL: 'https://media.example.test'
+    CONVERACT_FILE_DERIVATIVE_PROVIDER_MODE: 'http_third_party',
+    CONVERACT_FILE_DERIVATIVE_PROVIDER_URL: 'https://media.example.test'
   });
   assert.deepEqual(
     [local?.mode, selfHosted?.mode, thirdParty?.mode],

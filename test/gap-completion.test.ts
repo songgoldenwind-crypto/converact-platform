@@ -24,7 +24,7 @@ const GAP_API_KEY = 'test-gap-key';
 
 before(() => {
   useMemoryRedisForTests();
-  process.env.OPC_API_KEY = GAP_API_KEY;
+  process.env.CONVERACT_API_KEY = GAP_API_KEY;
 });
 
 test('IVR menu resolves digit and timeout', () => {

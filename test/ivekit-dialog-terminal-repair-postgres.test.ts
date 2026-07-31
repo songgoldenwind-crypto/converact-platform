@@ -29,8 +29,8 @@ import {
   PostgresVoiceCdrConvergenceStore
 } from '../src/agent-runtime/converact/voice/postgres/cdr-convergence-store.js';
 
-const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
-const runtimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
+const adminUrl = process.env.CONVERACT_FABRIC_STANDALONE_TEST_DATABASE_URL || '';
+const runtimeUrl = process.env.CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
 const postgresTest = adminUrl && runtimeUrl ? test : test.skip;
 const TENANT_A = 'ivekit_terminal_repair_a';
 const TENANT_B = 'ivekit_terminal_repair_b';

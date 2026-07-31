@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveConveractEnv } from '../src/config/converact-env.js';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -132,21 +133,21 @@ const targetDefinitions: Record<VideoReadinessTarget, TargetDefinition> = {
     command: 'npm',
     args: ['run', 'smoke:media'],
     requirements: [
-      { type: 'single', key: 'OPC_BASE_URL' },
+      { type: 'single', key: 'CONVERACT_BASE_URL' },
       {
         type: 'any',
-        label: 'OPC_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN',
-        keys: ['OPC_MEDIA_API_TOKEN', 'LIVEKIT_MEDIA_API_TOKEN']
+        label: 'CONVERACT_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN',
+        keys: ['CONVERACT_MEDIA_API_TOKEN', 'LIVEKIT_MEDIA_API_TOKEN']
       },
       {
         type: 'any',
-        label: 'OPC_MEDIA_SMOKE_TENANT_ID or OPC_TENANT_ID',
-        keys: ['OPC_MEDIA_SMOKE_TENANT_ID', 'OPC_TENANT_ID']
+        label: 'CONVERACT_MEDIA_SMOKE_TENANT_ID or CONVERACT_TENANT_ID',
+        keys: ['CONVERACT_MEDIA_SMOKE_TENANT_ID', 'CONVERACT_TENANT_ID']
       },
       {
         type: 'any',
-        label: 'OPC_MEDIA_INVITE_SECRET or LIVEKIT_MEDIA_INVITE_SECRET',
-        keys: ['OPC_MEDIA_INVITE_SECRET', 'LIVEKIT_MEDIA_INVITE_SECRET']
+        label: 'CONVERACT_MEDIA_INVITE_SECRET or LIVEKIT_MEDIA_INVITE_SECRET',
+        keys: ['CONVERACT_MEDIA_INVITE_SECRET', 'LIVEKIT_MEDIA_INVITE_SECRET']
       }
     ]
   },
@@ -165,17 +166,17 @@ const targetDefinitions: Record<VideoReadinessTarget, TargetDefinition> = {
     command: 'npm',
     args: ['run', 'smoke:media:ai-callback'],
     requirements: [
-      { type: 'single', key: 'OPC_BASE_URL' },
-      { type: 'single', key: 'OPC_API_KEY' },
+      { type: 'single', key: 'CONVERACT_BASE_URL' },
+      { type: 'single', key: 'CONVERACT_API_KEY' },
       {
         type: 'any',
-        label: 'OPC_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN',
-        keys: ['OPC_MEDIA_API_TOKEN', 'LIVEKIT_MEDIA_API_TOKEN']
+        label: 'CONVERACT_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN',
+        keys: ['CONVERACT_MEDIA_API_TOKEN', 'LIVEKIT_MEDIA_API_TOKEN']
       },
       {
         type: 'any',
-        label: 'OPC_AI_CALLBACK_SMOKE_TENANT_ID or OPC_TENANT_ID',
-        keys: ['OPC_AI_CALLBACK_SMOKE_TENANT_ID', 'OPC_TENANT_ID']
+        label: 'CONVERACT_AI_CALLBACK_SMOKE_TENANT_ID or CONVERACT_TENANT_ID',
+        keys: ['CONVERACT_AI_CALLBACK_SMOKE_TENANT_ID', 'CONVERACT_TENANT_ID']
       }
     ]
   },
@@ -184,18 +185,18 @@ const targetDefinitions: Record<VideoReadinessTarget, TargetDefinition> = {
     command: 'npm',
     args: ['run', 'smoke:media:browser'],
     requirements: [
-      { type: 'single', key: 'OPC_FRONTEND_URL' },
+      { type: 'single', key: 'CONVERACT_FRONTEND_URL' },
       {
         type: 'any',
-        label: 'OPC_BROWSER_SMOKE_TENANT_ID or OPC_TENANT_ID',
-        keys: ['OPC_BROWSER_SMOKE_TENANT_ID', 'OPC_TENANT_ID']
+        label: 'CONVERACT_BROWSER_SMOKE_TENANT_ID or CONVERACT_TENANT_ID',
+        keys: ['CONVERACT_BROWSER_SMOKE_TENANT_ID', 'CONVERACT_TENANT_ID']
       },
-      { type: 'single', key: 'OPC_BROWSER_SMOKE_AGENT_A_TOKEN' },
-      { type: 'single', key: 'OPC_BROWSER_SMOKE_AGENT_A_USER_ID' },
-      { type: 'single', key: 'OPC_BROWSER_SMOKE_AGENT_A_SEAT_ID' },
-      { type: 'single', key: 'OPC_BROWSER_SMOKE_AGENT_B_TOKEN' },
-      { type: 'single', key: 'OPC_BROWSER_SMOKE_AGENT_B_USER_ID' },
-      { type: 'single', key: 'OPC_BROWSER_SMOKE_AGENT_B_SEAT_ID' }
+      { type: 'single', key: 'CONVERACT_BROWSER_SMOKE_AGENT_A_TOKEN' },
+      { type: 'single', key: 'CONVERACT_BROWSER_SMOKE_AGENT_A_USER_ID' },
+      { type: 'single', key: 'CONVERACT_BROWSER_SMOKE_AGENT_A_SEAT_ID' },
+      { type: 'single', key: 'CONVERACT_BROWSER_SMOKE_AGENT_B_TOKEN' },
+      { type: 'single', key: 'CONVERACT_BROWSER_SMOKE_AGENT_B_USER_ID' },
+      { type: 'single', key: 'CONVERACT_BROWSER_SMOKE_AGENT_B_SEAT_ID' }
     ]
   },
   'customer-browser': {
@@ -203,16 +204,16 @@ const targetDefinitions: Record<VideoReadinessTarget, TargetDefinition> = {
     command: 'npm',
     args: ['run', 'smoke:media:customer-browser'],
     requirements: [
-      { type: 'single', key: 'OPC_FRONTEND_URL' },
+      { type: 'single', key: 'CONVERACT_FRONTEND_URL' },
       {
         type: 'any',
-        label: 'OPC_CUSTOMER_VIDEO_URL or OPC_CUSTOMER_BROWSER_SMOKE_ROOM_NAME',
-        keys: ['OPC_CUSTOMER_VIDEO_URL', 'OPC_CUSTOMER_BROWSER_SMOKE_URL', 'OPC_CUSTOMER_BROWSER_SMOKE_ROOM_NAME']
+        label: 'CONVERACT_CUSTOMER_VIDEO_URL or CONVERACT_CUSTOMER_BROWSER_SMOKE_ROOM_NAME',
+        keys: ['CONVERACT_CUSTOMER_VIDEO_URL', 'CONVERACT_CUSTOMER_BROWSER_SMOKE_URL', 'CONVERACT_CUSTOMER_BROWSER_SMOKE_ROOM_NAME']
       },
       {
         type: 'any',
-        label: 'OPC_CUSTOMER_VIDEO_URL or OPC_CUSTOMER_BROWSER_SMOKE_TENANT_ID or OPC_TENANT_ID',
-        keys: ['OPC_CUSTOMER_VIDEO_URL', 'OPC_CUSTOMER_BROWSER_SMOKE_URL', 'OPC_CUSTOMER_BROWSER_SMOKE_TENANT_ID', 'OPC_TENANT_ID']
+        label: 'CONVERACT_CUSTOMER_VIDEO_URL or CONVERACT_CUSTOMER_BROWSER_SMOKE_TENANT_ID or CONVERACT_TENANT_ID',
+        keys: ['CONVERACT_CUSTOMER_VIDEO_URL', 'CONVERACT_CUSTOMER_BROWSER_SMOKE_URL', 'CONVERACT_CUSTOMER_BROWSER_SMOKE_TENANT_ID', 'CONVERACT_TENANT_ID']
       }
     ]
   },
@@ -221,18 +222,18 @@ const targetDefinitions: Record<VideoReadinessTarget, TargetDefinition> = {
     command: 'npm',
     args: ['run', 'smoke:media:web-assist-browser'],
     requirements: [
-      { type: 'single', key: 'OPC_FRONTEND_URL' },
+      { type: 'single', key: 'CONVERACT_FRONTEND_URL' },
       {
         type: 'any',
-        label: 'OPC_WEB_ASSIST_CUSTOMER_URL or OPC_REMOTE_ASSIST_CUSTOMER_URL',
-        keys: ['OPC_WEB_ASSIST_CUSTOMER_URL', 'OPC_REMOTE_ASSIST_CUSTOMER_URL']
+        label: 'CONVERACT_WEB_ASSIST_CUSTOMER_URL or CONVERACT_REMOTE_ASSIST_CUSTOMER_URL',
+        keys: ['CONVERACT_WEB_ASSIST_CUSTOMER_URL', 'CONVERACT_REMOTE_ASSIST_CUSTOMER_URL']
       },
-      { type: 'single', key: 'OPC_WEB_ASSIST_ENGINEER_TOKEN' },
-      { type: 'single', key: 'OPC_WEB_ASSIST_ENGINEER_USER_ID' },
+      { type: 'single', key: 'CONVERACT_WEB_ASSIST_ENGINEER_TOKEN' },
+      { type: 'single', key: 'CONVERACT_WEB_ASSIST_ENGINEER_USER_ID' },
       {
         type: 'any',
-        label: 'OPC_WEB_ASSIST_TENANT_ID or OPC_TENANT_ID',
-        keys: ['OPC_WEB_ASSIST_TENANT_ID', 'OPC_TENANT_ID']
+        label: 'CONVERACT_WEB_ASSIST_TENANT_ID or CONVERACT_TENANT_ID',
+        keys: ['CONVERACT_WEB_ASSIST_TENANT_ID', 'CONVERACT_TENANT_ID']
       }
     ]
   },
@@ -241,16 +242,16 @@ const targetDefinitions: Record<VideoReadinessTarget, TargetDefinition> = {
     command: 'npm',
     args: ['run', 'smoke:collaboration'],
     requirements: [
-      { type: 'single', key: 'OPC_BASE_URL' },
+      { type: 'single', key: 'CONVERACT_BASE_URL' },
       {
         type: 'any',
-        label: 'OPC_COLLAB_SMOKE_API_KEY or OPC_API_KEY',
-        keys: ['OPC_COLLAB_SMOKE_API_KEY', 'OPC_API_KEY']
+        label: 'CONVERACT_COLLAB_SMOKE_API_KEY or CONVERACT_API_KEY',
+        keys: ['CONVERACT_COLLAB_SMOKE_API_KEY', 'CONVERACT_API_KEY']
       },
       {
         type: 'any',
-        label: 'OPC_COLLAB_SMOKE_TENANT_ID or OPC_TENANT_ID',
-        keys: ['OPC_COLLAB_SMOKE_TENANT_ID', 'OPC_TENANT_ID']
+        label: 'CONVERACT_COLLAB_SMOKE_TENANT_ID or CONVERACT_TENANT_ID',
+        keys: ['CONVERACT_COLLAB_SMOKE_TENANT_ID', 'CONVERACT_TENANT_ID']
       }
     ]
   },
@@ -266,7 +267,7 @@ const targetDefinitions: Record<VideoReadinessTarget, TargetDefinition> = {
     command: 'npm',
     args: ['run', 'smoke:media:sip-volte'],
     requirements: [
-      { type: 'equals', key: 'OPC_SIP_VOLTE_ENABLED', value: '1' },
+      { type: 'equals', key: 'CONVERACT_SIP_VOLTE_ENABLED', value: '1' },
       { type: 'single', key: 'LIVEKIT_URL' },
       { type: 'single', key: 'LIVEKIT_API_KEY' },
       { type: 'single', key: 'LIVEKIT_API_SECRET' },
@@ -291,11 +292,11 @@ const defaultTargets: VideoReadinessTarget[] = [
 export function createVideoReadinessSuiteConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): VideoReadinessSuiteConfig {
-  const reportFile = String(env.OPC_VIDEO_READINESS_REPORT_FILE || '').trim();
+  const reportFile = String(resolveBrandEnv(env, 'VIDEO_READINESS_REPORT_FILE') || '').trim();
   const acceptance = optionalLiveKitAcceptanceMetadata(env);
   return {
-    targets: parseTargets(env.OPC_VIDEO_READINESS_TARGETS),
-    continueOnFailure: env.OPC_VIDEO_READINESS_CONTINUE_ON_FAILURE === '1',
+    targets: parseTargets(resolveBrandEnv(env, 'VIDEO_READINESS_TARGETS')),
+    continueOnFailure: resolveBrandEnv(env, 'VIDEO_READINESS_CONTINUE_ON_FAILURE') === '1',
     env,
     ...(reportFile ? { reportFile } : {}),
     ...(acceptance ? { acceptance } : {})
@@ -350,13 +351,13 @@ export async function runVideoReadinessSuite(
   const runtimeEnv: NodeJS.ProcessEnv = { ...config.env };
   const skippedTargets = new Set<VideoReadinessTarget>();
   if (config.targets.includes('media')) {
-    runtimeEnv.OPC_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT = '1';
+    runtimeEnv.CONVERACT_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT = '1';
   }
   if (config.targets.includes('sip-volte')) {
-    runtimeEnv.OPC_SIP_VOLTE_REQUIRE_ACTIVE = '1';
+    runtimeEnv.CONVERACT_SIP_VOLTE_REQUIRE_ACTIVE = '1';
   }
   if (shouldUseMediaJoinPathForCustomerBrowser(config)) {
-    runtimeEnv.OPC_MEDIA_SMOKE_KEEP_ROOM_OPEN = '1';
+    runtimeEnv.CONVERACT_MEDIA_SMOKE_KEEP_ROOM_OPEN = '1';
   }
   for (const target of config.targets) {
     if (skippedTargets.has(target)) continue;
@@ -487,13 +488,13 @@ function assertPreflight(config: VideoReadinessSuiteConfig): void {
 }
 
 function canReceiveCustomerUrlFromEarlierMedia(config: VideoReadinessSuiteConfig): boolean {
-  if (hasEnv(config.env, 'OPC_CUSTOMER_VIDEO_URL') || hasEnv(config.env, 'OPC_CUSTOMER_BROWSER_SMOKE_URL')) {
+  if (hasEnv(config.env, 'CONVERACT_CUSTOMER_VIDEO_URL') || hasEnv(config.env, 'CONVERACT_CUSTOMER_BROWSER_SMOKE_URL')) {
     return false;
   }
   const customerIndex = config.targets.indexOf('customer-browser');
   const mediaIndex = config.targets.indexOf('media');
   if (customerIndex < 0 || mediaIndex < 0 || mediaIndex > customerIndex) return false;
-  return Boolean(config.env.OPC_FRONTEND_URL?.trim());
+  return Boolean(resolveBrandEnv(config.env, 'FRONTEND_URL')?.trim());
 }
 
 function shouldUseMediaJoinPathForCustomerBrowser(config: VideoReadinessSuiteConfig): boolean {
@@ -504,7 +505,7 @@ function requiresMediaCustomerJoinPath(
   config: VideoReadinessSuiteConfig,
   env: NodeJS.ProcessEnv
 ): boolean {
-  return shouldUseMediaJoinPathForCustomerBrowser(config) && !hasEnv(env, 'OPC_CUSTOMER_VIDEO_URL');
+  return shouldUseMediaJoinPathForCustomerBrowser(config) && !hasEnv(env, 'CONVERACT_CUSTOMER_VIDEO_URL');
 }
 
 function missingRequirements(definition: TargetDefinition, env: NodeJS.ProcessEnv): string[] {
@@ -517,31 +518,31 @@ function missingRequirements(definition: TargetDefinition, env: NodeJS.ProcessEn
 }
 
 function remoteGatewayRequirements(env: NodeJS.ProcessEnv): string[] {
-  const provider = String(env.OPC_REMOTE_GATEWAY_PROVIDER || 'rustdesk').trim().toLowerCase();
+  const provider = String(resolveBrandEnv(env, 'REMOTE_GATEWAY_PROVIDER') || 'rustdesk').trim().toLowerCase();
   const missing: string[] = [];
   if (provider !== 'meshcentral' && provider !== 'guacamole' && provider !== 'rustdesk') {
-    return ['OPC_REMOTE_GATEWAY_PROVIDER must be meshcentral, guacamole, or rustdesk'];
+    return ['CONVERACT_REMOTE_GATEWAY_PROVIDER must be meshcentral, guacamole, or rustdesk'];
   }
   if (provider === 'rustdesk') {
-    if (!hasAnyEnv(env, ['OPC_RUSTDESK_CONTROL_PLANE_BASE_URL', 'OPC_REMOTE_GATEWAY_BASE_URL'])) {
-      missing.push('OPC_RUSTDESK_CONTROL_PLANE_BASE_URL or OPC_REMOTE_GATEWAY_BASE_URL is required');
+    if (!hasAnyEnv(env, ['CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL', 'CONVERACT_REMOTE_GATEWAY_BASE_URL'])) {
+      missing.push('CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL or CONVERACT_REMOTE_GATEWAY_BASE_URL is required');
     }
-    if (!hasAnyEnv(env, ['OPC_RUSTDESK_API_TOKEN', 'OPC_REMOTE_GATEWAY_API_TOKEN'])) {
-      missing.push('OPC_RUSTDESK_API_TOKEN or OPC_REMOTE_GATEWAY_API_TOKEN is required');
+    if (!hasAnyEnv(env, ['CONVERACT_RUSTDESK_API_TOKEN', 'CONVERACT_REMOTE_GATEWAY_API_TOKEN'])) {
+      missing.push('CONVERACT_RUSTDESK_API_TOKEN or CONVERACT_REMOTE_GATEWAY_API_TOKEN is required');
     }
   } else {
-    if (!hasEnv(env, 'OPC_REMOTE_GATEWAY_BASE_URL')) missing.push('OPC_REMOTE_GATEWAY_BASE_URL is required');
-    if (!hasEnv(env, 'OPC_REMOTE_GATEWAY_API_TOKEN')) missing.push('OPC_REMOTE_GATEWAY_API_TOKEN is required');
+    if (!hasEnv(env, 'CONVERACT_REMOTE_GATEWAY_BASE_URL')) missing.push('CONVERACT_REMOTE_GATEWAY_BASE_URL is required');
+    if (!hasEnv(env, 'CONVERACT_REMOTE_GATEWAY_API_TOKEN')) missing.push('CONVERACT_REMOTE_GATEWAY_API_TOKEN is required');
   }
-  if (!hasEnv(env, 'OPC_REMOTE_GATEWAY_TARGET_ID')) {
-    missing.push('OPC_REMOTE_GATEWAY_TARGET_ID is required');
+  if (!hasEnv(env, 'CONVERACT_REMOTE_GATEWAY_TARGET_ID')) {
+    missing.push('CONVERACT_REMOTE_GATEWAY_TARGET_ID is required');
   }
-  if (envFlag(env.OPC_RUSTDESK_CHECK_DEVICE_ONLINE)) {
-    if (!hasAnyEnv(env, ['OPC_REMOTE_GATEWAY_TENANT_ID', 'OPC_RUSTDESK_EDGE_TENANT_ID', 'OPC_TENANT_ID'])) {
-      missing.push('OPC_REMOTE_GATEWAY_TENANT_ID, OPC_RUSTDESK_EDGE_TENANT_ID, or OPC_TENANT_ID is required when OPC_RUSTDESK_CHECK_DEVICE_ONLINE=1');
+  if (envFlag(resolveBrandEnv(env, 'RUSTDESK_CHECK_DEVICE_ONLINE'))) {
+    if (!hasAnyEnv(env, ['CONVERACT_REMOTE_GATEWAY_TENANT_ID', 'CONVERACT_RUSTDESK_EDGE_TENANT_ID', 'CONVERACT_TENANT_ID'])) {
+      missing.push('CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID is required when CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE=1');
     }
-    if (!hasAnyEnv(env, ['OPC_API_KEY', 'OPC_COLLABORATION_API_KEY'])) {
-      missing.push('OPC_API_KEY or OPC_COLLABORATION_API_KEY is required when OPC_RUSTDESK_CHECK_DEVICE_ONLINE=1');
+    if (!hasAnyEnv(env, ['CONVERACT_API_KEY', 'CONVERACT_COLLABORATION_API_KEY'])) {
+      missing.push('CONVERACT_API_KEY or CONVERACT_COLLABORATION_API_KEY is required when CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE=1');
     }
   }
   return missing;
@@ -555,7 +556,7 @@ function missingRequirement(
     return hasEnv(env, requirement.key) ? null : `${requirement.key} is required`;
   }
   if (requirement.type === 'equals') {
-    return env[requirement.key]?.trim() === requirement.value
+    return resolveConveractEnv(env, requirement.key)?.trim() === requirement.value
       ? null
       : `${requirement.key} must equal ${requirement.value}`;
   }
@@ -563,7 +564,7 @@ function missingRequirement(
 }
 
 function hasEnv(env: NodeJS.ProcessEnv, key: string): boolean {
-  return Boolean(env[key]?.trim());
+  return Boolean(resolveConveractEnv(env, key)?.trim());
 }
 
 function hasAnyEnv(env: NodeJS.ProcessEnv, keys: string[]): boolean {
@@ -612,12 +613,12 @@ function captureMediaCustomerJoinPath(
   stdout: string,
   env: NodeJS.ProcessEnv
 ): void {
-  if (target !== 'media' || hasEnv(env, 'OPC_CUSTOMER_VIDEO_URL')) return;
+  if (target !== 'media' || hasEnv(env, 'CONVERACT_CUSTOMER_VIDEO_URL')) return;
   const payload = parseLastJsonObject(stdout);
   const joinPath = readString(payload?.customerJoinPath) || readString(payload?.customer_join_path);
   const roomName = readString(payload?.roomName) || readString(payload?.room_name);
-  if (joinPath) env.OPC_CUSTOMER_VIDEO_URL = joinPath;
-  if (roomName) env.OPC_VIDEO_READINESS_MEDIA_ROOM_NAME = roomName;
+  if (joinPath) env.CONVERACT_CUSTOMER_VIDEO_URL = joinPath;
+  if (roomName) env.CONVERACT_VIDEO_READINESS_MEDIA_ROOM_NAME = roomName;
 }
 
 function parseLastJsonObject(stdout: string): Record<string, unknown> | null {
@@ -653,12 +654,12 @@ async function cleanupChainedMediaRoom(
   steps: VideoReadinessSuiteStep[],
   continueOnFailure: boolean
 ): Promise<void> {
-  const roomName = env.OPC_VIDEO_READINESS_MEDIA_ROOM_NAME;
-  if (!roomName || env.OPC_VIDEO_READINESS_MEDIA_ROOM_CLEANED === '1') return;
+  const roomName = resolveBrandEnv(env, 'VIDEO_READINESS_MEDIA_ROOM_NAME');
+  if (!roomName || resolveBrandEnv(env, 'VIDEO_READINESS_MEDIA_ROOM_CLEANED') === '1') return;
 
-  const baseUrl = env.OPC_BASE_URL?.replace(/\/+$/, '') || '';
-  const tenantId = env.OPC_MEDIA_SMOKE_TENANT_ID || env.OPC_TENANT_ID || '';
-  const mediaApiToken = env.OPC_MEDIA_API_TOKEN || env.LIVEKIT_MEDIA_API_TOKEN || '';
+  const baseUrl = resolveBrandEnv(env, 'BASE_URL')?.replace(/\/+$/, '') || '';
+  const tenantId = resolveBrandEnv(env, 'MEDIA_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || '';
+  const mediaApiToken = resolveBrandEnv(env, 'MEDIA_API_TOKEN') || env.LIVEKIT_MEDIA_API_TOKEN || '';
   if (!baseUrl || !tenantId || !mediaApiToken) return;
 
   const startedAt = Date.now();
@@ -669,7 +670,7 @@ async function cleanupChainedMediaRoom(
     headers: { authorization: `Bearer ${mediaApiToken}` }
   });
   const responseBody = await response.text();
-  env.OPC_VIDEO_READINESS_MEDIA_ROOM_CLEANED = '1';
+  env.CONVERACT_VIDEO_READINESS_MEDIA_ROOM_CLEANED = '1';
   const step: VideoReadinessSuiteStep = {
     target: 'media-cleanup' as const,
     command: `POST ${url.pathname}`,

@@ -144,7 +144,7 @@ test('Compose runs an independent bounded RTPengine and persistent media-control
   );
   assert.equal(
     compose.secrets['component-node-token'].file,
-    '${OPC_IVEKIT_COMPONENT_NODE_TOKEN_FILE:?OPC_IVEKIT_COMPONENT_NODE_TOKEN_FILE is required}'
+    '${CONVERACT_FABRIC_COMPONENT_NODE_TOKEN_FILE:?CONVERACT_FABRIC_COMPONENT_NODE_TOKEN_FILE is required}'
   );
   assert.equal(
     compose.secrets['component-node-token'].environment,
@@ -152,7 +152,7 @@ test('Compose runs an independent bounded RTPengine and persistent media-control
   );
   assert.match(
     read('infra/converact/env.example'),
-    /^OPC_IVEKIT_COMPONENT_NODE_TOKEN_FILE=\.\/secrets\/component-node-token$/m
+    /^CONVERACT_FABRIC_COMPONENT_NODE_TOKEN_FILE=\.\/secrets\/component-node-token$/m
   );
   assert.ok(compose.volumes['media-control-wal']);
   assert.equal(mediaControl.read_only, true);

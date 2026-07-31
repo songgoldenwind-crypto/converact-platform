@@ -2,9 +2,13 @@
 # End-to-end dev smoke: requires OPC HTTP on :3000 and optional RustPBX on :8080
 set -euo pipefail
 
-BASE_URL="${OPC_BASE_URL:-http://localhost:3000}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/converact-env-compat.sh"
+converact_env_install_aliases
+
+BASE_URL="${CONVERACT_BASE_URL:-http://localhost:3000}"
 RWI_URL="${RUSTPBX_RWI_URL:-ws://localhost:8080/rwi}"
-API_KEY="${OPC_API_KEY:-}"
+API_KEY="${CONVERACT_API_KEY:-}"
 WEBHOOK_KEY="${RUSTPBX_WEBHOOK_KEY:-}"
 
 headers=(-H "Content-Type: application/json")

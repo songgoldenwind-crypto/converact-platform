@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
 
@@ -397,69 +398,69 @@ export class AtomicFilePlacementSnapshotSource {
 export function placementRuntimeConfig(
   env: NodeJS.ProcessEnv = process.env
 ): PlacementRuntimeConfig {
-  const enabled = optionalFlag(env.OPC_IVEKIT_PLACEMENT_ENABLED);
+  const enabled = optionalFlag(resolveFabricEnv(env, 'PLACEMENT_ENABLED'));
   if (!enabled) return { enabled: false };
   const snapshotKeys = signingKeyMap(
-    required(env, 'OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON'),
-    'OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON'
+    required(env, 'CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON'),
+    'CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON'
   );
   const tokenKeys = signingKeyMap(
-    required(env, 'OPC_IVEKIT_PLACEMENT_TOKEN_HMAC_KEYS_JSON'),
-    'OPC_IVEKIT_PLACEMENT_TOKEN_HMAC_KEYS_JSON'
+    required(env, 'CONVERACT_FABRIC_PLACEMENT_TOKEN_HMAC_KEYS_JSON'),
+    'CONVERACT_FABRIC_PLACEMENT_TOKEN_HMAC_KEYS_JSON'
   );
   const tokenKeyId = checkedIdentifier(
-    required(env, 'OPC_IVEKIT_PLACEMENT_TOKEN_KEY_ID'),
+    required(env, 'CONVERACT_FABRIC_PLACEMENT_TOKEN_KEY_ID'),
     'placement token key ID'
   );
   if (!tokenKeys[tokenKeyId]) {
-    throw new Error('OPC_IVEKIT_PLACEMENT_TOKEN_KEY_ID is not configured');
+    throw new Error('CONVERACT_FABRIC_PLACEMENT_TOKEN_KEY_ID is not configured');
   }
   return {
     enabled: true,
     snapshot_file: checkedAbsolutePath(
-      required(env, 'OPC_IVEKIT_PLACEMENT_SNAPSHOT_FILE')
+      required(env, 'CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE')
     ),
     snapshot_hmac_keys: snapshotKeys,
     token_hmac_keys: tokenKeys,
     token_key_id: tokenKeyId,
     admission_service_token: checkedServiceToken(
-      required(env, 'OPC_IVEKIT_CELL_ADMISSION_TOKEN')
+      required(env, 'CONVERACT_FABRIC_CELL_ADMISSION_TOKEN')
     ),
     home_region_id: checkedIdentifier(
-      required(env, 'OPC_IVEKIT_PLACEMENT_HOME_REGION_ID'),
+      required(env, 'CONVERACT_FABRIC_PLACEMENT_HOME_REGION_ID'),
       'placement home Region'
     ),
     failover_region_ids: checkedUniqueIdentifiers(
-      csv(env.OPC_IVEKIT_PLACEMENT_FAILOVER_REGION_IDS || ''),
+      csv(resolveFabricEnv(env, 'PLACEMENT_FAILOVER_REGION_IDS') || ''),
       'placement failover Region'
     ),
     snapshot_refresh_ms: envInteger(
-      env.OPC_IVEKIT_PLACEMENT_SNAPSHOT_REFRESH_MS,
+      resolveFabricEnv(env, 'PLACEMENT_SNAPSHOT_REFRESH_MS'),
       1_000,
       100,
       60_000,
-      'OPC_IVEKIT_PLACEMENT_SNAPSHOT_REFRESH_MS'
+      'CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_REFRESH_MS'
     ),
     stale_grace_ms: envInteger(
-      env.OPC_IVEKIT_PLACEMENT_STALE_GRACE_MS,
+      resolveFabricEnv(env, 'PLACEMENT_STALE_GRACE_MS'),
       30_000,
       0,
       300_000,
-      'OPC_IVEKIT_PLACEMENT_STALE_GRACE_MS'
+      'CONVERACT_FABRIC_PLACEMENT_STALE_GRACE_MS'
     ),
     admission_timeout_ms: envInteger(
-      env.OPC_IVEKIT_PLACEMENT_ADMISSION_TIMEOUT_MS,
+      resolveFabricEnv(env, 'PLACEMENT_ADMISSION_TIMEOUT_MS'),
       2_000,
       100,
       30_000,
-      'OPC_IVEKIT_PLACEMENT_ADMISSION_TIMEOUT_MS'
+      'CONVERACT_FABRIC_PLACEMENT_ADMISSION_TIMEOUT_MS'
     ),
     snapshot_max_bytes: envInteger(
-      env.OPC_IVEKIT_PLACEMENT_SNAPSHOT_MAX_BYTES,
+      resolveFabricEnv(env, 'PLACEMENT_SNAPSHOT_MAX_BYTES'),
       8 * 1024 * 1024,
       1_024,
       64 * 1024 * 1024,
-      'OPC_IVEKIT_PLACEMENT_SNAPSHOT_MAX_BYTES'
+      'CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_MAX_BYTES'
     )
   };
 }
@@ -539,13 +540,13 @@ function optionalFlag(value: string | undefined): boolean {
   const normalized = String(value || '').trim();
   if (!normalized) return false;
   if (normalized !== '0' && normalized !== '1') {
-    throw new Error('OPC_IVEKIT_PLACEMENT_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_FABRIC_PLACEMENT_ENABLED must be 0 or 1');
   }
   return normalized === '1';
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = String(env[key] || '').trim();
+  const value = String(resolveConveractEnv(env, key) || '').trim();
   if (!value) throw new Error(`${key} is required`);
   return value;
 }

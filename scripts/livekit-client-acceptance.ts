@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { createHash, verify as verifySignature } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -240,7 +241,7 @@ export function createLiveKitClientAcceptanceTemplate(
 export function writeLiveKitClientAcceptanceTemplate(
   config: LiveKitClientAcceptanceTemplateConfig
 ): LiveKitClientAcceptanceTemplateWriteResult {
-  if (!config.templateFile) throw new Error('OPC_LIVEKIT_ACCEPTANCE_TEMPLATE_FILE is required');
+  if (!config.templateFile) throw new Error('CONVERACT_LIVEKIT_ACCEPTANCE_TEMPLATE_FILE is required');
   const template = createLiveKitClientAcceptanceTemplate(config);
   mkdirSync(dirname(config.templateFile), { recursive: true });
   writeFileSync(config.templateFile, `${JSON.stringify(template, null, 2)}\n`, 'utf8');
@@ -912,14 +913,14 @@ function readJsonObject(path: string): Record<string, unknown> {
 }
 
 function configFromEnv(env: NodeJS.ProcessEnv): LiveKitClientAcceptanceConfig {
-  const reportFile = String(env.OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE || '').trim();
-  if (!reportFile) throw new Error('OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE is required');
-  const outputFile = String(env.OPC_LIVEKIT_ACCEPTANCE_OUTPUT_FILE || '').trim();
-  const qaPublicKeyFile = String(env.OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE || '').trim();
-  const qaPublicKeyFingerprint = String(env.OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT || '').trim();
-  const preflightReportFile = String(env.OPC_LIVEKIT_ACCEPTANCE_PREFLIGHT_REPORT_FILE || '').trim();
-  const serverEvidenceFile = String(env.OPC_LIVEKIT_ACCEPTANCE_SERVER_EVIDENCE_FILE || '').trim();
-  const readinessReportFile = String(env.OPC_LIVEKIT_ACCEPTANCE_READINESS_REPORT_FILE || '').trim();
+  const reportFile = String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_REPORT_FILE') || '').trim();
+  if (!reportFile) throw new Error('CONVERACT_LIVEKIT_ACCEPTANCE_REPORT_FILE is required');
+  const outputFile = String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_OUTPUT_FILE') || '').trim();
+  const qaPublicKeyFile = String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE') || '').trim();
+  const qaPublicKeyFingerprint = String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT') || '').trim();
+  const preflightReportFile = String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_PREFLIGHT_REPORT_FILE') || '').trim();
+  const serverEvidenceFile = String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_SERVER_EVIDENCE_FILE') || '').trim();
+  const readinessReportFile = String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_READINESS_REPORT_FILE') || '').trim();
   return {
     reportFile,
     ...(outputFile ? { outputFile } : {}),
@@ -934,9 +935,9 @@ function configFromEnv(env: NodeJS.ProcessEnv): LiveKitClientAcceptanceConfig {
 export function runLiveKitClientAcceptanceFromEnv(env: Record<string, string | undefined>):
   | LiveKitClientAcceptanceResult
   | { ok: false; status: 'not_run'; missing_environment: string[] } {
-  const reportFile = String(env.OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE || '').trim();
+  const reportFile = String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_REPORT_FILE') || '').trim();
   if (!reportFile) {
-    return { ok: false, status: 'not_run', missing_environment: ['OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE'] };
+    return { ok: false, status: 'not_run', missing_environment: ['CONVERACT_LIVEKIT_ACCEPTANCE_REPORT_FILE'] };
   }
   return runLiveKitClientAcceptance(configFromEnv(env));
 }
@@ -961,38 +962,38 @@ export function validateLiveKitClientAcceptancePaths(
 }
 
 function templateConfigFromEnv(env: NodeJS.ProcessEnv): LiveKitClientAcceptanceTemplateConfig {
-  const templateFile = String(env.OPC_LIVEKIT_ACCEPTANCE_TEMPLATE_FILE || '').trim();
-  if (!templateFile) throw new Error('OPC_LIVEKIT_ACCEPTANCE_TEMPLATE_FILE is required');
-  const mode = String(env.OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE || 'standalone-vm').trim();
+  const templateFile = String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_TEMPLATE_FILE') || '').trim();
+  if (!templateFile) throw new Error('CONVERACT_LIVEKIT_ACCEPTANCE_TEMPLATE_FILE is required');
+  const mode = String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE') || 'standalone-vm').trim();
   if (mode !== 'standalone-vm' && mode !== 'external') {
-    throw new Error('OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE must be standalone-vm or external');
+    throw new Error('CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE must be standalone-vm or external');
   }
   return {
     templateFile,
-    environmentId: String(env.OPC_LIVEKIT_ACCEPTANCE_ENVIRONMENT_ID || 'replace-with-environment-id').trim(),
+    environmentId: String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_ENVIRONMENT_ID') || 'replace-with-environment-id').trim(),
     deploymentMode: mode,
-    deployedCommit: String(env.OPC_LIVEKIT_ACCEPTANCE_DEPLOYED_COMMIT || 'replace-with-40-char-git-sha').trim(),
-    operator: String(env.OPC_LIVEKIT_ACCEPTANCE_OPERATOR || 'replace-with-operator').trim(),
-    checkedAt: String(env.OPC_LIVEKIT_ACCEPTANCE_CHECKED_AT || '').trim(),
-    runId: String(env.OPC_LIVEKIT_ACCEPTANCE_RUN_ID || 'replace-with-run-id').trim(),
+    deployedCommit: String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_DEPLOYED_COMMIT') || 'replace-with-40-char-git-sha').trim(),
+    operator: String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_OPERATOR') || 'replace-with-operator').trim(),
+    checkedAt: String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_CHECKED_AT') || '').trim(),
+    runId: String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_RUN_ID') || 'replace-with-run-id').trim(),
     deploymentFingerprint: String(
-      env.OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_FINGERPRINT || 'replace-with-deployment-fingerprint'
+      resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_DEPLOYMENT_FINGERPRINT') || 'replace-with-deployment-fingerprint'
     ).trim(),
-    runStartedAt: String(env.OPC_LIVEKIT_ACCEPTANCE_STARTED_AT || '').trim()
+    runStartedAt: String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_STARTED_AT') || '').trim()
   };
 }
 
 async function main(): Promise<void> {
-  const templateFile = String(process.env.OPC_LIVEKIT_ACCEPTANCE_TEMPLATE_FILE || '').trim();
-  const runbookFile = String(process.env.OPC_LIVEKIT_ACCEPTANCE_RUNBOOK_FILE || '').trim();
-  const reportFile = String(process.env.OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE || '').trim();
+  const templateFile = String(resolveBrandEnv(process.env, 'LIVEKIT_ACCEPTANCE_TEMPLATE_FILE') || '').trim();
+  const runbookFile = String(resolveBrandEnv(process.env, 'LIVEKIT_ACCEPTANCE_RUNBOOK_FILE') || '').trim();
+  const reportFile = String(resolveBrandEnv(process.env, 'LIVEKIT_ACCEPTANCE_REPORT_FILE') || '').trim();
   if (!templateFile && !runbookFile && !reportFile) {
     const result = runLiveKitClientAcceptanceFromEnv(process.env);
     console.log(JSON.stringify(result, null, 2));
     process.exitCode = 2;
     return;
   }
-  const outputFile = String(process.env.OPC_LIVEKIT_ACCEPTANCE_OUTPUT_FILE || '').trim();
+  const outputFile = String(resolveBrandEnv(process.env, 'LIVEKIT_ACCEPTANCE_OUTPUT_FILE') || '').trim();
   validateLiveKitClientAcceptancePaths(templateFile || undefined, reportFile || undefined, outputFile || undefined);
   if (templateFile && reportFile) {
     throw new Error('Template generation and report validation are mutually exclusive modes');

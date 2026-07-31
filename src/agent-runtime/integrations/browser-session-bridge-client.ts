@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 export interface BrowserSessionBridgeClientOptions {
   baseUrl?: string | null;
   timeoutMs?: number;
@@ -8,8 +9,8 @@ export class BrowserSessionBridgeClient {
   timeoutMs: number;
 
   constructor(options: BrowserSessionBridgeClientOptions = {}) {
-    this.baseUrl = options.baseUrl || process.env.OPC_BROWSER_SESSION_BRIDGE_URL || process.env.OPC_PROVIDER_GATEWAY_URL || null;
-    this.timeoutMs = Number(options.timeoutMs || process.env.OPC_BROWSER_SESSION_BRIDGE_TIMEOUT_MS || 4000);
+    this.baseUrl = options.baseUrl || resolveBrandEnv(process.env, 'BROWSER_SESSION_BRIDGE_URL') || resolveBrandEnv(process.env, 'PROVIDER_GATEWAY_URL') || null;
+    this.timeoutMs = Number(options.timeoutMs || resolveBrandEnv(process.env, 'BROWSER_SESSION_BRIDGE_TIMEOUT_MS') || 4000);
   }
 
   isConfigured(runtimeConfig: Record<string, unknown> = {}): boolean {

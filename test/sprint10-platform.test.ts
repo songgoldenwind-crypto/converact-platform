@@ -29,7 +29,7 @@ function authHeaders(tenantId: string) {
 
 before(() => {
   useMemoryRedisForTests();
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
 });
 
 describe('Sprint 10 webhooks', () => {
@@ -158,8 +158,8 @@ describe('Sprint 10 analytics & journey', () => {
   });
 
   it('sprint10 HTTP: video start returns signed tenant-aware customer join path', async () => {
-    const previousInviteSecret = process.env.OPC_MEDIA_INVITE_SECRET;
-    process.env.OPC_MEDIA_INVITE_SECRET = 'sprint10-video-invite-secret';
+    const previousInviteSecret = process.env.CONVERACT_MEDIA_INVITE_SECRET;
+    process.env.CONVERACT_MEDIA_INVITE_SECRET = 'sprint10-video-invite-secret';
 
     try {
       const db = createDatabase(':memory:');
@@ -200,8 +200,8 @@ describe('Sprint 10 analytics & journey', () => {
         true
       );
     } finally {
-      if (previousInviteSecret == null) delete process.env.OPC_MEDIA_INVITE_SECRET;
-      else process.env.OPC_MEDIA_INVITE_SECRET = previousInviteSecret;
+      if (previousInviteSecret == null) delete process.env.CONVERACT_MEDIA_INVITE_SECRET;
+      else process.env.CONVERACT_MEDIA_INVITE_SECRET = previousInviteSecret;
     }
   });
 });
@@ -242,10 +242,10 @@ describe('Sprint 10 SSO & white-label', () => {
       redirect_uri: 'http://localhost/login'
     });
 
-    process.env.OPC_JWT_SECRET = 'test-sso-secret';
+    process.env.CONVERACT_JWT_SECRET = 'test-sso-secret';
     const { createSsoState, _clearOidcDiscoveryCache } = await import('../src/oidc-client.js');
     _clearOidcDiscoveryCache();
-    const { state } = createSsoState(tenant.id, process.env.OPC_JWT_SECRET);
+    const { state } = createSsoState(tenant.id, process.env.CONVERACT_JWT_SECRET);
 
     const payload = Buffer.from(
       JSON.stringify({

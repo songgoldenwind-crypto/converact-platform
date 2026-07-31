@@ -57,7 +57,12 @@ test('Tinode closed-session migration pauses cursors and excludes closed session
   assert.match(sql, /session\.status = 'open'/);
   assert.match(sql, /REVOKE ALL ON FUNCTION opc_tinode_inbound_tenant_ids/);
   assert.equal(policy.migrations.includes('105_tinode_closed_session_inbound.sql'), true);
-  assert.equal(policy.migrations.at(-1), '106_tinode_open_session_mutation_queue.sql');
+  assert.equal(policy.migrations.includes('106_tinode_open_session_mutation_queue.sql'), true);
+  assert.equal(
+    policy.migrations.indexOf('106_tinode_open_session_mutation_queue.sql') <
+      policy.migrations.indexOf('107_ivekit_sip_effect_oracle.sql'),
+    true
+  );
 
   assert.match(store, /async pauseBinding/);
   assert.equal((store.match(/session\.status = 'open'/g) || []).length >= 2, true);

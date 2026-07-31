@@ -5,7 +5,7 @@ param(
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$TargetId,
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$RustDeskId,
   [ValidatePattern('^$|^[1-9][0-9]{0,18}$')][string]$NativeSessionId = '',
-  [string]$RegistryFile = $env:OPC_RUSTDESK_SESSION_REGISTRY_FILE,
+  [string]$RegistryFile = $env:CONVERACT_RUSTDESK_SESSION_REGISTRY_FILE,
   [ValidateRange(60, 604800)][int]$TtlSeconds = 86400
 )
 

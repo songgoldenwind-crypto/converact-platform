@@ -153,7 +153,7 @@ async function routingFixture(options: {
 } = {}) {
   const pg = new MemoryPg();
   const registry = createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
       profile('tts-primary', 'tts', 'self_hosted', 'ivekit_tts_v1', options.tts_max_concurrency),
       profile('tts-fallback', 'tts', 'self_hosted', 'ivekit_tts_v1', options.tts_max_concurrency),
       profile('tts-third-party', 'tts', 'third_party', 'ivekit_tts_v1'),

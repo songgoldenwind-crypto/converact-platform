@@ -139,16 +139,16 @@ test('component placement forwards trusted Cell and node affinity for accepted i
 
 test('component placement policies are explicit and reject empty capacity', () => {
   const policy = componentPlacementPolicyConfig({
-    OPC_IVEKIT_PLACEMENT_VOICE_POLICY_JSON: JSON.stringify({
+    CONVERACT_FABRIC_PLACEMENT_VOICE_POLICY_JSON: JSON.stringify({
       profile_id: 'cell-10k-v1',
       fixed_capacity: { 'voice.weighted_calls': 1 }
     })
-  }, 'OPC_IVEKIT_PLACEMENT_VOICE_POLICY_JSON');
+  }, 'CONVERACT_FABRIC_PLACEMENT_VOICE_POLICY_JSON');
   assert.deepEqual(policy.fixed_capacity, { 'voice.weighted_calls': 1 });
   assert.throws(
     () => componentPlacementPolicyConfig(
-      { OPC_IVEKIT_PLACEMENT_VOICE_POLICY_JSON: '{"profile_id":"cell-10k-v1","fixed_capacity":{}}' },
-      'OPC_IVEKIT_PLACEMENT_VOICE_POLICY_JSON'
+      { CONVERACT_FABRIC_PLACEMENT_VOICE_POLICY_JSON: '{"profile_id":"cell-10k-v1","fixed_capacity":{}}' },
+      'CONVERACT_FABRIC_PLACEMENT_VOICE_POLICY_JSON'
     ),
     /capacity/
   );

@@ -12,6 +12,8 @@ on:
       - 'scripts/rustdesk-edge-command.ts'
       - 'scripts/rustdesk-edge-pending-store.ts'
       - 'scripts/rustdesk-edge-adapters/windows-*.ps1'
+      - 'scripts/converact-env-compat.ps1'
+      - 'scripts/test-converact-env-compat.ps1'
       - 'scripts/rustdesk-windows/**'
       - 'scripts/rustdesk-windows-capability-policy.ts'
       - 'scripts/rustdesk-windows-package.ts'
@@ -28,6 +30,8 @@ on:
       - 'scripts/rustdesk-edge-command.ts'
       - 'scripts/rustdesk-edge-pending-store.ts'
       - 'scripts/rustdesk-edge-adapters/windows-*.ps1'
+      - 'scripts/converact-env-compat.ps1'
+      - 'scripts/test-converact-env-compat.ps1'
       - 'scripts/rustdesk-windows/**'
       - 'scripts/rustdesk-windows-capability-policy.ts'
       - 'scripts/rustdesk-windows-package.ts'
@@ -60,6 +64,10 @@ jobs:
           node-version: '24'
 
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+
+      - name: Verify Converact environment compatibility
+        shell: pwsh
+        run: ./scripts/test-converact-env-compat.ps1
 
       - name: Apply iveKit native overlay
         run: node integrations/rustdesk-1.4.9/apply-overlay.mjs .tmp/rustdesk-1.4.9
@@ -115,14 +123,14 @@ jobs:
       - name: Generate controlled fixed-version package
         run: npm run rustdesk:windows-package
         env:
-          OPC_RUSTDESK_WINDOWS_PACKAGE_DIR: artifacts/rustdesk-windows-controlled
-          OPC_RUSTDESK_WINDOWS_PROFILE_FILE: test/fixtures/rustdesk-windows/client-profile.json
-          OPC_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE: test/fixtures/rustdesk-windows/network-config.txt
-          OPC_RUSTDESK_WINDOWS_SOURCE_COMMIT: ${{ github.sha }}
-          OPC_RUSTDESK_WINDOWS_EXPECTED_FINGERPRINT: sha256:1234567890abcdef
-          OPC_RUSTDESK_WINDOWS_WINSW_VERSION: 2.12.0
-          OPC_RUSTDESK_WINDOWS_WINSW_URL: https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe
-          OPC_RUSTDESK_WINDOWS_WINSW_SHA256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+          CONVERACT_RUSTDESK_WINDOWS_PACKAGE_DIR: artifacts/rustdesk-windows-controlled
+          CONVERACT_RUSTDESK_WINDOWS_PROFILE_FILE: test/fixtures/rustdesk-windows/client-profile.json
+          CONVERACT_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE: test/fixtures/rustdesk-windows/network-config.txt
+          CONVERACT_RUSTDESK_WINDOWS_SOURCE_COMMIT: ${{ github.sha }}
+          CONVERACT_RUSTDESK_WINDOWS_EXPECTED_FINGERPRINT: sha256:1234567890abcdef
+          CONVERACT_RUSTDESK_WINDOWS_WINSW_VERSION: 2.12.0
+          CONVERACT_RUSTDESK_WINDOWS_WINSW_URL: https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe
+          CONVERACT_RUSTDESK_WINDOWS_WINSW_SHA256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       - name: Run read-only controlled validation
         shell: powershell

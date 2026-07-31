@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import {
   lstatSync,
@@ -103,7 +104,7 @@ const GROUP_TEMPLATE: Record<IveKitV6RealAcceptanceGroupId, {
   notifications: {
     reason_code: 'commercial_notification_provider_unavailable',
     reason: 'Commercial email and SMS accounts with verified sender identities are unavailable.',
-    command: 'node --import tsx scripts/ivekit-v6-real-acceptance.ts --mode validate --manifest "$OPC_IVEKIT_V6_REAL_ACCEPTANCE_MANIFEST"'
+    command: 'node --import tsx scripts/ivekit-v6-real-acceptance.ts --mode validate --manifest "$CONVERACT_FABRIC_V6_REAL_ACCEPTANCE_MANIFEST"'
   },
   object_storage: {
     reason_code: 'production_object_storage_unavailable',
@@ -324,17 +325,17 @@ function argument(name: string): string {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const mode = argument('--mode') || 'validate';
-  const manifestFile = argument('--manifest') || process.env.OPC_IVEKIT_V6_REAL_ACCEPTANCE_MANIFEST || '';
-  if (!manifestFile) throw new Error('--manifest or OPC_IVEKIT_V6_REAL_ACCEPTANCE_MANIFEST is required');
+  const manifestFile = argument('--manifest') || resolveFabricEnv(process.env, 'V6_REAL_ACCEPTANCE_MANIFEST') || '';
+  if (!manifestFile) throw new Error('--manifest or CONVERACT_FABRIC_V6_REAL_ACCEPTANCE_MANIFEST is required');
   if (mode === 'template') {
-    const sourceCommit = argument('--source-commit') || process.env.OPC_IVEKIT_ACCEPTANCE_SOURCE_COMMIT || '';
+    const sourceCommit = argument('--source-commit') || resolveFabricEnv(process.env, 'ACCEPTANCE_SOURCE_COMMIT') || '';
     const template = createIveKitV6RealAcceptanceTemplate({ source_commit: sourceCommit });
     const output = resolve(manifestFile);
     mkdirSync(dirname(output), { recursive: true });
     writeFileSync(output, `${JSON.stringify(template, null, 2)}\n`, { flag: 'wx' });
     console.log(JSON.stringify({ status: 'template_created', manifest: output }));
   } else if (mode === 'validate') {
-    const expected = argument('--source-commit') || process.env.OPC_IVEKIT_ACCEPTANCE_SOURCE_COMMIT;
+    const expected = argument('--source-commit') || resolveFabricEnv(process.env, 'ACCEPTANCE_SOURCE_COMMIT');
     const manifest = readAndValidateIveKitV6RealAcceptance(manifestFile, expected);
     console.log(JSON.stringify({
       status: 'valid',

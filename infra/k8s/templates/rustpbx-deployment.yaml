@@ -452,29 +452,29 @@ spec:
           imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
           command: ["node", "--import", "tsx", "src/converact-rustpbx-recording-spool.ts"]
           env:
-            - name: OPC_IVEKIT_RECORDING_BASE_URL
+            - name: CONVERACT_FABRIC_RECORDING_BASE_URL
               value: {{ printf "http://%s-opc:3000" .Release.Name | quote }}
-            - name: OPC_IVEKIT_RECORDING_PROFILE_ID
+            - name: CONVERACT_FABRIC_RECORDING_PROFILE_ID
               value: {{ $profileId | quote }}
-            - name: OPC_IVEKIT_RECORDING_WORKER_ID
+            - name: CONVERACT_FABRIC_RECORDING_WORKER_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_RECORDING_SPOOL_DIR
+            - name: CONVERACT_FABRIC_RECORDING_SPOOL_DIR
               value: /app/recording-spool
-            - name: OPC_IVEKIT_RECORDING_STATE_DIR
+            - name: CONVERACT_FABRIC_RECORDING_STATE_DIR
               value: /app/recording-state
-            - name: OPC_IVEKIT_RECORDING_SERVICE_KEY_FILE
+            - name: CONVERACT_FABRIC_RECORDING_SERVICE_KEY_FILE
               value: /run/ivekit-recording-secrets/rustpbx-recording-service-key
-            - name: OPC_IVEKIT_RECORDING_LEASE_SECRET_FILE
+            - name: CONVERACT_FABRIC_RECORDING_LEASE_SECRET_FILE
               value: /run/ivekit-recording-secrets/rustpbx-recording-lease-secret
-            - name: OPC_IVEKIT_RECORDING_PART_SIZE_BYTES
+            - name: CONVERACT_FABRIC_RECORDING_PART_SIZE_BYTES
               value: {{ .Values.voice.recordingSpool.partSizeBytes | quote }}
-            - name: OPC_IVEKIT_RECORDING_LEASE_MS
+            - name: CONVERACT_FABRIC_RECORDING_LEASE_MS
               value: {{ .Values.voice.recordingSpool.leaseMs | quote }}
-            - name: OPC_IVEKIT_RECORDING_UPLOAD_CONCURRENCY
+            - name: CONVERACT_FABRIC_RECORDING_UPLOAD_CONCURRENCY
               value: {{ .Values.voice.recordingSpool.uploadConcurrency | quote }}
-            - name: OPC_IVEKIT_RECORDING_POLL_INTERVAL_MS
+            - name: CONVERACT_FABRIC_RECORDING_POLL_INTERVAL_MS
               value: {{ .Values.voice.recordingSpool.pollIntervalMs | quote }}
           volumeMounts:
             - name: recording-spool
@@ -499,69 +499,69 @@ spec:
               containerPort: {{ .Values.voice.componentNode.port }}
               protocol: TCP
           env:
-            - name: OPC_IVEKIT_COMPONENT_NODE_HOST
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_HOST
               value: "0.0.0.0"
-            - name: OPC_IVEKIT_COMPONENT_NODE_PORT
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_PORT
               value: {{ .Values.voice.componentNode.port | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_TOKEN
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: {{ .Values.voice.componentNode.tokenKey }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_COMPONENT
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT
               value: rustpbx
-            - name: OPC_IVEKIT_COMPONENT_NODE_REGION_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_REGION_ID
               value: {{ .Values.voice.componentNode.regionId | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_ZONE_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_ZONE_ID
               value: {{ .Values.voice.componentNode.zoneId | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_CELL_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_CELL_ID
               value: {{ $cellId | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_IDS
               value: {{ join "," .Values.voice.componentNode.profileIds | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON
               value: {{ .Values.voice.componentNode.profileRequirementsJson | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_READINESS_PROFILE_IDS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_READINESS_PROFILE_IDS
               value: {{ join "," .Values.voice.componentNode.readinessProfileIds | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_INTERACTION_KINDS
               value: sip_voice
-            - name: OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_DIMENSIONS_JSON
               value: {{ .Values.voice.componentNode.dimensionsJson | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_ENABLED
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_READINESS_ENABLED
               value: {{ ternary "true" "false" .Values.voice.mediaControl.enabled | quote }}
             {{- if .Values.voice.mediaControl.enabled }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE
               value: /app/route-snapshot/routes.json
-            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_HMAC_KEY_FILE
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_SNAPSHOT_HMAC_KEY_FILE
               value: /run/rustpbx-route-secrets/hmac-key
-            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_TENANT_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_TENANT_ID
               value: {{ $tenantId | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_PROFILE_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_PROFILE_ID
               value: {{ $profileId | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT
               value: {{ .Values.voice.mediaControl.endpoint | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE
               value: {{ printf "/run/media-control-client-tls/%s" .Values.voice.mediaControl.identityFile | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_CA_FILE
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_TLS_CA_FILE
               value: {{ printf "/run/media-control-client-tls/%s" .Values.voice.mediaControl.caFile | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_TIMEOUT_MS
               value: {{ .Values.voice.mediaControl.readinessTimeoutMs | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS
               value: {{ .Values.voice.mediaControl.readinessRefreshMs | quote }}
             {{- end }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_TERMINAL_RETENTION_MS
               value: {{ .Values.voice.componentNode.terminalRetentionMs | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_SWEEP_INTERVAL_MS
               value: {{ .Values.voice.componentNode.sweepIntervalMs | quote }}
             {{- if .Values.voice.recordingSpool.enabled }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE
               value: /app/recording-state/metrics.json
-            - name: OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_REFRESH_MS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_RECORDING_SPOOL_REFRESH_MS
               value: {{ .Values.voice.recordingSpool.metricsRefreshMs | quote }}
-            - name: OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_STALE_MS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_RECORDING_SPOOL_STALE_MS
               value: {{ .Values.voice.recordingSpool.metricsStaleMs | quote }}
             {{- end }}
           readinessProbe:
@@ -619,56 +619,56 @@ spec:
                   name: {{ include "opc.databaseUrlSecretName" . }}
                   key: {{ include "opc.databaseUrlSecretKey" . }}
             {{ include "opc.redisClientEnv" . | nindent 12 }}
-            - name: OPC_IVEKIT_PROVIDER_PROFILES_JSON
+            - name: CONVERACT_FABRIC_PROVIDER_PROFILES_JSON
               value: {{ .Values.intelligence.providerProfilesJson | default "[]" | quote }}
-            - name: OPC_IVEKIT_OCR_TOKEN
+            - name: CONVERACT_FABRIC_OCR_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: ivekit-ocr-provider-token
-            - name: OPC_IVEKIT_ASR_TOKEN
+            - name: CONVERACT_FABRIC_ASR_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: ivekit-asr-provider-token
-            - name: OPC_IVEKIT_QUALITY_TOKEN
+            - name: CONVERACT_FABRIC_QUALITY_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: ivekit-quality-provider-token
-            - name: OPC_IVEKIT_TRANSLATION_TOKEN
+            - name: CONVERACT_FABRIC_TRANSLATION_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: ivekit-translation-provider-token
-            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED
+            - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED
               value: "1"
-            - name: OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED
+            - name: CONVERACT_FABRIC_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED
               value: "1"
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
+            - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: realtime-audio-tap-hmac-secret-b64
-            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
+            - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
               value: {{ .Values.media.realtimeAudioTap.tokenTtlSeconds | quote }}
-            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_SOCKET_PATH
+            - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_SOCKET_PATH
               value: /run/ivekit/realtime-audio-tap.sock
-            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_MAX_CONNECTIONS
+            - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_MAX_CONNECTIONS
               value: {{ .Values.media.realtimeAudioTap.maxConnections | quote }}
-            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_PRESTART_BUFFER_MS
+            - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_PRESTART_BUFFER_MS
               value: {{ .Values.media.realtimeAudioTap.prestartBufferMs | quote }}
-            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_IDLE_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_IDLE_TIMEOUT_MS
               value: {{ .Values.media.realtimeAudioTap.idleTimeoutMs | quote }}
-            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS
               value: {{ .Values.media.realtimeAudioTap.shutdownTimeoutMs | quote }}
-            - name: OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS
+            - name: CONVERACT_FABRIC_REALTIME_PROJECTION_QUEUE_MAX_ITEMS
               value: {{ .Values.media.realtimeAudioTap.projectionQueueMaxItems | quote }}
-            - name: OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS
               value: {{ .Values.media.realtimeAudioTap.projectionShutdownTimeoutMs | quote }}
-            - name: OPC_REALTIME_SPEECH_RETENTION_DAYS
+            - name: CONVERACT_REALTIME_SPEECH_RETENTION_DAYS
               value: {{ .Values.media.realtimeAudioTap.retentionDays | quote }}
           readinessProbe:
             exec:

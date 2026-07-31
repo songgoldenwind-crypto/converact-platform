@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../../../config/converact-env.js';
 import { VoiceError } from './errors.js';
 
 export interface EnvVoiceSecretResolverOptions {
@@ -28,7 +29,7 @@ export class EnvVoiceSecretResolver {
     if (!name || !this.#allowlist.get(purpose)?.has(name)) {
       throw new VoiceError({ code: 'secret_ref_invalid', status: 422 });
     }
-    const value = this.#env[name];
+    const value = resolveConveractEnv(this.#env, name);
     if (!value) throw new VoiceError({ code: 'secret_unavailable', retryable: true, status: 503 });
     return value;
   }

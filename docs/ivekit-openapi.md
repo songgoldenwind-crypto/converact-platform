@@ -772,14 +772,14 @@ business ref、scope 或 control ownership。创建请求只允许当前会话�
 salt 与 server-side pepper HMAC，默认 TTL 300 秒、范围 60-900 秒，默认最多 5 次、范围 1-10 次。
 错误 code 使用统一 403，不披露 pending/expired/locked/not-found 差异。
 
-验证成功后 authorization 绑定当前 active engineer identity。`OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE=1`
+验证成功后 authorization 绑定当前 active engineer identity。`CONVERACT_RUSTDESK_REQUIRE_AUTHORIZATION_CODE=1`
 时，attended `POST .../gateway-sessions` 必须携带顶层 `authorization_id`；启动前后都会重新检查
 tenant/remote/device/scopes/engineer/consent，网关激活与 consume 位于同一 PostgreSQL 事务。
 上游创建或复核失败不会消耗 code；成功后状态为 `consumed` 并绑定唯一
 `consumed_external_id`，重放失败。该开关关闭时保持旧 attended 合同；调用方一旦主动传入
 `authorization_id`，仍按严格规则验证并消费。unattended 不使用此 code，继续执行 access policy
 与 `unattended_launch` 二次确认。部署严格模式还必须注入至少 32 bytes 的
-`OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET`。
+`CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET`。
 
 SDK 对应方法为 `requestAuthorizationCode(input,{idempotencyKey})`、
 `getAuthorizationCode(id)`、`verifyAuthorizationCode(id,{code})`；
@@ -800,8 +800,8 @@ version。`source_adapter` 只允许 `native_client|rustdesk_log|companion_hook`
 敏感正文和未来/会话前时间均拒绝。control/file/clipboard 的 actor 由服务端当前 control owner 决定，
 存储事务会再次校验 ownership，避免检查后换人的竞态。
 
-companion 监听 `OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR` 中通过原子 rename 放入的 `.json` 文件，先
-写入 `OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR`，再删除 inbox 文件并上传。状态机为
+companion 监听 `CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR` 中通过原子 rename 放入的 `.json` 文件，先
+写入 `CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR`，再删除 inbox 文件并上传。状态机为
 `received -> forwarding -> forwarded|dead_letter`；重启会回收过期 forwarding lease，批次重试依赖
 服务端幂等键。成功终态删除原始 observation，仅保留 SHA-256；非法输入进入只含文件名、hash、
 原因和时间的脱敏 quarantine。token、剪贴板/文件/画面/按键/录屏正文不会写入 spool。
@@ -815,14 +815,14 @@ tenant、device、edge instance、gateway session、operation、size 和 hash。
 
 定制 RustDesk 1.4.9 客户端默认从 `%ProgramData%\iveKit\RustDesk\state\native-evidence-roots-v1.txt`
 读取文件传输和录屏白名单。启动时只建立现有文件基线；之后的新文件必须是非链接普通文件、连续两次
-扫描保持大小稳定，才会在 `OPC_RUSTDESK_NATIVE_EVIDENCE_CANDIDATE_DIR` 原子生成不含文件正文的候选记录。
+扫描保持大小稳定，才会在 `CONVERACT_RUSTDESK_NATIVE_EVIDENCE_CANDIDATE_DIR` 原子生成不含文件正文的候选记录。
 候选记录只携带根类型、受控源路径、文件名、字节数、观察时间和当时 active controller RustDesk ID。
 
 companion 使用 device token 调用 `/evidence-context`，按 device、controller、operation、预期文件名和
-时间窗做唯一匹配。零个或多个匹配都不会上传；超过 `OPC_RUSTDESK_NATIVE_EVIDENCE_MAX_PENDING_MS`
+时间窗做唯一匹配。零个或多个匹配都不会上传；超过 `CONVERACT_RUSTDESK_NATIVE_EVIDENCE_MAX_PENDING_MS`
 仍不能唯一匹配时，只写脱敏 quarantine。唯一匹配会转换为固定 `rustdesk-native-evidence-v1` event，
-再由 watcher 将受控副本送入 `OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR`，恢复状态写入
-`OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR`。uploader 随后进入统一 secure-file 流程。
+再由 watcher 将受控副本送入 `CONVERACT_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR`，恢复状态写入
+`CONVERACT_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR`。uploader 随后进入统一 secure-file 流程。
 
 gateway session 结束后保留 15 分钟 finalization window，用于 RustDesk 在断开后 flush 并稳定录屏文件。`observed_at` 和服务端收到时间都必须不晚于 `ended_at + 15min`；超过窗口仍返回 409，不会因为客户端回拨时钟而无限延长。
 
@@ -850,7 +850,7 @@ gateway session 结束后保留 15 分钟 finalization window，用于 RustDesk 
 删除，不会再次上传远端内容，也不会留下失去索引的敏感孤儿文件。状态文件不保存 token 或绝对路径。非法
 manifest 只留下文件名、原文 hash、原因和时间。LED/OPC 业务 SDK 不直接调用这些 device-token 路由。
 
-不可重试 4xx 或达到最大尝试次数的记录进入本地 `dead_letter`，payload 与可追踪状态一起保留，不会被终态压缩单独抛弃。`OPC_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS` 默认 7 天；到期或超过 `OPC_RUSTDESK_EDGE_EVIDENCE_MAX_TERMINAL_RECORDS` 时先删除受管 payload，再原子移除状态。secure-file 已成功上传的服务端保留策略不受该设备侧参数影响。ready/clean 证据的智能补偿会对确定的 `unsupported|ignored` 写持久终态标记，使其退出候选队列；`not_ready` 和异常仍保持可重试，旧不支持文件不会饿死后续 OCR/ASR/AI 任务。
+不可重试 4xx 或达到最大尝试次数的记录进入本地 `dead_letter`，payload 与可追踪状态一起保留，不会被终态压缩单独抛弃。`CONVERACT_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS` 默认 7 天；到期或超过 `CONVERACT_RUSTDESK_EDGE_EVIDENCE_MAX_TERMINAL_RECORDS` 时先删除受管 payload，再原子移除状态。secure-file 已成功上传的服务端保留策略不受该设备侧参数影响。ready/clean 证据的智能补偿会对确定的 `unsupported|ignored` 写持久终态标记，使其退出候选队列；`not_ready` 和异常仍保持可重试，旧不支持文件不会饿死后续 OCR/ASR/AI 任务。
 
 `events` 保留既有 control/file/clipboard/recording 事件，并新增 canonical
 `remote.rustdesk.operation.observed`。metadata 必须包含 `operation_id`、`operation`、
@@ -965,7 +965,7 @@ URL raw basename 必须与 filename 完全一致，不接受 whitespace、contro
 `rustdesk-1.4.9-x86_64.deb` 或 `rustdesk-1.4.9-aarch64.deb`；platform 由请求 tuple
 和 extension 绑定，filename 不添加 `windows/macos/linux` token。
 
-Artifact 只从 `OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON` 的显式 manifest 读取；缺少某个
+Artifact 只从 `CONVERACT_RUSTDESK_CLIENT_ARTIFACTS_JSON` 的显式 manifest 读取；缺少某个
 tuple 时 profile 返回 `install_source.state=not_configured`，不会猜 URL 或 checksum。
 `rustdesk:client-profile-pack` 聚合五个 desktop tuple，任一 artifact 缺失时
 `ready=false`；每个 response 到达后立即使用新的 clock 验证，聚合完成时再使用新的
@@ -974,7 +974,7 @@ completion clock 重新验证全部 profile 和最早
 `mode=attended_only,state=not_configured`。profile 响应使用
 `Cache-Control: private, no-store`，并按认证、tenant 与 Origin 设置 `Vary`。
 部署必须显式设置 `RUSTDESK_SERVER_IMAGE_TAG=1.1.16`；生产 Compose/Helm 还必须使用批准仓库且携带 digest 的 `RUSTDESK_SERVER_IMAGE`。Helm/Compose 同时向 OPC 注入
-`OPC_RUSTDESK_CLIENT_VERSION=1.4.9`、`OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS=900`
+`CONVERACT_RUSTDESK_CLIENT_VERSION=1.4.9`、`CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS=900`
 和显式 artifact manifest，RustDesk server pods 与 OPC 必须使用同一 server 版本身份。
 
 设备 claim/progress/result 路径只允许设备绑定 edge token，不属于 LED 普通前端/API key 的调用面。完整 scope、事件和验收规则见 RustDesk 专项设计。
@@ -1142,7 +1142,7 @@ Notification 输入包含 `event_type`、`recipient`、`targets[]`、`content`�
 
 投递状态为 `pending -> processing -> delivered|accepted|retry_wait|uncertain|failed|dead_letter`。`accepted` 不是最终送达，需等待 Provider receipt；Webhook 或无回执 Provider 可在 2xx 后以明确语义写 `delivered`。请求超时且 Provider 是否接收未知时进入 `uncertain`，禁止自动重放。只有具备 `notifications.force_delivery` 的管理员在 Provider 侧查重后才能提交 `allow_uncertain=true`；状态或 revision 已变化返回 409。
 
-Endpoint 主动健康 Worker 由 `OPC_IVEKIT_NOTIFICATION_HEALTH_WORKER_ENABLED` 显式开启。HTTP 探针做 DNS/公网地址复验、端口 allowlist、禁重定向和超时控制；SMTP 只调用 `verify()`，不发送测试邮件。多实例通过 `FOR UPDATE SKIP LOCKED`、随机 lease hash 和完成 fencing 协作。主要指标包括 `opc_ivekit_notification_queue_oldest_age_seconds`、`opc_ivekit_notification_health_probes_total` 和 `opc_ivekit_notification_health_probe_duration_seconds`。完整参数、告警、人工重试与真实 Provider `not_run` 边界见《iveKit 通知底座运维手册》。
+Endpoint 主动健康 Worker 由 `CONVERACT_FABRIC_NOTIFICATION_HEALTH_WORKER_ENABLED` 显式开启。HTTP 探针做 DNS/公网地址复验、端口 allowlist、禁重定向和超时控制；SMTP 只调用 `verify()`，不发送测试邮件。多实例通过 `FOR UPDATE SKIP LOCKED`、随机 lease hash 和完成 fencing 协作。主要指标包括 `opc_ivekit_notification_queue_oldest_age_seconds`、`opc_ivekit_notification_health_probes_total` 和 `opc_ivekit_notification_health_probe_duration_seconds`。完整参数、告警、人工重试与真实 Provider `not_run` 边界见《iveKit 通知底座运维手册》。
 
 ### 5.6 集成事件与签名 Webhook
 
@@ -1156,7 +1156,7 @@ HTTP replay、WebSocket 和 Webhook 共用 PostgreSQL `ivekit_tenant_events`。W
 | GET/PUT | `/api/ivekit/events/webhook-subscriptions/:subscription_id` | admin 查询；revisioned 更新/暂停 |
 | POST | `/api/ivekit/events/webhook-subscriptions/:subscription_id/archive` | admin + revision + `Idempotency-Key` 归档 |
 
-事件模式只接受精确名称或尾部 `.*`，Endpoint event allowlist 不能被订阅放宽。Worker 对 `subscription_id + event_id` 生成稳定 Notification 幂等键，Notification 创建成功后才单调推进 cursor；失败按 PostgreSQL lease 重试，归档记录不可恢复。所有 mutation 使用 tenant/actor/source-IP 分布式限流并写不可变审计。运行时由 `OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED=1` 显式启用，并要求 Notification delivery runtime 与加密/HMAC key 同时可用。
+事件模式只接受精确名称或尾部 `.*`，Endpoint event allowlist 不能被订阅放宽。Worker 对 `subscription_id + event_id` 生成稳定 Notification 幂等键，Notification 创建成功后才单调推进 cursor；失败按 PostgreSQL lease 重试，归档记录不可恢复。所有 mutation 使用 tenant/actor/source-IP 分布式限流并写不可变审计。运行时由 `CONVERACT_FABRIC_EVENT_WEBHOOK_WORKER_ENABLED=1` 显式启用，并要求 Notification delivery runtime 与加密/HMAC key 同时可用。
 
 Webhook body 是 `IveKitIntegrationWebhookDelivery`：outer delivery 包裹 schema-v1 `IveKitIntegrationEventEnvelope`。`x-ivekit-signature` 对 `x-ivekit-timestamp + '.' + rawBody` 做 HMAC-SHA256；`x-ivekit-event-id` 标识 journal event。SDK `verifyIveKitWebhook` 使用 Web Crypto，校验 1 MiB body、最少 32 字节 secret、30–3600 秒时间窗、outer/inner tenant 和 event type 一致性。外部 `IveKitWebhookReplayStore.claim` 接收完整已验证 envelope、body SHA-256 和默认 7 天 expiry，必须在 PostgreSQL/Redis 原子写入 durable inbox，不能用内存 Set。
 

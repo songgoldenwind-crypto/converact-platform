@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 
 import { fileURLToPath } from 'node:url';
 
@@ -19,12 +20,12 @@ function parseArguments(argv: string[], env: NodeJS.ProcessEnv): TinodeStaircase
     index += 1;
   }
   const required = (flag: string, environmentKey: string): string => {
-    const value = String(values.get(flag) || env[environmentKey] || '').trim();
+    const value = String(values.get(flag) || resolveConveractEnv(env, environmentKey) || '').trim();
     if (!value) throw new Error(`${flag} or ${environmentKey} is required`);
     return value;
   };
   const optionalInteger = (flag: string, environmentKey: string): number | undefined => {
-    const raw = String(values.get(flag) || env[environmentKey] || '').trim();
+    const raw = String(values.get(flag) || resolveConveractEnv(env, environmentKey) || '').trim();
     if (!raw) return undefined;
     const parsed = Number(raw);
     if (!Number.isInteger(parsed)) throw new Error(`${flag} must be an integer`);

@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import type { PgQueryable } from '../../../db-pg.js';
 import { voiceProfileConfigHash } from './deployment-profile-service.js';
 import { iveKitVoiceWorkerConfig, type IveKitVoiceWorkerConfig } from './runtime.js';
@@ -70,7 +71,7 @@ export async function inspectIveKitVoice(input: {
     workers = iveKitVoiceWorkerConfig(env);
   } catch {
     workers = iveKitVoiceWorkerConfig({});
-    workers.enabled = String(env.OPC_IVEKIT_VOICE_WORKERS_ENABLED || '') === '1';
+    workers.enabled = String(resolveFabricEnv(env, 'VOICE_WORKERS_ENABLED') || '') === '1';
     issues.add('worker_config_invalid');
   }
   const addressKeys = addressKeyStatus(env);
@@ -176,7 +177,7 @@ function inspectProfile(
   const snapshotStatus = capabilityStatus(row.capability_status);
   const checkedAt = timestamp(row.capability_checked_at);
   const ageMs = checkedAt === null ? null : Math.max(0, now.getTime() - checkedAt);
-  const maxAgeMs = safeBoundedInteger(env.OPC_IVEKIT_VOICE_CAPABILITY_MAX_AGE_MS, 300_000, 10_000, 86_400_000);
+  const maxAgeMs = safeBoundedInteger(resolveFabricEnv(env, 'VOICE_CAPABILITY_MAX_AGE_MS'), 300_000, 10_000, 86_400_000);
   const age = ageMs === null ? 'missing' : ageMs <= maxAgeMs ? 'fresh' : 'stale';
   const configHashMatches = typeof row.capability_config_hash === 'string'
     && row.capability_config_hash === voiceProfileConfigHash(profile);
@@ -236,8 +237,8 @@ function capabilityStatus(value: unknown): IveKitVoicePreflightProfile['capabili
 }
 
 function addressKeyStatus(env: NodeJS.ProcessEnv): { configured: boolean; valid: boolean } {
-  const encryption = String(env.OPC_IVEKIT_VOICE_ADDRESS_KEY || '');
-  const hmac = String(env.OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY || '');
+  const encryption = String(resolveFabricEnv(env, 'VOICE_ADDRESS_KEY') || '');
+  const hmac = String(resolveFabricEnv(env, 'VOICE_ADDRESS_HMAC_KEY') || '');
   const configured = Boolean(encryption && hmac);
   return { configured, valid: configured && canonicalKey(encryption) && canonicalKey(hmac) };
 }
@@ -249,7 +250,7 @@ function canonicalKey(value: string): boolean {
 
 function configuredSecretRef(ref: string, env: NodeJS.ProcessEnv): boolean {
   const match = ref.match(/^env:\/\/([A-Z][A-Z0-9_]*)$/);
-  return Boolean(match && String(env[match[1]] || ''));
+  return Boolean(match && String(resolveConveractEnv(env, match[1]) || ''));
 }
 
 function databaseConfigured(env: NodeJS.ProcessEnv): boolean {

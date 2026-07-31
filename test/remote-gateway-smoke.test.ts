@@ -12,9 +12,9 @@ import type { RemoteConsentScope } from '../src/agent-runtime/collaboration/type
 
 test('remote gateway smoke config defaults to RustDesk and validates gateway inputs', () => {
   const defaultRustDesk = createRemoteGatewaySmokeConfigFromEnv({
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
-    OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-    OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1'
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+    CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+    CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1'
   });
   assert.equal(defaultRustDesk.provider, 'rustdesk');
   assert.equal(defaultRustDesk.baseUrl, 'http://opc.local');
@@ -27,167 +27,167 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
     'clipboard'
   ]);
   const edgeTenantRustDesk = createRemoteGatewaySmokeConfigFromEnv({
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
-    OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-    OPC_COLLABORATION_API_KEY: 'collaboration-key',
-    OPC_RUSTDESK_EDGE_TENANT_ID: 'tenant_from_edge',
-    OPC_REMOTE_GATEWAY_TARGET_ID: 'rdesk-device-1',
-    OPC_RUSTDESK_CHECK_DEVICE_ONLINE: '1'
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+    CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+    CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
+    CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_from_edge',
+    CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rdesk-device-1',
+    CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: '1'
   });
   assert.equal(edgeTenantRustDesk.tenantId, 'tenant_from_edge');
 
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_REMOTE_GATEWAY_PROVIDER: 'meshcentral',
-        OPC_REMOTE_GATEWAY_API_TOKEN: 'gateway-token',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1'
+        CONVERACT_REMOTE_GATEWAY_PROVIDER: 'meshcentral',
+        CONVERACT_REMOTE_GATEWAY_API_TOKEN: 'gateway-token',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1'
       }),
-    /OPC_REMOTE_GATEWAY_BASE_URL is required/
+    /CONVERACT_REMOTE_GATEWAY_BASE_URL is required/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_REMOTE_GATEWAY_PROVIDER: 'meshcentral',
-        OPC_REMOTE_GATEWAY_BASE_URL: 'http://mesh.local',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1'
+        CONVERACT_REMOTE_GATEWAY_PROVIDER: 'meshcentral',
+        CONVERACT_REMOTE_GATEWAY_BASE_URL: 'http://mesh.local',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1'
       }),
-    /OPC_REMOTE_GATEWAY_API_TOKEN is required/
+    /CONVERACT_REMOTE_GATEWAY_API_TOKEN is required/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_REMOTE_GATEWAY_PROVIDER: 'meshcentral',
-        OPC_REMOTE_GATEWAY_BASE_URL: 'http://mesh.local',
-        OPC_REMOTE_GATEWAY_API_TOKEN: 'gateway-token'
+        CONVERACT_REMOTE_GATEWAY_PROVIDER: 'meshcentral',
+        CONVERACT_REMOTE_GATEWAY_BASE_URL: 'http://mesh.local',
+        CONVERACT_REMOTE_GATEWAY_API_TOKEN: 'gateway-token'
       }),
-    /OPC_REMOTE_GATEWAY_TARGET_ID is required/
+    /CONVERACT_REMOTE_GATEWAY_TARGET_ID is required/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_REMOTE_GATEWAY_PROVIDER: 'unknown',
-        OPC_REMOTE_GATEWAY_BASE_URL: 'http://mesh.local',
-        OPC_REMOTE_GATEWAY_API_TOKEN: 'gateway-token',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1'
+        CONVERACT_REMOTE_GATEWAY_PROVIDER: 'unknown',
+        CONVERACT_REMOTE_GATEWAY_BASE_URL: 'http://mesh.local',
+        CONVERACT_REMOTE_GATEWAY_API_TOKEN: 'gateway-token',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1'
       }),
-    /OPC_REMOTE_GATEWAY_PROVIDER must be meshcentral, guacamole, or rustdesk/
+    /CONVERACT_REMOTE_GATEWAY_PROVIDER must be meshcentral, guacamole, or rustdesk/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'rdesk-device-1',
-        OPC_RUSTDESK_CHECK_DEVICE_ONLINE: '1'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rdesk-device-1',
+        CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: '1'
       }),
-    /OPC_REMOTE_GATEWAY_TENANT_ID, OPC_RUSTDESK_EDGE_TENANT_ID, or OPC_TENANT_ID is required when OPC_RUSTDESK_CHECK_DEVICE_ONLINE=1/
+    /CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID is required when CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE=1/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'rdesk-device-1',
-        OPC_RUSTDESK_CHECK_DEVICE_ONLINE: '1'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rdesk-device-1',
+        CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: '1'
       }),
-    /OPC_API_KEY or OPC_COLLABORATION_API_KEY is required when OPC_RUSTDESK_CHECK_DEVICE_ONLINE=1/
+    /CONVERACT_API_KEY or CONVERACT_COLLABORATION_API_KEY is required when CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE=1/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1',
-        OPC_RUSTDESK_CHECK_TCP_PORTS: '21115,not-a-port'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
+        CONVERACT_RUSTDESK_CHECK_TCP_PORTS: '21115,not-a-port'
       }),
-    /OPC_RUSTDESK_CHECK_TCP_PORTS contains invalid TCP port: not-a-port/
+    /CONVERACT_RUSTDESK_CHECK_TCP_PORTS contains invalid TCP port: not-a-port/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1',
-        OPC_RUSTDESK_CHECK_UDP_PORTS: '21116,nope'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
+        CONVERACT_RUSTDESK_CHECK_UDP_PORTS: '21116,nope'
       }),
-    /OPC_RUSTDESK_CHECK_UDP_PORTS contains invalid UDP port: nope/
+    /CONVERACT_RUSTDESK_CHECK_UDP_PORTS contains invalid UDP port: nope/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'ftp://opc.local',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'ftp://opc.local',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1'
       }),
-    /OPC_RUSTDESK_CONTROL_PLANE_BASE_URL must use http\(s\)/
+    /CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL must use http\(s\)/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_REMOTE_GATEWAY_PROVIDER: 'meshcentral',
-        OPC_REMOTE_GATEWAY_BASE_URL: 'ftp://mesh.local',
-        OPC_REMOTE_GATEWAY_API_TOKEN: 'gateway-token',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1'
+        CONVERACT_REMOTE_GATEWAY_PROVIDER: 'meshcentral',
+        CONVERACT_REMOTE_GATEWAY_BASE_URL: 'ftp://mesh.local',
+        CONVERACT_REMOTE_GATEWAY_API_TOKEN: 'gateway-token',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1'
       }),
-    /OPC_REMOTE_GATEWAY_BASE_URL must use http\(s\)/
+    /CONVERACT_REMOTE_GATEWAY_BASE_URL must use http\(s\)/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1',
-        OPC_RUSTDESK_CHECK_TIMEOUT_MS: 'abc'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
+        CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS: 'abc'
       }),
-    /OPC_RUSTDESK_CHECK_TIMEOUT_MS must be a number >= 100/
+    /CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS must be a number >= 100/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1',
-        OPC_RUSTDESK_CHECK_TIMEOUT_MS: '99'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
+        CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS: '99'
       }),
-    /OPC_RUSTDESK_CHECK_TIMEOUT_MS must be a number >= 100/
+    /CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS must be a number >= 100/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1',
-        OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS: 'soon'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
+        CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS: 'soon'
       }),
-    /OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS must be a number >= 100/
+    /CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS must be a number >= 100/
   );
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_REMOTE_GATEWAY_TARGET_ID: 'device-1',
-        OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS: '0'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
+        CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS: '0'
       }),
-    /OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS must be a number >= 100/
+    /CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS must be a number >= 100/
   );
 });
 
 test('remote gateway smoke uses RustDesk control-plane env fallbacks', () => {
   const config = createRemoteGatewaySmokeConfigFromEnv({
-    OPC_REMOTE_GATEWAY_PROVIDER: 'rustdesk',
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc-rustdesk.example.com',
-    OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-    OPC_REMOTE_GATEWAY_API_TOKEN: 'remote-token',
-    OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-    OPC_REMOTE_GATEWAY_TARGET_ID: '123456789',
-    OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL: '1',
-    OPC_RUSTDESK_REQUIRE_PROTOCOL_URL: 'yes',
-    OPC_RUSTDESK_CHECK_DEVICE_ONLINE: 'yes',
-    OPC_RUSTDESK_CHECK_OPERATION_AUDIT: 'yes',
-    OPC_API_KEY: 'opc-api-key'
+    CONVERACT_REMOTE_GATEWAY_PROVIDER: 'rustdesk',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc-rustdesk.example.com',
+    CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+    CONVERACT_REMOTE_GATEWAY_API_TOKEN: 'remote-token',
+    CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+    CONVERACT_REMOTE_GATEWAY_TARGET_ID: '123456789',
+    CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL: '1',
+    CONVERACT_RUSTDESK_REQUIRE_PROTOCOL_URL: 'yes',
+    CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: 'yes',
+    CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT: 'yes',
+    CONVERACT_API_KEY: 'opc-api-key'
   });
 
   assert.equal(config.provider, 'rustdesk');
@@ -211,37 +211,37 @@ test('remote gateway smoke is wired into package scripts and env example', () =>
   const envExample = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
   assert.match(
     envExample,
-    /^OPC_REMOTE_GATEWAY_CONSENT_SCOPES=view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard$/m
+    /^CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES=view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard$/m
   );
   for (const key of [
-    'OPC_REMOTE_GATEWAY_PROVIDER=',
-    'OPC_REMOTE_GATEWAY_BASE_URL=',
-    'OPC_REMOTE_GATEWAY_API_TOKEN=',
-    'OPC_COLLABORATION_API_KEY=',
-    'OPC_REMOTE_GATEWAY_TENANT_ID=',
-    'OPC_REMOTE_GATEWAY_TARGET_TYPE=',
-    'OPC_REMOTE_GATEWAY_TARGET_ID=',
-    'OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL=',
-    'OPC_REMOTE_GATEWAY_CONSENT_SCOPES=',
-    'OPC_RUSTDESK_CONTROL_PLANE_BASE_URL=',
-    'OPC_RUSTDESK_ID_SERVER=',
-    'OPC_RUSTDESK_RELAY_SERVER=',
-    'OPC_RUSTDESK_API_SERVER=',
-    'OPC_RUSTDESK_PUBLIC_KEY=',
-    'OPC_RUSTDESK_PUBLIC_KEY_FILE=',
-    'OPC_RUSTDESK_SERVER_KEY=',
-    'OPC_RUSTDESK_LAUNCH_BASE_URL=',
-    'OPC_RUSTDESK_LAUNCH_SECRET=',
-    'OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE=',
-    'OPC_RUSTDESK_REQUIRE_PROTOCOL_URL=',
-    'OPC_RUSTDESK_CHECK_DEVICE_ONLINE=',
-    'OPC_RUSTDESK_CHECK_OPERATION_AUDIT=',
-    'OPC_RUSTDESK_API_TOKEN=',
-    'OPC_RUSTDESK_CHECK_SERVER_PORTS=',
-    'OPC_RUSTDESK_CHECK_HOST=',
-    'OPC_RUSTDESK_CHECK_TCP_PORTS=',
-    'OPC_RUSTDESK_CHECK_UDP_PORTS=',
-    'OPC_RUSTDESK_CHECK_TIMEOUT_MS='
+    'CONVERACT_REMOTE_GATEWAY_PROVIDER=',
+    'CONVERACT_REMOTE_GATEWAY_BASE_URL=',
+    'CONVERACT_REMOTE_GATEWAY_API_TOKEN=',
+    'CONVERACT_COLLABORATION_API_KEY=',
+    'CONVERACT_REMOTE_GATEWAY_TENANT_ID=',
+    'CONVERACT_REMOTE_GATEWAY_TARGET_TYPE=',
+    'CONVERACT_REMOTE_GATEWAY_TARGET_ID=',
+    'CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL=',
+    'CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES=',
+    'CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL=',
+    'CONVERACT_RUSTDESK_ID_SERVER=',
+    'CONVERACT_RUSTDESK_RELAY_SERVER=',
+    'CONVERACT_RUSTDESK_API_SERVER=',
+    'CONVERACT_RUSTDESK_PUBLIC_KEY=',
+    'CONVERACT_RUSTDESK_PUBLIC_KEY_FILE=',
+    'CONVERACT_RUSTDESK_SERVER_KEY=',
+    'CONVERACT_RUSTDESK_LAUNCH_BASE_URL=',
+    'CONVERACT_RUSTDESK_LAUNCH_SECRET=',
+    'CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE=',
+    'CONVERACT_RUSTDESK_REQUIRE_PROTOCOL_URL=',
+    'CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE=',
+    'CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT=',
+    'CONVERACT_RUSTDESK_API_TOKEN=',
+    'CONVERACT_RUSTDESK_CHECK_SERVER_PORTS=',
+    'CONVERACT_RUSTDESK_CHECK_HOST=',
+    'CONVERACT_RUSTDESK_CHECK_TCP_PORTS=',
+    'CONVERACT_RUSTDESK_CHECK_UDP_PORTS=',
+    'CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS='
   ]) {
     assert.match(envExample, new RegExp(`^${key}`, 'm'));
   }
@@ -264,15 +264,15 @@ test('remote gateway smoke optionally checks RustDesk runtime TCP and UDP ports'
 
   try {
     const config = createRemoteGatewaySmokeConfigFromEnv({
-      OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
-      OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-      OPC_REMOTE_GATEWAY_TARGET_ID: '123456789',
-      OPC_RUSTDESK_CHECK_SERVER_PORTS: '1',
-      OPC_RUSTDESK_ID_SERVER: '127.0.0.1',
-      OPC_RUSTDESK_CHECK_TCP_PORTS: String(port),
-      OPC_RUSTDESK_CHECK_UDP_PORTS: String(udpPort),
-      OPC_RUSTDESK_CHECK_OPERATION_AUDIT: '0',
-      OPC_RUSTDESK_CHECK_TIMEOUT_MS: '250'
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+      CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+      CONVERACT_REMOTE_GATEWAY_TARGET_ID: '123456789',
+      CONVERACT_RUSTDESK_CHECK_SERVER_PORTS: '1',
+      CONVERACT_RUSTDESK_ID_SERVER: '127.0.0.1',
+      CONVERACT_RUSTDESK_CHECK_TCP_PORTS: String(port),
+      CONVERACT_RUSTDESK_CHECK_UDP_PORTS: String(udpPort),
+      CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT: '0',
+      CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS: '250'
     });
     let ended = false;
     let postedAuditEvent = false;

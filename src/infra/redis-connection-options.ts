@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../config/converact-env.js';
 import { readFileSync } from 'node:fs';
 
 export interface RedisTlsFileOptions {
@@ -224,7 +225,7 @@ function rejectSentinelFields(env: NodeJS.ProcessEnv | Record<string, string | u
     'REDIS_SENTINEL_USERNAME',
     'REDIS_SENTINEL_PASSWORD'
   ]) {
-    if (String(env[field] || '').trim()) {
+    if (String(resolveConveractEnv(env, field) || '').trim()) {
       throw new Error(`${field} requires REDIS_TOPOLOGY=sentinel`);
     }
   }

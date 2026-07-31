@@ -93,14 +93,14 @@ test('capacity finalizer entrypoint loads bounded submission and explicit S3 con
   }
 
   const config = capacityFinalizerConfig({
-    OPC_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
-    OPC_IVEKIT_CAPACITY_FINALIZER_ID: 'capacity-finalizer-a',
-    OPC_IVEKIT_CAPACITY_MANIFEST_PATH: '/run/capacity/manifest.json',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_SUBMISSION_PATH: '/run/capacity/submission.json',
-    OPC_IVEKIT_CAPACITY_FINALIZER_LEASE_MS: '15000',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_PREFIX: 'capacity/cell-10k',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET: 'capacity-evidence',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION: 'ap-southeast-1'
+    CONVERACT_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
+    CONVERACT_FABRIC_CAPACITY_FINALIZER_ID: 'capacity-finalizer-a',
+    CONVERACT_FABRIC_CAPACITY_MANIFEST_PATH: '/run/capacity/manifest.json',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_SUBMISSION_PATH: '/run/capacity/submission.json',
+    CONVERACT_FABRIC_CAPACITY_FINALIZER_LEASE_MS: '15000',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX: 'capacity/cell-10k',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET: 'capacity-evidence',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION: 'ap-southeast-1'
   });
   assert.equal(config.finalizer_id, 'capacity-finalizer-a');
   assert.equal(config.evidence_s3.bucket, 'capacity-evidence');

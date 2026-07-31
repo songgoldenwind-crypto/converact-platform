@@ -24,17 +24,17 @@ test('capacity tools image and package expose the restart-safe worker process', 
   assert.match(dockerfile, /COPY src\/infra\/nats-connection-options\.ts/i);
   assert.match(
     dockerfile,
-    /COPY services\/ivekit-service\/acceptance\/sipp\/answer-bye-uac\.xml \/opt\/ivekit\/scenarios\/answer-bye-uac\.xml/i
+    /COPY services\/converact-service\/acceptance\/sipp\/answer-bye-uac\.xml \/opt\/ivekit\/scenarios\/answer-bye-uac\.xml/i
   );
   assert.match(dockerfile, /COPY infra\/capacity\/tsconfig\.json/i);
   assert.match(
     dockerfile,
-    /COPY src\/agent-runtime\/ivekit\/placement\/pg-queryable\.ts/i
+    /COPY src\/agent-runtime\/converact\/placement\/pg-queryable\.ts/i
   );
   assert.doesNotMatch(dockerfile, /COPY src\/db-pg\.ts/i);
   assert.doesNotMatch(
     dockerfile,
-    /COPY src\/agent-runtime\/ivekit\/placement \.\/src\/agent-runtime\/ivekit\/placement/i
+    /COPY src\/agent-runtime\/converact\/placement \.\/src\/agent-runtime\/converact\/placement/i
   );
   assert.match(
     dockerfile,
@@ -109,8 +109,8 @@ test('capacity finalizer is a retryable one-shot job with immutable evidence inp
 
   assert.match(yaml, /kind: Job/i);
   assert.match(yaml, /backoffLimit: 10/i);
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_EVIDENCE_SUBMISSION_PATH/i);
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_EVIDENCE_SUBMISSION_PATH/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET/i);
   assert.match(yaml, /readOnly: true/i);
 });
 
@@ -122,9 +122,9 @@ test('capacity scaling finalizer mounts immutable contract inputs and verifies S
 
   assert.match(yaml, /kind: Job/i);
   assert.match(yaml, /ivekit-capacity-scaling-finalizer\.ts/i);
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_SCALING_CONTRACT_PATH/i);
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_SCALING_SUBMISSION_PATH/i);
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_SCALING_CONTRACT_PATH/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_SCALING_SUBMISSION_PATH/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET/i);
   assert.match(yaml, /readOnly: true/i);
 });
 
@@ -136,9 +136,9 @@ test('capacity platform finalizer mounts the full release gate and verified sour
 
   assert.match(yaml, /kind: Job/i);
   assert.match(yaml, /ivekit-capacity-platform-finalizer\.ts/i);
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_PLATFORM_CONTRACT_PATH/i);
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_PLATFORM_SUBMISSION_PATH/i);
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_PLATFORM_CONTRACT_PATH/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_PLATFORM_SUBMISSION_PATH/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET/i);
   assert.match(yaml, /readOnly: true/i);
 });
 
@@ -150,8 +150,8 @@ test('capacity worker deployment uses stable identity, one in-flight shard and d
 
   assert.match(yaml, /kind: StatefulSet/i);
   assert.match(yaml, /fieldPath: metadata\.name/i);
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_DRIVER_SPEC_PATH/i);
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_DRIVER_SPEC_PATH/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET/i);
   assert.match(yaml, /readOnlyRootFilesystem: true/i);
   assert.match(yaml, /emptyDir:[\s\S]*sizeLimit: 20Gi/i);
   assert.doesNotMatch(yaml, /hostNetwork:\s*true/i);
@@ -172,7 +172,7 @@ test('capacity controller deployment uses two fenced replicas and an immutable m
 
   assert.match(yaml, /replicas: 2/i);
   assert.match(yaml, /fieldPath: metadata\.name/i);
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_MANIFEST_PATH/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_MANIFEST_PATH/i);
   assert.match(yaml, /persistentVolumeClaim:[\s\S]*ivekit-capacity-manifests/i);
   assert.match(yaml, /minAvailable: 1/i);
 });
@@ -188,7 +188,7 @@ test('LiveKit Cell deployment uses stable owner identity and a local admission s
   assert.match(yaml, /IVEKIT_COMPONENT_NODE_ENDPOINT[\s\S]*127\.0\.0\.1:3210/i);
   assert.match(yaml, /IVEKIT_OWNER_GUARD_REQUIRED[\s\S]*"1"/i);
   assert.match(yaml, /IVEKIT_COMPONENT_NODE_ID[\s\S]*fieldPath: metadata\.name/i);
-  assert.match(yaml, /OPC_IVEKIT_COMPONENT_NODE_ID[\s\S]*fieldPath: metadata\.name/i);
+  assert.match(yaml, /CONVERACT_FABRIC_COMPONENT_NODE_ID[\s\S]*fieldPath: metadata\.name/i);
   assert.match(yaml, /component-node-admission/i);
   assert.match(yaml, /kind: PodDisruptionBudget/i);
   assert.doesNotMatch(yaml, /hostNetwork:\s*true/i);
@@ -206,7 +206,7 @@ test('Tinode Cell deployment uses a three-node stable cluster and local owner si
   assert.match(yaml, /name: cluster[\s\S]*containerPort: 12000/i);
   assert.match(yaml, /IVEKIT_COMPONENT_NODE_ENDPOINT[\s\S]*127\.0\.0\.1:3210/i);
   assert.match(yaml, /IVEKIT_COMPONENT_NODE_ID[\s\S]*fieldPath: metadata\.name/i);
-  assert.match(yaml, /OPC_IVEKIT_COMPONENT_NODE_ID[\s\S]*fieldPath: metadata\.name/i);
+  assert.match(yaml, /CONVERACT_FABRIC_COMPONENT_NODE_ID[\s\S]*fieldPath: metadata\.name/i);
   assert.match(yaml, /IVEKIT_TINODE_OWNER_API_TOKEN/i);
   assert.match(yaml, /minAvailable: 2/i);
   assert.doesNotMatch(yaml, /hostNetwork:\s*true/i);
@@ -222,7 +222,7 @@ test('RustDesk Cell deployment keeps each hbbs and hbbr pair on one stable owner
   assert.match(yaml, /podManagementPolicy: Parallel/i);
   assert.match(yaml, /name: hbbs[\s\S]*name: hbbr/i);
   assert.match(yaml, /IVEKIT_COMPONENT_NODE_ID[\s\S]*fieldPath: metadata\.name/i);
-  assert.match(yaml, /OPC_IVEKIT_COMPONENT_NODE_ID[\s\S]*fieldPath: metadata\.name/i);
+  assert.match(yaml, /CONVERACT_FABRIC_COMPONENT_NODE_ID[\s\S]*fieldPath: metadata\.name/i);
   assert.match(yaml, /IVEKIT_RUSTDESK_OWNER_BINDING_ENDPOINT[\s\S]*127\.0\.0\.1:3211/i);
   assert.match(yaml, /ivekit-rustdesk-owner-binding\.ts/i);
   assert.match(yaml, /volumeClaimTemplates:[\s\S]*ReadWriteOnce/i);
@@ -237,7 +237,7 @@ test('controlled Compose worker is opt-in and mounts an immutable driver bundle 
   assert.match(compose, /capacity-worker:[\s\S]*profiles: \["worker"\]/i);
   assert.match(
     compose,
-    /OPC_IVEKIT_CAPACITY_WORKER_BUNDLE_HOST_PATH[\s\S]*\/opt\/ivekit-capacity-worker:ro/i
+    /CONVERACT_FABRIC_CAPACITY_WORKER_BUNDLE_HOST_PATH[\s\S]*\/opt\/ivekit-capacity-worker:ro/i
   );
   assert.match(compose, /scripts\/ivekit-capacity-worker\.ts/i);
 });
@@ -251,19 +251,19 @@ test('capacity Compose requires an immutable NATS image reference', () => {
 
   assert.match(
     compose,
-    /image: \$\{OPC_IVEKIT_CAPACITY_NATS_IMAGE:\?OPC_IVEKIT_CAPACITY_NATS_IMAGE immutable digest reference is required\}/
+    /image: \$\{CONVERACT_FABRIC_CAPACITY_NATS_IMAGE:\?CONVERACT_FABRIC_CAPACITY_NATS_IMAGE immutable digest reference is required\}/
   );
-  assert.match(env, new RegExp(`^OPC_IVEKIT_CAPACITY_NATS_IMAGE=${image}$`, 'm'));
+  assert.match(env, new RegExp(`^CONVERACT_FABRIC_CAPACITY_NATS_IMAGE=${image}$`, 'm'));
   assert.doesNotMatch(compose, /^\s*image:\s*nats:[^@\s]+\s*$/m);
   assert.match(
     productionCompose,
-    /image: \$\{OPC_NATS_IMAGE:\?OPC_NATS_IMAGE immutable digest reference is required\}/
+    /image: \$\{CONVERACT_NATS_IMAGE:\?CONVERACT_NATS_IMAGE immutable digest reference is required\}/
   );
-  assert.match(productionEnv, new RegExp(`^OPC_NATS_IMAGE=${image}$`, 'm'));
+  assert.match(productionEnv, new RegExp(`^CONVERACT_NATS_IMAGE=${image}$`, 'm'));
   assert.doesNotMatch(productionCompose, /^\s*image:\s*nats:[^@\s]+\s*$/m);
   assert.match(compose, /\.\.\/config\/nats\.conf:\/etc\/nats\/nats\.conf:ro/);
-  assert.match(compose, /NATS_CLIENT_USER: \$\{OPC_IVEKIT_CAPACITY_NATS_USER:\?/);
-  assert.match(compose, /OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS: "1"/);
+  assert.match(compose, /NATS_CLIENT_USER: \$\{CONVERACT_FABRIC_CAPACITY_NATS_USER:\?/);
+  assert.match(compose, /CONVERACT_FABRIC_CAPACITY_NATS_STREAM_REPLICAS: "1"/);
 });
 
 test('capacity dispatcher uses authenticated mTLS NATS and a three-replica command stream', () => {
@@ -272,7 +272,7 @@ test('capacity dispatcher uses authenticated mTLS NATS and a three-replica comma
   for (const name of ['NATS_USER', 'NATS_PASSWORD', 'NATS_TLS_MODE', 'NATS_TLS_CA_FILE']) {
     assert.match(yaml, new RegExp(`name: ${name}`));
   }
-  assert.match(yaml, /OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS[\s\S]*value: "3"/i);
+  assert.match(yaml, /CONVERACT_FABRIC_CAPACITY_NATS_STREAM_REPLICAS[\s\S]*value: "3"/i);
   assert.match(yaml, /mountPath: \/etc\/nats\/tls[\s\S]*readOnly: true/i);
 });
 

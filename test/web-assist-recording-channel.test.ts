@@ -108,7 +108,7 @@ async function grantPublicConsent(input: {
 }
 
 test('public Web Assist customer can start and stop screen recording with evidence', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'Web Assist Recording Public' }).id;
@@ -196,7 +196,7 @@ test('public Web Assist customer can start and stop screen recording with eviden
 });
 
 test('public Web Assist recording start requires active customer consent', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'Web Assist Recording Consent Gate' }).id;
@@ -230,7 +230,7 @@ test('public Web Assist recording start requires active customer consent', async
 });
 
 test('public Web Assist recording endpoint only accepts customer join tokens', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'Web Assist Recording Role Gate' }).id;

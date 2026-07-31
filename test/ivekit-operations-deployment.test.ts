@@ -13,7 +13,7 @@ test('standalone image and package expose guarded backup and restore operations'
   assert.equal(packageJson.scripts.restore, 'node dist/converact-restore.js');
   assert.match(compose, /profiles: \["operations"\]/);
   assert.match(compose, /dist\/converact-backup\.js/);
-  assert.match(compose, /OPC_IVEKIT_BACKUP_HOST_DIR/);
+  assert.match(compose, /CONVERACT_FABRIC_BACKUP_HOST_DIR/);
 });
 
 test('Helm supports autoscaling, failure-domain spread, graceful termination and serialized backups', () => {

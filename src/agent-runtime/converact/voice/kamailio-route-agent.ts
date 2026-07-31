@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
@@ -702,7 +703,7 @@ export async function loadKamailioRouteAgentRuntimeConfig(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<KamailioRouteAgentRuntimeConfig> {
   rejectInlineSecrets(env);
-  const topologyPath = absolutePath(requiredEnv(env, 'OPC_IVEKIT_KAMAILIO_TOPOLOGY_FILE'), 'topology file');
+  const topologyPath = absolutePath(requiredEnv(env, 'CONVERACT_FABRIC_KAMAILIO_TOPOLOGY_FILE'), 'topology file');
   const topology = parseTopology(await readBoundedText(topologyPath, 1_048_576, 'topology file'));
   const pools = [] as KamailioRouteAgentRuntimeConfig['pools'];
   for (const pool of topology.pools) {
@@ -730,15 +731,15 @@ export async function loadKamailioRouteAgentRuntimeConfig(
     });
   }
   const currentKeyFile = absolutePath(
-    requiredEnv(env, 'OPC_IVEKIT_KAMAILIO_CURRENT_KEY_FILE'),
+    requiredEnv(env, 'CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_FILE'),
     'current key file'
   );
   const currentKey: KamailioRouteSnapshotKey = {
-    key_id: requiredEnv(env, 'OPC_IVEKIT_KAMAILIO_CURRENT_KEY_ID'),
+    key_id: requiredEnv(env, 'CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_ID'),
     key: (await readBoundedText(currentKeyFile, 4_096, 'current key')).trim()
   };
-  const previousKeyId = String(env.OPC_IVEKIT_KAMAILIO_PREVIOUS_KEY_ID || '').trim();
-  const previousKeyFile = String(env.OPC_IVEKIT_KAMAILIO_PREVIOUS_KEY_FILE || '').trim();
+  const previousKeyId = String(resolveFabricEnv(env, 'KAMAILIO_PREVIOUS_KEY_ID') || '').trim();
+  const previousKeyFile = String(resolveFabricEnv(env, 'KAMAILIO_PREVIOUS_KEY_FILE') || '').trim();
   if (Boolean(previousKeyId) !== Boolean(previousKeyFile)) {
     throw new Error('Kamailio previous key id and file must be configured together');
   }
@@ -752,7 +753,7 @@ export async function loadKamailioRouteAgentRuntimeConfig(
   } : undefined;
   new KamailioRouteSnapshotCodec({ current: currentKey, previous: previousKey });
   const rpcTokenFile = absolutePath(
-    requiredEnv(env, 'OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE'),
+    requiredEnv(env, 'CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE'),
     'RPC token file'
   );
   const rpcToken = checkedSecret(
@@ -760,35 +761,35 @@ export async function loadKamailioRouteAgentRuntimeConfig(
     'Kamailio RPC token'
   );
   const snapshotPath = absolutePath(
-    requiredEnv(env, 'OPC_IVEKIT_KAMAILIO_SNAPSHOT_PATH'),
+    requiredEnv(env, 'CONVERACT_FABRIC_KAMAILIO_SNAPSHOT_PATH'),
     'snapshot path'
   );
   const dispatcherPath = absolutePath(
-    requiredEnv(env, 'OPC_IVEKIT_KAMAILIO_DISPATCHER_PATH'),
+    requiredEnv(env, 'CONVERACT_FABRIC_KAMAILIO_DISPATCHER_PATH'),
     'dispatcher path'
   );
   if (snapshotPath === dispatcherPath) throw new Error('Kamailio publication paths must be distinct');
   const hepHighWaterEnabled = envBoolean(
-    env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED,
+    resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_ENABLED'),
     false,
-    'OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED'
+    'CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_ENABLED'
   );
   const hepHighWater = hepHighWaterEnabled
     ? parseHepHighWaterRuntimeConfig(env)
     : undefined;
 
   const config: KamailioRouteAgentRuntimeConfig = {
-    host: checkedHost(env.OPC_IVEKIT_KAMAILIO_HOST || '127.0.0.1'),
-    port: envInteger(env.OPC_IVEKIT_KAMAILIO_PORT, 3_220, 1, 65_535),
-    poll_interval_ms: envInteger(env.OPC_IVEKIT_KAMAILIO_POLL_INTERVAL_MS, 1_000, 100, 60_000),
-    region_id: requiredEnv(env, 'OPC_IVEKIT_KAMAILIO_REGION_ID'),
-    zone_id: requiredEnv(env, 'OPC_IVEKIT_KAMAILIO_ZONE_ID'),
-    cell_id: requiredEnv(env, 'OPC_IVEKIT_KAMAILIO_CELL_ID'),
-    cell_lease_epoch: envInteger(requiredEnv(env, 'OPC_IVEKIT_KAMAILIO_CELL_LEASE_EPOCH'), 0, 1, 0xffff_ffff),
-    edge_replica_count: envInteger(env.OPC_IVEKIT_KAMAILIO_EDGE_REPLICA_COUNT, 2, 1, 128),
-    ttl_ms: envInteger(env.OPC_IVEKIT_KAMAILIO_SNAPSHOT_TTL_MS, 10_000, 1_000, 300_000),
-    degraded_weight_factor: envNumber(env.OPC_IVEKIT_KAMAILIO_DEGRADED_WEIGHT_FACTOR, 0.5, 0.01, 1),
-    max_parallel_polls: envInteger(env.OPC_IVEKIT_KAMAILIO_MAX_PARALLEL_POLLS, 16, 1, 128),
+    host: checkedHost(resolveFabricEnv(env, 'KAMAILIO_HOST') || '127.0.0.1'),
+    port: envInteger(resolveFabricEnv(env, 'KAMAILIO_PORT'), 3_220, 1, 65_535),
+    poll_interval_ms: envInteger(resolveFabricEnv(env, 'KAMAILIO_POLL_INTERVAL_MS'), 1_000, 100, 60_000),
+    region_id: requiredEnv(env, 'CONVERACT_FABRIC_KAMAILIO_REGION_ID'),
+    zone_id: requiredEnv(env, 'CONVERACT_FABRIC_KAMAILIO_ZONE_ID'),
+    cell_id: requiredEnv(env, 'CONVERACT_FABRIC_KAMAILIO_CELL_ID'),
+    cell_lease_epoch: envInteger(requiredEnv(env, 'CONVERACT_FABRIC_KAMAILIO_CELL_LEASE_EPOCH'), 0, 1, 0xffff_ffff),
+    edge_replica_count: envInteger(resolveFabricEnv(env, 'KAMAILIO_EDGE_REPLICA_COUNT'), 2, 1, 128),
+    ttl_ms: envInteger(resolveFabricEnv(env, 'KAMAILIO_SNAPSHOT_TTL_MS'), 10_000, 1_000, 300_000),
+    degraded_weight_factor: envNumber(resolveFabricEnv(env, 'KAMAILIO_DEGRADED_WEIGHT_FACTOR'), 0.5, 0.01, 1),
+    max_parallel_polls: envInteger(resolveFabricEnv(env, 'KAMAILIO_MAX_PARALLEL_POLLS'), 16, 1, 128),
     snapshot_path: snapshotPath,
     dispatcher_path: dispatcherPath,
     current_key: currentKey,
@@ -796,12 +797,12 @@ export async function loadKamailioRouteAgentRuntimeConfig(
     pools,
     rpc: {
       endpoint: checkedLoopbackRpcEndpoint(
-        requiredEnv(env, 'OPC_IVEKIT_KAMAILIO_RPC_ENDPOINT')
+        requiredEnv(env, 'CONVERACT_FABRIC_KAMAILIO_RPC_ENDPOINT')
       ).toString(),
       bearer_token: rpcToken,
-      max_attempts: envInteger(env.OPC_IVEKIT_KAMAILIO_RPC_MAX_ATTEMPTS, 3, 1, 5),
-      retry_delay_ms: envInteger(env.OPC_IVEKIT_KAMAILIO_RPC_RETRY_DELAY_MS, 100, 0, 5_000),
-      timeout_ms: envInteger(env.OPC_IVEKIT_KAMAILIO_RPC_TIMEOUT_MS, 1_000, 100, 5_000)
+      max_attempts: envInteger(resolveFabricEnv(env, 'KAMAILIO_RPC_MAX_ATTEMPTS'), 3, 1, 5),
+      retry_delay_ms: envInteger(resolveFabricEnv(env, 'KAMAILIO_RPC_RETRY_DELAY_MS'), 100, 0, 5_000),
+      timeout_ms: envInteger(resolveFabricEnv(env, 'KAMAILIO_RPC_TIMEOUT_MS'), 1_000, 100, 5_000)
     },
     hep_high_water: hepHighWater
   };
@@ -1182,13 +1183,13 @@ function checkedSecret(value: string, label: string): string {
 
 function rejectInlineSecrets(env: NodeJS.ProcessEnv): void {
   const forbidden = [
-    'OPC_IVEKIT_KAMAILIO_TOPOLOGY_JSON',
-    'OPC_IVEKIT_KAMAILIO_CURRENT_KEY',
-    'OPC_IVEKIT_KAMAILIO_PREVIOUS_KEY',
-    'OPC_IVEKIT_KAMAILIO_RPC_TOKEN',
-    'OPC_IVEKIT_KAMAILIO_NODE_TOKENS_JSON'
+    'CONVERACT_FABRIC_KAMAILIO_TOPOLOGY_JSON',
+    'CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY',
+    'CONVERACT_FABRIC_KAMAILIO_PREVIOUS_KEY',
+    'CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN',
+    'CONVERACT_FABRIC_KAMAILIO_NODE_TOKENS_JSON'
   ];
-  if (forbidden.some((name) => String(env[name] || '').trim())) {
+  if (forbidden.some((name) => String(resolveConveractEnv(env, name) || '').trim())) {
     throw new Error('Kamailio inline secret or topology configuration is forbidden');
   }
 }
@@ -1207,7 +1208,7 @@ function absolutePath(value: string, label: string): string {
 }
 
 function requiredEnv(env: NodeJS.ProcessEnv, key: string): string {
-  const value = String(env[key] || '').trim();
+  const value = String(resolveConveractEnv(env, key) || '').trim();
   if (!value) throw new Error(`${key} is required`);
   return value;
 }
@@ -1245,10 +1246,10 @@ function parseHepHighWaterRuntimeConfig(
 ): KamailioHepHighWaterRuntimeConfig {
   const metricsEndpoint = requiredEnv(
     env,
-    'OPC_IVEKIT_KAMAILIO_HOMER_METRICS_ENDPOINT'
+    'CONVERACT_FABRIC_KAMAILIO_HOMER_METRICS_ENDPOINT'
   );
   const metricsTimeoutMs = envInteger(
-    env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_METRICS_TIMEOUT_MS,
+    resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_METRICS_TIMEOUT_MS'),
     1_000,
     100,
     5_000
@@ -1259,91 +1260,91 @@ function parseHepHighWaterRuntimeConfig(
   });
   const policy: KamailioHepHighWaterPolicy = {
     sample_percent: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_SAMPLE_PERCENT,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_SAMPLE_PERCENT'),
       10,
       0.1,
       100
     ),
     queue_recover_ratio: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_RECOVER_RATIO,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_QUEUE_RECOVER_RATIO'),
       0.2,
       0,
       1
     ),
     queue_sample_ratio: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_SAMPLE_RATIO,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_QUEUE_SAMPLE_RATIO'),
       0.5,
       0,
       1
     ),
     queue_off_ratio: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_OFF_RATIO,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_QUEUE_OFF_RATIO'),
       0.8,
       0,
       1
     ),
     cpu_recover_cores: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_RECOVER_CORES,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_CPU_RECOVER_CORES'),
       0.3,
       0,
       1_024
     ),
     cpu_sample_cores: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_SAMPLE_CORES,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_CPU_SAMPLE_CORES'),
       0.7,
       0,
       1_024
     ),
     cpu_off_cores: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_OFF_CORES,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_CPU_OFF_CORES'),
       1.5,
       0,
       1_024
     ),
     packets_recover_per_second: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_RECOVER_PER_SECOND,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_PACKETS_RECOVER_PER_SECOND'),
       2_000,
       0,
       100_000_000
     ),
     packets_sample_per_second: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_SAMPLE_PER_SECOND,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_PACKETS_SAMPLE_PER_SECOND'),
       5_000,
       0,
       100_000_000
     ),
     packets_off_per_second: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_OFF_PER_SECOND,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_PACKETS_OFF_PER_SECOND'),
       10_000,
       0,
       100_000_000
     ),
     processing_gap_recover_per_second: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_RECOVER_PER_SECOND,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_RECOVER_PER_SECOND'),
       25,
       0,
       100_000_000
     ),
     processing_gap_sample_per_second: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_SAMPLE_PER_SECOND,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_SAMPLE_PER_SECOND'),
       250,
       0,
       100_000_000
     ),
     processing_gap_off_per_second: envNumber(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_OFF_PER_SECOND,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_OFF_PER_SECOND'),
       1_000,
       0,
       100_000_000
     ),
     failure_samples_to_off: envInteger(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_FAILURE_SAMPLES_TO_OFF,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_FAILURE_SAMPLES_TO_OFF'),
       3,
       1,
       60
     ),
     recovery_samples: envInteger(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_RECOVERY_SAMPLES,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_RECOVERY_SAMPLES'),
       5,
       1,
       600
@@ -1352,7 +1353,7 @@ function parseHepHighWaterRuntimeConfig(
   new KamailioHepHighWaterStateMachine(policy);
   return {
     poll_interval_ms: envInteger(
-      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_POLL_INTERVAL_MS,
+      resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_POLL_INTERVAL_MS'),
       1_000,
       100,
       60_000

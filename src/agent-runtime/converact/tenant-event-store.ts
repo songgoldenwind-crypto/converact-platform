@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveConveractEnv, resolveFabricEnv } from '../../config/converact-env.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import type { PgQueryable } from '../../db-pg.js';
@@ -84,14 +85,14 @@ export class IveKitTenantEventJournal {
   ) {
     const env = options.env || process.env;
     this.retentionMs = positiveInteger(
-      options.retention_ms ?? envNumber(env, 'OPC_IVEKIT_EVENT_RETENTION_MS', DEFAULT_RETENTION_MS),
+      options.retention_ms ?? envNumber(env, 'CONVERACT_FABRIC_EVENT_RETENTION_MS', DEFAULT_RETENTION_MS),
       DEFAULT_RETENTION_MS,
       'retention_ms'
     );
     this.maxPayloadBytes = positiveInteger(
       options.max_payload_bytes ?? envNumber(
         env,
-        'OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES',
+        'CONVERACT_FABRIC_EVENT_MAX_PAYLOAD_BYTES',
         DEFAULT_MAX_PAYLOAD_BYTES
       ),
       DEFAULT_MAX_PAYLOAD_BYTES,
@@ -121,18 +122,18 @@ export class IveKitTenantEventStore {
   ) {
     const env = options.env || process.env;
     this.cursorSecret = String(
-      options.cursor_secret || env.OPC_IVEKIT_EVENT_CURSOR_SECRET || env.OPC_JWT_SECRET || ''
+      options.cursor_secret || resolveFabricEnv(env, 'EVENT_CURSOR_SECRET') || resolveBrandEnv(env, 'JWT_SECRET') || ''
     );
     if (!this.cursorSecret) throw new Error('iveKit event cursor secret is required');
     this.retentionMs = positiveInteger(
-      options.retention_ms ?? envNumber(env, 'OPC_IVEKIT_EVENT_RETENTION_MS', DEFAULT_RETENTION_MS),
+      options.retention_ms ?? envNumber(env, 'CONVERACT_FABRIC_EVENT_RETENTION_MS', DEFAULT_RETENTION_MS),
       DEFAULT_RETENTION_MS,
       'retention_ms'
     );
     this.maxPayloadBytes = positiveInteger(
       options.max_payload_bytes ?? envNumber(
         env,
-        'OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES',
+        'CONVERACT_FABRIC_EVENT_MAX_PAYLOAD_BYTES',
         DEFAULT_MAX_PAYLOAD_BYTES
       ),
       DEFAULT_MAX_PAYLOAD_BYTES,
@@ -374,15 +375,15 @@ export class IveKitTenantEventStore {
 }
 
 export function iveKitEventReplayEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  const configured = String(env.OPC_IVEKIT_EVENT_REPLAY_ENABLED || '').trim();
+  const configured = String(resolveFabricEnv(env, 'EVENT_REPLAY_ENABLED') || '').trim();
   if (configured && configured !== '0' && configured !== '1') {
-    throw new Error('OPC_IVEKIT_EVENT_REPLAY_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_FABRIC_EVENT_REPLAY_ENABLED must be 0 or 1');
   }
   const hasSecret = Boolean(String(
-    env.OPC_IVEKIT_EVENT_CURSOR_SECRET || env.OPC_JWT_SECRET || ''
+    resolveFabricEnv(env, 'EVENT_CURSOR_SECRET') || resolveBrandEnv(env, 'JWT_SECRET') || ''
   ).trim());
   if (configured === '1' && !hasSecret) {
-    throw new Error('OPC_IVEKIT_EVENT_CURSOR_SECRET or OPC_JWT_SECRET is required when event replay is enabled');
+    throw new Error('CONVERACT_FABRIC_EVENT_CURSOR_SECRET or CONVERACT_JWT_SECRET is required when event replay is enabled');
   }
   return configured === '1' || (!configured && hasSecret);
 }
@@ -598,6 +599,6 @@ function boundedInteger(value: number | undefined, fallback: number, min: number
 }
 
 function envNumber(env: NodeJS.ProcessEnv, key: string, fallback: number): number {
-  const value = String(env[key] || '').trim();
+  const value = String(resolveConveractEnv(env, key) || '').trim();
   return value ? Number(value) : fallback;
 }

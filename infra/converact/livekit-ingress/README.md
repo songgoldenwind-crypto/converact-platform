@@ -47,7 +47,7 @@ pin `media.ingress.image.digest` to the manifest accepted by the OCI release
 gate.
 
 URL input is denied unless the API is given an explicit
-`OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST`. HTTPS is mandatory by default,
+`CONVERACT_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST`. HTTPS is mandatory by default,
 credentials in URLs and local/private IP literals are rejected, and Kubernetes
 outbound access must be restricted to trusted pull destinations by the target
 cluster's egress policy. Host allowlisting alone does not prove DNS-rebinding

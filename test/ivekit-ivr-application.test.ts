@@ -26,26 +26,26 @@ test('IVR workers are disabled by default with bounded production defaults', () 
 });
 
 test('IVR worker config rejects ambiguous flags, invalid bounds, and retry budgets', () => {
-  assert.equal(iveKitIvrWorkerConfig({ OPC_IVEKIT_IVR_WORKERS_ENABLED: '1' }).enabled, true);
+  assert.equal(iveKitIvrWorkerConfig({ CONVERACT_FABRIC_IVR_WORKERS_ENABLED: '1' }).enabled, true);
   assert.throws(() => iveKitIvrWorkerConfig({
-    OPC_IVEKIT_IVR_WORKERS_ENABLED: 'yes'
-  }), /OPC_IVEKIT_IVR_WORKERS_ENABLED/);
+    CONVERACT_FABRIC_IVR_WORKERS_ENABLED: 'yes'
+  }), /CONVERACT_FABRIC_IVR_WORKERS_ENABLED/);
   assert.throws(() => iveKitIvrWorkerConfig({
-    OPC_IVEKIT_IVR_ACTION_BATCH_SIZE: '0'
-  }), /OPC_IVEKIT_IVR_ACTION_BATCH_SIZE/);
+    CONVERACT_FABRIC_IVR_ACTION_BATCH_SIZE: '0'
+  }), /CONVERACT_FABRIC_IVR_ACTION_BATCH_SIZE/);
   assert.throws(() => iveKitIvrWorkerConfig({
-    OPC_IVEKIT_IVR_ACTION_RETRY_BASE_MS: '5000',
-    OPC_IVEKIT_IVR_ACTION_RETRY_MAX_MS: '1000'
+    CONVERACT_FABRIC_IVR_ACTION_RETRY_BASE_MS: '5000',
+    CONVERACT_FABRIC_IVR_ACTION_RETRY_MAX_MS: '1000'
   }), /RETRY_MAX_MS.*RETRY_BASE_MS/i);
   assert.throws(() => iveKitIvrWorkerConfig({
-    OPC_IVEKIT_IVR_RECONCILIATION_MAX_ATTEMPTS: '0'
-  }), /OPC_IVEKIT_IVR_RECONCILIATION_MAX_ATTEMPTS/);
+    CONVERACT_FABRIC_IVR_RECONCILIATION_MAX_ATTEMPTS: '0'
+  }), /CONVERACT_FABRIC_IVR_RECONCILIATION_MAX_ATTEMPTS/);
 });
 
 test('enabled IVR worker fails startup when no executor is injected', () => {
   assert.throws(() => startIveKitIvrPendingActionWorker({
     pg: new MemoryPg(),
-    env: { OPC_IVEKIT_IVR_WORKERS_ENABLED: '1' }
+    env: { CONVERACT_FABRIC_IVR_WORKERS_ENABLED: '1' }
   }), /IVR pending-action executor/i);
 });
 
@@ -54,7 +54,7 @@ test('iveKit application validates both IVR adapters before starting any worker'
   const worker = () => { starts += 1; return { async stop() {} }; };
   assert.throws(() => startIveKitApplication({
     pg: new MemoryPg(),
-    env: { OPC_IVEKIT_IVR_WORKERS_ENABLED: '1' },
+    env: { CONVERACT_FABRIC_IVR_WORKERS_ENABLED: '1' },
     ivr_executor: { async execute() { return {}; } },
     adapters: {
       startTinode: worker,
@@ -97,7 +97,7 @@ test('iveKit application starts IVR workers only when enabled and stops in rever
   events.length = 0;
   const enabled = startIveKitApplication({
     pg: new MemoryPg(),
-    env: { OPC_IVEKIT_IVR_WORKERS_ENABLED: '1' },
+    env: { CONVERACT_FABRIC_IVR_WORKERS_ENABLED: '1' },
     ivr_executor: { async execute() { return {}; } },
     ivr_reconciler: { async reconcile() {
       return { disposition: 'unknown' as const, error_code: 'provider_result_unknown' };
@@ -132,7 +132,7 @@ test('production IVR scheduler stop waits for active tenant discovery', async ()
   } as unknown as PgQueryable;
   const worker = startIveKitIvrPendingActionWorker({
     pg,
-    env: { OPC_IVEKIT_IVR_WORKERS_ENABLED: '1' },
+    env: { CONVERACT_FABRIC_IVR_WORKERS_ENABLED: '1' },
     executor: { async execute() { return {}; } }
   });
   await queryStarted.promise;
@@ -174,7 +174,7 @@ test('production IVR scheduler isolates one tenant failure from later tenants', 
   } as unknown as PgQueryable;
   const worker = startIveKitIvrPendingActionWorker({
     pg,
-    env: { OPC_IVEKIT_IVR_WORKERS_ENABLED: '1' },
+    env: { CONVERACT_FABRIC_IVR_WORKERS_ENABLED: '1' },
     executor: { async execute() { return {}; } }
   });
 

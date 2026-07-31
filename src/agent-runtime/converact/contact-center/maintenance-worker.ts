@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
@@ -241,33 +242,33 @@ export async function listContactCenterWorkerTenants(
 export function contactCenterMaintenanceWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): ContactCenterMaintenanceWorkerConfig {
-  const enabledValue = String(env.OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED || '0').trim();
+  const enabledValue = String(resolveFabricEnv(env, 'CONTACT_CENTER_WORKER_ENABLED') || '0').trim();
   if (enabledValue !== '0' && enabledValue !== '1') {
-    throw new Error('OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_FABRIC_CONTACT_CENTER_WORKER_ENABLED must be 0 or 1');
   }
   return {
     enabled: enabledValue === '1',
-    interval_ms: bounded(env.OPC_IVEKIT_CONTACT_CENTER_INTERVAL_MS, 1_000, 250, 60_000,
-      'OPC_IVEKIT_CONTACT_CENTER_INTERVAL_MS'),
-    tenant_limit: bounded(env.OPC_IVEKIT_CONTACT_CENTER_TENANT_LIMIT, 100, 1, 1_000,
-      'OPC_IVEKIT_CONTACT_CENTER_TENANT_LIMIT'),
-    batch_size: bounded(env.OPC_IVEKIT_CONTACT_CENTER_BATCH_SIZE, 100, 1, 1_000,
-      'OPC_IVEKIT_CONTACT_CENTER_BATCH_SIZE'),
-    offer_ttl_seconds: bounded(env.OPC_IVEKIT_CONTACT_CENTER_OFFER_TTL_SECONDS, 20, 1, 300,
-      'OPC_IVEKIT_CONTACT_CENTER_OFFER_TTL_SECONDS'),
+    interval_ms: bounded(resolveFabricEnv(env, 'CONTACT_CENTER_INTERVAL_MS'), 1_000, 250, 60_000,
+      'CONVERACT_FABRIC_CONTACT_CENTER_INTERVAL_MS'),
+    tenant_limit: bounded(resolveFabricEnv(env, 'CONTACT_CENTER_TENANT_LIMIT'), 100, 1, 1_000,
+      'CONVERACT_FABRIC_CONTACT_CENTER_TENANT_LIMIT'),
+    batch_size: bounded(resolveFabricEnv(env, 'CONTACT_CENTER_BATCH_SIZE'), 100, 1, 1_000,
+      'CONVERACT_FABRIC_CONTACT_CENTER_BATCH_SIZE'),
+    offer_ttl_seconds: bounded(resolveFabricEnv(env, 'CONTACT_CENTER_OFFER_TTL_SECONDS'), 20, 1, 300,
+      'CONVERACT_FABRIC_CONTACT_CENTER_OFFER_TTL_SECONDS'),
     callback_retry_delay_ms: bounded(
-      env.OPC_IVEKIT_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS,
+      resolveFabricEnv(env, 'CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS'),
       30_000,
       1_000,
       3_600_000,
-      'OPC_IVEKIT_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS'
+      'CONVERACT_FABRIC_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS'
     ),
     overflow_retry_delay_ms: bounded(
-      env.OPC_IVEKIT_CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS,
+      resolveFabricEnv(env, 'CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS'),
       30_000,
       1_000,
       3_600_000,
-      'OPC_IVEKIT_CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS'
+      'CONVERACT_FABRIC_CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS'
     )
   };
 }

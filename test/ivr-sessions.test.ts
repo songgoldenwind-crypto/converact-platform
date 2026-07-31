@@ -34,7 +34,7 @@ const baseSampleGraph: IvrFlowGraph = {
 const sampleGraph = withCompleteMenuEdges(baseSampleGraph, 'menu1');
 
 function setup() {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'IVR Session Test' });
   const store = new IvrFlowStore(db);

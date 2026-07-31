@@ -12,13 +12,13 @@ import {
 
 test('RustDesk audit export config maps focused env and iveKit fallbacks', () => {
   const config = createRustDeskAuditExportConfigFromEnv({
-    OPC_RUSTDESK_AUDIT_EXPORT_FILE: '/tmp/audit-export.jsonl',
-    OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID: 'rdgw_1',
-    OPC_RUSTDESK_IVEKIT_BASE_URL: 'https://opc.example.com/',
-    OPC_COLLABORATION_API_KEY: 'api-key',
-    OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-    OPC_RUSTDESK_AUDIT_EXPORT_USER_ID: 'qa_operator',
-    OPC_RUSTDESK_AUDIT_EXPORT_SINCE: '2026-07-06T00:00:00.000Z'
+    CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE: '/tmp/audit-export.jsonl',
+    CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID: 'rdgw_1',
+    CONVERACT_RUSTDESK_IVEKIT_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_COLLABORATION_API_KEY: 'api-key',
+    CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+    CONVERACT_RUSTDESK_AUDIT_EXPORT_USER_ID: 'qa_operator',
+    CONVERACT_RUSTDESK_AUDIT_EXPORT_SINCE: '2026-07-06T00:00:00.000Z'
   });
 
   assert.equal(config.outputFile, '/tmp/audit-export.jsonl');
@@ -33,20 +33,20 @@ test('RustDesk audit export config maps focused env and iveKit fallbacks', () =>
 test('RustDesk audit export requires output file, external id, and iveKit credentials', () => {
   assert.throws(
     () => createRustDeskAuditExportConfigFromEnv({}),
-    /OPC_RUSTDESK_AUDIT_EXPORT_FILE is required/
+    /CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE is required/
   );
   assert.throws(
     () => createRustDeskAuditExportConfigFromEnv({
-      OPC_RUSTDESK_AUDIT_EXPORT_FILE: '/tmp/audit-export.jsonl'
+      CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE: '/tmp/audit-export.jsonl'
     }),
-    /OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID is required/
+    /CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID is required/
   );
   assert.throws(
     () => createRustDeskAuditExportConfigFromEnv({
-      OPC_RUSTDESK_AUDIT_EXPORT_FILE: '/tmp/audit-export.jsonl',
-      OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID: 'rdgw_1'
+      CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE: '/tmp/audit-export.jsonl',
+      CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID: 'rdgw_1'
     }),
-    /OPC_RUSTDESK_AUDIT_EXPORT_BASE_URL, OPC_RUSTDESK_IVEKIT_BASE_URL, OPC_BASE_URL, or OPC_COLLABORATION_BASE_URL is required/
+    /CONVERACT_RUSTDESK_AUDIT_EXPORT_BASE_URL, CONVERACT_RUSTDESK_IVEKIT_BASE_URL, CONVERACT_BASE_URL, or CONVERACT_COLLABORATION_BASE_URL is required/
   );
 });
 
@@ -109,12 +109,12 @@ test('RustDesk audit export is exposed as a runnable package script with env sam
   const rootEnv = readFileSync('.env.example', 'utf8');
   const infraEnv = readFileSync('infra/env.example', 'utf8');
   for (const key of [
-    'OPC_RUSTDESK_AUDIT_EXPORT_FILE=',
-    'OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=',
-    'OPC_RUSTDESK_AUDIT_EXPORT_BASE_URL=',
-    'OPC_RUSTDESK_AUDIT_EXPORT_API_KEY=',
-    'OPC_RUSTDESK_AUDIT_EXPORT_TENANT_ID=',
-    'OPC_RUSTDESK_AUDIT_EXPORT_SINCE='
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE=',
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=',
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_BASE_URL=',
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_API_KEY=',
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_TENANT_ID=',
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_SINCE='
   ]) {
     assert.match(rootEnv, new RegExp(`^${key}`, 'm'));
     assert.match(infraEnv, new RegExp(`^${key}`, 'm'));

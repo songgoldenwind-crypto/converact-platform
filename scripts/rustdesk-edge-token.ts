@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,13 +27,13 @@ export function createRustDeskEdgeTokenFileConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): RustDeskEdgeTokenFileConfig {
   return {
-    secret: required(env.OPC_RUSTDESK_EDGE_TOKEN_SECRET, 'OPC_RUSTDESK_EDGE_TOKEN_SECRET is required'),
-    tenantId: required(env.OPC_RUSTDESK_EDGE_TOKEN_TENANT_ID, 'OPC_RUSTDESK_EDGE_TOKEN_TENANT_ID is required'),
-    rustdeskId: required(env.OPC_RUSTDESK_EDGE_TOKEN_RUSTDESK_ID, 'OPC_RUSTDESK_EDGE_TOKEN_RUSTDESK_ID is required'),
-    edgeInstanceId: required(env.OPC_RUSTDESK_EDGE_TOKEN_INSTANCE_ID, 'OPC_RUSTDESK_EDGE_TOKEN_INSTANCE_ID is required'),
-    ttlMs: positiveInteger(env.OPC_RUSTDESK_EDGE_TOKEN_TTL_MS, 30 * 24 * 60 * 60 * 1_000),
-    now: timestamp(env.OPC_RUSTDESK_EDGE_TOKEN_NOW || new Date().toISOString()),
-    outputFile: required(env.OPC_RUSTDESK_EDGE_TOKEN_OUTPUT_FILE, 'OPC_RUSTDESK_EDGE_TOKEN_OUTPUT_FILE is required')
+    secret: required(resolveBrandEnv(env, 'RUSTDESK_EDGE_TOKEN_SECRET'), 'CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET is required'),
+    tenantId: required(resolveBrandEnv(env, 'RUSTDESK_EDGE_TOKEN_TENANT_ID'), 'CONVERACT_RUSTDESK_EDGE_TOKEN_TENANT_ID is required'),
+    rustdeskId: required(resolveBrandEnv(env, 'RUSTDESK_EDGE_TOKEN_RUSTDESK_ID'), 'CONVERACT_RUSTDESK_EDGE_TOKEN_RUSTDESK_ID is required'),
+    edgeInstanceId: required(resolveBrandEnv(env, 'RUSTDESK_EDGE_TOKEN_INSTANCE_ID'), 'CONVERACT_RUSTDESK_EDGE_TOKEN_INSTANCE_ID is required'),
+    ttlMs: positiveInteger(resolveBrandEnv(env, 'RUSTDESK_EDGE_TOKEN_TTL_MS'), 30 * 24 * 60 * 60 * 1_000),
+    now: timestamp(resolveBrandEnv(env, 'RUSTDESK_EDGE_TOKEN_NOW') || new Date().toISOString()),
+    outputFile: required(resolveBrandEnv(env, 'RUSTDESK_EDGE_TOKEN_OUTPUT_FILE'), 'CONVERACT_RUSTDESK_EDGE_TOKEN_OUTPUT_FILE is required')
   };
 }
 
@@ -69,7 +70,7 @@ function positiveInteger(value: unknown, fallback: number): number {
   if (value === undefined || value === null || value === '') return fallback;
   const number = Number(value);
   if (!Number.isInteger(number) || number < 60_000 || number > 365 * 24 * 60 * 60 * 1_000) {
-    throw new Error('OPC_RUSTDESK_EDGE_TOKEN_TTL_MS must be an integer from 60000 to 31536000000');
+    throw new Error('CONVERACT_RUSTDESK_EDGE_TOKEN_TTL_MS must be an integer from 60000 to 31536000000');
   }
   return number;
 }
@@ -78,7 +79,7 @@ function timestamp(value: unknown): string {
   const normalized = String(value || '').trim();
   const milliseconds = new Date(normalized).getTime();
   if (!normalized || Number.isNaN(milliseconds)) {
-    throw new Error('OPC_RUSTDESK_EDGE_TOKEN_NOW must be an ISO timestamp');
+    throw new Error('CONVERACT_RUSTDESK_EDGE_TOKEN_NOW must be an ISO timestamp');
   }
   return new Date(milliseconds).toISOString();
 }

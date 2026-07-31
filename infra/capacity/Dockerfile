@@ -26,6 +26,7 @@ COPY scripts/ivekit-cell-capacity-projector.ts ./scripts/ivekit-cell-capacity-pr
 COPY scripts/ivekit-component-node-admission.ts ./scripts/ivekit-component-node-admission.ts
 COPY scripts/ivekit-rustdesk-owner-binding.ts ./scripts/ivekit-rustdesk-owner-binding.ts
 COPY services/converact-service/acceptance/sipp/answer-bye-uac.xml /opt/ivekit/scenarios/answer-bye-uac.xml
+COPY src/config/converact-env.ts ./src/config/converact-env.ts
 COPY src/infra/nats-connection-options.ts ./src/infra/nats-connection-options.ts
 COPY src/converact-component-node-admission.ts ./src/converact-component-node-admission.ts
 COPY src/converact-placement-snapshot-projector.ts ./src/converact-placement-snapshot-projector.ts

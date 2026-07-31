@@ -19,8 +19,8 @@ test('machine-readable OpenAPI and operations runbook cover notification adminis
   for (const marker of [
     'failed/dead_letter',
     'allow_uncertain',
-    'OPC_IVEKIT_NOTIFICATION_ENCRYPTION_KEY',
-    'OPC_IVEKIT_NOTIFICATION_HEALTH_WORKER_ENABLED',
+    'CONVERACT_FABRIC_NOTIFICATION_ENCRYPTION_KEY',
+    'CONVERACT_FABRIC_NOTIFICATION_HEALTH_WORKER_ENABLED',
     'opc_ivekit_notification_queue_oldest_age_seconds',
     '真实 SMTP',
     'not_run'

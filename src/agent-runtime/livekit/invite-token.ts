@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export interface MediaInviteInput {
@@ -16,11 +17,11 @@ export interface MediaInviteToken {
 const DEFAULT_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function inviteSecret(): string {
-  return process.env.OPC_MEDIA_INVITE_SECRET || process.env.LIVEKIT_MEDIA_INVITE_SECRET || '';
+  return resolveBrandEnv(process.env, 'MEDIA_INVITE_SECRET') || process.env.LIVEKIT_MEDIA_INVITE_SECRET || '';
 }
 
 function inviteTtlMs(): number {
-  const value = Number(process.env.OPC_MEDIA_INVITE_TTL_MS || DEFAULT_INVITE_TTL_MS);
+  const value = Number(resolveBrandEnv(process.env, 'MEDIA_INVITE_TTL_MS') || DEFAULT_INVITE_TTL_MS);
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_INVITE_TTL_MS;
 }
 

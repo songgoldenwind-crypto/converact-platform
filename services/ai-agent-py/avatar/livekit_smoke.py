@@ -10,6 +10,8 @@ from typing import Any, Awaitable, Callable, Mapping
 
 import numpy as np
 
+from converact_env import resolve_converact_env
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,10 +74,10 @@ def load_avatar_livekit_smoke_config(
         livekit_url=_read_env(values, "LIVEKIT_URL"),
         livekit_api_key=_read_env(values, "LIVEKIT_API_KEY"),
         livekit_api_secret=_read_env(values, "LIVEKIT_API_SECRET"),
-        room_name=_read_env(values, "OPC_AVATAR_SMOKE_ROOM_NAME", "opc-avatar-smoke"),
-        identity=_read_env(values, "OPC_AVATAR_SMOKE_IDENTITY", "opc-avatar-smoke-bot"),
-        sample_chunks=_read_positive_int(values, "OPC_AVATAR_SMOKE_SAMPLE_CHUNKS", 3),
-        settle_seconds=_read_non_negative_float(values, "OPC_AVATAR_SMOKE_SETTLE_SECONDS", 0.5),
+        room_name=_read_env(values, "CONVERACT_AVATAR_SMOKE_ROOM_NAME", "converact-avatar-smoke"),
+        identity=_read_env(values, "CONVERACT_AVATAR_SMOKE_IDENTITY", "converact-avatar-smoke-bot"),
+        sample_chunks=_read_positive_int(values, "CONVERACT_AVATAR_SMOKE_SAMPLE_CHUNKS", 3),
+        settle_seconds=_read_non_negative_float(values, "CONVERACT_AVATAR_SMOKE_SETTLE_SECONDS", 0.5),
     )
 
 
@@ -197,7 +199,7 @@ def _read_env(
     name: str,
     default: str | None = None,
 ) -> str:
-    value = env.get(name)
+    value = resolve_converact_env(env, name)
     if value is None or str(value).strip() == "":
         if default is None:
             return ""

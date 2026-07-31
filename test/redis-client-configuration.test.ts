@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { after, before, test } from 'node:test';
@@ -6,7 +7,7 @@ import { getRedisClient, setRedisClientForTests } from '../src/redis-client.js';
 import { getRedisPubSub, resetRedisPubSubForTests } from '../src/redis-pubsub.js';
 
 const MANAGED_ENV = [
-  'OPC_USE_MEMORY_REDIS',
+  'CONVERACT_USE_MEMORY_REDIS',
   'REDIS_TOPOLOGY',
   'REDIS_URL',
   'REDIS_SENTINEL_MASTER_NAME',
@@ -16,8 +17,8 @@ const MANAGED_ENV = [
 const saved = new Map<string, string | undefined>();
 
 before(() => {
-  for (const key of MANAGED_ENV) saved.set(key, process.env[key]);
-  delete process.env.OPC_USE_MEMORY_REDIS;
+  for (const key of MANAGED_ENV) saved.set(key, resolveConveractEnv(process.env, key));
+  delete process.env.CONVERACT_USE_MEMORY_REDIS;
 });
 
 after(() => {

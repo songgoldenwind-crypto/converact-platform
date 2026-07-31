@@ -188,7 +188,7 @@ function routeScenario(
   now?: () => Date
 ) {
   const registry = createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
       profile('translation-primary', 'self_hosted', profileOverrides),
       profile('translation-fallback', 'third_party', profileOverrides)
     ])

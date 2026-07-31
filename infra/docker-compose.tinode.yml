@@ -5,7 +5,7 @@
 services:
   postgres-bootstrap:
     environment:
-      OPC_POSTGRES_BOOTSTRAP_DATABASES: keycloak,tinode
+      CONVERACT_POSTGRES_BOOTSTRAP_DATABASES: keycloak,tinode
 
   tinode:
     image: tinode/tinode:${TINODE_IMAGE_TAG:-0.25.3}

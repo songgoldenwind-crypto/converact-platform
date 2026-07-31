@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import type {
@@ -133,16 +134,16 @@ export function mediaQualityServiceOptionsFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): MediaQualityServiceOptions {
   return compactOptions({
-    degraded_samples: optionalEnvNumber(env, 'OPC_MEDIA_QOS_DEGRADED_SAMPLES'),
-    recovery_samples: optionalEnvNumber(env, 'OPC_MEDIA_QOS_RECOVERY_SAMPLES'),
-    degraded_rtt_ms: optionalEnvNumber(env, 'OPC_MEDIA_QOS_DEGRADED_RTT_MS'),
-    degraded_jitter_ms: optionalEnvNumber(env, 'OPC_MEDIA_QOS_DEGRADED_JITTER_MS'),
-    degraded_packet_loss_ratio: optionalEnvNumber(env, 'OPC_MEDIA_QOS_DEGRADED_PACKET_LOSS_RATIO'),
-    degraded_quality_score: optionalEnvNumber(env, 'OPC_MEDIA_QOS_DEGRADED_QUALITY_SCORE'),
-    retention_ms: optionalEnvNumber(env, 'OPC_MEDIA_QOS_RETENTION_MS'),
-    max_sample_age_ms: optionalEnvNumber(env, 'OPC_MEDIA_QOS_MAX_SAMPLE_AGE_MS'),
-    max_event_age_ms: optionalEnvNumber(env, 'OPC_MEDIA_CONNECTION_MAX_EVENT_AGE_MS'),
-    max_future_skew_ms: optionalEnvNumber(env, 'OPC_MEDIA_QOS_MAX_FUTURE_SKEW_MS')
+    degraded_samples: optionalEnvNumber(env, 'CONVERACT_MEDIA_QOS_DEGRADED_SAMPLES'),
+    recovery_samples: optionalEnvNumber(env, 'CONVERACT_MEDIA_QOS_RECOVERY_SAMPLES'),
+    degraded_rtt_ms: optionalEnvNumber(env, 'CONVERACT_MEDIA_QOS_DEGRADED_RTT_MS'),
+    degraded_jitter_ms: optionalEnvNumber(env, 'CONVERACT_MEDIA_QOS_DEGRADED_JITTER_MS'),
+    degraded_packet_loss_ratio: optionalEnvNumber(env, 'CONVERACT_MEDIA_QOS_DEGRADED_PACKET_LOSS_RATIO'),
+    degraded_quality_score: optionalEnvNumber(env, 'CONVERACT_MEDIA_QOS_DEGRADED_QUALITY_SCORE'),
+    retention_ms: optionalEnvNumber(env, 'CONVERACT_MEDIA_QOS_RETENTION_MS'),
+    max_sample_age_ms: optionalEnvNumber(env, 'CONVERACT_MEDIA_QOS_MAX_SAMPLE_AGE_MS'),
+    max_event_age_ms: optionalEnvNumber(env, 'CONVERACT_MEDIA_CONNECTION_MAX_EVENT_AGE_MS'),
+    max_future_skew_ms: optionalEnvNumber(env, 'CONVERACT_MEDIA_QOS_MAX_FUTURE_SKEW_MS')
   });
 }
 
@@ -655,7 +656,7 @@ function badRequest(message: string): Error & { status: number } {
 }
 
 function optionalEnvNumber(env: NodeJS.ProcessEnv, key: string): number | undefined {
-  const raw = String(env[key] || '').trim();
+  const raw = String(resolveConveractEnv(env, key) || '').trim();
   if (!raw) return undefined;
   const value = Number(raw);
   if (!Number.isFinite(value)) throw new Error(`${key} must be a number`);

@@ -120,20 +120,20 @@ test('Kamailio Helm workload renders immutable config and runs route agent besid
   assert.match(deployment, /serviceName:.*-dmq/);
   assert.match(deployment, /podManagementPolicy: Parallel/);
   assert.match(deployment, /replicas:.*kamailio\.replicaCount/);
-  assert.match(deployment, /name: render-config[\s\S]*ivekit-render-kamailio-config\.js/);
-  assert.match(deployment, /name: route-agent[\s\S]*ivekit-kamailio-route-agent\.js/);
+  assert.match(deployment, /name: render-config[\s\S]*converact-render-kamailio-config\.js/);
+  assert.match(deployment, /name: route-agent[\s\S]*converact-kamailio-route-agent\.js/);
   assert.match(deployment, /name: kamailio[\s\S]*kamailio\.image/);
   assert.match(
     deployment,
     /args:[\s\S]*"-x"[\s\S]*sharedMemoryAllocator[\s\S]*"-m"[\s\S]*sharedMemoryMegabytes[\s\S]*"-M"[\s\S]*privateMemoryMegabytes/
   );
-  assert.match(deployment, /OPC_IVEKIT_KAMAILIO_RPC_ENDPOINT[\s\S]*127\.0\.0\.1:%v\/RPC[\s\S]*listeners\.rpcPort/);
-  assert.match(deployment, /OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED/);
-  assert.match(deployment, /OPC_IVEKIT_KAMAILIO_HOMER_METRICS_ENDPOINT/);
-  assert.match(deployment, /OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_OFF_PER_SECOND/);
-  assert.match(deployment, /OPC_IVEKIT_KAMAILIO_HOST[\s\S]*0\.0\.0\.0/);
-  assert.match(deployment, /OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE/);
-  assert.match(deployment, /OPC_IVEKIT_KAMAILIO_DMQ_SERVER_HOST[\s\S]*fieldPath: status\.podIP/);
+  assert.match(deployment, /CONVERACT_FABRIC_KAMAILIO_RPC_ENDPOINT[\s\S]*127\.0\.0\.1:%v\/RPC[\s\S]*listeners\.rpcPort/);
+  assert.match(deployment, /CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_ENABLED/);
+  assert.match(deployment, /CONVERACT_FABRIC_KAMAILIO_HOMER_METRICS_ENDPOINT/);
+  assert.match(deployment, /CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_OFF_PER_SECOND/);
+  assert.match(deployment, /CONVERACT_FABRIC_KAMAILIO_HOST[\s\S]*0\.0\.0\.0/);
+  assert.match(deployment, /CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_SECRET_FILE/);
+  assert.match(deployment, /CONVERACT_FABRIC_KAMAILIO_DMQ_SERVER_HOST[\s\S]*fieldPath: status\.podIP/);
   assert.match(deployment, /webphone-jwt-secret/);
   assert.match(deployment, /projected:/);
   assert.match(deployment, /readinessProbe:/);

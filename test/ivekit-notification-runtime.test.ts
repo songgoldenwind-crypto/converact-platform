@@ -11,15 +11,15 @@ import { MemoryPg } from '../src/db-pg.js';
 test('notification delivery worker config enables only with encryption keys or an explicit flag', () => {
   assert.equal(notificationDeliveryWorkerConfig({}).enabled, false);
   const keys = {
-    OPC_IVEKIT_NOTIFICATION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
-    OPC_IVEKIT_NOTIFICATION_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
+    CONVERACT_FABRIC_NOTIFICATION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
+    CONVERACT_FABRIC_NOTIFICATION_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
   };
   const config = notificationDeliveryWorkerConfig({
     ...keys,
-    OPC_IVEKIT_NOTIFICATION_BATCH_SIZE: '17',
-    OPC_IVEKIT_NOTIFICATION_PARTITION_COUNT: '4',
-    OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX: '2',
-    OPC_IVEKIT_NOTIFICATION_RETRY_DELAYS_MS: '1000,5000'
+    CONVERACT_FABRIC_NOTIFICATION_BATCH_SIZE: '17',
+    CONVERACT_FABRIC_NOTIFICATION_PARTITION_COUNT: '4',
+    CONVERACT_FABRIC_NOTIFICATION_PARTITION_INDEX: '2',
+    CONVERACT_FABRIC_NOTIFICATION_RETRY_DELAYS_MS: '1000,5000'
   });
   assert.equal(config.enabled, true);
   assert.equal(config.batch_size, 17);
@@ -30,11 +30,11 @@ test('notification delivery worker config enables only with encryption keys or a
   assert.equal(config.shard_ids.at(-1), 1022);
   assert.deepEqual(config.retry_delays_ms, [1_000, 5_000]);
   assert.throws(() => notificationDeliveryWorkerConfig({
-    OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED: '1'
+    CONVERACT_FABRIC_NOTIFICATION_WORKER_ENABLED: '1'
   }));
   assert.throws(() => notificationDeliveryWorkerConfig({
     ...keys,
-    OPC_IVEKIT_NOTIFICATION_PARTITION_COUNT: '2'
+    CONVERACT_FABRIC_NOTIFICATION_PARTITION_COUNT: '2'
   }));
 });
 
@@ -73,8 +73,8 @@ test('iveKit application owns notification worker lifecycle when configured', as
   const application = startIveKitApplication({
     pg: new MemoryPg(),
     env: {
-      OPC_IVEKIT_NOTIFICATION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
-      OPC_IVEKIT_NOTIFICATION_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
+      CONVERACT_FABRIC_NOTIFICATION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
+      CONVERACT_FABRIC_NOTIFICATION_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
     },
     adapters: {
       startNotification: () => {
@@ -91,7 +91,7 @@ test('iveKit application owns active notification health worker independently', 
   const events: string[] = [];
   const application = startIveKitApplication({
     pg: new MemoryPg(),
-    env: { OPC_IVEKIT_NOTIFICATION_HEALTH_WORKER_ENABLED: '1' },
+    env: { CONVERACT_FABRIC_NOTIFICATION_HEALTH_WORKER_ENABLED: '1' },
     adapters: {
       startNotificationHealth: () => {
         events.push('start:notification-health');

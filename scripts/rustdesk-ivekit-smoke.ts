@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 
 import type { RemoteConsentScope } from '../src/agent-runtime/collaboration/types.js';
@@ -72,36 +73,36 @@ const allowedScopes = new Set<RemoteConsentScope>([
 
 export function createRustDeskIveKitSmokeConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskIveKitSmokeConfig {
   const rawBaseUrl =
-    env.OPC_RUSTDESK_IVEKIT_BASE_URL ||
-    env.OPC_BASE_URL ||
-    env.OPC_COLLABORATION_BASE_URL ||
-    env.OPC_RUSTDESK_EDGE_BASE_URL ||
-    env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL ||
-    env.OPC_REMOTE_GATEWAY_BASE_URL ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
+    resolveBrandEnv(env, 'COLLABORATION_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') ||
     '';
   if (!rawBaseUrl) {
-    throw new Error('OPC_RUSTDESK_IVEKIT_BASE_URL, OPC_BASE_URL, OPC_COLLABORATION_BASE_URL, OPC_RUSTDESK_EDGE_BASE_URL, OPC_RUSTDESK_CONTROL_PLANE_BASE_URL, or OPC_REMOTE_GATEWAY_BASE_URL is required');
+    throw new Error('CONVERACT_RUSTDESK_IVEKIT_BASE_URL, CONVERACT_BASE_URL, CONVERACT_COLLABORATION_BASE_URL, CONVERACT_RUSTDESK_EDGE_BASE_URL, CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL, or CONVERACT_REMOTE_GATEWAY_BASE_URL is required');
   }
-  const apiKey = env.OPC_RUSTDESK_IVEKIT_API_KEY || env.OPC_COLLABORATION_API_KEY || env.OPC_API_KEY || '';
-  if (!apiKey) throw new Error('OPC_RUSTDESK_IVEKIT_API_KEY, OPC_COLLABORATION_API_KEY, or OPC_API_KEY is required');
-  const tenantId = env.OPC_RUSTDESK_IVEKIT_TENANT_ID || env.OPC_REMOTE_GATEWAY_TENANT_ID || env.OPC_RUSTDESK_EDGE_TENANT_ID || env.OPC_TENANT_ID || '';
-  if (!tenantId) throw new Error('OPC_RUSTDESK_IVEKIT_TENANT_ID, OPC_REMOTE_GATEWAY_TENANT_ID, OPC_RUSTDESK_EDGE_TENANT_ID, or OPC_TENANT_ID is required');
-  const rustdeskId = env.OPC_RUSTDESK_IVEKIT_RUSTDESK_ID || env.OPC_RUSTDESK_EDGE_RUSTDESK_ID || env.OPC_REMOTE_GATEWAY_TARGET_ID || '';
-  if (!rustdeskId) throw new Error('OPC_RUSTDESK_IVEKIT_RUSTDESK_ID, OPC_RUSTDESK_EDGE_RUSTDESK_ID, or OPC_REMOTE_GATEWAY_TARGET_ID is required');
-  const businessRefId = env.OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID || env.OPC_RUSTDESK_EDGE_BUSINESS_REF_ID || `${tenantId}-rustdesk-ivekit-smoke-${Date.now()}`;
+  const apiKey = resolveBrandEnv(env, 'RUSTDESK_IVEKIT_API_KEY') || resolveBrandEnv(env, 'COLLABORATION_API_KEY') || resolveBrandEnv(env, 'API_KEY') || '';
+  if (!apiKey) throw new Error('CONVERACT_RUSTDESK_IVEKIT_API_KEY, CONVERACT_COLLABORATION_API_KEY, or CONVERACT_API_KEY is required');
+  const tenantId = resolveBrandEnv(env, 'RUSTDESK_IVEKIT_TENANT_ID') || resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') || resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || '';
+  if (!tenantId) throw new Error('CONVERACT_RUSTDESK_IVEKIT_TENANT_ID, CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID is required');
+  const rustdeskId = resolveBrandEnv(env, 'RUSTDESK_IVEKIT_RUSTDESK_ID') || resolveBrandEnv(env, 'RUSTDESK_EDGE_RUSTDESK_ID') || resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_ID') || '';
+  if (!rustdeskId) throw new Error('CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID, CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID, or CONVERACT_REMOTE_GATEWAY_TARGET_ID is required');
+  const businessRefId = resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BUSINESS_REF_ID') || resolveBrandEnv(env, 'RUSTDESK_EDGE_BUSINESS_REF_ID') || `${tenantId}-rustdesk-ivekit-smoke-${Date.now()}`;
   return {
     baseUrl: normalizeBaseUrl(rawBaseUrl),
     apiKey,
     tenantId,
-    actorIdentity: env.OPC_RUSTDESK_IVEKIT_ACTOR_IDENTITY || env.OPC_REMOTE_GATEWAY_ACTOR_IDENTITY || 'agent_ivekit_rustdesk_smoke',
-    customerIdentity: env.OPC_RUSTDESK_IVEKIT_CUSTOMER_IDENTITY || 'customer_ivekit_rustdesk_smoke',
-    businessRefType: env.OPC_RUSTDESK_IVEKIT_BUSINESS_REF_TYPE || env.OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE || 'service_order',
+    actorIdentity: resolveBrandEnv(env, 'RUSTDESK_IVEKIT_ACTOR_IDENTITY') || resolveBrandEnv(env, 'REMOTE_GATEWAY_ACTOR_IDENTITY') || 'agent_ivekit_rustdesk_smoke',
+    customerIdentity: resolveBrandEnv(env, 'RUSTDESK_IVEKIT_CUSTOMER_IDENTITY') || 'customer_ivekit_rustdesk_smoke',
+    businessRefType: resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BUSINESS_REF_TYPE') || resolveBrandEnv(env, 'RUSTDESK_EDGE_BUSINESS_REF_TYPE') || 'service_order',
     businessRefId,
-    businessRefDisplayName: env.OPC_RUSTDESK_IVEKIT_BUSINESS_REF_DISPLAY_NAME || 'RustDesk iveKit smoke',
+    businessRefDisplayName: resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BUSINESS_REF_DISPLAY_NAME') || 'RustDesk iveKit smoke',
     rustdeskId,
-    deviceDisplayName: env.OPC_RUSTDESK_IVEKIT_DEVICE_DISPLAY_NAME || env.OPC_RUSTDESK_EDGE_DEVICE_DISPLAY_NAME || env.OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME || 'RustDesk iveKit smoke device',
-    permissions: splitScopes(env.OPC_RUSTDESK_IVEKIT_CONSENT_SCOPES),
-    consentExpiresAt: env.OPC_RUSTDESK_IVEKIT_CONSENT_EXPIRES_AT || undefined
+    deviceDisplayName: resolveBrandEnv(env, 'RUSTDESK_IVEKIT_DEVICE_DISPLAY_NAME') || resolveBrandEnv(env, 'RUSTDESK_EDGE_DEVICE_DISPLAY_NAME') || resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_DISPLAY_NAME') || 'RustDesk iveKit smoke device',
+    permissions: splitScopes(resolveBrandEnv(env, 'RUSTDESK_IVEKIT_CONSENT_SCOPES')),
+    consentExpiresAt: resolveBrandEnv(env, 'RUSTDESK_IVEKIT_CONSENT_EXPIRES_AT') || undefined
   };
 }
 
@@ -468,9 +469,9 @@ function splitScopes(value: string | undefined): RemoteConsentScope[] {
     .split(',')
     .map((scope) => scope.trim())
     .filter(Boolean);
-  if (!scopes.length) throw new Error('OPC_RUSTDESK_IVEKIT_CONSENT_SCOPES must include at least one scope');
+  if (!scopes.length) throw new Error('CONVERACT_RUSTDESK_IVEKIT_CONSENT_SCOPES must include at least one scope');
   const unsupported = scopes.find((scope) => !allowedScopes.has(scope as RemoteConsentScope));
-  if (unsupported) throw new Error(`unsupported OPC_RUSTDESK_IVEKIT_CONSENT_SCOPES value: ${unsupported}`);
+  if (unsupported) throw new Error(`unsupported CONVERACT_RUSTDESK_IVEKIT_CONSENT_SCOPES value: ${unsupported}`);
   return scopes as RemoteConsentScope[];
 }
 

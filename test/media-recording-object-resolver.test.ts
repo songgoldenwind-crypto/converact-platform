@@ -127,12 +127,12 @@ test('recording object resolver blocks cross-bucket S3 access in production', as
 
 test('recording object resolver blocks arbitrary production file paths', async () => {
   const previousNodeEnv = process.env.NODE_ENV;
-  const previousRoot = process.env.OPC_RECORDING_OBJECT_DIR;
+  const previousRoot = process.env.CONVERACT_RECORDING_OBJECT_DIR;
   const dir = await mkdtemp(join(tmpdir(), 'opc-recording-object-blocked-'));
   const filePath = join(dir, 'recording.mp4');
   await writeFile(filePath, 'blocked production file');
   process.env.NODE_ENV = 'production';
-  delete process.env.OPC_RECORDING_OBJECT_DIR;
+  delete process.env.CONVERACT_RECORDING_OBJECT_DIR;
 
   try {
     const result = await resolveRecordingObjectContent({
@@ -144,21 +144,21 @@ test('recording object resolver blocks arbitrary production file paths', async (
   } finally {
     if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = previousNodeEnv;
-    if (previousRoot === undefined) delete process.env.OPC_RECORDING_OBJECT_DIR;
-    else process.env.OPC_RECORDING_OBJECT_DIR = previousRoot;
+    if (previousRoot === undefined) delete process.env.CONVERACT_RECORDING_OBJECT_DIR;
+    else process.env.CONVERACT_RECORDING_OBJECT_DIR = previousRoot;
     await rm(dir, { recursive: true, force: true });
   }
 });
 
 test('recording object resolver and cleanup allow files under the configured production root', async () => {
   const previousNodeEnv = process.env.NODE_ENV;
-  const previousRoot = process.env.OPC_RECORDING_OBJECT_DIR;
+  const previousRoot = process.env.CONVERACT_RECORDING_OBJECT_DIR;
   const dir = await mkdtemp(join(tmpdir(), 'opc-recording-object-root-'));
   const filePath = join(dir, 'recording.ogg');
   const body = Buffer.from('configured recording object');
   await writeFile(filePath, body);
   process.env.NODE_ENV = 'production';
-  process.env.OPC_RECORDING_OBJECT_DIR = dir;
+  process.env.CONVERACT_RECORDING_OBJECT_DIR = dir;
 
   try {
     const resolved = await resolveRecordingObjectContent({
@@ -175,8 +175,8 @@ test('recording object resolver and cleanup allow files under the configured pro
   } finally {
     if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = previousNodeEnv;
-    if (previousRoot === undefined) delete process.env.OPC_RECORDING_OBJECT_DIR;
-    else process.env.OPC_RECORDING_OBJECT_DIR = previousRoot;
+    if (previousRoot === undefined) delete process.env.CONVERACT_RECORDING_OBJECT_DIR;
+    else process.env.CONVERACT_RECORDING_OBJECT_DIR = previousRoot;
     await rm(dir, { recursive: true, force: true });
   }
 });

@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveConveractEnv } from '../../config/converact-env.js';
 import {
   createIntelligenceProviderRegistry,
   type SafeIntelligenceProviderProfile
@@ -46,32 +47,32 @@ export function inspectIveKitIntelligenceEnv(
   }
 
   const needsStorage = internalProfiles.some((profile) => profile.capability === 'ocr' || profile.capability === 'asr');
-  const storageConfigured = hasValue(env.S3_BUCKET) || hasValue(env.OPC_S3_BUCKET) || hasValue(env.MINIO_BUCKET);
+  const storageConfigured = hasValue(env.S3_BUCKET) || hasValue(resolveBrandEnv(env, 'S3_BUCKET')) || hasValue(env.MINIO_BUCKET);
   if (needsStorage && !storageConfigured) {
     issues.push('Object storage bucket is required for OCR/ASR provider profiles');
   }
 
   const attachment = workerBudget(
     env,
-    'OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED',
+    'CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED',
     internalProfiles.some((profile) => profile.capability === 'ocr' || profile.capability === 'asr'),
-    'OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS',
+    'CONVERACT_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS',
     60_000,
     issues
   );
   const quality = workerBudget(
     env,
-    'OPC_QUALITY_REVIEW_WORKER_ENABLED',
+    'CONVERACT_QUALITY_REVIEW_WORKER_ENABLED',
     internalProfiles.some((profile) => profile.capability === 'quality_review'),
-    'OPC_QUALITY_REVIEW_CLAIM_LEASE_MS',
+    'CONVERACT_QUALITY_REVIEW_CLAIM_LEASE_MS',
     120_000,
     issues
   );
   const translation = workerBudget(
     env,
-    'OPC_TRANSLATION_WORKER_ENABLED',
+    'CONVERACT_TRANSLATION_WORKER_ENABLED',
     internalProfiles.some((profile) => profile.capability === 'translation'),
-    'OPC_TRANSLATION_CLAIM_LEASE_MS',
+    'CONVERACT_TRANSLATION_CLAIM_LEASE_MS',
     120_000,
     issues
   );
@@ -110,13 +111,13 @@ function workerBudget(
   fallbackLease: number,
   issues: string[]
 ): WorkerBudget {
-  const rawEnabled = String(env[enabledField] || '').trim();
+  const rawEnabled = String(resolveConveractEnv(env, enabledField) || '').trim();
   if (rawEnabled && rawEnabled !== '0' && rawEnabled !== '1') {
     issues.push(`${enabledField} must be 0 or 1`);
   }
   let claimLease: number | null = null;
   try {
-    claimLease = boundedInteger(env[leaseField], fallbackLease, 5_000, 600_000, leaseField);
+    claimLease = boundedInteger(resolveConveractEnv(env, leaseField), fallbackLease, 5_000, 600_000, leaseField);
   } catch (error) {
     issues.push(safeErrorMessage(error));
   }
@@ -152,7 +153,7 @@ function secretValues(env: NodeJS.ProcessEnv, tokenEnvNames: string[]): string[]
     'MINIO_SECRET_KEY',
     ...tokenEnvNames
   ];
-  return names.map((name) => String(env[name] || '')).filter((value) => value.length >= 6);
+  return names.map((name) => String(resolveConveractEnv(env, name) || '')).filter((value) => value.length >= 6);
 }
 
 function assertSecretSafe(report: IveKitIntelligencePreflightReport, secrets: string[]): void {

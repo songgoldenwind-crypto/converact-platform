@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import type { PgQueryable } from '../../db-pg.js';
 import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
 import { createPolicyQualityReviewProviderResolver } from './intelligence-provider-routing.js';
@@ -78,44 +79,44 @@ export function qualityReviewWorkerConfig(
   const profiles = createIntelligenceProviderRegistry(env).list()
     .filter((profile) => profile.capability === 'quality_review');
   const configured = profiles.length > 0;
-  const enabledFlag = String(env.OPC_QUALITY_REVIEW_WORKER_ENABLED || '').trim();
+  const enabledFlag = String(resolveBrandEnv(env, 'QUALITY_REVIEW_WORKER_ENABLED') || '').trim();
   if (enabledFlag && enabledFlag !== '0' && enabledFlag !== '1') {
-    throw new Error('OPC_QUALITY_REVIEW_WORKER_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_QUALITY_REVIEW_WORKER_ENABLED must be 0 or 1');
   }
   return {
     enabled: configured && enabledFlag !== '0',
     intervalMs: boundedInteger(
-      env.OPC_QUALITY_REVIEW_INTERVAL_MS,
+      resolveBrandEnv(env, 'QUALITY_REVIEW_INTERVAL_MS'),
       5_000,
       1_000,
       300_000,
-      'OPC_QUALITY_REVIEW_INTERVAL_MS'
+      'CONVERACT_QUALITY_REVIEW_INTERVAL_MS'
     ),
     batchSize: boundedInteger(
-      env.OPC_QUALITY_REVIEW_BATCH_SIZE,
+      resolveBrandEnv(env, 'QUALITY_REVIEW_BATCH_SIZE'),
       25,
       1,
       100,
-      'OPC_QUALITY_REVIEW_BATCH_SIZE'
+      'CONVERACT_QUALITY_REVIEW_BATCH_SIZE'
     ),
     maxAttempts: boundedInteger(
-      env.OPC_QUALITY_REVIEW_MAX_ATTEMPTS,
+      resolveBrandEnv(env, 'QUALITY_REVIEW_MAX_ATTEMPTS'),
       3,
       1,
       10,
-      'OPC_QUALITY_REVIEW_MAX_ATTEMPTS'
+      'CONVERACT_QUALITY_REVIEW_MAX_ATTEMPTS'
     ),
     claimLeaseMs: Math.max(
       boundedInteger(
-        env.OPC_QUALITY_REVIEW_CLAIM_LEASE_MS,
+        resolveBrandEnv(env, 'QUALITY_REVIEW_CLAIM_LEASE_MS'),
         120_000,
         5_000,
         600_000,
-        'OPC_QUALITY_REVIEW_CLAIM_LEASE_MS'
+        'CONVERACT_QUALITY_REVIEW_CLAIM_LEASE_MS'
       ),
       requiredClaimLeaseMs(profiles)
     ),
-    retryDelaysMs: retryDelays(env.OPC_QUALITY_REVIEW_RETRY_DELAYS_MS)
+    retryDelaysMs: retryDelays(resolveBrandEnv(env, 'QUALITY_REVIEW_RETRY_DELAYS_MS'))
   };
 }
 
@@ -179,7 +180,7 @@ function retryDelays(value: string | undefined): number[] {
   if (!hasValue(value)) return [5_000, 30_000];
   const parsed = String(value).split(',').map((item) => Number(item.trim()));
   if (!parsed.length || parsed.some((delay) => !Number.isInteger(delay) || delay < 0 || delay > 3_600_000)) {
-    throw new Error('OPC_QUALITY_REVIEW_RETRY_DELAYS_MS must be comma-separated integers between 0 and 3600000');
+    throw new Error('CONVERACT_QUALITY_REVIEW_RETRY_DELAYS_MS must be comma-separated integers between 0 and 3600000');
   }
   return parsed;
 }

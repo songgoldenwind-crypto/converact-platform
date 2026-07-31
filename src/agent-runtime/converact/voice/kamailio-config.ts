@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 import { lstat, open, readFile, rename } from 'node:fs/promises';
 import { isIP } from 'node:net';
@@ -875,26 +876,26 @@ export async function loadKamailioConfigRuntime(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<KamailioConfigRuntime> {
   rejectInlineSecrets(env);
-  const configFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_CONFIG_FILE');
-  const topohFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE');
-  const rpcFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE');
+  const configFile = requiredAbsoluteEnv(env, 'CONVERACT_FABRIC_KAMAILIO_CONFIG_FILE');
+  const topohFile = requiredAbsoluteEnv(env, 'CONVERACT_FABRIC_KAMAILIO_TOPOH_KEY_FILE');
+  const rpcFile = requiredAbsoluteEnv(env, 'CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE');
   const webphoneJwtFile = requiredAbsoluteEnv(
     env,
-    'OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE'
+    'CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_SECRET_FILE'
   );
-  const outputFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_OUTPUT_FILE');
-  const tlsOutputFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE');
+  const outputFile = requiredAbsoluteEnv(env, 'CONVERACT_FABRIC_KAMAILIO_OUTPUT_FILE');
+  const tlsOutputFile = requiredAbsoluteEnv(env, 'CONVERACT_FABRIC_KAMAILIO_TLS_OUTPUT_FILE');
   const webphoneJwtRuntimeFile = optionalAbsoluteEnv(
     env,
-    'OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_RUNTIME_FILE'
+    'CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_RUNTIME_FILE'
   ) || webphoneJwtFile;
   const tlsRuntimeFile = optionalAbsoluteEnv(
     env,
-    'OPC_IVEKIT_KAMAILIO_TLS_RUNTIME_FILE'
+    'CONVERACT_FABRIC_KAMAILIO_TLS_RUNTIME_FILE'
   ) || tlsOutputFile;
   const rawConfig = JSON.parse(await readBoundedFile(configFile, MAX_CONFIG_BYTES)) as KamailioConfig;
-  if (env.OPC_IVEKIT_KAMAILIO_DMQ_SERVER_HOST) {
-    rawConfig.dmq.server_host = env.OPC_IVEKIT_KAMAILIO_DMQ_SERVER_HOST;
+  if (resolveFabricEnv(env, 'KAMAILIO_DMQ_SERVER_HOST')) {
+    rawConfig.dmq.server_host = resolveFabricEnv(env, 'KAMAILIO_DMQ_SERVER_HOST');
   }
   const config = validateConfig(rawConfig);
   if (config.tls_config_file !== tlsRuntimeFile) {
@@ -1229,23 +1230,23 @@ function kamailioString(value: string) {
 
 function rejectInlineSecrets(env: NodeJS.ProcessEnv) {
   const forbidden = [
-    'OPC_IVEKIT_KAMAILIO_TOPOH_KEY',
-    'OPC_IVEKIT_KAMAILIO_RPC_TOKEN',
-    'OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET'
+    'CONVERACT_FABRIC_KAMAILIO_TOPOH_KEY',
+    'CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN',
+    'CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_SECRET'
   ];
-  if (forbidden.some((name) => env[name] !== undefined)) {
+  if (forbidden.some((name) => resolveConveractEnv(env, name) !== undefined)) {
     throw new Error('inline Kamailio secret variables are forbidden');
   }
 }
 
 function requiredAbsoluteEnv(env: NodeJS.ProcessEnv, name: string) {
-  const value = env[name];
+  const value = resolveConveractEnv(env, name);
   if (!value || !isAbsolute(value) || value.length > 1024) throw new Error(`${name} must be an absolute path`);
   return value;
 }
 
 function optionalAbsoluteEnv(env: NodeJS.ProcessEnv, name: string) {
-  const value = env[name];
+  const value = resolveConveractEnv(env, name);
   if (value === undefined || value === '') return undefined;
   if (!isAbsolute(value) || value.length > 1024) throw new Error(`${name} must be an absolute path`);
   return value;

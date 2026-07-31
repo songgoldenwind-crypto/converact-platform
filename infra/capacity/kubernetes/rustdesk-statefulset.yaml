@@ -193,24 +193,24 @@ spec:
               containerPort: 3211
               protocol: TCP
           env:
-            - name: OPC_IVEKIT_RUSTDESK_OWNER_BINDING_HOST
+            - name: CONVERACT_FABRIC_RUSTDESK_OWNER_BINDING_HOST
               value: "0.0.0.0"
-            - name: OPC_IVEKIT_RUSTDESK_OWNER_BINDING_PORT
+            - name: CONVERACT_FABRIC_RUSTDESK_OWNER_BINDING_PORT
               value: "3211"
-            - name: OPC_IVEKIT_COMPONENT_NODE_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_RUSTDESK_OWNER_BINDING_TOKEN
+            - name: CONVERACT_FABRIC_RUSTDESK_OWNER_BINDING_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: ivekit-rustdesk-owner
                   key: service-token
-            - name: OPC_IVEKIT_RUSTDESK_OWNER_BINDING_CHECKPOINT
+            - name: CONVERACT_FABRIC_RUSTDESK_OWNER_BINDING_CHECKPOINT
               value: /var/lib/ivekit-rustdesk-owner/bindings.json
-            - name: OPC_IVEKIT_RUSTDESK_OWNER_BINDING_LIMIT
+            - name: CONVERACT_FABRIC_RUSTDESK_OWNER_BINDING_LIMIT
               value: "4096"
-            - name: OPC_IVEKIT_RUSTDESK_OWNER_BINDING_CLAIMED_TTL_MS
+            - name: CONVERACT_FABRIC_RUSTDESK_OWNER_BINDING_CLAIMED_TTL_MS
               value: "120000"
           volumeMounts:
             - name: rustdesk-data
@@ -245,51 +245,51 @@ spec:
               containerPort: 3210
               protocol: TCP
           env:
-            - name: OPC_IVEKIT_COMPONENT_NODE_HOST
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_HOST
               value: "0.0.0.0"
-            - name: OPC_IVEKIT_COMPONENT_NODE_PORT
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_PORT
               value: "3210"
-            - name: OPC_IVEKIT_COMPONENT_NODE_TOKEN
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: ivekit-component-node
                   key: service-token
-            - name: OPC_IVEKIT_COMPONENT_NODE_COMPONENT
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT
               value: rustdesk
-            - name: OPC_IVEKIT_COMPONENT_NODE_REGION_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_REGION_ID
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-rustdesk-cell
                   key: region-id
-            - name: OPC_IVEKIT_COMPONENT_NODE_ZONE_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_ZONE_ID
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-rustdesk-cell
                   key: zone-id
-            - name: OPC_IVEKIT_COMPONENT_NODE_CELL_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_CELL_ID
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-rustdesk-cell
                   key: cell-id
-            - name: OPC_IVEKIT_COMPONENT_NODE_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_IDS
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-rustdesk-cell
                   key: profile-ids
-            - name: OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_INTERACTION_KINDS
               value: rustdesk_remote
-            - name: OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_DIMENSIONS_JSON
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-rustdesk-cell
                   key: dimensions-json
-            - name: OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_TERMINAL_RETENTION_MS
               value: "300000"
-            - name: OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_SWEEP_INTERVAL_MS
               value: "1000"
           readinessProbe:
             httpGet:

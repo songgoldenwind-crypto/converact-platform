@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from './config/converact-env.js';
 export interface TelemetryConfig {
   enabled: boolean;
   service_name: string;
@@ -20,55 +21,55 @@ export function resolveTelemetryConfig(
   env: NodeJS.ProcessEnv = process.env,
   defaultServiceName = 'ivekit'
 ): TelemetryConfig {
-  const flag = String(env.OPC_OTEL_ENABLED || '0').trim();
+  const flag = String(resolveBrandEnv(env, 'OTEL_ENABLED') || '0').trim();
   if (flag !== '0' && flag !== '1') {
-    throw new Error('OPC_OTEL_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_OTEL_ENABLED must be 0 or 1');
   }
   const serviceName = String(
-    env.OPC_OTEL_SERVICE_NAME || env.OTEL_SERVICE_NAME || defaultServiceName
+    resolveBrandEnv(env, 'OTEL_SERVICE_NAME') || env.OTEL_SERVICE_NAME || defaultServiceName
   ).trim();
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(serviceName)) {
-    throw new Error('OPC_OTEL_SERVICE_NAME is invalid');
+    throw new Error('CONVERACT_OTEL_SERVICE_NAME is invalid');
   }
-  const endpoint = String(env.OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || '').trim();
+  const endpoint = String(resolveBrandEnv(env, 'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT') || '').trim();
   if (flag === '1') validateEndpoint(endpoint);
   const maxQueueSize = integer(
-    env.OPC_OTEL_MAX_QUEUE_SIZE,
+    resolveBrandEnv(env, 'OTEL_MAX_QUEUE_SIZE'),
     2_048,
     128,
     65_536,
-    'OPC_OTEL_MAX_QUEUE_SIZE'
+    'CONVERACT_OTEL_MAX_QUEUE_SIZE'
   );
   const maxExportBatchSize = integer(
-    env.OPC_OTEL_MAX_EXPORT_BATCH_SIZE,
+    resolveBrandEnv(env, 'OTEL_MAX_EXPORT_BATCH_SIZE'),
     256,
     1,
     8_192,
-    'OPC_OTEL_MAX_EXPORT_BATCH_SIZE'
+    'CONVERACT_OTEL_MAX_EXPORT_BATCH_SIZE'
   );
   if (maxExportBatchSize > maxQueueSize) {
-    throw new Error('OPC_OTEL_MAX_EXPORT_BATCH_SIZE batch size must not exceed queue size');
+    throw new Error('CONVERACT_OTEL_MAX_EXPORT_BATCH_SIZE batch size must not exceed queue size');
   }
   return {
     enabled: flag === '1',
     service_name: serviceName,
     endpoint,
-    sample_ratio: ratio(env.OPC_OTEL_TRACE_SAMPLE_RATIO, 0.1),
+    sample_ratio: ratio(resolveBrandEnv(env, 'OTEL_TRACE_SAMPLE_RATIO'), 0.1),
     max_queue_size: maxQueueSize,
     max_export_batch_size: maxExportBatchSize,
     scheduled_delay_ms: integer(
-      env.OPC_OTEL_SCHEDULED_DELAY_MS,
+      resolveBrandEnv(env, 'OTEL_SCHEDULED_DELAY_MS'),
       5_000,
       100,
       60_000,
-      'OPC_OTEL_SCHEDULED_DELAY_MS'
+      'CONVERACT_OTEL_SCHEDULED_DELAY_MS'
     ),
     export_timeout_ms: integer(
-      env.OPC_OTEL_EXPORT_TIMEOUT_MS,
+      resolveBrandEnv(env, 'OTEL_EXPORT_TIMEOUT_MS'),
       3_000,
       100,
       30_000,
-      'OPC_OTEL_EXPORT_TIMEOUT_MS'
+      'CONVERACT_OTEL_EXPORT_TIMEOUT_MS'
     )
   };
 }
@@ -130,9 +131,9 @@ async function initialize(
     'service.name': config.service_name,
     'service.namespace': 'ivekit',
     'deployment.environment.name': String(env.NODE_ENV || 'production'),
-    'ivekit.region': boundedResourceValue(env.OPC_IVEKIT_REGION_ID),
-    'ivekit.zone': boundedResourceValue(env.OPC_IVEKIT_ZONE_ID),
-    'ivekit.cell': boundedResourceValue(env.OPC_IVEKIT_CELL_ID)
+    'ivekit.region': boundedResourceValue(resolveFabricEnv(env, 'REGION_ID')),
+    'ivekit.zone': boundedResourceValue(resolveFabricEnv(env, 'ZONE_ID')),
+    'ivekit.cell': boundedResourceValue(resolveFabricEnv(env, 'CELL_ID'))
   }));
   const sdk = new NodeSDK({
     resource,
@@ -156,21 +157,21 @@ async function initialize(
 }
 
 function validateEndpoint(value: string): void {
-  if (!value) throw new Error('OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is required');
+  if (!value) throw new Error('CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is required');
   let endpoint: URL;
   try {
     endpoint = new URL(value);
   } catch {
-    throw new Error('OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT must be an HTTP URL');
+    throw new Error('CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT must be an HTTP URL');
   }
   if (!['http:', 'https:'].includes(endpoint.protocol)) {
-    throw new Error('OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT must be an HTTP URL');
+    throw new Error('CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT must be an HTTP URL');
   }
   if (endpoint.username || endpoint.password) {
-    throw new Error('OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT must not contain credentials');
+    throw new Error('CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT must not contain credentials');
   }
   if (endpoint.hash || endpoint.search || !endpoint.pathname.endsWith('/v1/traces')) {
-    throw new Error('OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT must end with /v1/traces');
+    throw new Error('CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT must end with /v1/traces');
   }
 }
 
@@ -178,7 +179,7 @@ function ratio(value: string | undefined, fallback: number): number {
   if (!String(value || '').trim()) return fallback;
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
-    throw new Error('OPC_OTEL_TRACE_SAMPLE_RATIO must be between 0 and 1');
+    throw new Error('CONVERACT_OTEL_TRACE_SAMPLE_RATIO must be between 0 and 1');
   }
   return parsed;
 }
@@ -206,5 +207,5 @@ function boundedResourceValue(value: string | undefined): string {
 }
 
 if (process.env.NODE_ENV !== 'test') {
-  await initializeOpenTelemetry(process.env, process.env.OPC_OTEL_SERVICE_NAME || 'ivekit');
+  await initializeOpenTelemetry(process.env, resolveBrandEnv(process.env, 'OTEL_SERVICE_NAME') || 'ivekit');
 }

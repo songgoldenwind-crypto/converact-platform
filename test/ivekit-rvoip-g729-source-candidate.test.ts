@@ -291,7 +291,7 @@ test('rvoip fork registry and capacity index pin the planned component', () => {
   assert.equal(fork.verification.source_identity, 'passed');
   for (const key of ['patch_apply', 'compile', 'unit', 'integration', 'benchmark', 'real_environment']) assert.equal(fork.verification[key], 'not_run', key);
   assert.equal(fork.release_gate.production_eligible, false);
-  assert.equal(registry.generated_at, '2026-07-29T16:00:00+08:00');
+  assert.equal(fork.verification.checked_at, '2026-07-29T16:00:00+08:00');
   const readme = readFileSync(readmePath, 'utf8'); for (const path of [manifestPath, schemaPath, verifierPath]) assert.ok(readme.includes(path), path);
 });
 

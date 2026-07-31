@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -11,7 +12,7 @@ import { createIntelligenceProviderRegistry } from '../src/agent-runtime/collabo
 import { routeIveKitIntelligenceApi } from '../src/agent-runtime/converact/intelligence-http.js';
 
 const providerEnv: NodeJS.ProcessEnv = {
-  OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+  CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
     {
       id: 'ocr-private',
       capability: 'ocr',
@@ -58,10 +59,10 @@ const providerEnv: NodeJS.ProcessEnv = {
 test('missing tenant policy uses conservative legacy-compatible defaults', async () => {
   const pg = new MemoryPg();
   const registry = createIntelligenceProviderRegistry({
-    OPC_OCR_BASE_URL: 'http://ocr-worker:8080',
-    OPC_ASR_BASE_URL: 'https://asr.example.test',
-    OPC_ASR_PROVIDER_MODE: 'third_party',
-    OPC_QUALITY_REVIEW_BASE_URL: 'http://quality-worker:8080'
+    CONVERACT_OCR_BASE_URL: 'http://ocr-worker:8080',
+    CONVERACT_ASR_BASE_URL: 'https://asr.example.test',
+    CONVERACT_ASR_PROVIDER_MODE: 'third_party',
+    CONVERACT_QUALITY_REVIEW_BASE_URL: 'http://quality-worker:8080'
   });
   const store = new IntelligencePolicyStore(pg, registry);
 
@@ -168,9 +169,9 @@ test('policy updates are versioned, canonicalized, and reject unsafe profile sel
 });
 
 test('intelligence HTTP exposes public capabilities but protects policy and profile administration', async () => {
-  const previous = snapshotEnv(['OPC_API_KEY', 'OPC_JWT_SECRET']);
-  process.env.OPC_API_KEY = 'intelligence-system-key';
-  process.env.OPC_JWT_SECRET = 'intelligence-jwt-secret-with-sufficient-length';
+  const previous = snapshotEnv(['CONVERACT_API_KEY', 'CONVERACT_JWT_SECRET']);
+  process.env.CONVERACT_API_KEY = 'intelligence-system-key';
+  process.env.CONVERACT_JWT_SECRET = 'intelligence-jwt-secret-with-sufficient-length';
   const pg = new MemoryPg();
   const registry = createIntelligenceProviderRegistry(providerEnv);
   const published: Array<{ tenantId: string; type: string; data: unknown }> = [];
@@ -344,7 +345,7 @@ function errorStatus(error: unknown): number {
 }
 
 function snapshotEnv(keys: string[]): Map<string, string | undefined> {
-  return new Map(keys.map((key) => [key, process.env[key]]));
+  return new Map(keys.map((key) => [key, resolveConveractEnv(process.env, key)]));
 }
 
 function restoreEnv(snapshot: Map<string, string | undefined>): void {

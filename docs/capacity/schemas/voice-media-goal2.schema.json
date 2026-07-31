@@ -89,7 +89,7 @@
           "const": "maintained_fork"
         },
         "source_lock_path": {
-          "const": "infra/ivekit/rtpengine/source-lock.json"
+          "const": "infra/converact/rtpengine/source-lock.json"
         },
         "patch_set_id": {
           "const": "ivekit-rtpengine-mr26.0.1.13.2"

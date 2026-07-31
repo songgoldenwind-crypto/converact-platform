@@ -42,9 +42,9 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: livekit-api-secret
-            - name: OPC_API_URL
+            - name: CONVERACT_API_URL
               value: http://{{ .Release.Name }}-opc:3000
-            - name: OPC_API_KEY
+            - name: CONVERACT_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets

@@ -60,13 +60,13 @@ spec:
             - name: PORT
               value: "3000"
             {{- if .Values.voice.enabled }}
-            - name: OPC_IVEKIT_INTERNAL_TLS_PORT
+            - name: CONVERACT_FABRIC_INTERNAL_TLS_PORT
               value: "3443"
-            - name: OPC_IVEKIT_INTERNAL_TLS_KEY_FILE
+            - name: CONVERACT_FABRIC_INTERNAL_TLS_KEY_FILE
               value: /run/ivekit-cdr-tls/server.key
-            - name: OPC_IVEKIT_INTERNAL_TLS_CERT_FILE
+            - name: CONVERACT_FABRIC_INTERNAL_TLS_CERT_FILE
               value: /run/ivekit-cdr-tls/server.crt
-            - name: OPC_IVEKIT_INTERNAL_TLS_CLIENT_CA_FILE
+            - name: CONVERACT_FABRIC_INTERNAL_TLS_CLIENT_CA_FILE
               value: /run/ivekit-cdr-tls/ca.crt
             {{- end }}
             - name: DATABASE_URL
@@ -117,12 +117,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: livekit-api-secret
-            - name: OPC_MEDIA_API_TOKEN
+            - name: CONVERACT_MEDIA_API_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: media-api-token
-            - name: OPC_MEDIA_INVITE_SECRET
+            - name: CONVERACT_MEDIA_INVITE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
@@ -132,77 +132,77 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED
+            - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED
               value: "1"
-            - name: OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED
+            - name: CONVERACT_FABRIC_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED
               value: "1"
-            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
+            - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: realtime-audio-tap-hmac-secret-b64
-            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
+            - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
               value: {{ .Values.media.realtimeAudioTap.tokenTtlSeconds | quote }}
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_INSTANCE_ID
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_INSTANCE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_HOST
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_HOST
               value: 0.0.0.0
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_PORT
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_PORT
               value: {{ .Values.media.realtimeAudioTap.listenPort | quote }}
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PATH
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PATH
               value: {{ .Values.media.realtimeAudioTap.path | quote }}
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL
               value: {{ printf "ws://$(POD_NAME).%s-opc-audio-tap.%s.svc:%v%s" .Release.Name .Release.Namespace .Values.media.realtimeAudioTap.listenPort .Values.media.realtimeAudioTap.path | quote }}
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS
               value: {{ .Values.media.realtimeAudioTap.maxConnections | quote }}
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS
               value: {{ .Values.media.realtimeAudioTap.prestartBufferMs | quote }}
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES
               value: {{ .Values.media.realtimeAudioTap.maxPayloadBytes | quote }}
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_IDLE_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_IDLE_TIMEOUT_MS
               value: {{ .Values.media.realtimeAudioTap.idleTimeoutMs | quote }}
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_START_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_START_TIMEOUT_MS
               value: {{ .Values.media.realtimeAudioTap.startTimeoutMs | quote }}
-            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS
               value: {{ .Values.media.realtimeAudioTap.shutdownTimeoutMs | quote }}
-            - name: OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS
+            - name: CONVERACT_FABRIC_REALTIME_PROJECTION_QUEUE_MAX_ITEMS
               value: {{ .Values.media.realtimeAudioTap.projectionQueueMaxItems | quote }}
-            - name: OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS
               value: {{ .Values.media.realtimeAudioTap.projectionShutdownTimeoutMs | quote }}
-            - name: OPC_REALTIME_SPEECH_RETENTION_DAYS
+            - name: CONVERACT_REALTIME_SPEECH_RETENTION_DAYS
               value: {{ .Values.media.realtimeAudioTap.retentionDays | quote }}
             {{- end }}
-            - name: OPC_MEDIA_INVITE_TTL_MS
+            - name: CONVERACT_MEDIA_INVITE_TTL_MS
               value: {{ .Values.media.inviteTtlMs | default "86400000" | quote }}
-            - name: OPC_MEDIA_RECORDING_RETENTION_DAYS
+            - name: CONVERACT_MEDIA_RECORDING_RETENTION_DAYS
               value: {{ .Values.media.recordingRetentionDays | default "90" | quote }}
-            - name: OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED
+            - name: CONVERACT_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED
               value: {{ ternary "1" "0" (and .Values.media.egress.enabled .Values.media.egress.capacityMetrics.enabled) | quote }}
-            - name: OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_INTERVAL_MS
+            - name: CONVERACT_LIVEKIT_EGRESS_CAPACITY_METRICS_INTERVAL_MS
               value: {{ .Values.media.egress.capacityMetrics.intervalMs | quote }}
-            - name: OPC_LIVEKIT_INGRESS_ENABLED
+            - name: CONVERACT_LIVEKIT_INGRESS_ENABLED
               value: {{ ternary "1" "0" .Values.media.ingress.enabled | quote }}
-            - name: OPC_LIVEKIT_INGRESS_REQUEST_TIMEOUT_MS
+            - name: CONVERACT_LIVEKIT_INGRESS_REQUEST_TIMEOUT_MS
               value: {{ .Values.media.ingress.requestTimeoutMs | quote }}
-            - name: OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST
+            - name: CONVERACT_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST
               value: {{ .Values.media.ingress.pullHostAllowlist | quote }}
-            - name: OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL
+            - name: CONVERACT_LIVEKIT_INGRESS_ALLOW_HTTP_URL
               value: {{ ternary "1" "0" .Values.media.ingress.allowHttpUrl | quote }}
-            - name: OPC_RECORDING_HTTP_ALLOWED_ORIGINS
+            - name: CONVERACT_RECORDING_HTTP_ALLOWED_ORIGINS
               value: {{ .Values.media.recordingHttpAllowedOrigins | default (printf "http://%s-minio:9000" .Release.Name) | quote }}
-            - name: OPC_RECORDING_HTTP_TIMEOUT_MS
+            - name: CONVERACT_RECORDING_HTTP_TIMEOUT_MS
               value: {{ .Values.media.recordingHttpTimeoutMs | default "15000" | quote }}
-            - name: OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT
+            - name: CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT
               value: {{ .Values.media.smokeVerifyRecordingObject | default "0" | quote }}
-            - name: OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS
+            - name: CONVERACT_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS
               value: {{ .Values.media.smokeRecordingObjectTimeoutMs | default "60000" | quote }}
-            - name: OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS
+            - name: CONVERACT_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS
               value: {{ .Values.media.smokeRecordingObjectPollIntervalMs | default "2000" | quote }}
-            - name: OPC_SIP_VOLTE_ENABLED
+            - name: CONVERACT_SIP_VOLTE_ENABLED
               value: {{ ternary "1" "0" .Values.media.sip.gatewayEnabled | quote }}
             - name: LIVEKIT_SIP_BRIDGE_TARGET
               value: {{ .Values.media.sip.bridgeTarget | default "" | quote }}
@@ -210,7 +210,7 @@ spec:
               value: {{ .Values.media.sip.rustpbxTrunk | default "" | quote }}
             - name: RUSTPBX_RWI_URL
               value: {{ .Values.media.sip.rustpbxRwiUrl | default "" | quote }}
-            - name: OPC_API_KEY
+            - name: CONVERACT_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
@@ -252,235 +252,235 @@ spec:
                   key: tinode-user-password-secret
             - name: TINODE_REQUEST_TIMEOUT_MS
               value: {{ .Values.tinode.requestTimeoutMs | default "5000" | quote }}
-            - name: OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS
+            - name: CONVERACT_CHAT_MESSAGE_MUTATION_WINDOW_MS
               value: {{ .Values.tinode.messageMutationWindowMs | default "900000" | quote }}
-            - name: OPC_TINODE_DELIVERY_WORKER_ENABLED
+            - name: CONVERACT_TINODE_DELIVERY_WORKER_ENABLED
               value: {{ .Values.tinode.deliveryWorker.enabled | default "1" | quote }}
-            - name: OPC_TINODE_DELIVERY_INTERVAL_MS
+            - name: CONVERACT_TINODE_DELIVERY_INTERVAL_MS
               value: {{ .Values.tinode.deliveryWorker.intervalMs | default "5000" | quote }}
-            - name: OPC_TINODE_DELIVERY_BATCH_SIZE
+            - name: CONVERACT_TINODE_DELIVERY_BATCH_SIZE
               value: {{ .Values.tinode.deliveryWorker.batchSize | default "50" | quote }}
-            - name: OPC_TINODE_DELIVERY_MAX_ATTEMPTS
+            - name: CONVERACT_TINODE_DELIVERY_MAX_ATTEMPTS
               value: {{ .Values.tinode.deliveryWorker.maxAttempts | default "3" | quote }}
-            - name: OPC_TINODE_DELIVERY_CLAIM_LEASE_MS
+            - name: CONVERACT_TINODE_DELIVERY_CLAIM_LEASE_MS
               value: {{ .Values.tinode.deliveryWorker.claimLeaseMs | default "30000" | quote }}
-            - name: OPC_TINODE_DELIVERY_RETRY_DELAYS_MS
+            - name: CONVERACT_TINODE_DELIVERY_RETRY_DELAYS_MS
               value: {{ .Values.tinode.deliveryWorker.retryDelaysMs | default "2000,10000" | quote }}
-            - name: OPC_TINODE_INBOUND_WORKER_ENABLED
+            - name: CONVERACT_TINODE_INBOUND_WORKER_ENABLED
               value: {{ .Values.tinode.inboundWorker.enabled | default "1" | quote }}
-            - name: OPC_TINODE_INBOUND_INTERVAL_MS
+            - name: CONVERACT_TINODE_INBOUND_INTERVAL_MS
               value: {{ .Values.tinode.inboundWorker.intervalMs | default "5000" | quote }}
-            - name: OPC_TINODE_INBOUND_TENANT_LIMIT
+            - name: CONVERACT_TINODE_INBOUND_TENANT_LIMIT
               value: {{ .Values.tinode.inboundWorker.tenantLimit | default "100" | quote }}
-            - name: OPC_TINODE_INBOUND_PULL_LIMIT
+            - name: CONVERACT_TINODE_INBOUND_PULL_LIMIT
               value: {{ .Values.tinode.inboundWorker.pullLimit | default "100" | quote }}
-            - name: OPC_TINODE_INBOUND_CLAIM_LEASE_MS
+            - name: CONVERACT_TINODE_INBOUND_CLAIM_LEASE_MS
               value: {{ .Values.tinode.inboundWorker.claimLeaseMs | default "60000" | quote }}
-            - name: OPC_TINODE_INBOUND_RETRY_DELAY_MS
+            - name: CONVERACT_TINODE_INBOUND_RETRY_DELAY_MS
               value: {{ .Values.tinode.inboundWorker.retryDelayMs | default "10000" | quote }}
-            - name: OPC_TINODE_INBOUND_DEAD_LETTER_MAX_ATTEMPTS
+            - name: CONVERACT_TINODE_INBOUND_DEAD_LETTER_MAX_ATTEMPTS
               value: {{ .Values.tinode.inboundWorker.deadLetterMaxAttempts | default "3" | quote }}
-            - name: OPC_TINODE_ATTACHMENT_ALLOWED_HOSTS
+            - name: CONVERACT_TINODE_ATTACHMENT_ALLOWED_HOSTS
               value: {{ .Values.tinode.inboundWorker.attachmentAllowedHosts | default "" | quote }}
-            - name: OPC_IVEKIT_EVENT_REPLAY_ENABLED
+            - name: CONVERACT_FABRIC_EVENT_REPLAY_ENABLED
               value: {{ .Values.opc.eventReplay.enabled | default "1" | quote }}
-            - name: OPC_IVEKIT_EVENT_RETENTION_MS
+            - name: CONVERACT_FABRIC_EVENT_RETENTION_MS
               value: {{ .Values.opc.eventReplay.retentionMs | default "86400000" | quote }}
-            - name: OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES
+            - name: CONVERACT_FABRIC_EVENT_MAX_PAYLOAD_BYTES
               value: {{ .Values.opc.eventReplay.maxPayloadBytes | default "65536" | quote }}
-            - name: OPC_IVEKIT_WS_REPLAY_MAX_EVENTS
+            - name: CONVERACT_FABRIC_WS_REPLAY_MAX_EVENTS
               value: {{ .Values.opc.eventReplay.wsReplayMaxEvents | default "500" | quote }}
-            - name: OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_EVENT_RETENTION_WORKER_ENABLED
               value: {{ .Values.opc.eventReplay.retentionWorkerEnabled | default "1" | quote }}
-            - name: OPC_IVEKIT_EVENT_RETENTION_INTERVAL_MS
+            - name: CONVERACT_FABRIC_EVENT_RETENTION_INTERVAL_MS
               value: {{ .Values.opc.eventReplay.retentionIntervalMs | default "60000" | quote }}
-            - name: OPC_IVEKIT_EVENT_RETENTION_TENANT_LIMIT
+            - name: CONVERACT_FABRIC_EVENT_RETENTION_TENANT_LIMIT
               value: {{ .Values.opc.eventReplay.retentionTenantLimit | default "100" | quote }}
-            - name: OPC_IVEKIT_EVENT_RETENTION_BATCH_SIZE
+            - name: CONVERACT_FABRIC_EVENT_RETENTION_BATCH_SIZE
               value: {{ .Values.opc.eventReplay.retentionBatchSize | default "1000" | quote }}
-            - name: OPC_COLLABORATION_ATTACHMENT_MAX_BYTES
+            - name: CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES
               value: {{ .Values.attachmentProcessing.attachmentMaxBytes | default "26214400" | quote }}
-            - name: OPC_IVEKIT_PROVIDER_PROFILES_JSON
+            - name: CONVERACT_FABRIC_PROVIDER_PROFILES_JSON
               value: {{ .Values.intelligence.providerProfilesJson | default "[]" | quote }}
-            - name: OPC_IVEKIT_OCR_TOKEN
+            - name: CONVERACT_FABRIC_OCR_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: ivekit-ocr-provider-token
-            - name: OPC_IVEKIT_ASR_TOKEN
+            - name: CONVERACT_FABRIC_ASR_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: ivekit-asr-provider-token
-            - name: OPC_IVEKIT_QUALITY_TOKEN
+            - name: CONVERACT_FABRIC_QUALITY_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: ivekit-quality-provider-token
-            - name: OPC_IVEKIT_TRANSLATION_TOKEN
+            - name: CONVERACT_FABRIC_TRANSLATION_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: ivekit-translation-provider-token
-            - name: OPC_OCR_PROVIDER_MODE
+            - name: CONVERACT_OCR_PROVIDER_MODE
               value: {{ .Values.attachmentProcessing.ocrProviderMode | default "third_party" | quote }}
-            - name: OPC_OCR_PROVIDER_NAME
+            - name: CONVERACT_OCR_PROVIDER_NAME
               value: {{ .Values.attachmentProcessing.ocrProviderName | default "" | quote }}
-            - name: OPC_OCR_BASE_URL
+            - name: CONVERACT_OCR_BASE_URL
               value: {{ .Values.attachmentProcessing.ocrBaseUrl | default "" | quote }}
-            - name: OPC_OCR_ENDPOINT
+            - name: CONVERACT_OCR_ENDPOINT
               value: {{ .Values.attachmentProcessing.ocrEndpoint | default "/v1/ocr" | quote }}
-            - name: OPC_OCR_TOKEN
+            - name: CONVERACT_OCR_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: ocr-provider-token
-            - name: OPC_OCR_TIMEOUT_MS
+            - name: CONVERACT_OCR_TIMEOUT_MS
               value: {{ .Values.attachmentProcessing.ocrTimeoutMs | default "30000" | quote }}
-            - name: OPC_ASR_PROVIDER_MODE
+            - name: CONVERACT_ASR_PROVIDER_MODE
               value: {{ .Values.attachmentProcessing.asrProviderMode | default "third_party" | quote }}
-            - name: OPC_ASR_PROVIDER_NAME
+            - name: CONVERACT_ASR_PROVIDER_NAME
               value: {{ .Values.attachmentProcessing.asrProviderName | default "" | quote }}
-            - name: OPC_ASR_BASE_URL
+            - name: CONVERACT_ASR_BASE_URL
               value: {{ .Values.attachmentProcessing.asrBaseUrl | default "" | quote }}
-            - name: OPC_ASR_ENDPOINT
+            - name: CONVERACT_ASR_ENDPOINT
               value: {{ .Values.attachmentProcessing.asrEndpoint | default "/v1/asr" | quote }}
-            - name: OPC_ASR_TOKEN
+            - name: CONVERACT_ASR_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: asr-provider-token
-            - name: OPC_ASR_TIMEOUT_MS
+            - name: CONVERACT_ASR_TIMEOUT_MS
               value: {{ .Values.attachmentProcessing.asrTimeoutMs | default "30000" | quote }}
-            - name: OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED
+            - name: CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED
               value: {{ .Values.attachmentProcessing.worker.enabled | default "0" | quote }}
-            - name: OPC_ATTACHMENT_PROCESSING_INTERVAL_MS
+            - name: CONVERACT_ATTACHMENT_PROCESSING_INTERVAL_MS
               value: {{ .Values.attachmentProcessing.worker.intervalMs | default "5000" | quote }}
-            - name: OPC_ATTACHMENT_PROCESSING_BATCH_SIZE
+            - name: CONVERACT_ATTACHMENT_PROCESSING_BATCH_SIZE
               value: {{ .Values.attachmentProcessing.worker.batchSize | default "25" | quote }}
-            - name: OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS
+            - name: CONVERACT_ATTACHMENT_PROCESSING_MAX_ATTEMPTS
               value: {{ .Values.attachmentProcessing.worker.maxAttempts | default "3" | quote }}
-            - name: OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS
+            - name: CONVERACT_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS
               value: {{ .Values.attachmentProcessing.worker.claimLeaseMs | default "120000" | quote }}
-            - name: OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS
+            - name: CONVERACT_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS
               value: {{ .Values.attachmentProcessing.worker.retryDelaysMs | default "5000,30000" | quote }}
-            - name: OPC_QUALITY_REVIEW_PROVIDER_MODE
+            - name: CONVERACT_QUALITY_REVIEW_PROVIDER_MODE
               value: {{ .Values.qualityReview.providerMode | default "third_party" | quote }}
-            - name: OPC_QUALITY_REVIEW_PROVIDER_NAME
+            - name: CONVERACT_QUALITY_REVIEW_PROVIDER_NAME
               value: {{ .Values.qualityReview.providerName | default "" | quote }}
-            - name: OPC_QUALITY_REVIEW_BASE_URL
+            - name: CONVERACT_QUALITY_REVIEW_BASE_URL
               value: {{ .Values.qualityReview.baseUrl | default "" | quote }}
-            - name: OPC_QUALITY_REVIEW_ENDPOINT
+            - name: CONVERACT_QUALITY_REVIEW_ENDPOINT
               value: {{ .Values.qualityReview.endpoint | default "/v1/quality-review" | quote }}
-            - name: OPC_QUALITY_REVIEW_TOKEN
+            - name: CONVERACT_QUALITY_REVIEW_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: quality-review-token
-            - name: OPC_QUALITY_REVIEW_TIMEOUT_MS
+            - name: CONVERACT_QUALITY_REVIEW_TIMEOUT_MS
               value: {{ .Values.qualityReview.timeoutMs | default "30000" | quote }}
-            - name: OPC_QUALITY_REVIEW_AUTO_ENQUEUE
+            - name: CONVERACT_QUALITY_REVIEW_AUTO_ENQUEUE
               value: {{ .Values.qualityReview.autoEnqueue | default "0" | quote }}
-            - name: OPC_QUALITY_REVIEW_WORKER_ENABLED
+            - name: CONVERACT_QUALITY_REVIEW_WORKER_ENABLED
               value: {{ .Values.qualityReview.worker.enabled | default "0" | quote }}
-            - name: OPC_QUALITY_REVIEW_INTERVAL_MS
+            - name: CONVERACT_QUALITY_REVIEW_INTERVAL_MS
               value: {{ .Values.qualityReview.worker.intervalMs | default "5000" | quote }}
-            - name: OPC_QUALITY_REVIEW_BATCH_SIZE
+            - name: CONVERACT_QUALITY_REVIEW_BATCH_SIZE
               value: {{ .Values.qualityReview.worker.batchSize | default "25" | quote }}
-            - name: OPC_QUALITY_REVIEW_MAX_ATTEMPTS
+            - name: CONVERACT_QUALITY_REVIEW_MAX_ATTEMPTS
               value: {{ .Values.qualityReview.worker.maxAttempts | default "3" | quote }}
-            - name: OPC_QUALITY_REVIEW_CLAIM_LEASE_MS
+            - name: CONVERACT_QUALITY_REVIEW_CLAIM_LEASE_MS
               value: {{ .Values.qualityReview.worker.claimLeaseMs | default "120000" | quote }}
-            - name: OPC_QUALITY_REVIEW_RETRY_DELAYS_MS
+            - name: CONVERACT_QUALITY_REVIEW_RETRY_DELAYS_MS
               value: {{ .Values.qualityReview.worker.retryDelaysMs | default "5000,30000" | quote }}
-            - name: OPC_TRANSLATION_WORKER_ENABLED
+            - name: CONVERACT_TRANSLATION_WORKER_ENABLED
               value: {{ .Values.intelligence.translationWorker.enabled | default "0" | quote }}
-            - name: OPC_TRANSLATION_INTERVAL_MS
+            - name: CONVERACT_TRANSLATION_INTERVAL_MS
               value: {{ .Values.intelligence.translationWorker.intervalMs | default "5000" | quote }}
-            - name: OPC_TRANSLATION_BATCH_SIZE
+            - name: CONVERACT_TRANSLATION_BATCH_SIZE
               value: {{ .Values.intelligence.translationWorker.batchSize | default "25" | quote }}
-            - name: OPC_TRANSLATION_MAX_ATTEMPTS
+            - name: CONVERACT_TRANSLATION_MAX_ATTEMPTS
               value: {{ .Values.intelligence.translationWorker.maxAttempts | default "3" | quote }}
-            - name: OPC_TRANSLATION_CLAIM_LEASE_MS
+            - name: CONVERACT_TRANSLATION_CLAIM_LEASE_MS
               value: {{ .Values.intelligence.translationWorker.claimLeaseMs | default "120000" | quote }}
-            - name: OPC_TRANSLATION_RETRY_DELAYS_MS
+            - name: CONVERACT_TRANSLATION_RETRY_DELAYS_MS
               value: {{ .Values.intelligence.translationWorker.retryDelaysMs | default "5000,30000" | quote }}
-            - name: OPC_IVEKIT_IVR_WORKERS_ENABLED
+            - name: CONVERACT_FABRIC_IVR_WORKERS_ENABLED
               value: {{ .Values.ivr.workers.enabled | default "0" | quote }}
-            - name: OPC_IVEKIT_IVR_ACTION_INTERVAL_MS
+            - name: CONVERACT_FABRIC_IVR_ACTION_INTERVAL_MS
               value: {{ .Values.ivr.workers.actionIntervalMs | default "1000" | quote }}
-            - name: OPC_IVEKIT_IVR_ACTION_BATCH_SIZE
+            - name: CONVERACT_FABRIC_IVR_ACTION_BATCH_SIZE
               value: {{ .Values.ivr.workers.actionBatchSize | default "25" | quote }}
-            - name: OPC_IVEKIT_IVR_ACTION_LEASE_MS
+            - name: CONVERACT_FABRIC_IVR_ACTION_LEASE_MS
               value: {{ .Values.ivr.workers.actionLeaseMs | default "30000" | quote }}
-            - name: OPC_IVEKIT_IVR_ACTION_RETRY_BASE_MS
+            - name: CONVERACT_FABRIC_IVR_ACTION_RETRY_BASE_MS
               value: {{ .Values.ivr.workers.actionRetryBaseMs | default "1000" | quote }}
-            - name: OPC_IVEKIT_IVR_ACTION_RETRY_MAX_MS
+            - name: CONVERACT_FABRIC_IVR_ACTION_RETRY_MAX_MS
               value: {{ .Values.ivr.workers.actionRetryMaxMs | default "60000" | quote }}
-            - name: OPC_IVEKIT_IVR_RECONCILIATION_INTERVAL_MS
+            - name: CONVERACT_FABRIC_IVR_RECONCILIATION_INTERVAL_MS
               value: {{ .Values.ivr.workers.reconciliationIntervalMs | default "10000" | quote }}
-            - name: OPC_IVEKIT_IVR_RECONCILIATION_LEASE_MS
+            - name: CONVERACT_FABRIC_IVR_RECONCILIATION_LEASE_MS
               value: {{ .Values.ivr.workers.reconciliationLeaseMs | default "30000" | quote }}
-            - name: OPC_IVEKIT_IVR_RECONCILIATION_RETRY_MS
+            - name: CONVERACT_FABRIC_IVR_RECONCILIATION_RETRY_MS
               value: {{ .Values.ivr.workers.reconciliationRetryMs | default "10000" | quote }}
-            - name: OPC_IVEKIT_IVR_RECONCILIATION_MAX_ATTEMPTS
+            - name: CONVERACT_FABRIC_IVR_RECONCILIATION_MAX_ATTEMPTS
               value: {{ .Values.ivr.workers.reconciliationMaxAttempts | default "20" | quote }}
-            - name: OPC_IVEKIT_IVR_TENANT_LIMIT
+            - name: CONVERACT_FABRIC_IVR_TENANT_LIMIT
               value: {{ .Values.ivr.workers.tenantLimit | default "100" | quote }}
-            - name: OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_CONTACT_CENTER_WORKER_ENABLED
               value: {{ .Values.contactCenter.worker.enabled | default "0" | quote }}
-            - name: OPC_IVEKIT_CONTACT_CENTER_INTERVAL_MS
+            - name: CONVERACT_FABRIC_CONTACT_CENTER_INTERVAL_MS
               value: {{ .Values.contactCenter.worker.intervalMs | default "1000" | quote }}
-            - name: OPC_IVEKIT_CONTACT_CENTER_TENANT_LIMIT
+            - name: CONVERACT_FABRIC_CONTACT_CENTER_TENANT_LIMIT
               value: {{ .Values.contactCenter.worker.tenantLimit | default "100" | quote }}
-            - name: OPC_IVEKIT_CONTACT_CENTER_BATCH_SIZE
+            - name: CONVERACT_FABRIC_CONTACT_CENTER_BATCH_SIZE
               value: {{ .Values.contactCenter.worker.batchSize | default "100" | quote }}
-            - name: OPC_IVEKIT_CONTACT_CENTER_OFFER_TTL_SECONDS
+            - name: CONVERACT_FABRIC_CONTACT_CENTER_OFFER_TTL_SECONDS
               value: {{ .Values.contactCenter.worker.offerTtlSeconds | default "20" | quote }}
-            - name: OPC_IVEKIT_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS
+            - name: CONVERACT_FABRIC_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS
               value: {{ .Values.contactCenter.worker.callbackRetryDelayMs | default "30000" | quote }}
-            - name: OPC_IVEKIT_CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS
+            - name: CONVERACT_FABRIC_CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS
               value: {{ .Values.contactCenter.worker.overflowRetryDelayMs | default "30000" | quote }}
             {{- if .Values.voice.enabled }}
-            - name: OPC_IVEKIT_VOICE_WORKERS_ENABLED
+            - name: CONVERACT_FABRIC_VOICE_WORKERS_ENABLED
               value: "1"
-            - name: OPC_IVEKIT_CDR_REGION_ID
+            - name: CONVERACT_FABRIC_CDR_REGION_ID
               value: {{ .Values.voice.cdr.regionId | quote }}
-            - name: OPC_IVEKIT_VOICE_COMMAND_INTERVAL_MS
+            - name: CONVERACT_FABRIC_VOICE_COMMAND_INTERVAL_MS
               value: {{ .Values.voice.workers.commandIntervalMs | quote }}
-            - name: OPC_IVEKIT_VOICE_COMMAND_BATCH_SIZE
+            - name: CONVERACT_FABRIC_VOICE_COMMAND_BATCH_SIZE
               value: {{ .Values.voice.workers.commandBatchSize | quote }}
-            - name: OPC_IVEKIT_VOICE_COMMAND_LEASE_MS
+            - name: CONVERACT_FABRIC_VOICE_COMMAND_LEASE_MS
               value: {{ .Values.voice.workers.commandLeaseMs | quote }}
-            - name: OPC_IVEKIT_VOICE_COMMAND_MAX_ATTEMPTS
+            - name: CONVERACT_FABRIC_VOICE_COMMAND_MAX_ATTEMPTS
               value: {{ .Values.voice.workers.commandMaxAttempts | quote }}
-            - name: OPC_IVEKIT_VOICE_COMMAND_RETRY_DELAYS_MS
+            - name: CONVERACT_FABRIC_VOICE_COMMAND_RETRY_DELAYS_MS
               value: {{ .Values.voice.workers.commandRetryDelaysMs | quote }}
-            - name: OPC_IVEKIT_VOICE_EVENT_INTERVAL_MS
+            - name: CONVERACT_FABRIC_VOICE_EVENT_INTERVAL_MS
               value: {{ .Values.voice.workers.eventIntervalMs | quote }}
-            - name: OPC_IVEKIT_VOICE_EVENT_BATCH_SIZE
+            - name: CONVERACT_FABRIC_VOICE_EVENT_BATCH_SIZE
               value: {{ .Values.voice.workers.eventBatchSize | quote }}
-            - name: OPC_IVEKIT_VOICE_EVENT_LEASE_MS
+            - name: CONVERACT_FABRIC_VOICE_EVENT_LEASE_MS
               value: {{ .Values.voice.workers.eventLeaseMs | quote }}
-            - name: OPC_IVEKIT_VOICE_RECONCILIATION_INTERVAL_MS
+            - name: CONVERACT_FABRIC_VOICE_RECONCILIATION_INTERVAL_MS
               value: {{ .Values.voice.workers.reconciliationIntervalMs | quote }}
-            - name: OPC_IVEKIT_VOICE_RECONCILIATION_MAX_AGE_MS
+            - name: CONVERACT_FABRIC_VOICE_RECONCILIATION_MAX_AGE_MS
               value: {{ .Values.voice.workers.reconciliationMaxAgeMs | quote }}
-            - name: OPC_IVEKIT_VOICE_PROVIDER_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_VOICE_PROVIDER_TIMEOUT_MS
               value: {{ .Values.voice.workers.providerTimeoutMs | quote }}
-            - name: OPC_IVEKIT_VOICE_ADDRESS_KEY
+            - name: CONVERACT_FABRIC_VOICE_ADDRESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: ivekit-voice-address-key
-            - name: OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY
+            - name: CONVERACT_FABRIC_VOICE_ADDRESS_HMAC_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: ivekit-voice-address-hmac-key
-            - name: OPC_IVEKIT_VOICE_SECRET_ENV_NAMES
+            - name: CONVERACT_FABRIC_VOICE_SECRET_ENV_NAMES
               value: RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN
-            - name: OPC_IVEKIT_VOICE_WEBHOOK_SECRET_ENV_NAMES
+            - name: CONVERACT_FABRIC_VOICE_WEBHOOK_SECRET_ENV_NAMES
               value: RUSTPBX_WEBHOOK_TOKEN
             - name: RUSTPBX_MANAGEMENT_TOKEN
               valueFrom:
@@ -498,148 +498,148 @@ spec:
                   name: {{ .Release.Name }}-secrets
                   key: rustpbx-webhook-token
             {{- if .Values.voice.webphone.enabled }}
-            - name: OPC_IVEKIT_WEBPHONE_ENABLED
+            - name: CONVERACT_FABRIC_WEBPHONE_ENABLED
               value: "1"
-            - name: OPC_IVEKIT_WEBPHONE_WSS_URL
+            - name: CONVERACT_FABRIC_WEBPHONE_WSS_URL
               value: {{ .Values.voice.webphone.publicWssUrl | quote }}
-            - name: OPC_IVEKIT_WEBPHONE_SIP_REALM
+            - name: CONVERACT_FABRIC_WEBPHONE_SIP_REALM
               value: {{ .Values.voice.webphone.sipRealm | quote }}
-            - name: OPC_IVEKIT_WEBPHONE_JWT_SECRET
+            - name: CONVERACT_FABRIC_WEBPHONE_JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: rustpbx-webphone-jwt-secret
-            - name: OPC_IVEKIT_WEBPHONE_JWT_ISSUER
+            - name: CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER
               value: {{ .Values.voice.webphone.jwtIssuer | quote }}
-            - name: OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE
+            - name: CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE
               value: {{ .Values.voice.webphone.jwtAudience | quote }}
-            - name: OPC_IVEKIT_WEBPHONE_TTL_SECONDS
+            - name: CONVERACT_FABRIC_WEBPHONE_TTL_SECONDS
               value: {{ .Values.voice.webphone.ttlSeconds | quote }}
-            - name: OPC_IVEKIT_WEBPHONE_REGISTER_EXPIRES_SECONDS
+            - name: CONVERACT_FABRIC_WEBPHONE_REGISTER_EXPIRES_SECONDS
               value: {{ .Values.voice.webphone.registerExpiresSeconds | quote }}
-            - name: OPC_IVEKIT_WEBPHONE_ICE_SERVERS_JSON
+            - name: CONVERACT_FABRIC_WEBPHONE_ICE_SERVERS_JSON
               value: {{ .Values.voice.webphone.iceServersJson | quote }}
-            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_ENABLED
+            - name: CONVERACT_FABRIC_WEBPHONE_SESSION_CLEANUP_ENABLED
               value: "1"
-            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_INTERVAL_MS
+            - name: CONVERACT_FABRIC_WEBPHONE_SESSION_CLEANUP_INTERVAL_MS
               value: {{ .Values.voice.webphone.cleanup.intervalMs | quote }}
-            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT
+            - name: CONVERACT_FABRIC_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT
               value: {{ .Values.voice.webphone.cleanup.tenantLimit | quote }}
-            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE
+            - name: CONVERACT_FABRIC_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE
               value: {{ .Values.voice.webphone.cleanup.batchSize | quote }}
             {{- end }}
             {{- end }}
-            - name: OPC_REMOTE_GATEWAY_PROVIDER
+            - name: CONVERACT_REMOTE_GATEWAY_PROVIDER
               value: {{ .Values.rustdesk.provider | default "rustdesk" | quote }}
-            - name: OPC_REMOTE_GATEWAY_BASE_URL
+            - name: CONVERACT_REMOTE_GATEWAY_BASE_URL
               value: {{ .Values.rustdesk.controlPlaneBaseUrl | default (printf "http://%s-opc:3000" .Release.Name) | quote }}
-            - name: OPC_REMOTE_GATEWAY_API_TOKEN
+            - name: CONVERACT_REMOTE_GATEWAY_API_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: rustdesk-api-token
-            - name: OPC_REMOTE_GATEWAY_TENANT_ID
+            - name: CONVERACT_REMOTE_GATEWAY_TENANT_ID
               value: {{ .Values.rustdesk.remoteGatewayTenantId | default "tenant_led" | quote }}
-            - name: OPC_REMOTE_GATEWAY_TARGET_TYPE
+            - name: CONVERACT_REMOTE_GATEWAY_TARGET_TYPE
               value: {{ .Values.rustdesk.remoteGatewayTargetType | default "device" | quote }}
-            - name: OPC_REMOTE_GATEWAY_TARGET_ID
+            - name: CONVERACT_REMOTE_GATEWAY_TARGET_ID
               value: {{ .Values.rustdesk.remoteGatewayTargetId | default "" | quote }}
-            - name: OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME
+            - name: CONVERACT_REMOTE_GATEWAY_TARGET_DISPLAY_NAME
               value: {{ .Values.rustdesk.remoteGatewayTargetDisplayName | default "Remote gateway smoke device" | quote }}
-            - name: OPC_REMOTE_GATEWAY_ACTOR_IDENTITY
+            - name: CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY
               value: {{ .Values.rustdesk.remoteGatewayActorIdentity | default "agent_remote_gateway_smoke" | quote }}
-            - name: OPC_REMOTE_GATEWAY_CONSENT_SCOPES
+            - name: CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES
               value: {{ .Values.rustdesk.remoteGatewayConsentScopes | default "view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard" | quote }}
-            - name: OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL
+            - name: CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL
               value: {{ .Values.rustdesk.remoteGatewayCheckLaunchUrl | default "0" | quote }}
-            - name: OPC_RUSTDESK_CONTROL_PLANE_BASE_URL
+            - name: CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL
               value: {{ .Values.rustdesk.controlPlaneBaseUrl | default (printf "http://%s-opc:3000" .Release.Name) | quote }}
             - name: RUSTDESK_SERVER_IMAGE_TAG
               value: {{ .Values.rustdesk.serverVersion | quote }}
-            - name: OPC_RUSTDESK_CLIENT_VERSION
+            - name: CONVERACT_RUSTDESK_CLIENT_VERSION
               value: {{ .Values.rustdesk.clientVersion | quote }}
-            - name: OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS
+            - name: CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS
               value: {{ .Values.rustdesk.clientProfileTtlSeconds | quote }}
-            - name: OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON
+            - name: CONVERACT_RUSTDESK_CLIENT_ARTIFACTS_JSON
               value: {{ .Values.rustdesk.clientArtifactsJson | quote }}
-            - name: OPC_RUSTDESK_ID_SERVER
+            - name: CONVERACT_RUSTDESK_ID_SERVER
               value: {{ .Values.rustdesk.publicHost | quote }}
-            - name: OPC_RUSTDESK_RELAY_SERVER
+            - name: CONVERACT_RUSTDESK_RELAY_SERVER
               value: {{ .Values.rustdesk.relayHost | default .Values.rustdesk.publicHost | quote }}
-            - name: OPC_RUSTDESK_API_SERVER
+            - name: CONVERACT_RUSTDESK_API_SERVER
               value: {{ .Values.rustdesk.apiServer | default "" | quote }}
-            - name: OPC_RUSTDESK_PUBLIC_KEY
+            - name: CONVERACT_RUSTDESK_PUBLIC_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: rustdesk-public-key
-            - name: OPC_RUSTDESK_PUBLIC_KEY_FILE
+            - name: CONVERACT_RUSTDESK_PUBLIC_KEY_FILE
               value: {{ .Values.rustdesk.publicKeyFile | default "/rustdesk/id_ed25519.pub" | quote }}
-            - name: OPC_RUSTDESK_SERVER_KEY
+            - name: CONVERACT_RUSTDESK_SERVER_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: rustdesk-server-key
-            - name: OPC_RUSTDESK_LAUNCH_BASE_URL
+            - name: CONVERACT_RUSTDESK_LAUNCH_BASE_URL
               value: {{ .Values.rustdesk.launchBaseUrl | quote }}
-            - name: OPC_RUSTDESK_LAUNCH_SECRET
+            - name: CONVERACT_RUSTDESK_LAUNCH_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: rustdesk-launch-secret
-            - name: OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET
+            - name: CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: rustdesk-authorization-code-secret
-            - name: OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE
+            - name: CONVERACT_RUSTDESK_REQUIRE_AUTHORIZATION_CODE
               value: {{ .Values.rustdesk.requireAuthorizationCode | default "0" | quote }}
-            - name: OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS
+            - name: CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS
               value: {{ .Values.rustdesk.launchTokenTtlMs | default "900000" | quote }}
-            - name: OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE
+            - name: CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE
               value: {{ .Values.rustdesk.protocolUrlTemplate | default "" | quote }}
-            - name: OPC_RUSTDESK_REQUIRE_PROTOCOL_URL
+            - name: CONVERACT_RUSTDESK_REQUIRE_PROTOCOL_URL
               value: {{ .Values.rustdesk.requireProtocolUrl | default "0" | quote }}
-            - name: OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE
+            - name: CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE
               value: {{ .Values.rustdesk.requireDeviceOnline | default "0" | quote }}
-            - name: OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT
+            - name: CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT
               value: {{ .Values.rustdesk.requirePhysicalDisconnect | default "0" | quote }}
-            - name: OPC_RUSTDESK_EDGE_TOKEN_SECRET
+            - name: CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: rustdesk-edge-token-secret
-            - name: OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS
+            - name: CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS
               value: {{ .Values.rustdesk.deviceOnlineTtlMs | default "300000" | quote }}
-            - name: OPC_RUSTDESK_CHECK_DEVICE_ONLINE
+            - name: CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE
               value: {{ .Values.rustdesk.checkDeviceOnline | default "0" | quote }}
-            - name: OPC_RUSTDESK_CHECK_OPERATION_AUDIT
+            - name: CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT
               value: {{ .Values.rustdesk.checkOperationAudit | default "1" | quote }}
-            - name: OPC_RUSTDESK_CHECK_SERVER_PORTS
+            - name: CONVERACT_RUSTDESK_CHECK_SERVER_PORTS
               value: {{ .Values.rustdesk.checkServerPorts | default "0" | quote }}
-            - name: OPC_RUSTDESK_CHECK_HOST
+            - name: CONVERACT_RUSTDESK_CHECK_HOST
               value: {{ .Values.rustdesk.checkHost | default "" | quote }}
-            - name: OPC_RUSTDESK_CHECK_TCP_PORTS
+            - name: CONVERACT_RUSTDESK_CHECK_TCP_PORTS
               value: {{ .Values.rustdesk.checkTcpPorts | default "21115,21116,21117,21118,21119" | quote }}
-            - name: OPC_RUSTDESK_CHECK_UDP_PORTS
+            - name: CONVERACT_RUSTDESK_CHECK_UDP_PORTS
               value: {{ .Values.rustdesk.checkUdpPorts | default "21116" | quote }}
-            - name: OPC_RUSTDESK_CHECK_TIMEOUT_MS
+            - name: CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS
               value: {{ .Values.rustdesk.checkTimeoutMs | default "1500" | quote }}
-            - name: OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE
+            - name: CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE
               value: {{ .Values.rustdesk.readinessCheckDeviceOnline | default "1" | quote }}
-            - name: OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT
+            - name: CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT
               value: {{ .Values.rustdesk.readinessCheckOperationAudit | default "1" | quote }}
-            - name: OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS
+            - name: CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS
               value: {{ .Values.rustdesk.readinessCheckServerPorts | default "1" | quote }}
-            - name: OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL
+            - name: CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL
               value: {{ .Values.rustdesk.readinessRequireProtocolUrl | default "1" | quote }}
-            - name: OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL
+            - name: CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL
               value: {{ .Values.rustdesk.readinessCheckLaunchUrl | default "1" | quote }}
-            - name: OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL
+            - name: CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL
               value: {{ .Values.rustdesk.readinessRequireHttpsLaunchUrl | default "1" | quote }}
-            - name: OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT
+            - name: CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT
               value: {{ .Values.rustdesk.readinessCheckPhysicalDisconnect | default "0" | quote }}
-            - name: OPC_RUSTDESK_API_TOKEN
+            - name: CONVERACT_RUSTDESK_API_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets

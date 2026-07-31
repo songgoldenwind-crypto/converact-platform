@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import type { PgQueryable } from '../../db-pg.js';
 import {
   AttachmentProcessingService,
@@ -79,46 +80,46 @@ export function attachmentProcessingWorkerConfig(
   const configured = profiles.some(
     (profile) => profile.capability === 'ocr' || profile.capability === 'asr'
   );
-  const enabledFlag = String(env.OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED || '').trim();
+  const enabledFlag = String(resolveBrandEnv(env, 'ATTACHMENT_PROCESSING_WORKER_ENABLED') || '').trim();
   if (enabledFlag && enabledFlag !== '0' && enabledFlag !== '1') {
-    throw new Error('OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED must be 0 or 1');
   }
   return {
     enabled: configured && enabledFlag !== '0',
     intervalMs: boundedInteger(
-      env.OPC_ATTACHMENT_PROCESSING_INTERVAL_MS,
+      resolveBrandEnv(env, 'ATTACHMENT_PROCESSING_INTERVAL_MS'),
       5_000,
       1_000,
       300_000,
-      'OPC_ATTACHMENT_PROCESSING_INTERVAL_MS'
+      'CONVERACT_ATTACHMENT_PROCESSING_INTERVAL_MS'
     ),
     batchSize: boundedInteger(
-      env.OPC_ATTACHMENT_PROCESSING_BATCH_SIZE,
+      resolveBrandEnv(env, 'ATTACHMENT_PROCESSING_BATCH_SIZE'),
       25,
       1,
       100,
-      'OPC_ATTACHMENT_PROCESSING_BATCH_SIZE'
+      'CONVERACT_ATTACHMENT_PROCESSING_BATCH_SIZE'
     ),
     maxAttempts: boundedInteger(
-      env.OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS,
+      resolveBrandEnv(env, 'ATTACHMENT_PROCESSING_MAX_ATTEMPTS'),
       3,
       1,
       10,
-      'OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS'
+      'CONVERACT_ATTACHMENT_PROCESSING_MAX_ATTEMPTS'
     ),
     claimLeaseMs: Math.max(
       boundedInteger(
-        env.OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS,
+        resolveBrandEnv(env, 'ATTACHMENT_PROCESSING_CLAIM_LEASE_MS'),
         60_000,
         5_000,
         600_000,
-        'OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS'
+        'CONVERACT_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS'
       ),
       requiredClaimLeaseMs(profiles.filter(
         (profile) => profile.capability === 'ocr' || profile.capability === 'asr'
       ))
     ),
-    retryDelaysMs: retryDelays(env.OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS)
+    retryDelaysMs: retryDelays(resolveBrandEnv(env, 'ATTACHMENT_PROCESSING_RETRY_DELAYS_MS'))
   };
 }
 
@@ -182,7 +183,7 @@ function retryDelays(value: string | undefined): number[] {
   if (!hasValue(value)) return [2_000, 10_000];
   const parsed = String(value).split(',').map((item) => Number(item.trim()));
   if (!parsed.length || parsed.some((delay) => !Number.isInteger(delay) || delay < 0 || delay > 3_600_000)) {
-    throw new Error('OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS must be comma-separated integers between 0 and 3600000');
+    throw new Error('CONVERACT_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS must be comma-separated integers between 0 and 3600000');
   }
   return parsed;
 }

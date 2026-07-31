@@ -38,8 +38,7 @@
       "const": "candidate"
     },
     "generated_at": {
-      "type": "string",
-      "format": "date-time"
+      "const": "2026-07-29T08:00:00.000Z"
     },
     "source": {
       "$ref": "#/$defs/source"

@@ -32,7 +32,7 @@ test('iveKit server exposes grants and injects an authorizer only when available
   );
   assert.match(
     source,
-    /livekit_realtime_audio_tap_gateway_url:\s*process\.env\.OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL/
+    /livekit_realtime_audio_tap_gateway_url:\s*resolveFabricEnv\(process\.env, 'LIVEKIT_AUDIO_TAP_GATEWAY_URL'\)/
   );
   assert.match(
     source,

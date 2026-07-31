@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from './config/converact-env.js';
 import { readFileSync } from 'node:fs';
 import { createServer as createHttpServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
@@ -689,17 +690,17 @@ async function readBuffer(req, maxBytes = Number.POSITIVE_INFINITY) {
 }
 
 function collaborationAttachmentMaxBytes() {
-  const value = Number(process.env.OPC_COLLABORATION_ATTACHMENT_MAX_BYTES || 26_214_400);
+  const value = Number(resolveBrandEnv(process.env, 'COLLABORATION_ATTACHMENT_MAX_BYTES') || 26_214_400);
   if (!Number.isInteger(value) || value < 1 || value > 1_073_741_824) {
-    throw new Error('OPC_COLLABORATION_ATTACHMENT_MAX_BYTES is invalid');
+    throw new Error('CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES is invalid');
   }
   return value;
 }
 
 function secureFileUploadMaxBytes() {
-  const value = Number(process.env.OPC_SECURE_FILE_UPLOAD_MAX_BYTES || 64 * 1024 * 1024);
+  const value = Number(resolveBrandEnv(process.env, 'SECURE_FILE_UPLOAD_MAX_BYTES') || 64 * 1024 * 1024);
   if (!Number.isInteger(value) || value < 1 || value > 512 * 1024 * 1024) {
-    throw new Error('OPC_SECURE_FILE_UPLOAD_MAX_BYTES is invalid');
+    throw new Error('CONVERACT_SECURE_FILE_UPLOAD_MAX_BYTES is invalid');
   }
   return value;
 }
@@ -715,7 +716,7 @@ function safeJsonParse(text: string | Buffer) {
 }
 
 async function handleWeComWebhook(harness, method, url, body) {
-  const token = process.env.OPC_WECOM_WEBHOOK_TOKEN || '';
+  const token = resolveBrandEnv(process.env, 'WECOM_WEBHOOK_TOKEN') || '';
   const signature = url.searchParams.get('msg_signature') || url.searchParams.get('signature') || '';
   const timestamp = url.searchParams.get('timestamp') || '';
   const nonce = url.searchParams.get('nonce') || '';

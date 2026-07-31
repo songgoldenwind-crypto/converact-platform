@@ -9,7 +9,7 @@ import { getRedisClient, setRedisClientForTests } from '../src/agent-runtime/cal
  * singleton AND the redis-pubsub singleton to in-memory implementations.
  *
  * Previously it only set the redis-client singleton. The pubsub singleton
- * independently checked `OPC_USE_MEMORY_REDIS === '1'` — which the helper
+ * independently checked `CONVERACT_USE_MEMORY_REDIS === '1'` — which the helper
  * never set — so getRedisPubSub() created a REAL ioredis client. With no
  * Redis running, ioredis emitted unhandled ECONNREFUSED errors on a retry
  * loop, keeping the Node event loop alive and hanging the test runner.
@@ -18,18 +18,18 @@ import { getRedisClient, setRedisClientForTests } from '../src/agent-runtime/cal
  * chat escalation), e.g. sprint9-omni.test.ts hung indefinitely.
  */
 describe('useMemoryRedisForTests', () => {
-  const savedEnv = process.env.OPC_USE_MEMORY_REDIS;
+  const savedEnv = process.env.CONVERACT_USE_MEMORY_REDIS;
 
   before(() => {
     // Simulate a fresh process: clear any cached singletons and the env flag.
-    delete process.env.OPC_USE_MEMORY_REDIS;
+    delete process.env.CONVERACT_USE_MEMORY_REDIS;
     resetRedisPubSubForTests(null);
     setRedisClientForTests(null);
   });
 
   after(() => {
-    if (savedEnv === undefined) delete process.env.OPC_USE_MEMORY_REDIS;
-    else process.env.OPC_USE_MEMORY_REDIS = savedEnv;
+    if (savedEnv === undefined) delete process.env.CONVERACT_USE_MEMORY_REDIS;
+    else process.env.CONVERACT_USE_MEMORY_REDIS = savedEnv;
   });
 
   it('forces the pubsub singleton into memory mode (no real ioredis)', async () => {
@@ -49,8 +49,8 @@ describe('useMemoryRedisForTests', () => {
     assert.equal(got, 'v');
   });
 
-  it('sets OPC_USE_MEMORY_REDIS=1 so getRedisPubSub is consistent without extra setup', () => {
+  it('sets CONVERACT_USE_MEMORY_REDIS=1 so getRedisPubSub is consistent without extra setup', () => {
     useMemoryRedisForTests();
-    assert.equal(process.env.OPC_USE_MEMORY_REDIS, '1');
+    assert.equal(process.env.CONVERACT_USE_MEMORY_REDIS, '1');
   });
 });

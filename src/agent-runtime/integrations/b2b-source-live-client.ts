@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 export interface B2BSourceLiveClientOptions {
   baseUrl?: string | null;
   timeoutMs?: number;
@@ -8,8 +9,8 @@ export class B2BSourceLiveClient {
   timeoutMs: number;
 
   constructor(options: B2BSourceLiveClientOptions = {}) {
-    this.baseUrl = options.baseUrl || process.env.OPC_B2B_SOURCE_ADAPTER_URL || process.env.OPC_PROVIDER_GATEWAY_URL || null;
-    this.timeoutMs = Number(options.timeoutMs || process.env.OPC_B2B_SOURCE_ADAPTER_TIMEOUT_MS || 4000);
+    this.baseUrl = options.baseUrl || resolveBrandEnv(process.env, 'B2B_SOURCE_ADAPTER_URL') || resolveBrandEnv(process.env, 'PROVIDER_GATEWAY_URL') || null;
+    this.timeoutMs = Number(options.timeoutMs || resolveBrandEnv(process.env, 'B2B_SOURCE_ADAPTER_TIMEOUT_MS') || 4000);
   }
 
   isConfigured(runtimeConfig: Record<string, unknown> = {}): boolean {

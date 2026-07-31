@@ -18,19 +18,19 @@ test('RustDesk evidence pack marks a complete server and client evidence set as 
   const files = writeCompleteEvidenceFiles(dir);
 
   const pack = buildRustDeskEvidencePack(createRustDeskEvidencePackConfigFromEnv({
-    OPC_RUSTDESK_EVIDENCE_TITLE: 'RustDesk customer acceptance',
-    OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
-    OPC_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
-    OPC_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE: files.preflight,
-    OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE: files.serverEvidence,
-    OPC_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE: files.readiness,
-    OPC_RUSTDESK_EVIDENCE_HANDOFF_FILE: files.handoff,
-    OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
-    OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance,
-    OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE: files.auditCoverage,
-    OPC_RUSTDESK_EVIDENCE_EVENT_TEMPLATE_FILE: files.eventTemplate,
-    OPC_RUSTDESK_API_TOKEN: 'secret-token',
-    OPC_COLLABORATION_API_KEY: 'collaboration-secret'
+    CONVERACT_RUSTDESK_EVIDENCE_TITLE: 'RustDesk customer acceptance',
+    CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
+    CONVERACT_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
+    CONVERACT_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE: files.preflight,
+    CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE: files.serverEvidence,
+    CONVERACT_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE: files.readiness,
+    CONVERACT_RUSTDESK_EVIDENCE_HANDOFF_FILE: files.handoff,
+    CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
+    CONVERACT_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance,
+    CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE: files.auditCoverage,
+    CONVERACT_RUSTDESK_EVIDENCE_EVENT_TEMPLATE_FILE: files.eventTemplate,
+    CONVERACT_RUSTDESK_API_TOKEN: 'secret-token',
+    CONVERACT_COLLABORATION_API_KEY: 'collaboration-secret'
   }));
 
   assert.equal(pack.ok, true);
@@ -93,13 +93,13 @@ test('RustDesk evidence pack fails when audit coverage report is missing or fail
   const files = writeCompleteEvidenceFiles(dir);
 
   const missing = buildRustDeskEvidencePack(createRustDeskEvidencePackConfigFromEnv({
-    OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
-    OPC_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
-    OPC_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE: files.preflight,
-    OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE: files.serverEvidence,
-    OPC_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE: files.readiness,
-    OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
-    OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance
+    CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
+    CONVERACT_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
+    CONVERACT_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE: files.preflight,
+    CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE: files.serverEvidence,
+    CONVERACT_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE: files.readiness,
+    CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
+    CONVERACT_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance
   }));
   assert.equal(missing.ok, false);
   assert.equal(missing.missing_required.includes('audit_coverage_report'), true);
@@ -116,14 +116,14 @@ test('RustDesk evidence pack fails when audit coverage report is missing or fail
     invalid_events: []
   });
   const failed = buildRustDeskEvidencePack(createRustDeskEvidencePackConfigFromEnv({
-    OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
-    OPC_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
-    OPC_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE: files.preflight,
-    OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE: files.serverEvidence,
-    OPC_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE: files.readiness,
-    OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
-    OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance,
-    OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE: files.auditCoverage
+    CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
+    CONVERACT_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
+    CONVERACT_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE: files.preflight,
+    CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE: files.serverEvidence,
+    CONVERACT_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE: files.readiness,
+    CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
+    CONVERACT_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance,
+    CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE: files.auditCoverage
   }));
 
   assert.equal(failed.ok, false);
@@ -142,14 +142,14 @@ test('RustDesk evidence pack accepts npm stdout wrappers around JSON artifacts',
   ].join('\n'));
 
   const pack = buildRustDeskEvidencePack(createRustDeskEvidencePackConfigFromEnv({
-    OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
-    OPC_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
-    OPC_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE: files.preflight,
-    OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE: files.serverEvidence,
-    OPC_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE: files.readiness,
-    OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
-    OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance,
-    OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE: files.auditCoverage
+    CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
+    CONVERACT_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
+    CONVERACT_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE: files.preflight,
+    CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE: files.serverEvidence,
+    CONVERACT_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE: files.readiness,
+    CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
+    CONVERACT_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance,
+    CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE: files.auditCoverage
   }));
 
   assert.equal(pack.ok, true);
@@ -161,14 +161,14 @@ test('RustDesk evidence pack uses standard preflight and readiness report files 
   const files = writeCompleteEvidenceFiles(dir);
 
   const config = createRustDeskEvidencePackConfigFromEnv({
-    OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
-    OPC_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
-    OPC_RUSTDESK_PREFLIGHT_REPORT_FILE: files.preflight,
-    OPC_RUSTDESK_SERVER_EVIDENCE_FILE: files.serverEvidence,
-    OPC_RUSTDESK_READINESS_REPORT_FILE: files.readiness,
-    OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
-    OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE: files.auditCoverage,
-    OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance
+    CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
+    CONVERACT_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
+    CONVERACT_RUSTDESK_PREFLIGHT_REPORT_FILE: files.preflight,
+    CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE: files.serverEvidence,
+    CONVERACT_RUSTDESK_READINESS_REPORT_FILE: files.readiness,
+    CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
+    CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE: files.auditCoverage,
+    CONVERACT_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance
   });
 
   assert.equal(config.artifacts.preflightReportFile, files.preflight);
@@ -188,15 +188,15 @@ test('RustDesk evidence pack CLI writes a markdown artifact and exposes package/
     encoding: 'utf8',
     env: {
       ...process.env,
-      OPC_RUSTDESK_EVIDENCE_PACK_FILE: outputFile,
-      OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
-      OPC_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
-      OPC_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE: files.preflight,
-      OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE: files.serverEvidence,
-      OPC_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE: files.readiness,
-      OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
-      OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance,
-      OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE: files.auditCoverage
+      CONVERACT_RUSTDESK_EVIDENCE_PACK_FILE: outputFile,
+      CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: files.deploymentCommands,
+      CONVERACT_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: files.envChecklist,
+      CONVERACT_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE: files.preflight,
+      CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE: files.serverEvidence,
+      CONVERACT_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE: files.readiness,
+      CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE: files.clientConfigPack,
+      CONVERACT_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE: files.acceptance,
+      CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE: files.auditCoverage
     }
   });
 
@@ -214,15 +214,15 @@ test('RustDesk evidence pack CLI writes a markdown artifact and exposes package/
   const envExample = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
   const infraEnvExample = readFileSync(new URL('../infra/env.example', import.meta.url), 'utf8');
   for (const key of [
-    'OPC_RUSTDESK_EVIDENCE_PACK_FILE=',
-    'OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE=',
-    'OPC_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE=',
-    'OPC_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE=',
-    'OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=',
-    'OPC_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE=',
-    'OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=',
-    'OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE=',
-    'OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE='
+    'CONVERACT_RUSTDESK_EVIDENCE_PACK_FILE=',
+    'CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE=',
+    'CONVERACT_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE=',
+    'CONVERACT_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE=',
+    'CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=',
+    'CONVERACT_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE=',
+    'CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=',
+    'CONVERACT_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE=',
+    'CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE='
   ]) {
     assert.match(envExample, new RegExp(`^${key}`, 'm'));
     assert.match(infraEnvExample, new RegExp(`^${key}`, 'm'));
@@ -249,7 +249,7 @@ function writeCompleteEvidenceFiles(dir: string): Record<string, string> {
     ok: true,
     checks: [
       { id: 'public_key', status: 'pass', message: 'RustDesk public key file is readable: /rustdesk/id_ed25519.pub' },
-      { id: 'id_server', status: 'pass', message: 'OPC_RUSTDESK_ID_SERVER is configured' }
+      { id: 'id_server', status: 'pass', message: 'CONVERACT_RUSTDESK_ID_SERVER is configured' }
     ]
   });
   writeJson(files.serverEvidence, {

@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { Counter, Gauge } from 'prom-client';
 
 import type { PgQueryable } from '../../db-pg.js';
@@ -129,16 +130,16 @@ export function liveKitEgressCapacityMetricsConfig(
 ): LiveKitEgressCapacityMetricsConfig {
   return {
     enabled: booleanFlag(
-      env.OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED,
+      resolveBrandEnv(env, 'LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED'),
       false,
-      'OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED'
+      'CONVERACT_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED'
     ),
     interval_ms: boundedInteger(
-      env.OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_INTERVAL_MS,
+      resolveBrandEnv(env, 'LIVEKIT_EGRESS_CAPACITY_METRICS_INTERVAL_MS'),
       5_000,
       1_000,
       60_000,
-      'OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_INTERVAL_MS'
+      'CONVERACT_LIVEKIT_EGRESS_CAPACITY_METRICS_INTERVAL_MS'
     )
   };
 }

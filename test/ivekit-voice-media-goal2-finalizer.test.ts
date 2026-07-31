@@ -16,7 +16,7 @@ import {
   type VoiceMediaGoal2FinalizerInput
 } from '../scripts/ivekit-voice-media-goal2-finalize.js';
 
-const OPC_COMMIT = 'a'.repeat(40);
+const CONVERACT_COMMIT = 'a'.repeat(40);
 const RTPENGINE_COMMIT = 'b'.repeat(40);
 const IMAGE_DIGEST = `sha256:${'c'.repeat(64)}`;
 const OLD_IMAGE_DIGEST = `sha256:${'d'.repeat(64)}`;
@@ -294,7 +294,7 @@ function validInput(): VoiceMediaGoal2FinalizerInput {
       status: 'passed',
       generated_at: '2026-07-26T04:55:00.000Z',
       identity: {
-        source_commit: OPC_COMMIT,
+        source_commit: CONVERACT_COMMIT,
         image_reference: 'ivekit/rtpengine',
         image_digest: IMAGE_DIGEST,
         rtpengine_source_commit: RTPENGINE_COMMIT,
@@ -352,7 +352,7 @@ function stage(
     stage: name,
     status: 'passed',
     generated_at: '2026-07-26T04:56:00.000Z',
-    source_commit: OPC_COMMIT,
+    source_commit: CONVERACT_COMMIT,
     evidence_sha256: EVIDENCE_SHA,
     ...identity
   };
@@ -387,7 +387,7 @@ function acceptanceAttempt(options: {
       schema_version: 1,
       status: 'passed',
       capacity_claim: 'none',
-      source_commit: OPC_COMMIT,
+      source_commit: CONVERACT_COMMIT,
       rtpengine_image_digest: options.image_digest || IMAGE_DIGEST,
       config_hash: CONFIG_DIGEST,
       runtime_mode: options.runtime_mode || 'userspace',

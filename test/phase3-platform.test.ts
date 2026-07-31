@@ -23,8 +23,8 @@ function authHeaders(tenantId: string, userId = 'user_1') {
 
 before(() => {
   useMemoryRedisForTests();
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_AUTH_DISABLED = '1';
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_AUTH_DISABLED = '1';
 });
 
 describe('Facebook Messenger outbound', () => {
@@ -78,7 +78,7 @@ describe('Screen recording object storage', () => {
     const db = createDatabase(':memory:');
     const tenant = createTenant(db, { name: 'Rec' });
     delete process.env.S3_BUCKET;
-    delete process.env.OPC_S3_BUCKET;
+    delete process.env.CONVERACT_S3_BUCKET;
     const storage = createObjectStorage();
     const uploaded = await storage.upload({
       tenantId: tenant.id,

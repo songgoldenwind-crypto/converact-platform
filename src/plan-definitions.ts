@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from './config/converact-env.js';
 import { id, run } from './db.js';
 
 export interface PlanDefinition {
@@ -42,7 +43,7 @@ export const PLAN_DEFINITIONS: Record<string, PlanDefinition> = {
 export function getStripePriceId(planCode: string): string | null {
   if (planCode === 'free') return null;
   const envKey = `STRIPE_PRICE_${planCode.toUpperCase()}`;
-  return process.env[envKey] || null;
+  return resolveConveractEnv(process.env, envKey) || null;
 }
 
 export function getPlanDefinition(planCode: string): PlanDefinition {

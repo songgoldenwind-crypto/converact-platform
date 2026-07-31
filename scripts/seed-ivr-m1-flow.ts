@@ -1,4 +1,5 @@
 #!/usr/bin/env npx tsx
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 /**
  * Seed and publish the M1 RustPBX integration IVR flow (same graph as FEW_SHOT_M1).
  *
@@ -7,7 +8,7 @@
  *   npx tsx scripts/seed-ivr-m1-flow.ts --help
  *
  * Uses DATABASE_URL (Postgres) when set — same as production server.ts.
- * Falls back to SQLite via --db / OPC_DB_PATH for local dev.
+ * Falls back to SQLite via --db / CONVERACT_DB_PATH for local dev.
  */
 import { createDatabase } from '../src/db.js';
 import { initPostgres, runMigrations } from '../src/db-pg.js';
@@ -22,13 +23,13 @@ function printHelp(): void {
   console.log(`Usage: npx tsx scripts/seed-ivr-m1-flow.ts [tenantId] [--db path]
 
   tenantId  Tenant to seed (default: default-tenant)
-  --db      SQLite path when DATABASE_URL unset (default: OPC_DB_PATH or data/opc.db)
+  --db      SQLite path when DATABASE_URL unset (default: CONVERACT_DB_PATH or data/opc.db)
 `);
 }
 
 function parseArgs(argv: string[]): { tenantId: string; dbPath: string; help: boolean } {
   let tenantId = 'default-tenant';
-  let dbPath = process.env.OPC_DB_PATH || 'data/opc.db';
+  let dbPath = resolveBrandEnv(process.env, 'DB_PATH') || 'data/opc.db';
   let help = false;
 
   for (let i = 2; i < argv.length; i++) {

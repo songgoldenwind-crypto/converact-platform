@@ -153,8 +153,8 @@ test('iveKit handoff contract documents the one-time RustDesk authorization exch
     assert.equal(contract.includes(`\`${path}\``), true, path);
   }
   for (const marker of [
-    'OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE=1',
-    'OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET',
+    'CONVERACT_RUSTDESK_REQUIRE_AUTHORIZATION_CODE=1',
+    'CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET',
     'requestAuthorizationCode',
     'verifyAuthorizationCode',
     'code:null,replayed:true'
@@ -169,10 +169,10 @@ test('iveKit handoff contract documents device-bound RustDesk observation ingest
     'x-rustdesk-edge-token',
     'source_adapter',
     'received -> forwarding -> forwarded|dead_letter',
-    'OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR',
-    'OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR',
-    'OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR',
-    'OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR',
+    'CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR',
+    'CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR',
+    'CONVERACT_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR',
+    'CONVERACT_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR',
     'ivekit_secure_file',
     'native_unscanned',
     'local_only'
@@ -204,7 +204,7 @@ test('iveKit handoff contract inventories notification user and administration p
     'active_health_checks',
     'failed|dead_letter -> retry_wait',
     'uncertain',
-    'OPC_IVEKIT_NOTIFICATION_HEALTH_WORKER_ENABLED',
+    'CONVERACT_FABRIC_NOTIFICATION_HEALTH_WORKER_ENABLED',
     'opc_ivekit_notification_health_probes_total'
   ]) assert.match(contract, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), marker);
 });
@@ -220,7 +220,7 @@ test('iveKit handoff contract documents durable integration event webhooks', () 
     'IveKitWebhookReplayStore',
     'body SHA-256',
     'durable inbox',
-    'OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED'
+    'CONVERACT_FABRIC_EVENT_WEBHOOK_WORKER_ENABLED'
   ]) assert.match(contract, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), marker);
 });
 

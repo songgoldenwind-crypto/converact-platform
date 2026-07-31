@@ -401,12 +401,12 @@ async function evidenceFixture(
     owner_epoch: string;
   }
 ) {
-  const previous = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_SECRET;
+  const previous = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_SECRET;
   const root = mkdtempSync(join(tmpdir(), 'rustdesk-edge-evidence-'));
   t.after(() => {
-    if (previous === undefined) delete process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-    else process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = previous;
+    if (previous === undefined) delete process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+    else process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = previous;
     rmSync(root, { recursive: true, force: true });
   });
   const pg = new MemoryPg();

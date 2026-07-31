@@ -13,9 +13,9 @@ import {
 
 test('RustDesk deployment command plan renders the Docker Compose server bring-up flow', () => {
   const plan = createRustDeskDeploymentCommandPlan({
-    OPC_RUSTDESK_DEPLOYMENT_MODE: 'compose',
-    OPC_RUSTDESK_DEPLOYMENT_COMPOSE_FILE: 'docker-compose.callcenter.yml',
-    OPC_RUSTDESK_API_TOKEN: 'secret-token'
+    CONVERACT_RUSTDESK_DEPLOYMENT_MODE: 'compose',
+    CONVERACT_RUSTDESK_DEPLOYMENT_COMPOSE_FILE: 'docker-compose.callcenter.yml',
+    CONVERACT_RUSTDESK_API_TOKEN: 'secret-token'
   });
 
   assert.equal(plan.mode, 'compose');
@@ -30,26 +30,26 @@ test('RustDesk deployment command plan renders the Docker Compose server bring-u
   const commands = commandLines(plan);
   assert.equal(commands.includes('docker compose --profile rustdesk -f docker-compose.callcenter.yml up -d rustdesk-hbbs rustdesk-hbbr'), true);
   assert.equal(commands.includes('docker compose --profile rustdesk -f docker-compose.callcenter.yml logs rustdesk-hbbs rustdesk-hbbr'), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_PREFLIGHT_REPORT_FILE=/tmp/rustdesk-preflight.json') && command.includes('npm run rustdesk:deployment-preflight')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json') && command.includes('npm run rustdesk:server-evidence')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_READINESS_REPORT_FILE=/tmp/rustdesk-readiness.json') && command.includes('npm run rustdesk:readiness')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md') && command.includes('npm run rustdesk:client-config-pack')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE=/tmp/rustdesk-client-acceptance-template.json') && command.includes('npm run rustdesk:client-acceptance')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_AUDIT_EXPORT_FILE=/tmp/rustdesk-audit-export.jsonl') && command.includes('OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id>') && command.includes('npm run rustdesk:audit-export')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=/tmp/rustdesk-audit-coverage.json') && command.includes('npm run rustdesk:audit-coverage')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_EVIDENCE_PACK_FILE=/tmp/rustdesk-evidence-pack.md') && command.includes('OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE=/tmp/rustdesk-deployment-commands.md') && command.includes('OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json') && command.includes('OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md') && command.includes('OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE=/tmp/rustdesk-audit-coverage.json') && command.includes('npm run rustdesk:evidence-pack')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_PREFLIGHT_REPORT_FILE=/tmp/rustdesk-preflight.json') && command.includes('npm run rustdesk:deployment-preflight')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json') && command.includes('npm run rustdesk:server-evidence')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_READINESS_REPORT_FILE=/tmp/rustdesk-readiness.json') && command.includes('npm run rustdesk:readiness')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md') && command.includes('npm run rustdesk:client-config-pack')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE=/tmp/rustdesk-client-acceptance-template.json') && command.includes('npm run rustdesk:client-acceptance')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE=/tmp/rustdesk-audit-export.jsonl') && command.includes('CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id>') && command.includes('npm run rustdesk:audit-export')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=/tmp/rustdesk-audit-coverage.json') && command.includes('npm run rustdesk:audit-coverage')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_EVIDENCE_PACK_FILE=/tmp/rustdesk-evidence-pack.md') && command.includes('CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE=/tmp/rustdesk-deployment-commands.md') && command.includes('CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json') && command.includes('CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md') && command.includes('CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE=/tmp/rustdesk-audit-coverage.json') && command.includes('npm run rustdesk:evidence-pack')), true);
   assert.equal(JSON.stringify(plan).includes('secret-token'), false);
 });
 
 test('RustDesk deployment command plan renders the Kubernetes Helm server bring-up flow', () => {
   const plan = createRustDeskDeploymentCommandPlan({
-    OPC_RUSTDESK_DEPLOYMENT_MODE: 'k8s',
-    OPC_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE: 'opc',
-    OPC_RUSTDESK_DEPLOYMENT_HELM_RELEASE: 'opc',
-    OPC_RUSTDESK_DEPLOYMENT_HELM_CHART: 'infra/k8s',
-    OPC_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE: 'infra/k8s/values.production.yaml',
-    OPC_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT: 'opc',
-    OPC_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT: 'opc-rustdesk'
+    CONVERACT_RUSTDESK_DEPLOYMENT_MODE: 'k8s',
+    CONVERACT_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE: 'opc',
+    CONVERACT_RUSTDESK_DEPLOYMENT_HELM_RELEASE: 'opc',
+    CONVERACT_RUSTDESK_DEPLOYMENT_HELM_CHART: 'infra/k8s',
+    CONVERACT_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE: 'infra/k8s/values.production.yaml',
+    CONVERACT_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT: 'opc',
+    CONVERACT_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT: 'opc-rustdesk'
   });
 
   assert.equal(plan.mode, 'k8s');
@@ -57,23 +57,23 @@ test('RustDesk deployment command plan renders the Kubernetes Helm server bring-
   assert.equal(commands.includes('helm upgrade --install opc infra/k8s --namespace opc --create-namespace --values infra/k8s/values.production.yaml --set rustdesk.enabled=true'), true);
   assert.equal(commands.includes('helm upgrade --install opc infra/k8s --namespace opc --values infra/k8s/values.production.yaml --set rustdesk.enabled=false'), true);
   assert.equal(commands.includes('kubectl -n opc rollout status deployment/opc-rustdesk'), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_PREFLIGHT_REPORT_FILE=/tmp/rustdesk-preflight.json') && command.includes('npm run rustdesk:deployment-preflight')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json') && command.includes('npm run rustdesk:server-evidence')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_READINESS_REPORT_FILE=/tmp/rustdesk-readiness.json') && command.includes('npm run rustdesk:readiness')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md') && command.includes('npm run rustdesk:client-config-pack')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/tmp/rustdesk-client-acceptance-result.json') && command.includes('npm run rustdesk:client-acceptance')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_AUDIT_EXPORT_FILE=/tmp/rustdesk-audit-export.jsonl') && command.includes('OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id>') && command.includes('npm run rustdesk:audit-export')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_AUDIT_COVERAGE_FILE=/tmp/rustdesk-audit-export.jsonl') && command.includes('npm run rustdesk:audit-coverage')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE=/tmp/rustdesk-client-acceptance-template.json') && command.includes('npm run rustdesk:evidence-pack')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json') && command.includes('npm run rustdesk:evidence-pack')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md') && command.includes('npm run rustdesk:evidence-pack')), true);
-  assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE=/tmp/rustdesk-deployment-commands.md') && command.includes('npm run rustdesk:evidence-pack')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_PREFLIGHT_REPORT_FILE=/tmp/rustdesk-preflight.json') && command.includes('npm run rustdesk:deployment-preflight')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json') && command.includes('npm run rustdesk:server-evidence')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_READINESS_REPORT_FILE=/tmp/rustdesk-readiness.json') && command.includes('npm run rustdesk:readiness')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md') && command.includes('npm run rustdesk:client-config-pack')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/tmp/rustdesk-client-acceptance-result.json') && command.includes('npm run rustdesk:client-acceptance')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE=/tmp/rustdesk-audit-export.jsonl') && command.includes('CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id>') && command.includes('npm run rustdesk:audit-export')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE=/tmp/rustdesk-audit-export.jsonl') && command.includes('npm run rustdesk:audit-coverage')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE=/tmp/rustdesk-client-acceptance-template.json') && command.includes('npm run rustdesk:evidence-pack')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json') && command.includes('npm run rustdesk:evidence-pack')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=/tmp/rustdesk-client-config-pack.md') && command.includes('npm run rustdesk:evidence-pack')), true);
+  assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE=/tmp/rustdesk-deployment-commands.md') && command.includes('npm run rustdesk:evidence-pack')), true);
 });
 
 test('RustDesk deployment command markdown captures ports, key mount, validation, and rollback steps', () => {
   const markdown = renderRustDeskDeploymentCommands(createRustDeskDeploymentCommandPlan({
-    OPC_RUSTDESK_DEPLOYMENT_MODE: 'compose',
-    OPC_RUSTDESK_DEPLOYMENT_COMPOSE_FILE: 'infra/docker-compose.production.yml'
+    CONVERACT_RUSTDESK_DEPLOYMENT_MODE: 'compose',
+    CONVERACT_RUSTDESK_DEPLOYMENT_COMPOSE_FILE: 'infra/docker-compose.production.yml'
   }));
 
   assert.match(markdown, /^# RustDesk Deployment Commands/m);
@@ -89,15 +89,15 @@ test('RustDesk deployment command markdown captures ports, key mount, validation
   assert.match(markdown, /npm run rustdesk:audit-export/);
   assert.match(markdown, /npm run rustdesk:audit-coverage/);
   assert.match(markdown, /npm run rustdesk:evidence-pack/);
-  assert.match(markdown, /OPC_RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE=\/tmp\/rustdesk-env-checklist\.md/);
-  assert.match(markdown, /OPC_RUSTDESK_SERVER_EVIDENCE_FILE=\/tmp\/rustdesk-server-evidence\.json/);
-  assert.match(markdown, /OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE=\/tmp\/rustdesk-client-config-pack\.md/);
-  assert.match(markdown, /OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE=\/tmp\/rustdesk-audit-export\.jsonl/);
-  assert.match(markdown, /OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id>/);
-  assert.match(markdown, /OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE=\/tmp\/rustdesk-deployment-commands\.md/);
-  assert.match(markdown, /OPC_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE=\/tmp\/rustdesk-readiness\.json/);
-  assert.match(markdown, /OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=\/tmp\/rustdesk-server-evidence\.json/);
-  assert.match(markdown, /OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=\/tmp\/rustdesk-client-config-pack\.md/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE=\/tmp\/rustdesk-env-checklist\.md/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE=\/tmp\/rustdesk-server-evidence\.json/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE=\/tmp\/rustdesk-client-config-pack\.md/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE=\/tmp\/rustdesk-audit-export\.jsonl/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id>/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE=\/tmp\/rustdesk-deployment-commands\.md/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE=\/tmp\/rustdesk-readiness\.json/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=\/tmp\/rustdesk-server-evidence\.json/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=\/tmp\/rustdesk-client-config-pack\.md/);
   assert.match(markdown, /rollback/i);
 });
 
@@ -105,8 +105,8 @@ test('RustDesk deployment commands write an artifact and expose package/env wiri
   const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-deployment-commands-'));
   const outputFile = join(dir, 'rustdesk-deployment-commands.md');
   const result = writeRustDeskDeploymentCommands(outputFile, {
-    OPC_RUSTDESK_DEPLOYMENT_MODE: 'compose',
-    OPC_RUSTDESK_DEPLOYMENT_COMPOSE_FILE: 'docker-compose.callcenter.yml'
+    CONVERACT_RUSTDESK_DEPLOYMENT_MODE: 'compose',
+    CONVERACT_RUSTDESK_DEPLOYMENT_COMPOSE_FILE: 'docker-compose.callcenter.yml'
   });
 
   assert.equal(result.outputFile, outputFile);
@@ -122,15 +122,15 @@ test('RustDesk deployment commands write an artifact and expose package/env wiri
   const envExample = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
   const infraEnvExample = readFileSync(new URL('../infra/env.example', import.meta.url), 'utf8');
   for (const key of [
-    'OPC_RUSTDESK_DEPLOYMENT_COMMANDS_FILE=',
-    'OPC_RUSTDESK_DEPLOYMENT_MODE=',
-    'OPC_RUSTDESK_DEPLOYMENT_COMPOSE_FILE=',
-    'OPC_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE=',
-    'OPC_RUSTDESK_DEPLOYMENT_HELM_RELEASE=',
-    'OPC_RUSTDESK_DEPLOYMENT_HELM_CHART=',
-    'OPC_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE=',
-    'OPC_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT=',
-    'OPC_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT='
+    'CONVERACT_RUSTDESK_DEPLOYMENT_COMMANDS_FILE=',
+    'CONVERACT_RUSTDESK_DEPLOYMENT_MODE=',
+    'CONVERACT_RUSTDESK_DEPLOYMENT_COMPOSE_FILE=',
+    'CONVERACT_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE=',
+    'CONVERACT_RUSTDESK_DEPLOYMENT_HELM_RELEASE=',
+    'CONVERACT_RUSTDESK_DEPLOYMENT_HELM_CHART=',
+    'CONVERACT_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE=',
+    'CONVERACT_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT=',
+    'CONVERACT_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT='
   ]) {
     assert.match(envExample, new RegExp(`^${key}`, 'm'));
     assert.match(infraEnvExample, new RegExp(`^${key}`, 'm'));
@@ -145,13 +145,13 @@ test('RustDesk deployment commands CLI can emit a markdown artifact', () => {
     encoding: 'utf8',
     env: {
       ...process.env,
-      OPC_RUSTDESK_DEPLOYMENT_COMMANDS_FILE: outputFile,
-      OPC_RUSTDESK_DEPLOYMENT_MODE: 'k8s',
-      OPC_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE: 'opc',
-      OPC_RUSTDESK_DEPLOYMENT_HELM_RELEASE: 'opc',
-      OPC_RUSTDESK_DEPLOYMENT_HELM_CHART: 'infra/k8s',
-      OPC_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT: 'opc',
-      OPC_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT: 'opc-rustdesk'
+      CONVERACT_RUSTDESK_DEPLOYMENT_COMMANDS_FILE: outputFile,
+      CONVERACT_RUSTDESK_DEPLOYMENT_MODE: 'k8s',
+      CONVERACT_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE: 'opc',
+      CONVERACT_RUSTDESK_DEPLOYMENT_HELM_RELEASE: 'opc',
+      CONVERACT_RUSTDESK_DEPLOYMENT_HELM_CHART: 'infra/k8s',
+      CONVERACT_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT: 'opc',
+      CONVERACT_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT: 'opc-rustdesk'
     }
   });
 

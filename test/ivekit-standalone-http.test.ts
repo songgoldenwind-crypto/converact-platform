@@ -196,8 +196,8 @@ test('standalone iveKit server separates liveness from dependency readiness', as
 });
 
 test('standalone iveKit server preserves bounded attachment bytes', async (t) => {
-  const previousLimit = process.env.OPC_COLLABORATION_ATTACHMENT_MAX_BYTES;
-  process.env.OPC_COLLABORATION_ATTACHMENT_MAX_BYTES = '4';
+  const previousLimit = process.env.CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES;
+  process.env.CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES = '4';
   const received: Buffer[] = [];
   const db = createDatabase(':memory:');
   const server = createIveKitHttpServer({
@@ -216,8 +216,8 @@ test('standalone iveKit server preserves bounded attachment bytes', async (t) =>
   });
 
   t.after(async () => {
-    if (previousLimit === undefined) delete process.env.OPC_COLLABORATION_ATTACHMENT_MAX_BYTES;
-    else process.env.OPC_COLLABORATION_ATTACHMENT_MAX_BYTES = previousLimit;
+    if (previousLimit === undefined) delete process.env.CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES;
+    else process.env.CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES = previousLimit;
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();
   });
@@ -243,8 +243,8 @@ test('standalone iveKit server preserves bounded attachment bytes', async (t) =>
 });
 
 test('standalone iveKit server preserves bounded secure file bytes', async (t) => {
-  const previousLimit = process.env.OPC_SECURE_FILE_UPLOAD_MAX_BYTES;
-  process.env.OPC_SECURE_FILE_UPLOAD_MAX_BYTES = '4';
+  const previousLimit = process.env.CONVERACT_SECURE_FILE_UPLOAD_MAX_BYTES;
+  process.env.CONVERACT_SECURE_FILE_UPLOAD_MAX_BYTES = '4';
   const received: Buffer[] = [];
   const db = createDatabase(':memory:');
   const server = createIveKitHttpServer({
@@ -263,8 +263,8 @@ test('standalone iveKit server preserves bounded secure file bytes', async (t) =
   });
 
   t.after(async () => {
-    if (previousLimit === undefined) delete process.env.OPC_SECURE_FILE_UPLOAD_MAX_BYTES;
-    else process.env.OPC_SECURE_FILE_UPLOAD_MAX_BYTES = previousLimit;
+    if (previousLimit === undefined) delete process.env.CONVERACT_SECURE_FILE_UPLOAD_MAX_BYTES;
+    else process.env.CONVERACT_SECURE_FILE_UPLOAD_MAX_BYTES = previousLimit;
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();
   });
@@ -365,8 +365,8 @@ test('standalone iveKit server preserves LiveKit webhook raw body', async (t) =>
 });
 
 test('standalone iveKit server enters the tenant PostgreSQL context', async (t) => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'standalone-tenant-key';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'standalone-tenant-key';
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const server = createIveKitHttpServer({
@@ -382,8 +382,8 @@ test('standalone iveKit server enters the tenant PostgreSQL context', async (t) 
     }
   });
   t.after(async () => {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();
   });
@@ -402,8 +402,8 @@ test('standalone iveKit server enters the tenant PostgreSQL context', async (t) 
 });
 
 test('standalone iveKit media calls receive the request-scoped PostgreSQL client', async (t) => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'standalone-scoped-pg-key';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'standalone-scoped-pg-key';
   const db = createDatabase(':memory:');
   const queries: string[] = [];
   const client = {
@@ -435,8 +435,8 @@ test('standalone iveKit media calls receive the request-scoped PostgreSQL client
     }
   });
   t.after(async () => {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();
   });
@@ -588,13 +588,13 @@ test('standalone iveKit event administration returns structured rate-limit error
 });
 
 test('standalone iveKit server bounds every non-attachment request body', async (t) => {
-  const previousLimit = process.env.OPC_IVEKIT_HTTP_BODY_MAX_BYTES;
-  process.env.OPC_IVEKIT_HTTP_BODY_MAX_BYTES = '6';
+  const previousLimit = process.env.CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES;
+  process.env.CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES = '6';
   const db = createDatabase(':memory:');
   const server = createIveKitHttpServer({ db, pg: null });
   t.after(async () => {
-    if (previousLimit === undefined) delete process.env.OPC_IVEKIT_HTTP_BODY_MAX_BYTES;
-    else process.env.OPC_IVEKIT_HTTP_BODY_MAX_BYTES = previousLimit;
+    if (previousLimit === undefined) delete process.env.CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES;
+    else process.env.CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES = previousLimit;
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();
   });
@@ -642,8 +642,8 @@ test('standalone iveKit server rejects malformed JSON before routing', async (t)
 });
 
 test('standalone iveKit server handles configured browser CORS preflight', async (t) => {
-  const previousOrigins = process.env.OPC_IVEKIT_ALLOWED_ORIGINS;
-  process.env.OPC_IVEKIT_ALLOWED_ORIGINS = 'https://led.example.com';
+  const previousOrigins = process.env.CONVERACT_FABRIC_ALLOWED_ORIGINS;
+  process.env.CONVERACT_FABRIC_ALLOWED_ORIGINS = 'https://led.example.com';
   const db = createDatabase(':memory:');
   const server = createIveKitHttpServer({
     db,
@@ -655,8 +655,8 @@ test('standalone iveKit server handles configured browser CORS preflight', async
     }
   });
   t.after(async () => {
-    if (previousOrigins === undefined) delete process.env.OPC_IVEKIT_ALLOWED_ORIGINS;
-    else process.env.OPC_IVEKIT_ALLOWED_ORIGINS = previousOrigins;
+    if (previousOrigins === undefined) delete process.env.CONVERACT_FABRIC_ALLOWED_ORIGINS;
+    else process.env.CONVERACT_FABRIC_ALLOWED_ORIGINS = previousOrigins;
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();
   });

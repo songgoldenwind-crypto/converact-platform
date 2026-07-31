@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import { RoomServiceClient } from 'livekit-server-sdk';
@@ -454,7 +455,7 @@ export function createConfiguredLiveKitModerationProvider(
   config: LiveKitConfig = readLiveKitConfig()
 ): LiveKitModerationProvider | null {
   if (!isLiveKitConfigured(config)) return null;
-  const timeoutSeconds = boundedTimeout(process.env.OPC_LIVEKIT_ADMIN_TIMEOUT_SECONDS);
+  const timeoutSeconds = boundedTimeout(resolveBrandEnv(process.env, 'LIVEKIT_ADMIN_TIMEOUT_SECONDS'));
   const client = new RoomServiceClient(config.url!, config.apiKey!, config.apiSecret!, {
     requestTimeout: timeoutSeconds
   });

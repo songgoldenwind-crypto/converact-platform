@@ -263,8 +263,8 @@ test('sensitive native observations require the current control owner and versio
 });
 
 test('RustDesk control HTTP requires active participants and binds actor to JWT identity', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'rustdesk-control-http-test-secret-32-bytes';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'rustdesk-control-http-test-secret-32-bytes';
   try {
     const pg = new MemoryPg();
     const tenantId = 'tenant_control_http';
@@ -347,8 +347,8 @@ test('RustDesk control HTTP requires active participants and binds actor to JWT 
     );
     assert.equal((denied as { status?: number }).status, 403);
   } finally {
-    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousSecret;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
   }
 });
 

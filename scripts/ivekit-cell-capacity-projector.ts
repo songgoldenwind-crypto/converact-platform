@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../src/config/converact-env.js';
 import { pathToFileURL } from 'node:url';
 
 import {
@@ -301,51 +302,51 @@ export function cellCapacityProjectorRuntimeConfig(
   env: NodeJS.ProcessEnv = process.env
 ): CellCapacityProjectorRuntimeConfig {
   const dimensions = jsonObject<FlatCapacityState>(
-    required(env, 'OPC_IVEKIT_CELL_DIMENSIONS_JSON'),
-    'OPC_IVEKIT_CELL_DIMENSIONS_JSON'
+    required(env, 'CONVERACT_FABRIC_CELL_DIMENSIONS_JSON'),
+    'CONVERACT_FABRIC_CELL_DIMENSIONS_JSON'
   );
-  const explicitNodes = String(env.OPC_IVEKIT_CELL_NODES_JSON || '').trim();
-  const nodePools = String(env.OPC_IVEKIT_CELL_NODE_POOLS_JSON || '').trim();
+  const explicitNodes = String(resolveFabricEnv(env, 'CELL_NODES_JSON') || '').trim();
+  const nodePools = String(resolveFabricEnv(env, 'CELL_NODE_POOLS_JSON') || '').trim();
   if (Boolean(explicitNodes) === Boolean(nodePools)) {
     throw new Error('exactly one Cell node topology authority is required');
   }
   const nodes = nodePools
     ? projectorNodesFromPools(jsonArray<AdmissionNodePoolConfig>(
         nodePools,
-        'OPC_IVEKIT_CELL_NODE_POOLS_JSON'
+        'CONVERACT_FABRIC_CELL_NODE_POOLS_JSON'
       ), dimensions)
     : jsonArray<ProjectorNodeConfig>(
         explicitNodes,
-        'OPC_IVEKIT_CELL_NODES_JSON'
+        'CONVERACT_FABRIC_CELL_NODES_JSON'
       );
   const probes = jsonArray<ComponentCapacityProbeConfig>(
-    required(env, 'OPC_IVEKIT_CELL_PROBES_JSON'),
-    'OPC_IVEKIT_CELL_PROBES_JSON'
+    required(env, 'CONVERACT_FABRIC_CELL_PROBES_JSON'),
+    'CONVERACT_FABRIC_CELL_PROBES_JSON'
   );
   for (const probe of probes) createComponentCapacityProbe(probe);
   if (probes.length !== nodes.length) {
-    throw new Error('OPC_IVEKIT_CELL_PROBES_JSON must contain one probe per node');
+    throw new Error('CONVERACT_FABRIC_CELL_PROBES_JSON must contain one probe per node');
   }
   return {
     admission_endpoint: checkedHttpUrl(
-      env.OPC_IVEKIT_CELL_ADMISSION_ENDPOINT || 'http://127.0.0.1:3200'
+      resolveFabricEnv(env, 'CELL_ADMISSION_ENDPOINT') || 'http://127.0.0.1:3200'
     ).toString(),
-    service_token: safeToken(required(env, 'OPC_IVEKIT_CELL_ADMISSION_TOKEN')),
+    service_token: safeToken(required(env, 'CONVERACT_FABRIC_CELL_ADMISSION_TOKEN')),
     interval_ms: boundedInteger(
-      numberValue(env.OPC_IVEKIT_CELL_PROBE_INTERVAL_MS, 2_000),
+      numberValue(resolveFabricEnv(env, 'CELL_PROBE_INTERVAL_MS'), 2_000),
       500,
       60_000
     ),
     observation_ttl_ms: boundedInteger(
-      numberValue(env.OPC_IVEKIT_CELL_OBSERVATION_TTL_MS, 10_000),
+      numberValue(resolveFabricEnv(env, 'CELL_OBSERVATION_TTL_MS'), 10_000),
       1_000,
       300_000
     ),
-    region_id: validIdentifier(required(env, 'OPC_IVEKIT_CELL_REGION_ID')),
-    zone_id: validIdentifier(required(env, 'OPC_IVEKIT_CELL_ZONE_ID')),
-    cell_id: validIdentifier(required(env, 'OPC_IVEKIT_CELL_ID')),
-    profile_id: required(env, 'OPC_IVEKIT_CELL_CAPACITY_PROFILE_ID'),
-    profile_sha256: required(env, 'OPC_IVEKIT_CELL_CAPACITY_PROFILE_SHA256'),
+    region_id: validIdentifier(required(env, 'CONVERACT_FABRIC_CELL_REGION_ID')),
+    zone_id: validIdentifier(required(env, 'CONVERACT_FABRIC_CELL_ZONE_ID')),
+    cell_id: validIdentifier(required(env, 'CONVERACT_FABRIC_CELL_ID')),
+    profile_id: required(env, 'CONVERACT_FABRIC_CELL_CAPACITY_PROFILE_ID'),
+    profile_sha256: required(env, 'CONVERACT_FABRIC_CELL_CAPACITY_PROFILE_SHA256'),
     dimensions,
     nodes,
     probes
@@ -506,7 +507,7 @@ function safeToken(value: string): string {
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = String(env[key] || '').trim();
+  const value = String(resolveConveractEnv(env, key) || '').trim();
   if (!value) throw new Error(`${key} is required`);
   return value;
 }

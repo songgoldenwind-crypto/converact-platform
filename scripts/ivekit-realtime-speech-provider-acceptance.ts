@@ -247,7 +247,7 @@ async function withRoutingScenario(
   try {
     const env: NodeJS.ProcessEnv = {
       CONTROLLED_REALTIME_SPEECH_TOKEN: CONTROLLED_TOKEN,
-      OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+      CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
         routeProfile('speech-primary', primary.baseUrl),
         routeProfile('speech-fallback', fallback.baseUrl)
       ])

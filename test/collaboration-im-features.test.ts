@@ -52,7 +52,7 @@ test('IM feature migration adds relation columns and forced tenant RLS', () => {
 });
 
 test('iveKit chat supports replies, forwards, mentions, reactions, and pins', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_rich_im';
@@ -158,7 +158,7 @@ test('iveKit chat supports replies, forwards, mentions, reactions, and pins', as
 });
 
 test('rich IM relations reject foreign sessions, inactive mentions, and foreign tenants', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_rich_guards';

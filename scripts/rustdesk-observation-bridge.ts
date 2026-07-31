@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from '../src/config/converact-env.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
@@ -34,30 +35,30 @@ export interface RustDeskObservationBridgePollResult {
 export function createRustDeskObservationBridgeConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): RustDeskObservationBridgeConfig {
-  const baseUrl = normalizeBaseUrl(env.OPC_RUSTDESK_EDGE_BASE_URL || '');
+  const baseUrl = normalizeBaseUrl(resolveBrandEnv(env, 'RUSTDESK_EDGE_BASE_URL') || '');
   const deviceTokenFile = absolutePath(
-    env.OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE,
-    'OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE'
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_DEVICE_TOKEN_FILE'),
+    'CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE'
   );
   const inputDirectory = absolutePath(
-    env.OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR,
-    'OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR'
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_OBSERVATION_INPUT_DIR'),
+    'CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR'
   );
   const spoolDirectory = absolutePath(
-    env.OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR,
-    'OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR'
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR'),
+    'CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR'
   );
   return {
     baseUrl,
     deviceTokenFile,
     inputDirectory,
     spoolDirectory,
-    batchSize: boundedEnv(env.OPC_RUSTDESK_EDGE_OBSERVATION_BATCH_SIZE, 20, 1, 100, 'OPC_RUSTDESK_EDGE_OBSERVATION_BATCH_SIZE'),
-    retryDelayMs: boundedEnv(env.OPC_RUSTDESK_EDGE_OBSERVATION_RETRY_DELAY_MS, 5_000, 0, 3_600_000, 'OPC_RUSTDESK_EDGE_OBSERVATION_RETRY_DELAY_MS'),
-    maxAttempts: boundedEnv(env.OPC_RUSTDESK_EDGE_OBSERVATION_MAX_ATTEMPTS, 10, 1, 100, 'OPC_RUSTDESK_EDGE_OBSERVATION_MAX_ATTEMPTS'),
-    maxInputBytes: boundedEnv(env.OPC_RUSTDESK_EDGE_OBSERVATION_MAX_INPUT_BYTES, 64 * 1_024, 1_024, 1_048_576, 'OPC_RUSTDESK_EDGE_OBSERVATION_MAX_INPUT_BYTES'),
-    maxQuarantineRecords: boundedEnv(env.OPC_RUSTDESK_EDGE_OBSERVATION_MAX_QUARANTINE_RECORDS, 100, 1, 10_000, 'OPC_RUSTDESK_EDGE_OBSERVATION_MAX_QUARANTINE_RECORDS'),
-    placementEnabled: flag(env.OPC_IVEKIT_PLACEMENT_ENABLED)
+    batchSize: boundedEnv(resolveBrandEnv(env, 'RUSTDESK_EDGE_OBSERVATION_BATCH_SIZE'), 20, 1, 100, 'CONVERACT_RUSTDESK_EDGE_OBSERVATION_BATCH_SIZE'),
+    retryDelayMs: boundedEnv(resolveBrandEnv(env, 'RUSTDESK_EDGE_OBSERVATION_RETRY_DELAY_MS'), 5_000, 0, 3_600_000, 'CONVERACT_RUSTDESK_EDGE_OBSERVATION_RETRY_DELAY_MS'),
+    maxAttempts: boundedEnv(resolveBrandEnv(env, 'RUSTDESK_EDGE_OBSERVATION_MAX_ATTEMPTS'), 10, 1, 100, 'CONVERACT_RUSTDESK_EDGE_OBSERVATION_MAX_ATTEMPTS'),
+    maxInputBytes: boundedEnv(resolveBrandEnv(env, 'RUSTDESK_EDGE_OBSERVATION_MAX_INPUT_BYTES'), 64 * 1_024, 1_024, 1_048_576, 'CONVERACT_RUSTDESK_EDGE_OBSERVATION_MAX_INPUT_BYTES'),
+    maxQuarantineRecords: boundedEnv(resolveBrandEnv(env, 'RUSTDESK_EDGE_OBSERVATION_MAX_QUARANTINE_RECORDS'), 100, 1, 10_000, 'CONVERACT_RUSTDESK_EDGE_OBSERVATION_MAX_QUARANTINE_RECORDS'),
+    placementEnabled: flag(resolveFabricEnv(env, 'PLACEMENT_ENABLED'))
   };
 }
 
@@ -304,11 +305,11 @@ async function ensurePrivateDirectory(path: string, name: string): Promise<void>
 
 function normalizeBaseUrl(value: string): string {
   const result = String(value || '').trim().replace(/\/+$/, '');
-  if (!result) throw new Error('OPC_RUSTDESK_EDGE_BASE_URL is required');
+  if (!result) throw new Error('CONVERACT_RUSTDESK_EDGE_BASE_URL is required');
   let parsed: URL;
-  try { parsed = new URL(result); } catch { throw new Error('OPC_RUSTDESK_EDGE_BASE_URL must be an HTTP URL'); }
+  try { parsed = new URL(result); } catch { throw new Error('CONVERACT_RUSTDESK_EDGE_BASE_URL must be an HTTP URL'); }
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
-    throw new Error('OPC_RUSTDESK_EDGE_BASE_URL must be an HTTP URL without credentials, query, or fragment');
+    throw new Error('CONVERACT_RUSTDESK_EDGE_BASE_URL must be an HTTP URL without credentials, query, or fragment');
   }
   return result;
 }
@@ -380,7 +381,7 @@ function flag(value: string | undefined): boolean {
   if (!normalized) return false;
   if (['1', 'true', 'yes'].includes(normalized)) return true;
   if (['0', 'false', 'no'].includes(normalized)) return false;
-  throw new Error('OPC_IVEKIT_PLACEMENT_ENABLED must be 0 or 1');
+  throw new Error('CONVERACT_FABRIC_PLACEMENT_ENABLED must be 0 or 1');
 }
 
 function nodeCode(error: unknown): string {

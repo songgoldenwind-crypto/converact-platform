@@ -37,7 +37,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "ivekit.secretName" . }}
                   key: {{ .Values.secrets.adminDatabaseUrlKey }}
-            - name: OPC_RUNTIME_DB_PASSWORD
+            - name: CONVERACT_RUNTIME_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "ivekit.secretName" . }}

@@ -176,7 +176,7 @@
       "profiles": ["observability"], "default_enabled": false, "config_switch": "voice.kamailio.sipTrace.enabled",
       "delivery": "production", "rollback": "Disable fail-open HEP export and remove the collector.",
       "resource_budget": {"scope": "per-Cell collector", "requests": "2 CPU/6Gi", "limits": "8 CPU/12Gi plus bounded persistent volumes", "notes": "One writer and one PostgreSQL DuckLake catalog per Cell; never writes on the call path."},
-      "image_contract": {"policy": "immutable", "values_path": "image.digest", "helper": "ivekit-homer.image", "chart_root": "infra/ivekit/homer/helm/ivekit-homer"}
+      "image_contract": {"policy": "immutable", "values_path": "image.digest", "helper": "ivekit-homer.image", "chart_root": "infra/converact/homer/helm/converact-homer"}
     },
     {
       "id": "opensips", "baseline_decision_id": "opensips",

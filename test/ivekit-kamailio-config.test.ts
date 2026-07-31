@@ -380,12 +380,12 @@ test('Kamailio runtime reads bounded secret files and writes generated configs a
   await writeFile(webphoneJwtFile, `${WEBPHONE_JWT_SECRET}\n`, { mode: 0o600 });
 
   const runtime = await loadKamailioConfigRuntime({
-    OPC_IVEKIT_KAMAILIO_CONFIG_FILE: configFile,
-    OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE: topohFile,
-    OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE: rpcFile,
-    OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE: webphoneJwtFile,
-    OPC_IVEKIT_KAMAILIO_OUTPUT_FILE: outputFile,
-    OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE: tlsOutputFile
+    CONVERACT_FABRIC_KAMAILIO_CONFIG_FILE: configFile,
+    CONVERACT_FABRIC_KAMAILIO_TOPOH_KEY_FILE: topohFile,
+    CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE: rpcFile,
+    CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_SECRET_FILE: webphoneJwtFile,
+    CONVERACT_FABRIC_KAMAILIO_OUTPUT_FILE: outputFile,
+    CONVERACT_FABRIC_KAMAILIO_TLS_OUTPUT_FILE: tlsOutputFile
   });
   assert.equal(runtime.config.cell_id, 'cell-a');
   await writeKamailioConfigRuntime(runtime);
@@ -398,14 +398,14 @@ test('Kamailio runtime reads bounded secret files and writes generated configs a
 
   await assert.rejects(
     () => loadKamailioConfigRuntime({
-      OPC_IVEKIT_KAMAILIO_CONFIG_FILE: configFile,
-      OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE: topohFile,
-      OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE: rpcFile,
-      OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE: webphoneJwtFile,
-      OPC_IVEKIT_KAMAILIO_OUTPUT_FILE: outputFile,
-      OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE: tlsOutputFile,
-      OPC_IVEKIT_KAMAILIO_RPC_TOKEN: RPC_TOKEN,
-      OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET: WEBPHONE_JWT_SECRET
+      CONVERACT_FABRIC_KAMAILIO_CONFIG_FILE: configFile,
+      CONVERACT_FABRIC_KAMAILIO_TOPOH_KEY_FILE: topohFile,
+      CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE: rpcFile,
+      CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_SECRET_FILE: webphoneJwtFile,
+      CONVERACT_FABRIC_KAMAILIO_OUTPUT_FILE: outputFile,
+      CONVERACT_FABRIC_KAMAILIO_TLS_OUTPUT_FILE: tlsOutputFile,
+      CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN: RPC_TOKEN,
+      CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_SECRET: WEBPHONE_JWT_SECRET
     }),
     /inline.*secret/i
   );
@@ -434,14 +434,14 @@ test('Kamailio runtime supports host-side rendering into container runtime paths
   await writeFile(webphoneJwtFile, `${WEBPHONE_JWT_SECRET}\n`, { mode: 0o600 });
 
   const runtime = await loadKamailioConfigRuntime({
-    OPC_IVEKIT_KAMAILIO_CONFIG_FILE: configFile,
-    OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE: topohFile,
-    OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE: rpcFile,
-    OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE: webphoneJwtFile,
-    OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_RUNTIME_FILE: webphoneRuntimeFile,
-    OPC_IVEKIT_KAMAILIO_OUTPUT_FILE: outputFile,
-    OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE: tlsOutputFile,
-    OPC_IVEKIT_KAMAILIO_TLS_RUNTIME_FILE: tlsRuntimeFile
+    CONVERACT_FABRIC_KAMAILIO_CONFIG_FILE: configFile,
+    CONVERACT_FABRIC_KAMAILIO_TOPOH_KEY_FILE: topohFile,
+    CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE: rpcFile,
+    CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_SECRET_FILE: webphoneJwtFile,
+    CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_RUNTIME_FILE: webphoneRuntimeFile,
+    CONVERACT_FABRIC_KAMAILIO_OUTPUT_FILE: outputFile,
+    CONVERACT_FABRIC_KAMAILIO_TLS_OUTPUT_FILE: tlsOutputFile,
+    CONVERACT_FABRIC_KAMAILIO_TLS_RUNTIME_FILE: tlsRuntimeFile
   });
   await writeKamailioConfigRuntime(runtime);
 
@@ -462,12 +462,12 @@ test('Kamailio renderer has a file-only CLI and documented deployment contract',
   assert.match(script, /writeKamailioConfigRuntime/);
   assert.match(packageJson, /"ivekit:kamailio:render"/);
   for (const name of [
-    'OPC_IVEKIT_KAMAILIO_CONFIG_FILE',
-    'OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE',
-    'OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE',
-    'OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE',
-    'OPC_IVEKIT_KAMAILIO_OUTPUT_FILE',
-    'OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE'
+    'CONVERACT_FABRIC_KAMAILIO_CONFIG_FILE',
+    'CONVERACT_FABRIC_KAMAILIO_TOPOH_KEY_FILE',
+    'CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE',
+    'CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_SECRET_FILE',
+    'CONVERACT_FABRIC_KAMAILIO_OUTPUT_FILE',
+    'CONVERACT_FABRIC_KAMAILIO_TLS_OUTPUT_FILE'
   ]) assert.match(envExample, new RegExp(`^${name}=`, 'm'));
   assert.match(referenceConfig, /ivekit:kamailio:render/);
   assert.doesNotMatch(referenceConfig, /sqlite|sip:rustpbx:5060/);

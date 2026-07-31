@@ -162,7 +162,7 @@ Compose uses the additional `voice-capacity` profile. Helm uses
 `voice.componentNode.enabled`. The agent starts draining and does not become
 ready until the Cell sends a current lease and completes checkpoint replay.
 
-The lookup root must equal iveKit's `OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY`. The
+The lookup root must equal iveKit's `CONVERACT_FABRIC_VOICE_ADDRESS_HMAC_KEY`. The
 snapshot signing key must be a distinct random 32-byte canonical base64 secret.
 
 ## Recording spool
@@ -270,7 +270,7 @@ deterministic and configured by
 data to logs or trace headers and does not modify RTP packet forwarding.
 
 The co-located media-control process can export its own bounded OpenTelemetry
-spans through `OPC_OTEL_*`. Export is disabled by default and, when enabled,
+spans through `CONVERACT_OTEL_*`. Export is disabled by default and, when enabled,
 uses explicit queue, batch, delay, timeout, endpoint, and sample-ratio limits.
 The exact ivekit.38 patch queue applies, its release-scope Rust files pass
 Rustfmt, and a clean fixed-source replay passes all 1,911 RustPBX library tests
@@ -683,7 +683,7 @@ resumes the existing spool before the node accepts a new owner-authorized call.
 CDR API, PostgreSQL and object-storage failures never enter the RTP packet path.
 
 iveKit accepts a new durable receipt only from the active
-`OPC_IVEKIT_CDR_REGION_ID` contract. RustPBX independently requires
+`CONVERACT_FABRIC_CDR_REGION_ID` contract. RustPBX independently requires
 `IVEKIT_RUSTPBX_CDR_REGION_ID` and rejects a successful response whose receipt
 names any other Region. The contract must represent synchronous
 quorum across at least two distinct Zones. Missing Region identity or contract

@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$SCRIPT_DIR/converact-env-compat.sh"
+converact_env_install_aliases
+
 find_pg_tool() {
   tool="$1"
   if command -v "$tool" >/dev/null 2>&1; then
@@ -65,11 +69,11 @@ trap cleanup INT TERM HUP EXIT
 "$CREATEDB" -h 127.0.0.1 -p "$PORT" -U opc_admin ivekit_fresh
 "$CREATEDB" -h 127.0.0.1 -p "$PORT" -U opc_admin ivekit_upgrade
 
-export OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL="postgresql://opc_admin@127.0.0.1:$PORT/ivekit_fresh?sslmode=disable"
-export OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL="postgresql://opc_runtime:$RUNTIME_PASSWORD@127.0.0.1:$PORT/ivekit_fresh?sslmode=disable"
-export OPC_IVEKIT_UPGRADE_TEST_DATABASE_URL="postgresql://opc_admin@127.0.0.1:$PORT/ivekit_upgrade?sslmode=disable"
-export OPC_IVEKIT_UPGRADE_TEST_RUNTIME_DATABASE_URL="postgresql://opc_runtime:$RUNTIME_PASSWORD@127.0.0.1:$PORT/ivekit_upgrade?sslmode=disable"
-export OPC_IVEKIT_STANDALONE_TEST_RUNTIME_PASSWORD="$RUNTIME_PASSWORD"
+export CONVERACT_FABRIC_STANDALONE_TEST_DATABASE_URL="postgresql://opc_admin@127.0.0.1:$PORT/ivekit_fresh?sslmode=disable"
+export CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_DATABASE_URL="postgresql://opc_runtime:$RUNTIME_PASSWORD@127.0.0.1:$PORT/ivekit_fresh?sslmode=disable"
+export CONVERACT_FABRIC_UPGRADE_TEST_DATABASE_URL="postgresql://opc_admin@127.0.0.1:$PORT/ivekit_upgrade?sslmode=disable"
+export CONVERACT_FABRIC_UPGRADE_TEST_RUNTIME_DATABASE_URL="postgresql://opc_runtime:$RUNTIME_PASSWORD@127.0.0.1:$PORT/ivekit_upgrade?sslmode=disable"
+export CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_PASSWORD="$RUNTIME_PASSWORD"
 
 node --import tsx --test test/ivekit-standalone-postgres.test.ts
 node --import tsx --test test/ivekit-sip-effect-postgres.test.ts

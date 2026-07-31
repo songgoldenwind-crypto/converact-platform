@@ -170,12 +170,12 @@ async function httpFixture(
   t: { after(fn: () => void): void },
   tenantId: string
 ) {
-  const previousKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = API_KEY;
+  const previousKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const root = mkdtempSync(join(tmpdir(), 'ivekit-secure-file-http-'));
   t.after(() => {
-    if (previousKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousKey;
+    if (previousKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousKey;
     rmSync(root, { recursive: true, force: true });
   });
   const pg = new MemoryPg();

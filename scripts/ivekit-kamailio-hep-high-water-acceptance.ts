@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { isAbsolute } from 'node:path';
@@ -36,8 +37,8 @@ const STEPS: Array<{
 ];
 
 async function main(): Promise<void> {
-  const endpoint = requiredEnv('OPC_IVEKIT_KAMAILIO_RPC_ENDPOINT');
-  const tokenFile = requiredAbsoluteEnv('OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE');
+  const endpoint = requiredEnv('CONVERACT_FABRIC_KAMAILIO_RPC_ENDPOINT');
+  const tokenFile = requiredAbsoluteEnv('CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE');
   const token = checkedToken((await readFile(tokenFile, 'utf8')).trim());
   if (process.argv[2] === '--set-mode') {
     await setMode(endpoint, token, process.argv[3], process.argv[4]);
@@ -317,7 +318,7 @@ async function writeHtableInteger(
 }
 
 function requiredEnv(name: string): string {
-  const value = String(process.env[name] || '').trim();
+  const value = String(resolveConveractEnv(process.env, name) || '').trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }

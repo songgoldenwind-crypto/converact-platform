@@ -6,17 +6,17 @@ from urllib.parse import quote
 
 import httpx
 
-from config import OPC_API_KEY, OPC_API_URL
+from config import CONVERACT_API_KEY, CONVERACT_API_URL
 
 logger = logging.getLogger("ai-agent.opc")
 
 
 class OPCClient:
     def __init__(self) -> None:
-        self.base_url = OPC_API_URL.rstrip("/")
+        self.base_url = CONVERACT_API_URL.rstrip("/")
         self.headers = {
             "Content-Type": "application/json",
-            "X-API-Key": OPC_API_KEY,
+            "X-API-Key": CONVERACT_API_KEY,
         }
         self.client = httpx.AsyncClient(timeout=10.0)
 

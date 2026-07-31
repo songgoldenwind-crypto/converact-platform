@@ -7,7 +7,9 @@ param(
   [Parameter(Mandatory = $true)][ValidateSet('consent_revoked', 'remote_session_ended', 'tool_ended', 'gateway_ended')][string]$Reason
 )
 $ErrorActionPreference = 'Stop'
-$serviceName = if ($env:OPC_RUSTDESK_SERVICE_NAME) { [string]$env:OPC_RUSTDESK_SERVICE_NAME } else { 'RustDesk' }
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'converact-env-compat.ps1')
+Install-ConveractEnvironmentAliases
+$serviceName = if ($env:CONVERACT_RUSTDESK_SERVICE_NAME) { [string]$env:CONVERACT_RUSTDESK_SERVICE_NAME } else { 'RustDesk' }
 if ($serviceName -notmatch '^[A-Za-z0-9_.@-]+$') { throw 'invalid RustDesk service name' }
 $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 $available = $null -ne $service

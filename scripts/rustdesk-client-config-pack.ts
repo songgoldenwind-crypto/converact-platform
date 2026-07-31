@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,44 +65,44 @@ export interface RustDeskClientConfigPackWriteResult {
 }
 
 export function createRustDeskClientConfigPackConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskClientConfigPackConfig {
-  const outputFile = optionalString(env.OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE);
+  const outputFile = optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_PACK_FILE'));
   const baseUrl = normalizeBaseUrl(
-    env.OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL ||
-    env.OPC_RUSTDESK_IVEKIT_BASE_URL ||
-    env.OPC_BASE_URL ||
-    env.OPC_REMOTE_GATEWAY_BASE_URL ||
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') ||
     ''
   );
   const apiKey = requiredString(
-    env.OPC_RUSTDESK_CLIENT_CONFIG_API_KEY ||
-    env.OPC_RUSTDESK_IVEKIT_API_KEY ||
-    env.OPC_COLLABORATION_API_KEY ||
-    env.OPC_API_KEY,
-    'OPC_RUSTDESK_CLIENT_CONFIG_API_KEY or OPC_RUSTDESK_IVEKIT_API_KEY or OPC_API_KEY is required'
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_API_KEY') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_API_KEY') ||
+    resolveBrandEnv(env, 'COLLABORATION_API_KEY') ||
+    resolveBrandEnv(env, 'API_KEY'),
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY or CONVERACT_RUSTDESK_IVEKIT_API_KEY or CONVERACT_API_KEY is required'
   );
   const tenantId = requiredString(
-    env.OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID ||
-    env.OPC_RUSTDESK_IVEKIT_TENANT_ID ||
-    env.OPC_REMOTE_GATEWAY_TENANT_ID ||
-    env.OPC_RUSTDESK_EDGE_TENANT_ID ||
-    env.OPC_TENANT_ID,
-    'OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID or OPC_RUSTDESK_IVEKIT_TENANT_ID or OPC_REMOTE_GATEWAY_TENANT_ID is required'
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_TENANT_ID') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') ||
+    resolveBrandEnv(env, 'TENANT_ID'),
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID or CONVERACT_RUSTDESK_IVEKIT_TENANT_ID or CONVERACT_REMOTE_GATEWAY_TENANT_ID is required'
   );
 
   return {
     ...(outputFile ? { outputFile } : {}),
-    title: optionalString(env.OPC_RUSTDESK_CLIENT_CONFIG_PACK_TITLE) || 'RustDesk Client Config Pack',
+    title: optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_PACK_TITLE')) || 'RustDesk Client Config Pack',
     baseUrl,
     apiKey,
     tenantId,
-    ...(optionalString(env.OPC_RUSTDESK_CLIENT_CONFIG_USER_ID || env.OPC_RUSTDESK_IVEKIT_USER_ID) ? {
-      userId: optionalString(env.OPC_RUSTDESK_CLIENT_CONFIG_USER_ID || env.OPC_RUSTDESK_IVEKIT_USER_ID)
+    ...(optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_USER_ID') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_USER_ID')) ? {
+      userId: optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_USER_ID') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_USER_ID'))
     } : {}),
-    ...(optionalString(env.OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID || env.OPC_RUSTDESK_ACCEPTANCE_EXTERNAL_ID) ? {
-      externalId: optionalString(env.OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID || env.OPC_RUSTDESK_ACCEPTANCE_EXTERNAL_ID)
+    ...(optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID') || resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_EXTERNAL_ID')) ? {
+      externalId: optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID') || resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_EXTERNAL_ID'))
     } : {}),
-    ...(optionalString(env.OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID || env.OPC_RUSTDESK_ACCEPTANCE_RUSTDESK_ID) ? {
-      targetRustDeskId: optionalString(env.OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID || env.OPC_RUSTDESK_ACCEPTANCE_RUSTDESK_ID)
+    ...(optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID') || resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_RUSTDESK_ID')) ? {
+      targetRustDeskId: optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID') || resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_RUSTDESK_ID'))
     } : {})
   };
 }
@@ -219,7 +220,7 @@ export async function writeRustDeskClientConfigPack(
   config: RustDeskClientConfigPackConfig,
   client?: RustDeskClientConfigPackClient
 ): Promise<RustDeskClientConfigPackWriteResult> {
-  if (!config.outputFile) throw new Error('OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE is required when writing client config pack');
+  if (!config.outputFile) throw new Error('CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE is required when writing client config pack');
   const pack = await buildRustDeskClientConfigPack(config, client);
   mkdirSync(dirname(config.outputFile), { recursive: true });
   writeFileSync(config.outputFile, renderRustDeskClientConfigPack(pack), 'utf8');
@@ -267,7 +268,7 @@ function objectValue(value: unknown): Record<string, unknown> {
 }
 
 function normalizeBaseUrl(rawBaseUrl: string): string {
-  const value = requiredString(rawBaseUrl, 'OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL or OPC_BASE_URL is required');
+  const value = requiredString(rawBaseUrl, 'CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL or CONVERACT_BASE_URL is required');
   const parsed = new URL(value);
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error('RustDesk client config pack base URL must use http(s)');

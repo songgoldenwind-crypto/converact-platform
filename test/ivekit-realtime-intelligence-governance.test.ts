@@ -16,7 +16,7 @@ import {
 const migrationPath = 'src/migrations/097_ivekit_realtime_intelligence.sql';
 
 const env: NodeJS.ProcessEnv = {
-  OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+  CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
     {
       id: 'speech-cloud', capability: 'realtime_speech', mode: 'third_party',
       base_url: 'https://speech.example.test', adapter: 'ivekit_realtime_speech_v1',
@@ -61,7 +61,7 @@ test('registry accepts governed realtime speech, TTS, and model profiles without
 test('realtime intelligence profile validation rejects insecure and secret-bearing configuration', () => {
   assert.throws(
     () => createIntelligenceProviderRegistry({
-      OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
         id: 'speech-cloud', capability: 'realtime_speech', mode: 'third_party',
         base_url: 'http://speech.example.test', adapter: 'ivekit_realtime_speech_v1'
       }])
@@ -70,7 +70,7 @@ test('realtime intelligence profile validation rejects insecure and secret-beari
   );
   assert.throws(
     () => createIntelligenceProviderRegistry({
-      OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
         id: 'speech-cloud', capability: 'realtime_speech', mode: 'third_party',
         base_url: 'https://speech.example.test', adapter: 'ivekit_realtime_speech_v1',
         config: { authorization: 'Bearer plaintext' }

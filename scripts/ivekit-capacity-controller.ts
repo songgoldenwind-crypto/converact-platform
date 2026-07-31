@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../src/config/converact-env.js';
 import { readFileSync, statSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -24,22 +25,22 @@ export function capacityControllerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): CapacityControllerConfig {
   const leaseTtlMs = integer(
-    env.OPC_IVEKIT_CAPACITY_CONTROLLER_LEASE_MS || '15000',
+    resolveFabricEnv(env, 'CAPACITY_CONTROLLER_LEASE_MS') || '15000',
     1_000,
     300_000
   );
   return {
-    database_url: required(env, 'OPC_DATABASE_URL'),
+    database_url: required(env, 'CONVERACT_DATABASE_URL'),
     controller_id: safeId(
-      required(env, 'OPC_IVEKIT_CAPACITY_CONTROLLER_ID'),
+      required(env, 'CONVERACT_FABRIC_CAPACITY_CONTROLLER_ID'),
       'controller ID'
     ),
     manifest_path: absolutePath(
-      required(env, 'OPC_IVEKIT_CAPACITY_MANIFEST_PATH')
+      required(env, 'CONVERACT_FABRIC_CAPACITY_MANIFEST_PATH')
     ),
     lease_ttl_ms: leaseTtlMs,
     poll_interval_ms: integer(
-      env.OPC_IVEKIT_CAPACITY_CONTROLLER_POLL_INTERVAL_MS || '500',
+      resolveFabricEnv(env, 'CAPACITY_CONTROLLER_POLL_INTERVAL_MS') || '500',
       100,
       Math.floor(leaseTtlMs / 3)
     )
@@ -132,7 +133,7 @@ async function main(): Promise<void> {
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = String(env[key] || '').trim();
+  const value = String(resolveConveractEnv(env, key) || '').trim();
   if (!value) throw new Error(`${key} is required`);
   return value;
 }

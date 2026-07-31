@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../config/converact-env.js';
 import { createHmac, createVerify, timingSafeEqual } from 'node:crypto';
 
 export type AuthRole = 'owner' | 'admin' | 'operator' | 'viewer' | 'system';
@@ -26,12 +27,12 @@ const DEFAULT_TOKEN_TTL_SEC = 86_400;
  *
  * Priority:
  * 1. X-API-Key (system)
- * 2. Bearer JWT (OPC_JWT_SECRET HS256, or OPC_AUTH_ISSUER RS256 JWKS)
- * 3. Dev headers (OPC_AUTH_DISABLED=1 or no issuer/secret)
+ * 2. Bearer JWT (CONVERACT_JWT_SECRET HS256, or CONVERACT_AUTH_ISSUER RS256 JWKS)
+ * 3. Dev headers (CONVERACT_AUTH_DISABLED=1 or no issuer/secret)
  */
 export function resolveAuthContext(headers: Record<string, string | string[] | undefined>): AuthContext {
   const apiKey = header(headers, 'X-API-Key') || header(headers, 'x-api-key');
-  const expectedKey = process.env.OPC_API_KEY;
+  const expectedKey = resolveBrandEnv(process.env, 'API_KEY');
   if (apiKey && expectedKey && apiKey === expectedKey) {
     return {
       tenantId: header(headers, 'X-Tenant-Id') || header(headers, 'x-tenant-id') || 'system',
@@ -44,19 +45,19 @@ export function resolveAuthContext(headers: Record<string, string | string[] | u
   const authorization = header(headers, 'Authorization') || header(headers, 'authorization');
   if (authorization?.startsWith('Bearer ')) {
     const token = authorization.slice(7);
-    const jwtSecret = process.env.OPC_JWT_SECRET;
+    const jwtSecret = resolveBrandEnv(process.env, 'JWT_SECRET');
     if (jwtSecret) {
       return resolveHs256Context(token, jwtSecret);
     }
-    const issuer = process.env.OPC_AUTH_ISSUER;
+    const issuer = resolveBrandEnv(process.env, 'AUTH_ISSUER');
     if (issuer) {
       return resolveJwtContext(headers, issuer, token);
     }
   }
 
-  const authDisabled = process.env.OPC_AUTH_DISABLED === '1';
-  const issuer = process.env.OPC_AUTH_ISSUER;
-  if (authDisabled || (!issuer && !process.env.OPC_JWT_SECRET)) {
+  const authDisabled = resolveBrandEnv(process.env, 'AUTH_DISABLED') === '1';
+  const issuer = resolveBrandEnv(process.env, 'AUTH_ISSUER');
+  if (authDisabled || (!issuer && !resolveBrandEnv(process.env, 'JWT_SECRET'))) {
     return resolveDevContext(headers);
   }
 
@@ -106,9 +107,9 @@ export function signAccessToken(
   payload: { sub: string; tid: string; role: AuthRole },
   ttlSec: number = DEFAULT_TOKEN_TTL_SEC
 ): string {
-  const secret = process.env.OPC_JWT_SECRET;
+  const secret = resolveBrandEnv(process.env, 'JWT_SECRET');
   if (!secret) {
-    throw Object.assign(new Error('OPC_JWT_SECRET is not configured'), { status: 503 });
+    throw Object.assign(new Error('CONVERACT_JWT_SECRET is not configured'), { status: 503 });
   }
   const now = Math.floor(Date.now() / 1000);
   const body: AccessTokenPayload = {
@@ -126,7 +127,7 @@ export function signAccessToken(
  */
 export function verifyAccessToken(token: string | null | undefined): AuthContext | null {
   if (!token) return null;
-  const secret = process.env.OPC_JWT_SECRET;
+  const secret = resolveBrandEnv(process.env, 'JWT_SECRET');
   if (!secret) return null;
   try {
     return resolveHs256Context(token, secret);

@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from '../../config/converact-env.js';
 import { EgressClient } from 'livekit-server-sdk';
 
 import type { PgQueryable } from '../../db-pg.js';
@@ -158,27 +159,27 @@ export class LiveKitEgressReconciliationScheduler {
 export function liveKitEgressReconciliationConfig(
   env: NodeJS.ProcessEnv = process.env
 ): LiveKitEgressReconciliationConfig {
-  const enabled = booleanFlag(env.OPC_LIVEKIT_EGRESS_RECONCILIATION_ENABLED, false,
-    'OPC_LIVEKIT_EGRESS_RECONCILIATION_ENABLED');
-  const retryBaseMs = boundedEnv(env.OPC_LIVEKIT_EGRESS_RECONCILIATION_RETRY_BASE_MS,
-    5_000, 100, 60 * 60_000, 'OPC_LIVEKIT_EGRESS_RECONCILIATION_RETRY_BASE_MS');
+  const enabled = booleanFlag(resolveBrandEnv(env, 'LIVEKIT_EGRESS_RECONCILIATION_ENABLED'), false,
+    'CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_ENABLED');
+  const retryBaseMs = boundedEnv(resolveBrandEnv(env, 'LIVEKIT_EGRESS_RECONCILIATION_RETRY_BASE_MS'),
+    5_000, 100, 60 * 60_000, 'CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_RETRY_BASE_MS');
   return {
     enabled,
-    interval_ms: boundedEnv(env.OPC_LIVEKIT_EGRESS_RECONCILIATION_INTERVAL_MS,
-      10_000, 1_000, 60 * 60_000, 'OPC_LIVEKIT_EGRESS_RECONCILIATION_INTERVAL_MS'),
-    batch_size: boundedEnv(env.OPC_LIVEKIT_EGRESS_RECONCILIATION_BATCH_SIZE,
-      25, 1, 200, 'OPC_LIVEKIT_EGRESS_RECONCILIATION_BATCH_SIZE'),
-    tenant_limit: boundedEnv(env.OPC_LIVEKIT_EGRESS_RECONCILIATION_TENANT_LIMIT,
-      100, 1, 1_000, 'OPC_LIVEKIT_EGRESS_RECONCILIATION_TENANT_LIMIT'),
-    lease_ms: boundedEnv(env.OPC_LIVEKIT_EGRESS_RECONCILIATION_LEASE_MS,
-      30_000, 1_000, 15 * 60_000, 'OPC_LIVEKIT_EGRESS_RECONCILIATION_LEASE_MS'),
-    stale_ms: boundedEnv(env.OPC_LIVEKIT_EGRESS_RECONCILIATION_STALE_MS,
-      30_000, 1_000, 24 * 60 * 60_000, 'OPC_LIVEKIT_EGRESS_RECONCILIATION_STALE_MS'),
+    interval_ms: boundedEnv(resolveBrandEnv(env, 'LIVEKIT_EGRESS_RECONCILIATION_INTERVAL_MS'),
+      10_000, 1_000, 60 * 60_000, 'CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_INTERVAL_MS'),
+    batch_size: boundedEnv(resolveBrandEnv(env, 'LIVEKIT_EGRESS_RECONCILIATION_BATCH_SIZE'),
+      25, 1, 200, 'CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_BATCH_SIZE'),
+    tenant_limit: boundedEnv(resolveBrandEnv(env, 'LIVEKIT_EGRESS_RECONCILIATION_TENANT_LIMIT'),
+      100, 1, 1_000, 'CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_TENANT_LIMIT'),
+    lease_ms: boundedEnv(resolveBrandEnv(env, 'LIVEKIT_EGRESS_RECONCILIATION_LEASE_MS'),
+      30_000, 1_000, 15 * 60_000, 'CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_LEASE_MS'),
+    stale_ms: boundedEnv(resolveBrandEnv(env, 'LIVEKIT_EGRESS_RECONCILIATION_STALE_MS'),
+      30_000, 1_000, 24 * 60 * 60_000, 'CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_STALE_MS'),
     retry_base_ms: retryBaseMs,
-    retry_max_ms: boundedEnv(env.OPC_LIVEKIT_EGRESS_RECONCILIATION_RETRY_MAX_MS,
-      5 * 60_000, retryBaseMs, 24 * 60 * 60_000, 'OPC_LIVEKIT_EGRESS_RECONCILIATION_RETRY_MAX_MS'),
-    max_missing_observations: boundedEnv(env.OPC_LIVEKIT_EGRESS_RECONCILIATION_MAX_MISSING,
-      2, 2, 10, 'OPC_LIVEKIT_EGRESS_RECONCILIATION_MAX_MISSING')
+    retry_max_ms: boundedEnv(resolveBrandEnv(env, 'LIVEKIT_EGRESS_RECONCILIATION_RETRY_MAX_MS'),
+      5 * 60_000, retryBaseMs, 24 * 60 * 60_000, 'CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_RETRY_MAX_MS'),
+    max_missing_observations: boundedEnv(resolveBrandEnv(env, 'LIVEKIT_EGRESS_RECONCILIATION_MAX_MISSING'),
+      2, 2, 10, 'CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_MAX_MISSING')
   };
 }
 
@@ -190,7 +191,7 @@ export function startLiveKitEgressReconciliationWorker(input: {
 }): LiveKitEgressReconciliationScheduler {
   const env = input.env || process.env;
   const config = liveKitEgressReconciliationConfig(env);
-  const workerId = String(input.worker_id || env.OPC_IVEKIT_INSTANCE_ID || env.HOSTNAME || `ivekit-${process.pid}`);
+  const workerId = String(input.worker_id || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || `ivekit-${process.pid}`);
   const scheduler = new LiveKitEgressReconciliationScheduler({
     config,
     runBatch: () => runLiveKitEgressReconciliationBatch({

@@ -479,20 +479,20 @@ async function runAdapter(
         shell: false,
         env: {
           ...process.env,
-          OPC_RUSTDESK_COMMAND_ID: command.id,
-          OPC_RUSTDESK_EXTERNAL_ID: command.external_id,
-          OPC_RUSTDESK_TARGET_ID: command.target_id,
-          OPC_RUSTDESK_RUSTDESK_ID: command.rustdesk_id,
-          OPC_RUSTDESK_CONTROLLER_RUSTDESK_ID: command.controller_rustdesk_id,
-          OPC_RUSTDESK_NATIVE_SESSION_ID: command.native_session_id || '',
-          OPC_RUSTDESK_DISCONNECT_REASON: command.requested_reason,
-          OPC_RUSTDESK_NATIVE_CONTROL_PROTOCOL:
+          CONVERACT_RUSTDESK_COMMAND_ID: command.id,
+          CONVERACT_RUSTDESK_EXTERNAL_ID: command.external_id,
+          CONVERACT_RUSTDESK_TARGET_ID: command.target_id,
+          CONVERACT_RUSTDESK_RUSTDESK_ID: command.rustdesk_id,
+          CONVERACT_RUSTDESK_CONTROLLER_RUSTDESK_ID: command.controller_rustdesk_id,
+          CONVERACT_RUSTDESK_NATIVE_SESSION_ID: command.native_session_id || '',
+          CONVERACT_RUSTDESK_DISCONNECT_REASON: command.requested_reason,
+          CONVERACT_RUSTDESK_NATIVE_CONTROL_PROTOCOL:
             command.native_control_protocol || 'ivekit-rustdesk-native-control-v1',
-          OPC_RUSTDESK_INTERACTION_ID: command.interaction_id || '',
-          OPC_RUSTDESK_RESERVATION_ID: command.reservation_id || '',
-          OPC_RUSTDESK_OWNER_EPOCH: command.owner_epoch || '',
-          OPC_RUSTDESK_EMERGENCY_FALLBACK_AUTHORIZED: command.emergency_fallback_authorized ? '1' : '0',
-          OPC_RUSTDESK_EMERGENCY_FALLBACK_REASON: command.emergency_fallback_reason
+          CONVERACT_RUSTDESK_INTERACTION_ID: command.interaction_id || '',
+          CONVERACT_RUSTDESK_RESERVATION_ID: command.reservation_id || '',
+          CONVERACT_RUSTDESK_OWNER_EPOCH: command.owner_epoch || '',
+          CONVERACT_RUSTDESK_EMERGENCY_FALLBACK_AUTHORIZED: command.emergency_fallback_authorized ? '1' : '0',
+          CONVERACT_RUSTDESK_EMERGENCY_FALLBACK_REASON: command.emergency_fallback_reason
         },
         detached: process.platform !== 'win32',
         stdio: ['ignore', 'pipe', 'pipe']

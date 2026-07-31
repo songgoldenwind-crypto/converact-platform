@@ -317,9 +317,9 @@ test('canonical and legacy Helm define independent bounded media profiles', () =
 
   for (const template of [helmRustPbx, legacyHelmRustPbx]) {
     assert.match(template, /RustPBX admission profile ids must be distinct/);
-    assert.match(template, /OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS/);
-    assert.match(template, /OPC_IVEKIT_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON/);
-    assert.match(template, /OPC_IVEKIT_COMPONENT_NODE_READINESS_PROFILE_IDS/);
+    assert.match(template, /CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_IDS/);
+    assert.match(template, /CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON/);
+    assert.match(template, /CONVERACT_FABRIC_COMPONENT_NODE_READINESS_PROFILE_IDS/);
   }
 });
 
@@ -332,7 +332,7 @@ test('Compose projects fresh RustPBX capacity into OPC placement admission', () 
   assert.match(voiceCompose, /^  rustpbx-placement-snapshot-projector:\n/m);
   assert.match(
     voiceCompose,
-    /rustpbx-placement-snapshot-projector:[\s\S]*src\/ivekit-placement-snapshot-projector\.ts/
+    /rustpbx-placement-snapshot-projector:[\s\S]*src\/converact-placement-snapshot-projector\.ts/
   );
   assert.match(
     voiceCompose,
@@ -340,7 +340,7 @@ test('Compose projects fresh RustPBX capacity into OPC placement admission', () 
   );
   assert.match(
     voiceCompose,
-    /OPC_IVEKIT_PLACEMENT_ENABLED: \$\{OPC_IVEKIT_PLACEMENT_ENABLED:-0\}[\s\S]*OPC_IVEKIT_PLACEMENT_SNAPSHOT_FILE: \/run\/ivekit-placement\/placement\.json/
+    /CONVERACT_FABRIC_PLACEMENT_ENABLED: \$\{CONVERACT_FABRIC_PLACEMENT_ENABLED:-0\}[\s\S]*CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE: \/run\/ivekit-placement\/placement\.json/
   );
   assert.match(
     voiceCompose,
@@ -354,8 +354,8 @@ test('Compose projects fresh RustPBX capacity into OPC placement admission', () 
     'RUSTPBX_CELL_CAPACITY_PROFILE_ID',
     'RUSTPBX_CELL_CAPACITY_PROFILE_SHA256',
     'RUSTPBX_CELL_CAPACITY_PROBES_JSON',
-    'OPC_IVEKIT_PLACEMENT_EGRESS_TRACK_POLICY_JSON',
-    'OPC_IVEKIT_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON'
+    'CONVERACT_FABRIC_PLACEMENT_EGRESS_TRACK_POLICY_JSON',
+    'CONVERACT_FABRIC_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON'
   ]) {
     assert.match(voiceEnvExample, new RegExp(`^${variable}=`, 'm'));
   }
@@ -451,7 +451,7 @@ test('RustPBX reaches node-local media-control through mTLS and file secrets onl
   );
   assert.doesNotMatch(
     voiceCompose,
-    /IVEKIT_MEDIA_CONTROL_TOKEN: \$\{OPC_IVEKIT_MEDIA_CONTROL_TOKEN/
+    /IVEKIT_MEDIA_CONTROL_TOKEN: \$\{CONVERACT_FABRIC_MEDIA_CONTROL_TOKEN/
   );
   for (const secret of [
     'media-control-token',
@@ -501,9 +501,9 @@ test('media-control tracing is bounded, configurable, and excludes sensitive med
   assert.match(mediaControlAgent, /import '\.\.\/src\/telemetry\.js';/);
   assert.match(rtpengineValues, /^  telemetry:\n    enabled: false/m);
   assert.match(rtpengineValues, /sampleRatio: "0\.01"/);
-  assert.match(rtpengineDaemonSet, /OPC_OTEL_ENABLED/);
-  assert.match(rtpengineDaemonSet, /OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT/);
-  assert.match(rtpengineDaemonSet, /OPC_OTEL_TRACE_SAMPLE_RATIO/);
+  assert.match(rtpengineDaemonSet, /CONVERACT_OTEL_ENABLED/);
+  assert.match(rtpengineDaemonSet, /CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT/);
+  assert.match(rtpengineDaemonSet, /CONVERACT_OTEL_TRACE_SAMPLE_RATIO/);
 });
 
 test('deployment wires composite readiness, ordered drain, and fault-domain gates', () => {
@@ -511,12 +511,12 @@ test('deployment wires composite readiness, ordered drain, and fault-domain gate
     assert.match(values, /readinessRefreshMs: "1000"/);
   }
   for (const template of [helmRustPbx, legacyHelmRustPbx]) {
-    assert.match(template, /OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE/);
-    assert.match(template, /OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT/);
-    assert.match(template, /OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE/);
+    assert.match(template, /CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE/);
+    assert.match(template, /CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT/);
+    assert.match(template, /CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE/);
     assert.match(
       template,
-      /OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS[\s\S]*mediaControl\.readinessRefreshMs/
+      /CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS[\s\S]*mediaControl\.readinessRefreshMs/
     );
     assert.match(template, /readinessProbe:[\s\S]*path: \/readyz/);
     assert.match(template, /POST \/v1\/drain/);
@@ -531,20 +531,20 @@ test('deployment wires composite readiness, ordered drain, and fault-domain gate
 
   assert.match(
     voiceCompose,
-    /OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_ENABLED: "true"/
+    /CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_READINESS_ENABLED: "true"/
   );
   for (const variable of [
-    'OPC_IVEKIT_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON',
-    'OPC_IVEKIT_COMPONENT_NODE_READINESS_PROFILE_IDS',
-    'OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE',
-    'OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_HMAC_KEY_FILE',
-    'OPC_IVEKIT_COMPONENT_NODE_ROUTE_TENANT_ID',
-    'OPC_IVEKIT_COMPONENT_NODE_ROUTE_PROFILE_ID',
-    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT',
-    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE',
-    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_CA_FILE',
-    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TIMEOUT_MS',
-    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS'
+    'CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON',
+    'CONVERACT_FABRIC_COMPONENT_NODE_READINESS_PROFILE_IDS',
+    'CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE',
+    'CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_SNAPSHOT_HMAC_KEY_FILE',
+    'CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_TENANT_ID',
+    'CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_PROFILE_ID',
+    'CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT',
+    'CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE',
+    'CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_TLS_CA_FILE',
+    'CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_TIMEOUT_MS',
+    'CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS'
   ]) {
     assert.match(voiceCompose, new RegExp(`${variable}:`));
   }

@@ -32,50 +32,50 @@ spec:
             - name: node-admission
               containerPort: 3210
           env:
-            - name: OPC_IVEKIT_COMPONENT_NODE_HOST
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_HOST
               value: "0.0.0.0"
-            - name: OPC_IVEKIT_COMPONENT_NODE_PORT
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_PORT
               value: "3210"
-            - name: OPC_IVEKIT_COMPONENT_NODE_TOKEN
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: ivekit-component-node
                   key: service-token
-            - name: OPC_IVEKIT_COMPONENT_NODE_COMPONENT
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-component-node
                   key: component
-            - name: OPC_IVEKIT_COMPONENT_NODE_REGION_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_REGION_ID
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-component-node
                   key: region-id
-            - name: OPC_IVEKIT_COMPONENT_NODE_ZONE_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_ZONE_ID
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-component-node
                   key: zone-id
-            - name: OPC_IVEKIT_COMPONENT_NODE_CELL_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_CELL_ID
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-component-node
                   key: cell-id
-            - name: OPC_IVEKIT_COMPONENT_NODE_ID
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_IDS
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-component-node
                   key: profile-ids
-            - name: OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_INTERACTION_KINDS
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-component-node
                   key: interaction-kinds
-            - name: OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON
+            - name: CONVERACT_FABRIC_COMPONENT_NODE_DIMENSIONS_JSON
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-component-node

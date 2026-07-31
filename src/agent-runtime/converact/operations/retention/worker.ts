@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 
 import { observeIveKitRetentionRun } from './metrics.js';
@@ -102,11 +103,11 @@ export function iveKitRetentionWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): IveKitRetentionWorkerConfig {
   return {
-    enabled: booleanEnv(env.OPC_IVEKIT_RETENTION_WORKER_ENABLED, false),
-    interval_ms: integerEnv(env.OPC_IVEKIT_RETENTION_INTERVAL_MS, 60_000, 1_000, 86_400_000),
-    tenant_limit: integerEnv(env.OPC_IVEKIT_RETENTION_TENANT_LIMIT, 100, 1, 1000),
-    policy_limit: integerEnv(env.OPC_IVEKIT_RETENTION_POLICY_LIMIT, 20, 1, 100),
-    lease_ms: integerEnv(env.OPC_IVEKIT_RETENTION_LEASE_MS, 120_000, 5_000, 3_600_000)
+    enabled: booleanEnv(resolveFabricEnv(env, 'RETENTION_WORKER_ENABLED'), false),
+    interval_ms: integerEnv(resolveFabricEnv(env, 'RETENTION_INTERVAL_MS'), 60_000, 1_000, 86_400_000),
+    tenant_limit: integerEnv(resolveFabricEnv(env, 'RETENTION_TENANT_LIMIT'), 100, 1, 1000),
+    policy_limit: integerEnv(resolveFabricEnv(env, 'RETENTION_POLICY_LIMIT'), 20, 1, 100),
+    lease_ms: integerEnv(resolveFabricEnv(env, 'RETENTION_LEASE_MS'), 120_000, 5_000, 3_600_000)
   };
 }
 

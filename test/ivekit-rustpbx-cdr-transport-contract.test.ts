@@ -54,7 +54,7 @@ test('RustPBX CDR transport uses mTLS and a no-op legacy sink', () => {
     /--- a\/src\/console\/handlers\/setting\.rs[\s\S]*Some\(CallRecordStorageConfig::Noop\)[\s\S]*CallRecordStorageConfig::Noop => Some/
   );
   assert.match(patch, /production_cdr_requires_mtls_files/);
-  assert.match(compose, /OPC_IVEKIT_INTERNAL_TLS_PORT: "3443"/);
+  assert.match(compose, /CONVERACT_FABRIC_INTERNAL_TLS_PORT: "3443"/);
   assert.match(compose, /IVEKIT_RUSTPBX_CDR_TLS_IDENTITY_FILE:/);
   assert.match(compose, /IVEKIT_RUSTPBX_CDR_TLS_CA_FILE:/);
   assert.match(
@@ -78,8 +78,8 @@ test('RustPBX CDR transport uses mTLS and a no-op legacy sink', () => {
     /source: rustpbx-cdr-server-key[\s\S]{0,100}mode: 0400/
   );
   for (const template of [opcHelm, serviceOpcHelm]) {
-    assert.match(template, /OPC_IVEKIT_INTERNAL_TLS_PORT/);
-    assert.match(template, /OPC_IVEKIT_INTERNAL_TLS_CLIENT_CA_FILE/);
+    assert.match(template, /CONVERACT_FABRIC_INTERNAL_TLS_PORT/);
+    assert.match(template, /CONVERACT_FABRIC_INTERNAL_TLS_CLIENT_CA_FILE/);
     assert.match(template, /name: internal-tls/);
   }
   for (const template of [rustPbxHelm, serviceRustPbxHelm]) {

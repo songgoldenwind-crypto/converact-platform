@@ -190,7 +190,7 @@ test('settings upsert refuses cross-tenant overwrite for time/region/group-call'
 });
 
 test('settings HTTP maps cross-tenant upsert to 403', () => {
-  process.env.OPC_API_KEY = 'ivr-settings-tenant-key';
+  process.env.CONVERACT_API_KEY = 'ivr-settings-tenant-key';
   const db = createDatabase(':memory:');
   const a = createTenant(db, { name: 'HTTP A' });
   const b = createTenant(db, { name: 'HTTP B' });
@@ -211,7 +211,7 @@ test('settings HTTP maps cross-tenant upsert to 403', () => {
 });
 
 test('session advance HTTP maps cross-tenant upsert conflict to 409', async () => {
-  process.env.OPC_API_KEY = 'ivr-sess-409-key';
+  process.env.CONVERACT_API_KEY = 'ivr-sess-409-key';
   const db = createDatabase(':memory:');
   const a = createTenant(db, { name: 'Sess409 A' });
   const b = createTenant(db, { name: 'Sess409 B' });

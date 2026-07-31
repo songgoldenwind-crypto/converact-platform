@@ -18,10 +18,10 @@ import {
   type IvrFlowGraph
 } from '../src/agent-runtime/converact/ivr/index.js';
 
-const url = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL;
+const url = process.env.CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_DATABASE_URL;
 
 test('PostgreSQL IVR flow store publishes, replays, rolls back, isolates, and preserves history', {
-  skip: url ? false : 'requires OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL'
+  skip: url ? false : 'requires CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_DATABASE_URL'
 }, async () => {
   const pool = new pg.Pool({ connectionString: url, max: 4 });
   const tenantA = 'ivekit_ivr_runtime_a';
@@ -29,7 +29,7 @@ test('PostgreSQL IVR flow store publishes, replays, rolls back, isolates, and pr
   const profileId = 'ivekit_ivr_profile_a';
   const callId = 'ivekit_ivr_call_a';
   try {
-    const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL!;
+    const adminUrl = process.env.CONVERACT_FABRIC_STANDALONE_TEST_DATABASE_URL!;
     const admin = new pg.Pool({ connectionString: adminUrl, max: 1 });
     try {
       await admin.query(`INSERT INTO tenants (id, name) VALUES ($1, $2), ($3, $4) ON CONFLICT (id) DO NOTHING`,

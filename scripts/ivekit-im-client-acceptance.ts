@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
@@ -119,22 +120,22 @@ export function runIveKitImAcceptance(config: { reportFile: string; outputFile?:
 export function runIveKitImAcceptanceFromEnv(env: Record<string, string | undefined>):
   | IveKitImAcceptanceResult
   | { ok: false; status: 'not_run'; missing_environment: string[]; template_file?: string } {
-  const templateFile = String(env.OPC_IVEKIT_IM_ACCEPTANCE_TEMPLATE_FILE || '').trim();
+  const templateFile = String(resolveFabricEnv(env, 'IM_ACCEPTANCE_TEMPLATE_FILE') || '').trim();
   if (templateFile) {
     return {
       ok: false,
       status: 'not_run',
-      missing_environment: ['OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE'],
+      missing_environment: ['CONVERACT_FABRIC_IM_ACCEPTANCE_REPORT_FILE'],
       template_file: writeIveKitImAcceptanceTemplate(templateFile)
     };
   }
-  const reportFile = String(env.OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE || '').trim();
+  const reportFile = String(resolveFabricEnv(env, 'IM_ACCEPTANCE_REPORT_FILE') || '').trim();
   if (!reportFile) {
-    return { ok: false, status: 'not_run', missing_environment: ['OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE'] };
+    return { ok: false, status: 'not_run', missing_environment: ['CONVERACT_FABRIC_IM_ACCEPTANCE_REPORT_FILE'] };
   }
   return runIveKitImAcceptance({
     reportFile,
-    outputFile: String(env.OPC_IVEKIT_IM_ACCEPTANCE_OUTPUT_FILE || '').trim() || undefined
+    outputFile: String(resolveFabricEnv(env, 'IM_ACCEPTANCE_OUTPUT_FILE') || '').trim() || undefined
   });
 }
 

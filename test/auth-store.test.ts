@@ -7,7 +7,7 @@ let pg: MemoryPg;
 let store: AuthStore;
 
 before(async () => {
-  process.env.OPC_USE_MEMORY_PG = '1';
+  process.env.CONVERACT_USE_MEMORY_PG = '1';
   resetPostgresForTests(null);
   pg = (await initPostgres()) as MemoryPg;
   store = new AuthStore(pg);

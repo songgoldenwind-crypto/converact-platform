@@ -36,7 +36,7 @@ spec:
           imagePullPolicy: IfNotPresent
           command: ["node", "--import", "tsx", "scripts/ivekit-capacity-worker.ts"]
           env:
-            - name: OPC_DATABASE_URL
+            - name: CONVERACT_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: ivekit-capacity-runtime
@@ -64,82 +64,82 @@ spec:
               value: /etc/nats/tls/tls.crt
             - name: NATS_TLS_KEY_FILE
               value: /etc/nats/tls/tls.key
-            - name: OPC_IVEKIT_CAPACITY_RUN_ID
+            - name: CONVERACT_FABRIC_CAPACITY_RUN_ID
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-worker
                   key: run-id
-            - name: OPC_IVEKIT_CAPACITY_FLEET_ID
+            - name: CONVERACT_FABRIC_CAPACITY_FLEET_ID
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-worker
                   key: fleet-id
-            - name: OPC_IVEKIT_CAPACITY_WORKER_ID
+            - name: CONVERACT_FABRIC_CAPACITY_WORKER_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_CAPACITY_RELEASE_ID
+            - name: CONVERACT_FABRIC_CAPACITY_RELEASE_ID
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-worker
                   key: release-id
-            - name: OPC_IVEKIT_CAPACITY_SAFE_CAPACITY
+            - name: CONVERACT_FABRIC_CAPACITY_SAFE_CAPACITY
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-worker
                   key: safe-capacity
-            - name: OPC_IVEKIT_CAPACITY_HEARTBEAT_INTERVAL_MS
+            - name: CONVERACT_FABRIC_CAPACITY_HEARTBEAT_INTERVAL_MS
               value: "5000"
-            - name: OPC_IVEKIT_CAPACITY_ASSIGNMENT_INTERVAL_MS
+            - name: CONVERACT_FABRIC_CAPACITY_ASSIGNMENT_INTERVAL_MS
               value: "500"
-            - name: OPC_IVEKIT_CAPACITY_SHARD_LEASE_MS
+            - name: CONVERACT_FABRIC_CAPACITY_SHARD_LEASE_MS
               value: "30000"
-            - name: OPC_IVEKIT_CAPACITY_ACK_WAIT_MS
+            - name: CONVERACT_FABRIC_CAPACITY_ACK_WAIT_MS
               value: "30000"
-            - name: OPC_IVEKIT_CAPACITY_RETRY_DELAY_MS
+            - name: CONVERACT_FABRIC_CAPACITY_RETRY_DELAY_MS
               value: "1000"
-            - name: OPC_IVEKIT_CAPACITY_DRIVER_SPEC_PATH
+            - name: CONVERACT_FABRIC_CAPACITY_DRIVER_SPEC_PATH
               value: /etc/ivekit-capacity-worker/driver-spec.json
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_PREFIX
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-worker
                   key: evidence-prefix
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-worker
                   key: evidence-s3-bucket
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-worker
                   key: evidence-s3-region
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_ENDPOINT
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_ENDPOINT
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-worker
                   key: evidence-s3-endpoint
                   optional: true
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_FORCE_PATH_STYLE
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_FORCE_PATH_STYLE
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-worker
                   key: evidence-s3-force-path-style
                   optional: true
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_ACCESS_KEY_ID
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
                   name: ivekit-capacity-evidence
                   key: evidence-s3-access-key-id
                   optional: true
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: ivekit-capacity-evidence
                   key: evidence-s3-secret-access-key
                   optional: true
-            - name: OPC_IVEKIT_CAPACITY_WORKER_METADATA_JSON
+            - name: CONVERACT_FABRIC_CAPACITY_WORKER_METADATA_JSON
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-worker
@@ -171,13 +171,13 @@ spec:
           imagePullPolicy: IfNotPresent
           command: ["node", "--import", "tsx", "scripts/ivekit-capacity-network-impairment.ts"]
           env:
-            - name: OPC_IVEKIT_NETWORK_IMPAIRMENT_HOST
+            - name: CONVERACT_FABRIC_NETWORK_IMPAIRMENT_HOST
               value: "127.0.0.1"
-            - name: OPC_IVEKIT_NETWORK_IMPAIRMENT_PORT
+            - name: CONVERACT_FABRIC_NETWORK_IMPAIRMENT_PORT
               value: "3199"
-            - name: OPC_IVEKIT_NETWORK_IMPAIRMENT_INTERFACE
+            - name: CONVERACT_FABRIC_NETWORK_IMPAIRMENT_INTERFACE
               value: eth0
-            - name: OPC_IVEKIT_NETWORK_IMPAIRMENT_IFB_INTERFACE
+            - name: CONVERACT_FABRIC_NETWORK_IMPAIRMENT_IFB_INTERFACE
               value: ifb-ivekit0
           readinessProbe:
             httpGet:

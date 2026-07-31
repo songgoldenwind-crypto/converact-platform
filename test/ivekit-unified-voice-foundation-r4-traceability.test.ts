@@ -43,7 +43,7 @@ const adr7Path = "docs/adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md";
 const adr8Path = "docs/adr/ccaas-8-voice-livekit-bridge-handoff.md";
 const rvoipRevision = 6;
 const rvoipProjectionDigest =
-  "c66835b4e86341f3cde110b9e74190b6addf2e4f7409834ac96b8dcb146ee6d8";
+  "ddcb7afadd14ae1cf2e0365dd1964055f182dc11a3d5bd377ccd49396b5a53df";
 const goal4Revision = 6;
 const goal4ProjectionDigest =
   "4493687546edd76751c6fbdd2367e53cf1b7899df2efdf9cb97f78e2cc00a779";

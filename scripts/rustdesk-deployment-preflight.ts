@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,70 +65,70 @@ export interface RustDeskDeploymentPreflightReportWriteResult {
 
 export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv): RustDeskDeploymentPreflightReport {
   const checks: RustDeskDeploymentPreflightCheck[] = [];
-  const runEdgeAgent = envFlag(env.OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT);
-  const deviceOnlineCheck = readinessFlag(env.OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE);
-  const operationAuditCheck = readinessFlag(env.OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT);
-  const serverPortsCheck = readinessFlag(env.OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS);
-  const launchPageCheck = readinessFlag(env.OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL);
-  const protocolUrlRequired = readinessFlag(env.OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL);
-  const httpsLaunchRequired = envFlag(env.OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL);
-  const physicalDisconnectRequired = envFlag(env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT);
-  const authorizationCodeRequired = envFlag(env.OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE);
+  const runEdgeAgent = envFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_RUN_EDGE_AGENT'));
+  const deviceOnlineCheck = readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_DEVICE_ONLINE'));
+  const operationAuditCheck = readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_OPERATION_AUDIT'));
+  const serverPortsCheck = readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_SERVER_PORTS'));
+  const launchPageCheck = readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_LAUNCH_URL'));
+  const protocolUrlRequired = readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL'));
+  const httpsLaunchRequired = envFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL'));
+  const physicalDisconnectRequired = envFlag(resolveBrandEnv(env, 'RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT'));
+  const authorizationCodeRequired = envFlag(resolveBrandEnv(env, 'RUSTDESK_REQUIRE_AUTHORIZATION_CODE'));
   const authorizationCodeSecretConfigured = Buffer.byteLength(
-    String(env.OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET || ''),
+    String(resolveBrandEnv(env, 'RUSTDESK_AUTHORIZATION_CODE_SECRET') || ''),
     'utf8'
   ) >= 32;
   const physicalDisconnectReadinessCheck = envFlag(
-    env.OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT
+    resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT')
   );
   const disconnectAdapterConfigured = Boolean(
-    String(env.OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE || '').trim()
+    String(resolveBrandEnv(env, 'RUSTDESK_EDGE_DISCONNECT_EXECUTABLE') || '').trim()
   );
   const restartAdapterConfigured = Boolean(
-    String(env.OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE || '').trim()
+    String(resolveBrandEnv(env, 'RUSTDESK_EDGE_RESTART_EXECUTABLE') || '').trim()
   );
   const adapterConfigured = disconnectAdapterConfigured || restartAdapterConfigured;
   const edgeCommandTokenConfigured = Boolean(
     String(
-      env.OPC_RUSTDESK_EDGE_COMMAND_TOKEN ||
-      env.OPC_RUSTDESK_EDGE_COMMAND_TOKEN_FILE ||
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_COMMAND_TOKEN') ||
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_COMMAND_TOKEN_FILE') ||
       ''
     ).trim()
   );
   const edgeTokenSecretConfigured = String(
-    env.OPC_RUSTDESK_EDGE_TOKEN_SECRET || ''
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_TOKEN_SECRET') || ''
   ).length >= 32;
-  const edgeSpoolDir = String(env.OPC_RUSTDESK_EDGE_SPOOL_DIR || '').trim();
+  const edgeSpoolDir = String(resolveBrandEnv(env, 'RUSTDESK_EDGE_SPOOL_DIR') || '').trim();
   const edgeSpoolConfigured = Boolean(edgeSpoolDir && isAbsolute(edgeSpoolDir));
   const edgeCommandChecksEnabled =
     (runEdgeAgent && physicalDisconnectReadinessCheck) || adapterConfigured;
   const commandPollIntervalMs = configuredInteger(
-    env.OPC_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS,
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS'),
     2_000
   );
-  const commandLeaseMs = configuredInteger(env.OPC_RUSTDESK_EDGE_COMMAND_LEASE_MS, 40_000);
-  const commandTimeoutMs = configuredInteger(env.OPC_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS, 15_000);
-  const controlPlaneBaseUrl = stripTrailingSlash(env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL || env.OPC_REMOTE_GATEWAY_BASE_URL || '');
+  const commandLeaseMs = configuredInteger(resolveBrandEnv(env, 'RUSTDESK_EDGE_COMMAND_LEASE_MS'), 40_000);
+  const commandTimeoutMs = configuredInteger(resolveBrandEnv(env, 'RUSTDESK_EDGE_COMMAND_TIMEOUT_MS'), 15_000);
+  const controlPlaneBaseUrl = stripTrailingSlash(resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL') || resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') || '');
   const edgeBaseUrl = stripTrailingSlash(
-    env.OPC_RUSTDESK_EDGE_BASE_URL ||
-    env.OPC_BASE_URL ||
-    env.OPC_COLLABORATION_BASE_URL ||
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
+    resolveBrandEnv(env, 'COLLABORATION_BASE_URL') ||
     controlPlaneBaseUrl
   );
   const launchBaseUrl = stripTrailingSlash(
-    env.OPC_RUSTDESK_LAUNCH_BASE_URL ||
-    env.OPC_BASE_URL ||
-    env.OPC_REMOTE_GATEWAY_BASE_URL ||
+    resolveBrandEnv(env, 'RUSTDESK_LAUNCH_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') ||
     controlPlaneBaseUrl
   );
-  const apiTokenConfigured = Boolean(String(env.OPC_RUSTDESK_API_TOKEN || env.OPC_REMOTE_GATEWAY_API_TOKEN || '').trim());
-  const tenantConfigured = Boolean(String(env.OPC_REMOTE_GATEWAY_TENANT_ID || env.OPC_RUSTDESK_EDGE_TENANT_ID || env.OPC_TENANT_ID || '').trim());
-  const collaborationApiKeyConfigured = Boolean(String(env.OPC_RUSTDESK_EDGE_API_KEY || env.OPC_COLLABORATION_API_KEY || env.OPC_API_KEY || '').trim());
-  const targetId = String(env.OPC_REMOTE_GATEWAY_TARGET_ID || '').trim();
+  const apiTokenConfigured = Boolean(String(resolveBrandEnv(env, 'RUSTDESK_API_TOKEN') || resolveBrandEnv(env, 'REMOTE_GATEWAY_API_TOKEN') || '').trim());
+  const tenantConfigured = Boolean(String(resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') || resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || '').trim());
+  const collaborationApiKeyConfigured = Boolean(String(resolveBrandEnv(env, 'RUSTDESK_EDGE_API_KEY') || resolveBrandEnv(env, 'COLLABORATION_API_KEY') || resolveBrandEnv(env, 'API_KEY') || '').trim());
+  const targetId = String(resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_ID') || '').trim();
   const targetMode = targetId ? 'configured' : runEdgeAgent ? 'edge-agent' : 'missing';
   const publicKey = publicKeyStatus(env);
-  const idServer = String(env.OPC_RUSTDESK_ID_SERVER || '').trim();
-  const portCheckHost = String(env.OPC_RUSTDESK_CHECK_HOST || idServer || '').trim();
+  const idServer = String(resolveBrandEnv(env, 'RUSTDESK_ID_SERVER') || '').trim();
+  const portCheckHost = String(resolveBrandEnv(env, 'RUSTDESK_CHECK_HOST') || idServer || '').trim();
 
   addUrlCheck(checks, 'control_plane_base_url', controlPlaneBaseUrl, 'RustDesk control-plane base URL is configured');
   addCheck(
@@ -136,14 +137,14 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
     apiTokenConfigured ? 'pass' : 'fail',
     apiTokenConfigured
       ? 'RustDesk control-plane token is configured'
-      : 'OPC_RUSTDESK_API_TOKEN or OPC_REMOTE_GATEWAY_API_TOKEN is required'
+      : 'CONVERACT_RUSTDESK_API_TOKEN or CONVERACT_REMOTE_GATEWAY_API_TOKEN is required'
   );
   addCheck(checks, 'public_key', publicKey.status, publicKey.message);
   addCheck(
     checks,
     'id_server',
     idServer ? 'pass' : 'fail',
-    idServer ? 'OPC_RUSTDESK_ID_SERVER is configured' : 'OPC_RUSTDESK_ID_SERVER is required for client setup and port checks'
+    idServer ? 'CONVERACT_RUSTDESK_ID_SERVER is configured' : 'CONVERACT_RUSTDESK_ID_SERVER is required for client setup and port checks'
   );
   addUrlCheck(checks, 'launch_base_url', launchBaseUrl, 'RustDesk public launch base URL is configured');
   addCheck(
@@ -154,17 +155,17 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
       ? 'RustDesk HTTPS launch URL requirement is disabled'
       : isHttpsUrl(launchBaseUrl)
         ? 'RustDesk public launch base URL uses HTTPS'
-        : 'OPC_RUSTDESK_LAUNCH_BASE_URL or its fallback must use https:// when OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL=1'
+        : 'CONVERACT_RUSTDESK_LAUNCH_BASE_URL or its fallback must use https:// when CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL=1'
   );
   addCheck(
     checks,
     'target',
     targetMode === 'missing' ? 'fail' : 'pass',
     targetMode === 'configured'
-      ? 'OPC_REMOTE_GATEWAY_TARGET_ID is configured'
+      ? 'CONVERACT_REMOTE_GATEWAY_TARGET_ID is configured'
       : targetMode === 'edge-agent'
-        ? 'OPC_REMOTE_GATEWAY_TARGET_ID will be derived from the readiness edge agent'
-        : 'OPC_REMOTE_GATEWAY_TARGET_ID is required unless OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT=1'
+        ? 'CONVERACT_REMOTE_GATEWAY_TARGET_ID will be derived from the readiness edge agent'
+        : 'CONVERACT_REMOTE_GATEWAY_TARGET_ID is required unless CONVERACT_RUSTDESK_READINESS_RUN_EDGE_AGENT=1'
   );
   addCheck(
     checks,
@@ -172,7 +173,7 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
     tenantConfigured ? 'pass' : 'fail',
     tenantConfigured
       ? 'Tenant is configured for RustDesk device and gateway checks'
-      : 'OPC_REMOTE_GATEWAY_TENANT_ID, OPC_RUSTDESK_EDGE_TENANT_ID, or OPC_TENANT_ID is required'
+      : 'CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID is required'
   );
   addCheck(
     checks,
@@ -180,7 +181,7 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
     collaborationApiKeyConfigured ? 'pass' : 'fail',
     collaborationApiKeyConfigured
       ? 'OPC collaboration API key is configured for device online and edge-agent checks'
-      : 'OPC_RUSTDESK_EDGE_API_KEY, OPC_COLLABORATION_API_KEY, or OPC_API_KEY is required'
+      : 'CONVERACT_RUSTDESK_EDGE_API_KEY, CONVERACT_COLLABORATION_API_KEY, or CONVERACT_API_KEY is required'
   );
   addCheck(
     checks,
@@ -190,17 +191,17 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
       ? 'RustDesk server port check is disabled'
       : portCheckHost
         ? 'RustDesk server port check host is configured'
-        : 'OPC_RUSTDESK_CHECK_HOST or OPC_RUSTDESK_ID_SERVER is required when port checks are enabled'
+        : 'CONVERACT_RUSTDESK_CHECK_HOST or CONVERACT_RUSTDESK_ID_SERVER is required when port checks are enabled'
   );
   addCheck(
     checks,
     'protocol_url_template',
-    !protocolUrlRequired || validRustDeskProtocolTemplate(env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE) ? 'pass' : 'fail',
+    !protocolUrlRequired || validRustDeskProtocolTemplate(resolveBrandEnv(env, 'RUSTDESK_PROTOCOL_URL_TEMPLATE')) ? 'pass' : 'fail',
     !protocolUrlRequired
       ? 'RustDesk protocol URL requirement is disabled'
-      : validRustDeskProtocolTemplate(env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE)
+      : validRustDeskProtocolTemplate(resolveBrandEnv(env, 'RUSTDESK_PROTOCOL_URL_TEMPLATE'))
         ? 'RustDesk protocol URL template is configured'
-        : 'OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE must be a rustdesk:// template when protocol URL is required'
+        : 'CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE must be a rustdesk:// template when protocol URL is required'
   );
   addCheck(
     checks,
@@ -210,7 +211,7 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
       ? 'RustDesk attended authorization-code requirement is disabled'
       : authorizationCodeSecretConfigured
         ? 'RustDesk authorization-code HMAC secret is configured'
-        : 'OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET must contain at least 32 bytes when authorization codes are required'
+        : 'CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET must contain at least 32 bytes when authorization codes are required'
   );
   addCheck(
     checks,
@@ -220,7 +221,7 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
       ? 'RustDesk strict physical disconnect is disabled'
       : physicalDisconnectReadinessCheck
         ? 'RustDesk physical disconnect command/readiness integration is declared'
-        : 'OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT=1 is required when OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=1'
+        : 'CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT=1 is required when CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=1'
   );
   addCheck(
     checks,
@@ -230,16 +231,16 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
       : edgeTokenSecretConfigured ? 'pass' : 'fail',
     edgeTokenSecretConfigured
       ? 'RustDesk server edge-token signing secret is configured'
-      : 'OPC_RUSTDESK_EDGE_TOKEN_SECRET must contain at least 32 characters before physical-disconnect commands are enabled'
+      : 'CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET must contain at least 32 characters before physical-disconnect commands are enabled'
   );
 
   if (edgeCommandChecksEnabled) {
     const edgeCredentialsConfigured = Boolean(
       String(
-        env.OPC_RUSTDESK_EDGE_API_KEY || env.OPC_COLLABORATION_API_KEY || env.OPC_API_KEY || ''
+        resolveBrandEnv(env, 'RUSTDESK_EDGE_API_KEY') || resolveBrandEnv(env, 'COLLABORATION_API_KEY') || resolveBrandEnv(env, 'API_KEY') || ''
       ).trim() &&
       String(
-        env.OPC_RUSTDESK_EDGE_TENANT_ID || env.OPC_REMOTE_GATEWAY_TENANT_ID || ''
+        resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') || resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') || ''
       ).trim()
     );
     addCheck(
@@ -256,7 +257,7 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
       edgeCommandTokenConfigured ? 'pass' : 'fail',
       edgeCommandTokenConfigured
         ? 'A device-bound RustDesk edge command token is configured'
-        : 'OPC_RUSTDESK_EDGE_COMMAND_TOKEN is required for edge command execution'
+        : 'CONVERACT_RUSTDESK_EDGE_COMMAND_TOKEN is required for edge command execution'
     );
     addCheck(
       checks,
@@ -264,7 +265,7 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
       adapterConfigured ? 'pass' : 'fail',
       adapterConfigured
         ? 'A RustDesk local disconnect or service-restart adapter is configured'
-        : 'OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE or OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE is required for command execution'
+        : 'CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE or CONVERACT_RUSTDESK_EDGE_RESTART_EXECUTABLE is required for command execution'
     );
     addCheck(
       checks,
@@ -272,7 +273,7 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
       edgeSpoolConfigured ? 'pass' : 'fail',
       edgeSpoolConfigured
         ? 'A private absolute RustDesk edge spool directory is configured'
-        : 'OPC_RUSTDESK_EDGE_SPOOL_DIR must be an absolute path for crash-safe command execution'
+        : 'CONVERACT_RUSTDESK_EDGE_SPOOL_DIR must be an absolute path for crash-safe command execution'
     );
     const timingValid =
       Number.isInteger(commandPollIntervalMs) && commandPollIntervalMs >= 250 &&
@@ -373,101 +374,101 @@ export function writeRustDeskDeploymentPreflightReport(
 }
 
 function rustDeskDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): RustDeskDeploymentEnvChecklistItem[] {
-  const hasInlinePublicKey = Boolean(String(env.OPC_RUSTDESK_PUBLIC_KEY || '').trim());
-  const runEdgeAgent = envFlag(env.OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT);
-  const controlPlaneBaseUrl = stripTrailingSlash(env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL || env.OPC_REMOTE_GATEWAY_BASE_URL || '');
+  const hasInlinePublicKey = Boolean(String(resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY') || '').trim());
+  const runEdgeAgent = envFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_RUN_EDGE_AGENT'));
+  const controlPlaneBaseUrl = stripTrailingSlash(resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL') || resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') || '');
   const launchBaseUrl = stripTrailingSlash(
-    env.OPC_RUSTDESK_LAUNCH_BASE_URL ||
-    env.OPC_BASE_URL ||
-    env.OPC_REMOTE_GATEWAY_BASE_URL ||
+    resolveBrandEnv(env, 'RUSTDESK_LAUNCH_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') ||
     controlPlaneBaseUrl
   );
   const clientConfigBaseUrl = stripTrailingSlash(
-    env.OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL ||
-    env.OPC_RUSTDESK_IVEKIT_BASE_URL ||
-    env.OPC_BASE_URL ||
-    env.OPC_REMOTE_GATEWAY_BASE_URL ||
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') ||
     controlPlaneBaseUrl
   );
   const clientConfigApiKey =
-    env.OPC_RUSTDESK_CLIENT_CONFIG_API_KEY ||
-    env.OPC_RUSTDESK_IVEKIT_API_KEY ||
-    env.OPC_COLLABORATION_API_KEY ||
-    env.OPC_API_KEY;
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_API_KEY') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_API_KEY') ||
+    resolveBrandEnv(env, 'COLLABORATION_API_KEY') ||
+    resolveBrandEnv(env, 'API_KEY');
   const clientConfigTenantId =
-    env.OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID ||
-    env.OPC_RUSTDESK_IVEKIT_TENANT_ID ||
-    env.OPC_REMOTE_GATEWAY_TENANT_ID ||
-    env.OPC_RUSTDESK_EDGE_TENANT_ID ||
-    env.OPC_TENANT_ID;
-  const serverPortsCheck = readinessFlag(env.OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS);
-  const protocolUrlRequired = readinessFlag(env.OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL);
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_TENANT_ID') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') ||
+    resolveBrandEnv(env, 'TENANT_ID');
+  const serverPortsCheck = readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_SERVER_PORTS'));
+  const protocolUrlRequired = readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL'));
 
   return [
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_CONTROL_PLANE_BASE_URL', true, 'RustDesk control-plane API base URL. Can fall back to OPC_REMOTE_GATEWAY_BASE_URL.', env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL || env.OPC_REMOTE_GATEWAY_BASE_URL),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_API_TOKEN', true, 'RustDesk control-plane token. Can fall back to OPC_REMOTE_GATEWAY_API_TOKEN.', env.OPC_RUSTDESK_API_TOKEN || env.OPC_REMOTE_GATEWAY_API_TOKEN, true),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_PUBLIC_KEY', false, 'Inline RustDesk public key. Use file variable when mounted from hbbs volume.', env.OPC_RUSTDESK_PUBLIC_KEY),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_PUBLIC_KEY_FILE', !hasInlinePublicKey, 'Mounted id_ed25519.pub path readable by OPC. Required when OPC_RUSTDESK_PUBLIC_KEY is not set.', env.OPC_RUSTDESK_PUBLIC_KEY_FILE),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_ID_SERVER', true, 'RustDesk ID server shown to clients and used by port checks.', env.OPC_RUSTDESK_ID_SERVER),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_RELAY_SERVER', false, 'RustDesk relay server shown to clients.', env.OPC_RUSTDESK_RELAY_SERVER),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_LAUNCH_BASE_URL', true, 'Public base URL for signed RustDesk launch pages. Can fall back to OPC_BASE_URL, OPC_REMOTE_GATEWAY_BASE_URL, or control-plane base URL.', launchBaseUrl),
-    item(env, 'Server Readiness', 'OPC_REMOTE_GATEWAY_TENANT_ID', true, 'Tenant used by remote-gateway smoke/readiness. Can fall back to OPC_RUSTDESK_EDGE_TENANT_ID or OPC_TENANT_ID.', env.OPC_REMOTE_GATEWAY_TENANT_ID || env.OPC_RUSTDESK_EDGE_TENANT_ID || env.OPC_TENANT_ID),
-    item(env, 'Server Readiness', 'OPC_REMOTE_GATEWAY_TARGET_ID', !runEdgeAgent, 'Internal rustdesk_devices.id when device online check is enabled, or raw target during early smoke. Optional when readiness edge-agent derives the target.', env.OPC_REMOTE_GATEWAY_TARGET_ID),
-    item(env, 'Server Readiness', 'OPC_COLLABORATION_API_KEY', true, 'OPC API key used for device online checks. Can fall back to OPC_RUSTDESK_EDGE_API_KEY or OPC_API_KEY.', env.OPC_RUSTDESK_EDGE_API_KEY || env.OPC_COLLABORATION_API_KEY || env.OPC_API_KEY, true),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_CHECK_HOST', serverPortsCheck, 'Host used by hbbs/hbbr TCP/UDP port checks. Required when server port checks are enabled; can fall back to OPC_RUSTDESK_ID_SERVER.', env.OPC_RUSTDESK_CHECK_HOST || env.OPC_RUSTDESK_ID_SERVER),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE', protocolUrlRequired, 'rustdesk:// template containing {rustdesk_id}. Required when protocol URL checks are enabled.', env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', false, 'Set to 1 to reject new RustDesk sessions unless the device heartbeat declares physical-disconnect command capability.', env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE', false, 'Set to 1 to require a verified one-time authorization code before attended gateway activation.', env.OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET', false, 'Server-only HMAC secret for one-time attended authorization codes. Use at least 32 bytes.', env.OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET, true),
-    item(env, 'Server Readiness', 'OPC_RUSTDESK_EDGE_TOKEN_SECRET', false, 'Server-only HMAC secret used to verify device-bound edge command tokens. Use at least 32 characters.', env.OPC_RUSTDESK_EDGE_TOKEN_SECRET, true),
-    item(env, 'Readiness Switches', 'OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT', false, 'Set to 1 to register/heartbeat device before readiness.', env.OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT),
-    item(env, 'Readiness Switches', 'OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE', false, 'Dedicated strict device-online switch. Defaults to enabled.', env.OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE),
-    item(env, 'Readiness Switches', 'OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT', false, 'Dedicated strict operation-audit switch. Defaults to enabled.', env.OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT),
-    item(env, 'Readiness Switches', 'OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS', false, 'Dedicated strict TCP/UDP port switch. Defaults to enabled.', env.OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS),
-    item(env, 'Readiness Switches', 'OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL', false, 'Dedicated strict protocol URL switch. Defaults to enabled.', env.OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL),
-    item(env, 'Readiness Switches', 'OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL', false, 'Set to 1 to require https:// public launch base URLs for production DNS/TLS/Ingress readiness.', env.OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL),
-    item(env, 'Readiness Switches', 'OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT', false, 'Set to 1 to execute a fake/local edge command and require succeeded command evidence during combined readiness.', env.OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_INSTANCE_ID', false, 'Stable identity written into command claim and result evidence.', env.OPC_RUSTDESK_EDGE_INSTANCE_ID),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_COMMAND_TOKEN', false, 'Device-bound signed token used only by claim/progress/result routes.', env.OPC_RUSTDESK_EDGE_COMMAND_TOKEN, true),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_COMMAND_TOKEN_FILE', false, 'Restricted local file containing the device-bound command token.', env.OPC_RUSTDESK_EDGE_COMMAND_TOKEN_FILE),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS', false, 'Command polling interval in milliseconds. Defaults to 2000.', env.OPC_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_COMMAND_LEASE_MS', false, 'Command lease in milliseconds. Defaults to 40000 and must cover primary and fallback timeouts plus reporting margin.', env.OPC_RUSTDESK_EDGE_COMMAND_LEASE_MS),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS', false, 'Local adapter timeout in milliseconds. Defaults to 15000.', env.OPC_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_SPOOL_DIR', false, 'Private absolute directory for crash-safe sanitized command state. Required when a local adapter is configured.', env.OPC_RUSTDESK_EDGE_SPOOL_DIR),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_SPOOL_MAX_BYTES', false, 'Maximum bytes in the active sanitized spool record. Defaults to 65536.', env.OPC_RUSTDESK_EDGE_SPOOL_MAX_BYTES),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_SPOOL_MAX_AGE_MS', false, 'Maximum active spool age before quarantine. Defaults to seven days.', env.OPC_RUSTDESK_EDGE_SPOOL_MAX_AGE_MS),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_SPOOL_MAX_QUARANTINE_RECORDS', false, 'Maximum retained quarantine records. Defaults to 100.', env.OPC_RUSTDESK_EDGE_SPOOL_MAX_QUARANTINE_RECORDS),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE', false, 'Device-local session disconnect wrapper. At least one local adapter is required for command execution.', env.OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE, true),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON', false, 'Fixed JSON string array passed to the disconnect wrapper. Server identifiers are supplied only through environment variables.', env.OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON, true),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE', false, 'Device-local RustDesk service restart wrapper used as fallback.', env.OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE, true),
-    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_RESTART_ARGS_JSON', false, 'Fixed JSON string array passed to the restart wrapper.', env.OPC_RUSTDESK_EDGE_RESTART_ARGS_JSON, true),
-    item(env, 'Event Audit', 'OPC_RUSTDESK_EVENT_TEMPLATE_FILE', false, 'Where to generate JSONL event templates for sidecar integration.', env.OPC_RUSTDESK_EVENT_TEMPLATE_FILE),
-    item(env, 'Event Audit', 'OPC_RUSTDESK_EVENT_FILE', false, 'JSONL file used by event forwarder or validate-only mode.', env.OPC_RUSTDESK_EVENT_FILE),
-    item(env, 'Event Audit', 'OPC_RUSTDESK_EVENT_VALIDATE_ONLY', false, 'Set to 1 to validate event JSONL without posting.', env.OPC_RUSTDESK_EVENT_VALIDATE_ONLY),
-    item(env, 'Event Audit', 'OPC_RUSTDESK_EVENT_DEAD_LETTER_FILE', false, 'Local JSONL file for failed event forwards.', env.OPC_RUSTDESK_EVENT_DEAD_LETTER_FILE),
-    item(env, 'Client Config Pack', 'OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE', false, 'Markdown output path for the RustDesk client installation/config handoff pack.', env.OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE),
-    item(env, 'Client Config Pack', 'OPC_RUSTDESK_CLIENT_CONFIG_PACK_TITLE', false, 'Display title written into the client config handoff pack.', env.OPC_RUSTDESK_CLIENT_CONFIG_PACK_TITLE),
-    item(env, 'Client Config Pack', 'OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL', false, 'iveKit/OPC base URL used to fetch /api/ivekit/rustdesk/client-config. Can fall back to OPC_RUSTDESK_IVEKIT_BASE_URL, OPC_BASE_URL, OPC_REMOTE_GATEWAY_BASE_URL, or control-plane base URL.', clientConfigBaseUrl),
-    item(env, 'Client Config Pack', 'OPC_RUSTDESK_CLIENT_CONFIG_API_KEY', false, 'API key used to fetch iveKit RustDesk client config. Can fall back to OPC_RUSTDESK_IVEKIT_API_KEY, OPC_COLLABORATION_API_KEY, or OPC_API_KEY.', clientConfigApiKey, true),
-    item(env, 'Client Config Pack', 'OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID', false, 'Tenant used to fetch iveKit RustDesk client config. Can fall back to OPC_RUSTDESK_IVEKIT_TENANT_ID, OPC_REMOTE_GATEWAY_TENANT_ID, OPC_RUSTDESK_EDGE_TENANT_ID, or OPC_TENANT_ID.', clientConfigTenantId),
-    item(env, 'Client Config Pack', 'OPC_RUSTDESK_CLIENT_CONFIG_USER_ID', false, 'Optional operator/user id sent when fetching the client config or launch plan.', env.OPC_RUSTDESK_CLIENT_CONFIG_USER_ID),
-    item(env, 'Client Config Pack', 'OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID', false, 'Optional gateway external_id used to include a concrete launch plan in the handoff pack.', env.OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID),
-    item(env, 'Client Config Pack', 'OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID', false, 'Optional expected RustDesk runtime id used to validate the launch plan target.', env.OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID),
-    item(env, 'Client Acceptance', 'OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE', false, 'Where to generate the manual real-client acceptance report template.', env.OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE),
-    item(env, 'Client Acceptance', 'OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE', false, 'Filled real-client acceptance report path.', env.OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE),
-    item(env, 'Client Acceptance', 'OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE', false, 'Optional audit JSON/JSONL export for acceptance gate.', env.OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE),
-    item(env, 'Final Evidence', 'OPC_RUSTDESK_AUDIT_COVERAGE_FILE', false, 'Audit JSON/JSONL export consumed by rustdesk:audit-coverage.', env.OPC_RUSTDESK_AUDIT_COVERAGE_FILE),
-    item(env, 'Final Evidence', 'OPC_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID', false, 'Optional external_id filter for audit coverage validation.', env.OPC_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID),
-    item(env, 'Final Evidence', 'OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE', false, 'Audit coverage JSON report consumed by the final evidence pack.', env.OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE),
-    item(env, 'Final Evidence', 'OPC_RUSTDESK_EVIDENCE_PACK_FILE', false, 'Final customer handoff evidence pack markdown output.', env.OPC_RUSTDESK_EVIDENCE_PACK_FILE),
-    item(env, 'Final Evidence', 'OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE', false, 'Audit coverage report path passed into rustdesk:evidence-pack.', env.OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE),
-    item(env, 'Final Evidence', 'OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE', false, 'Client config pack artifact path passed into rustdesk:evidence-pack.', env.OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE || env.OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE),
-    item(env, 'LED Handoff', 'OPC_RUSTDESK_LED_EXAMPLE_BASE_URL', false, 'OPC base URL used by LED example. Can fall back to OPC_BASE_URL.', env.OPC_RUSTDESK_LED_EXAMPLE_BASE_URL || env.OPC_BASE_URL),
-    item(env, 'LED Handoff', 'OPC_RUSTDESK_LED_EXAMPLE_API_KEY', false, 'API key used by LED example.', env.OPC_RUSTDESK_LED_EXAMPLE_API_KEY, true),
-    item(env, 'LED Handoff', 'OPC_RUSTDESK_LED_EXAMPLE_TENANT_ID', false, 'Tenant used by LED example.', env.OPC_RUSTDESK_LED_EXAMPLE_TENANT_ID),
-    item(env, 'LED Handoff', 'OPC_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID', false, 'Existing remote_session_id provided by OPC/LED workflow.', env.OPC_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID),
-    item(env, 'LED Handoff', 'OPC_RUSTDESK_LED_EXAMPLE_DEVICE_ID', false, 'Existing internal rustdesk_devices.id for LED example.', env.OPC_RUSTDESK_LED_EXAMPLE_DEVICE_ID),
-    item(env, 'LED Handoff', 'OPC_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID', false, 'Raw RustDesk runtime ID when LED example should register a device.', env.OPC_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID)
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL', true, 'RustDesk control-plane API base URL. Can fall back to CONVERACT_REMOTE_GATEWAY_BASE_URL.', resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL') || resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL')),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_API_TOKEN', true, 'RustDesk control-plane token. Can fall back to CONVERACT_REMOTE_GATEWAY_API_TOKEN.', resolveBrandEnv(env, 'RUSTDESK_API_TOKEN') || resolveBrandEnv(env, 'REMOTE_GATEWAY_API_TOKEN'), true),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_PUBLIC_KEY', false, 'Inline RustDesk public key. Use file variable when mounted from hbbs volume.', resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY')),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_PUBLIC_KEY_FILE', !hasInlinePublicKey, 'Mounted id_ed25519.pub path readable by OPC. Required when CONVERACT_RUSTDESK_PUBLIC_KEY is not set.', resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY_FILE')),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_ID_SERVER', true, 'RustDesk ID server shown to clients and used by port checks.', resolveBrandEnv(env, 'RUSTDESK_ID_SERVER')),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_RELAY_SERVER', false, 'RustDesk relay server shown to clients.', resolveBrandEnv(env, 'RUSTDESK_RELAY_SERVER')),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_LAUNCH_BASE_URL', true, 'Public base URL for signed RustDesk launch pages. Can fall back to CONVERACT_BASE_URL, CONVERACT_REMOTE_GATEWAY_BASE_URL, or control-plane base URL.', launchBaseUrl),
+    item(env, 'Server Readiness', 'CONVERACT_REMOTE_GATEWAY_TENANT_ID', true, 'Tenant used by remote-gateway smoke/readiness. Can fall back to CONVERACT_RUSTDESK_EDGE_TENANT_ID or CONVERACT_TENANT_ID.', resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') || resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID')),
+    item(env, 'Server Readiness', 'CONVERACT_REMOTE_GATEWAY_TARGET_ID', !runEdgeAgent, 'Internal rustdesk_devices.id when device online check is enabled, or raw target during early smoke. Optional when readiness edge-agent derives the target.', resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_ID')),
+    item(env, 'Server Readiness', 'CONVERACT_COLLABORATION_API_KEY', true, 'OPC API key used for device online checks. Can fall back to CONVERACT_RUSTDESK_EDGE_API_KEY or CONVERACT_API_KEY.', resolveBrandEnv(env, 'RUSTDESK_EDGE_API_KEY') || resolveBrandEnv(env, 'COLLABORATION_API_KEY') || resolveBrandEnv(env, 'API_KEY'), true),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_CHECK_HOST', serverPortsCheck, 'Host used by hbbs/hbbr TCP/UDP port checks. Required when server port checks are enabled; can fall back to CONVERACT_RUSTDESK_ID_SERVER.', resolveBrandEnv(env, 'RUSTDESK_CHECK_HOST') || resolveBrandEnv(env, 'RUSTDESK_ID_SERVER')),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE', protocolUrlRequired, 'rustdesk:// template containing {rustdesk_id}. Required when protocol URL checks are enabled.', resolveBrandEnv(env, 'RUSTDESK_PROTOCOL_URL_TEMPLATE')),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', false, 'Set to 1 to reject new RustDesk sessions unless the device heartbeat declares physical-disconnect command capability.', resolveBrandEnv(env, 'RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT')),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_REQUIRE_AUTHORIZATION_CODE', false, 'Set to 1 to require a verified one-time authorization code before attended gateway activation.', resolveBrandEnv(env, 'RUSTDESK_REQUIRE_AUTHORIZATION_CODE')),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET', false, 'Server-only HMAC secret for one-time attended authorization codes. Use at least 32 bytes.', resolveBrandEnv(env, 'RUSTDESK_AUTHORIZATION_CODE_SECRET'), true),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET', false, 'Server-only HMAC secret used to verify device-bound edge command tokens. Use at least 32 characters.', resolveBrandEnv(env, 'RUSTDESK_EDGE_TOKEN_SECRET'), true),
+    item(env, 'Readiness Switches', 'CONVERACT_RUSTDESK_READINESS_RUN_EDGE_AGENT', false, 'Set to 1 to register/heartbeat device before readiness.', resolveBrandEnv(env, 'RUSTDESK_READINESS_RUN_EDGE_AGENT')),
+    item(env, 'Readiness Switches', 'CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE', false, 'Dedicated strict device-online switch. Defaults to enabled.', resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_DEVICE_ONLINE')),
+    item(env, 'Readiness Switches', 'CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT', false, 'Dedicated strict operation-audit switch. Defaults to enabled.', resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_OPERATION_AUDIT')),
+    item(env, 'Readiness Switches', 'CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS', false, 'Dedicated strict TCP/UDP port switch. Defaults to enabled.', resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_SERVER_PORTS')),
+    item(env, 'Readiness Switches', 'CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL', false, 'Dedicated strict protocol URL switch. Defaults to enabled.', resolveBrandEnv(env, 'RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL')),
+    item(env, 'Readiness Switches', 'CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL', false, 'Set to 1 to require https:// public launch base URLs for production DNS/TLS/Ingress readiness.', resolveBrandEnv(env, 'RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL')),
+    item(env, 'Readiness Switches', 'CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT', false, 'Set to 1 to execute a fake/local edge command and require succeeded command evidence during combined readiness.', resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT')),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_INSTANCE_ID', false, 'Stable identity written into command claim and result evidence.', resolveBrandEnv(env, 'RUSTDESK_EDGE_INSTANCE_ID')),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_COMMAND_TOKEN', false, 'Device-bound signed token used only by claim/progress/result routes.', resolveBrandEnv(env, 'RUSTDESK_EDGE_COMMAND_TOKEN'), true),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_COMMAND_TOKEN_FILE', false, 'Restricted local file containing the device-bound command token.', resolveBrandEnv(env, 'RUSTDESK_EDGE_COMMAND_TOKEN_FILE')),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS', false, 'Command polling interval in milliseconds. Defaults to 2000.', resolveBrandEnv(env, 'RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS')),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_COMMAND_LEASE_MS', false, 'Command lease in milliseconds. Defaults to 40000 and must cover primary and fallback timeouts plus reporting margin.', resolveBrandEnv(env, 'RUSTDESK_EDGE_COMMAND_LEASE_MS')),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS', false, 'Local adapter timeout in milliseconds. Defaults to 15000.', resolveBrandEnv(env, 'RUSTDESK_EDGE_COMMAND_TIMEOUT_MS')),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_SPOOL_DIR', false, 'Private absolute directory for crash-safe sanitized command state. Required when a local adapter is configured.', resolveBrandEnv(env, 'RUSTDESK_EDGE_SPOOL_DIR')),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_SPOOL_MAX_BYTES', false, 'Maximum bytes in the active sanitized spool record. Defaults to 65536.', resolveBrandEnv(env, 'RUSTDESK_EDGE_SPOOL_MAX_BYTES')),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_SPOOL_MAX_AGE_MS', false, 'Maximum active spool age before quarantine. Defaults to seven days.', resolveBrandEnv(env, 'RUSTDESK_EDGE_SPOOL_MAX_AGE_MS')),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_SPOOL_MAX_QUARANTINE_RECORDS', false, 'Maximum retained quarantine records. Defaults to 100.', resolveBrandEnv(env, 'RUSTDESK_EDGE_SPOOL_MAX_QUARANTINE_RECORDS')),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE', false, 'Device-local session disconnect wrapper. At least one local adapter is required for command execution.', resolveBrandEnv(env, 'RUSTDESK_EDGE_DISCONNECT_EXECUTABLE'), true),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON', false, 'Fixed JSON string array passed to the disconnect wrapper. Server identifiers are supplied only through environment variables.', resolveBrandEnv(env, 'RUSTDESK_EDGE_DISCONNECT_ARGS_JSON'), true),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_RESTART_EXECUTABLE', false, 'Device-local RustDesk service restart wrapper used as fallback.', resolveBrandEnv(env, 'RUSTDESK_EDGE_RESTART_EXECUTABLE'), true),
+    item(env, 'Edge Command', 'CONVERACT_RUSTDESK_EDGE_RESTART_ARGS_JSON', false, 'Fixed JSON string array passed to the restart wrapper.', resolveBrandEnv(env, 'RUSTDESK_EDGE_RESTART_ARGS_JSON'), true),
+    item(env, 'Event Audit', 'CONVERACT_RUSTDESK_EVENT_TEMPLATE_FILE', false, 'Where to generate JSONL event templates for sidecar integration.', resolveBrandEnv(env, 'RUSTDESK_EVENT_TEMPLATE_FILE')),
+    item(env, 'Event Audit', 'CONVERACT_RUSTDESK_EVENT_FILE', false, 'JSONL file used by event forwarder or validate-only mode.', resolveBrandEnv(env, 'RUSTDESK_EVENT_FILE')),
+    item(env, 'Event Audit', 'CONVERACT_RUSTDESK_EVENT_VALIDATE_ONLY', false, 'Set to 1 to validate event JSONL without posting.', resolveBrandEnv(env, 'RUSTDESK_EVENT_VALIDATE_ONLY')),
+    item(env, 'Event Audit', 'CONVERACT_RUSTDESK_EVENT_DEAD_LETTER_FILE', false, 'Local JSONL file for failed event forwards.', resolveBrandEnv(env, 'RUSTDESK_EVENT_DEAD_LETTER_FILE')),
+    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE', false, 'Markdown output path for the RustDesk client installation/config handoff pack.', resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_PACK_FILE')),
+    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_TITLE', false, 'Display title written into the client config handoff pack.', resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_PACK_TITLE')),
+    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL', false, 'iveKit/OPC base URL used to fetch /api/ivekit/rustdesk/client-config. Can fall back to CONVERACT_RUSTDESK_IVEKIT_BASE_URL, CONVERACT_BASE_URL, CONVERACT_REMOTE_GATEWAY_BASE_URL, or control-plane base URL.', clientConfigBaseUrl),
+    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY', false, 'API key used to fetch iveKit RustDesk client config. Can fall back to CONVERACT_RUSTDESK_IVEKIT_API_KEY, CONVERACT_COLLABORATION_API_KEY, or CONVERACT_API_KEY.', clientConfigApiKey, true),
+    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID', false, 'Tenant used to fetch iveKit RustDesk client config. Can fall back to CONVERACT_RUSTDESK_IVEKIT_TENANT_ID, CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID.', clientConfigTenantId),
+    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_USER_ID', false, 'Optional operator/user id sent when fetching the client config or launch plan.', resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_USER_ID')),
+    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID', false, 'Optional gateway external_id used to include a concrete launch plan in the handoff pack.', resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID')),
+    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID', false, 'Optional expected RustDesk runtime id used to validate the launch plan target.', resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID')),
+    item(env, 'Client Acceptance', 'CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE', false, 'Where to generate the manual real-client acceptance report template.', resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_TEMPLATE_FILE')),
+    item(env, 'Client Acceptance', 'CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE', false, 'Filled real-client acceptance report path.', resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_REPORT_FILE')),
+    item(env, 'Client Acceptance', 'CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE', false, 'Optional audit JSON/JSONL export for acceptance gate.', resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_AUDIT_FILE')),
+    item(env, 'Final Evidence', 'CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE', false, 'Audit JSON/JSONL export consumed by rustdesk:audit-coverage.', resolveBrandEnv(env, 'RUSTDESK_AUDIT_COVERAGE_FILE')),
+    item(env, 'Final Evidence', 'CONVERACT_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID', false, 'Optional external_id filter for audit coverage validation.', resolveBrandEnv(env, 'RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID')),
+    item(env, 'Final Evidence', 'CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE', false, 'Audit coverage JSON report consumed by the final evidence pack.', resolveBrandEnv(env, 'RUSTDESK_AUDIT_COVERAGE_REPORT_FILE')),
+    item(env, 'Final Evidence', 'CONVERACT_RUSTDESK_EVIDENCE_PACK_FILE', false, 'Final customer handoff evidence pack markdown output.', resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_PACK_FILE')),
+    item(env, 'Final Evidence', 'CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE', false, 'Audit coverage report path passed into rustdesk:evidence-pack.', resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE')),
+    item(env, 'Final Evidence', 'CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE', false, 'Client config pack artifact path passed into rustdesk:evidence-pack.', resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE') || resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_PACK_FILE')),
+    item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL', false, 'OPC base URL used by LED example. Can fall back to CONVERACT_BASE_URL.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_BASE_URL') || resolveBrandEnv(env, 'BASE_URL')),
+    item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_API_KEY', false, 'API key used by LED example.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_API_KEY'), true),
+    item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_TENANT_ID', false, 'Tenant used by LED example.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_TENANT_ID')),
+    item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID', false, 'Existing remote_session_id provided by OPC/LED workflow.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID')),
+    item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_DEVICE_ID', false, 'Existing internal rustdesk_devices.id for LED example.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_DEVICE_ID')),
+    item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID', false, 'Raw RustDesk runtime ID when LED example should register a device.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_RUSTDESK_ID'))
   ];
 }
 
@@ -522,10 +523,10 @@ function publicKeyStatus(env: NodeJS.ProcessEnv): {
   status: RustDeskDeploymentPreflightStatus;
   message: string;
 } {
-  const envKey = String(env.OPC_RUSTDESK_PUBLIC_KEY || '').trim();
-  if (envKey) return { source: 'env', status: 'pass', message: 'OPC_RUSTDESK_PUBLIC_KEY is configured' };
-  const filePath = String(env.OPC_RUSTDESK_PUBLIC_KEY_FILE || '').trim();
-  if (!filePath) return { source: 'none', status: 'fail', message: 'OPC_RUSTDESK_PUBLIC_KEY or OPC_RUSTDESK_PUBLIC_KEY_FILE is required' };
+  const envKey = String(resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY') || '').trim();
+  if (envKey) return { source: 'env', status: 'pass', message: 'CONVERACT_RUSTDESK_PUBLIC_KEY is configured' };
+  const filePath = String(resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY_FILE') || '').trim();
+  if (!filePath) return { source: 'none', status: 'fail', message: 'CONVERACT_RUSTDESK_PUBLIC_KEY or CONVERACT_RUSTDESK_PUBLIC_KEY_FILE is required' };
   try {
     const fileValue = readFileSync(filePath, 'utf8').trim();
     if (!fileValue) return { source: 'file', status: 'fail', message: `RustDesk public key file is empty: ${filePath}` };
@@ -539,23 +540,23 @@ function edgeAgentReady(env: NodeJS.ProcessEnv, edgeBaseUrl: string): boolean {
   return Boolean(
     edgeBaseUrl &&
     isHttpUrl(edgeBaseUrl) &&
-    String(env.OPC_RUSTDESK_EDGE_API_KEY || env.OPC_COLLABORATION_API_KEY || env.OPC_API_KEY || '').trim() &&
-    String(env.OPC_RUSTDESK_EDGE_TENANT_ID || env.OPC_REMOTE_GATEWAY_TENANT_ID || '').trim() &&
-    String(env.OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE || '').trim() &&
-    String(env.OPC_RUSTDESK_EDGE_BUSINESS_REF_ID || '').trim() &&
-    String(env.OPC_RUSTDESK_EDGE_RUSTDESK_ID || env.RUSTDESK_ID || '').trim()
+    String(resolveBrandEnv(env, 'RUSTDESK_EDGE_API_KEY') || resolveBrandEnv(env, 'COLLABORATION_API_KEY') || resolveBrandEnv(env, 'API_KEY') || '').trim() &&
+    String(resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') || resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') || '').trim() &&
+    String(resolveBrandEnv(env, 'RUSTDESK_EDGE_BUSINESS_REF_TYPE') || '').trim() &&
+    String(resolveBrandEnv(env, 'RUSTDESK_EDGE_BUSINESS_REF_ID') || '').trim() &&
+    String(resolveBrandEnv(env, 'RUSTDESK_EDGE_RUSTDESK_ID') || env.RUSTDESK_ID || '').trim()
   );
 }
 
 function edgeAgentMessage(env: NodeJS.ProcessEnv, edgeBaseUrl: string): string {
   if (edgeAgentReady(env, edgeBaseUrl)) return 'RustDesk readiness edge-agent inputs are configured';
   const missing: string[] = [];
-  if (!edgeBaseUrl || !isHttpUrl(edgeBaseUrl)) missing.push('OPC_RUSTDESK_EDGE_BASE_URL or OPC_BASE_URL');
-  if (!String(env.OPC_RUSTDESK_EDGE_API_KEY || env.OPC_COLLABORATION_API_KEY || env.OPC_API_KEY || '').trim()) missing.push('OPC_RUSTDESK_EDGE_API_KEY or OPC_COLLABORATION_API_KEY or OPC_API_KEY');
-  if (!String(env.OPC_RUSTDESK_EDGE_TENANT_ID || env.OPC_REMOTE_GATEWAY_TENANT_ID || '').trim()) missing.push('OPC_RUSTDESK_EDGE_TENANT_ID or OPC_REMOTE_GATEWAY_TENANT_ID');
-  if (!String(env.OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE || '').trim()) missing.push('OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE');
-  if (!String(env.OPC_RUSTDESK_EDGE_BUSINESS_REF_ID || '').trim()) missing.push('OPC_RUSTDESK_EDGE_BUSINESS_REF_ID');
-  if (!String(env.OPC_RUSTDESK_EDGE_RUSTDESK_ID || env.RUSTDESK_ID || '').trim()) missing.push('OPC_RUSTDESK_EDGE_RUSTDESK_ID or RUSTDESK_ID');
+  if (!edgeBaseUrl || !isHttpUrl(edgeBaseUrl)) missing.push('CONVERACT_RUSTDESK_EDGE_BASE_URL or CONVERACT_BASE_URL');
+  if (!String(resolveBrandEnv(env, 'RUSTDESK_EDGE_API_KEY') || resolveBrandEnv(env, 'COLLABORATION_API_KEY') || resolveBrandEnv(env, 'API_KEY') || '').trim()) missing.push('CONVERACT_RUSTDESK_EDGE_API_KEY or CONVERACT_COLLABORATION_API_KEY or CONVERACT_API_KEY');
+  if (!String(resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') || resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') || '').trim()) missing.push('CONVERACT_RUSTDESK_EDGE_TENANT_ID or CONVERACT_REMOTE_GATEWAY_TENANT_ID');
+  if (!String(resolveBrandEnv(env, 'RUSTDESK_EDGE_BUSINESS_REF_TYPE') || '').trim()) missing.push('CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE');
+  if (!String(resolveBrandEnv(env, 'RUSTDESK_EDGE_BUSINESS_REF_ID') || '').trim()) missing.push('CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_ID');
+  if (!String(resolveBrandEnv(env, 'RUSTDESK_EDGE_RUSTDESK_ID') || env.RUSTDESK_ID || '').trim()) missing.push('CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID or RUSTDESK_ID');
   return `RustDesk readiness edge-agent inputs missing: ${missing.join(', ')}`;
 }
 
@@ -607,15 +608,15 @@ function stripTrailingSlash(value: string | undefined): string {
 }
 
 function idToEnvMessage(id: string): string {
-  if (id === 'control_plane_base_url') return 'OPC_RUSTDESK_CONTROL_PLANE_BASE_URL or OPC_REMOTE_GATEWAY_BASE_URL';
-  if (id === 'launch_base_url') return 'OPC_RUSTDESK_LAUNCH_BASE_URL, OPC_BASE_URL, or OPC_REMOTE_GATEWAY_BASE_URL';
+  if (id === 'control_plane_base_url') return 'CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL or CONVERACT_REMOTE_GATEWAY_BASE_URL';
+  if (id === 'launch_base_url') return 'CONVERACT_RUSTDESK_LAUNCH_BASE_URL, CONVERACT_BASE_URL, or CONVERACT_REMOTE_GATEWAY_BASE_URL';
   return id;
 }
 
 async function main(): Promise<void> {
-  const checklistFile = String(process.env.OPC_RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE || '').trim();
+  const checklistFile = String(resolveBrandEnv(process.env, 'RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE') || '').trim();
   const envChecklist = checklistFile ? writeRustDeskDeploymentEnvChecklist(checklistFile, process.env) : undefined;
-  const reportFilePath = String(process.env.OPC_RUSTDESK_PREFLIGHT_REPORT_FILE || '').trim();
+  const reportFilePath = String(resolveBrandEnv(process.env, 'RUSTDESK_PREFLIGHT_REPORT_FILE') || '').trim();
   const report = createRustDeskDeploymentPreflightReport(process.env);
   const reportFile = reportFilePath
     ? writeRustDeskDeploymentPreflightReport(reportFilePath, process.env, report)

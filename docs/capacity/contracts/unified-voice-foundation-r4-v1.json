@@ -18,7 +18,7 @@
       "path": "docs/capacity/contracts/rvoip-capability-integration-v1.json",
       "contract_id": "rvoip-capability-integration-v1",
       "revision": 6,
-      "content_sha256": "c66835b4e86341f3cde110b9e74190b6addf2e4f7409834ac96b8dcb146ee6d8"
+      "content_sha256": "ddcb7afadd14ae1cf2e0365dd1964055f182dc11a3d5bd377ccd49396b5a53df"
     },
     "voice_media_goal4": {
       "path": "docs/capacity/contracts/voice-media-goal4-v1.json",

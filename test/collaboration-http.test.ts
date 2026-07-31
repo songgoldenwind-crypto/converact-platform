@@ -53,8 +53,8 @@ async function route(
 }
 
 test('collaboration HTTP exposes remote assistance consent tool audit and evidence flow', async () => {
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'opc-collaboration-http-'));
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'opc-collaboration-http-'));
   const pg = new MemoryPg();
   const tenantId = 'tenant_collab_http';
 
@@ -225,7 +225,7 @@ test('collaboration HTTP exposes remote assistance consent tool audit and eviden
 });
 
 test('collaboration HTTP keeps remote assistance sessions tenant scoped', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const tenantA = 'tenant_collab_a';
   const tenantB = 'tenant_collab_b';
@@ -256,7 +256,7 @@ test('collaboration HTTP keeps remote assistance sessions tenant scoped', async 
 });
 
 test('collaboration HTTP rejects unsupported remote consent scopes before storing consent events', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const tenantId = 'tenant_collab_consent_scope_guard';
   const sessionResult = (await route(
@@ -302,7 +302,7 @@ test('collaboration HTTP rejects unsupported remote consent scopes before storin
 });
 
 test('collaboration HTTP manages RustDesk devices by tenant and business ref', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const tenantId = 'tenant_rustdesk_devices_http';
   const otherTenantId = 'tenant_rustdesk_devices_http_other';
@@ -417,25 +417,25 @@ test('collaboration HTTP manages RustDesk devices by tenant and business ref', a
 });
 
 test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousEnv = {
-    baseUrl: process.env.OPC_BASE_URL,
-    launchSecret: process.env.OPC_RUSTDESK_LAUNCH_SECRET,
-    publicKey: process.env.OPC_RUSTDESK_PUBLIC_KEY,
-    idServer: process.env.OPC_RUSTDESK_ID_SERVER,
-    relayServer: process.env.OPC_RUSTDESK_RELAY_SERVER,
-    protocolTemplate: process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE,
-    requirePhysicalDisconnect: process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT,
-    edgeTokenSecret: process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET
+    baseUrl: process.env.CONVERACT_BASE_URL,
+    launchSecret: process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET,
+    publicKey: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY,
+    idServer: process.env.CONVERACT_RUSTDESK_ID_SERVER,
+    relayServer: process.env.CONVERACT_RUSTDESK_RELAY_SERVER,
+    protocolTemplate: process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE,
+    requirePhysicalDisconnect: process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT,
+    edgeTokenSecret: process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET
   };
-  process.env.OPC_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'ivekit-rustdesk-launch-secret';
-  process.env.OPC_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
-  process.env.OPC_RUSTDESK_ID_SERVER = 'rustdesk-id.example.com';
-  process.env.OPC_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.com';
-  process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
-  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '1';
-  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = 'ivekit-http-edge-token-secret-at-least-32-bytes';
+  process.env.CONVERACT_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'ivekit-rustdesk-launch-secret';
+  process.env.CONVERACT_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
+  process.env.CONVERACT_RUSTDESK_ID_SERVER = 'rustdesk-id.example.com';
+  process.env.CONVERACT_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.com';
+  process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '1';
+  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = 'ivekit-http-edge-token-secret-at-least-32-bytes';
 
   try {
     const pg = new MemoryPg();
@@ -581,7 +581,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
       rustdesk_id: '123456789',
       edge_instance_id: 'edge-ivekit-rustdesk-http',
       expires_at: '2099-01-01T00:00:00.000Z'
-    }, process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET);
+    }, process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET);
     await route(
       pg,
       'POST',
@@ -799,35 +799,35 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
     );
     assert.deepEqual(crossTenantLaunch, { status: 404, data: { error: 'rustdesk gateway session not found' } });
   } finally {
-    restoreEnv('OPC_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
-    restoreEnv('OPC_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
-    restoreEnv('OPC_RUSTDESK_ID_SERVER', previousEnv.idServer);
-    restoreEnv('OPC_RUSTDESK_RELAY_SERVER', previousEnv.relayServer);
-    restoreEnv('OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousEnv.protocolTemplate);
-    restoreEnv('OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previousEnv.requirePhysicalDisconnect);
-    restoreEnv('OPC_RUSTDESK_EDGE_TOKEN_SECRET', previousEnv.edgeTokenSecret);
+    restoreEnv('CONVERACT_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
+    restoreEnv('CONVERACT_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
+    restoreEnv('CONVERACT_RUSTDESK_ID_SERVER', previousEnv.idServer);
+    restoreEnv('CONVERACT_RUSTDESK_RELAY_SERVER', previousEnv.relayServer);
+    restoreEnv('CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousEnv.protocolTemplate);
+    restoreEnv('CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previousEnv.requirePhysicalDisconnect);
+    restoreEnv('CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET', previousEnv.edgeTokenSecret);
   }
 });
 
 test('collaboration HTTP remote end closes local iveKit RustDesk gateway sessions without external gateway env', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousEnv = {
-    baseUrl: process.env.OPC_BASE_URL,
-    launchSecret: process.env.OPC_RUSTDESK_LAUNCH_SECRET,
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    gatewayBaseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    gatewayToken: process.env.OPC_REMOTE_GATEWAY_API_TOKEN,
-    rustdeskBaseUrl: process.env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL,
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN
+    baseUrl: process.env.CONVERACT_BASE_URL,
+    launchSecret: process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET,
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    gatewayBaseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    gatewayToken: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN,
+    rustdeskBaseUrl: process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL,
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN
   };
-  process.env.OPC_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'ivekit-rustdesk-local-end-secret';
-  delete process.env.OPC_REMOTE_GATEWAY_PROVIDER;
-  delete process.env.OPC_REMOTE_GATEWAY_BASE_URL;
-  delete process.env.OPC_REMOTE_GATEWAY_API_TOKEN;
-  delete process.env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL;
-  delete process.env.OPC_RUSTDESK_API_TOKEN;
+  process.env.CONVERACT_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'ivekit-rustdesk-local-end-secret';
+  delete process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER;
+  delete process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL;
+  delete process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN;
+  delete process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL;
+  delete process.env.CONVERACT_RUSTDESK_API_TOKEN;
 
   try {
     const pg = new MemoryPg();
@@ -932,34 +932,34 @@ test('collaboration HTTP remote end closes local iveKit RustDesk gateway session
     assert.equal(timeline.data.audit_events.some((event) => event.event_type === 'remote.gateway_session.ended'), true);
     assert.equal(timeline.data.audit_events.some((event) => event.event_type === 'remote.tool_session.ended'), true);
   } finally {
-    restoreEnv('OPC_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.gatewayBaseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.gatewayToken);
-    restoreEnv('OPC_RUSTDESK_CONTROL_PLANE_BASE_URL', previousEnv.rustdeskBaseUrl);
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.gatewayBaseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.gatewayToken);
+    restoreEnv('CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL', previousEnv.rustdeskBaseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
   }
 });
 
 test('collaboration HTTP consent revoke closes local iveKit RustDesk gateway sessions without external gateway env', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousEnv = {
-    baseUrl: process.env.OPC_BASE_URL,
-    launchSecret: process.env.OPC_RUSTDESK_LAUNCH_SECRET,
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    gatewayBaseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    gatewayToken: process.env.OPC_REMOTE_GATEWAY_API_TOKEN,
-    rustdeskBaseUrl: process.env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL,
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN
+    baseUrl: process.env.CONVERACT_BASE_URL,
+    launchSecret: process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET,
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    gatewayBaseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    gatewayToken: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN,
+    rustdeskBaseUrl: process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL,
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN
   };
-  process.env.OPC_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'ivekit-rustdesk-local-revoke-secret';
-  delete process.env.OPC_REMOTE_GATEWAY_PROVIDER;
-  delete process.env.OPC_REMOTE_GATEWAY_BASE_URL;
-  delete process.env.OPC_REMOTE_GATEWAY_API_TOKEN;
-  delete process.env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL;
-  delete process.env.OPC_RUSTDESK_API_TOKEN;
+  process.env.CONVERACT_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'ivekit-rustdesk-local-revoke-secret';
+  delete process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER;
+  delete process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL;
+  delete process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN;
+  delete process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL;
+  delete process.env.CONVERACT_RUSTDESK_API_TOKEN;
 
   try {
     const pg = new MemoryPg();
@@ -1067,18 +1067,18 @@ test('collaboration HTTP consent revoke closes local iveKit RustDesk gateway ses
     assert.equal(timeline.data.audit_events.some((event) => event.event_type === 'remote.gateway_session.ended'), true);
     assert.equal(timeline.data.audit_events.some((event) => event.event_type === 'remote.tool_session.ended'), true);
   } finally {
-    restoreEnv('OPC_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.gatewayBaseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.gatewayToken);
-    restoreEnv('OPC_RUSTDESK_CONTROL_PLANE_BASE_URL', previousEnv.rustdeskBaseUrl);
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.gatewayBaseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.gatewayToken);
+    restoreEnv('CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL', previousEnv.rustdeskBaseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
   }
 });
 
 test('collaboration HTTP can explicitly end remote tool and assistance sessions', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const tenantId = 'tenant_collab_end_http';
 
@@ -1185,7 +1185,7 @@ test('collaboration HTTP can explicitly end remote tool and assistance sessions'
 });
 
 test('collaboration HTTP verifies Web Assist join tokens without API auth', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   process.env.IVEKIT_WEB_ASSIST_SECRET = 'collaboration-web-assist-secret';
   const pg = new MemoryPg();
   const tenantId = 'tenant_web_assist_http';
@@ -1256,7 +1256,7 @@ test('collaboration HTTP verifies Web Assist join tokens without API auth', asyn
 });
 
 test('collaboration HTTP records denied remote consent and keeps tools blocked', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const tenantId = 'tenant_collab_deny';
 
@@ -1316,16 +1316,16 @@ test('collaboration HTTP records denied remote consent and keeps tools blocked',
 });
 
 test('collaboration HTTP can start a configured remote gateway tool session', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousFetch = globalThis.fetch;
   const previousEnv = {
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    baseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    token: process.env.OPC_REMOTE_GATEWAY_API_TOKEN
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    baseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
-  process.env.OPC_REMOTE_GATEWAY_PROVIDER = 'meshcentral';
-  process.env.OPC_REMOTE_GATEWAY_BASE_URL = 'https://mesh.example';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'mesh-token';
+  process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'meshcentral';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://mesh.example';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'mesh-token';
   const gatewayCalls: Array<{ url: string; init?: RequestInit }> = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const requestUrl = String(input);
@@ -1407,23 +1407,23 @@ test('collaboration HTTP can start a configured remote gateway tool session', as
     assert.equal((gatewayCalls[0]?.init?.headers as Record<string, string>).authorization, 'Bearer mesh-token');
   } finally {
     globalThis.fetch = previousFetch;
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
   }
 });
 
 test('collaboration HTTP can sync configured remote gateway audit into timeline', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousFetch = globalThis.fetch;
   const previousEnv = {
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    baseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    token: process.env.OPC_REMOTE_GATEWAY_API_TOKEN
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    baseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
-  process.env.OPC_REMOTE_GATEWAY_PROVIDER = 'meshcentral';
-  process.env.OPC_REMOTE_GATEWAY_BASE_URL = 'https://mesh.example';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'mesh-token';
+  process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'meshcentral';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://mesh.example';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'mesh-token';
   const gatewayCalls: Array<{ url: string; init?: RequestInit }> = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const requestUrl = String(input);
@@ -1565,23 +1565,23 @@ test('collaboration HTTP can sync configured remote gateway audit into timeline'
     assert.equal(gatewayCalls.length, 2);
   } finally {
     globalThis.fetch = previousFetch;
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
   }
 });
 
 test('collaboration HTTP revoke ends configured remote gateway upstream session', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousFetch = globalThis.fetch;
   const previousEnv = {
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    baseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    token: process.env.OPC_REMOTE_GATEWAY_API_TOKEN
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    baseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
-  process.env.OPC_REMOTE_GATEWAY_PROVIDER = 'meshcentral';
-  process.env.OPC_REMOTE_GATEWAY_BASE_URL = 'https://mesh.example';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'mesh-token';
+  process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'meshcentral';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://mesh.example';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'mesh-token';
   const gatewayCalls: Array<{ url: string; method?: string }> = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const requestUrl = String(input);
@@ -1696,23 +1696,23 @@ test('collaboration HTTP revoke ends configured remote gateway upstream session'
     assert.equal(timeline.data.audit_events.some((event) => event.event_type === 'remote.tool_session.ended'), true);
   } finally {
     globalThis.fetch = previousFetch;
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
   }
 });
 
 test('collaboration HTTP can start sync and revoke a configured RustDesk gateway session', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousFetch = globalThis.fetch;
   const previousEnv = {
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    baseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    token: process.env.OPC_REMOTE_GATEWAY_API_TOKEN
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    baseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
-  process.env.OPC_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.OPC_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
+  process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
   const gatewayCalls: Array<{ url: string; method?: string }> = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const requestUrl = String(input);
@@ -1967,23 +1967,23 @@ test('collaboration HTTP can start sync and revoke a configured RustDesk gateway
     assert.equal(timeline.data.audit_events.some((event) => event.event_type === 'remote.gateway_session.ended'), true);
   } finally {
     globalThis.fetch = previousFetch;
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
   }
 });
 
 test('collaboration HTTP rejects RustDesk gateway sync events outside session permissions', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousFetch = globalThis.fetch;
   const previousEnv = {
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    baseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    token: process.env.OPC_REMOTE_GATEWAY_API_TOKEN
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    baseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
-  process.env.OPC_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.OPC_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
+  process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const requestUrl = String(input);
     if (requestUrl === 'https://opc.example.com/api/opc/rustdesk/sessions' && init?.method === 'POST') {
@@ -2090,23 +2090,23 @@ test('collaboration HTTP rejects RustDesk gateway sync events outside session pe
     );
   } finally {
     globalThis.fetch = previousFetch;
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
   }
 });
 
 test('collaboration HTTP resolves registered RustDesk devices before starting gateway sessions', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousFetch = globalThis.fetch;
   const previousEnv = {
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    baseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    token: process.env.OPC_REMOTE_GATEWAY_API_TOKEN
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    baseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
-  process.env.OPC_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.OPC_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
+  process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
   const gatewayBodies: Array<Record<string, unknown>> = [];
   globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
@@ -2186,27 +2186,27 @@ test('collaboration HTTP resolves registered RustDesk devices before starting ga
     assert.equal(tool.data.metadata.rustdesk_id, '123456789');
   } finally {
     globalThis.fetch = previousFetch;
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
   }
 });
 
 test('collaboration HTTP requires online heartbeat for registered RustDesk gateway targets when enabled', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousFetch = globalThis.fetch;
   const previousEnv = {
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    baseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    token: process.env.OPC_REMOTE_GATEWAY_API_TOKEN,
-    requireOnline: process.env.OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE,
-    onlineTtlMs: process.env.OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    baseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN,
+    requireOnline: process.env.CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE,
+    onlineTtlMs: process.env.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS
   };
-  process.env.OPC_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.OPC_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
-  process.env.OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE = '1';
-  process.env.OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS = '600000';
+  process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE = '1';
+  process.env.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS = '600000';
   let gatewayCalls = 0;
   globalThis.fetch = (async (): Promise<Response> => {
     gatewayCalls += 1;
@@ -2292,7 +2292,7 @@ test('collaboration HTTP requires online heartbeat for registered RustDesk gatew
       },
       authHeaders(tenantId)
     );
-    process.env.OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS = 'soon';
+    process.env.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS = 'soon';
 
     await assert.rejects(
       () =>
@@ -2307,30 +2307,30 @@ test('collaboration HTTP requires online heartbeat for registered RustDesk gatew
           },
           authHeaders(tenantId)
         ),
-      /OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS must be a number >= 100/
+      /CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS must be a number >= 100/
     );
     assert.equal(gatewayCalls, 0);
   } finally {
     globalThis.fetch = previousFetch;
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
-    restoreEnv('OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE', previousEnv.requireOnline);
-    restoreEnv('OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS', previousEnv.onlineTtlMs);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
+    restoreEnv('CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE', previousEnv.requireOnline);
+    restoreEnv('CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS', previousEnv.onlineTtlMs);
   }
 });
 
 test('collaboration HTTP rejects unsupported gateway permission scopes before calling gateway', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousFetch = globalThis.fetch;
   const previousEnv = {
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    baseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    token: process.env.OPC_REMOTE_GATEWAY_API_TOKEN
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    baseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
-  process.env.OPC_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.OPC_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
+  process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
   let gatewayCalls = 0;
   globalThis.fetch = (async (): Promise<Response> => {
     gatewayCalls += 1;
@@ -2393,23 +2393,23 @@ test('collaboration HTTP rejects unsupported gateway permission scopes before ca
     assert.equal(gatewayCalls, 0);
   } finally {
     globalThis.fetch = previousFetch;
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
   }
 });
 
 test('collaboration HTTP rejects RustDesk gateway permissions outside active consent scopes', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousFetch = globalThis.fetch;
   const previousEnv = {
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    baseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    token: process.env.OPC_REMOTE_GATEWAY_API_TOKEN
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    baseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
-  process.env.OPC_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.OPC_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
+  process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
   let gatewayCalls = 0;
   globalThis.fetch = (async (): Promise<Response> => {
     gatewayCalls += 1;
@@ -2475,25 +2475,25 @@ test('collaboration HTTP rejects RustDesk gateway permissions outside active con
     assert.equal(gatewayCalls, 0);
   } finally {
     globalThis.fetch = previousFetch;
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.token);
   }
 });
 
 test('collaboration HTTP defaults gateway provider to RustDesk and prefers RustDesk control-plane env', async () => {
   const previousEnv = {
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    baseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    rustdeskBaseUrl: process.env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL,
-    remoteToken: process.env.OPC_REMOTE_GATEWAY_API_TOKEN,
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    baseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    rustdeskBaseUrl: process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL,
+    remoteToken: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN,
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN
   };
-  delete process.env.OPC_REMOTE_GATEWAY_PROVIDER;
-  delete process.env.OPC_REMOTE_GATEWAY_BASE_URL;
-  process.env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL = 'https://opc-rustdesk.example.com';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'remote-gateway-token';
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-specific-token';
+  delete process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER;
+  delete process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL;
+  process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL = 'https://opc-rustdesk.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'remote-gateway-token';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-specific-token';
 
   const calls: Array<{ url: string; authorization: string }> = [];
   const previousFetch = globalThis.fetch;
@@ -2516,7 +2516,7 @@ test('collaboration HTTP defaults gateway provider to RustDesk and prefers RustD
   }) as typeof fetch;
 
   try {
-    process.env.OPC_API_KEY = API_KEY;
+    process.env.CONVERACT_API_KEY = API_KEY;
     const pg = new MemoryPg();
     const tenantId = 'tenant_rustdesk_specific_env';
     const session = (await route(
@@ -2568,35 +2568,35 @@ test('collaboration HTTP defaults gateway provider to RustDesk and prefers RustD
     assert.equal(calls[0]?.authorization, 'Bearer rustdesk-specific-token');
   } finally {
     globalThis.fetch = previousFetch;
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_RUSTDESK_CONTROL_PLANE_BASE_URL', previousEnv.rustdeskBaseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.remoteToken);
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL', previousEnv.rustdeskBaseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.remoteToken);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
   }
 });
 
 test('collaboration HTTP exposes RustDesk control-plane session routes', async () => {
   const previousEnv = {
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN,
-    remoteGatewayToken: process.env.OPC_REMOTE_GATEWAY_API_TOKEN,
-    launchBaseUrl: process.env.OPC_RUSTDESK_LAUNCH_BASE_URL,
-    protocolTemplate: process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE,
-    idServer: process.env.OPC_RUSTDESK_ID_SERVER,
-    relayServer: process.env.OPC_RUSTDESK_RELAY_SERVER,
-    apiServer: process.env.OPC_RUSTDESK_API_SERVER,
-    publicKey: process.env.OPC_RUSTDESK_PUBLIC_KEY,
-    serverKey: process.env.OPC_RUSTDESK_SERVER_KEY
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN,
+    remoteGatewayToken: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN,
+    launchBaseUrl: process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL,
+    protocolTemplate: process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE,
+    idServer: process.env.CONVERACT_RUSTDESK_ID_SERVER,
+    relayServer: process.env.CONVERACT_RUSTDESK_RELAY_SERVER,
+    apiServer: process.env.CONVERACT_RUSTDESK_API_SERVER,
+    publicKey: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY,
+    serverKey: process.env.CONVERACT_RUSTDESK_SERVER_KEY
   };
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'different-remote-gateway-token';
-  process.env.OPC_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
-  process.env.OPC_RUSTDESK_ID_SERVER = 'rustdesk-id.example.com';
-  process.env.OPC_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.com';
-  process.env.OPC_RUSTDESK_API_SERVER = 'https://rustdesk-api.example.com';
-  process.env.OPC_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
-  process.env.OPC_RUSTDESK_SERVER_KEY = 'rustdesk-server-key-secret';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'different-remote-gateway-token';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
+  process.env.CONVERACT_RUSTDESK_ID_SERVER = 'rustdesk-id.example.com';
+  process.env.CONVERACT_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.com';
+  process.env.CONVERACT_RUSTDESK_API_SERVER = 'https://rustdesk-api.example.com';
+  process.env.CONVERACT_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
+  process.env.CONVERACT_RUSTDESK_SERVER_KEY = 'rustdesk-server-key-secret';
 
   try {
     const pg = new MemoryPg();
@@ -3117,25 +3117,25 @@ test('collaboration HTTP exposes RustDesk control-plane session routes', async (
     assert.equal(auditAfterEnd.data.events.at(-1)?.actor_identity, 'agent-control-plane');
     assert.deepEqual(eventAfterEnd, { status: 409, data: { error: 'RustDesk gateway session is not active' } });
   } finally {
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.remoteGatewayToken);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
-    restoreEnv('OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousEnv.protocolTemplate);
-    restoreEnv('OPC_RUSTDESK_ID_SERVER', previousEnv.idServer);
-    restoreEnv('OPC_RUSTDESK_RELAY_SERVER', previousEnv.relayServer);
-    restoreEnv('OPC_RUSTDESK_API_SERVER', previousEnv.apiServer);
-    restoreEnv('OPC_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
-    restoreEnv('OPC_RUSTDESK_SERVER_KEY', previousEnv.serverKey);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.remoteGatewayToken);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousEnv.protocolTemplate);
+    restoreEnv('CONVERACT_RUSTDESK_ID_SERVER', previousEnv.idServer);
+    restoreEnv('CONVERACT_RUSTDESK_RELAY_SERVER', previousEnv.relayServer);
+    restoreEnv('CONVERACT_RUSTDESK_API_SERVER', previousEnv.apiServer);
+    restoreEnv('CONVERACT_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
+    restoreEnv('CONVERACT_RUSTDESK_SERVER_KEY', previousEnv.serverKey);
   }
 });
 
 test('collaboration HTTP requires RustDesk control-plane actor identities', async () => {
   const previousEnv = {
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN,
-    launchBaseUrl: process.env.OPC_RUSTDESK_LAUNCH_BASE_URL
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN,
+    launchBaseUrl: process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL
   };
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
 
   try {
     const pg = new MemoryPg();
@@ -3196,18 +3196,18 @@ test('collaboration HTTP requires RustDesk control-plane actor identities', asyn
     assert.deepEqual(missingEventActor, { status: 400, data: { error: 'actor_identity is required' } });
     assert.deepEqual(missingEndActor, { status: 400, data: { error: 'actor_identity is required' } });
   } finally {
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
   }
 });
 
 test('collaboration HTTP rejects RustDesk operation events outside session permissions', async () => {
   const previousEnv = {
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN,
-    launchBaseUrl: process.env.OPC_RUSTDESK_LAUNCH_BASE_URL
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN,
+    launchBaseUrl: process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL
   };
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
 
   try {
     const pg = new MemoryPg();
@@ -3261,18 +3261,18 @@ test('collaboration HTTP rejects RustDesk operation events outside session permi
     });
     assert.deepEqual(audit.data.events.map((event) => event.event_type), ['remote.gateway_session.created']);
   } finally {
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
   }
 });
 
 test('collaboration HTTP lists RustDesk control-plane sessions by tenant and status', async () => {
   const previousEnv = {
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN,
-    launchBaseUrl: process.env.OPC_RUSTDESK_LAUNCH_BASE_URL
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN,
+    launchBaseUrl: process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL
   };
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
 
   try {
     const pg = new MemoryPg();
@@ -3334,18 +3334,18 @@ test('collaboration HTTP lists RustDesk control-plane sessions by tenant and sta
     assert.equal(ended.data.sessions[0]?.status, 'ended');
     assert.deepEqual(missingTenant, { status: 400, data: { error: 'tenant_id is required' } });
   } finally {
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
   }
 });
 
 test('collaboration HTTP rejects invalid RustDesk control-plane query params', async () => {
   const previousEnv = {
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN,
-    launchBaseUrl: process.env.OPC_RUSTDESK_LAUNCH_BASE_URL
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN,
+    launchBaseUrl: process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL
   };
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
 
   try {
     const pg = new MemoryPg();
@@ -3412,31 +3412,31 @@ test('collaboration HTTP rejects invalid RustDesk control-plane query params', a
     assert.deepEqual(tooLargeLimit, limitError);
     assert.deepEqual(invalidSince, { status: 400, data: { error: 'since must be an ISO timestamp' } });
   } finally {
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
   }
 });
 
 test('collaboration HTTP exposes RustDesk client config from public key file', async () => {
   const previousEnv = {
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN,
-    remoteGatewayToken: process.env.OPC_REMOTE_GATEWAY_API_TOKEN,
-    idServer: process.env.OPC_RUSTDESK_ID_SERVER,
-    relayServer: process.env.OPC_RUSTDESK_RELAY_SERVER,
-    publicKey: process.env.OPC_RUSTDESK_PUBLIC_KEY,
-    publicKeyFile: process.env.OPC_RUSTDESK_PUBLIC_KEY_FILE,
-    serverKey: process.env.OPC_RUSTDESK_SERVER_KEY
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN,
+    remoteGatewayToken: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN,
+    idServer: process.env.CONVERACT_RUSTDESK_ID_SERVER,
+    relayServer: process.env.CONVERACT_RUSTDESK_RELAY_SERVER,
+    publicKey: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY,
+    publicKeyFile: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE,
+    serverKey: process.env.CONVERACT_RUSTDESK_SERVER_KEY
   };
   const rustdeskDataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-data-'));
   const publicKeyFile = join(rustdeskDataDir, 'id_ed25519.pub');
   writeFileSync(publicKeyFile, RUSTDESK_PUBLIC_KEY);
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'different-remote-gateway-token';
-  process.env.OPC_RUSTDESK_ID_SERVER = 'rustdesk-id.example.com';
-  process.env.OPC_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.com';
-  delete process.env.OPC_RUSTDESK_PUBLIC_KEY;
-  process.env.OPC_RUSTDESK_PUBLIC_KEY_FILE = publicKeyFile;
-  process.env.OPC_RUSTDESK_SERVER_KEY = 'do-not-expose-this-private-value';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'different-remote-gateway-token';
+  process.env.CONVERACT_RUSTDESK_ID_SERVER = 'rustdesk-id.example.com';
+  process.env.CONVERACT_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.com';
+  delete process.env.CONVERACT_RUSTDESK_PUBLIC_KEY;
+  process.env.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE = publicKeyFile;
+  process.env.CONVERACT_RUSTDESK_SERVER_KEY = 'do-not-expose-this-private-value';
 
   try {
     const pg = new MemoryPg();
@@ -3471,28 +3471,28 @@ test('collaboration HTTP exposes RustDesk client config from public key file', a
     });
     assert.notEqual(clientConfig.data.public_key, 'do-not-expose-this-private-value');
   } finally {
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.remoteGatewayToken);
-    restoreEnv('OPC_RUSTDESK_ID_SERVER', previousEnv.idServer);
-    restoreEnv('OPC_RUSTDESK_RELAY_SERVER', previousEnv.relayServer);
-    restoreEnv('OPC_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
-    restoreEnv('OPC_RUSTDESK_PUBLIC_KEY_FILE', previousEnv.publicKeyFile);
-    restoreEnv('OPC_RUSTDESK_SERVER_KEY', previousEnv.serverKey);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.remoteGatewayToken);
+    restoreEnv('CONVERACT_RUSTDESK_ID_SERVER', previousEnv.idServer);
+    restoreEnv('CONVERACT_RUSTDESK_RELAY_SERVER', previousEnv.relayServer);
+    restoreEnv('CONVERACT_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
+    restoreEnv('CONVERACT_RUSTDESK_PUBLIC_KEY_FILE', previousEnv.publicKeyFile);
+    restoreEnv('CONVERACT_RUSTDESK_SERVER_KEY', previousEnv.serverKey);
   }
 });
 
 test('collaboration HTTP rejects blank RustDesk public key files', async () => {
   const previousEnv = {
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN,
-    publicKey: process.env.OPC_RUSTDESK_PUBLIC_KEY,
-    publicKeyFile: process.env.OPC_RUSTDESK_PUBLIC_KEY_FILE
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN,
+    publicKey: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY,
+    publicKeyFile: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE
   };
   const rustdeskDataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-blank-key-'));
   const publicKeyFile = join(rustdeskDataDir, 'id_ed25519.pub');
   writeFileSync(publicKeyFile, '\n  \n');
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  delete process.env.OPC_RUSTDESK_PUBLIC_KEY;
-  process.env.OPC_RUSTDESK_PUBLIC_KEY_FILE = publicKeyFile;
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  delete process.env.CONVERACT_RUSTDESK_PUBLIC_KEY;
+  process.env.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE = publicKeyFile;
 
   try {
     const pg = new MemoryPg();
@@ -3509,23 +3509,23 @@ test('collaboration HTTP rejects blank RustDesk public key files', async () => {
       data: { error: `RustDesk public key file is empty: ${publicKeyFile}` }
     });
   } finally {
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
-    restoreEnv('OPC_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
-    restoreEnv('OPC_RUSTDESK_PUBLIC_KEY_FILE', previousEnv.publicKeyFile);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
+    restoreEnv('CONVERACT_RUSTDESK_PUBLIC_KEY_FILE', previousEnv.publicKeyFile);
   }
 });
 
 test('collaboration HTTP rejects RustDesk API server without HTTP protocols', async () => {
   const previousEnv = {
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN,
-    apiServer: process.env.OPC_RUSTDESK_API_SERVER,
-    publicKey: process.env.OPC_RUSTDESK_PUBLIC_KEY,
-    publicKeyFile: process.env.OPC_RUSTDESK_PUBLIC_KEY_FILE
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN,
+    apiServer: process.env.CONVERACT_RUSTDESK_API_SERVER,
+    publicKey: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY,
+    publicKeyFile: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE
   };
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_RUSTDESK_API_SERVER = 'ftp://rustdesk-api.example.com';
-  process.env.OPC_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
-  delete process.env.OPC_RUSTDESK_PUBLIC_KEY_FILE;
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_RUSTDESK_API_SERVER = 'ftp://rustdesk-api.example.com';
+  process.env.CONVERACT_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
+  delete process.env.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE;
 
   try {
     const pg = new MemoryPg();
@@ -3542,24 +3542,24 @@ test('collaboration HTTP rejects RustDesk API server without HTTP protocols', as
       data: { error: 'RustDesk API server must use http(s)' }
     });
   } finally {
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
-    restoreEnv('OPC_RUSTDESK_API_SERVER', previousEnv.apiServer);
-    restoreEnv('OPC_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
-    restoreEnv('OPC_RUSTDESK_PUBLIC_KEY_FILE', previousEnv.publicKeyFile);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_RUSTDESK_API_SERVER', previousEnv.apiServer);
+    restoreEnv('CONVERACT_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
+    restoreEnv('CONVERACT_RUSTDESK_PUBLIC_KEY_FILE', previousEnv.publicKeyFile);
   }
 });
 
 test('collaboration HTTP rejects iveKit RustDesk client config API server without HTTP protocols', async () => {
   const previousEnv = {
-    apiKey: process.env.OPC_API_KEY,
-    apiServer: process.env.OPC_RUSTDESK_API_SERVER,
-    publicKey: process.env.OPC_RUSTDESK_PUBLIC_KEY,
-    publicKeyFile: process.env.OPC_RUSTDESK_PUBLIC_KEY_FILE
+    apiKey: process.env.CONVERACT_API_KEY,
+    apiServer: process.env.CONVERACT_RUSTDESK_API_SERVER,
+    publicKey: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY,
+    publicKeyFile: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE
   };
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_RUSTDESK_API_SERVER = 'ftp://rustdesk-api.example.com';
-  process.env.OPC_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
-  delete process.env.OPC_RUSTDESK_PUBLIC_KEY_FILE;
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_RUSTDESK_API_SERVER = 'ftp://rustdesk-api.example.com';
+  process.env.CONVERACT_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
+  delete process.env.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE;
 
   try {
     const pg = new MemoryPg();
@@ -3576,15 +3576,15 @@ test('collaboration HTTP rejects iveKit RustDesk client config API server withou
       data: { error: 'RustDesk API server must use http(s)' }
     });
   } finally {
-    restoreEnv('OPC_API_KEY', previousEnv.apiKey);
-    restoreEnv('OPC_RUSTDESK_API_SERVER', previousEnv.apiServer);
-    restoreEnv('OPC_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
-    restoreEnv('OPC_RUSTDESK_PUBLIC_KEY_FILE', previousEnv.publicKeyFile);
+    restoreEnv('CONVERACT_API_KEY', previousEnv.apiKey);
+    restoreEnv('CONVERACT_RUSTDESK_API_SERVER', previousEnv.apiServer);
+    restoreEnv('CONVERACT_RUSTDESK_PUBLIC_KEY', previousEnv.publicKey);
+    restoreEnv('CONVERACT_RUSTDESK_PUBLIC_KEY_FILE', previousEnv.publicKeyFile);
   }
 });
 
 test('collaboration HTTP sends text chat messages and scans policy automatically', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const tenantId = 'tenant_chat_http';
 
@@ -3648,7 +3648,7 @@ test('collaboration HTTP sends text chat messages and scans policy automatically
 });
 
 test('collaboration HTTP marks participants left and revokes Tinode access', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const tinode = await startFakeTinodeServerForHttp();
   const previousEnv = {
     baseUrl: process.env.TINODE_BASE_URL,
@@ -3734,7 +3734,7 @@ test('collaboration HTTP marks participants left and revokes Tinode access', asy
 });
 
 test('collaboration HTTP stores attachment messages and scans extracted attachment text', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const previousEnv = {
     baseUrl: process.env.TINODE_BASE_URL,
     wsUrl: process.env.TINODE_WS_URL,
@@ -3834,7 +3834,7 @@ test('collaboration HTTP stores attachment messages and scans extracted attachme
 });
 
 test('collaboration HTTP reuses existing Tinode topic binding when sending messages', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const tinode = await startFakeTinodeServerForHttp();
   const previousEnv = {
     baseUrl: process.env.TINODE_BASE_URL,
@@ -3895,7 +3895,7 @@ test('collaboration HTTP reuses existing Tinode topic binding when sending messa
 });
 
 test('collaboration HTTP syncs Tinode participant access when adding participants', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const tinode = await startFakeTinodeServerForHttp();
   const previousEnv = {
     baseUrl: process.env.TINODE_BASE_URL,
@@ -3962,7 +3962,7 @@ test('collaboration HTTP syncs Tinode participant access when adding participant
 });
 
 test('collaboration HTTP returns Tinode client join plan without leaking server secrets', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const tinode = await startFakeTinodeServerForHttp();
   const previousEnv = {
     baseUrl: process.env.TINODE_BASE_URL,

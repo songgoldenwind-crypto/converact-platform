@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 import {
   link,
@@ -1249,39 +1250,39 @@ export async function createDefaultLiveKitBrowserCapacityRuntime(
   const playwright = await loadLiveKitBrowserDependency<PlaywrightLike>('playwright');
   const livekitClientPath = resolveLiveKitBrowserDependency('livekit-client');
   const maximumRooms = optionalBoundedInteger(
-    env.OPC_IVEKIT_LIVEKIT_BROWSER_MAX_ROOMS,
+    resolveFabricEnv(env, 'LIVEKIT_BROWSER_MAX_ROOMS'),
     16,
     1,
     256,
-    'OPC_IVEKIT_LIVEKIT_BROWSER_MAX_ROOMS'
+    'CONVERACT_FABRIC_LIVEKIT_BROWSER_MAX_ROOMS'
   );
   const observationFile = String(
-    env.OPC_IVEKIT_LIVEKIT_GENERATOR_OBSERVATION_FILE || ''
+    resolveFabricEnv(env, 'LIVEKIT_GENERATOR_OBSERVATION_FILE') || ''
   ).trim();
   const generatorInterface = String(
-    env.OPC_IVEKIT_LIVEKIT_GENERATOR_INTERFACE || ''
+    resolveFabricEnv(env, 'LIVEKIT_GENERATOR_INTERFACE') || ''
   ).trim();
   const generatorNicBps = Number(
-    env.OPC_IVEKIT_LIVEKIT_GENERATOR_NIC_BPS || 0
+    resolveFabricEnv(env, 'LIVEKIT_GENERATOR_NIC_BPS') || 0
   );
   const generatorSampleIntervalMs = optionalBoundedInteger(
-    env.OPC_IVEKIT_LIVEKIT_GENERATOR_SAMPLE_INTERVAL_MS,
+    resolveFabricEnv(env, 'LIVEKIT_GENERATOR_SAMPLE_INTERVAL_MS'),
     1_000,
     100,
     10_000,
-    'OPC_IVEKIT_LIVEKIT_GENERATOR_SAMPLE_INTERVAL_MS'
+    'CONVERACT_FABRIC_LIVEKIT_GENERATOR_SAMPLE_INTERVAL_MS'
   );
   if (observationFile) {
     absolutePath(observationFile, 'generator observation path');
   } else {
     if (process.platform !== 'linux') {
       throw new Error(
-        'OPC_IVEKIT_LIVEKIT_GENERATOR_OBSERVATION_FILE is required outside Linux'
+        'CONVERACT_FABRIC_LIVEKIT_GENERATOR_OBSERVATION_FILE is required outside Linux'
       );
     }
     linuxNetworkInterface(generatorInterface);
     if (!Number.isSafeInteger(generatorNicBps) || generatorNicBps <= 0) {
-      throw new Error('OPC_IVEKIT_LIVEKIT_GENERATOR_NIC_BPS is invalid');
+      throw new Error('CONVERACT_FABRIC_LIVEKIT_GENERATOR_NIC_BPS is invalid');
     }
   }
   let measuredGenerator: LiveKitBrowserGeneratorObservation | null = null;

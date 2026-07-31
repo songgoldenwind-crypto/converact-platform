@@ -100,8 +100,8 @@ async function fixture(owner?: {
 }
 
 test('device observations are fenced by the gateway placement owner', async () => {
-  const previous = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_SECRET;
+  const previous = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_SECRET;
   const owner = {
     interaction_id: 'remote-session-observation-owner-1',
     reservation_id: 'reservation-observation-owner-1',
@@ -138,14 +138,14 @@ test('device observations are fenced by the gateway placement owner', async () =
     }, token) as { status: number };
     assert.equal(accepted.status, 201);
   } finally {
-    if (previous === undefined) delete process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-    else process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = previous;
+    if (previous === undefined) delete process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+    else process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = previous;
   }
 });
 
 test('device token heartbeat resolves only a pre-registered matching business device', async () => {
-  const previous = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_SECRET;
+  const previous = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_SECRET;
   const value = await fixture();
   const token = edgeToken(value.tenantId, value.device.rustdesk_id, 'windows-edge-01');
 
@@ -178,14 +178,14 @@ test('device token heartbeat resolves only a pre-registered matching business de
       { status: 401, data: { error: 'RustDesk edge token is required' } }
     );
   } finally {
-    if (previous === undefined) delete process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-    else process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = previous;
+    if (previous === undefined) delete process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+    else process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = previous;
   }
 });
 
 test('device observation batch is idempotent and binds sensitive operations to the current controller', async () => {
-  const previous = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_SECRET;
+  const previous = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_SECRET;
   const value = await fixture();
   const token = edgeToken(value.tenantId, value.device.rustdesk_id, 'windows-edge-01');
   const observedAt = new Date().toISOString();
@@ -252,14 +252,14 @@ test('device observation batch is idempotent and binds sensitive operations to t
       2
     );
   } finally {
-    if (previous === undefined) delete process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-    else process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = previous;
+    if (previous === undefined) delete process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+    else process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = previous;
   }
 });
 
 test('device observations reject device drift, stale control, secrets, and ended sessions', async () => {
-  const previous = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_SECRET;
+  const previous = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_SECRET;
   const value = await fixture();
   const path = `/api/ivekit/rustdesk/devices/${value.device.id}/observations`;
   const base = {
@@ -324,7 +324,7 @@ test('device observations reject device drift, stale control, secrets, and ended
       /RustDesk gateway session is not active/
     );
   } finally {
-    if (previous === undefined) delete process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-    else process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = previous;
+    if (previous === undefined) delete process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+    else process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = previous;
   }
 });

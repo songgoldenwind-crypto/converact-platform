@@ -99,17 +99,17 @@ test('standalone media hooks write tenant-scoped recording audit', async () => {
 });
 
 test('standalone media hooks reject invalid retention configuration', () => {
-  const previous = process.env.OPC_RECORDING_RETENTION_DAYS;
-  process.env.OPC_RECORDING_RETENTION_DAYS = '0';
+  const previous = process.env.CONVERACT_RECORDING_RETENTION_DAYS;
+  process.env.CONVERACT_RECORDING_RETENTION_DAYS = '0';
   const db = createDatabase(':memory:');
   try {
     assert.throws(
       () => createIveKitMediaHooks({ db, pg: new MemoryPg() }),
-      /OPC_RECORDING_RETENTION_DAYS must be an integer between 1 and 3650/
+      /CONVERACT_RECORDING_RETENTION_DAYS must be an integer between 1 and 3650/
     );
   } finally {
-    if (previous === undefined) delete process.env.OPC_RECORDING_RETENTION_DAYS;
-    else process.env.OPC_RECORDING_RETENTION_DAYS = previous;
+    if (previous === undefined) delete process.env.CONVERACT_RECORDING_RETENTION_DAYS;
+    else process.env.CONVERACT_RECORDING_RETENTION_DAYS = previous;
     db.close();
   }
 });

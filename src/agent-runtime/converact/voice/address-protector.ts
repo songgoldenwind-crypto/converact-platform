@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import {
   createCipheriv,
   createDecipheriv,
@@ -78,11 +79,11 @@ export function configuredVoiceAddressProtector(
   env: NodeJS.ProcessEnv = process.env
 ): VoiceAddressProtector {
   const encryptionKey = String(
-    env.OPC_IVEKIT_VOICE_ADDRESS_KEY
-    || env.OPC_IVEKIT_VOICE_ADDRESS_ENCRYPTION_KEY
+    resolveFabricEnv(env, 'VOICE_ADDRESS_KEY')
+    || resolveFabricEnv(env, 'VOICE_ADDRESS_ENCRYPTION_KEY')
     || ''
   );
-  const hmacKey = String(env.OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY || '');
+  const hmacKey = String(resolveFabricEnv(env, 'VOICE_ADDRESS_HMAC_KEY') || '');
   if (encryptionKey && hmacKey) {
     return new EncryptedVoiceAddressProtector({ encryption_key: encryptionKey, hmac_key: hmacKey });
   }

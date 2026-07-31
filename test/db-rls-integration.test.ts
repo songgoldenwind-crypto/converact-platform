@@ -7,7 +7,7 @@
  * short-circuit to fn(pg) for MemoryPg).
  *
  * THEY REQUIRE A REAL POSTGRES: run with `DATABASE_URL=postgres://...` set and
- * `OPC_USE_MEMORY_PG` unset. Without DATABASE_URL every test skips — that is
+ * `CONVERACT_USE_MEMORY_PG` unset. Without DATABASE_URL every test skips — that is
  * the intended safe default for test:fast.
  *
  * ─────────────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ function withPgTransactionRaw<T>(pg: PgQueryable, fn: (c: PgQueryable) => Promis
   return withPgTransaction(pg, fn);
 }
 
-const HAS_REAL_PG = !process.env.OPC_USE_MEMORY_PG && !!process.env.DATABASE_URL;
+const HAS_REAL_PG = !process.env.CONVERACT_USE_MEMORY_PG && !!process.env.DATABASE_URL;
 const maybe = HAS_REAL_PG ? test : test.skip;
 
 let pg: PgQueryable;

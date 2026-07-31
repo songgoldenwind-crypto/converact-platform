@@ -43,7 +43,7 @@ LED/OPC backend or short-lived browser JWT
 
 ## 3. Provider Profile
 
-`OPC_IVEKIT_PROVIDER_PROFILES_JSON` 只保存非敏感路由元数据。token 只放环境变量或 Kubernetes Secret，JSON 中只能写 `token_env` 名称。
+`CONVERACT_FABRIC_PROVIDER_PROFILES_JSON` 只保存非敏感路由元数据。token 只放环境变量或 Kubernetes Secret，JSON 中只能写 `token_env` 名称。
 
 ### 3.1 自建场景
 

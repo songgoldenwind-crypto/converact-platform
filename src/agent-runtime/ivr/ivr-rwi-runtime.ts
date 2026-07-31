@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 /**
  * Production IVR ↔ RustPBX bridge: subscribes to ivr_bot, answers inbound calls,
  * dispatches ivr-rwi-bridge commands and feeds DTMF events back into advance.
@@ -11,7 +12,7 @@ import { advanceIvrStep } from './ivr-inbound-routing.js';
 import { ivrActionToRwi, type RwiCommandEnvelope } from './ivr-rwi-bridge.js';
 import type { IvrStepInput } from './ivr-executor.js';
 
-const IVR_CONTEXT = process.env.OPC_IVR_RWI_CONTEXT || 'ivr_bot';
+const IVR_CONTEXT = resolveBrandEnv(process.env, 'IVR_RWI_CONTEXT') || 'ivr_bot';
 
 let client: RwiV1Client | null = null;
 let started = false;
@@ -303,7 +304,7 @@ async function handleMediaEvent(
 }
 
 export async function startIvrRwiRuntime(db: unknown, _voiceStore: VoiceStore): Promise<void> {
-  if (started || process.env.OPC_DISABLE_IVR_RWI === '1') return;
+  if (started || resolveBrandEnv(process.env, 'DISABLE_IVR_RWI') === '1') return;
 
   const config = readRwiV1Config();
   if (!config.url) {
@@ -313,8 +314,8 @@ export async function startIvrRwiRuntime(db: unknown, _voiceStore: VoiceStore): 
 
   client = new RwiV1Client({ url: config.url, authToken: config.authToken });
   eventQueue = new IvrRwiSerialQueue({
-    maxPending: Number(process.env.OPC_IVR_RWI_MAX_PENDING || 4096),
-    maxPendingPerCall: Number(process.env.OPC_IVR_RWI_MAX_PENDING_PER_CALL || 32),
+    maxPending: Number(resolveBrandEnv(process.env, 'IVR_RWI_MAX_PENDING') || 4096),
+    maxPendingPerCall: Number(resolveBrandEnv(process.env, 'IVR_RWI_MAX_PENDING_PER_CALL') || 32),
   });
   client.onMessage((message) => {
     const callId = extractRustpbxCallId(message);

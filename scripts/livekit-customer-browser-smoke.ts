@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 import { loadPlaywright, type BrowserAutomation } from './livekit-browser-smoke.js';
 
@@ -25,18 +26,18 @@ const defaultTimeoutMs = 30_000;
 export function createLiveKitCustomerBrowserSmokeConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): LiveKitCustomerBrowserSmokeConfig {
-  const frontendUrl = trimTrailingSlash(env.OPC_FRONTEND_URL || env.OPC_APP_URL || '');
-  if (!frontendUrl) throw new Error('OPC_FRONTEND_URL is required');
+  const frontendUrl = trimTrailingSlash(resolveBrandEnv(env, 'FRONTEND_URL') || resolveBrandEnv(env, 'APP_URL') || '');
+  if (!frontendUrl) throw new Error('CONVERACT_FRONTEND_URL is required');
 
   return {
     frontendUrl,
     customerUrl: resolveCustomerUrl(env, frontendUrl),
-    headless: env.OPC_CUSTOMER_BROWSER_SMOKE_HEADLESS !== '0',
-    timeoutMs: Number(env.OPC_CUSTOMER_BROWSER_SMOKE_TIMEOUT_MS || defaultTimeoutMs),
+    headless: resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_HEADLESS') !== '0',
+    timeoutMs: Number(resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_TIMEOUT_MS') || defaultTimeoutMs),
     expectRemoteParticipant:
-      env.OPC_CUSTOMER_BROWSER_SMOKE_EXPECT_REMOTE === '1' ||
-      env.OPC_CUSTOMER_BROWSER_SMOKE_EXPECT_AVATAR === '1',
-    expectScreenShare: env.OPC_CUSTOMER_BROWSER_SMOKE_EXPECT_SCREEN_SHARE === '1'
+      resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_EXPECT_REMOTE') === '1' ||
+      resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_EXPECT_AVATAR') === '1',
+    expectScreenShare: resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_EXPECT_SCREEN_SHARE') === '1'
   };
 }
 
@@ -100,23 +101,23 @@ export async function runLiveKitCustomerBrowserSmoke(
 }
 
 function resolveCustomerUrl(env: NodeJS.ProcessEnv, frontendUrl: string): string {
-  const explicitUrl = env.OPC_CUSTOMER_VIDEO_URL || env.OPC_CUSTOMER_BROWSER_SMOKE_URL || '';
+  const explicitUrl = resolveBrandEnv(env, 'CUSTOMER_VIDEO_URL') || resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_URL') || '';
   if (explicitUrl) return new URL(explicitUrl, frontendUrl).toString();
 
   const roomName =
-    env.OPC_CUSTOMER_BROWSER_SMOKE_ROOM_NAME || env.OPC_CUSTOMER_VIDEO_ROOM_NAME || '';
+    resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_ROOM_NAME') || resolveBrandEnv(env, 'CUSTOMER_VIDEO_ROOM_NAME') || '';
   const tenantId =
-    env.OPC_CUSTOMER_BROWSER_SMOKE_TENANT_ID || env.OPC_TENANT_ID || '';
-  if (!roomName) throw new Error('OPC_CUSTOMER_BROWSER_SMOKE_ROOM_NAME is required');
+    resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || '';
+  if (!roomName) throw new Error('CONVERACT_CUSTOMER_BROWSER_SMOKE_ROOM_NAME is required');
   if (!tenantId) {
-    throw new Error('OPC_CUSTOMER_BROWSER_SMOKE_TENANT_ID or OPC_TENANT_ID is required');
+    throw new Error('CONVERACT_CUSTOMER_BROWSER_SMOKE_TENANT_ID or CONVERACT_TENANT_ID is required');
   }
 
   const url = new URL('/video', frontendUrl);
   url.searchParams.set('room', roomName);
   url.searchParams.set('tenant_id', tenantId);
-  const invite = env.OPC_CUSTOMER_BROWSER_SMOKE_INVITE || '';
-  const expiresAt = env.OPC_CUSTOMER_BROWSER_SMOKE_EXPIRES_AT || '';
+  const invite = resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_INVITE') || '';
+  const expiresAt = resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_EXPIRES_AT') || '';
   if (invite) url.searchParams.set('invite', invite);
   if (expiresAt) url.searchParams.set('expires_at', expiresAt);
   return url.toString();

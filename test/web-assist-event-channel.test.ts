@@ -35,7 +35,7 @@ async function route(
 }
 
 test('Web Assist events can be recorded through collaboration HTTP', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const tenantId = 'tenant_web_assist_events';
 
@@ -112,7 +112,7 @@ test('Web Assist events can be recorded through collaboration HTTP', async () =>
 });
 
 test('public Web Assist tokens can record customer browser events', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const tenantId = 'tenant_web_assist_public_events';
 

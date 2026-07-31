@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { test } from 'node:test';
@@ -17,15 +18,15 @@ const LIVEKIT_ENV_KEYS = [
   'LIVEKIT_PUBLIC_URL',
   'LIVEKIT_API_KEY',
   'LIVEKIT_API_SECRET',
-  'OPC_LIVEKIT_URL',
-  'OPC_LIVEKIT_PUBLIC_URL',
-  'OPC_LIVEKIT_API_KEY',
-  'OPC_LIVEKIT_API_SECRET',
-  'OPC_MEDIA_INVITE_SECRET',
+  'CONVERACT_LIVEKIT_URL',
+  'CONVERACT_LIVEKIT_PUBLIC_URL',
+  'CONVERACT_LIVEKIT_API_KEY',
+  'CONVERACT_LIVEKIT_API_SECRET',
+  'CONVERACT_MEDIA_INVITE_SECRET',
   'LIVEKIT_MEDIA_INVITE_SECRET',
   'MINIO_ACCESS_KEY',
   'MINIO_SECRET_KEY',
-  'OPC_SIP_VOLTE_ENABLED',
+  'CONVERACT_SIP_VOLTE_ENABLED',
   'LIVEKIT_SIP_BRIDGE_TARGET',
   'RUSTPBX_LIVEKIT_TRUNK',
   'RUSTPBX_RWI_URL',
@@ -59,7 +60,7 @@ async function route(
 }
 
 function snapshotEnv(keys: string[]): Record<string, string | undefined> {
-  return Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  return Object.fromEntries(keys.map((key) => [key, resolveConveractEnv(process.env, key)]));
 }
 
 function restoreEnv(snapshot: Record<string, string | undefined>): void {
@@ -74,16 +75,16 @@ function clearLiveKitEnv(): void {
 }
 
 test('iveKit media facade exposes deployment capabilities through platform auth', async () => {
-  const envSnapshot = snapshotEnv(['OPC_API_KEY', ...LIVEKIT_ENV_KEYS]);
-  process.env.OPC_API_KEY = API_KEY;
+  const envSnapshot = snapshotEnv(['CONVERACT_API_KEY', ...LIVEKIT_ENV_KEYS]);
+  process.env.CONVERACT_API_KEY = API_KEY;
   process.env.LIVEKIT_URL = 'wss://livekit.example.com';
   process.env.LIVEKIT_PUBLIC_URL = 'wss://livekit.example.com';
   process.env.LIVEKIT_API_KEY = 'livekit-key';
   process.env.LIVEKIT_API_SECRET = 'livekit-secret';
-  process.env.OPC_MEDIA_INVITE_SECRET = 'invite-secret';
+  process.env.CONVERACT_MEDIA_INVITE_SECRET = 'invite-secret';
   process.env.MINIO_ACCESS_KEY = 'minio-key';
   process.env.MINIO_SECRET_KEY = 'minio-secret';
-  process.env.OPC_SIP_VOLTE_ENABLED = '0';
+  process.env.CONVERACT_SIP_VOLTE_ENABLED = '0';
   process.env.LIVEKIT_SIP_BRIDGE_TARGET = 'sip:livekit-bridge@livekit-sip:5061';
   process.env.RUSTPBX_LIVEKIT_TRUNK = 'livekit-bridge';
   process.env.RUSTPBX_RWI_URL = 'wss://rustpbx.example.com/rwi/v1';
@@ -126,7 +127,7 @@ test('iveKit media facade exposes deployment capabilities through platform auth'
     assert.equal(JSON.stringify(result).includes('minio-secret'), false);
     assert.equal(JSON.stringify(result).includes('rwi-secret'), false);
 
-    process.env.OPC_SIP_VOLTE_ENABLED = '1';
+    process.env.CONVERACT_SIP_VOLTE_ENABLED = '1';
     const activated = await route(
       db,
       'GET',
@@ -153,7 +154,7 @@ test('iveKit media facade exposes deployment capabilities through platform auth'
 });
 
 test('iveKit media facade creates rooms, prepares joins, lists participants, and starts recordings', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   clearLiveKitEnv();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'iveKit Media Tenant' }).id;
@@ -252,7 +253,7 @@ test('iveKit media facade creates rooms, prepares joins, lists participants, and
 });
 
 test('iveKit media facade keeps rooms tenant scoped', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   clearLiveKitEnv();
   const db = createDatabase(':memory:');
   const tenantA = createTenant(db, { name: 'Tenant A' }).id;
@@ -287,9 +288,9 @@ test('iveKit media facade keeps rooms tenant scoped', async () => {
 });
 
 test('legacy room join is system-only so JWT users cannot mint arbitrary identities or agent roles', async () => {
-  const envSnapshot = snapshotEnv(['OPC_API_KEY', 'OPC_JWT_SECRET', ...LIVEKIT_ENV_KEYS]);
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_JWT_SECRET = 'ivekit-media-facade-jwt-secret';
+  const envSnapshot = snapshotEnv(['CONVERACT_API_KEY', 'CONVERACT_JWT_SECRET', ...LIVEKIT_ENV_KEYS]);
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_JWT_SECRET = 'ivekit-media-facade-jwt-secret';
   clearLiveKitEnv();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'Legacy join tenant' }).id;
@@ -311,7 +312,7 @@ test('legacy room join is system-only so JWT users cannot mint arbitrary identit
 });
 
 test('iveKit media facade accepts LiveKit webhook raw bodies without platform auth', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   clearLiveKitEnv();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'iveKit Webhook Tenant' }).id;
@@ -356,7 +357,7 @@ test('iveKit media facade accepts LiveKit webhook raw bodies without platform au
 });
 
 test('iveKit media webhook journals room and participant lifecycle events', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   clearLiveKitEnv();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'iveKit Webhook Event Tenant' }).id;
@@ -460,7 +461,7 @@ test('iveKit media webhook journals room and participant lifecycle events', asyn
 });
 
 test('iveKit media webhook completes recording evidence through the facade hook', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   clearLiveKitEnv();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'iveKit Webhook Evidence Tenant' }).id;
@@ -525,7 +526,7 @@ test('iveKit media webhook completes recording evidence through the facade hook'
 });
 
 test('iveKit media webhook releases each terminal Egress job and hides placement internals', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   clearLiveKitEnv();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'iveKit Egress Placement Tenant' }).id;
@@ -599,7 +600,7 @@ test('iveKit media webhook releases each terminal Egress job and hides placement
 });
 
 test('iveKit media facade is registered in the main HTTP router', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   clearLiveKitEnv();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'HTTP Router Media Tenant' }).id;

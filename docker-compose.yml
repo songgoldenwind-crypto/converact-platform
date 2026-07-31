@@ -2,10 +2,10 @@ services:
   opc:
     build: .
     ports:
-      - "${OPC_HOST_PORT:-3000}:3000"
+      - "${CONVERACT_HOST_PORT:-3000}:3000"
     environment:
       PORT: "3000"
-      OPC_DB_PATH: "/data/opc.sqlite"
+      CONVERACT_DB_PATH: "/data/opc.sqlite"
     volumes:
       - opc_data:/data
 

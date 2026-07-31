@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveConveractEnv } from '../src/config/converact-env.js';
 import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -71,17 +72,17 @@ export interface LiveKitEdgeConfigRenderResult extends MediaConfigRenderResult {
 
 export function createMediaConfigRenderInputFromEnv(env: NodeJS.ProcessEnv): MediaConfigRenderInput {
   return {
-    outputDir: normalizeOutputDir(env.OPC_MEDIA_CONFIG_DIR || '.runtime/media'),
+    outputDir: normalizeOutputDir(resolveBrandEnv(env, 'MEDIA_CONFIG_DIR') || '.runtime/media'),
     livekitApiKey: requiredRuntimeSecret(env, 'LIVEKIT_API_KEY'),
     livekitApiSecret: requiredRuntimeSecret(env, 'LIVEKIT_API_SECRET'),
-    livekitWsUrl: env.OPC_MEDIA_CONFIG_LIVEKIT_URL || 'ws://livekit:7880',
+    livekitWsUrl: resolveBrandEnv(env, 'MEDIA_CONFIG_LIVEKIT_URL') || 'ws://livekit:7880',
     livekitRedis: createMediaRedisRenderConfigFromEnv(env, 'redis:6379'),
-    livekitWebhookUrl: env.OPC_MEDIA_CONFIG_WEBHOOK_URL || 'http://opc:3000/api/media/webhooks/livekit',
-    livekitRtcTcpPort: parsePort(env.OPC_MEDIA_CONFIG_RTC_TCP_PORT, 'OPC_MEDIA_CONFIG_RTC_TCP_PORT', 7881),
-    livekitRtcUdpPort: parsePortRange(env.OPC_MEDIA_CONFIG_RTC_UDP_PORT, 'OPC_MEDIA_CONFIG_RTC_UDP_PORT', '7882-7892'),
-    livekitUseExternalIp: parseBoolean(env.OPC_MEDIA_CONFIG_USE_EXTERNAL_IP, 'OPC_MEDIA_CONFIG_USE_EXTERNAL_IP', true),
+    livekitWebhookUrl: resolveBrandEnv(env, 'MEDIA_CONFIG_WEBHOOK_URL') || 'http://opc:3000/api/media/webhooks/livekit',
+    livekitRtcTcpPort: parsePort(resolveBrandEnv(env, 'MEDIA_CONFIG_RTC_TCP_PORT'), 'CONVERACT_MEDIA_CONFIG_RTC_TCP_PORT', 7881),
+    livekitRtcUdpPort: parsePortRange(resolveBrandEnv(env, 'MEDIA_CONFIG_RTC_UDP_PORT'), 'CONVERACT_MEDIA_CONFIG_RTC_UDP_PORT', '7882-7892'),
+    livekitUseExternalIp: parseBoolean(resolveBrandEnv(env, 'MEDIA_CONFIG_USE_EXTERNAL_IP'), 'CONVERACT_MEDIA_CONFIG_USE_EXTERNAL_IP', true),
     livekitPliThrottle: createLiveKitPliThrottleConfigFromEnv(env),
-    egressHealthPort: parsePort(env.OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT, 'OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT', 8091),
+    egressHealthPort: parsePort(resolveBrandEnv(env, 'MEDIA_CONFIG_EGRESS_HEALTH_PORT'), 'CONVERACT_MEDIA_CONFIG_EGRESS_HEALTH_PORT', 8091),
     objectStorage: requiredMediaObjectStorage(env)
   };
 }
@@ -115,13 +116,13 @@ export function createLiveKitEdgeConfigRenderInputFromEnv(
     throw new Error('LiveKit and iveKit edge domains must be unique');
   }
   const rtcPortRangeStart = parsePort(
-    env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START,
-    'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START',
+    resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_START'),
+    'CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_START',
     50_000
   );
   const rtcPortRangeEnd = parsePort(
-    env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END,
-    'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END',
+    resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_END'),
+    'CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_END',
     60_000
   );
   if (rtcPortRangeEnd < rtcPortRangeStart) {
@@ -129,7 +130,7 @@ export function createLiveKitEdgeConfigRenderInputFromEnv(
   }
 
   return {
-    outputDir: normalizeEdgeOutputDir(env.OPC_LIVEKIT_EDGE_CONFIG_DIR || '.runtime/livekit-edge'),
+    outputDir: normalizeEdgeOutputDir(resolveBrandEnv(env, 'LIVEKIT_EDGE_CONFIG_DIR') || '.runtime/livekit-edge'),
     signalDomain,
     turnDomain,
     ivekitApiDomain,
@@ -139,18 +140,18 @@ export function createLiveKitEdgeConfigRenderInputFromEnv(
     acmeEmail: requiredEmail(env, 'LIVEKIT_ACME_EMAIL'),
     livekitApiKey: requiredRuntimeSecret(env, 'LIVEKIT_API_KEY'),
     livekitApiSecret: requiredRuntimeSecret(env, 'LIVEKIT_API_SECRET'),
-    livekitWsUrl: env.OPC_MEDIA_CONFIG_LIVEKIT_URL || 'ws://127.0.0.1:7880',
+    livekitWsUrl: resolveBrandEnv(env, 'MEDIA_CONFIG_LIVEKIT_URL') || 'ws://127.0.0.1:7880',
     livekitRedis: createMediaRedisRenderConfigFromEnv(env, '127.0.0.1:6379'),
-    livekitWebhookUrl: requiredEnv(env, 'OPC_MEDIA_CONFIG_WEBHOOK_URL'),
-    livekitRtcTcpPort: parsePort(env.OPC_MEDIA_CONFIG_RTC_TCP_PORT, 'OPC_MEDIA_CONFIG_RTC_TCP_PORT', 7881),
+    livekitWebhookUrl: requiredEnv(env, 'CONVERACT_MEDIA_CONFIG_WEBHOOK_URL'),
+    livekitRtcTcpPort: parsePort(resolveBrandEnv(env, 'MEDIA_CONFIG_RTC_TCP_PORT'), 'CONVERACT_MEDIA_CONFIG_RTC_TCP_PORT', 7881),
     livekitRtcUdpPort: '',
     livekitUseExternalIp: true,
     livekitPliThrottle: createLiveKitPliThrottleConfigFromEnv(env),
     rtcPortRangeStart,
     rtcPortRangeEnd,
-    turnTlsPort: parsePort(env.OPC_LIVEKIT_EDGE_TURN_TLS_PORT, 'OPC_LIVEKIT_EDGE_TURN_TLS_PORT', 5349),
-    turnUdpPort: parsePort(env.OPC_LIVEKIT_EDGE_TURN_UDP_PORT, 'OPC_LIVEKIT_EDGE_TURN_UDP_PORT', 3478),
-    egressHealthPort: parsePort(env.OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT, 'OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT', 8091),
+    turnTlsPort: parsePort(resolveBrandEnv(env, 'LIVEKIT_EDGE_TURN_TLS_PORT'), 'CONVERACT_LIVEKIT_EDGE_TURN_TLS_PORT', 5349),
+    turnUdpPort: parsePort(resolveBrandEnv(env, 'LIVEKIT_EDGE_TURN_UDP_PORT'), 'CONVERACT_LIVEKIT_EDGE_TURN_UDP_PORT', 3478),
+    egressHealthPort: parsePort(resolveBrandEnv(env, 'MEDIA_CONFIG_EGRESS_HEALTH_PORT'), 'CONVERACT_MEDIA_CONFIG_EGRESS_HEALTH_PORT', 8091),
     objectStorage: requiredMediaObjectStorage(env),
     livekitServerImageTag: requiredExactImageTag(env.LIVEKIT_SERVER_IMAGE_TAG, 'LIVEKIT_SERVER_IMAGE_TAG'),
     livekitEgressImageTag: requiredExactImageTag(env.LIVEKIT_EGRESS_IMAGE_TAG, 'LIVEKIT_EGRESS_IMAGE_TAG'),
@@ -423,63 +424,63 @@ function createMediaRedisRenderConfigFromEnv(
   fallbackAddress: string
 ): MediaRedisRenderConfig {
   const topology = String(
-    firstDefined(env.OPC_MEDIA_CONFIG_REDIS_TOPOLOGY, env.REDIS_TOPOLOGY) || 'direct'
+    firstDefined(resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_TOPOLOGY'), env.REDIS_TOPOLOGY) || 'direct'
   ).trim();
-  const directAddress = String(env.OPC_MEDIA_CONFIG_REDIS_ADDRESS || '').trim();
+  const directAddress = String(resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_ADDRESS') || '').trim();
   if (topology === 'sentinel' && directAddress) {
-    throw new Error('OPC_MEDIA_CONFIG_REDIS_ADDRESS must be empty in sentinel topology');
+    throw new Error('CONVERACT_MEDIA_CONFIG_REDIS_ADDRESS must be empty in sentinel topology');
   }
-  const explicitUrl = firstDefined(env.OPC_MEDIA_CONFIG_REDIS_URL, env.REDIS_URL);
+  const explicitUrl = firstDefined(resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_URL'), env.REDIS_URL);
   const redisEnv: Record<string, string | undefined> = {
     REDIS_TOPOLOGY: topology,
     REDIS_URL: topology === 'direct'
       ? explicitUrl || toDirectRedisUrl(directAddress || fallbackAddress)
       : explicitUrl,
-    REDIS_USERNAME: firstDefined(env.OPC_MEDIA_CONFIG_REDIS_USERNAME, env.REDIS_USERNAME),
-    REDIS_PASSWORD: firstDefined(env.OPC_MEDIA_CONFIG_REDIS_PASSWORD, env.REDIS_PASSWORD),
+    REDIS_USERNAME: firstDefined(resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_USERNAME'), env.REDIS_USERNAME),
+    REDIS_PASSWORD: firstDefined(resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_PASSWORD'), env.REDIS_PASSWORD),
     REDIS_SENTINEL_MASTER_NAME: firstDefined(
-      env.OPC_MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME,
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME'),
       env.REDIS_SENTINEL_MASTER_NAME
     ),
     REDIS_SENTINEL_ADDRESSES: firstDefined(
-      env.OPC_MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES,
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES'),
       env.REDIS_SENTINEL_ADDRESSES
     ),
     REDIS_SENTINEL_USERNAME: firstDefined(
-      env.OPC_MEDIA_CONFIG_REDIS_SENTINEL_USERNAME,
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_SENTINEL_USERNAME'),
       env.REDIS_SENTINEL_USERNAME
     ),
     REDIS_SENTINEL_PASSWORD: firstDefined(
-      env.OPC_MEDIA_CONFIG_REDIS_SENTINEL_PASSWORD,
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_SENTINEL_PASSWORD'),
       env.REDIS_SENTINEL_PASSWORD
     ),
-    REDIS_TLS_MODE: firstDefined(env.OPC_MEDIA_CONFIG_REDIS_TLS_MODE, env.REDIS_TLS_MODE),
+    REDIS_TLS_MODE: firstDefined(resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_TLS_MODE'), env.REDIS_TLS_MODE),
     REDIS_TLS_SERVER_NAME: firstDefined(
-      env.OPC_MEDIA_CONFIG_REDIS_TLS_SERVER_NAME,
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_TLS_SERVER_NAME'),
       env.REDIS_TLS_SERVER_NAME
     ),
     REDIS_TLS_CA_FILE: firstDefined(
-      env.OPC_MEDIA_CONFIG_REDIS_TLS_CA_FILE,
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_TLS_CA_FILE'),
       env.REDIS_TLS_CA_FILE
     ),
     REDIS_TLS_CERT_FILE: firstDefined(
-      env.OPC_MEDIA_CONFIG_REDIS_TLS_CERT_FILE,
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_TLS_CERT_FILE'),
       env.REDIS_TLS_CERT_FILE
     ),
     REDIS_TLS_KEY_FILE: firstDefined(
-      env.OPC_MEDIA_CONFIG_REDIS_TLS_KEY_FILE,
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_TLS_KEY_FILE'),
       env.REDIS_TLS_KEY_FILE
     ),
     REDIS_CONNECT_TIMEOUT_MS: firstDefined(
-      env.OPC_MEDIA_CONFIG_REDIS_CONNECT_TIMEOUT_MS,
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_CONNECT_TIMEOUT_MS'),
       env.REDIS_CONNECT_TIMEOUT_MS
     ),
     REDIS_RECONNECT_WAIT_MS: firstDefined(
-      env.OPC_MEDIA_CONFIG_REDIS_RECONNECT_WAIT_MS,
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_RECONNECT_WAIT_MS'),
       env.REDIS_RECONNECT_WAIT_MS
     ),
     REDIS_MAX_RECONNECT_ATTEMPTS: firstDefined(
-      env.OPC_MEDIA_CONFIG_REDIS_MAX_RECONNECT_ATTEMPTS,
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_MAX_RECONNECT_ATTEMPTS'),
       env.REDIS_MAX_RECONNECT_ATTEMPTS
     )
   };
@@ -487,22 +488,22 @@ function createMediaRedisRenderConfigFromEnv(
   return {
     connection: resolveRedisConnectionOptions(redisEnv),
     readTimeoutMs: parseBoundedInteger(
-      env.OPC_MEDIA_CONFIG_REDIS_READ_TIMEOUT_MS,
-      'OPC_MEDIA_CONFIG_REDIS_READ_TIMEOUT_MS',
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_READ_TIMEOUT_MS'),
+      'CONVERACT_MEDIA_CONFIG_REDIS_READ_TIMEOUT_MS',
       200,
       1,
       60_000
     ),
     writeTimeoutMs: parseBoundedInteger(
-      env.OPC_MEDIA_CONFIG_REDIS_WRITE_TIMEOUT_MS,
-      'OPC_MEDIA_CONFIG_REDIS_WRITE_TIMEOUT_MS',
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_WRITE_TIMEOUT_MS'),
+      'CONVERACT_MEDIA_CONFIG_REDIS_WRITE_TIMEOUT_MS',
       200,
       1,
       60_000
     ),
     poolSize: parseBoundedInteger(
-      env.OPC_MEDIA_CONFIG_REDIS_POOL_SIZE,
-      'OPC_MEDIA_CONFIG_REDIS_POOL_SIZE',
+      resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_POOL_SIZE'),
+      'CONVERACT_MEDIA_CONFIG_REDIS_POOL_SIZE',
       0,
       0,
       1_000_000
@@ -596,14 +597,14 @@ function firstDefined(
 }
 
 function requiredEnv(env: NodeJS.ProcessEnv, key: string): string {
-  const value = env[key];
+  const value = resolveConveractEnv(env, key);
   if (!value) throw new Error(`${key} is required`);
   return value;
 }
 
 function requiredMediaObjectStorage(env: NodeJS.ProcessEnv): S3ConnectionConfig {
   const normalizedEnv = { ...env };
-  const hasBucket = Boolean(env.S3_BUCKET || env.OPC_S3_BUCKET || env.MINIO_BUCKET);
+  const hasBucket = Boolean(env.S3_BUCKET || resolveBrandEnv(env, 'S3_BUCKET') || env.MINIO_BUCKET);
   const hasLegacyInput = Boolean(
     env.MINIO_ENDPOINT || env.MINIO_ACCESS_KEY || env.MINIO_SECRET_KEY
   );
@@ -634,7 +635,7 @@ function requiredDomain(env: NodeJS.ProcessEnv, key: string): string {
 }
 
 function optionalDomain(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  if (!String(env[key] || '').trim()) return undefined;
+  if (!String(resolveConveractEnv(env, key) || '').trim()) return undefined;
   return requiredDomain(env, key);
 }
 
@@ -696,22 +697,22 @@ function createLiveKitPliThrottleConfigFromEnv(
 ): LiveKitPliThrottleConfig {
   return {
     lowQualityMs: parseBoundedInteger(
-      env.OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS,
-      'OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS',
+      resolveBrandEnv(env, 'MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS'),
+      'CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS',
       100,
       50,
       5_000
     ),
     midQualityMs: parseBoundedInteger(
-      env.OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS,
-      'OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS',
+      resolveBrandEnv(env, 'MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS'),
+      'CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS',
       100,
       50,
       5_000
     ),
     highQualityMs: parseBoundedInteger(
-      env.OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS,
-      'OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS',
+      resolveBrandEnv(env, 'MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS'),
+      'CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS',
       100,
       50,
       5_000

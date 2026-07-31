@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { all, id, json, one, parseJson, run } from '../../db.js';
 import { VoiceMediaClient } from './voice-media-client.js';
@@ -1826,9 +1827,9 @@ export class VoiceStore {
       return {
         ice_servers: [{ urls: 'stun:stun.l.google.com:19302' }],
         source: 'default',
-        media_service_url: process.env.OPC_VOICE_MEDIA_URL || null,
-        media_api_token: process.env.OPC_VOICE_MEDIA_API_TOKEN || null,
-        recording_archive_url_base: process.env.OPC_VOICE_MEDIA_ARCHIVE_URL_BASE || null
+        media_service_url: resolveBrandEnv(process.env, 'VOICE_MEDIA_URL') || null,
+        media_api_token: resolveBrandEnv(process.env, 'VOICE_MEDIA_API_TOKEN') || null,
+        recording_archive_url_base: resolveBrandEnv(process.env, 'VOICE_MEDIA_ARCHIVE_URL_BASE') || null
       };
     }
     const config = this.integrationConfigStore.getConfig(tenantId, workspaceId, 'opc-native-webrtc');
@@ -1836,9 +1837,9 @@ export class VoiceStore {
       return {
         ice_servers: [{ urls: 'stun:stun.l.google.com:19302' }],
         source: 'default',
-        media_service_url: process.env.OPC_VOICE_MEDIA_URL || null,
-        media_api_token: process.env.OPC_VOICE_MEDIA_API_TOKEN || null,
-        recording_archive_url_base: process.env.OPC_VOICE_MEDIA_ARCHIVE_URL_BASE || null
+        media_service_url: resolveBrandEnv(process.env, 'VOICE_MEDIA_URL') || null,
+        media_api_token: resolveBrandEnv(process.env, 'VOICE_MEDIA_API_TOKEN') || null,
+        recording_archive_url_base: resolveBrandEnv(process.env, 'VOICE_MEDIA_ARCHIVE_URL_BASE') || null
       };
     }
     const runtime = this.integrationConfigStore.resolveRuntimeConfig({
@@ -1851,9 +1852,9 @@ export class VoiceStore {
       runtime_status: runtime.runtime_status,
       missing_secret_keys: runtime.missing_secret_keys,
       ice_servers: buildIceServers(runtime.runtime_config),
-      media_service_url: runtime.runtime_config?.media_service_url || runtime.runtime_config?.media_url || process.env.OPC_VOICE_MEDIA_URL || null,
-      media_api_token: runtime.runtime_config?.media_api_token || process.env.OPC_VOICE_MEDIA_API_TOKEN || null,
-      recording_archive_url_base: runtime.runtime_config?.recording_archive_url_base || runtime.runtime_config?.archive_url_base || process.env.OPC_VOICE_MEDIA_ARCHIVE_URL_BASE || null
+      media_service_url: runtime.runtime_config?.media_service_url || runtime.runtime_config?.media_url || resolveBrandEnv(process.env, 'VOICE_MEDIA_URL') || null,
+      media_api_token: runtime.runtime_config?.media_api_token || resolveBrandEnv(process.env, 'VOICE_MEDIA_API_TOKEN') || null,
+      recording_archive_url_base: runtime.runtime_config?.recording_archive_url_base || runtime.runtime_config?.archive_url_base || resolveBrandEnv(process.env, 'VOICE_MEDIA_ARCHIVE_URL_BASE') || null
     };
   }
 

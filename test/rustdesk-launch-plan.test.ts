@@ -10,8 +10,8 @@ import {
 import type { RustDeskGatewaySession } from '../src/agent-runtime/collaboration/rustdesk-gateway-session-store.js';
 
 test('RustDesk launch URL rejects base URLs without HTTP protocols', () => {
-  const previousBaseUrl = process.env.OPC_RUSTDESK_LAUNCH_BASE_URL;
-  process.env.OPC_RUSTDESK_LAUNCH_BASE_URL = 'ftp://opc.example.com';
+  const previousBaseUrl = process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL;
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'ftp://opc.example.com';
 
   try {
     assert.throws(
@@ -19,23 +19,23 @@ test('RustDesk launch URL rejects base URLs without HTTP protocols', () => {
       /RustDesk launch base URL must use http\(s\)/
     );
   } finally {
-    restoreOptionalEnv('OPC_RUSTDESK_LAUNCH_BASE_URL', previousBaseUrl);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_LAUNCH_BASE_URL', previousBaseUrl);
   }
 });
 
 test('RustDesk launch URL rejects missing signing secrets', () => {
   const previousEnv = {
-    baseUrl: process.env.OPC_RUSTDESK_LAUNCH_BASE_URL,
-    launchSecret: process.env.OPC_RUSTDESK_LAUNCH_SECRET,
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN,
-    remoteGatewayToken: process.env.OPC_REMOTE_GATEWAY_API_TOKEN,
-    serverKey: process.env.OPC_RUSTDESK_SERVER_KEY
+    baseUrl: process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL,
+    launchSecret: process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET,
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN,
+    remoteGatewayToken: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN,
+    serverKey: process.env.CONVERACT_RUSTDESK_SERVER_KEY
   };
-  process.env.OPC_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
-  delete process.env.OPC_RUSTDESK_LAUNCH_SECRET;
-  delete process.env.OPC_RUSTDESK_API_TOKEN;
-  delete process.env.OPC_REMOTE_GATEWAY_API_TOKEN;
-  delete process.env.OPC_RUSTDESK_SERVER_KEY;
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  delete process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET;
+  delete process.env.CONVERACT_RUSTDESK_API_TOKEN;
+  delete process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN;
+  delete process.env.CONVERACT_RUSTDESK_SERVER_KEY;
 
   try {
     assert.throws(
@@ -43,21 +43,21 @@ test('RustDesk launch URL rejects missing signing secrets', () => {
       /RustDesk launch secret is not configured/
     );
   } finally {
-    restoreOptionalEnv('OPC_RUSTDESK_LAUNCH_BASE_URL', previousEnv.baseUrl);
-    restoreOptionalEnv('OPC_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
-    restoreOptionalEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
-    restoreOptionalEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.remoteGatewayToken);
-    restoreOptionalEnv('OPC_RUSTDESK_SERVER_KEY', previousEnv.serverKey);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_LAUNCH_BASE_URL', previousEnv.baseUrl);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreOptionalEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.remoteGatewayToken);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_SERVER_KEY', previousEnv.serverKey);
   }
 });
 
 test('RustDesk launch URL accepts HTTP base URLs and keeps the signed launch page path', () => {
-  const previousBaseUrl = process.env.OPC_RUSTDESK_LAUNCH_BASE_URL;
-  const previousSecret = process.env.OPC_RUSTDESK_LAUNCH_SECRET;
-  const previousTtl = process.env.OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS;
-  process.env.OPC_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com///';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
-  process.env.OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS = '60000';
+  const previousBaseUrl = process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL;
+  const previousSecret = process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET;
+  const previousTtl = process.env.CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS;
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com///';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS = '60000';
 
   try {
     const externalId = 'rustdesk-session-launch-base-contract-2';
@@ -75,19 +75,19 @@ test('RustDesk launch URL accepts HTTP base URLs and keeps the signed launch pag
     assert.equal(isValidRustDeskLaunchToken(externalId, token, expiresAt), true);
     assert.equal(isValidRustDeskLaunchToken(externalId, token, '2000-01-01T00:00:00.000Z'), false);
   } finally {
-    restoreOptionalEnv('OPC_RUSTDESK_LAUNCH_BASE_URL', previousBaseUrl);
-    restoreOptionalEnv('OPC_RUSTDESK_LAUNCH_SECRET', previousSecret);
-    restoreOptionalEnv('OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS', previousTtl);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_LAUNCH_BASE_URL', previousBaseUrl);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_LAUNCH_SECRET', previousSecret);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS', previousTtl);
   }
 });
 
 test('RustDesk launch URL rejects invalid token TTL configuration', () => {
-  const previousBaseUrl = process.env.OPC_RUSTDESK_LAUNCH_BASE_URL;
-  const previousSecret = process.env.OPC_RUSTDESK_LAUNCH_SECRET;
-  const previousTtl = process.env.OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS;
-  process.env.OPC_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
-  process.env.OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS = '0';
+  const previousBaseUrl = process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL;
+  const previousSecret = process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET;
+  const previousTtl = process.env.CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS;
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS = '0';
 
   try {
     assert.throws(
@@ -95,15 +95,15 @@ test('RustDesk launch URL rejects invalid token TTL configuration', () => {
       /RustDesk launch token ttl must be a positive integer/
     );
   } finally {
-    restoreOptionalEnv('OPC_RUSTDESK_LAUNCH_BASE_URL', previousBaseUrl);
-    restoreOptionalEnv('OPC_RUSTDESK_LAUNCH_SECRET', previousSecret);
-    restoreOptionalEnv('OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS', previousTtl);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_LAUNCH_BASE_URL', previousBaseUrl);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_LAUNCH_SECRET', previousSecret);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS', previousTtl);
   }
 });
 
 test('RustDesk launch plan rejects protocol URL templates without the rustdesk scheme', () => {
-  const previousTemplate = process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE;
-  process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'https://opc.example.com/connect/{rustdesk_id}';
+  const previousTemplate = process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE;
+  process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'https://opc.example.com/connect/{rustdesk_id}';
 
   try {
     assert.throws(
@@ -111,13 +111,13 @@ test('RustDesk launch plan rejects protocol URL templates without the rustdesk s
       /RustDesk protocol URL template must produce a rustdesk:\/\/ URL/
     );
   } finally {
-    restoreOptionalEnv('OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousTemplate);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousTemplate);
   }
 });
 
 test('RustDesk launch plan accepts rustdesk protocol URL templates', () => {
-  const previousTemplate = process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE;
-  process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
+  const previousTemplate = process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE;
+  process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
 
   try {
     const plan = rustDeskLaunchPlan(rustDeskSession());
@@ -127,13 +127,13 @@ test('RustDesk launch plan accepts rustdesk protocol URL templates', () => {
       'rustdesk://connect/123456789?session=rustdesk-session-protocol-contract-1'
     );
   } finally {
-    restoreOptionalEnv('OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousTemplate);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousTemplate);
   }
 });
 
 test('RustDesk launch plan binds the protocol URL to the exact native session', () => {
-  const previousTemplate = process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE;
-  process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
+  const previousTemplate = process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE;
+  process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
 
   try {
     const plan = rustDeskLaunchPlan({
@@ -149,7 +149,7 @@ test('RustDesk launch plan binds the protocol URL to the exact native session', 
     assert.equal(protocolUrl.searchParams.get('ivekit_session_id'), '9223372036854775807');
     assert.equal(plan.metadata.ivekit_native_session_id, undefined);
   } finally {
-    restoreOptionalEnv('OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousTemplate);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousTemplate);
   }
 });
 
@@ -188,8 +188,8 @@ test('RustDesk launch plan rejects secret-bearing metadata and preserves safe me
 });
 
 test('RustDesk launch plan rejects unsupported protocol URL template placeholders', () => {
-  const previousTemplate = process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE;
-  process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdeskid}?session={external_id}';
+  const previousTemplate = process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE;
+  process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdeskid}?session={external_id}';
 
   try {
     assert.throws(
@@ -197,13 +197,13 @@ test('RustDesk launch plan rejects unsupported protocol URL template placeholder
       /RustDesk protocol URL template contains unsupported placeholder: rustdeskid/
     );
   } finally {
-    restoreOptionalEnv('OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousTemplate);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousTemplate);
   }
 });
 
 test('RustDesk runtime metadata rejects API servers without HTTP protocols', () => {
-  const previousApiServer = process.env.OPC_RUSTDESK_API_SERVER;
-  process.env.OPC_RUSTDESK_API_SERVER = 'ftp://rustdesk-api.example.com';
+  const previousApiServer = process.env.CONVERACT_RUSTDESK_API_SERVER;
+  process.env.CONVERACT_RUSTDESK_API_SERVER = 'ftp://rustdesk-api.example.com';
 
   try {
     assert.throws(
@@ -211,7 +211,7 @@ test('RustDesk runtime metadata rejects API servers without HTTP protocols', () 
       /RustDesk API server must use http\(s\)/
     );
   } finally {
-    restoreOptionalEnv('OPC_RUSTDESK_API_SERVER', previousApiServer);
+    restoreOptionalEnv('CONVERACT_RUSTDESK_API_SERVER', previousApiServer);
   }
 });
 

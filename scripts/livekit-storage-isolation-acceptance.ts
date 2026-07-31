@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { execFile } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -586,21 +587,21 @@ export function createLiveKitStorageIsolationConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): LiveKitStorageIsolationConfig {
   const livekitUrl = required(
-    env.OPC_LIVEKIT_STORAGE_ISOLATION_URL || env.LIVEKIT_PUBLIC_URL || env.LIVEKIT_URL,
+    resolveBrandEnv(env, 'LIVEKIT_STORAGE_ISOLATION_URL') || env.LIVEKIT_PUBLIC_URL || env.LIVEKIT_URL,
     'LIVEKIT_URL'
   );
   const apiKey = required(env.LIVEKIT_API_KEY, 'LIVEKIT_API_KEY');
   const apiSecret = required(env.LIVEKIT_API_SECRET, 'LIVEKIT_API_SECRET');
   const composeProject = required(
-    env.OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT,
-    'OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT'
+    resolveBrandEnv(env, 'LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT'),
+    'CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT'
   );
   validateLiveKitUrl(livekitUrl);
-  validateIdentifier(composeProject, 'OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT');
-  const storageService = env.OPC_LIVEKIT_STORAGE_ISOLATION_STORAGE_SERVICE || 'minio';
-  const storageInitService = env.OPC_LIVEKIT_STORAGE_ISOLATION_STORAGE_INIT_SERVICE || 'minio-init';
-  validateIdentifier(storageService, 'OPC_LIVEKIT_STORAGE_ISOLATION_STORAGE_SERVICE');
-  validateIdentifier(storageInitService, 'OPC_LIVEKIT_STORAGE_ISOLATION_STORAGE_INIT_SERVICE');
+  validateIdentifier(composeProject, 'CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT');
+  const storageService = resolveBrandEnv(env, 'LIVEKIT_STORAGE_ISOLATION_STORAGE_SERVICE') || 'minio';
+  const storageInitService = resolveBrandEnv(env, 'LIVEKIT_STORAGE_ISOLATION_STORAGE_INIT_SERVICE') || 'minio-init';
+  validateIdentifier(storageService, 'CONVERACT_LIVEKIT_STORAGE_ISOLATION_STORAGE_SERVICE');
+  validateIdentifier(storageInitService, 'CONVERACT_LIVEKIT_STORAGE_ISOLATION_STORAGE_INIT_SERVICE');
   const composeFiles = readComposeFiles(env);
 
   return {
@@ -610,25 +611,25 @@ export function createLiveKitStorageIsolationConfigFromEnv(
     composeProject,
     composeFiles,
     composeEnvFile: safeText(
-      env.OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE || '',
-      'OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE'
+      resolveBrandEnv(env, 'LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE') || '',
+      'CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE'
     ),
     storageService,
     storageInitService,
-    outputFile: safeText(env.OPC_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE || '', 'output file'),
+    outputFile: safeText(resolveBrandEnv(env, 'LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE') || '', 'output file'),
     timeoutMs: boundedInteger(
-      env.OPC_LIVEKIT_STORAGE_ISOLATION_TIMEOUT_MS,
+      resolveBrandEnv(env, 'LIVEKIT_STORAGE_ISOLATION_TIMEOUT_MS'),
       30_000,
       5_000,
       300_000,
-      'OPC_LIVEKIT_STORAGE_ISOLATION_TIMEOUT_MS'
+      'CONVERACT_LIVEKIT_STORAGE_ISOLATION_TIMEOUT_MS'
     )
   };
 }
 
 function readComposeFiles(env: NodeJS.ProcessEnv): string[] {
-  const encoded = env.OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES;
-  const legacy = env.OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILE;
+  const encoded = resolveBrandEnv(env, 'LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES');
+  const legacy = resolveBrandEnv(env, 'LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILE');
   if (encoded && legacy) {
     throw new Error('only one storage isolation Compose file setting may be used');
   }
@@ -638,17 +639,17 @@ function readComposeFiles(env: NodeJS.ProcessEnv): string[] {
   }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(safeText(encoded, 'OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES'));
+    parsed = JSON.parse(safeText(encoded, 'CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES'));
   } catch {
-    throw new Error('OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES is invalid');
+    throw new Error('CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES is invalid');
   }
   if (!Array.isArray(parsed) || parsed.length < 1 || parsed.length > 4 ||
       parsed.some((value) => typeof value !== 'string' || !safeText(value, 'Compose file').trim())) {
-    throw new Error('OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES is invalid');
+    throw new Error('CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES is invalid');
   }
   const result = parsed.map((value) => String(value).trim());
   if (new Set(result).size !== result.length) {
-    throw new Error('OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES is invalid');
+    throw new Error('CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES is invalid');
   }
   return result;
 }

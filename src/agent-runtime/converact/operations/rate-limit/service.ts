@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../../config/converact-env.js';
 import { createHmac } from 'node:crypto';
 
 import { IveKitRateLimitError } from './errors.js';
@@ -72,7 +73,7 @@ export class IveKitRateLimiter {
 }
 
 export function requiredRateLimitHmacKey(env: NodeJS.ProcessEnv = process.env): string {
-  const value = String(env.OPC_IVEKIT_RATE_LIMIT_HMAC_KEY || '');
+  const value = String(resolveFabricEnv(env, 'RATE_LIMIT_HMAC_KEY') || '');
   decodeKey(value);
   return value;
 }

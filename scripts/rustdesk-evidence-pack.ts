@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -93,54 +94,54 @@ interface ArtifactSpec {
 
 export function createRustDeskEvidencePackConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskEvidencePackConfig {
   return {
-    outputFile: optionalString(env.OPC_RUSTDESK_EVIDENCE_PACK_FILE),
-    title: optionalString(env.OPC_RUSTDESK_EVIDENCE_TITLE) || 'RustDesk Evidence Pack',
+    outputFile: optionalString(resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_PACK_FILE')),
+    title: optionalString(resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_TITLE')) || 'RustDesk Evidence Pack',
     artifacts: {
       deploymentCommandsFile: optionalString(
-        env.OPC_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE ||
-        env.OPC_RUSTDESK_DEPLOYMENT_COMMANDS_FILE
+        resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE') ||
+        resolveBrandEnv(env, 'RUSTDESK_DEPLOYMENT_COMMANDS_FILE')
       ),
       envChecklistFile: optionalString(
-        env.OPC_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE ||
-        env.OPC_RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE
+        resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE') ||
+        resolveBrandEnv(env, 'RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE')
       ),
       preflightReportFile: optionalString(
-        env.OPC_RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE ||
-        env.OPC_RUSTDESK_PREFLIGHT_REPORT_FILE
+        resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_PREFLIGHT_REPORT_FILE') ||
+        resolveBrandEnv(env, 'RUSTDESK_PREFLIGHT_REPORT_FILE')
       ),
       serverEvidenceFile: optionalString(
-        env.OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE ||
-        env.OPC_RUSTDESK_SERVER_EVIDENCE_FILE
+        resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE') ||
+        resolveBrandEnv(env, 'RUSTDESK_SERVER_EVIDENCE_FILE')
       ),
       readinessReportFile: optionalString(
-        env.OPC_RUSTDESK_EVIDENCE_READINESS_REPORT_FILE ||
-        env.OPC_RUSTDESK_READINESS_REPORT_FILE
+        resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_READINESS_REPORT_FILE') ||
+        resolveBrandEnv(env, 'RUSTDESK_READINESS_REPORT_FILE')
       ),
       handoffFile: optionalString(
-        env.OPC_RUSTDESK_EVIDENCE_HANDOFF_FILE ||
-        env.OPC_RUSTDESK_HANDOFF_FILE
+        resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_HANDOFF_FILE') ||
+        resolveBrandEnv(env, 'RUSTDESK_HANDOFF_FILE')
       ),
       clientConfigPackFile: optionalString(
-        env.OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE ||
-        env.OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE
+        resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE') ||
+        resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_PACK_FILE')
       ),
       clientAcceptanceReportFile: optionalString(
-        env.OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE ||
-        env.OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE
+        resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE') ||
+        resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_REPORT_FILE')
       ),
       clientAcceptanceAuditFile: optionalString(
-        env.OPC_RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_AUDIT_FILE ||
-        env.OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE
+        resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_CLIENT_ACCEPTANCE_AUDIT_FILE') ||
+        resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_AUDIT_FILE')
       ),
       auditCoverageReportFile: optionalString(
-        env.OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE ||
-        env.OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE
+        resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE') ||
+        resolveBrandEnv(env, 'RUSTDESK_AUDIT_COVERAGE_REPORT_FILE')
       ),
       eventTemplateFile: optionalString(
-        env.OPC_RUSTDESK_EVIDENCE_EVENT_TEMPLATE_FILE ||
-        env.OPC_RUSTDESK_EVENT_TEMPLATE_FILE
+        resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_EVENT_TEMPLATE_FILE') ||
+        resolveBrandEnv(env, 'RUSTDESK_EVENT_TEMPLATE_FILE')
       ),
-      ledExampleOutputFile: optionalString(env.OPC_RUSTDESK_EVIDENCE_LED_EXAMPLE_OUTPUT_FILE)
+      ledExampleOutputFile: optionalString(resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_LED_EXAMPLE_OUTPUT_FILE'))
     }
   };
 }
@@ -281,7 +282,7 @@ export function renderRustDeskEvidencePack(pack: RustDeskEvidencePack): string {
 }
 
 export function writeRustDeskEvidencePack(config: RustDeskEvidencePackConfig): RustDeskEvidencePackWriteResult {
-  if (!config.outputFile) throw new Error('OPC_RUSTDESK_EVIDENCE_PACK_FILE is required when writing an evidence pack');
+  if (!config.outputFile) throw new Error('CONVERACT_RUSTDESK_EVIDENCE_PACK_FILE is required when writing an evidence pack');
   const pack = buildRustDeskEvidencePack(config);
   mkdirSync(dirname(config.outputFile), { recursive: true });
   writeFileSync(config.outputFile, renderRustDeskEvidencePack(pack), 'utf8');

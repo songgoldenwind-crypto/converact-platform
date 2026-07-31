@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../../../config/converact-env.js';
 import path from 'node:path';
 
 import type { NodeConnectionOptions } from '@nats-io/transport-node';
@@ -377,9 +378,9 @@ function secretFileOrInline(input: {
   production_inline_error: string;
   maximum: number;
 }): string {
-  const file = optionalAbsolutePath(input.env[input.file_name], input.file_name);
+  const file = optionalAbsolutePath(resolveConveractEnv(input.env, input.file_name), input.file_name);
   const inline = optionalString(
-    input.env[input.inline_name],
+    resolveConveractEnv(input.env, input.inline_name),
     input.inline_name,
     input.maximum
   );
@@ -407,10 +408,10 @@ function recoveryKey(input: {
   production: boolean;
   required: boolean;
 }): { key_id: string; key: Buffer } | null {
-  const keyIdText = String(input.env[input.id_name] || '').trim();
-  const file = optionalAbsolutePath(input.env[input.file_name], input.file_name);
+  const keyIdText = String(resolveConveractEnv(input.env, input.id_name) || '').trim();
+  const file = optionalAbsolutePath(resolveConveractEnv(input.env, input.file_name), input.file_name);
   const inline = optionalString(
-    input.env[input.inline_name],
+    resolveConveractEnv(input.env, input.inline_name),
     input.inline_name,
     128
   );
@@ -516,7 +517,7 @@ function integerEnv(
   minimum: number,
   maximum: number
 ): number {
-  const raw = String(env[name] || '').trim();
+  const raw = String(resolveConveractEnv(env, name) || '').trim();
   const result = raw ? Number(raw) : fallback;
   if (!Number.isSafeInteger(result) ||
       result < minimum ||
@@ -531,7 +532,7 @@ function booleanEnv(
   name: string,
   fallback: boolean
 ): boolean {
-  const value = String(env[name] || '').trim().toLowerCase();
+  const value = String(resolveConveractEnv(env, name) || '').trim().toLowerCase();
   if (!value) return fallback;
   if (value === 'true' || value === '1') return true;
   if (value === 'false' || value === '0') return false;

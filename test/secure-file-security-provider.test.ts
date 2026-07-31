@@ -187,12 +187,12 @@ test('file security worker configuration is disabled by default and bounded when
 
   const configured = secureFileScanWorkerConfig({
     NODE_ENV: 'test',
-    OPC_FILE_SECURITY_SCANNER_MODE: 'controlled',
-    OPC_FILE_SECURITY_SCAN_INTERVAL_MS: '2500',
-    OPC_FILE_SECURITY_SCAN_BATCH_SIZE: '40',
-    OPC_FILE_SECURITY_SCAN_RETRY_DELAYS_MS: '0,3000',
-    OPC_FILE_SECURITY_MIME_CONFLICT_ACTION: 'reject',
-    OPC_FILE_SECURITY_SCAN_WORKER_ID: 'scan worker / one'
+    CONVERACT_FILE_SECURITY_SCANNER_MODE: 'controlled',
+    CONVERACT_FILE_SECURITY_SCAN_INTERVAL_MS: '2500',
+    CONVERACT_FILE_SECURITY_SCAN_BATCH_SIZE: '40',
+    CONVERACT_FILE_SECURITY_SCAN_RETRY_DELAYS_MS: '0,3000',
+    CONVERACT_FILE_SECURITY_MIME_CONFLICT_ACTION: 'reject',
+    CONVERACT_FILE_SECURITY_SCAN_WORKER_ID: 'scan worker / one'
   });
   assert.deepEqual({
     enabled: configured.enabled,
@@ -215,29 +215,29 @@ test('file security scanner mode enforces production and provider configuration'
   assert.throws(
     () => secureFileScanWorkerConfig({
       NODE_ENV: 'production',
-      OPC_FILE_SECURITY_SCANNER_MODE: 'controlled'
+      CONVERACT_FILE_SECURITY_SCANNER_MODE: 'controlled'
     }),
     /controlled file scanner is forbidden in production/
   );
   assert.throws(
-    () => configuredFileThreatScanner({ OPC_FILE_SECURITY_SCANNER_MODE: 'http_self_hosted' }),
-    /OPC_FILE_SECURITY_SCANNER_URL is required/
+    () => configuredFileThreatScanner({ CONVERACT_FILE_SECURITY_SCANNER_MODE: 'http_self_hosted' }),
+    /CONVERACT_FILE_SECURITY_SCANNER_URL is required/
   );
   assert.throws(
     () => configuredFileThreatScanner({
-      OPC_FILE_SECURITY_SCANNER_MODE: 'clamd',
-      OPC_FILE_SECURITY_CLAMD_PORT: 'not-a-port'
+      CONVERACT_FILE_SECURITY_SCANNER_MODE: 'clamd',
+      CONVERACT_FILE_SECURITY_CLAMD_PORT: 'not-a-port'
     }),
     /clamd port/
   );
 
   const controlled = configuredFileThreatScanner({
-    OPC_FILE_SECURITY_SCANNER_MODE: 'controlled'
+    CONVERACT_FILE_SECURITY_SCANNER_MODE: 'controlled'
   });
-  const clamd = configuredFileThreatScanner({ OPC_FILE_SECURITY_SCANNER_MODE: 'clamd' });
+  const clamd = configuredFileThreatScanner({ CONVERACT_FILE_SECURITY_SCANNER_MODE: 'clamd' });
   const http = configuredFileThreatScanner({
-    OPC_FILE_SECURITY_SCANNER_MODE: 'http_third_party',
-    OPC_FILE_SECURITY_SCANNER_URL: 'https://scanner.example.test'
+    CONVERACT_FILE_SECURITY_SCANNER_MODE: 'http_third_party',
+    CONVERACT_FILE_SECURITY_SCANNER_URL: 'https://scanner.example.test'
   });
   assert.deepEqual(
     [controlled?.mode, clamd?.mode, http?.mode],

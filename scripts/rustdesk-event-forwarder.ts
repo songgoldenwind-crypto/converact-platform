@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,31 +55,31 @@ interface PreparedRustDeskForwardEvent {
 }
 
 export function createRustDeskEventForwarderConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskEventForwarderConfig {
-  const rawBaseUrl = env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL || env.OPC_REMOTE_GATEWAY_BASE_URL || env.OPC_BASE_URL || '';
-  const baseUrlEnvName = env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL
-    ? 'OPC_RUSTDESK_CONTROL_PLANE_BASE_URL'
-    : env.OPC_REMOTE_GATEWAY_BASE_URL
-      ? 'OPC_REMOTE_GATEWAY_BASE_URL'
-      : 'OPC_BASE_URL';
-  const apiToken = String(env.OPC_RUSTDESK_API_TOKEN || env.OPC_REMOTE_GATEWAY_API_TOKEN || '').trim();
-  const defaultExternalId = String(env.OPC_RUSTDESK_EVENT_EXTERNAL_ID || '').trim();
-  const defaultActorIdentity = String(env.OPC_RUSTDESK_EVENT_ACTOR_IDENTITY || 'rustdesk-event-forwarder').trim();
-  const eventType = String(env.OPC_RUSTDESK_EVENT_TYPE || '').trim();
-  const eventFile = String(env.OPC_RUSTDESK_EVENT_FILE || '').trim();
-  const deadLetterFile = String(env.OPC_RUSTDESK_EVENT_DEAD_LETTER_FILE || '').trim();
-  const replayDeadLetterFile = String(env.OPC_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE || '').trim();
-  const replayRemainingFile = String(env.OPC_RUSTDESK_EVENT_REPLAY_REMAINING_FILE || '').trim();
-  const validateOnly = booleanFlag(env.OPC_RUSTDESK_EVENT_VALIDATE_ONLY, 'OPC_RUSTDESK_EVENT_VALIDATE_ONLY');
-  const templateFile = String(env.OPC_RUSTDESK_EVENT_TEMPLATE_FILE || '').trim();
+  const rawBaseUrl = resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL') || resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') || resolveBrandEnv(env, 'BASE_URL') || '';
+  const baseUrlEnvName = resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL')
+    ? 'CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL'
+    : resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL')
+      ? 'CONVERACT_REMOTE_GATEWAY_BASE_URL'
+      : 'CONVERACT_BASE_URL';
+  const apiToken = String(resolveBrandEnv(env, 'RUSTDESK_API_TOKEN') || resolveBrandEnv(env, 'REMOTE_GATEWAY_API_TOKEN') || '').trim();
+  const defaultExternalId = String(resolveBrandEnv(env, 'RUSTDESK_EVENT_EXTERNAL_ID') || '').trim();
+  const defaultActorIdentity = String(resolveBrandEnv(env, 'RUSTDESK_EVENT_ACTOR_IDENTITY') || 'rustdesk-event-forwarder').trim();
+  const eventType = String(resolveBrandEnv(env, 'RUSTDESK_EVENT_TYPE') || '').trim();
+  const eventFile = String(resolveBrandEnv(env, 'RUSTDESK_EVENT_FILE') || '').trim();
+  const deadLetterFile = String(resolveBrandEnv(env, 'RUSTDESK_EVENT_DEAD_LETTER_FILE') || '').trim();
+  const replayDeadLetterFile = String(resolveBrandEnv(env, 'RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE') || '').trim();
+  const replayRemainingFile = String(resolveBrandEnv(env, 'RUSTDESK_EVENT_REPLAY_REMAINING_FILE') || '').trim();
+  const validateOnly = booleanFlag(resolveBrandEnv(env, 'RUSTDESK_EVENT_VALIDATE_ONLY'), 'CONVERACT_RUSTDESK_EVENT_VALIDATE_ONLY');
+  const templateFile = String(resolveBrandEnv(env, 'RUSTDESK_EVENT_TEMPLATE_FILE') || '').trim();
 
   const hasBaseUrl = Boolean(stripTrailingSlash(rawBaseUrl));
   if (!hasBaseUrl && !validateOnly && !templateFile) {
-    throw new Error('OPC_RUSTDESK_CONTROL_PLANE_BASE_URL or OPC_REMOTE_GATEWAY_BASE_URL is required');
+    throw new Error('CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL or CONVERACT_REMOTE_GATEWAY_BASE_URL is required');
   }
   const baseUrl = hasBaseUrl ? normalizeHttpBaseUrl(rawBaseUrl, baseUrlEnvName) : '';
-  if (!apiToken && !validateOnly && !templateFile) throw new Error('OPC_RUSTDESK_API_TOKEN or OPC_REMOTE_GATEWAY_API_TOKEN is required');
+  if (!apiToken && !validateOnly && !templateFile) throw new Error('CONVERACT_RUSTDESK_API_TOKEN or CONVERACT_REMOTE_GATEWAY_API_TOKEN is required');
   if (!defaultExternalId && !replayDeadLetterFile && !(validateOnly && eventFile) && !templateFile) {
-    throw new Error('OPC_RUSTDESK_EVENT_EXTERNAL_ID is required');
+    throw new Error('CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID is required');
   }
 
   return {
@@ -87,24 +88,24 @@ export function createRustDeskEventForwarderConfigFromEnv(env: NodeJS.ProcessEnv
     defaultExternalId,
     defaultActorIdentity,
     validateOnly,
-    retryAttempts: nonNegativeInteger(env.OPC_RUSTDESK_EVENT_RETRY_ATTEMPTS, 'OPC_RUSTDESK_EVENT_RETRY_ATTEMPTS', 2),
-    retryDelayMs: nonNegativeInteger(env.OPC_RUSTDESK_EVENT_RETRY_DELAY_MS, 'OPC_RUSTDESK_EVENT_RETRY_DELAY_MS', 1000),
+    retryAttempts: nonNegativeInteger(resolveBrandEnv(env, 'RUSTDESK_EVENT_RETRY_ATTEMPTS'), 'CONVERACT_RUSTDESK_EVENT_RETRY_ATTEMPTS', 2),
+    retryDelayMs: nonNegativeInteger(resolveBrandEnv(env, 'RUSTDESK_EVENT_RETRY_DELAY_MS'), 'CONVERACT_RUSTDESK_EVENT_RETRY_DELAY_MS', 1000),
     deadLetterFile: deadLetterFile || undefined,
     replayDeadLetterFile: replayDeadLetterFile || undefined,
     replayRemainingFile: replayRemainingFile || undefined,
     eventFile: eventFile || undefined,
     templateFile: templateFile || undefined,
-    templateTarget: optionalString(env.OPC_RUSTDESK_EVENT_TEMPLATE_TARGET || env.OPC_RUSTDESK_EVENT_TARGET),
-    templateOccurredAt: optionalString(env.OPC_RUSTDESK_EVENT_TEMPLATE_OCCURRED_AT || env.OPC_RUSTDESK_EVENT_OCCURRED_AT),
+    templateTarget: optionalString(resolveBrandEnv(env, 'RUSTDESK_EVENT_TEMPLATE_TARGET') || resolveBrandEnv(env, 'RUSTDESK_EVENT_TARGET')),
+    templateOccurredAt: optionalString(resolveBrandEnv(env, 'RUSTDESK_EVENT_TEMPLATE_OCCURRED_AT') || resolveBrandEnv(env, 'RUSTDESK_EVENT_OCCURRED_AT')),
     inlineEvent: eventType
       ? compactEvent({
         external_id: defaultExternalId,
         event_type: eventType,
         actor_identity: defaultActorIdentity,
-        target: optionalString(env.OPC_RUSTDESK_EVENT_TARGET),
-        idempotency_key: optionalString(env.OPC_RUSTDESK_EVENT_IDEMPOTENCY_KEY),
-        metadata: parseMetadata(env.OPC_RUSTDESK_EVENT_METADATA_JSON),
-        occurred_at: optionalString(env.OPC_RUSTDESK_EVENT_OCCURRED_AT)
+        target: optionalString(resolveBrandEnv(env, 'RUSTDESK_EVENT_TARGET')),
+        idempotency_key: optionalString(resolveBrandEnv(env, 'RUSTDESK_EVENT_IDEMPOTENCY_KEY')),
+        metadata: parseMetadata(resolveBrandEnv(env, 'RUSTDESK_EVENT_METADATA_JSON')),
+        occurred_at: optionalString(resolveBrandEnv(env, 'RUSTDESK_EVENT_OCCURRED_AT'))
       })
       : undefined
   };
@@ -118,7 +119,7 @@ export async function forwardRustDeskEvents(
   const events = loadEvents(config);
   if (!events.length) {
     throw new Error(
-      'RustDesk event forwarder requires an inline event, OPC_RUSTDESK_EVENT_FILE, or OPC_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE'
+      'RustDesk event forwarder requires an inline event, CONVERACT_RUSTDESK_EVENT_FILE, or CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE'
     );
   }
   if (config.validateOnly) {
@@ -158,7 +159,7 @@ export async function forwardRustDeskEvents(
 }
 
 export function writeRustDeskEventTemplate(config: RustDeskEventForwarderConfig): RustDeskEventForwarderResult {
-  if (!config.templateFile) throw new Error('OPC_RUSTDESK_EVENT_TEMPLATE_FILE is required');
+  if (!config.templateFile) throw new Error('CONVERACT_RUSTDESK_EVENT_TEMPLATE_FILE is required');
   const events = rustDeskEventTemplateEvents(config);
   const eventTypes = events.map((event) => prepareEvent(config, event).eventType);
   mkdirSync(dirname(config.templateFile), { recursive: true });
@@ -182,7 +183,7 @@ function loadEvents(config: RustDeskEventForwarderConfig): LoadedRustDeskForward
       events.push({
         input: parseJsonLine<RustDeskForwardEventInput>(
           trimmed,
-          'OPC_RUSTDESK_EVENT_FILE',
+          'CONVERACT_RUSTDESK_EVENT_FILE',
           config.eventFile,
           index + 1
         ),
@@ -197,7 +198,7 @@ function loadEvents(config: RustDeskEventForwarderConfig): LoadedRustDeskForward
       if (!trimmed) continue;
       const row = parseJsonLine<Record<string, unknown>>(
         trimmed,
-        'OPC_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE',
+        'CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE',
         config.replayDeadLetterFile,
         index + 1
       );
@@ -205,7 +206,7 @@ function loadEvents(config: RustDeskEventForwarderConfig): LoadedRustDeskForward
         input: deadLetterEvent(row),
         previousAttempts: deadLetterAttempts(
           row,
-          'OPC_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE',
+          'CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE',
           config.replayDeadLetterFile,
           index + 1
         )
@@ -474,9 +475,9 @@ function errorAttempts(error: unknown): number {
 function parseMetadata(value: string | undefined): Record<string, unknown> {
   if (!value || !value.trim()) return {};
   try {
-    return eventMetadata(JSON.parse(value) as unknown, 'OPC_RUSTDESK_EVENT_METADATA_JSON must be a JSON object');
+    return eventMetadata(JSON.parse(value) as unknown, 'CONVERACT_RUSTDESK_EVENT_METADATA_JSON must be a JSON object');
   } catch {
-    throw new Error('OPC_RUSTDESK_EVENT_METADATA_JSON must be a JSON object');
+    throw new Error('CONVERACT_RUSTDESK_EVENT_METADATA_JSON must be a JSON object');
   }
 }
 

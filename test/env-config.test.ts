@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { validateEnv, type EnvValidationResult } from '../src/env-config.js';
@@ -41,7 +42,7 @@ test('validateEnv: non-production does not fail on missing DATABASE_URL', () => 
 
 test('validateEnv: production accepts discrete PostgreSQL connection variables', () => {
   const keys = ['NODE_ENV', 'DATABASE_URL', 'PGHOST', 'PGDATABASE', 'PGUSER', 'PGPASSWORD'] as const;
-  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  const previous = Object.fromEntries(keys.map((key) => [key, resolveConveractEnv(process.env, key)]));
   process.env.NODE_ENV = 'production';
   delete process.env.DATABASE_URL;
   process.env.PGHOST = 'postgres';

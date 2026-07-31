@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import {
   closeSync,
@@ -373,19 +374,19 @@ function loadObservations(directory: string): KamailioAcceptanceObservation[] {
 
 function main(): void {
   const evidenceDirectory = resolve(
-    process.env.OPC_IVEKIT_KAMAILIO_ACCEPTANCE_EVIDENCE_DIR ||
+    resolveFabricEnv(process.env, 'KAMAILIO_ACCEPTANCE_EVIDENCE_DIR') ||
     '.tmp/kamailio-acceptance/evidence'
   );
   const output = resolve(
-    process.env.OPC_IVEKIT_KAMAILIO_ACCEPTANCE_OUTPUT ||
+    resolveFabricEnv(process.env, 'KAMAILIO_ACCEPTANCE_OUTPUT') ||
     '.tmp/kamailio-acceptance/report.json'
   );
   mkdirSync(evidenceDirectory, { recursive: true, mode: 0o700 });
   const report = buildKamailioAcceptanceReport({
-    source_commit: String(process.env.OPC_IVEKIT_KAMAILIO_ACCEPTANCE_SOURCE_COMMIT || ''),
+    source_commit: String(resolveFabricEnv(process.env, 'KAMAILIO_ACCEPTANCE_SOURCE_COMMIT') || ''),
     kamailio_image: String(process.env.IVEKIT_KAMAILIO_IMAGE || ''),
     rustpbx_image: String(process.env.RUSTPBX_IMAGE || ''),
-    environment_id: String(process.env.OPC_IVEKIT_KAMAILIO_ACCEPTANCE_ENVIRONMENT_ID || ''),
+    environment_id: String(resolveFabricEnv(process.env, 'KAMAILIO_ACCEPTANCE_ENVIRONMENT_ID') || ''),
     artifact_root: evidenceDirectory,
     observations: loadObservations(evidenceDirectory)
   });

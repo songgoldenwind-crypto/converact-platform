@@ -1,4 +1,5 @@
 #!/usr/bin/env npx tsx
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 /**
  * Point tenant inbound DIDs at an IVR flow (M1 RustPBX联调).
  *
@@ -66,7 +67,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const dbPath = process.env.OPC_DB_PATH || 'data/opc.db';
+  const dbPath = resolveBrandEnv(process.env, 'DB_PATH') || 'data/opc.db';
   const { db, close } = await openDatabase(dbPath);
   try {
     const { one } = await import('../src/db.js');

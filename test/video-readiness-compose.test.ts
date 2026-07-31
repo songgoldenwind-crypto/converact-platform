@@ -40,13 +40,13 @@ test('call center compose passes media security and recording env into opc servi
 
   assert.equal(opcEnvironment.LIVEKIT_URL, 'ws://livekit:7880');
   assert.equal(opcEnvironment.LIVEKIT_PUBLIC_URL, '${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}');
-  assert.equal(opcEnvironment.OPC_MEDIA_API_TOKEN, '${OPC_MEDIA_API_TOKEN:-dev-media-token}');
-  assert.equal(opcEnvironment.OPC_MEDIA_INVITE_SECRET, '${OPC_MEDIA_INVITE_SECRET:-dev-media-invite-secret}');
-  assert.equal(opcEnvironment.OPC_MEDIA_INVITE_TTL_MS, '${OPC_MEDIA_INVITE_TTL_MS:-86400000}');
-  assert.equal(opcEnvironment.OPC_MEDIA_RECORDING_RETENTION_DAYS, '${OPC_MEDIA_RECORDING_RETENTION_DAYS:-90}');
-  assert.equal(opcEnvironment.OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT, '${OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT:-0}');
-  assert.equal(opcEnvironment.OPC_SIP_VOLTE_ENABLED, '${OPC_SIP_VOLTE_ENABLED:-0}');
-  assert.equal('OPC_DB_PATH' in opcEnvironment, false);
+  assert.equal(opcEnvironment.CONVERACT_MEDIA_API_TOKEN, '${CONVERACT_MEDIA_API_TOKEN:-dev-media-token}');
+  assert.equal(opcEnvironment.CONVERACT_MEDIA_INVITE_SECRET, '${CONVERACT_MEDIA_INVITE_SECRET:-dev-media-invite-secret}');
+  assert.equal(opcEnvironment.CONVERACT_MEDIA_INVITE_TTL_MS, '${CONVERACT_MEDIA_INVITE_TTL_MS:-86400000}');
+  assert.equal(opcEnvironment.CONVERACT_MEDIA_RECORDING_RETENTION_DAYS, '${CONVERACT_MEDIA_RECORDING_RETENTION_DAYS:-90}');
+  assert.equal(opcEnvironment.CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT, '${CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT:-0}');
+  assert.equal(opcEnvironment.CONVERACT_SIP_VOLTE_ENABLED, '${CONVERACT_SIP_VOLTE_ENABLED:-0}');
+  assert.equal('CONVERACT_DB_PATH' in opcEnvironment, false);
   assert.equal(opcEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
   assert.equal(opcEnvironment.MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
   assert.equal(opcEnvironment.MINIO_ACCESS_KEY, 'minioadmin');
@@ -127,8 +127,8 @@ test('call center compose bootstraps recording storage without coupling LiveKit 
 test('production compose mounts shared media configs and passes Media Core env into opc', () => {
   const compose = readFileSync(PRODUCTION_COMPOSE_PATH, 'utf8');
 
-  assert.ok(readServiceVolumes(compose, 'livekit').includes('${OPC_MEDIA_CONFIG_DIR:-../.runtime/media}/livekit.yaml:/etc/livekit.yaml:ro'));
-  assert.ok(readServiceVolumes(compose, 'livekit-egress').includes('${OPC_MEDIA_CONFIG_DIR:-../.runtime/media}/egress.yaml:/etc/egress.yaml:ro'));
+  assert.ok(readServiceVolumes(compose, 'livekit').includes('${CONVERACT_MEDIA_CONFIG_DIR:-../.runtime/media}/livekit.yaml:/etc/livekit.yaml:ro'));
+  assert.ok(readServiceVolumes(compose, 'livekit-egress').includes('${CONVERACT_MEDIA_CONFIG_DIR:-../.runtime/media}/egress.yaml:/etc/egress.yaml:ro'));
   assert.ok(!readServiceVolumes(compose, 'livekit').includes('../config/livekit.yaml:/etc/livekit.yaml:ro'));
   assert.ok(!readServiceVolumes(compose, 'livekit-egress').includes('../config/egress.yaml:/etc/egress.yaml:ro'));
   assert.ok(readServiceVolumes(compose, 'rustpbx').includes('rustpbx-runtime-config:/app/config:ro'));
@@ -139,12 +139,12 @@ test('production compose mounts shared media configs and passes Media Core env i
   assert.equal(opcEnvironment.LIVEKIT_PUBLIC_URL, '${LIVEKIT_PUBLIC_URL:?LIVEKIT_PUBLIC_URL is required}');
   assert.equal(opcEnvironment.LIVEKIT_API_KEY, '${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}');
   assert.equal(opcEnvironment.LIVEKIT_API_SECRET, '${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}');
-  assert.equal(opcEnvironment.OPC_MEDIA_API_TOKEN, '${OPC_MEDIA_API_TOKEN}');
-  assert.equal(opcEnvironment.OPC_MEDIA_INVITE_SECRET, '${OPC_MEDIA_INVITE_SECRET}');
-  assert.equal(opcEnvironment.OPC_MEDIA_INVITE_TTL_MS, '${OPC_MEDIA_INVITE_TTL_MS:-86400000}');
-  assert.equal(opcEnvironment.OPC_MEDIA_RECORDING_RETENTION_DAYS, '${OPC_MEDIA_RECORDING_RETENTION_DAYS:-90}');
-  assert.equal(opcEnvironment.OPC_RECORDING_HTTP_ALLOWED_ORIGINS, '${OPC_RECORDING_HTTP_ALLOWED_ORIGINS:-http://minio:9000}');
-  assert.equal(opcEnvironment.OPC_SIP_VOLTE_ENABLED, '${OPC_SIP_VOLTE_ENABLED:-0}');
+  assert.equal(opcEnvironment.CONVERACT_MEDIA_API_TOKEN, '${CONVERACT_MEDIA_API_TOKEN}');
+  assert.equal(opcEnvironment.CONVERACT_MEDIA_INVITE_SECRET, '${CONVERACT_MEDIA_INVITE_SECRET}');
+  assert.equal(opcEnvironment.CONVERACT_MEDIA_INVITE_TTL_MS, '${CONVERACT_MEDIA_INVITE_TTL_MS:-86400000}');
+  assert.equal(opcEnvironment.CONVERACT_MEDIA_RECORDING_RETENTION_DAYS, '${CONVERACT_MEDIA_RECORDING_RETENTION_DAYS:-90}');
+  assert.equal(opcEnvironment.CONVERACT_RECORDING_HTTP_ALLOWED_ORIGINS, '${CONVERACT_RECORDING_HTTP_ALLOWED_ORIGINS:-http://minio:9000}');
+  assert.equal(opcEnvironment.CONVERACT_SIP_VOLTE_ENABLED, '${CONVERACT_SIP_VOLTE_ENABLED:-0}');
   assert.equal(opcEnvironment.LIVEKIT_SIP_BRIDGE_TARGET, '${LIVEKIT_SIP_BRIDGE_TARGET:-}');
   assert.equal(opcEnvironment.RUSTPBX_LIVEKIT_TRUNK, '${RUSTPBX_LIVEKIT_TRUNK:-}');
   assert.equal(opcEnvironment.RUSTPBX_RWI_URL, '${RUSTPBX_RWI_URL:-}');
@@ -152,7 +152,7 @@ test('production compose mounts shared media configs and passes Media Core env i
   assert.equal(opcEnvironment.MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
   assert.equal(opcEnvironment.MINIO_ACCESS_KEY, '${MINIO_ACCESS_KEY:-minioadmin}');
   assert.equal(opcEnvironment.MINIO_SECRET_KEY, '${MINIO_SECRET_KEY:-minioadmin}');
-  assert.equal(opcEnvironment.OPC_API_KEY, '${OPC_API_KEY}');
+  assert.equal(opcEnvironment.CONVERACT_API_KEY, '${CONVERACT_API_KEY}');
 });
 
 test('Compose media services use pinned versions and production bundled media is opt-in', () => {
@@ -211,7 +211,7 @@ test('production compose gates databases PgBouncer and object storage', () => {
   assert.match(postgresBootstrap, /entrypoint: \["\/bin\/sh", "\/bootstrap\/bootstrap-postgres-databases\.sh"\]/);
   assert.equal(postgresBootstrapEnvironment.POSTGRES_HOST, 'postgres');
   assert.equal(postgresBootstrapEnvironment.POSTGRES_USER, 'opc');
-  assert.equal(postgresBootstrapEnvironment.OPC_POSTGRES_BOOTSTRAP_DATABASES, 'keycloak');
+  assert.equal(postgresBootstrapEnvironment.CONVERACT_POSTGRES_BOOTSTRAP_DATABASES, 'keycloak');
   assert.ok(
     readServiceVolumes(compose, 'postgres-bootstrap').includes(
       './scripts/bootstrap-postgres-databases.sh:/bootstrap/bootstrap-postgres-databases.sh:ro'
@@ -359,12 +359,12 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
 
   const opc = readServiceBlock(compose, 'opc');
   assert.match(opc, /command: \["npm", "run", "start:ivekit"\]/);
-  assert.match(opc, /"127\.0\.0\.1:\$\{OPC_HTTP_PORT:-8300\}:3000"/);
+  assert.match(opc, /"127\.0\.0\.1:\$\{CONVERACT_HTTP_PORT:-8300\}:3000"/);
   assert.match(opc, /postgres:\n\s+condition: service_healthy/);
   assert.match(opc, /tinode-bootstrap:\n\s+condition: service_completed_successfully/);
   const opcEnvironment = readServiceEnvironment(compose, 'opc');
   assert.equal(opcEnvironment.PGUSER, 'opc_runtime');
-  assert.equal(opcEnvironment.PGPASSWORD, '${OPC_RUNTIME_DB_PASSWORD:?OPC_RUNTIME_DB_PASSWORD is required}');
+  assert.equal(opcEnvironment.PGPASSWORD, '${CONVERACT_RUNTIME_DB_PASSWORD:?CONVERACT_RUNTIME_DB_PASSWORD is required}');
   assert.equal('DATABASE_URL' in opcEnvironment, false);
   assert.equal('DATABASE_MIGRATION_URL' in opcEnvironment, false);
   assert.equal('POSTGRES_PASSWORD' in opcEnvironment, false);
@@ -374,13 +374,13 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
   assert.equal(opcEnvironment.TINODE_BASE_URL, 'http://tinode:6060');
   assert.equal(opcEnvironment.TINODE_WS_URL, 'ws://tinode:6060/v0/channels');
   assert.equal(opcEnvironment.TINODE_PUBLIC_WS_URL, '${TINODE_PUBLIC_WS_URL:?TINODE_PUBLIC_WS_URL is required}');
-  assert.equal('OPC_DISABLE_DIALER' in opcEnvironment, false);
-  assert.equal(opcEnvironment.OPC_SCHEMA_MANAGED_BY_MIGRATIONS, '1');
-  assert.equal(opcEnvironment.OPC_REMOTE_GATEWAY_BASE_URL, 'http://ivekit-api:3000');
-  assert.equal(opcEnvironment.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL, 'http://ivekit-api:3000');
+  assert.equal('CONVERACT_DISABLE_DIALER' in opcEnvironment, false);
+  assert.equal(opcEnvironment.CONVERACT_SCHEMA_MANAGED_BY_MIGRATIONS, '1');
+  assert.equal(opcEnvironment.CONVERACT_REMOTE_GATEWAY_BASE_URL, 'http://ivekit-api:3000');
+  assert.equal(opcEnvironment.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL, 'http://ivekit-api:3000');
   assert.equal(
-    opcEnvironment.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE,
-    '${OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE:-rustdesk://connect/{rustdesk_id}?session={external_id}}'
+    opcEnvironment.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE,
+    '${CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE:-rustdesk://connect/{rustdesk_id}?session={external_id}}'
   );
   assert.match(opc, /aliases:\n\s+- ivekit-api/);
   assert.match(opc, /ivekit_media: \{\}/);
@@ -402,8 +402,8 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
   }
   assert.doesNotMatch(envExample, /^IVEKIT_(?:POSTGRES|REDIS)_IMAGE_TAG=/m);
 
-  assert.match(compose, /name: \$\{OPC_MEDIA_DOCKER_NETWORK:-ivekit-media_default\}/);
-  assert.doesNotMatch(compose, /OPC_DB_PATH|sqlite/i);
+  assert.match(compose, /name: \$\{CONVERACT_MEDIA_DOCKER_NETWORK:-ivekit-media_default\}/);
+  assert.doesNotMatch(compose, /CONVERACT_DB_PATH|sqlite/i);
 
   const roleInit = readFileSync(IVEKIT_POSTGRES_ROLE_INIT_PATH, 'utf8');
   assert.match(roleInit, /CREATE ROLE opc_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS/);
@@ -419,7 +419,7 @@ test('self-hosted Tinode extends database bootstrap and waits for it', () => {
   const overlay = readFileSync(PRODUCTION_TINODE_COMPOSE_PATH, 'utf8');
 
   assert.equal(
-    readServiceEnvironment(overlay, 'postgres-bootstrap').OPC_POSTGRES_BOOTSTRAP_DATABASES,
+    readServiceEnvironment(overlay, 'postgres-bootstrap').CONVERACT_POSTGRES_BOOTSTRAP_DATABASES,
     'keycloak,tinode'
   );
   assert.match(
@@ -434,7 +434,7 @@ test('Chatwoot is opt-in and production bootstrap remains PostgreSQL-only', () =
   const envExample = readFileSync(PRODUCTION_ENV_PATH, 'utf8');
 
   assert.match(readServiceBlock(compose, 'chatwoot'), /profiles: \["omnichannel"\]/);
-  assert.doesNotMatch(compose, /sqlite|OPC_DB_PATH/i);
+  assert.doesNotMatch(compose, /sqlite|CONVERACT_DB_PATH/i);
   assert.match(envExample, /^MINIO_INIT_MAX_ATTEMPTS=30$/m);
   assert.match(envExample, /^MINIO_INIT_RETRY_SECONDS=2$/m);
 });
@@ -442,7 +442,7 @@ test('Chatwoot is opt-in and production bootstrap remains PostgreSQL-only', () =
 test('production application image has no SQLite runtime fallback', () => {
   const dockerfile = readFileSync(DOCKERFILE_PATH, 'utf8');
 
-  assert.doesNotMatch(dockerfile, /OPC_DB_PATH|opc\.sqlite|sqlite/i);
+  assert.doesNotMatch(dockerfile, /CONVERACT_DB_PATH|opc\.sqlite|sqlite/i);
 });
 
 test('compose media ports and Egress Redis match the LiveKit runtime configuration', () => {
@@ -560,42 +560,42 @@ test('compose files define RustDesk OSS runtime and wire OPC control-plane env',
 
   for (const compose of [localCompose, productionCompose]) {
     const opcEnvironment = readServiceEnvironment(compose, 'opc');
-    assert.equal(opcEnvironment.OPC_REMOTE_GATEWAY_PROVIDER, '${OPC_REMOTE_GATEWAY_PROVIDER:-rustdesk}');
-    assert.equal(opcEnvironment.OPC_REMOTE_GATEWAY_TENANT_ID, '${OPC_REMOTE_GATEWAY_TENANT_ID:-tenant_led}');
-    assert.equal(opcEnvironment.OPC_REMOTE_GATEWAY_TARGET_TYPE, '${OPC_REMOTE_GATEWAY_TARGET_TYPE:-device}');
-    assert.match(opcEnvironment.OPC_REMOTE_GATEWAY_TARGET_ID, /\$\{OPC_REMOTE_GATEWAY_TARGET_ID/);
-    assert.match(opcEnvironment.OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME, /\$\{OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME/);
-    assert.match(opcEnvironment.OPC_REMOTE_GATEWAY_ACTOR_IDENTITY, /\$\{OPC_REMOTE_GATEWAY_ACTOR_IDENTITY/);
-    assert.equal(opcEnvironment.OPC_REMOTE_GATEWAY_CONSENT_SCOPES, '${OPC_REMOTE_GATEWAY_CONSENT_SCOPES:-view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard}');
-    assert.match(opcEnvironment.OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL, /\$\{OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL/);
-    assert.equal(opcEnvironment.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL, '${OPC_RUSTDESK_CONTROL_PLANE_BASE_URL:-http://opc:3000}');
-    assert.match(opcEnvironment.OPC_RUSTDESK_ID_SERVER, /\$\{OPC_RUSTDESK_ID_SERVER/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_RELAY_SERVER, /\$\{OPC_RUSTDESK_RELAY_SERVER/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_API_SERVER, /\$\{OPC_RUSTDESK_API_SERVER/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_PUBLIC_KEY, /\$\{OPC_RUSTDESK_PUBLIC_KEY/);
-    assert.equal(opcEnvironment.OPC_RUSTDESK_PUBLIC_KEY_FILE, '${OPC_RUSTDESK_PUBLIC_KEY_FILE:-/rustdesk/id_ed25519.pub}');
-    assert.match(opcEnvironment.OPC_RUSTDESK_LAUNCH_BASE_URL, /\$\{OPC_RUSTDESK_LAUNCH_BASE_URL/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_LAUNCH_SECRET, /\$\{OPC_RUSTDESK_LAUNCH_SECRET/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS, /\$\{OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE, /\$\{OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE/);
-    assert.equal(opcEnvironment.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT, '${OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT:-0}');
-    assert.match(opcEnvironment.OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS, /\$\{OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_CHECK_DEVICE_ONLINE, /\$\{OPC_RUSTDESK_CHECK_DEVICE_ONLINE/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_CHECK_OPERATION_AUDIT, /\$\{OPC_RUSTDESK_CHECK_OPERATION_AUDIT/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_CHECK_SERVER_PORTS, /\$\{OPC_RUSTDESK_CHECK_SERVER_PORTS/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_CHECK_HOST, /\$\{OPC_RUSTDESK_CHECK_HOST/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_CHECK_TCP_PORTS, /\$\{OPC_RUSTDESK_CHECK_TCP_PORTS/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_CHECK_UDP_PORTS, /\$\{OPC_RUSTDESK_CHECK_UDP_PORTS/);
-    assert.match(opcEnvironment.OPC_RUSTDESK_CHECK_TIMEOUT_MS, /\$\{OPC_RUSTDESK_CHECK_TIMEOUT_MS/);
-    assert.equal(opcEnvironment.OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE, '${OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE:-1}');
-    assert.equal(opcEnvironment.OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT, '${OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT:-1}');
-    assert.equal(opcEnvironment.OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS, '${OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS:-1}');
-    assert.equal(opcEnvironment.OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL, '${OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL:-1}');
-    assert.equal(opcEnvironment.OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL, '${OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL:-1}');
-    assert.equal(opcEnvironment.OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL, '${OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL:-1}');
-    assert.equal(opcEnvironment.OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT, '${OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT:-0}');
-    assert.equal('OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE' in opcEnvironment, false);
-    assert.match(opcEnvironment.OPC_RUSTDESK_API_TOKEN, /\$\{OPC_RUSTDESK_API_TOKEN/);
+    assert.equal(opcEnvironment.CONVERACT_REMOTE_GATEWAY_PROVIDER, '${CONVERACT_REMOTE_GATEWAY_PROVIDER:-rustdesk}');
+    assert.equal(opcEnvironment.CONVERACT_REMOTE_GATEWAY_TENANT_ID, '${CONVERACT_REMOTE_GATEWAY_TENANT_ID:-tenant_led}');
+    assert.equal(opcEnvironment.CONVERACT_REMOTE_GATEWAY_TARGET_TYPE, '${CONVERACT_REMOTE_GATEWAY_TARGET_TYPE:-device}');
+    assert.match(opcEnvironment.CONVERACT_REMOTE_GATEWAY_TARGET_ID, /\$\{CONVERACT_REMOTE_GATEWAY_TARGET_ID/);
+    assert.match(opcEnvironment.CONVERACT_REMOTE_GATEWAY_TARGET_DISPLAY_NAME, /\$\{CONVERACT_REMOTE_GATEWAY_TARGET_DISPLAY_NAME/);
+    assert.match(opcEnvironment.CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY, /\$\{CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY/);
+    assert.equal(opcEnvironment.CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES, '${CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES:-view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard}');
+    assert.match(opcEnvironment.CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL, /\$\{CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL/);
+    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL, '${CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL:-http://opc:3000}');
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_ID_SERVER, /\$\{CONVERACT_RUSTDESK_ID_SERVER/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_RELAY_SERVER, /\$\{CONVERACT_RUSTDESK_RELAY_SERVER/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_API_SERVER, /\$\{CONVERACT_RUSTDESK_API_SERVER/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_PUBLIC_KEY, /\$\{CONVERACT_RUSTDESK_PUBLIC_KEY/);
+    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE, '${CONVERACT_RUSTDESK_PUBLIC_KEY_FILE:-/rustdesk/id_ed25519.pub}');
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_LAUNCH_BASE_URL, /\$\{CONVERACT_RUSTDESK_LAUNCH_BASE_URL/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_LAUNCH_SECRET, /\$\{CONVERACT_RUSTDESK_LAUNCH_SECRET/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS, /\$\{CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE, /\$\{CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE/);
+    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT, '${CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT:-0}');
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS, /\$\{CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE, /\$\{CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT, /\$\{CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_SERVER_PORTS, /\$\{CONVERACT_RUSTDESK_CHECK_SERVER_PORTS/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_HOST, /\$\{CONVERACT_RUSTDESK_CHECK_HOST/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_TCP_PORTS, /\$\{CONVERACT_RUSTDESK_CHECK_TCP_PORTS/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_UDP_PORTS, /\$\{CONVERACT_RUSTDESK_CHECK_UDP_PORTS/);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS, /\$\{CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS/);
+    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE, '${CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE:-1}');
+    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT, '${CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT:-1}');
+    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS, '${CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS:-1}');
+    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL, '${CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL:-1}');
+    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL, '${CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL:-1}');
+    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL, '${CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL:-1}');
+    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT, '${CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT:-0}');
+    assert.equal('CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE' in opcEnvironment, false);
+    assert.match(opcEnvironment.CONVERACT_RUSTDESK_API_TOKEN, /\$\{CONVERACT_RUSTDESK_API_TOKEN/);
     assert.ok(readServiceVolumes(compose, 'opc').includes('rustdesk_data:/rustdesk:ro'));
   }
 });
@@ -604,67 +604,67 @@ test('production env example declares required Media Core secrets', () => {
   const envExample = readFileSync(PRODUCTION_ENV_PATH, 'utf8');
   const gitignore = readFileSync(GITIGNORE_PATH, 'utf8');
 
-  assert.match(envExample, /^OPC_MEDIA_API_TOKEN=/m);
-  assert.match(envExample, /^OPC_MEDIA_INVITE_SECRET=/m);
-  assert.match(envExample, /^OPC_MEDIA_INVITE_TTL_MS=/m);
-  assert.match(envExample, /^OPC_MEDIA_RECORDING_RETENTION_DAYS=90$/m);
-  assert.match(envExample, /^OPC_RECORDING_HTTP_ALLOWED_ORIGINS=/m);
-  assert.doesNotMatch(envExample, /^OPC_DB_PATH=/m);
+  assert.match(envExample, /^CONVERACT_MEDIA_API_TOKEN=/m);
+  assert.match(envExample, /^CONVERACT_MEDIA_INVITE_SECRET=/m);
+  assert.match(envExample, /^CONVERACT_MEDIA_INVITE_TTL_MS=/m);
+  assert.match(envExample, /^CONVERACT_MEDIA_RECORDING_RETENTION_DAYS=90$/m);
+  assert.match(envExample, /^CONVERACT_RECORDING_HTTP_ALLOWED_ORIGINS=/m);
+  assert.doesNotMatch(envExample, /^CONVERACT_DB_PATH=/m);
   assert.match(envExample, /^MINIO_BUCKET=/m);
   assert.match(envExample, /^MINIO_ACCESS_KEY=/m);
   assert.match(envExample, /^MINIO_SECRET_KEY=/m);
-  assert.match(envExample, /^OPC_MEDIA_CONFIG_DIR=/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_PROVIDER=rustdesk/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_BASE_URL=http:\/\/opc:3000/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_API_TOKEN=change_me_rustdesk_control_token/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_TENANT_ID=tenant_led/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_TARGET_TYPE=device/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_TARGET_ID=/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL=0/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME=Remote gateway smoke device/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_ACTOR_IDENTITY=agent_remote_gateway_smoke/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_CONSENT_SCOPES=view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_CREATE_PATH=/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_SESSION_PATH=/m);
-  assert.match(envExample, /^OPC_REMOTE_GATEWAY_AUDIT_PATH=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_CONTROL_PLANE_BASE_URL=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_ID_SERVER=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_RELAY_SERVER=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_API_SERVER=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_PUBLIC_KEY=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_PUBLIC_KEY_FILE=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_SERVER_KEY=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_LAUNCH_BASE_URL=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_LAUNCH_SECRET=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_REQUIRE_PROTOCOL_URL=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=0/m);
-  assert.match(envExample, /^OPC_RUSTDESK_EDGE_TOKEN_SECRET=$/m);
-  assert.match(envExample, /^OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_API_TOKEN=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_CHECK_SERVER_PORTS=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_CHECK_HOST=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_CHECK_TCP_PORTS=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_CHECK_UDP_PORTS=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_CHECK_TIMEOUT_MS=/m);
-  assert.match(envExample, /^OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE=1/m);
-  assert.match(envExample, /^OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT=1/m);
-  assert.match(envExample, /^OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS=1/m);
-  assert.match(envExample, /^OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL=1/m);
-  assert.match(envExample, /^OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL=1/m);
-  assert.match(envExample, /^OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL=1/m);
-  assert.match(envExample, /^OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT=0/m);
-  assert.match(envExample, /^OPC_RUSTDESK_EDGE_INSTANCE_ID=$/m);
-  assert.match(envExample, /^OPC_RUSTDESK_EDGE_COMMAND_TOKEN=$/m);
-  assert.match(envExample, /^OPC_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS=2000/m);
-  assert.match(envExample, /^OPC_RUSTDESK_EDGE_COMMAND_LEASE_MS=40000/m);
-  assert.match(envExample, /^OPC_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS=15000/m);
-  assert.match(envExample, /^OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE=$/m);
-  assert.match(envExample, /^OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON=\[\]$/m);
-  assert.match(envExample, /^OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE=$/m);
-  assert.match(envExample, /^OPC_RUSTDESK_EDGE_RESTART_ARGS_JSON=\[\]$/m);
+  assert.match(envExample, /^CONVERACT_MEDIA_CONFIG_DIR=/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_PROVIDER=rustdesk/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_BASE_URL=http:\/\/opc:3000/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_API_TOKEN=change_me_rustdesk_control_token/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_TENANT_ID=tenant_led/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_TARGET_TYPE=device/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_TARGET_ID=/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL=0/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_TARGET_DISPLAY_NAME=Remote gateway smoke device/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY=agent_remote_gateway_smoke/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES=view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_CREATE_PATH=/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_SESSION_PATH=/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_AUDIT_PATH=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_ID_SERVER=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_RELAY_SERVER=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_API_SERVER=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_PUBLIC_KEY=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_PUBLIC_KEY_FILE=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_SERVER_KEY=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_LAUNCH_BASE_URL=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_LAUNCH_SECRET=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_REQUIRE_PROTOCOL_URL=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=0/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET=$/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_API_TOKEN=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_CHECK_SERVER_PORTS=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_CHECK_HOST=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_CHECK_TCP_PORTS=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_CHECK_UDP_PORTS=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS=/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE=1/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT=1/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS=1/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL=1/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL=1/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL=1/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT=0/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_EDGE_INSTANCE_ID=$/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_EDGE_COMMAND_TOKEN=$/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS=2000/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_EDGE_COMMAND_LEASE_MS=40000/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS=15000/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE=$/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON=\[\]$/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_EDGE_RESTART_EXECUTABLE=$/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_EDGE_RESTART_ARGS_JSON=\[\]$/m);
   assert.match(envExample, /^RUSTDESK_ALWAYS_USE_RELAY=N/m);
   assert.match(gitignore, /^\.runtime\//m);
 });
@@ -673,137 +673,137 @@ test('root env example documents every video readiness input', () => {
   const envExample = readFileSync(ROOT_ENV_PATH, 'utf8');
 
   for (const envName of [
-    'OPC_BASE_URL',
-    'OPC_FRONTEND_URL',
-    'OPC_MEDIA_API_TOKEN',
-    'OPC_MEDIA_INVITE_SECRET',
-    'OPC_MEDIA_INVITE_TTL_MS',
-    'OPC_MEDIA_SMOKE_TENANT_ID',
-    'OPC_MEDIA_SMOKE_ROOM_NAME',
-    'OPC_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT',
-    'OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT',
-    'OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS',
-    'OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS',
-    'OPC_MEDIA_SMOKE_KEEP_ROOM_OPEN',
-    'OPC_MEDIA_RECORDING_RETENTION_DAYS',
-    'OPC_RECORDING_HTTP_ALLOWED_ORIGINS',
-    'OPC_VIDEO_READINESS_TARGETS',
-    'OPC_VIDEO_READINESS_CONTINUE_ON_FAILURE',
-    'OPC_VIDEO_READINESS_REPORT_FILE',
+    'CONVERACT_BASE_URL',
+    'CONVERACT_FRONTEND_URL',
+    'CONVERACT_MEDIA_API_TOKEN',
+    'CONVERACT_MEDIA_INVITE_SECRET',
+    'CONVERACT_MEDIA_INVITE_TTL_MS',
+    'CONVERACT_MEDIA_SMOKE_TENANT_ID',
+    'CONVERACT_MEDIA_SMOKE_ROOM_NAME',
+    'CONVERACT_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT',
+    'CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT',
+    'CONVERACT_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS',
+    'CONVERACT_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS',
+    'CONVERACT_MEDIA_SMOKE_KEEP_ROOM_OPEN',
+    'CONVERACT_MEDIA_RECORDING_RETENTION_DAYS',
+    'CONVERACT_RECORDING_HTTP_ALLOWED_ORIGINS',
+    'CONVERACT_VIDEO_READINESS_TARGETS',
+    'CONVERACT_VIDEO_READINESS_CONTINUE_ON_FAILURE',
+    'CONVERACT_VIDEO_READINESS_REPORT_FILE',
     'LIVEKIT_URL',
     'LIVEKIT_API_KEY',
     'LIVEKIT_API_SECRET',
-    'OPC_API_KEY',
-    'OPC_AVATAR_SMOKE_ROOM_NAME',
-    'OPC_AVATAR_SMOKE_IDENTITY',
-    'OPC_AVATAR_SMOKE_SAMPLE_CHUNKS',
-    'OPC_AVATAR_SMOKE_SETTLE_SECONDS',
-    'OPC_AI_CALLBACK_SMOKE_TENANT_ID',
-    'OPC_AI_CALLBACK_SMOKE_ROOM_NAME',
-    'OPC_BROWSER_SMOKE_TENANT_ID',
-    'OPC_BROWSER_SMOKE_AGENT_A_TOKEN',
-    'OPC_BROWSER_SMOKE_AGENT_A_USER_ID',
-    'OPC_BROWSER_SMOKE_AGENT_A_SEAT_ID',
-    'OPC_BROWSER_SMOKE_AGENT_B_TOKEN',
-    'OPC_BROWSER_SMOKE_AGENT_B_USER_ID',
-    'OPC_BROWSER_SMOKE_AGENT_B_SEAT_ID',
-    'OPC_BROWSER_SMOKE_HEADLESS',
-    'OPC_BROWSER_SMOKE_SCREEN_SHARE',
-    'OPC_BROWSER_SMOKE_TIMEOUT_MS',
-    'OPC_CUSTOMER_VIDEO_URL',
-    'OPC_CUSTOMER_BROWSER_SMOKE_URL',
-    'OPC_CUSTOMER_BROWSER_SMOKE_ROOM_NAME',
-    'OPC_CUSTOMER_BROWSER_SMOKE_TENANT_ID',
-    'OPC_CUSTOMER_BROWSER_SMOKE_INVITE',
-    'OPC_CUSTOMER_BROWSER_SMOKE_EXPIRES_AT',
-    'OPC_CUSTOMER_BROWSER_SMOKE_HEADLESS',
-    'OPC_CUSTOMER_BROWSER_SMOKE_TIMEOUT_MS',
-    'OPC_CUSTOMER_BROWSER_SMOKE_EXPECT_REMOTE',
-    'OPC_CUSTOMER_BROWSER_SMOKE_EXPECT_SCREEN_SHARE',
-    'OPC_WEB_ASSIST_CUSTOMER_URL',
-    'OPC_REMOTE_ASSIST_CUSTOMER_URL',
-    'OPC_WEB_ASSIST_REMOTE_SESSION_ID',
-    'OPC_WEB_ASSIST_TENANT_ID',
-    'OPC_WEB_ASSIST_ENGINEER_TOKEN',
-    'OPC_WEB_ASSIST_ENGINEER_USER_ID',
-    'OPC_WEB_ASSIST_ENGINEER_EMAIL',
-    'OPC_WEB_ASSIST_BROWSER_SMOKE_HEADLESS',
-    'OPC_WEB_ASSIST_BROWSER_SMOKE_TIMEOUT_MS',
-    'OPC_COLLAB_SMOKE_TENANT_ID',
-    'OPC_COLLAB_SMOKE_USER_ID',
-    'OPC_COLLAB_SMOKE_BUSINESS_REF_TYPE',
-    'OPC_COLLAB_SMOKE_BUSINESS_REF_ID',
-    'OPC_COLLAB_SMOKE_BUSINESS_REF_DISPLAY_NAME',
-    'OPC_COLLAB_SMOKE_REMOTE_MODE',
-    'OPC_COLLAB_SMOKE_ADAPTER_PROVIDER',
-    'OPC_COLLAB_SMOKE_TOOL_PROVIDER',
-    'OPC_COLLAB_SMOKE_TOOL_EXTERNAL_ID',
-    'OPC_COLLAB_SMOKE_TOOL_LAUNCH_URL',
-    'OPC_COLLAB_SMOKE_USE_GATEWAY_TOOL',
-    'OPC_COLLAB_SMOKE_GATEWAY_TARGET_TYPE',
-    'OPC_COLLAB_SMOKE_GATEWAY_TARGET_ID',
-    'OPC_COLLAB_SMOKE_GATEWAY_TARGET_DISPLAY_NAME',
-    'OPC_COLLAB_SMOKE_CONSENT_SCOPES',
-    'OPC_COLLAB_SMOKE_EVIDENCE_FILENAME',
-    'OPC_COLLAB_SMOKE_RETENTION_UNTIL',
-    'OPC_REMOTE_GATEWAY_PROVIDER',
-    'OPC_REMOTE_GATEWAY_BASE_URL',
-    'OPC_REMOTE_GATEWAY_API_TOKEN',
-    'OPC_REMOTE_GATEWAY_TARGET_TYPE',
-    'OPC_REMOTE_GATEWAY_TARGET_ID',
-    'OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL',
-    'OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME',
-    'OPC_REMOTE_GATEWAY_ACTOR_IDENTITY',
-    'OPC_REMOTE_GATEWAY_CONSENT_SCOPES',
-    'OPC_REMOTE_GATEWAY_CREATE_PATH',
-    'OPC_REMOTE_GATEWAY_SESSION_PATH',
-    'OPC_REMOTE_GATEWAY_AUDIT_PATH',
-    'OPC_RUSTDESK_CONTROL_PLANE_BASE_URL',
-    'OPC_RUSTDESK_ID_SERVER',
-    'OPC_RUSTDESK_RELAY_SERVER',
-    'OPC_RUSTDESK_API_SERVER',
-    'OPC_RUSTDESK_PUBLIC_KEY',
-    'OPC_RUSTDESK_PUBLIC_KEY_FILE',
-    'OPC_RUSTDESK_SERVER_KEY',
-    'OPC_RUSTDESK_LAUNCH_BASE_URL',
-    'OPC_RUSTDESK_LAUNCH_SECRET',
-    'OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS',
-    'OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE',
-    'OPC_RUSTDESK_REQUIRE_PROTOCOL_URL',
-    'OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE',
-    'OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT',
-    'OPC_RUSTDESK_EDGE_TOKEN_SECRET',
-    'OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS',
-    'OPC_RUSTDESK_API_TOKEN',
-    'OPC_RUSTDESK_CHECK_SERVER_PORTS',
-    'OPC_RUSTDESK_CHECK_HOST',
-    'OPC_RUSTDESK_CHECK_TCP_PORTS',
-    'OPC_RUSTDESK_CHECK_UDP_PORTS',
-    'OPC_RUSTDESK_CHECK_TIMEOUT_MS',
-    'OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE',
-    'OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT',
-    'OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS',
-    'OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL',
-    'OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL',
-    'OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL',
-    'OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT',
-    'OPC_RUSTDESK_EDGE_INSTANCE_ID',
-    'OPC_RUSTDESK_EDGE_COMMAND_TOKEN',
-    'OPC_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS',
-    'OPC_RUSTDESK_EDGE_COMMAND_LEASE_MS',
-    'OPC_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS',
-    'OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE',
-    'OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON',
-    'OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE',
-    'OPC_RUSTDESK_EDGE_RESTART_ARGS_JSON',
+    'CONVERACT_API_KEY',
+    'CONVERACT_AVATAR_SMOKE_ROOM_NAME',
+    'CONVERACT_AVATAR_SMOKE_IDENTITY',
+    'CONVERACT_AVATAR_SMOKE_SAMPLE_CHUNKS',
+    'CONVERACT_AVATAR_SMOKE_SETTLE_SECONDS',
+    'CONVERACT_AI_CALLBACK_SMOKE_TENANT_ID',
+    'CONVERACT_AI_CALLBACK_SMOKE_ROOM_NAME',
+    'CONVERACT_BROWSER_SMOKE_TENANT_ID',
+    'CONVERACT_BROWSER_SMOKE_AGENT_A_TOKEN',
+    'CONVERACT_BROWSER_SMOKE_AGENT_A_USER_ID',
+    'CONVERACT_BROWSER_SMOKE_AGENT_A_SEAT_ID',
+    'CONVERACT_BROWSER_SMOKE_AGENT_B_TOKEN',
+    'CONVERACT_BROWSER_SMOKE_AGENT_B_USER_ID',
+    'CONVERACT_BROWSER_SMOKE_AGENT_B_SEAT_ID',
+    'CONVERACT_BROWSER_SMOKE_HEADLESS',
+    'CONVERACT_BROWSER_SMOKE_SCREEN_SHARE',
+    'CONVERACT_BROWSER_SMOKE_TIMEOUT_MS',
+    'CONVERACT_CUSTOMER_VIDEO_URL',
+    'CONVERACT_CUSTOMER_BROWSER_SMOKE_URL',
+    'CONVERACT_CUSTOMER_BROWSER_SMOKE_ROOM_NAME',
+    'CONVERACT_CUSTOMER_BROWSER_SMOKE_TENANT_ID',
+    'CONVERACT_CUSTOMER_BROWSER_SMOKE_INVITE',
+    'CONVERACT_CUSTOMER_BROWSER_SMOKE_EXPIRES_AT',
+    'CONVERACT_CUSTOMER_BROWSER_SMOKE_HEADLESS',
+    'CONVERACT_CUSTOMER_BROWSER_SMOKE_TIMEOUT_MS',
+    'CONVERACT_CUSTOMER_BROWSER_SMOKE_EXPECT_REMOTE',
+    'CONVERACT_CUSTOMER_BROWSER_SMOKE_EXPECT_SCREEN_SHARE',
+    'CONVERACT_WEB_ASSIST_CUSTOMER_URL',
+    'CONVERACT_REMOTE_ASSIST_CUSTOMER_URL',
+    'CONVERACT_WEB_ASSIST_REMOTE_SESSION_ID',
+    'CONVERACT_WEB_ASSIST_TENANT_ID',
+    'CONVERACT_WEB_ASSIST_ENGINEER_TOKEN',
+    'CONVERACT_WEB_ASSIST_ENGINEER_USER_ID',
+    'CONVERACT_WEB_ASSIST_ENGINEER_EMAIL',
+    'CONVERACT_WEB_ASSIST_BROWSER_SMOKE_HEADLESS',
+    'CONVERACT_WEB_ASSIST_BROWSER_SMOKE_TIMEOUT_MS',
+    'CONVERACT_COLLAB_SMOKE_TENANT_ID',
+    'CONVERACT_COLLAB_SMOKE_USER_ID',
+    'CONVERACT_COLLAB_SMOKE_BUSINESS_REF_TYPE',
+    'CONVERACT_COLLAB_SMOKE_BUSINESS_REF_ID',
+    'CONVERACT_COLLAB_SMOKE_BUSINESS_REF_DISPLAY_NAME',
+    'CONVERACT_COLLAB_SMOKE_REMOTE_MODE',
+    'CONVERACT_COLLAB_SMOKE_ADAPTER_PROVIDER',
+    'CONVERACT_COLLAB_SMOKE_TOOL_PROVIDER',
+    'CONVERACT_COLLAB_SMOKE_TOOL_EXTERNAL_ID',
+    'CONVERACT_COLLAB_SMOKE_TOOL_LAUNCH_URL',
+    'CONVERACT_COLLAB_SMOKE_USE_GATEWAY_TOOL',
+    'CONVERACT_COLLAB_SMOKE_GATEWAY_TARGET_TYPE',
+    'CONVERACT_COLLAB_SMOKE_GATEWAY_TARGET_ID',
+    'CONVERACT_COLLAB_SMOKE_GATEWAY_TARGET_DISPLAY_NAME',
+    'CONVERACT_COLLAB_SMOKE_CONSENT_SCOPES',
+    'CONVERACT_COLLAB_SMOKE_EVIDENCE_FILENAME',
+    'CONVERACT_COLLAB_SMOKE_RETENTION_UNTIL',
+    'CONVERACT_REMOTE_GATEWAY_PROVIDER',
+    'CONVERACT_REMOTE_GATEWAY_BASE_URL',
+    'CONVERACT_REMOTE_GATEWAY_API_TOKEN',
+    'CONVERACT_REMOTE_GATEWAY_TARGET_TYPE',
+    'CONVERACT_REMOTE_GATEWAY_TARGET_ID',
+    'CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL',
+    'CONVERACT_REMOTE_GATEWAY_TARGET_DISPLAY_NAME',
+    'CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY',
+    'CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES',
+    'CONVERACT_REMOTE_GATEWAY_CREATE_PATH',
+    'CONVERACT_REMOTE_GATEWAY_SESSION_PATH',
+    'CONVERACT_REMOTE_GATEWAY_AUDIT_PATH',
+    'CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL',
+    'CONVERACT_RUSTDESK_ID_SERVER',
+    'CONVERACT_RUSTDESK_RELAY_SERVER',
+    'CONVERACT_RUSTDESK_API_SERVER',
+    'CONVERACT_RUSTDESK_PUBLIC_KEY',
+    'CONVERACT_RUSTDESK_PUBLIC_KEY_FILE',
+    'CONVERACT_RUSTDESK_SERVER_KEY',
+    'CONVERACT_RUSTDESK_LAUNCH_BASE_URL',
+    'CONVERACT_RUSTDESK_LAUNCH_SECRET',
+    'CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS',
+    'CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE',
+    'CONVERACT_RUSTDESK_REQUIRE_PROTOCOL_URL',
+    'CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE',
+    'CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT',
+    'CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET',
+    'CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS',
+    'CONVERACT_RUSTDESK_API_TOKEN',
+    'CONVERACT_RUSTDESK_CHECK_SERVER_PORTS',
+    'CONVERACT_RUSTDESK_CHECK_HOST',
+    'CONVERACT_RUSTDESK_CHECK_TCP_PORTS',
+    'CONVERACT_RUSTDESK_CHECK_UDP_PORTS',
+    'CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS',
+    'CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE',
+    'CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT',
+    'CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS',
+    'CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL',
+    'CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL',
+    'CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL',
+    'CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT',
+    'CONVERACT_RUSTDESK_EDGE_INSTANCE_ID',
+    'CONVERACT_RUSTDESK_EDGE_COMMAND_TOKEN',
+    'CONVERACT_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS',
+    'CONVERACT_RUSTDESK_EDGE_COMMAND_LEASE_MS',
+    'CONVERACT_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS',
+    'CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE',
+    'CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON',
+    'CONVERACT_RUSTDESK_EDGE_RESTART_EXECUTABLE',
+    'CONVERACT_RUSTDESK_EDGE_RESTART_ARGS_JSON',
     'LIVEKIT_SIP_BRIDGE_TARGET',
     'RUSTPBX_LIVEKIT_TRUNK',
     'RUSTPBX_RWI_URL',
     'RUSTPBX_RWI_TOKEN',
-    'OPC_SIP_VOLTE_ENABLED',
-    'OPC_SIP_VOLTE_REQUIRE_ACTIVE',
-    'OPC_SIP_VOLTE_GATEWAY_STATUS_URL',
-    'OPC_SIP_VOLTE_GATEWAY_STATUS_TOKEN',
+    'CONVERACT_SIP_VOLTE_ENABLED',
+    'CONVERACT_SIP_VOLTE_REQUIRE_ACTIVE',
+    'CONVERACT_SIP_VOLTE_GATEWAY_STATUS_URL',
+    'CONVERACT_SIP_VOLTE_GATEWAY_STATUS_TOKEN',
     'MINIO_BUCKET',
     'MINIO_ENDPOINT',
     'MINIO_ACCESS_KEY',
@@ -823,62 +823,62 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
   for (const envName of [
     'LIVEKIT_API_KEY',
     'LIVEKIT_API_SECRET',
-    'OPC_MEDIA_API_TOKEN',
-    'OPC_MEDIA_INVITE_SECRET',
-    'OPC_MEDIA_INVITE_TTL_MS',
-    'OPC_MEDIA_RECORDING_RETENTION_DAYS',
-    'OPC_SIP_VOLTE_ENABLED',
+    'CONVERACT_MEDIA_API_TOKEN',
+    'CONVERACT_MEDIA_INVITE_SECRET',
+    'CONVERACT_MEDIA_INVITE_TTL_MS',
+    'CONVERACT_MEDIA_RECORDING_RETENTION_DAYS',
+    'CONVERACT_SIP_VOLTE_ENABLED',
     'LIVEKIT_SIP_BRIDGE_TARGET',
     'RUSTPBX_LIVEKIT_TRUNK',
     'RUSTPBX_RWI_URL',
-    'OPC_RECORDING_HTTP_ALLOWED_ORIGINS',
-    'OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT',
-    'OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS',
-    'OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS',
-    'OPC_API_KEY',
-    'OPC_REMOTE_GATEWAY_PROVIDER',
-    'OPC_REMOTE_GATEWAY_TENANT_ID',
-    'OPC_REMOTE_GATEWAY_TARGET_TYPE',
-    'OPC_REMOTE_GATEWAY_TARGET_ID',
-    'OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME',
-    'OPC_REMOTE_GATEWAY_ACTOR_IDENTITY',
-    'OPC_REMOTE_GATEWAY_CONSENT_SCOPES',
-    'OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL',
-    'OPC_RUSTDESK_CONTROL_PLANE_BASE_URL',
-    'OPC_RUSTDESK_ID_SERVER',
-    'OPC_RUSTDESK_RELAY_SERVER',
-    'OPC_RUSTDESK_API_SERVER',
-    'OPC_RUSTDESK_PUBLIC_KEY',
-    'OPC_RUSTDESK_PUBLIC_KEY_FILE',
-    'OPC_RUSTDESK_LAUNCH_BASE_URL',
-    'OPC_RUSTDESK_LAUNCH_SECRET',
-    'OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS',
-    'OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE',
-    'OPC_RUSTDESK_REQUIRE_PROTOCOL_URL',
-    'OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE',
-    'OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT',
-    'OPC_RUSTDESK_EDGE_TOKEN_SECRET',
-    'OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS',
-    'OPC_RUSTDESK_CHECK_DEVICE_ONLINE',
-    'OPC_RUSTDESK_CHECK_OPERATION_AUDIT',
-    'OPC_RUSTDESK_CHECK_SERVER_PORTS',
-    'OPC_RUSTDESK_CHECK_HOST',
-    'OPC_RUSTDESK_CHECK_TCP_PORTS',
-    'OPC_RUSTDESK_CHECK_UDP_PORTS',
-    'OPC_RUSTDESK_CHECK_TIMEOUT_MS',
-    'OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE',
-    'OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT',
-    'OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS',
-    'OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL',
-    'OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL',
-    'OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL',
-    'OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT',
-    'OPC_RUSTDESK_API_TOKEN'
+    'CONVERACT_RECORDING_HTTP_ALLOWED_ORIGINS',
+    'CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT',
+    'CONVERACT_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS',
+    'CONVERACT_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS',
+    'CONVERACT_API_KEY',
+    'CONVERACT_REMOTE_GATEWAY_PROVIDER',
+    'CONVERACT_REMOTE_GATEWAY_TENANT_ID',
+    'CONVERACT_REMOTE_GATEWAY_TARGET_TYPE',
+    'CONVERACT_REMOTE_GATEWAY_TARGET_ID',
+    'CONVERACT_REMOTE_GATEWAY_TARGET_DISPLAY_NAME',
+    'CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY',
+    'CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES',
+    'CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL',
+    'CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL',
+    'CONVERACT_RUSTDESK_ID_SERVER',
+    'CONVERACT_RUSTDESK_RELAY_SERVER',
+    'CONVERACT_RUSTDESK_API_SERVER',
+    'CONVERACT_RUSTDESK_PUBLIC_KEY',
+    'CONVERACT_RUSTDESK_PUBLIC_KEY_FILE',
+    'CONVERACT_RUSTDESK_LAUNCH_BASE_URL',
+    'CONVERACT_RUSTDESK_LAUNCH_SECRET',
+    'CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS',
+    'CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE',
+    'CONVERACT_RUSTDESK_REQUIRE_PROTOCOL_URL',
+    'CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE',
+    'CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT',
+    'CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET',
+    'CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS',
+    'CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE',
+    'CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT',
+    'CONVERACT_RUSTDESK_CHECK_SERVER_PORTS',
+    'CONVERACT_RUSTDESK_CHECK_HOST',
+    'CONVERACT_RUSTDESK_CHECK_TCP_PORTS',
+    'CONVERACT_RUSTDESK_CHECK_UDP_PORTS',
+    'CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS',
+    'CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE',
+    'CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT',
+    'CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS',
+    'CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL',
+    'CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL',
+    'CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL',
+    'CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT',
+    'CONVERACT_RUSTDESK_API_TOKEN'
   ]) {
     assert.match(opcDeployment, new RegExp(`name: ${envName}`));
   }
 
-  assert.match(aiAgentDeployment, /name: OPC_API_KEY/);
+  assert.match(aiAgentDeployment, /name: CONVERACT_API_KEY/);
   assert.match(opcDeployment, /include "opc\.livekitInternalUrl"/);
   assert.match(opcDeployment, /include "opc\.livekitPublicUrl"/);
   assert.match(opcDeployment, /include "opc\.objectStorageEnv"/);
@@ -900,7 +900,7 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
   assert.match(values, /^  readinessRequireHttpsLaunchUrl: "1"/m);
   assert.match(values, /^  requirePhysicalDisconnect: "0"/m);
   assert.match(values, /^  readinessCheckPhysicalDisconnect: "0"/m);
-  assert.doesNotMatch(opcDeployment, /name: OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE/);
+  assert.doesNotMatch(opcDeployment, /name: CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE/);
 
   for (const secretKey of [
     'livekit-api-key',
@@ -1178,13 +1178,13 @@ test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
   assert.match(values, /alwaysUseRelay: "N"/);
   for (const [envName, valuePath] of [
     ['RUSTDESK_SERVER_IMAGE_TAG', 'rustdesk.serverVersion'],
-    ['OPC_RUSTDESK_CLIENT_VERSION', 'rustdesk.clientVersion'],
-    ['OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS', 'rustdesk.clientProfileTtlSeconds'],
-    ['OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON', 'rustdesk.clientArtifactsJson']
+    ['CONVERACT_RUSTDESK_CLIENT_VERSION', 'rustdesk.clientVersion'],
+    ['CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS', 'rustdesk.clientProfileTtlSeconds'],
+    ['CONVERACT_RUSTDESK_CLIENT_ARTIFACTS_JSON', 'rustdesk.clientArtifactsJson']
   ]) {
     assert.match(opc, new RegExp(`name: ${envName}\\n\\s+value: \\{\\{ \\.Values\\.${valuePath.replaceAll('.', '\\.')}`));
   }
-  assert.doesNotMatch(opc, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
+  assert.doesNotMatch(opc, /CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
   assert.match(rustdesk, /image: {{ include "opc\.rustdeskImage" \. \| quote }}/);
   assert.match(values, /^  clientVersion: "1\.4\.9"$/m);
   assert.ok((rustdesk.match(/mountPath: \/data/g) || []).length >= 2);

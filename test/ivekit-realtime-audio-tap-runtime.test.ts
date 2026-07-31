@@ -41,7 +41,7 @@ test('configured realtime audio tap runtime stays fail-closed when disabled', ()
   const runtime = createConfiguredRealtimeAudioTapRuntime({
     pg,
     env: {
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED: '0'
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED: '0'
     }
   });
 
@@ -57,8 +57,8 @@ test('configured realtime audio tap runtime requires a valid secret and projecti
   assert.throws(() => createConfiguredRealtimeAudioTapRuntime({
     pg,
     env: {
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED: '1',
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED: '1',
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
         Buffer.alloc(16, 1).toString('base64')
     },
     router: fakeRouter()
@@ -67,8 +67,8 @@ test('configured realtime audio tap runtime requires a valid secret and projecti
   assert.throws(() => createConfiguredRealtimeAudioTapRuntime({
     pg,
     env: {
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED: '1',
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED: '1',
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
         Buffer.alloc(32, 1).toString('base64')
     },
     router: fakeRouter()
@@ -79,10 +79,10 @@ test('configured runtime rejects an invalid bounded projection queue', () => {
   assert.throws(() => createConfiguredRealtimeAudioTapRuntime({
     pg,
     env: {
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED: '1',
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED: '1',
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
         Buffer.alloc(32, 1).toString('base64'),
-      OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS: '0'
+      CONVERACT_FABRIC_REALTIME_PROJECTION_QUEUE_MAX_ITEMS: '0'
     },
     router: fakeRouter(),
     projection: fakeProjection()
@@ -95,14 +95,14 @@ test('configured runtime owns and removes the local Unix socket', async (t) => {
   const runtime = createConfiguredRealtimeAudioTapRuntime({
     pg,
     env: {
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED: '1',
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED: '1',
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
         Buffer.alloc(32, 2).toString('base64'),
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_SOCKET_PATH: socketPath,
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_MAX_CONNECTIONS: '16',
-      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_HOST: '127.0.0.1',
-      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_PORT: '0',
-      OPC_REALTIME_SPEECH_RETENTION_DAYS: '7'
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_SOCKET_PATH: socketPath,
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_MAX_CONNECTIONS: '16',
+      CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_HOST: '127.0.0.1',
+      CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_PORT: '0',
+      CONVERACT_REALTIME_SPEECH_RETENTION_DAYS: '7'
     },
     router: fakeRouter(),
     projection: fakeProjection()
@@ -134,12 +134,12 @@ test('configured runtime can isolate the RustPBX gateway in a Pod-local sidecar'
   const runtime = createConfiguredRealtimeAudioTapRuntime({
     pg,
     env: {
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED: '1',
-      OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED: '1',
-      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED: '0',
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED: '1',
+      CONVERACT_FABRIC_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED: '1',
+      CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED: '0',
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
         Buffer.alloc(32, 4).toString('base64'),
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_SOCKET_PATH: socketPath
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_SOCKET_PATH: socketPath
     },
     router: fakeRouter(),
     projection: fakeProjection()
@@ -161,10 +161,10 @@ test('configured runtime rejects an enabled service with no gateway', () => {
   assert.throws(() => createConfiguredRealtimeAudioTapRuntime({
     pg,
     env: {
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED: '1',
-      OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED: '0',
-      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED: '0',
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED: '1',
+      CONVERACT_FABRIC_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED: '0',
+      CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED: '0',
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
         Buffer.alloc(32, 5).toString('base64')
     },
     router: fakeRouter(),
@@ -185,12 +185,12 @@ test('configured runtime rolls back the Unix socket when LiveKit gateway startup
   const runtime = createConfiguredRealtimeAudioTapRuntime({
     pg,
     env: {
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED: '1',
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED: '1',
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:
         Buffer.alloc(32, 3).toString('base64'),
-      OPC_IVEKIT_REALTIME_AUDIO_TAP_SOCKET_PATH: socketPath,
-      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_HOST: '127.0.0.1',
-      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_PORT: String(address.port)
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_SOCKET_PATH: socketPath,
+      CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_HOST: '127.0.0.1',
+      CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_PORT: String(address.port)
     },
     router: fakeRouter(),
     projection: fakeProjection()

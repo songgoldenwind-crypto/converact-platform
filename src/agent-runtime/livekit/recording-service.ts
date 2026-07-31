@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { DirectFileOutput, EgressClient, EncodedFileOutput, EncodedFileType } from 'livekit-server-sdk';
 import { all, id, json, one, parseJson, run } from '../../db-compat.js';
@@ -118,7 +119,7 @@ export function resolveRecordingRetentionUntil(
     }
     return parsed.toISOString();
   }
-  const envDays = Number(process.env.OPC_MEDIA_RECORDING_RETENTION_DAYS || 90);
+  const envDays = Number(resolveBrandEnv(process.env, 'MEDIA_RECORDING_RETENTION_DAYS') || 90);
   const requestedDays = input.retentionDays ?? configuredDays ?? envDays;
   if (!Number.isFinite(requestedDays) || requestedDays < 1 || requestedDays > 3650) {
     throw Object.assign(new Error('retention_days must be between 1 and 3650'), { status: 400 });

@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from './config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, open, rename } from 'node:fs/promises';
 import { dirname, isAbsolute } from 'node:path';
@@ -33,56 +34,56 @@ const TOPOLOGY_OUTPUT = '/etc/ivekit-kamailio/kamailio-topology.json';
 export function buildKamailioComposeRuntime(
   env: NodeJS.ProcessEnv = process.env
 ): KamailioComposeRuntime {
-  const regionId = identifier(required(env, 'OPC_IVEKIT_KAMAILIO_REGION_ID'));
-  const zoneId = identifier(required(env, 'OPC_IVEKIT_KAMAILIO_ZONE_ID'));
-  const cellId = identifier(required(env, 'OPC_IVEKIT_KAMAILIO_CELL_ID'));
-  const profileId = identifier(required(env, 'OPC_IVEKIT_KAMAILIO_PROFILE_ID'));
-  const sipHost = networkHost(required(env, 'OPC_IVEKIT_KAMAILIO_ADVERTISE_SIP_HOST'));
+  const regionId = identifier(required(env, 'CONVERACT_FABRIC_KAMAILIO_REGION_ID'));
+  const zoneId = identifier(required(env, 'CONVERACT_FABRIC_KAMAILIO_ZONE_ID'));
+  const cellId = identifier(required(env, 'CONVERACT_FABRIC_KAMAILIO_CELL_ID'));
+  const profileId = identifier(required(env, 'CONVERACT_FABRIC_KAMAILIO_PROFILE_ID'));
+  const sipHost = networkHost(required(env, 'CONVERACT_FABRIC_KAMAILIO_ADVERTISE_SIP_HOST'));
   const wssHost = networkHost(
-    env.OPC_IVEKIT_KAMAILIO_ADVERTISE_WSS_HOST || sipHost
+    resolveFabricEnv(env, 'KAMAILIO_ADVERTISE_WSS_HOST') || sipHost
   );
-  const sipPort = integer(env.OPC_IVEKIT_KAMAILIO_SIP_PORT, 5_060, 1, 65_535);
-  const tlsPort = integer(env.OPC_IVEKIT_KAMAILIO_TLS_PORT, 5_061, 1, 65_535);
-  const wssPort = integer(env.OPC_IVEKIT_KAMAILIO_WSS_PORT, 7_443, 1, 65_535);
-  const rpcPort = integer(env.OPC_IVEKIT_KAMAILIO_RPC_PORT, 5_065, 1, 65_535);
+  const sipPort = integer(resolveFabricEnv(env, 'KAMAILIO_SIP_PORT'), 5_060, 1, 65_535);
+  const tlsPort = integer(resolveFabricEnv(env, 'KAMAILIO_TLS_PORT'), 5_061, 1, 65_535);
+  const wssPort = integer(resolveFabricEnv(env, 'KAMAILIO_WSS_PORT'), 7_443, 1, 65_535);
+  const rpcPort = integer(resolveFabricEnv(env, 'KAMAILIO_RPC_PORT'), 5_065, 1, 65_535);
   if (new Set([sipPort, tlsPort, wssPort, rpcPort]).size !== 4) {
     throw new Error('Kamailio Compose listener ports must be distinct');
   }
-  const poolId = integer(env.OPC_IVEKIT_KAMAILIO_POOL_ID, 100, 1, 999_999_999);
+  const poolId = integer(resolveFabricEnv(env, 'KAMAILIO_POOL_ID'), 100, 1, 999_999_999);
   const pinSetBase = integer(
-    env.OPC_IVEKIT_KAMAILIO_PIN_SET_BASE,
+    resolveFabricEnv(env, 'KAMAILIO_PIN_SET_BASE'),
     10_000,
     1,
     999_999_998
   );
   const safeCapacity = integer(
-    env.OPC_IVEKIT_KAMAILIO_SAFE_CAPACITY_FALLBACK,
+    resolveFabricEnv(env, 'KAMAILIO_SAFE_CAPACITY_FALLBACK'),
     2_500,
     1,
     1_000_000_000
   );
-  const priority = integer(env.OPC_IVEKIT_KAMAILIO_POOL_PRIORITY, 10, 0, 65_535);
+  const priority = integer(resolveFabricEnv(env, 'KAMAILIO_POOL_PRIORITY'), 10, 0, 65_535);
   const perSourceCps = integer(
-    env.OPC_IVEKIT_KAMAILIO_PER_SOURCE_INVITE_CPS,
+    resolveFabricEnv(env, 'KAMAILIO_PER_SOURCE_INVITE_CPS'),
     20,
     1,
     100_000
   );
   const globalCps = integer(
-    env.OPC_IVEKIT_KAMAILIO_CELL_INVITE_CPS,
+    resolveFabricEnv(env, 'KAMAILIO_CELL_INVITE_CPS'),
     500,
     perSourceCps,
     1_000_000
   );
   const sipTraceEnabled = booleanValue(
-    env.OPC_IVEKIT_KAMAILIO_SIP_TRACE_ENABLED,
+    resolveFabricEnv(env, 'KAMAILIO_SIP_TRACE_ENABLED'),
     false,
-    'OPC_IVEKIT_KAMAILIO_SIP_TRACE_ENABLED'
+    'CONVERACT_FABRIC_KAMAILIO_SIP_TRACE_ENABLED'
   );
   const hepHighWaterEnabled = booleanValue(
-    env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED,
+    resolveFabricEnv(env, 'KAMAILIO_HEP_HIGH_WATER_ENABLED'),
     false,
-    'OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED'
+    'CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_ENABLED'
   );
   if (sipTraceEnabled !== hepHighWaterEnabled) {
     throw new Error(
@@ -101,7 +102,7 @@ export function buildKamailioComposeRuntime(
     zone_id: zoneId,
     cell_id: cellId,
     cell_lease_epoch: integer(
-      env.OPC_IVEKIT_KAMAILIO_CELL_LEASE_EPOCH,
+      resolveFabricEnv(env, 'KAMAILIO_CELL_LEASE_EPOCH'),
       1,
       1,
       0xffff_ffff
@@ -116,31 +117,31 @@ export function buildKamailioComposeRuntime(
     rpc_listener: { host: '127.0.0.1', port: rpcPort },
     trusted_source_cidrs: cidrs(required(
       env,
-      'OPC_IVEKIT_KAMAILIO_TRUSTED_SOURCE_CIDRS'
+      'CONVERACT_FABRIC_KAMAILIO_TRUSTED_SOURCE_CIDRS'
     )),
     rustpbx_source_cidrs: cidrs(required(
       env,
-      'OPC_IVEKIT_KAMAILIO_RUSTPBX_SOURCE_CIDRS'
+      'CONVERACT_FABRIC_KAMAILIO_RUSTPBX_SOURCE_CIDRS'
     )),
     dmq_source_cidrs: cidrs(
-      env.OPC_IVEKIT_KAMAILIO_DMQ_SOURCE_CIDRS || '127.0.0.1/32'
+      resolveFabricEnv(env, 'KAMAILIO_DMQ_SOURCE_CIDRS') || '127.0.0.1/32'
     ),
     allow_public_wss: booleanValue(
-      env.OPC_IVEKIT_KAMAILIO_ALLOW_PUBLIC_WSS,
+      resolveFabricEnv(env, 'KAMAILIO_ALLOW_PUBLIC_WSS'),
       true,
-      'OPC_IVEKIT_KAMAILIO_ALLOW_PUBLIC_WSS'
+      'CONVERACT_FABRIC_KAMAILIO_ALLOW_PUBLIC_WSS'
     ),
     webphone_auth: {
-      jwt_issuer: safeClaim(required(env, 'OPC_IVEKIT_WEBPHONE_JWT_ISSUER')),
-      jwt_audience: safeClaim(required(env, 'OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE')),
+      jwt_issuer: safeClaim(required(env, 'CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER')),
+      jwt_audience: safeClaim(required(env, 'CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE')),
       jwt_secret_file: '/run/secrets/kamailio-webphone-jwt-secret',
       allowed_origins: webOrigins(required(
         env,
-        'OPC_IVEKIT_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS'
+        'CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS'
       )),
       max_token_bytes: 4_096,
       max_registration_expires_seconds: integer(
-        env.OPC_IVEKIT_WEBPHONE_REGISTER_EXPIRES_SECONDS,
+        resolveFabricEnv(env, 'WEBPHONE_REGISTER_EXPIRES_SECONDS'),
         240,
         30,
         300
@@ -160,29 +161,29 @@ export function buildKamailioComposeRuntime(
     sip_trace: {
       enabled: sipTraceEnabled,
       collector_host: networkHost(
-        env.OPC_IVEKIT_KAMAILIO_HEP_COLLECTOR_HOST || '127.0.0.1'
+        resolveFabricEnv(env, 'KAMAILIO_HEP_COLLECTOR_HOST') || '127.0.0.1'
       ),
       collector_port: integer(
-        env.OPC_IVEKIT_KAMAILIO_HEP_COLLECTOR_PORT,
+        resolveFabricEnv(env, 'KAMAILIO_HEP_COLLECTOR_PORT'),
         9_060,
         1,
         65_535
       ),
       capture_id: integer(
-        env.OPC_IVEKIT_KAMAILIO_HEP_CAPTURE_ID,
+        resolveFabricEnv(env, 'KAMAILIO_HEP_CAPTURE_ID'),
         101,
         1,
         0xffff_ffff
       ),
       include_options: booleanValue(
-        env.OPC_IVEKIT_KAMAILIO_HEP_INCLUDE_OPTIONS,
+        resolveFabricEnv(env, 'KAMAILIO_HEP_INCLUDE_OPTIONS'),
         false,
-        'OPC_IVEKIT_KAMAILIO_HEP_INCLUDE_OPTIONS'
+        'CONVERACT_FABRIC_KAMAILIO_HEP_INCLUDE_OPTIONS'
       ),
       initial_mode: sipTraceEnabled && hepHighWaterEnabled ? 'off' : 'full'
     },
     max_message_bytes: integer(
-      env.OPC_IVEKIT_KAMAILIO_MAX_MESSAGE_BYTES,
+      resolveFabricEnv(env, 'KAMAILIO_MAX_MESSAGE_BYTES'),
       65_536,
       4_096,
       1_048_576
@@ -190,20 +191,20 @@ export function buildKamailioComposeRuntime(
     per_source_invite_cps: perSourceCps,
     global_invite_cps: globalCps,
     pike_sampling_seconds: integer(
-      env.OPC_IVEKIT_KAMAILIO_PIKE_SAMPLING_SECONDS,
+      resolveFabricEnv(env, 'KAMAILIO_PIKE_SAMPLING_SECONDS'),
       2,
       1,
       60
     ),
     pike_request_density: integer(
-      env.OPC_IVEKIT_KAMAILIO_PIKE_REQUEST_DENSITY,
+      resolveFabricEnv(env, 'KAMAILIO_PIKE_REQUEST_DENSITY'),
       100,
       1,
       1_000_000
     ),
-    max_failovers: integer(env.OPC_IVEKIT_KAMAILIO_MAX_FAILOVERS, 2, 1, 32),
+    max_failovers: integer(resolveFabricEnv(env, 'KAMAILIO_MAX_FAILOVERS'), 2, 1, 32),
     retry_after_seconds: integer(
-      env.OPC_IVEKIT_KAMAILIO_RETRY_AFTER_SECONDS,
+      resolveFabricEnv(env, 'KAMAILIO_RETRY_AFTER_SECONDS'),
       1,
       1,
       300
@@ -213,9 +214,9 @@ export function buildKamailioComposeRuntime(
       certificate_file: '/run/secrets/kamailio-tls-cert',
       ca_file: '/run/secrets/kamailio-tls-ca',
       require_client_certificate: booleanValue(
-        env.OPC_IVEKIT_KAMAILIO_REQUIRE_CLIENT_CERTIFICATE,
+        resolveFabricEnv(env, 'KAMAILIO_REQUIRE_CLIENT_CERTIFICATE'),
         false,
-        'OPC_IVEKIT_KAMAILIO_REQUIRE_CLIENT_CERTIFICATE'
+        'CONVERACT_FABRIC_KAMAILIO_REQUIRE_CLIENT_CERTIFICATE'
       )
     }
   };
@@ -238,10 +239,10 @@ export async function writeKamailioComposeRuntime(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<void> {
   const configOutput = absoluteOutput(
-    env.OPC_IVEKIT_KAMAILIO_COMPOSE_CONFIG_OUTPUT || CONFIG_OUTPUT
+    resolveFabricEnv(env, 'KAMAILIO_COMPOSE_CONFIG_OUTPUT') || CONFIG_OUTPUT
   );
   const topologyOutput = absoluteOutput(
-    env.OPC_IVEKIT_KAMAILIO_COMPOSE_TOPOLOGY_OUTPUT || TOPOLOGY_OUTPUT
+    resolveFabricEnv(env, 'KAMAILIO_COMPOSE_TOPOLOGY_OUTPUT') || TOPOLOGY_OUTPUT
   );
   if (configOutput === topologyOutput) throw new Error('Kamailio Compose outputs must be distinct');
   await Promise.all([
@@ -277,7 +278,7 @@ function listener(port: number, advertiseHost: string, advertisePort: number) {
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = String(env[name] || '').trim();
+  const value = String(resolveConveractEnv(env, name) || '').trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }

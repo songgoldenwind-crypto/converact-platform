@@ -141,13 +141,13 @@ test('Contact Center maintenance worker configuration is optional and bounded', 
     overflow_retry_delay_ms: 30_000
   });
   assert.equal(contactCenterMaintenanceWorkerConfig({
-    OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED: '1'
+    CONVERACT_FABRIC_CONTACT_CENTER_WORKER_ENABLED: '1'
   }).enabled, true);
   assert.throws(() => contactCenterMaintenanceWorkerConfig({
-    OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED: 'yes'
+    CONVERACT_FABRIC_CONTACT_CENTER_WORKER_ENABLED: 'yes'
   }), /must be 0 or 1/);
   assert.throws(() => contactCenterMaintenanceWorkerConfig({
-    OPC_IVEKIT_CONTACT_CENTER_BATCH_SIZE: '0'
+    CONVERACT_FABRIC_CONTACT_CENTER_BATCH_SIZE: '0'
   }), /must be an integer/);
 });
 
@@ -164,12 +164,12 @@ test('Contact Center callback and overflow retry configuration is wired across d
   ]) {
     assert.match(
       readFileSync(path, 'utf8'),
-      /OPC_IVEKIT_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS/,
+      /CONVERACT_FABRIC_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS/,
       path
     );
     assert.match(
       readFileSync(path, 'utf8'),
-      /OPC_IVEKIT_CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS/,
+      /CONVERACT_FABRIC_CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS/,
       path
     );
   }

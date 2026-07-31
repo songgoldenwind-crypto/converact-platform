@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 export interface RenderedPageReadClientOptions {
   baseUrl?: string | null;
   timeoutMs?: number;
@@ -8,8 +9,8 @@ export class RenderedPageReadClient {
   timeoutMs: number;
 
   constructor(options: RenderedPageReadClientOptions = {}) {
-    this.baseUrl = options.baseUrl || process.env.OPC_RENDERED_PAGE_READ_URL || process.env.OPC_PROVIDER_GATEWAY_URL || null;
-    this.timeoutMs = Number(options.timeoutMs || process.env.OPC_RENDERED_PAGE_READ_TIMEOUT_MS || 7000);
+    this.baseUrl = options.baseUrl || resolveBrandEnv(process.env, 'RENDERED_PAGE_READ_URL') || resolveBrandEnv(process.env, 'PROVIDER_GATEWAY_URL') || null;
+    this.timeoutMs = Number(options.timeoutMs || resolveBrandEnv(process.env, 'RENDERED_PAGE_READ_TIMEOUT_MS') || 7000);
   }
 
   isConfigured(runtimeConfig: Record<string, unknown> = {}): boolean {

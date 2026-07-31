@@ -192,12 +192,12 @@ test('RustPBX CDR deployment uses a persistent per-node spool and file-backed se
   );
   assert.match(
     compose,
-    /OPC_IVEKIT_CDR_REGION_ID: \$\{OPC_IVEKIT_CDR_REGION_ID:\?OPC_IVEKIT_CDR_REGION_ID is required\}/
+    /CONVERACT_FABRIC_CDR_REGION_ID: \$\{CONVERACT_FABRIC_CDR_REGION_ID:\?CONVERACT_FABRIC_CDR_REGION_ID is required\}/
   );
   assert.equal(
     occurrences(
       compose,
-      'IVEKIT_RUSTPBX_CDR_REGION_ID: ${OPC_IVEKIT_CDR_REGION_ID:?OPC_IVEKIT_CDR_REGION_ID is required}'
+      'IVEKIT_RUSTPBX_CDR_REGION_ID: ${CONVERACT_FABRIC_CDR_REGION_ID:?CONVERACT_FABRIC_CDR_REGION_ID is required}'
     ),
     2
   );
@@ -205,7 +205,7 @@ test('RustPBX CDR deployment uses a persistent per-node spool and file-backed se
   assert.match(compose, /rustpbx-cdr-service-key:[\s\S]*RUSTPBX_CDR_SERVICE_KEY_FILE/);
   assert.match(
     apiCompose,
-    /OPC_IVEKIT_CDR_REGION_ID: \$\{OPC_IVEKIT_CDR_REGION_ID:-\}/
+    /CONVERACT_FABRIC_CDR_REGION_ID: \$\{CONVERACT_FABRIC_CDR_REGION_ID:-\}/
   );
 
   assert.match(
@@ -218,11 +218,11 @@ test('RustPBX CDR deployment uses a persistent per-node spool and file-backed se
   );
   assert.match(
     apiDeployment,
-    /name: OPC_IVEKIT_CDR_REGION_ID\s*\n\s+value: \{\{ \.Values\.voice\.cdr\.regionId \| quote \}\}/
+    /name: CONVERACT_FABRIC_CDR_REGION_ID\s*\n\s+value: \{\{ \.Values\.voice\.cdr\.regionId \| quote \}\}/
   );
   assert.doesNotMatch(
     apiDeployment,
-    /name: OPC_IVEKIT_CDR_REGION_ID[\s\S]{0,120}\.Values\.placement\.homeRegionId/
+    /name: CONVERACT_FABRIC_CDR_REGION_ID[\s\S]{0,120}\.Values\.placement\.homeRegionId/
   );
   assert.match(statefulSet, /voice\.cdr\.endpoint is required when voice is enabled/);
   assert.match(statefulSet, /name: RUSTPBX_ENV\s*\n\s+value: production/);
@@ -248,11 +248,11 @@ test('RustPBX CDR deployment uses a persistent per-node spool and file-backed se
   );
   assert.match(
     legacyCompose,
-    /OPC_IVEKIT_CDR_REGION_ID: \$\{OPC_IVEKIT_CDR_REGION_ID:\?OPC_IVEKIT_CDR_REGION_ID is required\}/
+    /CONVERACT_FABRIC_CDR_REGION_ID: \$\{CONVERACT_FABRIC_CDR_REGION_ID:\?CONVERACT_FABRIC_CDR_REGION_ID is required\}/
   );
   assert.match(
     legacyCompose,
-    /IVEKIT_RUSTPBX_CDR_REGION_ID: \$\{OPC_IVEKIT_CDR_REGION_ID:\?OPC_IVEKIT_CDR_REGION_ID is required\}/
+    /IVEKIT_RUSTPBX_CDR_REGION_ID: \$\{CONVERACT_FABRIC_CDR_REGION_ID:\?CONVERACT_FABRIC_CDR_REGION_ID is required\}/
   );
   assert.match(
     legacyCompose,
@@ -269,7 +269,7 @@ test('RustPBX CDR deployment uses a persistent per-node spool and file-backed se
   );
   assert.match(
     legacyApiDeployment,
-    /name: OPC_IVEKIT_CDR_REGION_ID\s*\n\s+value: \{\{ \.Values\.voice\.cdr\.regionId \| quote \}\}/
+    /name: CONVERACT_FABRIC_CDR_REGION_ID\s*\n\s+value: \{\{ \.Values\.voice\.cdr\.regionId \| quote \}\}/
   );
   assert.match(
     legacyStatefulSet,

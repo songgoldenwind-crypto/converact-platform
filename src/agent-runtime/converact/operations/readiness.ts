@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import type { PgQueryable } from '../../../db-pg.js';
 import { iveKitRuntimeHeartbeatConfig } from './runtime-heartbeat.js';
 
@@ -47,8 +48,8 @@ export function createIveKitReadinessProbe(input: {
   const env = input.env || process.env;
   const requiredMigrations = [...(input.requiredMigrations || REQUIRED_MIGRATIONS)];
   const heartbeatConfig = iveKitRuntimeHeartbeatConfig(env);
-  const placementEnabled = booleanEnv(env.OPC_IVEKIT_PLACEMENT_ENABLED, false);
-  const instanceId = String(input.instanceId || env.OPC_IVEKIT_INSTANCE_ID || env.HOSTNAME || '');
+  const placementEnabled = booleanEnv(resolveFabricEnv(env, 'PLACEMENT_ENABLED'), false);
+  const instanceId = String(input.instanceId || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || '');
   return {
     async probe() {
       const result: IveKitReadinessResult = {
@@ -59,7 +60,7 @@ export function createIveKitReadinessProbe(input: {
           configuration: configurationCheck(env),
           notification_providers: {
             status: 'unknown', active: 0, unhealthy: 0,
-            blocking: booleanEnv(env.OPC_IVEKIT_READINESS_REQUIRE_HEALTHY_NOTIFICATION_PROVIDER, false)
+            blocking: booleanEnv(resolveFabricEnv(env, 'READINESS_REQUIRE_HEALTHY_NOTIFICATION_PROVIDER'), false)
           },
           runtime_heartbeat: {
             status: heartbeatConfig.enabled ? 'unknown' : 'disabled',
@@ -200,10 +201,10 @@ export const REQUIRED_MIGRATIONS = [
 function configurationCheck(env: NodeJS.ProcessEnv): IveKitReadinessResult['checks']['configuration'] {
   const invalid: string[] = [];
   for (const key of [
-    'OPC_IVEKIT_AUDIT_IP_HMAC_KEY',
-    'OPC_IVEKIT_RATE_LIMIT_HMAC_KEY'
+    'CONVERACT_FABRIC_AUDIT_IP_HMAC_KEY',
+    'CONVERACT_FABRIC_RATE_LIMIT_HMAC_KEY'
   ]) {
-    if (!validBase64Key(env[key])) invalid.push(key);
+    if (!validBase64Key(resolveConveractEnv(env, key))) invalid.push(key);
   }
   return { status: invalid.length ? 'failed' : 'ok', missing_or_invalid: invalid };
 }

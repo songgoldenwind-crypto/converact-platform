@@ -9,7 +9,7 @@ import {
 import { signAccessToken } from '../src/middleware/auth.js';
 
 test('event HTTP exposes the catalog and admin subscription lifecycle', async () => {
-  process.env.OPC_JWT_SECRET = 'ivekit-integration-events-secret';
+  process.env.CONVERACT_JWT_SECRET = 'ivekit-integration-events-secret';
   const calls: Array<{ name: string; input: any }> = [];
   const limits: any[] = [];
   const audits: any[] = [];
@@ -74,7 +74,7 @@ test('event HTTP exposes the catalog and admin subscription lifecycle', async ()
 });
 
 test('event subscription administration denies non-admin identities', async () => {
-  process.env.OPC_JWT_SECRET = 'ivekit-integration-events-secret';
+  process.env.CONVERACT_JWT_SECRET = 'ivekit-integration-events-secret';
   await assert.rejects(() => routeIveKitEventApi(
     null, 'GET', '/api/ivekit/events/webhook-subscriptions',
     new URL('http://localhost/api/ivekit/events/webhook-subscriptions'),

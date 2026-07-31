@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
@@ -80,81 +81,81 @@ export type VoiceQueue = 'voice_command' | 'voice_configuration' | 'voice_provid
 export function iveKitVoiceWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): IveKitVoiceWorkerConfig {
-  const enabled = binaryFlag(env.OPC_IVEKIT_VOICE_WORKERS_ENABLED, false, 'OPC_IVEKIT_VOICE_WORKERS_ENABLED');
+  const enabled = binaryFlag(resolveFabricEnv(env, 'VOICE_WORKERS_ENABLED'), false, 'CONVERACT_FABRIC_VOICE_WORKERS_ENABLED');
   if (enabled) {
-    canonicalKey(env.OPC_IVEKIT_VOICE_ADDRESS_KEY, 'OPC_IVEKIT_VOICE_ADDRESS_KEY');
-    canonicalKey(env.OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY, 'OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY');
+    canonicalKey(resolveFabricEnv(env, 'VOICE_ADDRESS_KEY'), 'CONVERACT_FABRIC_VOICE_ADDRESS_KEY');
+    canonicalKey(resolveFabricEnv(env, 'VOICE_ADDRESS_HMAC_KEY'), 'CONVERACT_FABRIC_VOICE_ADDRESS_HMAC_KEY');
   }
   const providerTimeoutMs = boundedInteger(
-    env.OPC_IVEKIT_VOICE_PROVIDER_TIMEOUT_MS,
+    resolveFabricEnv(env, 'VOICE_PROVIDER_TIMEOUT_MS'),
     10_000,
     100,
     120_000,
-    'OPC_IVEKIT_VOICE_PROVIDER_TIMEOUT_MS'
+    'CONVERACT_FABRIC_VOICE_PROVIDER_TIMEOUT_MS'
   );
   const commandLeaseMs = boundedInteger(
-    env.OPC_IVEKIT_VOICE_COMMAND_LEASE_MS,
+    resolveFabricEnv(env, 'VOICE_COMMAND_LEASE_MS'),
     30_000,
     1_000,
     900_000,
-    'OPC_IVEKIT_VOICE_COMMAND_LEASE_MS'
+    'CONVERACT_FABRIC_VOICE_COMMAND_LEASE_MS'
   );
   const eventLeaseMs = boundedInteger(
-    env.OPC_IVEKIT_VOICE_EVENT_LEASE_MS,
+    resolveFabricEnv(env, 'VOICE_EVENT_LEASE_MS'),
     30_000,
     1_000,
     900_000,
-    'OPC_IVEKIT_VOICE_EVENT_LEASE_MS'
+    'CONVERACT_FABRIC_VOICE_EVENT_LEASE_MS'
   );
   const minimumLease = providerTimeoutMs + 5_000;
   if (enabled && commandLeaseMs < minimumLease) {
-    throw new Error('OPC_IVEKIT_VOICE_COMMAND_LEASE_MS must exceed the provider timeout safety budget');
+    throw new Error('CONVERACT_FABRIC_VOICE_COMMAND_LEASE_MS must exceed the provider timeout safety budget');
   }
   if (enabled && eventLeaseMs < minimumLease) {
-    throw new Error('OPC_IVEKIT_VOICE_EVENT_LEASE_MS must exceed the provider timeout safety budget');
+    throw new Error('CONVERACT_FABRIC_VOICE_EVENT_LEASE_MS must exceed the provider timeout safety budget');
   }
   const reconciliationIntervalMs = boundedInteger(
-    env.OPC_IVEKIT_VOICE_RECONCILIATION_INTERVAL_MS, 5_000, 100, 3_600_000,
-    'OPC_IVEKIT_VOICE_RECONCILIATION_INTERVAL_MS'
+    resolveFabricEnv(env, 'VOICE_RECONCILIATION_INTERVAL_MS'), 5_000, 100, 3_600_000,
+    'CONVERACT_FABRIC_VOICE_RECONCILIATION_INTERVAL_MS'
   );
   const reconciliationMaxAgeMs = boundedInteger(
-    env.OPC_IVEKIT_VOICE_RECONCILIATION_MAX_AGE_MS, 900_000, 5_000, 604_800_000,
-    'OPC_IVEKIT_VOICE_RECONCILIATION_MAX_AGE_MS'
+    resolveFabricEnv(env, 'VOICE_RECONCILIATION_MAX_AGE_MS'), 900_000, 5_000, 604_800_000,
+    'CONVERACT_FABRIC_VOICE_RECONCILIATION_MAX_AGE_MS'
   );
   if (reconciliationMaxAgeMs < reconciliationIntervalMs) {
-    throw new Error('OPC_IVEKIT_VOICE_RECONCILIATION_MAX_AGE_MS must be at least the reconciliation interval');
+    throw new Error('CONVERACT_FABRIC_VOICE_RECONCILIATION_MAX_AGE_MS must be at least the reconciliation interval');
   }
   return {
     enabled,
     command_interval_ms: boundedInteger(
-      env.OPC_IVEKIT_VOICE_COMMAND_INTERVAL_MS, 1_000, 100, 300_000,
-      'OPC_IVEKIT_VOICE_COMMAND_INTERVAL_MS'
+      resolveFabricEnv(env, 'VOICE_COMMAND_INTERVAL_MS'), 1_000, 100, 300_000,
+      'CONVERACT_FABRIC_VOICE_COMMAND_INTERVAL_MS'
     ),
     command_batch_size: boundedInteger(
-      env.OPC_IVEKIT_VOICE_COMMAND_BATCH_SIZE, 25, 1, 200,
-      'OPC_IVEKIT_VOICE_COMMAND_BATCH_SIZE'
+      resolveFabricEnv(env, 'VOICE_COMMAND_BATCH_SIZE'), 25, 1, 200,
+      'CONVERACT_FABRIC_VOICE_COMMAND_BATCH_SIZE'
     ),
     command_lease_ms: commandLeaseMs,
     command_max_attempts: boundedInteger(
-      env.OPC_IVEKIT_VOICE_COMMAND_MAX_ATTEMPTS, 5, 1, 100,
-      'OPC_IVEKIT_VOICE_COMMAND_MAX_ATTEMPTS'
+      resolveFabricEnv(env, 'VOICE_COMMAND_MAX_ATTEMPTS'), 5, 1, 100,
+      'CONVERACT_FABRIC_VOICE_COMMAND_MAX_ATTEMPTS'
     ),
-    command_retry_delays_ms: retryDelays(env.OPC_IVEKIT_VOICE_COMMAND_RETRY_DELAYS_MS),
+    command_retry_delays_ms: retryDelays(resolveFabricEnv(env, 'VOICE_COMMAND_RETRY_DELAYS_MS')),
     event_interval_ms: boundedInteger(
-      env.OPC_IVEKIT_VOICE_EVENT_INTERVAL_MS, 1_000, 100, 300_000,
-      'OPC_IVEKIT_VOICE_EVENT_INTERVAL_MS'
+      resolveFabricEnv(env, 'VOICE_EVENT_INTERVAL_MS'), 1_000, 100, 300_000,
+      'CONVERACT_FABRIC_VOICE_EVENT_INTERVAL_MS'
     ),
     event_batch_size: boundedInteger(
-      env.OPC_IVEKIT_VOICE_EVENT_BATCH_SIZE, 25, 1, 200,
-      'OPC_IVEKIT_VOICE_EVENT_BATCH_SIZE'
+      resolveFabricEnv(env, 'VOICE_EVENT_BATCH_SIZE'), 25, 1, 200,
+      'CONVERACT_FABRIC_VOICE_EVENT_BATCH_SIZE'
     ),
     event_lease_ms: eventLeaseMs,
     reconciliation_interval_ms: reconciliationIntervalMs,
     reconciliation_max_age_ms: reconciliationMaxAgeMs,
     provider_timeout_ms: providerTimeoutMs,
     tenant_limit: boundedInteger(
-      env.OPC_IVEKIT_VOICE_TENANT_LIMIT, 100, 1, 1_000,
-      'OPC_IVEKIT_VOICE_TENANT_LIMIT'
+      resolveFabricEnv(env, 'VOICE_TENANT_LIMIT'), 100, 1, 1_000,
+      'CONVERACT_FABRIC_VOICE_TENANT_LIMIT'
     )
   };
 }
@@ -378,22 +379,22 @@ export function dispatchIveKitVoiceCallCommand(
 function createIveKitVoiceSecretResolver(
   env: NodeJS.ProcessEnv = process.env
 ): VoiceSecretResolver {
-  const configured = envNames(env.OPC_IVEKIT_VOICE_SECRET_ENV_NAMES);
+  const configured = envNames(resolveFabricEnv(env, 'VOICE_SECRET_ENV_NAMES'));
   return new EnvVoiceSecretResolver({
     env,
     allowlist: {
       rustpbx_management: unique([
-        'RUSTPBX_MANAGEMENT_TOKEN', 'OPC_IVEKIT_RUSTPBX_MANAGEMENT_TOKEN', ...configured
+        'RUSTPBX_MANAGEMENT_TOKEN', 'CONVERACT_FABRIC_RUSTPBX_MANAGEMENT_TOKEN', ...configured
       ]),
       rustpbx_resource_credential: unique(configured),
       rwi: unique([
-        'RUSTPBX_RWI_TOKEN', 'OPC_IVEKIT_RUSTPBX_RWI_TOKEN', ...configured
+        'RUSTPBX_RWI_TOKEN', 'CONVERACT_FABRIC_RUSTPBX_RWI_TOKEN', ...configured
       ]),
       livekit_sip_api_key: unique([
-        'LIVEKIT_API_KEY', 'OPC_IVEKIT_LIVEKIT_API_KEY', ...configured
+        'LIVEKIT_API_KEY', 'CONVERACT_FABRIC_LIVEKIT_API_KEY', ...configured
       ]),
       livekit_sip_api_secret: unique([
-        'LIVEKIT_API_SECRET', 'OPC_IVEKIT_LIVEKIT_API_SECRET', ...configured
+        'LIVEKIT_API_SECRET', 'CONVERACT_FABRIC_LIVEKIT_API_SECRET', ...configured
       ])
     }
   });
@@ -476,8 +477,8 @@ function requiredProtector(input: IveKitVoiceRuntimeInput): VoiceAddressProtecto
   if (input.address_protector) return input.address_protector;
   const env = input.env || process.env;
   return new EncryptedVoiceAddressProtector({
-    encryption_key: String(env.OPC_IVEKIT_VOICE_ADDRESS_KEY || ''),
-    hmac_key: String(env.OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY || '')
+    encryption_key: String(resolveFabricEnv(env, 'VOICE_ADDRESS_KEY') || ''),
+    hmac_key: String(resolveFabricEnv(env, 'VOICE_ADDRESS_HMAC_KEY') || '')
   });
 }
 
@@ -486,7 +487,7 @@ function retryDelays(value: string | undefined): number[] {
   const values = String(value).split(',').map((item) => Number(item.trim()));
   if (!values.length || values.length > 20
     || values.some((item) => !Number.isInteger(item) || item < 0 || item > 3_600_000)) {
-    throw new Error('OPC_IVEKIT_VOICE_COMMAND_RETRY_DELAYS_MS must be comma-separated integers between 0 and 3600000');
+    throw new Error('CONVERACT_FABRIC_VOICE_COMMAND_RETRY_DELAYS_MS must be comma-separated integers between 0 and 3600000');
   }
   return values;
 }

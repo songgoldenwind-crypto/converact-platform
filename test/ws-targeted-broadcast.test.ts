@@ -13,13 +13,13 @@ import {
 
 const server = createServer();
 const previous = {
-  jwtSecret: process.env.OPC_JWT_SECRET,
-  memoryRedis: process.env.OPC_USE_MEMORY_REDIS
+  jwtSecret: process.env.CONVERACT_JWT_SECRET,
+  memoryRedis: process.env.CONVERACT_USE_MEMORY_REDIS
 };
 
 before(async () => {
-  process.env.OPC_JWT_SECRET = 'targeted-ws-broadcast-secret';
-  process.env.OPC_USE_MEMORY_REDIS = '1';
+  process.env.CONVERACT_JWT_SECRET = 'targeted-ws-broadcast-secret';
+  process.env.CONVERACT_USE_MEMORY_REDIS = '1';
   _resetWsState();
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   initWebSocket(server);
@@ -28,8 +28,8 @@ before(async () => {
 after(async () => {
   await shutdownWebSocket();
   await new Promise<void>((resolve) => server.close(() => resolve()));
-  restoreEnv('OPC_JWT_SECRET', previous.jwtSecret);
-  restoreEnv('OPC_USE_MEMORY_REDIS', previous.memoryRedis);
+  restoreEnv('CONVERACT_JWT_SECRET', previous.jwtSecret);
+  restoreEnv('CONVERACT_USE_MEMORY_REDIS', previous.memoryRedis);
 });
 
 test('targeted WebSocket broadcast does not leak to another tenant member', async () => {

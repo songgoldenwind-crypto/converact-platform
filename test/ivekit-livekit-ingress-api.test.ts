@@ -103,8 +103,8 @@ async function route(
 }
 
 test('iveKit LiveKit Ingress API is tenant fenced, idempotent and complete', async () => {
-  const jwtSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'ingress-api-test-secret';
+  const jwtSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'ingress-api-test-secret';
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const provider = new FakeIngressProvider();
@@ -188,8 +188,8 @@ test('iveKit LiveKit Ingress API is tenant fenced, idempotent and complete', asy
     assert.equal(provider.records.size, 0);
   } finally {
     db.close();
-    if (jwtSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = jwtSecret;
+    if (jwtSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = jwtSecret;
   }
 });
 
@@ -315,13 +315,13 @@ test('LiveKit SDK Ingress provider preserves trusted ownership and maps the comp
 
 test('URL ingress fails closed on transport, allowlist and private-address policy', async () => {
   const previous = {
-    jwtSecret: process.env.OPC_JWT_SECRET,
-    allowlist: process.env.OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST,
-    allowHttp: process.env.OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL
+    jwtSecret: process.env.CONVERACT_JWT_SECRET,
+    allowlist: process.env.CONVERACT_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST,
+    allowHttp: process.env.CONVERACT_LIVEKIT_INGRESS_ALLOW_HTTP_URL
   };
-  process.env.OPC_JWT_SECRET = 'ingress-url-policy-test-secret';
-  delete process.env.OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST;
-  delete process.env.OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL;
+  process.env.CONVERACT_JWT_SECRET = 'ingress-url-policy-test-secret';
+  delete process.env.CONVERACT_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST;
+  delete process.env.CONVERACT_LIVEKIT_INGRESS_ALLOW_HTTP_URL;
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const provider = new FakeIngressProvider();
@@ -352,7 +352,7 @@ test('URL ingress fails closed on transport, allowlist and private-address polic
       (error: any) => error?.status === 400 && /allowlisted/.test(error.message)
     );
 
-    process.env.OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST = '*.example.com,127.0.0.1';
+    process.env.CONVERACT_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST = '*.example.com,127.0.0.1';
     await assert.rejects(
       () => createUrlIngress('http://media.example.com/live.m3u8', 'url-http'),
       (error: any) => error?.status === 400 && /https/.test(error.message)
@@ -375,11 +375,11 @@ test('URL ingress fails closed on transport, allowlist and private-address polic
     assert.equal(provider.createCalls, 1);
   } finally {
     db.close();
-    if (previous.jwtSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previous.jwtSecret;
-    if (previous.allowlist === undefined) delete process.env.OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST;
-    else process.env.OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST = previous.allowlist;
-    if (previous.allowHttp === undefined) delete process.env.OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL;
-    else process.env.OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL = previous.allowHttp;
+    if (previous.jwtSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previous.jwtSecret;
+    if (previous.allowlist === undefined) delete process.env.CONVERACT_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST;
+    else process.env.CONVERACT_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST = previous.allowlist;
+    if (previous.allowHttp === undefined) delete process.env.CONVERACT_LIVEKIT_INGRESS_ALLOW_HTTP_URL;
+    else process.env.CONVERACT_LIVEKIT_INGRESS_ALLOW_HTTP_URL = previous.allowHttp;
   }
 });

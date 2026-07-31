@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -40,7 +41,7 @@ function allocator(value: string | undefined): 'fm' | 'qm' | 'tlsf' {
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = String(env[name] || '').trim();
+  const value = String(resolveConveractEnv(env, name) || '').trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }

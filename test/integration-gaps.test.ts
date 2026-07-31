@@ -177,10 +177,10 @@ test('warm transfer complete updates pending metadata', () => {
 });
 
 test('voicemail transcribe returns empty without ASR configured', async () => {
-  const original = process.env.OPC_ASR_API_URL;
-  delete process.env.OPC_ASR_API_URL;
+  const original = process.env.CONVERACT_ASR_API_URL;
+  delete process.env.CONVERACT_ASR_API_URL;
   delete process.env.ASR_API_URL;
   const result = await transcribeVoicemailRecording('');
   assert.equal(result.source, 'empty');
-  if (original) process.env.OPC_ASR_API_URL = original;
+  if (original) process.env.CONVERACT_ASR_API_URL = original;
 });

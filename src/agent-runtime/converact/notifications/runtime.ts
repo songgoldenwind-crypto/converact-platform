@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
 
@@ -84,11 +85,11 @@ export class NotificationDeliveryWorker {
 export function notificationDeliveryWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): NotificationDeliveryWorkerConfig {
-  const encryptionKey = String(env.OPC_IVEKIT_NOTIFICATION_ENCRYPTION_KEY || '');
-  const hmacKey = String(env.OPC_IVEKIT_NOTIFICATION_HMAC_KEY || '');
-  const flag = String(env.OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED || '').trim();
+  const encryptionKey = String(resolveFabricEnv(env, 'NOTIFICATION_ENCRYPTION_KEY') || '');
+  const hmacKey = String(resolveFabricEnv(env, 'NOTIFICATION_HMAC_KEY') || '');
+  const flag = String(resolveFabricEnv(env, 'NOTIFICATION_WORKER_ENABLED') || '').trim();
   if (flag && flag !== '0' && flag !== '1') {
-    throw new Error('OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_FABRIC_NOTIFICATION_WORKER_ENABLED must be 0 or 1');
   }
   if (Boolean(encryptionKey) !== Boolean(hmacKey)) {
     throw new Error('notification encryption and HMAC keys must be configured together');
@@ -97,18 +98,18 @@ export function notificationDeliveryWorkerConfig(
     throw new Error('enabled notification worker requires encryption and HMAC keys');
   }
   const partitionCount = integer(
-    env.OPC_IVEKIT_NOTIFICATION_PARTITION_COUNT,
+    resolveFabricEnv(env, 'NOTIFICATION_PARTITION_COUNT'),
     1,
     1,
     256,
-    'OPC_IVEKIT_NOTIFICATION_PARTITION_COUNT'
+    'CONVERACT_FABRIC_NOTIFICATION_PARTITION_COUNT'
   );
   const rawPartitionIndex = String(
-    env.OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX || ''
+    resolveFabricEnv(env, 'NOTIFICATION_PARTITION_INDEX') || ''
   ).trim();
   if (partitionCount > 1 && !rawPartitionIndex) {
     throw new Error(
-      'OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX is required when partition count exceeds 1'
+      'CONVERACT_FABRIC_NOTIFICATION_PARTITION_INDEX is required when partition count exceeds 1'
     );
   }
   const partitionIndex = integer(
@@ -116,19 +117,19 @@ export function notificationDeliveryWorkerConfig(
     0,
     0,
     partitionCount - 1,
-    'OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX'
+    'CONVERACT_FABRIC_NOTIFICATION_PARTITION_INDEX'
   );
   return {
     enabled: flag === '1' || (flag !== '0' && Boolean(encryptionKey && hmacKey)),
-    interval_ms: integer(env.OPC_IVEKIT_NOTIFICATION_INTERVAL_MS, 5_000, 1_000, 300_000,
-      'OPC_IVEKIT_NOTIFICATION_INTERVAL_MS'),
-    batch_size: integer(env.OPC_IVEKIT_NOTIFICATION_BATCH_SIZE, 25, 1, 200,
-      'OPC_IVEKIT_NOTIFICATION_BATCH_SIZE'),
-    tenant_limit: integer(env.OPC_IVEKIT_NOTIFICATION_TENANT_LIMIT, 100, 1, 1_000,
-      'OPC_IVEKIT_NOTIFICATION_TENANT_LIMIT'),
-    lease_ms: integer(env.OPC_IVEKIT_NOTIFICATION_LEASE_MS, 120_000, 65_000, 900_000,
-      'OPC_IVEKIT_NOTIFICATION_LEASE_MS'),
-    retry_delays_ms: delays(env.OPC_IVEKIT_NOTIFICATION_RETRY_DELAYS_MS),
+    interval_ms: integer(resolveFabricEnv(env, 'NOTIFICATION_INTERVAL_MS'), 5_000, 1_000, 300_000,
+      'CONVERACT_FABRIC_NOTIFICATION_INTERVAL_MS'),
+    batch_size: integer(resolveFabricEnv(env, 'NOTIFICATION_BATCH_SIZE'), 25, 1, 200,
+      'CONVERACT_FABRIC_NOTIFICATION_BATCH_SIZE'),
+    tenant_limit: integer(resolveFabricEnv(env, 'NOTIFICATION_TENANT_LIMIT'), 100, 1, 1_000,
+      'CONVERACT_FABRIC_NOTIFICATION_TENANT_LIMIT'),
+    lease_ms: integer(resolveFabricEnv(env, 'NOTIFICATION_LEASE_MS'), 120_000, 65_000, 900_000,
+      'CONVERACT_FABRIC_NOTIFICATION_LEASE_MS'),
+    retry_delays_ms: delays(resolveFabricEnv(env, 'NOTIFICATION_RETRY_DELAYS_MS')),
     partition_count: partitionCount,
     partition_index: partitionIndex,
     shard_ids: notificationWorkerShardIds(partitionCount, partitionIndex)
@@ -243,7 +244,7 @@ function delays(value: string | undefined): number[] {
   const parsed = String(value).split(',').map((item) => Number(item.trim()));
   if (!parsed.length || parsed.length > 20
     || parsed.some((item) => !Number.isInteger(item) || item < 0 || item > 3_600_000)) {
-    throw new Error('OPC_IVEKIT_NOTIFICATION_RETRY_DELAYS_MS is invalid');
+    throw new Error('CONVERACT_FABRIC_NOTIFICATION_RETRY_DELAYS_MS is invalid');
   }
   return parsed;
 }

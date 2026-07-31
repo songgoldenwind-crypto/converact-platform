@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -14,8 +15,8 @@ import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 import { listenOnRandomPort } from './test-helpers.js';
 
 test('RustDesk gateway HTTP reserves Cell capacity before the tenant transaction', async (t) => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'rustdesk-placement-http-key';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'rustdesk-placement-http-key';
   const events: string[] = [];
   const placement = rustDeskPlacementFixture(events);
   placement.hasPlacement = async () => false;
@@ -47,7 +48,7 @@ test('RustDesk gateway HTTP reserves Cell capacity before the tenant transaction
     throw error;
   }
   t.after(async () => {
-    restoreEnv('OPC_API_KEY', previousApiKey);
+    restoreEnv('CONVERACT_API_KEY', previousApiKey);
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
@@ -80,15 +81,15 @@ test('RustDesk gateway HTTP reserves Cell capacity before the tenant transaction
 
 test('RustDesk gateway persists owner runtime and closes placement with the session', async () => {
   const env = snapshotEnv([
-    'OPC_API_KEY',
-    'OPC_BASE_URL',
-    'OPC_RUSTDESK_LAUNCH_SECRET',
-    'OPC_IVEKIT_RUSTDESK_OWNER_RUNTIME_JSON'
+    'CONVERACT_API_KEY',
+    'CONVERACT_BASE_URL',
+    'CONVERACT_RUSTDESK_LAUNCH_SECRET',
+    'CONVERACT_FABRIC_RUSTDESK_OWNER_RUNTIME_JSON'
   ]);
-  process.env.OPC_API_KEY = 'rustdesk-placement-route-key';
-  process.env.OPC_BASE_URL = 'https://ivekit.example.com';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-placement-launch-secret';
-  process.env.OPC_IVEKIT_RUSTDESK_OWNER_RUNTIME_JSON = JSON.stringify({
+  process.env.CONVERACT_API_KEY = 'rustdesk-placement-route-key';
+  process.env.CONVERACT_BASE_URL = 'https://ivekit.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-placement-launch-secret';
+  process.env.CONVERACT_FABRIC_RUSTDESK_OWNER_RUNTIME_JSON = JSON.stringify({
     'rustdesk-owner': {
       id_server: 'id-cell-a.example.com',
       relay_server: 'relay-cell-a.example.com',
@@ -390,7 +391,7 @@ class RecordingPool implements PgQueryable {
 }
 
 function snapshotEnv(keys: string[]): Record<string, string | undefined> {
-  return Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  return Object.fromEntries(keys.map((key) => [key, resolveConveractEnv(process.env, key)]));
 }
 
 function restoreSnapshot(snapshot: Record<string, string | undefined>): void {

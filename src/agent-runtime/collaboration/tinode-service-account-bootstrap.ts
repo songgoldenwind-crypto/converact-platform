@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../../config/converact-env.js';
 import { Pool } from 'pg';
 
 import type { PgQueryable } from '../../db-pg.js';
@@ -266,7 +267,7 @@ async function request(
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = String(env[key] || '').trim();
+  const value = String(resolveConveractEnv(env, key) || '').trim();
   if (!value) throw new Error(`${key} is required`);
   return value;
 }

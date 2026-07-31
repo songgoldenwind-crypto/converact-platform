@@ -9,16 +9,16 @@ import {
 test('cleanup worker is disabled by default and requires explicit destructive confirmation', () => {
   assert.equal(secureFileCleanupWorkerConfig({}).enabled, false);
   assert.throws(
-    () => secureFileCleanupWorkerConfig({ OPC_FILE_CLEANUP_WORKER_ENABLED: '1' }),
-    /OPC_FILE_CLEANUP_CONFIRM=1/
+    () => secureFileCleanupWorkerConfig({ CONVERACT_FILE_CLEANUP_WORKER_ENABLED: '1' }),
+    /CONVERACT_FILE_CLEANUP_CONFIRM=1/
   );
   const config = secureFileCleanupWorkerConfig({
-    OPC_FILE_CLEANUP_WORKER_ENABLED: '1',
-    OPC_FILE_CLEANUP_CONFIRM: '1',
-    OPC_FILE_CLEANUP_INTERVAL_MS: '120000',
-    OPC_FILE_CLEANUP_BATCH_SIZE: '40',
-    OPC_FILE_CLEANUP_UPLOAD_STALE_MS: '7200000',
-    OPC_FILE_CLEANUP_WORKER_ID: 'cleanup worker / one'
+    CONVERACT_FILE_CLEANUP_WORKER_ENABLED: '1',
+    CONVERACT_FILE_CLEANUP_CONFIRM: '1',
+    CONVERACT_FILE_CLEANUP_INTERVAL_MS: '120000',
+    CONVERACT_FILE_CLEANUP_BATCH_SIZE: '40',
+    CONVERACT_FILE_CLEANUP_UPLOAD_STALE_MS: '7200000',
+    CONVERACT_FILE_CLEANUP_WORKER_ID: 'cleanup worker / one'
   });
   assert.deepEqual({
     enabled: config.enabled,

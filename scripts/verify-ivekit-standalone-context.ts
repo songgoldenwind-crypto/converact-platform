@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,15 +8,15 @@ import { buildIveKitStandaloneContext } from './ivekit-standalone-build-context.
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const outputDir = resolve(
-  process.env.OPC_IVEKIT_STANDALONE_CONTEXT_DIR || join(repoRoot, '.tmp', 'ivekit-standalone-context')
+  resolveFabricEnv(process.env, 'STANDALONE_CONTEXT_DIR') || join(repoRoot, '.tmp', 'ivekit-standalone-context')
 );
 const result = buildIveKitStandaloneContext({
   repoRoot,
   outputDir,
-  sourceCommit: process.env.OPC_IVEKIT_SOURCE_COMMIT
+  sourceCommit: resolveFabricEnv(process.env, 'SOURCE_COMMIT')
 });
 const npmCiArgs = ['ci', '--ignore-scripts'];
-if (process.env.OPC_IVEKIT_STANDALONE_NPM_OFFLINE === '1') npmCiArgs.push('--offline');
+if (resolveFabricEnv(process.env, 'STANDALONE_NPM_OFFLINE') === '1') npmCiArgs.push('--offline');
 run('npm', npmCiArgs, outputDir);
 run('npm', ['run', 'build'], outputDir);
 const entrypoints = [

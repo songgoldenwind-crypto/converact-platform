@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${OPC_BASE_URL:-http://localhost:3000}"
-API_KEY="${OPC_API_KEY:-}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/converact-env-compat.sh"
+converact_env_install_aliases
+
+BASE_URL="${CONVERACT_BASE_URL:-http://localhost:3000}"
+API_KEY="${CONVERACT_API_KEY:-}"
 
 headers=(-H "Content-Type: application/json")
 if [[ -n "$API_KEY" ]]; then

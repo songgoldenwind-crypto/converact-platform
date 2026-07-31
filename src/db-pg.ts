@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from './config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +31,7 @@ interface PostgresPoolErrorEmitter {
 type TableRow = Record<string, unknown>;
 
 /**
- * In-memory Postgres substitute for unit tests (OPC_USE_MEMORY_PG=1).
+ * In-memory Postgres substitute for unit tests (CONVERACT_USE_MEMORY_PG=1).
  * Executes a focused subset of SQL used by auth + compliance stores.
  */
 export class MemoryPg implements PgQueryable {
@@ -4401,7 +4402,7 @@ export function postgresConnectionConfigFromEnv(
   return {
     runtimeUrl,
     migrationUrl: env.DATABASE_MIGRATION_URL ||
-      (env.OPC_SCHEMA_MANAGED_BY_MIGRATIONS === '1' ? null : runtimeUrl)
+      (resolveBrandEnv(env, 'SCHEMA_MANAGED_BY_MIGRATIONS') === '1' ? null : runtimeUrl)
   };
 }
 
@@ -4423,7 +4424,7 @@ export function pgId(prefix: string): string {
 export async function initPostgres(): Promise<PgQueryable | null> {
   if (sharedPool) return sharedPool;
 
-  if (process.env.OPC_USE_MEMORY_PG === '1') {
+  if (resolveBrandEnv(process.env, 'USE_MEMORY_PG') === '1') {
     sharedPool = new MemoryPg();
     await runMigrations(sharedPool);
     return sharedPool;

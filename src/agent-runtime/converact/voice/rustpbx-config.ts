@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import { chmodSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { dirname, resolve } from 'node:path';
@@ -440,27 +441,27 @@ function webphoneAuth(
   env: NodeJS.ProcessEnv,
   distinctSecrets: string[]
 ): RustPbxRenderInput['webphone'] {
-  const flag = String(env.OPC_IVEKIT_WEBPHONE_ENABLED || '').trim().toLowerCase();
+  const flag = String(resolveFabricEnv(env, 'WEBPHONE_ENABLED') || '').trim().toLowerCase();
   if (!flag || flag === '0' || flag === 'false') return null;
   if (flag !== '1' && flag !== 'true') {
-    throw new Error('OPC_IVEKIT_WEBPHONE_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_FABRIC_WEBPHONE_ENABLED must be 0 or 1');
   }
-  const secret = required(env, 'OPC_IVEKIT_WEBPHONE_JWT_SECRET');
+  const secret = required(env, 'CONVERACT_FABRIC_WEBPHONE_JWT_SECRET');
   if (Buffer.byteLength(secret, 'utf8') < 32 || secret.length > 4_096 || /[\r\n]/.test(secret)) {
-    throw new Error('OPC_IVEKIT_WEBPHONE_JWT_SECRET must be 32-4096 bytes');
+    throw new Error('CONVERACT_FABRIC_WEBPHONE_JWT_SECRET must be 32-4096 bytes');
   }
   if (distinctSecrets.includes(secret)) {
-    throw new Error('OPC_IVEKIT_WEBPHONE_JWT_SECRET must be distinct from RustPBX runtime secrets');
+    throw new Error('CONVERACT_FABRIC_WEBPHONE_JWT_SECRET must be distinct from RustPBX runtime secrets');
   }
   return {
     jwt_secret: secret,
     jwt_issuer: boundedWebphoneClaim(
-      required(env, 'OPC_IVEKIT_WEBPHONE_JWT_ISSUER'),
-      'OPC_IVEKIT_WEBPHONE_JWT_ISSUER'
+      required(env, 'CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER'),
+      'CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER'
     ),
     jwt_audience: boundedWebphoneClaim(
-      required(env, 'OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE'),
-      'OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE'
+      required(env, 'CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE'),
+      'CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE'
     )
   };
 }
@@ -473,7 +474,7 @@ function boundedWebphoneClaim(value: string, field: string): string {
 }
 
 function required(env: NodeJS.ProcessEnv, field: string): string {
-  const value = String(env[field] || '').trim();
+  const value = String(resolveConveractEnv(env, field) || '').trim();
   if (!value) throw new Error(`${field} is required`);
   return value;
 }

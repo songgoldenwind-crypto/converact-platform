@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -26,7 +27,7 @@ const PUBLIC_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=';
 const PRIVATE_LENGTH_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ==';
 
 test('RustDesk public key loader accepts only canonical 32-byte Ed25519 public keys', () => {
-  assert.deepEqual(rustDeskPublicKey({ OPC_RUSTDESK_PUBLIC_KEY: PUBLIC_KEY }), {
+  assert.deepEqual(rustDeskPublicKey({ CONVERACT_RUSTDESK_PUBLIC_KEY: PUBLIC_KEY }), {
     value: PUBLIC_KEY,
     source: 'env',
     file_path: ''
@@ -42,10 +43,10 @@ test('RustDesk public key loader accepts only canonical 32-byte Ed25519 public k
     `-----BEGIN PRIVATE KEY-----\n${PRIVATE_LENGTH_KEY}\n-----END PRIVATE KEY-----`,
     `-----BEGIN PUBLIC KEY-----\n${PUBLIC_KEY}\n-----END PUBLIC KEY-----`
   ]) {
-    const loaded = rustDeskPublicKey({ OPC_RUSTDESK_PUBLIC_KEY: invalid });
+    const loaded = rustDeskPublicKey({ CONVERACT_RUSTDESK_PUBLIC_KEY: invalid });
     assert.equal(loaded.value, '', invalid);
     assert.match(loaded.error || '', /canonical.*base64.*32 bytes/i, invalid);
-    const config = rustDeskClientConfig({ OPC_RUSTDESK_PUBLIC_KEY: invalid });
+    const config = rustDeskClientConfig({ CONVERACT_RUSTDESK_PUBLIC_KEY: invalid });
     assert.equal(config.public_key, '', invalid);
     assert.equal(config.manual_fields.key, '', invalid);
     assert.doesNotMatch(JSON.stringify(config), new RegExp(escapeRegExp(invalid)));
@@ -54,7 +55,7 @@ test('RustDesk public key loader accepts only canonical 32-byte Ed25519 public k
   const dir = mkdtempSync(join(tmpdir(), 'rustdesk-invalid-public-key-'));
   const file = join(dir, 'id_ed25519.pub');
   writeFileSync(file, PRIVATE_LENGTH_KEY, 'utf8');
-  const loadedFile = rustDeskPublicKey({ OPC_RUSTDESK_PUBLIC_KEY_FILE: file });
+  const loadedFile = rustDeskPublicKey({ CONVERACT_RUSTDESK_PUBLIC_KEY_FILE: file });
   assert.equal(loadedFile.value, '');
   assert.match(loadedFile.error || '', /canonical.*base64.*32 bytes/i);
 });
@@ -107,11 +108,11 @@ test('RustDesk client profiles support only the pinned V1 desktop matrix', () =>
 test('RustDesk client profile TTL accepts canonical and legacy inputs without silent conflicts', () => {
   const profileWithTtl = (overrides: NodeJS.ProcessEnv) => {
     const env = { ...profileEnv(), ...overrides };
-    if (overrides.OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS === undefined) {
-      delete env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS;
+    if (overrides.CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS === undefined) {
+      delete env.CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS;
     }
-    if (overrides.OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS === undefined) {
-      delete env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS;
+    if (overrides.CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS === undefined) {
+      delete env.CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS;
     }
     return createRustDeskClientDistributionProfile(
       pinnedInput({ platform: 'linux', architecture: 'x86_64' }),
@@ -121,25 +122,25 @@ test('RustDesk client profile TTL accepts canonical and legacy inputs without si
   const lifetimeMs = (profile: ReturnType<typeof profileWithTtl>) =>
     Date.parse(profile.expires_at) - Date.parse(profile.issued_at);
 
-  assert.equal(lifetimeMs(profileWithTtl({ OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS: '60000' })), 60_000);
-  assert.equal(lifetimeMs(profileWithTtl({ OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '60' })), 60_000);
+  assert.equal(lifetimeMs(profileWithTtl({ CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS: '60000' })), 60_000);
+  assert.equal(lifetimeMs(profileWithTtl({ CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '60' })), 60_000);
   assert.equal(lifetimeMs(profileWithTtl({
-    OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '60',
-    OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS: '60000'
+    CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '60',
+    CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS: '60000'
   })), 60_000);
   assert.throws(
     () => profileWithTtl({
-      OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '60',
-      OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS: '900000'
+      CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '60',
+      CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS: '900000'
     }),
     /TTL_SECONDS.*TTL_MS.*conflict/
   );
 
   for (const overrides of [
-    { OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '59' },
-    { OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '3601' },
-    { OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS: '59999' },
-    { OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS: '3600001' }
+    { CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '59' },
+    { CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '3601' },
+    { CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS: '59999' },
+    { CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS: '3600001' }
   ]) {
     assert.throws(() => profileWithTtl(overrides), /must be an integer from/);
   }
@@ -191,7 +192,7 @@ test('RustDesk client profiles use only validated explicit artifact metadata', (
       {
         env: {
           ...profileEnv(manifest),
-          OPC_RUSTDESK_API_SERVER: 'https://user:password@rustdesk-api.example.com'
+          CONVERACT_RUSTDESK_API_SERVER: 'https://user:password@rustdesk-api.example.com'
         },
         now: () => NOW
       }
@@ -295,7 +296,7 @@ for (const [name, filename, urlFilename] of [
           expected_server_version: '1.1.16',
           expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
         },
-        { env: { ...profileEnv(value), OPC_RUSTDESK_PUBLIC_KEY: PUBLIC_KEY }, now: () => NOW }
+        { env: { ...profileEnv(value), CONVERACT_RUSTDESK_PUBLIC_KEY: PUBLIC_KEY }, now: () => NOW }
       ),
       /artifact/
     );
@@ -488,7 +489,7 @@ test('authenticated client-profile endpoint returns private no-store responses a
   Object.assign(process.env, profileEnv(artifactManifest([
     artifact('windows', 'x86_64', 'rustdesk-1.4.9-x86_64.exe')
   ])));
-  process.env.OPC_API_KEY = 'profile-api-key';
+  process.env.CONVERACT_API_KEY = 'profile-api-key';
   const db = createDatabase(':memory:');
   const server = createIveKitHttpServer({ db, pg: new MemoryPg() });
   t.after(async () => {
@@ -540,7 +541,7 @@ test('monolith client-profile endpoint preserves private no-store and tenant-awa
   Object.assign(process.env, profileEnv(artifactManifest([
     artifact('windows', 'x86_64', 'rustdesk-1.4.9-x86_64.exe')
   ])));
-  process.env.OPC_API_KEY = 'profile-api-key';
+  process.env.CONVERACT_API_KEY = 'profile-api-key';
   const server = createOpcHttpServer(createDatabase(':memory:'), new MemoryPg());
   t.after(async () => {
     restoreProfileProcessEnv(previous);
@@ -565,21 +566,21 @@ test('RustDesk client profile deployment passes pinned version and manifest into
   ]) {
     const compose = readFileSync(new URL(path, import.meta.url), 'utf8');
     assert.match(compose, /RUSTDESK_SERVER_IMAGE_TAG:\s*\$\{RUSTDESK_SERVER_IMAGE_TAG/);
-    assert.match(compose, /OPC_RUSTDESK_CLIENT_VERSION:\s*\$\{OPC_RUSTDESK_CLIENT_VERSION/);
-    assert.match(compose, /OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON:\s*\$\{OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON/);
-    assert.match(compose, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS:\s*\$\{OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS/);
-    assert.doesNotMatch(compose, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
+    assert.match(compose, /CONVERACT_RUSTDESK_CLIENT_VERSION:\s*\$\{CONVERACT_RUSTDESK_CLIENT_VERSION/);
+    assert.match(compose, /CONVERACT_RUSTDESK_CLIENT_ARTIFACTS_JSON:\s*\$\{CONVERACT_RUSTDESK_CLIENT_ARTIFACTS_JSON/);
+    assert.match(compose, /CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS:\s*\$\{CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS/);
+    assert.doesNotMatch(compose, /CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
   }
   for (const path of ['../.env.example', '../infra/env.example', '../infra/converact/env.example']) {
     const env = readFileSync(new URL(path, import.meta.url), 'utf8');
-    assert.match(env, /^OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON=$/m);
-    assert.match(env, /^OPC_RUSTDESK_CLIENT_VERSION=1\.4\.9$/m);
-    assert.match(env, /^OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS=900$/m);
-    assert.doesNotMatch(env, /^OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS=/m);
+    assert.match(env, /^CONVERACT_RUSTDESK_CLIENT_ARTIFACTS_JSON=$/m);
+    assert.match(env, /^CONVERACT_RUSTDESK_CLIENT_VERSION=1\.4\.9$/m);
+    assert.match(env, /^CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS=900$/m);
+    assert.doesNotMatch(env, /^CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS=/m);
   }
   for (const path of ['../infra/k8s/values.yaml', '../infra/k8s/templates/opc-deployment.yaml']) {
     const helm = readFileSync(new URL(path, import.meta.url), 'utf8');
-    assert.doesNotMatch(helm, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
+    assert.doesNotMatch(helm, /CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
   }
 });
 
@@ -606,14 +607,14 @@ function artifactManifest(
 
 function profileEnv(manifest?: unknown): NodeJS.ProcessEnv {
   return {
-    OPC_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
-    OPC_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
-    OPC_RUSTDESK_API_SERVER: 'https://rustdesk-api.example.com',
-    OPC_RUSTDESK_PUBLIC_KEY: PUBLIC_KEY,
+    CONVERACT_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
+    CONVERACT_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
+    CONVERACT_RUSTDESK_API_SERVER: 'https://rustdesk-api.example.com',
+    CONVERACT_RUSTDESK_PUBLIC_KEY: PUBLIC_KEY,
     RUSTDESK_SERVER_IMAGE_TAG: '1.1.16',
-    OPC_RUSTDESK_CLIENT_VERSION: '1.4.9',
-    OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '900',
-    ...(manifest === undefined ? {} : { OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON: String(manifest) })
+    CONVERACT_RUSTDESK_CLIENT_VERSION: '1.4.9',
+    CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '900',
+    ...(manifest === undefined ? {} : { CONVERACT_RUSTDESK_CLIENT_ARTIFACTS_JSON: String(manifest) })
   };
 }
 
@@ -628,20 +629,20 @@ function pinnedInput(input: { platform: unknown; architecture: unknown; client_v
 }
 
 const PROFILE_ENV_KEYS = [
-  'OPC_API_KEY',
-  'OPC_RUSTDESK_ID_SERVER',
-  'OPC_RUSTDESK_RELAY_SERVER',
-  'OPC_RUSTDESK_API_SERVER',
-  'OPC_RUSTDESK_PUBLIC_KEY',
-  'OPC_RUSTDESK_PUBLIC_KEY_FILE',
+  'CONVERACT_API_KEY',
+  'CONVERACT_RUSTDESK_ID_SERVER',
+  'CONVERACT_RUSTDESK_RELAY_SERVER',
+  'CONVERACT_RUSTDESK_API_SERVER',
+  'CONVERACT_RUSTDESK_PUBLIC_KEY',
+  'CONVERACT_RUSTDESK_PUBLIC_KEY_FILE',
   'RUSTDESK_SERVER_IMAGE_TAG',
-  'OPC_RUSTDESK_CLIENT_VERSION',
-  'OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS',
-  'OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON'
+  'CONVERACT_RUSTDESK_CLIENT_VERSION',
+  'CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS',
+  'CONVERACT_RUSTDESK_CLIENT_ARTIFACTS_JSON'
 ] as const;
 
 function saveProfileProcessEnv(): Record<string, string | undefined> {
-  return Object.fromEntries(PROFILE_ENV_KEYS.map((key) => [key, process.env[key]]));
+  return Object.fromEntries(PROFILE_ENV_KEYS.map((key) => [key, resolveConveractEnv(process.env, key)]));
 }
 
 function restoreProfileProcessEnv(saved: Record<string, string | undefined>): void {

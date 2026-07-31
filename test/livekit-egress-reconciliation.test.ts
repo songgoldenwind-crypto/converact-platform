@@ -26,19 +26,19 @@ test('reconciliation runtime is explicit, bounded, and present in delivery templ
     max_missing_observations: 2
   });
   assert.throws(() => liveKitEgressReconciliationConfig({
-    OPC_LIVEKIT_EGRESS_RECONCILIATION_ENABLED: 'yes'
+    CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_ENABLED: 'yes'
   }), /must be 0 or 1/);
   assert.throws(() => liveKitEgressReconciliationConfig({
-    OPC_LIVEKIT_EGRESS_RECONCILIATION_RETRY_BASE_MS: '10000',
-    OPC_LIVEKIT_EGRESS_RECONCILIATION_RETRY_MAX_MS: '5000'
+    CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_RETRY_BASE_MS: '10000',
+    CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_RETRY_MAX_MS: '5000'
   }), /RETRY_MAX_MS/);
 
   const compose = readFileSync('services/converact-service/docker-compose.yml', 'utf8');
   const values = readFileSync('services/converact-service/helm/converact/values.yaml', 'utf8');
   const runtime = readFileSync('src/agent-runtime/livekit/egress-reconciliation-runtime.ts', 'utf8');
   const migration = readFileSync('src/migrations/089_livekit_egress_capacity_metrics.sql', 'utf8');
-  assert.match(compose, /OPC_LIVEKIT_EGRESS_RECONCILIATION_ENABLED/);
-  assert.match(values, /OPC_LIVEKIT_EGRESS_RECONCILIATION_MAX_MISSING/);
+  assert.match(compose, /CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_ENABLED/);
+  assert.match(values, /CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_MAX_MISSING/);
   assert.match(runtime, /opc_livekit_egress_reconciliation_tenant_ids/);
   assert.doesNotMatch(runtime, /opc_worker_tenant_ids/);
   assert.match(migration, /SECURITY DEFINER/);

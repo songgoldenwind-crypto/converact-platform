@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { request } from 'node:http';
 import { after, before, beforeEach, test } from 'node:test';
@@ -20,7 +21,7 @@ function withEnv(overrides: Record<string, string | undefined>, fn: () => Promis
   return async () => {
     const snapshot: Record<string, string | undefined> = {};
     for (const key of Object.keys(overrides)) {
-      snapshot[key] = process.env[key];
+      snapshot[key] = resolveConveractEnv(process.env, key);
       const value = overrides[key];
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
@@ -82,12 +83,12 @@ let db: ReturnType<typeof createDatabase>;
 let server: ReturnType<typeof createServer>;
 
 before(async () => {
-  process.env.OPC_USE_MEMORY_PG = '1';
-  process.env.OPC_USE_MEMORY_REDIS = '1';
-  process.env.OPC_JWT_SECRET = 'test-jwt-secret-sprint1';
-  process.env.OPC_COMPLIANCE_NOW = '2026-06-21T10:00:00Z';
-  delete process.env.OPC_AUTH_ISSUER;
-  process.env.OPC_AUTH_DISABLED = '0';
+  process.env.CONVERACT_USE_MEMORY_PG = '1';
+  process.env.CONVERACT_USE_MEMORY_REDIS = '1';
+  process.env.CONVERACT_JWT_SECRET = 'test-jwt-secret-sprint1';
+  process.env.CONVERACT_COMPLIANCE_NOW = '2026-06-21T10:00:00Z';
+  delete process.env.CONVERACT_AUTH_ISSUER;
+  process.env.CONVERACT_AUTH_DISABLED = '0';
   _clearJwksCache();
   resetPostgresForTests(null);
   resetRedisPubSubForTests(null);

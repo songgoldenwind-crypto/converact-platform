@@ -182,7 +182,7 @@ test('handleStripeWebhook downgrades on subscription.deleted', async () => {
 });
 
 test('billing HTTP routes return subscription info', async () => {
-  process.env.OPC_API_KEY = BILLING_API_KEY;
+  process.env.CONVERACT_API_KEY = BILLING_API_KEY;
   const db = createDatabase(':memory:');
   const store = new BillingStore(db);
 

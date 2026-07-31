@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from './config/converact-env.js';
 /**
  * PgSyncDatabase — a synchronous Postgres adapter that mimics node:sqlite's DatabaseSync interface.
  *
@@ -187,6 +188,6 @@ export function shouldSkipRuntimeSchemaDdl(
   sql: string,
   env: NodeJS.ProcessEnv = process.env
 ): boolean {
-  if (env.OPC_SCHEMA_MANAGED_BY_MIGRATIONS !== '1') return false;
+  if (resolveBrandEnv(env, 'SCHEMA_MANAGED_BY_MIGRATIONS') !== '1') return false;
   return /\b(?:CREATE\s+(?:TABLE|INDEX)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX))\b/i.test(sql);
 }

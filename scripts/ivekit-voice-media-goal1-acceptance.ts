@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
@@ -548,13 +549,13 @@ function refuseNonEmptyOutput(outputDir: string): void {
 async function main(): Promise<void> {
   const result = await runVoiceMediaGoal1ControlledAcceptance({
     source_dir:
-      process.env.OPC_IVEKIT_MEDIA_GOAL1_SOURCE_DIR || process.cwd(),
+      resolveFabricEnv(process.env, 'MEDIA_GOAL1_SOURCE_DIR') || process.cwd(),
     container_name:
-      process.env.OPC_IVEKIT_MEDIA_GOAL1_CONTAINER_NAME || '',
+      resolveFabricEnv(process.env, 'MEDIA_GOAL1_CONTAINER_NAME') || '',
     rendered_config_file:
-      process.env.OPC_IVEKIT_MEDIA_GOAL1_RENDERED_CONFIG_FILE || '',
-    generated_at: process.env.OPC_IVEKIT_MEDIA_GOAL1_GENERATED_AT,
-    output_dir: process.env.OPC_IVEKIT_MEDIA_GOAL1_ACCEPTANCE_DIR ||
+      resolveFabricEnv(process.env, 'MEDIA_GOAL1_RENDERED_CONFIG_FILE') || '',
+    generated_at: resolveFabricEnv(process.env, 'MEDIA_GOAL1_GENERATED_AT'),
+    output_dir: resolveFabricEnv(process.env, 'MEDIA_GOAL1_ACCEPTANCE_DIR') ||
       resolve('.tmp/ivekit-voice-media-goal1-acceptance')
   });
   console.log(JSON.stringify(result, null, 2));

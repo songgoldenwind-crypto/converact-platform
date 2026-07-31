@@ -90,8 +90,8 @@ jobs:
               ;;
             ivekit-standalone)
               npm ci --ignore-scripts
-              OPC_IVEKIT_STANDALONE_CONTEXT_DIR="${CONTEXT}" \
-              OPC_IVEKIT_SOURCE_COMMIT="${GITHUB_SHA}" \
+              CONVERACT_FABRIC_STANDALONE_CONTEXT_DIR="${CONTEXT}" \
+              CONVERACT_FABRIC_SOURCE_COMMIT="${GITHUB_SHA}" \
                 node --import tsx scripts/ivekit-standalone-build-context.ts
               ;;
           esac

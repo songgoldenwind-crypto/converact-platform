@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 export interface FirecrawlClientOptions {
   baseUrl?: string | null;
   timeoutMs?: number;
@@ -10,9 +11,9 @@ export class FirecrawlClient {
   apiKey: string | null;
 
   constructor(options: FirecrawlClientOptions = {}) {
-    this.baseUrl = options.baseUrl || process.env.OPC_FIRECRAWL_URL || process.env.OPC_PROVIDER_GATEWAY_URL || null;
-    this.timeoutMs = Number(options.timeoutMs || process.env.OPC_FIRECRAWL_TIMEOUT_MS || 10000);
-    this.apiKey = options.apiKey || process.env.OPC_FIRECRAWL_API_KEY || null;
+    this.baseUrl = options.baseUrl || resolveBrandEnv(process.env, 'FIRECRAWL_URL') || resolveBrandEnv(process.env, 'PROVIDER_GATEWAY_URL') || null;
+    this.timeoutMs = Number(options.timeoutMs || resolveBrandEnv(process.env, 'FIRECRAWL_TIMEOUT_MS') || 10000);
+    this.apiKey = options.apiKey || resolveBrandEnv(process.env, 'FIRECRAWL_API_KEY') || null;
   }
 
   isConfigured(runtimeConfig: Record<string, unknown> = {}): boolean {

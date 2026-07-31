@@ -12,7 +12,7 @@ import {
 import { canonicalSha256 } from '../scripts/capacity/canonical-json.js';
 import type { LoadRunManifest } from '../scripts/capacity/profile-compiler.js';
 
-const databaseUrl = process.env.OPC_IVEKIT_CAPACITY_TEST_DATABASE_URL || '';
+const databaseUrl = process.env.CONVERACT_FABRIC_CAPACITY_TEST_DATABASE_URL || '';
 const performanceContract = JSON.parse(
   readFileSync('docs/capacity/profiles/mix-100k-v1.json', 'utf8')
 ).performance_contract;

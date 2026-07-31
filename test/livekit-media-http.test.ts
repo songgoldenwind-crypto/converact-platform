@@ -447,16 +447,16 @@ test('media HTTP webhook fails closed in production when LiveKit webhook credent
   const previousLiveKitUrl = process.env.LIVEKIT_URL;
   const previousLiveKitKey = process.env.LIVEKIT_API_KEY;
   const previousLiveKitSecret = process.env.LIVEKIT_API_SECRET;
-  const previousOpcLiveKitUrl = process.env.OPC_LIVEKIT_URL;
-  const previousOpcLiveKitKey = process.env.OPC_LIVEKIT_API_KEY;
-  const previousOpcLiveKitSecret = process.env.OPC_LIVEKIT_API_SECRET;
+  const previousOpcLiveKitUrl = process.env.CONVERACT_LIVEKIT_URL;
+  const previousOpcLiveKitKey = process.env.CONVERACT_LIVEKIT_API_KEY;
+  const previousOpcLiveKitSecret = process.env.CONVERACT_LIVEKIT_API_SECRET;
   process.env.NODE_ENV = 'production';
   delete process.env.LIVEKIT_URL;
   delete process.env.LIVEKIT_API_KEY;
   delete process.env.LIVEKIT_API_SECRET;
-  delete process.env.OPC_LIVEKIT_URL;
-  delete process.env.OPC_LIVEKIT_API_KEY;
-  delete process.env.OPC_LIVEKIT_API_SECRET;
+  delete process.env.CONVERACT_LIVEKIT_URL;
+  delete process.env.CONVERACT_LIVEKIT_API_KEY;
+  delete process.env.CONVERACT_LIVEKIT_API_SECRET;
 
   try {
     await assert.rejects(
@@ -488,12 +488,12 @@ test('media HTTP webhook fails closed in production when LiveKit webhook credent
     else process.env.LIVEKIT_API_KEY = previousLiveKitKey;
     if (previousLiveKitSecret == null) delete process.env.LIVEKIT_API_SECRET;
     else process.env.LIVEKIT_API_SECRET = previousLiveKitSecret;
-    if (previousOpcLiveKitUrl == null) delete process.env.OPC_LIVEKIT_URL;
-    else process.env.OPC_LIVEKIT_URL = previousOpcLiveKitUrl;
-    if (previousOpcLiveKitKey == null) delete process.env.OPC_LIVEKIT_API_KEY;
-    else process.env.OPC_LIVEKIT_API_KEY = previousOpcLiveKitKey;
-    if (previousOpcLiveKitSecret == null) delete process.env.OPC_LIVEKIT_API_SECRET;
-    else process.env.OPC_LIVEKIT_API_SECRET = previousOpcLiveKitSecret;
+    if (previousOpcLiveKitUrl == null) delete process.env.CONVERACT_LIVEKIT_URL;
+    else process.env.CONVERACT_LIVEKIT_URL = previousOpcLiveKitUrl;
+    if (previousOpcLiveKitKey == null) delete process.env.CONVERACT_LIVEKIT_API_KEY;
+    else process.env.CONVERACT_LIVEKIT_API_KEY = previousOpcLiveKitKey;
+    if (previousOpcLiveKitSecret == null) delete process.env.CONVERACT_LIVEKIT_API_SECRET;
+    else process.env.CONVERACT_LIVEKIT_API_SECRET = previousOpcLiveKitSecret;
     db.close();
   }
 });
@@ -1024,8 +1024,8 @@ test('media HTTP router returns clear 400 errors for missing body fields', async
 });
 
 test('media HTTP router protects management endpoints with service token when configured', async () => {
-  const previous = process.env.OPC_MEDIA_API_TOKEN;
-  process.env.OPC_MEDIA_API_TOKEN = 'media-service-token';
+  const previous = process.env.CONVERACT_MEDIA_API_TOKEN;
+  process.env.CONVERACT_MEDIA_API_TOKEN = 'media-service-token';
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'LiveKit Media Auth HTTP' });
 
@@ -1106,8 +1106,8 @@ test('media HTTP router protects management endpoints with service token when co
     );
     assert.equal((agentJoin as { mode: string }).mode, 'webrtc');
   } finally {
-    if (previous == null) delete process.env.OPC_MEDIA_API_TOKEN;
-    else process.env.OPC_MEDIA_API_TOKEN = previous;
+    if (previous == null) delete process.env.CONVERACT_MEDIA_API_TOKEN;
+    else process.env.CONVERACT_MEDIA_API_TOKEN = previous;
     db.close();
   }
 });
@@ -1116,9 +1116,9 @@ test('media HTTP management endpoints fail closed in production when service tok
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Media Service Token Production' });
   const previousNodeEnv = process.env.NODE_ENV;
-  const previousMediaToken = process.env.OPC_MEDIA_API_TOKEN;
+  const previousMediaToken = process.env.CONVERACT_MEDIA_API_TOKEN;
   const previousLegacyMediaToken = process.env.LIVEKIT_MEDIA_API_TOKEN;
-  delete process.env.OPC_MEDIA_API_TOKEN;
+  delete process.env.CONVERACT_MEDIA_API_TOKEN;
   delete process.env.LIVEKIT_MEDIA_API_TOKEN;
   process.env.NODE_ENV = 'production';
 
@@ -1147,8 +1147,8 @@ test('media HTTP management endpoints fail closed in production when service tok
   } finally {
     if (previousNodeEnv == null) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = previousNodeEnv;
-    if (previousMediaToken == null) delete process.env.OPC_MEDIA_API_TOKEN;
-    else process.env.OPC_MEDIA_API_TOKEN = previousMediaToken;
+    if (previousMediaToken == null) delete process.env.CONVERACT_MEDIA_API_TOKEN;
+    else process.env.CONVERACT_MEDIA_API_TOKEN = previousMediaToken;
     if (previousLegacyMediaToken == null) delete process.env.LIVEKIT_MEDIA_API_TOKEN;
     else process.env.LIVEKIT_MEDIA_API_TOKEN = previousLegacyMediaToken;
     db.close();
@@ -1156,10 +1156,10 @@ test('media HTTP management endpoints fail closed in production when service tok
 });
 
 test('media HTTP router requires signed customer invites when invite secret is configured', async () => {
-  const previousInviteSecret = process.env.OPC_MEDIA_INVITE_SECRET;
-  const previousApiToken = process.env.OPC_MEDIA_API_TOKEN;
-  process.env.OPC_MEDIA_INVITE_SECRET = 'media-invite-secret';
-  delete process.env.OPC_MEDIA_API_TOKEN;
+  const previousInviteSecret = process.env.CONVERACT_MEDIA_INVITE_SECRET;
+  const previousApiToken = process.env.CONVERACT_MEDIA_API_TOKEN;
+  process.env.CONVERACT_MEDIA_INVITE_SECRET = 'media-invite-secret';
+  delete process.env.CONVERACT_MEDIA_API_TOKEN;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'LiveKit Signed Customer Invite' });
 
@@ -1247,19 +1247,19 @@ test('media HTTP router requires signed customer invites when invite secret is c
     );
     assert.equal((joined as { mode: string }).mode, 'webrtc');
   } finally {
-    if (previousInviteSecret == null) delete process.env.OPC_MEDIA_INVITE_SECRET;
-    else process.env.OPC_MEDIA_INVITE_SECRET = previousInviteSecret;
-    if (previousApiToken == null) delete process.env.OPC_MEDIA_API_TOKEN;
-    else process.env.OPC_MEDIA_API_TOKEN = previousApiToken;
+    if (previousInviteSecret == null) delete process.env.CONVERACT_MEDIA_INVITE_SECRET;
+    else process.env.CONVERACT_MEDIA_INVITE_SECRET = previousInviteSecret;
+    if (previousApiToken == null) delete process.env.CONVERACT_MEDIA_API_TOKEN;
+    else process.env.CONVERACT_MEDIA_API_TOKEN = previousApiToken;
     db.close();
   }
 });
 
 test('signed customer joins establish a tenant RLS context after invite verification', async () => {
-  const previousSecret = process.env.OPC_MEDIA_INVITE_SECRET;
-  const previousMediaToken = process.env.OPC_MEDIA_API_TOKEN;
-  process.env.OPC_MEDIA_INVITE_SECRET = 'customer-join-rls-secret';
-  delete process.env.OPC_MEDIA_API_TOKEN;
+  const previousSecret = process.env.CONVERACT_MEDIA_INVITE_SECRET;
+  const previousMediaToken = process.env.CONVERACT_MEDIA_API_TOKEN;
+  process.env.CONVERACT_MEDIA_INVITE_SECRET = 'customer-join-rls-secret';
+  delete process.env.CONVERACT_MEDIA_API_TOKEN;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Customer join RLS context' });
   await routeMediaApi(
@@ -1306,28 +1306,28 @@ test('signed customer joins establish a tenant RLS context after invite verifica
     assert.equal(getPgTenantContext().tenantId, undefined);
   } finally {
     db.close();
-    if (previousSecret === undefined) delete process.env.OPC_MEDIA_INVITE_SECRET;
-    else process.env.OPC_MEDIA_INVITE_SECRET = previousSecret;
-    if (previousMediaToken === undefined) delete process.env.OPC_MEDIA_API_TOKEN;
-    else process.env.OPC_MEDIA_API_TOKEN = previousMediaToken;
+    if (previousSecret === undefined) delete process.env.CONVERACT_MEDIA_INVITE_SECRET;
+    else process.env.CONVERACT_MEDIA_INVITE_SECRET = previousSecret;
+    if (previousMediaToken === undefined) delete process.env.CONVERACT_MEDIA_API_TOKEN;
+    else process.env.CONVERACT_MEDIA_API_TOKEN = previousMediaToken;
   }
 });
 
 test('media HTTP customer join fails closed in production when invite signing is not configured', async () => {
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Media Invite Production' });
-  const previousInviteSecret = process.env.OPC_MEDIA_INVITE_SECRET;
+  const previousInviteSecret = process.env.CONVERACT_MEDIA_INVITE_SECRET;
   const previousLegacyInviteSecret = process.env.LIVEKIT_MEDIA_INVITE_SECRET;
   const previousNodeEnv = process.env.NODE_ENV;
-  const previousMediaToken = process.env.OPC_MEDIA_API_TOKEN;
+  const previousMediaToken = process.env.CONVERACT_MEDIA_API_TOKEN;
   const previousLiveKitUrl = process.env.LIVEKIT_URL;
   const previousLiveKitPublicUrl = process.env.LIVEKIT_PUBLIC_URL;
   const previousLiveKitApiKey = process.env.LIVEKIT_API_KEY;
   const previousLiveKitApiSecret = process.env.LIVEKIT_API_SECRET;
-  delete process.env.OPC_MEDIA_INVITE_SECRET;
+  delete process.env.CONVERACT_MEDIA_INVITE_SECRET;
   delete process.env.LIVEKIT_MEDIA_INVITE_SECRET;
   process.env.NODE_ENV = 'production';
-  process.env.OPC_MEDIA_API_TOKEN = 'media-service-token';
+  process.env.CONVERACT_MEDIA_API_TOKEN = 'media-service-token';
 
   try {
     await routeMediaApi(
@@ -1377,14 +1377,14 @@ test('media HTTP customer join fails closed in production when invite signing is
     );
     assert.equal((serviceJoin as { mode: string }).mode, 'webrtc');
   } finally {
-    if (previousInviteSecret == null) delete process.env.OPC_MEDIA_INVITE_SECRET;
-    else process.env.OPC_MEDIA_INVITE_SECRET = previousInviteSecret;
+    if (previousInviteSecret == null) delete process.env.CONVERACT_MEDIA_INVITE_SECRET;
+    else process.env.CONVERACT_MEDIA_INVITE_SECRET = previousInviteSecret;
     if (previousLegacyInviteSecret == null) delete process.env.LIVEKIT_MEDIA_INVITE_SECRET;
     else process.env.LIVEKIT_MEDIA_INVITE_SECRET = previousLegacyInviteSecret;
     if (previousNodeEnv == null) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = previousNodeEnv;
-    if (previousMediaToken == null) delete process.env.OPC_MEDIA_API_TOKEN;
-    else process.env.OPC_MEDIA_API_TOKEN = previousMediaToken;
+    if (previousMediaToken == null) delete process.env.CONVERACT_MEDIA_API_TOKEN;
+    else process.env.CONVERACT_MEDIA_API_TOKEN = previousMediaToken;
     if (previousLiveKitUrl == null) delete process.env.LIVEKIT_URL;
     else process.env.LIVEKIT_URL = previousLiveKitUrl;
     if (previousLiveKitPublicUrl == null) delete process.env.LIVEKIT_PUBLIC_URL;

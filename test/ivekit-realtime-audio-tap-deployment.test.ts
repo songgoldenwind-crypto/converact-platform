@@ -84,11 +84,11 @@ test('full platform chart preserves the same Pod-bound gateway contract', () => 
 test('single-instance Compose keeps the gateway private to its service network', () => {
   assert.match(
     standaloneCompose,
-    /OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL: \$\{OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL:-ws:\/\/ivekit:3010\/api\/ivekit\/realtime-audio-tap\/livekit\}/
+    /CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL: \$\{CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL:-ws:\/\/ivekit:3010\/api\/ivekit\/realtime-audio-tap\/livekit\}/
   );
   assert.match(
     platformCompose,
-    /OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL: \$\{OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL:-ws:\/\/opc:3010\/api\/ivekit\/realtime-audio-tap\/livekit\}/
+    /CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL: \$\{CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL:-ws:\/\/opc:3010\/api\/ivekit\/realtime-audio-tap\/livekit\}/
   );
   assert.doesNotMatch(standaloneCompose, /3010:3010/);
   assert.doesNotMatch(platformCompose, /3010:3010/);
@@ -104,11 +104,11 @@ test('Kubernetes co-locates a dedicated RustPBX gateway sidecar with the media p
   assertRustPbxSidecar(platformRustPbx);
   assert.match(
     standaloneDeployment,
-    /OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED\n\s+value: "0"/
+    /CONVERACT_FABRIC_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED\n\s+value: "0"/
   );
   assert.match(
     platformDeployment,
-    /OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED\n\s+value: "0"/
+    /CONVERACT_FABRIC_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED\n\s+value: "0"/
   );
 });
 
@@ -125,21 +125,21 @@ test('deployment surfaces bounded realtime projection recovery controls', () => 
   ]) {
     assert.match(
       deployment,
-      /OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS[\s\S]*projectionQueueMaxItems/
+      /CONVERACT_FABRIC_REALTIME_PROJECTION_QUEUE_MAX_ITEMS[\s\S]*projectionQueueMaxItems/
     );
     assert.match(
       deployment,
-      /OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS[\s\S]*projectionShutdownTimeoutMs/
+      /CONVERACT_FABRIC_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS[\s\S]*projectionShutdownTimeoutMs/
     );
   }
   for (const compose of [standaloneCompose, platformCompose]) {
     assert.match(
       compose,
-      /OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS: \$\{OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS:-4096\}/
+      /CONVERACT_FABRIC_REALTIME_PROJECTION_QUEUE_MAX_ITEMS: \$\{CONVERACT_FABRIC_REALTIME_PROJECTION_QUEUE_MAX_ITEMS:-4096\}/
     );
     assert.match(
       compose,
-      /OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS: \$\{OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS:-1000\}/
+      /CONVERACT_FABRIC_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS: \$\{CONVERACT_FABRIC_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS:-1000\}/
     );
   }
 });
@@ -147,17 +147,17 @@ test('deployment surfaces bounded realtime projection recovery controls', () => 
 function assertPodBoundGateway(source: string, headlessDnsPattern: string): void {
   assert.match(
     source,
-    /- name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_INSTANCE_ID\n\s+valueFrom:\n\s+fieldRef:\n\s+fieldPath: metadata.name/
+    /- name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_INSTANCE_ID\n\s+valueFrom:\n\s+fieldRef:\n\s+fieldPath: metadata.name/
   );
   assert.match(
     source,
     new RegExp(
-      `OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL[\\s\\S]*ws:\\/\\/\\$\\(POD_NAME\\)\\.${escapeRegex(headlessDnsPattern)}`
+      `CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL[\\s\\S]*ws:\\/\\/\\$\\(POD_NAME\\)\\.${escapeRegex(headlessDnsPattern)}`
     )
   );
   assert.match(
     source,
-    /OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64[\s\S]*secretKeyRef:/
+    /CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64[\s\S]*secretKeyRef:/
   );
 }
 
@@ -193,15 +193,15 @@ function assertRustPbxSidecar(source: string): void {
   assert.match(source, /- name: realtime-audio-tap-gateway/);
   assert.match(
     source,
-    /command: \["node", (?:"dist\/ivekit-realtime-audio-tap-worker\.js"|"--import", "tsx", "src\/ivekit-realtime-audio-tap-worker\.ts")\]/
+    /command: \["node", (?:"dist\/converact-realtime-audio-tap-worker\.js"|"--import", "tsx", "src\/converact-realtime-audio-tap-worker\.ts")\]/
   );
   assert.match(
     source,
-    /OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED\n\s+value: "1"/
+    /CONVERACT_FABRIC_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED\n\s+value: "1"/
   );
   assert.match(
     source,
-    /OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED\n\s+value: "0"/
+    /CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED\n\s+value: "0"/
   );
   const mounts = source.match(/name: realtime-audio-tap/g) || [];
   assert.ok(mounts.length >= 3, 'RustPBX, gateway, and Pod must share the UDS volume');

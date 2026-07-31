@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { readPrimaryLlmConfig, readFallbackLlmConfig } from '../src/agent-runtime/integrations/llm-config.js';
@@ -13,7 +14,7 @@ afterEach(() => {
 });
 
 function setEnv(key: string, value: string | undefined) {
-  if (!(key in saved)) saved[key] = process.env[key];
+  if (!(key in saved)) saved[key] = resolveConveractEnv(process.env, key);
   if (value === undefined) delete process.env[key];
   else process.env[key] = value;
 }

@@ -140,8 +140,8 @@ test('iveKit service image is built from its generated standalone source context
   assert.match(reusable, /PREPARE: \$\{\{ inputs\.prepare \}\}/);
   assert.match(reusable, /none\|ivekit-standalone/);
   assert.match(reusable, /scripts\/ivekit-standalone-build-context\.ts/);
-  assert.match(reusable, /OPC_IVEKIT_STANDALONE_CONTEXT_DIR="\$\{CONTEXT\}"/);
-  assert.match(reusable, /OPC_IVEKIT_SOURCE_COMMIT="\$\{GITHUB_SHA\}"/);
+  assert.match(reusable, /CONVERACT_FABRIC_STANDALONE_CONTEXT_DIR="\$\{CONTEXT\}"/);
+  assert.match(reusable, /CONVERACT_FABRIC_SOURCE_COMMIT="\$\{GITHUB_SHA\}"/);
   assert.doesNotMatch(reusable, /eval\s+"?\$\{?PREPARE/);
 
   const serviceEntry = caller.match(/- id: ivekit-service[\s\S]*?(?=\n          - id:)/)?.[0] || '';

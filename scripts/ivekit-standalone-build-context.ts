@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -254,11 +255,11 @@ export function resolveIveKitStandaloneSourceCommit(repoRoot: string, override?:
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : '';
 if (invokedPath === fileURLToPath(import.meta.url)) {
   const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
-  const outputDir = resolve(process.env.OPC_IVEKIT_STANDALONE_CONTEXT_DIR || join(repoRoot, '.tmp', 'ivekit-standalone-context'));
+  const outputDir = resolve(resolveFabricEnv(process.env, 'STANDALONE_CONTEXT_DIR') || join(repoRoot, '.tmp', 'ivekit-standalone-context'));
   const result = buildIveKitStandaloneContext({
     repoRoot,
     outputDir,
-    sourceCommit: process.env.OPC_IVEKIT_SOURCE_COMMIT
+    sourceCommit: resolveFabricEnv(process.env, 'SOURCE_COMMIT')
   });
   process.stdout.write(`${JSON.stringify({
     output_dir: result.outputDir,

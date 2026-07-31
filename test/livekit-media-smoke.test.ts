@@ -98,19 +98,19 @@ test('livekit media smoke drives the reusable media API with tenant-scoped resou
 test('livekit media smoke config requires a base URL token and tenant id', () => {
   assert.throws(
     () => createLiveKitMediaSmokeConfigFromEnv({}),
-    /OPC_BASE_URL/
+    /CONVERACT_BASE_URL/
   );
   assert.throws(
-    () => createLiveKitMediaSmokeConfigFromEnv({ OPC_BASE_URL: 'http://localhost:3000' }),
-    /OPC_MEDIA_API_TOKEN/
+    () => createLiveKitMediaSmokeConfigFromEnv({ CONVERACT_BASE_URL: 'http://localhost:3000' }),
+    /CONVERACT_MEDIA_API_TOKEN/
   );
   assert.throws(
     () =>
       createLiveKitMediaSmokeConfigFromEnv({
-        OPC_BASE_URL: 'http://localhost:3000',
-        OPC_MEDIA_API_TOKEN: 'token'
+        CONVERACT_BASE_URL: 'http://localhost:3000',
+        CONVERACT_MEDIA_API_TOKEN: 'token'
       }),
-    /OPC_MEDIA_SMOKE_TENANT_ID/
+    /CONVERACT_MEDIA_SMOKE_TENANT_ID/
   );
 });
 
@@ -213,11 +213,11 @@ test('livekit media smoke can keep the room open for a chained browser smoke', a
   };
 
   const config = createLiveKitMediaSmokeConfigFromEnv({
-    OPC_BASE_URL: 'http://opc.test',
-    OPC_MEDIA_API_TOKEN: 'media-token',
-    OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-smoke',
-    OPC_MEDIA_SMOKE_ROOM_NAME: 'smoke-room',
-    OPC_MEDIA_SMOKE_KEEP_ROOM_OPEN: '1'
+    CONVERACT_BASE_URL: 'http://opc.test',
+    CONVERACT_MEDIA_API_TOKEN: 'media-token',
+    CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-smoke',
+    CONVERACT_MEDIA_SMOKE_ROOM_NAME: 'smoke-room',
+    CONVERACT_MEDIA_SMOKE_KEEP_ROOM_OPEN: '1'
   });
   const result = await runLiveKitMediaSmoke(config, fetchImpl);
 
@@ -323,11 +323,11 @@ test('livekit media smoke rejects unsigned customer join paths when invite signi
   };
 
   const config = createLiveKitMediaSmokeConfigFromEnv({
-    OPC_BASE_URL: 'http://opc.test',
-    OPC_MEDIA_API_TOKEN: 'media-token',
-    OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-smoke',
-    OPC_MEDIA_SMOKE_ROOM_NAME: 'smoke-room',
-    OPC_MEDIA_INVITE_SECRET: 'invite-secret'
+    CONVERACT_BASE_URL: 'http://opc.test',
+    CONVERACT_MEDIA_API_TOKEN: 'media-token',
+    CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-smoke',
+    CONVERACT_MEDIA_SMOKE_ROOM_NAME: 'smoke-room',
+    CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret'
   });
 
   await assert.rejects(

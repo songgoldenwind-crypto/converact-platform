@@ -138,11 +138,11 @@ test('capacity controller entrypoint loads only a hash-bound immutable manifest 
 
 test('capacity controller config keeps polling comfortably inside its lease', () => {
   assert.deepEqual(capacityControllerConfig({
-    OPC_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
-    OPC_IVEKIT_CAPACITY_CONTROLLER_ID: 'capacity-controller-a',
-    OPC_IVEKIT_CAPACITY_MANIFEST_PATH: '/run/ivekit-capacity/manifest.json',
-    OPC_IVEKIT_CAPACITY_CONTROLLER_LEASE_MS: '15000',
-    OPC_IVEKIT_CAPACITY_CONTROLLER_POLL_INTERVAL_MS: '500'
+    CONVERACT_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
+    CONVERACT_FABRIC_CAPACITY_CONTROLLER_ID: 'capacity-controller-a',
+    CONVERACT_FABRIC_CAPACITY_MANIFEST_PATH: '/run/ivekit-capacity/manifest.json',
+    CONVERACT_FABRIC_CAPACITY_CONTROLLER_LEASE_MS: '15000',
+    CONVERACT_FABRIC_CAPACITY_CONTROLLER_POLL_INTERVAL_MS: '500'
   }), {
     database_url: 'postgresql://opc@postgres/ivekit',
     controller_id: 'capacity-controller-a',
@@ -151,11 +151,11 @@ test('capacity controller config keeps polling comfortably inside its lease', ()
     poll_interval_ms: 500
   });
   assert.throws(() => capacityControllerConfig({
-    OPC_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
-    OPC_IVEKIT_CAPACITY_CONTROLLER_ID: 'capacity-controller-a',
-    OPC_IVEKIT_CAPACITY_MANIFEST_PATH: '/run/ivekit-capacity/manifest.json',
-    OPC_IVEKIT_CAPACITY_CONTROLLER_LEASE_MS: '3000',
-    OPC_IVEKIT_CAPACITY_CONTROLLER_POLL_INTERVAL_MS: '1500'
+    CONVERACT_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
+    CONVERACT_FABRIC_CAPACITY_CONTROLLER_ID: 'capacity-controller-a',
+    CONVERACT_FABRIC_CAPACITY_MANIFEST_PATH: '/run/ivekit-capacity/manifest.json',
+    CONVERACT_FABRIC_CAPACITY_CONTROLLER_LEASE_MS: '3000',
+    CONVERACT_FABRIC_CAPACITY_CONTROLLER_POLL_INTERVAL_MS: '1500'
   }), /numeric/i);
 });
 

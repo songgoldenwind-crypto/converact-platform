@@ -66,24 +66,24 @@ test('file placement runtime refreshes signed snapshots and targets the selected
 test('placement runtime config is disabled by default and fail-closed when enabled incompletely', () => {
   assert.equal(placementRuntimeConfig({}).enabled, false);
   assert.throws(
-    () => placementRuntimeConfig({ OPC_IVEKIT_PLACEMENT_ENABLED: '1' }),
+    () => placementRuntimeConfig({ CONVERACT_FABRIC_PLACEMENT_ENABLED: '1' }),
     /required/
   );
   const snapshotKey = Buffer.alloc(32, 1).toString('base64');
   const tokenKey = Buffer.alloc(32, 2).toString('base64');
   const config = placementRuntimeConfig({
-    OPC_IVEKIT_PLACEMENT_ENABLED: '1',
-    OPC_IVEKIT_PLACEMENT_SNAPSHOT_FILE: '/run/ivekit/placement.json',
-    OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON: JSON.stringify({
+    CONVERACT_FABRIC_PLACEMENT_ENABLED: '1',
+    CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE: '/run/ivekit/placement.json',
+    CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON: JSON.stringify({
       snapshot: snapshotKey
     }),
-    OPC_IVEKIT_PLACEMENT_TOKEN_HMAC_KEYS_JSON: JSON.stringify({
+    CONVERACT_FABRIC_PLACEMENT_TOKEN_HMAC_KEYS_JSON: JSON.stringify({
       placement: tokenKey
     }),
-    OPC_IVEKIT_PLACEMENT_TOKEN_KEY_ID: 'placement',
-    OPC_IVEKIT_CELL_ADMISSION_TOKEN: 'placement-admission-token-123456789',
-    OPC_IVEKIT_PLACEMENT_HOME_REGION_ID: 'region-a',
-    OPC_IVEKIT_PLACEMENT_FAILOVER_REGION_IDS: 'region-b'
+    CONVERACT_FABRIC_PLACEMENT_TOKEN_KEY_ID: 'placement',
+    CONVERACT_FABRIC_CELL_ADMISSION_TOKEN: 'placement-admission-token-123456789',
+    CONVERACT_FABRIC_PLACEMENT_HOME_REGION_ID: 'region-a',
+    CONVERACT_FABRIC_PLACEMENT_FAILOVER_REGION_IDS: 'region-b'
   });
   assert.equal(config.enabled, true);
   if (!config.enabled) return;

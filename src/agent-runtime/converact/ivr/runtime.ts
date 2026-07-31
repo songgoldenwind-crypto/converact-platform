@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
@@ -45,53 +46,53 @@ export function iveKitIvrWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): IveKitIvrWorkerConfig {
   const retryBaseMs = boundedInteger(
-    env.OPC_IVEKIT_IVR_ACTION_RETRY_BASE_MS, 1_000, 100, 300_000,
-    'OPC_IVEKIT_IVR_ACTION_RETRY_BASE_MS'
+    resolveFabricEnv(env, 'IVR_ACTION_RETRY_BASE_MS'), 1_000, 100, 300_000,
+    'CONVERACT_FABRIC_IVR_ACTION_RETRY_BASE_MS'
   );
   const retryMaxMs = boundedInteger(
-    env.OPC_IVEKIT_IVR_ACTION_RETRY_MAX_MS, 60_000, 100, 3_600_000,
-    'OPC_IVEKIT_IVR_ACTION_RETRY_MAX_MS'
+    resolveFabricEnv(env, 'IVR_ACTION_RETRY_MAX_MS'), 60_000, 100, 3_600_000,
+    'CONVERACT_FABRIC_IVR_ACTION_RETRY_MAX_MS'
   );
   if (retryMaxMs < retryBaseMs) {
-    throw new Error('OPC_IVEKIT_IVR_ACTION_RETRY_MAX_MS must be at least OPC_IVEKIT_IVR_ACTION_RETRY_BASE_MS');
+    throw new Error('CONVERACT_FABRIC_IVR_ACTION_RETRY_MAX_MS must be at least CONVERACT_FABRIC_IVR_ACTION_RETRY_BASE_MS');
   }
   return {
     enabled: binaryFlag(
-      env.OPC_IVEKIT_IVR_WORKERS_ENABLED, false, 'OPC_IVEKIT_IVR_WORKERS_ENABLED'
+      resolveFabricEnv(env, 'IVR_WORKERS_ENABLED'), false, 'CONVERACT_FABRIC_IVR_WORKERS_ENABLED'
     ),
     action_interval_ms: boundedInteger(
-      env.OPC_IVEKIT_IVR_ACTION_INTERVAL_MS, 1_000, 100, 300_000,
-      'OPC_IVEKIT_IVR_ACTION_INTERVAL_MS'
+      resolveFabricEnv(env, 'IVR_ACTION_INTERVAL_MS'), 1_000, 100, 300_000,
+      'CONVERACT_FABRIC_IVR_ACTION_INTERVAL_MS'
     ),
     action_batch_size: boundedInteger(
-      env.OPC_IVEKIT_IVR_ACTION_BATCH_SIZE, 25, 1, 200,
-      'OPC_IVEKIT_IVR_ACTION_BATCH_SIZE'
+      resolveFabricEnv(env, 'IVR_ACTION_BATCH_SIZE'), 25, 1, 200,
+      'CONVERACT_FABRIC_IVR_ACTION_BATCH_SIZE'
     ),
     action_lease_ms: boundedInteger(
-      env.OPC_IVEKIT_IVR_ACTION_LEASE_MS, 30_000, 1_000, 300_000,
-      'OPC_IVEKIT_IVR_ACTION_LEASE_MS'
+      resolveFabricEnv(env, 'IVR_ACTION_LEASE_MS'), 30_000, 1_000, 300_000,
+      'CONVERACT_FABRIC_IVR_ACTION_LEASE_MS'
     ),
     action_retry_base_ms: retryBaseMs,
     action_retry_max_ms: retryMaxMs,
     reconciliation_interval_ms: boundedInteger(
-      env.OPC_IVEKIT_IVR_RECONCILIATION_INTERVAL_MS, 10_000, 100, 3_600_000,
-      'OPC_IVEKIT_IVR_RECONCILIATION_INTERVAL_MS'
+      resolveFabricEnv(env, 'IVR_RECONCILIATION_INTERVAL_MS'), 10_000, 100, 3_600_000,
+      'CONVERACT_FABRIC_IVR_RECONCILIATION_INTERVAL_MS'
     ),
     reconciliation_lease_ms: boundedInteger(
-      env.OPC_IVEKIT_IVR_RECONCILIATION_LEASE_MS, 30_000, 1_000, 300_000,
-      'OPC_IVEKIT_IVR_RECONCILIATION_LEASE_MS'
+      resolveFabricEnv(env, 'IVR_RECONCILIATION_LEASE_MS'), 30_000, 1_000, 300_000,
+      'CONVERACT_FABRIC_IVR_RECONCILIATION_LEASE_MS'
     ),
     reconciliation_retry_ms: boundedInteger(
-      env.OPC_IVEKIT_IVR_RECONCILIATION_RETRY_MS, 10_000, 1_000, 3_600_000,
-      'OPC_IVEKIT_IVR_RECONCILIATION_RETRY_MS'
+      resolveFabricEnv(env, 'IVR_RECONCILIATION_RETRY_MS'), 10_000, 1_000, 3_600_000,
+      'CONVERACT_FABRIC_IVR_RECONCILIATION_RETRY_MS'
     ),
     reconciliation_max_attempts: boundedInteger(
-      env.OPC_IVEKIT_IVR_RECONCILIATION_MAX_ATTEMPTS, 20, 1, 1_000,
-      'OPC_IVEKIT_IVR_RECONCILIATION_MAX_ATTEMPTS'
+      resolveFabricEnv(env, 'IVR_RECONCILIATION_MAX_ATTEMPTS'), 20, 1, 1_000,
+      'CONVERACT_FABRIC_IVR_RECONCILIATION_MAX_ATTEMPTS'
     ),
     tenant_limit: boundedInteger(
-      env.OPC_IVEKIT_IVR_TENANT_LIMIT, 100, 1, 1_000,
-      'OPC_IVEKIT_IVR_TENANT_LIMIT'
+      resolveFabricEnv(env, 'IVR_TENANT_LIMIT'), 100, 1, 1_000,
+      'CONVERACT_FABRIC_IVR_TENANT_LIMIT'
     )
   };
 }

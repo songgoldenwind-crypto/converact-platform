@@ -30,8 +30,8 @@ class ReadyPg implements PgQueryable {
 }
 
 const validEnv = {
-  OPC_IVEKIT_AUDIT_IP_HMAC_KEY: Buffer.alloc(32, 1).toString('base64'),
-  OPC_IVEKIT_RATE_LIMIT_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
+  CONVERACT_FABRIC_AUDIT_IP_HMAC_KEY: Buffer.alloc(32, 1).toString('base64'),
+  CONVERACT_FABRIC_RATE_LIMIT_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
 };
 
 test('readiness requires the latest communication correctness migrations', () => {
@@ -87,12 +87,12 @@ test('readiness fails closed for missing database, migrations, or security keys'
   const invalidConfig = await createIveKitReadinessProbe({ pg: new ReadyPg(), env: {} }).probe();
   assert.equal(invalidConfig.status, 'not_ready');
   assert.deepEqual(invalidConfig.checks.configuration.missing_or_invalid, [
-    'OPC_IVEKIT_AUDIT_IP_HMAC_KEY', 'OPC_IVEKIT_RATE_LIMIT_HMAC_KEY'
+    'CONVERACT_FABRIC_AUDIT_IP_HMAC_KEY', 'CONVERACT_FABRIC_RATE_LIMIT_HMAC_KEY'
   ]);
 });
 
 test('readiness fails closed when placement is enabled without a valid signed snapshot', async () => {
-  const env = { ...validEnv, OPC_IVEKIT_PLACEMENT_ENABLED: '1' };
+  const env = { ...validEnv, CONVERACT_FABRIC_PLACEMENT_ENABLED: '1' };
   const missing = await createIveKitReadinessProbe({
     pg: new ReadyPg(),
     env
@@ -127,7 +127,7 @@ test('readiness accepts a verified placement snapshot without contacting Cell ad
   let probes = 0;
   const result = await createIveKitReadinessProbe({
     pg: new ReadyPg(),
-    env: { ...validEnv, OPC_IVEKIT_PLACEMENT_ENABLED: '1' },
+    env: { ...validEnv, CONVERACT_FABRIC_PLACEMENT_ENABLED: '1' },
     placementProbe: {
       async probe() {
         probes += 1;

@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import type { PgQueryable } from '../../db-pg.js';
 import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
 import { createPolicyTranslationProviderResolver } from './intelligence-provider-routing.js';
@@ -69,18 +70,18 @@ export function translationWorkerConfig(env: NodeJS.ProcessEnv = process.env): T
   const profiles = createIntelligenceProviderRegistry(env).list()
     .filter((profile) => profile.capability === 'translation');
   const configured = profiles.length > 0;
-  const flag = String(env.OPC_TRANSLATION_WORKER_ENABLED || '').trim();
-  if (flag && flag !== '0' && flag !== '1') throw new Error('OPC_TRANSLATION_WORKER_ENABLED must be 0 or 1');
+  const flag = String(resolveBrandEnv(env, 'TRANSLATION_WORKER_ENABLED') || '').trim();
+  if (flag && flag !== '0' && flag !== '1') throw new Error('CONVERACT_TRANSLATION_WORKER_ENABLED must be 0 or 1');
   return {
     enabled: configured && flag !== '0',
-    intervalMs: integer(env.OPC_TRANSLATION_INTERVAL_MS, 5_000, 1_000, 300_000, 'OPC_TRANSLATION_INTERVAL_MS'),
-    batchSize: integer(env.OPC_TRANSLATION_BATCH_SIZE, 25, 1, 100, 'OPC_TRANSLATION_BATCH_SIZE'),
-    maxAttempts: integer(env.OPC_TRANSLATION_MAX_ATTEMPTS, 3, 1, 10, 'OPC_TRANSLATION_MAX_ATTEMPTS'),
+    intervalMs: integer(resolveBrandEnv(env, 'TRANSLATION_INTERVAL_MS'), 5_000, 1_000, 300_000, 'CONVERACT_TRANSLATION_INTERVAL_MS'),
+    batchSize: integer(resolveBrandEnv(env, 'TRANSLATION_BATCH_SIZE'), 25, 1, 100, 'CONVERACT_TRANSLATION_BATCH_SIZE'),
+    maxAttempts: integer(resolveBrandEnv(env, 'TRANSLATION_MAX_ATTEMPTS'), 3, 1, 10, 'CONVERACT_TRANSLATION_MAX_ATTEMPTS'),
     claimLeaseMs: Math.max(
-      integer(env.OPC_TRANSLATION_CLAIM_LEASE_MS, 120_000, 5_000, 600_000, 'OPC_TRANSLATION_CLAIM_LEASE_MS'),
+      integer(resolveBrandEnv(env, 'TRANSLATION_CLAIM_LEASE_MS'), 120_000, 5_000, 600_000, 'CONVERACT_TRANSLATION_CLAIM_LEASE_MS'),
       requiredClaimLeaseMs(profiles)
     ),
-    retryDelaysMs: delays(env.OPC_TRANSLATION_RETRY_DELAYS_MS)
+    retryDelaysMs: delays(resolveBrandEnv(env, 'TRANSLATION_RETRY_DELAYS_MS'))
   };
 }
 
@@ -140,7 +141,7 @@ function delays(value: string | undefined): number[] {
   if (!String(value || '').trim()) return [5_000, 30_000];
   const parsed = String(value).split(',').map((item) => Number(item.trim()));
   if (!parsed.length || parsed.some((item) => !Number.isInteger(item) || item < 0 || item > 3_600_000)) {
-    throw new Error('OPC_TRANSLATION_RETRY_DELAYS_MS is invalid');
+    throw new Error('CONVERACT_TRANSLATION_RETRY_DELAYS_MS is invalid');
   }
   return parsed;
 }

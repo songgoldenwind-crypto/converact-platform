@@ -209,7 +209,7 @@ test('Helm makes dialog recovery a fail-closed node-local sidecar contract', () 
     /voice\.dialogShadow\.nats\.tlsSecretName is required/
   );
   assert.match(helmRustPbx, /- name: dialog-shadow-agent/);
-  assert.match(helmRustPbx, /command: \["node", "dist\/ivekit-dialog-shadow-agent\.js"\]/);
+  assert.match(helmRustPbx, /command: \["node", "dist\/converact-dialog-shadow-agent\.js"\]/);
   assert.match(helmRustPbx, /fieldPath: metadata\.name/);
   assert.match(helmRustPbx, /IVEKIT_DIALOG_SHADOW_PRODUCTION/);
   assert.match(helmRustPbx, /IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN/);
@@ -258,7 +258,7 @@ test('legacy Helm entrypoint carries the same fail-closed T1 recovery contract',
   assert.match(legacyHelmRustPbx, /- name: dialog-shadow-agent/);
   assert.match(
     legacyHelmRustPbx,
-    /command: \["node", "dist\/ivekit-dialog-shadow-agent\.js"\]/
+    /command: \["node", "dist\/converact-dialog-shadow-agent\.js"\]/
   );
   assert.match(legacyHelmRustPbx, /IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE/);
   assert.match(legacyHelmRustPbx, /IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS/);

@@ -12,17 +12,17 @@ import {
 
 test('RustDesk handoff pack config maps environment without requiring network credentials', () => {
   const config = createRustDeskHandoffPackConfigFromEnv({
-    OPC_RUSTDESK_HANDOFF_FILE: '/tmp/rustdesk-handoff.md',
-    OPC_RUSTDESK_HANDOFF_TITLE: 'LED RustDesk handoff',
-    OPC_RUSTDESK_HANDOFF_AUDIENCE: 'LED team',
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
-    OPC_RUSTDESK_API_TOKEN: 'secret-token',
-    OPC_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
-    OPC_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
-    OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-    OPC_REMOTE_GATEWAY_TARGET_ID: 'device_123',
-    OPC_RUSTDESK_PUBLIC_KEY_FILE: '/rustdesk/id_ed25519.pub',
-    OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE: 'rustdesk://connect/{rustdesk_id}'
+    CONVERACT_RUSTDESK_HANDOFF_FILE: '/tmp/rustdesk-handoff.md',
+    CONVERACT_RUSTDESK_HANDOFF_TITLE: 'LED RustDesk handoff',
+    CONVERACT_RUSTDESK_HANDOFF_AUDIENCE: 'LED team',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_API_TOKEN: 'secret-token',
+    CONVERACT_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
+    CONVERACT_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
+    CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+    CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device_123',
+    CONVERACT_RUSTDESK_PUBLIC_KEY_FILE: '/rustdesk/id_ed25519.pub',
+    CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE: 'rustdesk://connect/{rustdesk_id}'
   });
 
   assert.equal(config.outputFile, '/tmp/rustdesk-handoff.md');
@@ -40,16 +40,16 @@ test('RustDesk handoff pack config maps environment without requiring network cr
 
 test('RustDesk handoff pack renders command sequence without leaking secrets', () => {
   const markdown = renderRustDeskHandoffPack(createRustDeskHandoffPackConfigFromEnv({
-    OPC_RUSTDESK_HANDOFF_TITLE: 'RustDesk server handoff',
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
-    OPC_RUSTDESK_API_TOKEN: 'secret-token',
-    OPC_REMOTE_GATEWAY_API_TOKEN: 'other-secret',
-    OPC_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
-    OPC_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
-    OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-    OPC_REMOTE_GATEWAY_TARGET_ID: 'device_123',
-    OPC_RUSTDESK_PUBLIC_KEY: 'public-key-value',
-    OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE: 'rustdesk://connect/{rustdesk_id}'
+    CONVERACT_RUSTDESK_HANDOFF_TITLE: 'RustDesk server handoff',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_API_TOKEN: 'secret-token',
+    CONVERACT_REMOTE_GATEWAY_API_TOKEN: 'other-secret',
+    CONVERACT_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
+    CONVERACT_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
+    CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+    CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device_123',
+    CONVERACT_RUSTDESK_PUBLIC_KEY: 'public-key-value',
+    CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE: 'rustdesk://connect/{rustdesk_id}'
   }));
 
   assert.match(markdown, /^# RustDesk server handoff/m);
@@ -62,16 +62,16 @@ test('RustDesk handoff pack renders command sequence without leaking secrets', (
   assert.match(markdown, /npm run rustdesk:server-evidence/);
   assert.match(markdown, /npm run rustdesk:readiness/);
   assert.match(markdown, /npm run rustdesk:client-config-pack/);
-  assert.match(markdown, /OPC_RUSTDESK_EVENT_TEMPLATE_FILE=.*npm run rustdesk:event-forwarder/);
-  assert.match(markdown, /OPC_RUSTDESK_EVENT_VALIDATE_ONLY=1.*npm run rustdesk:event-forwarder/);
-  assert.match(markdown, /OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=.*npm run rustdesk:client-acceptance/);
-  assert.match(markdown, /OPC_RUSTDESK_AUDIT_EXPORT_FILE=\/tmp\/rustdesk-audit-export\.jsonl/);
-  assert.match(markdown, /OPC_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id>/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_EVENT_TEMPLATE_FILE=.*npm run rustdesk:event-forwarder/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_EVENT_VALIDATE_ONLY=1.*npm run rustdesk:event-forwarder/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=.*npm run rustdesk:client-acceptance/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE=\/tmp\/rustdesk-audit-export\.jsonl/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID=<rustdesk-gateway-external-id>/);
   assert.match(markdown, /npm run rustdesk:audit-export/);
   assert.match(markdown, /npm run rustdesk:audit-coverage/);
-  assert.match(markdown, /OPC_RUSTDESK_EVIDENCE_PACK_FILE=.*npm run rustdesk:evidence-pack/);
-  assert.match(markdown, /OPC_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=\/tmp\/rustdesk-server-evidence\.json/);
-  assert.match(markdown, /OPC_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=\/tmp\/rustdesk-client-config-pack\.md/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_EVIDENCE_PACK_FILE=.*npm run rustdesk:evidence-pack/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_EVIDENCE_SERVER_EVIDENCE_FILE=\/tmp\/rustdesk-server-evidence\.json/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE=\/tmp\/rustdesk-client-config-pack\.md/);
   assert.match(markdown, /ready_for_customer_review/);
   assert.match(markdown, /npm run rustdesk:led-example/);
   assert.match(markdown, /真实客户端验收仍需要人工完成/);
@@ -83,9 +83,9 @@ test('RustDesk handoff pack writes markdown artifact and exposes package/env wir
   const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-handoff-'));
   const outputFile = join(dir, 'rustdesk-handoff.md');
   const result = writeRustDeskHandoffPack(createRustDeskHandoffPackConfigFromEnv({
-    OPC_RUSTDESK_HANDOFF_FILE: outputFile,
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
-    OPC_RUSTDESK_API_TOKEN: 'secret-token'
+    CONVERACT_RUSTDESK_HANDOFF_FILE: outputFile,
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_API_TOKEN: 'secret-token'
   }));
 
   assert.deepEqual(result, {
@@ -109,9 +109,9 @@ test('RustDesk handoff pack writes markdown artifact and exposes package/env wir
 
   const envExample = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
   for (const key of [
-    'OPC_RUSTDESK_HANDOFF_FILE=',
-    'OPC_RUSTDESK_HANDOFF_TITLE=',
-    'OPC_RUSTDESK_HANDOFF_AUDIENCE='
+    'CONVERACT_RUSTDESK_HANDOFF_FILE=',
+    'CONVERACT_RUSTDESK_HANDOFF_TITLE=',
+    'CONVERACT_RUSTDESK_HANDOFF_AUDIENCE='
   ]) {
     assert.match(envExample, new RegExp(`^${key}`, 'm'));
   }

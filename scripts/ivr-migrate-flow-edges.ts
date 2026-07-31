@@ -1,4 +1,5 @@
 #!/usr/bin/env npx tsx
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 /**
  * 不一致-6 §6-MIG — scan published IVR flows; dry-run CSV + optional menu edge auto-fix.
  *
@@ -11,7 +12,7 @@ import { validateFlowGraphDetailed } from '../src/agent-runtime/ivr/ivr-types.js
 import { completeFlowMissingEdges } from '../src/agent-runtime/ivr/ivr-complete-menu-edges.js';
 
 function parseArgs(argv: string[]): { dbPath: string; apply: boolean } {
-  let dbPath = process.env.OPC_DB_PATH || 'data/opc.db';
+  let dbPath = resolveBrandEnv(process.env, 'DB_PATH') || 'data/opc.db';
   let apply = false;
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === '--apply') apply = true;

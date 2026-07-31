@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveConveractEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 import {
   createSipVolteGateway,
@@ -62,7 +63,7 @@ export function createSipVolteReadinessConfigFromEnv(
   const rustpbxRwiUrl = requiredEnv(env, 'RUSTPBX_RWI_URL');
   const rustpbxRwiToken = requiredEnv(env, 'RUSTPBX_RWI_TOKEN');
   const roomName =
-    env.OPC_SIP_VOLTE_SMOKE_ROOM_NAME ||
+    resolveBrandEnv(env, 'SIP_VOLTE_SMOKE_ROOM_NAME') ||
     `sip-volte-readiness-${Date.now()}`;
   return {
     livekitUrl,
@@ -72,12 +73,12 @@ export function createSipVolteReadinessConfigFromEnv(
     rustpbxLiveKitTrunk,
     rustpbxRwiUrl,
     rustpbxRwiToken,
-    enabled: env.OPC_SIP_VOLTE_ENABLED === '1',
+    enabled: resolveBrandEnv(env, 'SIP_VOLTE_ENABLED') === '1',
     roomName,
-    customerPhone: env.OPC_SIP_VOLTE_SMOKE_CUSTOMER_PHONE,
-    requireActiveGateway: env.OPC_SIP_VOLTE_REQUIRE_ACTIVE === '1',
-    gatewayStatusUrl: env.OPC_SIP_VOLTE_GATEWAY_STATUS_URL,
-    gatewayStatusToken: env.OPC_SIP_VOLTE_GATEWAY_STATUS_TOKEN
+    customerPhone: resolveBrandEnv(env, 'SIP_VOLTE_SMOKE_CUSTOMER_PHONE'),
+    requireActiveGateway: resolveBrandEnv(env, 'SIP_VOLTE_REQUIRE_ACTIVE') === '1',
+    gatewayStatusUrl: resolveBrandEnv(env, 'SIP_VOLTE_GATEWAY_STATUS_URL'),
+    gatewayStatusToken: resolveBrandEnv(env, 'SIP_VOLTE_GATEWAY_STATUS_TOKEN')
   };
 }
 
@@ -86,7 +87,7 @@ export async function runSipVolteReadiness(
   fetchImpl: SipVolteReadinessFetch = fetch
 ): Promise<SipVolteReadinessResult> {
   const gatewayConfig = resolveSipVolteGatewayConfiguration({
-    OPC_SIP_VOLTE_ENABLED: config.enabled ? '1' : '0',
+    CONVERACT_SIP_VOLTE_ENABLED: config.enabled ? '1' : '0',
     LIVEKIT_URL: config.livekitUrl,
     LIVEKIT_API_KEY: config.livekitApiKey,
     LIVEKIT_API_SECRET: config.livekitApiSecret,
@@ -173,7 +174,7 @@ export async function runSipVolteReadiness(
     };
     if (config.requireActiveGateway && result.activationRequired) {
       throw new SipVolteReadinessError(
-        'sip_volte gateway is not active but OPC_SIP_VOLTE_REQUIRE_ACTIVE=1',
+        'sip_volte gateway is not active but CONVERACT_SIP_VOLTE_REQUIRE_ACTIVE=1',
         result
       );
     }
@@ -240,7 +241,7 @@ function readBoolean(payload: Record<string, unknown>, key: string): boolean | u
 }
 
 function requiredEnv(env: NodeJS.ProcessEnv, key: string): string {
-  const value = env[key];
+  const value = resolveConveractEnv(env, key);
   if (!value) throw new Error(`${key} is required`);
   return value;
 }

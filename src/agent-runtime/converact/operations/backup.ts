@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, resolve, sep } from 'node:path';
@@ -136,7 +137,7 @@ export async function readIveKitObjectBackupEntries(
 
 export function postgresClientEnvironment(
   env: NodeJS.ProcessEnv,
-  connectionUrl = env.OPC_IVEKIT_ADMIN_DATABASE_URL || env.DATABASE_URL
+  connectionUrl = resolveFabricEnv(env, 'ADMIN_DATABASE_URL') || env.DATABASE_URL
 ): NodeJS.ProcessEnv {
   const output: NodeJS.ProcessEnv = {
     PATH: env.PATH,
@@ -164,7 +165,7 @@ export function postgresClientEnvironment(
     for (const key of [
       'PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER', 'PGPASSWORD',
       'PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCERT', 'PGSSLKEY'
-    ]) output[key] = env[key];
+    ]) output[key] = resolveConveractEnv(env, key);
   }
   for (const key of ['PGHOST', 'PGDATABASE', 'PGUSER']) {
     if (!output[key]) throw backupError('database_configuration_invalid');

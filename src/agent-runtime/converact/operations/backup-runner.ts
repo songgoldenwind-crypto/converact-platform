@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants, createReadStream, createWriteStream, type Dirent } from 'node:fs';
@@ -105,7 +106,7 @@ export async function runIveKitBackup(input: {
     const databaseProfiles = backupDatabaseProfiles(env);
     for (const database of databaseProfiles) {
       const databasePath = join(directory, database.file);
-      await runner(env.OPC_IVEKIT_PG_DUMP_BIN || 'pg_dump', [
+      await runner(resolveFabricEnv(env, 'PG_DUMP_BIN') || 'pg_dump', [
         '--format=custom',
         '--no-owner',
         '--no-privileges',
@@ -210,7 +211,7 @@ export async function runIveKitRestore(input: {
     environment: restoreDatabaseEnvironment(env, database.name)
   }));
   for (const database of databases) {
-    const empty = await runner(env.OPC_IVEKIT_PSQL_BIN || 'psql', [
+    const empty = await runner(resolveFabricEnv(env, 'PSQL_BIN') || 'psql', [
       '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1',
       '-c', `SELECT COUNT(*) FROM pg_catalog.pg_tables WHERE schemaname = 'public'`
     ], { env: database.environment, cwd: directory });
@@ -219,7 +220,7 @@ export async function runIveKitRestore(input: {
 
   let databasesRestored = 0;
   for (const database of databases) {
-    await runner(env.OPC_IVEKIT_PG_RESTORE_BIN || 'pg_restore', [
+    await runner(resolveFabricEnv(env, 'PG_RESTORE_BIN') || 'pg_restore', [
       '--exit-on-error',
       '--no-owner',
       '--no-privileges',
@@ -228,7 +229,7 @@ export async function runIveKitRestore(input: {
     const validationSql = database.name === 'ivekit'
       ? restoreValidationSql()
       : `SELECT COUNT(*) FROM pg_catalog.pg_tables WHERE schemaname = 'public'`;
-    const postRestore = await runner(env.OPC_IVEKIT_PSQL_BIN || 'psql', [
+    const postRestore = await runner(resolveFabricEnv(env, 'PSQL_BIN') || 'psql', [
       '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1',
       '-c', validationSql
     ], { env: database.environment, cwd: directory });
@@ -270,13 +271,13 @@ function backupDatabaseProfiles(env: NodeJS.ProcessEnv): BackupDatabaseProfile[]
   const profiles: BackupDatabaseProfile[] = [{
     name: 'ivekit',
     file: 'database.dump',
-    connection_url: env.OPC_IVEKIT_ADMIN_DATABASE_URL || env.DATABASE_URL
+    connection_url: resolveFabricEnv(env, 'ADMIN_DATABASE_URL') || env.DATABASE_URL
   }];
   for (const dependency of [
-    { name: 'tinode', variable: 'OPC_IVEKIT_TINODE_ADMIN_DATABASE_URL' },
-    { name: 'rustpbx', variable: 'OPC_IVEKIT_RUSTPBX_ADMIN_DATABASE_URL' }
+    { name: 'tinode', variable: 'CONVERACT_FABRIC_TINODE_ADMIN_DATABASE_URL' },
+    { name: 'rustpbx', variable: 'CONVERACT_FABRIC_RUSTPBX_ADMIN_DATABASE_URL' }
   ]) {
-    const connectionUrl = String(env[dependency.variable] || '').trim();
+    const connectionUrl = String(resolveConveractEnv(env, dependency.variable) || '').trim();
     if (connectionUrl) profiles.push({
       name: dependency.name,
       file: `database-${dependency.name}.dump`,
@@ -288,10 +289,10 @@ function backupDatabaseProfiles(env: NodeJS.ProcessEnv): BackupDatabaseProfile[]
 
 function restoreDatabaseEnvironment(env: NodeJS.ProcessEnv, name: string): NodeJS.ProcessEnv {
   if (name === 'ivekit') {
-    return postgresClientEnvironment(env, env.OPC_IVEKIT_ADMIN_DATABASE_URL || env.DATABASE_URL);
+    return postgresClientEnvironment(env, resolveFabricEnv(env, 'ADMIN_DATABASE_URL') || env.DATABASE_URL);
   }
-  const variable = `OPC_IVEKIT_${name.toUpperCase().replaceAll('-', '_')}_ADMIN_DATABASE_URL`;
-  const connectionUrl = String(env[variable] || '').trim();
+  const variable = `CONVERACT_FABRIC_${name.toUpperCase().replaceAll('-', '_')}_ADMIN_DATABASE_URL`;
+  const connectionUrl = String(resolveConveractEnv(env, variable) || '').trim();
   if (!connectionUrl) throw operationError('restore_dependent_database_configuration_missing');
   return postgresClientEnvironment(env, connectionUrl);
 }
@@ -304,14 +305,14 @@ export function createIveKitBackupId(now = new Date()): string {
 export function createBackupObjectSource(env: NodeJS.ProcessEnv): IveKitBackupObjectSource {
   const config = s3Config(env);
   return config ? new S3BackupObjectSource(config) : new LocalBackupObjectSource(
-    env.OPC_UPLOAD_DIR || join(process.cwd(), 'data', 'uploads')
+    resolveBrandEnv(env, 'UPLOAD_DIR') || join(process.cwd(), 'data', 'uploads')
   );
 }
 
 export function createRestoreObjectTarget(env: NodeJS.ProcessEnv): IveKitRestoreObjectTarget {
   const config = s3Config(env);
   return config ? new S3RestoreObjectTarget(config) : new LocalRestoreObjectTarget(
-    env.OPC_UPLOAD_DIR || join(process.cwd(), 'data', 'uploads')
+    resolveBrandEnv(env, 'UPLOAD_DIR') || join(process.cwd(), 'data', 'uploads')
   );
 }
 
@@ -494,7 +495,7 @@ function s3Config(env: NodeJS.ProcessEnv): S3Configuration | null {
     region: resolved.region,
     endpoint: resolved.endpoint,
     forcePathStyle: resolved.forcePathStyle,
-    prefix: safeS3Prefix(env.OPC_IVEKIT_BACKUP_OBJECT_PREFIX || ''),
+    prefix: safeS3Prefix(resolveFabricEnv(env, 'BACKUP_OBJECT_PREFIX') || ''),
     ...(resolved.credentials ? { credentials: resolved.credentials } : {})
   };
 }

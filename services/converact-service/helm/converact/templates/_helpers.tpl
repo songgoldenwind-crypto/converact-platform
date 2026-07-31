@@ -23,9 +23,9 @@ ivekit.opc.io/profile-benchmark: {{ .Values.deploymentProfiles.benchmark | quote
 {{- fail "deploymentProfiles.core is mandatory" -}}
 {{- end -}}
 {{- $aiWorkersEnabled := or
-  (eq (toString .Values.config.env.OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED) "1")
-  (eq (toString .Values.config.env.OPC_QUALITY_REVIEW_WORKER_ENABLED) "1")
-  (eq (toString .Values.config.env.OPC_TRANSLATION_WORKER_ENABLED) "1")
+  (eq (toString .Values.config.env.CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED) "1")
+  (eq (toString .Values.config.env.CONVERACT_QUALITY_REVIEW_WORKER_ENABLED) "1")
+  (eq (toString .Values.config.env.CONVERACT_TRANSLATION_WORKER_ENABLED) "1")
   .Values.workerPools.pools.attachment.enabled
   .Values.workerPools.pools.quality.enabled
   .Values.workerPools.pools.translation.enabled -}}
@@ -38,7 +38,7 @@ ivekit.opc.io/profile-benchmark: {{ .Values.deploymentProfiles.benchmark | quote
   .Values.monitoring.grafanaDashboard.enabled
   .Values.monitoring.sipExporter.enabled
   .Values.telemetry.enabled
-  (eq (toString .Values.config.env.OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED) "1")
+  (eq (toString .Values.config.env.CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_ENABLED) "1")
   .Values.voice.kamailio.sipTrace.enabled -}}
 {{- if and $observabilityEnabled (not .Values.deploymentProfiles.observability) -}}
 {{- fail "monitoring and SIP tracing require deploymentProfiles.observability=true" -}}

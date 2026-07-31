@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveConveractEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 
 import { attachmentProcessingWorkerConfig } from '../src/agent-runtime/collaboration/attachment-processing-worker.js';
@@ -39,9 +40,9 @@ export function inspectAttachmentProcessingEnv(
   const databaseConfigured = Boolean(String(env.DATABASE_URL || '').trim());
   if (!databaseConfigured) issues.push('DATABASE_URL is required; production attachment processing uses PostgreSQL/RLS');
 
-  const bucket = String(env.S3_BUCKET || env.OPC_S3_BUCKET || env.MINIO_BUCKET || '').trim();
+  const bucket = String(env.S3_BUCKET || resolveBrandEnv(env, 'S3_BUCKET') || env.MINIO_BUCKET || '').trim();
   const endpoint = String(env.S3_ENDPOINT || env.MINIO_ENDPOINT || '').trim();
-  if (!bucket) issues.push('S3_BUCKET, OPC_S3_BUCKET, or MINIO_BUCKET is required for durable attachments');
+  if (!bucket) issues.push('S3_BUCKET, CONVERACT_S3_BUCKET, or MINIO_BUCKET is required for durable attachments');
 
   let ocrConfigured = false;
   let asrConfigured = false;
@@ -69,11 +70,11 @@ export function inspectAttachmentProcessingEnv(
   let attachmentMaxBytes: number | null = null;
   try {
     attachmentMaxBytes = boundedInteger(
-      env.OPC_COLLABORATION_ATTACHMENT_MAX_BYTES,
+      resolveBrandEnv(env, 'COLLABORATION_ATTACHMENT_MAX_BYTES'),
       26_214_400,
       1,
       1_073_741_824,
-      'OPC_COLLABORATION_ATTACHMENT_MAX_BYTES'
+      'CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES'
     );
   } catch (error) {
     issues.push(errorMessage(error));
@@ -103,16 +104,16 @@ export function inspectAttachmentProcessingEnv(
 }
 
 function providerSummary(env: NodeJS.ProcessEnv, prefix: 'OCR' | 'ASR', configured: boolean): ProviderSummary {
-  const mode = String(env[`OPC_${prefix}_PROVIDER_MODE`] || 'self_hosted').trim();
-  const baseUrl = String(env[`OPC_${prefix}_BASE_URL`] || '').trim();
-  const endpoint = String(env[`OPC_${prefix}_ENDPOINT`] || `/v1/${prefix.toLowerCase()}`).trim();
-  const timeout = String(env[`OPC_${prefix}_TIMEOUT_MS`] || '').trim();
+  const mode = String(resolveConveractEnv(env, `OPC_${prefix}_PROVIDER_MODE`) || 'self_hosted').trim();
+  const baseUrl = String(resolveConveractEnv(env, `OPC_${prefix}_BASE_URL`) || '').trim();
+  const endpoint = String(resolveConveractEnv(env, `OPC_${prefix}_ENDPOINT`) || `/v1/${prefix.toLowerCase()}`).trim();
+  const timeout = String(resolveConveractEnv(env, `OPC_${prefix}_TIMEOUT_MS`) || '').trim();
   return {
     configured,
     mode,
     base_url: baseUrl,
     endpoint,
-    token: secretMarker(env[`OPC_${prefix}_TOKEN`]),
+    token: secretMarker(resolveConveractEnv(env, `OPC_${prefix}_TOKEN`)),
     timeout_ms: timeout ? Number(timeout) : 30_000
   };
 }

@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from './config/converact-env.js';
 import type { Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -481,7 +482,7 @@ async function flushPendingEvents(client: WsClient): Promise<void> {
 }
 
 function wsReplayLimit(): number {
-  const value = Number(process.env.OPC_IVEKIT_WS_REPLAY_MAX_EVENTS || 500);
+  const value = Number(resolveFabricEnv(process.env, 'WS_REPLAY_MAX_EVENTS') || 500);
   return Number.isInteger(value) && value >= 1 && value <= 10_000 ? value : 500;
 }
 

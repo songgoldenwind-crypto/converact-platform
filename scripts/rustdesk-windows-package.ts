@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import {
   mkdirSync,
@@ -170,54 +171,54 @@ export function createRustDeskWindowsPackageConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): RustDeskWindowsPackageConfig {
   const outputDir = requiredString(
-    env.OPC_RUSTDESK_WINDOWS_PACKAGE_DIR,
-    'OPC_RUSTDESK_WINDOWS_PACKAGE_DIR is required'
+    resolveBrandEnv(env, 'RUSTDESK_WINDOWS_PACKAGE_DIR'),
+    'CONVERACT_RUSTDESK_WINDOWS_PACKAGE_DIR is required'
   );
   const profileFile = requiredString(
-    env.OPC_RUSTDESK_WINDOWS_PROFILE_FILE,
-    'OPC_RUSTDESK_WINDOWS_PROFILE_FILE is required'
+    resolveBrandEnv(env, 'RUSTDESK_WINDOWS_PROFILE_FILE'),
+    'CONVERACT_RUSTDESK_WINDOWS_PROFILE_FILE is required'
   );
   const networkConfigFile = requiredString(
-    env.OPC_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE,
-    'OPC_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE is required'
+    resolveBrandEnv(env, 'RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE'),
+    'CONVERACT_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE is required'
   );
   const sourceCommit = requiredString(
-    env.OPC_RUSTDESK_WINDOWS_SOURCE_COMMIT,
-    'OPC_RUSTDESK_WINDOWS_SOURCE_COMMIT is required'
+    resolveBrandEnv(env, 'RUSTDESK_WINDOWS_SOURCE_COMMIT'),
+    'CONVERACT_RUSTDESK_WINDOWS_SOURCE_COMMIT is required'
   ).toLowerCase();
   if (!/^[a-f0-9]{40}$/.test(sourceCommit)) {
     throw new Error('RustDesk Windows package source commit must be 40 lowercase hexadecimal characters');
   }
   const expectedServerKeyFingerprint = requiredString(
-    env.OPC_RUSTDESK_WINDOWS_EXPECTED_FINGERPRINT,
-    'OPC_RUSTDESK_WINDOWS_EXPECTED_FINGERPRINT is required'
+    resolveBrandEnv(env, 'RUSTDESK_WINDOWS_EXPECTED_FINGERPRINT'),
+    'CONVERACT_RUSTDESK_WINDOWS_EXPECTED_FINGERPRINT is required'
   ).toLowerCase();
   if (!/^sha256:[a-f0-9]{16}$/.test(expectedServerKeyFingerprint)) {
     throw new Error('RustDesk Windows package expected server key fingerprint is invalid');
   }
-  const serviceName = String(env.OPC_RUSTDESK_WINDOWS_SERVICE_NAME || 'IveKitRustDeskEdge').trim();
+  const serviceName = String(resolveBrandEnv(env, 'RUSTDESK_WINDOWS_SERVICE_NAME') || 'IveKitRustDeskEdge').trim();
   if (!/^[A-Za-z][A-Za-z0-9._-]{2,63}$/.test(serviceName)) {
     throw new Error('RustDesk Windows package service name is invalid');
   }
-  const version = String(env.OPC_RUSTDESK_WINDOWS_WINSW_VERSION || '2.12.0').trim();
+  const version = String(resolveBrandEnv(env, 'RUSTDESK_WINDOWS_WINSW_VERSION') || '2.12.0').trim();
   if (!/^\d+\.\d+\.\d+$/.test(version)) {
-    throw new Error('OPC_RUSTDESK_WINDOWS_WINSW_VERSION must be a semantic version');
+    throw new Error('CONVERACT_RUSTDESK_WINDOWS_WINSW_VERSION must be a semantic version');
   }
   const url = safeHttpsUrl(
-    env.OPC_RUSTDESK_WINDOWS_WINSW_URL,
-    'OPC_RUSTDESK_WINDOWS_WINSW_URL'
+    resolveBrandEnv(env, 'RUSTDESK_WINDOWS_WINSW_URL'),
+    'CONVERACT_RUSTDESK_WINDOWS_WINSW_URL'
   );
   if (!url.pathname.includes(`/v${version}/`) || basename(url.pathname) !== 'WinSW-x64.exe') {
     throw new Error('RustDesk Windows WinSW URL must identify the pinned x64 release');
   }
   const sha256 = sha256Pin(
-    env.OPC_RUSTDESK_WINDOWS_WINSW_SHA256,
-    'OPC_RUSTDESK_WINDOWS_WINSW_SHA256'
+    resolveBrandEnv(env, 'RUSTDESK_WINDOWS_WINSW_SHA256'),
+    'CONVERACT_RUSTDESK_WINDOWS_WINSW_SHA256'
   );
   const placementEnabled = booleanFlag(
-    env.OPC_IVEKIT_PLACEMENT_ENABLED,
+    resolveFabricEnv(env, 'PLACEMENT_ENABLED'),
     false,
-    'OPC_IVEKIT_PLACEMENT_ENABLED'
+    'CONVERACT_FABRIC_PLACEMENT_ENABLED'
   );
 
   return {
@@ -399,6 +400,10 @@ function resolveBuildInputs(
     EDGE_SOURCE_NAMES.map((name) => [name, readFileSync(join(SCRIPT_DIR, name), 'utf8')])
   );
   const edgeAssets = provided.edgeAssets || new Map([
+    ['converact-env-compat.ps1', readFileSync(
+      join(SCRIPT_DIR, 'converact-env-compat.ps1'),
+      'utf8'
+    )],
     ['adapters/windows-disconnect.ps1', readFileSync(
       join(SCRIPT_DIR, 'rustdesk-edge-adapters', 'windows-disconnect.ps1'),
       'utf8'

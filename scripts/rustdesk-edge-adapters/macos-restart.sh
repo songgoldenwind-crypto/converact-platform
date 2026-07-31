@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$SCRIPT_DIR/converact-env-compat.sh"
+converact_env_install_aliases
+
 mode=''
 external_id=''
 target_id=''
@@ -25,7 +29,7 @@ for pair in "external_id:$external_id" "target_id:$target_id" "rustdesk_id:$rust
 done
 case "$reason" in consent_revoked|remote_session_ended|tool_ended|gateway_ended) ;; *) printf '%s\n' 'unsupported disconnect reason' >&2; exit 64 ;; esac
 
-label=${OPC_RUSTDESK_LAUNCHD_LABEL-com.carriez.RustDesk_service}
+label=${CONVERACT_RUSTDESK_LAUNCHD_LABEL-com.carriez.RustDesk_service}
 case "$label" in ''|*[!A-Za-z0-9._-]*) printf '%s\n' 'invalid RustDesk launchd label' >&2; exit 64 ;; esac
 available=false
 if command -v launchctl >/dev/null 2>&1 && launchctl print "system/$label" >/dev/null 2>&1; then available=true; fi

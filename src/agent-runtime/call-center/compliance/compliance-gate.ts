@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../../config/converact-env.js';
 import type { PgQueryable } from '../../../db-pg.js';
 import { AuthStore } from '../../../auth-store.js';
 import { ComplianceStore } from './compliance-store.js';
@@ -39,8 +40,8 @@ export class ComplianceGate {
   async checkOutbound(input: ComplianceCheckInput): Promise<ComplianceCheckResult> {
     const tenantId = input.tenantId;
     const phoneNumber = input.phoneNumber;
-    const timezone = input.timezone || process.env.OPC_DEFAULT_TIMEZONE || DEFAULT_TIMEZONE;
-    const frozenNow = process.env.OPC_COMPLIANCE_NOW;
+    const timezone = input.timezone || resolveBrandEnv(process.env, 'DEFAULT_TIMEZONE') || DEFAULT_TIMEZONE;
+    const frozenNow = resolveBrandEnv(process.env, 'COMPLIANCE_NOW');
     const now = input.now ?? (frozenNow ? new Date(frozenNow) : new Date());
 
     const tenantStatus = await this.auth.getTenantStatus(tenantId);

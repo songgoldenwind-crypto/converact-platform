@@ -76,21 +76,21 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-render-kamailio-config.js"]
           env:
-            - name: OPC_IVEKIT_KAMAILIO_CONFIG_FILE
+            - name: CONVERACT_FABRIC_KAMAILIO_CONFIG_FILE
               value: /etc/ivekit-kamailio/kamailio-runtime.json
-            - name: OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE
+            - name: CONVERACT_FABRIC_KAMAILIO_TOPOH_KEY_FILE
               value: /run/ivekit-kamailio-secrets/topoh-key
-            - name: OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE
+            - name: CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE
               value: /run/ivekit-kamailio-secrets/rpc-token
-            - name: OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE
+            - name: CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_SECRET_FILE
               value: /run/ivekit-kamailio-secrets/webphone-jwt-secret
-            - name: OPC_IVEKIT_KAMAILIO_DMQ_SERVER_HOST
+            - name: CONVERACT_FABRIC_KAMAILIO_DMQ_SERVER_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-            - name: OPC_IVEKIT_KAMAILIO_OUTPUT_FILE
+            - name: CONVERACT_FABRIC_KAMAILIO_OUTPUT_FILE
               value: /etc/kamailio/kamailio.cfg
-            - name: OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE
+            - name: CONVERACT_FABRIC_KAMAILIO_TLS_OUTPUT_FILE
               value: /etc/kamailio/tls.cfg
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
@@ -122,92 +122,92 @@ spec:
               containerPort: {{ $kamailio.listeners.metricsPort }}
               protocol: TCP
           env:
-            - name: OPC_IVEKIT_KAMAILIO_TOPOLOGY_FILE
+            - name: CONVERACT_FABRIC_KAMAILIO_TOPOLOGY_FILE
               value: /etc/ivekit-kamailio/kamailio-topology.json
-            - name: OPC_IVEKIT_KAMAILIO_CURRENT_KEY_FILE
+            - name: CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_FILE
               value: /run/ivekit-kamailio-secrets/route-current-key
-            - name: OPC_IVEKIT_KAMAILIO_CURRENT_KEY_ID
+            - name: CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_ID
               value: {{ $kamailio.routeAgent.currentKeyId | quote }}
             {{- if $kamailio.routeAgent.previousKeyId }}
-            - name: OPC_IVEKIT_KAMAILIO_PREVIOUS_KEY_FILE
+            - name: CONVERACT_FABRIC_KAMAILIO_PREVIOUS_KEY_FILE
               value: /run/ivekit-kamailio-secrets/route-previous-key
-            - name: OPC_IVEKIT_KAMAILIO_PREVIOUS_KEY_ID
+            - name: CONVERACT_FABRIC_KAMAILIO_PREVIOUS_KEY_ID
               value: {{ $kamailio.routeAgent.previousKeyId | quote }}
             {{- end }}
-            - name: OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE
+            - name: CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE
               value: /run/ivekit-kamailio-secrets/rpc-token
-            - name: OPC_IVEKIT_KAMAILIO_SNAPSHOT_PATH
+            - name: CONVERACT_FABRIC_KAMAILIO_SNAPSHOT_PATH
               value: /var/lib/kamailio/routes.snapshot
-            - name: OPC_IVEKIT_KAMAILIO_DISPATCHER_PATH
+            - name: CONVERACT_FABRIC_KAMAILIO_DISPATCHER_PATH
               value: /var/lib/kamailio/dispatcher.list
-            - name: OPC_IVEKIT_KAMAILIO_HOST
+            - name: CONVERACT_FABRIC_KAMAILIO_HOST
               value: 0.0.0.0
-            - name: OPC_IVEKIT_KAMAILIO_PORT
+            - name: CONVERACT_FABRIC_KAMAILIO_PORT
               value: {{ $kamailio.listeners.metricsPort | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_POLL_INTERVAL_MS
+            - name: CONVERACT_FABRIC_KAMAILIO_POLL_INTERVAL_MS
               value: {{ $kamailio.routeAgent.pollIntervalMs | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_REGION_ID
+            - name: CONVERACT_FABRIC_KAMAILIO_REGION_ID
               value: {{ .Values.voice.regionId | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_ZONE_ID
+            - name: CONVERACT_FABRIC_KAMAILIO_ZONE_ID
               value: {{ .Values.voice.zoneId | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_CELL_ID
+            - name: CONVERACT_FABRIC_KAMAILIO_CELL_ID
               value: {{ .Values.voice.cellId | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_CELL_LEASE_EPOCH
+            - name: CONVERACT_FABRIC_KAMAILIO_CELL_LEASE_EPOCH
               value: {{ $kamailio.cellLeaseEpoch | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_EDGE_REPLICA_COUNT
+            - name: CONVERACT_FABRIC_KAMAILIO_EDGE_REPLICA_COUNT
               value: {{ $kamailio.routeAgent.edgeReplicaCount | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_SNAPSHOT_TTL_MS
+            - name: CONVERACT_FABRIC_KAMAILIO_SNAPSHOT_TTL_MS
               value: {{ $kamailio.routeAgent.snapshotTtlMs | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_DEGRADED_WEIGHT_FACTOR
+            - name: CONVERACT_FABRIC_KAMAILIO_DEGRADED_WEIGHT_FACTOR
               value: {{ $kamailio.routeAgent.degradedWeightFactor | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_MAX_PARALLEL_POLLS
+            - name: CONVERACT_FABRIC_KAMAILIO_MAX_PARALLEL_POLLS
               value: {{ $kamailio.routeAgent.maxParallelPolls | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_RPC_ENDPOINT
+            - name: CONVERACT_FABRIC_KAMAILIO_RPC_ENDPOINT
               value: {{ printf "http://127.0.0.1:%v/RPC" $kamailio.listeners.rpcPort | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_RPC_MAX_ATTEMPTS
+            - name: CONVERACT_FABRIC_KAMAILIO_RPC_MAX_ATTEMPTS
               value: {{ $kamailio.routeAgent.rpcMaxAttempts | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_RPC_RETRY_DELAY_MS
+            - name: CONVERACT_FABRIC_KAMAILIO_RPC_RETRY_DELAY_MS
               value: {{ $kamailio.routeAgent.rpcRetryDelayMs | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_RPC_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_KAMAILIO_RPC_TIMEOUT_MS
               value: {{ $kamailio.routeAgent.rpcTimeoutMs | quote }}
             {{- if and $kamailio.sipTrace.enabled $kamailio.sipTrace.highWater.enabled }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_ENABLED
               value: "true"
-            - name: OPC_IVEKIT_KAMAILIO_HOMER_METRICS_ENDPOINT
+            - name: CONVERACT_FABRIC_KAMAILIO_HOMER_METRICS_ENDPOINT
               value: {{ printf "http://%s:%v/metrics" $kamailio.sipTrace.collectorHost $kamailio.sipTrace.metricsPort | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_POLL_INTERVAL_MS
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_POLL_INTERVAL_MS
               value: {{ $kamailio.sipTrace.highWater.pollIntervalMs | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_METRICS_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_METRICS_TIMEOUT_MS
               value: {{ $kamailio.sipTrace.highWater.metricsTimeoutMs | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_SAMPLE_PERCENT
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_SAMPLE_PERCENT
               value: {{ $kamailio.sipTrace.highWater.samplePercent | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_RECOVER_RATIO
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_QUEUE_RECOVER_RATIO
               value: {{ $kamailio.sipTrace.highWater.queueRecoverRatio | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_SAMPLE_RATIO
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_QUEUE_SAMPLE_RATIO
               value: {{ $kamailio.sipTrace.highWater.queueSampleRatio | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_OFF_RATIO
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_QUEUE_OFF_RATIO
               value: {{ $kamailio.sipTrace.highWater.queueOffRatio | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_RECOVER_CORES
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_CPU_RECOVER_CORES
               value: {{ $kamailio.sipTrace.highWater.cpuRecoverCores | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_SAMPLE_CORES
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_CPU_SAMPLE_CORES
               value: {{ $kamailio.sipTrace.highWater.cpuSampleCores | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_OFF_CORES
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_CPU_OFF_CORES
               value: {{ $kamailio.sipTrace.highWater.cpuOffCores | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_RECOVER_PER_SECOND
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_PACKETS_RECOVER_PER_SECOND
               value: {{ $kamailio.sipTrace.highWater.packetsRecoverPerSecond | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_SAMPLE_PER_SECOND
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_PACKETS_SAMPLE_PER_SECOND
               value: {{ $kamailio.sipTrace.highWater.packetsSamplePerSecond | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_OFF_PER_SECOND
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_PACKETS_OFF_PER_SECOND
               value: {{ $kamailio.sipTrace.highWater.packetsOffPerSecond | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_RECOVER_PER_SECOND
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_RECOVER_PER_SECOND
               value: {{ $kamailio.sipTrace.highWater.processingGapRecoverPerSecond | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_SAMPLE_PER_SECOND
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_SAMPLE_PER_SECOND
               value: {{ $kamailio.sipTrace.highWater.processingGapSamplePerSecond | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_OFF_PER_SECOND
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_OFF_PER_SECOND
               value: {{ $kamailio.sipTrace.highWater.processingGapOffPerSecond | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_FAILURE_SAMPLES_TO_OFF
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_FAILURE_SAMPLES_TO_OFF
               value: {{ $kamailio.sipTrace.highWater.failureSamplesToOff | quote }}
-            - name: OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_RECOVERY_SAMPLES
+            - name: CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_RECOVERY_SAMPLES
               value: {{ $kamailio.sipTrace.highWater.recoverySamples | quote }}
             {{- end }}
           readinessProbe:

@@ -145,8 +145,8 @@ test('backup and restore keep iveKit, Tinode and RustPBX databases isolated', as
     backup_id: 'backup-a',
     env: {
       PGHOST: 'db', PGDATABASE: 'ivekit', PGUSER: 'ivekit-admin',
-      OPC_IVEKIT_TINODE_ADMIN_DATABASE_URL: 'postgresql://tinode-admin:one@db/tinode',
-      OPC_IVEKIT_RUSTPBX_ADMIN_DATABASE_URL: 'postgresql://voice-admin:two@db/rustpbx'
+      CONVERACT_FABRIC_TINODE_ADMIN_DATABASE_URL: 'postgresql://tinode-admin:one@db/tinode',
+      CONVERACT_FABRIC_RUSTPBX_ADMIN_DATABASE_URL: 'postgresql://voice-admin:two@db/rustpbx'
     },
     processRunner: async (_executable, args, options) => {
       backupDatabases.push(String(options.env.PGDATABASE));
@@ -169,8 +169,8 @@ test('backup and restore keep iveKit, Tinode and RustPBX databases isolated', as
     execute: true,
     env: {
       PGHOST: 'restore-db', PGDATABASE: 'ivekit-new', PGUSER: 'ivekit-admin',
-      OPC_IVEKIT_TINODE_ADMIN_DATABASE_URL: 'postgresql://tinode-admin:one@restore-db/tinode-new',
-      OPC_IVEKIT_RUSTPBX_ADMIN_DATABASE_URL: 'postgresql://voice-admin:two@restore-db/rustpbx-new',
+      CONVERACT_FABRIC_TINODE_ADMIN_DATABASE_URL: 'postgresql://tinode-admin:one@restore-db/tinode-new',
+      CONVERACT_FABRIC_RUSTPBX_ADMIN_DATABASE_URL: 'postgresql://voice-admin:two@restore-db/rustpbx-new',
       IVEKIT_RESTORE_CONFIRM: 'RESTORE:backup-a', IVEKIT_RESTORE_TARGET_EMPTY: '1'
     },
     processRunner: async (executable, args, options) => {

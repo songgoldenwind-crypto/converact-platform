@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from './config/converact-env.js';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { isAbsolute } from 'node:path';
@@ -49,50 +50,50 @@ export interface ComponentNodeAdmissionRuntimeConfig {
 export function componentNodeAdmissionRuntimeConfig(
   env: NodeJS.ProcessEnv = process.env
 ): ComponentNodeAdmissionRuntimeConfig {
-  const token = required(env, 'OPC_IVEKIT_COMPONENT_NODE_TOKEN');
+  const token = required(env, 'CONVERACT_FABRIC_COMPONENT_NODE_TOKEN');
   if (token.length < 24 || token.length > 512 ||
       /change[_-]?me|replace|placeholder|example/i.test(token)) {
-    throw new Error('OPC_IVEKIT_COMPONENT_NODE_TOKEN is invalid');
+    throw new Error('CONVERACT_FABRIC_COMPONENT_NODE_TOKEN is invalid');
   }
   const production = boolean(
-    env.OPC_IVEKIT_COMPONENT_NODE_PRODUCTION,
+    resolveFabricEnv(env, 'COMPONENT_NODE_PRODUCTION'),
     false,
-    'OPC_IVEKIT_COMPONENT_NODE_PRODUCTION'
+    'CONVERACT_FABRIC_COMPONENT_NODE_PRODUCTION'
   );
   const requireMtls = boolean(
-    env.OPC_IVEKIT_COMPONENT_NODE_REQUIRE_MTLS,
+    resolveFabricEnv(env, 'COMPONENT_NODE_REQUIRE_MTLS'),
     production,
-    'OPC_IVEKIT_COMPONENT_NODE_REQUIRE_MTLS'
+    'CONVERACT_FABRIC_COMPONENT_NODE_REQUIRE_MTLS'
   );
   if (production && !requireMtls) {
     throw new Error('component node production mTLS cannot be disabled');
   }
   const tls = requireMtls ? {
-    key: readRequiredFile(env, 'OPC_IVEKIT_COMPONENT_NODE_TLS_KEY_FILE'),
-    cert: readRequiredFile(env, 'OPC_IVEKIT_COMPONENT_NODE_TLS_CERT_FILE'),
-    ca: readRequiredFile(env, 'OPC_IVEKIT_COMPONENT_NODE_TLS_CA_FILE')
+    key: readRequiredFile(env, 'CONVERACT_FABRIC_COMPONENT_NODE_TLS_KEY_FILE'),
+    cert: readRequiredFile(env, 'CONVERACT_FABRIC_COMPONENT_NODE_TLS_CERT_FILE'),
+    ca: readRequiredFile(env, 'CONVERACT_FABRIC_COMPONENT_NODE_TLS_CA_FILE')
   } : undefined;
   const component = componentValue(
-    required(env, 'OPC_IVEKIT_COMPONENT_NODE_COMPONENT')
+    required(env, 'CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT')
   );
   const interactionKinds = csv(
-    required(env, 'OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS')
+    required(env, 'CONVERACT_FABRIC_COMPONENT_NODE_INTERACTION_KINDS')
   ) as InteractionKind[];
   validateKinds(component, interactionKinds);
   const dimensions = jsonObject<FlatCapacityState>(
-    required(env, 'OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON'),
-    'OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON'
+    required(env, 'CONVERACT_FABRIC_COMPONENT_NODE_DIMENSIONS_JSON'),
+    'CONVERACT_FABRIC_COMPONENT_NODE_DIMENSIONS_JSON'
   );
   if (Object.keys(dimensions).length === 0) {
     throw new Error('component node capacity dimensions are required');
   }
   const profileIds = csv(
-    required(env, 'OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS')
+    required(env, 'CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_IDS')
   );
   const mediaReadinessEnabled = boolean(
-    env.OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_ENABLED,
+    resolveFabricEnv(env, 'COMPONENT_NODE_MEDIA_READINESS_ENABLED'),
     false,
-    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_ENABLED'
+    'CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_READINESS_ENABLED'
   );
   let mediaReadiness: RustPbxMediaReadinessProbeConfig | null = null;
   if (mediaReadinessEnabled) {
@@ -100,12 +101,12 @@ export function componentNodeAdmissionRuntimeConfig(
       throw new Error('media readiness is supported only for RustPBX');
     }
     const requirements = jsonObject<Record<string, Record<string, number>>>(
-      required(env, 'OPC_IVEKIT_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON'),
-      'OPC_IVEKIT_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON'
+      required(env, 'CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON'),
+      'CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON'
     );
     const readinessProfiles = new Set(csv(required(
       env,
-      'OPC_IVEKIT_COMPONENT_NODE_READINESS_PROFILE_IDS'
+      'CONVERACT_FABRIC_COMPONENT_NODE_READINESS_PROFILE_IDS'
     )));
     if (Object.keys(requirements).length !== profileIds.length ||
         profileIds.some((profileId) => !requirements[profileId]) ||
@@ -122,40 +123,40 @@ export function componentNodeAdmissionRuntimeConfig(
     mediaReadiness = {
       route_snapshot_file: required(
         env,
-        'OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE'
+        'CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE'
       ),
       route_snapshot_signing_key: readRequiredTextFile(
         env,
-        'OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_HMAC_KEY_FILE'
+        'CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_SNAPSHOT_HMAC_KEY_FILE'
       ),
       route_tenant_id: identifier(required(
         env,
-        'OPC_IVEKIT_COMPONENT_NODE_ROUTE_TENANT_ID'
+        'CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_TENANT_ID'
       )),
       route_profile_id: identifier(required(
         env,
-        'OPC_IVEKIT_COMPONENT_NODE_ROUTE_PROFILE_ID'
+        'CONVERACT_FABRIC_COMPONENT_NODE_ROUTE_PROFILE_ID'
       )),
       media_control_endpoint: required(
         env,
-        'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT'
+        'CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT'
       ),
       media_control_identity: readRequiredFile(
         env,
-        'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE'
+        'CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE'
       ),
       media_control_ca: readRequiredFile(
         env,
-        'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_CA_FILE'
+        'CONVERACT_FABRIC_COMPONENT_NODE_MEDIA_CONTROL_TLS_CA_FILE'
       ),
       media_control_timeout_ms: integer(
-        env.OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TIMEOUT_MS,
+        resolveFabricEnv(env, 'COMPONENT_NODE_MEDIA_CONTROL_TIMEOUT_MS'),
         500,
         50,
         5_000
       ),
       refresh_interval_ms: integer(
-        env.OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS,
+        resolveFabricEnv(env, 'COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS'),
         1_000,
         100,
         30_000
@@ -164,7 +165,7 @@ export function componentNodeAdmissionRuntimeConfig(
     };
   }
   const recordingSpoolMetricsFile = String(
-    env.OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE || ''
+    resolveFabricEnv(env, 'COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE') || ''
   ).trim();
   if (recordingSpoolMetricsFile) {
     if (component !== 'rustpbx') {
@@ -179,46 +180,46 @@ export function componentNodeAdmissionRuntimeConfig(
     }
   }
   return {
-    host: host(env.OPC_IVEKIT_COMPONENT_NODE_HOST || '0.0.0.0'),
-    port: integer(env.OPC_IVEKIT_COMPONENT_NODE_PORT, 3210, 1, 65_535),
+    host: host(resolveFabricEnv(env, 'COMPONENT_NODE_HOST') || '0.0.0.0'),
+    port: integer(resolveFabricEnv(env, 'COMPONENT_NODE_PORT'), 3210, 1, 65_535),
     service_token: token,
     production,
     ...(tls ? { tls } : {}),
     component,
-    region_id: identifier(required(env, 'OPC_IVEKIT_COMPONENT_NODE_REGION_ID')),
-    zone_id: identifier(required(env, 'OPC_IVEKIT_COMPONENT_NODE_ZONE_ID')),
-    cell_id: identifier(required(env, 'OPC_IVEKIT_COMPONENT_NODE_CELL_ID')),
-    node_id: identifier(required(env, 'OPC_IVEKIT_COMPONENT_NODE_ID')),
+    region_id: identifier(required(env, 'CONVERACT_FABRIC_COMPONENT_NODE_REGION_ID')),
+    zone_id: identifier(required(env, 'CONVERACT_FABRIC_COMPONENT_NODE_ZONE_ID')),
+    cell_id: identifier(required(env, 'CONVERACT_FABRIC_COMPONENT_NODE_CELL_ID')),
+    node_id: identifier(required(env, 'CONVERACT_FABRIC_COMPONENT_NODE_ID')),
     profile_ids: profileIds,
     interaction_kinds: interactionKinds,
     terminal_retention_ms: integer(
-      env.OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS,
+      resolveFabricEnv(env, 'COMPONENT_NODE_TERMINAL_RETENTION_MS'),
       300_000,
       1_000,
       86_400_000
     ),
     sweep_interval_ms: integer(
-      env.OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS,
+      resolveFabricEnv(env, 'COMPONENT_NODE_SWEEP_INTERVAL_MS'),
       1_000,
       100,
       60_000
     ),
     dimensions,
     max_body_bytes: integer(
-      env.OPC_IVEKIT_COMPONENT_NODE_MAX_BODY_BYTES,
+      resolveFabricEnv(env, 'COMPONENT_NODE_MAX_BODY_BYTES'),
       65_536,
       128,
       1_048_576
     ),
     recording_spool_metrics_file: recordingSpoolMetricsFile,
     recording_spool_refresh_ms: integer(
-      env.OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_REFRESH_MS,
+      resolveFabricEnv(env, 'COMPONENT_NODE_RECORDING_SPOOL_REFRESH_MS'),
       1_000,
       100,
       60_000
     ),
     recording_spool_stale_ms: integer(
-      env.OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_STALE_MS,
+      resolveFabricEnv(env, 'COMPONENT_NODE_RECORDING_SPOOL_STALE_MS'),
       5_000,
       1_000,
       300_000
@@ -327,7 +328,7 @@ export async function runComponentNodeAdmission(
 
 function componentValue(value: string): ComponentNodeComponent {
   if (!['rustpbx', 'livekit', 'tinode', 'rustdesk'].includes(value)) {
-    throw new Error('OPC_IVEKIT_COMPONENT_NODE_COMPONENT is invalid');
+    throw new Error('CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT is invalid');
   }
   return value as ComponentNodeComponent;
 }
@@ -349,7 +350,7 @@ function validateKinds(
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = String(env[key] || '').trim();
+  const value = String(resolveConveractEnv(env, key) || '').trim();
   if (!value) throw new Error(`${key} is required`);
   return value;
 }

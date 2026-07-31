@@ -29,8 +29,8 @@ describe('Sprint 9 omnichannel', () => {
 
   before(() => {
     useMemoryRedisForTests();
-    process.env.OPC_API_KEY = OMNI_API_KEY;
-    process.env.OPC_WEBHOOK_KEY = OMNI_API_KEY;
+    process.env.CONVERACT_API_KEY = OMNI_API_KEY;
+    process.env.CONVERACT_WEBHOOK_KEY = OMNI_API_KEY;
     db = createDatabase(':memory:');
     tenantId = createTenant(db, { name: 'Omni Test' }).id;
   });
@@ -183,10 +183,10 @@ describe('Sprint 9 omnichannel', () => {
   });
 
   it('omni HTTP: video escalation returns signed tenant-aware customer join url', async () => {
-    const previousInviteSecret = process.env.OPC_MEDIA_INVITE_SECRET;
-    const previousPublicBaseUrl = process.env.OPC_PUBLIC_BASE_URL;
-    process.env.OPC_MEDIA_INVITE_SECRET = 'omni-video-invite-secret';
-    process.env.OPC_PUBLIC_BASE_URL = 'https://app.example.test';
+    const previousInviteSecret = process.env.CONVERACT_MEDIA_INVITE_SECRET;
+    const previousPublicBaseUrl = process.env.CONVERACT_PUBLIC_BASE_URL;
+    process.env.CONVERACT_MEDIA_INVITE_SECRET = 'omni-video-invite-secret';
+    process.env.CONVERACT_PUBLIC_BASE_URL = 'https://app.example.test';
 
     try {
       const chat = (await routeOmniApi(
@@ -233,10 +233,10 @@ describe('Sprint 9 omnichannel', () => {
         true
       );
     } finally {
-      if (previousInviteSecret == null) delete process.env.OPC_MEDIA_INVITE_SECRET;
-      else process.env.OPC_MEDIA_INVITE_SECRET = previousInviteSecret;
-      if (previousPublicBaseUrl == null) delete process.env.OPC_PUBLIC_BASE_URL;
-      else process.env.OPC_PUBLIC_BASE_URL = previousPublicBaseUrl;
+      if (previousInviteSecret == null) delete process.env.CONVERACT_MEDIA_INVITE_SECRET;
+      else process.env.CONVERACT_MEDIA_INVITE_SECRET = previousInviteSecret;
+      if (previousPublicBaseUrl == null) delete process.env.CONVERACT_PUBLIC_BASE_URL;
+      else process.env.CONVERACT_PUBLIC_BASE_URL = previousPublicBaseUrl;
     }
   });
 

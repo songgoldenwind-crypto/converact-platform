@@ -1338,8 +1338,8 @@ test('LiveKit browser default runtime exposes a real Playwright measurement boun
   );
   const runtimeFactory = module.createDefaultLiveKitBrowserCapacityRuntime.toString();
   assert.match(runtimeFactory, /LinuxProcessTreeObserver/);
-  assert.match(runtimeFactory, /OPC_IVEKIT_LIVEKIT_GENERATOR_INTERFACE/);
-  assert.match(runtimeFactory, /OPC_IVEKIT_LIVEKIT_GENERATOR_NIC_BPS/);
+  assert.match(runtimeFactory, /resolveFabricEnv\(env,"LIVEKIT_GENERATOR_INTERFACE"\)/);
+  assert.match(runtimeFactory, /resolveFabricEnv\(env,"LIVEKIT_GENERATOR_NIC_BPS"\)/);
   assert.match(runtimeFactory, /newCDPSession/);
   assert.match(runtimeFactory, /executeLiveKitBrowserReconnectBlackout/);
 });

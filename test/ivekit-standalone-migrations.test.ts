@@ -258,10 +258,10 @@ test('standalone service owns compiled runtime-role bootstrap and Compose orderi
   assert.match(compose, /migrate:[\s\S]*runtime-role-init:[\s\S]*condition: service_completed_successfully/);
   assert.match(compose, /ivekit:[\s\S]*migrate:[\s\S]*condition: service_completed_successfully/);
   assert.match(compose, /PGUSER: opc_runtime/);
-  assert.match(compose, /OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT: \$\{OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT:-0\}/);
-  assert.match(compose, /OPC_RUSTDESK_EDGE_TOKEN_SECRET: \$\{OPC_RUSTDESK_EDGE_TOKEN_SECRET:-\}/);
-  assert.match(envExample, /^OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=0$/m);
-  assert.match(envExample, /^OPC_RUSTDESK_EDGE_TOKEN_SECRET=$/m);
+  assert.match(compose, /CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT: \$\{CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT:-0\}/);
+  assert.match(compose, /CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET: \$\{CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET:-\}/);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=0$/m);
+  assert.match(envExample, /^CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET=$/m);
   assert.doesNotMatch(compose, /\.\.\/\.\.|converact-platform|src\/server\.ts/);
 });
 

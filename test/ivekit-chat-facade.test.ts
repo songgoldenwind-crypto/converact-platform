@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { mkdtempSync } from 'node:fs';
@@ -58,7 +59,7 @@ async function route(
 }
 
 function snapshotEnv(keys: string[]): Record<string, string | undefined> {
-  return Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  return Object.fromEntries(keys.map((key) => [key, resolveConveractEnv(process.env, key)]));
 }
 
 function restoreEnv(snapshot: Record<string, string | undefined>): void {
@@ -74,12 +75,12 @@ function clearTinodeEnv(): void {
 
 test('iveKit chat facade exposes capabilities without leaking Tinode server credentials', async () => {
   const snapshot = snapshotEnv([
-    'OPC_API_KEY',
-    'OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS',
+    'CONVERACT_API_KEY',
+    'CONVERACT_CHAT_MESSAGE_MUTATION_WINDOW_MS',
     ...TINODE_ENV_KEYS
   ]);
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS = '600000';
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_CHAT_MESSAGE_MUTATION_WINDOW_MS = '600000';
   process.env.TINODE_BASE_URL = 'https://tinode.example.com';
   process.env.TINODE_PUBLIC_WS_URL = 'wss://chat.example.com/v0/channels';
   process.env.TINODE_API_KEY = 'tinode-api-key';
@@ -162,8 +163,8 @@ test('iveKit chat facade exposes capabilities without leaking Tinode server cred
 });
 
 test('iveKit chat capabilities fail closed when browser and root API keys are identical', async () => {
-  const snapshot = snapshotEnv(['OPC_API_KEY', ...TINODE_ENV_KEYS]);
-  process.env.OPC_API_KEY = API_KEY;
+  const snapshot = snapshotEnv(['CONVERACT_API_KEY', ...TINODE_ENV_KEYS]);
+  process.env.CONVERACT_API_KEY = API_KEY;
   process.env.TINODE_WS_URL = 'wss://tinode.example.com/v0/channels';
   process.env.TINODE_API_KEY = 'shared-api-key';
   process.env.TINODE_ROOT_API_KEY = ' shared-api-key ';
@@ -187,8 +188,8 @@ test('iveKit chat capabilities fail closed when browser and root API keys are id
 });
 
 test('iveKit chat facade exposes AI quality review jobs and findings for LED', async () => {
-  const snapshot = snapshotEnv(['OPC_API_KEY', ...TINODE_ENV_KEYS]);
-  process.env.OPC_API_KEY = API_KEY;
+  const snapshot = snapshotEnv(['CONVERACT_API_KEY', ...TINODE_ENV_KEYS]);
+  process.env.CONVERACT_API_KEY = API_KEY;
   clearTinodeEnv();
   const pg = new MemoryPg();
   const tenantId = 'tenant_ivekit_quality';
@@ -265,14 +266,14 @@ test('iveKit chat facade exposes AI quality review jobs and findings for LED', a
 
 test('iveKit chat facade exposes attachment upload, processing, status, and retry routes', async () => {
   const snapshot = snapshotEnv([
-    'OPC_API_KEY',
-    'OPC_UPLOAD_DIR',
-    'OPC_COLLABORATION_ATTACHMENT_MAX_BYTES',
+    'CONVERACT_API_KEY',
+    'CONVERACT_UPLOAD_DIR',
+    'CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES',
     ...TINODE_ENV_KEYS
   ]);
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'ivekit-attachment-'));
-  process.env.OPC_COLLABORATION_ATTACHMENT_MAX_BYTES = '1024';
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'ivekit-attachment-'));
+  process.env.CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES = '1024';
   clearTinodeEnv();
   const pg = new MemoryPg();
   const tenantId = 'tenant_ivekit_attachment';
@@ -367,8 +368,8 @@ test('iveKit chat facade exposes attachment upload, processing, status, and retr
 });
 
 test('iveKit chat facade provides the local session, participant, message, policy, and snapshot workflow', async () => {
-  const snapshot = snapshotEnv(['OPC_API_KEY', ...TINODE_ENV_KEYS]);
-  process.env.OPC_API_KEY = API_KEY;
+  const snapshot = snapshotEnv(['CONVERACT_API_KEY', ...TINODE_ENV_KEYS]);
+  process.env.CONVERACT_API_KEY = API_KEY;
   clearTinodeEnv();
   const pg = new MemoryPg();
   const tenantId = 'tenant_chat_workflow';
@@ -480,8 +481,8 @@ test('iveKit chat facade provides the local session, participant, message, polic
 });
 
 test('iveKit chat facade keeps sessions tenant scoped', async () => {
-  const snapshot = snapshotEnv(['OPC_API_KEY', ...TINODE_ENV_KEYS]);
-  process.env.OPC_API_KEY = API_KEY;
+  const snapshot = snapshotEnv(['CONVERACT_API_KEY', ...TINODE_ENV_KEYS]);
+  process.env.CONVERACT_API_KEY = API_KEY;
   clearTinodeEnv();
   const pg = new MemoryPg();
   try {
@@ -510,8 +511,8 @@ test('iveKit chat facade keeps sessions tenant scoped', async () => {
 });
 
 test('iveKit chat facade is registered in the main HTTP router', async () => {
-  const snapshot = snapshotEnv(['OPC_API_KEY', ...TINODE_ENV_KEYS]);
-  process.env.OPC_API_KEY = API_KEY;
+  const snapshot = snapshotEnv(['CONVERACT_API_KEY', ...TINODE_ENV_KEYS]);
+  process.env.CONVERACT_API_KEY = API_KEY;
   clearTinodeEnv();
   const db = createDatabase(':memory:');
   const server = createOpcServer(db, new MemoryPg());

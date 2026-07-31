@@ -9,16 +9,16 @@ import type { BrowserAutomation } from '../scripts/livekit-browser-smoke.js';
 test('customer browser smoke config accepts an explicit signed customer URL', () => {
   assert.throws(
     () => createLiveKitCustomerBrowserSmokeConfigFromEnv({}),
-    /OPC_FRONTEND_URL is required/
+    /CONVERACT_FRONTEND_URL is required/
   );
 
   const config = createLiveKitCustomerBrowserSmokeConfigFromEnv({
-    OPC_FRONTEND_URL: 'http://localhost:5173/',
-    OPC_CUSTOMER_VIDEO_URL: '/video?room=room-a&tenant_id=tenant-1&invite=sig',
-    OPC_CUSTOMER_BROWSER_SMOKE_EXPECT_REMOTE: '1',
-    OPC_CUSTOMER_BROWSER_SMOKE_EXPECT_SCREEN_SHARE: '1',
-    OPC_CUSTOMER_BROWSER_SMOKE_HEADLESS: '0',
-    OPC_CUSTOMER_BROWSER_SMOKE_TIMEOUT_MS: '12345'
+    CONVERACT_FRONTEND_URL: 'http://localhost:5173/',
+    CONVERACT_CUSTOMER_VIDEO_URL: '/video?room=room-a&tenant_id=tenant-1&invite=sig',
+    CONVERACT_CUSTOMER_BROWSER_SMOKE_EXPECT_REMOTE: '1',
+    CONVERACT_CUSTOMER_BROWSER_SMOKE_EXPECT_SCREEN_SHARE: '1',
+    CONVERACT_CUSTOMER_BROWSER_SMOKE_HEADLESS: '0',
+    CONVERACT_CUSTOMER_BROWSER_SMOKE_TIMEOUT_MS: '12345'
   });
 
   assert.equal(config.frontendUrl, 'http://localhost:5173');
@@ -34,11 +34,11 @@ test('customer browser smoke config accepts an explicit signed customer URL', ()
 
 test('customer browser smoke config can build the customer URL from room parameters', () => {
   const config = createLiveKitCustomerBrowserSmokeConfigFromEnv({
-    OPC_FRONTEND_URL: 'http://localhost:5173',
-    OPC_CUSTOMER_BROWSER_SMOKE_ROOM_NAME: 'room-b',
-    OPC_CUSTOMER_BROWSER_SMOKE_TENANT_ID: 'tenant-2',
-    OPC_CUSTOMER_BROWSER_SMOKE_INVITE: 'sig-b',
-    OPC_CUSTOMER_BROWSER_SMOKE_EXPIRES_AT: '1893456000000'
+    CONVERACT_FRONTEND_URL: 'http://localhost:5173',
+    CONVERACT_CUSTOMER_BROWSER_SMOKE_ROOM_NAME: 'room-b',
+    CONVERACT_CUSTOMER_BROWSER_SMOKE_TENANT_ID: 'tenant-2',
+    CONVERACT_CUSTOMER_BROWSER_SMOKE_INVITE: 'sig-b',
+    CONVERACT_CUSTOMER_BROWSER_SMOKE_EXPIRES_AT: '1893456000000'
   });
 
   assert.equal(
@@ -51,10 +51,10 @@ test('customer browser smoke requires room and tenant when no explicit URL is su
   assert.throws(
     () =>
       createLiveKitCustomerBrowserSmokeConfigFromEnv({
-        OPC_FRONTEND_URL: 'http://localhost:5173',
-        OPC_CUSTOMER_BROWSER_SMOKE_ROOM_NAME: 'room-c'
+        CONVERACT_FRONTEND_URL: 'http://localhost:5173',
+        CONVERACT_CUSTOMER_BROWSER_SMOKE_ROOM_NAME: 'room-c'
       }),
-    /OPC_CUSTOMER_BROWSER_SMOKE_TENANT_ID or OPC_TENANT_ID is required/
+    /CONVERACT_CUSTOMER_BROWSER_SMOKE_TENANT_ID or CONVERACT_TENANT_ID is required/
   );
 });
 

@@ -229,7 +229,7 @@ test('new reservations automatically prune bounded completed lease history', asy
 
 function providerProfile(overrides: Record<string, unknown> = {}) {
   return createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
       id: 'translation-primary', capability: 'translation', mode: 'self_hosted',
       base_url: 'http://translation-worker:8080', timeout_ms: 1_000,
       reservation_ttl_ms: 35_000, ...overrides

@@ -31,14 +31,14 @@ test('tenant event idempotency migration deduplicates stable producer keys per t
 
 test('tenant event replay requires an explicit signing secret when enabled', () => {
   assert.equal(iveKitEventReplayEnabled({}), false);
-  assert.equal(iveKitEventReplayEnabled({ OPC_JWT_SECRET: 'configured-secret' }), true);
+  assert.equal(iveKitEventReplayEnabled({ CONVERACT_JWT_SECRET: 'configured-secret' }), true);
   assert.equal(iveKitEventReplayEnabled({
-    OPC_IVEKIT_EVENT_REPLAY_ENABLED: '0',
-    OPC_JWT_SECRET: 'configured-secret'
+    CONVERACT_FABRIC_EVENT_REPLAY_ENABLED: '0',
+    CONVERACT_JWT_SECRET: 'configured-secret'
   }), false);
   assert.throws(
-    () => iveKitEventReplayEnabled({ OPC_IVEKIT_EVENT_REPLAY_ENABLED: '1' }),
-    /EVENT_CURSOR_SECRET or OPC_JWT_SECRET is required/
+    () => iveKitEventReplayEnabled({ CONVERACT_FABRIC_EVENT_REPLAY_ENABLED: '1' }),
+    /EVENT_CURSOR_SECRET or CONVERACT_JWT_SECRET is required/
   );
 });
 

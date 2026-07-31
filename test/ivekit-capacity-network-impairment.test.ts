@@ -123,10 +123,10 @@ test('network impairment sidecar exposes loopback-only fenced apply, blackout an
   });
   const server = createNetworkImpairmentHttpServer({
     config: networkImpairmentRuntimeConfig({
-      OPC_IVEKIT_NETWORK_IMPAIRMENT_HOST: '127.0.0.1',
-      OPC_IVEKIT_NETWORK_IMPAIRMENT_PORT: '0',
-      OPC_IVEKIT_NETWORK_IMPAIRMENT_INTERFACE: 'eth0',
-      OPC_IVEKIT_NETWORK_IMPAIRMENT_IFB_INTERFACE: 'ifb-ivekit0'
+      CONVERACT_FABRIC_NETWORK_IMPAIRMENT_HOST: '127.0.0.1',
+      CONVERACT_FABRIC_NETWORK_IMPAIRMENT_PORT: '0',
+      CONVERACT_FABRIC_NETWORK_IMPAIRMENT_INTERFACE: 'eth0',
+      CONVERACT_FABRIC_NETWORK_IMPAIRMENT_IFB_INTERFACE: 'ifb-ivekit0'
     }),
     controller
   });
@@ -156,10 +156,10 @@ test('network impairment sidecar exposes loopback-only fenced apply, blackout an
 
 test('network impairment runtime refuses non-loopback exposure', () => {
   assert.throws(() => networkImpairmentRuntimeConfig({
-    OPC_IVEKIT_NETWORK_IMPAIRMENT_HOST: '0.0.0.0',
-    OPC_IVEKIT_NETWORK_IMPAIRMENT_PORT: '3199',
-    OPC_IVEKIT_NETWORK_IMPAIRMENT_INTERFACE: 'eth0',
-    OPC_IVEKIT_NETWORK_IMPAIRMENT_IFB_INTERFACE: 'ifb-ivekit0'
+    CONVERACT_FABRIC_NETWORK_IMPAIRMENT_HOST: '0.0.0.0',
+    CONVERACT_FABRIC_NETWORK_IMPAIRMENT_PORT: '3199',
+    CONVERACT_FABRIC_NETWORK_IMPAIRMENT_INTERFACE: 'eth0',
+    CONVERACT_FABRIC_NETWORK_IMPAIRMENT_IFB_INTERFACE: 'ifb-ivekit0'
   }), /loopback/i);
 });
 

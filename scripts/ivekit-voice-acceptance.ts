@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import {
   existsSync,
@@ -199,7 +200,7 @@ export function createIveKitVoiceAcceptanceTemplate(
 export function writeIveKitVoiceAcceptanceTemplate(
   config: IveKitVoiceAcceptanceTemplateConfig
 ): { templateFile: string; checks: number } {
-  if (!config.templateFile) throw new Error('OPC_IVEKIT_VOICE_ACCEPTANCE_TEMPLATE_FILE is required');
+  if (!config.templateFile) throw new Error('CONVERACT_FABRIC_VOICE_ACCEPTANCE_TEMPLATE_FILE is required');
   const template = createIveKitVoiceAcceptanceTemplate(config);
   mkdirSync(dirname(resolve(config.templateFile)), { recursive: true });
   writeFileSync(resolve(config.templateFile), `${JSON.stringify(template, null, 2)}\n`, 'utf8');
@@ -319,17 +320,17 @@ export function runIveKitVoiceAcceptanceFromEnv(
   status: 'not_run';
   missing_environment: string[];
 } {
-  const reportFile = String(env.OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE || '').trim();
+  const reportFile = String(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_REPORT_FILE') || '').trim();
   if (!reportFile) {
     return {
       ok: false,
       status: 'not_run',
-      missing_environment: ['OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE']
+      missing_environment: ['CONVERACT_FABRIC_VOICE_ACCEPTANCE_REPORT_FILE']
     };
   }
   return runIveKitVoiceAcceptance({
     reportFile,
-    outputFile: optional(env.OPC_IVEKIT_VOICE_ACCEPTANCE_OUTPUT_FILE)
+    outputFile: optional(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_OUTPUT_FILE'))
   });
 }
 
@@ -372,8 +373,8 @@ export function renderIveKitVoiceAcceptanceRunbook(): string {
     'full deployed commit, deployment fingerprint, operator and time window, then calculate its SHA-256.',
     '',
     '```bash',
-    'OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE=/secure/evidence/voice-report.json \\',
-    'OPC_IVEKIT_VOICE_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/voice-result.json \\',
+    'CONVERACT_FABRIC_VOICE_ACCEPTANCE_REPORT_FILE=/secure/evidence/voice-report.json \\',
+    'CONVERACT_FABRIC_VOICE_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/voice-result.json \\',
     '  npm run ivekit:voice-acceptance',
     '```',
     '',
@@ -642,29 +643,29 @@ function optional(value: string | undefined): string | undefined {
 }
 
 function templateConfigFromEnv(env: NodeJS.ProcessEnv): IveKitVoiceAcceptanceTemplateConfig {
-  const mode = String(env.OPC_IVEKIT_VOICE_ACCEPTANCE_DEPLOYMENT_MODE || 'standalone-compose') as IveKitVoiceAcceptanceDeploymentMode;
-  if (!DEPLOYMENT_MODES.has(mode)) throw new Error('invalid OPC_IVEKIT_VOICE_ACCEPTANCE_DEPLOYMENT_MODE');
+  const mode = String(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_DEPLOYMENT_MODE') || 'standalone-compose') as IveKitVoiceAcceptanceDeploymentMode;
+  if (!DEPLOYMENT_MODES.has(mode)) throw new Error('invalid CONVERACT_FABRIC_VOICE_ACCEPTANCE_DEPLOYMENT_MODE');
   return {
-    templateFile: optional(env.OPC_IVEKIT_VOICE_ACCEPTANCE_TEMPLATE_FILE),
-    runId: String(env.OPC_IVEKIT_VOICE_ACCEPTANCE_RUN_ID || 'replace-with-run-id'),
-    environmentId: String(env.OPC_IVEKIT_VOICE_ACCEPTANCE_ENVIRONMENT_ID || 'replace-with-environment-id'),
+    templateFile: optional(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_TEMPLATE_FILE')),
+    runId: String(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_RUN_ID') || 'replace-with-run-id'),
+    environmentId: String(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_ENVIRONMENT_ID') || 'replace-with-environment-id'),
     deploymentMode: mode,
-    deployedCommit: String(env.OPC_IVEKIT_VOICE_ACCEPTANCE_DEPLOYED_COMMIT || 'replace-with-40-char-git-sha'),
-    deploymentFingerprint: String(env.OPC_IVEKIT_VOICE_ACCEPTANCE_DEPLOYMENT_FINGERPRINT || 'replace-with-sha256'),
-    operator: String(env.OPC_IVEKIT_VOICE_ACCEPTANCE_OPERATOR || 'replace-with-operator'),
-    qaApprover: String(env.OPC_IVEKIT_VOICE_ACCEPTANCE_QA_APPROVER || 'replace-with-independent-qa'),
-    runStartedAt: String(env.OPC_IVEKIT_VOICE_ACCEPTANCE_RUN_STARTED_AT || ''),
-    checkedAt: String(env.OPC_IVEKIT_VOICE_ACCEPTANCE_CHECKED_AT || '')
+    deployedCommit: String(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_DEPLOYED_COMMIT') || 'replace-with-40-char-git-sha'),
+    deploymentFingerprint: String(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_DEPLOYMENT_FINGERPRINT') || 'replace-with-sha256'),
+    operator: String(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_OPERATOR') || 'replace-with-operator'),
+    qaApprover: String(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_QA_APPROVER') || 'replace-with-independent-qa'),
+    runStartedAt: String(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_RUN_STARTED_AT') || ''),
+    checkedAt: String(resolveFabricEnv(env, 'VOICE_ACCEPTANCE_CHECKED_AT') || '')
   };
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : '';
 if (invokedPath === fileURLToPath(import.meta.url)) {
   try {
-    if (process.env.OPC_IVEKIT_VOICE_ACCEPTANCE_TEMPLATE_FILE) {
+    if (resolveFabricEnv(process.env, 'VOICE_ACCEPTANCE_TEMPLATE_FILE')) {
       const config = templateConfigFromEnv(process.env);
       const result = writeIveKitVoiceAcceptanceTemplate(config);
-      const runbookFile = optional(process.env.OPC_IVEKIT_VOICE_ACCEPTANCE_RUNBOOK_FILE);
+      const runbookFile = optional(resolveFabricEnv(process.env, 'VOICE_ACCEPTANCE_RUNBOOK_FILE'));
       if (runbookFile) {
         mkdirSync(dirname(resolve(runbookFile)), { recursive: true });
         writeFileSync(resolve(runbookFile), renderIveKitVoiceAcceptanceRunbook(), 'utf8');

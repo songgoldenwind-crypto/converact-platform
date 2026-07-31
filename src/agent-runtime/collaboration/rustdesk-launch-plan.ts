@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import type { RemoteConsentScope } from './types.js';
@@ -46,9 +47,9 @@ export interface RustDeskGatewayLaunchPlan {
 
 export function rustDeskLaunchUrl(externalId: string): string {
   const baseUrl = normalizeRustDeskLaunchBaseUrl(String(
-    process.env.OPC_RUSTDESK_LAUNCH_BASE_URL ||
-    process.env.OPC_BASE_URL ||
-    process.env.OPC_REMOTE_GATEWAY_BASE_URL ||
+    resolveBrandEnv(process.env, 'RUSTDESK_LAUNCH_BASE_URL') ||
+    resolveBrandEnv(process.env, 'BASE_URL') ||
+    resolveBrandEnv(process.env, 'REMOTE_GATEWAY_BASE_URL') ||
     'http://localhost:3000'
   ));
   const expiresAt = new Date(Date.now() + rustDeskLaunchTokenTtlMs()).toISOString();
@@ -95,8 +96,8 @@ export function rustDeskRuntimeMetadata(input: Record<string, unknown>, target: 
   return {
     ...metadata,
     rustdesk_id: target.id,
-    id_server: String(metadata.id_server || process.env.OPC_RUSTDESK_ID_SERVER || ''),
-    relay_server: String(metadata.relay_server || process.env.OPC_RUSTDESK_RELAY_SERVER || ''),
+    id_server: String(metadata.id_server || resolveBrandEnv(process.env, 'RUSTDESK_ID_SERVER') || ''),
+    relay_server: String(metadata.relay_server || resolveBrandEnv(process.env, 'RUSTDESK_RELAY_SERVER') || ''),
     api_server: String(metadata.api_server || apiServer.value),
     ...((metadata.server_key_fingerprint || fingerprint)
       ? {
@@ -176,16 +177,16 @@ export function rustDeskLaunchHtml(plan: RustDeskGatewayLaunchPlan): string {
 
 function rustDeskLaunchSecret(): string {
   return String(
-    process.env.OPC_RUSTDESK_LAUNCH_SECRET ||
-    process.env.OPC_RUSTDESK_API_TOKEN ||
-    process.env.OPC_REMOTE_GATEWAY_API_TOKEN ||
-    process.env.OPC_RUSTDESK_SERVER_KEY ||
+    resolveBrandEnv(process.env, 'RUSTDESK_LAUNCH_SECRET') ||
+    resolveBrandEnv(process.env, 'RUSTDESK_API_TOKEN') ||
+    resolveBrandEnv(process.env, 'REMOTE_GATEWAY_API_TOKEN') ||
+    resolveBrandEnv(process.env, 'RUSTDESK_SERVER_KEY') ||
     ''
   ).trim();
 }
 
 function rustDeskLaunchTokenTtlMs(): number {
-  const rawTtl = String(process.env.OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS || '').trim();
+  const rawTtl = String(resolveBrandEnv(process.env, 'RUSTDESK_LAUNCH_TOKEN_TTL_MS') || '').trim();
   if (!rawTtl) return 15 * 60 * 1000;
   if (!/^\d+$/.test(rawTtl)) {
     throw new Error('RustDesk launch token ttl must be a positive integer');
@@ -210,8 +211,8 @@ function rustDeskRuntimeFromSession(session: RustDeskGatewaySession): RustDeskGa
   if (apiServer.error) throw new Error(apiServer.error);
   return {
     rustdesk_id: String(metadata.rustdesk_id || session.target.id),
-    id_server: String(metadata.id_server || process.env.OPC_RUSTDESK_ID_SERVER || ''),
-    relay_server: String(metadata.relay_server || process.env.OPC_RUSTDESK_RELAY_SERVER || ''),
+    id_server: String(metadata.id_server || resolveBrandEnv(process.env, 'RUSTDESK_ID_SERVER') || ''),
+    relay_server: String(metadata.relay_server || resolveBrandEnv(process.env, 'RUSTDESK_RELAY_SERVER') || ''),
     api_server: String(metadata.api_server || apiServer.value),
     server_key_fingerprint: String(metadata.server_key_fingerprint || rustDeskServerKeyFingerprint()),
     public_key_configured: publicKey.value ? 'true' : 'false',
@@ -226,7 +227,7 @@ function rustDeskApiServerForMetadata(
   return configured
     ? rustDeskApiServer({
         ...process.env,
-        OPC_RUSTDESK_API_SERVER: configured
+        CONVERACT_RUSTDESK_API_SERVER: configured
       })
     : rustDeskApiServer();
 }
@@ -251,7 +252,7 @@ function rustDeskProtocolUrl(
   session: RustDeskGatewaySession,
   runtime: RustDeskGatewayLaunchPlan['runtime']
 ): string {
-  const template = String(process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE || '').trim();
+  const template = String(resolveBrandEnv(process.env, 'RUSTDESK_PROTOCOL_URL_TEMPLATE') || '').trim();
   if (!template) return '';
   const replacements: Record<string, string> = {
     external_id: session.external_id,

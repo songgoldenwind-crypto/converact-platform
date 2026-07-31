@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from './config/converact-env.js';
 import {
   buildIoRedisConstructorArgs,
   resolveRedisConnectionOptions,
@@ -69,7 +70,7 @@ let sharedClient: RedisLike | null = null;
 
 export async function getRedisClient(): Promise<RedisLike> {
   if (sharedClient) return sharedClient;
-  if (process.env.OPC_USE_MEMORY_REDIS === '1') {
+  if (resolveBrandEnv(process.env, 'USE_MEMORY_REDIS') === '1') {
     sharedClient = new MemoryRedis();
     return sharedClient;
   }

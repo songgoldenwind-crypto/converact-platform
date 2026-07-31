@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import type { PgQueryable } from '../../db-pg.js';
 import {
   configuredChatGateway,
@@ -92,25 +93,25 @@ export function tinodeSyncWorkerConfig(env: NodeJS.ProcessEnv = process.env): Ti
   const rootAuthConfigured = hasValue(env.TINODE_AUTH_TOKEN) || (
     hasValue(env.TINODE_BASIC_USER) && hasValue(env.TINODE_BASIC_PASSWORD)
   );
-  const enabledFlag = String(env.OPC_TINODE_DELIVERY_WORKER_ENABLED || '').trim();
+  const enabledFlag = String(resolveBrandEnv(env, 'TINODE_DELIVERY_WORKER_ENABLED') || '').trim();
   if (enabledFlag && enabledFlag !== '0' && enabledFlag !== '1') {
-    throw new Error('OPC_TINODE_DELIVERY_WORKER_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_TINODE_DELIVERY_WORKER_ENABLED must be 0 or 1');
   }
   const requestTimeoutMs = tinodeRequestTimeoutMs(env);
   const minimumLeaseMs = tinodeMinimumDeliveryLeaseMs(requestTimeoutMs);
-  const configuredLease = optionalInteger(env.OPC_TINODE_DELIVERY_CLAIM_LEASE_MS, 'OPC_TINODE_DELIVERY_CLAIM_LEASE_MS');
+  const configuredLease = optionalInteger(resolveBrandEnv(env, 'TINODE_DELIVERY_CLAIM_LEASE_MS'), 'CONVERACT_TINODE_DELIVERY_CLAIM_LEASE_MS');
   const claimLeaseMs = configuredLease ?? Math.max(30_000, minimumLeaseMs);
   if (claimLeaseMs < minimumLeaseMs || claimLeaseMs > 300_000) {
-    throw new Error(`OPC_TINODE_DELIVERY_CLAIM_LEASE_MS must be between ${minimumLeaseMs} and 300000`);
+    throw new Error(`CONVERACT_TINODE_DELIVERY_CLAIM_LEASE_MS must be between ${minimumLeaseMs} and 300000`);
   }
   return {
     enabled: providerConfigured && rootAuthConfigured &&
       tinodeApiKeysDistinct(env) && enabledFlag !== '0',
-    intervalMs: boundedInteger(env.OPC_TINODE_DELIVERY_INTERVAL_MS, 5_000, 1_000, 300_000, 'OPC_TINODE_DELIVERY_INTERVAL_MS'),
-    batchSize: boundedInteger(env.OPC_TINODE_DELIVERY_BATCH_SIZE, 50, 1, 200, 'OPC_TINODE_DELIVERY_BATCH_SIZE'),
-    maxAttempts: boundedInteger(env.OPC_TINODE_DELIVERY_MAX_ATTEMPTS, 3, 1, 10, 'OPC_TINODE_DELIVERY_MAX_ATTEMPTS'),
+    intervalMs: boundedInteger(resolveBrandEnv(env, 'TINODE_DELIVERY_INTERVAL_MS'), 5_000, 1_000, 300_000, 'CONVERACT_TINODE_DELIVERY_INTERVAL_MS'),
+    batchSize: boundedInteger(resolveBrandEnv(env, 'TINODE_DELIVERY_BATCH_SIZE'), 50, 1, 200, 'CONVERACT_TINODE_DELIVERY_BATCH_SIZE'),
+    maxAttempts: boundedInteger(resolveBrandEnv(env, 'TINODE_DELIVERY_MAX_ATTEMPTS'), 3, 1, 10, 'CONVERACT_TINODE_DELIVERY_MAX_ATTEMPTS'),
     claimLeaseMs,
-    retryDelaysMs: retryDelays(env.OPC_TINODE_DELIVERY_RETRY_DELAYS_MS)
+    retryDelaysMs: retryDelays(resolveBrandEnv(env, 'TINODE_DELIVERY_RETRY_DELAYS_MS'))
   };
 }
 
@@ -211,7 +212,7 @@ function retryDelays(value: string | undefined): number[] {
   if (!hasValue(value)) return [2_000, 10_000];
   const parsed = String(value).split(',').map((item) => Number(item.trim()));
   if (!parsed.length || parsed.some((delay) => !Number.isInteger(delay) || delay < 0 || delay > 3_600_000)) {
-    throw new Error('OPC_TINODE_DELIVERY_RETRY_DELAYS_MS must be comma-separated integers between 0 and 3600000');
+    throw new Error('CONVERACT_TINODE_DELIVERY_RETRY_DELAYS_MS must be comma-separated integers between 0 and 3600000');
   }
   return parsed;
 }

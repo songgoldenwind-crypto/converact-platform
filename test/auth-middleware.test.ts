@@ -3,12 +3,12 @@ import { createSign, generateKeyPairSync } from 'node:crypto';
 import { test } from 'node:test';
 import { _clearJwksCache, _injectJwksForTest, resolveAuthContext } from '../src/middleware/auth.js';
 
-test('dev mode: X-API-Key matching OPC_API_KEY returns system context', () => {
-  const original = process.env.OPC_AUTH_DISABLED;
-  const originalKey = process.env.OPC_API_KEY;
+test('dev mode: X-API-Key matching CONVERACT_API_KEY returns system context', () => {
+  const original = process.env.CONVERACT_AUTH_DISABLED;
+  const originalKey = process.env.CONVERACT_API_KEY;
   try {
-    process.env.OPC_AUTH_DISABLED = '1';
-    process.env.OPC_API_KEY = 'test-secret-key';
+    process.env.CONVERACT_AUTH_DISABLED = '1';
+    process.env.CONVERACT_API_KEY = 'test-secret-key';
 
     const ctx = resolveAuthContext({
       'x-api-key': 'test-secret-key',
@@ -20,17 +20,17 @@ test('dev mode: X-API-Key matching OPC_API_KEY returns system context', () => {
     assert.equal(ctx.tenantId, 'tenant_abc');
     assert.equal(ctx.authenticated, true);
   } finally {
-    process.env.OPC_AUTH_DISABLED = original;
-    process.env.OPC_API_KEY = originalKey;
+    process.env.CONVERACT_AUTH_DISABLED = original;
+    process.env.CONVERACT_API_KEY = originalKey;
   }
 });
 
-test('dev mode: X-API-Key with no OPC_API_KEY env does not grant system role', () => {
-  const original = process.env.OPC_AUTH_DISABLED;
-  const originalKey = process.env.OPC_API_KEY;
+test('dev mode: X-API-Key with no CONVERACT_API_KEY env does not grant system role', () => {
+  const original = process.env.CONVERACT_AUTH_DISABLED;
+  const originalKey = process.env.CONVERACT_API_KEY;
   try {
-    process.env.OPC_AUTH_DISABLED = '1';
-    delete process.env.OPC_API_KEY;
+    process.env.CONVERACT_AUTH_DISABLED = '1';
+    delete process.env.CONVERACT_API_KEY;
 
     const ctx = resolveAuthContext({
       'x-api-key': 'some-key',
@@ -42,15 +42,15 @@ test('dev mode: X-API-Key with no OPC_API_KEY env does not grant system role', (
     assert.equal(ctx.tenantId, 'tenant_abc');
     assert.equal(ctx.userId, 'user_1');
   } finally {
-    process.env.OPC_AUTH_DISABLED = original;
-    process.env.OPC_API_KEY = originalKey;
+    process.env.CONVERACT_AUTH_DISABLED = original;
+    process.env.CONVERACT_API_KEY = originalKey;
   }
 });
 
 test('dev mode: X-Tenant-Id + X-User-Id returns custom context', () => {
-  const original = process.env.OPC_AUTH_DISABLED;
+  const original = process.env.CONVERACT_AUTH_DISABLED;
   try {
-    process.env.OPC_AUTH_DISABLED = '1';
+    process.env.CONVERACT_AUTH_DISABLED = '1';
 
     const ctx = resolveAuthContext({
       'x-tenant-id': 'tenant_xyz',
@@ -63,14 +63,14 @@ test('dev mode: X-Tenant-Id + X-User-Id returns custom context', () => {
     assert.equal(ctx.role, 'admin');
     assert.equal(ctx.authenticated, false);
   } finally {
-    process.env.OPC_AUTH_DISABLED = original;
+    process.env.CONVERACT_AUTH_DISABLED = original;
   }
 });
 
 test('dev mode: invalid role falls back to operator', () => {
-  const original = process.env.OPC_AUTH_DISABLED;
+  const original = process.env.CONVERACT_AUTH_DISABLED;
   try {
-    process.env.OPC_AUTH_DISABLED = '1';
+    process.env.CONVERACT_AUTH_DISABLED = '1';
 
     const ctx = resolveAuthContext({
       'x-tenant-id': 'tenant_xyz',
@@ -80,14 +80,14 @@ test('dev mode: invalid role falls back to operator', () => {
 
     assert.equal(ctx.role, 'operator');
   } finally {
-    process.env.OPC_AUTH_DISABLED = original;
+    process.env.CONVERACT_AUTH_DISABLED = original;
   }
 });
 
 test('dev mode: tenant-only header returns viewer context', () => {
-  const original = process.env.OPC_AUTH_DISABLED;
+  const original = process.env.CONVERACT_AUTH_DISABLED;
   try {
-    process.env.OPC_AUTH_DISABLED = '1';
+    process.env.CONVERACT_AUTH_DISABLED = '1';
 
     const ctx = resolveAuthContext({
       'x-tenant-id': 'tenant_xyz'
@@ -97,14 +97,14 @@ test('dev mode: tenant-only header returns viewer context', () => {
     assert.equal(ctx.userId, 'anonymous');
     assert.equal(ctx.role, 'viewer');
   } finally {
-    process.env.OPC_AUTH_DISABLED = original;
+    process.env.CONVERACT_AUTH_DISABLED = original;
   }
 });
 
 test('dev mode: empty headers return empty context', () => {
-  const original = process.env.OPC_AUTH_DISABLED;
+  const original = process.env.CONVERACT_AUTH_DISABLED;
   try {
-    process.env.OPC_AUTH_DISABLED = '1';
+    process.env.CONVERACT_AUTH_DISABLED = '1';
 
     const ctx = resolveAuthContext({});
 
@@ -113,16 +113,16 @@ test('dev mode: empty headers return empty context', () => {
     assert.equal(ctx.role, 'viewer');
     assert.equal(ctx.authenticated, false);
   } finally {
-    process.env.OPC_AUTH_DISABLED = original;
+    process.env.CONVERACT_AUTH_DISABLED = original;
   }
 });
 
 test('auth required: missing Authorization header throws 401', () => {
-  const origDisabled = process.env.OPC_AUTH_DISABLED;
-  const origIssuer = process.env.OPC_AUTH_ISSUER;
+  const origDisabled = process.env.CONVERACT_AUTH_DISABLED;
+  const origIssuer = process.env.CONVERACT_AUTH_ISSUER;
   try {
-    delete process.env.OPC_AUTH_DISABLED;
-    process.env.OPC_AUTH_ISSUER = 'https://auth.example.com';
+    delete process.env.CONVERACT_AUTH_DISABLED;
+    process.env.CONVERACT_AUTH_ISSUER = 'https://auth.example.com';
 
     assert.throws(
       () => resolveAuthContext({}),
@@ -133,17 +133,17 @@ test('auth required: missing Authorization header throws 401', () => {
       }
     );
   } finally {
-    process.env.OPC_AUTH_DISABLED = origDisabled;
-    process.env.OPC_AUTH_ISSUER = origIssuer;
+    process.env.CONVERACT_AUTH_DISABLED = origDisabled;
+    process.env.CONVERACT_AUTH_ISSUER = origIssuer;
   }
 });
 
 test('auth required: non-Bearer token throws 401', () => {
-  const origDisabled = process.env.OPC_AUTH_DISABLED;
-  const origIssuer = process.env.OPC_AUTH_ISSUER;
+  const origDisabled = process.env.CONVERACT_AUTH_DISABLED;
+  const origIssuer = process.env.CONVERACT_AUTH_ISSUER;
   try {
-    delete process.env.OPC_AUTH_DISABLED;
-    process.env.OPC_AUTH_ISSUER = 'https://auth.example.com';
+    delete process.env.CONVERACT_AUTH_DISABLED;
+    process.env.CONVERACT_AUTH_ISSUER = 'https://auth.example.com';
 
     assert.throws(
       () => resolveAuthContext({ authorization: 'Basic dXNlcjpwYXNz' }),
@@ -153,22 +153,22 @@ test('auth required: non-Bearer token throws 401', () => {
       }
     );
   } finally {
-    process.env.OPC_AUTH_DISABLED = origDisabled;
-    process.env.OPC_AUTH_ISSUER = origIssuer;
+    process.env.CONVERACT_AUTH_DISABLED = origDisabled;
+    process.env.CONVERACT_AUTH_ISSUER = origIssuer;
   }
 });
 
 test('RS256 auth requires a signed tenant claim and never trusts X-Tenant-Id', () => {
-  const originalDisabled = process.env.OPC_AUTH_DISABLED;
-  const originalIssuer = process.env.OPC_AUTH_ISSUER;
-  const originalSecret = process.env.OPC_JWT_SECRET;
+  const originalDisabled = process.env.CONVERACT_AUTH_DISABLED;
+  const originalIssuer = process.env.CONVERACT_AUTH_ISSUER;
+  const originalSecret = process.env.CONVERACT_JWT_SECRET;
   const issuer = 'https://auth.example.test';
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const jwk = publicKey.export({ format: 'jwk' });
   try {
-    delete process.env.OPC_AUTH_DISABLED;
-    delete process.env.OPC_JWT_SECRET;
-    process.env.OPC_AUTH_ISSUER = issuer;
+    delete process.env.CONVERACT_AUTH_DISABLED;
+    delete process.env.CONVERACT_JWT_SECRET;
+    process.env.CONVERACT_AUTH_ISSUER = issuer;
     _injectJwksForTest(issuer, [{
       kty: String(jwk.kty),
       kid: 'auth-test-key',
@@ -195,9 +195,9 @@ test('RS256 auth requires a signed tenant claim and never trusts X-Tenant-Id', (
     assert.equal(context.userId, 'user-1');
   } finally {
     _clearJwksCache();
-    process.env.OPC_AUTH_DISABLED = originalDisabled;
-    process.env.OPC_AUTH_ISSUER = originalIssuer;
-    process.env.OPC_JWT_SECRET = originalSecret;
+    process.env.CONVERACT_AUTH_DISABLED = originalDisabled;
+    process.env.CONVERACT_AUTH_ISSUER = originalIssuer;
+    process.env.CONVERACT_JWT_SECRET = originalSecret;
   }
 });
 

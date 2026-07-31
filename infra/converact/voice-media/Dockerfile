@@ -9,8 +9,8 @@ RUN cargo build --locked --release
 
 FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818
 
-ARG OPC_SOURCE_COMMIT=unknown
-LABEL org.opencontainers.image.revision="${OPC_SOURCE_COMMIT}"
+ARG CONVERACT_SOURCE_COMMIT=unknown
+LABEL org.opencontainers.image.revision="${CONVERACT_SOURCE_COMMIT}"
 LABEL org.opencontainers.image.description="iveKit bounded RTP processing pool"
 
 RUN apt-get update \

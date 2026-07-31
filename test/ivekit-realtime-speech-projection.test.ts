@@ -145,8 +145,8 @@ test('iveKit SDK exposes paged final realtime speech projections', async () => {
 });
 
 test('realtime speech HTTP projection is call-member scoped and preserves paging input', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'realtime-speech-projection-secret-32-bytes';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'realtime-speech-projection-secret-32-bytes';
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const tenantId = 'tenant-realtime-speech';
@@ -184,8 +184,8 @@ test('realtime speech HTTP projection is call-member scoped and preserves paging
     }]);
   } finally {
     db.close();
-    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousSecret;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
   }
 
   function mediaRoute(

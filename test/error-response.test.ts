@@ -9,7 +9,7 @@ const server = createServer(db);
 let baseUrl = '';
 
 before(async () => {
-  process.env.OPC_API_KEY = 'test-key';
+  process.env.CONVERACT_API_KEY = 'test-key';
   const port = await listenOnRandomPort(server);
   baseUrl = `http://127.0.0.1:${port}`;
 });

@@ -23,11 +23,11 @@ by `secrets.realtimeAudioTapHmacSecretKey` (default
 `realtime-audio-tap-hmac-secret-b64`).
 
 Each API Pod receives its own Pod name as
-`OPC_IVEKIT_LIVEKIT_AUDIO_TAP_INSTANCE_ID`. The authorization endpoint signs a
+`CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_INSTANCE_ID`. The authorization endpoint signs a
 short-lived one-time token with a key derived for that Pod and returns the same
 Pod's address through the headless `*-audio-tap` Service. This keeps the nonce
 store local without allowing a token to be replayed against another replica.
-Do not replace `OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL` with the regular
+Do not replace `CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL` with the regular
 load-balanced Service.
 
 Port 3010 is an internal PCM WebSocket. The generated NetworkPolicy permits
@@ -38,9 +38,9 @@ not expose 3010 through Ingress, a public LoadBalancer, or a node port.
 
 The two media inputs use different Pod-local boundaries. The LiveKit WebSocket
 gateway remains in each API Pod and has
-`OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED=0`. Every enabled RustPBX Pod
+`CONVERACT_FABRIC_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED=0`. Every enabled RustPBX Pod
 co-locates a dedicated `realtime-audio-tap-gateway` sidecar with
-`OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED=0`; both containers share the
+`CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED=0`; both containers share the
 same memory-backed `/run/ivekit/realtime-audio-tap.sock`. RustPBX never sends
 decoded PCM across a cluster Service before the bounded gateway. Tune
 `realtimeAudioTap.rustPbxChannelCapacity` and `rustPbxSendTimeoutMs` only
@@ -82,20 +82,20 @@ See `docs/deployment/clamav-ha-scanner-pool.md` for signature, EICAR, outage, sc
 
 Create `secrets.existingSecret` outside Helm. It contains only the configured admin database URL, runtime database URL, runtime database password, and optional RustPBX bootstrap keys; the API reads only the runtime URL from it. Put API/provider runtime variables in a separate Secret and set `secrets.runtimeEnvironmentSecret` when needed. This prevents the long-running API from importing the admin DSN through `envFrom`. Keep non-secret worker settings under `config.env`.
 
-The Helm workload requires shared S3-compatible object storage because the default deployment has multiple replicas and a read-only root filesystem. Put `S3_BUCKET` or its `OPC_S3_BUCKET`/`MINIO_BUCKET` alias plus the matching endpoint and credentials in `secrets.runtimeEnvironmentSecret`. Helm sets `OPC_OBJECT_STORAGE_REQUIRED=1`; startup fails before serving traffic when no bucket is configured instead of falling back to pod-local `data/uploads`.
+The Helm workload requires shared S3-compatible object storage because the default deployment has multiple replicas and a read-only root filesystem. Put `S3_BUCKET` or its `CONVERACT_S3_BUCKET`/`MINIO_BUCKET` alias plus the matching endpoint and credentials in `secrets.runtimeEnvironmentSecret`. Helm sets `CONVERACT_OBJECT_STORAGE_REQUIRED=1`; startup fails before serving traffic when no bucket is configured instead of falling back to pod-local `data/uploads`.
 
-Notification encryption/HMAC keys and every credential named by `OPC_IVEKIT_NOTIFICATION_WEBHOOK_SECRET_ENV_NAMES` or `OPC_IVEKIT_NOTIFICATION_PROVIDER_SECRET_ENV_NAMES` belong in `secrets.runtimeEnvironmentSecret`. Keep delivery and active-health workers disabled until the endpoints and allowlists are configured. `config.env` exposes the bounded poll, lease, batch, concurrency, retry, and readiness settings but must never contain secret values.
+Notification encryption/HMAC keys and every credential named by `CONVERACT_FABRIC_NOTIFICATION_WEBHOOK_SECRET_ENV_NAMES` or `CONVERACT_FABRIC_NOTIFICATION_PROVIDER_SECRET_ENV_NAMES` belong in `secrets.runtimeEnvironmentSecret`. Keep delivery and active-health workers disabled until the endpoints and allowlists are configured. `config.env` exposes the bounded poll, lease, batch, concurrency, retry, and readiness settings but must never contain secret values.
 
-The integration-event Webhook bridge remains disabled until `config.env.OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED` is set to `"1"`. Enable it only after the notification delivery worker and the receiver's durable inbox are operational. Migration 073 keeps subscription cursors and leases in PostgreSQL, so replicas may share the workload without fixed worker IDs; the bridge does not require another queue or SQLite database.
+The integration-event Webhook bridge remains disabled until `config.env.CONVERACT_FABRIC_EVENT_WEBHOOK_WORKER_ENABLED` is set to `"1"`. Enable it only after the notification delivery worker and the receiver's durable inbox are operational. Migration 073 keeps subscription cursors and leases in PostgreSQL, so replicas may share the workload without fixed worker IDs; the bridge does not require another queue or SQLite database.
 
 `notificationWorker.enabled=true` deploys a dedicated worker-only StatefulSet instead of running
 delivery loops inside API Pods. Each Pod derives
-`OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX` from its stable StatefulSet ordinal and uses
+`CONVERACT_FABRIC_NOTIFICATION_PARTITION_INDEX` from its stable StatefulSet ordinal and uses
 `notificationWorker.replicaCount` as the common partition count. Migration 081 maps every delivery
 to one of 1024 stable logical shards; PostgreSQL claim leases remain the duplicate-delivery fence.
 Keep notification provider profiles and referenced secrets in
 `secrets.runtimeEnvironmentSecret`. Scaling changes shard ownership but does not require data
-rewrites. Do not also enable `config.env.OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED` on API Pods.
+rewrites. Do not also enable `config.env.CONVERACT_FABRIC_NOTIFICATION_WORKER_ENABLED` on API Pods.
 
 Monitoring resources are opt-in because the Prometheus Operator CRDs and Grafana sidecar are external cluster dependencies. Enable `monitoring.serviceMonitor.enabled`, `monitoring.prometheusRule.enabled`, and `monitoring.grafanaDashboard.enabled` only after those dependencies exist. The rule and dashboard source files are under `files/` and can also be loaded directly by non-Helm Prometheus and Grafana installations. Keep the metrics endpoint private to the monitoring network; it contains bounded operational labels but is not an end-user API.
 
@@ -149,6 +149,6 @@ lease recovery and reservation replay complete, and stale RWI mutations fail
 closed. Without a Cell admission synchronizer the deployment intentionally
 stays fail-closed for new calls.
 
-Trunk and extension credentials are referenced as `env://NAME`. Add every referenced key and value to `secrets.runtimeEnvironmentSecret`, then add each key name to the comma-separated `config.env.OPC_IVEKIT_VOICE_SECRET_ENV_NAMES` allowlist. The management and RWI token names must remain present. Do not put credential values in `values.yaml`, `config.env`, Provider profile JSON, or resource API payloads.
+Trunk and extension credentials are referenced as `env://NAME`. Add every referenced key and value to `secrets.runtimeEnvironmentSecret`, then add each key name to the comma-separated `config.env.CONVERACT_FABRIC_VOICE_SECRET_ENV_NAMES` allowlist. The management and RWI token names must remain present. Do not put credential values in `values.yaml`, `config.env`, Provider profile JSON, or resource API payloads.
 
 Application rollback may select an earlier immutable image only when it is compatible with the expanded schema. There are no automatic down migrations; database recovery uses a verified pre-upgrade backup.

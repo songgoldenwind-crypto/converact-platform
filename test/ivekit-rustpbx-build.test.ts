@@ -63,27 +63,27 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
   );
   assert.match(
     buildScript,
-    /infra\/ivekit\/rustpbx integrations\/component-hook-rs/
+    /infra\/converact\/rustpbx integrations\/component-hook-rs/
   );
   assert.match(buildScript, /SHA256_COMMAND=\(sha256sum\)/);
   assert.match(buildScript, /PATCH_SET_SHA256=/);
   assert.match(buildScript, /find \. -type f -name '\*\.patch'.*LC_ALL=C sort/);
-  assert.match(buildScript, /OPC_SOURCE_COMMIT=.*rev-parse HEAD/s);
+  assert.match(buildScript, /CONVERACT_SOURCE_COMMIT=.*rev-parse HEAD/s);
   assert.match(runtimeDockerfile, /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m);
   assert.match(buildScript, /PATCHSET="ivekit\.40"/);
   assert.match(
     buildScript,
-    /--build-arg "OPC_SOURCE_COMMIT=\$OPC_SOURCE_COMMIT"/
+    /--build-arg "CONVERACT_SOURCE_COMMIT=\$CONVERACT_SOURCE_COMMIT"/
   );
   assert.match(
     buildScript,
     /--build-arg "IVEKIT_PATCH_SET_SHA256=\$PATCH_SET_SHA256"/
   );
-  assert.match(runtimeDockerfile, /ARG OPC_SOURCE_COMMIT/);
+  assert.match(runtimeDockerfile, /ARG CONVERACT_SOURCE_COMMIT/);
   assert.match(runtimeDockerfile, /ARG IVEKIT_PATCH_SET_SHA256/);
   assert.match(
     runtimeDockerfile,
-    /org\.opencontainers\.image\.revision="\$\{OPC_SOURCE_COMMIT\}"/
+    /org\.opencontainers\.image\.revision="\$\{CONVERACT_SOURCE_COMMIT\}"/
   );
   assert.match(
     runtimeDockerfile,
@@ -120,7 +120,7 @@ test('RustPBX CI verifies exact-source behavior before publishing images', () =>
   assert.match(imageWorkflow, /^  verify:\s*$/m);
   assert.match(
     imageWorkflow,
-    /IVEKIT_RUSTPBX_VERIFY_ONLY: "1"[\s\S]*bash infra\/ivekit\/rustpbx\/build\.sh/
+    /IVEKIT_RUSTPBX_VERIFY_ONLY: "1"[\s\S]*bash infra\/converact\/rustpbx\/build\.sh/
   );
   assert.match(
     imageWorkflow,

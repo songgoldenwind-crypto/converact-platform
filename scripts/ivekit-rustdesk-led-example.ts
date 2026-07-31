@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 
 import type { RemoteConsentScope } from '../src/agent-runtime/collaboration/types.js';
@@ -54,88 +55,88 @@ const allowedScopes = new Set<RemoteConsentScope>([
 
 export function createIveKitRustDeskLedExampleConfigFromEnv(env: NodeJS.ProcessEnv): IveKitRustDeskLedExampleConfig {
   const rawBaseUrl =
-    env.OPC_RUSTDESK_LED_EXAMPLE_BASE_URL ||
-    env.OPC_RUSTDESK_IVEKIT_BASE_URL ||
-    env.OPC_BASE_URL ||
-    env.OPC_COLLABORATION_BASE_URL ||
+    resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
+    resolveBrandEnv(env, 'COLLABORATION_BASE_URL') ||
     '';
   const apiKey =
-    env.OPC_RUSTDESK_LED_EXAMPLE_API_KEY ||
-    env.OPC_RUSTDESK_IVEKIT_API_KEY ||
-    env.OPC_COLLABORATION_API_KEY ||
-    env.OPC_API_KEY ||
+    resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_API_KEY') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_API_KEY') ||
+    resolveBrandEnv(env, 'COLLABORATION_API_KEY') ||
+    resolveBrandEnv(env, 'API_KEY') ||
     '';
   const tenantId =
-    env.OPC_RUSTDESK_LED_EXAMPLE_TENANT_ID ||
-    env.OPC_RUSTDESK_IVEKIT_TENANT_ID ||
-    env.OPC_REMOTE_GATEWAY_TENANT_ID ||
-    env.OPC_RUSTDESK_EDGE_TENANT_ID ||
-    env.OPC_TENANT_ID ||
+    resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_TENANT_ID') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') ||
+    resolveBrandEnv(env, 'TENANT_ID') ||
     '';
   const remoteSessionId =
-    env.OPC_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID ||
-    env.OPC_RUSTDESK_IVEKIT_REMOTE_SESSION_ID ||
-    env.OPC_REMOTE_SESSION_ID ||
+    resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_REMOTE_SESSION_ID') ||
+    resolveBrandEnv(env, 'REMOTE_SESSION_ID') ||
     '';
-  const deviceId = normalizedOptional(env.OPC_RUSTDESK_LED_EXAMPLE_DEVICE_ID || env.OPC_RUSTDESK_IVEKIT_DEVICE_ID);
+  const deviceId = normalizedOptional(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_DEVICE_ID') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_DEVICE_ID'));
   const rustdeskId = normalizedOptional(
-    env.OPC_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID ||
-    env.OPC_RUSTDESK_IVEKIT_RUSTDESK_ID ||
-    env.OPC_RUSTDESK_EDGE_RUSTDESK_ID
+    resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_RUSTDESK_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_RUSTDESK_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_RUSTDESK_ID')
   );
 
-  if (!rawBaseUrl) throw new Error('OPC_RUSTDESK_LED_EXAMPLE_BASE_URL or OPC_RUSTDESK_IVEKIT_BASE_URL or OPC_BASE_URL is required');
-  if (!apiKey) throw new Error('OPC_RUSTDESK_LED_EXAMPLE_API_KEY or OPC_RUSTDESK_IVEKIT_API_KEY or OPC_COLLABORATION_API_KEY or OPC_API_KEY is required');
-  if (!tenantId) throw new Error('OPC_RUSTDESK_LED_EXAMPLE_TENANT_ID or OPC_RUSTDESK_IVEKIT_TENANT_ID or OPC_REMOTE_GATEWAY_TENANT_ID is required');
-  if (!remoteSessionId) throw new Error('OPC_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID is required');
-  if (!deviceId && !rustdeskId) throw new Error('OPC_RUSTDESK_LED_EXAMPLE_DEVICE_ID or OPC_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID is required');
+  if (!rawBaseUrl) throw new Error('CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL or CONVERACT_RUSTDESK_IVEKIT_BASE_URL or CONVERACT_BASE_URL is required');
+  if (!apiKey) throw new Error('CONVERACT_RUSTDESK_LED_EXAMPLE_API_KEY or CONVERACT_RUSTDESK_IVEKIT_API_KEY or CONVERACT_COLLABORATION_API_KEY or CONVERACT_API_KEY is required');
+  if (!tenantId) throw new Error('CONVERACT_RUSTDESK_LED_EXAMPLE_TENANT_ID or CONVERACT_RUSTDESK_IVEKIT_TENANT_ID or CONVERACT_REMOTE_GATEWAY_TENANT_ID is required');
+  if (!remoteSessionId) throw new Error('CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID is required');
+  if (!deviceId && !rustdeskId) throw new Error('CONVERACT_RUSTDESK_LED_EXAMPLE_DEVICE_ID or CONVERACT_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID is required');
 
   return {
     baseUrl: normalizeBaseUrl(rawBaseUrl),
     apiKey: requiredString(apiKey, 'apiKey is required'),
     tenantId: requiredString(tenantId, 'tenantId is required'),
-    userId: normalizedOptional(env.OPC_RUSTDESK_LED_EXAMPLE_USER_ID || env.OPC_RUSTDESK_IVEKIT_USER_ID),
+    userId: normalizedOptional(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_USER_ID') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_USER_ID')),
     remoteSessionId: requiredString(remoteSessionId, 'remoteSessionId is required'),
     ...(deviceId ? { deviceId } : {}),
     ...(rustdeskId ? { rustdeskId } : {}),
     businessRef: {
       type: requiredString(
-        env.OPC_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_TYPE ||
-        env.OPC_RUSTDESK_IVEKIT_BUSINESS_REF_TYPE ||
-        env.OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE ||
+        resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_BUSINESS_REF_TYPE') ||
+        resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BUSINESS_REF_TYPE') ||
+        resolveBrandEnv(env, 'RUSTDESK_EDGE_BUSINESS_REF_TYPE') ||
         'service_order',
         'businessRef.type is required'
       ),
       id: requiredString(
-        env.OPC_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_ID ||
-        env.OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID ||
-        env.OPC_RUSTDESK_EDGE_BUSINESS_REF_ID ||
+        resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_BUSINESS_REF_ID') ||
+        resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BUSINESS_REF_ID') ||
+        resolveBrandEnv(env, 'RUSTDESK_EDGE_BUSINESS_REF_ID') ||
         remoteSessionId,
         'businessRef.id is required'
       ),
       display_name: normalizedOptional(
-        env.OPC_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_DISPLAY_NAME ||
-        env.OPC_RUSTDESK_IVEKIT_BUSINESS_REF_DISPLAY_NAME
+        resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_BUSINESS_REF_DISPLAY_NAME') ||
+        resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BUSINESS_REF_DISPLAY_NAME')
       )
     },
     deviceDisplayName: requiredString(
-      env.OPC_RUSTDESK_LED_EXAMPLE_DEVICE_DISPLAY_NAME ||
-      env.OPC_RUSTDESK_IVEKIT_DEVICE_DISPLAY_NAME ||
-      env.OPC_RUSTDESK_EDGE_DEVICE_DISPLAY_NAME ||
+      resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_DEVICE_DISPLAY_NAME') ||
+      resolveBrandEnv(env, 'RUSTDESK_IVEKIT_DEVICE_DISPLAY_NAME') ||
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_DEVICE_DISPLAY_NAME') ||
       rustdeskId ||
       deviceId,
       'deviceDisplayName is required'
     ),
     actorIdentity: requiredString(
-      env.OPC_RUSTDESK_LED_EXAMPLE_ACTOR_IDENTITY ||
-      env.OPC_RUSTDESK_IVEKIT_ACTOR_IDENTITY ||
-      env.OPC_REMOTE_GATEWAY_ACTOR_IDENTITY ||
+      resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_ACTOR_IDENTITY') ||
+      resolveBrandEnv(env, 'RUSTDESK_IVEKIT_ACTOR_IDENTITY') ||
+      resolveBrandEnv(env, 'REMOTE_GATEWAY_ACTOR_IDENTITY') ||
       'agent_led_rustdesk_example',
       'actorIdentity is required'
     ),
-    permissions: splitScopes(env.OPC_RUSTDESK_LED_EXAMPLE_PERMISSIONS || env.OPC_RUSTDESK_IVEKIT_CONSENT_SCOPES),
-    postAuditProbe: envFlag(env.OPC_RUSTDESK_LED_EXAMPLE_POST_AUDIT_PROBE),
-    endSession: envFlag(env.OPC_RUSTDESK_LED_EXAMPLE_END_SESSION)
+    permissions: splitScopes(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_PERMISSIONS') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_CONSENT_SCOPES')),
+    postAuditProbe: envFlag(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_POST_AUDIT_PROBE')),
+    endSession: envFlag(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_END_SESSION'))
   };
 }
 
@@ -245,7 +246,7 @@ function assertClientConfigReady(config: {
 
 function assertCanPostControlProbe(permissions: RemoteConsentScope[]): void {
   if (!permissions.includes('control_mouse_keyboard')) {
-    throw new Error('OPC_RUSTDESK_LED_EXAMPLE_POST_AUDIT_PROBE requires control_mouse_keyboard permission');
+    throw new Error('CONVERACT_RUSTDESK_LED_EXAMPLE_POST_AUDIT_PROBE requires control_mouse_keyboard permission');
   }
 }
 

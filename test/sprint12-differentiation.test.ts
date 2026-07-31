@@ -22,7 +22,7 @@ function authHeaders(tenantId: string) {
 
 before(() => {
   useMemoryRedisForTests();
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
 });
 
 describe('Sprint 12 facebook adapter', () => {

@@ -13,9 +13,9 @@ test('standalone Helm deploys placement as a signed snapshot sidecar with a read
   );
   assert.match(deployment, /name: placement-snapshot-projector/);
   assert.match(deployment, /dist\/converact-placement-snapshot-projector\.js/);
-  assert.match(deployment, /OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON/);
-  assert.match(deployment, /OPC_IVEKIT_PLACEMENT_TOKEN_HMAC_KEYS_JSON/);
-  assert.match(deployment, /OPC_IVEKIT_CELL_ADMISSION_TOKEN/);
+  assert.match(deployment, /CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON/);
+  assert.match(deployment, /CONVERACT_FABRIC_PLACEMENT_TOKEN_HMAC_KEYS_JSON/);
+  assert.match(deployment, /CONVERACT_FABRIC_CELL_ADMISSION_TOKEN/);
   assert.match(deployment, /name: placement-snapshot[\s\S]*readOnly: true/);
   assert.match(deployment, /emptyDir:[\s\S]*medium: Memory/);
   assert.match(values, /^placement:\n  enabled: false/m);
@@ -44,9 +44,9 @@ test('standalone Compose and source policy ship the placement projector and migr
   )) as { scripts: Record<string, string> };
   assert.match(compose, /placement-projector:/);
   assert.match(compose, /placement_snapshot:\/run\/ivekit-placement/);
-  assert.match(compose, /OPC_IVEKIT_PLACEMENT_ENABLED/);
-  assert.match(compose, /OPC_IVEKIT_PLACEMENT_EGRESS_TRACK_POLICY_JSON/);
-  assert.match(compose, /OPC_IVEKIT_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON/);
+  assert.match(compose, /CONVERACT_FABRIC_PLACEMENT_ENABLED/);
+  assert.match(compose, /CONVERACT_FABRIC_PLACEMENT_EGRESS_TRACK_POLICY_JSON/);
+  assert.match(compose, /CONVERACT_FABRIC_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON/);
   assert.equal(
     policy.entrypoints.includes('src/converact-placement-snapshot-projector.ts'),
     true
@@ -84,14 +84,14 @@ test('Cell admission examples declare component capabilities instead of intercha
   );
   assert.match(env, /"component":"tinode"[\s\S]*"im\.presence_sessions"/);
   assert.match(env, /"component":"rustdesk"[\s\S]*"remote\.active_sessions"/);
-  assert.match(env, /OPC_IVEKIT_PLACEMENT_TOPOLOGY_JSON=/);
+  assert.match(env, /CONVERACT_FABRIC_PLACEMENT_TOPOLOGY_JSON=/);
 });
 
 test('RustPBX deployment admits the configured voice placement profile', () => {
   const env = readFileSync('infra/converact/env.example', 'utf8');
   const policy = JSON.parse(envValue(
     env,
-    'OPC_IVEKIT_PLACEMENT_VOICE_POLICY_JSON'
+    'CONVERACT_FABRIC_PLACEMENT_VOICE_POLICY_JSON'
   )) as {
     profile_id: string;
     fixed_capacity: Record<string, number>;
@@ -134,15 +134,15 @@ test('standalone Cell deployment admits Tinode through its native owner guard', 
   assert.match(tinode, /IVEKIT_TINODE_CLUSTER_MODE: standalone/);
 
   assert.match(componentNode, /network_mode: service:tinode/);
-  assert.match(componentNode, /OPC_IVEKIT_COMPONENT_NODE_COMPONENT: tinode/);
-  assert.match(componentNode, /OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS: tinode_im/);
-  assert.match(componentNode, /OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON:/);
+  assert.match(componentNode, /CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT: tinode/);
+  assert.match(componentNode, /CONVERACT_FABRIC_COMPONENT_NODE_INTERACTION_KINDS: tinode_im/);
+  assert.match(componentNode, /CONVERACT_FABRIC_COMPONENT_NODE_DIMENSIONS_JSON:/);
   assert.match(componentNode, /fetch\('http:\/\/127\.0\.0\.1:3210\/operationalz'\)/);
 
-  assert.match(admission, /OPC_IVEKIT_CELL_INTERACTION_KINDS: \$\{IVEKIT_CELL_INTERACTION_KINDS/);
-  assert.match(admission, /OPC_IVEKIT_CELL_DIMENSIONS_JSON: \$\{IVEKIT_CELL_DIMENSIONS_JSON/);
-  assert.match(admission, /OPC_IVEKIT_CELL_NODES_JSON: \$\{IVEKIT_CELL_NODES_JSON/);
-  assert.match(capacity, /OPC_IVEKIT_CELL_PROBES_JSON: \$\{IVEKIT_CELL_CAPACITY_PROBES_JSON/);
+  assert.match(admission, /CONVERACT_FABRIC_CELL_INTERACTION_KINDS: \$\{IVEKIT_CELL_INTERACTION_KINDS/);
+  assert.match(admission, /CONVERACT_FABRIC_CELL_DIMENSIONS_JSON: \$\{IVEKIT_CELL_DIMENSIONS_JSON/);
+  assert.match(admission, /CONVERACT_FABRIC_CELL_NODES_JSON: \$\{IVEKIT_CELL_NODES_JSON/);
+  assert.match(capacity, /CONVERACT_FABRIC_CELL_PROBES_JSON: \$\{IVEKIT_CELL_CAPACITY_PROBES_JSON/);
   assert.match(capacity, /tinode-component-node:[\s\S]*condition: service_healthy/);
 
   const kinds = envValue(env, 'IVEKIT_CELL_INTERACTION_KINDS').split(',');

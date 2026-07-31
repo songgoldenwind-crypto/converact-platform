@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from './config/converact-env.js';
 import { initPostgres, closePostgres } from './db-pg.js';
 import { PgSyncDatabase } from './db-pg-sync.js';
 import { createServer } from './http.js';
@@ -66,10 +67,10 @@ async function main() {
   const db = new PgSyncDatabase();
   migrateIvrRuntimeTables(db);
 
-  const instanceId = process.env.OPC_IVEKIT_INSTANCE_ID ||
+  const instanceId = resolveFabricEnv(process.env, 'INSTANCE_ID') ||
     process.env.HOSTNAME ||
     `opc-${process.pid}`;
-  process.env.OPC_IVEKIT_INSTANCE_ID = instanceId;
+  process.env.CONVERACT_FABRIC_INSTANCE_ID = instanceId;
   const placement = createConfiguredPlacementFoundation({
     pg,
     instance_id: instanceId

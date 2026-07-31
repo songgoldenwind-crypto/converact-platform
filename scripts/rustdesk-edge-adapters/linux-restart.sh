@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$SCRIPT_DIR/converact-env-compat.sh"
+converact_env_install_aliases
+
 mode=''
 external_id=''
 target_id=''
@@ -25,7 +29,7 @@ for pair in "external_id:$external_id" "target_id:$target_id" "rustdesk_id:$rust
 done
 case "$reason" in consent_revoked|remote_session_ended|tool_ended|gateway_ended) ;; *) printf '%s\n' 'unsupported disconnect reason' >&2; exit 64 ;; esac
 
-service_name=${OPC_RUSTDESK_SERVICE_NAME-rustdesk.service}
+service_name=${CONVERACT_RUSTDESK_SERVICE_NAME-rustdesk.service}
 case "$service_name" in ''|*[!A-Za-z0-9_.@-]*) printf '%s\n' 'invalid RustDesk service name' >&2; exit 64 ;; esac
 available=false
 if command -v systemctl >/dev/null 2>&1 && systemctl show "$service_name" --property=LoadState --value 2>/dev/null | grep -qv '^not-found$'; then available=true; fi

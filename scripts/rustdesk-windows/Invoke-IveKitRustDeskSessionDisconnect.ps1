@@ -2,18 +2,18 @@
 param(
   [Parameter(Mandatory = $true)][ValidateSet('validate', 'execute')][string]$Mode,
   [ValidateSet('ivekit-rustdesk-native-control-v1', 'ivekit-rustdesk-native-control-v2')]
-  [string]$Protocol = $env:OPC_RUSTDESK_NATIVE_CONTROL_PROTOCOL,
-  [ValidatePattern('^$|^[A-Za-z0-9._:@/-]+$')][string]$CommandId = $env:OPC_RUSTDESK_COMMAND_ID,
+  [string]$Protocol = $env:CONVERACT_RUSTDESK_NATIVE_CONTROL_PROTOCOL,
+  [ValidatePattern('^$|^[A-Za-z0-9._:@/-]+$')][string]$CommandId = $env:CONVERACT_RUSTDESK_COMMAND_ID,
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$ExternalId,
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$TargetId,
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$RustDeskId,
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$ControllerRustDeskId,
-  [ValidatePattern('^$|^[1-9][0-9]{0,18}$')][string]$NativeSessionId = $env:OPC_RUSTDESK_NATIVE_SESSION_ID,
+  [ValidatePattern('^$|^[1-9][0-9]{0,18}$')][string]$NativeSessionId = $env:CONVERACT_RUSTDESK_NATIVE_SESSION_ID,
   [Parameter(Mandatory = $true)][ValidateSet('consent_revoked', 'remote_session_ended', 'tool_ended', 'gateway_ended')][string]$Reason,
   [ValidatePattern('^$|^[A-Za-z0-9._:@/-]+$')][string]$InteractionId = '',
   [ValidatePattern('^$|^[A-Za-z0-9._:@/-]+$')][string]$ReservationId = '',
   [ValidatePattern('^$|^[1-9][0-9]{0,19}$')][string]$OwnerEpoch = '',
-  [string]$PipeName = $env:OPC_RUSTDESK_NATIVE_CONTROL_PIPE,
+  [string]$PipeName = $env:CONVERACT_RUSTDESK_NATIVE_CONTROL_PIPE,
   [ValidateRange(100, 30000)][int]$TimeoutMs = 5000
 )
 

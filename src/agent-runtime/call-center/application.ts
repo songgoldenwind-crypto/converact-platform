@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { one, parseJson } from '../../db.js';
 import {
   broadcastCallAnswered,
@@ -249,7 +250,7 @@ export function getCallCenterDashboardCommand(db: unknown, tenantId: string) {
 }
 
 export function verifyRustpbxWebhookKey(headers: Record<string, string | string[] | undefined>): void {
-  const expected = process.env.RUSTPBX_WEBHOOK_KEY || process.env.OPC_RUSTPBX_WEBHOOK_KEY;
+  const expected = process.env.RUSTPBX_WEBHOOK_KEY || resolveBrandEnv(process.env, 'RUSTPBX_WEBHOOK_KEY');
   if (!expected) return;
   const provided = String(headers['x-pbx-key'] || headers['X-PBX-Key'] || '');
   if (provided !== expected) {
@@ -258,7 +259,7 @@ export function verifyRustpbxWebhookKey(headers: Record<string, string | string[
 }
 
 export function verifyOpcApiKey(headers: Record<string, string | string[] | undefined>): void {
-  const expected = process.env.OPC_API_KEY;
+  const expected = resolveBrandEnv(process.env, 'API_KEY');
   if (!expected) {
     if (process.env.NODE_ENV === 'production') {
       throw Object.assign(new Error('opc api key is required'), { status: 401 });
@@ -1013,7 +1014,7 @@ export async function endAgentCallCommand(
     session?.metadata && typeof session.metadata === 'object' && !Array.isArray(session.metadata)
       ? (session.metadata as Record<string, unknown>)
       : {};
-  if (sessionMeta.enable_post_call_survey === true || process.env.OPC_ENABLE_POST_CALL_SURVEY === '1') {
+  if (sessionMeta.enable_post_call_survey === true || resolveBrandEnv(process.env, 'ENABLE_POST_CALL_SURVEY') === '1') {
     voiceStore.mergeCallSessionMetadata(tenantId, callSessionId, (existing) => ({
       ...existing,
       post_call_survey_pending: true,

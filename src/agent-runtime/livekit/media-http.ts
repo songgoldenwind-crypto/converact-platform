@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { createLiveKitMediaModule } from './index.js';
 import { isMediaInviteConfigured, verifyMediaInvite } from './invite-token.js';
 import type {
@@ -70,7 +71,7 @@ function headerValue(
 }
 
 function mediaApiToken(): string {
-  return process.env.OPC_MEDIA_API_TOKEN || process.env.LIVEKIT_MEDIA_API_TOKEN || '';
+  return resolveBrandEnv(process.env, 'MEDIA_API_TOKEN') || process.env.LIVEKIT_MEDIA_API_TOKEN || '';
 }
 
 function hasMediaServiceAuth(headers: Record<string, string | string[] | undefined>): boolean {

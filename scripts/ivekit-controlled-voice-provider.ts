@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 
@@ -569,21 +570,21 @@ function validatedHost(value: string): string {
 
 function configuredMode(value: string | undefined): ControlledVoiceProviderMode {
   const mode = String(value || 'success') as ControlledVoiceProviderMode;
-  if (!MODES.has(mode)) throw new Error('OPC_IVEKIT_CONTROLLED_VOICE_MODE is invalid');
+  if (!MODES.has(mode)) throw new Error('CONVERACT_FABRIC_CONTROLLED_VOICE_MODE is invalid');
   return mode;
 }
 
 async function main(): Promise<void> {
-  const host = process.env.OPC_IVEKIT_CONTROLLED_VOICE_HOST || '127.0.0.1';
-  const port = boundedPort(Number(process.env.OPC_IVEKIT_CONTROLLED_VOICE_PORT || 8791), false);
+  const host = resolveFabricEnv(process.env, 'CONTROLLED_VOICE_HOST') || '127.0.0.1';
+  const port = boundedPort(Number(resolveFabricEnv(process.env, 'CONTROLLED_VOICE_PORT') || 8791), false);
   const running = await startControlledVoiceProvider({
     host,
     port,
     state: createControlledVoiceProviderState({
-      mode: configuredMode(process.env.OPC_IVEKIT_CONTROLLED_VOICE_MODE),
-      token: process.env.OPC_IVEKIT_CONTROLLED_VOICE_TOKEN,
-      control_token: process.env.OPC_IVEKIT_CONTROL_TOKEN,
-      response_delay_ms: Number(process.env.OPC_IVEKIT_CONTROLLED_VOICE_DELAY_MS || 65_000)
+      mode: configuredMode(resolveFabricEnv(process.env, 'CONTROLLED_VOICE_MODE')),
+      token: resolveFabricEnv(process.env, 'CONTROLLED_VOICE_TOKEN'),
+      control_token: resolveFabricEnv(process.env, 'CONTROL_TOKEN'),
+      response_delay_ms: Number(resolveFabricEnv(process.env, 'CONTROLLED_VOICE_DELAY_MS') || 65_000)
     })
   });
   console.log(JSON.stringify({

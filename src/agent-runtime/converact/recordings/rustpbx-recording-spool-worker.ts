@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import { constants } from 'node:fs';
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import {
@@ -898,37 +899,37 @@ export function rustPbxRecordingSpoolWorkerConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): RustPbxRecordingSpoolWorkerConfig {
   return validateConfig({
-    base_url: requiredEnv(env, 'OPC_IVEKIT_RECORDING_BASE_URL'),
-    profile_id: requiredEnv(env, 'OPC_IVEKIT_RECORDING_PROFILE_ID'),
-    worker_id: requiredEnv(env, 'OPC_IVEKIT_RECORDING_WORKER_ID'),
-    spool_directory: requiredEnv(env, 'OPC_IVEKIT_RECORDING_SPOOL_DIR'),
-    state_directory: requiredEnv(env, 'OPC_IVEKIT_RECORDING_STATE_DIR'),
-    service_key_file: requiredEnv(env, 'OPC_IVEKIT_RECORDING_SERVICE_KEY_FILE'),
-    lease_secret_file: requiredEnv(env, 'OPC_IVEKIT_RECORDING_LEASE_SECRET_FILE'),
+    base_url: requiredEnv(env, 'CONVERACT_FABRIC_RECORDING_BASE_URL'),
+    profile_id: requiredEnv(env, 'CONVERACT_FABRIC_RECORDING_PROFILE_ID'),
+    worker_id: requiredEnv(env, 'CONVERACT_FABRIC_RECORDING_WORKER_ID'),
+    spool_directory: requiredEnv(env, 'CONVERACT_FABRIC_RECORDING_SPOOL_DIR'),
+    state_directory: requiredEnv(env, 'CONVERACT_FABRIC_RECORDING_STATE_DIR'),
+    service_key_file: requiredEnv(env, 'CONVERACT_FABRIC_RECORDING_SERVICE_KEY_FILE'),
+    lease_secret_file: requiredEnv(env, 'CONVERACT_FABRIC_RECORDING_LEASE_SECRET_FILE'),
     part_size_bytes: envInteger(
-      env.OPC_IVEKIT_RECORDING_PART_SIZE_BYTES,
+      resolveFabricEnv(env, 'RECORDING_PART_SIZE_BYTES'),
       8 * 1024 * 1024,
       5 * 1024 * 1024,
       recordingSpoolHttpPartMaxBytes(env),
-      'OPC_IVEKIT_RECORDING_PART_SIZE_BYTES'
+      'CONVERACT_FABRIC_RECORDING_PART_SIZE_BYTES'
     ),
     lease_ms: envInteger(
-      env.OPC_IVEKIT_RECORDING_LEASE_MS,
+      resolveFabricEnv(env, 'RECORDING_LEASE_MS'),
       5 * 60_000,
       10_000,
       15 * 60_000,
-      'OPC_IVEKIT_RECORDING_LEASE_MS'
+      'CONVERACT_FABRIC_RECORDING_LEASE_MS'
     ),
-    scan_limit: envInteger(env.OPC_IVEKIT_RECORDING_SCAN_LIMIT, 1000, 1, 100_000, 'OPC_IVEKIT_RECORDING_SCAN_LIMIT'),
+    scan_limit: envInteger(resolveFabricEnv(env, 'RECORDING_SCAN_LIMIT'), 1000, 1, 100_000, 'CONVERACT_FABRIC_RECORDING_SCAN_LIMIT'),
     max_concurrent_uploads: envInteger(
-      env.OPC_IVEKIT_RECORDING_UPLOAD_CONCURRENCY,
+      resolveFabricEnv(env, 'RECORDING_UPLOAD_CONCURRENCY'),
       4,
       1,
       64,
-      'OPC_IVEKIT_RECORDING_UPLOAD_CONCURRENCY'
+      'CONVERACT_FABRIC_RECORDING_UPLOAD_CONCURRENCY'
     ),
-    retry_base_ms: envInteger(env.OPC_IVEKIT_RECORDING_RETRY_BASE_MS, 1_000, 1, 60_000, 'OPC_IVEKIT_RECORDING_RETRY_BASE_MS'),
-    retry_max_ms: envInteger(env.OPC_IVEKIT_RECORDING_RETRY_MAX_MS, 60_000, 1, 3_600_000, 'OPC_IVEKIT_RECORDING_RETRY_MAX_MS')
+    retry_base_ms: envInteger(resolveFabricEnv(env, 'RECORDING_RETRY_BASE_MS'), 1_000, 1, 60_000, 'CONVERACT_FABRIC_RECORDING_RETRY_BASE_MS'),
+    retry_max_ms: envInteger(resolveFabricEnv(env, 'RECORDING_RETRY_MAX_MS'), 60_000, 1, 3_600_000, 'CONVERACT_FABRIC_RECORDING_RETRY_MAX_MS')
   });
 }
 
@@ -1231,7 +1232,7 @@ function envInteger(value: string | undefined, fallback: number, min: number, ma
 }
 
 function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
-  const value = String(env[name] || '').trim();
+  const value = String(resolveConveractEnv(env, name) || '').trim();
   if (!value) throw localError(`${name}_required`);
   return value;
 }

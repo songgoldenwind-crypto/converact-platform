@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import { pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
@@ -568,10 +569,10 @@ function normalizedEditedBody(value: string): string {
 }
 
 export function messageMutationWindowMs(env: NodeJS.ProcessEnv = process.env): number {
-  const raw = String(env.OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS || '900000').trim();
+  const raw = String(resolveBrandEnv(env, 'CHAT_MESSAGE_MUTATION_WINDOW_MS') || '900000').trim();
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 1_000 || value > 86_400_000) {
-    throw new Error('OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS must be an integer between 1000 and 86400000');
+    throw new Error('CONVERACT_CHAT_MESSAGE_MUTATION_WINDOW_MS must be an integer between 1000 and 86400000');
   }
   return value;
 }

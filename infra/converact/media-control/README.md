@@ -69,14 +69,14 @@ running healthy container, its immutable image ID, and the rendered
 configuration directly; callers cannot supply those hashes:
 
 ```bash
-OPC_SOURCE_COMMIT="$(git rev-parse HEAD)" \
+CONVERACT_SOURCE_COMMIT="$(git rev-parse HEAD)" \
 docker compose build media-control
 
-OPC_IVEKIT_MEDIA_GOAL1_SOURCE_DIR=<clean-git-checkout> \
-OPC_IVEKIT_MEDIA_GOAL1_CONTAINER_NAME=<running-media-control-container> \
-OPC_IVEKIT_MEDIA_GOAL1_RENDERED_CONFIG_FILE=<saved-compose-config> \
-OPC_IVEKIT_MEDIA_GOAL1_GENERATED_AT=<ISO-8601-UTC-timestamp> \
-OPC_IVEKIT_MEDIA_GOAL1_ACCEPTANCE_DIR=<new-empty-output-directory> \
+CONVERACT_FABRIC_MEDIA_GOAL1_SOURCE_DIR=<clean-git-checkout> \
+CONVERACT_FABRIC_MEDIA_GOAL1_CONTAINER_NAME=<running-media-control-container> \
+CONVERACT_FABRIC_MEDIA_GOAL1_RENDERED_CONFIG_FILE=<saved-compose-config> \
+CONVERACT_FABRIC_MEDIA_GOAL1_GENERATED_AT=<ISO-8601-UTC-timestamp> \
+CONVERACT_FABRIC_MEDIA_GOAL1_ACCEPTANCE_DIR=<new-empty-output-directory> \
 npm run ivekit:voice-media-goal1:acceptance
 ```
 

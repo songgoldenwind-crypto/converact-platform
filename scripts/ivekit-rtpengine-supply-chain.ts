@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 const SHA256 = /^[a-f0-9]{64}$/;
 const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/;
 const SOURCE_COMMIT = /^[a-f0-9]{40}$/;
@@ -710,7 +711,7 @@ function optionalPath(
   env: Record<string, string | undefined>,
   name: string
 ): string | undefined {
-  const value = env[name]?.trim();
+  const value = resolveConveractEnv(env, name)?.trim();
   return value ? checkedPath(value, name) : undefined;
 }
 
@@ -727,7 +728,7 @@ function required(
   env: Record<string, string | undefined>,
   name: string
 ): string {
-  const value = env[name]?.trim();
+  const value = resolveConveractEnv(env, name)?.trim();
   if (!value || /[\0\r\n]/.test(value)) throw new Error(`${name} is required`);
   return value;
 }

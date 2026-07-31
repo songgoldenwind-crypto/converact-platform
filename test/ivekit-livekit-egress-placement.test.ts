@@ -49,19 +49,19 @@ test('Egress placement uses disjoint Track and Composite capacity dimensions', a
 
 test('Egress placement policy configuration is explicit and rejects shared dimensions', () => {
   const policies = liveKitEgressPlacementPolicies({
-    OPC_IVEKIT_PLACEMENT_EGRESS_TRACK_POLICY_JSON: JSON.stringify({
+    CONVERACT_FABRIC_PLACEMENT_EGRESS_TRACK_POLICY_JSON: JSON.stringify({
       profile_id: 'cell-10k-v1', fixed_capacity: { 'workers.track_egress_slots': 1 }
     }),
-    OPC_IVEKIT_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON: JSON.stringify({
+    CONVERACT_FABRIC_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON: JSON.stringify({
       profile_id: 'cell-10k-v1', fixed_capacity: { 'workers.composite_egress_slots': 1 }
     })
   });
   assert.equal(policies.track.profile_id, 'cell-10k-v1');
   assert.throws(() => liveKitEgressPlacementPolicies({
-    OPC_IVEKIT_PLACEMENT_EGRESS_TRACK_POLICY_JSON: JSON.stringify({
+    CONVERACT_FABRIC_PLACEMENT_EGRESS_TRACK_POLICY_JSON: JSON.stringify({
       profile_id: 'cell-10k-v1', fixed_capacity: { 'workers.egress_slots': 1 }
     }),
-    OPC_IVEKIT_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON: JSON.stringify({
+    CONVERACT_FABRIC_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON: JSON.stringify({
       profile_id: 'cell-10k-v1', fixed_capacity: { 'workers.egress_slots': 1 }
     })
   }), /must use disjoint capacity dimensions/);

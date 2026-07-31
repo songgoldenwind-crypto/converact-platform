@@ -167,11 +167,11 @@ export function liveKitEgressPlacementPolicies(
   return checkedPolicies({
     track: componentPlacementPolicyConfig(
       env,
-      'OPC_IVEKIT_PLACEMENT_EGRESS_TRACK_POLICY_JSON'
+      'CONVERACT_FABRIC_PLACEMENT_EGRESS_TRACK_POLICY_JSON'
     ),
     composite: componentPlacementPolicyConfig(
       env,
-      'OPC_IVEKIT_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON'
+      'CONVERACT_FABRIC_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON'
     )
   });
 }

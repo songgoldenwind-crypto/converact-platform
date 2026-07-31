@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../config/converact-env.js';
 export interface S3ConnectionConfig {
   bucket: string;
   region: string;
@@ -23,7 +24,7 @@ export function resolveS3ConnectionConfig(
 ): S3ConnectionConfig | null {
   const bucketSelection = firstValue([
     ['s3', env.S3_BUCKET],
-    ['s3', env.OPC_S3_BUCKET],
+    ['s3', resolveBrandEnv(env, 'S3_BUCKET')],
     ['minio', env.MINIO_BUCKET]
   ]);
   if (!bucketSelection) return null;

@@ -11,7 +11,7 @@ const API_KEY = 'intelligence-health-system-key';
 test('provider health reports only bounded coarse status and never response bodies or credentials', async () => {
   const calls: Array<{ url: string; authorization: string }> = [];
   const registry = createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
       profile('ocr-ok', 'ocr', 'https://ocr.example.test'),
       profile('asr-rate-limited', 'asr', 'https://asr.example.test'),
       profile('quality-auth-failed', 'quality_review', 'https://quality.example.test'),
@@ -53,7 +53,7 @@ test('provider health reports only bounded coarse status and never response bodi
 
 test('provider health distinguishes missing credentials, timeout, and network failure without leaking errors', async () => {
   const registry = createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
       profile('ocr-missing-token', 'ocr', 'https://ocr.example.test'),
       { ...profile('asr-timeout', 'asr', 'https://asr.example.test'), token_env: '' },
       { ...profile('quality-network', 'quality_review', 'https://quality.example.test'), token_env: '' }
@@ -81,10 +81,10 @@ test('provider health distinguishes missing credentials, timeout, and network fa
 });
 
 test('provider health HTTP endpoint requires an administrator and bounds profile selection', async () => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = API_KEY;
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const registry = createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
       { ...profile('ocr-ok', 'ocr', 'https://ocr.example.test'), token_env: '' }
     ])
   });
@@ -118,8 +118,8 @@ test('provider health HTTP endpoint requires an administrator and bounds profile
     ) as { data: { items: Array<{ profile_id: string }> } };
     assert.equal(response.data.items[0]?.profile_id, 'ocr-ok');
   } finally {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
   }
 });
 

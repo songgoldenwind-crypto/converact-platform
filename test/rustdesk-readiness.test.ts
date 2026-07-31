@@ -14,20 +14,20 @@ import {
 
 test('rustdesk readiness builds a strict RustDesk gateway check and can derive the target from the edge agent', () => {
   const config = createRustDeskReadinessConfigFromEnv({
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
-    OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-    OPC_COLLABORATION_API_KEY: 'collaboration-key',
-    OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-    OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT: '1',
-    OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT: '1',
-    OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
-    OPC_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
-    OPC_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
-    OPC_RUSTDESK_EDGE_DEVICE_DISPLAY_NAME: 'LED control PC',
-    OPC_RUSTDESK_EDGE_COMMAND_TOKEN: 'signed-readiness-edge-token',
-    OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: process.execPath,
-    OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["-e","process.exit(0)"]',
-    OPC_RUSTDESK_EDGE_SPOOL_DIR: join(
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+    CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
+    CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+    CONVERACT_RUSTDESK_READINESS_RUN_EDGE_AGENT: '1',
+    CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT: '1',
+    CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
+    CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
+    CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
+    CONVERACT_RUSTDESK_EDGE_DEVICE_DISPLAY_NAME: 'LED control PC',
+    CONVERACT_RUSTDESK_EDGE_COMMAND_TOKEN: 'signed-readiness-edge-token',
+    CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: process.execPath,
+    CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["-e","process.exit(0)"]',
+    CONVERACT_RUSTDESK_EDGE_SPOOL_DIR: join(
       mkdtempSync(join(tmpdir(), 'opc-rustdesk-readiness-config-')),
       'spool'
     )
@@ -50,26 +50,26 @@ test('rustdesk readiness builds a strict RustDesk gateway check and can derive t
   assert.throws(
     () =>
       createRustDeskReadinessConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led'
       }),
-    /OPC_REMOTE_GATEWAY_TARGET_ID is required/
+    /CONVERACT_REMOTE_GATEWAY_TARGET_ID is required/
   );
 });
 
 test('rustdesk readiness keeps strict defaults even when smoke defaults are injected', () => {
   const config = createRustDeskReadinessConfigFromEnv({
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
-    OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-    OPC_COLLABORATION_API_KEY: 'collaboration-key',
-    OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-    OPC_REMOTE_GATEWAY_TARGET_ID: 'rdesk-device-1',
-    OPC_RUSTDESK_CHECK_DEVICE_ONLINE: '0',
-    OPC_RUSTDESK_CHECK_OPERATION_AUDIT: '0',
-    OPC_RUSTDESK_CHECK_SERVER_PORTS: '0',
-    OPC_RUSTDESK_REQUIRE_PROTOCOL_URL: '0',
-    OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL: '0'
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+    CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
+    CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+    CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rdesk-device-1',
+    CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: '0',
+    CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT: '0',
+    CONVERACT_RUSTDESK_CHECK_SERVER_PORTS: '0',
+    CONVERACT_RUSTDESK_REQUIRE_PROTOCOL_URL: '0',
+    CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL: '0'
   });
 
   assert.equal(config.remoteGateway.rustdeskCheckDeviceOnline, true);
@@ -79,14 +79,14 @@ test('rustdesk readiness keeps strict defaults even when smoke defaults are inje
   assert.equal(config.remoteGateway.checkLaunchUrl, true);
 
   const relaxed = createRustDeskReadinessConfigFromEnv({
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
-    OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-    OPC_REMOTE_GATEWAY_TARGET_ID: '123456789',
-    OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE: '0',
-    OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT: '0',
-    OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS: '0',
-    OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL: '0',
-    OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL: '0'
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+    CONVERACT_REMOTE_GATEWAY_TARGET_ID: '123456789',
+    CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE: '0',
+    CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT: '0',
+    CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS: '0',
+    CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL: '0',
+    CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL: '0'
   });
 
   assert.equal(relaxed.remoteGateway.rustdeskCheckDeviceOnline, false);
@@ -103,8 +103,8 @@ test('rustdesk readiness from env runs deployment preflight before network check
     () =>
       runRustDeskReadinessFromEnv(
         {
-          OPC_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
-          OPC_RUSTDESK_LAUNCH_SECRET: 'launch-secret'
+          CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
+          CONVERACT_RUSTDESK_LAUNCH_SECRET: 'launch-secret'
         },
         async () => {
           fetchCalled = true;
@@ -127,15 +127,15 @@ test('rustdesk readiness from env runs deployment preflight before network check
 
 test('rustdesk readiness reuses the edge tenant for the remote gateway online check', () => {
   const config = createRustDeskReadinessConfigFromEnv({
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
-    OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-    OPC_COLLABORATION_API_KEY: 'collaboration-key',
-    OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT: '1',
-    OPC_RUSTDESK_EDGE_TENANT_ID: 'tenant_from_edge',
-    OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
-    OPC_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
-    OPC_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
-    OPC_RUSTDESK_EDGE_DEVICE_DISPLAY_NAME: 'LED control PC'
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+    CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
+    CONVERACT_RUSTDESK_READINESS_RUN_EDGE_AGENT: '1',
+    CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_from_edge',
+    CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
+    CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
+    CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
+    CONVERACT_RUSTDESK_EDGE_DEVICE_DISPLAY_NAME: 'LED control PC'
   });
 
   assert.equal(config.edgeAgent?.tenantId, 'tenant_from_edge');
@@ -161,27 +161,27 @@ test('rustdesk readiness runs edge heartbeat before the strict gateway smoke', a
 
   const result = await runRustDeskReadiness(
     createRustDeskReadinessConfigFromEnv({
-      OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
-      OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-      OPC_COLLABORATION_API_KEY: 'collaboration-key',
-      OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-      OPC_REMOTE_GATEWAY_ACTOR_IDENTITY: 'agent_rustdesk_readiness',
-      OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT: '1',
-      OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT: '1',
-      OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS: '0',
-      OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
-      OPC_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
-      OPC_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
-      OPC_RUSTDESK_EDGE_DEVICE_DISPLAY_NAME: 'LED control PC',
-      OPC_RUSTDESK_EDGE_ACTOR_IDENTITY: 'rustdesk-edge-agent',
-      OPC_RUSTDESK_EDGE_INSTANCE_ID: 'edge-readiness-1',
-      OPC_RUSTDESK_EDGE_COMMAND_TOKEN: 'signed-readiness-edge-token',
-      OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: process.execPath,
-      OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: JSON.stringify([
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+      CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+      CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
+      CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+      CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY: 'agent_rustdesk_readiness',
+      CONVERACT_RUSTDESK_READINESS_RUN_EDGE_AGENT: '1',
+      CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT: '1',
+      CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS: '0',
+      CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
+      CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
+      CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
+      CONVERACT_RUSTDESK_EDGE_DEVICE_DISPLAY_NAME: 'LED control PC',
+      CONVERACT_RUSTDESK_EDGE_ACTOR_IDENTITY: 'rustdesk-edge-agent',
+      CONVERACT_RUSTDESK_EDGE_INSTANCE_ID: 'edge-readiness-1',
+      CONVERACT_RUSTDESK_EDGE_COMMAND_TOKEN: 'signed-readiness-edge-token',
+      CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: process.execPath,
+      CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: JSON.stringify([
         '-e',
         "process.stdout.write('readiness-disconnected'); process.exit(0)"
       ]),
-      OPC_RUSTDESK_EDGE_SPOOL_DIR: join(
+      CONVERACT_RUSTDESK_EDGE_SPOOL_DIR: join(
         mkdtempSync(join(tmpdir(), 'opc-rustdesk-readiness-run-')),
         'spool'
       )
@@ -461,13 +461,13 @@ test('rustdesk readiness is wired into package scripts and env examples', () => 
   const envExample = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
   const infraEnvExample = readFileSync(new URL('../infra/env.example', import.meta.url), 'utf8');
   for (const content of [envExample, infraEnvExample]) {
-    assert.match(content, /^OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT=/m);
-    assert.match(content, /^OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE=1/m);
-    assert.match(content, /^OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT=1/m);
-    assert.match(content, /^OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS=1/m);
-    assert.match(content, /^OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL=1/m);
-    assert.match(content, /^OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL=1/m);
-    assert.match(content, /^OPC_RUSTDESK_READINESS_REPORT_FILE=/m);
+    assert.match(content, /^CONVERACT_RUSTDESK_READINESS_RUN_EDGE_AGENT=/m);
+    assert.match(content, /^CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE=1/m);
+    assert.match(content, /^CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT=1/m);
+    assert.match(content, /^CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS=1/m);
+    assert.match(content, /^CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL=1/m);
+    assert.match(content, /^CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL=1/m);
+    assert.match(content, /^CONVERACT_RUSTDESK_READINESS_REPORT_FILE=/m);
   }
 });
 
@@ -479,9 +479,9 @@ test('rustdesk readiness CLI writes a preflight failure report artifact without 
     encoding: 'utf8',
     env: {
       ...process.env,
-      OPC_RUSTDESK_READINESS_REPORT_FILE: outputFile,
-      OPC_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
-      OPC_RUSTDESK_LAUNCH_SECRET: 'launch-secret'
+      CONVERACT_RUSTDESK_READINESS_REPORT_FILE: outputFile,
+      CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
+      CONVERACT_RUSTDESK_LAUNCH_SECRET: 'launch-secret'
     }
   });
 

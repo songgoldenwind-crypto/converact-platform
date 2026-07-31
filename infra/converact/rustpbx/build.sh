@@ -2,6 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/../../../scripts/converact-env-compat.sh"
+converact_env_install_aliases
 PATCH_DIR="$SCRIPT_DIR/patches"
 SOURCE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 BUNDLE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -49,13 +51,13 @@ if git -C "$SOURCE_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "RustPBX build inputs contain uncommitted changes" >&2
     exit 1
   }
-  OPC_SOURCE_COMMIT="$(
+  CONVERACT_SOURCE_COMMIT="$(
     git -C "$SOURCE_ROOT" rev-parse HEAD
   )"
 else
-  OPC_SOURCE_COMMIT="${IVEKIT_RUSTPBX_OPC_SOURCE_COMMIT:-}"
+  CONVERACT_SOURCE_COMMIT="${IVEKIT_RUSTPBX_OPC_SOURCE_COMMIT:-}"
 fi
-[[ "$OPC_SOURCE_COMMIT" =~ ^[a-f0-9]{40}$ ]] || {
+[[ "$CONVERACT_SOURCE_COMMIT" =~ ^[a-f0-9]{40}$ ]] || {
   echo "exact OPC source commit is required" >&2
   exit 1
 }
@@ -276,7 +278,7 @@ docker build \
   --build-arg "RUSTPBX_COMMIT=$RUSTPBX_COMMIT" \
   --build-arg "RSIPSTACK_COMMIT=$RSIPSTACK_COMMIT" \
   --build-arg "RUSTRTC_COMMIT=$RUSTRTC_COMMIT" \
-  --build-arg "OPC_SOURCE_COMMIT=$OPC_SOURCE_COMMIT" \
+  --build-arg "CONVERACT_SOURCE_COMMIT=$CONVERACT_SOURCE_COMMIT" \
   --build-arg "IVEKIT_PATCHSET=$PATCHSET" \
   --build-arg "IVEKIT_PATCH_SET_SHA256=$PATCH_SET_SHA256" \
   -t "$IMAGE" \
@@ -285,7 +287,7 @@ docker build \
 test "$(
   docker image inspect "$IMAGE" \
     --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
-)" = "$OPC_SOURCE_COMMIT"
+)" = "$CONVERACT_SOURCE_COMMIT"
 test "$(
   docker image inspect "$IMAGE" \
     --format '{{ index .Config.Labels "io.ivekit.rustpbx.patch-set-sha256" }}'

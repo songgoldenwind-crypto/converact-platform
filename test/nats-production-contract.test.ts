@@ -12,7 +12,7 @@ const opcDeployment = readFileSync('infra/k8s/templates/opc-deployment.yaml', 'u
 test('production Compose pins and authenticates NATS without publishing client or monitor ports', () => {
   const nats = serviceBlock(compose, 'nats');
 
-  assert.match(nats, /image: \$\{OPC_NATS_IMAGE:\?OPC_NATS_IMAGE immutable digest reference is required\}/);
+  assert.match(nats, /image: \$\{CONVERACT_NATS_IMAGE:\?CONVERACT_NATS_IMAGE immutable digest reference is required\}/);
   assert.match(nats, /command: \["-c", "\/etc\/nats\/nats\.conf"\]/);
   assert.match(nats, /NATS_CLIENT_USER: \$\{NATS_USER:\?NATS_USER is required\}/);
   assert.match(nats, /NATS_CLIENT_PASSWORD: \$\{NATS_PASSWORD:\?NATS_PASSWORD is required\}/);

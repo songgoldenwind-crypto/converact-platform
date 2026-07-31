@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import { createHash, randomUUID } from 'node:crypto';
 
 import {
@@ -71,7 +72,7 @@ function parseEndpoint(value: string): {
 }
 
 function requiredEnv(name: string): string {
-  const value = process.env[name]?.trim();
+  const value = resolveConveractEnv(process.env, name)?.trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }
@@ -82,7 +83,7 @@ function integerEnv(
   minimum: number,
   maximum: number
 ): number {
-  const raw = process.env[name]?.trim();
+  const raw = resolveConveractEnv(process.env, name)?.trim();
   const value = raw ? Number(raw) : fallback;
   if (!Number.isInteger(value) || value < minimum || value > maximum) {
     throw new Error(`${name} is invalid`);

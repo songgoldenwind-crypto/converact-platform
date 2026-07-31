@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import {
   createHash,
   createHmac,
@@ -96,7 +97,7 @@ export class RustDeskAuthorizationCodeStore {
     options: RustDeskAuthorizationCodeStoreOptions = {}
   ) {
     this.secret = String(
-      options.secret ?? process.env.OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET ?? ''
+      options.secret ?? resolveBrandEnv(process.env, 'RUSTDESK_AUTHORIZATION_CODE_SECRET') ?? ''
     );
     if (this.secret && Buffer.byteLength(this.secret, 'utf8') < 32) {
       throw authorizationError('RustDesk authorization code secret must be at least 32 bytes', 503);
@@ -471,7 +472,7 @@ export function rustDeskRequireAuthorizationCode(
   env: NodeJS.ProcessEnv = process.env
 ): boolean {
   return ['1', 'true', 'yes', 'on'].includes(
-    String(env.OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE || '').trim().toLowerCase()
+    String(resolveBrandEnv(env, 'RUSTDESK_REQUIRE_AUTHORIZATION_CODE') || '').trim().toLowerCase()
   );
 }
 

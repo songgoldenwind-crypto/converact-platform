@@ -3652,7 +3652,7 @@ M6.1-M6.7 已完成。最终门禁包括全仓 Node 2111 项 0 失败、真实 P
 
 V3 在 V2 独立 iveKit 服务内增加 OCR、ASR、AI 防绕单质检、人工复核、录制源导入和消息/附件翻译，不引入 SQLite，也不依赖 OPC call-center。LED 与 OPC 都只通过 `@opc/ivekit-sdk`、`/api/ivekit/*` 和租户事件接入。
 
-Provider registry 支持 `ocr|asr|quality_review|translation` 和 `self_hosted|third_party`。非敏感配置放 `OPC_IVEKIT_PROVIDER_PROFILES_JSON`，凭据由 profile 的 `token_env` 指向环境变量/Kubernetes Secret。第三方 URL 强制 HTTPS，租户 policy 还必须显式 `allow_third_party=true`；Provider health 与 preflight 不返回 URL、token 或响应 body。
+Provider registry 支持 `ocr|asr|quality_review|translation` 和 `self_hosted|third_party`。非敏感配置放 `CONVERACT_FABRIC_PROVIDER_PROFILES_JSON`，凭据由 profile 的 `token_env` 指向环境变量/Kubernetes Secret。第三方 URL 强制 HTTPS，租户 policy 还必须显式 `allow_third_party=true`；Provider health 与 preflight 不返回 URL、token 或响应 body。
 
 ### 22.2 数据流与状态
 

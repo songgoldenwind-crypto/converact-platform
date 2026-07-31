@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../db-pg.js';
@@ -86,32 +87,32 @@ export function secureFileScanWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): SecureFileScanWorkerConfig {
   const mode = scannerMode(env);
-  const enabledFlag = String(env.OPC_FILE_SECURITY_SCAN_WORKER_ENABLED || '').trim();
+  const enabledFlag = String(resolveBrandEnv(env, 'FILE_SECURITY_SCAN_WORKER_ENABLED') || '').trim();
   if (enabledFlag && enabledFlag !== '0' && enabledFlag !== '1') {
-    throw new Error('OPC_FILE_SECURITY_SCAN_WORKER_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_FILE_SECURITY_SCAN_WORKER_ENABLED must be 0 or 1');
   }
   if (
     mode === 'controlled' && env.NODE_ENV === 'production' &&
-    env.OPC_FILE_SECURITY_ALLOW_CONTROLLED !== '1'
+    resolveBrandEnv(env, 'FILE_SECURITY_ALLOW_CONTROLLED') !== '1'
   ) {
     throw new Error('controlled file scanner is forbidden in production');
   }
   return {
     enabled: mode !== 'disabled' && enabledFlag !== '0',
-    intervalMs: envInteger(env.OPC_FILE_SECURITY_SCAN_INTERVAL_MS, 5_000, 1_000, 300_000, 'scan interval'),
-    batchSize: envInteger(env.OPC_FILE_SECURITY_SCAN_BATCH_SIZE, 25, 1, 100, 'scan batch size'),
-    maxAttempts: envInteger(env.OPC_FILE_SECURITY_SCAN_MAX_ATTEMPTS, 3, 1, 10, 'scan max attempts'),
-    claimLeaseMs: envInteger(env.OPC_FILE_SECURITY_SCAN_LEASE_MS, 60_000, 5_000, 600_000, 'scan lease'),
-    retryDelaysMs: retryDelays(env.OPC_FILE_SECURITY_SCAN_RETRY_DELAYS_MS),
+    intervalMs: envInteger(resolveBrandEnv(env, 'FILE_SECURITY_SCAN_INTERVAL_MS'), 5_000, 1_000, 300_000, 'scan interval'),
+    batchSize: envInteger(resolveBrandEnv(env, 'FILE_SECURITY_SCAN_BATCH_SIZE'), 25, 1, 100, 'scan batch size'),
+    maxAttempts: envInteger(resolveBrandEnv(env, 'FILE_SECURITY_SCAN_MAX_ATTEMPTS'), 3, 1, 10, 'scan max attempts'),
+    claimLeaseMs: envInteger(resolveBrandEnv(env, 'FILE_SECURITY_SCAN_LEASE_MS'), 60_000, 5_000, 600_000, 'scan lease'),
+    retryDelaysMs: retryDelays(resolveBrandEnv(env, 'FILE_SECURITY_SCAN_RETRY_DELAYS_MS')),
     maxScanBytes: envInteger(
-      env.OPC_FILE_SECURITY_SCAN_MAX_BYTES,
+      resolveBrandEnv(env, 'FILE_SECURITY_SCAN_MAX_BYTES'),
       100 * 1024 * 1024,
       1,
       10 * 1024 * 1024 * 1024,
       'scan max bytes'
     ),
-    mimeConflictAction: mimeConflictAction(env.OPC_FILE_SECURITY_MIME_CONFLICT_ACTION),
-    workerId: safeWorkerId(env.OPC_FILE_SECURITY_SCAN_WORKER_ID) ||
+    mimeConflictAction: mimeConflictAction(resolveBrandEnv(env, 'FILE_SECURITY_MIME_CONFLICT_ACTION')),
+    workerId: safeWorkerId(resolveBrandEnv(env, 'FILE_SECURITY_SCAN_WORKER_ID')) ||
       `secure-file-scan-${process.pid}-${randomUUID().slice(0, 8)}`
   };
 }
@@ -125,22 +126,22 @@ export function configuredFileThreatScanner(
   if (mode === 'controlled') return new ControlledFileThreatScanner();
   if (mode === 'clamd') {
     return createClamdFileThreatScanner({
-      host: env.OPC_FILE_SECURITY_CLAMD_HOST,
-      port: optionalNumber(env.OPC_FILE_SECURITY_CLAMD_PORT),
-      timeoutMs: optionalNumber(env.OPC_FILE_SECURITY_SCANNER_TIMEOUT_MS),
-      maxBytes: optionalNumber(env.OPC_FILE_SECURITY_SCAN_MAX_BYTES),
-      chunkBytes: optionalNumber(env.OPC_FILE_SECURITY_CLAMD_CHUNK_BYTES)
+      host: resolveBrandEnv(env, 'FILE_SECURITY_CLAMD_HOST'),
+      port: optionalNumber(resolveBrandEnv(env, 'FILE_SECURITY_CLAMD_PORT')),
+      timeoutMs: optionalNumber(resolveBrandEnv(env, 'FILE_SECURITY_SCANNER_TIMEOUT_MS')),
+      maxBytes: optionalNumber(resolveBrandEnv(env, 'FILE_SECURITY_SCAN_MAX_BYTES')),
+      chunkBytes: optionalNumber(resolveBrandEnv(env, 'FILE_SECURITY_CLAMD_CHUNK_BYTES'))
     });
   }
-  const baseUrl = String(env.OPC_FILE_SECURITY_SCANNER_URL || '').trim();
-  if (!baseUrl) throw new Error('OPC_FILE_SECURITY_SCANNER_URL is required for HTTP scanner mode');
+  const baseUrl = String(resolveBrandEnv(env, 'FILE_SECURITY_SCANNER_URL') || '').trim();
+  if (!baseUrl) throw new Error('CONVERACT_FILE_SECURITY_SCANNER_URL is required for HTTP scanner mode');
   return createHttpFileThreatScanner({
     mode: mode === 'http_self_hosted' ? 'self_hosted' : 'third_party',
     baseUrl,
-    endpoint: env.OPC_FILE_SECURITY_SCANNER_ENDPOINT,
-    token: env.OPC_FILE_SECURITY_SCANNER_TOKEN,
-    timeoutMs: optionalNumber(env.OPC_FILE_SECURITY_SCANNER_TIMEOUT_MS),
-    maxBytes: optionalNumber(env.OPC_FILE_SECURITY_SCAN_MAX_BYTES),
+    endpoint: resolveBrandEnv(env, 'FILE_SECURITY_SCANNER_ENDPOINT'),
+    token: resolveBrandEnv(env, 'FILE_SECURITY_SCANNER_TOKEN'),
+    timeoutMs: optionalNumber(resolveBrandEnv(env, 'FILE_SECURITY_SCANNER_TIMEOUT_MS')),
+    maxBytes: optionalNumber(resolveBrandEnv(env, 'FILE_SECURITY_SCAN_MAX_BYTES')),
     fetch: deps.fetch
   });
 }
@@ -191,18 +192,18 @@ export function startSecureFileScanWorker(input: {
 function scannerMode(
   env: NodeJS.ProcessEnv
 ): 'disabled' | 'controlled' | 'clamd' | 'http_self_hosted' | 'http_third_party' {
-  const value = String(env.OPC_FILE_SECURITY_SCANNER_MODE || 'disabled').trim();
+  const value = String(resolveBrandEnv(env, 'FILE_SECURITY_SCANNER_MODE') || 'disabled').trim();
   if (
     value === 'disabled' || value === 'controlled' || value === 'clamd' ||
     value === 'http_self_hosted' || value === 'http_third_party'
   ) return value;
-  throw new Error('OPC_FILE_SECURITY_SCANNER_MODE is invalid');
+  throw new Error('CONVERACT_FILE_SECURITY_SCANNER_MODE is invalid');
 }
 
 function mimeConflictAction(value: string | undefined): 'reject' | 'quarantine' {
   const action = String(value || 'quarantine').trim();
   if (action === 'reject' || action === 'quarantine') return action;
-  throw new Error('OPC_FILE_SECURITY_MIME_CONFLICT_ACTION must be reject or quarantine');
+  throw new Error('CONVERACT_FILE_SECURITY_MIME_CONFLICT_ACTION must be reject or quarantine');
 }
 
 function retryDelays(value: string | undefined): number[] {
@@ -211,7 +212,7 @@ function retryDelays(value: string | undefined): number[] {
   if (
     !parsed.length || parsed.length > 10 ||
     parsed.some((delay) => !Number.isInteger(delay) || delay < 0 || delay > 3_600_000)
-  ) throw new Error('OPC_FILE_SECURITY_SCAN_RETRY_DELAYS_MS is invalid');
+  ) throw new Error('CONVERACT_FILE_SECURITY_SCAN_RETRY_DELAYS_MS is invalid');
   return parsed;
 }
 

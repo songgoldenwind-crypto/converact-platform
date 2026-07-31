@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../../config/converact-env.js';
 /**
  * SIP/VoLTE media gateway for 4G video customers:
  *
@@ -46,7 +47,7 @@ export function resolveSipVolteGatewayConfiguration(
     missingOrInvalid.push('RUSTPBX_RWI_URL');
   }
   if (!safeConfiguredValue(env.RUSTPBX_RWI_TOKEN)) missingOrInvalid.push('RUSTPBX_RWI_TOKEN');
-  const enabled = env.OPC_SIP_VOLTE_ENABLED === '1';
+  const enabled = resolveBrandEnv(env, 'SIP_VOLTE_ENABLED') === '1';
   return Object.freeze({
     enabled,
     active: enabled && missingOrInvalid.length === 0,

@@ -10,18 +10,18 @@ import type { BrowserAutomation } from '../scripts/livekit-browser-smoke.js';
 test('web assist browser smoke config resolves signed customer and engineer observer inputs', () => {
   assert.throws(
     () => createWebAssistBrowserSmokeConfigFromEnv({}),
-    /OPC_FRONTEND_URL is required/
+    /CONVERACT_FRONTEND_URL is required/
   );
 
   const config = createWebAssistBrowserSmokeConfigFromEnv({
-    OPC_FRONTEND_URL: 'http://localhost:5173/',
-    OPC_WEB_ASSIST_CUSTOMER_URL:
+    CONVERACT_FRONTEND_URL: 'http://localhost:5173/',
+    CONVERACT_WEB_ASSIST_CUSTOMER_URL:
       '/remote-assist/session?tenant_id=tenant-1&remote_session_id=remote-1&token=signed-customer',
-    OPC_WEB_ASSIST_ENGINEER_TOKEN: 'engineer-token',
-    OPC_WEB_ASSIST_ENGINEER_USER_ID: 'engineer-1',
-    OPC_TENANT_ID: 'tenant-1',
-    OPC_WEB_ASSIST_BROWSER_SMOKE_HEADLESS: '0',
-    OPC_WEB_ASSIST_BROWSER_SMOKE_TIMEOUT_MS: '12345'
+    CONVERACT_WEB_ASSIST_ENGINEER_TOKEN: 'engineer-token',
+    CONVERACT_WEB_ASSIST_ENGINEER_USER_ID: 'engineer-1',
+    CONVERACT_TENANT_ID: 'tenant-1',
+    CONVERACT_WEB_ASSIST_BROWSER_SMOKE_HEADLESS: '0',
+    CONVERACT_WEB_ASSIST_BROWSER_SMOKE_TIMEOUT_MS: '12345'
   });
 
   assert.equal(config.frontendUrl, 'http://localhost:5173');
@@ -41,13 +41,13 @@ test('web assist browser smoke config requires a remote session id', () => {
   assert.throws(
     () =>
       createWebAssistBrowserSmokeConfigFromEnv({
-        OPC_FRONTEND_URL: 'http://localhost:5173',
-        OPC_WEB_ASSIST_CUSTOMER_URL: '/remote-assist/session?tenant_id=tenant-1&token=signed-customer',
-        OPC_WEB_ASSIST_ENGINEER_TOKEN: 'engineer-token',
-        OPC_WEB_ASSIST_ENGINEER_USER_ID: 'engineer-1',
-        OPC_TENANT_ID: 'tenant-1'
+        CONVERACT_FRONTEND_URL: 'http://localhost:5173',
+        CONVERACT_WEB_ASSIST_CUSTOMER_URL: '/remote-assist/session?tenant_id=tenant-1&token=signed-customer',
+        CONVERACT_WEB_ASSIST_ENGINEER_TOKEN: 'engineer-token',
+        CONVERACT_WEB_ASSIST_ENGINEER_USER_ID: 'engineer-1',
+        CONVERACT_TENANT_ID: 'tenant-1'
       }),
-    /OPC_WEB_ASSIST_REMOTE_SESSION_ID or remote_session_id query is required/
+    /CONVERACT_WEB_ASSIST_REMOTE_SESSION_ID or remote_session_id query is required/
   );
 });
 

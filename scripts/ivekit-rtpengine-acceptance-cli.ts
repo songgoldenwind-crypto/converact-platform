@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
@@ -764,7 +765,7 @@ function loadRtpengineAcceptanceAdmission(
     'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_OWNER_NODE_ID',
     'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REQUIRED_CAPACITY_JSON'
   ] as const;
-  const configured = fields.filter((field) => env[field]?.trim());
+  const configured = fields.filter((field) => resolveConveractEnv(env, field)?.trim());
   if (configured.length === 0) return undefined;
   if (configured.length !== fields.length) {
     throw new Error('Cell admission configuration must be complete');
@@ -1169,7 +1170,7 @@ function required(
   env: Record<string, string | undefined>,
   name: string
 ): string {
-  const value = env[name]?.trim();
+  const value = resolveConveractEnv(env, name)?.trim();
   if (!value || /[\0\r\n]/.test(value)) throw new Error(`${name} is required`);
   return value;
 }
@@ -1181,7 +1182,7 @@ function integerEnv(
   minimum: number,
   maximum: number
 ): number {
-  const raw = env[name]?.trim();
+  const raw = resolveConveractEnv(env, name)?.trim();
   const value = raw ? Number(raw) : fallback;
   if (!Number.isSafeInteger(value) || value! < minimum || value! > maximum) {
     throw new Error(`${name} is invalid`);
@@ -1196,7 +1197,7 @@ function numberEnv(
   minimum: number,
   maximum: number
 ): number {
-  const raw = env[name]?.trim();
+  const raw = resolveConveractEnv(env, name)?.trim();
   const value = raw ? Number(raw) : fallback;
   if (!Number.isFinite(value) || value < minimum || value > maximum) {
     throw new Error(`${name} is invalid`);

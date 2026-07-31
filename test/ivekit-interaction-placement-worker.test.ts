@@ -43,7 +43,7 @@ test('interaction placement worker serializes overlapping reconciliation batches
 test('interaction placement worker follows the placement enable flag and bounded config', () => {
   assert.equal(interactionPlacementWorkerConfig({}).enabled, false);
   assert.deepEqual(interactionPlacementWorkerConfig({
-    OPC_IVEKIT_PLACEMENT_ENABLED: '1'
+    CONVERACT_FABRIC_PLACEMENT_ENABLED: '1'
   }), {
     enabled: true,
     intervalMs: 250,
@@ -52,8 +52,8 @@ test('interaction placement worker follows the placement enable flag and bounded
   });
   assert.throws(
     () => interactionPlacementWorkerConfig({
-      OPC_IVEKIT_PLACEMENT_ENABLED: '1',
-      OPC_IVEKIT_PLACEMENT_WORKER_INTERVAL_MS: '10'
+      CONVERACT_FABRIC_PLACEMENT_ENABLED: '1',
+      CONVERACT_FABRIC_PLACEMENT_WORKER_INTERVAL_MS: '10'
     }),
     /between/
   );

@@ -14,8 +14,8 @@ import type {
 
 test('Cell capacity projector derives stable nodes from the shared pool authority', () => {
   const env = projectorEnv();
-  delete env.OPC_IVEKIT_CELL_NODES_JSON;
-  env.OPC_IVEKIT_CELL_NODE_POOLS_JSON = JSON.stringify([{
+  delete env.CONVERACT_FABRIC_CELL_NODES_JSON;
+  env.CONVERACT_FABRIC_CELL_NODE_POOLS_JSON = JSON.stringify([{
     component: 'rustpbx',
     node_id_prefix: 'rustpbx-a',
     replica_count: 1,
@@ -45,7 +45,7 @@ test('Cell capacity projector derives stable nodes from the shared pool authorit
   assert.throws(
     () => cellCapacityProjectorRuntimeConfig({
       ...env,
-      OPC_IVEKIT_CELL_NODES_JSON: JSON.stringify(config.nodes)
+      CONVERACT_FABRIC_CELL_NODES_JSON: JSON.stringify(config.nodes)
     }),
     /topology authority/i
   );
@@ -364,19 +364,19 @@ function componentObservation(): ComponentCapacityObservation {
 
 function projectorEnv(): NodeJS.ProcessEnv {
   return {
-    OPC_IVEKIT_CELL_ADMISSION_ENDPOINT: 'http://127.0.0.1:3200',
-    OPC_IVEKIT_CELL_ADMISSION_TOKEN: 'cell-admission-secret-1234567890',
-    OPC_IVEKIT_CELL_REGION_ID: 'region-a',
-    OPC_IVEKIT_CELL_ZONE_ID: 'zone-a',
-    OPC_IVEKIT_CELL_ID: 'cell-a',
-    OPC_IVEKIT_CELL_CAPACITY_PROFILE_ID: 'cell-10k-v1',
-    OPC_IVEKIT_CELL_CAPACITY_PROFILE_SHA256: 'a'.repeat(64),
-    OPC_IVEKIT_CELL_DIMENSIONS_JSON: JSON.stringify({
+    CONVERACT_FABRIC_CELL_ADMISSION_ENDPOINT: 'http://127.0.0.1:3200',
+    CONVERACT_FABRIC_CELL_ADMISSION_TOKEN: 'cell-admission-secret-1234567890',
+    CONVERACT_FABRIC_CELL_REGION_ID: 'region-a',
+    CONVERACT_FABRIC_CELL_ZONE_ID: 'zone-a',
+    CONVERACT_FABRIC_CELL_ID: 'cell-a',
+    CONVERACT_FABRIC_CELL_CAPACITY_PROFILE_ID: 'cell-10k-v1',
+    CONVERACT_FABRIC_CELL_CAPACITY_PROFILE_SHA256: 'a'.repeat(64),
+    CONVERACT_FABRIC_CELL_DIMENSIONS_JSON: JSON.stringify({
       'voice.weighted_calls': {
         unit: 'calls', safe_capacity: 2_500, used: 0, reserved: 0
       }
     }),
-    OPC_IVEKIT_CELL_NODES_JSON: JSON.stringify([{
+    CONVERACT_FABRIC_CELL_NODES_JSON: JSON.stringify([{
       node_id: 'rustpbx-a-0',
       state: 'accepting',
       dimensions: {
@@ -385,7 +385,7 @@ function projectorEnv(): NodeJS.ProcessEnv {
         }
       }
     }]),
-    OPC_IVEKIT_CELL_PROBES_JSON: JSON.stringify([{
+    CONVERACT_FABRIC_CELL_PROBES_JSON: JSON.stringify([{
       component: 'rustpbx',
       instance_id: 'rustpbx-a-0',
       region_id: 'region-a',

@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../config/converact-env.js';
 import { isIP } from 'node:net';
 
 export type IntelligenceProviderCapability =
@@ -99,7 +100,7 @@ const PROFILE_FIELDS = new Set([
 export function createIntelligenceProviderRegistry(
   env: NodeJS.ProcessEnv = process.env
 ): IntelligenceProviderRegistry {
-  const profiles = parseConfiguredProfiles(env.OPC_IVEKIT_PROVIDER_PROFILES_JSON);
+  const profiles = parseConfiguredProfiles(resolveFabricEnv(env, 'PROVIDER_PROFILES_JSON'));
   const defaults = new Map<IntelligenceProviderCapability, string>();
   for (const legacy of legacyProfiles(env)) {
     if (profiles.some((profile) => profile.id === legacy.id)) {
@@ -122,7 +123,7 @@ export function createIntelligenceProviderRegistry(
       mode: profile.mode,
       name: profile.name,
       configured: true,
-      token_configured: !profile.token_env || Boolean(String(env[profile.token_env] || '').trim()),
+      token_configured: !profile.token_env || Boolean(String(resolveConveractEnv(env, profile.token_env) || '').trim()),
       requests_per_minute: profile.requests_per_minute,
       requests_per_day: profile.requests_per_day,
       max_concurrency: profile.max_concurrency,
@@ -156,7 +157,7 @@ export function createIntelligenceProviderRegistry(
       const trustedProfile = byId.get(String(profile.id || '').trim());
       if (!trustedProfile) throw new Error(`provider profile not found: ${profile.id}`);
       if (!trustedProfile.token_env) return undefined;
-      const value = String(env[trustedProfile.token_env] || '').trim();
+      const value = String(resolveConveractEnv(env, trustedProfile.token_env) || '').trim();
       return value || undefined;
     }
   };
@@ -168,9 +169,9 @@ function parseConfiguredProfiles(raw: string | undefined): IntelligenceProviderP
   try {
     parsed = JSON.parse(String(raw));
   } catch {
-    throw new Error('OPC_IVEKIT_PROVIDER_PROFILES_JSON must be valid JSON');
+    throw new Error('CONVERACT_FABRIC_PROVIDER_PROFILES_JSON must be valid JSON');
   }
-  if (!Array.isArray(parsed)) throw new Error('OPC_IVEKIT_PROVIDER_PROFILES_JSON must be an array');
+  if (!Array.isArray(parsed)) throw new Error('CONVERACT_FABRIC_PROVIDER_PROFILES_JSON must be an array');
   if (parsed.length > 100) throw new Error('provider profile count cannot exceed 100');
   return parsed.map((profile, index) => normalizeProfile(profile, `provider profile ${index + 1}`, false));
 }
@@ -286,26 +287,26 @@ function legacyProfiles(env: NodeJS.ProcessEnv): IntelligenceProviderProfile[] {
     prefix: string;
     endpoint: string;
   }> = [
-    { capability: 'ocr', id: 'legacy-ocr', prefix: 'OPC_OCR', endpoint: '/v1/ocr' },
-    { capability: 'asr', id: 'legacy-asr', prefix: 'OPC_ASR', endpoint: '/v1/asr' },
+    { capability: 'ocr', id: 'legacy-ocr', prefix: 'CONVERACT_OCR', endpoint: '/v1/ocr' },
+    { capability: 'asr', id: 'legacy-asr', prefix: 'CONVERACT_ASR', endpoint: '/v1/asr' },
     {
       capability: 'quality_review',
       id: 'legacy-quality',
-      prefix: 'OPC_QUALITY_REVIEW',
+      prefix: 'CONVERACT_QUALITY_REVIEW',
       endpoint: '/v1/quality-review'
     },
     {
       capability: 'translation',
       id: 'legacy-translation',
-      prefix: 'OPC_TRANSLATION',
+      prefix: 'CONVERACT_TRANSLATION',
       endpoint: '/v1/translate'
     }
   ];
   const profiles: IntelligenceProviderProfile[] = [];
   for (const definition of definitions) {
-    const baseUrl = String(env[`${definition.prefix}_BASE_URL`] || '').trim();
+    const baseUrl = String(resolveConveractEnv(env, `${definition.prefix}_BASE_URL`) || '').trim();
     if (!baseUrl) continue;
-    const mode = String(env[`${definition.prefix}_PROVIDER_MODE`] || 'self_hosted').trim();
+    const mode = String(resolveConveractEnv(env, `${definition.prefix}_PROVIDER_MODE`) || 'self_hosted').trim();
     const defaultName = definition.capability === 'quality_review'
       ? `${mode}-quality-review`
       : `${mode}-${definition.capability}`;
@@ -314,13 +315,13 @@ function legacyProfiles(env: NodeJS.ProcessEnv): IntelligenceProviderProfile[] {
       capability: definition.capability,
       mode,
       base_url: baseUrl,
-      endpoint: env[`${definition.prefix}_ENDPOINT`] || definition.endpoint,
-      health_endpoint: env[`${definition.prefix}_HEALTH_ENDPOINT`] || '/health',
-      token_env: env[`${definition.prefix}_TOKEN`] ? `${definition.prefix}_TOKEN` : '',
-      timeout_ms: env[`${definition.prefix}_TIMEOUT_MS`]
-        ? Number(env[`${definition.prefix}_TIMEOUT_MS`])
+      endpoint: resolveConveractEnv(env, `${definition.prefix}_ENDPOINT`) || definition.endpoint,
+      health_endpoint: resolveConveractEnv(env, `${definition.prefix}_HEALTH_ENDPOINT`) || '/health',
+      token_env: resolveConveractEnv(env, `${definition.prefix}_TOKEN`) ? `${definition.prefix}_TOKEN` : '',
+      timeout_ms: resolveConveractEnv(env, `${definition.prefix}_TIMEOUT_MS`)
+        ? Number(resolveConveractEnv(env, `${definition.prefix}_TIMEOUT_MS`))
         : 30_000,
-      name: env[`${definition.prefix}_PROVIDER_NAME`] || defaultName
+      name: resolveConveractEnv(env, `${definition.prefix}_PROVIDER_NAME`) || defaultName
     }, definition.id, true));
   }
   return profiles;

@@ -66,7 +66,7 @@ test('LiveKit acceptance bundle shell-quotes paths with spaces and single quotes
   try {
     const result = writeLiveKitAcceptanceBundle({ outputDir, title: 'Quoted paths', env: configuredEnv() });
     const manifest = JSON.parse(readFileSync(result.manifestFile, 'utf8')) as any;
-    assert.match(manifest.commands.server_evidence, /OPC_LIVEKIT_SERVER_EVIDENCE_FILE='.*bundle with '"'"' quote.*server-evidence\.json'/);
+    assert.match(manifest.commands.server_evidence, /CONVERACT_LIVEKIT_SERVER_EVIDENCE_FILE='.*bundle with '"'"' quote.*server-evidence\.json'/);
   } finally {
     rmSync(parent, { recursive: true, force: true });
   }
@@ -86,8 +86,8 @@ test('LiveKit acceptance bundle masks deployment secrets in every generated arti
       title: 'Secret-safe LiveKit Bundle',
       env: configuredEnv({
         LIVEKIT_API_SECRET: secrets[0],
-        OPC_MEDIA_API_TOKEN: secrets[1],
-        OPC_MEDIA_INVITE_SECRET: secrets[2],
+        CONVERACT_MEDIA_API_TOKEN: secrets[1],
+        CONVERACT_MEDIA_INVITE_SECRET: secrets[2],
         MINIO_SECRET_KEY: secrets[3]
       })
     });
@@ -112,11 +112,11 @@ test('LiveKit acceptance bundle masks deployment secrets in every generated arti
 test('LiveKit acceptance bundle config requires an output directory', () => {
   assert.throws(
     () => createLiveKitAcceptanceBundleConfigFromEnv({}),
-    /OPC_LIVEKIT_ACCEPTANCE_BUNDLE_DIR is required/
+    /CONVERACT_LIVEKIT_ACCEPTANCE_BUNDLE_DIR is required/
   );
   const config = createLiveKitAcceptanceBundleConfigFromEnv({
-    OPC_LIVEKIT_ACCEPTANCE_BUNDLE_DIR: '/tmp/livekit-bundle',
-    OPC_LIVEKIT_ACCEPTANCE_BUNDLE_TITLE: 'Customer LiveKit Acceptance'
+    CONVERACT_LIVEKIT_ACCEPTANCE_BUNDLE_DIR: '/tmp/livekit-bundle',
+    CONVERACT_LIVEKIT_ACCEPTANCE_BUNDLE_TITLE: 'Customer LiveKit Acceptance'
   });
   assert.equal(config.outputDir, '/tmp/livekit-bundle');
   assert.equal(config.title, 'Customer LiveKit Acceptance');
@@ -129,9 +129,9 @@ test('LiveKit acceptance bundle rejects an invalid acceptance deployment mode', 
       () => writeLiveKitAcceptanceBundle({
         outputDir,
         title: 'Invalid mode',
-        env: configuredEnv({ OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE: 'bundled-dev' })
+        env: configuredEnv({ CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE: 'bundled-dev' })
       }),
-      /must match OPC_LIVEKIT_DEPLOYMENT_MODE|must be standalone-vm or external/
+      /must match CONVERACT_LIVEKIT_DEPLOYMENT_MODE|must be standalone-vm or external/
     );
   } finally {
     rmSync(outputDir, { recursive: true, force: true });
@@ -148,11 +148,11 @@ test('LiveKit acceptance bundle is exposed through package scripts', () => {
 function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
     NODE_ENV: 'production',
-    OPC_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
-    OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE: 'standalone-vm',
-    OPC_LIVEKIT_ACCEPTANCE_RUN_ID: 'lk-run-20260711-001',
-    OPC_LIVEKIT_ACCEPTANCE_ENVIRONMENT_ID: 'led-staging-sfo2',
-    OPC_LIVEKIT_ACCEPTANCE_DEPLOYED_COMMIT: 'a'.repeat(40),
+    CONVERACT_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
+    CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE: 'standalone-vm',
+    CONVERACT_LIVEKIT_ACCEPTANCE_RUN_ID: 'lk-run-20260711-001',
+    CONVERACT_LIVEKIT_ACCEPTANCE_ENVIRONMENT_ID: 'led-staging-sfo2',
+    CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYED_COMMIT: 'a'.repeat(40),
     LIVEKIT_URL: 'ws://10.0.0.8:7880',
     LIVEKIT_PUBLIC_URL: 'wss://livekit.example.com',
     LIVEKIT_SIGNAL_DOMAIN: 'livekit.example.com',
@@ -165,11 +165,11 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     LIVEKIT_SIP_IMAGE_TAG: 'v1.6.0',
     LIVEKIT_CADDYL4_IMAGE_TAG: 'v2.11.3',
     LIVEKIT_REDIS_IMAGE_TAG: '7.4.9',
-    OPC_BASE_URL: 'https://opc.example.com',
-    OPC_MEDIA_API_TOKEN: 'bundle-media-token',
-    OPC_MEDIA_INVITE_SECRET: 'bundle-invite-secret',
-    OPC_MEDIA_SMOKE_TENANT_ID: 'tenant-led',
-    OPC_VIDEO_READINESS_TARGETS: 'media',
+    CONVERACT_BASE_URL: 'https://opc.example.com',
+    CONVERACT_MEDIA_API_TOKEN: 'bundle-media-token',
+    CONVERACT_MEDIA_INVITE_SECRET: 'bundle-invite-secret',
+    CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-led',
+    CONVERACT_VIDEO_READINESS_TARGETS: 'media',
     MINIO_ACCESS_KEY: 'bundle-storage-key',
     MINIO_SECRET_KEY: 'bundle-storage-secret',
     ...overrides

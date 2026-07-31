@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
@@ -281,7 +282,7 @@ async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs: number): Pr
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = String(env[name] || '').trim();
+  const value = String(resolveConveractEnv(env, name) || '').trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }

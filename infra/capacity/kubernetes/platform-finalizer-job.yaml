@@ -19,55 +19,55 @@ spec:
           imagePullPolicy: IfNotPresent
           command: ["node", "--import", "tsx", "scripts/ivekit-capacity-platform-finalizer.ts"]
           env:
-            - name: OPC_DATABASE_URL
+            - name: CONVERACT_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: ivekit-capacity-runtime
                   key: database-url
-            - name: OPC_IVEKIT_CAPACITY_PLATFORM_FINALIZER_ID
+            - name: CONVERACT_FABRIC_CAPACITY_PLATFORM_FINALIZER_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_CAPACITY_PLATFORM_CONTRACT_PATH
+            - name: CONVERACT_FABRIC_CAPACITY_PLATFORM_CONTRACT_PATH
               value: /run/ivekit-capacity/platform-contract.json
-            - name: OPC_IVEKIT_CAPACITY_PLATFORM_SUBMISSION_PATH
+            - name: CONVERACT_FABRIC_CAPACITY_PLATFORM_SUBMISSION_PATH
               value: /run/ivekit-capacity/platform-submission.json
-            - name: OPC_IVEKIT_CAPACITY_PLATFORM_FINALIZER_LEASE_MS
+            - name: CONVERACT_FABRIC_CAPACITY_PLATFORM_FINALIZER_LEASE_MS
               value: "15000"
-            - name: OPC_IVEKIT_CAPACITY_PLATFORM_EVIDENCE_PREFIX
+            - name: CONVERACT_FABRIC_CAPACITY_PLATFORM_EVIDENCE_PREFIX
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-platform-finalizer
                   key: platform-evidence-prefix
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-finalizer
                   key: evidence-s3-bucket
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-finalizer
                   key: evidence-s3-region
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_ENDPOINT
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_ENDPOINT
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-finalizer
                   key: evidence-s3-endpoint
                   optional: true
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_FORCE_PATH_STYLE
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_FORCE_PATH_STYLE
               valueFrom:
                 configMapKeyRef:
                   name: ivekit-capacity-finalizer
                   key: evidence-s3-force-path-style
                   optional: true
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_ACCESS_KEY_ID
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
                   name: ivekit-capacity-evidence
                   key: evidence-s3-access-key-id
                   optional: true
-            - name: OPC_IVEKIT_CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY
+            - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: ivekit-capacity-evidence

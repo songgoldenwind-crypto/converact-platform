@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 export interface VoiceMediaClientOptions {
   baseUrl?: string | null;
   timeoutMs?: number;
@@ -8,8 +9,8 @@ export class VoiceMediaClient {
   timeoutMs: number;
 
   constructor(options: VoiceMediaClientOptions = {}) {
-    this.baseUrl = options.baseUrl || process.env.OPC_VOICE_MEDIA_URL || null;
-    this.timeoutMs = Number(options.timeoutMs || process.env.OPC_VOICE_MEDIA_TIMEOUT_MS || 2000);
+    this.baseUrl = options.baseUrl || resolveBrandEnv(process.env, 'VOICE_MEDIA_URL') || null;
+    this.timeoutMs = Number(options.timeoutMs || resolveBrandEnv(process.env, 'VOICE_MEDIA_TIMEOUT_MS') || 2000);
   }
 
   isConfigured(runtimeConfig: Record<string, unknown> = {}): boolean {

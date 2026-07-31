@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../../config/converact-env.js';
 import { BillingStore, currentPeriod } from './billing-store.js';
 import { handleStripeWebhook } from './stripe-webhook.js';
 import { resolveAuthContext } from '../../../middleware/auth.js';
@@ -108,7 +109,7 @@ function getStripeClient(): Stripe | null {
 }
 
 function getBaseUrl(): string {
-  return process.env.OPC_BASE_URL || 'http://localhost:3000';
+  return resolveBrandEnv(process.env, 'BASE_URL') || 'http://localhost:3000';
 }
 
 async function createStripeCheckoutSession(

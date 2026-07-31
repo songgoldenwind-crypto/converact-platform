@@ -147,9 +147,9 @@ async function seedContext(pg: MemoryPg) {
 }
 
 test('iveKit context returns a projected system view without provider secrets', async () => {
-  const previous = { apiKey: process.env.OPC_API_KEY, jwtSecret: process.env.OPC_JWT_SECRET };
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_JWT_SECRET = JWT_SECRET;
+  const previous = { apiKey: process.env.CONVERACT_API_KEY, jwtSecret: process.env.CONVERACT_JWT_SECRET };
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_JWT_SECRET = JWT_SECRET;
   try {
     const pg = new MemoryPg();
     const seeded = await seedContext(pg);
@@ -179,15 +179,15 @@ test('iveKit context returns a projected system view without provider secrets', 
     assert.equal(result.headers?.['cache-control'], 'private, no-store');
     assert.doesNotMatch(JSON.stringify(result.data), /13800000000|chat-secret|media-secret|device-secret|123456789|secret\.example/);
   } finally {
-    restore('OPC_API_KEY', previous.apiKey);
-    restore('OPC_JWT_SECRET', previous.jwtSecret);
+    restore('CONVERACT_API_KEY', previous.apiKey);
+    restore('CONVERACT_JWT_SECRET', previous.jwtSecret);
   }
 });
 
 test('iveKit context scopes chat and remote assistance to active membership', async () => {
-  const previous = { apiKey: process.env.OPC_API_KEY, jwtSecret: process.env.OPC_JWT_SECRET };
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_JWT_SECRET = JWT_SECRET;
+  const previous = { apiKey: process.env.CONVERACT_API_KEY, jwtSecret: process.env.CONVERACT_JWT_SECRET };
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_JWT_SECRET = JWT_SECRET;
   try {
     const pg = new MemoryPg();
     await seedContext(pg);
@@ -222,13 +222,13 @@ test('iveKit context scopes chat and remote assistance to active membership', as
     const crossTenant = await getContext(pg, jwtHeaders('active-agent', 'tenant_other'));
     assert.equal(crossTenant.status, 404);
   } finally {
-    restore('OPC_API_KEY', previous.apiKey);
-    restore('OPC_JWT_SECRET', previous.jwtSecret);
+    restore('CONVERACT_API_KEY', previous.apiKey);
+    restore('CONVERACT_JWT_SECRET', previous.jwtSecret);
   }
 });
 
 test('iveKit context validates query and rejects mutations', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const missingPath = '/api/ivekit/context/by-ref';
   await assert.rejects(
@@ -248,9 +248,9 @@ test('iveKit context validates query and rejects mutations', async () => {
 });
 
 test('iveKit unified timeline is stable, paged, redacted, and viewer scoped', async () => {
-  const previous = { apiKey: process.env.OPC_API_KEY, jwtSecret: process.env.OPC_JWT_SECRET };
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_JWT_SECRET = JWT_SECRET;
+  const previous = { apiKey: process.env.CONVERACT_API_KEY, jwtSecret: process.env.CONVERACT_JWT_SECRET };
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_JWT_SECRET = JWT_SECRET;
   try {
     const pg = new MemoryPg();
     await seedContext(pg);
@@ -287,8 +287,8 @@ test('iveKit unified timeline is stable, paged, redacted, and viewer scoped', as
       /invalid or incompatible timeline cursor/
     );
   } finally {
-    restore('OPC_API_KEY', previous.apiKey);
-    restore('OPC_JWT_SECRET', previous.jwtSecret);
+    restore('CONVERACT_API_KEY', previous.apiKey);
+    restore('CONVERACT_JWT_SECRET', previous.jwtSecret);
   }
 });
 

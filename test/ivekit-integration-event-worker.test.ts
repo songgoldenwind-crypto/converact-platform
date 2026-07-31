@@ -74,23 +74,23 @@ test('integration event projection is versioned and extracts only explicit busin
 test('event webhook worker is opt-in and requires the notification delivery runtime', () => {
   assert.equal(integrationEventWebhookWorkerConfig({}).enabled, false);
   assert.throws(() => integrationEventWebhookWorkerConfig({
-    OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED: '1'
+    CONVERACT_FABRIC_EVENT_WEBHOOK_WORKER_ENABLED: '1'
   }), /notification delivery/i);
   assert.equal(integrationEventWebhookWorkerConfig({
-    OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED: '1',
-    OPC_IVEKIT_NOTIFICATION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
-    OPC_IVEKIT_NOTIFICATION_HMAC_KEY: Buffer.alloc(32, 2).toString('base64'),
-    OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED: '1'
+    CONVERACT_FABRIC_EVENT_WEBHOOK_WORKER_ENABLED: '1',
+    CONVERACT_FABRIC_NOTIFICATION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
+    CONVERACT_FABRIC_NOTIFICATION_HMAC_KEY: Buffer.alloc(32, 2).toString('base64'),
+    CONVERACT_FABRIC_NOTIFICATION_WORKER_ENABLED: '1'
   }).enabled, true);
 });
 
 test('application owns event webhook lifecycle after notification delivery', async () => {
   const events: string[] = [];
   const env = {
-    OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED: '1',
-    OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED: '1',
-    OPC_IVEKIT_NOTIFICATION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
-    OPC_IVEKIT_NOTIFICATION_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
+    CONVERACT_FABRIC_EVENT_WEBHOOK_WORKER_ENABLED: '1',
+    CONVERACT_FABRIC_NOTIFICATION_WORKER_ENABLED: '1',
+    CONVERACT_FABRIC_NOTIFICATION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
+    CONVERACT_FABRIC_NOTIFICATION_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
   };
   const application = startIveKitApplication({
     pg: new MemoryPg(), env,
@@ -126,9 +126,9 @@ test('event webhook worker configuration is present in every delivery surface', 
     'services/converact-service/env.example'
   ]) {
     const source = readFileSync(file, 'utf8');
-    assert.match(source, /^OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED=0$/m, file);
-    assert.match(source, /^OPC_IVEKIT_EVENT_WEBHOOK_LEASE_MS=120000$/m, file);
-    assert.match(source, /^OPC_IVEKIT_RATE_LIMIT_EVENT_WEBHOOK_ACTOR_PER_MINUTE=30$/m, file);
+    assert.match(source, /^CONVERACT_FABRIC_EVENT_WEBHOOK_WORKER_ENABLED=0$/m, file);
+    assert.match(source, /^CONVERACT_FABRIC_EVENT_WEBHOOK_LEASE_MS=120000$/m, file);
+    assert.match(source, /^CONVERACT_FABRIC_RATE_LIMIT_EVENT_WEBHOOK_ACTOR_PER_MINUTE=30$/m, file);
   }
   for (const file of [
     'infra/docker-compose.production.yml', 'infra/converact/docker-compose.yml',
@@ -136,9 +136,9 @@ test('event webhook worker configuration is present in every delivery surface', 
     'services/converact-service/helm/converact/values.yaml'
   ]) {
     const source = readFileSync(file, 'utf8');
-    assert.match(source, /OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED/, file);
-    assert.match(source, /OPC_IVEKIT_EVENT_WEBHOOK_EVENT_BATCH_SIZE/, file);
-    assert.match(source, /OPC_IVEKIT_RATE_LIMIT_EVENT_WEBHOOK_SOURCE_IP_PER_MINUTE/, file);
+    assert.match(source, /CONVERACT_FABRIC_EVENT_WEBHOOK_WORKER_ENABLED/, file);
+    assert.match(source, /CONVERACT_FABRIC_EVENT_WEBHOOK_EVENT_BATCH_SIZE/, file);
+    assert.match(source, /CONVERACT_FABRIC_RATE_LIMIT_EVENT_WEBHOOK_SOURCE_IP_PER_MINUTE/, file);
   }
 });
 

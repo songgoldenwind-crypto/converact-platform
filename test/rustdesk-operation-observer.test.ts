@@ -73,6 +73,6 @@ test('operation observer reuses forwarder retry and stable idempotency', async (
 test('operation observer is exposed as a package command and deployment input', () => {
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { scripts: Record<string, string> };
   assert.equal(pkg.scripts['rustdesk:operation-observer'], 'tsx scripts/rustdesk-operation-observer.ts');
-  assert.match(readFileSync(new URL('../.env.example', import.meta.url), 'utf8'), /^OPC_RUSTDESK_OBSERVER_FILE=$/m);
-  assert.match(readFileSync(new URL('../infra/env.example', import.meta.url), 'utf8'), /^OPC_RUSTDESK_OBSERVER_FILE=$/m);
+  assert.match(readFileSync(new URL('../.env.example', import.meta.url), 'utf8'), /^CONVERACT_RUSTDESK_OBSERVER_FILE=$/m);
+  assert.match(readFileSync(new URL('../infra/env.example', import.meta.url), 'utf8'), /^CONVERACT_RUSTDESK_OBSERVER_FILE=$/m);
 });

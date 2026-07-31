@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -437,8 +438,8 @@ function admissionTlsOptions(): ComponentNodeAdmissionClientTlsOptions {
 }
 
 function secret(valueName: string, fileName: string): string {
-  const value = process.env[valueName]?.trim();
-  const file = process.env[fileName]?.trim();
+  const value = resolveConveractEnv(process.env, valueName)?.trim();
+  const file = resolveConveractEnv(process.env, fileName)?.trim();
   if (value && file) {
     throw new Error(`${valueName} and ${fileName} are mutually exclusive`);
   }
@@ -457,17 +458,17 @@ function readRequiredFile(name: string): Buffer {
 }
 
 function requiredEnv(name: string): string {
-  const value = process.env[name]?.trim();
+  const value = resolveConveractEnv(process.env, name)?.trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }
 
 function stringEnv(name: string, fallback: string): string {
-  return process.env[name]?.trim() || fallback;
+  return resolveConveractEnv(process.env, name)?.trim() || fallback;
 }
 
 function booleanEnv(name: string, fallback: boolean): boolean {
-  const value = process.env[name]?.trim().toLowerCase();
+  const value = resolveConveractEnv(process.env, name)?.trim().toLowerCase();
   if (!value) return fallback;
   if (value === 'true' || value === '1') return true;
   if (value === 'false' || value === '0') return false;
@@ -480,7 +481,7 @@ function integerEnv(
   minimum: number,
   maximum: number
 ): number {
-  const raw = process.env[name]?.trim();
+  const raw = resolveConveractEnv(process.env, name)?.trim();
   const value = raw ? Number(raw) : fallback;
   if (!Number.isInteger(value) || value < minimum || value > maximum) {
     throw new Error(`${name} is invalid`);

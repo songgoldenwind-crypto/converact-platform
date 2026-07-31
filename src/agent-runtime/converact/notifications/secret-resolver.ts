@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import { NotificationError } from './errors.js';
 import type { NotificationSecretResolver } from './ports.js';
 
@@ -28,7 +29,7 @@ export class EnvNotificationSecretResolver implements NotificationSecretResolver
     if (!name || !this.#allowlist.get(purpose)?.has(name)) {
       throw new NotificationError({ code: 'secret_ref_invalid', status: 422 });
     }
-    const value = this.#env[name];
+    const value = resolveConveractEnv(this.#env, name);
     if (!value) {
       throw new NotificationError({
         code: 'secret_unavailable', retryable: true, status: 503
@@ -44,8 +45,8 @@ export function configuredNotificationSecretResolver(
   return new EnvNotificationSecretResolver({
     env,
     allowlist: {
-      webhook_signing: envNames(env.OPC_IVEKIT_NOTIFICATION_WEBHOOK_SECRET_ENV_NAMES),
-      provider_credential: envNames(env.OPC_IVEKIT_NOTIFICATION_PROVIDER_SECRET_ENV_NAMES)
+      webhook_signing: envNames(resolveFabricEnv(env, 'NOTIFICATION_WEBHOOK_SECRET_ENV_NAMES')),
+      provider_credential: envNames(resolveFabricEnv(env, 'NOTIFICATION_PROVIDER_SECRET_ENV_NAMES'))
     }
   });
 }

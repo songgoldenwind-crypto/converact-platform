@@ -11,21 +11,21 @@ import {
 
 test('scaling finalizer requires explicit database S3 contract and campaign inputs', () => {
   const config = capacityScalingFinalizerConfig({
-    OPC_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
-    OPC_IVEKIT_CAPACITY_SCALING_FINALIZER_ID: 'scaling-finalizer-a',
-    OPC_IVEKIT_CAPACITY_SCALING_CONTRACT_PATH: '/run/capacity/contract.json',
-    OPC_IVEKIT_CAPACITY_SCALING_SUBMISSION_PATH: '/run/capacity/submission.json',
-    OPC_IVEKIT_CAPACITY_SCALING_FINALIZER_LEASE_MS: '15000',
-    OPC_IVEKIT_CAPACITY_SCALING_EVIDENCE_PREFIX: 'capacity/scaling',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET: 'capacity-evidence',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION: 'ap-southeast-1'
+    CONVERACT_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
+    CONVERACT_FABRIC_CAPACITY_SCALING_FINALIZER_ID: 'scaling-finalizer-a',
+    CONVERACT_FABRIC_CAPACITY_SCALING_CONTRACT_PATH: '/run/capacity/contract.json',
+    CONVERACT_FABRIC_CAPACITY_SCALING_SUBMISSION_PATH: '/run/capacity/submission.json',
+    CONVERACT_FABRIC_CAPACITY_SCALING_FINALIZER_LEASE_MS: '15000',
+    CONVERACT_FABRIC_CAPACITY_SCALING_EVIDENCE_PREFIX: 'capacity/scaling',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET: 'capacity-evidence',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION: 'ap-southeast-1'
   });
 
   assert.equal(config.finalizer_id, 'scaling-finalizer-a');
   assert.equal(config.evidence_s3.bucket, 'capacity-evidence');
   assert.throws(
     () => capacityScalingFinalizerConfig({}),
-    /OPC_DATABASE_URL/
+    /CONVERACT_DATABASE_URL/
   );
 });
 

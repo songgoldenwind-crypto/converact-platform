@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from './config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 import { open, readFile, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -156,60 +157,60 @@ export function createPlacementSnapshotProjector(
 export function placementSnapshotProjectorConfig(
   env: NodeJS.ProcessEnv = process.env
 ): PlacementSnapshotProjectorConfig {
-  const profileId = profile(required(env, 'OPC_IVEKIT_PLACEMENT_PROFILE_ID'));
+  const profileId = profile(required(env, 'CONVERACT_FABRIC_PLACEMENT_PROFILE_ID'));
   const signingKeys = signingKeyMap(
-    required(env, 'OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON'),
-    'OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON'
+    required(env, 'CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON'),
+    'CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON'
   );
   const signingKeyId = identifier(
-    required(env, 'OPC_IVEKIT_PLACEMENT_SNAPSHOT_KEY_ID'),
+    required(env, 'CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_KEY_ID'),
     'placement snapshot key ID'
   );
   if (!signingKeys[signingKeyId]) {
-    throw new Error('OPC_IVEKIT_PLACEMENT_SNAPSHOT_KEY_ID is not configured');
+    throw new Error('CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_KEY_ID is not configured');
   }
   return {
     output_file: absolutePath(
-      required(env, 'OPC_IVEKIT_PLACEMENT_SNAPSHOT_FILE')
+      required(env, 'CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE')
     ),
     profile_id: profileId,
     signing_key_id: signingKeyId,
     signing_keys: signingKeys,
     service_token: serviceTokenValue(
-      required(env, 'OPC_IVEKIT_CELL_ADMISSION_TOKEN')
+      required(env, 'CONVERACT_FABRIC_CELL_ADMISSION_TOKEN')
     ),
     interval_ms: envInteger(
-      env.OPC_IVEKIT_PLACEMENT_PROJECTOR_INTERVAL_MS,
+      resolveFabricEnv(env, 'PLACEMENT_PROJECTOR_INTERVAL_MS'),
       2_000,
       250,
       60_000,
-      'OPC_IVEKIT_PLACEMENT_PROJECTOR_INTERVAL_MS'
+      'CONVERACT_FABRIC_PLACEMENT_PROJECTOR_INTERVAL_MS'
     ),
     snapshot_ttl_ms: envInteger(
-      env.OPC_IVEKIT_PLACEMENT_SNAPSHOT_TTL_MS,
+      resolveFabricEnv(env, 'PLACEMENT_SNAPSHOT_TTL_MS'),
       10_000,
       1_000,
       300_000,
-      'OPC_IVEKIT_PLACEMENT_SNAPSHOT_TTL_MS'
+      'CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_TTL_MS'
     ),
     request_timeout_ms: envInteger(
-      env.OPC_IVEKIT_PLACEMENT_PROJECTOR_TIMEOUT_MS,
+      resolveFabricEnv(env, 'PLACEMENT_PROJECTOR_TIMEOUT_MS'),
       2_000,
       100,
       30_000,
-      'OPC_IVEKIT_PLACEMENT_PROJECTOR_TIMEOUT_MS'
+      'CONVERACT_FABRIC_PLACEMENT_PROJECTOR_TIMEOUT_MS'
     ),
     response_max_bytes: envInteger(
-      env.OPC_IVEKIT_PLACEMENT_PROJECTOR_RESPONSE_MAX_BYTES,
+      resolveFabricEnv(env, 'PLACEMENT_PROJECTOR_RESPONSE_MAX_BYTES'),
       1_048_576,
       1_024,
       8 * 1024 * 1024,
-      'OPC_IVEKIT_PLACEMENT_PROJECTOR_RESPONSE_MAX_BYTES'
+      'CONVERACT_FABRIC_PLACEMENT_PROJECTOR_RESPONSE_MAX_BYTES'
     ),
     topology: checkedTopology(
       jsonObject<PlacementTopology>(
-        required(env, 'OPC_IVEKIT_PLACEMENT_TOPOLOGY_JSON'),
-        'OPC_IVEKIT_PLACEMENT_TOPOLOGY_JSON'
+        required(env, 'CONVERACT_FABRIC_PLACEMENT_TOPOLOGY_JSON'),
+        'CONVERACT_FABRIC_PLACEMENT_TOPOLOGY_JSON'
       ),
       profileId
     )
@@ -512,7 +513,7 @@ function object(value: unknown): Record<string, any> {
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = String(env[key] || '').trim();
+  const value = String(resolveConveractEnv(env, key) || '').trim();
   if (!value) throw new Error(`${key} is required`);
   return value;
 }

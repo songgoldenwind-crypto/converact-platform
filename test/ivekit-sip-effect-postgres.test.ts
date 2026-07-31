@@ -32,11 +32,11 @@ import type {
   PreparedProtocolEffectAuthority
 } from '../src/agent-runtime/converact/voice/sip-foundation/types.js';
 
-const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
+const adminUrl = process.env.CONVERACT_FABRIC_STANDALONE_TEST_DATABASE_URL || '';
 const runtimeUrl =
-  process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
+  process.env.CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
 const runtimePassword =
-  process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_PASSWORD || '';
+  process.env.CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_PASSWORD || '';
 const physicalTest = adminUrl && runtimeUrl && runtimePassword ? test : test.skip;
 
 const EXECUTOR_ROLE = 'opc_sip_effect_executor';

@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -59,10 +60,10 @@ const REQUIRED_COVERAGE = [
 const REQUIRED_EVENT_TYPES = REQUIRED_COVERAGE.map(([, eventType]) => eventType);
 
 export function createRustDeskAuditCoverageConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskAuditCoverageConfig {
-  const auditFile = String(env.OPC_RUSTDESK_AUDIT_COVERAGE_FILE || '').trim();
-  const externalId = String(env.OPC_RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID || '').trim();
-  const reportFile = String(env.OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE || '').trim();
-  if (!auditFile) throw new Error('OPC_RUSTDESK_AUDIT_COVERAGE_FILE is required');
+  const auditFile = String(resolveBrandEnv(env, 'RUSTDESK_AUDIT_COVERAGE_FILE') || '').trim();
+  const externalId = String(resolveBrandEnv(env, 'RUSTDESK_AUDIT_COVERAGE_EXTERNAL_ID') || '').trim();
+  const reportFile = String(resolveBrandEnv(env, 'RUSTDESK_AUDIT_COVERAGE_REPORT_FILE') || '').trim();
+  if (!auditFile) throw new Error('CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE is required');
   return {
     auditFile,
     ...(externalId ? { externalId } : {}),

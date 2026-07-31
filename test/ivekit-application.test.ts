@@ -74,9 +74,9 @@ test('iveKit application injects SIP placement into the voice command runtime', 
   const application = startIveKitApplication({
     pg: new MemoryPg(),
     env: {
-      OPC_IVEKIT_VOICE_WORKERS_ENABLED: '1',
-      OPC_IVEKIT_VOICE_ADDRESS_KEY: key,
-      OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY: key
+      CONVERACT_FABRIC_VOICE_WORKERS_ENABLED: '1',
+      CONVERACT_FABRIC_VOICE_ADDRESS_KEY: key,
+      CONVERACT_FABRIC_VOICE_ADDRESS_HMAC_KEY: key
     },
     placement: {
       coordinator: {} as never,
@@ -774,9 +774,9 @@ test('Tinode late mutation correction remains replayable when realtime publicati
 test('default provider event publication persists one durable event', async (t) => {
   const pg = new MemoryPg();
   const env = {
-    OPC_IVEKIT_EVENT_REPLAY_ENABLED: '1',
-    OPC_IVEKIT_EVENT_CURSOR_SECRET: 'provider-event-single-write-secret',
-    OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED: '0'
+    CONVERACT_FABRIC_EVENT_REPLAY_ENABLED: '1',
+    CONVERACT_FABRIC_EVENT_CURSOR_SECRET: 'provider-event-single-write-secret',
+    CONVERACT_FABRIC_EVENT_RETENTION_WORKER_ENABLED: '0'
   };
   const events = new IveKitTenantEventStore(pg, { env });
   const server = createServer();
@@ -831,9 +831,9 @@ test('default provider event publication surfaces durable persistence failures',
   const application = startIveKitApplication({
     pg,
     env: {
-      OPC_IVEKIT_EVENT_REPLAY_ENABLED: '1',
-      OPC_IVEKIT_EVENT_CURSOR_SECRET: 'provider-event-persistence-secret',
-      OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED: '0'
+      CONVERACT_FABRIC_EVENT_REPLAY_ENABLED: '1',
+      CONVERACT_FABRIC_EVENT_CURSOR_SECRET: 'provider-event-persistence-secret',
+      CONVERACT_FABRIC_EVENT_RETENTION_WORKER_ENABLED: '0'
     },
     adapters: {
       startAttachment: (input) => {

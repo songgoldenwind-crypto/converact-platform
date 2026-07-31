@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { createSocket } from 'node:dgram';
 import { connect } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -115,26 +116,26 @@ const allowedScopes = new Set<RemoteConsentScope>([
 ]);
 
 export function createRemoteGatewaySmokeConfigFromEnv(env: NodeJS.ProcessEnv): RemoteGatewaySmokeConfig {
-  const provider = parseProvider(env.OPC_REMOTE_GATEWAY_PROVIDER || '');
+  const provider = parseProvider(resolveBrandEnv(env, 'REMOTE_GATEWAY_PROVIDER') || '');
   const isRustDesk = provider === 'rustdesk';
-  const rustdeskBaseUrl = env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL || '';
-  const remoteGatewayBaseUrl = env.OPC_REMOTE_GATEWAY_BASE_URL || '';
-  const baseUrlSource = isRustDesk && rustdeskBaseUrl ? 'OPC_RUSTDESK_CONTROL_PLANE_BASE_URL' : 'OPC_REMOTE_GATEWAY_BASE_URL';
+  const rustdeskBaseUrl = resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL') || '';
+  const remoteGatewayBaseUrl = resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') || '';
+  const baseUrlSource = isRustDesk && rustdeskBaseUrl ? 'CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL' : 'CONVERACT_REMOTE_GATEWAY_BASE_URL';
   const rawBaseUrl = (isRustDesk ? rustdeskBaseUrl : '') || remoteGatewayBaseUrl || '';
-  const apiToken = (isRustDesk ? env.OPC_RUSTDESK_API_TOKEN : '') || env.OPC_REMOTE_GATEWAY_API_TOKEN || '';
-  const tenantId = env.OPC_REMOTE_GATEWAY_TENANT_ID || env.OPC_RUSTDESK_EDGE_TENANT_ID || env.OPC_TENANT_ID || undefined;
-  const collaborationApiKey = env.OPC_COLLABORATION_API_KEY || env.OPC_API_KEY || undefined;
-  const rustdeskCheckDeviceOnline = envFlag(env.OPC_RUSTDESK_CHECK_DEVICE_ONLINE);
-  const targetId = env.OPC_REMOTE_GATEWAY_TARGET_ID || '';
+  const apiToken = (isRustDesk ? resolveBrandEnv(env, 'RUSTDESK_API_TOKEN') : '') || resolveBrandEnv(env, 'REMOTE_GATEWAY_API_TOKEN') || '';
+  const tenantId = resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') || resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || undefined;
+  const collaborationApiKey = resolveBrandEnv(env, 'COLLABORATION_API_KEY') || resolveBrandEnv(env, 'API_KEY') || undefined;
+  const rustdeskCheckDeviceOnline = envFlag(resolveBrandEnv(env, 'RUSTDESK_CHECK_DEVICE_ONLINE'));
+  const targetId = resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_ID') || '';
 
-  if (!rawBaseUrl) throw new Error(isRustDesk ? 'OPC_RUSTDESK_CONTROL_PLANE_BASE_URL or OPC_REMOTE_GATEWAY_BASE_URL is required' : 'OPC_REMOTE_GATEWAY_BASE_URL is required');
+  if (!rawBaseUrl) throw new Error(isRustDesk ? 'CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL or CONVERACT_REMOTE_GATEWAY_BASE_URL is required' : 'CONVERACT_REMOTE_GATEWAY_BASE_URL is required');
   const baseUrl = normalizeRemoteGatewayBaseUrl(rawBaseUrl, baseUrlSource);
-  if (!apiToken) throw new Error(isRustDesk ? 'OPC_RUSTDESK_API_TOKEN or OPC_REMOTE_GATEWAY_API_TOKEN is required' : 'OPC_REMOTE_GATEWAY_API_TOKEN is required');
-  if (!targetId) throw new Error('OPC_REMOTE_GATEWAY_TARGET_ID is required');
+  if (!apiToken) throw new Error(isRustDesk ? 'CONVERACT_RUSTDESK_API_TOKEN or CONVERACT_REMOTE_GATEWAY_API_TOKEN is required' : 'CONVERACT_REMOTE_GATEWAY_API_TOKEN is required');
+  if (!targetId) throw new Error('CONVERACT_REMOTE_GATEWAY_TARGET_ID is required');
   if (rustdeskCheckDeviceOnline && !tenantId) {
-    throw new Error('OPC_REMOTE_GATEWAY_TENANT_ID, OPC_RUSTDESK_EDGE_TENANT_ID, or OPC_TENANT_ID is required when OPC_RUSTDESK_CHECK_DEVICE_ONLINE=1');
+    throw new Error('CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID is required when CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE=1');
   }
-  if (rustdeskCheckDeviceOnline && !collaborationApiKey) throw new Error('OPC_API_KEY or OPC_COLLABORATION_API_KEY is required when OPC_RUSTDESK_CHECK_DEVICE_ONLINE=1');
+  if (rustdeskCheckDeviceOnline && !collaborationApiKey) throw new Error('CONVERACT_API_KEY or CONVERACT_COLLABORATION_API_KEY is required when CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE=1');
 
   return {
     provider,
@@ -142,34 +143,34 @@ export function createRemoteGatewaySmokeConfigFromEnv(env: NodeJS.ProcessEnv): R
     apiToken,
     tenantId,
     collaborationApiKey,
-    actorIdentity: env.OPC_REMOTE_GATEWAY_ACTOR_IDENTITY || 'agent_remote_gateway_smoke',
+    actorIdentity: resolveBrandEnv(env, 'REMOTE_GATEWAY_ACTOR_IDENTITY') || 'agent_remote_gateway_smoke',
     target: {
-      type: env.OPC_REMOTE_GATEWAY_TARGET_TYPE || (provider === 'guacamole' ? 'connection' : 'device'),
+      type: resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_TYPE') || (provider === 'guacamole' ? 'connection' : 'device'),
       id: targetId,
-      display_name: env.OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME || undefined
+      display_name: resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_DISPLAY_NAME') || undefined
     },
-    permissions: splitScopes(env.OPC_REMOTE_GATEWAY_CONSENT_SCOPES),
-    checkLaunchUrl: envFlag(env.OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL),
-    createPath: env.OPC_REMOTE_GATEWAY_CREATE_PATH || undefined,
-    sessionPath: env.OPC_REMOTE_GATEWAY_SESSION_PATH || undefined,
-    auditPath: env.OPC_REMOTE_GATEWAY_AUDIT_PATH || undefined,
-    rustdeskCheckServerPorts: envFlag(env.OPC_RUSTDESK_CHECK_SERVER_PORTS),
-    rustdeskCheckHost: env.OPC_RUSTDESK_CHECK_HOST || env.OPC_RUSTDESK_ID_SERVER || undefined,
-    rustdeskCheckTcpPorts: splitPorts(env.OPC_RUSTDESK_CHECK_TCP_PORTS, 'TCP'),
-    rustdeskCheckUdpPorts: splitPorts(env.OPC_RUSTDESK_CHECK_UDP_PORTS, 'UDP'),
+    permissions: splitScopes(resolveBrandEnv(env, 'REMOTE_GATEWAY_CONSENT_SCOPES')),
+    checkLaunchUrl: envFlag(resolveBrandEnv(env, 'REMOTE_GATEWAY_CHECK_LAUNCH_URL')),
+    createPath: resolveBrandEnv(env, 'REMOTE_GATEWAY_CREATE_PATH') || undefined,
+    sessionPath: resolveBrandEnv(env, 'REMOTE_GATEWAY_SESSION_PATH') || undefined,
+    auditPath: resolveBrandEnv(env, 'REMOTE_GATEWAY_AUDIT_PATH') || undefined,
+    rustdeskCheckServerPorts: envFlag(resolveBrandEnv(env, 'RUSTDESK_CHECK_SERVER_PORTS')),
+    rustdeskCheckHost: resolveBrandEnv(env, 'RUSTDESK_CHECK_HOST') || resolveBrandEnv(env, 'RUSTDESK_ID_SERVER') || undefined,
+    rustdeskCheckTcpPorts: splitPorts(resolveBrandEnv(env, 'RUSTDESK_CHECK_TCP_PORTS'), 'TCP'),
+    rustdeskCheckUdpPorts: splitPorts(resolveBrandEnv(env, 'RUSTDESK_CHECK_UDP_PORTS'), 'UDP'),
     rustdeskCheckTimeoutMs: parseRustDeskMilliseconds(
-      env.OPC_RUSTDESK_CHECK_TIMEOUT_MS,
-      'OPC_RUSTDESK_CHECK_TIMEOUT_MS',
+      resolveBrandEnv(env, 'RUSTDESK_CHECK_TIMEOUT_MS'),
+      'CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS',
       1500
     ),
-    rustdeskRequireProtocolUrl: envFlag(env.OPC_RUSTDESK_REQUIRE_PROTOCOL_URL),
+    rustdeskRequireProtocolUrl: envFlag(resolveBrandEnv(env, 'RUSTDESK_REQUIRE_PROTOCOL_URL')),
     rustdeskCheckDeviceOnline,
-    rustdeskCheckOperationAudit: env.OPC_RUSTDESK_CHECK_OPERATION_AUDIT === undefined
+    rustdeskCheckOperationAudit: resolveBrandEnv(env, 'RUSTDESK_CHECK_OPERATION_AUDIT') === undefined
       ? true
-      : envFlag(env.OPC_RUSTDESK_CHECK_OPERATION_AUDIT),
+      : envFlag(resolveBrandEnv(env, 'RUSTDESK_CHECK_OPERATION_AUDIT')),
     rustdeskDeviceOnlineTtlMs: parseRustDeskMilliseconds(
-      env.OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS,
-      'OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS',
+      resolveBrandEnv(env, 'RUSTDESK_DEVICE_ONLINE_TTL_MS'),
+      'CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS',
       300_000
     )
   };
@@ -704,7 +705,7 @@ async function checkRustDeskRegisteredDevice(
 ): Promise<NonNullable<RemoteGatewaySmokeResult['rustdeskRegisteredDevice']>> {
   const tenantId = String(config.tenantId || '').trim();
   if (!tenantId) {
-    throw new Error('OPC_REMOTE_GATEWAY_TENANT_ID, OPC_RUSTDESK_EDGE_TENANT_ID, or OPC_TENANT_ID is required when OPC_RUSTDESK_CHECK_DEVICE_ONLINE=1');
+    throw new Error('CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID is required when CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE=1');
   }
   if (config.target.type !== 'device') throw new Error('RustDesk registered device smoke requires target type device');
   const url = `${config.baseUrl.replace(/\/+$/, '')}/api/collaboration/rustdesk/devices/${encodeURIComponent(config.target.id)}`;
@@ -827,7 +828,7 @@ async function checkRustDeskRuntimePorts(
   steps: RemoteGatewaySmokeStep[]
 ): Promise<NonNullable<RemoteGatewaySmokeResult['rustdeskRuntimePorts']>> {
   const host = normalizeHost(config.rustdeskCheckHost || clientConfig?.idServer || '');
-  if (!host) throw new Error('OPC_RUSTDESK_CHECK_HOST or OPC_RUSTDESK_ID_SERVER is required for RustDesk port checks');
+  if (!host) throw new Error('CONVERACT_RUSTDESK_CHECK_HOST or CONVERACT_RUSTDESK_ID_SERVER is required for RustDesk port checks');
   const ports = config.rustdeskCheckTcpPorts?.length
     ? config.rustdeskCheckTcpPorts
     : [21115, 21116, 21117, 21118, 21119];
@@ -1094,7 +1095,7 @@ function parseProvider(value: string): RemoteGatewayProvider {
   const normalized = value.trim().toLowerCase();
   if (!normalized) return 'rustdesk';
   if (normalized === 'meshcentral' || normalized === 'guacamole' || normalized === 'rustdesk') return normalized;
-  throw new Error('OPC_REMOTE_GATEWAY_PROVIDER must be meshcentral, guacamole, or rustdesk');
+  throw new Error('CONVERACT_REMOTE_GATEWAY_PROVIDER must be meshcentral, guacamole, or rustdesk');
 }
 
 function splitScopes(raw: string | undefined): RemoteConsentScope[] {
@@ -1118,7 +1119,7 @@ function splitPorts(raw: string | undefined, protocol: 'TCP' | 'UDP'): number[] 
       const trimmed = port.trim();
       const value = Number(trimmed);
       if (!Number.isInteger(value) || value <= 0 || value >= 65536) {
-        throw new Error(`OPC_RUSTDESK_CHECK_${protocol}_PORTS contains invalid ${protocol} port: ${trimmed}`);
+        throw new Error(`CONVERACT_RUSTDESK_CHECK_${protocol}_PORTS contains invalid ${protocol} port: ${trimmed}`);
       }
       return value;
     });

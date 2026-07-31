@@ -63,13 +63,13 @@ let db: ReturnType<typeof createDatabase>;
 let server: ReturnType<typeof createServer>;
 
 before(async () => {
-  process.env.OPC_USE_MEMORY_PG = '1';
-  process.env.OPC_USE_MEMORY_REDIS = '1';
-  process.env.OPC_JWT_SECRET = 'test-jwt-secret-e2e';
-  process.env.OPC_COMPLIANCE_NOW = '2026-06-21T10:00:00Z';
-  process.env.OPC_AUTH_DISABLED = '0';
-  process.env.OPC_DISABLE_DIALER = '1';
-  delete process.env.OPC_AUTH_ISSUER;
+  process.env.CONVERACT_USE_MEMORY_PG = '1';
+  process.env.CONVERACT_USE_MEMORY_REDIS = '1';
+  process.env.CONVERACT_JWT_SECRET = 'test-jwt-secret-e2e';
+  process.env.CONVERACT_COMPLIANCE_NOW = '2026-06-21T10:00:00Z';
+  process.env.CONVERACT_AUTH_DISABLED = '0';
+  process.env.CONVERACT_DISABLE_DIALER = '1';
+  delete process.env.CONVERACT_AUTH_ISSUER;
 
   resetPostgresForTests(null);
   resetRedisPubSubForTests(null);

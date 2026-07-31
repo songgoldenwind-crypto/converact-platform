@@ -23,9 +23,9 @@ Run from the repository root against the local call-center Compose project:
 export LIVEKIT_URL=ws://127.0.0.1:7880
 export LIVEKIT_API_KEY="$LOCAL_LIVEKIT_API_KEY"
 export LIVEKIT_API_SECRET="$LOCAL_LIVEKIT_API_SECRET"
-export OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT=ivekit-storage-drill
-export OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILE=docker-compose.callcenter.yml
-export OPC_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE=/secure/evidence/storage-isolation.json
+export CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT=ivekit-storage-drill
+export CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILE=docker-compose.callcenter.yml
+export CONVERACT_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE=/secure/evidence/storage-isolation.json
 npm run livekit:storage-isolation-acceptance
 ```
 
@@ -38,10 +38,10 @@ relative to the current directory, and the JSON array preserves base/overlay ord
 export LIVEKIT_URL=ws://127.0.0.1:7880
 export LIVEKIT_API_KEY="$LOCAL_LIVEKIT_API_KEY"
 export LIVEKIT_API_SECRET="$LOCAL_LIVEKIT_API_SECRET"
-export OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT=ivekit-storage-drill
-export OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES='["../../deploy/livekit/docker-compose.yml","../../deploy/livekit/docker-compose.storage.yml"]'
-export OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE=../../deploy/livekit/.env
-export OPC_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE=/secure/evidence/storage-isolation.json
+export CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT=ivekit-storage-drill
+export CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES='["../../deploy/livekit/docker-compose.yml","../../deploy/livekit/docker-compose.storage.yml"]'
+export CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE=../../deploy/livekit/.env
+export CONVERACT_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE=/secure/evidence/storage-isolation.json
 npm run accept
 ```
 

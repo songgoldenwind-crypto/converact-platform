@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { WebSocket } from 'ws';
 
 import { tinodeServerApiKey } from './tinode-env.js';
@@ -86,7 +87,7 @@ export function configuredTinodeInboundSource(
     basic_user: value(env.TINODE_BASIC_USER),
     basic_password: value(env.TINODE_BASIC_PASSWORD),
     timeout_ms: optionalInteger(env.TINODE_REQUEST_TIMEOUT_MS),
-    settle_ms: optionalInteger(env.OPC_TINODE_INBOUND_SETTLE_MS)
+    settle_ms: optionalInteger(resolveBrandEnv(env, 'TINODE_INBOUND_SETTLE_MS'))
   });
 }
 

@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import type { OutboundTaskRow } from './outbound-task-store.js';
 
 /** hangup_cause → wait ms before re-pick; null = never retry */
@@ -32,7 +33,7 @@ export function isTaskReadyForRetry(task: OutboundTaskRow, now = Date.now()): bo
 }
 
 export function isInDialingWindow(_tenantId: string, now = new Date()): boolean {
-  if (process.env.OPC_DIALER_IGNORE_WINDOW === '1') return true;
+  if (resolveBrandEnv(process.env, 'DIALER_IGNORE_WINDOW') === '1') return true;
   const jstHour = (now.getUTCHours() + 9) % 24;
   return jstHour >= 9 && jstHour < 18;
 }

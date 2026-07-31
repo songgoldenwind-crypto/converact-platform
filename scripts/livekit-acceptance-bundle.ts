@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,11 +36,11 @@ export interface LiveKitAcceptanceBundleWriteResult {
 export function createLiveKitAcceptanceBundleConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): LiveKitAcceptanceBundleConfig {
-  const outputDir = String(env.OPC_LIVEKIT_ACCEPTANCE_BUNDLE_DIR || '').trim();
-  if (!outputDir) throw new Error('OPC_LIVEKIT_ACCEPTANCE_BUNDLE_DIR is required');
+  const outputDir = String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_BUNDLE_DIR') || '').trim();
+  if (!outputDir) throw new Error('CONVERACT_LIVEKIT_ACCEPTANCE_BUNDLE_DIR is required');
   return {
     outputDir,
-    title: String(env.OPC_LIVEKIT_ACCEPTANCE_BUNDLE_TITLE || 'LiveKit Acceptance Bundle').trim(),
+    title: String(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_BUNDLE_TITLE') || 'LiveKit Acceptance Bundle').trim(),
     env
   };
 }
@@ -50,16 +51,16 @@ export function writeLiveKitAcceptanceBundle(
   mkdirSync(config.outputDir, { recursive: true });
   const paths = bundlePaths(config.outputDir);
   refuseExistingRealEvidence(paths);
-  const coreMode = optional(config.env.OPC_LIVEKIT_DEPLOYMENT_MODE);
-  const acceptanceModeValue = optional(config.env.OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE);
+  const coreMode = optional(resolveBrandEnv(config.env, 'LIVEKIT_DEPLOYMENT_MODE'));
+  const acceptanceModeValue = optional(resolveBrandEnv(config.env, 'LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE'));
   if (coreMode && acceptanceModeValue && coreMode !== acceptanceModeValue) {
-    throw new Error('OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE must match OPC_LIVEKIT_DEPLOYMENT_MODE');
+    throw new Error('CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE must match CONVERACT_LIVEKIT_DEPLOYMENT_MODE');
   }
   const mode = acceptanceMode(coreMode);
   const canonicalEnv: NodeJS.ProcessEnv = {
     ...config.env,
-    OPC_LIVEKIT_DEPLOYMENT_MODE: mode,
-    OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE: mode
+    CONVERACT_LIVEKIT_DEPLOYMENT_MODE: mode,
+    CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE: mode
   };
   const metadata = createLiveKitAcceptanceMetadata(canonicalEnv, { generateRunId: true });
   const env: NodeJS.ProcessEnv = { ...canonicalEnv, ...liveKitAcceptanceMetadataEnv(metadata) };
@@ -74,8 +75,8 @@ export function writeLiveKitAcceptanceBundle(
     environmentId: metadata.environment_id,
     deploymentMode: mode,
     deployedCommit: metadata.deployed_commit,
-    operator: optional(config.env.OPC_LIVEKIT_ACCEPTANCE_OPERATOR) || 'replace-with-operator',
-    checkedAt: optional(config.env.OPC_LIVEKIT_ACCEPTANCE_CHECKED_AT),
+    operator: optional(resolveBrandEnv(config.env, 'LIVEKIT_ACCEPTANCE_OPERATOR')) || 'replace-with-operator',
+    checkedAt: optional(resolveBrandEnv(config.env, 'LIVEKIT_ACCEPTANCE_CHECKED_AT')),
     runId: metadata.run_id,
     deploymentFingerprint: metadata.deployment_fingerprint,
     runStartedAt: metadata.started_at
@@ -86,8 +87,8 @@ export function writeLiveKitAcceptanceBundle(
     title: config.title,
     expectedAcceptance: metadata,
     expectedDeploymentMode: mode,
-    qaPublicKeyFile: optional(env.OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE),
-    qaPublicKeyFingerprint: optional(env.OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT),
+    qaPublicKeyFile: optional(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE')),
+    qaPublicKeyFingerprint: optional(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT')),
     artifacts: {
       envChecklistFile: paths.envChecklist,
       preflightReportFile: paths.preflight,
@@ -101,10 +102,10 @@ export function writeLiveKitAcceptanceBundle(
   });
 
   const commands = {
-    deployment_preflight: `${metadataCommand(metadata)} ${assignment('OPC_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE', paths.envChecklist)} ${assignment('OPC_LIVEKIT_PREFLIGHT_REPORT_FILE', paths.preflight)} npm run livekit:deployment-preflight`,
-    server_evidence: `${metadataCommand(metadata)} ${assignment('OPC_LIVEKIT_SERVER_EVIDENCE_FILE', paths.serverEvidence)} npm run livekit:server-evidence`,
-    readiness: `${metadataCommand(metadata)} ${assignment('OPC_VIDEO_READINESS_REPORT_FILE', paths.readiness)} npm run smoke:media:readiness`,
-    client_acceptance: `${metadataCommand(metadata)} ${qaKeyCommand(env)} ${clientInputAssignments(paths)} ${assignment('OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE', paths.clientTemplate)} ${assignment('OPC_LIVEKIT_ACCEPTANCE_OUTPUT_FILE', paths.clientResult)} npm run livekit:client-acceptance`,
+    deployment_preflight: `${metadataCommand(metadata)} ${assignment('CONVERACT_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE', paths.envChecklist)} ${assignment('CONVERACT_LIVEKIT_PREFLIGHT_REPORT_FILE', paths.preflight)} npm run livekit:deployment-preflight`,
+    server_evidence: `${metadataCommand(metadata)} ${assignment('CONVERACT_LIVEKIT_SERVER_EVIDENCE_FILE', paths.serverEvidence)} npm run livekit:server-evidence`,
+    readiness: `${metadataCommand(metadata)} ${assignment('CONVERACT_VIDEO_READINESS_REPORT_FILE', paths.readiness)} npm run smoke:media:readiness`,
+    client_acceptance: `${metadataCommand(metadata)} ${qaKeyCommand(env)} ${clientInputAssignments(paths)} ${assignment('CONVERACT_LIVEKIT_ACCEPTANCE_REPORT_FILE', paths.clientTemplate)} ${assignment('CONVERACT_LIVEKIT_ACCEPTANCE_OUTPUT_FILE', paths.clientResult)} npm run livekit:client-acceptance`,
     evidence_pack: evidencePackCommand(paths, metadata, env)
   };
   writeFileSync(paths.manifest, `${JSON.stringify({
@@ -178,7 +179,7 @@ function bundlePaths(outputDir: string): BundlePaths {
 function acceptanceMode(value: string | undefined): LiveKitAcceptanceDeploymentMode {
   const normalized = String(value || '').trim();
   if (normalized !== 'standalone-vm' && normalized !== 'external') {
-    throw new Error('OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE must be standalone-vm or external');
+    throw new Error('CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYMENT_MODE must be standalone-vm or external');
   }
   return normalized;
 }
@@ -199,19 +200,19 @@ function renderServerRunbook(
     '## 1. Deployment Preflight',
     '',
     '```bash',
-    `${metadataCommand(metadata)} ${assignment('OPC_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE', paths.envChecklist)} ${assignment('OPC_LIVEKIT_PREFLIGHT_REPORT_FILE', paths.preflight)} npm run livekit:deployment-preflight`,
+    `${metadataCommand(metadata)} ${assignment('CONVERACT_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE', paths.envChecklist)} ${assignment('CONVERACT_LIVEKIT_PREFLIGHT_REPORT_FILE', paths.preflight)} npm run livekit:deployment-preflight`,
     '```',
     '',
     '## 2. Server Runtime Evidence',
     '',
     '```bash',
-    `${metadataCommand(metadata)} ${assignment('OPC_LIVEKIT_SERVER_EVIDENCE_FILE', paths.serverEvidence)} npm run livekit:server-evidence`,
+    `${metadataCommand(metadata)} ${assignment('CONVERACT_LIVEKIT_SERVER_EVIDENCE_FILE', paths.serverEvidence)} npm run livekit:server-evidence`,
     '```',
     '',
     '## 3. Full Media Readiness',
     '',
     '```bash',
-    `${metadataCommand(metadata)} ${assignment('OPC_VIDEO_READINESS_REPORT_FILE', paths.readiness)} npm run smoke:media:readiness`,
+    `${metadataCommand(metadata)} ${assignment('CONVERACT_VIDEO_READINESS_REPORT_FILE', paths.readiness)} npm run smoke:media:readiness`,
     '```',
     '',
     '## 4. Real Client Acceptance',
@@ -219,7 +220,7 @@ function renderServerRunbook(
     `Follow \`${paths.clientRunbook}\`, replace every template description with concrete real-environment evidence, then run:`,
     '',
     '```bash',
-    `${metadataCommand(metadata)} ${qaKeyCommand(config.env)} ${clientInputAssignments(paths)} ${assignment('OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE', paths.clientTemplate)} ${assignment('OPC_LIVEKIT_ACCEPTANCE_OUTPUT_FILE', paths.clientResult)} npm run livekit:client-acceptance`,
+    `${metadataCommand(metadata)} ${qaKeyCommand(config.env)} ${clientInputAssignments(paths)} ${assignment('CONVERACT_LIVEKIT_ACCEPTANCE_REPORT_FILE', paths.clientTemplate)} ${assignment('CONVERACT_LIVEKIT_ACCEPTANCE_OUTPUT_FILE', paths.clientResult)} npm run livekit:client-acceptance`,
     '```',
     '',
     '## 5. Final Evidence Pack',
@@ -241,15 +242,15 @@ function evidencePackCommand(
   return [
     metadataCommand(metadata),
     qaKeyCommand(env),
-    assignment('OPC_LIVEKIT_EVIDENCE_PACK_FILE', paths.evidencePack),
-    assignment('OPC_LIVEKIT_EVIDENCE_ENV_CHECKLIST_FILE', paths.envChecklist),
-    assignment('OPC_LIVEKIT_EVIDENCE_PREFLIGHT_REPORT_FILE', paths.preflight),
-    assignment('OPC_LIVEKIT_EVIDENCE_SERVER_EVIDENCE_FILE', paths.serverEvidence),
-    assignment('OPC_LIVEKIT_EVIDENCE_READINESS_REPORT_FILE', paths.readiness),
-    assignment('OPC_LIVEKIT_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE', paths.clientTemplate),
-    assignment('OPC_LIVEKIT_EVIDENCE_CLIENT_ACCEPTANCE_RESULT_FILE', paths.clientResult),
-    assignment('OPC_LIVEKIT_EVIDENCE_SERVER_RUNBOOK_FILE', paths.serverRunbook),
-    assignment('OPC_LIVEKIT_EVIDENCE_CLIENT_RUNBOOK_FILE', paths.clientRunbook),
+    assignment('CONVERACT_LIVEKIT_EVIDENCE_PACK_FILE', paths.evidencePack),
+    assignment('CONVERACT_LIVEKIT_EVIDENCE_ENV_CHECKLIST_FILE', paths.envChecklist),
+    assignment('CONVERACT_LIVEKIT_EVIDENCE_PREFLIGHT_REPORT_FILE', paths.preflight),
+    assignment('CONVERACT_LIVEKIT_EVIDENCE_SERVER_EVIDENCE_FILE', paths.serverEvidence),
+    assignment('CONVERACT_LIVEKIT_EVIDENCE_READINESS_REPORT_FILE', paths.readiness),
+    assignment('CONVERACT_LIVEKIT_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE', paths.clientTemplate),
+    assignment('CONVERACT_LIVEKIT_EVIDENCE_CLIENT_ACCEPTANCE_RESULT_FILE', paths.clientResult),
+    assignment('CONVERACT_LIVEKIT_EVIDENCE_SERVER_RUNBOOK_FILE', paths.serverRunbook),
+    assignment('CONVERACT_LIVEKIT_EVIDENCE_CLIENT_RUNBOOK_FILE', paths.clientRunbook),
     'npm run livekit:evidence-pack'
   ].join(' ');
 }
@@ -257,21 +258,21 @@ function evidencePackCommand(
 function qaKeyCommand(env: NodeJS.ProcessEnv): string {
   return [
     assignment(
-      'OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE',
-      optional(env.OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE) || '<replace-with-trusted-qa-public-key.pem>'
+      'CONVERACT_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE',
+      optional(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE')) || '<replace-with-trusted-qa-public-key.pem>'
     ),
     assignment(
-      'OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT',
-      optional(env.OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT) || '<replace-with-trusted-qa-public-key-sha256>'
+      'CONVERACT_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT',
+      optional(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT')) || '<replace-with-trusted-qa-public-key-sha256>'
     )
   ].join(' ');
 }
 
 function clientInputAssignments(paths: BundlePaths): string {
   return [
-    assignment('OPC_LIVEKIT_ACCEPTANCE_PREFLIGHT_REPORT_FILE', paths.preflight),
-    assignment('OPC_LIVEKIT_ACCEPTANCE_SERVER_EVIDENCE_FILE', paths.serverEvidence),
-    assignment('OPC_LIVEKIT_ACCEPTANCE_READINESS_REPORT_FILE', paths.readiness)
+    assignment('CONVERACT_LIVEKIT_ACCEPTANCE_PREFLIGHT_REPORT_FILE', paths.preflight),
+    assignment('CONVERACT_LIVEKIT_ACCEPTANCE_SERVER_EVIDENCE_FILE', paths.serverEvidence),
+    assignment('CONVERACT_LIVEKIT_ACCEPTANCE_READINESS_REPORT_FILE', paths.readiness)
   ].join(' ');
 }
 

@@ -104,15 +104,15 @@ test('health batch uses leases, records every outcome and counts fencing losses'
 test('health worker configuration is explicit and bounded', () => {
   assert.equal(notificationHealthWorkerConfig({}).enabled, false);
   const config = notificationHealthWorkerConfig({
-    OPC_IVEKIT_NOTIFICATION_HEALTH_WORKER_ENABLED: '1',
-    OPC_IVEKIT_NOTIFICATION_HEALTH_BATCH_SIZE: '17',
-    OPC_IVEKIT_NOTIFICATION_HEALTH_CONCURRENCY: '3'
+    CONVERACT_FABRIC_NOTIFICATION_HEALTH_WORKER_ENABLED: '1',
+    CONVERACT_FABRIC_NOTIFICATION_HEALTH_BATCH_SIZE: '17',
+    CONVERACT_FABRIC_NOTIFICATION_HEALTH_CONCURRENCY: '3'
   });
   assert.equal(config.enabled, true);
   assert.equal(config.batch_size, 17);
   assert.equal(config.concurrency, 3);
   assert.throws(() => notificationHealthWorkerConfig({
-    OPC_IVEKIT_NOTIFICATION_HEALTH_CONCURRENCY: '100'
+    CONVERACT_FABRIC_NOTIFICATION_HEALTH_CONCURRENCY: '100'
   }));
 });
 

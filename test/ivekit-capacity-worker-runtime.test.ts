@@ -169,7 +169,7 @@ test('external worker driver binds immutable binary identity and the fenced comm
 
 test('capacity worker config is explicit, bounded and restart-stable', () => {
   const config = capacityWorkerConfig({
-    OPC_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
+    CONVERACT_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
     NATS_URL: 'tls://nats-a:4222,tls://nats-b:4222',
     NATS_USER: 'capacity-worker',
     NATS_PASSWORD: 'test-secret',
@@ -177,22 +177,22 @@ test('capacity worker config is explicit, bounded and restart-stable', () => {
     NATS_TLS_CA_FILE: '/etc/nats/tls/ca.crt',
     NATS_TLS_CERT_FILE: '/etc/nats/tls/tls.crt',
     NATS_TLS_KEY_FILE: '/etc/nats/tls/tls.key',
-    OPC_IVEKIT_CAPACITY_RUN_ID: 'run-capacity-001',
-    OPC_IVEKIT_CAPACITY_PHASE_ID: 'steady',
-    OPC_IVEKIT_CAPACITY_FLEET_ID: 'tinode',
-    OPC_IVEKIT_CAPACITY_WORKER_ID: 'tinode-worker-a',
-    OPC_IVEKIT_CAPACITY_RELEASE_ID: 'loadgen@abc123',
-    OPC_IVEKIT_CAPACITY_SAFE_CAPACITY: '2000',
-    OPC_IVEKIT_CAPACITY_HEARTBEAT_INTERVAL_MS: '5000',
-    OPC_IVEKIT_CAPACITY_ASSIGNMENT_INTERVAL_MS: '250',
-    OPC_IVEKIT_CAPACITY_SHARD_LEASE_MS: '30000',
-    OPC_IVEKIT_CAPACITY_ACK_WAIT_MS: '60000',
-    OPC_IVEKIT_CAPACITY_RETRY_DELAY_MS: '1000',
-    OPC_IVEKIT_CAPACITY_DRIVER_SPEC_PATH: '/run/ivekit-capacity/driver-spec.json',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_PREFIX: 'capacity/cell-10k',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET: 'ivekit-capacity-evidence',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION: 'ap-southeast-1',
-    OPC_IVEKIT_CAPACITY_WORKER_METADATA_JSON: '{"zone":"zone-a"}'
+    CONVERACT_FABRIC_CAPACITY_RUN_ID: 'run-capacity-001',
+    CONVERACT_FABRIC_CAPACITY_PHASE_ID: 'steady',
+    CONVERACT_FABRIC_CAPACITY_FLEET_ID: 'tinode',
+    CONVERACT_FABRIC_CAPACITY_WORKER_ID: 'tinode-worker-a',
+    CONVERACT_FABRIC_CAPACITY_RELEASE_ID: 'loadgen@abc123',
+    CONVERACT_FABRIC_CAPACITY_SAFE_CAPACITY: '2000',
+    CONVERACT_FABRIC_CAPACITY_HEARTBEAT_INTERVAL_MS: '5000',
+    CONVERACT_FABRIC_CAPACITY_ASSIGNMENT_INTERVAL_MS: '250',
+    CONVERACT_FABRIC_CAPACITY_SHARD_LEASE_MS: '30000',
+    CONVERACT_FABRIC_CAPACITY_ACK_WAIT_MS: '60000',
+    CONVERACT_FABRIC_CAPACITY_RETRY_DELAY_MS: '1000',
+    CONVERACT_FABRIC_CAPACITY_DRIVER_SPEC_PATH: '/run/ivekit-capacity/driver-spec.json',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX: 'capacity/cell-10k',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET: 'ivekit-capacity-evidence',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION: 'ap-southeast-1',
+    CONVERACT_FABRIC_CAPACITY_WORKER_METADATA_JSON: '{"zone":"zone-a"}'
   });
 
   assert.equal(config.fleet_id, 'tinode');
@@ -207,33 +207,33 @@ test('capacity worker config is explicit, bounded and restart-stable', () => {
   assert.equal(config.nats.tls && config.nats.tls.rejectUnauthorized, true);
   assert.deepEqual(config.metadata, { zone: 'zone-a' });
   assert.equal(capacityWorkerConfig({
-    OPC_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
+    CONVERACT_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
     NATS_URL: 'nats://nats-a:4222',
-    OPC_IVEKIT_CAPACITY_RUN_ID: 'run-capacity-001',
-    OPC_IVEKIT_CAPACITY_FLEET_ID: 'tinode',
-    OPC_IVEKIT_CAPACITY_WORKER_ID: 'tinode-worker-a',
-    OPC_IVEKIT_CAPACITY_RELEASE_ID: 'loadgen@abc123',
-    OPC_IVEKIT_CAPACITY_SAFE_CAPACITY: '2000',
-    OPC_IVEKIT_CAPACITY_DRIVER_SPEC_PATH: '/run/ivekit-capacity/driver-spec.json',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_PREFIX: 'capacity/cell-10k',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET: 'ivekit-capacity-evidence',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION: 'ap-southeast-1'
+    CONVERACT_FABRIC_CAPACITY_RUN_ID: 'run-capacity-001',
+    CONVERACT_FABRIC_CAPACITY_FLEET_ID: 'tinode',
+    CONVERACT_FABRIC_CAPACITY_WORKER_ID: 'tinode-worker-a',
+    CONVERACT_FABRIC_CAPACITY_RELEASE_ID: 'loadgen@abc123',
+    CONVERACT_FABRIC_CAPACITY_SAFE_CAPACITY: '2000',
+    CONVERACT_FABRIC_CAPACITY_DRIVER_SPEC_PATH: '/run/ivekit-capacity/driver-spec.json',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX: 'capacity/cell-10k',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET: 'ivekit-capacity-evidence',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION: 'ap-southeast-1'
   }).phase_id, '');
   assert.throws(
     () => capacityWorkerConfig({
       ...process.env,
-      OPC_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
+      CONVERACT_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
       NATS_URL: 'nats://nats:4222',
-      OPC_IVEKIT_CAPACITY_RUN_ID: 'run-capacity-001',
-      OPC_IVEKIT_CAPACITY_PHASE_ID: 'steady',
-      OPC_IVEKIT_CAPACITY_FLEET_ID: 'unknown',
-      OPC_IVEKIT_CAPACITY_WORKER_ID: 'worker-a',
-      OPC_IVEKIT_CAPACITY_RELEASE_ID: 'loadgen@abc123',
-      OPC_IVEKIT_CAPACITY_SAFE_CAPACITY: '1',
-      OPC_IVEKIT_CAPACITY_DRIVER_SPEC_PATH: '/run/driver.json',
-      OPC_IVEKIT_CAPACITY_EVIDENCE_PREFIX: 'capacity/test',
-      OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET: 'capacity-evidence',
-      OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION: 'us-east-1'
+      CONVERACT_FABRIC_CAPACITY_RUN_ID: 'run-capacity-001',
+      CONVERACT_FABRIC_CAPACITY_PHASE_ID: 'steady',
+      CONVERACT_FABRIC_CAPACITY_FLEET_ID: 'unknown',
+      CONVERACT_FABRIC_CAPACITY_WORKER_ID: 'worker-a',
+      CONVERACT_FABRIC_CAPACITY_RELEASE_ID: 'loadgen@abc123',
+      CONVERACT_FABRIC_CAPACITY_SAFE_CAPACITY: '1',
+      CONVERACT_FABRIC_CAPACITY_DRIVER_SPEC_PATH: '/run/driver.json',
+      CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX: 'capacity/test',
+      CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET: 'capacity-evidence',
+      CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION: 'us-east-1'
     }),
     /fleet/i
   );

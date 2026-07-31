@@ -68,81 +68,81 @@ spec:
                 secretKeyRef:
                   name: {{ include "ivekit.secretName" . }}
                   key: {{ .Values.secrets.runtimeDatabaseUrlKey }}
-            - name: OPC_SCHEMA_MANAGED_BY_MIGRATIONS
+            - name: CONVERACT_SCHEMA_MANAGED_BY_MIGRATIONS
               value: "1"
-            - name: OPC_OTEL_ENABLED
+            - name: CONVERACT_OTEL_ENABLED
               value: {{ ternary "1" "0" .Values.telemetry.enabled | quote }}
-            - name: OPC_OTEL_SERVICE_NAME
+            - name: CONVERACT_OTEL_SERVICE_NAME
               value: ivekit-notification-worker
-            - name: OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+            - name: CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.telemetry.collectorEndpoint | quote }}
-            - name: OPC_OTEL_TRACE_SAMPLE_RATIO
+            - name: CONVERACT_OTEL_TRACE_SAMPLE_RATIO
               value: {{ .Values.telemetry.sampleRatio | quote }}
-            - name: OPC_OTEL_MAX_QUEUE_SIZE
+            - name: CONVERACT_OTEL_MAX_QUEUE_SIZE
               value: {{ .Values.telemetry.maxQueueSize | quote }}
-            - name: OPC_OTEL_MAX_EXPORT_BATCH_SIZE
+            - name: CONVERACT_OTEL_MAX_EXPORT_BATCH_SIZE
               value: {{ .Values.telemetry.maxExportBatchSize | quote }}
-            - name: OPC_OTEL_SCHEDULED_DELAY_MS
+            - name: CONVERACT_OTEL_SCHEDULED_DELAY_MS
               value: {{ .Values.telemetry.scheduledDelayMs | quote }}
-            - name: OPC_OTEL_EXPORT_TIMEOUT_MS
+            - name: CONVERACT_OTEL_EXPORT_TIMEOUT_MS
               value: {{ .Values.telemetry.exportTimeoutMs | quote }}
-            - name: OPC_IVEKIT_INSTANCE_ID
+            - name: CONVERACT_FABRIC_INSTANCE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_NOTIFICATION_WORKER_ENABLED
               value: "1"
             # All replicas compete over all logical shards. PostgreSQL leases,
             # SKIP LOCKED and completion fencing are the ownership boundary.
-            - name: OPC_IVEKIT_NOTIFICATION_PARTITION_COUNT
+            - name: CONVERACT_FABRIC_NOTIFICATION_PARTITION_COUNT
               value: "1"
-            - name: OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX
+            - name: CONVERACT_FABRIC_NOTIFICATION_PARTITION_INDEX
               value: "0"
-            - name: OPC_IVEKIT_NOTIFICATION_INTERVAL_MS
+            - name: CONVERACT_FABRIC_NOTIFICATION_INTERVAL_MS
               value: {{ .Values.notificationWorker.intervalMs | quote }}
-            - name: OPC_IVEKIT_NOTIFICATION_BATCH_SIZE
+            - name: CONVERACT_FABRIC_NOTIFICATION_BATCH_SIZE
               value: {{ .Values.notificationWorker.batchSize | quote }}
-            - name: OPC_IVEKIT_NOTIFICATION_TENANT_LIMIT
+            - name: CONVERACT_FABRIC_NOTIFICATION_TENANT_LIMIT
               value: {{ .Values.notificationWorker.tenantLimit | quote }}
-            - name: OPC_IVEKIT_NOTIFICATION_LEASE_MS
+            - name: CONVERACT_FABRIC_NOTIFICATION_LEASE_MS
               value: {{ .Values.notificationWorker.leaseMs | quote }}
-            - name: OPC_IVEKIT_NOTIFICATION_RETRY_DELAYS_MS
+            - name: CONVERACT_FABRIC_NOTIFICATION_RETRY_DELAYS_MS
               value: {{ .Values.notificationWorker.retryDelaysMs | quote }}
-            - name: OPC_IVEKIT_RUNTIME_HEARTBEAT_ENABLED
+            - name: CONVERACT_FABRIC_RUNTIME_HEARTBEAT_ENABLED
               value: "1"
-            - name: OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED
+            - name: CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_ENABLED
               value: "0"
-            - name: OPC_TINODE_DELIVERY_WORKER_ENABLED
+            - name: CONVERACT_TINODE_DELIVERY_WORKER_ENABLED
               value: "0"
-            - name: OPC_TINODE_INBOUND_WORKER_ENABLED
+            - name: CONVERACT_TINODE_INBOUND_WORKER_ENABLED
               value: "0"
-            - name: OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED
+            - name: CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED
               value: "0"
-            - name: OPC_QUALITY_REVIEW_WORKER_ENABLED
+            - name: CONVERACT_QUALITY_REVIEW_WORKER_ENABLED
               value: "0"
-            - name: OPC_TRANSLATION_WORKER_ENABLED
+            - name: CONVERACT_TRANSLATION_WORKER_ENABLED
               value: "0"
-            - name: OPC_FILE_SECURITY_SCAN_WORKER_ENABLED
+            - name: CONVERACT_FILE_SECURITY_SCAN_WORKER_ENABLED
               value: "0"
-            - name: OPC_FILE_DERIVATIVE_WORKER_ENABLED
+            - name: CONVERACT_FILE_DERIVATIVE_WORKER_ENABLED
               value: "0"
-            - name: OPC_FILE_CLEANUP_WORKER_ENABLED
+            - name: CONVERACT_FILE_CLEANUP_WORKER_ENABLED
               value: "0"
-            - name: OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED
+            - name: CONVERACT_MEDIA_CALL_TIMEOUT_WORKER_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_EVENT_RETENTION_WORKER_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_EVENT_WEBHOOK_WORKER_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_NOTIFICATION_HEALTH_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_NOTIFICATION_HEALTH_WORKER_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_RETENTION_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_RETENTION_WORKER_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_IVR_WORKERS_ENABLED
+            - name: CONVERACT_FABRIC_IVR_WORKERS_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_VOICE_WORKERS_ENABLED
+            - name: CONVERACT_FABRIC_VOICE_WORKERS_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_CONTACT_CENTER_WORKER_ENABLED
               value: "0"
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}

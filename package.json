@@ -162,11 +162,11 @@
     "rustdesk:readiness": "tsx scripts/rustdesk-readiness.ts",
     "rustdesk:server-evidence": "tsx scripts/rustdesk-server-evidence.ts",
     "test:callcenter": "npm run typecheck && npm run test:phase1 && npm run test:ai-agent",
-    "test:call-center-s8-s9": "OPC_USE_MEMORY_REDIS=1 node --import tsx --test test/sprint8-campaign.test.ts test/sprint9-omni.test.ts test/integration-gaps.test.ts test/gap-completion.test.ts",
-    "test:call-center-s10": "OPC_USE_MEMORY_REDIS=1 node --import tsx --test test/sprint10-platform.test.ts",
-    "test:call-center-s11": "OPC_USE_MEMORY_REDIS=1 node --import tsx --test test/sprint11-compliance.test.ts",
-    "test:call-center-s12": "OPC_USE_MEMORY_REDIS=1 node --import tsx --test test/sprint12-differentiation.test.ts",
-    "test:phase3-platform": "OPC_USE_MEMORY_REDIS=1 node --import tsx --test test/phase3-platform.test.ts"
+    "test:call-center-s8-s9": "CONVERACT_USE_MEMORY_REDIS=1 node --import tsx --test test/sprint8-campaign.test.ts test/sprint9-omni.test.ts test/integration-gaps.test.ts test/gap-completion.test.ts",
+    "test:call-center-s10": "CONVERACT_USE_MEMORY_REDIS=1 node --import tsx --test test/sprint10-platform.test.ts",
+    "test:call-center-s11": "CONVERACT_USE_MEMORY_REDIS=1 node --import tsx --test test/sprint11-compliance.test.ts",
+    "test:call-center-s12": "CONVERACT_USE_MEMORY_REDIS=1 node --import tsx --test test/sprint12-differentiation.test.ts",
+    "test:phase3-platform": "CONVERACT_USE_MEMORY_REDIS=1 node --import tsx --test test/phase3-platform.test.ts"
   },
   "engines": {
     "node": ">=24.0.0 <25.0.0"

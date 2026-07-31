@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 
 export interface AiAgentOpcCallbackSmokeConfig {
@@ -24,20 +25,20 @@ type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 export function createAiAgentOpcCallbackSmokeConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): AiAgentOpcCallbackSmokeConfig {
-  const baseUrl = env.OPC_BASE_URL || '';
-  const opcApiKey = env.OPC_API_KEY || '';
-  const mediaApiToken = env.OPC_MEDIA_API_TOKEN || env.LIVEKIT_MEDIA_API_TOKEN || '';
-  const tenantId = env.OPC_AI_CALLBACK_SMOKE_TENANT_ID || env.OPC_TENANT_ID || '';
-  if (!baseUrl) throw new Error('OPC_BASE_URL is required');
-  if (!opcApiKey) throw new Error('OPC_API_KEY is required');
-  if (!mediaApiToken) throw new Error('OPC_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN is required');
-  if (!tenantId) throw new Error('OPC_AI_CALLBACK_SMOKE_TENANT_ID or OPC_TENANT_ID is required');
+  const baseUrl = resolveBrandEnv(env, 'BASE_URL') || '';
+  const opcApiKey = resolveBrandEnv(env, 'API_KEY') || '';
+  const mediaApiToken = resolveBrandEnv(env, 'MEDIA_API_TOKEN') || env.LIVEKIT_MEDIA_API_TOKEN || '';
+  const tenantId = resolveBrandEnv(env, 'AI_CALLBACK_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || '';
+  if (!baseUrl) throw new Error('CONVERACT_BASE_URL is required');
+  if (!opcApiKey) throw new Error('CONVERACT_API_KEY is required');
+  if (!mediaApiToken) throw new Error('CONVERACT_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN is required');
+  if (!tenantId) throw new Error('CONVERACT_AI_CALLBACK_SMOKE_TENANT_ID or CONVERACT_TENANT_ID is required');
   return {
     baseUrl,
     opcApiKey,
     mediaApiToken,
     tenantId,
-    roomName: env.OPC_AI_CALLBACK_SMOKE_ROOM_NAME
+    roomName: resolveBrandEnv(env, 'AI_CALLBACK_SMOKE_ROOM_NAME')
   };
 }
 

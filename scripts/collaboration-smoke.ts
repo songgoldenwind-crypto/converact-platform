@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 
 export interface CollaborationSmokeConfig {
@@ -47,48 +48,48 @@ type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 type JsonRecord = Record<string, unknown>;
 
 export function createCollaborationSmokeConfigFromEnv(env: NodeJS.ProcessEnv): CollaborationSmokeConfig {
-  const baseUrl = env.OPC_BASE_URL || '';
-  const opcApiKey = env.OPC_COLLAB_SMOKE_API_KEY || env.OPC_API_KEY || '';
-  const tenantId = env.OPC_COLLAB_SMOKE_TENANT_ID || env.OPC_TENANT_ID || '';
+  const baseUrl = resolveBrandEnv(env, 'BASE_URL') || '';
+  const opcApiKey = resolveBrandEnv(env, 'COLLAB_SMOKE_API_KEY') || resolveBrandEnv(env, 'API_KEY') || '';
+  const tenantId = resolveBrandEnv(env, 'COLLAB_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || '';
 
-  if (!baseUrl) throw new Error('OPC_BASE_URL is required');
-  if (!opcApiKey) throw new Error('OPC_COLLAB_SMOKE_API_KEY or OPC_API_KEY is required');
-  if (!tenantId) throw new Error('OPC_COLLAB_SMOKE_TENANT_ID or OPC_TENANT_ID is required');
+  if (!baseUrl) throw new Error('CONVERACT_BASE_URL is required');
+  if (!opcApiKey) throw new Error('CONVERACT_COLLAB_SMOKE_API_KEY or CONVERACT_API_KEY is required');
+  if (!tenantId) throw new Error('CONVERACT_COLLAB_SMOKE_TENANT_ID or CONVERACT_TENANT_ID is required');
 
   const businessRefId =
-    env.OPC_COLLAB_SMOKE_BUSINESS_REF_ID || `${tenantId}-collab-smoke-${Date.now()}`;
-  const useGatewayTool = env.OPC_COLLAB_SMOKE_USE_GATEWAY_TOOL === '1';
-  const gatewayTargetId = env.OPC_COLLAB_SMOKE_GATEWAY_TARGET_ID || env.OPC_REMOTE_GATEWAY_TARGET_ID || '';
+    resolveBrandEnv(env, 'COLLAB_SMOKE_BUSINESS_REF_ID') || `${tenantId}-collab-smoke-${Date.now()}`;
+  const useGatewayTool = resolveBrandEnv(env, 'COLLAB_SMOKE_USE_GATEWAY_TOOL') === '1';
+  const gatewayTargetId = resolveBrandEnv(env, 'COLLAB_SMOKE_GATEWAY_TARGET_ID') || resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_ID') || '';
   if (useGatewayTool && !gatewayTargetId) {
-    throw new Error('OPC_COLLAB_SMOKE_GATEWAY_TARGET_ID or OPC_REMOTE_GATEWAY_TARGET_ID is required');
+    throw new Error('CONVERACT_COLLAB_SMOKE_GATEWAY_TARGET_ID or CONVERACT_REMOTE_GATEWAY_TARGET_ID is required');
   }
 
   return {
     baseUrl,
     opcApiKey,
     tenantId,
-    userId: env.OPC_COLLAB_SMOKE_USER_ID || 'agent_collaboration_smoke',
-    businessRefType: env.OPC_COLLAB_SMOKE_BUSINESS_REF_TYPE || 'service_order',
+    userId: resolveBrandEnv(env, 'COLLAB_SMOKE_USER_ID') || 'agent_collaboration_smoke',
+    businessRefType: resolveBrandEnv(env, 'COLLAB_SMOKE_BUSINESS_REF_TYPE') || 'service_order',
     businessRefId,
-    businessRefDisplayName: env.OPC_COLLAB_SMOKE_BUSINESS_REF_DISPLAY_NAME || 'Collaboration smoke',
-    remoteMode: env.OPC_COLLAB_SMOKE_REMOTE_MODE || (useGatewayTool ? 'remote_desktop_gateway' : 'third_party_remote_tool'),
-    adapterProvider: env.OPC_COLLAB_SMOKE_ADAPTER_PROVIDER || env.OPC_REMOTE_GATEWAY_PROVIDER || 'rustdesk',
+    businessRefDisplayName: resolveBrandEnv(env, 'COLLAB_SMOKE_BUSINESS_REF_DISPLAY_NAME') || 'Collaboration smoke',
+    remoteMode: resolveBrandEnv(env, 'COLLAB_SMOKE_REMOTE_MODE') || (useGatewayTool ? 'remote_desktop_gateway' : 'third_party_remote_tool'),
+    adapterProvider: resolveBrandEnv(env, 'COLLAB_SMOKE_ADAPTER_PROVIDER') || resolveBrandEnv(env, 'REMOTE_GATEWAY_PROVIDER') || 'rustdesk',
     toolProvider:
-      env.OPC_COLLAB_SMOKE_TOOL_PROVIDER ||
-      (useGatewayTool ? env.OPC_REMOTE_GATEWAY_PROVIDER : env.OPC_COLLAB_SMOKE_ADAPTER_PROVIDER) ||
+      resolveBrandEnv(env, 'COLLAB_SMOKE_TOOL_PROVIDER') ||
+      (useGatewayTool ? resolveBrandEnv(env, 'REMOTE_GATEWAY_PROVIDER') : resolveBrandEnv(env, 'COLLAB_SMOKE_ADAPTER_PROVIDER')) ||
       'rustdesk',
-    toolExternalId: env.OPC_COLLAB_SMOKE_TOOL_EXTERNAL_ID || `${businessRefId}-remote-tool`,
-    toolLaunchUrl: env.OPC_COLLAB_SMOKE_TOOL_LAUNCH_URL || `https://remote.example/${businessRefId}`,
+    toolExternalId: resolveBrandEnv(env, 'COLLAB_SMOKE_TOOL_EXTERNAL_ID') || `${businessRefId}-remote-tool`,
+    toolLaunchUrl: resolveBrandEnv(env, 'COLLAB_SMOKE_TOOL_LAUNCH_URL') || `https://remote.example/${businessRefId}`,
     useGatewayTool,
-    gatewayTargetType: env.OPC_COLLAB_SMOKE_GATEWAY_TARGET_TYPE || env.OPC_REMOTE_GATEWAY_TARGET_TYPE || 'device',
+    gatewayTargetType: resolveBrandEnv(env, 'COLLAB_SMOKE_GATEWAY_TARGET_TYPE') || resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_TYPE') || 'device',
     gatewayTargetId,
     gatewayTargetDisplayName:
-      env.OPC_COLLAB_SMOKE_GATEWAY_TARGET_DISPLAY_NAME || env.OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME || undefined,
-    consentScopes: splitScopes(env.OPC_COLLAB_SMOKE_CONSENT_SCOPES),
-    consentExpiresAt: env.OPC_COLLAB_SMOKE_CONSENT_EXPIRES_AT,
-    evidenceFilename: env.OPC_COLLAB_SMOKE_EVIDENCE_FILENAME || 'remote-session.webm',
-    evidenceBody: env.OPC_COLLAB_SMOKE_EVIDENCE_BODY || 'opc-collaboration-smoke-screen-recording',
-    retentionUntil: env.OPC_COLLAB_SMOKE_RETENTION_UNTIL
+      resolveBrandEnv(env, 'COLLAB_SMOKE_GATEWAY_TARGET_DISPLAY_NAME') || resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_DISPLAY_NAME') || undefined,
+    consentScopes: splitScopes(resolveBrandEnv(env, 'COLLAB_SMOKE_CONSENT_SCOPES')),
+    consentExpiresAt: resolveBrandEnv(env, 'COLLAB_SMOKE_CONSENT_EXPIRES_AT'),
+    evidenceFilename: resolveBrandEnv(env, 'COLLAB_SMOKE_EVIDENCE_FILENAME') || 'remote-session.webm',
+    evidenceBody: resolveBrandEnv(env, 'COLLAB_SMOKE_EVIDENCE_BODY') || 'opc-collaboration-smoke-screen-recording',
+    retentionUntil: resolveBrandEnv(env, 'COLLAB_SMOKE_RETENTION_UNTIL')
   };
 }
 
@@ -404,7 +405,7 @@ function splitScopes(value: string | undefined): string[] {
     .split(',')
     .map((scope) => scope.trim())
     .filter(Boolean);
-  if (!scopes.length) throw new Error('OPC_COLLAB_SMOKE_CONSENT_SCOPES must include at least one scope');
+  if (!scopes.length) throw new Error('CONVERACT_COLLAB_SMOKE_CONSENT_SCOPES must include at least one scope');
   return scopes;
 }
 

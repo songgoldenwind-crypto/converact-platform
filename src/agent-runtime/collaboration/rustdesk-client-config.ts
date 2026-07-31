@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
@@ -31,9 +32,9 @@ export interface RustDeskClientConfig {
 }
 
 export function rustDeskPublicKey(env: NodeJS.ProcessEnv = process.env): RustDeskPublicKeyInfo {
-  const envValue = String(env.OPC_RUSTDESK_PUBLIC_KEY || '');
+  const envValue = String(resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY') || '');
   if (envValue) return validatedRustDeskPublicKey(envValue, 'env', '');
-  const filePath = String(env.OPC_RUSTDESK_PUBLIC_KEY_FILE || '').trim();
+  const filePath = String(resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY_FILE') || '').trim();
   if (!filePath) return { value: '', source: 'none', file_path: '' };
   try {
     const fileValue = readFileSync(filePath, 'utf8');
@@ -73,13 +74,13 @@ function invalidRustDeskPublicKey(filePath: string): RustDeskPublicKeyInfo {
 
 export function rustDeskServerKeyFingerprint(env: NodeJS.ProcessEnv = process.env): string {
   const publicKey = rustDeskPublicKey(env);
-  const key = publicKey.value || String(env.OPC_RUSTDESK_SERVER_KEY || '').trim();
+  const key = publicKey.value || String(resolveBrandEnv(env, 'RUSTDESK_SERVER_KEY') || '').trim();
   if (!key) return '';
   return `sha256:${createHash('sha256').update(key).digest('hex').slice(0, 16)}`;
 }
 
 export function rustDeskApiServer(env: NodeJS.ProcessEnv = process.env): { value: string; error?: string } {
-  const value = String(env.OPC_RUSTDESK_API_SERVER || '').trim();
+  const value = String(resolveBrandEnv(env, 'RUSTDESK_API_SERVER') || '').trim();
   if (!value) return { value: '' };
   let parsed: URL;
   try {
@@ -95,8 +96,8 @@ export function rustDeskApiServer(env: NodeJS.ProcessEnv = process.env): { value
 
 export function rustDeskClientConfig(env: NodeJS.ProcessEnv = process.env): RustDeskClientConfig {
   const publicKey = rustDeskPublicKey(env);
-  const idServer = String(env.OPC_RUSTDESK_ID_SERVER || '').trim();
-  const relayServer = String(env.OPC_RUSTDESK_RELAY_SERVER || '').trim();
+  const idServer = String(resolveBrandEnv(env, 'RUSTDESK_ID_SERVER') || '').trim();
+  const relayServer = String(resolveBrandEnv(env, 'RUSTDESK_RELAY_SERVER') || '').trim();
   const apiServer = rustDeskApiServer(env);
   const manualFields = {
     id_server: idServer,

@@ -71,11 +71,11 @@ let userId = '';
 let seatId = '';
 
 before(async () => {
-  process.env.OPC_USE_MEMORY_PG = '1';
-  process.env.OPC_USE_MEMORY_REDIS = '1';
-  process.env.OPC_JWT_SECRET = 'test-sprint3';
-  process.env.OPC_API_KEY = 'test-api-key';
-  process.env.OPC_AUTH_DISABLED = '0';
+  process.env.CONVERACT_USE_MEMORY_PG = '1';
+  process.env.CONVERACT_USE_MEMORY_REDIS = '1';
+  process.env.CONVERACT_JWT_SECRET = 'test-sprint3';
+  process.env.CONVERACT_API_KEY = 'test-api-key';
+  process.env.CONVERACT_AUTH_DISABLED = '0';
   resetPostgresForTests(null);
   resetRedisPubSubForTests(null);
   _resetWsState();

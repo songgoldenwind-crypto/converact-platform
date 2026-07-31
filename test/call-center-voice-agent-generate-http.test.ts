@@ -12,7 +12,7 @@ let tenantId = '';
 const apiKey = 'dev-opc-key';
 
 before(async () => {
-  process.env.OPC_API_KEY = apiKey;
+  process.env.CONVERACT_API_KEY = apiKey;
   process.env.DISABLE_AI_SCRIPT_GENERATION = 'true';
   const tenant = createTenant(db, { name: 'Agent Factory HTTP' });
   tenantId = tenant.id;

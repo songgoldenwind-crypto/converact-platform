@@ -89,7 +89,7 @@ function signedWebAssistToken(input: {
 }
 
 test('public Web Assist customer can grant and revoke consent with the signed join token', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'Web Assist Consent Public' }).id;
@@ -176,7 +176,7 @@ test('public Web Assist customer can grant and revoke consent with the signed jo
 });
 
 test('public Web Assist consent endpoint only accepts customer join tokens', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'Web Assist Consent Role Gate' }).id;

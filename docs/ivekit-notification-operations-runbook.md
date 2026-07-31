@@ -32,27 +32,27 @@ Compose 使用 `env.example`；Helm 将秘密放入 `secrets.runtimeEnvironmentS
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `OPC_IVEKIT_NOTIFICATION_ENCRYPTION_KEY` | 空 | 32 字节 base64；加密 recipient 和 payload |
-| `OPC_IVEKIT_NOTIFICATION_HMAC_KEY` | 空 | 32 字节 base64；稳定查找、幂等和内容指纹 |
-| `OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED` | `0` | 投递 Worker 开关；启用时两把密钥必须有效 |
-| `OPC_IVEKIT_NOTIFICATION_INTERVAL_MS` | `5000` | 投递轮询间隔 |
-| `OPC_IVEKIT_NOTIFICATION_BATCH_SIZE` | `25` | 每租户单轮处理上限；每次只 claim 一条 |
-| `OPC_IVEKIT_NOTIFICATION_TENANT_LIMIT` | `100` | 单轮租户上限 |
-| `OPC_IVEKIT_NOTIFICATION_LEASE_MS` | `120000` | 投递租约；必须大于 Provider 请求超时 |
-| `OPC_IVEKIT_NOTIFICATION_PARTITION_COUNT` | `1` | 投递 Worker 实例分区数，范围 `1..256` |
-| `OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX` | `0` | 当前实例分区序号，范围 `0..count-1`；`count>1` 时必须显式配置 |
-| `OPC_IVEKIT_NOTIFICATION_RETRY_DELAYS_MS` | `5000,30000,120000,600000` | 有界退避序列 |
-| `OPC_IVEKIT_NOTIFICATION_WEBHOOK_SECRET_ENV_NAMES` | 空 | Webhook 签名密钥的 `env://` 名称 allowlist |
-| `OPC_IVEKIT_NOTIFICATION_PROVIDER_SECRET_ENV_NAMES` | 空 | SMTP/HTTP Provider credential 名称 allowlist |
-| `OPC_IVEKIT_NOTIFICATION_HEALTH_WORKER_ENABLED` | `0` | 主动健康检查 Worker 开关 |
-| `OPC_IVEKIT_NOTIFICATION_HEALTH_INTERVAL_MS` | `60000` | 健康检查轮询间隔 |
-| `OPC_IVEKIT_NOTIFICATION_HEALTH_STALE_MS` | `300000` | Endpoint 再次变为应检查的时间 |
-| `OPC_IVEKIT_NOTIFICATION_HEALTH_LEASE_MS` | `120000` | 多实例健康检查租约 |
-| `OPC_IVEKIT_NOTIFICATION_HEALTH_TENANT_LIMIT` | `100` | 单轮租户上限 |
-| `OPC_IVEKIT_NOTIFICATION_HEALTH_BATCH_SIZE` | `25` | 每租户检查 Endpoint 上限 |
-| `OPC_IVEKIT_NOTIFICATION_HEALTH_CONCURRENCY` | `5` | 单进程并发探针上限 |
-| `OPC_IVEKIT_NOTIFICATION_ALLOW_CONTROLLED` | `0` | 仅受控验收允许 controlled Provider |
-| `OPC_IVEKIT_READINESS_REQUIRE_HEALTHY_NOTIFICATION_PROVIDER` | `0` | `1` 时无健康 Provider 会阻断 readiness |
+| `CONVERACT_FABRIC_NOTIFICATION_ENCRYPTION_KEY` | 空 | 32 字节 base64；加密 recipient 和 payload |
+| `CONVERACT_FABRIC_NOTIFICATION_HMAC_KEY` | 空 | 32 字节 base64；稳定查找、幂等和内容指纹 |
+| `CONVERACT_FABRIC_NOTIFICATION_WORKER_ENABLED` | `0` | 投递 Worker 开关；启用时两把密钥必须有效 |
+| `CONVERACT_FABRIC_NOTIFICATION_INTERVAL_MS` | `5000` | 投递轮询间隔 |
+| `CONVERACT_FABRIC_NOTIFICATION_BATCH_SIZE` | `25` | 每租户单轮处理上限；每次只 claim 一条 |
+| `CONVERACT_FABRIC_NOTIFICATION_TENANT_LIMIT` | `100` | 单轮租户上限 |
+| `CONVERACT_FABRIC_NOTIFICATION_LEASE_MS` | `120000` | 投递租约；必须大于 Provider 请求超时 |
+| `CONVERACT_FABRIC_NOTIFICATION_PARTITION_COUNT` | `1` | 投递 Worker 实例分区数，范围 `1..256` |
+| `CONVERACT_FABRIC_NOTIFICATION_PARTITION_INDEX` | `0` | 当前实例分区序号，范围 `0..count-1`；`count>1` 时必须显式配置 |
+| `CONVERACT_FABRIC_NOTIFICATION_RETRY_DELAYS_MS` | `5000,30000,120000,600000` | 有界退避序列 |
+| `CONVERACT_FABRIC_NOTIFICATION_WEBHOOK_SECRET_ENV_NAMES` | 空 | Webhook 签名密钥的 `env://` 名称 allowlist |
+| `CONVERACT_FABRIC_NOTIFICATION_PROVIDER_SECRET_ENV_NAMES` | 空 | SMTP/HTTP Provider credential 名称 allowlist |
+| `CONVERACT_FABRIC_NOTIFICATION_HEALTH_WORKER_ENABLED` | `0` | 主动健康检查 Worker 开关 |
+| `CONVERACT_FABRIC_NOTIFICATION_HEALTH_INTERVAL_MS` | `60000` | 健康检查轮询间隔 |
+| `CONVERACT_FABRIC_NOTIFICATION_HEALTH_STALE_MS` | `300000` | Endpoint 再次变为应检查的时间 |
+| `CONVERACT_FABRIC_NOTIFICATION_HEALTH_LEASE_MS` | `120000` | 多实例健康检查租约 |
+| `CONVERACT_FABRIC_NOTIFICATION_HEALTH_TENANT_LIMIT` | `100` | 单轮租户上限 |
+| `CONVERACT_FABRIC_NOTIFICATION_HEALTH_BATCH_SIZE` | `25` | 每租户检查 Endpoint 上限 |
+| `CONVERACT_FABRIC_NOTIFICATION_HEALTH_CONCURRENCY` | `5` | 单进程并发探针上限 |
+| `CONVERACT_FABRIC_NOTIFICATION_ALLOW_CONTROLLED` | `0` | 仅受控验收允许 controlled Provider |
+| `CONVERACT_FABRIC_READINESS_REQUIRE_HEALTHY_NOTIFICATION_PROVIDER` | `0` | `1` 时无健康 Provider 会阻断 readiness |
 
 ## 4. Endpoint 与健康检查
 
@@ -132,7 +132,7 @@ Helm 可选安装 `ServiceMonitor`、`PrometheusRule` 和 Grafana dashboard Conf
 ### 多实例重复或租约丢失
 
 1. 确认所有节点时间同步，数据库是唯一状态权威。
-2. 保证 `OPC_IVEKIT_NOTIFICATION_LEASE_MS` 大于最坏 Provider timeout。
+2. 保证 `CONVERACT_FABRIC_NOTIFICATION_LEASE_MS` 大于最坏 Provider timeout。
 3. 多实例设置相同 `PARTITION_COUNT`，每个实例使用唯一且连续的 `PARTITION_INDEX`。
 4. 迁移 `081_ivekit_notification_worker_partition.sql` 将 delivery 稳定映射到 1024 个逻辑 shard；实例只发现并 claim 自己负责的 shard。
 5. Kubernetes 推荐启用 Helm `notificationWorker.enabled=true`。StatefulSet 从 Pod ordinal 自动生成唯一 `PARTITION_INDEX`，API Deployment 保持通知投递 Worker 关闭，避免重复扫描与无效数据库竞争。

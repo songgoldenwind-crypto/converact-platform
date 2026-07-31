@@ -19,8 +19,8 @@ const JWT_SECRET = 'livekit-media-quality-jwt-secret-32-bytes';
 const sampledAt = '2026-07-15T07:59:50.000Z';
 
 test('media QoS routes are call-bound, self-scoped, and publish safe events', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = JWT_SECRET;
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = JWT_SECRET;
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const tenantId = 'tenant_media_quality_http';
@@ -240,7 +240,7 @@ test('media QoS routes are call-bound, self-scoped, and publish safe events', as
     await shutdownWebSocket();
     wsServer.close();
     db.close();
-    restoreEnv('OPC_JWT_SECRET', previousSecret);
+    restoreEnv('CONVERACT_JWT_SECRET', previousSecret);
   }
 });
 

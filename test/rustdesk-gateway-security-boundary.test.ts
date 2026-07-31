@@ -161,11 +161,11 @@ test('public RustDesk gateway tool start is attended-only and enforces consent s
 
 test('legacy RustDesk tools gateway rejects unattended launch before the HTTP upstream call', async () => {
   const previous = gatewayEnv();
-  process.env.OPC_API_KEY = 'rustdesk-security-api-key';
-  process.env.OPC_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL = 'https://rustdesk-gateway.example.com';
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
+  process.env.CONVERACT_API_KEY = 'rustdesk-security-api-key';
+  process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
+  process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL = 'https://rustdesk-gateway.example.com';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
   const originalFetch = globalThis.fetch;
   let upstreamCalls = 0;
   globalThis.fetch = async () => {
@@ -220,9 +220,9 @@ test('legacy RustDesk tools gateway rejects unattended launch before the HTTP up
 
 test('RustDesk control plane rejects unattended and nested metadata aliases before store writes', async () => {
   const previous = gatewayEnv();
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
-  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
   const pg = new MemoryPg();
   const path = '/api/opc/rustdesk/sessions';
   const base = {
@@ -268,9 +268,9 @@ test('RustDesk control plane rejects unattended and nested metadata aliases befo
 
 test('RustDesk control plane preserves the minimal legacy attended create contract', async () => {
   const previous = gatewayEnv();
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
-  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
   const pg = new MemoryPg();
   const path = '/api/opc/rustdesk/sessions';
 
@@ -295,9 +295,9 @@ test('RustDesk control plane preserves the minimal legacy attended create contra
 
 test('RustDesk control plane rejects explicit unattended even with valid policy and consent', async () => {
   const previous = gatewayEnv();
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
-  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
   const pg = new MemoryPg();
   const fixture = await remoteFixture(pg, 'control-unattended');
   await fixture.module.rustdeskAccessPolicies.configurePolicy({
@@ -341,9 +341,9 @@ test('RustDesk control plane rejects explicit unattended even with valid policy 
 
 test('iveKit RustDesk ingress rejects metadata mode aliases and nested secrets before store writes', async () => {
   const previous = gatewayEnv();
-  process.env.OPC_API_KEY = 'rustdesk-security-api-key';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
-  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
+  process.env.CONVERACT_API_KEY = 'rustdesk-security-api-key';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
   const pg = new MemoryPg();
   const fixture = await remoteFixture(pg, 'ivekit-ingress');
   const path = '/api/ivekit/rustdesk/gateway-sessions';
@@ -405,7 +405,7 @@ test('generic direct RustDesk tool persistence is rejected even with safe metada
 
 test('generic HTTP RustDesk tool creation is rejected before persistence', async () => {
   const previous = gatewayEnv();
-  process.env.OPC_API_KEY = 'rustdesk-security-api-key';
+  process.env.CONVERACT_API_KEY = 'rustdesk-security-api-key';
   const pg = new MemoryPg();
   const fixture = await remoteFixture(pg, 'generic-http');
   const path = `/api/collaboration/remote-assistance/${fixture.remoteId}/tools`;
@@ -496,10 +496,10 @@ test('RustDesk control plane rejects cyclic metadata before store writes', async
 
 test('JWT collaboration routes reject body actor spoofing before audit or gateway writes', async () => {
   const previous = gatewayEnv();
-  const previousJwtSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'rustdesk-jwt-actor-secret';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
-  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
+  const previousJwtSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'rustdesk-jwt-actor-secret';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
   const pg = new MemoryPg();
   const fixture = await remoteFixture(pg, 'jwt-actor');
   const headers = {
@@ -545,7 +545,7 @@ test('JWT collaboration routes reject body actor spoofing before audit or gatewa
     })).length, 0);
   } finally {
     restoreGatewayEnv(previous);
-    restoreEnv('OPC_JWT_SECRET', previousJwtSecret);
+    restoreEnv('CONVERACT_JWT_SECRET', previousJwtSecret);
   }
 });
 
@@ -714,9 +714,9 @@ async function assertControlPlaneMetadataRejected(
   suffix: string
 ): Promise<void> {
   const previous = gatewayEnv();
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
-  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
   const pg = new MemoryPg();
   const tenantId = `tenant-control-metadata-${suffix}`;
   const path = '/api/opc/rustdesk/sessions';
@@ -742,22 +742,22 @@ async function assertControlPlaneMetadataRejected(
 
 function gatewayEnv() {
   return {
-    apiKey: process.env.OPC_API_KEY,
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    baseUrl: process.env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL,
-    token: process.env.OPC_RUSTDESK_API_TOKEN,
-    launchSecret: process.env.OPC_RUSTDESK_LAUNCH_SECRET,
-    physicalDisconnect: process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT
+    apiKey: process.env.CONVERACT_API_KEY,
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    baseUrl: process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL,
+    token: process.env.CONVERACT_RUSTDESK_API_TOKEN,
+    launchSecret: process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET,
+    physicalDisconnect: process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT
   };
 }
 
 function restoreGatewayEnv(previous: ReturnType<typeof gatewayEnv>): void {
-  restoreEnv('OPC_API_KEY', previous.apiKey);
-  restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previous.provider);
-  restoreEnv('OPC_RUSTDESK_CONTROL_PLANE_BASE_URL', previous.baseUrl);
-  restoreEnv('OPC_RUSTDESK_API_TOKEN', previous.token);
-  restoreEnv('OPC_RUSTDESK_LAUNCH_SECRET', previous.launchSecret);
-  restoreEnv('OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previous.physicalDisconnect);
+  restoreEnv('CONVERACT_API_KEY', previous.apiKey);
+  restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previous.provider);
+  restoreEnv('CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL', previous.baseUrl);
+  restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previous.token);
+  restoreEnv('CONVERACT_RUSTDESK_LAUNCH_SECRET', previous.launchSecret);
+  restoreEnv('CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previous.physicalDisconnect);
 }
 
 function restoreEnv(name: string, value: string | undefined): void {

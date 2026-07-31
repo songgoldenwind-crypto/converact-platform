@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import {
   IngressAudioOptions,
   IngressClient,
@@ -123,12 +124,12 @@ export class LiveKitSdkIngressProvider implements LiveKitIngressProvider {
 export function createConfiguredLiveKitIngressProvider(
   env: NodeJS.ProcessEnv = process.env
 ): LiveKitIngressProvider | null {
-  if (env.OPC_LIVEKIT_INGRESS_ENABLED !== '1') return null;
+  if (resolveBrandEnv(env, 'LIVEKIT_INGRESS_ENABLED') !== '1') return null;
   const config = readLiveKitConfig(env);
   if (!isLiveKitConfigured(config)) {
     throw new Error('LiveKit Ingress is enabled but LiveKit server credentials are incomplete');
   }
-  const timeout = positiveInteger(env.OPC_LIVEKIT_INGRESS_REQUEST_TIMEOUT_MS, 15_000);
+  const timeout = positiveInteger(resolveBrandEnv(env, 'LIVEKIT_INGRESS_REQUEST_TIMEOUT_MS'), 15_000);
   return new LiveKitSdkIngressProvider(new IngressClient(
     liveKitAdminUrl(config.url!),
     config.apiKey!,
@@ -138,7 +139,7 @@ export function createConfiguredLiveKitIngressProvider(
 }
 
 export function liveKitIngressConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.OPC_LIVEKIT_INGRESS_ENABLED === '1' && isLiveKitConfigured(readLiveKitConfig(env));
+  return resolveBrandEnv(env, 'LIVEKIT_INGRESS_ENABLED') === '1' && isLiveKitConfigured(readLiveKitConfig(env));
 }
 
 function ingressRecord(info: IngressInfo): LiveKitIngressRecord {
@@ -221,7 +222,7 @@ function liveKitAdminUrl(value: string): string {
 function positiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value || fallback);
   if (!Number.isInteger(parsed) || parsed < 100 || parsed > 120_000) {
-    throw new Error('OPC_LIVEKIT_INGRESS_REQUEST_TIMEOUT_MS must be between 100 and 120000');
+    throw new Error('CONVERACT_LIVEKIT_INGRESS_REQUEST_TIMEOUT_MS must be between 100 and 120000');
   }
   return parsed;
 }

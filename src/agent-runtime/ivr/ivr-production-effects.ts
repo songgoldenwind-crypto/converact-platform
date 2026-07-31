@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../../config/converact-env.js';
 /**
  * Production side-effect factory for live IVR sessions.
  *
@@ -60,7 +61,7 @@ export function createProductionSideEffects(db: unknown, tenantId: string): IvrS
       return executeWebhookRequest(nodeData, variables, {
         resolveSecretRef: (refId) => {
           const ref = integrationStore.getSecretRefById(tenantId, refId);
-          return ref?.env_var_name ? process.env[ref.env_var_name] : undefined;
+          return ref?.env_var_name ? resolveConveractEnv(process.env, ref.env_var_name) : undefined;
         },
       });
     },

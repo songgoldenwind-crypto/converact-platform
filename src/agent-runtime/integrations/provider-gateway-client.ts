@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 export interface GatewayProxyRequest {
   url: string;
   method: string;
@@ -16,8 +17,8 @@ export class ProviderGatewayClient {
   timeoutMs: number;
 
   constructor(options: ProviderGatewayOptions = {}) {
-    this.gatewayUrl = options.gatewayUrl || process.env.OPC_PROVIDER_GATEWAY_URL || null;
-    this.timeoutMs = Number(options.timeoutMs || process.env.OPC_PROVIDER_GATEWAY_CLIENT_TIMEOUT_MS || 2000);
+    this.gatewayUrl = options.gatewayUrl || resolveBrandEnv(process.env, 'PROVIDER_GATEWAY_URL') || null;
+    this.timeoutMs = Number(options.timeoutMs || resolveBrandEnv(process.env, 'PROVIDER_GATEWAY_CLIENT_TIMEOUT_MS') || 2000);
   }
 
   isConfigured(runtimeConfig: Record<string, unknown> = {}): boolean {

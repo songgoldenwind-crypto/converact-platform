@@ -111,25 +111,25 @@ test('configured WebPhone session service fails closed on unsafe runtime setting
   assert.equal(createConfiguredWebPhoneExtensionSessionService(new SessionPg(), {}), undefined);
   assert.throws(
     () => createConfiguredWebPhoneExtensionSessionService(new SessionPg(), env({
-      OPC_IVEKIT_WEBPHONE_WSS_URL: 'ws://voice.example.com/ws'
+      CONVERACT_FABRIC_WEBPHONE_WSS_URL: 'ws://voice.example.com/ws'
     })),
     /WSS/i
   );
   assert.throws(
     () => createConfiguredWebPhoneExtensionSessionService(new SessionPg(), env({
-      OPC_IVEKIT_WEBPHONE_JWT_SECRET: 'short'
+      CONVERACT_FABRIC_WEBPHONE_JWT_SECRET: 'short'
     })),
     /JWT_SECRET/i
   );
   assert.throws(
     () => createConfiguredWebPhoneExtensionSessionService(new SessionPg(), env({
-      OPC_IVEKIT_WEBPHONE_REGISTER_EXPIRES_SECONDS: '300'
+      CONVERACT_FABRIC_WEBPHONE_REGISTER_EXPIRES_SECONDS: '300'
     })),
     /REGISTER_EXPIRES_SECONDS/i
   );
   assert.throws(
     () => createConfiguredWebPhoneExtensionSessionService(new SessionPg(), env({
-      OPC_IVEKIT_WEBPHONE_ICE_SERVERS_JSON: '[{"urls":"https://ice.example.com"}]'
+      CONVERACT_FABRIC_WEBPHONE_ICE_SERVERS_JSON: '[{"urls":"https://ice.example.com"}]'
     })),
     /ICE/i
   );
@@ -171,13 +171,13 @@ test('WebPhone cleanup claims bounded expired rows inside tenant RLS transaction
 
 test('WebPhone cleanup configuration is enabled only with WebPhone and remains bounded', () => {
   assert.equal(webPhoneSessionCleanupConfig({}).enabled, false);
-  assert.deepEqual(webPhoneSessionCleanupConfig({ OPC_IVEKIT_WEBPHONE_ENABLED: '1' }), {
+  assert.deepEqual(webPhoneSessionCleanupConfig({ CONVERACT_FABRIC_WEBPHONE_ENABLED: '1' }), {
     enabled: true, interval_ms: 60_000, tenant_limit: 100, batch_size: 500
   });
   assert.throws(
     () => webPhoneSessionCleanupConfig({
-      OPC_IVEKIT_WEBPHONE_ENABLED: '1',
-      OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE: '5001'
+      CONVERACT_FABRIC_WEBPHONE_ENABLED: '1',
+      CONVERACT_FABRIC_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE: '5001'
     }),
     /CLEANUP_BATCH_SIZE/
   );
@@ -194,15 +194,15 @@ function config(): WebPhoneExtensionSessionConfig {
 
 function env(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
-    OPC_IVEKIT_WEBPHONE_ENABLED: '1',
-    OPC_IVEKIT_WEBPHONE_WSS_URL: 'wss://voice.example.com/ws',
-    OPC_IVEKIT_WEBPHONE_SIP_REALM: 'voice.example.com',
-    OPC_IVEKIT_WEBPHONE_JWT_SECRET: JWT_SECRET,
-    OPC_IVEKIT_WEBPHONE_JWT_ISSUER: 'ivekit',
-    OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE: 'rustpbx-webphone',
-    OPC_IVEKIT_WEBPHONE_TTL_SECONDS: '300',
-    OPC_IVEKIT_WEBPHONE_REGISTER_EXPIRES_SECONDS: '240',
-    OPC_IVEKIT_WEBPHONE_ICE_SERVERS_JSON: '[]',
+    CONVERACT_FABRIC_WEBPHONE_ENABLED: '1',
+    CONVERACT_FABRIC_WEBPHONE_WSS_URL: 'wss://voice.example.com/ws',
+    CONVERACT_FABRIC_WEBPHONE_SIP_REALM: 'voice.example.com',
+    CONVERACT_FABRIC_WEBPHONE_JWT_SECRET: JWT_SECRET,
+    CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER: 'ivekit',
+    CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE: 'rustpbx-webphone',
+    CONVERACT_FABRIC_WEBPHONE_TTL_SECONDS: '300',
+    CONVERACT_FABRIC_WEBPHONE_REGISTER_EXPIRES_SECONDS: '240',
+    CONVERACT_FABRIC_WEBPHONE_ICE_SERVERS_JSON: '[]',
     ...overrides
   };
 }

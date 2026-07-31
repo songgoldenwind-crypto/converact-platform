@@ -12,8 +12,8 @@ import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 
 test('media call create activates its durable reservation in the post-commit path', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'placement-create-secret-at-least-32-bytes';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'placement-create-secret-at-least-32-bytes';
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const calls: string[] = [];
@@ -54,14 +54,14 @@ test('media call create activates its durable reservation in the post-commit pat
     assert.equal(calls.at(-1), `reconcile:${response.data.call.id}`);
   } finally {
     db.close();
-    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousSecret;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
   }
 });
 
 test('call-bound join resolves the active Cell owner and returns its LiveKit URL', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'placement-join-secret-at-least-32-bytes';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'placement-join-secret-at-least-32-bytes';
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const service = new MediaCallService(new MediaCallStore(pg));
@@ -168,14 +168,14 @@ test('call-bound join resolves the active Cell owner and returns its LiveKit URL
     });
   } finally {
     db.close();
-    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousSecret;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
   }
 });
 
 test('terminal call rejoin conditionally recovers from its previous placement identity', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'placement-recovery-secret-at-least-32-bytes';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'placement-recovery-secret-at-least-32-bytes';
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const service = new MediaCallService(new MediaCallStore(pg));
@@ -298,8 +298,8 @@ test('terminal call rejoin conditionally recovers from its previous placement id
     });
   } finally {
     db.close();
-    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousSecret;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
   }
 });
 

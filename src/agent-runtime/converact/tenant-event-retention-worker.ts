@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../config/converact-env.js';
 import type { PgQueryable } from '../../db-pg.js';
 import {
   IveKitTenantEventStore,
@@ -64,15 +65,15 @@ export class IveKitTenantEventRetentionWorker {
 export function iveKitTenantEventRetentionWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): IveKitTenantEventRetentionWorkerConfig {
-  const enabledValue = String(env.OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED || '1').trim();
+  const enabledValue = String(resolveFabricEnv(env, 'EVENT_RETENTION_WORKER_ENABLED') || '1').trim();
   if (enabledValue !== '0' && enabledValue !== '1') {
-    throw new Error('OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_FABRIC_EVENT_RETENTION_WORKER_ENABLED must be 0 or 1');
   }
   return {
     enabled: iveKitEventReplayEnabled(env) && enabledValue === '1',
-    interval_ms: boundedEnv(env.OPC_IVEKIT_EVENT_RETENTION_INTERVAL_MS, 60_000, 10_000, 86_400_000, 'OPC_IVEKIT_EVENT_RETENTION_INTERVAL_MS'),
-    tenant_limit: boundedEnv(env.OPC_IVEKIT_EVENT_RETENTION_TENANT_LIMIT, 100, 1, 1_000, 'OPC_IVEKIT_EVENT_RETENTION_TENANT_LIMIT'),
-    batch_size: boundedEnv(env.OPC_IVEKIT_EVENT_RETENTION_BATCH_SIZE, 1_000, 1, 10_000, 'OPC_IVEKIT_EVENT_RETENTION_BATCH_SIZE')
+    interval_ms: boundedEnv(resolveFabricEnv(env, 'EVENT_RETENTION_INTERVAL_MS'), 60_000, 10_000, 86_400_000, 'CONVERACT_FABRIC_EVENT_RETENTION_INTERVAL_MS'),
+    tenant_limit: boundedEnv(resolveFabricEnv(env, 'EVENT_RETENTION_TENANT_LIMIT'), 100, 1, 1_000, 'CONVERACT_FABRIC_EVENT_RETENTION_TENANT_LIMIT'),
+    batch_size: boundedEnv(resolveFabricEnv(env, 'EVENT_RETENTION_BATCH_SIZE'), 1_000, 1, 10_000, 'CONVERACT_FABRIC_EVENT_RETENTION_BATCH_SIZE')
   };
 }
 

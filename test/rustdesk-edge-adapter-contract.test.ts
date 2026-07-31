@@ -62,7 +62,7 @@ test('linux targeted disconnect passes identifiers as fixed argv and is idempote
     '--mode', 'execute', '--external-id', 'gateway-1', '--target-id', 'device-1',
     '--rustdesk-id', '123456789', '--reason', 'gateway_ended'
   ];
-  const env = { ...cleanAdapterEnv(), OPC_RUSTDESK_SESSION_DISCONNECT_HOOK: hook };
+  const env = { ...cleanAdapterEnv(), CONVERACT_RUSTDESK_SESSION_DISCONNECT_HOOK: hook };
   assert.equal(spawnSync(script, args, { encoding: 'utf8', env }).status, 0);
   assert.equal(spawnSync(script, args, { encoding: 'utf8', env }).status, 0);
   assert.deepEqual(readFileSync(capture, 'utf8').trim().split('\n'), [
@@ -89,7 +89,7 @@ test('linux restart validate mode never invokes the service manager', () => {
     '--reason', 'gateway_ended'
   ], {
     encoding: 'utf8',
-    env: { ...cleanAdapterEnv(), OPC_RUSTDESK_SERVICE_NAME: 'rustdesk-test.service' }
+    env: { ...cleanAdapterEnv(), CONVERACT_RUSTDESK_SERVICE_NAME: 'rustdesk-test.service' }
   });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /"mode":"validate"/);
@@ -100,7 +100,7 @@ test('linux restart validate mode never invokes the service manager', () => {
     '--rustdesk-id', '123456789', '--reason', 'gateway_ended'
   ], {
     encoding: 'utf8',
-    env: { ...cleanAdapterEnv(), OPC_RUSTDESK_SERVICE_NAME: 'opc-definitely-missing-rustdesk.service' }
+    env: { ...cleanAdapterEnv(), CONVERACT_RUSTDESK_SERVICE_NAME: 'opc-definitely-missing-rustdesk.service' }
   });
   assert.equal(execution.status, 21);
   assert.match(execution.stderr, /systemd service is unavailable/);
@@ -108,6 +108,6 @@ test('linux restart validate mode never invokes the service manager', () => {
 
 function cleanAdapterEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
-  delete env.OPC_RUSTDESK_SESSION_DISCONNECT_HOOK;
+  delete env.CONVERACT_RUSTDESK_SESSION_DISCONNECT_HOOK;
   return env;
 }

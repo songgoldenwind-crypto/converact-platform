@@ -13,7 +13,7 @@ test('Egress capacity metrics are explicit, bounded, and sourced from the securi
     interval_ms: 5_000
   });
   assert.throws(() => liveKitEgressCapacityMetricsConfig({
-    OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED: 'yes'
+    CONVERACT_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED: 'yes'
   }), /must be 0 or 1/);
 
   const calls: Array<{ text: string; params: unknown[] }> = [];

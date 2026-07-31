@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { all, id, json, one, parseJson, run } from '../../db.js';
 import type {
@@ -129,7 +130,7 @@ export class IntegrationConfigStore {
         missingSecretKeys.push(key);
         continue;
       }
-      const value = process.env[secretRef.env_var_name];
+      const value = resolveConveractEnv(process.env, secretRef.env_var_name);
       if (value == null || value === '') {
         missingSecretKeys.push(key);
         continue;

@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -80,47 +81,47 @@ export class RustDeskReadinessPreflightError extends Error {
 }
 
 export function createRustDeskReadinessConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskReadinessConfig {
-  const runEdgeAgent = envFlag(env.OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT);
-  const checkPhysicalDisconnect = envFlag(env.OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT);
-  const rustdeskControlPlaneBaseUrl = stripTrailingSlash(env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL || '');
-  const remoteGatewayBaseUrl = stripTrailingSlash(env.OPC_REMOTE_GATEWAY_BASE_URL || '');
+  const runEdgeAgent = envFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_RUN_EDGE_AGENT'));
+  const checkPhysicalDisconnect = envFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT'));
+  const rustdeskControlPlaneBaseUrl = stripTrailingSlash(resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL') || '');
+  const remoteGatewayBaseUrl = stripTrailingSlash(resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') || '');
   const edgeBaseUrl = stripTrailingSlash(
-    env.OPC_RUSTDESK_EDGE_BASE_URL ||
-    env.OPC_BASE_URL ||
-    env.OPC_COLLABORATION_BASE_URL ||
+    resolveBrandEnv(env, 'RUSTDESK_EDGE_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
+    resolveBrandEnv(env, 'COLLABORATION_BASE_URL') ||
     rustdeskControlPlaneBaseUrl ||
     remoteGatewayBaseUrl ||
     ''
   );
   const normalizedEnv: NodeJS.ProcessEnv = {
     ...env,
-    OPC_REMOTE_GATEWAY_PROVIDER: env.OPC_REMOTE_GATEWAY_PROVIDER || 'rustdesk',
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: rustdeskControlPlaneBaseUrl,
-    OPC_REMOTE_GATEWAY_BASE_URL: remoteGatewayBaseUrl,
-    OPC_RUSTDESK_CHECK_DEVICE_ONLINE: readinessFlag(env.OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE),
-    OPC_RUSTDESK_CHECK_OPERATION_AUDIT: readinessFlag(env.OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT),
-    OPC_RUSTDESK_CHECK_SERVER_PORTS: readinessFlag(env.OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS),
-    OPC_RUSTDESK_REQUIRE_PROTOCOL_URL: readinessFlag(env.OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL),
-    OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL: readinessFlag(env.OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL),
-    OPC_RUSTDESK_EDGE_BASE_URL: edgeBaseUrl,
-    OPC_RUSTDESK_EDGE_API_KEY:
-      env.OPC_RUSTDESK_EDGE_API_KEY ||
-      env.OPC_COLLABORATION_API_KEY ||
-      env.OPC_API_KEY ||
+    CONVERACT_REMOTE_GATEWAY_PROVIDER: resolveBrandEnv(env, 'REMOTE_GATEWAY_PROVIDER') || 'rustdesk',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: rustdeskControlPlaneBaseUrl,
+    CONVERACT_REMOTE_GATEWAY_BASE_URL: remoteGatewayBaseUrl,
+    CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_DEVICE_ONLINE')),
+    CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT: readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_OPERATION_AUDIT')),
+    CONVERACT_RUSTDESK_CHECK_SERVER_PORTS: readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_SERVER_PORTS')),
+    CONVERACT_RUSTDESK_REQUIRE_PROTOCOL_URL: readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL')),
+    CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL: readinessFlag(resolveBrandEnv(env, 'RUSTDESK_READINESS_CHECK_LAUNCH_URL')),
+    CONVERACT_RUSTDESK_EDGE_BASE_URL: edgeBaseUrl,
+    CONVERACT_RUSTDESK_EDGE_API_KEY:
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_API_KEY') ||
+      resolveBrandEnv(env, 'COLLABORATION_API_KEY') ||
+      resolveBrandEnv(env, 'API_KEY') ||
       ''
   };
-  if (runEdgeAgent && !normalizedEnv.OPC_REMOTE_GATEWAY_TARGET_ID) {
-    normalizedEnv.OPC_REMOTE_GATEWAY_TARGET_ID = edgeDerivedTargetId;
+  if (runEdgeAgent && !normalizedEnv.CONVERACT_REMOTE_GATEWAY_TARGET_ID) {
+    normalizedEnv.CONVERACT_REMOTE_GATEWAY_TARGET_ID = edgeDerivedTargetId;
   }
 
   const remoteGateway = createRemoteGatewaySmokeConfigFromEnv(normalizedEnv);
   if (remoteGateway.provider !== 'rustdesk') {
-    throw new Error('rustdesk readiness only supports OPC_REMOTE_GATEWAY_PROVIDER=rustdesk');
+    throw new Error('rustdesk readiness only supports CONVERACT_REMOTE_GATEWAY_PROVIDER=rustdesk');
   }
   const edgeAgent = runEdgeAgent ? createRustDeskEdgeAgentConfigFromEnv(normalizedEnv) : undefined;
   if (checkPhysicalDisconnect && !edgeAgent) {
     throw new Error(
-      'OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT requires OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT=1'
+      'CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT requires CONVERACT_RUSTDESK_READINESS_RUN_EDGE_AGENT=1'
     );
   }
   if (checkPhysicalDisconnect && !edgeAgent?.disconnectCommandCapable) {
@@ -308,7 +309,7 @@ function stripTrailingSlash(value: string): string {
 }
 
 async function main(): Promise<void> {
-  const reportFilePath = String(process.env.OPC_RUSTDESK_READINESS_REPORT_FILE || '').trim();
+  const reportFilePath = String(resolveBrandEnv(process.env, 'RUSTDESK_READINESS_REPORT_FILE') || '').trim();
   const result = await runRustDeskReadinessFromEnv(process.env);
   const reportFile = reportFilePath ? writeRustDeskReadinessReport(reportFilePath, result) : undefined;
   console.log(JSON.stringify(reportFile ? { ...result, reportFile } : result, null, 2));
@@ -316,7 +317,7 @@ async function main(): Promise<void> {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
-    const reportFilePath = String(process.env.OPC_RUSTDESK_READINESS_REPORT_FILE || '').trim();
+    const reportFilePath = String(resolveBrandEnv(process.env, 'RUSTDESK_READINESS_REPORT_FILE') || '').trim();
     if (error instanceof RustDeskReadinessPreflightError) {
       const failure: RustDeskReadinessFailureReport = {
         ok: false,

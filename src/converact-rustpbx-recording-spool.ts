@@ -1,14 +1,15 @@
+import { resolveFabricEnv } from './config/converact-env.js';
 import {
   RustPbxRecordingSpoolWorker,
   rustPbxRecordingSpoolWorkerConfigFromEnv
 } from './agent-runtime/converact/recordings/index.js';
 
 const pollIntervalMs = envInteger(
-  process.env.OPC_IVEKIT_RECORDING_POLL_INTERVAL_MS,
+  resolveFabricEnv(process.env, 'RECORDING_POLL_INTERVAL_MS'),
   1_000,
   100,
   60_000,
-  'OPC_IVEKIT_RECORDING_POLL_INTERVAL_MS'
+  'CONVERACT_FABRIC_RECORDING_POLL_INTERVAL_MS'
 );
 
 let stopping = false;

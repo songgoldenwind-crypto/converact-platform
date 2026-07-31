@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import type {
   FeedbackActionRecommendation,
   FeedbackActionType,
@@ -8,9 +9,9 @@ import type {
 
 /** Default feedback thresholds — overridable via env or config */
 export const DEFAULT_FEEDBACK_THRESHOLDS: FeedbackThresholds = {
-  min_reply_rate: Number(process.env.OPC_FEEDBACK_MIN_REPLY_RATE) || 0.1,
-  min_booking_rate: Number(process.env.OPC_FEEDBACK_MIN_BOOKING_RATE) || 0.05,
-  max_bounce_rate: Number(process.env.OPC_FEEDBACK_MAX_BOUNCE_RATE) || 0.2
+  min_reply_rate: Number(resolveBrandEnv(process.env, 'FEEDBACK_MIN_REPLY_RATE')) || 0.1,
+  min_booking_rate: Number(resolveBrandEnv(process.env, 'FEEDBACK_MIN_BOOKING_RATE')) || 0.05,
+  max_bounce_rate: Number(resolveBrandEnv(process.env, 'FEEDBACK_MAX_BOUNCE_RATE')) || 0.2
 };
 
 export function verifyAndTune(input: FeedbackInput): FeedbackDecision {

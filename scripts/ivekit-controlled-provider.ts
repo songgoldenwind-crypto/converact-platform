@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 
@@ -280,18 +281,18 @@ function boundedPort(value: number): number {
 
 function configuredMode(value: string | undefined): ControlledProviderMode {
   const mode = String(value || 'success') as ControlledProviderMode;
-  if (!MODES.has(mode)) throw new Error('OPC_IVEKIT_CONTROLLED_MODE is invalid');
+  if (!MODES.has(mode)) throw new Error('CONVERACT_FABRIC_CONTROLLED_MODE is invalid');
   return mode;
 }
 
 function main(): void {
   const state = createControlledProviderState({
-    mode: configuredMode(process.env.OPC_IVEKIT_CONTROLLED_MODE),
-    token: process.env.OPC_IVEKIT_CONTROLLED_TOKEN,
-    controlToken: process.env.OPC_IVEKIT_CONTROL_TOKEN
+    mode: configuredMode(resolveFabricEnv(process.env, 'CONTROLLED_MODE')),
+    token: resolveFabricEnv(process.env, 'CONTROLLED_TOKEN'),
+    controlToken: resolveFabricEnv(process.env, 'CONTROL_TOKEN')
   });
-  const host = process.env.OPC_IVEKIT_CONTROLLED_HOST || '127.0.0.1';
-  const port = Number(process.env.OPC_IVEKIT_CONTROLLED_PORT || 8790);
+  const host = resolveFabricEnv(process.env, 'CONTROLLED_HOST') || '127.0.0.1';
+  const port = Number(resolveFabricEnv(process.env, 'CONTROLLED_PORT') || 8790);
   const running = startControlledIntelligenceProvider({ host, port, state });
   running.server.on('listening', () => console.log(JSON.stringify({
     status: 'listening', host, port, mode: state.mode

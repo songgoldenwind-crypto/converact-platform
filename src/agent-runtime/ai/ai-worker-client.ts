@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 export interface AIWorkerClientOptions {
   baseUrl?: string | null;
   timeoutMs?: number;
@@ -8,8 +9,8 @@ export class AIWorkerClient {
   timeoutMs: number;
 
   constructor(options: AIWorkerClientOptions = {}) {
-    this.baseUrl = options.baseUrl || process.env.OPC_AI_WORKER_URL || null;
-    this.timeoutMs = Number(options.timeoutMs || process.env.OPC_AI_WORKER_TIMEOUT_MS || 4000);
+    this.baseUrl = options.baseUrl || resolveBrandEnv(process.env, 'AI_WORKER_URL') || null;
+    this.timeoutMs = Number(options.timeoutMs || resolveBrandEnv(process.env, 'AI_WORKER_TIMEOUT_MS') || 4000);
   }
 
   isConfigured(): boolean {

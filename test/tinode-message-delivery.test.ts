@@ -472,8 +472,8 @@ test('Tinode delivery migration exposes the durable outbox contract', () => {
 });
 
 test('iveKit chat message API exposes durable failure and idempotent delivery status', async () => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'tinode-delivery-test-key';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'tinode-delivery-test-key';
   const pg = new MemoryPg();
   const module = createCollaborationModule({ pg });
   const session = await module.sessions.openSession({
@@ -593,7 +593,7 @@ test('iveKit chat message API exposes durable failure and idempotent delivery st
       data: { error: 'collaboration message not found' }
     });
   } finally {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
   }
 });

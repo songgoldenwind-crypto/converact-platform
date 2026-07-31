@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { createHash, createHmac } from 'node:crypto';
 import {
   existsSync,
@@ -205,12 +206,12 @@ function controlledSubscription(now: string): IveKitEventWebhookSubscription {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const sourceCommit = process.env.OPC_IVEKIT_ACCEPTANCE_SOURCE_COMMIT || '';
-  const outputDir = process.env.OPC_IVEKIT_V5_CONTROLLED_ACCEPTANCE_DIR ||
+  const sourceCommit = resolveFabricEnv(process.env, 'ACCEPTANCE_SOURCE_COMMIT') || '';
+  const outputDir = resolveFabricEnv(process.env, 'V5_CONTROLLED_ACCEPTANCE_DIR') ||
     resolve('.tmp/ivekit-v5-controlled-acceptance');
   await runIveKitV5ControlledAcceptance({
     source_commit: sourceCommit,
     output_dir: outputDir,
-    generated_at: process.env.OPC_IVEKIT_ACCEPTANCE_GENERATED_AT
+    generated_at: resolveFabricEnv(process.env, 'ACCEPTANCE_GENERATED_AT')
   });
 }

@@ -11,8 +11,8 @@ import { createTenant } from '../src/platform/tenant-core.js';
 import { createIveKitHttpSdk } from '../sdk/converact/src/http-sdk.js';
 
 test('recording list preserves arrays and adds tenant-scoped filtered cursor pages', async () => {
-  const previousKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'recording-list-key';
+  const previousKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'recording-list-key';
   const db = createDatabase(':memory:');
   try {
     const tenant = createTenant(db, { name: 'Recording list tenant' });
@@ -65,14 +65,14 @@ test('recording list preserves arrays and adds tenant-scoped filtered cursor pag
     assert.equal(response.data.has_more, false);
   } finally {
     db.close();
-    if (previousKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousKey;
+    if (previousKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousKey;
   }
 });
 
 test('JWT recording access is call-member scoped and writes are host-only', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'recording-list-jwt-secret-32-bytes';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'recording-list-jwt-secret-32-bytes';
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   try {
@@ -160,8 +160,8 @@ test('JWT recording access is call-member scoped and writes are host-only', asyn
     }
   } finally {
     db.close();
-    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousSecret;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
   }
 });
 

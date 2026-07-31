@@ -150,13 +150,13 @@ test('LiveKit server evidence config derives domains and rejects invalid topolog
     LIVEKIT_PUBLIC_URL: 'wss://livekit.example.com',
     LIVEKIT_TURN_DOMAIN: 'turn.example.com',
     LIVEKIT_URL: 'ws://livekit.internal:7880',
-    OPC_LIVEKIT_ACCEPTANCE_RUN_ID: 'lk-run-20260711-001',
-    OPC_LIVEKIT_ACCEPTANCE_ENVIRONMENT_ID: 'led-staging-sfo2',
-    OPC_LIVEKIT_ACCEPTANCE_DEPLOYED_COMMIT: 'a'.repeat(40),
-    OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_FINGERPRINT: 'b'.repeat(64),
-    OPC_LIVEKIT_ACCEPTANCE_STARTED_AT: new Date(Date.now() - 60_000).toISOString(),
-    OPC_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
-    OPC_LIVEKIT_SERVER_EVIDENCE_RTC_UDP_PORTS: '50000,55000,60000'
+    CONVERACT_LIVEKIT_ACCEPTANCE_RUN_ID: 'lk-run-20260711-001',
+    CONVERACT_LIVEKIT_ACCEPTANCE_ENVIRONMENT_ID: 'led-staging-sfo2',
+    CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYED_COMMIT: 'a'.repeat(40),
+    CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYMENT_FINGERPRINT: 'b'.repeat(64),
+    CONVERACT_LIVEKIT_ACCEPTANCE_STARTED_AT: new Date(Date.now() - 60_000).toISOString(),
+    CONVERACT_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
+    CONVERACT_LIVEKIT_SERVER_EVIDENCE_RTC_UDP_PORTS: '50000,55000,60000'
   });
 
   assert.equal(parsed.signalDomain, 'livekit.example.com');
@@ -191,13 +191,13 @@ test('LiveKit server evidence config derives domains and rejects invalid topolog
       LIVEKIT_PUBLIC_URL: 'wss://livekit.example.com',
       LIVEKIT_TURN_DOMAIN: 'turn.example.com',
       LIVEKIT_URL: 'ws://livekit.internal:7880',
-      OPC_LIVEKIT_ACCEPTANCE_RUN_ID: 'lk-run-20260711-001',
-      OPC_LIVEKIT_ACCEPTANCE_ENVIRONMENT_ID: 'led-staging-sfo2',
-      OPC_LIVEKIT_ACCEPTANCE_DEPLOYED_COMMIT: 'a'.repeat(40),
-      OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_FINGERPRINT: 'b'.repeat(64),
-      OPC_LIVEKIT_ACCEPTANCE_STARTED_AT: new Date(Date.now() - 60_000).toISOString(),
-      OPC_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
-      OPC_LIVEKIT_SERVER_EVIDENCE_RTC_TCP_PORT: '70000'
+      CONVERACT_LIVEKIT_ACCEPTANCE_RUN_ID: 'lk-run-20260711-001',
+      CONVERACT_LIVEKIT_ACCEPTANCE_ENVIRONMENT_ID: 'led-staging-sfo2',
+      CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYED_COMMIT: 'a'.repeat(40),
+      CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYMENT_FINGERPRINT: 'b'.repeat(64),
+      CONVERACT_LIVEKIT_ACCEPTANCE_STARTED_AT: new Date(Date.now() - 60_000).toISOString(),
+      CONVERACT_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
+      CONVERACT_LIVEKIT_SERVER_EVIDENCE_RTC_TCP_PORT: '70000'
     }),
     /RTC_TCP_PORT must be an integer between 1 and 65535/
   );
@@ -206,13 +206,13 @@ test('LiveKit server evidence config derives domains and rejects invalid topolog
       LIVEKIT_PUBLIC_URL: 'wss://livekit.example.com',
       LIVEKIT_TURN_DOMAIN: 'turn.example.com',
       LIVEKIT_URL: 'ws://livekit.internal:7880',
-      OPC_LIVEKIT_ACCEPTANCE_RUN_ID: 'lk-run-20260711-001',
-      OPC_LIVEKIT_ACCEPTANCE_ENVIRONMENT_ID: 'led-staging-sfo2',
-      OPC_LIVEKIT_ACCEPTANCE_DEPLOYED_COMMIT: 'a'.repeat(40),
-      OPC_LIVEKIT_ACCEPTANCE_DEPLOYMENT_FINGERPRINT: 'b'.repeat(64),
-      OPC_LIVEKIT_ACCEPTANCE_STARTED_AT: new Date(Date.now() - 60_000).toISOString(),
-      OPC_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
-      OPC_LIVEKIT_SERVER_EVIDENCE_TIMEOUT_MS: '99'
+      CONVERACT_LIVEKIT_ACCEPTANCE_RUN_ID: 'lk-run-20260711-001',
+      CONVERACT_LIVEKIT_ACCEPTANCE_ENVIRONMENT_ID: 'led-staging-sfo2',
+      CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYED_COMMIT: 'a'.repeat(40),
+      CONVERACT_LIVEKIT_ACCEPTANCE_DEPLOYMENT_FINGERPRINT: 'b'.repeat(64),
+      CONVERACT_LIVEKIT_ACCEPTANCE_STARTED_AT: new Date(Date.now() - 60_000).toISOString(),
+      CONVERACT_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
+      CONVERACT_LIVEKIT_SERVER_EVIDENCE_TIMEOUT_MS: '99'
     }),
     /TIMEOUT_MS must be an integer between 100 and 60000/
   );

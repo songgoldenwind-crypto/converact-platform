@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -42,12 +43,12 @@ function loadObservationFile(path: string): RustDeskNativeOperationObservation[]
 }
 
 async function main() {
-  const path = String(process.env.OPC_RUSTDESK_OBSERVER_FILE || '').trim();
-  if (!path) throw new Error('OPC_RUSTDESK_OBSERVER_FILE is required');
+  const path = String(resolveBrandEnv(process.env, 'RUSTDESK_OBSERVER_FILE') || '').trim();
+  if (!path) throw new Error('CONVERACT_RUSTDESK_OBSERVER_FILE is required');
   const observations = loadObservationFile(path);
   const config = createRustDeskEventForwarderConfigFromEnv({
     ...process.env,
-    OPC_RUSTDESK_EVENT_EXTERNAL_ID: process.env.OPC_RUSTDESK_EVENT_EXTERNAL_ID || observations[0]?.external_id || ''
+    CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: resolveBrandEnv(process.env, 'RUSTDESK_EVENT_EXTERNAL_ID') || observations[0]?.external_id || ''
   });
   const forwarded = await forwardRustDeskOperationObservations(observations, config);
   console.log(JSON.stringify({ forwarded }));

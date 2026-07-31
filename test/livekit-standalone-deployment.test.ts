@@ -11,7 +11,7 @@ import {
 
 function edgeEnv(outputDir: string): NodeJS.ProcessEnv {
   return {
-    OPC_LIVEKIT_EDGE_CONFIG_DIR: outputDir,
+    CONVERACT_LIVEKIT_EDGE_CONFIG_DIR: outputDir,
     LIVEKIT_SIGNAL_DOMAIN: 'livekit.example.com',
     LIVEKIT_TURN_DOMAIN: 'turn.example.com',
     IVEKIT_API_DOMAIN: 'opc.example.com',
@@ -21,22 +21,22 @@ function edgeEnv(outputDir: string): NodeJS.ProcessEnv {
     LIVEKIT_ACME_EMAIL: 'ops@example.com',
     LIVEKIT_API_KEY: 'edge-livekit-key',
     LIVEKIT_API_SECRET: 'edge-livekit-secret',
-    OPC_MEDIA_CONFIG_WEBHOOK_URL: 'https://opc.example.com/api/media/webhooks/livekit',
-    OPC_MEDIA_CONFIG_REDIS_ADDRESS: '127.0.0.1:6379',
-    OPC_MEDIA_CONFIG_LIVEKIT_URL: 'ws://127.0.0.1:7880',
+    CONVERACT_MEDIA_CONFIG_WEBHOOK_URL: 'https://opc.example.com/api/media/webhooks/livekit',
+    CONVERACT_MEDIA_CONFIG_REDIS_ADDRESS: '127.0.0.1:6379',
+    CONVERACT_MEDIA_CONFIG_LIVEKIT_URL: 'ws://127.0.0.1:7880',
     MINIO_ENDPOINT: 'http://127.0.0.1:9000',
     MINIO_BUCKET: 'recordings',
     MINIO_ACCESS_KEY: 'edge-minio-key',
     MINIO_SECRET_KEY: 'edge-minio-secret',
-    OPC_MEDIA_CONFIG_RTC_TCP_PORT: '7881',
-    OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START: '50000',
-    OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END: '60000',
-    OPC_LIVEKIT_EDGE_TURN_TLS_PORT: '5349',
-    OPC_LIVEKIT_EDGE_TURN_UDP_PORT: '3478',
-    OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT: '8091',
-    OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS: '100',
-    OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS: '100',
-    OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS: '100',
+    CONVERACT_MEDIA_CONFIG_RTC_TCP_PORT: '7881',
+    CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_START: '50000',
+    CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_END: '60000',
+    CONVERACT_LIVEKIT_EDGE_TURN_TLS_PORT: '5349',
+    CONVERACT_LIVEKIT_EDGE_TURN_UDP_PORT: '3478',
+    CONVERACT_MEDIA_CONFIG_EGRESS_HEALTH_PORT: '8091',
+    CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS: '100',
+    CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS: '100',
+    CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS: '100',
     LIVEKIT_SERVER_IMAGE_TAG: 'v1.13.4-ivekit.1',
     LIVEKIT_EGRESS_IMAGE_TAG: 'v1.13.0',
     LIVEKIT_CADDYL4_IMAGE_TAG: 'v2.11.3',
@@ -125,8 +125,8 @@ test('standalone LiveKit renderer rejects invalid edge topology', () => {
     assert.throws(
       () => createLiveKitEdgeConfigRenderInputFromEnv({
         ...edgeEnv(outputDir),
-        OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START: '60000',
-        OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END: '50000'
+        CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_START: '60000',
+        CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_END: '50000'
       }),
       /RTC port range end must be greater than or equal to start/
     );
@@ -159,7 +159,7 @@ test('standalone LiveKit renderer rejects invalid edge topology', () => {
 test('standalone LiveKit renderer resolves the Compose-relative runtime directory inside the repo', () => {
   const input = createLiveKitEdgeConfigRenderInputFromEnv({
     ...edgeEnv('../../.runtime/livekit-edge'),
-    OPC_LIVEKIT_EDGE_CONFIG_DIR: '../../.runtime/livekit-edge'
+    CONVERACT_LIVEKIT_EDGE_CONFIG_DIR: '../../.runtime/livekit-edge'
   });
 
   assert.equal(input.outputDir, resolve('infra/livekit', '../../.runtime/livekit-edge'));
@@ -193,11 +193,11 @@ test('standalone LiveKit Compose is Linux host-networked and reproducibly pinned
   assert.match(envExample, /^LIVEKIT_EGRESS_IMAGE=livekit\/egress:v1\.13\.0@sha256:[a-f0-9]{64}$/m);
   assert.match(envExample, /^LIVEKIT_CADDYL4_IMAGE=livekit\/caddyl4:v2\.11\.3@sha256:[a-f0-9]{64}$/m);
   assert.match(envExample, /^LIVEKIT_REDIS_IMAGE=redis:7\.4\.9@sha256:[a-f0-9]{64}$/m);
-  assert.match(envExample, /^OPC_LIVEKIT_DEPLOYMENT_MODE=standalone-vm$/m);
-  assert.match(envExample, /^OPC_MEDIA_CONFIG_REDIS_TOPOLOGY=direct$/m);
-  assert.match(envExample, /^OPC_MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME=$/m);
-  assert.match(envExample, /^OPC_MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES=$/m);
-  assert.match(envExample, /^OPC_MEDIA_CONFIG_REDIS_TLS_MODE=disabled$/m);
+  assert.match(envExample, /^CONVERACT_LIVEKIT_DEPLOYMENT_MODE=standalone-vm$/m);
+  assert.match(envExample, /^CONVERACT_MEDIA_CONFIG_REDIS_TOPOLOGY=direct$/m);
+  assert.match(envExample, /^CONVERACT_MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME=$/m);
+  assert.match(envExample, /^CONVERACT_MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES=$/m);
+  assert.match(envExample, /^CONVERACT_MEDIA_CONFIG_REDIS_TLS_MODE=disabled$/m);
   assert.match(compose, /redis-tls:\/etc\/livekit-redis-tls:ro/);
   assert.match(envExample, /^LIVEKIT_URL=ws:\/\/127\.0\.0\.1:7880$/m);
   assert.match(envExample, /^LIVEKIT_PUBLIC_URL=wss:\/\/livekit\.example\.com$/m);
@@ -233,21 +233,21 @@ test('standalone iveKit application stack runs the iveKit-only process', () => {
 
   assert.match(opcService, /command:\s*\["npm",\s*"run",\s*"start:ivekit"\]/);
   assert.match(opcService, /aliases:\s*\n\s*- ivekit-api/);
-  assert.doesNotMatch(opcService, /OPC_DISABLE_DIALER/);
-  assert.match(opcService, /OPC_IVEKIT_ALLOWED_ORIGINS: \$\{OPC_IVEKIT_ALLOWED_ORIGINS:\?[^}]+\}/);
-  assert.match(opcService, /OPC_IVEKIT_HTTP_BODY_MAX_BYTES: \$\{OPC_IVEKIT_HTTP_BODY_MAX_BYTES:-1048576\}/);
-  assert.match(opcService, /OPC_SIP_VOLTE_ENABLED: \$\{OPC_SIP_VOLTE_ENABLED:-0\}/);
+  assert.doesNotMatch(opcService, /CONVERACT_DISABLE_DIALER/);
+  assert.match(opcService, /CONVERACT_FABRIC_ALLOWED_ORIGINS: \$\{CONVERACT_FABRIC_ALLOWED_ORIGINS:\?[^}]+\}/);
+  assert.match(opcService, /CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES: \$\{CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES:-1048576\}/);
+  assert.match(opcService, /CONVERACT_SIP_VOLTE_ENABLED: \$\{CONVERACT_SIP_VOLTE_ENABLED:-0\}/);
   assert.match(opcService, /LIVEKIT_SIP_BRIDGE_TARGET: \$\{LIVEKIT_SIP_BRIDGE_TARGET:-\}/);
   assert.match(opcService, /RUSTPBX_LIVEKIT_TRUNK: \$\{RUSTPBX_LIVEKIT_TRUNK:-\}/);
   assert.match(opcService, /RUSTPBX_RWI_URL: \$\{RUSTPBX_RWI_URL:-\}/);
   assert.match(compose, /^  opc:$/m, 'legacy service key must remain stable');
   assert.match(envExample, /standalone iveKit application image/i);
-  assert.match(envExample, /^OPC_IVEKIT_ALLOWED_ORIGINS=https:\/\/led\.example\.com$/m);
-  assert.match(envExample, /^OPC_SIP_VOLTE_ENABLED=0$/m);
+  assert.match(envExample, /^CONVERACT_FABRIC_ALLOWED_ORIGINS=https:\/\/led\.example\.com$/m);
+  assert.match(envExample, /^CONVERACT_SIP_VOLTE_ENABLED=0$/m);
   assert.match(envExample, /^LIVEKIT_SIP_BRIDGE_TARGET=$/m);
   assert.match(envExample, /^RUSTPBX_LIVEKIT_TRUNK=$/m);
   assert.match(envExample, /^RUSTPBX_RWI_URL=$/m);
-  assert.match(readme, /@opc\/ivekit-sdk/);
+  assert.match(readme, /@converact\/sdk/);
   assert.match(readme, /public base URL/i);
   assert.match(readme, /No PostgreSQL downgrade or data copy is required/i);
   assert.match(readme, /command.*\["npm", "start"\]/is);

@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 /**
  * RustPBX RWI v1 client (action/action_id async protocol, /rwi/v1).
  * Separate from legacy rwi-client.ts (request_id/command sync model).
@@ -138,7 +139,7 @@ export class RwiV1Client {
 }
 
 export function readRwiV1Config(): { url: string | null; authToken?: string } {
-  const url = process.env.RUSTPBX_RWI_URL || process.env.OPC_RUSTPBX_RWI_URL || null;
-  const authToken = process.env.RUSTPBX_RWI_TOKEN || process.env.OPC_RUSTPBX_RWI_TOKEN;
+  const url = process.env.RUSTPBX_RWI_URL || resolveBrandEnv(process.env, 'RUSTPBX_RWI_URL') || null;
+  const authToken = process.env.RUSTPBX_RWI_TOKEN || resolveBrandEnv(process.env, 'RUSTPBX_RWI_TOKEN');
   return { url, authToken };
 }

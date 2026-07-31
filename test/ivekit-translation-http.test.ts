@@ -8,9 +8,9 @@ import { TranslationService } from '../src/agent-runtime/collaboration/translati
 import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
 
 test('translation HTTP requests, runs, and lists message translations without leaking job internals', async () => {
-  const previous = { secret: process.env.OPC_JWT_SECRET, key: process.env.OPC_API_KEY };
-  process.env.OPC_JWT_SECRET = 'translation-http-jwt-secret-with-sufficient-length';
-  process.env.OPC_API_KEY = 'translation-http-system-key';
+  const previous = { secret: process.env.CONVERACT_JWT_SECRET, key: process.env.CONVERACT_API_KEY };
+  process.env.CONVERACT_JWT_SECRET = 'translation-http-jwt-secret-with-sufficient-length';
+  process.env.CONVERACT_API_KEY = 'translation-http-system-key';
   const pg = new MemoryPg();
   const tenantId = 'tenant-translation-http';
   const store = new CollaborationStore(pg);
@@ -93,9 +93,9 @@ test('translation HTTP requests, runs, and lists message translations without le
       (error: unknown) => Number((error as { status?: unknown })?.status) === 404
     );
   } finally {
-    if (previous.secret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previous.secret;
-    if (previous.key === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previous.key;
+    if (previous.secret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previous.secret;
+    if (previous.key === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previous.key;
   }
 });

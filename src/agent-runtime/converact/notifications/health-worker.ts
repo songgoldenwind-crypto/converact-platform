@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 
@@ -149,13 +150,13 @@ export function notificationHealthWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): NotificationHealthWorkerConfig {
   return {
-    enabled: booleanEnv(env.OPC_IVEKIT_NOTIFICATION_HEALTH_WORKER_ENABLED, false),
-    interval_ms: integer(env.OPC_IVEKIT_NOTIFICATION_HEALTH_INTERVAL_MS, 60_000, 5_000, 3_600_000),
-    stale_ms: integer(env.OPC_IVEKIT_NOTIFICATION_HEALTH_STALE_MS, 300_000, 30_000, 86_400_000),
-    lease_ms: integer(env.OPC_IVEKIT_NOTIFICATION_HEALTH_LEASE_MS, 120_000, 30_000, 300_000),
-    tenant_limit: integer(env.OPC_IVEKIT_NOTIFICATION_HEALTH_TENANT_LIMIT, 100, 1, 1_000),
-    batch_size: integer(env.OPC_IVEKIT_NOTIFICATION_HEALTH_BATCH_SIZE, 25, 1, 200),
-    concurrency: integer(env.OPC_IVEKIT_NOTIFICATION_HEALTH_CONCURRENCY, 5, 1, 20)
+    enabled: booleanEnv(resolveFabricEnv(env, 'NOTIFICATION_HEALTH_WORKER_ENABLED'), false),
+    interval_ms: integer(resolveFabricEnv(env, 'NOTIFICATION_HEALTH_INTERVAL_MS'), 60_000, 5_000, 3_600_000),
+    stale_ms: integer(resolveFabricEnv(env, 'NOTIFICATION_HEALTH_STALE_MS'), 300_000, 30_000, 86_400_000),
+    lease_ms: integer(resolveFabricEnv(env, 'NOTIFICATION_HEALTH_LEASE_MS'), 120_000, 30_000, 300_000),
+    tenant_limit: integer(resolveFabricEnv(env, 'NOTIFICATION_HEALTH_TENANT_LIMIT'), 100, 1, 1_000),
+    batch_size: integer(resolveFabricEnv(env, 'NOTIFICATION_HEALTH_BATCH_SIZE'), 25, 1, 200),
+    concurrency: integer(resolveFabricEnv(env, 'NOTIFICATION_HEALTH_CONCURRENCY'), 5, 1, 20)
   };
 }
 
@@ -171,7 +172,7 @@ export function startNotificationHealthWorker(input: {
   const secrets = input.secrets || configuredNotificationSecretResolver(env);
   const probe = input.probe || ((endpoint) => probeNotificationEndpoint(endpoint, {
     secrets,
-    allowControlled: env.OPC_IVEKIT_NOTIFICATION_ALLOW_CONTROLLED === '1'
+    allowControlled: resolveFabricEnv(env, 'NOTIFICATION_ALLOW_CONTROLLED') === '1'
   }));
   const worker = new NotificationHealthWorker({
     config,

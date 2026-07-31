@@ -49,7 +49,7 @@ async function route(pg: MemoryPg, method: string, path: string, tenantId: strin
 }
 
 test('iveKit chat lists tenant sessions with filters and opaque stable cursors', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_session_page';
@@ -105,7 +105,7 @@ test('iveKit chat lists tenant sessions with filters and opaque stable cursors',
 });
 
 test('iveKit session list includes viewer unread, latest message, and online participant summary', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_session_summary';
@@ -168,7 +168,7 @@ test('iveKit session list includes viewer unread, latest message, and online par
 });
 
 test('iveKit closes a session only after revoking every active provider participant', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_session_close';
@@ -204,7 +204,7 @@ test('iveKit closes a session only after revoking every active provider particip
 });
 
 test('iveKit close fails fast while a shared session operation is in flight', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_session_close_lock';
@@ -322,7 +322,7 @@ test('direct CollaborationStore message writes cannot bypass an exclusive sessio
 });
 
 test('iveKit closes a Tinode session with mapped provider user ids and revokes the mappings', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_tinode_session_close';
@@ -388,7 +388,7 @@ test('iveKit closes a Tinode session with mapped provider user ids and revokes t
 });
 
 test('iveKit reconciles active Tinode mappings left by a legacy closed session', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_legacy_tinode_close';
@@ -442,7 +442,7 @@ test('iveKit reconciles active Tinode mappings left by a legacy closed session',
 });
 
 test('iveKit rejects adding a participant after the session is closed', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_closed_participant_add';
@@ -478,7 +478,7 @@ test('iveKit rejects adding a participant after the session is closed', async ()
 });
 
 test('iveKit rejects binding Tinode after the session is closed', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_closed_chat_bind';
@@ -509,7 +509,7 @@ test('iveKit rejects binding Tinode after the session is closed', async () => {
 });
 
 test('iveKit rejects creating a message after the session is closed', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_closed_message_create';
@@ -539,7 +539,7 @@ test('iveKit rejects creating a message after the session is closed', async () =
 });
 
 test('iveKit closes an unbound session even when Tinode is the configured provider', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_unbound_tinode_close';
@@ -571,7 +571,7 @@ test('iveKit closes an unbound session even when Tinode is the configured provid
 });
 
 test('iveKit leaves inbound active when Tinode close is missing a provider user mapping', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new RecordingMemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_tinode_close_missing_mapping';
@@ -618,7 +618,7 @@ test('iveKit leaves inbound active when Tinode close is missing a provider user 
 });
 
 test('iveKit chat pages message history in both directions and searches before limiting', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_message_page';
@@ -734,7 +734,7 @@ class TrackingTinodeGateway extends TinodeChatGateway {
 }
 
 test('iveKit chat rejects malformed, wrong-direction, and cross-tenant pagination', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_cursor_guard';

@@ -8,7 +8,7 @@ import {
 
 test('capacity dispatcher config is bounded and does not default missing infrastructure', () => {
   const config = capacityDispatcherConfig({
-    OPC_DATABASE_URL: 'postgresql://ivekit:test@postgres/ivekit',
+    CONVERACT_DATABASE_URL: 'postgresql://ivekit:test@postgres/ivekit',
     NATS_URL: 'tls://nats-a:4222,tls://nats-b:4222',
     NATS_USER: 'capacity-dispatcher',
     NATS_PASSWORD: 'test-secret',
@@ -16,11 +16,11 @@ test('capacity dispatcher config is bounded and does not default missing infrast
     NATS_TLS_CA_FILE: '/etc/nats/tls/ca.crt',
     NATS_TLS_CERT_FILE: '/etc/nats/tls/tls.crt',
     NATS_TLS_KEY_FILE: '/etc/nats/tls/tls.key',
-    OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS: '3',
-    OPC_IVEKIT_CAPACITY_DISPATCHER_ID: 'dispatcher-a',
-    OPC_IVEKIT_CAPACITY_DISPATCH_INTERVAL_MS: '500',
-    OPC_IVEKIT_CAPACITY_DISPATCH_LEASE_MS: '15000',
-    OPC_IVEKIT_CAPACITY_DISPATCH_BATCH_SIZE: '250'
+    CONVERACT_FABRIC_CAPACITY_NATS_STREAM_REPLICAS: '3',
+    CONVERACT_FABRIC_CAPACITY_DISPATCHER_ID: 'dispatcher-a',
+    CONVERACT_FABRIC_CAPACITY_DISPATCH_INTERVAL_MS: '500',
+    CONVERACT_FABRIC_CAPACITY_DISPATCH_LEASE_MS: '15000',
+    CONVERACT_FABRIC_CAPACITY_DISPATCH_BATCH_SIZE: '250'
   });
   assert.equal(config.database_url, 'postgresql://ivekit:test@postgres/ivekit');
   assert.deepEqual(config.nats.servers, ['tls://nats-a:4222', 'tls://nats-b:4222']);
@@ -41,17 +41,17 @@ test('capacity dispatcher config is bounded and does not default missing infrast
 
   assert.throws(() => capacityDispatcherConfig({}), /database/i);
   assert.throws(() => capacityDispatcherConfig({
-    OPC_DATABASE_URL: 'postgresql://postgres/ivekit',
+    CONVERACT_DATABASE_URL: 'postgresql://postgres/ivekit',
     NATS_URL: 'nats://nats:4222',
-    OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS: '1',
-    OPC_IVEKIT_CAPACITY_DISPATCHER_ID: 'dispatcher-a',
-    OPC_IVEKIT_CAPACITY_DISPATCH_LEASE_MS: '999'
+    CONVERACT_FABRIC_CAPACITY_NATS_STREAM_REPLICAS: '1',
+    CONVERACT_FABRIC_CAPACITY_DISPATCHER_ID: 'dispatcher-a',
+    CONVERACT_FABRIC_CAPACITY_DISPATCH_LEASE_MS: '999'
   }), /numeric/i);
   assert.throws(() => capacityDispatcherConfig({
-    OPC_DATABASE_URL: 'postgresql://postgres/ivekit',
+    CONVERACT_DATABASE_URL: 'postgresql://postgres/ivekit',
     NATS_URL: 'nats://nats:4222',
-    OPC_IVEKIT_CAPACITY_DISPATCHER_ID: 'dispatcher-a',
-    OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS: '2'
+    CONVERACT_FABRIC_CAPACITY_DISPATCHER_ID: 'dispatcher-a',
+    CONVERACT_FABRIC_CAPACITY_NATS_STREAM_REPLICAS: '2'
   }), /replicas/i);
 });
 

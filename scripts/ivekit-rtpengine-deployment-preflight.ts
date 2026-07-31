@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 try {
   const image = requiredEnv('IVEKIT_RTPENGINE_IMAGE');
   if (!/^[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}$/.test(image)) {
@@ -65,7 +66,7 @@ try {
 }
 
 function requiredEnv(name: string): string {
-  const value = process.env[name]?.trim();
+  const value = resolveConveractEnv(process.env, name)?.trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }

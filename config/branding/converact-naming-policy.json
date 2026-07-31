@@ -35,7 +35,14 @@
         "path_globs": [
           "src/config/converact-env.ts",
           "services/ai-agent-py/converact_env.py",
+          "services/provider-gateway-go/brand_env.go",
+          "services/provider-gateway-go/brand_env_test.go",
+          "scripts/converact-env-compat.sh",
+          "scripts/converact-env-compat.ps1",
+          "scripts/test-converact-env-compat.ps1",
           "test/converact-env.test.ts",
+          "test/converact-env-shell.test.ts",
+          "test/converact-env-powershell.test.ts",
           "services/ai-agent-py/tests/test_converact_env.py"
         ],
         "tokens": ["OPC_", "OPC_IVEKIT_"],

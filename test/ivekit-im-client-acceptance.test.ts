@@ -66,7 +66,7 @@ test('IM acceptance reports not_run without real environment input instead of fa
   const result = runIveKitImAcceptanceFromEnv({});
   assert.equal(result.ok, false);
   assert.equal(result.status, 'not_run');
-  assert.deepEqual(result.missing_environment, ['OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE']);
+  assert.deepEqual(result.missing_environment, ['CONVERACT_FABRIC_IM_ACCEPTANCE_REPORT_FILE']);
   assert.equal('checks' in result, false);
 });
 

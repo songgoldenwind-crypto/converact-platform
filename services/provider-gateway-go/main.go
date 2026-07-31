@@ -168,9 +168,17 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 }
 
 func init() {
-	if timeoutRaw := os.Getenv("OPC_PROVIDER_GATEWAY_TIMEOUT_MS"); timeoutRaw != "" {
+	timeoutRaw, present, err := resolveBrandEnv(
+		os.LookupEnv,
+		"PROVIDER_GATEWAY_TIMEOUT_MS",
+		func(event brandEnvDeprecationEvent) { log.Printf("%s", event.String()) },
+	)
+	if err != nil {
+		panic(err)
+	}
+	if present && timeoutRaw != "" {
 		if _, err := strconv.Atoi(timeoutRaw); err != nil {
-			log.Printf("warning: OPC_PROVIDER_GATEWAY_TIMEOUT_MS is invalid: %v", err)
+			log.Printf("warning: CONVERACT_PROVIDER_GATEWAY_TIMEOUT_MS is invalid: %v", err)
 		}
 	}
 }

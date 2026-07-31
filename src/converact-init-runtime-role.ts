@@ -1,10 +1,11 @@
+import { resolveBrandEnv } from './config/converact-env.js';
 import { Pool } from 'pg';
 
 import { initializeIveKitRuntimeRole } from './converact-runtime-role.js';
 
 async function main(): Promise<void> {
-  const password = String(process.env.OPC_RUNTIME_DB_PASSWORD || '');
-  if (!password) throw new Error('OPC_RUNTIME_DB_PASSWORD is required');
+  const password = String(resolveBrandEnv(process.env, 'RUNTIME_DB_PASSWORD') || '');
+  if (!password) throw new Error('CONVERACT_RUNTIME_DB_PASSWORD is required');
 
   const pool = new Pool({ max: 1 });
   try {

@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from './config/converact-env.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { timingSafeEqual } from 'node:crypto';
 import type { PgQueryable } from './db-pg.js';
@@ -53,7 +54,7 @@ function resolveMediaServiceTenantContext(
   request: { url?: URL; body?: unknown }
 ): PgTenantContext | null {
   if (!path.startsWith('/api/media/livekit/')) return null;
-  const expected = String(process.env.OPC_MEDIA_API_TOKEN || process.env.LIVEKIT_MEDIA_API_TOKEN || '');
+  const expected = String(resolveBrandEnv(process.env, 'MEDIA_API_TOKEN') || process.env.LIVEKIT_MEDIA_API_TOKEN || '');
   const authorization = headerValue(headers, 'authorization');
   if (expected) {
     if (!safeEqual(authorization, `Bearer ${expected}`)) return null;

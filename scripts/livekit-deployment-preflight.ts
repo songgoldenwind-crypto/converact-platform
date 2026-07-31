@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -98,32 +99,32 @@ export function createLiveKitDeploymentPreflightReport(
   env: NodeJS.ProcessEnv
 ): LiveKitDeploymentPreflightReport {
   const checks: LiveKitDeploymentPreflightCheck[] = [];
-  const targets = parseTargets(env.OPC_VIDEO_READINESS_TARGETS);
+  const targets = parseTargets(resolveBrandEnv(env, 'VIDEO_READINESS_TARGETS'));
   const browserRequired = targets.some((target) =>
     target === 'agent-browser' || target === 'customer-browser' || target === 'web-assist-browser'
   );
-  const livekitInternalUrl = String(env.LIVEKIT_URL || env.OPC_LIVEKIT_URL || '').trim();
-  const livekitPublicUrl = String(env.LIVEKIT_PUBLIC_URL || env.OPC_LIVEKIT_PUBLIC_URL || '').trim();
-  const deploymentMode = parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE);
-  const opcBaseUrl = stripTrailingSlash(env.OPC_BASE_URL);
-  const frontendUrl = stripTrailingSlash(env.OPC_FRONTEND_URL);
-  const mediaToken = String(env.OPC_MEDIA_API_TOKEN || env.LIVEKIT_MEDIA_API_TOKEN || '').trim();
-  const inviteSecret = String(env.OPC_MEDIA_INVITE_SECRET || env.LIVEKIT_MEDIA_INVITE_SECRET || '').trim();
-  const mediaTenant = String(env.OPC_MEDIA_SMOKE_TENANT_ID || env.OPC_TENANT_ID || '').trim();
+  const livekitInternalUrl = String(env.LIVEKIT_URL || resolveBrandEnv(env, 'LIVEKIT_URL') || '').trim();
+  const livekitPublicUrl = String(env.LIVEKIT_PUBLIC_URL || resolveBrandEnv(env, 'LIVEKIT_PUBLIC_URL') || '').trim();
+  const deploymentMode = parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE'));
+  const opcBaseUrl = stripTrailingSlash(resolveBrandEnv(env, 'BASE_URL'));
+  const frontendUrl = stripTrailingSlash(resolveBrandEnv(env, 'FRONTEND_URL'));
+  const mediaToken = String(resolveBrandEnv(env, 'MEDIA_API_TOKEN') || env.LIVEKIT_MEDIA_API_TOKEN || '').trim();
+  const inviteSecret = String(resolveBrandEnv(env, 'MEDIA_INVITE_SECRET') || env.LIVEKIT_MEDIA_INVITE_SECRET || '').trim();
+  const mediaTenant = String(resolveBrandEnv(env, 'MEDIA_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || '').trim();
   const minioAccessKey = String(env.MINIO_ACCESS_KEY || '').trim();
   const minioSecretKey = String(env.MINIO_SECRET_KEY || '').trim();
-  const redisAddress = String(env.OPC_MEDIA_CONFIG_REDIS_ADDRESS || '').trim();
+  const redisAddress = String(resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_ADDRESS') || '').trim();
   const minioEndpoint = String(env.MINIO_ENDPOINT || '').trim();
   const minioBucket = String(env.MINIO_BUCKET || '').trim();
-  const webhookUrl = String(env.OPC_MEDIA_CONFIG_WEBHOOK_URL || '').trim();
+  const webhookUrl = String(resolveBrandEnv(env, 'MEDIA_CONFIG_WEBHOOK_URL') || '').trim();
   const production = env.NODE_ENV === 'production';
-  const turnTlsPort = parseInteger(env.OPC_LIVEKIT_EDGE_TURN_TLS_PORT);
-  const turnUdpPort = parseInteger(env.OPC_LIVEKIT_EDGE_TURN_UDP_PORT);
-  const rtcPortStart = parseInteger(env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START);
-  const rtcPortEnd = parseInteger(env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END);
-  const maxClockSkewMs = parseInteger(env.OPC_LIVEKIT_TIME_SYNC_MAX_SKEW_MS);
-  const clockOffsetMs = Number(String(env.OPC_LIVEKIT_TIME_SYNC_OFFSET_MS || '').trim());
-  const timeSynchronized = String(env.OPC_LIVEKIT_TIME_SYNC_STATUS || '').trim().toLowerCase() === 'synchronized' &&
+  const turnTlsPort = parseInteger(resolveBrandEnv(env, 'LIVEKIT_EDGE_TURN_TLS_PORT'));
+  const turnUdpPort = parseInteger(resolveBrandEnv(env, 'LIVEKIT_EDGE_TURN_UDP_PORT'));
+  const rtcPortStart = parseInteger(resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_START'));
+  const rtcPortEnd = parseInteger(resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_END'));
+  const maxClockSkewMs = parseInteger(resolveBrandEnv(env, 'LIVEKIT_TIME_SYNC_MAX_SKEW_MS'));
+  const clockOffsetMs = Number(String(resolveBrandEnv(env, 'LIVEKIT_TIME_SYNC_OFFSET_MS') || '').trim());
+  const timeSynchronized = String(resolveBrandEnv(env, 'LIVEKIT_TIME_SYNC_STATUS') || '').trim().toLowerCase() === 'synchronized' &&
     Number.isFinite(clockOffsetMs) && Number.isInteger(maxClockSkewMs) && maxClockSkewMs > 0 &&
     Math.abs(clockOffsetMs) <= maxClockSkewMs;
   const sipVolte = resolveSipVolteGatewayConfiguration(env);
@@ -139,7 +140,7 @@ export function createLiveKitDeploymentPreflightReport(
       ? 'LIVEKIT_URL is configured for server-side LiveKit connections'
       : livekitInternalUrl
         ? 'LIVEKIT_URL is invalid for the selected readiness targets'
-        : 'LIVEKIT_URL or OPC_LIVEKIT_URL is required'
+        : 'LIVEKIT_URL or CONVERACT_LIVEKIT_URL is required'
   );
   addCheck(
     checks,
@@ -148,7 +149,7 @@ export function createLiveKitDeploymentPreflightReport(
     livekitPublicUrl
       ? 'LIVEKIT_PUBLIC_URL is configured for browser joins'
       : browserRequired
-        ? 'LIVEKIT_PUBLIC_URL or OPC_LIVEKIT_PUBLIC_URL is required for browser targets'
+        ? 'LIVEKIT_PUBLIC_URL or CONVERACT_LIVEKIT_PUBLIC_URL is required for browser targets'
         : 'LIVEKIT_PUBLIC_URL is not required by the selected server-only targets'
   );
   addCheck(
@@ -169,7 +170,7 @@ export function createLiveKitDeploymentPreflightReport(
       ? env.NODE_ENV === 'production' && deploymentMode === 'bundled-dev'
         ? 'bundled-dev is not allowed for production LiveKit deployment'
         : `LiveKit deployment mode is ${deploymentMode}`
-      : 'OPC_LIVEKIT_DEPLOYMENT_MODE must be external, standalone-vm, or bundled-dev'
+      : 'CONVERACT_LIVEKIT_DEPLOYMENT_MODE must be external, standalone-vm, or bundled-dev'
   );
   if (deploymentMode === 'standalone-vm') {
     addDomainCheck(checks, 'livekit_signal_domain', env.LIVEKIT_SIGNAL_DOMAIN);
@@ -194,21 +195,21 @@ export function createLiveKitDeploymentPreflightReport(
   addRequiredSecret(
     checks,
     'livekit_api_key',
-    env.LIVEKIT_API_KEY || env.OPC_LIVEKIT_API_KEY,
-    'LIVEKIT_API_KEY or OPC_LIVEKIT_API_KEY is required',
+    env.LIVEKIT_API_KEY || resolveBrandEnv(env, 'LIVEKIT_API_KEY'),
+    'LIVEKIT_API_KEY or CONVERACT_LIVEKIT_API_KEY is required',
     !sipSelected || !sipVolte.missingOrInvalid.includes('LIVEKIT_API_KEY')
   );
   addRequiredSecret(
     checks,
     'livekit_api_secret',
-    env.LIVEKIT_API_SECRET || env.OPC_LIVEKIT_API_SECRET,
-    'LIVEKIT_API_SECRET or OPC_LIVEKIT_API_SECRET is required',
+    env.LIVEKIT_API_SECRET || resolveBrandEnv(env, 'LIVEKIT_API_SECRET'),
+    'LIVEKIT_API_SECRET or CONVERACT_LIVEKIT_API_SECRET is required',
     !sipSelected || !sipVolte.missingOrInvalid.includes('LIVEKIT_API_SECRET')
   );
-  addHttpUrlCheck(checks, 'opc_base_url', opcBaseUrl, 'OPC_BASE_URL is configured');
-  addRequiredSecret(checks, 'media_api_token', mediaToken, 'OPC_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN is required');
-  addRequiredSecret(checks, 'media_invite_secret', inviteSecret, 'OPC_MEDIA_INVITE_SECRET or LIVEKIT_MEDIA_INVITE_SECRET is required');
-  addRequiredValue(checks, 'media_smoke_tenant', mediaTenant, 'OPC_MEDIA_SMOKE_TENANT_ID or OPC_TENANT_ID is required');
+  addHttpUrlCheck(checks, 'opc_base_url', opcBaseUrl, 'CONVERACT_BASE_URL is configured');
+  addRequiredSecret(checks, 'media_api_token', mediaToken, 'CONVERACT_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN is required');
+  addRequiredSecret(checks, 'media_invite_secret', inviteSecret, 'CONVERACT_MEDIA_INVITE_SECRET or LIVEKIT_MEDIA_INVITE_SECRET is required');
+  addRequiredValue(checks, 'media_smoke_tenant', mediaTenant, 'CONVERACT_MEDIA_SMOKE_TENANT_ID or CONVERACT_TENANT_ID is required');
   addRequiredSecret(checks, 'minio_access_key', minioAccessKey, 'MINIO_ACCESS_KEY is required for LiveKit Egress config');
   addRequiredSecret(checks, 'minio_secret_key', minioSecretKey, 'MINIO_SECRET_KEY is required for LiveKit Egress config');
   if (production) {
@@ -218,12 +219,12 @@ export function createLiveKitDeploymentPreflightReport(
       isRedisAddress(redisAddress) ? 'pass' : 'fail',
       isRedisAddress(redisAddress)
         ? 'LiveKit Redis address is configured'
-        : 'OPC_MEDIA_CONFIG_REDIS_ADDRESS must be a Redis URL or host:port'
+        : 'CONVERACT_MEDIA_CONFIG_REDIS_ADDRESS must be a Redis URL or host:port'
     );
-    addIntegerRangeCheck(checks, 'livekit_turn_tls_port', env.OPC_LIVEKIT_EDGE_TURN_TLS_PORT || '', 1, 65_535);
-    addIntegerRangeCheck(checks, 'livekit_turn_udp_port', env.OPC_LIVEKIT_EDGE_TURN_UDP_PORT || '', 1, 65_535);
-    addIntegerRangeCheck(checks, 'livekit_rtc_udp_port_start', env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START || '', 1, 65_535);
-    addIntegerRangeCheck(checks, 'livekit_rtc_udp_port_end', env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END || '', 1, 65_535);
+    addIntegerRangeCheck(checks, 'livekit_turn_tls_port', resolveBrandEnv(env, 'LIVEKIT_EDGE_TURN_TLS_PORT') || '', 1, 65_535);
+    addIntegerRangeCheck(checks, 'livekit_turn_udp_port', resolveBrandEnv(env, 'LIVEKIT_EDGE_TURN_UDP_PORT') || '', 1, 65_535);
+    addIntegerRangeCheck(checks, 'livekit_rtc_udp_port_start', resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_START') || '', 1, 65_535);
+    addIntegerRangeCheck(checks, 'livekit_rtc_udp_port_end', resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_END') || '', 1, 65_535);
     const validRtcRange = validPort(rtcPortStart) && validPort(rtcPortEnd) && rtcPortStart <= rtcPortEnd;
     addCheck(
       checks,
@@ -231,15 +232,15 @@ export function createLiveKitDeploymentPreflightReport(
       validRtcRange ? 'pass' : 'fail',
       validRtcRange
         ? 'LiveKit RTC UDP port range is ordered and valid'
-        : 'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START must be less than or equal to the end port'
+        : 'CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_START must be less than or equal to the end port'
     );
     addCheck(
       checks,
       'livekit_egress_enabled',
-      env.OPC_MEDIA_EGRESS_ENABLED === '1' ? 'pass' : 'fail',
-      env.OPC_MEDIA_EGRESS_ENABLED === '1'
+      resolveBrandEnv(env, 'MEDIA_EGRESS_ENABLED') === '1' ? 'pass' : 'fail',
+      resolveBrandEnv(env, 'MEDIA_EGRESS_ENABLED') === '1'
         ? 'LiveKit Egress is explicitly enabled'
-        : 'OPC_MEDIA_EGRESS_ENABLED must be 1 in production'
+        : 'CONVERACT_MEDIA_EGRESS_ENABLED must be 1 in production'
     );
     addCheck(
       checks,
@@ -259,20 +260,20 @@ export function createLiveKitDeploymentPreflightReport(
       isHttpsUrl(webhookUrl) ? 'pass' : 'fail',
       isHttpsUrl(webhookUrl)
         ? 'LiveKit webhook uses https://'
-        : 'OPC_MEDIA_CONFIG_WEBHOOK_URL must use https:// in production'
+        : 'CONVERACT_MEDIA_CONFIG_WEBHOOK_URL must use https:// in production'
     );
     addCheck(
       checks,
       'livekit_time_sync_status',
-      String(env.OPC_LIVEKIT_TIME_SYNC_STATUS || '').trim().toLowerCase() === 'synchronized' ? 'pass' : 'fail',
-      String(env.OPC_LIVEKIT_TIME_SYNC_STATUS || '').trim().toLowerCase() === 'synchronized'
+      String(resolveBrandEnv(env, 'LIVEKIT_TIME_SYNC_STATUS') || '').trim().toLowerCase() === 'synchronized' ? 'pass' : 'fail',
+      String(resolveBrandEnv(env, 'LIVEKIT_TIME_SYNC_STATUS') || '').trim().toLowerCase() === 'synchronized'
         ? 'Host time synchronization is reported active'
-        : 'OPC_LIVEKIT_TIME_SYNC_STATUS must be synchronized'
+        : 'CONVERACT_LIVEKIT_TIME_SYNC_STATUS must be synchronized'
     );
     addIntegerRangeCheck(
       checks,
       'livekit_time_sync_max_skew',
-      env.OPC_LIVEKIT_TIME_SYNC_MAX_SKEW_MS || '',
+      resolveBrandEnv(env, 'LIVEKIT_TIME_SYNC_MAX_SKEW_MS') || '',
       1,
       60_000
     );
@@ -282,79 +283,79 @@ export function createLiveKitDeploymentPreflightReport(
       timeSynchronized ? 'pass' : 'fail',
       timeSynchronized
         ? 'Observed clock offset is within the configured maximum skew'
-        : 'OPC_LIVEKIT_TIME_SYNC_OFFSET_MS must be within the configured maximum skew'
+        : 'CONVERACT_LIVEKIT_TIME_SYNC_OFFSET_MS must be within the configured maximum skew'
     );
   }
   addIntegerRangeCheck(
     checks,
     'media_recording_retention_days',
-    env.OPC_MEDIA_RECORDING_RETENTION_DAYS || '90',
+    resolveBrandEnv(env, 'MEDIA_RECORDING_RETENTION_DAYS') || '90',
     1,
     3650
   );
   addIntegerRangeCheck(
     checks,
     'media_recording_http_timeout',
-    env.OPC_RECORDING_HTTP_TIMEOUT_MS || '15000',
+    resolveBrandEnv(env, 'RECORDING_HTTP_TIMEOUT_MS') || '15000',
     1,
     300_000
   );
   addIntegerRangeCheck(
     checks,
     'media_recording_object_timeout',
-    env.OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS || '60000',
+    resolveBrandEnv(env, 'MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS') || '60000',
     1,
     3_600_000
   );
   addIntegerRangeCheck(
     checks,
     'media_recording_object_poll_interval',
-    env.OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS || '2000',
+    resolveBrandEnv(env, 'MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS') || '2000',
     1,
     60_000
   );
 
   if (targets.includes('agent-browser')) {
-    addHttpUrlCheck(checks, 'agent_browser_frontend_url', frontendUrl, 'OPC_FRONTEND_URL is configured for agent browser smoke');
-    addRequiredValue(checks, 'agent_browser_agent_a_token', env.OPC_BROWSER_SMOKE_AGENT_A_TOKEN, 'OPC_BROWSER_SMOKE_AGENT_A_TOKEN is required');
-    addRequiredValue(checks, 'agent_browser_agent_a_user_id', env.OPC_BROWSER_SMOKE_AGENT_A_USER_ID, 'OPC_BROWSER_SMOKE_AGENT_A_USER_ID is required');
-    addRequiredValue(checks, 'agent_browser_agent_a_seat_id', env.OPC_BROWSER_SMOKE_AGENT_A_SEAT_ID, 'OPC_BROWSER_SMOKE_AGENT_A_SEAT_ID is required');
-    addRequiredValue(checks, 'agent_browser_agent_b_token', env.OPC_BROWSER_SMOKE_AGENT_B_TOKEN, 'OPC_BROWSER_SMOKE_AGENT_B_TOKEN is required');
-    addRequiredValue(checks, 'agent_browser_agent_b_user_id', env.OPC_BROWSER_SMOKE_AGENT_B_USER_ID, 'OPC_BROWSER_SMOKE_AGENT_B_USER_ID is required');
-    addRequiredValue(checks, 'agent_browser_agent_b_seat_id', env.OPC_BROWSER_SMOKE_AGENT_B_SEAT_ID, 'OPC_BROWSER_SMOKE_AGENT_B_SEAT_ID is required');
+    addHttpUrlCheck(checks, 'agent_browser_frontend_url', frontendUrl, 'CONVERACT_FRONTEND_URL is configured for agent browser smoke');
+    addRequiredValue(checks, 'agent_browser_agent_a_token', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_A_TOKEN'), 'CONVERACT_BROWSER_SMOKE_AGENT_A_TOKEN is required');
+    addRequiredValue(checks, 'agent_browser_agent_a_user_id', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_A_USER_ID'), 'CONVERACT_BROWSER_SMOKE_AGENT_A_USER_ID is required');
+    addRequiredValue(checks, 'agent_browser_agent_a_seat_id', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_A_SEAT_ID'), 'CONVERACT_BROWSER_SMOKE_AGENT_A_SEAT_ID is required');
+    addRequiredValue(checks, 'agent_browser_agent_b_token', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_B_TOKEN'), 'CONVERACT_BROWSER_SMOKE_AGENT_B_TOKEN is required');
+    addRequiredValue(checks, 'agent_browser_agent_b_user_id', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_B_USER_ID'), 'CONVERACT_BROWSER_SMOKE_AGENT_B_USER_ID is required');
+    addRequiredValue(checks, 'agent_browser_agent_b_seat_id', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_B_SEAT_ID'), 'CONVERACT_BROWSER_SMOKE_AGENT_B_SEAT_ID is required');
   }
 
   if (targets.includes('customer-browser')) {
-    addHttpUrlCheck(checks, 'customer_browser_frontend_url', frontendUrl, 'OPC_FRONTEND_URL is configured for customer browser smoke');
+    addHttpUrlCheck(checks, 'customer_browser_frontend_url', frontendUrl, 'CONVERACT_FRONTEND_URL is configured for customer browser smoke');
     addRequiredValue(
       checks,
       'customer_browser_url_or_room',
-      env.OPC_CUSTOMER_VIDEO_URL || env.OPC_CUSTOMER_BROWSER_SMOKE_URL || env.OPC_CUSTOMER_BROWSER_SMOKE_ROOM_NAME,
-      'OPC_CUSTOMER_VIDEO_URL, OPC_CUSTOMER_BROWSER_SMOKE_URL, or OPC_CUSTOMER_BROWSER_SMOKE_ROOM_NAME is required'
+      resolveBrandEnv(env, 'CUSTOMER_VIDEO_URL') || resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_URL') || resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_ROOM_NAME'),
+      'CONVERACT_CUSTOMER_VIDEO_URL, CONVERACT_CUSTOMER_BROWSER_SMOKE_URL, or CONVERACT_CUSTOMER_BROWSER_SMOKE_ROOM_NAME is required'
     );
     addRequiredValue(
       checks,
       'customer_browser_tenant',
-      env.OPC_CUSTOMER_VIDEO_URL || env.OPC_CUSTOMER_BROWSER_SMOKE_URL || env.OPC_CUSTOMER_BROWSER_SMOKE_TENANT_ID || env.OPC_TENANT_ID,
-      'OPC_CUSTOMER_VIDEO_URL, OPC_CUSTOMER_BROWSER_SMOKE_TENANT_ID, or OPC_TENANT_ID is required'
+      resolveBrandEnv(env, 'CUSTOMER_VIDEO_URL') || resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_URL') || resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID'),
+      'CONVERACT_CUSTOMER_VIDEO_URL, CONVERACT_CUSTOMER_BROWSER_SMOKE_TENANT_ID, or CONVERACT_TENANT_ID is required'
     );
   }
 
   if (targets.includes('web-assist-browser')) {
-    addHttpUrlCheck(checks, 'web_assist_frontend_url', frontendUrl, 'OPC_FRONTEND_URL is configured for Web Assist browser smoke');
+    addHttpUrlCheck(checks, 'web_assist_frontend_url', frontendUrl, 'CONVERACT_FRONTEND_URL is configured for Web Assist browser smoke');
     addRequiredValue(
       checks,
       'web_assist_customer_url',
-      env.OPC_WEB_ASSIST_CUSTOMER_URL || env.OPC_REMOTE_ASSIST_CUSTOMER_URL,
-      'OPC_WEB_ASSIST_CUSTOMER_URL or OPC_REMOTE_ASSIST_CUSTOMER_URL is required'
+      resolveBrandEnv(env, 'WEB_ASSIST_CUSTOMER_URL') || resolveBrandEnv(env, 'REMOTE_ASSIST_CUSTOMER_URL'),
+      'CONVERACT_WEB_ASSIST_CUSTOMER_URL or CONVERACT_REMOTE_ASSIST_CUSTOMER_URL is required'
     );
-    addRequiredValue(checks, 'web_assist_engineer_token', env.OPC_WEB_ASSIST_ENGINEER_TOKEN, 'OPC_WEB_ASSIST_ENGINEER_TOKEN is required');
-    addRequiredValue(checks, 'web_assist_engineer_user_id', env.OPC_WEB_ASSIST_ENGINEER_USER_ID, 'OPC_WEB_ASSIST_ENGINEER_USER_ID is required');
+    addRequiredValue(checks, 'web_assist_engineer_token', resolveBrandEnv(env, 'WEB_ASSIST_ENGINEER_TOKEN'), 'CONVERACT_WEB_ASSIST_ENGINEER_TOKEN is required');
+    addRequiredValue(checks, 'web_assist_engineer_user_id', resolveBrandEnv(env, 'WEB_ASSIST_ENGINEER_USER_ID'), 'CONVERACT_WEB_ASSIST_ENGINEER_USER_ID is required');
     addRequiredValue(
       checks,
       'web_assist_tenant',
-      env.OPC_WEB_ASSIST_TENANT_ID || env.OPC_TENANT_ID,
-      'OPC_WEB_ASSIST_TENANT_ID or OPC_TENANT_ID is required'
+      resolveBrandEnv(env, 'WEB_ASSIST_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID'),
+      'CONVERACT_WEB_ASSIST_TENANT_ID or CONVERACT_TENANT_ID is required'
     );
   }
 
@@ -362,10 +363,10 @@ export function createLiveKitDeploymentPreflightReport(
     addCheck(
       checks,
       'sip_volte_gateway_enabled',
-      env.OPC_SIP_VOLTE_ENABLED === '1' ? 'pass' : 'fail',
-      env.OPC_SIP_VOLTE_ENABLED === '1'
+      resolveBrandEnv(env, 'SIP_VOLTE_ENABLED') === '1' ? 'pass' : 'fail',
+      resolveBrandEnv(env, 'SIP_VOLTE_ENABLED') === '1'
         ? 'SIP / VoLTE gateway is explicitly enabled'
-        : 'OPC_SIP_VOLTE_ENABLED must be 1 when sip-volte readiness is selected'
+        : 'CONVERACT_SIP_VOLTE_ENABLED must be 1 when sip-volte readiness is selected'
     );
     addSipConfigurationCheck(checks, sipVolte.missingOrInvalid, 'sip_bridge_target', 'LIVEKIT_SIP_BRIDGE_TARGET');
     addSipConfigurationCheck(checks, sipVolte.missingOrInvalid, 'rustpbx_livekit_trunk', 'RUSTPBX_LIVEKIT_TRUNK');
@@ -390,7 +391,7 @@ export function createLiveKitDeploymentPreflightReport(
       tenantConfigured: Boolean(mediaTenant),
       egressConfigured: Boolean(
         minioAccessKey && minioSecretKey && isHttpUrl(minioEndpoint) && isS3Bucket(minioBucket) &&
-        (!production || env.OPC_MEDIA_EGRESS_ENABLED === '1')
+        (!production || resolveBrandEnv(env, 'MEDIA_EGRESS_ENABLED') === '1')
       ),
       redisConfigured: isRedisAddress(redisAddress),
       turnConfigured: validPort(turnTlsPort) && validPort(turnUdpPort) &&
@@ -453,7 +454,7 @@ export function writeLiveKitDeploymentPreflightReport(
 }
 
 function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDeploymentEnvChecklistItem[] {
-  const targets = parseTargets(env.OPC_VIDEO_READINESS_TARGETS);
+  const targets = parseTargets(resolveBrandEnv(env, 'VIDEO_READINESS_TARGETS'));
   const browserRequired = targets.some((target) =>
     target === 'agent-browser' || target === 'customer-browser' || target === 'web-assist-browser'
   );
@@ -462,70 +463,70 @@ function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDepl
   const production = env.NODE_ENV === 'production';
 
   return [
-    item('LiveKit Server', 'LIVEKIT_URL', true, 'Internal LiveKit WebSocket URL used by OPC and service workloads. Can fall back to OPC_LIVEKIT_URL.', env.LIVEKIT_URL || env.OPC_LIVEKIT_URL),
-    item('LiveKit Server', 'LIVEKIT_PUBLIC_URL', browserRequired, 'Public wss:// URL returned to browser clients. Can fall back to OPC_LIVEKIT_PUBLIC_URL.', env.LIVEKIT_PUBLIC_URL || env.OPC_LIVEKIT_PUBLIC_URL),
-    item('LiveKit Server', 'OPC_LIVEKIT_DEPLOYMENT_MODE', true, 'external, standalone-vm, or bundled-dev.', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) || ''),
-    item('LiveKit Server', 'LIVEKIT_SIGNAL_DOMAIN', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Signal domain for standalone VM WSS.', env.LIVEKIT_SIGNAL_DOMAIN),
-    item('LiveKit Server', 'LIVEKIT_TURN_DOMAIN', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'TURN domain for standalone VM TURN/TLS.', env.LIVEKIT_TURN_DOMAIN),
-    item('LiveKit Server', 'LIVEKIT_ACME_EMAIL', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'ACME account email for standalone VM certificates.', env.LIVEKIT_ACME_EMAIL),
+    item('LiveKit Server', 'LIVEKIT_URL', true, 'Internal LiveKit WebSocket URL used by OPC and service workloads. Can fall back to CONVERACT_LIVEKIT_URL.', env.LIVEKIT_URL || resolveBrandEnv(env, 'LIVEKIT_URL')),
+    item('LiveKit Server', 'LIVEKIT_PUBLIC_URL', browserRequired, 'Public wss:// URL returned to browser clients. Can fall back to CONVERACT_LIVEKIT_PUBLIC_URL.', env.LIVEKIT_PUBLIC_URL || resolveBrandEnv(env, 'LIVEKIT_PUBLIC_URL')),
+    item('LiveKit Server', 'CONVERACT_LIVEKIT_DEPLOYMENT_MODE', true, 'external, standalone-vm, or bundled-dev.', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) || ''),
+    item('LiveKit Server', 'LIVEKIT_SIGNAL_DOMAIN', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Signal domain for standalone VM WSS.', env.LIVEKIT_SIGNAL_DOMAIN),
+    item('LiveKit Server', 'LIVEKIT_TURN_DOMAIN', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'TURN domain for standalone VM TURN/TLS.', env.LIVEKIT_TURN_DOMAIN),
+    item('LiveKit Server', 'LIVEKIT_ACME_EMAIL', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'ACME account email for standalone VM certificates.', env.LIVEKIT_ACME_EMAIL),
     item('LiveKit Server', 'LIVEKIT_SERVER_IMAGE_TAG', false, 'Pinned LiveKit Server image tag.', env.LIVEKIT_SERVER_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.server),
     item('LiveKit Server', 'LIVEKIT_EGRESS_IMAGE_TAG', false, 'Pinned LiveKit Egress image tag.', env.LIVEKIT_EGRESS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.egress),
     item('LiveKit Server', 'LIVEKIT_SIP_IMAGE_TAG', false, 'Pinned LiveKit SIP image tag.', env.LIVEKIT_SIP_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.sip),
     item('LiveKit Server', 'LIVEKIT_CADDYL4_IMAGE_TAG', false, 'Pinned LiveKit Caddy L4 image tag.', env.LIVEKIT_CADDYL4_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.caddyl4),
     item('LiveKit Server', 'LIVEKIT_REDIS_IMAGE_TAG', false, 'Pinned Redis image tag for standalone Media Core.', env.LIVEKIT_REDIS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.redis),
-    item('LiveKit Server', 'LIVEKIT_SERVER_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable LiveKit Server tag@sha256 reference.', env.LIVEKIT_SERVER_IMAGE),
-    item('LiveKit Server', 'LIVEKIT_EGRESS_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable LiveKit Egress tag@sha256 reference.', env.LIVEKIT_EGRESS_IMAGE),
-    item('LiveKit Server', 'LIVEKIT_SIP_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable iveKit LiveKit SIP image@sha256 reference.', env.LIVEKIT_SIP_IMAGE),
-    item('LiveKit Server', 'LIVEKIT_CADDYL4_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable Caddy L4 tag@sha256 reference.', env.LIVEKIT_CADDYL4_IMAGE),
-    item('LiveKit Server', 'LIVEKIT_REDIS_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable Redis tag@sha256 reference.', env.LIVEKIT_REDIS_IMAGE),
-    item('LiveKit Server', 'LIVEKIT_API_KEY', true, 'LiveKit API key. Can fall back to OPC_LIVEKIT_API_KEY.', env.LIVEKIT_API_KEY || env.OPC_LIVEKIT_API_KEY, true),
-    item('LiveKit Server', 'LIVEKIT_API_SECRET', true, 'LiveKit API secret. Can fall back to OPC_LIVEKIT_API_SECRET.', env.LIVEKIT_API_SECRET || env.OPC_LIVEKIT_API_SECRET, true),
-    item('LiveKit Server', 'OPC_MEDIA_CONFIG_REDIS_ADDRESS', production, 'Redis URL or host:port shared by LiveKit Server and Egress.', env.OPC_MEDIA_CONFIG_REDIS_ADDRESS, true),
-    item('LiveKit Server', 'OPC_LIVEKIT_EDGE_TURN_TLS_PORT', production, 'TURN/TLS listener port.', env.OPC_LIVEKIT_EDGE_TURN_TLS_PORT),
-    item('LiveKit Server', 'OPC_LIVEKIT_EDGE_TURN_UDP_PORT', production, 'TURN/UDP listener port.', env.OPC_LIVEKIT_EDGE_TURN_UDP_PORT),
-    item('LiveKit Server', 'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START', production, 'First UDP port in the LiveKit RTC range.', env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START),
-    item('LiveKit Server', 'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END', production, 'Last UDP port in the LiveKit RTC range.', env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END),
-    item('LiveKit Server', 'OPC_BASE_URL', true, 'Public or internal OPC backend base URL used by smoke scripts.', env.OPC_BASE_URL),
-    item('LiveKit Server', 'OPC_FRONTEND_URL', browserRequired, 'Frontend URL required by browser readiness targets.', env.OPC_FRONTEND_URL),
-    item('Media API', 'OPC_MEDIA_API_TOKEN', true, 'Bearer token for /api/media/livekit management APIs. Can fall back to LIVEKIT_MEDIA_API_TOKEN.', env.OPC_MEDIA_API_TOKEN || env.LIVEKIT_MEDIA_API_TOKEN, true),
-    item('Media API', 'OPC_MEDIA_INVITE_SECRET', true, 'HMAC secret for signed customer video invite links. Can fall back to LIVEKIT_MEDIA_INVITE_SECRET.', env.OPC_MEDIA_INVITE_SECRET || env.LIVEKIT_MEDIA_INVITE_SECRET, true),
-    item('Media API', 'OPC_MEDIA_INVITE_TTL_MS', false, 'Customer invite TTL in milliseconds.', env.OPC_MEDIA_INVITE_TTL_MS || '86400000'),
-    item('Media API', 'OPC_MEDIA_SMOKE_TENANT_ID', true, 'Tenant used by media smoke. Can fall back to OPC_TENANT_ID.', env.OPC_MEDIA_SMOKE_TENANT_ID || env.OPC_TENANT_ID),
-    item('Media API', 'OPC_MEDIA_SMOKE_ROOM_NAME', false, 'Room name used by media smoke.', env.OPC_MEDIA_SMOKE_ROOM_NAME || 'opc-media-smoke'),
-    item('Media API', 'OPC_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT', false, 'Set to 1 to reject dev-token fallback during smoke.', env.OPC_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT || '0'),
-    item('Media API', 'OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT', false, 'Set to 1 to poll object readability and download the recording during server smoke.', env.OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT || '0'),
-    item('Media API', 'OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS', false, 'Maximum wait for an Egress object to become readable.', env.OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS || '60000'),
-    item('Media API', 'OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS', false, 'Polling interval while waiting for an Egress object.', env.OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS || '2000'),
-    item('Egress / Storage', 'OPC_MEDIA_CONFIG_DIR', false, 'Directory where render:media-configs writes livekit.yaml and egress.yaml.', env.OPC_MEDIA_CONFIG_DIR || '.runtime/media'),
-    item('Egress / Storage', 'OPC_MEDIA_EGRESS_ENABLED', production, 'Must be 1 for a production deployment with recording support.', env.OPC_MEDIA_EGRESS_ENABLED),
-    item('Egress / Storage', 'OPC_MEDIA_CONFIG_WEBHOOK_URL', production, 'HTTPS LiveKit webhook endpoint.', env.OPC_MEDIA_CONFIG_WEBHOOK_URL),
-    item('Egress / Storage', 'OPC_MEDIA_RECORDING_RETENTION_DAYS', false, 'Default retention period for Media Core recordings (1-3650 days).', env.OPC_MEDIA_RECORDING_RETENTION_DAYS || '90'),
-    item('Egress / Storage', 'OPC_RECORDING_HTTP_ALLOWED_ORIGINS', false, 'Comma-separated HTTP origins allowed for production recording reads.', env.OPC_RECORDING_HTTP_ALLOWED_ORIGINS),
-    item('Egress / Storage', 'OPC_RECORDING_HTTP_TIMEOUT_MS', false, 'Timeout for controlled HTTP recording reads.', env.OPC_RECORDING_HTTP_TIMEOUT_MS || '15000'),
+    item('LiveKit Server', 'LIVEKIT_SERVER_IMAGE', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Immutable LiveKit Server tag@sha256 reference.', env.LIVEKIT_SERVER_IMAGE),
+    item('LiveKit Server', 'LIVEKIT_EGRESS_IMAGE', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Immutable LiveKit Egress tag@sha256 reference.', env.LIVEKIT_EGRESS_IMAGE),
+    item('LiveKit Server', 'LIVEKIT_SIP_IMAGE', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Immutable iveKit LiveKit SIP image@sha256 reference.', env.LIVEKIT_SIP_IMAGE),
+    item('LiveKit Server', 'LIVEKIT_CADDYL4_IMAGE', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Immutable Caddy L4 tag@sha256 reference.', env.LIVEKIT_CADDYL4_IMAGE),
+    item('LiveKit Server', 'LIVEKIT_REDIS_IMAGE', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Immutable Redis tag@sha256 reference.', env.LIVEKIT_REDIS_IMAGE),
+    item('LiveKit Server', 'LIVEKIT_API_KEY', true, 'LiveKit API key. Can fall back to CONVERACT_LIVEKIT_API_KEY.', env.LIVEKIT_API_KEY || resolveBrandEnv(env, 'LIVEKIT_API_KEY'), true),
+    item('LiveKit Server', 'LIVEKIT_API_SECRET', true, 'LiveKit API secret. Can fall back to CONVERACT_LIVEKIT_API_SECRET.', env.LIVEKIT_API_SECRET || resolveBrandEnv(env, 'LIVEKIT_API_SECRET'), true),
+    item('LiveKit Server', 'CONVERACT_MEDIA_CONFIG_REDIS_ADDRESS', production, 'Redis URL or host:port shared by LiveKit Server and Egress.', resolveBrandEnv(env, 'MEDIA_CONFIG_REDIS_ADDRESS'), true),
+    item('LiveKit Server', 'CONVERACT_LIVEKIT_EDGE_TURN_TLS_PORT', production, 'TURN/TLS listener port.', resolveBrandEnv(env, 'LIVEKIT_EDGE_TURN_TLS_PORT')),
+    item('LiveKit Server', 'CONVERACT_LIVEKIT_EDGE_TURN_UDP_PORT', production, 'TURN/UDP listener port.', resolveBrandEnv(env, 'LIVEKIT_EDGE_TURN_UDP_PORT')),
+    item('LiveKit Server', 'CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_START', production, 'First UDP port in the LiveKit RTC range.', resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_START')),
+    item('LiveKit Server', 'CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_END', production, 'Last UDP port in the LiveKit RTC range.', resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_END')),
+    item('LiveKit Server', 'CONVERACT_BASE_URL', true, 'Public or internal OPC backend base URL used by smoke scripts.', resolveBrandEnv(env, 'BASE_URL')),
+    item('LiveKit Server', 'CONVERACT_FRONTEND_URL', browserRequired, 'Frontend URL required by browser readiness targets.', resolveBrandEnv(env, 'FRONTEND_URL')),
+    item('Media API', 'CONVERACT_MEDIA_API_TOKEN', true, 'Bearer token for /api/media/livekit management APIs. Can fall back to LIVEKIT_MEDIA_API_TOKEN.', resolveBrandEnv(env, 'MEDIA_API_TOKEN') || env.LIVEKIT_MEDIA_API_TOKEN, true),
+    item('Media API', 'CONVERACT_MEDIA_INVITE_SECRET', true, 'HMAC secret for signed customer video invite links. Can fall back to LIVEKIT_MEDIA_INVITE_SECRET.', resolveBrandEnv(env, 'MEDIA_INVITE_SECRET') || env.LIVEKIT_MEDIA_INVITE_SECRET, true),
+    item('Media API', 'CONVERACT_MEDIA_INVITE_TTL_MS', false, 'Customer invite TTL in milliseconds.', resolveBrandEnv(env, 'MEDIA_INVITE_TTL_MS') || '86400000'),
+    item('Media API', 'CONVERACT_MEDIA_SMOKE_TENANT_ID', true, 'Tenant used by media smoke. Can fall back to CONVERACT_TENANT_ID.', resolveBrandEnv(env, 'MEDIA_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID')),
+    item('Media API', 'CONVERACT_MEDIA_SMOKE_ROOM_NAME', false, 'Room name used by media smoke.', resolveBrandEnv(env, 'MEDIA_SMOKE_ROOM_NAME') || 'opc-media-smoke'),
+    item('Media API', 'CONVERACT_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT', false, 'Set to 1 to reject dev-token fallback during smoke.', resolveBrandEnv(env, 'MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT') || '0'),
+    item('Media API', 'CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT', false, 'Set to 1 to poll object readability and download the recording during server smoke.', resolveBrandEnv(env, 'MEDIA_SMOKE_VERIFY_RECORDING_OBJECT') || '0'),
+    item('Media API', 'CONVERACT_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS', false, 'Maximum wait for an Egress object to become readable.', resolveBrandEnv(env, 'MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS') || '60000'),
+    item('Media API', 'CONVERACT_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS', false, 'Polling interval while waiting for an Egress object.', resolveBrandEnv(env, 'MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS') || '2000'),
+    item('Egress / Storage', 'CONVERACT_MEDIA_CONFIG_DIR', false, 'Directory where render:media-configs writes livekit.yaml and egress.yaml.', resolveBrandEnv(env, 'MEDIA_CONFIG_DIR') || '.runtime/media'),
+    item('Egress / Storage', 'CONVERACT_MEDIA_EGRESS_ENABLED', production, 'Must be 1 for a production deployment with recording support.', resolveBrandEnv(env, 'MEDIA_EGRESS_ENABLED')),
+    item('Egress / Storage', 'CONVERACT_MEDIA_CONFIG_WEBHOOK_URL', production, 'HTTPS LiveKit webhook endpoint.', resolveBrandEnv(env, 'MEDIA_CONFIG_WEBHOOK_URL')),
+    item('Egress / Storage', 'CONVERACT_MEDIA_RECORDING_RETENTION_DAYS', false, 'Default retention period for Media Core recordings (1-3650 days).', resolveBrandEnv(env, 'MEDIA_RECORDING_RETENTION_DAYS') || '90'),
+    item('Egress / Storage', 'CONVERACT_RECORDING_HTTP_ALLOWED_ORIGINS', false, 'Comma-separated HTTP origins allowed for production recording reads.', resolveBrandEnv(env, 'RECORDING_HTTP_ALLOWED_ORIGINS')),
+    item('Egress / Storage', 'CONVERACT_RECORDING_HTTP_TIMEOUT_MS', false, 'Timeout for controlled HTTP recording reads.', resolveBrandEnv(env, 'RECORDING_HTTP_TIMEOUT_MS') || '15000'),
     item('Egress / Storage', 'MINIO_ENDPOINT', production, 'S3-compatible endpoint used by LiveKit Egress.', env.MINIO_ENDPOINT || 'http://minio:9000'),
     item('Egress / Storage', 'MINIO_BUCKET', production, 'S3 bucket used by LiveKit Egress.', env.MINIO_BUCKET || 'recordings'),
     item('Egress / Storage', 'MINIO_ACCESS_KEY', true, 'S3 access key used by LiveKit Egress.', env.MINIO_ACCESS_KEY, true),
     item('Egress / Storage', 'MINIO_SECRET_KEY', true, 'S3 secret key used by LiveKit Egress.', env.MINIO_SECRET_KEY, true),
-    item('Readiness Suite', 'OPC_VIDEO_READINESS_TARGETS', false, 'Comma-separated readiness targets. Empty means the suite default target set.', env.OPC_VIDEO_READINESS_TARGETS || DEFAULT_TARGETS.join(',')),
-    item('Readiness Suite', 'OPC_VIDEO_READINESS_CONTINUE_ON_FAILURE', false, 'Set to 1 to collect all target failures before exiting.', env.OPC_VIDEO_READINESS_CONTINUE_ON_FAILURE || '0'),
-    item('Readiness Suite', 'OPC_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE', false, 'Optional Markdown output path for this generated checklist.', env.OPC_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE),
-    item('Readiness Suite', 'OPC_LIVEKIT_PREFLIGHT_REPORT_FILE', false, 'Optional JSON output path for this preflight report.', env.OPC_LIVEKIT_PREFLIGHT_REPORT_FILE),
-    item('Readiness Suite', 'OPC_LIVEKIT_TIME_SYNC_STATUS', production, 'Set to synchronized from the host time service check.', env.OPC_LIVEKIT_TIME_SYNC_STATUS),
-    item('Readiness Suite', 'OPC_LIVEKIT_TIME_SYNC_OFFSET_MS', production, 'Observed absolute clock offset in milliseconds.', env.OPC_LIVEKIT_TIME_SYNC_OFFSET_MS),
-    item('Readiness Suite', 'OPC_LIVEKIT_TIME_SYNC_MAX_SKEW_MS', production, 'Maximum accepted clock skew in milliseconds.', env.OPC_LIVEKIT_TIME_SYNC_MAX_SKEW_MS || '5000'),
-    item('Browser Smoke', 'OPC_BROWSER_SMOKE_AGENT_A_TOKEN', targets.includes('agent-browser'), 'Signed agent A browser token.', env.OPC_BROWSER_SMOKE_AGENT_A_TOKEN, true),
-    item('Browser Smoke', 'OPC_BROWSER_SMOKE_AGENT_A_USER_ID', targets.includes('agent-browser'), 'Agent A user id.', env.OPC_BROWSER_SMOKE_AGENT_A_USER_ID),
-    item('Browser Smoke', 'OPC_BROWSER_SMOKE_AGENT_A_SEAT_ID', targets.includes('agent-browser'), 'Agent A seat id.', env.OPC_BROWSER_SMOKE_AGENT_A_SEAT_ID),
-    item('Browser Smoke', 'OPC_BROWSER_SMOKE_AGENT_B_TOKEN', targets.includes('agent-browser'), 'Signed agent B browser token.', env.OPC_BROWSER_SMOKE_AGENT_B_TOKEN, true),
-    item('Browser Smoke', 'OPC_BROWSER_SMOKE_AGENT_B_USER_ID', targets.includes('agent-browser'), 'Agent B user id.', env.OPC_BROWSER_SMOKE_AGENT_B_USER_ID),
-    item('Browser Smoke', 'OPC_BROWSER_SMOKE_AGENT_B_SEAT_ID', targets.includes('agent-browser'), 'Agent B seat id.', env.OPC_BROWSER_SMOKE_AGENT_B_SEAT_ID),
-    item('Browser Smoke', 'OPC_CUSTOMER_VIDEO_URL', targets.includes('customer-browser'), 'Signed customer video URL. Can be replaced by customer-browser smoke room fields.', env.OPC_CUSTOMER_VIDEO_URL || env.OPC_CUSTOMER_BROWSER_SMOKE_URL || env.OPC_CUSTOMER_BROWSER_SMOKE_ROOM_NAME),
-    item('Browser Smoke', 'OPC_CUSTOMER_BROWSER_SMOKE_TENANT_ID', targets.includes('customer-browser'), 'Customer browser smoke tenant. Can fall back to OPC_TENANT_ID or signed customer URL.', env.OPC_CUSTOMER_BROWSER_SMOKE_TENANT_ID || env.OPC_TENANT_ID || env.OPC_CUSTOMER_VIDEO_URL || env.OPC_CUSTOMER_BROWSER_SMOKE_URL),
-    item('Web Assist', 'OPC_WEB_ASSIST_CUSTOMER_URL', webAssistRequired, 'Signed Web Assist customer URL.', env.OPC_WEB_ASSIST_CUSTOMER_URL || env.OPC_REMOTE_ASSIST_CUSTOMER_URL),
-    item('Web Assist', 'OPC_WEB_ASSIST_ENGINEER_TOKEN', webAssistRequired, 'Signed engineer token used by Web Assist browser smoke.', env.OPC_WEB_ASSIST_ENGINEER_TOKEN, true),
-    item('Web Assist', 'OPC_WEB_ASSIST_ENGINEER_USER_ID', webAssistRequired, 'Engineer user id used by Web Assist browser smoke.', env.OPC_WEB_ASSIST_ENGINEER_USER_ID),
-    item('Web Assist', 'OPC_WEB_ASSIST_TENANT_ID', webAssistRequired, 'Web Assist tenant. Can fall back to OPC_TENANT_ID.', env.OPC_WEB_ASSIST_TENANT_ID || env.OPC_TENANT_ID),
-    item('SIP / VoLTE', 'OPC_SIP_VOLTE_ENABLED', sipRequired, 'Set to 1 to activate the SIP / VoLTE gateway.', env.OPC_SIP_VOLTE_ENABLED || '0'),
+    item('Readiness Suite', 'CONVERACT_VIDEO_READINESS_TARGETS', false, 'Comma-separated readiness targets. Empty means the suite default target set.', resolveBrandEnv(env, 'VIDEO_READINESS_TARGETS') || DEFAULT_TARGETS.join(',')),
+    item('Readiness Suite', 'CONVERACT_VIDEO_READINESS_CONTINUE_ON_FAILURE', false, 'Set to 1 to collect all target failures before exiting.', resolveBrandEnv(env, 'VIDEO_READINESS_CONTINUE_ON_FAILURE') || '0'),
+    item('Readiness Suite', 'CONVERACT_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE', false, 'Optional Markdown output path for this generated checklist.', resolveBrandEnv(env, 'LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE')),
+    item('Readiness Suite', 'CONVERACT_LIVEKIT_PREFLIGHT_REPORT_FILE', false, 'Optional JSON output path for this preflight report.', resolveBrandEnv(env, 'LIVEKIT_PREFLIGHT_REPORT_FILE')),
+    item('Readiness Suite', 'CONVERACT_LIVEKIT_TIME_SYNC_STATUS', production, 'Set to synchronized from the host time service check.', resolveBrandEnv(env, 'LIVEKIT_TIME_SYNC_STATUS')),
+    item('Readiness Suite', 'CONVERACT_LIVEKIT_TIME_SYNC_OFFSET_MS', production, 'Observed absolute clock offset in milliseconds.', resolveBrandEnv(env, 'LIVEKIT_TIME_SYNC_OFFSET_MS')),
+    item('Readiness Suite', 'CONVERACT_LIVEKIT_TIME_SYNC_MAX_SKEW_MS', production, 'Maximum accepted clock skew in milliseconds.', resolveBrandEnv(env, 'LIVEKIT_TIME_SYNC_MAX_SKEW_MS') || '5000'),
+    item('Browser Smoke', 'CONVERACT_BROWSER_SMOKE_AGENT_A_TOKEN', targets.includes('agent-browser'), 'Signed agent A browser token.', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_A_TOKEN'), true),
+    item('Browser Smoke', 'CONVERACT_BROWSER_SMOKE_AGENT_A_USER_ID', targets.includes('agent-browser'), 'Agent A user id.', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_A_USER_ID')),
+    item('Browser Smoke', 'CONVERACT_BROWSER_SMOKE_AGENT_A_SEAT_ID', targets.includes('agent-browser'), 'Agent A seat id.', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_A_SEAT_ID')),
+    item('Browser Smoke', 'CONVERACT_BROWSER_SMOKE_AGENT_B_TOKEN', targets.includes('agent-browser'), 'Signed agent B browser token.', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_B_TOKEN'), true),
+    item('Browser Smoke', 'CONVERACT_BROWSER_SMOKE_AGENT_B_USER_ID', targets.includes('agent-browser'), 'Agent B user id.', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_B_USER_ID')),
+    item('Browser Smoke', 'CONVERACT_BROWSER_SMOKE_AGENT_B_SEAT_ID', targets.includes('agent-browser'), 'Agent B seat id.', resolveBrandEnv(env, 'BROWSER_SMOKE_AGENT_B_SEAT_ID')),
+    item('Browser Smoke', 'CONVERACT_CUSTOMER_VIDEO_URL', targets.includes('customer-browser'), 'Signed customer video URL. Can be replaced by customer-browser smoke room fields.', resolveBrandEnv(env, 'CUSTOMER_VIDEO_URL') || resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_URL') || resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_ROOM_NAME')),
+    item('Browser Smoke', 'CONVERACT_CUSTOMER_BROWSER_SMOKE_TENANT_ID', targets.includes('customer-browser'), 'Customer browser smoke tenant. Can fall back to CONVERACT_TENANT_ID or signed customer URL.', resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || resolveBrandEnv(env, 'CUSTOMER_VIDEO_URL') || resolveBrandEnv(env, 'CUSTOMER_BROWSER_SMOKE_URL')),
+    item('Web Assist', 'CONVERACT_WEB_ASSIST_CUSTOMER_URL', webAssistRequired, 'Signed Web Assist customer URL.', resolveBrandEnv(env, 'WEB_ASSIST_CUSTOMER_URL') || resolveBrandEnv(env, 'REMOTE_ASSIST_CUSTOMER_URL')),
+    item('Web Assist', 'CONVERACT_WEB_ASSIST_ENGINEER_TOKEN', webAssistRequired, 'Signed engineer token used by Web Assist browser smoke.', resolveBrandEnv(env, 'WEB_ASSIST_ENGINEER_TOKEN'), true),
+    item('Web Assist', 'CONVERACT_WEB_ASSIST_ENGINEER_USER_ID', webAssistRequired, 'Engineer user id used by Web Assist browser smoke.', resolveBrandEnv(env, 'WEB_ASSIST_ENGINEER_USER_ID')),
+    item('Web Assist', 'CONVERACT_WEB_ASSIST_TENANT_ID', webAssistRequired, 'Web Assist tenant. Can fall back to CONVERACT_TENANT_ID.', resolveBrandEnv(env, 'WEB_ASSIST_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID')),
+    item('SIP / VoLTE', 'CONVERACT_SIP_VOLTE_ENABLED', sipRequired, 'Set to 1 to activate the SIP / VoLTE gateway.', resolveBrandEnv(env, 'SIP_VOLTE_ENABLED') || '0'),
     item('SIP / VoLTE', 'LIVEKIT_SIP_BRIDGE_TARGET', sipRequired, 'SIP URI for livekit-sip bridge.', env.LIVEKIT_SIP_BRIDGE_TARGET),
     item('SIP / VoLTE', 'RUSTPBX_LIVEKIT_TRUNK', sipRequired, 'RustPBX trunk name that routes to LiveKit SIP.', env.RUSTPBX_LIVEKIT_TRUNK),
     item('SIP / VoLTE', 'RUSTPBX_RWI_URL', sipRequired, 'RustPBX RWI WebSocket URL.', env.RUSTPBX_RWI_URL),
@@ -825,9 +826,9 @@ function stripTrailingSlash(value: string | undefined): string {
 }
 
 async function main(): Promise<void> {
-  const checklistFile = String(process.env.OPC_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE || '').trim();
+  const checklistFile = String(resolveBrandEnv(process.env, 'LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE') || '').trim();
   const envChecklist = checklistFile ? writeLiveKitDeploymentEnvChecklist(checklistFile, process.env) : undefined;
-  const reportFilePath = String(process.env.OPC_LIVEKIT_PREFLIGHT_REPORT_FILE || '').trim();
+  const reportFilePath = String(resolveBrandEnv(process.env, 'LIVEKIT_PREFLIGHT_REPORT_FILE') || '').trim();
   const report = createLiveKitDeploymentPreflightReport(process.env);
   const reportFile = reportFilePath
     ? writeLiveKitDeploymentPreflightReport(reportFilePath, process.env, report)

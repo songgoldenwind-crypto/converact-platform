@@ -15,12 +15,12 @@ import { getRedisPubSub, resetRedisPubSubForTests } from '../src/redis-pubsub.js
  */
 describe('redis fallback disconnects orphaned clients', () => {
   const savedRedis = process.env.REDIS_URL;
-  const savedMem = process.env.OPC_USE_MEMORY_REDIS;
+  const savedMem = process.env.CONVERACT_USE_MEMORY_REDIS;
 
   before(() => {
     // Force the real-ioredis code path: no memory flag, point at a port
     // where nothing listens so connect() fails fast.
-    delete process.env.OPC_USE_MEMORY_REDIS;
+    delete process.env.CONVERACT_USE_MEMORY_REDIS;
     process.env.REDIS_URL = 'redis://127.0.0.1:1'; // nothing listening
     setRedisClientForTests(null);
     resetRedisPubSubForTests(null);
@@ -29,8 +29,8 @@ describe('redis fallback disconnects orphaned clients', () => {
   after(() => {
     if (savedRedis === undefined) delete process.env.REDIS_URL;
     else process.env.REDIS_URL = savedRedis;
-    if (savedMem === undefined) delete process.env.OPC_USE_MEMORY_REDIS;
-    else process.env.OPC_USE_MEMORY_REDIS = savedMem;
+    if (savedMem === undefined) delete process.env.CONVERACT_USE_MEMORY_REDIS;
+    else process.env.CONVERACT_USE_MEMORY_REDIS = savedMem;
     setRedisClientForTests(null);
     resetRedisPubSubForTests(null);
   });

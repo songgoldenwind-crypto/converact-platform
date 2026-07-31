@@ -14,7 +14,7 @@ import {
 test('object storage factory honors the supplied environment without mutating process env', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'ivekit-object-storage-env-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const local = createObjectStorage({ OPC_UPLOAD_DIR: root });
+  const local = createObjectStorage({ CONVERACT_UPLOAD_DIR: root });
   const s3 = createObjectStorage({
     MINIO_ENDPOINT: 'http://minio.internal:9000',
     MINIO_BUCKET: 'secure-files',
@@ -29,11 +29,11 @@ test('object storage factory honors the supplied environment without mutating pr
 
 test('object storage factory rejects local fallback when shared storage is required', () => {
   assert.throws(
-    () => createObjectStorage({ OPC_OBJECT_STORAGE_REQUIRED: '1' }),
+    () => createObjectStorage({ CONVERACT_OBJECT_STORAGE_REQUIRED: '1' }),
     /shared object storage is required/i
   );
   assert.doesNotThrow(() => createObjectStorage({
-    OPC_OBJECT_STORAGE_REQUIRED: '1',
+    CONVERACT_OBJECT_STORAGE_REQUIRED: '1',
     S3_BUCKET: 'ivekit-production'
   }));
 });

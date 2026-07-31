@@ -285,21 +285,21 @@ spec:
               value: {{ .Values.mediaControl.processing.maxResponseBytes | quote }}
             - name: IVEKIT_PROCESSING_MEDIA_MAX_RELEASE_CONTEXTS
               value: {{ .Values.mediaControl.processing.maxReleaseContexts | quote }}
-            - name: OPC_OTEL_ENABLED
+            - name: CONVERACT_OTEL_ENABLED
               value: {{ ternary "1" "0" .Values.mediaControl.telemetry.enabled | quote }}
-            - name: OPC_OTEL_SERVICE_NAME
+            - name: CONVERACT_OTEL_SERVICE_NAME
               value: ivekit-media-control
-            - name: OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+            - name: CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.mediaControl.telemetry.collectorEndpoint | quote }}
-            - name: OPC_OTEL_TRACE_SAMPLE_RATIO
+            - name: CONVERACT_OTEL_TRACE_SAMPLE_RATIO
               value: {{ .Values.mediaControl.telemetry.sampleRatio | quote }}
-            - name: OPC_OTEL_MAX_QUEUE_SIZE
+            - name: CONVERACT_OTEL_MAX_QUEUE_SIZE
               value: {{ .Values.mediaControl.telemetry.maxQueueSize | quote }}
-            - name: OPC_OTEL_MAX_EXPORT_BATCH_SIZE
+            - name: CONVERACT_OTEL_MAX_EXPORT_BATCH_SIZE
               value: {{ .Values.mediaControl.telemetry.maxExportBatchSize | quote }}
-            - name: OPC_OTEL_SCHEDULED_DELAY_MS
+            - name: CONVERACT_OTEL_SCHEDULED_DELAY_MS
               value: {{ .Values.mediaControl.telemetry.scheduledDelayMs | quote }}
-            - name: OPC_OTEL_EXPORT_TIMEOUT_MS
+            - name: CONVERACT_OTEL_EXPORT_TIMEOUT_MS
               value: {{ .Values.mediaControl.telemetry.exportTimeoutMs | quote }}
             - name: IVEKIT_MEDIA_CONTROL_WAL_DIRECTORY
               value: /var/lib/ivekit-media-control

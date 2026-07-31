@@ -16,7 +16,9 @@ param(
   [ValidatePattern('^$|^[1-9][0-9]{0,19}$')][string]$OwnerEpoch = ''
 )
 $ErrorActionPreference = 'Stop'
-$bridge = [string]$env:OPC_RUSTDESK_PRECISE_DISCONNECT_SCRIPT
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'converact-env-compat.ps1')
+Install-ConveractEnvironmentAliases
+$bridge = [string]$env:CONVERACT_RUSTDESK_PRECISE_DISCONNECT_SCRIPT
 if (-not $bridge) {
   $bridge = Join-Path (Split-Path $PSScriptRoot -Parent) 'windows\Invoke-IveKitRustDeskSessionDisconnect.ps1'
 }

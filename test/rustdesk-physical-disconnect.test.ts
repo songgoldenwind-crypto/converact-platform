@@ -162,13 +162,13 @@ test('RustDeskPhysicalDisconnectService hides cross-tenant gateway sessions', as
 test('strict RustDesk physical disconnect requires a fresh capability heartbeat', async () => {
   const fixture = await physicalDisconnectFixture('tenant_rustdesk_physical_capability');
   const strictEnv = {
-    OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT: '1',
-    OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS: '300000'
+    CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT: '1',
+    CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS: '300000'
   };
 
   assert.doesNotThrow(() => assertRustDeskPhysicalDisconnectCapableIfRequired(
     fixture.device,
-    { OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT: '0' },
+    { CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT: '0' },
     Date.parse('2026-07-10T14:00:00.000Z')
   ));
   assert.throws(

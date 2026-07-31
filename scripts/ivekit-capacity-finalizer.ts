@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../src/config/converact-env.js';
 import { readFileSync, statSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -37,34 +38,34 @@ export function capacityFinalizerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): CapacityFinalizerConfig {
   return {
-    database_url: required(env, 'OPC_DATABASE_URL'),
+    database_url: required(env, 'CONVERACT_DATABASE_URL'),
     finalizer_id: safeId(
-      required(env, 'OPC_IVEKIT_CAPACITY_FINALIZER_ID'),
+      required(env, 'CONVERACT_FABRIC_CAPACITY_FINALIZER_ID'),
       'finalizer ID'
     ),
     manifest_path: absolutePath(
-      required(env, 'OPC_IVEKIT_CAPACITY_MANIFEST_PATH')
+      required(env, 'CONVERACT_FABRIC_CAPACITY_MANIFEST_PATH')
     ),
     submission_path: absolutePath(
-      required(env, 'OPC_IVEKIT_CAPACITY_EVIDENCE_SUBMISSION_PATH')
+      required(env, 'CONVERACT_FABRIC_CAPACITY_EVIDENCE_SUBMISSION_PATH')
     ),
     lease_ttl_ms: integer(
-      env.OPC_IVEKIT_CAPACITY_FINALIZER_LEASE_MS || '15000',
+      resolveFabricEnv(env, 'CAPACITY_FINALIZER_LEASE_MS') || '15000',
       1_000,
       300_000
     ),
-    evidence_prefix: required(env, 'OPC_IVEKIT_CAPACITY_EVIDENCE_PREFIX'),
+    evidence_prefix: required(env, 'CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX'),
     evidence_s3: {
-      bucket: required(env, 'OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET'),
-      region: required(env, 'OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION'),
-      endpoint: optionalEndpoint(env.OPC_IVEKIT_CAPACITY_EVIDENCE_S3_ENDPOINT),
+      bucket: required(env, 'CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET'),
+      region: required(env, 'CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION'),
+      endpoint: optionalEndpoint(resolveFabricEnv(env, 'CAPACITY_EVIDENCE_S3_ENDPOINT')),
       force_path_style: booleanEnv(
-        env.OPC_IVEKIT_CAPACITY_EVIDENCE_S3_FORCE_PATH_STYLE,
+        resolveFabricEnv(env, 'CAPACITY_EVIDENCE_S3_FORCE_PATH_STYLE'),
         false
       ),
-      access_key_id: env.OPC_IVEKIT_CAPACITY_EVIDENCE_S3_ACCESS_KEY_ID || undefined,
+      access_key_id: resolveFabricEnv(env, 'CAPACITY_EVIDENCE_S3_ACCESS_KEY_ID') || undefined,
       secret_access_key:
-        env.OPC_IVEKIT_CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY || undefined
+        resolveFabricEnv(env, 'CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY') || undefined
     }
   };
 }
@@ -149,7 +150,7 @@ async function main(): Promise<void> {
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = String(env[key] || '').trim();
+  const value = String(resolveConveractEnv(env, key) || '').trim();
   if (!value) throw new Error(`${key} is required`);
   return value;
 }

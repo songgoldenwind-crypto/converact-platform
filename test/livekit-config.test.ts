@@ -27,10 +27,10 @@ test('LiveKit config separates internal and public URLs', () => {
 test('LiveKit config supports OPC-prefixed URL aliases', () => {
   const config = readLiveKitConfig({
     NODE_ENV: 'production',
-    OPC_LIVEKIT_URL: 'ws://livekit-internal:7880',
-    OPC_LIVEKIT_PUBLIC_URL: 'wss://media.example.com',
-    OPC_LIVEKIT_API_KEY: 'key',
-    OPC_LIVEKIT_API_SECRET: 'secret'
+    CONVERACT_LIVEKIT_URL: 'ws://livekit-internal:7880',
+    CONVERACT_LIVEKIT_PUBLIC_URL: 'wss://media.example.com',
+    CONVERACT_LIVEKIT_API_KEY: 'key',
+    CONVERACT_LIVEKIT_API_SECRET: 'secret'
   });
 
   assert.equal(config.url, 'ws://livekit-internal:7880');
@@ -59,7 +59,7 @@ test('LiveKit config allows public URL fallback only outside production', () => 
   assert.equal(isLiveKitBrowserJoinConfigured(production, 'production'), false);
   assert.throws(
     () => requireLiveKitPublicUrl(production, 'production'),
-    /LIVEKIT_PUBLIC_URL or OPC_LIVEKIT_PUBLIC_URL is required/
+    /LIVEKIT_PUBLIC_URL or CONVERACT_LIVEKIT_PUBLIC_URL is required/
   );
 });
 
@@ -185,7 +185,7 @@ test('configured production token issuance fails closed without a public URL', a
         identity: 'customer-missing-public-url',
         role: 'customer'
       }, config),
-      /LIVEKIT_PUBLIC_URL or OPC_LIVEKIT_PUBLIC_URL is required/
+      /LIVEKIT_PUBLIC_URL or CONVERACT_LIVEKIT_PUBLIC_URL is required/
     );
   } finally {
     if (previousNodeEnv === undefined) delete process.env.NODE_ENV;

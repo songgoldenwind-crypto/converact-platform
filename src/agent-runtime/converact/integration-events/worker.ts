@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 
@@ -180,18 +181,18 @@ export function projectIveKitIntegrationEvent(
 export function integrationEventWebhookWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): IveKitEventWebhookWorkerConfig {
-  const flag = booleanEnv(env.OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED, false);
+  const flag = booleanEnv(resolveFabricEnv(env, 'EVENT_WEBHOOK_WORKER_ENABLED'), false);
   if (flag && !notificationDeliveryWorkerConfig(env).enabled) {
     throw new Error('event webhook worker requires the notification delivery runtime');
   }
   return {
     enabled: flag,
-    interval_ms: integer(env.OPC_IVEKIT_EVENT_WEBHOOK_INTERVAL_MS, 5_000, 1_000, 300_000),
-    tenant_limit: integer(env.OPC_IVEKIT_EVENT_WEBHOOK_TENANT_LIMIT, 100, 1, 1_000),
-    subscription_limit: integer(env.OPC_IVEKIT_EVENT_WEBHOOK_SUBSCRIPTION_LIMIT, 25, 1, 200),
-    event_batch_size: integer(env.OPC_IVEKIT_EVENT_WEBHOOK_EVENT_BATCH_SIZE, 100, 1, 500),
-    lease_ms: integer(env.OPC_IVEKIT_EVENT_WEBHOOK_LEASE_MS, 120_000, 5_000, 900_000),
-    retry_delays_ms: delays(env.OPC_IVEKIT_EVENT_WEBHOOK_RETRY_DELAYS_MS)
+    interval_ms: integer(resolveFabricEnv(env, 'EVENT_WEBHOOK_INTERVAL_MS'), 5_000, 1_000, 300_000),
+    tenant_limit: integer(resolveFabricEnv(env, 'EVENT_WEBHOOK_TENANT_LIMIT'), 100, 1, 1_000),
+    subscription_limit: integer(resolveFabricEnv(env, 'EVENT_WEBHOOK_SUBSCRIPTION_LIMIT'), 25, 1, 200),
+    event_batch_size: integer(resolveFabricEnv(env, 'EVENT_WEBHOOK_EVENT_BATCH_SIZE'), 100, 1, 500),
+    lease_ms: integer(resolveFabricEnv(env, 'EVENT_WEBHOOK_LEASE_MS'), 120_000, 5_000, 900_000),
+    retry_delays_ms: delays(resolveFabricEnv(env, 'EVENT_WEBHOOK_RETRY_DELAYS_MS'))
   };
 }
 

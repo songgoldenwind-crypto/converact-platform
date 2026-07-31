@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from './config/converact-env.js';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +15,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf8');
 
 export function createDatabase(
-  dbPath: string = process.env.OPC_DB_PATH || join(process.cwd(), 'data', 'opc.sqlite')
+  dbPath: string = resolveBrandEnv(process.env, 'DB_PATH') || join(process.cwd(), 'data', 'opc.sqlite')
 ): DatabaseSync {
   if (dbPath !== ':memory:') {
     mkdirSync(dirname(dbPath), { recursive: true });

@@ -9,8 +9,8 @@ import type { PgQueryable } from '../src/db-pg.js';
 import { listenOnRandomPort } from './test-helpers.js';
 
 test('voice HTTP reserves Cell capacity before opening the tenant PostgreSQL transaction', async (t) => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'voice-placement-http-system-key';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'voice-placement-http-system-key';
   const events: string[] = [];
   const persisted = new Set<string>();
   const reservedIds: string[] = [];
@@ -69,7 +69,7 @@ test('voice HTTP reserves Cell capacity before opening the tenant PostgreSQL tra
     throw error;
   }
   t.after(async () => {
-    process.env.OPC_API_KEY = previousApiKey;
+    process.env.CONVERACT_API_KEY = previousApiKey;
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 

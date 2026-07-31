@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../../config/converact-env.js';
 import { resolveAuthContext } from '../../../middleware/auth.js';
 import { broadcastOmniMessage, broadcastSentimentAlert } from '../../../call-center-events.js';
 import { emitTenantWebhookEvent } from '../webhooks/webhook-emitter.js';
@@ -24,17 +25,17 @@ function requireAuth(headers: Record<string, string | string[] | undefined>) {
 }
 
 /** Verify webhook key for external platform callbacks (SMS/email/wechat/whatsapp).
- *  Uses OPC_WEBHOOK_KEY env var — external platforms must send X-Webhook-Key header. */
+ *  Uses CONVERACT_WEBHOOK_KEY env var — external platforms must send X-Webhook-Key header. */
 function requireWebhookKey(headers: Record<string, string | string[] | undefined>): void {
   const provided = (headers['X-Webhook-Key'] || headers['x-webhook-key']) as string | undefined;
-  const expected = process.env.OPC_WEBHOOK_KEY;
+  const expected = resolveBrandEnv(process.env, 'WEBHOOK_KEY');
   if (!expected || !provided || provided !== expected) {
     throw Object.assign(new Error('invalid webhook key'), { status: 401 });
   }
 }
 
 function publicJoinUrl(joinPath: string): string {
-  const baseUrl = (process.env.OPC_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  const baseUrl = (resolveBrandEnv(process.env, 'PUBLIC_BASE_URL') || 'http://localhost:3000').replace(/\/+$/, '');
   return `${baseUrl}${joinPath.startsWith('/') ? joinPath : `/${joinPath}`}`;
 }
 

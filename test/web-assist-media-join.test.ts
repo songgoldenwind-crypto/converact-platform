@@ -86,7 +86,7 @@ async function createWebAssistSession(input: { pg: MemoryPg; db: unknown; tenant
 }
 
 test('public Web Assist token can join the shared LiveKit screen room', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'Web Assist Media Public' }).id;
@@ -123,7 +123,7 @@ test('public Web Assist token can join the shared LiveKit screen room', async ()
 });
 
 test('authenticated engineer can join the same Web Assist LiveKit screen room', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const db = createDatabase(':memory:');
   const tenantId = createTenant(db, { name: 'Web Assist Media Engineer' }).id;

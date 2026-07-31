@@ -774,12 +774,12 @@ test('rustdesk facade requires a fresh online heartbeat before starting register
   const tenantId = tenant.id;
   const gateway = new RecordingGatewayClient('rustdesk');
   const iveKit = createIveKitModule({ db, pg, remoteGateway: gateway });
-  const previousRequireOnline = process.env.OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE;
-  const previousRequirePhysicalDisconnect = process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT;
-  const previousOnlineTtlMs = process.env.OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS;
-  process.env.OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE = '1';
-  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '1';
-  process.env.OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS = '600000';
+  const previousRequireOnline = process.env.CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE;
+  const previousRequirePhysicalDisconnect = process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT;
+  const previousOnlineTtlMs = process.env.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS;
+  process.env.CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE = '1';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '1';
+  process.env.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS = '600000';
 
   try {
     const businessRef = {
@@ -865,9 +865,9 @@ test('rustdesk facade requires a fresh online heartbeat before starting register
     assert.equal(tool.provider, 'rustdesk');
     assert.equal(gateway.createCalls.length, 1);
   } finally {
-    setOptionalEnv('OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE', previousRequireOnline);
-    setOptionalEnv('OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previousRequirePhysicalDisconnect);
-    setOptionalEnv('OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS', previousOnlineTtlMs);
+    setOptionalEnv('CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE', previousRequireOnline);
+    setOptionalEnv('CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previousRequirePhysicalDisconnect);
+    setOptionalEnv('CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS', previousOnlineTtlMs);
     db.close();
   }
 });
@@ -879,14 +879,14 @@ test('rustdesk facade registers devices and starts gateway sessions by registere
   const tenantId = tenant.id;
   const gateway = new RecordingGatewayClient('rustdesk');
   const iveKit = createIveKitModule({ db, pg, remoteGateway: gateway });
-  const previousPublicKey = process.env.OPC_RUSTDESK_PUBLIC_KEY;
-  const previousIdServer = process.env.OPC_RUSTDESK_ID_SERVER;
-  const previousRelayServer = process.env.OPC_RUSTDESK_RELAY_SERVER;
-  const previousProtocolTemplate = process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE;
-  process.env.OPC_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
-  process.env.OPC_RUSTDESK_ID_SERVER = 'id.ivekit.example';
-  process.env.OPC_RUSTDESK_RELAY_SERVER = 'relay.ivekit.example';
-  process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
+  const previousPublicKey = process.env.CONVERACT_RUSTDESK_PUBLIC_KEY;
+  const previousIdServer = process.env.CONVERACT_RUSTDESK_ID_SERVER;
+  const previousRelayServer = process.env.CONVERACT_RUSTDESK_RELAY_SERVER;
+  const previousProtocolTemplate = process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE;
+  process.env.CONVERACT_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
+  process.env.CONVERACT_RUSTDESK_ID_SERVER = 'id.ivekit.example';
+  process.env.CONVERACT_RUSTDESK_RELAY_SERVER = 'relay.ivekit.example';
+  process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
 
   try {
     const businessRef = {
@@ -1194,10 +1194,10 @@ test('rustdesk facade registers devices and starts gateway sessions by registere
     });
     assert.equal(deactivated?.status, 'inactive');
   } finally {
-    setOptionalEnv('OPC_RUSTDESK_PUBLIC_KEY', previousPublicKey);
-    setOptionalEnv('OPC_RUSTDESK_ID_SERVER', previousIdServer);
-    setOptionalEnv('OPC_RUSTDESK_RELAY_SERVER', previousRelayServer);
-    setOptionalEnv('OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousProtocolTemplate);
+    setOptionalEnv('CONVERACT_RUSTDESK_PUBLIC_KEY', previousPublicKey);
+    setOptionalEnv('CONVERACT_RUSTDESK_ID_SERVER', previousIdServer);
+    setOptionalEnv('CONVERACT_RUSTDESK_RELAY_SERVER', previousRelayServer);
+    setOptionalEnv('CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousProtocolTemplate);
     db.close();
   }
 });

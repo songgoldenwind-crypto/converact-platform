@@ -18,11 +18,11 @@ test('observation bridge ingests atomic JSON and forwards a device-token batch e
   const tokenFile = join(root, 'edge-token');
   writeFileSync(tokenFile, `${DEVICE_TOKEN}\n`, { mode: 0o600 });
   const config = createRustDeskObservationBridgeConfigFromEnv({
-    OPC_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
-    OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
-    OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: inputDirectory,
-    OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: spoolDirectory,
-    OPC_RUSTDESK_EDGE_OBSERVATION_BATCH_SIZE: '20'
+    CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+    CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
+    CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: inputDirectory,
+    CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: spoolDirectory,
+    CONVERACT_RUSTDESK_EDGE_OBSERVATION_BATCH_SIZE: '20'
   });
   const requests: Array<{ url: string; init?: RequestInit }> = [];
   const bridge = await RustDeskObservationBridge.open(config, async (input, init) => {
@@ -56,11 +56,11 @@ test('observation bridge recovers transient forwarding and quarantines invalid i
   let now = new Date('2026-07-15T06:00:00.000Z');
   const config = {
     ...createRustDeskObservationBridgeConfigFromEnv({
-      OPC_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
-      OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
-      OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: join(root, 'inbox'),
-      OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: join(root, 'spool'),
-      OPC_RUSTDESK_EDGE_OBSERVATION_RETRY_DELAY_MS: '1000'
+      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+      CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
+      CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: join(root, 'inbox'),
+      CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: join(root, 'spool'),
+      CONVERACT_RUSTDESK_EDGE_OBSERVATION_RETRY_DELAY_MS: '1000'
     }),
     now: () => now
   };
@@ -101,10 +101,10 @@ test('observation bridge binds placement-enabled operations to the current serve
   writeFileSync(tokenFile, `${DEVICE_TOKEN}\n`, { mode: 0o600 });
   const config = {
     ...createRustDeskObservationBridgeConfigFromEnv({
-      OPC_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
-      OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
-      OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: join(root, 'inbox'),
-      OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: join(root, 'spool')
+      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+      CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
+      CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: join(root, 'inbox'),
+      CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: join(root, 'spool')
     }),
     placementEnabled: true
   };

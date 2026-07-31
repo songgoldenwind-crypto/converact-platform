@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
@@ -858,8 +859,8 @@ function configuredCdrRegionId(
   env: NodeJS.ProcessEnv = process.env
 ): string | undefined {
   return options.cdr_region_id?.trim() ||
-    env.OPC_IVEKIT_CDR_REGION_ID?.trim() ||
-    env.OPC_IVEKIT_PLACEMENT_HOME_REGION_ID?.trim() ||
+    resolveFabricEnv(env, 'CDR_REGION_ID')?.trim() ||
+    resolveFabricEnv(env, 'PLACEMENT_HOME_REGION_ID')?.trim() ||
     undefined;
 }
 
@@ -1378,11 +1379,11 @@ function createWebhookAuthenticator(
 }
 
 function configuredWebhookSecretResolver(): VoiceSecretResolver {
-  const configured = String(process.env.OPC_IVEKIT_VOICE_WEBHOOK_SECRET_ENV_NAMES || '')
+  const configured = String(resolveFabricEnv(process.env, 'VOICE_WEBHOOK_SECRET_ENV_NAMES') || '')
     .split(',').map((value) => value.trim()).filter((value) => /^[A-Z][A-Z0-9_]*$/.test(value));
   const names = [...new Set([
     'RUSTPBX_WEBHOOK_HMAC', 'RUSTPBX_WEBHOOK_SERVICE_KEY',
-    'OPC_IVEKIT_VOICE_WEBHOOK_HMAC', 'OPC_IVEKIT_VOICE_WEBHOOK_SERVICE_KEY',
+    'CONVERACT_FABRIC_VOICE_WEBHOOK_HMAC', 'CONVERACT_FABRIC_VOICE_WEBHOOK_SERVICE_KEY',
     ...configured
   ])];
   return new EnvVoiceSecretResolver({
@@ -1419,7 +1420,7 @@ async function reconcileVoiceCallPlacement(
 
 function voicePlacementWorkerId(): string {
   const instance = String(
-    process.env.OPC_IVEKIT_INSTANCE_ID || process.env.HOSTNAME || process.pid
+    resolveFabricEnv(process.env, 'INSTANCE_ID') || process.env.HOSTNAME || process.pid
   );
   return `voice:${createHash('sha256').update(instance).digest('hex').slice(0, 32)}`;
 }

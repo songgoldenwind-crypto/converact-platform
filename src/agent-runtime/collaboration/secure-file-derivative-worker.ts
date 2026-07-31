@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../db-pg.js';
@@ -92,9 +93,9 @@ export function secureFileDerivativeWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): SecureFileDerivativeWorkerConfig {
   const mode = derivativeProviderMode(env);
-  const enabledFlag = String(env.OPC_FILE_DERIVATIVE_WORKER_ENABLED || '').trim();
+  const enabledFlag = String(resolveBrandEnv(env, 'FILE_DERIVATIVE_WORKER_ENABLED') || '').trim();
   if (enabledFlag && enabledFlag !== '0' && enabledFlag !== '1') {
-    throw new Error('OPC_FILE_DERIVATIVE_WORKER_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_FILE_DERIVATIVE_WORKER_ENABLED must be 0 or 1');
   }
   if (enabledFlag === '1' && mode === 'disabled') {
     throw new Error('enabled file derivative worker requires a provider mode');
@@ -102,36 +103,36 @@ export function secureFileDerivativeWorkerConfig(
   return {
     enabled: mode !== 'disabled' && enabledFlag !== '0',
     intervalMs: envInteger(
-      env.OPC_FILE_DERIVATIVE_INTERVAL_MS, 5_000, 1_000, 300_000, 'derivative interval'
+      resolveBrandEnv(env, 'FILE_DERIVATIVE_INTERVAL_MS'), 5_000, 1_000, 300_000, 'derivative interval'
     ),
     batchSize: envInteger(
-      env.OPC_FILE_DERIVATIVE_BATCH_SIZE, 10, 1, 100, 'derivative batch size'
+      resolveBrandEnv(env, 'FILE_DERIVATIVE_BATCH_SIZE'), 10, 1, 100, 'derivative batch size'
     ),
     maxAttempts: envInteger(
-      env.OPC_FILE_DERIVATIVE_MAX_ATTEMPTS, 3, 1, 10, 'derivative max attempts'
+      resolveBrandEnv(env, 'FILE_DERIVATIVE_MAX_ATTEMPTS'), 3, 1, 10, 'derivative max attempts'
     ),
     claimLeaseMs: envInteger(
-      env.OPC_FILE_DERIVATIVE_LEASE_MS, 120_000, 5_000, 30 * 60_000, 'derivative lease'
+      resolveBrandEnv(env, 'FILE_DERIVATIVE_LEASE_MS'), 120_000, 5_000, 30 * 60_000, 'derivative lease'
     ),
-    retryDelaysMs: retryDelays(env.OPC_FILE_DERIVATIVE_RETRY_DELAYS_MS),
+    retryDelaysMs: retryDelays(resolveBrandEnv(env, 'FILE_DERIVATIVE_RETRY_DELAYS_MS')),
     maxSourceBytes: envInteger(
-      env.OPC_FILE_DERIVATIVE_MAX_SOURCE_BYTES,
+      resolveBrandEnv(env, 'FILE_DERIVATIVE_MAX_SOURCE_BYTES'),
       500 * 1024 * 1024,
       1,
       10 * 1024 * 1024 * 1024,
       'derivative source limit'
     ),
     maxOutputBytes: envInteger(
-      env.OPC_FILE_DERIVATIVE_MAX_OUTPUT_BYTES,
+      resolveBrandEnv(env, 'FILE_DERIVATIVE_MAX_OUTPUT_BYTES'),
       500 * 1024 * 1024,
       1,
       10 * 1024 * 1024 * 1024,
       'derivative output limit'
     ),
-    workerId: safeIdentifier(env.OPC_FILE_DERIVATIVE_WORKER_ID, 100) ||
+    workerId: safeIdentifier(resolveBrandEnv(env, 'FILE_DERIVATIVE_WORKER_ID'), 100) ||
       `secure-file-derivative-${process.pid}-${randomUUID().slice(0, 8)}`,
     providerProfileId: safeIdentifier(
-      env.OPC_FILE_DERIVATIVE_PROVIDER_PROFILE_ID,
+      resolveBrandEnv(env, 'FILE_DERIVATIVE_PROVIDER_PROFILE_ID'),
       255
     ) || defaultProviderProfileId(mode)
   };
@@ -143,27 +144,27 @@ export function configuredFileDerivativeProvider(
 ): FileDerivativeProvider | null {
   const mode = derivativeProviderMode(env);
   if (mode === 'disabled') return null;
-  const name = safeIdentifier(env.OPC_FILE_DERIVATIVE_PROVIDER_NAME, 100) || undefined;
+  const name = safeIdentifier(resolveBrandEnv(env, 'FILE_DERIVATIVE_PROVIDER_NAME'), 100) || undefined;
   if (mode === 'local_ffmpeg') {
     return createLocalFfmpegDerivativeProvider({
-      executable: env.OPC_FILE_DERIVATIVE_FFMPEG_EXECUTABLE,
-      timeoutMs: optionalNumber(env.OPC_FILE_DERIVATIVE_PROVIDER_TIMEOUT_MS),
-      maxInputBytes: optionalNumber(env.OPC_FILE_DERIVATIVE_MAX_SOURCE_BYTES),
-      maxOutputBytes: optionalNumber(env.OPC_FILE_DERIVATIVE_MAX_OUTPUT_BYTES),
-      maxStderrBytes: optionalNumber(env.OPC_FILE_DERIVATIVE_FFMPEG_MAX_STDERR_BYTES),
+      executable: resolveBrandEnv(env, 'FILE_DERIVATIVE_FFMPEG_EXECUTABLE'),
+      timeoutMs: optionalNumber(resolveBrandEnv(env, 'FILE_DERIVATIVE_PROVIDER_TIMEOUT_MS')),
+      maxInputBytes: optionalNumber(resolveBrandEnv(env, 'FILE_DERIVATIVE_MAX_SOURCE_BYTES')),
+      maxOutputBytes: optionalNumber(resolveBrandEnv(env, 'FILE_DERIVATIVE_MAX_OUTPUT_BYTES')),
+      maxStderrBytes: optionalNumber(resolveBrandEnv(env, 'FILE_DERIVATIVE_FFMPEG_MAX_STDERR_BYTES')),
       name
     });
   }
-  const baseUrl = String(env.OPC_FILE_DERIVATIVE_PROVIDER_URL || '').trim();
-  if (!baseUrl) throw new Error('OPC_FILE_DERIVATIVE_PROVIDER_URL is required for HTTP mode');
+  const baseUrl = String(resolveBrandEnv(env, 'FILE_DERIVATIVE_PROVIDER_URL') || '').trim();
+  if (!baseUrl) throw new Error('CONVERACT_FILE_DERIVATIVE_PROVIDER_URL is required for HTTP mode');
   return createHttpFileDerivativeProvider({
     mode: mode === 'http_self_hosted' ? 'self_hosted' : 'third_party',
     baseUrl,
-    endpoint: env.OPC_FILE_DERIVATIVE_PROVIDER_ENDPOINT,
-    token: env.OPC_FILE_DERIVATIVE_PROVIDER_TOKEN,
-    timeoutMs: optionalNumber(env.OPC_FILE_DERIVATIVE_PROVIDER_TIMEOUT_MS),
-    maxInputBytes: optionalNumber(env.OPC_FILE_DERIVATIVE_MAX_SOURCE_BYTES),
-    maxOutputBytes: optionalNumber(env.OPC_FILE_DERIVATIVE_MAX_OUTPUT_BYTES),
+    endpoint: resolveBrandEnv(env, 'FILE_DERIVATIVE_PROVIDER_ENDPOINT'),
+    token: resolveBrandEnv(env, 'FILE_DERIVATIVE_PROVIDER_TOKEN'),
+    timeoutMs: optionalNumber(resolveBrandEnv(env, 'FILE_DERIVATIVE_PROVIDER_TIMEOUT_MS')),
+    maxInputBytes: optionalNumber(resolveBrandEnv(env, 'FILE_DERIVATIVE_MAX_SOURCE_BYTES')),
+    maxOutputBytes: optionalNumber(resolveBrandEnv(env, 'FILE_DERIVATIVE_MAX_OUTPUT_BYTES')),
     fetch: deps.fetch,
     name
   });
@@ -223,12 +224,12 @@ export function startSecureFileDerivativeWorker(input: {
 }
 
 function derivativeProviderMode(env: NodeJS.ProcessEnv): DerivativeProviderMode {
-  const value = String(env.OPC_FILE_DERIVATIVE_PROVIDER_MODE || 'disabled').trim();
+  const value = String(resolveBrandEnv(env, 'FILE_DERIVATIVE_PROVIDER_MODE') || 'disabled').trim();
   if (
     value === 'disabled' || value === 'local_ffmpeg' ||
     value === 'http_self_hosted' || value === 'http_third_party'
   ) return value;
-  throw new Error('OPC_FILE_DERIVATIVE_PROVIDER_MODE is invalid');
+  throw new Error('CONVERACT_FILE_DERIVATIVE_PROVIDER_MODE is invalid');
 }
 
 function defaultProviderProfileId(mode: DerivativeProviderMode): string {
@@ -263,7 +264,7 @@ function retryDelays(value: string | undefined): number[] {
   if (
     !parsed.length || parsed.length > 10 ||
     parsed.some((delay) => !Number.isInteger(delay) || delay < 0 || delay > 3_600_000)
-  ) throw new Error('OPC_FILE_DERIVATIVE_RETRY_DELAYS_MS is invalid');
+  ) throw new Error('CONVERACT_FILE_DERIVATIVE_RETRY_DELAYS_MS is invalid');
   return parsed;
 }
 

@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../config/converact-env.js';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   createReadStream,
@@ -500,12 +501,12 @@ function configuredObjectStorage(env: NodeJS.ProcessEnv): ObjectStorage {
       config.forcePathStyle
     );
   }
-  if (requiredSharedObjectStorage(env.OPC_OBJECT_STORAGE_REQUIRED)) {
+  if (requiredSharedObjectStorage(resolveBrandEnv(env, 'OBJECT_STORAGE_REQUIRED'))) {
     throw new Error(
-      'shared object storage is required: configure S3_BUCKET, OPC_S3_BUCKET, or MINIO_BUCKET'
+      'shared object storage is required: configure S3_BUCKET, CONVERACT_S3_BUCKET, or MINIO_BUCKET'
     );
   }
-  return new LocalObjectStorage(env.OPC_UPLOAD_DIR || join(process.cwd(), 'data', 'uploads'));
+  return new LocalObjectStorage(resolveBrandEnv(env, 'UPLOAD_DIR') || join(process.cwd(), 'data', 'uploads'));
 }
 
 function requiredSharedObjectStorage(value: string | undefined): boolean {
@@ -518,7 +519,7 @@ export function resetObjectStorageForTests(): void {
 }
 
 export function readLocalUpload(key: string, maxBytes?: number): Buffer | null {
-  const root = localStorageRoot || process.env.OPC_UPLOAD_DIR || join(process.cwd(), 'data', 'uploads');
+  const root = localStorageRoot || resolveBrandEnv(process.env, 'UPLOAD_DIR') || join(process.cwd(), 'data', 'uploads');
   const fullPath = requiredUploadPath(root, key);
   if (!existsSync(fullPath)) return null;
   assertDownloadSize(statSync(fullPath).size, maxBytes);
@@ -528,7 +529,7 @@ export function readLocalUpload(key: string, maxBytes?: number): Buffer | null {
 }
 
 export function deleteLocalUpload(key: string): 'deleted' | 'not_found' | 'forbidden' {
-  const root = localStorageRoot || process.env.OPC_UPLOAD_DIR || join(process.cwd(), 'data', 'uploads');
+  const root = localStorageRoot || resolveBrandEnv(process.env, 'UPLOAD_DIR') || join(process.cwd(), 'data', 'uploads');
   const fullPath = resolveUploadPath(root, key);
   if (!fullPath) return 'forbidden';
   if (!existsSync(fullPath)) return 'not_found';

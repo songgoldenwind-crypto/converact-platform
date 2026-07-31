@@ -21,10 +21,10 @@ def test_avatar_livekit_smoke_config_reads_env_overrides():
             "LIVEKIT_URL": "ws://livekit.example:7880",
             "LIVEKIT_API_KEY": "api-key",
             "LIVEKIT_API_SECRET": "api-secret",
-            "OPC_AVATAR_SMOKE_ROOM_NAME": "avatar-room",
-            "OPC_AVATAR_SMOKE_IDENTITY": "avatar-bot",
-            "OPC_AVATAR_SMOKE_SAMPLE_CHUNKS": "4",
-            "OPC_AVATAR_SMOKE_SETTLE_SECONDS": "0.25",
+            "CONVERACT_AVATAR_SMOKE_ROOM_NAME": "avatar-room",
+            "CONVERACT_AVATAR_SMOKE_IDENTITY": "avatar-bot",
+            "CONVERACT_AVATAR_SMOKE_SAMPLE_CHUNKS": "4",
+            "CONVERACT_AVATAR_SMOKE_SETTLE_SECONDS": "0.25",
         }
     )
 
@@ -36,13 +36,13 @@ def test_avatar_livekit_smoke_config_reads_env_overrides():
 
 
 def test_avatar_livekit_smoke_config_rejects_invalid_chunk_count():
-    with pytest.raises(AvatarLiveKitSmokeError, match="OPC_AVATAR_SMOKE_SAMPLE_CHUNKS"):
+    with pytest.raises(AvatarLiveKitSmokeError, match="CONVERACT_AVATAR_SMOKE_SAMPLE_CHUNKS"):
         load_avatar_livekit_smoke_config(
             {
                 "LIVEKIT_URL": "ws://livekit.example:7880",
                 "LIVEKIT_API_KEY": "api-key",
                 "LIVEKIT_API_SECRET": "api-secret",
-                "OPC_AVATAR_SMOKE_SAMPLE_CHUNKS": "0",
+                "CONVERACT_AVATAR_SMOKE_SAMPLE_CHUNKS": "0",
             }
         )
 

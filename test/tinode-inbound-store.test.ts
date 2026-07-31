@@ -20,9 +20,9 @@ import { applyIveKitMigrations } from '../src/converact-migrations.js';
 import { initializeIveKitRuntimeRole } from '../src/converact-runtime-role.js';
 import type { PgQueryable } from '../src/db-pg.js';
 
-const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
-const runtimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
-const runtimePassword = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_PASSWORD || '';
+const adminUrl = process.env.CONVERACT_FABRIC_STANDALONE_TEST_DATABASE_URL || '';
+const runtimeUrl = process.env.CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
+const runtimePassword = process.env.CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_PASSWORD || '';
 const maybe = adminUrl && runtimeUrl && runtimePassword ? test : test.skip;
 
 test('Tinode inbound pause materializes a paused cursor and invalidates an existing lease', async () => {

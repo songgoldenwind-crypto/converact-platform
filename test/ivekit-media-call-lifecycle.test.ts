@@ -12,10 +12,10 @@ import { signAccessToken } from '../src/middleware/auth.js';
 const JWT_SECRET = 'ivekit-media-call-lifecycle-secret-32-bytes';
 
 test('iveKit media call lifecycle is durable idempotent and tenant scoped', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_JWT_SECRET = JWT_SECRET;
-  process.env.OPC_API_KEY = 'ivekit-media-call-system-key';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_JWT_SECRET = JWT_SECRET;
+  process.env.CONVERACT_API_KEY = 'ivekit-media-call-system-key';
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const tenantId = 'tenant_media_calls';
@@ -242,8 +242,8 @@ test('iveKit media call lifecycle is durable idempotent and tenant scoped', asyn
     assert.equal(participants.data.has_more, false);
   } finally {
     db.close();
-    restoreEnv('OPC_JWT_SECRET', previousSecret);
-    restoreEnv('OPC_API_KEY', previousApiKey);
+    restoreEnv('CONVERACT_JWT_SECRET', previousSecret);
+    restoreEnv('CONVERACT_API_KEY', previousApiKey);
   }
 });
 

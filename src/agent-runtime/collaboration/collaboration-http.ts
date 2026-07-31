@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import { pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
@@ -371,7 +372,7 @@ async function routeRustDeskDeviceHeartbeat(input: {
     }
     const identity = verifyRustDeskEdgeCommandToken(
       edgeToken,
-      String(process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET || '')
+      String(resolveBrandEnv(process.env, 'RUSTDESK_EDGE_TOKEN_SECRET') || '')
     );
     const device = await devices.getDevice({
       tenant_id: input.tenantId,
@@ -402,7 +403,7 @@ async function routeRustDeskDeviceHeartbeat(input: {
 }
 
 function requireRustDeskGatewayAuth(headers: Record<string, string | string[] | undefined>): null | { status: number; data: { error: string } } {
-  const token = String(process.env.OPC_RUSTDESK_API_TOKEN || process.env.OPC_REMOTE_GATEWAY_API_TOKEN || '').trim();
+  const token = String(resolveBrandEnv(process.env, 'RUSTDESK_API_TOKEN') || resolveBrandEnv(process.env, 'REMOTE_GATEWAY_API_TOKEN') || '').trim();
   if (!token) return { status: 503, data: { error: 'RustDesk gateway token is not configured' } };
   const authorization = headerValue(headers, 'authorization');
   if (authorization !== `Bearer ${token}`) {
@@ -658,18 +659,18 @@ function qualityReviewAutoEnqueue(
   quality: { provider: QualityReviewProvider | null; policyAware: boolean },
   env: NodeJS.ProcessEnv = process.env
 ): boolean {
-  const value = String(env.OPC_QUALITY_REVIEW_AUTO_ENQUEUE || '').trim();
+  const value = String(resolveBrandEnv(env, 'QUALITY_REVIEW_AUTO_ENQUEUE') || '').trim();
   if (value && value !== '0' && value !== '1') {
-    throw new Error('OPC_QUALITY_REVIEW_AUTO_ENQUEUE must be 0 or 1');
+    throw new Error('CONVERACT_QUALITY_REVIEW_AUTO_ENQUEUE must be 0 or 1');
   }
   return quality.policyAware || value === '1' || (value !== '0' && quality.provider !== null);
 }
 
 function attachmentUploadMaxBytes(env: NodeJS.ProcessEnv = process.env): number {
-  const raw = env.OPC_COLLABORATION_ATTACHMENT_MAX_BYTES || '26214400';
+  const raw = resolveBrandEnv(env, 'COLLABORATION_ATTACHMENT_MAX_BYTES') || '26214400';
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 1 || value > 1_073_741_824) {
-    throw new Error('OPC_COLLABORATION_ATTACHMENT_MAX_BYTES must be an integer between 1 and 1073741824');
+    throw new Error('CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES must be an integer between 1 and 1073741824');
   }
   return value;
 }
@@ -686,16 +687,16 @@ function attachmentNeedsProcessing(kind: string): boolean {
 }
 
 function configuredRemoteGatewayClient(env: NodeJS.ProcessEnv = process.env): RemoteGatewayClient {
-  const provider = String(env.OPC_REMOTE_GATEWAY_PROVIDER || 'rustdesk').trim().toLowerCase() as RemoteGatewayProvider;
+  const provider = String(resolveBrandEnv(env, 'REMOTE_GATEWAY_PROVIDER') || 'rustdesk').trim().toLowerCase() as RemoteGatewayProvider;
   const isRustDesk = provider === 'rustdesk';
   const baseUrl = String(
-    (isRustDesk ? env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL : '') ||
-    env.OPC_REMOTE_GATEWAY_BASE_URL ||
+    (isRustDesk ? resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL') : '') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') ||
     ''
   ).trim();
   const apiToken = String(
-    (isRustDesk ? env.OPC_RUSTDESK_API_TOKEN : '') ||
-    env.OPC_REMOTE_GATEWAY_API_TOKEN ||
+    (isRustDesk ? resolveBrandEnv(env, 'RUSTDESK_API_TOKEN') : '') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_API_TOKEN') ||
     ''
   ).trim();
   if (!provider || !baseUrl || !apiToken) {
@@ -704,9 +705,9 @@ function configuredRemoteGatewayClient(env: NodeJS.ProcessEnv = process.env): Re
   const input = {
     base_url: baseUrl,
     api_token: apiToken,
-    create_path: env.OPC_REMOTE_GATEWAY_CREATE_PATH || undefined,
-    session_path: env.OPC_REMOTE_GATEWAY_SESSION_PATH || undefined,
-    audit_path: env.OPC_REMOTE_GATEWAY_AUDIT_PATH || undefined
+    create_path: resolveBrandEnv(env, 'REMOTE_GATEWAY_CREATE_PATH') || undefined,
+    session_path: resolveBrandEnv(env, 'REMOTE_GATEWAY_SESSION_PATH') || undefined,
+    audit_path: resolveBrandEnv(env, 'REMOTE_GATEWAY_AUDIT_PATH') || undefined
   };
   if (provider === 'meshcentral') return createMeshCentralGatewayClient(input);
   if (provider === 'guacamole') return createGuacamoleGatewayClient(input);
@@ -769,7 +770,7 @@ function rustDeskOwnerRuntimeMetadata(
   env: NodeJS.ProcessEnv = process.env
 ): Record<string, unknown> {
   if (!owner) return {};
-  const raw = String(env.OPC_IVEKIT_RUSTDESK_OWNER_RUNTIME_JSON || '').trim();
+  const raw = String(resolveFabricEnv(env, 'RUSTDESK_OWNER_RUNTIME_JSON') || '').trim();
   const configured = raw ? bodyObject(JSON.parse(raw)) : {};
   const selected = bodyObject(configured[owner.owner_node_id]);
   const endpoint = new URL(owner.provider_endpoint);
@@ -1080,7 +1081,7 @@ function tinodeOwnerPublicWsUrl(
   owner: TinodeOwnerRoute,
   env: NodeJS.ProcessEnv
 ): string {
-  const configured = String(env.OPC_IVEKIT_TINODE_PUBLIC_WS_ENDPOINTS_JSON || '').trim();
+  const configured = String(resolveFabricEnv(env, 'TINODE_PUBLIC_WS_ENDPOINTS_JSON') || '').trim();
   if (configured) {
     const endpoints = JSON.parse(configured) as Record<string, unknown>;
     const selected = String(endpoints[owner.owner_node_id] || '').trim();
@@ -1965,7 +1966,7 @@ export async function routeCollaborationApi(
         }
       };
     }
-    const edgeSecret = String(process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET || '');
+    const edgeSecret = String(resolveBrandEnv(process.env, 'RUSTDESK_EDGE_TOKEN_SECRET') || '');
     let edgeIdentity;
     try {
       edgeIdentity = verifyRustDeskEdgeCommandToken(edgeToken, edgeSecret);

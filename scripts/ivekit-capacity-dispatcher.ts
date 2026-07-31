@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from '../src/config/converact-env.js';
 import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
@@ -23,11 +24,11 @@ export interface CapacityDispatcherConfig {
 export function capacityDispatcherConfig(
   env: NodeJS.ProcessEnv = process.env
 ): CapacityDispatcherConfig {
-  const databaseUrl = String(env.OPC_DATABASE_URL || env.DATABASE_URL || '');
-  const dispatcherId = String(env.OPC_IVEKIT_CAPACITY_DISPATCHER_ID || '');
-  if (!databaseUrl) throw new Error('OPC_DATABASE_URL is required');
+  const databaseUrl = String(resolveBrandEnv(env, 'DATABASE_URL') || env.DATABASE_URL || '');
+  const dispatcherId = String(resolveFabricEnv(env, 'CAPACITY_DISPATCHER_ID') || '');
+  if (!databaseUrl) throw new Error('CONVERACT_DATABASE_URL is required');
   if (!/^[A-Za-z0-9][A-Za-z0-9._@:-]{2,255}$/.test(dispatcherId)) {
-    throw new Error('OPC_IVEKIT_CAPACITY_DISPATCHER_ID is invalid');
+    throw new Error('CONVERACT_FABRIC_CAPACITY_DISPATCHER_ID is invalid');
   }
   const nats = resolveNatsConnectionOptions(env, { defaultName: dispatcherId });
   if (!nats) throw new Error('NATS_URL is required');
@@ -35,12 +36,12 @@ export function capacityDispatcherConfig(
     database_url: databaseUrl,
     nats,
     nats_stream_replicas: replicaEnv(
-      env.OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS
+      resolveFabricEnv(env, 'CAPACITY_NATS_STREAM_REPLICAS')
     ),
     dispatcher_id: dispatcherId,
-    interval_ms: integerEnv(env.OPC_IVEKIT_CAPACITY_DISPATCH_INTERVAL_MS, 250, 50, 60_000),
-    lease_ttl_ms: integerEnv(env.OPC_IVEKIT_CAPACITY_DISPATCH_LEASE_MS, 10_000, 1_000, 300_000),
-    batch_size: integerEnv(env.OPC_IVEKIT_CAPACITY_DISPATCH_BATCH_SIZE, 100, 1, 1_000)
+    interval_ms: integerEnv(resolveFabricEnv(env, 'CAPACITY_DISPATCH_INTERVAL_MS'), 250, 50, 60_000),
+    lease_ttl_ms: integerEnv(resolveFabricEnv(env, 'CAPACITY_DISPATCH_LEASE_MS'), 10_000, 1_000, 300_000),
+    batch_size: integerEnv(resolveFabricEnv(env, 'CAPACITY_DISPATCH_BATCH_SIZE'), 100, 1, 1_000)
   };
 }
 
@@ -82,7 +83,7 @@ export async function runCapacityDispatcher(
 
 function replicaEnv(value: string | undefined): number {
   if (!String(value || '').trim()) {
-    throw new Error('OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS is required');
+    throw new Error('CONVERACT_FABRIC_CAPACITY_NATS_STREAM_REPLICAS is required');
   }
   const parsed = Number(value);
   if (parsed !== 1 && parsed !== 3 && parsed !== 5) {

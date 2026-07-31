@@ -14,12 +14,12 @@ const JWT_SECRET = 'ivekit-media-moderation-secret-32-bytes';
 
 test('iveKit media enforces host moderation and revokes provider before terminal state', async () => {
   const previous = {
-    jwtSecret: process.env.OPC_JWT_SECRET,
-    apiKey: process.env.OPC_API_KEY,
+    jwtSecret: process.env.CONVERACT_JWT_SECRET,
+    apiKey: process.env.CONVERACT_API_KEY,
     nodeEnv: process.env.NODE_ENV
   };
-  process.env.OPC_JWT_SECRET = JWT_SECRET;
-  process.env.OPC_API_KEY = 'ivekit-media-moderation-system-key';
+  process.env.CONVERACT_JWT_SECRET = JWT_SECRET;
+  process.env.CONVERACT_API_KEY = 'ivekit-media-moderation-system-key';
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
   const store = new MediaCallStore(pg);
@@ -294,8 +294,8 @@ test('iveKit media enforces host moderation and revokes provider before terminal
     assert.equal((await store.snapshot(tenantId, noProvider.call.id))?.call.status, 'active');
   } finally {
     db.close();
-    restoreEnv('OPC_JWT_SECRET', previous.jwtSecret);
-    restoreEnv('OPC_API_KEY', previous.apiKey);
+    restoreEnv('CONVERACT_JWT_SECRET', previous.jwtSecret);
+    restoreEnv('CONVERACT_API_KEY', previous.apiKey);
     restoreEnv('NODE_ENV', previous.nodeEnv);
   }
 });

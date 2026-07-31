@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
@@ -205,26 +206,26 @@ function escapeRegExp(value: string): string {
 }
 
 export async function runKamailioWebPhoneAcceptanceFromEnv(): Promise<void> {
-  const tokenFile = requiredAbsoluteEnv('OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_TOKEN_FILE');
+  const tokenFile = requiredAbsoluteEnv('CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_TOKEN_FILE');
   const token = (await readFile(tokenFile, 'utf8')).trim();
   if (Buffer.byteLength(token) > 4_096) throw new Error('WebPhone acceptance token file is too large');
   const result = await runKamailioWebPhoneRegisterProbe({
-    endpoint: requiredEnv('OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_ENDPOINT'),
+    endpoint: requiredEnv('CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_ENDPOINT'),
     token,
-    origin: requiredEnv('OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_ORIGIN'),
-    identity: requiredEnv('OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_IDENTITY'),
-    realm: requiredEnv('OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_REALM'),
+    origin: requiredEnv('CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_ORIGIN'),
+    identity: requiredEnv('CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_IDENTITY'),
+    realm: requiredEnv('CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_REALM'),
     register_expires_seconds: envInteger(
-      'OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_REGISTER_EXPIRES_SECONDS',
+      'CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_REGISTER_EXPIRES_SECONDS',
       240
     ),
     refresh_delay_ms: envInteger(
-      'OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_REFRESH_DELAY_MS',
+      'CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_REFRESH_DELAY_MS',
       0
     ),
-    timeout_ms: envInteger('OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_TIMEOUT_MS', 10_000)
+    timeout_ms: envInteger('CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_TIMEOUT_MS', 10_000)
   });
-  const output = process.env.OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_OUTPUT;
+  const output = resolveFabricEnv(process.env, 'KAMAILIO_WEBPHONE_ACCEPTANCE_OUTPUT');
   if (output) {
     if (!isAbsolute(output)) throw new Error('WebPhone acceptance output must be absolute');
     await writeFile(output, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600 });
@@ -233,7 +234,7 @@ export async function runKamailioWebPhoneAcceptanceFromEnv(): Promise<void> {
 }
 
 function requiredEnv(name: string): string {
-  const value = String(process.env[name] || '').trim();
+  const value = String(resolveConveractEnv(process.env, name) || '').trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }
@@ -245,7 +246,7 @@ function requiredAbsoluteEnv(name: string): string {
 }
 
 function envInteger(name: string, fallback: number): number {
-  const value = String(process.env[name] || '').trim();
+  const value = String(resolveConveractEnv(process.env, name) || '').trim();
   return value ? Number(value) : fallback;
 }
 

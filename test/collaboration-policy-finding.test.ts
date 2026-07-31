@@ -182,8 +182,8 @@ test('policy finding migration defines fingerprints, review audit, and forced te
 });
 
 test('collaboration HTTP lists, reviews, and audits tenant-scoped findings', async () => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = API_KEY;
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const tenantId = 'tenant_finding_http';
   const headers = {
@@ -280,8 +280,8 @@ test('collaboration HTTP lists, reviews, and audits tenant-scoped findings', asy
       data: { error: 'collaboration session not found' }
     });
   } finally {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
   }
 });
 
@@ -484,7 +484,7 @@ test('tenant intelligence policy selects and retains the quality provider profil
   const { tenantId, messageId } = await createMessage(pg, '请判断是否存在私下联系意图');
   const requests: string[] = [];
   const registry = createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
       id: 'quality-tenant-profile',
       capability: 'quality_review',
       mode: 'self_hosted',
@@ -524,7 +524,7 @@ test('quality policy can disable automatic review while retaining manual review'
   const pg = new MemoryPg();
   const { tenantId, messageId } = await createMessage(pg, 'manual quality review');
   const registry = createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
       id: 'quality-manual-profile',
       capability: 'quality_review',
       mode: 'self_hosted',
@@ -657,8 +657,8 @@ test('quality review migration defines hashed leased jobs and forced tenant RLS'
 });
 
 test('collaboration HTTP automatically enqueues and runs AI quality review jobs', async () => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = API_KEY;
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const tenantId = 'tenant_quality_http';
   const headers = {
@@ -726,21 +726,21 @@ test('collaboration HTTP automatically enqueues and runs AI quality review jobs'
     ) as { data: { findings: Array<{ source: string }> } };
     assert.equal(findings.data.findings[0]?.source, 'ai');
   } finally {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
   }
 });
 
 test('quality review worker validates config and coalesces concurrent batches', async () => {
   assert.equal(qualityReviewWorkerConfig({}).enabled, false);
   const config = qualityReviewWorkerConfig({
-    OPC_QUALITY_REVIEW_BASE_URL: 'http://quality.internal:8080',
-    OPC_QUALITY_REVIEW_WORKER_ENABLED: '1',
-    OPC_QUALITY_REVIEW_INTERVAL_MS: '3000',
-    OPC_QUALITY_REVIEW_BATCH_SIZE: '9',
-    OPC_QUALITY_REVIEW_MAX_ATTEMPTS: '4',
-    OPC_QUALITY_REVIEW_CLAIM_LEASE_MS: '90000',
-    OPC_QUALITY_REVIEW_RETRY_DELAYS_MS: '2000,9000'
+    CONVERACT_QUALITY_REVIEW_BASE_URL: 'http://quality.internal:8080',
+    CONVERACT_QUALITY_REVIEW_WORKER_ENABLED: '1',
+    CONVERACT_QUALITY_REVIEW_INTERVAL_MS: '3000',
+    CONVERACT_QUALITY_REVIEW_BATCH_SIZE: '9',
+    CONVERACT_QUALITY_REVIEW_MAX_ATTEMPTS: '4',
+    CONVERACT_QUALITY_REVIEW_CLAIM_LEASE_MS: '90000',
+    CONVERACT_QUALITY_REVIEW_RETRY_DELAYS_MS: '2000,9000'
   });
   assert.equal(config.enabled, true);
   assert.equal(config.batchSize, 9);
@@ -766,12 +766,12 @@ test('quality review worker validates config and coalesces concurrent batches', 
 
 test('quality worker claim lease covers the longest configured provider reservation', () => {
   const config = qualityReviewWorkerConfig({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
       id: 'slow-quality', capability: 'quality_review', mode: 'self_hosted',
       base_url: 'http://slow-quality:8080', timeout_ms: 300_000,
       reservation_ttl_ms: 305_000
     }]),
-    OPC_QUALITY_REVIEW_CLAIM_LEASE_MS: '120000'
+    CONVERACT_QUALITY_REVIEW_CLAIM_LEASE_MS: '120000'
   });
   assert.equal(config.claimLeaseMs >= 310_000, true);
 });
@@ -793,14 +793,14 @@ test('quality review preflight validates PostgreSQL and provider settings withou
 
   const configured = inspectQualityReviewEnv({
     DATABASE_URL: 'postgres://opc:database-secret@postgres:5432/opc',
-    OPC_QUALITY_REVIEW_PROVIDER_MODE: 'third_party',
-    OPC_QUALITY_REVIEW_PROVIDER_NAME: 'quality-vendor',
-    OPC_QUALITY_REVIEW_BASE_URL: 'https://quality.example.test',
-    OPC_QUALITY_REVIEW_ENDPOINT: '/v2/review',
-    OPC_QUALITY_REVIEW_TOKEN: 'quality-super-secret',
-    OPC_QUALITY_REVIEW_TIMEOUT_MS: '15000',
-    OPC_QUALITY_REVIEW_AUTO_ENQUEUE: '1',
-    OPC_QUALITY_REVIEW_WORKER_ENABLED: '1'
+    CONVERACT_QUALITY_REVIEW_PROVIDER_MODE: 'third_party',
+    CONVERACT_QUALITY_REVIEW_PROVIDER_NAME: 'quality-vendor',
+    CONVERACT_QUALITY_REVIEW_BASE_URL: 'https://quality.example.test',
+    CONVERACT_QUALITY_REVIEW_ENDPOINT: '/v2/review',
+    CONVERACT_QUALITY_REVIEW_TOKEN: 'quality-super-secret',
+    CONVERACT_QUALITY_REVIEW_TIMEOUT_MS: '15000',
+    CONVERACT_QUALITY_REVIEW_AUTO_ENQUEUE: '1',
+    CONVERACT_QUALITY_REVIEW_WORKER_ENABLED: '1'
   });
   assert.equal(configured.ready, true);
   assert.equal(configured.provider.mode, 'third_party');
@@ -820,9 +820,9 @@ test('quality review deployment surfaces expose provider, enqueue, and worker se
     readFileSync('infra/k8s/templates/opc-deployment.yaml', 'utf8')
   ];
   for (const source of sources) {
-    assert.match(source, /OPC_QUALITY_REVIEW_BASE_URL|qualityReview:\s*\n[\s\S]*baseUrl/);
-    assert.match(source, /OPC_QUALITY_REVIEW_AUTO_ENQUEUE|autoEnqueue/);
-    assert.match(source, /OPC_QUALITY_REVIEW_WORKER_ENABLED|qualityReview:[\s\S]*worker:\s*\n\s*enabled/);
+    assert.match(source, /CONVERACT_QUALITY_REVIEW_BASE_URL|qualityReview:\s*\n[\s\S]*baseUrl/);
+    assert.match(source, /CONVERACT_QUALITY_REVIEW_AUTO_ENQUEUE|autoEnqueue/);
+    assert.match(source, /CONVERACT_QUALITY_REVIEW_WORKER_ENABLED|qualityReview:[\s\S]*worker:\s*\n\s*enabled/);
   }
   const secrets = readFileSync('infra/k8s/templates/secrets.yaml', 'utf8');
   assert.match(secrets, /quality-review-token/);

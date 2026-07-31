@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveConveractEnv, resolveFabricEnv } from '../src/config/converact-env.js';
 import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
@@ -71,13 +72,13 @@ export interface CellAdmissionRuntimeConfig {
 export function cellAdmissionRuntimeConfig(
   env: NodeJS.ProcessEnv = process.env
 ): CellAdmissionRuntimeConfig {
-  const serviceToken = required(env, 'OPC_IVEKIT_CELL_ADMISSION_TOKEN');
+  const serviceToken = required(env, 'CONVERACT_FABRIC_CELL_ADMISSION_TOKEN');
   if (serviceToken.length < 24 || serviceToken.length > 512 ||
       /change[_-]?me|replace|placeholder|example/i.test(serviceToken)) {
-    throw new Error('OPC_IVEKIT_CELL_ADMISSION_TOKEN is invalid');
+    throw new Error('CONVERACT_FABRIC_CELL_ADMISSION_TOKEN is invalid');
   }
   const interactionKinds = csv(
-    required(env, 'OPC_IVEKIT_CELL_INTERACTION_KINDS')
+    required(env, 'CONVERACT_FABRIC_CELL_INTERACTION_KINDS')
   ) as InteractionKind[];
   const allowedKinds = new Set<InteractionKind>([
     'tinode_im',
@@ -87,49 +88,49 @@ export function cellAdmissionRuntimeConfig(
     'rustdesk_remote'
   ]);
   if (interactionKinds.some((kind) => !allowedKinds.has(kind))) {
-    throw new Error('OPC_IVEKIT_CELL_INTERACTION_KINDS is invalid');
+    throw new Error('CONVERACT_FABRIC_CELL_INTERACTION_KINDS is invalid');
   }
   const dimensions = jsonObject<FlatCapacityState>(
-    required(env, 'OPC_IVEKIT_CELL_DIMENSIONS_JSON'),
-    'OPC_IVEKIT_CELL_DIMENSIONS_JSON'
+    required(env, 'CONVERACT_FABRIC_CELL_DIMENSIONS_JSON'),
+    'CONVERACT_FABRIC_CELL_DIMENSIONS_JSON'
   );
   if (Object.keys(dimensions).length === 0) {
     throw new Error('Cell capacity dimensions are required');
   }
-  const explicitNodes = String(env.OPC_IVEKIT_CELL_NODES_JSON || '').trim();
-  const nodePools = String(env.OPC_IVEKIT_CELL_NODE_POOLS_JSON || '').trim();
+  const explicitNodes = String(resolveFabricEnv(env, 'CELL_NODES_JSON') || '').trim();
+  const nodePools = String(resolveFabricEnv(env, 'CELL_NODE_POOLS_JSON') || '').trim();
   if (Boolean(explicitNodes) === Boolean(nodePools)) {
     throw new Error('exactly one Cell node topology authority is required');
   }
   const nodes = nodePools
     ? compileAndValidateNodePools(jsonArray<AdmissionNodePoolConfig>(
         nodePools,
-        'OPC_IVEKIT_CELL_NODE_POOLS_JSON'
+        'CONVERACT_FABRIC_CELL_NODE_POOLS_JSON'
       ), dimensions)
     : jsonArray<AdmissionNodeConfig>(
         explicitNodes,
-        'OPC_IVEKIT_CELL_NODES_JSON'
+        'CONVERACT_FABRIC_CELL_NODES_JSON'
       );
   if (nodes.length === 0) throw new Error('Cell admission requires at least one node');
   const leaseTtlMs = integer(
-    env.OPC_IVEKIT_CELL_LEASE_TTL_MS,
+    resolveFabricEnv(env, 'CELL_LEASE_TTL_MS'),
     30_000,
     3_000,
     300_000
   );
   const reservationTtlMs = integer(
-    env.OPC_IVEKIT_CELL_RESERVATION_TTL_MS,
+    resolveFabricEnv(env, 'CELL_RESERVATION_TTL_MS'),
     10_000,
     1_000,
     300_000
   );
   const terminalRetentionMs = integer(
-    env.OPC_IVEKIT_CELL_TERMINAL_RETENTION_MS,
+    resolveFabricEnv(env, 'CELL_TERMINAL_RETENTION_MS'),
     300_000,
     1_000,
     86_400_000
   );
-  const profileIds = csv(required(env, 'OPC_IVEKIT_CELL_PROFILE_IDS'));
+  const profileIds = csv(required(env, 'CONVERACT_FABRIC_CELL_PROFILE_IDS'));
   validateNodeCapabilities(nodes, profileIds, interactionKinds);
   const componentNodeSync = componentNodeSyncConfig(env, nodes);
   const topologySha256 = cellAdmissionTopologySha256({
@@ -139,28 +140,28 @@ export function cellAdmissionRuntimeConfig(
     nodes
   });
   return {
-    host: host(env.OPC_IVEKIT_CELL_ADMISSION_HOST || '0.0.0.0'),
-    port: integer(env.OPC_IVEKIT_CELL_ADMISSION_PORT, 3200, 1, 65_535),
+    host: host(resolveFabricEnv(env, 'CELL_ADMISSION_HOST') || '0.0.0.0'),
+    port: integer(resolveFabricEnv(env, 'CELL_ADMISSION_PORT'), 3200, 1, 65_535),
     service_token: serviceToken,
-    region_id: identifier(required(env, 'OPC_IVEKIT_CELL_REGION_ID')),
-    zone_id: identifier(required(env, 'OPC_IVEKIT_CELL_ZONE_ID')),
-    cell_id: identifier(required(env, 'OPC_IVEKIT_CELL_ID')),
+    region_id: identifier(required(env, 'CONVERACT_FABRIC_CELL_REGION_ID')),
+    zone_id: identifier(required(env, 'CONVERACT_FABRIC_CELL_ZONE_ID')),
+    cell_id: identifier(required(env, 'CONVERACT_FABRIC_CELL_ID')),
     database_url: requiredDatabaseUrl(
-      env.OPC_DATABASE_URL || env.DATABASE_URL
+      resolveBrandEnv(env, 'DATABASE_URL') || env.DATABASE_URL
     ),
     owner_instance_id: identifier(
-      required(env, 'OPC_IVEKIT_CELL_INSTANCE_ID')
+      required(env, 'CONVERACT_FABRIC_CELL_INSTANCE_ID')
     ),
     topology_sha256: topologySha256,
     lease_ttl_ms: leaseTtlMs,
     lease_renewal_interval_ms: integer(
-      env.OPC_IVEKIT_CELL_LEASE_RENEWAL_INTERVAL_MS,
+      resolveFabricEnv(env, 'CELL_LEASE_RENEWAL_INTERVAL_MS'),
       Math.max(100, Math.floor(leaseTtlMs / 3)),
       100,
       Math.floor(leaseTtlMs / 2)
     ),
     lease_claim_retry_interval_ms: integer(
-      env.OPC_IVEKIT_CELL_LEASE_CLAIM_RETRY_MS,
+      resolveFabricEnv(env, 'CELL_LEASE_CLAIM_RETRY_MS'),
       1_000,
       100,
       60_000
@@ -170,17 +171,17 @@ export function cellAdmissionRuntimeConfig(
     reservation_ttl_ms: reservationTtlMs,
     terminal_retention_ms: terminalRetentionMs,
     sweep_interval_ms: integer(
-      env.OPC_IVEKIT_CELL_SWEEP_INTERVAL_MS,
+      resolveFabricEnv(env, 'CELL_SWEEP_INTERVAL_MS'),
       1_000,
       100,
       Math.min(60_000, reservationTtlMs, terminalRetentionMs)
     ),
-    initial_state: admissionState(env.OPC_IVEKIT_CELL_INITIAL_STATE || 'draining'),
+    initial_state: admissionState(resolveFabricEnv(env, 'CELL_INITIAL_STATE') || 'draining'),
     dimensions,
     nodes,
     component_node_sync: componentNodeSync,
     max_body_bytes: integer(
-      env.OPC_IVEKIT_CELL_ADMISSION_MAX_BODY_BYTES,
+      resolveFabricEnv(env, 'CELL_ADMISSION_MAX_BODY_BYTES'),
       65_536,
       128,
       1_048_576
@@ -551,7 +552,7 @@ async function listenServer(
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = String(env[key] || '').trim();
+  const value = String(resolveConveractEnv(env, key) || '').trim();
   if (!value) throw new Error(`${key} is required`);
   return value;
 }
@@ -574,7 +575,7 @@ function identifier(value: string): string {
 function requiredDatabaseUrl(value: string | undefined): string {
   const databaseUrl = String(value || '').trim();
   if (!/^postgres(?:ql)?:\/\//i.test(databaseUrl)) {
-    throw new Error('OPC_DATABASE_URL must be a PostgreSQL URL');
+    throw new Error('CONVERACT_DATABASE_URL must be a PostgreSQL URL');
   }
   return databaseUrl;
 }
@@ -679,19 +680,19 @@ function componentNodeSyncConfig(
       throw new Error('component node control_endpoint is invalid');
     }
   }
-  const token = required(env, 'OPC_IVEKIT_COMPONENT_NODE_TOKEN');
+  const token = required(env, 'CONVERACT_FABRIC_COMPONENT_NODE_TOKEN');
   if (token.length < 24 || token.length > 512 ||
       /change[_-]?me|replace|placeholder|example/i.test(token)) {
-    throw new Error('OPC_IVEKIT_COMPONENT_NODE_TOKEN is invalid');
+    throw new Error('CONVERACT_FABRIC_COMPONENT_NODE_TOKEN is invalid');
   }
   const leaseTtlMs = integer(
-    env.OPC_IVEKIT_COMPONENT_NODE_LEASE_TTL_MS,
+    resolveFabricEnv(env, 'COMPONENT_NODE_LEASE_TTL_MS'),
     10_000,
     1_000,
     300_000
   );
   const heartbeatIntervalMs = integer(
-    env.OPC_IVEKIT_COMPONENT_NODE_HEARTBEAT_INTERVAL_MS,
+    resolveFabricEnv(env, 'COMPONENT_NODE_HEARTBEAT_INTERVAL_MS'),
     Math.max(100, Math.floor(leaseTtlMs / 3)),
     100,
     Math.floor(leaseTtlMs / 2)
@@ -702,7 +703,7 @@ function componentNodeSyncConfig(
     lease_ttl_ms: leaseTtlMs,
     heartbeat_interval_ms: heartbeatIntervalMs,
     timeout_ms: integer(
-      env.OPC_IVEKIT_COMPONENT_NODE_TIMEOUT_MS,
+      resolveFabricEnv(env, 'COMPONENT_NODE_TIMEOUT_MS'),
       2_000,
       100,
       Math.min(30_000, leaseTtlMs)

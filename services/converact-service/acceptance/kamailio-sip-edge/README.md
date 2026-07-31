@@ -40,12 +40,12 @@ Edge B reports the replicated location, remove Edge A from the Service, then
 originate from RustPBX through Edge B. Preserve both Edge metrics and SIP logs.
 
 ```bash
-OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_ENDPOINT=wss://voice.example.com/ws \
-OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_ORIGIN=https://agent.example.com \
-OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_IDENTITY=agent-42 \
-OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_REALM=sip.example.com \
-OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_TOKEN_FILE=/run/secrets/webphone-token \
-OPC_IVEKIT_KAMAILIO_WEBPHONE_ACCEPTANCE_REFRESH_DELAY_MS=310000 \
+CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_ENDPOINT=wss://voice.example.com/ws \
+CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_ORIGIN=https://agent.example.com \
+CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_IDENTITY=agent-42 \
+CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_REALM=sip.example.com \
+CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_TOKEN_FILE=/run/secrets/webphone-token \
+CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ACCEPTANCE_REFRESH_DELAY_MS=310000 \
 npm run webphone
 ```
 
@@ -59,9 +59,9 @@ another scenario. Token and identity values are omitted from the WebPhone runner
 result. Aggregate from this directory with:
 
 ```bash
-OPC_IVEKIT_KAMAILIO_ACCEPTANCE_SOURCE_COMMIT=<40-hex-commit> \
-OPC_IVEKIT_KAMAILIO_ACCEPTANCE_ENVIRONMENT_ID=<environment-id> \
-OPC_IVEKIT_KAMAILIO_ACCEPTANCE_EVIDENCE_DIR=<absolute-or-relative-directory> \
+CONVERACT_FABRIC_KAMAILIO_ACCEPTANCE_SOURCE_COMMIT=<40-hex-commit> \
+CONVERACT_FABRIC_KAMAILIO_ACCEPTANCE_ENVIRONMENT_ID=<environment-id> \
+CONVERACT_FABRIC_KAMAILIO_ACCEPTANCE_EVIDENCE_DIR=<absolute-or-relative-directory> \
 IVEKIT_KAMAILIO_IMAGE=<registry/image@sha256:digest> \
 RUSTPBX_IMAGE=<registry/image@sha256:digest> \
 npm run accept

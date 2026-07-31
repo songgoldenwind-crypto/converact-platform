@@ -12,16 +12,16 @@ import {
 
 test('rustdesk event forwarder config validates control-plane inputs', () => {
   const config = createRustDeskEventForwarderConfigFromEnv({
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
-    OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-    OPC_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
-    OPC_RUSTDESK_EVENT_TYPE: 'remote.rustdesk.control_action.performed',
-    OPC_RUSTDESK_EVENT_ACTOR_IDENTITY: 'rustdesk-edge-agent',
-    OPC_RUSTDESK_EVENT_TARGET: '123456789',
-    OPC_RUSTDESK_EVENT_IDEMPOTENCY_KEY: 'control-action-1',
-    OPC_RUSTDESK_EVENT_METADATA_JSON: '{"operation_id":"operation-1","action":"mouse_click","permission":"control_mouse_keyboard","button":"left"}',
-    OPC_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE: '/var/tmp/opc-rustdesk-failed.jsonl',
-    OPC_RUSTDESK_EVENT_REPLAY_REMAINING_FILE: '/var/tmp/opc-rustdesk-remaining.jsonl'
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+    CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
+    CONVERACT_RUSTDESK_EVENT_TYPE: 'remote.rustdesk.control_action.performed',
+    CONVERACT_RUSTDESK_EVENT_ACTOR_IDENTITY: 'rustdesk-edge-agent',
+    CONVERACT_RUSTDESK_EVENT_TARGET: '123456789',
+    CONVERACT_RUSTDESK_EVENT_IDEMPOTENCY_KEY: 'control-action-1',
+    CONVERACT_RUSTDESK_EVENT_METADATA_JSON: '{"operation_id":"operation-1","action":"mouse_click","permission":"control_mouse_keyboard","button":"left"}',
+    CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE: '/var/tmp/opc-rustdesk-failed.jsonl',
+    CONVERACT_RUSTDESK_EVENT_REPLAY_REMAINING_FILE: '/var/tmp/opc-rustdesk-remaining.jsonl'
   });
 
   assert.equal(config.baseUrl, 'https://opc.example.com');
@@ -46,74 +46,74 @@ test('rustdesk event forwarder config validates control-plane inputs', () => {
 
   assert.throws(
     () => createRustDeskEventForwarderConfigFromEnv({}),
-    /OPC_RUSTDESK_CONTROL_PLANE_BASE_URL or OPC_REMOTE_GATEWAY_BASE_URL is required/
+    /CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL or CONVERACT_REMOTE_GATEWAY_BASE_URL is required/
   );
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_RUSTDESK_EVENT_TYPE: 'remote.rustdesk.recording.started'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_RUSTDESK_EVENT_TYPE: 'remote.rustdesk.recording.started'
       }),
-    /OPC_RUSTDESK_EVENT_EXTERNAL_ID is required/
+    /CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID is required/
   );
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
-        OPC_RUSTDESK_EVENT_TYPE: 'remote.rustdesk.custom',
-        OPC_RUSTDESK_EVENT_METADATA_JSON: '[]'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
+        CONVERACT_RUSTDESK_EVENT_TYPE: 'remote.rustdesk.custom',
+        CONVERACT_RUSTDESK_EVENT_METADATA_JSON: '[]'
       }),
-    /OPC_RUSTDESK_EVENT_METADATA_JSON must be a JSON object/
+    /CONVERACT_RUSTDESK_EVENT_METADATA_JSON must be a JSON object/
   );
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
-        OPC_RUSTDESK_EVENT_RETRY_ATTEMPTS: 'many'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
+        CONVERACT_RUSTDESK_EVENT_RETRY_ATTEMPTS: 'many'
       }),
-    /OPC_RUSTDESK_EVENT_RETRY_ATTEMPTS must be a non-negative integer/
+    /CONVERACT_RUSTDESK_EVENT_RETRY_ATTEMPTS must be a non-negative integer/
   );
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
-        OPC_RUSTDESK_EVENT_RETRY_DELAY_MS: '-1'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
+        CONVERACT_RUSTDESK_EVENT_RETRY_DELAY_MS: '-1'
       }),
-    /OPC_RUSTDESK_EVENT_RETRY_DELAY_MS must be a non-negative integer/
+    /CONVERACT_RUSTDESK_EVENT_RETRY_DELAY_MS must be a non-negative integer/
   );
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'ftp://opc.example.com',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123'
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'ftp://opc.example.com',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123'
       }),
-    /OPC_RUSTDESK_CONTROL_PLANE_BASE_URL must use http\(s\)/
+    /CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL must use http\(s\)/
   );
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        OPC_REMOTE_GATEWAY_BASE_URL: 'rustdesk://opc.example.com',
-        OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-        OPC_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123'
+        CONVERACT_REMOTE_GATEWAY_BASE_URL: 'rustdesk://opc.example.com',
+        CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+        CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123'
       }),
-    /OPC_REMOTE_GATEWAY_BASE_URL must use http\(s\)/
+    /CONVERACT_REMOTE_GATEWAY_BASE_URL must use http\(s\)/
   );
 });
 
 test('rustdesk event forwarder replay config does not require a default external id', () => {
   const config = createRustDeskEventForwarderConfigFromEnv({
-    OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
-    OPC_RUSTDESK_API_TOKEN: 'rustdesk-token',
-    OPC_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE: '/var/tmp/opc-rustdesk-failed.jsonl',
-    OPC_RUSTDESK_EVENT_REPLAY_REMAINING_FILE: '/var/tmp/opc-rustdesk-remaining.jsonl'
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
+    CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE: '/var/tmp/opc-rustdesk-failed.jsonl',
+    CONVERACT_RUSTDESK_EVENT_REPLAY_REMAINING_FILE: '/var/tmp/opc-rustdesk-remaining.jsonl'
   });
 
   assert.equal(config.baseUrl, 'https://opc.example.com');
@@ -126,8 +126,8 @@ test('rustdesk event forwarder replay config does not require a default external
 
 test('rustdesk event forwarder validate-only config does not require network credentials', () => {
   const config = createRustDeskEventForwarderConfigFromEnv({
-    OPC_RUSTDESK_EVENT_VALIDATE_ONLY: '1',
-    OPC_RUSTDESK_EVENT_FILE: '/var/tmp/opc-rustdesk-events.jsonl'
+    CONVERACT_RUSTDESK_EVENT_VALIDATE_ONLY: '1',
+    CONVERACT_RUSTDESK_EVENT_FILE: '/var/tmp/opc-rustdesk-events.jsonl'
   });
 
   assert.equal(config.validateOnly, true);
@@ -139,7 +139,7 @@ test('rustdesk event forwarder validate-only config does not require network cre
 
 test('rustdesk event forwarder template config does not require network credentials', () => {
   const config = createRustDeskEventForwarderConfigFromEnv({
-    OPC_RUSTDESK_EVENT_TEMPLATE_FILE: '/var/tmp/opc-rustdesk-events-template.jsonl'
+    CONVERACT_RUSTDESK_EVENT_TEMPLATE_FILE: '/var/tmp/opc-rustdesk-events-template.jsonl'
   });
 
   assert.equal(config.templateFile, '/var/tmp/opc-rustdesk-events-template.jsonl');
@@ -530,7 +530,7 @@ test('rustdesk event forwarder reports malformed event jsonl line numbers', asyn
         defaultActorIdentity: 'rustdesk-edge-agent',
         eventFile: filePath
       }),
-    new RegExp(`OPC_RUSTDESK_EVENT_FILE invalid JSON at ${escapeRegExp(filePath)}:2`)
+    new RegExp(`CONVERACT_RUSTDESK_EVENT_FILE invalid JSON at ${escapeRegExp(filePath)}:2`)
   );
 });
 
@@ -558,7 +558,7 @@ test('rustdesk event forwarder reports malformed replay jsonl line numbers', asy
         defaultActorIdentity: 'rustdesk-edge-agent',
         replayDeadLetterFile: replayFile
       }),
-    new RegExp(`OPC_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE invalid JSON at ${escapeRegExp(replayFile)}:2`)
+    new RegExp(`CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE invalid JSON at ${escapeRegExp(replayFile)}:2`)
   );
 });
 
@@ -583,7 +583,7 @@ test('rustdesk event forwarder reports invalid replay attempts line numbers', as
         defaultActorIdentity: 'rustdesk-edge-agent',
         replayDeadLetterFile: replayFile
       }),
-    new RegExp(`OPC_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE attempts must be a non-negative integer at ${escapeRegExp(replayFile)}:1`)
+    new RegExp(`CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE attempts must be a non-negative integer at ${escapeRegExp(replayFile)}:1`)
   );
 });
 
@@ -850,22 +850,22 @@ test('rustdesk event forwarder is wired into scripts and env examples', () => {
 
   const envExample = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
   for (const key of [
-    'OPC_RUSTDESK_EVENT_EXTERNAL_ID=',
-    'OPC_RUSTDESK_EVENT_TYPE=',
-    'OPC_RUSTDESK_EVENT_ACTOR_IDENTITY=',
-    'OPC_RUSTDESK_EVENT_TARGET=',
-    'OPC_RUSTDESK_EVENT_IDEMPOTENCY_KEY=',
-    'OPC_RUSTDESK_EVENT_METADATA_JSON=',
-    'OPC_RUSTDESK_EVENT_FILE=',
-    'OPC_RUSTDESK_EVENT_VALIDATE_ONLY=',
-    'OPC_RUSTDESK_EVENT_TEMPLATE_FILE=',
-    'OPC_RUSTDESK_EVENT_TEMPLATE_TARGET=',
-    'OPC_RUSTDESK_EVENT_TEMPLATE_OCCURRED_AT=',
-    'OPC_RUSTDESK_EVENT_RETRY_ATTEMPTS=',
-    'OPC_RUSTDESK_EVENT_RETRY_DELAY_MS=',
-    'OPC_RUSTDESK_EVENT_DEAD_LETTER_FILE=',
-    'OPC_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE=',
-    'OPC_RUSTDESK_EVENT_REPLAY_REMAINING_FILE='
+    'CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID=',
+    'CONVERACT_RUSTDESK_EVENT_TYPE=',
+    'CONVERACT_RUSTDESK_EVENT_ACTOR_IDENTITY=',
+    'CONVERACT_RUSTDESK_EVENT_TARGET=',
+    'CONVERACT_RUSTDESK_EVENT_IDEMPOTENCY_KEY=',
+    'CONVERACT_RUSTDESK_EVENT_METADATA_JSON=',
+    'CONVERACT_RUSTDESK_EVENT_FILE=',
+    'CONVERACT_RUSTDESK_EVENT_VALIDATE_ONLY=',
+    'CONVERACT_RUSTDESK_EVENT_TEMPLATE_FILE=',
+    'CONVERACT_RUSTDESK_EVENT_TEMPLATE_TARGET=',
+    'CONVERACT_RUSTDESK_EVENT_TEMPLATE_OCCURRED_AT=',
+    'CONVERACT_RUSTDESK_EVENT_RETRY_ATTEMPTS=',
+    'CONVERACT_RUSTDESK_EVENT_RETRY_DELAY_MS=',
+    'CONVERACT_RUSTDESK_EVENT_DEAD_LETTER_FILE=',
+    'CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE=',
+    'CONVERACT_RUSTDESK_EVENT_REPLAY_REMAINING_FILE='
   ]) {
     assert.match(envExample, new RegExp(`^${key}`, 'm'));
   }

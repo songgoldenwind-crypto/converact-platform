@@ -75,7 +75,7 @@ test('Voice preflight returns stable issue codes for unsafe role stale capabilit
     env: {
       ...voiceEnv(),
       NODE_ENV: 'production',
-      OPC_IVEKIT_VOICE_COMMAND_LEASE_MS: '10000'
+      CONVERACT_FABRIC_VOICE_COMMAND_LEASE_MS: '10000'
     },
     now: () => new Date('2026-07-13T12:00:00.000Z')
   });
@@ -124,9 +124,9 @@ function result(rows: Array<Record<string, unknown>>) {
 function voiceEnv(): NodeJS.ProcessEnv {
   return {
     DATABASE_URL: 'postgresql://database-secret-value',
-    OPC_IVEKIT_VOICE_WORKERS_ENABLED: '1',
-    OPC_IVEKIT_VOICE_ADDRESS_KEY: ADDRESS_KEY,
-    OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY: HMAC_KEY,
+    CONVERACT_FABRIC_VOICE_WORKERS_ENABLED: '1',
+    CONVERACT_FABRIC_VOICE_ADDRESS_KEY: ADDRESS_KEY,
+    CONVERACT_FABRIC_VOICE_ADDRESS_HMAC_KEY: HMAC_KEY,
     RUSTPBX_MANAGEMENT_TOKEN: 'management-secret-value',
     RUSTPBX_RWI_TOKEN: 'rwi-secret-value'
   };

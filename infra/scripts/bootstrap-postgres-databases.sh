@@ -1,19 +1,27 @@
 #!/bin/sh
 set -eu
 
+if [ -r /bootstrap/converact-env-compat.sh ]; then
+  . /bootstrap/converact-env-compat.sh
+else
+  script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+  . "$script_dir/../../scripts/converact-env-compat.sh"
+fi
+converact_env_install_aliases
+
 fail() {
   printf 'postgres bootstrap: %s\n' "$1" >&2
   exit 1
 }
 
-databases=${OPC_POSTGRES_BOOTSTRAP_DATABASES:-}
+databases=${CONVERACT_POSTGRES_BOOTSTRAP_DATABASES:-}
 host=${POSTGRES_HOST:-postgres}
 port=${POSTGRES_PORT:-5432}
 user=${POSTGRES_USER:-opc}
 password=${POSTGRES_PASSWORD:-}
 maintenance_database=${POSTGRES_MAINTENANCE_DATABASE:-postgres}
 
-[ -n "$databases" ] || fail 'OPC_POSTGRES_BOOTSTRAP_DATABASES is required'
+[ -n "$databases" ] || fail 'CONVERACT_POSTGRES_BOOTSTRAP_DATABASES is required'
 [ -n "$password" ] || fail 'POSTGRES_PASSWORD is required'
 [ "$user" = 'opc' ] || fail 'POSTGRES_USER must be opc'
 case "$databases" in

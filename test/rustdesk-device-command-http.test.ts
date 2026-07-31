@@ -123,10 +123,10 @@ async function commandHttpFixture(owner?: {
 }
 
 test('iveKit RustDesk command claim and lifecycle are fenced by the current placement owner', async () => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  const previousEdgeSecret = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_TOKEN_SECRET;
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  const previousEdgeSecret = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_TOKEN_SECRET;
   const owner = {
     interaction_id: 'remote-session-command-owner-1',
     reservation_id: 'reservation-command-owner-1',
@@ -219,18 +219,18 @@ test('iveKit RustDesk command claim and lifecycle are fenced by the current plac
     assert.equal(completed.status, 201);
     assert.equal(completed.data.command.status, 'succeeded');
   } finally {
-    restoreEnv('OPC_API_KEY', previousApiKey);
-    restoreEnv('OPC_RUSTDESK_EDGE_TOKEN_SECRET', previousEdgeSecret);
+    restoreEnv('CONVERACT_API_KEY', previousApiKey);
+    restoreEnv('CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET', previousEdgeSecret);
   }
 });
 
 test('iveKit RustDesk command HTTP claims, reports progress, completes, and reads status', async () => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  const previousEdgeSecret = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-  const previousJwtSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_TOKEN_SECRET;
-  process.env.OPC_JWT_SECRET = 'rustdesk-command-http-jwt-secret-32-bytes';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  const previousEdgeSecret = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+  const previousJwtSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_TOKEN_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'rustdesk-command-http-jwt-secret-32-bytes';
   const fixture = await commandHttpFixture();
   const token = commandToken({
     tenantId: fixture.tenantId,
@@ -347,20 +347,20 @@ test('iveKit RustDesk command HTTP claims, reports progress, completes, and read
     )) as { status: number; data: null };
     assert.deepEqual(noWork, { status: 204, data: null });
   } finally {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
-    if (previousEdgeSecret === undefined) delete process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-    else process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = previousEdgeSecret;
-    if (previousJwtSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousJwtSecret;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
+    if (previousEdgeSecret === undefined) delete process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+    else process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = previousEdgeSecret;
+    if (previousJwtSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousJwtSecret;
   }
 });
 
 test('iveKit RustDesk command HTTP hides commands across tenant and device scope', async () => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  const previousEdgeSecret = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_TOKEN_SECRET;
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  const previousEdgeSecret = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_TOKEN_SECRET;
   const fixture = await commandHttpFixture();
 
   try {
@@ -404,20 +404,20 @@ test('iveKit RustDesk command HTTP hides commands across tenant and device scope
     assert.deepEqual(crossTenantState, { status: 404, data: { error: 'rustdesk gateway session not found' } });
     assert.deepEqual(crossTenantClaim, { status: 404, data: { error: 'rustdesk device not found' } });
   } finally {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
-    if (previousEdgeSecret === undefined) delete process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-    else process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = previousEdgeSecret;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
+    if (previousEdgeSecret === undefined) delete process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+    else process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = previousEdgeSecret;
   }
 });
 
 test('iveKit RustDesk emergency restart requires owner approval and prior precise failure', async () => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  const previousEdgeSecret = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-  const previousJwtSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_TOKEN_SECRET;
-  process.env.OPC_JWT_SECRET = 'rustdesk-command-http-jwt-secret-32-bytes';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  const previousEdgeSecret = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+  const previousJwtSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_TOKEN_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'rustdesk-command-http-jwt-secret-32-bytes';
   const fixture = await commandHttpFixture();
   const token = commandToken({
     tenantId: fixture.tenantId,
@@ -526,33 +526,33 @@ test('iveKit RustDesk emergency restart requires owner approval and prior precis
       'precise disconnect is unavailable on this endpoint'
     );
   } finally {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
-    if (previousEdgeSecret === undefined) delete process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
-    else process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = previousEdgeSecret;
-    if (previousJwtSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousJwtSecret;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
+    if (previousEdgeSecret === undefined) delete process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
+    else process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = previousEdgeSecret;
+    if (previousJwtSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousJwtSecret;
   }
 });
 
 test('collaboration RustDesk tool end queues a tool_ended physical disconnect', async () => {
   const previousEnv = {
-    apiKey: process.env.OPC_API_KEY,
-    baseUrl: process.env.OPC_BASE_URL,
-    launchSecret: process.env.OPC_RUSTDESK_LAUNCH_SECRET,
-    provider: process.env.OPC_REMOTE_GATEWAY_PROVIDER,
-    gatewayBaseUrl: process.env.OPC_REMOTE_GATEWAY_BASE_URL,
-    gatewayToken: process.env.OPC_REMOTE_GATEWAY_API_TOKEN,
-    rustdeskBaseUrl: process.env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL,
-    requirePhysicalDisconnect: process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT
+    apiKey: process.env.CONVERACT_API_KEY,
+    baseUrl: process.env.CONVERACT_BASE_URL,
+    launchSecret: process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET,
+    provider: process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER,
+    gatewayBaseUrl: process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL,
+    gatewayToken: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN,
+    rustdeskBaseUrl: process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL,
+    requirePhysicalDisconnect: process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT
   };
   const previousFetch = globalThis.fetch;
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-tool-end-command-secret';
-  delete process.env.OPC_REMOTE_GATEWAY_PROVIDER;
-  delete process.env.OPC_REMOTE_GATEWAY_BASE_URL;
-  delete process.env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL;
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-tool-end-command-secret';
+  delete process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER;
+  delete process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL;
+  delete process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL;
   const pg = new MemoryPg();
   const tenantId = 'tenant_rustdesk_tool_end_command';
 
@@ -637,10 +637,10 @@ test('collaboration RustDesk tool end queues a tool_ended physical disconnect', 
     assert.equal(state.data.status, 'pending');
     assert.equal(state.data.command.requested_reason, 'tool_ended');
 
-    process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '1';
-    process.env.OPC_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-    process.env.OPC_REMOTE_GATEWAY_BASE_URL = 'https://opc-upstream.example.com';
-    process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-upstream-token';
+    process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '1';
+    process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
+    process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc-upstream.example.com';
+    process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-upstream-token';
     let upstreamCalls = 0;
     globalThis.fetch = (async (): Promise<Response> => {
       upstreamCalls += 1;
@@ -667,32 +667,32 @@ test('collaboration RustDesk tool end queues a tool_ended physical disconnect', 
     assert.equal(upstreamCalls, 0);
   } finally {
     globalThis.fetch = previousFetch;
-    restoreEnv('OPC_API_KEY', previousEnv.apiKey);
-    restoreEnv('OPC_BASE_URL', previousEnv.baseUrl);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
-    restoreEnv('OPC_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
-    restoreEnv('OPC_REMOTE_GATEWAY_BASE_URL', previousEnv.gatewayBaseUrl);
-    restoreEnv('OPC_REMOTE_GATEWAY_API_TOKEN', previousEnv.gatewayToken);
-    restoreEnv('OPC_RUSTDESK_CONTROL_PLANE_BASE_URL', previousEnv.rustdeskBaseUrl);
-    restoreEnv('OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previousEnv.requirePhysicalDisconnect);
+    restoreEnv('CONVERACT_API_KEY', previousEnv.apiKey);
+    restoreEnv('CONVERACT_BASE_URL', previousEnv.baseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_PROVIDER', previousEnv.provider);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_BASE_URL', previousEnv.gatewayBaseUrl);
+    restoreEnv('CONVERACT_REMOTE_GATEWAY_API_TOKEN', previousEnv.gatewayToken);
+    restoreEnv('CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL', previousEnv.rustdeskBaseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previousEnv.requirePhysicalDisconnect);
   }
 });
 
 test('RustDesk control plane strict mode requires a capable registered device and queues direct end', async () => {
   const previousEnv = {
-    apiKey: process.env.OPC_API_KEY,
-    rustdeskToken: process.env.OPC_RUSTDESK_API_TOKEN,
-    launchSecret: process.env.OPC_RUSTDESK_LAUNCH_SECRET,
-    launchBaseUrl: process.env.OPC_RUSTDESK_LAUNCH_BASE_URL,
-    requirePhysicalDisconnect: process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT,
-    onlineTtlMs: process.env.OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS
+    apiKey: process.env.CONVERACT_API_KEY,
+    rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN,
+    launchSecret: process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET,
+    launchBaseUrl: process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL,
+    requirePhysicalDisconnect: process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT,
+    onlineTtlMs: process.env.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS
   };
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-plane-strict-token';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-control-plane-strict-secret';
-  process.env.OPC_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
-  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '1';
-  process.env.OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS = '300000';
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-plane-strict-token';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-control-plane-strict-secret';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '1';
+  process.env.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS = '300000';
   const pg = new MemoryPg();
   const tenantId = 'tenant_rustdesk_control_plane_strict';
   const devices = new RustDeskDeviceStore(pg);
@@ -803,18 +803,18 @@ test('RustDesk control plane strict mode requires a capable registered device an
     assert.equal(state.data.command.device_id, device.id);
     assert.equal(state.data.command.requested_reason, 'gateway_ended');
   } finally {
-    restoreEnv('OPC_API_KEY', previousEnv.apiKey);
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
-    restoreEnv('OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previousEnv.requirePhysicalDisconnect);
-    restoreEnv('OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS', previousEnv.onlineTtlMs);
+    restoreEnv('CONVERACT_API_KEY', previousEnv.apiKey);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousEnv.rustdeskToken);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_SECRET', previousEnv.launchSecret);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
+    restoreEnv('CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previousEnv.requirePhysicalDisconnect);
+    restoreEnv('CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS', previousEnv.onlineTtlMs);
   }
 });
 
 test('RustDesk control plane enters the resolved session tenant transaction', async () => {
-  const previousToken = process.env.OPC_RUSTDESK_API_TOKEN;
-  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-plane-rls-token';
+  const previousToken = process.env.CONVERACT_RUSTDESK_API_TOKEN;
+  process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-plane-rls-token';
   const session = {
     external_id: 'rdgw-rls-1',
     tenant_id: 'tenant-rustdesk-rls',
@@ -864,7 +864,7 @@ test('RustDesk control plane enters the resolved session tenant transaction', as
     const tenantQuery = transactionQueries.find((entry) => entry.sql.includes("set_config('app.current_tenant'"));
     assert.deepEqual(tenantQuery?.params, ['tenant-rustdesk-rls']);
   } finally {
-    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousToken);
+    restoreEnv('CONVERACT_RUSTDESK_API_TOKEN', previousToken);
   }
 });
 

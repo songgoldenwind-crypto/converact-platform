@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 import type {
   RWIEvent,
@@ -232,7 +233,7 @@ export class RWIClient implements RWIClientLike {
 }
 
 export function readRWIConfig(): { url: string | null; authToken?: string } {
-  const url = process.env.RUSTPBX_RWI_URL || process.env.OPC_RUSTPBX_RWI_URL || null;
-  const authToken = process.env.RUSTPBX_RWI_TOKEN || process.env.OPC_RUSTPBX_RWI_TOKEN;
+  const url = process.env.RUSTPBX_RWI_URL || resolveBrandEnv(process.env, 'RUSTPBX_RWI_URL') || null;
+  const authToken = process.env.RUSTPBX_RWI_TOKEN || resolveBrandEnv(process.env, 'RUSTPBX_RWI_TOKEN');
   return { url, authToken };
 }

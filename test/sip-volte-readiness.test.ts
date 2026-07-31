@@ -32,8 +32,8 @@ test('sip volte readiness fails when active gateway is required but activation i
     RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
     RUSTPBX_RWI_URL: 'ws://rustpbx:8080/rwi/v1',
     RUSTPBX_RWI_TOKEN: 'rwi-token',
-    OPC_SIP_VOLTE_ENABLED: '0',
-    OPC_SIP_VOLTE_REQUIRE_ACTIVE: '1'
+    CONVERACT_SIP_VOLTE_ENABLED: '0',
+    CONVERACT_SIP_VOLTE_REQUIRE_ACTIVE: '1'
   });
 
   await assert.rejects(
@@ -57,9 +57,9 @@ test('sip volte readiness activates from explicit complete configuration without
     RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
     RUSTPBX_RWI_URL: 'ws://rustpbx:8080/rwi/v1',
     RUSTPBX_RWI_TOKEN: 'rwi-token',
-    OPC_SIP_VOLTE_ENABLED: '1',
-    OPC_SIP_VOLTE_SMOKE_ROOM_NAME: 'tenant-1-volte-room',
-    OPC_SIP_VOLTE_SMOKE_CUSTOMER_PHONE: '+819012345678'
+    CONVERACT_SIP_VOLTE_ENABLED: '1',
+    CONVERACT_SIP_VOLTE_SMOKE_ROOM_NAME: 'tenant-1-volte-room',
+    CONVERACT_SIP_VOLTE_SMOKE_CUSTOMER_PHONE: '+819012345678'
   });
 
   const result = await runSipVolteReadiness(config);
@@ -103,10 +103,10 @@ test('sip volte readiness keeps an active gateway active after a healthy runtime
     RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
     RUSTPBX_RWI_URL: 'ws://rustpbx:8080/rwi/v1',
     RUSTPBX_RWI_TOKEN: 'rwi-token',
-    OPC_SIP_VOLTE_ENABLED: '1',
-    OPC_SIP_VOLTE_GATEWAY_STATUS_URL: 'http://bridge.local/status',
-    OPC_SIP_VOLTE_GATEWAY_STATUS_TOKEN: 'status-token',
-    OPC_SIP_VOLTE_REQUIRE_ACTIVE: '1'
+    CONVERACT_SIP_VOLTE_ENABLED: '1',
+    CONVERACT_SIP_VOLTE_GATEWAY_STATUS_URL: 'http://bridge.local/status',
+    CONVERACT_SIP_VOLTE_GATEWAY_STATUS_TOKEN: 'status-token',
+    CONVERACT_SIP_VOLTE_REQUIRE_ACTIVE: '1'
   });
 
   const result = await runSipVolteReadiness(config, async (input, init = {}) => {
@@ -142,8 +142,8 @@ test('sip volte readiness does not promote an incomplete runtime probe', async (
     RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
     RUSTPBX_RWI_URL: 'ws://rustpbx:8080/rwi/v1',
     RUSTPBX_RWI_TOKEN: 'rwi-token',
-    OPC_SIP_VOLTE_ENABLED: '1',
-    OPC_SIP_VOLTE_GATEWAY_STATUS_URL: 'http://bridge.local/status'
+    CONVERACT_SIP_VOLTE_ENABLED: '1',
+    CONVERACT_SIP_VOLTE_GATEWAY_STATUS_URL: 'http://bridge.local/status'
   });
 
   const result = await runSipVolteReadiness(config, async () =>
@@ -167,8 +167,8 @@ test('runtime probe cannot promote a statically disabled gateway', async () => {
     RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
     RUSTPBX_RWI_URL: 'ws://rustpbx:8080/rwi/v1',
     RUSTPBX_RWI_TOKEN: 'rwi-token',
-    OPC_SIP_VOLTE_ENABLED: '0',
-    OPC_SIP_VOLTE_GATEWAY_STATUS_URL: 'http://bridge.local/status'
+    CONVERACT_SIP_VOLTE_ENABLED: '0',
+    CONVERACT_SIP_VOLTE_GATEWAY_STATUS_URL: 'http://bridge.local/status'
   });
 
   const result = await runSipVolteReadiness(config, async () =>

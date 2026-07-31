@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import { timingSafeEqual } from 'node:crypto';
 import {
   existsSync,
@@ -457,8 +458,8 @@ implements RustDeskOwnerBindingPreparePort {
 export function rustDeskOwnerBindingPrepareClientFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): HttpRustDeskOwnerBindingPrepareClient | null {
-  const raw = String(env.OPC_IVEKIT_RUSTDESK_OWNER_RUNTIME_JSON || '').trim();
-  const defaultToken = String(env.OPC_IVEKIT_RUSTDESK_OWNER_BINDING_TOKEN || '').trim();
+  const raw = String(resolveFabricEnv(env, 'RUSTDESK_OWNER_RUNTIME_JSON') || '').trim();
+  const defaultToken = String(resolveFabricEnv(env, 'RUSTDESK_OWNER_BINDING_TOKEN') || '').trim();
   if (!raw) return null;
   const runtime = object(JSON.parse(raw));
   const nodes: Record<string, { endpoint: string; token: string }> = {};

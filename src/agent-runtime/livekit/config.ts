@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 export interface LiveKitConfig {
   url: string | null;
   publicUrl: string | null;
@@ -9,15 +10,15 @@ export interface LiveKitConfig {
 }
 
 export function readLiveKitConfig(env: NodeJS.ProcessEnv = process.env): LiveKitConfig {
-  const url = value(env.LIVEKIT_URL || env.OPC_LIVEKIT_URL);
-  const explicitPublicUrl = value(env.LIVEKIT_PUBLIC_URL || env.OPC_LIVEKIT_PUBLIC_URL);
+  const url = value(env.LIVEKIT_URL || resolveBrandEnv(env, 'LIVEKIT_URL'));
+  const explicitPublicUrl = value(env.LIVEKIT_PUBLIC_URL || resolveBrandEnv(env, 'LIVEKIT_PUBLIC_URL'));
   return {
     url,
     publicUrl: explicitPublicUrl || (env.NODE_ENV === 'production' ? null : url),
-    apiKey: value(env.LIVEKIT_API_KEY || env.OPC_LIVEKIT_API_KEY),
-    apiSecret: value(env.LIVEKIT_API_SECRET || env.OPC_LIVEKIT_API_SECRET),
+    apiKey: value(env.LIVEKIT_API_KEY || resolveBrandEnv(env, 'LIVEKIT_API_KEY')),
+    apiSecret: value(env.LIVEKIT_API_SECRET || resolveBrandEnv(env, 'LIVEKIT_API_SECRET')),
     sipBridgeTarget: value(env.LIVEKIT_SIP_BRIDGE_TARGET) || 'sip:livekit-bridge@127.0.0.1:5061',
-    webhookApiKey: value(env.LIVEKIT_API_KEY || env.OPC_LIVEKIT_API_KEY),
+    webhookApiKey: value(env.LIVEKIT_API_KEY || resolveBrandEnv(env, 'LIVEKIT_API_KEY')),
     nodeEnv: value(env.NODE_ENV) || undefined
   };
 }
@@ -41,7 +42,7 @@ export function requireLiveKitPublicUrl(
 ): string {
   const publicUrl = resolveLiveKitPublicUrl(config, nodeEnv);
   if (!publicUrl) {
-    throw new Error('LIVEKIT_PUBLIC_URL or OPC_LIVEKIT_PUBLIC_URL is required for browser joins');
+    throw new Error('LIVEKIT_PUBLIC_URL or CONVERACT_LIVEKIT_PUBLIC_URL is required for browser joins');
   }
   if (!isWebSocketUrl(publicUrl, nodeEnv === 'production')) {
     if (nodeEnv === 'production') {

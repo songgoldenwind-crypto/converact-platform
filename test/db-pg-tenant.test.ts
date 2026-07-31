@@ -14,8 +14,8 @@ test('resolvePgTenantContextForRequest does not grant auth routes a generic RLS 
 });
 
 test('resolvePgTenantContextForRequest reads tenant from API key auth', () => {
-  const prevKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'test-tenant-ctx-key';
+  const prevKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'test-tenant-ctx-key';
   try {
     const ctx = resolvePgTenantContextForRequest('/api/call-center/queues', {
       'X-API-Key': 'test-tenant-ctx-key',
@@ -24,14 +24,14 @@ test('resolvePgTenantContextForRequest reads tenant from API key auth', () => {
     assert.equal(ctx.tenantId, 'tenant_demo');
     assert.equal(ctx.bypassRls, undefined);
   } finally {
-    if (prevKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = prevKey;
+    if (prevKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = prevKey;
   }
 });
 
 test('resolvePgTenantContextForRequest reads tenant from authenticated Media Core requests', () => {
-  const previousToken = process.env.OPC_MEDIA_API_TOKEN;
-  process.env.OPC_MEDIA_API_TOKEN = 'media-tenant-context-token';
+  const previousToken = process.env.CONVERACT_MEDIA_API_TOKEN;
+  process.env.CONVERACT_MEDIA_API_TOKEN = 'media-tenant-context-token';
   try {
     const postContext = resolvePgTenantContextForRequest(
       '/api/media/livekit/recordings/start',
@@ -54,8 +54,8 @@ test('resolvePgTenantContextForRequest reads tenant from authenticated Media Cor
     );
     assert.deepEqual(invalid, {});
   } finally {
-    if (previousToken === undefined) delete process.env.OPC_MEDIA_API_TOKEN;
-    else process.env.OPC_MEDIA_API_TOKEN = previousToken;
+    if (previousToken === undefined) delete process.env.CONVERACT_MEDIA_API_TOKEN;
+    else process.env.CONVERACT_MEDIA_API_TOKEN = previousToken;
   }
 });
 

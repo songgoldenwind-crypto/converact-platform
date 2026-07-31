@@ -48,10 +48,10 @@ const SECRET_VALUES = {
   RUSTPBX_MANAGEMENT_TOKEN: 'management-secret-value',
   RUSTPBX_RWI_TOKEN: 'rwi-secret-value',
   RUSTPBX_WEBHOOK_TOKEN: 'webhook-secret-value',
-  OPC_IVEKIT_WEBPHONE_ENABLED: '1',
-  OPC_IVEKIT_WEBPHONE_JWT_SECRET: 'webphone-jwt-secret-value-that-is-at-least-32-bytes',
-  OPC_IVEKIT_WEBPHONE_JWT_ISSUER: 'ivekit',
-  OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE: 'rustpbx-webphone',
+  CONVERACT_FABRIC_WEBPHONE_ENABLED: '1',
+  CONVERACT_FABRIC_WEBPHONE_JWT_SECRET: 'webphone-jwt-secret-value-that-is-at-least-32-bytes',
+  CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER: 'ivekit',
+  CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE: 'rustpbx-webphone',
   RUSTPBX_ROUTER_URL: 'http://ivekit-api:3000/api/ivekit/voice/providers/profile/router',
   RUSTPBX_CDR_WEBHOOK_URL: 'http://ivekit-api:3000/api/ivekit/voice/providers/profile/cdrs',
   RUSTPBX_SIP_PORT: '5060',
@@ -64,7 +64,7 @@ test('standalone Helm exposes SIP/VoLTE activation without enabling it by defaul
   const deployment = readFileSync(SERVICE_HELM_DEPLOYMENT, 'utf8');
   const helpers = readFileSync(SERVICE_HELM_HELPERS, 'utf8');
 
-  assert.match(values, /^    OPC_SIP_VOLTE_ENABLED: "0"$/m);
+  assert.match(values, /^    CONVERACT_SIP_VOLTE_ENABLED: "0"$/m);
   assert.match(values, /^    LIVEKIT_SIP_BRIDGE_TARGET: ""$/m);
   assert.match(values, /^    RUSTPBX_LIVEKIT_TRUNK: ""$/m);
   assert.match(values, /^    RUSTPBX_RWI_URL: ""$/m);
@@ -79,7 +79,7 @@ test('standalone service forwards SIP control secrets through the optional runti
   const ivekit = serviceBlock(compose, 'ivekit');
 
   assert.match(ivekit, /env_file:/);
-  assert.match(ivekit, /OPC_IVEKIT_VOICE_RUNTIME_ENV_FILE:-\.\/voice-runtime\.env/);
+  assert.match(ivekit, /CONVERACT_FABRIC_VOICE_RUNTIME_ENV_FILE:-\.\/voice-runtime\.env/);
   assert.match(ivekit, /required: false/);
   assert.match(ivekit, /RUSTPBX_RWI_URL: \$\{RUSTPBX_RWI_URL:-\}/);
 });
@@ -128,13 +128,13 @@ test('RustPBX renderer accepts only immutable PostgreSQL production inputs', () 
     /RUSTPBX_AMI_ALLOWS/
   );
   assert.throws(
-    () => renderRustPbxConfig({ ...SECRET_VALUES, OPC_IVEKIT_WEBPHONE_JWT_SECRET: 'short' }),
+    () => renderRustPbxConfig({ ...SECRET_VALUES, CONVERACT_FABRIC_WEBPHONE_JWT_SECRET: 'short' }),
     /WEBPHONE_JWT_SECRET/
   );
   assert.throws(
     () => renderRustPbxConfig({
       ...SECRET_VALUES,
-      RUSTPBX_MANAGEMENT_TOKEN: SECRET_VALUES.OPC_IVEKIT_WEBPHONE_JWT_SECRET
+      RUSTPBX_MANAGEMENT_TOKEN: SECRET_VALUES.CONVERACT_FABRIC_WEBPHONE_JWT_SECRET
     }),
     /distinct/i
   );
@@ -298,7 +298,7 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
     /profiles: \["voice", "voice-capacity", "voice-media-control", "voice-t1"\]/
   );
   assert.match(voice, /scripts\/render-rustpbx-config\.ts/);
-  assert.match(voice, /src\/ivekit-rustpbx-route-snapshot\.ts/);
+  assert.match(voice, /src\/converact-rustpbx-route-snapshot\.ts/);
   assert.match(voice, /rustpbx-route-snapshot:\/app\/route-snapshot/);
   assert.match(voice, /IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY/);
   assert.match(voice, /IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL/);
@@ -312,8 +312,8 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
   );
   assert.match(voice, /scripts\/ivekit-component-node-admission\.ts/);
   assert.match(voice, /network_mode: service:rustpbx/);
-  assert.match(voice, /OPC_IVEKIT_COMPONENT_NODE_COMPONENT: rustpbx/);
-  assert.match(voice, /OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS: sip_voice/);
+  assert.match(voice, /CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT: rustpbx/);
+  assert.match(voice, /CONVERACT_FABRIC_COMPONENT_NODE_INTERACTION_KINDS: sip_voice/);
   assert.match(voice, /IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED/);
   assert.match(voice, /http:\/\/127\.0\.0\.1:3210/);
   assert.match(voice, /rustpbx-runtime-config:\/app\/config/);
@@ -326,8 +326,8 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
   assert.match(voice, /RUSTPBX_AMI_ALLOWS: \$\{RUSTPBX_AMI_ALLOWS:\?RUSTPBX_AMI_ALLOWS is required\}/);
   assert.match(voice, /RUSTPBX_MANAGEMENT_TOKEN: \$\{RUSTPBX_MANAGEMENT_TOKEN:\?RUSTPBX_MANAGEMENT_TOKEN is required\}/);
   assert.doesNotMatch(voice, /RUSTPBX_MANAGEMENT_TOKEN: \$\{RUSTPBX_RWI_TOKEN/);
-  assert.match(voice, /OPC_IVEKIT_VOICE_SECRET_ENV_NAMES: \$\{OPC_IVEKIT_VOICE_SECRET_ENV_NAMES:-RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN\}/);
-  assert.match(voice, /path: \$\{OPC_IVEKIT_VOICE_RUNTIME_ENV_FILE:-\.\/voice-runtime\.env\}/);
+  assert.match(voice, /CONVERACT_FABRIC_VOICE_SECRET_ENV_NAMES: \$\{CONVERACT_FABRIC_VOICE_SECRET_ENV_NAMES:-RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN\}/);
+  assert.match(voice, /path: \$\{CONVERACT_FABRIC_VOICE_RUNTIME_ENV_FILE:-\.\/voice-runtime\.env\}/);
   assert.match(voice, /required: false/);
   assert.match(voice, /expose:\s*\n\s*- "8080"/);
   assert.match(voice, /\$\{RUSTPBX_SIP_PORT:-5060\}:5060\/udp/);
@@ -335,10 +335,10 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
   assert.doesNotMatch(serviceBlock(voice, 'opc'), /RUSTPBX_DB_PASSWORD/);
   assert.doesNotMatch(serviceBlock(core, 'opc'), /RUSTPBX_DB_PASSWORD/);
   assert.doesNotMatch(voice, /sqlite/i);
-  assert.match(voice, /OPC_IVEKIT_WEBPHONE_WSS_URL/);
-  assert.match(voice, /OPC_IVEKIT_WEBPHONE_SIP_REALM/);
-  assert.match(voice, /OPC_IVEKIT_WEBPHONE_JWT_SECRET/);
-  assert.match(voice, /OPC_IVEKIT_WEBPHONE_ICE_SERVERS_JSON/);
+  assert.match(voice, /CONVERACT_FABRIC_WEBPHONE_WSS_URL/);
+  assert.match(voice, /CONVERACT_FABRIC_WEBPHONE_SIP_REALM/);
+  assert.match(voice, /CONVERACT_FABRIC_WEBPHONE_JWT_SECRET/);
+  assert.match(voice, /CONVERACT_FABRIC_WEBPHONE_ICE_SERVERS_JSON/);
 });
 
 test('WebPhone production deployment shares one JWT authority and exposes only the WSS path', () => {
@@ -357,14 +357,14 @@ test('WebPhone production deployment shares one JWT authority and exposes only t
   const platformRustPbx = readFileSync(HELM_RUSTPBX, 'utf8');
 
   for (const compose of [readFileSync(VOICE_COMPOSE, 'utf8'), serviceVoice]) {
-    assert.match(serviceBlock(compose, 'rustpbx-config-render'), /OPC_IVEKIT_WEBPHONE_JWT_SECRET/);
+    assert.match(serviceBlock(compose, 'rustpbx-config-render'), /CONVERACT_FABRIC_WEBPHONE_JWT_SECRET/);
     const api = compose.includes('\n  ivekit:')
       ? serviceBlock(compose, 'ivekit')
       : serviceBlock(compose, 'opc');
-    assert.match(api, /OPC_IVEKIT_WEBPHONE_WSS_URL/);
-    assert.match(api, /OPC_IVEKIT_WEBPHONE_SIP_REALM/);
-    assert.match(api, /OPC_IVEKIT_WEBPHONE_JWT_SECRET/);
-    assert.match(api, /OPC_IVEKIT_WEBPHONE_TTL_SECONDS/);
+    assert.match(api, /CONVERACT_FABRIC_WEBPHONE_WSS_URL/);
+    assert.match(api, /CONVERACT_FABRIC_WEBPHONE_SIP_REALM/);
+    assert.match(api, /CONVERACT_FABRIC_WEBPHONE_JWT_SECRET/);
+    assert.match(api, /CONVERACT_FABRIC_WEBPHONE_TTL_SECONDS/);
   }
   for (const values of [serviceValues, platformValues]) {
     assert.match(values, /webphone:\s*\n\s+enabled: true/);
@@ -372,13 +372,13 @@ test('WebPhone production deployment shares one JWT authority and exposes only t
     assert.match(values, /jwtAudience: rustpbx-webphone/);
   }
   assert.match(platformValues, /path: \/ws/);
-  assert.match(serviceDeployment, /name: OPC_IVEKIT_WEBPHONE_WSS_URL/);
-  assert.match(serviceRustPbx, /name: OPC_IVEKIT_WEBPHONE_JWT_SECRET/);
+  assert.match(serviceDeployment, /name: CONVERACT_FABRIC_WEBPHONE_WSS_URL/);
+  assert.match(serviceRustPbx, /name: CONVERACT_FABRIC_WEBPHONE_JWT_SECRET/);
   assert.doesNotMatch(serviceRustPbx, /kind: Ingress|voice\.webphone\.ingress/);
   assert.match(serviceKamailio, /name: sip-wss[\s\S]*port: \{\{ \$kamailio\.advertise\.wssPort \}\}/);
   assert.match(kamailioConfig, /\$hu =~ "\^\/ws\(\$\|\[\?\]\)"/);
   assert.match(platformSecrets, /rustpbx-webphone-jwt-secret:/);
-  assert.match(platformApi, /name: OPC_IVEKIT_WEBPHONE_WSS_URL/);
+  assert.match(platformApi, /name: CONVERACT_FABRIC_WEBPHONE_WSS_URL/);
   assert.match(platformRustPbx, /ws_handler = "\/ws"/);
   assert.match(platformRustPbx, /\[proxy\.jwt_auth\]/);
   assert.match(platformRustPbx, /kind: Ingress[\s\S]*pathType: Exact/);
@@ -417,8 +417,8 @@ test('standalone service Voice overlay uses only compiled image entrypoints', ()
   assert.match(voice, /RUSTPBX_AMI_ALLOWS: \$\{RUSTPBX_AMI_ALLOWS:\?RUSTPBX_AMI_ALLOWS is required\}/);
   assert.match(voice, /RUSTPBX_MANAGEMENT_TOKEN: \$\{RUSTPBX_MANAGEMENT_TOKEN:\?RUSTPBX_MANAGEMENT_TOKEN is required\}/);
   assert.doesNotMatch(voice, /RUSTPBX_MANAGEMENT_TOKEN: \$\{RUSTPBX_RWI_TOKEN/);
-  assert.match(voice, /OPC_IVEKIT_VOICE_SECRET_ENV_NAMES: \$\{OPC_IVEKIT_VOICE_SECRET_ENV_NAMES:-RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN\}/);
-  assert.match(voice, /OPC_IVEKIT_VOICE_RUNTIME_ENV_FILE/);
+  assert.match(voice, /CONVERACT_FABRIC_VOICE_SECRET_ENV_NAMES: \$\{CONVERACT_FABRIC_VOICE_SECRET_ENV_NAMES:-RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN\}/);
+  assert.match(voice, /CONVERACT_FABRIC_VOICE_RUNTIME_ENV_FILE/);
   assert.match(bootstrap, /CREATE ROLE rustpbx_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS/);
   assert.match(bootstrap, /CREATE DATABASE rustpbx OWNER rustpbx_app/);
   assert.match(bootstrap, /REVOKE CONNECT ON DATABASE rustpbx FROM opc_runtime/);
@@ -465,17 +465,17 @@ test('standalone image exposes compiled Voice config and preflight entrypoints',
   assert.equal(sourcePolicy.entrypoints.includes('src/converact-rustpbx-recording-spool.ts'), true);
   assert.equal(sourcePolicy.entrypoints.includes('src/converact-component-node-admission.ts'), true);
   for (const entrypoint of [
-    'ivekit-server.js',
-    'ivekit-worker.js',
-    'ivekit-migrate.js',
-    'ivekit-init-runtime-role.js',
-    'ivekit-intelligence-preflight.js',
-    'ivekit-render-rustpbx-config.js',
-    'ivekit-rustpbx-route-snapshot.js',
-    'ivekit-rustpbx-recording-spool.js',
-    'ivekit-component-node-admission.js',
-    'ivekit-rustpbx-recovery.js',
-    'ivekit-voice-preflight.js'
+    'converact-server.js',
+    'converact-worker.js',
+    'converact-migrate.js',
+    'converact-init-runtime-role.js',
+    'converact-intelligence-preflight.js',
+    'converact-render-rustpbx-config.js',
+    'converact-rustpbx-route-snapshot.js',
+    'converact-rustpbx-recording-spool.js',
+    'converact-component-node-admission.js',
+    'converact-rustpbx-recovery.js',
+    'converact-voice-preflight.js'
   ]) assert.equal(verifier.includes(`'${entrypoint}'`), true, entrypoint);
 });
 
@@ -489,7 +489,7 @@ test('production compose has no floating or SQLite RustPBX deployment', () => {
   assert.match(rustpbx, /rustpbx-runtime-config:\/app\/config/);
   assert.match(rustpbx, /rustpbx-generated-config:\/app\/generated/);
   assert.match(rustpbx, /rustpbx-route-snapshot:\/app\/route-snapshot/);
-  assert.match(compose, /src\/ivekit-rustpbx-route-snapshot\.ts/);
+  assert.match(compose, /src\/converact-rustpbx-route-snapshot\.ts/);
   assert.match(rustpbx, /IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY/);
   assert.match(rustpbx, /IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL/);
   assert.match(rustpbx, /IVEKIT_RUSTPBX_OWNER_NODE_ID/);
@@ -506,19 +506,19 @@ test('production compose has no floating or SQLite RustPBX deployment', () => {
   assert.doesNotMatch(opc, /RUSTPBX_DB_PASSWORD/);
   assert.match(compose, /RUSTPBX_MANAGEMENT_TOKEN: \$\{RUSTPBX_MANAGEMENT_TOKEN/);
   assert.doesNotMatch(compose, /RUSTPBX_MANAGEMENT_TOKEN: \$\{RUSTPBX_RWI_TOKEN/);
-  assert.match(opc, /OPC_IVEKIT_VOICE_SECRET_ENV_NAMES: \$\{OPC_IVEKIT_VOICE_SECRET_ENV_NAMES:-RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN\}/);
-  assert.match(opc, /OPC_IVEKIT_VOICE_RUNTIME_ENV_FILE/);
+  assert.match(opc, /CONVERACT_FABRIC_VOICE_SECRET_ENV_NAMES: \$\{CONVERACT_FABRIC_VOICE_SECRET_ENV_NAMES:-RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN\}/);
+  assert.match(opc, /CONVERACT_FABRIC_VOICE_RUNTIME_ENV_FILE/);
 });
 
 test('production env example satisfies mandatory RustPBX route-key interpolation', () => {
   const envExample = readFileSync(PRODUCTION_ENV_EXAMPLE, 'utf8');
   assert.match(
     envExample,
-    /^OPC_IVEKIT_VOICE_ADDRESS_KEY=replace_with_32_byte_base64_address_key$/m
+    /^CONVERACT_FABRIC_VOICE_ADDRESS_KEY=replace_with_32_byte_base64_address_key$/m
   );
   assert.match(
     envExample,
-    /^OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY=replace_with_distinct_32_byte_base64_hmac_key$/m
+    /^CONVERACT_FABRIC_VOICE_ADDRESS_HMAC_KEY=replace_with_distinct_32_byte_base64_hmac_key$/m
   );
 });
 
@@ -531,10 +531,10 @@ test('RustPBX Helm templates optionally co-locate the fenced component-node agen
   for (const template of [serviceTemplate, platformTemplate]) {
     assert.match(template, /componentNode\.enabled/);
     assert.match(template, /name: component-node-admission/);
-    assert.match(template, /ivekit-component-node-admission/);
-    assert.match(template, /OPC_IVEKIT_COMPONENT_NODE_COMPONENT/);
-    assert.match(template, /OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS/);
-    assert.match(template, /OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON/);
+    assert.match(template, /(?:ivekit|converact)-component-node-admission/);
+    assert.match(template, /CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT/);
+    assert.match(template, /CONVERACT_FABRIC_COMPONENT_NODE_INTERACTION_KINDS/);
+    assert.match(template, /CONVERACT_FABRIC_COMPONENT_NODE_DIMENSIONS_JSON/);
     assert.match(template, /IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED/);
     assert.match(template, /IVEKIT_RUSTPBX_COMPONENT_NODE_URL/);
     assert.match(template, /http:\/\/127\.0\.0\.1:3210/);
@@ -563,25 +563,25 @@ test('RustPBX deployments co-locate the bounded recording spool sidecar and shar
 
   for (const compose of [standaloneVoice, serviceVoice]) {
     assert.match(compose, /rustpbx-recording-spool:/);
-    assert.match(compose, /ivekit-rustpbx-recording-spool/);
+    assert.match(compose, /converact-rustpbx-recording-spool/);
     assert.match(compose, /IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED/);
     assert.match(compose, /IVEKIT_RUSTPBX_RECORDING_SPOOL_DIR: \/app\/recording-spool/);
-    assert.match(compose, /OPC_IVEKIT_RECORDING_SERVICE_KEY_FILE: \/run\/secrets\/rustpbx-recording-service-key/);
-    assert.match(compose, /OPC_IVEKIT_RECORDING_LEASE_SECRET_FILE: \/run\/secrets\/rustpbx-recording-lease-secret/);
+    assert.match(compose, /CONVERACT_FABRIC_RECORDING_SERVICE_KEY_FILE: \/run\/secrets\/rustpbx-recording-service-key/);
+    assert.match(compose, /CONVERACT_FABRIC_RECORDING_LEASE_SECRET_FILE: \/run\/secrets\/rustpbx-recording-lease-secret/);
     assert.match(compose, /rustpbx-recording-spool:\/app\/recording-spool/);
     assert.match(compose, /rustpbx-recording-state:\/app\/recording-state/);
-    assert.match(compose, /OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE: \/app\/recording-state\/metrics\.json/);
+    assert.match(compose, /CONVERACT_FABRIC_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE: \/app\/recording-state\/metrics\.json/);
     assert.match(compose, /rustpbx-recording-state:\/app\/recording-state:ro/);
   }
   for (const template of [serviceTemplate, platformTemplate]) {
     assert.match(template, /name: recording-spool-uploader/);
-    assert.match(template, /ivekit-rustpbx-recording-spool/);
+    assert.match(template, /converact-rustpbx-recording-spool/);
     assert.match(template, /IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED/);
     assert.match(template, /mountPath: \/app\/recording-spool/);
     assert.match(template, /mountPath: \/app\/recording-state/);
     assert.match(template, /mountPath: \/run\/ivekit-recording-secrets/);
     assert.match(template, /recordingSpool\.leaseSecretKey/);
-    assert.match(template, /OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE/);
+    assert.match(template, /CONVERACT_FABRIC_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE/);
     assert.match(template, /value: \/app\/recording-state\/metrics\.json/);
   }
   for (const values of [serviceValues, platformValues]) {
@@ -722,7 +722,7 @@ test('Helm Voice workload is opt-in, immutable, isolated, and operationally boun
   assert.match(rustpbx, /generated_dir = "\/app\/generated"/);
   assert.match(rustpbx, /mountPath: \/app\/generated/);
   assert.match(rustpbx, /name: route-snapshot-projector/);
-  assert.match(rustpbx, /src\/ivekit-rustpbx-route-snapshot\.ts/);
+  assert.match(rustpbx, /src\/converact-rustpbx-route-snapshot\.ts/);
   assert.match(rustpbx, /IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY/);
   assert.match(rustpbx, /IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL/);
   assert.match(rustpbx, /fieldPath: metadata\.name/);
@@ -766,7 +766,7 @@ test('standalone Helm Voice renderer receives a distinct RustPBX management toke
   assert.match(rustpbx, /\/bin\/bash[\s\S]*\/dev\/tcp\/127\.0\.0\.1/);
   assert.doesNotMatch(rustpbx, /\bcurl\b|\bwget\b/);
   assert.doesNotMatch(rustpbx, /path: \/health/);
-  assert.match(values, /OPC_IVEKIT_VOICE_SECRET_ENV_NAMES: "RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN"/);
+  assert.match(values, /CONVERACT_FABRIC_VOICE_SECRET_ENV_NAMES: "RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN"/);
 });
 
 test('Voice reconciliation scheduler discovers call and configuration unknowns', () => {

@@ -161,6 +161,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       'edge/dist/rustdesk-native-evidence-policy.js',
       'edge/dist/rustdesk-native-evidence-correlator.js',
       'edge/dist/rustdesk-native-evidence-watcher.js',
+      'edge/src/config/converact-env.js',
       'acceptance/rustpbx/package.json',
       'acceptance/rustpbx/package-lock.json',
       'acceptance/rustpbx/scripts/ivekit-rustpbx-management-acceptance.js',
@@ -175,6 +176,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       'acceptance/rustpbx/src/agent-runtime/converact/voice/ports.js',
       'acceptance/rustpbx/src/agent-runtime/converact/voice/secret-resolver.js',
       'acceptance/rustpbx/src/agent-runtime/converact/voice/types.js',
+      'acceptance/rustpbx/src/config/converact-env.js',
       'acceptance/rustpbx/src/db-pg.js',
       'acceptance/rustpbx/src/postgres-migrations.js',
       '.ivekit-delivery-root',
@@ -451,7 +453,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       'utf8'
     );
     assert.match(storageIsolationReadme, /npm ci --ignore-scripts/);
-    assert.match(storageIsolationReadme, /OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES/);
+    assert.match(storageIsolationReadme, /CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES/);
     assert.match(storageIsolationReadme, /docker-compose\.storage\.yml/);
     assert.match(storageIsolationReadme, /never promotes the V6/i);
     assert.equal(files.includes('acceptance/rustpbx/sipp/answer-bye-uac.xml'), true);
@@ -935,13 +937,14 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       '103_ivekit_voice_cdr_convergence.sql',
       '104_ivekit_cell_admission_ledger_runtime.sql',
       '105_tinode_closed_session_inbound.sql',
-      '106_tinode_open_session_mutation_queue.sql'
+      '106_tinode_open_session_mutation_queue.sql',
+      '107_ivekit_sip_effect_oracle.sql'
     ]) assert.equal(files.includes(`database/migrations/${migration}`), true, migration);
     const migrationManifest = JSON.parse(readFileSync(
       join(outputDir, 'service', 'migration-manifest.json'),
       'utf8'
     )) as { migrations: Array<{ file: string; sha256: string }> };
-    assert.equal(migrationManifest.migrations.length, 90);
+    assert.equal(migrationManifest.migrations.length, 91);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '041_tinode_inbound_sync.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '042_ivekit_tenant_events.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '043_ivekit_intelligence_translation.sql'), true);
@@ -1002,6 +1005,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '104_ivekit_cell_admission_ledger_runtime.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '105_tinode_closed_session_inbound.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '106_tinode_open_session_mutation_queue.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '107_ivekit_sip_effect_oracle.sql'), true);
     assert.equal(migrationManifest.migrations.every((entry) => /^[a-f0-9]{64}$/.test(entry.sha256)), true);
     const imageMetadata = JSON.parse(readFileSync(
       join(outputDir, 'service', 'image-metadata.json'),
@@ -1037,7 +1041,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       voiceCompose,
       /IVEKIT_POSTGRES_IMAGE:\?IVEKIT_POSTGRES_IMAGE immutable digest reference is required/
     );
-    assert.match(voiceCompose, /command: \["node", "dist\/ivekit-render-rustpbx-config\.js"\]/);
+    assert.match(voiceCompose, /command: \["node", "dist\/converact-render-rustpbx-config\.js"\]/);
     assert.doesNotMatch(voiceCompose, /--import|\btsx\b|scripts\/render-rustpbx-config\.ts/);
     const releaseContract = JSON.parse(readFileSync(
       join(outputDir, 'operations', 'release-contract.json'),
@@ -1447,7 +1451,7 @@ test('V3 handoff documents state implemented, configurable, and not-run boundari
   assert.match(roadmap, /M7：V3 多模态智能与翻译/);
   assert.match(roadmap, /OCR.*ASR.*AI.*翻译/s);
   assert.match(design, /## 22\. 2026-07-13 V3 多模态智能与翻译/);
-  assert.match(design, /OPC_IVEKIT_PROVIDER_PROFILES_JSON/);
+  assert.match(design, /CONVERACT_FABRIC_PROVIDER_PROFILES_JSON/);
   assert.match(design, /043_ivekit_intelligence_translation/);
   assert.match(audit, /受控 Provider/);
   assert.match(audit, /not_run/);

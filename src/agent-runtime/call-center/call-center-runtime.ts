@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { VoiceStore } from '../voice/voice-store.js';
 import { LiveKitRoomStore } from '../livekit/room-store.js';
 import { OutboundTaskStore } from './outbound-task-store.js';
@@ -15,7 +16,7 @@ export async function startCallCenterRuntime(db: unknown, harness: { voiceStore?
     console.warn('[ivr-rwi] runtime failed to start:', error instanceof Error ? error.message : error);
   });
 
-  if (process.env.OPC_DISABLE_DIALER === '1') return;
+  if (resolveBrandEnv(process.env, 'DISABLE_DIALER') === '1') return;
   dialerInstance = await createOutboundDialer({
     db,
     voiceStore,
@@ -42,14 +43,14 @@ export function getSharedRwiClientFromRuntime(): import('./rwi-client.js').RWICl
 
 export function useMemoryRedisForTests(): void {
   // Force BOTH Redis singletons into in-memory mode.
-  // getRedisPubSub() independently checks OPC_USE_MEMORY_REDIS, so the env
+  // getRedisPubSub() independently checks CONVERACT_USE_MEMORY_REDIS, so the env
   // flag must be set here too — otherwise it creates a REAL ioredis client.
   // With no Redis running, that client emits unhandled ECONNREFUSED errors on
   // a retry loop, keeping the event loop alive and hanging the test runner
   // whenever a path triggers wsBroadcast (e.g. omni chat escalation).
   // Drop any previously-created (possibly real) pubsub client so the next
   // getRedisPubSub() call rebuilds it under memory mode.
-  process.env.OPC_USE_MEMORY_REDIS = '1';
+  process.env.CONVERACT_USE_MEMORY_REDIS = '1';
   resetRedisPubSubForTests(null);
   setRedisClientForTests(new MemoryRedis());
 }

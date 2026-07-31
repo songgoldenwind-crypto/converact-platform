@@ -11,19 +11,19 @@ import {
 
 test('platform finalizer requires explicit database S3 contract and campaign inputs', () => {
   const config = capacityPlatformFinalizerConfig({
-    OPC_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
-    OPC_IVEKIT_CAPACITY_PLATFORM_FINALIZER_ID: 'platform-finalizer-a',
-    OPC_IVEKIT_CAPACITY_PLATFORM_CONTRACT_PATH: '/run/capacity/contract.json',
-    OPC_IVEKIT_CAPACITY_PLATFORM_SUBMISSION_PATH: '/run/capacity/submission.json',
-    OPC_IVEKIT_CAPACITY_PLATFORM_FINALIZER_LEASE_MS: '15000',
-    OPC_IVEKIT_CAPACITY_PLATFORM_EVIDENCE_PREFIX: 'capacity/platform',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET: 'capacity-evidence',
-    OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION: 'ap-southeast-1'
+    CONVERACT_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
+    CONVERACT_FABRIC_CAPACITY_PLATFORM_FINALIZER_ID: 'platform-finalizer-a',
+    CONVERACT_FABRIC_CAPACITY_PLATFORM_CONTRACT_PATH: '/run/capacity/contract.json',
+    CONVERACT_FABRIC_CAPACITY_PLATFORM_SUBMISSION_PATH: '/run/capacity/submission.json',
+    CONVERACT_FABRIC_CAPACITY_PLATFORM_FINALIZER_LEASE_MS: '15000',
+    CONVERACT_FABRIC_CAPACITY_PLATFORM_EVIDENCE_PREFIX: 'capacity/platform',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET: 'capacity-evidence',
+    CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION: 'ap-southeast-1'
   });
 
   assert.equal(config.finalizer_id, 'platform-finalizer-a');
   assert.equal(config.evidence_s3.bucket, 'capacity-evidence');
-  assert.throws(() => capacityPlatformFinalizerConfig({}), /OPC_DATABASE_URL/);
+  assert.throws(() => capacityPlatformFinalizerConfig({}), /CONVERACT_DATABASE_URL/);
 });
 
 test('platform finalizer reads only bounded schema-bound input files', () => {

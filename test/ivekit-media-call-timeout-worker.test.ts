@@ -45,8 +45,8 @@ test('media call timeout worker config is bounded and enabled by default', () =>
     tenantLimit: 100
   });
   assert.throws(
-    () => mediaCallTimeoutWorkerConfig({ OPC_MEDIA_CALL_TIMEOUT_INTERVAL_MS: '10' }),
+    () => mediaCallTimeoutWorkerConfig({ CONVERACT_MEDIA_CALL_TIMEOUT_INTERVAL_MS: '10' }),
     /between 250 and 60000/
   );
-  assert.equal(mediaCallTimeoutWorkerConfig({ OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED: '0' }).enabled, false);
+  assert.equal(mediaCallTimeoutWorkerConfig({ CONVERACT_MEDIA_CALL_TIMEOUT_WORKER_ENABLED: '0' }).enabled, false);
 });

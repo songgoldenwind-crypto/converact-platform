@@ -20,7 +20,7 @@ test('runtime heartbeat publishes bounded components and terminal shutdown state
   let tick = 0;
   const handle = startIveKitRuntimeHeartbeat({
     pg, instance_id: 'ivekit-a', components: ['api', 'retention_worker', 'api'],
-    env: { OPC_IVEKIT_RUNTIME_HEARTBEAT_ENABLED: '1' },
+    env: { CONVERACT_FABRIC_RUNTIME_HEARTBEAT_ENABLED: '1' },
     now: () => new Date(1784102400000 + tick++ * 1000)
   });
   await handle.ready;
@@ -35,8 +35,8 @@ test('runtime heartbeat publishes bounded components and terminal shutdown state
 
 test('runtime component inventory reflects only enabled worker groups', () => {
   assert.deepEqual(iveKitRuntimeComponents({
-    OPC_IVEKIT_RETENTION_WORKER_ENABLED: '1',
-    OPC_IVEKIT_VOICE_WORKERS_ENABLED: 'true',
-    OPC_QUALITY_REVIEW_WORKER_ENABLED: '0'
+    CONVERACT_FABRIC_RETENTION_WORKER_ENABLED: '1',
+    CONVERACT_FABRIC_VOICE_WORKERS_ENABLED: 'true',
+    CONVERACT_QUALITY_REVIEW_WORKER_ENABLED: '0'
   }), ['api', 'retention_worker', 'voice_workers']);
 });

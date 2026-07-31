@@ -17,10 +17,10 @@ const RUSTDESK_IVEKIT_SMOKE_SCOPES = [
 
 test('rustdesk iveKit smoke config validates the LED facade inputs', () => {
   const config = createRustDeskIveKitSmokeConfigFromEnv({
-    OPC_BASE_URL: 'https://opc.example.com/',
-    OPC_API_KEY: 'opc-api-key',
-    OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-    OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789'
+    CONVERACT_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_API_KEY: 'opc-api-key',
+    CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+    CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789'
   });
 
   assert.equal(config.baseUrl, 'https://opc.example.com');
@@ -38,35 +38,35 @@ test('rustdesk iveKit smoke config validates the LED facade inputs', () => {
 
   assert.throws(
     () => createRustDeskIveKitSmokeConfigFromEnv({
-      OPC_API_KEY: 'opc-api-key',
-      OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-      OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789'
+      CONVERACT_API_KEY: 'opc-api-key',
+      CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+      CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789'
     }),
-    /OPC_RUSTDESK_IVEKIT_BASE_URL, OPC_BASE_URL, OPC_COLLABORATION_BASE_URL, OPC_RUSTDESK_EDGE_BASE_URL, OPC_RUSTDESK_CONTROL_PLANE_BASE_URL, or OPC_REMOTE_GATEWAY_BASE_URL is required/
+    /CONVERACT_RUSTDESK_IVEKIT_BASE_URL, CONVERACT_BASE_URL, CONVERACT_COLLABORATION_BASE_URL, CONVERACT_RUSTDESK_EDGE_BASE_URL, CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL, or CONVERACT_REMOTE_GATEWAY_BASE_URL is required/
   );
   assert.throws(
     () => createRustDeskIveKitSmokeConfigFromEnv({
-      OPC_BASE_URL: 'https://opc.example.com',
-      OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-      OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789'
+      CONVERACT_BASE_URL: 'https://opc.example.com',
+      CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+      CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789'
     }),
-    /OPC_RUSTDESK_IVEKIT_API_KEY, OPC_COLLABORATION_API_KEY, or OPC_API_KEY is required/
+    /CONVERACT_RUSTDESK_IVEKIT_API_KEY, CONVERACT_COLLABORATION_API_KEY, or CONVERACT_API_KEY is required/
   );
   assert.throws(
     () => createRustDeskIveKitSmokeConfigFromEnv({
-      OPC_BASE_URL: 'https://opc.example.com',
-      OPC_API_KEY: 'opc-api-key',
-      OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789'
+      CONVERACT_BASE_URL: 'https://opc.example.com',
+      CONVERACT_API_KEY: 'opc-api-key',
+      CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789'
     }),
-    /OPC_RUSTDESK_IVEKIT_TENANT_ID, OPC_REMOTE_GATEWAY_TENANT_ID, OPC_RUSTDESK_EDGE_TENANT_ID, or OPC_TENANT_ID is required/
+    /CONVERACT_RUSTDESK_IVEKIT_TENANT_ID, CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID is required/
   );
   assert.throws(
     () => createRustDeskIveKitSmokeConfigFromEnv({
-      OPC_BASE_URL: 'https://opc.example.com',
-      OPC_API_KEY: 'opc-api-key',
-      OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led'
+      CONVERACT_BASE_URL: 'https://opc.example.com',
+      CONVERACT_API_KEY: 'opc-api-key',
+      CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led'
     }),
-    /OPC_RUSTDESK_IVEKIT_RUSTDESK_ID, OPC_RUSTDESK_EDGE_RUSTDESK_ID, or OPC_REMOTE_GATEWAY_TARGET_ID is required/
+    /CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID, CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID, or CONVERACT_REMOTE_GATEWAY_TARGET_ID is required/
   );
 });
 
@@ -89,12 +89,12 @@ test('rustdesk iveKit smoke exercises the LED facade lifecycle', async () => {
 
   const result = await runRustDeskIveKitSmoke(
     createRustDeskIveKitSmokeConfigFromEnv({
-      OPC_BASE_URL: 'https://opc.example.com',
-      OPC_API_KEY: 'opc-api-key',
-      OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-      OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-      OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-smoke-1',
-      OPC_RUSTDESK_IVEKIT_DEVICE_DISPLAY_NAME: 'LED control PC'
+      CONVERACT_BASE_URL: 'https://opc.example.com',
+      CONVERACT_API_KEY: 'opc-api-key',
+      CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+      CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+      CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-smoke-1',
+      CONVERACT_RUSTDESK_IVEKIT_DEVICE_DISPLAY_NAME: 'LED control PC'
     }),
     async (input, init = {}) => {
       const url = new URL(String(input));
@@ -324,11 +324,11 @@ test('rustdesk iveKit smoke rejects a public launch page that stays open after e
   await assert.rejects(
     () => runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-ended-public-launch-open'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-ended-public-launch-open'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -460,11 +460,11 @@ test('rustdesk iveKit smoke rejects unsigned launch URLs and cleans the gateway 
   await assert.rejects(
     runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-bad-launch'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-bad-launch'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -536,11 +536,11 @@ test('rustdesk iveKit smoke rejects client config without an ID server before re
   await assert.rejects(
     runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-bad-client-config'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-bad-client-config'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -579,11 +579,11 @@ test('rustdesk iveKit smoke rejects client config without a manual key before re
   await assert.rejects(
     runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-bad-manual-key'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-bad-manual-key'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -627,11 +627,11 @@ test('rustdesk iveKit smoke rejects client config whose public key is not config
   await assert.rejects(
     runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-unconfigured-public-key'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-unconfigured-public-key'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -676,11 +676,11 @@ test('rustdesk iveKit smoke rejects client config without a server key fingerpri
   await assert.rejects(
     runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-missing-fingerprint'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-missing-fingerprint'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -728,11 +728,11 @@ test('rustdesk iveKit smoke rejects launch plans whose open URL differs from the
   try {
     await runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-bad-plan'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-bad-plan'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -834,11 +834,11 @@ test('rustdesk iveKit smoke rejects launch plans with client config drift before
   try {
     await runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-drift-plan'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-drift-plan'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -940,11 +940,11 @@ test('rustdesk iveKit smoke rejects launch plans with server key fingerprint dri
   try {
     await runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-fingerprint-drift-plan'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-fingerprint-drift-plan'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -1046,11 +1046,11 @@ test('rustdesk iveKit smoke rejects launch plans for another gateway session bef
   try {
     await runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-wrong-external-id-plan'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-wrong-external-id-plan'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -1156,11 +1156,11 @@ test('rustdesk iveKit smoke rejects launch plans without an active status before
   try {
     await runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-inactive-status-plan'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-inactive-status-plan'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -1410,11 +1410,11 @@ test('rustdesk iveKit smoke rejects ended launch plans without an ended status',
   try {
     await runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-bad-ended-status-plan'
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: 'SO-ivekit-bad-ended-status-plan'
       }),
       async (input, init = {}) => {
         const url = new URL(String(input));
@@ -1610,9 +1610,9 @@ test('rustdesk iveKit smoke is wired into scripts and env examples', () => {
   const envExample = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
   const infraEnvExample = readFileSync(new URL('../infra/env.example', import.meta.url), 'utf8');
   for (const content of [envExample, infraEnvExample]) {
-    assert.match(content, /^OPC_RUSTDESK_IVEKIT_BASE_URL=/m);
-    assert.match(content, /^OPC_RUSTDESK_IVEKIT_RUSTDESK_ID=/m);
-    assert.match(content, /^OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID=/m);
+    assert.match(content, /^CONVERACT_RUSTDESK_IVEKIT_BASE_URL=/m);
+    assert.match(content, /^CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID=/m);
+    assert.match(content, /^CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID=/m);
   }
 });
 
@@ -1664,11 +1664,11 @@ async function expectRustDeskIveKitLaunchPlanRejection(input: {
   await assert.rejects(
     runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: `${input.externalId}-business-ref`
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: `${input.externalId}-business-ref`
       }),
       async (request, init = {}) => {
         const url = new URL(String(request));
@@ -1805,11 +1805,11 @@ async function expectRustDeskIveKitEndedLaunchPlanRejection(input: {
   await assert.rejects(
     runRustDeskIveKitSmoke(
       createRustDeskIveKitSmokeConfigFromEnv({
-        OPC_BASE_URL: 'https://opc.example.com',
-        OPC_API_KEY: 'opc-api-key',
-        OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
-        OPC_RUSTDESK_IVEKIT_BUSINESS_REF_ID: `${input.externalId}-business-ref`
+        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_API_KEY: 'opc-api-key',
+        CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_IVEKIT_RUSTDESK_ID: '123456789',
+        CONVERACT_RUSTDESK_IVEKIT_BUSINESS_REF_ID: `${input.externalId}-business-ref`
       }),
       async (request, init = {}) => {
         const url = new URL(String(request));

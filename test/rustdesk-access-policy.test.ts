@@ -365,8 +365,8 @@ test('collaboration module exposes the single PostgreSQL RustDesk access policy 
 });
 
 test('RustDesk policy HTTP routes use JWT approver identity, idempotency, history, and cross-tenant 404', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_JWT_SECRET = 'rustdesk-policy-http-secret';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_JWT_SECRET = 'rustdesk-policy-http-secret';
   const pg = new MemoryPg();
   const { tenantId, device } = await createDevice(pg, 'http');
   const ownerHeaders = jwtHeaders(tenantId, 'owner-http', 'owner');
@@ -447,15 +447,15 @@ test('RustDesk policy HTTP routes use JWT approver identity, idempotency, histor
     assert.equal(revoked.data.policy.event_type, 'revoked');
     assert.equal(revoked.data.policy.approved_by, 'owner-http');
   } finally {
-    restoreEnv('OPC_JWT_SECRET', previousSecret);
+    restoreEnv('CONVERACT_JWT_SECRET', previousSecret);
   }
 });
 
 test('RustDesk policy HTTP rejects non-owner roles, system auth, missing reason/key, and sensitive fields', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_JWT_SECRET = 'rustdesk-policy-http-auth-secret';
-  process.env.OPC_API_KEY = 'rustdesk-policy-system-key';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_JWT_SECRET = 'rustdesk-policy-http-auth-secret';
+  process.env.CONVERACT_API_KEY = 'rustdesk-policy-system-key';
   const pg = new MemoryPg();
   const { tenantId, device } = await createDevice(pg, 'http-auth');
   const validBody = {
@@ -563,18 +563,18 @@ test('RustDesk policy HTTP rejects non-owner roles, system auth, missing reason/
       assert.doesNotMatch(JSON.stringify(rejected), /do-not-store/);
     }
   } finally {
-    restoreEnv('OPC_JWT_SECRET', previousSecret);
-    restoreEnv('OPC_API_KEY', previousApiKey);
+    restoreEnv('CONVERACT_JWT_SECRET', previousSecret);
+    restoreEnv('CONVERACT_API_KEY', previousApiKey);
   }
 });
 
 test('unattended gateway launch requires matching active policy and consent while attended remains backward compatible', async () => {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  const previousLaunchSecret = process.env.OPC_RUSTDESK_LAUNCH_SECRET;
-  const previousDisconnect = process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT;
-  process.env.OPC_JWT_SECRET = 'rustdesk-policy-launch-auth-secret';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-policy-launch-url-secret';
-  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  const previousLaunchSecret = process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET;
+  const previousDisconnect = process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT;
+  process.env.CONVERACT_JWT_SECRET = 'rustdesk-policy-launch-auth-secret';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-policy-launch-url-secret';
+  process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
   const pg = new MemoryPg();
   const { tenantId, device } = await createDevice(pg, 'launch');
   const module = createCollaborationModule({ pg });
@@ -790,9 +790,9 @@ test('unattended gateway launch requires matching active policy and consent whil
     }, jwtHeaders('tenant-policy-launch-other', 'operator-other', 'operator'));
     assert.deepEqual(crossTenant, { status: 404, data: { error: 'remote session not found' } });
   } finally {
-    restoreEnv('OPC_JWT_SECRET', previousSecret);
-    restoreEnv('OPC_RUSTDESK_LAUNCH_SECRET', previousLaunchSecret);
-    restoreEnv('OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previousDisconnect);
+    restoreEnv('CONVERACT_JWT_SECRET', previousSecret);
+    restoreEnv('CONVERACT_RUSTDESK_LAUNCH_SECRET', previousLaunchSecret);
+    restoreEnv('CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previousDisconnect);
   }
 });
 

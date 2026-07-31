@@ -32,7 +32,7 @@ test('legacy tenant tables are owned by PostgreSQL migrations and force RLS', ()
 });
 
 test('migration-managed runtime skips legacy schema DDL but not transactions or DML', () => {
-  const managed = { OPC_SCHEMA_MANAGED_BY_MIGRATIONS: '1' };
+  const managed = { CONVERACT_SCHEMA_MANAGED_BY_MIGRATIONS: '1' };
   assert.equal(shouldSkipRuntimeSchemaDdl('CREATE TABLE IF NOT EXISTS demo (id text)', managed), true);
   assert.equal(shouldSkipRuntimeSchemaDdl('CREATE INDEX IF NOT EXISTS demo_idx ON demo(id)', managed), true);
   assert.equal(shouldSkipRuntimeSchemaDdl('ALTER TABLE demo ADD COLUMN value text', managed), true);

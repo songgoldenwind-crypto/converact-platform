@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   chmod,
@@ -103,52 +104,52 @@ export function createRustDeskNativeEvidenceWatcherConfigFromEnv(
 ): RustDeskNativeEvidenceWatcherConfig {
   return {
     eventDirectory: absolutePath(
-      env.OPC_RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR,
-      'OPC_RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR'
+      resolveBrandEnv(env, 'RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR'),
+      'CONVERACT_RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR'
     ),
     evidenceDirectory: absolutePath(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR'
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_INPUT_DIR'),
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR'
     ),
     spoolDirectory: absolutePath(
-      env.OPC_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR,
-      'OPC_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR'
+      resolveBrandEnv(env, 'RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR'),
+      'CONVERACT_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR'
     ),
     fileRoots: rootList(
-      env.OPC_RUSTDESK_NATIVE_FILE_ROOTS_JSON,
-      'OPC_RUSTDESK_NATIVE_FILE_ROOTS_JSON'
+      resolveBrandEnv(env, 'RUSTDESK_NATIVE_FILE_ROOTS_JSON'),
+      'CONVERACT_RUSTDESK_NATIVE_FILE_ROOTS_JSON'
     ),
     recordingRoots: rootList(
-      env.OPC_RUSTDESK_NATIVE_RECORDING_ROOTS_JSON,
-      'OPC_RUSTDESK_NATIVE_RECORDING_ROOTS_JSON'
+      resolveBrandEnv(env, 'RUSTDESK_NATIVE_RECORDING_ROOTS_JSON'),
+      'CONVERACT_RUSTDESK_NATIVE_RECORDING_ROOTS_JSON'
     ),
     stableMs: boundedInteger(
-      env.OPC_RUSTDESK_NATIVE_EVIDENCE_STABLE_MS,
+      resolveBrandEnv(env, 'RUSTDESK_NATIVE_EVIDENCE_STABLE_MS'),
       2_000,
       0,
       300_000,
-      'OPC_RUSTDESK_NATIVE_EVIDENCE_STABLE_MS'
+      'CONVERACT_RUSTDESK_NATIVE_EVIDENCE_STABLE_MS'
     ),
     maxFileBytes: boundedInteger(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_MAX_FILE_BYTES,
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_MAX_FILE_BYTES'),
       10 * 1_024 * 1_024 * 1_024,
       1,
       10 * 1_024 * 1_024 * 1_024,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_MAX_FILE_BYTES'
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_MAX_FILE_BYTES'
     ),
     maxEventBytes: boundedInteger(
-      env.OPC_RUSTDESK_NATIVE_EVIDENCE_MAX_EVENT_BYTES,
+      resolveBrandEnv(env, 'RUSTDESK_NATIVE_EVIDENCE_MAX_EVENT_BYTES'),
       64 * 1_024,
       1_024,
       1_048_576,
-      'OPC_RUSTDESK_NATIVE_EVIDENCE_MAX_EVENT_BYTES'
+      'CONVERACT_RUSTDESK_NATIVE_EVIDENCE_MAX_EVENT_BYTES'
     ),
     maxQuarantineRecords: boundedInteger(
-      env.OPC_RUSTDESK_EDGE_EVIDENCE_MAX_QUARANTINE_RECORDS,
+      resolveBrandEnv(env, 'RUSTDESK_EDGE_EVIDENCE_MAX_QUARANTINE_RECORDS'),
       100,
       1,
       10_000,
-      'OPC_RUSTDESK_EDGE_EVIDENCE_MAX_QUARANTINE_RECORDS'
+      'CONVERACT_RUSTDESK_EDGE_EVIDENCE_MAX_QUARANTINE_RECORDS'
     )
   };
 }

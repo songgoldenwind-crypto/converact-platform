@@ -51,11 +51,11 @@ import {
   type VoiceRecording
 } from '../src/agent-runtime/converact/voice/index.js';
 
-const freshAdminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
-const freshRuntimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
-const upgradeAdminUrl = process.env.OPC_IVEKIT_UPGRADE_TEST_DATABASE_URL || '';
-const upgradeRuntimeUrl = process.env.OPC_IVEKIT_UPGRADE_TEST_RUNTIME_DATABASE_URL || '';
-const runtimePassword = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_PASSWORD || '';
+const freshAdminUrl = process.env.CONVERACT_FABRIC_STANDALONE_TEST_DATABASE_URL || '';
+const freshRuntimeUrl = process.env.CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
+const upgradeAdminUrl = process.env.CONVERACT_FABRIC_UPGRADE_TEST_DATABASE_URL || '';
+const upgradeRuntimeUrl = process.env.CONVERACT_FABRIC_UPGRADE_TEST_RUNTIME_DATABASE_URL || '';
+const runtimePassword = process.env.CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_PASSWORD || '';
 const testSourceCommit = 'c'.repeat(40);
 const freshTest = freshAdminUrl && freshRuntimeUrl && runtimePassword ? test : test.skip;
 const upgradeTest = upgradeAdminUrl && upgradeRuntimeUrl && runtimePassword ? test : test.skip;
@@ -578,7 +578,7 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
          'barcode', '${'d'.repeat(64)}', 'CODE_128', 0.98, 4000)
     `);
     const governanceProfile = createIntelligenceProviderRegistry({
-      OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
         id: 'translation-postgres', capability: 'translation', mode: 'self_hosted',
         base_url: 'http://translation-worker:8080', timeout_ms: 1_000,
         reservation_ttl_ms: 6_000, max_concurrency: 1
@@ -610,7 +610,7 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
     assert.equal(governanceRuntime[0]?.profile_id, 'translation-postgres');
 
     const quotaProfile = createIntelligenceProviderRegistry({
-      OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
         id: 'translation-postgres-quota', capability: 'translation', mode: 'self_hosted',
         base_url: 'http://translation-worker:8080', timeout_ms: 1_000,
         reservation_ttl_ms: 6_000, max_concurrency: 2, requests_per_minute: 1
@@ -1147,8 +1147,8 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
       business_ref: { tenant_id: 'ivekit_rls_a', type: 'order', id: 'VOICE-BRIDGE-A' }
     }), mediaBridge);
 
-    const previousApiKey = process.env.OPC_API_KEY;
-    process.env.OPC_API_KEY = 'ivekit-voice-http-postgres-key';
+    const previousApiKey = process.env.CONVERACT_API_KEY;
+    process.env.CONVERACT_API_KEY = 'ivekit-voice-http-postgres-key';
     try {
       const registry = new VoiceProviderRegistry();
       registry.register('controlled', new ControlledVoiceProviderFactory({
@@ -1212,8 +1212,8 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
         ['ivekit_rls_a', created.data.command.id]
       ));
     } finally {
-      if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-      else process.env.OPC_API_KEY = previousApiKey;
+      if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+      else process.env.CONVERACT_API_KEY = previousApiKey;
     }
 
     const commandStore = new PostgresVoiceCommandStore(runtime);

@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import type { PgQueryable } from '../../../db-pg.js';
 import { wsBroadcast } from '../../../ws.js';
 import { resolveAuthContext, type AuthContext } from '../../../middleware/auth.js';
@@ -449,11 +450,11 @@ function required<T>(value: T | null): T {
 }
 
 function configuredSecretResolver(): VoiceSecretResolver {
-  const configured = String(process.env.OPC_IVEKIT_VOICE_WEBHOOK_SECRET_ENV_NAMES || '')
+  const configured = String(resolveFabricEnv(process.env, 'VOICE_WEBHOOK_SECRET_ENV_NAMES') || '')
     .split(',').map((value) => value.trim()).filter((value) => /^[A-Z][A-Z0-9_]*$/.test(value));
   const names = [...new Set([
     'RUSTPBX_WEBHOOK_HMAC', 'RUSTPBX_WEBHOOK_SERVICE_KEY',
-    'OPC_IVEKIT_VOICE_WEBHOOK_HMAC', 'OPC_IVEKIT_VOICE_WEBHOOK_SERVICE_KEY',
+    'CONVERACT_FABRIC_VOICE_WEBHOOK_HMAC', 'CONVERACT_FABRIC_VOICE_WEBHOOK_SERVICE_KEY',
     ...configured
   ])];
   return new EnvVoiceSecretResolver({

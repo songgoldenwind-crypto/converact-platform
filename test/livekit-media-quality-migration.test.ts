@@ -62,8 +62,8 @@ test('OpenAPI, environment, events, SDK, and metrics expose the bounded QoS cont
   assert.doesNotMatch(metrics, /labelNames:\s*\[[^\]]*(?:tenant|call|participant)/s);
   for (const envFile of ['.env.example', 'services/converact-service/env.example']) {
     const env = readFileSync(envFile, 'utf8');
-    assert.match(env, /OPC_MEDIA_QOS_DEGRADED_SAMPLES=3/);
-    assert.match(env, /OPC_MEDIA_QOS_RETENTION_MS=604800000/);
+    assert.match(env, /CONVERACT_MEDIA_QOS_DEGRADED_SAMPLES=3/);
+    assert.match(env, /CONVERACT_MEDIA_QOS_RETENTION_MS=604800000/);
   }
 });
 

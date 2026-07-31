@@ -23,14 +23,14 @@ const SERVER_FINGERPRINT = 'sha256:1234567890abcdef';
 
 test('Windows package config requires pinned source and service wrapper artifacts', () => {
   const config = createRustDeskWindowsPackageConfigFromEnv({
-    OPC_RUSTDESK_WINDOWS_PACKAGE_DIR: '/tmp/rustdesk-windows-package',
-    OPC_RUSTDESK_WINDOWS_PROFILE_FILE: '/tmp/client-profile.json',
-    OPC_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE: '/tmp/network-config.txt',
-    OPC_RUSTDESK_WINDOWS_SOURCE_COMMIT: SOURCE_COMMIT,
-    OPC_RUSTDESK_WINDOWS_EXPECTED_FINGERPRINT: SERVER_FINGERPRINT,
-    OPC_IVEKIT_PLACEMENT_ENABLED: '1',
-    OPC_RUSTDESK_WINDOWS_WINSW_URL: 'https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe',
-    OPC_RUSTDESK_WINDOWS_WINSW_SHA256: WINSW_SHA256
+    CONVERACT_RUSTDESK_WINDOWS_PACKAGE_DIR: '/tmp/rustdesk-windows-package',
+    CONVERACT_RUSTDESK_WINDOWS_PROFILE_FILE: '/tmp/client-profile.json',
+    CONVERACT_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE: '/tmp/network-config.txt',
+    CONVERACT_RUSTDESK_WINDOWS_SOURCE_COMMIT: SOURCE_COMMIT,
+    CONVERACT_RUSTDESK_WINDOWS_EXPECTED_FINGERPRINT: SERVER_FINGERPRINT,
+    CONVERACT_FABRIC_PLACEMENT_ENABLED: '1',
+    CONVERACT_RUSTDESK_WINDOWS_WINSW_URL: 'https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe',
+    CONVERACT_RUSTDESK_WINDOWS_WINSW_SHA256: WINSW_SHA256
   });
 
   assert.equal(config.sourceCommit, SOURCE_COMMIT);
@@ -40,10 +40,10 @@ test('Windows package config requires pinned source and service wrapper artifact
   assert.equal(config.placementEnabled, true);
   assert.throws(
     () => createRustDeskWindowsPackageConfigFromEnv({
-      OPC_RUSTDESK_WINDOWS_PACKAGE_DIR: '/tmp/output',
-      OPC_RUSTDESK_WINDOWS_PROFILE_FILE: '/tmp/profile',
-      OPC_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE: '/tmp/config',
-      OPC_RUSTDESK_WINDOWS_SOURCE_COMMIT: 'dirty'
+      CONVERACT_RUSTDESK_WINDOWS_PACKAGE_DIR: '/tmp/output',
+      CONVERACT_RUSTDESK_WINDOWS_PROFILE_FILE: '/tmp/profile',
+      CONVERACT_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE: '/tmp/config',
+      CONVERACT_RUSTDESK_WINDOWS_SOURCE_COMMIT: 'dirty'
     }),
     /source commit must be 40 lowercase hexadecimal characters/
   );
@@ -162,26 +162,26 @@ test('Windows package writes a secret-free deterministic handoff with executable
   assert.match(script, /rollback-state\.json/);
   assert.match(script, /Restore-IveKitRollback/);
   assert.match(service, /<serviceaccount>\s*<username>LocalSystem<\/username>\s*<\/serviceaccount>/);
-  assert.match(service, /OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE/);
-  assert.match(service, /OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR/);
-  assert.match(service, /OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR/);
-  assert.match(service, /OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR/);
-  assert.match(service, /OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR/);
-  assert.match(service, /OPC_RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR/);
-  assert.match(service, /OPC_RUSTDESK_NATIVE_EVIDENCE_CANDIDATE_DIR/);
-  assert.match(service, /OPC_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR/);
-  assert.match(service, /OPC_RUSTDESK_NATIVE_FILE_ROOTS_JSON/);
-  assert.match(service, /OPC_RUSTDESK_NATIVE_RECORDING_ROOTS_JSON/);
+  assert.match(service, /CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE/);
+  assert.match(service, /CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR/);
+  assert.match(service, /CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR/);
+  assert.match(service, /CONVERACT_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR/);
+  assert.match(service, /CONVERACT_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR/);
+  assert.match(service, /CONVERACT_RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR/);
+  assert.match(service, /CONVERACT_RUSTDESK_NATIVE_EVIDENCE_CANDIDATE_DIR/);
+  assert.match(service, /CONVERACT_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR/);
+  assert.match(service, /CONVERACT_RUSTDESK_NATIVE_FILE_ROOTS_JSON/);
+  assert.match(service, /CONVERACT_RUSTDESK_NATIVE_RECORDING_ROOTS_JSON/);
   assert.match(script, /native-evidence-roots-v1\.txt/);
   assert.match(script, /native-evidence\\candidates/);
   assert.match(
     readFileSync(join(fixture.config.outputDir, 'edge/windows/Publish-IveKitRustDeskEvidence.ps1'), 'utf8'),
     /FileMode\]::CreateNew/
   );
-  assert.match(service, /OPC_RUSTDESK_PRECISE_DISCONNECT_SCRIPT/);
-  assert.match(service, /OPC_RUSTDESK_SESSION_REGISTRY_FILE/);
-  assert.match(service, /OPC_RUSTDESK_NATIVE_CONTROL_PIPE/);
-  assert.match(service, /OPC_RUSTDESK_EDGE_CLIENT_VERSION.*1\.4\.9/);
+  assert.match(service, /CONVERACT_RUSTDESK_PRECISE_DISCONNECT_SCRIPT/);
+  assert.match(service, /CONVERACT_RUSTDESK_SESSION_REGISTRY_FILE/);
+  assert.match(service, /CONVERACT_RUSTDESK_NATIVE_CONTROL_PIPE/);
+  assert.match(service, /CONVERACT_RUSTDESK_EDGE_CLIENT_VERSION.*1\.4\.9/);
   assert.doesNotMatch(readFileSync(join(fixture.config.outputDir, 'README.md'), 'utf8'), /passed.*physical/i);
 });
 
@@ -314,28 +314,28 @@ test('Windows package command, environment samples, and Windows AST validation C
     'node --import tsx scripts/rustdesk-windows-package.ts'
   );
   for (const marker of [
-    'OPC_RUSTDESK_WINDOWS_PACKAGE_DIR=',
-    'OPC_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE=',
-    'OPC_RUSTDESK_WINDOWS_SOURCE_COMMIT=',
-    'OPC_RUSTDESK_WINDOWS_WINSW_SHA256='
+    'CONVERACT_RUSTDESK_WINDOWS_PACKAGE_DIR=',
+    'CONVERACT_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE=',
+    'CONVERACT_RUSTDESK_WINDOWS_SOURCE_COMMIT=',
+    'CONVERACT_RUSTDESK_WINDOWS_WINSW_SHA256='
   ]) {
     assert.match(rootEnv, new RegExp(marker));
     assert.match(standaloneEnv, new RegExp(marker));
   }
-  assert.match(rootEnv, /OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS=604800000/);
-  assert.match(standaloneEnv, /OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR=/);
-  assert.match(standaloneEnv, /OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR=/);
-  assert.match(standaloneEnv, /OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR=/);
-  assert.match(standaloneEnv, /OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR=/);
-  assert.match(standaloneEnv, /OPC_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS=604800000/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS=604800000/);
+  assert.match(standaloneEnv, /CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR=/);
+  assert.match(standaloneEnv, /CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR=/);
+  assert.match(standaloneEnv, /CONVERACT_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR=/);
+  assert.match(standaloneEnv, /CONVERACT_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR=/);
+  assert.match(standaloneEnv, /CONVERACT_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS=604800000/);
   assert.match(
     readFileSync(join(process.cwd(), 'scripts/rustdesk-windows/IveKitRustDeskEdge.xml.template'), 'utf8'),
-    /OPC_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS/
+    /CONVERACT_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS/
   );
   assert.match(workflow, /runs-on: windows-latest/);
   assert.match(workflow, /System\.Management\.Automation\.Language\.Parser/);

@@ -90,8 +90,8 @@ test('bundled Tinode bootstraps its service account before API startup and enabl
   ]) {
     assert.match(apiDeployment, new RegExp(`name: ${envName}[\\s\\S]*?secretKeyRef:`));
   }
-  assert.match(apiDeployment, /name: OPC_TINODE_DELIVERY_WORKER_ENABLED[\s\S]*?tinode\.config\.deliveryWorkerEnabled/);
-  assert.match(apiDeployment, /name: OPC_TINODE_INBOUND_WORKER_ENABLED[\s\S]*?tinode\.config\.inboundWorkerEnabled/);
+  assert.match(apiDeployment, /name: CONVERACT_TINODE_DELIVERY_WORKER_ENABLED[\s\S]*?tinode\.config\.deliveryWorkerEnabled/);
+  assert.match(apiDeployment, /name: CONVERACT_TINODE_INBOUND_WORKER_ENABLED[\s\S]*?tinode\.config\.inboundWorkerEnabled/);
   assert.match(values, /deliveryWorkerEnabled: "1"/);
   assert.match(values, /inboundWorkerEnabled: "1"/);
   assert.match(apiDeployment, /name: TINODE_PUBLIC_WS_URL/);

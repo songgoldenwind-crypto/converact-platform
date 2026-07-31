@@ -13,15 +13,15 @@ import {
 
 test('RustDesk server evidence config maps production runtime env', () => {
   const config = createRustDeskServerEvidenceConfigFromEnv({
-    OPC_RUSTDESK_SERVER_EVIDENCE_FILE: '/tmp/rustdesk-server-evidence.json',
-    OPC_RUSTDESK_PUBLIC_KEY_FILE: '/rustdesk/id_ed25519.pub',
-    OPC_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
-    OPC_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
-    OPC_RUSTDESK_LAUNCH_BASE_URL: 'https://opc.example.com',
-    OPC_RUSTDESK_SERVER_EVIDENCE_HBBS_TCP_PORTS: '21115,21116,21118',
-    OPC_RUSTDESK_SERVER_EVIDENCE_HBBR_TCP_PORTS: '21117,21119',
-    OPC_RUSTDESK_SERVER_EVIDENCE_UDP_PORTS: '21116',
-    OPC_RUSTDESK_SERVER_EVIDENCE_TIMEOUT_MS: '2500'
+    CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE: '/tmp/rustdesk-server-evidence.json',
+    CONVERACT_RUSTDESK_PUBLIC_KEY_FILE: '/rustdesk/id_ed25519.pub',
+    CONVERACT_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
+    CONVERACT_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
+    CONVERACT_RUSTDESK_LAUNCH_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_SERVER_EVIDENCE_HBBS_TCP_PORTS: '21115,21116,21118',
+    CONVERACT_RUSTDESK_SERVER_EVIDENCE_HBBR_TCP_PORTS: '21117,21119',
+    CONVERACT_RUSTDESK_SERVER_EVIDENCE_UDP_PORTS: '21116',
+    CONVERACT_RUSTDESK_SERVER_EVIDENCE_TIMEOUT_MS: '2500'
   });
 
   assert.equal(config.outputFile, '/tmp/rustdesk-server-evidence.json');
@@ -37,9 +37,9 @@ test('RustDesk server evidence config maps production runtime env', () => {
 
 test('RustDesk server evidence probes host names when client endpoints include ports', () => {
   const config = createRustDeskServerEvidenceConfigFromEnv({
-    OPC_RUSTDESK_ID_SERVER: '64.225.122.227:21116',
-    OPC_RUSTDESK_RELAY_SERVER: '64.225.122.227:21117',
-    OPC_RUSTDESK_LAUNCH_BASE_URL: 'https://opc.example.com'
+    CONVERACT_RUSTDESK_ID_SERVER: '64.225.122.227:21116',
+    CONVERACT_RUSTDESK_RELAY_SERVER: '64.225.122.227:21117',
+    CONVERACT_RUSTDESK_LAUNCH_BASE_URL: 'https://opc.example.com'
   });
 
   assert.equal(config.idServer, '64.225.122.227');
@@ -105,11 +105,11 @@ test('RustDesk server evidence is exposed as a package script with env samples',
   const rootEnv = readFileSync('.env.example', 'utf8');
   const infraEnv = readFileSync('infra/env.example', 'utf8');
   for (const key of [
-    'OPC_RUSTDESK_SERVER_EVIDENCE_FILE=',
-    'OPC_RUSTDESK_SERVER_EVIDENCE_HBBS_TCP_PORTS=',
-    'OPC_RUSTDESK_SERVER_EVIDENCE_HBBR_TCP_PORTS=',
-    'OPC_RUSTDESK_SERVER_EVIDENCE_UDP_PORTS=',
-    'OPC_RUSTDESK_SERVER_EVIDENCE_TIMEOUT_MS='
+    'CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE=',
+    'CONVERACT_RUSTDESK_SERVER_EVIDENCE_HBBS_TCP_PORTS=',
+    'CONVERACT_RUSTDESK_SERVER_EVIDENCE_HBBR_TCP_PORTS=',
+    'CONVERACT_RUSTDESK_SERVER_EVIDENCE_UDP_PORTS=',
+    'CONVERACT_RUSTDESK_SERVER_EVIDENCE_TIMEOUT_MS='
   ]) {
     assert.match(rootEnv, new RegExp(`^${key}`, 'm'));
     assert.match(infraEnv, new RegExp(`^${key}`, 'm'));

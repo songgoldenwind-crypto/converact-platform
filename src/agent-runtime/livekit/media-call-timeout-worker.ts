@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import type { PgQueryable } from '../../db-pg.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import { MediaCallService } from './media-call-service.js';
@@ -106,15 +107,15 @@ export async function runMediaCallTimeoutBatch(input: {
 export function mediaCallTimeoutWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): MediaCallTimeoutWorkerConfig {
-  const enabledValue = String(env.OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED || '').trim();
+  const enabledValue = String(resolveBrandEnv(env, 'MEDIA_CALL_TIMEOUT_WORKER_ENABLED') || '').trim();
   if (enabledValue && enabledValue !== '0' && enabledValue !== '1') {
-    throw new Error('OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_MEDIA_CALL_TIMEOUT_WORKER_ENABLED must be 0 or 1');
   }
   return {
     enabled: enabledValue !== '0',
-    intervalMs: boundedInteger(env.OPC_MEDIA_CALL_TIMEOUT_INTERVAL_MS, 1_000, 250, 60_000, 'OPC_MEDIA_CALL_TIMEOUT_INTERVAL_MS'),
-    batchSize: boundedInteger(env.OPC_MEDIA_CALL_TIMEOUT_BATCH_SIZE, 50, 1, 100, 'OPC_MEDIA_CALL_TIMEOUT_BATCH_SIZE'),
-    tenantLimit: boundedInteger(env.OPC_MEDIA_CALL_TIMEOUT_TENANT_LIMIT, 100, 1, 1_000, 'OPC_MEDIA_CALL_TIMEOUT_TENANT_LIMIT')
+    intervalMs: boundedInteger(resolveBrandEnv(env, 'MEDIA_CALL_TIMEOUT_INTERVAL_MS'), 1_000, 250, 60_000, 'CONVERACT_MEDIA_CALL_TIMEOUT_INTERVAL_MS'),
+    batchSize: boundedInteger(resolveBrandEnv(env, 'MEDIA_CALL_TIMEOUT_BATCH_SIZE'), 50, 1, 100, 'CONVERACT_MEDIA_CALL_TIMEOUT_BATCH_SIZE'),
+    tenantLimit: boundedInteger(resolveBrandEnv(env, 'MEDIA_CALL_TIMEOUT_TENANT_LIMIT'), 100, 1, 1_000, 'CONVERACT_MEDIA_CALL_TIMEOUT_TENANT_LIMIT')
   };
 }
 

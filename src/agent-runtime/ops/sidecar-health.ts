@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import type { AIWorkerClient } from '../ai/ai-worker-client.js';
 import type { ProviderGatewayClient } from '../integrations/provider-gateway-client.js';
 import type { VoiceMediaClient } from '../voice/voice-media-client.js';
@@ -58,8 +59,8 @@ export class SidecarHealthChecker {
         sidecar_id: 'provider-gateway-go',
         language: 'go',
         responsibility: 'provider proxy / high-throughput external adapter execution',
-        url: normalizeUrl(this.providerGatewayClient.gatewayUrl || process.env.OPC_PROVIDER_GATEWAY_URL || null),
-        source: this.providerGatewayClient.gatewayUrl || process.env.OPC_PROVIDER_GATEWAY_URL ? 'runtime_env' : 'none',
+        url: normalizeUrl(this.providerGatewayClient.gatewayUrl || resolveBrandEnv(process.env, 'PROVIDER_GATEWAY_URL') || null),
+        source: this.providerGatewayClient.gatewayUrl || resolveBrandEnv(process.env, 'PROVIDER_GATEWAY_URL') ? 'runtime_env' : 'none',
         timeoutMs
       }),
       this.checkHttpSidecar({
@@ -71,7 +72,7 @@ export class SidecarHealthChecker {
           workspaceId,
           integrationId: 'opc-ai-worker',
           urlKeys: ['base_url', 'worker_url'],
-          fallbackUrl: this.aiWorkerClient.baseUrl || process.env.OPC_AI_WORKER_URL || null,
+          fallbackUrl: this.aiWorkerClient.baseUrl || resolveBrandEnv(process.env, 'AI_WORKER_URL') || null,
           fallbackSource: 'runtime_env'
         }),
         timeoutMs
@@ -85,7 +86,7 @@ export class SidecarHealthChecker {
           workspaceId,
           integrationId: 'opc-native-webrtc',
           urlKeys: ['media_service_url', 'media_url'],
-          fallbackUrl: this.voiceMediaClient.baseUrl || process.env.OPC_VOICE_MEDIA_URL || null,
+          fallbackUrl: this.voiceMediaClient.baseUrl || resolveBrandEnv(process.env, 'VOICE_MEDIA_URL') || null,
           fallbackSource: 'runtime_env'
         }),
         timeoutMs

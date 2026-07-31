@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 import {
   loadPlaywright,
@@ -39,27 +40,27 @@ const browserArgs = [
 export function createWebAssistBrowserSmokeConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): WebAssistBrowserSmokeConfig {
-  const frontendUrl = trimTrailingSlash(env.OPC_FRONTEND_URL || env.OPC_APP_URL || '');
-  if (!frontendUrl) throw new Error('OPC_FRONTEND_URL is required');
+  const frontendUrl = trimTrailingSlash(resolveBrandEnv(env, 'FRONTEND_URL') || resolveBrandEnv(env, 'APP_URL') || '');
+  if (!frontendUrl) throw new Error('CONVERACT_FRONTEND_URL is required');
 
   const customerUrl = resolveCustomerUrl(env, frontendUrl);
   const parsedCustomerUrl = new URL(customerUrl);
   const remoteSessionId =
-    env.OPC_WEB_ASSIST_REMOTE_SESSION_ID || parsedCustomerUrl.searchParams.get('remote_session_id') || '';
+    resolveBrandEnv(env, 'WEB_ASSIST_REMOTE_SESSION_ID') || parsedCustomerUrl.searchParams.get('remote_session_id') || '';
   const tenantId =
-    env.OPC_WEB_ASSIST_TENANT_ID ||
-    env.OPC_TENANT_ID ||
+    resolveBrandEnv(env, 'WEB_ASSIST_TENANT_ID') ||
+    resolveBrandEnv(env, 'TENANT_ID') ||
     parsedCustomerUrl.searchParams.get('tenant_id') ||
     '';
-  const engineerToken = env.OPC_WEB_ASSIST_ENGINEER_TOKEN || '';
-  const engineerUserId = env.OPC_WEB_ASSIST_ENGINEER_USER_ID || '';
+  const engineerToken = resolveBrandEnv(env, 'WEB_ASSIST_ENGINEER_TOKEN') || '';
+  const engineerUserId = resolveBrandEnv(env, 'WEB_ASSIST_ENGINEER_USER_ID') || '';
 
   if (!remoteSessionId) {
-    throw new Error('OPC_WEB_ASSIST_REMOTE_SESSION_ID or remote_session_id query is required');
+    throw new Error('CONVERACT_WEB_ASSIST_REMOTE_SESSION_ID or remote_session_id query is required');
   }
-  if (!tenantId) throw new Error('OPC_WEB_ASSIST_TENANT_ID or OPC_TENANT_ID is required');
-  if (!engineerToken) throw new Error('OPC_WEB_ASSIST_ENGINEER_TOKEN is required');
-  if (!engineerUserId) throw new Error('OPC_WEB_ASSIST_ENGINEER_USER_ID is required');
+  if (!tenantId) throw new Error('CONVERACT_WEB_ASSIST_TENANT_ID or CONVERACT_TENANT_ID is required');
+  if (!engineerToken) throw new Error('CONVERACT_WEB_ASSIST_ENGINEER_TOKEN is required');
+  if (!engineerUserId) throw new Error('CONVERACT_WEB_ASSIST_ENGINEER_USER_ID is required');
 
   return {
     frontendUrl,
@@ -68,9 +69,9 @@ export function createWebAssistBrowserSmokeConfigFromEnv(
     tenantId,
     engineerToken,
     engineerUserId,
-    engineerEmail: env.OPC_WEB_ASSIST_ENGINEER_EMAIL || undefined,
-    headless: env.OPC_WEB_ASSIST_BROWSER_SMOKE_HEADLESS !== '0',
-    timeoutMs: Number(env.OPC_WEB_ASSIST_BROWSER_SMOKE_TIMEOUT_MS || defaultTimeoutMs)
+    engineerEmail: resolveBrandEnv(env, 'WEB_ASSIST_ENGINEER_EMAIL') || undefined,
+    headless: resolveBrandEnv(env, 'WEB_ASSIST_BROWSER_SMOKE_HEADLESS') !== '0',
+    timeoutMs: Number(resolveBrandEnv(env, 'WEB_ASSIST_BROWSER_SMOKE_TIMEOUT_MS') || defaultTimeoutMs)
   };
 }
 
@@ -190,9 +191,9 @@ function seedAuthStorage(auth: {
 }
 
 function resolveCustomerUrl(env: NodeJS.ProcessEnv, frontendUrl: string): string {
-  const explicitUrl = env.OPC_WEB_ASSIST_CUSTOMER_URL || env.OPC_REMOTE_ASSIST_CUSTOMER_URL || '';
+  const explicitUrl = resolveBrandEnv(env, 'WEB_ASSIST_CUSTOMER_URL') || resolveBrandEnv(env, 'REMOTE_ASSIST_CUSTOMER_URL') || '';
   if (!explicitUrl) {
-    throw new Error('OPC_WEB_ASSIST_CUSTOMER_URL or OPC_REMOTE_ASSIST_CUSTOMER_URL is required');
+    throw new Error('CONVERACT_WEB_ASSIST_CUSTOMER_URL or CONVERACT_REMOTE_ASSIST_CUSTOMER_URL is required');
   }
   return new URL(explicitUrl, frontendUrl).toString();
 }

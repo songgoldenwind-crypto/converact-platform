@@ -8,7 +8,7 @@ import { parseIveKitRestoreCli } from '../src/converact-restore.js';
 test('backup CLI creates a unique backup directory under an explicit root', () => {
   const options = parseIveKitBackupCli(
     [],
-    { OPC_IVEKIT_BACKUP_ROOT: './backups' },
+    { CONVERACT_FABRIC_BACKUP_ROOT: './backups' },
     new Date('2026-07-15T10:11:12.000Z')
   );
   assert.match(options.backup_id, /^ivekit-20260715-101112000Z-[0-9a-f-]{36}$/);

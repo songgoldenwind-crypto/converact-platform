@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 
@@ -429,7 +430,7 @@ function capabilities(
   const livekitPublicUrl = livekitConfig.publicUrl || '';
   const livekitApiKey = livekitConfig.apiKey || '';
   const livekitApiSecret = livekitConfig.apiSecret || '';
-  const inviteSecret = String(process.env.OPC_MEDIA_INVITE_SECRET || process.env.LIVEKIT_MEDIA_INVITE_SECRET || '').trim();
+  const inviteSecret = String(resolveBrandEnv(process.env, 'MEDIA_INVITE_SECRET') || process.env.LIVEKIT_MEDIA_INVITE_SECRET || '').trim();
   const minioAccessKey = String(process.env.MINIO_ACCESS_KEY || '').trim();
   const minioSecretKey = String(process.env.MINIO_SECRET_KEY || '').trim();
   const sipReady = media.gateways.get('sip_volte').definition.status === 'active';
@@ -1529,7 +1530,7 @@ function validateIngressPullUrl(value: string): void {
   } catch {
     throw badRequest('url must be an absolute URL');
   }
-  const allowHttp = process.env.OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL === '1';
+  const allowHttp = resolveBrandEnv(process.env, 'LIVEKIT_INGRESS_ALLOW_HTTP_URL') === '1';
   if (url.protocol !== 'https:' && !(allowHttp && url.protocol === 'http:')) {
     throw badRequest('URL ingress requires https://');
   }
@@ -1538,7 +1539,7 @@ function validateIngressPullUrl(value: string): void {
   if (!hostname || ingressPrivateHost(hostname)) {
     throw badRequest('URL ingress host must not be local or a private IP literal');
   }
-  const allowed = String(process.env.OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST || '')
+  const allowed = String(resolveBrandEnv(process.env, 'LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST') || '')
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
@@ -1672,7 +1673,7 @@ async function reconcileDurableMediaCallPlacement(
 
 function mediaPlacementWorkerId(): string {
   const instance = String(
-    process.env.OPC_IVEKIT_INSTANCE_ID || process.env.HOSTNAME || process.pid
+    resolveFabricEnv(process.env, 'INSTANCE_ID') || process.env.HOSTNAME || process.pid
   );
   return `media:${createHash('sha256').update(instance).digest('hex').slice(0, 32)}`;
 }

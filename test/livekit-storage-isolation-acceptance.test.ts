@@ -45,11 +45,11 @@ test('storage isolation config is explicit and rejects unsafe control input', as
     LIVEKIT_URL: 'ws://127.0.0.1:7880',
     LIVEKIT_API_KEY: 'devkey',
     LIVEKIT_API_SECRET: 'secret',
-    OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
-    OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '["deploy/livekit/docker-compose.yml","deploy/livekit/docker-compose.storage.yml"]',
-    OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE: 'deploy/livekit/.env',
-    OPC_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE: '/tmp/ivekit-storage-isolation.json',
-    OPC_LIVEKIT_STORAGE_ISOLATION_TIMEOUT_MS: '45000'
+    CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
+    CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '["deploy/livekit/docker-compose.yml","deploy/livekit/docker-compose.storage.yml"]',
+    CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE: 'deploy/livekit/.env',
+    CONVERACT_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE: '/tmp/ivekit-storage-isolation.json',
+    CONVERACT_LIVEKIT_STORAGE_ISOLATION_TIMEOUT_MS: '45000'
   });
 
   assert.deepEqual(config, {
@@ -82,27 +82,27 @@ test('storage isolation config is explicit and rejects unsafe control input', as
       LIVEKIT_URL: 'ws://user:password@127.0.0.1:7880?secret=value',
       LIVEKIT_API_KEY: 'devkey',
       LIVEKIT_API_SECRET: 'secret',
-      OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit'
+      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit'
     },
     {
       LIVEKIT_URL: 'ws://127.0.0.1:7880',
       LIVEKIT_API_KEY: 'devkey\ninjected',
       LIVEKIT_API_SECRET: 'secret',
-      OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit'
+      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit'
     },
     {
       LIVEKIT_URL: 'ws://127.0.0.1:7880',
       LIVEKIT_API_KEY: 'devkey',
       LIVEKIT_API_SECRET: 'secret',
-      OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
-      OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '[]'
+      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
+      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '[]'
     },
     {
       LIVEKIT_URL: 'ws://127.0.0.1:7880',
       LIVEKIT_API_KEY: 'devkey',
       LIVEKIT_API_SECRET: 'secret',
-      OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
-      OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '["one.yml",42]'
+      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
+      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '["one.yml",42]'
     }
   ]) {
     assert.throws(() => createLiveKitStorageIsolationConfigFromEnv(env), /required|invalid/i);

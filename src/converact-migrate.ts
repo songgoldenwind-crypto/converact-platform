@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from './config/converact-env.js';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,7 +8,7 @@ import { applyIveKitMigrations } from './converact-migrations.js';
 
 async function main(): Promise<void> {
   const migrationsDirectory = resolve(
-    process.env.OPC_IVEKIT_MIGRATIONS_DIR ||
+    resolveFabricEnv(process.env, 'MIGRATIONS_DIR') ||
     resolve(dirname(fileURLToPath(import.meta.url)), '..', 'migrations')
   );
   const pool = new Pool({ max: 1 });

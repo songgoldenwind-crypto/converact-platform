@@ -14,7 +14,7 @@
     "archive_size_bytes": 6987926,
     "license": "GPL-3.0-only",
     "integration_mode": "maintained_fork",
-    "source_lock_path": "infra/ivekit/rtpengine/source-lock.json",
+    "source_lock_path": "infra/converact/rtpengine/source-lock.json",
     "patch_set_id": "ivekit-rtpengine-mr26.0.1.13.2",
     "patch_set_sha256": "51f842076f044d5d914ef8f89ad0a72a9ab1e6a2d26ee5899a5e457d09efd0f3",
     "required_patch_ids": [

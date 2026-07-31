@@ -12,9 +12,9 @@ const API_KEY = 'test-ivekit-membership-key';
 const JWT_SECRET = 'test-ivekit-membership-jwt-secret-32-bytes';
 
 test('iveKit chat enforces active membership participant RBAC and non-revivable client plans', async () => {
-  const previous = { apiKey: process.env.OPC_API_KEY, jwtSecret: process.env.OPC_JWT_SECRET };
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_JWT_SECRET = JWT_SECRET;
+  const previous = { apiKey: process.env.CONVERACT_API_KEY, jwtSecret: process.env.CONVERACT_JWT_SECRET };
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_JWT_SECRET = JWT_SECRET;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const tenantId = 'tenant_membership_auth';
@@ -171,18 +171,18 @@ test('iveKit chat enforces active membership participant RBAC and non-revivable 
     assert.equal(creatorParticipant?.role, 'agent');
     assert.equal(creatorParticipant?.left_at, null);
   } finally {
-    restoreEnv('OPC_API_KEY', previous.apiKey);
-    restoreEnv('OPC_JWT_SECRET', previous.jwtSecret);
+    restoreEnv('CONVERACT_API_KEY', previous.apiKey);
+    restoreEnv('CONVERACT_JWT_SECRET', previous.jwtSecret);
   }
 });
 
 test('iveKit fails participant leave fast during a Tinode client-plan grant and succeeds on retry', async () => {
   const previous = {
-    apiKey: process.env.OPC_API_KEY,
+    apiKey: process.env.CONVERACT_API_KEY,
     publicWsUrl: process.env.TINODE_PUBLIC_WS_URL,
     tinodeApiKey: process.env.TINODE_API_KEY
   };
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   process.env.TINODE_PUBLIC_WS_URL = 'wss://chat.example.test/v0/channels';
   process.env.TINODE_API_KEY = 'public-test-api-key';
   const pg = new MemoryPg();
@@ -293,7 +293,7 @@ test('iveKit fails participant leave fast during a Tinode client-plan grant and 
     assert.equal(mapping?.status, 'revoked');
   } finally {
     releaseProvisioning.resolve();
-    restoreEnv('OPC_API_KEY', previous.apiKey);
+    restoreEnv('CONVERACT_API_KEY', previous.apiKey);
     restoreEnv('TINODE_PUBLIC_WS_URL', previous.publicWsUrl);
     restoreEnv('TINODE_API_KEY', previous.tinodeApiKey);
   }

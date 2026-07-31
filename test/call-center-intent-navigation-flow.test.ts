@@ -17,7 +17,7 @@ let specId = '';
 const apiKey = 'dev-opc-key';
 
 before(async () => {
-  process.env.OPC_API_KEY = apiKey;
+  process.env.CONVERACT_API_KEY = apiKey;
   const tenant = createTenant(db, { name: 'Intent Navigation Flow' });
   tenantId = tenant.id;
   const session = voiceStore.createCallSession({

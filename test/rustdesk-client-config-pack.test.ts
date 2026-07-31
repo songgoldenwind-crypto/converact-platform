@@ -14,14 +14,14 @@ import {
 
 test('RustDesk client config pack config maps focused env and fallbacks', () => {
   const config = createRustDeskClientConfigPackConfigFromEnv({
-    OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE: '/tmp/rustdesk-client-config-pack.md',
-    OPC_RUSTDESK_CLIENT_CONFIG_PACK_TITLE: 'LED client setup',
-    OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com/',
-    OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
-    OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
-    OPC_RUSTDESK_CLIENT_CONFIG_USER_ID: 'agent_1',
-    OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
-    OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '123456789'
+    CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE: '/tmp/rustdesk-client-config-pack.md',
+    CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_TITLE: 'LED client setup',
+    CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+    CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+    CONVERACT_RUSTDESK_CLIENT_CONFIG_USER_ID: 'agent_1',
+    CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
+    CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '123456789'
   });
 
   assert.equal(config.outputFile, '/tmp/rustdesk-client-config-pack.md');
@@ -34,9 +34,9 @@ test('RustDesk client config pack config maps focused env and fallbacks', () => 
   assert.equal(config.targetRustDeskId, '123456789');
 
   const fallback = createRustDeskClientConfigPackConfigFromEnv({
-    OPC_BASE_URL: 'https://opc-fallback.example.com',
-    OPC_API_KEY: 'fallback-secret',
-    OPC_REMOTE_GATEWAY_TENANT_ID: 'tenant_fallback'
+    CONVERACT_BASE_URL: 'https://opc-fallback.example.com',
+    CONVERACT_API_KEY: 'fallback-secret',
+    CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_fallback'
   });
   assert.equal(fallback.baseUrl, 'https://opc-fallback.example.com');
   assert.equal(fallback.apiKey, 'fallback-secret');
@@ -53,9 +53,9 @@ test('RustDesk client config pack rejects base URL credentials, query, and fragm
   for (const baseUrl of invalidBaseUrls) {
     assert.throws(
       () => createRustDeskClientConfigPackConfigFromEnv({
-        OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: baseUrl,
-        OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'api-secret',
-        OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led'
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL: baseUrl,
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY: 'api-secret',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led'
       }),
       (error) => {
         assert.match(String(error), /base URL must not include credentials, query, or fragment/);
@@ -67,9 +67,9 @@ test('RustDesk client config pack rejects base URL credentials, query, and fragm
 
   assert.throws(
     () => createRustDeskClientConfigPackConfigFromEnv({
-      OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com/ivekit/',
-      OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'api-secret',
-      OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led'
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com/ivekit/',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY: 'api-secret',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led'
     }),
     /base URL must not include a path/
   );
@@ -78,11 +78,11 @@ test('RustDesk client config pack rejects base URL credentials, query, and fragm
 test('RustDesk client config pack renders launch availability without persisting signed or executable URLs', async () => {
   const pack = await buildRustDeskClientConfigPack(
     createRustDeskClientConfigPackConfigFromEnv({
-      OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
-      OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
-      OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
-      OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
-      OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '123456789'
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '123456789'
     }),
     fakeClient()
   );
@@ -116,10 +116,10 @@ test('RustDesk client config pack renders launch availability without persisting
 test('RustDesk client config pack requires literal can_launch true for generation-time availability', async () => {
   const pack = await buildRustDeskClientConfigPack(
     createRustDeskClientConfigPackConfigFromEnv({
-      OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
-      OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
-      OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
-      OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1'
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1'
     }),
     fakeClient({}, { can_launch: 'true' })
   );
@@ -132,11 +132,11 @@ test('RustDesk client config pack rejects configured target drift from the launc
   await assert.rejects(
     () => buildRustDeskClientConfigPack(
       createRustDeskClientConfigPackConfigFromEnv({
-        OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
-        OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
-        OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
-        OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '987654321'
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '987654321'
       }),
       fakeClient()
     ),
@@ -146,11 +146,11 @@ test('RustDesk client config pack rejects configured target drift from the launc
   await assert.rejects(
     () => buildRustDeskClientConfigPack(
       createRustDeskClientConfigPackConfigFromEnv({
-        OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
-        OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
-        OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
-        OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '123456789'
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '123456789'
       }),
       fakeClient({}, {}, { id: '987654321', type: 'device' })
     ),
@@ -160,10 +160,10 @@ test('RustDesk client config pack rejects configured target drift from the launc
   await assert.rejects(
     () => buildRustDeskClientConfigPack(
       createRustDeskClientConfigPackConfigFromEnv({
-        OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
-        OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
-        OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
-        OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1'
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1'
       }),
       fakeClient({}, {}, { id: '987654321', type: 'device' })
     ),
@@ -175,9 +175,9 @@ test('RustDesk client config pack fails fast when manual client fields are unusa
   await assert.rejects(
     () => buildRustDeskClientConfigPack(
       createRustDeskClientConfigPackConfigFromEnv({
-        OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
-        OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
-        OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led'
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+        CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led'
       }),
       fakeClient({
         id_server: '',
@@ -194,12 +194,12 @@ test('RustDesk client config pack writes markdown and exposes package and env wi
   const outputFile = join(dir, 'client-config-pack.md');
   const result = await writeRustDeskClientConfigPack(
     createRustDeskClientConfigPackConfigFromEnv({
-      OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE: outputFile,
-      OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
-      OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
-      OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
-      OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
-      OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '123456789'
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE: outputFile,
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
+      CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '123456789'
     }),
     fakeClient()
   );
@@ -220,12 +220,12 @@ test('RustDesk client config pack writes markdown and exposes package and env wi
   const envExample = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
   const infraEnvExample = readFileSync(new URL('../infra/env.example', import.meta.url), 'utf8');
   for (const key of [
-    'OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE=',
-    'OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL=',
-    'OPC_RUSTDESK_CLIENT_CONFIG_API_KEY=',
-    'OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID=',
-    'OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID=',
-    'OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID='
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE=',
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL=',
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY=',
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID=',
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID=',
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID='
   ]) {
     assert.match(envExample, new RegExp(`^${key}`, 'm'));
     assert.match(infraEnvExample, new RegExp(`^${key}`, 'm'));

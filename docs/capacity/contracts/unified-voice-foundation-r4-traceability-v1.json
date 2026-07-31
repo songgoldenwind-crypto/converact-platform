@@ -40,7 +40,7 @@
     },
     "r4_contract": {
       "path": "docs/capacity/contracts/unified-voice-foundation-r4-v1.json",
-      "sha256": "87d8bb604a78550cd298a9056913e4841805708e740a4a8fde81ddf16ccffd39",
+      "sha256": "0079307be54fcc99bd030cfbbdfc8f63ee97f1fa1861df5f15bda4026d58b79d",
       "contract_id": "unified-voice-foundation-r4-v1",
       "revision": 4
     },
@@ -68,7 +68,7 @@
       "contract_id": "rvoip-capability-integration-v1",
       "revision": 6,
       "digest_projection": "rfc8785_jcs_without_top_level_authority_binding",
-      "content_sha256": "c66835b4e86341f3cde110b9e74190b6addf2e4f7409834ac96b8dcb146ee6d8",
+      "content_sha256": "ddcb7afadd14ae1cf2e0365dd1964055f182dc11a3d5bd377ccd49396b5a53df",
       "capability_count": 198,
       "replacement_gate_count": 14
     },
@@ -4311,14 +4311,14 @@
         "/backend_capability_sets"
       ],
       "canonical_artifacts": [
-        "src/agent-runtime/ivekit/voice/dialog-shadow.ts",
+        "src/agent-runtime/converact/voice/dialog-shadow.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
       "source_status": "implemented_local",
       "disposition": "inherited",
       "rationale": "The source status and evidence paths are preserved without promoting them to Revision 4 verification.",
       "prerequisites": [],
-      "evidence_targets": ["src/agent-runtime/ivekit/voice/dialog-shadow.ts"],
+      "evidence_targets": ["src/agent-runtime/converact/voice/dialog-shadow.ts"],
       "evidence_status": "not_run",
       "r4_verification_status": "not_run",
       "production_eligible": false
@@ -7040,7 +7040,7 @@
       "owner_phase": "U7",
       "contract_sections": ["/receipt_facts", "/quality"],
       "canonical_artifacts": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-translation.ts",
+        "src/agent-runtime/converact/voice/realtime-speech-translation.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
       "source_status": "implemented_local",
@@ -7048,7 +7048,7 @@
       "rationale": "The source status and evidence paths are preserved without promoting them to Revision 4 verification.",
       "prerequisites": [],
       "evidence_targets": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-translation.ts"
+        "src/agent-runtime/converact/voice/realtime-speech-translation.ts"
       ],
       "evidence_status": "not_run",
       "r4_verification_status": "not_run",
@@ -7065,7 +7065,7 @@
       "owner_phase": "U7",
       "contract_sections": ["/receipt_facts", "/quality"],
       "canonical_artifacts": [
-        "src/agent-runtime/ivekit/voice/adapters/external-realtime-speech.ts",
+        "src/agent-runtime/converact/voice/adapters/external-realtime-speech.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
       "source_status": "implemented_local",
@@ -7073,7 +7073,7 @@
       "rationale": "The source status and evidence paths are preserved without promoting them to Revision 4 verification.",
       "prerequisites": [],
       "evidence_targets": [
-        "src/agent-runtime/ivekit/voice/adapters/external-realtime-speech.ts"
+        "src/agent-runtime/converact/voice/adapters/external-realtime-speech.ts"
       ],
       "evidence_status": "not_run",
       "r4_verification_status": "not_run",
@@ -7090,7 +7090,7 @@
       "owner_phase": "U7",
       "contract_sections": ["/receipt_facts", "/quality"],
       "canonical_artifacts": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-projection-dispatcher.ts",
+        "src/agent-runtime/converact/voice/realtime-speech-projection-dispatcher.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
       "source_status": "implemented_local",
@@ -7098,7 +7098,7 @@
       "rationale": "The source status and evidence paths are preserved without promoting them to Revision 4 verification.",
       "prerequisites": [],
       "evidence_targets": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-projection-dispatcher.ts"
+        "src/agent-runtime/converact/voice/realtime-speech-projection-dispatcher.ts"
       ],
       "evidence_status": "not_run",
       "r4_verification_status": "not_run",
@@ -7141,8 +7141,8 @@
         "/backend_capability_sets"
       ],
       "canonical_artifacts": [
-        "src/agent-runtime/ivekit/voice/ports.ts",
-        "src/agent-runtime/ivekit/voice/dialog-shadow.ts",
+        "src/agent-runtime/converact/voice/ports.ts",
+        "src/agent-runtime/converact/voice/dialog-shadow.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
       "source_status": "implemented_local",
@@ -7150,8 +7150,8 @@
       "rationale": "The source status and evidence paths are preserved without promoting them to Revision 4 verification.",
       "prerequisites": [],
       "evidence_targets": [
-        "src/agent-runtime/ivekit/voice/ports.ts",
-        "src/agent-runtime/ivekit/voice/dialog-shadow.ts"
+        "src/agent-runtime/converact/voice/ports.ts",
+        "src/agent-runtime/converact/voice/dialog-shadow.ts"
       ],
       "evidence_status": "not_run",
       "r4_verification_status": "not_run",
@@ -7168,8 +7168,8 @@
       "owner_phase": "U7",
       "contract_sections": ["/receipt_facts", "/quality"],
       "canonical_artifacts": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-translation.ts",
-        "src/agent-runtime/ivekit/voice/ports.ts",
+        "src/agent-runtime/converact/voice/realtime-speech-translation.ts",
+        "src/agent-runtime/converact/voice/ports.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
       "source_status": "partial",
@@ -7177,8 +7177,8 @@
       "rationale": "The source status and evidence paths are preserved without promoting them to Revision 4 verification.",
       "prerequisites": [],
       "evidence_targets": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-translation.ts",
-        "src/agent-runtime/ivekit/voice/ports.ts"
+        "src/agent-runtime/converact/voice/realtime-speech-translation.ts",
+        "src/agent-runtime/converact/voice/ports.ts"
       ],
       "evidence_status": "not_run",
       "r4_verification_status": "not_run",
@@ -7222,7 +7222,7 @@
       "owner_phase": "U7",
       "contract_sections": ["/receipt_facts", "/quality"],
       "canonical_artifacts": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-translation.ts",
+        "src/agent-runtime/converact/voice/realtime-speech-translation.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
       "source_status": "implemented_local",
@@ -7230,7 +7230,7 @@
       "rationale": "The source status and evidence paths are preserved without promoting them to Revision 4 verification.",
       "prerequisites": [],
       "evidence_targets": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-translation.ts"
+        "src/agent-runtime/converact/voice/realtime-speech-translation.ts"
       ],
       "evidence_status": "not_run",
       "r4_verification_status": "not_run",
@@ -7381,7 +7381,7 @@
       "contract_sections": ["/authority_matrix", "/livekit_handoff"],
       "canonical_artifacts": [
         "docs/design/communication-foundation-vos5000-parity-performance-plan.md",
-        "src/agent-runtime/ivekit/recordings/recording-manifest.ts",
+        "src/agent-runtime/converact/recordings/recording-manifest.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
       "source_status": "partial",
@@ -7390,7 +7390,7 @@
       "prerequisites": [],
       "evidence_targets": [
         "docs/design/communication-foundation-vos5000-parity-performance-plan.md",
-        "src/agent-runtime/ivekit/recordings/recording-manifest.ts"
+        "src/agent-runtime/converact/recordings/recording-manifest.ts"
       ],
       "evidence_status": "not_run",
       "r4_verification_status": "not_run",
@@ -7407,7 +7407,7 @@
       "owner_phase": "U7",
       "contract_sections": ["/authority_matrix", "/livekit_handoff"],
       "canonical_artifacts": [
-        "src/agent-runtime/ivekit/recordings/recording-manifest.ts",
+        "src/agent-runtime/converact/recordings/recording-manifest.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
       "source_status": "implemented_local",
@@ -7415,7 +7415,7 @@
       "rationale": "The source status and evidence paths are preserved without promoting them to Revision 4 verification.",
       "prerequisites": [],
       "evidence_targets": [
-        "src/agent-runtime/ivekit/recordings/recording-manifest.ts"
+        "src/agent-runtime/converact/recordings/recording-manifest.ts"
       ],
       "evidence_status": "not_run",
       "r4_verification_status": "not_run",
@@ -7432,7 +7432,7 @@
       "owner_phase": "U7",
       "contract_sections": ["/receipt_facts", "/quality"],
       "canonical_artifacts": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-translation.ts",
+        "src/agent-runtime/converact/voice/realtime-speech-translation.ts",
         "src/agent-runtime/collaboration/tts-provider.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
@@ -7441,7 +7441,7 @@
       "rationale": "The source status and evidence paths are preserved without promoting them to Revision 4 verification.",
       "prerequisites": [],
       "evidence_targets": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-translation.ts",
+        "src/agent-runtime/converact/voice/realtime-speech-translation.ts",
         "src/agent-runtime/collaboration/tts-provider.ts"
       ],
       "evidence_status": "not_run",
@@ -7459,7 +7459,7 @@
       "owner_phase": "U7",
       "contract_sections": ["/receipt_facts", "/quality"],
       "canonical_artifacts": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-translation.ts",
+        "src/agent-runtime/converact/voice/realtime-speech-translation.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
       "source_status": "implemented_local",
@@ -7467,7 +7467,7 @@
       "rationale": "The source status and evidence paths are preserved without promoting them to Revision 4 verification.",
       "prerequisites": [],
       "evidence_targets": [
-        "src/agent-runtime/ivekit/voice/realtime-speech-translation.ts"
+        "src/agent-runtime/converact/voice/realtime-speech-translation.ts"
       ],
       "evidence_status": "not_run",
       "r4_verification_status": "not_run",
@@ -7485,7 +7485,7 @@
       "contract_sections": ["/receipt_facts", "/quality"],
       "canonical_artifacts": [
         "src/agent-runtime/collaboration/tts-provider.ts",
-        "src/agent-runtime/ivekit/voice/ports.ts",
+        "src/agent-runtime/converact/voice/ports.ts",
         "docs/capacity/contracts/rvoip-capability-integration-v1.json"
       ],
       "source_status": "partial",
@@ -7494,7 +7494,7 @@
       "prerequisites": [],
       "evidence_targets": [
         "src/agent-runtime/collaboration/tts-provider.ts",
-        "src/agent-runtime/ivekit/voice/ports.ts"
+        "src/agent-runtime/converact/voice/ports.ts"
       ],
       "evidence_status": "not_run",
       "r4_verification_status": "not_run",

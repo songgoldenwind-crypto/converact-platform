@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from './config/converact-env.js';
 import { startIveKitApplication } from './agent-runtime/converact/application.js';
 import { closePostgres, initPostgres } from './db-pg.js';
 import { validateEnvOrExit } from './env-config.js';
@@ -17,9 +18,9 @@ async function main(): Promise<void> {
   }
   const pg = await initPostgres();
   if (!pg) throw new Error('cannot connect to Postgres');
-  const instanceId = process.env.OPC_IVEKIT_INSTANCE_ID ||
+  const instanceId = resolveFabricEnv(process.env, 'INSTANCE_ID') ||
     process.env.HOSTNAME || `ivekit-worker-${process.pid}`;
-  process.env.OPC_IVEKIT_INSTANCE_ID = instanceId;
+  process.env.CONVERACT_FABRIC_INSTANCE_ID = instanceId;
   const application = startIveKitApplication({ pg, instanceId });
   let shutdownPromise: Promise<void> | null = null;
 

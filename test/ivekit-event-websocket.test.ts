@@ -25,8 +25,8 @@ let port = 0;
 let token = '';
 
 before(async () => {
-  process.env.OPC_JWT_SECRET = 'event-ws-secret';
-  process.env.OPC_USE_MEMORY_REDIS = '1';
+  process.env.CONVERACT_JWT_SECRET = 'event-ws-secret';
+  process.env.CONVERACT_USE_MEMORY_REDIS = '1';
   resetRedisPubSubForTests(null);
   _resetWsState();
   initWebSocket(server, { eventStore: events });

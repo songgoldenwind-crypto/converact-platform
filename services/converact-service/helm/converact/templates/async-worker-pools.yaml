@@ -75,101 +75,101 @@ spec:
                 secretKeyRef:
                   name: {{ include "ivekit.secretName" $root }}
                   key: {{ $root.Values.secrets.runtimeDatabaseUrlKey }}
-            - name: OPC_SCHEMA_MANAGED_BY_MIGRATIONS
+            - name: CONVERACT_SCHEMA_MANAGED_BY_MIGRATIONS
               value: "1"
-            - name: OPC_OTEL_ENABLED
+            - name: CONVERACT_OTEL_ENABLED
               value: {{ ternary "1" "0" $root.Values.telemetry.enabled | quote }}
-            - name: OPC_OTEL_SERVICE_NAME
+            - name: CONVERACT_OTEL_SERVICE_NAME
               value: {{ printf "ivekit-%s-worker" $poolName | quote }}
-            - name: OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+            - name: CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ $root.Values.telemetry.collectorEndpoint | quote }}
-            - name: OPC_OTEL_TRACE_SAMPLE_RATIO
+            - name: CONVERACT_OTEL_TRACE_SAMPLE_RATIO
               value: {{ $root.Values.telemetry.sampleRatio | quote }}
-            - name: OPC_OTEL_MAX_QUEUE_SIZE
+            - name: CONVERACT_OTEL_MAX_QUEUE_SIZE
               value: {{ $root.Values.telemetry.maxQueueSize | quote }}
-            - name: OPC_OTEL_MAX_EXPORT_BATCH_SIZE
+            - name: CONVERACT_OTEL_MAX_EXPORT_BATCH_SIZE
               value: {{ $root.Values.telemetry.maxExportBatchSize | quote }}
-            - name: OPC_OTEL_SCHEDULED_DELAY_MS
+            - name: CONVERACT_OTEL_SCHEDULED_DELAY_MS
               value: {{ $root.Values.telemetry.scheduledDelayMs | quote }}
-            - name: OPC_OTEL_EXPORT_TIMEOUT_MS
+            - name: CONVERACT_OTEL_EXPORT_TIMEOUT_MS
               value: {{ $root.Values.telemetry.exportTimeoutMs | quote }}
-            - name: OPC_OBJECT_STORAGE_REQUIRED
+            - name: CONVERACT_OBJECT_STORAGE_REQUIRED
               value: "1"
-            - name: OPC_IVEKIT_INSTANCE_ID
+            - name: CONVERACT_FABRIC_INSTANCE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_RUNTIME_HEARTBEAT_ENABLED
+            - name: CONVERACT_FABRIC_RUNTIME_HEARTBEAT_ENABLED
               value: "1"
-            - name: OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED
+            - name: CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_NOTIFICATION_WORKER_ENABLED
               value: "0"
-            - name: OPC_TINODE_DELIVERY_WORKER_ENABLED
+            - name: CONVERACT_TINODE_DELIVERY_WORKER_ENABLED
               value: "0"
-            - name: OPC_TINODE_INBOUND_WORKER_ENABLED
+            - name: CONVERACT_TINODE_INBOUND_WORKER_ENABLED
               value: "0"
-            - name: OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED
+            - name: CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED
               value: {{ ternary "1" "0" (eq $poolName "attachment") | quote }}
-            - name: OPC_QUALITY_REVIEW_WORKER_ENABLED
+            - name: CONVERACT_QUALITY_REVIEW_WORKER_ENABLED
               value: {{ ternary "1" "0" (eq $poolName "quality") | quote }}
-            - name: OPC_TRANSLATION_WORKER_ENABLED
+            - name: CONVERACT_TRANSLATION_WORKER_ENABLED
               value: {{ ternary "1" "0" (eq $poolName "translation") | quote }}
-            - name: OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_EVENT_WEBHOOK_WORKER_ENABLED
               value: {{ ternary "1" "0" (eq $poolName "event-webhook") | quote }}
-            - name: OPC_FILE_SECURITY_SCAN_WORKER_ENABLED
+            - name: CONVERACT_FILE_SECURITY_SCAN_WORKER_ENABLED
               value: {{ ternary "1" "0" (eq $poolName "file-security") | quote }}
-            - name: OPC_FILE_DERIVATIVE_WORKER_ENABLED
+            - name: CONVERACT_FILE_DERIVATIVE_WORKER_ENABLED
               value: {{ ternary "1" "0" (eq $poolName "file-security") | quote }}
-            - name: OPC_FILE_CLEANUP_WORKER_ENABLED
+            - name: CONVERACT_FILE_CLEANUP_WORKER_ENABLED
               value: {{ ternary "1" "0" (eq $poolName "file-security") | quote }}
-            - name: OPC_FILE_SECURITY_SCANNER_MODE
+            - name: CONVERACT_FILE_SECURITY_SCANNER_MODE
               value: {{ $root.Values.fileSecurity.scannerMode | quote }}
-            - name: OPC_FILE_SECURITY_SCAN_INTERVAL_MS
+            - name: CONVERACT_FILE_SECURITY_SCAN_INTERVAL_MS
               value: {{ $root.Values.fileSecurity.scanIntervalMs | quote }}
-            - name: OPC_FILE_SECURITY_SCAN_BATCH_SIZE
+            - name: CONVERACT_FILE_SECURITY_SCAN_BATCH_SIZE
               value: {{ $root.Values.fileSecurity.scanBatchSize | quote }}
-            - name: OPC_FILE_SECURITY_SCAN_LEASE_MS
+            - name: CONVERACT_FILE_SECURITY_SCAN_LEASE_MS
               value: {{ $root.Values.fileSecurity.scanLeaseMs | quote }}
-            - name: OPC_FILE_SECURITY_SCAN_MAX_BYTES
+            - name: CONVERACT_FILE_SECURITY_SCAN_MAX_BYTES
               value: {{ $root.Values.fileSecurity.scanMaxBytes | quote }}
-            - name: OPC_FILE_SECURITY_MIME_CONFLICT_ACTION
+            - name: CONVERACT_FILE_SECURITY_MIME_CONFLICT_ACTION
               value: {{ $root.Values.fileSecurity.mimeConflictAction | quote }}
-            - name: OPC_FILE_SECURITY_ALLOW_CONTROLLED
+            - name: CONVERACT_FILE_SECURITY_ALLOW_CONTROLLED
               value: "0"
-            - name: OPC_FILE_SECURITY_CLAMD_HOST
+            - name: CONVERACT_FILE_SECURITY_CLAMD_HOST
               value: {{ ternary (include "ivekit.clamavFullname" $root) $root.Values.fileSecurity.clamdHost $root.Values.clamav.enabled | quote }}
-            - name: OPC_FILE_SECURITY_CLAMD_PORT
+            - name: CONVERACT_FILE_SECURITY_CLAMD_PORT
               value: {{ $root.Values.fileSecurity.clamdPort | quote }}
-            - name: OPC_FILE_DERIVATIVE_PROVIDER_MODE
+            - name: CONVERACT_FILE_DERIVATIVE_PROVIDER_MODE
               value: {{ $root.Values.fileSecurity.derivativeProviderMode | quote }}
-            - name: OPC_FILE_DERIVATIVE_INTERVAL_MS
+            - name: CONVERACT_FILE_DERIVATIVE_INTERVAL_MS
               value: {{ $root.Values.fileSecurity.derivativeIntervalMs | quote }}
-            - name: OPC_FILE_DERIVATIVE_BATCH_SIZE
+            - name: CONVERACT_FILE_DERIVATIVE_BATCH_SIZE
               value: {{ $root.Values.fileSecurity.derivativeBatchSize | quote }}
-            - name: OPC_FILE_DERIVATIVE_LEASE_MS
+            - name: CONVERACT_FILE_DERIVATIVE_LEASE_MS
               value: {{ $root.Values.fileSecurity.derivativeLeaseMs | quote }}
-            - name: OPC_FILE_DERIVATIVE_FFMPEG_EXECUTABLE
+            - name: CONVERACT_FILE_DERIVATIVE_FFMPEG_EXECUTABLE
               value: ffmpeg
-            - name: OPC_FILE_CLEANUP_CONFIRM
+            - name: CONVERACT_FILE_CLEANUP_CONFIRM
               value: {{ $root.Values.fileSecurity.cleanupConfirm | quote }}
-            - name: OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED
+            - name: CONVERACT_MEDIA_CALL_TIMEOUT_WORKER_ENABLED
               value: "0"
-            - name: OPC_LIVEKIT_EGRESS_RECONCILIATION_ENABLED
+            - name: CONVERACT_LIVEKIT_EGRESS_RECONCILIATION_ENABLED
               value: "0"
-            - name: OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED
+            - name: CONVERACT_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_EVENT_RETENTION_WORKER_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_NOTIFICATION_HEALTH_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_NOTIFICATION_HEALTH_WORKER_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_RETENTION_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_RETENTION_WORKER_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_IVR_WORKERS_ENABLED
+            - name: CONVERACT_FABRIC_IVR_WORKERS_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_VOICE_WORKERS_ENABLED
+            - name: CONVERACT_FABRIC_VOICE_WORKERS_ENABLED
               value: "0"
-            - name: OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED
+            - name: CONVERACT_FABRIC_CONTACT_CENTER_WORKER_ENABLED
               value: "0"
           securityContext:
             {{- toYaml $root.Values.securityContext | nindent 12 }}

@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$SCRIPT_DIR/converact-env-compat.sh"
+converact_env_install_aliases
+
 mode=''
 external_id=''
 target_id=''
@@ -31,7 +35,7 @@ validate_value target_id "$target_id"
 validate_value rustdesk_id "$rustdesk_id"
 case "$reason" in consent_revoked|remote_session_ended|tool_ended|gateway_ended) ;; *) printf '%s\n' 'unsupported disconnect reason' >&2; exit 64 ;; esac
 
-hook=${OPC_RUSTDESK_SESSION_DISCONNECT_HOOK-}
+hook=${CONVERACT_RUSTDESK_SESSION_DISCONNECT_HOOK-}
 available=false
 if [ -n "$hook" ] && [ "${hook#/}" != "$hook" ] && [ -x "$hook" ]; then available=true; fi
 

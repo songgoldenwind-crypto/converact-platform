@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
@@ -249,7 +250,7 @@ export function componentPlacementPolicyConfig(
   env: NodeJS.ProcessEnv,
   envName: string
 ): ComponentPlacementPolicy {
-  const raw = String(env[envName] || '').trim();
+  const raw = String(resolveConveractEnv(env, envName) || '').trim();
   if (!raw) throw new Error(`${envName} is required`);
   let parsed: unknown;
   try {

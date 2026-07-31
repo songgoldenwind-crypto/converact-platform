@@ -12,19 +12,19 @@ test('media config renderer writes LiveKit and Egress configs from production en
   const outputDir = mkdtempSync(join(tmpdir(), 'opc-media-config-'));
   try {
     const input = createMediaConfigRenderInputFromEnv({
-      OPC_MEDIA_CONFIG_DIR: outputDir,
+      CONVERACT_MEDIA_CONFIG_DIR: outputDir,
       LIVEKIT_API_KEY: 'prod-livekit-key',
       LIVEKIT_API_SECRET: 'prod-livekit-secret',
       MINIO_ACCESS_KEY: 'prod-minio-key',
       MINIO_SECRET_KEY: 'prod-minio-secret',
       MINIO_BUCKET: 'prod-recordings',
       MINIO_ENDPOINT: 'http://minio:9000',
-      OPC_MEDIA_CONFIG_RTC_TCP_PORT: '7881',
-      OPC_MEDIA_CONFIG_RTC_UDP_PORT: '7882-7892',
-      OPC_MEDIA_CONFIG_USE_EXTERNAL_IP: 'true',
-      OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS: '100',
-      OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS: '125',
-      OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS: '150'
+      CONVERACT_MEDIA_CONFIG_RTC_TCP_PORT: '7881',
+      CONVERACT_MEDIA_CONFIG_RTC_UDP_PORT: '7882-7892',
+      CONVERACT_MEDIA_CONFIG_USE_EXTERNAL_IP: 'true',
+      CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS: '100',
+      CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS: '125',
+      CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS: '150'
     });
 
     const result = renderMediaConfigs(input);
@@ -65,7 +65,7 @@ test('media config renderer supports generic S3 addressing and workload identity
   const outputDir = mkdtempSync(join(tmpdir(), 'opc-media-config-s3-'));
   try {
     const staticInput = createMediaConfigRenderInputFromEnv({
-      OPC_MEDIA_CONFIG_DIR: outputDir,
+      CONVERACT_MEDIA_CONFIG_DIR: outputDir,
       LIVEKIT_API_KEY: 'prod-livekit-key',
       LIVEKIT_API_SECRET: 'prod-livekit-secret',
       S3_ENDPOINT: 'https://s3.example.invalid',
@@ -85,7 +85,7 @@ test('media config renderer supports generic S3 addressing and workload identity
     assert.match(staticEgress, /force_path_style: false/);
 
     const identityInput = createMediaConfigRenderInputFromEnv({
-      OPC_MEDIA_CONFIG_DIR: outputDir,
+      CONVERACT_MEDIA_CONFIG_DIR: outputDir,
       LIVEKIT_API_KEY: 'prod-livekit-key',
       LIVEKIT_API_SECRET: 'prod-livekit-secret',
       S3_BUCKET: 'identity-recordings',
@@ -111,9 +111,9 @@ test('media config renderer validates the Egress health port', () => {
       LIVEKIT_API_SECRET: 'prod-livekit-secret',
       MINIO_ACCESS_KEY: 'prod-minio-key',
       MINIO_SECRET_KEY: 'prod-minio-secret',
-      OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT: '0'
+      CONVERACT_MEDIA_CONFIG_EGRESS_HEALTH_PORT: '0'
     }),
-    /OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT must be an integer between 1 and 65535/
+    /CONVERACT_MEDIA_CONFIG_EGRESS_HEALTH_PORT must be an integer between 1 and 65535/
   );
 });
 
@@ -128,16 +128,16 @@ test('media config renderer bounds LiveKit PLI throttle durations', () => {
   assert.throws(
     () => createMediaConfigRenderInputFromEnv({
       ...base,
-      OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS: '49'
+      CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS: '49'
     }),
-    /OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS must be an integer between 50 and 5000/
+    /CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS must be an integer between 50 and 5000/
   );
   assert.throws(
     () => createMediaConfigRenderInputFromEnv({
       ...base,
-      OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS: '5001'
+      CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS: '5001'
     }),
-    /OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS must be an integer between 50 and 5000/
+    /CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS must be an integer between 50 and 5000/
   );
 });
 
@@ -152,27 +152,27 @@ test('media config renderer writes one Sentinel and verified TLS contract for Li
 
   try {
     const input = createMediaConfigRenderInputFromEnv({
-      OPC_MEDIA_CONFIG_DIR: outputDir,
+      CONVERACT_MEDIA_CONFIG_DIR: outputDir,
       LIVEKIT_API_KEY: 'prod-livekit-key',
       LIVEKIT_API_SECRET: 'prod-livekit-secret',
       MINIO_ACCESS_KEY: 'prod-minio-key',
       MINIO_SECRET_KEY: 'prod-minio-secret',
-      OPC_MEDIA_CONFIG_REDIS_TOPOLOGY: 'sentinel',
-      OPC_MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME: 'livekit',
-      OPC_MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES:
+      CONVERACT_MEDIA_CONFIG_REDIS_TOPOLOGY: 'sentinel',
+      CONVERACT_MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME: 'livekit',
+      CONVERACT_MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES:
         'sentinel-a.internal:26379,sentinel-b.internal:26379,sentinel-c.internal:26379',
-      OPC_MEDIA_CONFIG_REDIS_USERNAME: 'livekit-data',
-      OPC_MEDIA_CONFIG_REDIS_PASSWORD: 'data-secret',
-      OPC_MEDIA_CONFIG_REDIS_SENTINEL_USERNAME: 'livekit-sentinel',
-      OPC_MEDIA_CONFIG_REDIS_SENTINEL_PASSWORD: 'sentinel-secret',
-      OPC_MEDIA_CONFIG_REDIS_TLS_MODE: 'required',
-      OPC_MEDIA_CONFIG_REDIS_TLS_SERVER_NAME: 'valkey.internal',
-      OPC_MEDIA_CONFIG_REDIS_TLS_CA_FILE: caFile,
-      OPC_MEDIA_CONFIG_REDIS_TLS_CERT_FILE: certFile,
-      OPC_MEDIA_CONFIG_REDIS_TLS_KEY_FILE: keyFile,
-      OPC_MEDIA_CONFIG_REDIS_READ_TIMEOUT_MS: '250',
-      OPC_MEDIA_CONFIG_REDIS_WRITE_TIMEOUT_MS: '300',
-      OPC_MEDIA_CONFIG_REDIS_POOL_SIZE: '512'
+      CONVERACT_MEDIA_CONFIG_REDIS_USERNAME: 'livekit-data',
+      CONVERACT_MEDIA_CONFIG_REDIS_PASSWORD: 'data-secret',
+      CONVERACT_MEDIA_CONFIG_REDIS_SENTINEL_USERNAME: 'livekit-sentinel',
+      CONVERACT_MEDIA_CONFIG_REDIS_SENTINEL_PASSWORD: 'sentinel-secret',
+      CONVERACT_MEDIA_CONFIG_REDIS_TLS_MODE: 'required',
+      CONVERACT_MEDIA_CONFIG_REDIS_TLS_SERVER_NAME: 'valkey.internal',
+      CONVERACT_MEDIA_CONFIG_REDIS_TLS_CA_FILE: caFile,
+      CONVERACT_MEDIA_CONFIG_REDIS_TLS_CERT_FILE: certFile,
+      CONVERACT_MEDIA_CONFIG_REDIS_TLS_KEY_FILE: keyFile,
+      CONVERACT_MEDIA_CONFIG_REDIS_READ_TIMEOUT_MS: '250',
+      CONVERACT_MEDIA_CONFIG_REDIS_WRITE_TIMEOUT_MS: '300',
+      CONVERACT_MEDIA_CONFIG_REDIS_POOL_SIZE: '512'
     });
 
     const result = renderMediaConfigs(input);
@@ -215,34 +215,34 @@ test('media config renderer rejects mixed Redis topology and incomplete ACL or T
   assert.throws(
     () => createMediaConfigRenderInputFromEnv({
       ...base,
-      OPC_MEDIA_CONFIG_REDIS_TOPOLOGY: 'sentinel',
-      OPC_MEDIA_CONFIG_REDIS_ADDRESS: 'redis.internal:6379',
-      OPC_MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME: 'livekit',
-      OPC_MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES: 's1:26379,s2:26379,s3:26379'
+      CONVERACT_MEDIA_CONFIG_REDIS_TOPOLOGY: 'sentinel',
+      CONVERACT_MEDIA_CONFIG_REDIS_ADDRESS: 'redis.internal:6379',
+      CONVERACT_MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME: 'livekit',
+      CONVERACT_MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES: 's1:26379,s2:26379,s3:26379'
     }),
-    /OPC_MEDIA_CONFIG_REDIS_ADDRESS must be empty in sentinel topology/
+    /CONVERACT_MEDIA_CONFIG_REDIS_ADDRESS must be empty in sentinel topology/
   );
   assert.throws(
     () => createMediaConfigRenderInputFromEnv({
       ...base,
-      OPC_MEDIA_CONFIG_REDIS_TOPOLOGY: 'sentinel',
-      OPC_MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME: 'livekit',
-      OPC_MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES: 's1:26379,s2:26379'
+      CONVERACT_MEDIA_CONFIG_REDIS_TOPOLOGY: 'sentinel',
+      CONVERACT_MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME: 'livekit',
+      CONVERACT_MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES: 's1:26379,s2:26379'
     }),
     /exactly three unique host:port entries/
   );
   assert.throws(
     () => createMediaConfigRenderInputFromEnv({
       ...base,
-      OPC_MEDIA_CONFIG_REDIS_USERNAME: 'livekit-data'
+      CONVERACT_MEDIA_CONFIG_REDIS_USERNAME: 'livekit-data'
     }),
     /REDIS_USERNAME and REDIS_PASSWORD must be configured together/
   );
   assert.throws(
     () => createMediaConfigRenderInputFromEnv({
       ...base,
-      OPC_MEDIA_CONFIG_REDIS_TLS_MODE: 'required',
-      OPC_MEDIA_CONFIG_REDIS_TLS_CERT_FILE: '/tmp/client.crt'
+      CONVERACT_MEDIA_CONFIG_REDIS_TLS_MODE: 'required',
+      CONVERACT_MEDIA_CONFIG_REDIS_TLS_CERT_FILE: '/tmp/client.crt'
     }),
     /Redis TLS certificate and key files must be configured together/
   );
@@ -269,15 +269,15 @@ test('media config renderer requires production LiveKit and MinIO credentials', 
         LIVEKIT_API_SECRET: 'prod-livekit-secret',
         MINIO_ACCESS_KEY: 'prod-minio-key',
         MINIO_SECRET_KEY: 'prod-minio-secret',
-        OPC_MEDIA_CONFIG_RTC_UDP_PORT: '70000'
+        CONVERACT_MEDIA_CONFIG_RTC_UDP_PORT: '70000'
       }),
-    /OPC_MEDIA_CONFIG_RTC_UDP_PORT must be a port or ascending port range between 1 and 65535/
+    /CONVERACT_MEDIA_CONFIG_RTC_UDP_PORT must be a port or ascending port range between 1 and 65535/
   );
 });
 
 test('media config renderer resolves the production compose default path inside the repo', () => {
   const input = createMediaConfigRenderInputFromEnv({
-    OPC_MEDIA_CONFIG_DIR: '../.runtime/media',
+    CONVERACT_MEDIA_CONFIG_DIR: '../.runtime/media',
     LIVEKIT_API_KEY: 'prod-livekit-key',
     LIVEKIT_API_SECRET: 'prod-livekit-secret',
     MINIO_ACCESS_KEY: 'prod-minio-key',

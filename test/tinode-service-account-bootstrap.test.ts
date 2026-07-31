@@ -185,12 +185,12 @@ test('Tinode root promotion is parameterized and verifies exactly one basic cred
       };
     }
   } as unknown as PgQueryable;
-  await promoteTinodeBasicAccountToRoot(pg, 'OPC_Service');
+  await promoteTinodeBasicAccountToRoot(pg, 'CONVERACT_Service');
 
   assert.equal(queries.length, 1);
   assert.match(queries[0].text, /UPDATE auth/);
   assert.match(queries[0].text, /RETURNING authlvl/);
-  assert.deepEqual(queries[0].params, [30, 'basic:opc_service', 'basic']);
+  assert.deepEqual(queries[0].params, [30, 'basic:converact_service', 'basic']);
 });
 
 test('Tinode root promotion fails closed when no credential is updated', async () => {

@@ -111,17 +111,17 @@ test('standalone context rejects an invalid explicit source commit', () => {
 
 test('standalone V3 examples expose provider profiles, storage, and bounded worker settings', () => {
   const required = [
-    'OPC_IVEKIT_PROVIDER_PROFILES_JSON=[]',
-    'OPC_ATTACHMENT_PROCESSING_INTERVAL_MS=5000',
-    'OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS=120000',
-    'OPC_QUALITY_REVIEW_AUTO_ENQUEUE=0',
-    'OPC_QUALITY_REVIEW_CLAIM_LEASE_MS=120000',
-    'OPC_TRANSLATION_WORKER_ENABLED=0',
-    'OPC_TRANSLATION_INTERVAL_MS=5000',
-    'OPC_TRANSLATION_BATCH_SIZE=25',
-    'OPC_TRANSLATION_MAX_ATTEMPTS=3',
-    'OPC_TRANSLATION_CLAIM_LEASE_MS=120000',
-    'OPC_TRANSLATION_RETRY_DELAYS_MS=5000,30000'
+    'CONVERACT_FABRIC_PROVIDER_PROFILES_JSON=[]',
+    'CONVERACT_ATTACHMENT_PROCESSING_INTERVAL_MS=5000',
+    'CONVERACT_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS=120000',
+    'CONVERACT_QUALITY_REVIEW_AUTO_ENQUEUE=0',
+    'CONVERACT_QUALITY_REVIEW_CLAIM_LEASE_MS=120000',
+    'CONVERACT_TRANSLATION_WORKER_ENABLED=0',
+    'CONVERACT_TRANSLATION_INTERVAL_MS=5000',
+    'CONVERACT_TRANSLATION_BATCH_SIZE=25',
+    'CONVERACT_TRANSLATION_MAX_ATTEMPTS=3',
+    'CONVERACT_TRANSLATION_CLAIM_LEASE_MS=120000',
+    'CONVERACT_TRANSLATION_RETRY_DELAYS_MS=5000,30000'
   ];
   for (const file of ['.env.example', 'infra/converact/env.example', 'services/converact-service/env.example']) {
     const content = readFileSync(file, 'utf8');
@@ -145,15 +145,15 @@ test('standalone V3 examples expose provider profiles, storage, and bounded work
     voiceCompose,
     /image: \$\{IVEKIT_POSTGRES_IMAGE:\?IVEKIT_POSTGRES_IMAGE immutable digest reference is required\}/
   );
-  for (const value of ['OPC_IVEKIT_PROVIDER_PROFILES_JSON', 'OPC_TRANSLATION_WORKER_ENABLED', 'MINIO_BUCKET']) {
+  for (const value of ['CONVERACT_FABRIC_PROVIDER_PROFILES_JSON', 'CONVERACT_TRANSLATION_WORKER_ENABLED', 'MINIO_BUCKET']) {
     assert.match(compose, new RegExp(`${value}:`), value);
   }
   for (const value of [
-    'OPC_FILE_SECURITY_SCANNER_MODE',
-    'OPC_FILE_SECURITY_SCAN_WORKER_ENABLED',
-    'OPC_FILE_SECURITY_CLAMD_HOST',
-    'OPC_FILE_DERIVATIVE_WORKER_ENABLED',
-    'OPC_FILE_CLEANUP_WORKER_ENABLED'
+    'CONVERACT_FILE_SECURITY_SCANNER_MODE',
+    'CONVERACT_FILE_SECURITY_SCAN_WORKER_ENABLED',
+    'CONVERACT_FILE_SECURITY_CLAMD_HOST',
+    'CONVERACT_FILE_DERIVATIVE_WORKER_ENABLED',
+    'CONVERACT_FILE_CLEANUP_WORKER_ENABLED'
   ]) assert.match(compose, new RegExp(`${value}:`), value);
   const clamav = compose.match(/^  clamav:\n([\s\S]*?)(?=^  [a-zA-Z0-9_-]+:\n|^volumes:)/m)?.[0] || '';
   assert.match(clamav, /image: \$\{CLAMAV_IMAGE:\?CLAMAV_IMAGE immutable digest reference is required\}/);

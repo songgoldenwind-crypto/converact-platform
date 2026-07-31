@@ -365,15 +365,15 @@ function installAuth(
   userId: string,
   role: 'admin' | 'operator' | 'viewer'
 ): string {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  const previousIssuer = process.env.OPC_AUTH_ISSUER;
-  process.env.OPC_JWT_SECRET = 'contact-center-http-test-secret';
-  delete process.env.OPC_AUTH_ISSUER;
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  const previousIssuer = process.env.CONVERACT_AUTH_ISSUER;
+  process.env.CONVERACT_JWT_SECRET = 'contact-center-http-test-secret';
+  delete process.env.CONVERACT_AUTH_ISSUER;
   t.after(() => {
-    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousSecret;
-    if (previousIssuer === undefined) delete process.env.OPC_AUTH_ISSUER;
-    else process.env.OPC_AUTH_ISSUER = previousIssuer;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
+    if (previousIssuer === undefined) delete process.env.CONVERACT_AUTH_ISSUER;
+    else process.env.CONVERACT_AUTH_ISSUER = previousIssuer;
   });
   return signAccessToken({ sub: userId, tid: 'tenant-a', role });
 }

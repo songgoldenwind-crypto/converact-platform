@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     network_mode: "host"
     volumes:
-      - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/caddy.yaml:/etc/caddy.yaml:ro
+      - ${CONVERACT_LIVEKIT_EDGE_CONFIG_DIR:?CONVERACT_LIVEKIT_EDGE_CONFIG_DIR is required}/caddy.yaml:/etc/caddy.yaml:ro
       - livekit_caddy_data:/data
 
   livekit:
@@ -16,8 +16,8 @@ services:
     restart: unless-stopped
     network_mode: "host"
     volumes:
-      - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/livekit.yaml:/etc/livekit.yaml:ro
-      - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/redis-tls:/etc/livekit-redis-tls:ro
+      - ${CONVERACT_LIVEKIT_EDGE_CONFIG_DIR:?CONVERACT_LIVEKIT_EDGE_CONFIG_DIR is required}/livekit.yaml:/etc/livekit.yaml:ro
+      - ${CONVERACT_LIVEKIT_EDGE_CONFIG_DIR:?CONVERACT_LIVEKIT_EDGE_CONFIG_DIR is required}/redis-tls:/etc/livekit-redis-tls:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -43,8 +43,8 @@ services:
     environment:
       EGRESS_CONFIG_FILE: /etc/egress.yaml
     volumes:
-      - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/egress.yaml:/etc/egress.yaml:ro
-      - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/redis-tls:/etc/livekit-redis-tls:ro
+      - ${CONVERACT_LIVEKIT_EDGE_CONFIG_DIR:?CONVERACT_LIVEKIT_EDGE_CONFIG_DIR is required}/egress.yaml:/etc/egress.yaml:ro
+      - ${CONVERACT_LIVEKIT_EDGE_CONFIG_DIR:?CONVERACT_LIVEKIT_EDGE_CONFIG_DIR is required}/redis-tls:/etc/livekit-redis-tls:ro
     cap_add:
       - SYS_ADMIN
     healthcheck:

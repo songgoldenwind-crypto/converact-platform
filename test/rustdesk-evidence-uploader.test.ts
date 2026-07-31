@@ -311,13 +311,13 @@ function uploaderFixture(overrides: {
   writeFileSync(tokenFile, `${DEVICE_TOKEN}\n`, { mode: 0o600 });
   const config = {
     ...createRustDeskEvidenceUploaderConfigFromEnv({
-      OPC_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
-      OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
-      OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR: inputDirectory,
-      OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR: spoolDirectory,
-      OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: observationDirectory,
-      OPC_RUSTDESK_EDGE_EVIDENCE_SINGLE_UPLOAD_MAX_BYTES: String(overrides.singleUploadMaxBytes || 1024),
-      OPC_RUSTDESK_EDGE_EVIDENCE_PART_SIZE_BYTES: String(overrides.partSizeBytes || 3)
+      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+      CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
+      CONVERACT_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR: inputDirectory,
+      CONVERACT_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR: spoolDirectory,
+      CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: observationDirectory,
+      CONVERACT_RUSTDESK_EDGE_EVIDENCE_SINGLE_UPLOAD_MAX_BYTES: String(overrides.singleUploadMaxBytes || 1024),
+      CONVERACT_RUSTDESK_EDGE_EVIDENCE_PART_SIZE_BYTES: String(overrides.partSizeBytes || 3)
     }),
     retryDelayMs: 0,
     ...(overrides.deadLetterRetentionMs === undefined

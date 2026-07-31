@@ -77,7 +77,7 @@ export function createConfiguredPlacementFoundation(input: {
       owner_component: 'rustpbx',
       policy: componentPlacementPolicyConfig(
         env,
-        'OPC_IVEKIT_PLACEMENT_VOICE_POLICY_JSON'
+        'CONVERACT_FABRIC_PLACEMENT_VOICE_POLICY_JSON'
       )
     }),
     tinode: new ComponentPlacementAdapter({
@@ -86,7 +86,7 @@ export function createConfiguredPlacementFoundation(input: {
       owner_component: 'tinode',
       policy: componentPlacementPolicyConfig(
         env,
-        'OPC_IVEKIT_PLACEMENT_TINODE_POLICY_JSON'
+        'CONVERACT_FABRIC_PLACEMENT_TINODE_POLICY_JSON'
       )
     }),
     rustdesk: new ComponentPlacementAdapter({
@@ -95,7 +95,7 @@ export function createConfiguredPlacementFoundation(input: {
       owner_component: 'rustdesk',
       policy: componentPlacementPolicyConfig(
         env,
-        'OPC_IVEKIT_PLACEMENT_RUSTDESK_POLICY_JSON'
+        'CONVERACT_FABRIC_PLACEMENT_RUSTDESK_POLICY_JSON'
       )
     }),
     worker_id: `placement:${identifierDigest(input.instance_id)}`

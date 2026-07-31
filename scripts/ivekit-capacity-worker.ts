@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../src/config/converact-env.js';
 import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
@@ -46,13 +47,13 @@ export interface CapacityWorkerConfig {
 export function capacityWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): CapacityWorkerConfig {
-  const databaseUrl = required(env, 'OPC_DATABASE_URL');
-  const fleetId = required(env, 'OPC_IVEKIT_CAPACITY_FLEET_ID');
+  const databaseUrl = required(env, 'CONVERACT_DATABASE_URL');
+  const fleetId = required(env, 'CONVERACT_FABRIC_CAPACITY_FLEET_ID');
   if (!['tinode', 'ivekit_event_ws', 'sip', 'livekit', 'rustdesk'].includes(fleetId)) {
-    throw new Error('OPC_IVEKIT_CAPACITY_FLEET_ID is invalid');
+    throw new Error('CONVERACT_FABRIC_CAPACITY_FLEET_ID is invalid');
   }
   const workerId = safeId(
-    required(env, 'OPC_IVEKIT_CAPACITY_WORKER_ID'),
+    required(env, 'CONVERACT_FABRIC_CAPACITY_WORKER_ID'),
     'worker ID'
   );
   const nats = resolveNatsConnectionOptions(env, { defaultName: workerId });
@@ -60,57 +61,57 @@ export function capacityWorkerConfig(
   const config: CapacityWorkerConfig = {
     database_url: databaseUrl,
     nats,
-    run_id: safeId(required(env, 'OPC_IVEKIT_CAPACITY_RUN_ID'), 'run ID'),
-    phase_id: env.OPC_IVEKIT_CAPACITY_PHASE_ID
-      ? safeId(env.OPC_IVEKIT_CAPACITY_PHASE_ID, 'phase ID')
+    run_id: safeId(required(env, 'CONVERACT_FABRIC_CAPACITY_RUN_ID'), 'run ID'),
+    phase_id: resolveFabricEnv(env, 'CAPACITY_PHASE_ID')
+      ? safeId(resolveFabricEnv(env, 'CAPACITY_PHASE_ID'), 'phase ID')
       : '',
     fleet_id: fleetId as LoadFleet,
     worker_id: workerId,
-    release_id: safeId(required(env, 'OPC_IVEKIT_CAPACITY_RELEASE_ID'), 'release ID'),
-    safe_capacity: integer(env.OPC_IVEKIT_CAPACITY_SAFE_CAPACITY, 1, 1_000_000_000),
+    release_id: safeId(required(env, 'CONVERACT_FABRIC_CAPACITY_RELEASE_ID'), 'release ID'),
+    safe_capacity: integer(resolveFabricEnv(env, 'CAPACITY_SAFE_CAPACITY'), 1, 1_000_000_000),
     heartbeat_interval_ms: integer(
-      env.OPC_IVEKIT_CAPACITY_HEARTBEAT_INTERVAL_MS || '5000',
+      resolveFabricEnv(env, 'CAPACITY_HEARTBEAT_INTERVAL_MS') || '5000',
       1_000,
       20_000
     ),
     assignment_interval_ms: integer(
-      env.OPC_IVEKIT_CAPACITY_ASSIGNMENT_INTERVAL_MS || '500',
+      resolveFabricEnv(env, 'CAPACITY_ASSIGNMENT_INTERVAL_MS') || '500',
       100,
       60_000
     ),
     lease_ttl_ms: integer(
-      env.OPC_IVEKIT_CAPACITY_SHARD_LEASE_MS || '30000',
+      resolveFabricEnv(env, 'CAPACITY_SHARD_LEASE_MS') || '30000',
       1_000,
       300_000
     ),
     ack_wait_ms: integer(
-      env.OPC_IVEKIT_CAPACITY_ACK_WAIT_MS || '30000',
+      resolveFabricEnv(env, 'CAPACITY_ACK_WAIT_MS') || '30000',
       1_000,
       300_000
     ),
     retry_delay_ms: integer(
-      env.OPC_IVEKIT_CAPACITY_RETRY_DELAY_MS || '1000',
+      resolveFabricEnv(env, 'CAPACITY_RETRY_DELAY_MS') || '1000',
       100,
       60_000
     ),
     driver_spec_path: absolutePath(
-      required(env, 'OPC_IVEKIT_CAPACITY_DRIVER_SPEC_PATH'),
+      required(env, 'CONVERACT_FABRIC_CAPACITY_DRIVER_SPEC_PATH'),
       'driver spec'
     ),
-    evidence_prefix: required(env, 'OPC_IVEKIT_CAPACITY_EVIDENCE_PREFIX'),
+    evidence_prefix: required(env, 'CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX'),
     evidence_s3: {
-      bucket: required(env, 'OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET'),
-      region: required(env, 'OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION'),
-      endpoint: optionalEndpoint(env.OPC_IVEKIT_CAPACITY_EVIDENCE_S3_ENDPOINT),
+      bucket: required(env, 'CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET'),
+      region: required(env, 'CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION'),
+      endpoint: optionalEndpoint(resolveFabricEnv(env, 'CAPACITY_EVIDENCE_S3_ENDPOINT')),
       force_path_style: booleanEnv(
-        env.OPC_IVEKIT_CAPACITY_EVIDENCE_S3_FORCE_PATH_STYLE,
+        resolveFabricEnv(env, 'CAPACITY_EVIDENCE_S3_FORCE_PATH_STYLE'),
         false
       ),
-      access_key_id: env.OPC_IVEKIT_CAPACITY_EVIDENCE_S3_ACCESS_KEY_ID || undefined,
+      access_key_id: resolveFabricEnv(env, 'CAPACITY_EVIDENCE_S3_ACCESS_KEY_ID') || undefined,
       secret_access_key:
-        env.OPC_IVEKIT_CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY || undefined
+        resolveFabricEnv(env, 'CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY') || undefined
     },
-    metadata: jsonObject(env.OPC_IVEKIT_CAPACITY_WORKER_METADATA_JSON || '{}')
+    metadata: jsonObject(resolveFabricEnv(env, 'CAPACITY_WORKER_METADATA_JSON') || '{}')
   };
   if (config.heartbeat_interval_ms * 2 >= config.lease_ttl_ms) {
     throw new Error('capacity worker heartbeat interval must be below half the shard lease');
@@ -289,7 +290,7 @@ async function main(): Promise<void> {
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = String(env[key] || '').trim();
+  const value = String(resolveConveractEnv(env, key) || '').trim();
   if (!value) throw new Error(`${key} is required`);
   return value;
 }

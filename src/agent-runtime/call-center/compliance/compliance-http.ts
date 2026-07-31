@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../../config/converact-env.js';
 import type { PgQueryable } from '../../../db-pg.js';
 import { resolveAuthContext, type AuthRole } from '../../../middleware/auth.js';
 import { ComplianceAuditStore, listActivityStream } from './audit-store.js';
@@ -14,7 +15,7 @@ import {
 
 function requirePostgres(pg: PgQueryable | null | undefined): PgQueryable {
   if (!pg) {
-    throw Object.assign(new Error('postgres is required — set DATABASE_URL or OPC_USE_MEMORY_PG=1'), {
+    throw Object.assign(new Error('postgres is required — set DATABASE_URL or CONVERACT_USE_MEMORY_PG=1'), {
       status: 503
     });
   }
@@ -223,7 +224,7 @@ export async function routeComplianceApi(
 
 function verifyOpcOrAuth(headers: Record<string, string | string[] | undefined>): void {
   const apiKey = String(headers['X-API-Key'] || headers['x-api-key'] || '');
-  const expectedKey = process.env.OPC_API_KEY;
+  const expectedKey = resolveBrandEnv(process.env, 'API_KEY');
   if (apiKey && expectedKey && apiKey === expectedKey) return;
   requireAuth(headers);
 }

@@ -80,7 +80,7 @@ test('webrtc gateway forwards the durable Cell owner into the LiveKit token', as
 
 test('sip_volte gateway is planned when it is not explicitly enabled', async () => {
   const registry = createDefaultMediaGatewayRegistry(completeSipVolteEnv({
-    OPC_SIP_VOLTE_ENABLED: '0'
+    CONVERACT_SIP_VOLTE_ENABLED: '0'
   }));
   await assert.rejects(
     () =>
@@ -212,7 +212,7 @@ function completeSipVolteEnv(
   overrides: Record<string, string> = {}
 ): NodeJS.ProcessEnv {
   return {
-    OPC_SIP_VOLTE_ENABLED: '1',
+    CONVERACT_SIP_VOLTE_ENABLED: '1',
     LIVEKIT_URL: 'ws://livekit:7880',
     LIVEKIT_API_KEY: 'devkey',
     LIVEKIT_API_SECRET: 'secret',

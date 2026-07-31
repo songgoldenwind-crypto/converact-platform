@@ -23,7 +23,7 @@ test('PostgreSQL config separates runtime and migration connections', () => {
     PGDATABASE: 'opc',
     PGUSER: 'opc_runtime',
     PGPASSWORD: 'p@ss:/#%word',
-    OPC_SCHEMA_MANAGED_BY_MIGRATIONS: '1'
+    CONVERACT_SCHEMA_MANAGED_BY_MIGRATIONS: '1'
   }), {
     runtimeUrl: 'postgresql://opc_runtime:p%40ss%3A%2F%23%25word@postgres:5432/opc',
     migrationUrl: null

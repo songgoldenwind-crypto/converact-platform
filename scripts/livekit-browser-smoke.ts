@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveConveractEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 
 export interface BrowserSmokeAgentConfig {
@@ -63,19 +64,19 @@ const defaultTimeoutMs = 30_000;
 export function createLiveKitBrowserSmokeConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): LiveKitBrowserSmokeConfig {
-  const frontendUrl = trimTrailingSlash(env.OPC_FRONTEND_URL || env.OPC_APP_URL || '');
-  const tenantId = env.OPC_BROWSER_SMOKE_TENANT_ID || env.OPC_TENANT_ID || '';
-  if (!frontendUrl) throw new Error('OPC_FRONTEND_URL is required');
-  if (!tenantId) throw new Error('OPC_BROWSER_SMOKE_TENANT_ID or OPC_TENANT_ID is required');
+  const frontendUrl = trimTrailingSlash(resolveBrandEnv(env, 'FRONTEND_URL') || resolveBrandEnv(env, 'APP_URL') || '');
+  const tenantId = resolveBrandEnv(env, 'BROWSER_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || '';
+  if (!frontendUrl) throw new Error('CONVERACT_FRONTEND_URL is required');
+  if (!tenantId) throw new Error('CONVERACT_BROWSER_SMOKE_TENANT_ID or CONVERACT_TENANT_ID is required');
 
   return {
     frontendUrl,
     tenantId,
     agentA: readAgentConfig(env, 'A'),
     agentB: readAgentConfig(env, 'B'),
-    headless: env.OPC_BROWSER_SMOKE_HEADLESS !== '0',
-    requireScreenShare: env.OPC_BROWSER_SMOKE_SCREEN_SHARE === '1',
-    timeoutMs: Number(env.OPC_BROWSER_SMOKE_TIMEOUT_MS || defaultTimeoutMs)
+    headless: resolveBrandEnv(env, 'BROWSER_SMOKE_HEADLESS') !== '0',
+    requireScreenShare: resolveBrandEnv(env, 'BROWSER_SMOKE_SCREEN_SHARE') === '1',
+    timeoutMs: Number(resolveBrandEnv(env, 'BROWSER_SMOKE_TIMEOUT_MS') || defaultTimeoutMs)
   };
 }
 
@@ -195,13 +196,13 @@ function seedAuthStorage(auth: {
 }
 
 function readAgentConfig(env: NodeJS.ProcessEnv, suffix: 'A' | 'B'): BrowserSmokeAgentConfig {
-  const token = env[`OPC_BROWSER_SMOKE_AGENT_${suffix}_TOKEN`] || '';
-  const userId = env[`OPC_BROWSER_SMOKE_AGENT_${suffix}_USER_ID`] || '';
-  const seatId = env[`OPC_BROWSER_SMOKE_AGENT_${suffix}_SEAT_ID`] || '';
-  const email = env[`OPC_BROWSER_SMOKE_AGENT_${suffix}_EMAIL`] || undefined;
-  if (!token) throw new Error(`OPC_BROWSER_SMOKE_AGENT_${suffix}_TOKEN is required`);
-  if (!userId) throw new Error(`OPC_BROWSER_SMOKE_AGENT_${suffix}_USER_ID is required`);
-  if (!seatId) throw new Error(`OPC_BROWSER_SMOKE_AGENT_${suffix}_SEAT_ID is required`);
+  const token = resolveConveractEnv(env, `CONVERACT_BROWSER_SMOKE_AGENT_${suffix}_TOKEN`) || '';
+  const userId = resolveConveractEnv(env, `CONVERACT_BROWSER_SMOKE_AGENT_${suffix}_USER_ID`) || '';
+  const seatId = resolveConveractEnv(env, `CONVERACT_BROWSER_SMOKE_AGENT_${suffix}_SEAT_ID`) || '';
+  const email = resolveConveractEnv(env, `CONVERACT_BROWSER_SMOKE_AGENT_${suffix}_EMAIL`) || undefined;
+  if (!token) throw new Error(`CONVERACT_BROWSER_SMOKE_AGENT_${suffix}_TOKEN is required`);
+  if (!userId) throw new Error(`CONVERACT_BROWSER_SMOKE_AGENT_${suffix}_USER_ID is required`);
+  if (!seatId) throw new Error(`CONVERACT_BROWSER_SMOKE_AGENT_${suffix}_SEAT_ID is required`);
   return { token, userId, seatId, email };
 }
 

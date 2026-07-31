@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import type { InteractionPlacementCoordinator } from './interaction-placement.js';
 
 export interface InteractionPlacementWorkerConfig {
@@ -64,29 +65,29 @@ export class InteractionPlacementWorker {
 export function interactionPlacementWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): InteractionPlacementWorkerConfig {
-  const enabled = flag(env.OPC_IVEKIT_PLACEMENT_ENABLED);
+  const enabled = flag(resolveFabricEnv(env, 'PLACEMENT_ENABLED'));
   return {
     enabled,
     intervalMs: boundedInteger(
-      env.OPC_IVEKIT_PLACEMENT_WORKER_INTERVAL_MS,
+      resolveFabricEnv(env, 'PLACEMENT_WORKER_INTERVAL_MS'),
       250,
       100,
       60_000,
-      'OPC_IVEKIT_PLACEMENT_WORKER_INTERVAL_MS'
+      'CONVERACT_FABRIC_PLACEMENT_WORKER_INTERVAL_MS'
     ),
     tenantLimit: boundedInteger(
-      env.OPC_IVEKIT_PLACEMENT_WORKER_TENANT_LIMIT,
+      resolveFabricEnv(env, 'PLACEMENT_WORKER_TENANT_LIMIT'),
       100,
       1,
       1_000,
-      'OPC_IVEKIT_PLACEMENT_WORKER_TENANT_LIMIT'
+      'CONVERACT_FABRIC_PLACEMENT_WORKER_TENANT_LIMIT'
     ),
     batchSize: boundedInteger(
-      env.OPC_IVEKIT_PLACEMENT_WORKER_BATCH_SIZE,
+      resolveFabricEnv(env, 'PLACEMENT_WORKER_BATCH_SIZE'),
       50,
       1,
       100,
-      'OPC_IVEKIT_PLACEMENT_WORKER_BATCH_SIZE'
+      'CONVERACT_FABRIC_PLACEMENT_WORKER_BATCH_SIZE'
     )
   };
 }
@@ -119,7 +120,7 @@ function flag(value: string | undefined): boolean {
   const normalized = String(value || '').trim();
   if (!normalized) return false;
   if (normalized !== '0' && normalized !== '1') {
-    throw new Error('OPC_IVEKIT_PLACEMENT_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_FABRIC_PLACEMENT_ENABLED must be 0 or 1');
   }
   return normalized === '1';
 }

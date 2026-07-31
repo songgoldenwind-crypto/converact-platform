@@ -12,7 +12,7 @@ function authHeaders(tenantId: string, userId: string): Record<string, string> {
 }
 
 test('iveKit event HTTP exposes head and explicit replay recovery states', async () => {
-  process.env.OPC_JWT_SECRET = 'ivekit-event-http-secret';
+  process.env.CONVERACT_JWT_SECRET = 'ivekit-event-http-secret';
   const pg = new MemoryPg();
   const tenantId = 'tenant_event_http';
   const headers = authHeaders(tenantId, 'viewer-1');
@@ -84,8 +84,8 @@ test('iveKit event HTTP exposes head and explicit replay recovery states', async
 });
 
 test('iveKit event replay can be disabled independently', async () => {
-  process.env.OPC_JWT_SECRET = 'ivekit-event-http-secret';
-  process.env.OPC_IVEKIT_EVENT_REPLAY_ENABLED = '0';
+  process.env.CONVERACT_JWT_SECRET = 'ivekit-event-http-secret';
+  process.env.CONVERACT_FABRIC_EVENT_REPLAY_ENABLED = '0';
   try {
     await assert.rejects(
       () => routeIveKitEventApi(
@@ -98,6 +98,6 @@ test('iveKit event replay can be disabled independently', async () => {
       (error: unknown) => (error as { status?: number }).status === 503
     );
   } finally {
-    delete process.env.OPC_IVEKIT_EVENT_REPLAY_ENABLED;
+    delete process.env.CONVERACT_FABRIC_EVENT_REPLAY_ENABLED;
   }
 });

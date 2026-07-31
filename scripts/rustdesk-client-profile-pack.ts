@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,47 +63,47 @@ export function createRustDeskClientProfilePackConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): RustDeskClientProfilePackConfig {
   const baseUrl = normalizeBaseUrl(
-    env.OPC_RUSTDESK_CLIENT_PROFILE_PACK_BASE_URL ||
-    env.OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL ||
-    env.OPC_RUSTDESK_IVEKIT_BASE_URL ||
-    env.OPC_BASE_URL ||
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_PACK_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
     ''
   );
   const apiKey = requiredString(
-    env.OPC_RUSTDESK_CLIENT_PROFILE_PACK_API_KEY ||
-    env.OPC_RUSTDESK_CLIENT_CONFIG_API_KEY ||
-    env.OPC_RUSTDESK_IVEKIT_API_KEY ||
-    env.OPC_API_KEY,
-    'OPC_RUSTDESK_CLIENT_PROFILE_PACK_API_KEY or OPC_API_KEY is required'
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_PACK_API_KEY') ||
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_API_KEY') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_API_KEY') ||
+    resolveBrandEnv(env, 'API_KEY'),
+    'CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_API_KEY or CONVERACT_API_KEY is required'
   );
   const tenantId = requiredString(
-    env.OPC_RUSTDESK_CLIENT_PROFILE_PACK_TENANT_ID ||
-    env.OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID ||
-    env.OPC_RUSTDESK_IVEKIT_TENANT_ID ||
-    env.OPC_TENANT_ID,
-    'OPC_RUSTDESK_CLIENT_PROFILE_PACK_TENANT_ID or OPC_TENANT_ID is required'
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_PACK_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_IVEKIT_TENANT_ID') ||
+    resolveBrandEnv(env, 'TENANT_ID'),
+    'CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_TENANT_ID or CONVERACT_TENANT_ID is required'
   );
   const expectedServerVersion = requiredString(
-    env.OPC_RUSTDESK_CLIENT_PROFILE_EXPECTED_SERVER_VERSION,
-    'OPC_RUSTDESK_CLIENT_PROFILE_EXPECTED_SERVER_VERSION is required'
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_EXPECTED_SERVER_VERSION'),
+    'CONVERACT_RUSTDESK_CLIENT_PROFILE_EXPECTED_SERVER_VERSION is required'
   );
   if (expectedServerVersion !== '1.1.16') {
     throw new Error('RustDesk client profile expected server version must equal 1.1.16');
   }
   const expectedServerKeyFingerprint = requiredString(
-    env.OPC_RUSTDESK_CLIENT_PROFILE_EXPECTED_FINGERPRINT,
-    'OPC_RUSTDESK_CLIENT_PROFILE_EXPECTED_FINGERPRINT is required'
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_EXPECTED_FINGERPRINT'),
+    'CONVERACT_RUSTDESK_CLIENT_PROFILE_EXPECTED_FINGERPRINT is required'
   );
   if (!/^sha256:[a-f0-9]{16}$/.test(expectedServerKeyFingerprint)) {
     throw new Error('RustDesk client profile expected fingerprint is invalid');
   }
-  const outputFile = optionalString(env.OPC_RUSTDESK_CLIENT_PROFILE_PACK_FILE);
+  const outputFile = optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_PACK_FILE'));
   const userId = optionalString(
-    env.OPC_RUSTDESK_CLIENT_PROFILE_PACK_USER_ID || env.OPC_RUSTDESK_CLIENT_CONFIG_USER_ID
+    resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_PACK_USER_ID') || resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_USER_ID')
   );
   return {
     ...(outputFile ? { outputFile } : {}),
-    title: optionalString(env.OPC_RUSTDESK_CLIENT_PROFILE_PACK_TITLE) || 'RustDesk Client Distribution Profile',
+    title: optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_PACK_TITLE')) || 'RustDesk Client Distribution Profile',
     baseUrl,
     apiKey,
     tenantId,
@@ -226,7 +227,7 @@ export async function writeRustDeskClientProfilePack(
   now?: () => Date
 ): Promise<RustDeskClientProfilePackWriteResult> {
   if (!config.outputFile) {
-    throw new Error('OPC_RUSTDESK_CLIENT_PROFILE_PACK_FILE is required when writing client profile pack');
+    throw new Error('CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_FILE is required when writing client profile pack');
   }
   const pack = await buildRustDeskClientProfilePack(config, client, now);
   mkdirSync(dirname(config.outputFile), { recursive: true });

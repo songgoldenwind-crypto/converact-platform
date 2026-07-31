@@ -40,8 +40,8 @@ import {
   routeIveKitVoiceApi
 } from '../src/agent-runtime/converact/voice/index.js';
 
-const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
-const runtimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
+const adminUrl = process.env.CONVERACT_FABRIC_STANDALONE_TEST_DATABASE_URL || '';
+const runtimeUrl = process.env.CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
 const postgresTest = adminUrl && runtimeUrl ? test : test.skip;
 const TENANT_A = 'ivekit_voice_acceptance_a';
 const TENANT_B = 'ivekit_voice_acceptance_b';
@@ -56,11 +56,11 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
     port: 0,
     state: createControlledVoiceProviderState({ token: PROVIDER_TOKEN })
   });
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = API_KEY;
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   t.after(async () => {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
     await running.close();
     await runtime.end();
     await admin.end();

@@ -24,9 +24,9 @@ The delivery bundle contains this complete build context and identifies it as
 ## Controlled local deployment
 
 `docker-compose.yml` starts one authenticated NATS JetStream node and one dispatcher by default.
-Set a random `OPC_IVEKIT_CAPACITY_NATS_PASSWORD`; this controlled topology deliberately uses one
+Set a random `CONVERACT_FABRIC_CAPACITY_NATS_PASSWORD`; this controlled topology deliberately uses one
 stream replica and must never support a production HA claim. Supply an already migrated PostgreSQL
-database through `OPC_DATABASE_URL`. The optional `worker` profile starts one
+database through `CONVERACT_DATABASE_URL`. The optional `worker` profile starts one
 generator worker; the optional `controller` profile creates or resumes the immutable run and
 advances all manifest phases:
 
@@ -39,7 +39,7 @@ docker compose \
   up capacity-nats capacity-dispatcher capacity-controller capacity-worker
 ```
 
-`OPC_IVEKIT_CAPACITY_WORKER_BUNDLE_HOST_PATH` must point to an immutable read-only directory that
+`CONVERACT_FABRIC_CAPACITY_WORKER_BUNDLE_HOST_PATH` must point to an immutable read-only directory that
 contains `driver-spec.json`, the SHA-pinned generator binary, and protected bundle files referenced
 by the spec. Generator results use the named writable volume; evidence is uploaded to S3-compatible
 object storage. This topology is for code and restart validation, not for a capacity claim.

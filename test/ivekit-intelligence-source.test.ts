@@ -19,7 +19,7 @@ test('media recording import creates one system message, attachment, ASR job, an
     business_ref: { tenant_id: tenantId, type: 'service_order', id: 'order-source-media' }
   });
   const registry = createIntelligenceProviderRegistry({
-    OPC_ASR_BASE_URL: 'http://asr-worker:8080'
+    CONVERACT_ASR_BASE_URL: 'http://asr-worker:8080'
   });
   const service = new IntelligenceSourceService({
     pg,
@@ -158,8 +158,8 @@ test('remote recording evidence imports by stable ID and never accepts caller st
     /source_ref_id is invalid/i
   );
 
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'source-api-key';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'source-api-key';
   try {
     const path = `/api/ivekit/intelligence/sessions/${session.id}/sources`;
     await assert.rejects(
@@ -206,8 +206,8 @@ test('remote recording evidence imports by stable ID and never accepts caller st
       session_id: session.id
     })).length, 1);
   } finally {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
   }
 });
 

@@ -115,7 +115,7 @@ test('searchDocuments returns empty for no match', () => {
 });
 
 test('knowledge HTTP routes CRUD operations', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const db = createDatabase(':memory:');
 
   const createResult = await routeKnowledgeApi(

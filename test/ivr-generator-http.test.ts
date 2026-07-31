@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
 import { createDatabase } from '../src/db.js';
@@ -20,13 +21,13 @@ afterEach(() => {
 });
 
 function setEnv(key: string, value: string | undefined) {
-  if (!(key in saved)) saved[key] = process.env[key];
+  if (!(key in saved)) saved[key] = resolveConveractEnv(process.env, key);
   if (value === undefined) delete process.env[key];
   else process.env[key] = value;
 }
 
 function setupTenant() {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   setEnv('LLM_API_KEY', 'test-key');
   setEnv('LLM_BASE_URL', 'http://primary/v1');
   setEnv('LLM_MODEL', 'Qwen3.6-27B');

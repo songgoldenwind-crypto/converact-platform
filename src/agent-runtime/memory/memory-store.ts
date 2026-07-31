@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { all, id, json, one, parseJson, run } from '../../db.js';
 import type { AgentDescriptor, BusinessContext, MemoryEntryRow, MemoryPack, MemorySummary, RetrievalScope } from '../context/runtime-types.js';
 
@@ -29,10 +30,10 @@ const TYPE_RANK: Record<string, number> = {
 
 // ── New scoring engine (v2) ──────────────────────────────
 const DEFAULT_SCORE_CONFIG = {
-  halfLifeMs: Number(process.env.OPC_MEMORY_HALF_LIFE_DAYS || 7) * 86_400_000,
-  alpha: Number(process.env.OPC_MEMORY_EFFECTIVE_AGE_ALPHA || 0.1),
-  beta: Number(process.env.OPC_MEMORY_RECALL_BOOST_BETA || 2.0),
-  archiveThreshold: Number(process.env.OPC_MEMORY_ARCHIVE_THRESHOLD || 0.05)
+  halfLifeMs: Number(resolveBrandEnv(process.env, 'MEMORY_HALF_LIFE_DAYS') || 7) * 86_400_000,
+  alpha: Number(resolveBrandEnv(process.env, 'MEMORY_EFFECTIVE_AGE_ALPHA') || 0.1),
+  beta: Number(resolveBrandEnv(process.env, 'MEMORY_RECALL_BOOST_BETA') || 2.0),
+  archiveThreshold: Number(resolveBrandEnv(process.env, 'MEMORY_ARCHIVE_THRESHOLD') || 0.05)
 };
 
 export interface MemoryScore {

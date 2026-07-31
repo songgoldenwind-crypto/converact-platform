@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from './config/converact-env.js';
 import { getRedisClient, setRedisClientForTests, type RedisLike } from './redis-client.js';
 import {
   buildIoRedisConstructorArgs,
@@ -65,7 +66,7 @@ let sharedPubSub: RedisPubSubLike | null = null;
 export async function getRedisPubSub(): Promise<RedisPubSubLike> {
   if (sharedPubSub) return sharedPubSub;
 
-  if (process.env.OPC_USE_MEMORY_REDIS === '1') {
+  if (resolveBrandEnv(process.env, 'USE_MEMORY_REDIS') === '1') {
     sharedPubSub = new MemoryRedisPubSub();
     return sharedPubSub;
   }

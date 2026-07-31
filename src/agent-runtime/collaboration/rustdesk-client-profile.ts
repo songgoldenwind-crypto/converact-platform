@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { rustDeskClientConfig } from './rustdesk-client-config.js';
 
 export const RUSTDESK_CLIENT_VERSION = '1.4.9' as const;
@@ -113,9 +114,9 @@ export function createRustDeskClientDistributionProfile(
   if (serverVersion !== RUSTDESK_SERVER_VERSION) {
     throw profileError(`RustDesk server version must equal ${RUSTDESK_SERVER_VERSION}`, 409);
   }
-  const configuredClientVersion = String(env.OPC_RUSTDESK_CLIENT_VERSION || RUSTDESK_CLIENT_VERSION).trim();
+  const configuredClientVersion = String(resolveBrandEnv(env, 'RUSTDESK_CLIENT_VERSION') || RUSTDESK_CLIENT_VERSION).trim();
   if (configuredClientVersion !== RUSTDESK_CLIENT_VERSION) {
-    throw profileError(`OPC_RUSTDESK_CLIENT_VERSION must equal ${RUSTDESK_CLIENT_VERSION}`, 500);
+    throw profileError(`CONVERACT_RUSTDESK_CLIENT_VERSION must equal ${RUSTDESK_CLIENT_VERSION}`, 500);
   }
 
   const config = rustDeskClientConfig(env);
@@ -130,7 +131,7 @@ export function createRustDeskClientDistributionProfile(
     throw profileError('RustDesk server key fingerprint drift', 409);
   }
 
-  const manifest = parseArtifactManifest(env.OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON);
+  const manifest = parseArtifactManifest(resolveBrandEnv(env, 'RUSTDESK_CLIENT_ARTIFACTS_JSON'));
   const artifact = manifest?.artifacts.find(
     (candidate) => candidate.platform === platform && candidate.architecture === architecture
   );
@@ -417,22 +418,22 @@ function hasArtifactToken(filename: string, token: string): boolean {
 
 function profileTtlMs(env: NodeJS.ProcessEnv): number {
   let secondsMs: number | undefined;
-  if (env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS !== undefined) {
-    const seconds = Number(env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS);
+  if (resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_TTL_SECONDS') !== undefined) {
+    const seconds = Number(resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_TTL_SECONDS'));
     if (!Number.isInteger(seconds) || seconds < 60 || seconds > 3_600) {
-      throw profileError('OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS must be an integer from 60 to 3600', 500);
+      throw profileError('CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS must be an integer from 60 to 3600', 500);
     }
     secondsMs = seconds * 1_000;
   }
   let legacyMs: number | undefined;
-  if (env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS !== undefined) {
-    legacyMs = Number(env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS);
+  if (resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_TTL_MS') !== undefined) {
+    legacyMs = Number(resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_TTL_MS'));
     if (!Number.isInteger(legacyMs) || legacyMs < 60_000 || legacyMs > 3_600_000) {
-      throw profileError('OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS must be an integer from 60000 to 3600000', 500);
+      throw profileError('CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS must be an integer from 60000 to 3600000', 500);
     }
   }
   if (secondsMs !== undefined && legacyMs !== undefined && secondsMs !== legacyMs) {
-    throw profileError('OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS and OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS conflict', 500);
+    throw profileError('CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS and CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS conflict', 500);
   }
   return secondsMs ?? legacyMs ?? 900_000;
 }

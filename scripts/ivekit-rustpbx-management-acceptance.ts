@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import {
@@ -108,7 +109,7 @@ process.stdout.write(`${JSON.stringify({
 }, null, 2)}\n`);
 
 function required(name: string): string {
-  const value = String(process.env[name] || '').trim();
+  const value = String(resolveConveractEnv(process.env, name) || '').trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }

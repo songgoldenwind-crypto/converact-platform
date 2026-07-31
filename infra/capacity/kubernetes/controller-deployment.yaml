@@ -21,20 +21,20 @@ spec:
           imagePullPolicy: IfNotPresent
           command: ["node", "--import", "tsx", "scripts/ivekit-capacity-controller.ts"]
           env:
-            - name: OPC_DATABASE_URL
+            - name: CONVERACT_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: ivekit-capacity-runtime
                   key: database-url
-            - name: OPC_IVEKIT_CAPACITY_CONTROLLER_ID
+            - name: CONVERACT_FABRIC_CAPACITY_CONTROLLER_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPC_IVEKIT_CAPACITY_MANIFEST_PATH
+            - name: CONVERACT_FABRIC_CAPACITY_MANIFEST_PATH
               value: /run/ivekit-capacity/manifest.json
-            - name: OPC_IVEKIT_CAPACITY_CONTROLLER_LEASE_MS
+            - name: CONVERACT_FABRIC_CAPACITY_CONTROLLER_LEASE_MS
               value: "15000"
-            - name: OPC_IVEKIT_CAPACITY_CONTROLLER_POLL_INTERVAL_MS
+            - name: CONVERACT_FABRIC_CAPACITY_CONTROLLER_POLL_INTERVAL_MS
               value: "500"
           volumeMounts:
             - name: manifest

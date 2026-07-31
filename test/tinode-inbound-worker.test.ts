@@ -40,7 +40,7 @@ test('Tinode inbound worker config requires provider authentication and validate
   assert.equal(tinodeInboundWorkerConfig({} as NodeJS.ProcessEnv).enabled, false);
   assert.equal(tinodeInboundWorkerConfig({
     TINODE_WS_URL: 'wss://tinode.example.com/v0/channels',
-    OPC_TINODE_INBOUND_WORKER_ENABLED: '1'
+    CONVERACT_TINODE_INBOUND_WORKER_ENABLED: '1'
   } as NodeJS.ProcessEnv).enabled, false);
 
   assert.deepEqual(tinodeInboundWorkerConfig({
@@ -48,14 +48,14 @@ test('Tinode inbound worker config requires provider authentication and validate
     TINODE_API_KEY: 'browser-api-key',
     TINODE_ROOT_API_KEY: 'root-api-key',
     TINODE_AUTH_TOKEN: 'service-token',
-    OPC_TINODE_INBOUND_WORKER_ENABLED: '1',
-    OPC_TINODE_INBOUND_INTERVAL_MS: '7000',
-    OPC_TINODE_INBOUND_TENANT_LIMIT: '40',
-    OPC_TINODE_INBOUND_PULL_LIMIT: '80',
-    OPC_TINODE_INBOUND_CLAIM_LEASE_MS: '45000',
-    OPC_TINODE_INBOUND_RETRY_DELAY_MS: '9000',
-    OPC_TINODE_INBOUND_DEAD_LETTER_MAX_ATTEMPTS: '4',
-    OPC_TINODE_ATTACHMENT_ALLOWED_HOSTS: 'files.example.com,cdn.example.com'
+    CONVERACT_TINODE_INBOUND_WORKER_ENABLED: '1',
+    CONVERACT_TINODE_INBOUND_INTERVAL_MS: '7000',
+    CONVERACT_TINODE_INBOUND_TENANT_LIMIT: '40',
+    CONVERACT_TINODE_INBOUND_PULL_LIMIT: '80',
+    CONVERACT_TINODE_INBOUND_CLAIM_LEASE_MS: '45000',
+    CONVERACT_TINODE_INBOUND_RETRY_DELAY_MS: '9000',
+    CONVERACT_TINODE_INBOUND_DEAD_LETTER_MAX_ATTEMPTS: '4',
+    CONVERACT_TINODE_ATTACHMENT_ALLOWED_HOSTS: 'files.example.com,cdn.example.com'
   } as NodeJS.ProcessEnv), {
     enabled: true,
     intervalMs: 7_000,
@@ -69,13 +69,13 @@ test('Tinode inbound worker config requires provider authentication and validate
   assert.equal(tinodeInboundWorkerConfig({
     TINODE_WS_URL: 'wss://tinode.example.com/v0/channels',
     TINODE_AUTH_TOKEN: 'service-token',
-    OPC_TINODE_INBOUND_WORKER_ENABLED: '1'
+    CONVERACT_TINODE_INBOUND_WORKER_ENABLED: '1'
   } as NodeJS.ProcessEnv).enabled, false);
 
   assert.throws(() => tinodeInboundWorkerConfig({
     TINODE_WS_URL: 'wss://tinode.example.com/v0/channels',
     TINODE_AUTH_TOKEN: 'service-token',
-    OPC_TINODE_INBOUND_INTERVAL_MS: '10'
+    CONVERACT_TINODE_INBOUND_INTERVAL_MS: '10'
   } as NodeJS.ProcessEnv), /INTERVAL_MS/);
 });
 

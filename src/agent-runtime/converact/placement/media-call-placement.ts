@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
@@ -336,18 +337,18 @@ export class MediaCallPlacementAdapter implements MediaCallPlacementPort {
 export function mediaCallPlacementPolicyConfig(
   env: NodeJS.ProcessEnv = process.env
 ): MediaCallPlacementPolicy {
-  const raw = String(env.OPC_IVEKIT_PLACEMENT_MEDIA_POLICY_JSON || '').trim();
+  const raw = String(resolveFabricEnv(env, 'PLACEMENT_MEDIA_POLICY_JSON') || '').trim();
   if (!raw) {
-    throw new Error('OPC_IVEKIT_PLACEMENT_MEDIA_POLICY_JSON is required');
+    throw new Error('CONVERACT_FABRIC_PLACEMENT_MEDIA_POLICY_JSON is required');
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error('OPC_IVEKIT_PLACEMENT_MEDIA_POLICY_JSON is invalid JSON');
+    throw new Error('CONVERACT_FABRIC_PLACEMENT_MEDIA_POLICY_JSON is invalid JSON');
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('OPC_IVEKIT_PLACEMENT_MEDIA_POLICY_JSON must be an object');
+    throw new Error('CONVERACT_FABRIC_PLACEMENT_MEDIA_POLICY_JSON must be an object');
   }
   const value = parsed as Record<string, unknown>;
   return checkedPolicy({

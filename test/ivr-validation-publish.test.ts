@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 test('publish blocks incomplete menu graph (warnings treated as errors)', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'IVR Validation Test' });
   const store = new IvrFlowStore(db);
@@ -60,7 +60,7 @@ test('publish blocks incomplete menu graph (warnings treated as errors)', async 
 });
 
 test('publish succeeds when menu has required edges', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'IVR Validation Test 2' });
   const store = new IvrFlowStore(db);
@@ -81,7 +81,7 @@ test('publish succeeds when menu has required edges', async () => {
 });
 
 test('save allows warnings when IVR_STRICT_VALIDATE=warn (default)', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'IVR Validation Test 3' });
 
@@ -100,7 +100,7 @@ test('save allows warnings when IVR_STRICT_VALIDATE=warn (default)', async () =>
 });
 
 test('save blocks warnings when IVR_STRICT_VALIDATE=block', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   process.env.IVR_STRICT_VALIDATE = 'block';
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'IVR Validation Test 4' });

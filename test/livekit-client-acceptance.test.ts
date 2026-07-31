@@ -21,7 +21,7 @@ test('LiveKit client acceptance reports not_run without a real environment repor
   const result = runLiveKitClientAcceptanceFromEnv({});
   assert.equal(result.ok, false);
   assert.equal(result.status, 'not_run');
-  assert.deepEqual(result.missing_environment, ['OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE']);
+  assert.deepEqual(result.missing_environment, ['CONVERACT_LIVEKIT_ACCEPTANCE_REPORT_FILE']);
 });
 
 test('LiveKit acceptance template includes incomplete reference-client checks', () => {
@@ -200,7 +200,7 @@ test('LiveKit client acceptance rejects invalid QA signatures and secrets inside
     report.qa_attestation.signature_base64 = Buffer.alloc(64).toString('base64');
     const evidenceRef = report.checks.network.ice_udp_selected.evidence;
     const evidenceDocument = JSON.parse(readFileSync(evidenceRef.artifact_file, 'utf8')) as any;
-    evidenceDocument.details.OPC_MEDIA_API_TOKEN = 'must-not-appear';
+    evidenceDocument.details.CONVERACT_MEDIA_API_TOKEN = 'must-not-appear';
     const content = `${JSON.stringify(evidenceDocument, null, 2)}\n`;
     writeFileSync(evidenceRef.artifact_file, content);
     const updatedHash = createHash('sha256').update(content).digest('hex');

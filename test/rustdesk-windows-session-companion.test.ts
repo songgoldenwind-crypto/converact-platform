@@ -12,8 +12,8 @@ function source(relativePath: string): string {
 test('Windows disconnect adapter uses the packaged precise-session bridge only', () => {
   const adapter = source('scripts/rustdesk-edge-adapters/windows-disconnect.ps1');
 
-  assert.doesNotMatch(adapter, /OPC_RUSTDESK_SESSION_DISCONNECT_HOOK/);
-  assert.match(adapter, /OPC_RUSTDESK_PRECISE_DISCONNECT_SCRIPT/);
+  assert.doesNotMatch(adapter, /CONVERACT_RUSTDESK_SESSION_DISCONNECT_HOOK/);
+  assert.match(adapter, /CONVERACT_RUSTDESK_PRECISE_DISCONNECT_SCRIPT/);
   assert.match(adapter, /Invoke-IveKitRustDeskSessionDisconnect\.ps1/);
   assert.match(adapter, /-Mode'\s+\$Mode/);
   assert.match(adapter, /-ExternalId'\s+\$ExternalId/);
@@ -56,7 +56,7 @@ test('Windows precise disconnect sends an epoch-fenced v2 named-pipe request for
   assert.match(bridge, /schema_version\s*=\s*\$schemaVersion/);
   assert.match(bridge, /ivekit-rustdesk-native-control-v2'\)\s*\{\s*2\s*\}/);
   assert.match(bridge, /ivekit-rustdesk-native-control-v2/);
-  assert.match(bridge, /OPC_RUSTDESK_NATIVE_CONTROL_PIPE/);
+  assert.match(bridge, /CONVERACT_RUSTDESK_NATIVE_CONTROL_PIPE/);
   assert.match(bridge, /already_disconnected/);
   assert.match(bridge, /native_session_id_mismatch/);
   assert.doesNotMatch(bridge, /Invoke-Expression|Start-Process|cmd\.exe/i);
@@ -76,9 +76,9 @@ test('Windows installer packages the companion and supplies complete adapter arg
   assert.match(deployment, /'-OwnerEpoch', '\{owner_epoch\}'/);
   assert.match(deployment, /Invoke-IveKitRustDeskSessionDisconnect\.ps1/);
   assert.match(deployment, /Resolve-IveKitRustDeskSession\.ps1/);
-  assert.match(service, /OPC_RUSTDESK_PRECISE_DISCONNECT_SCRIPT/);
-  assert.match(service, /OPC_RUSTDESK_SESSION_REGISTRY_FILE/);
-  assert.match(service, /OPC_RUSTDESK_NATIVE_CONTROL_PIPE/);
+  assert.match(service, /CONVERACT_RUSTDESK_PRECISE_DISCONNECT_SCRIPT/);
+  assert.match(service, /CONVERACT_RUSTDESK_SESSION_REGISTRY_FILE/);
+  assert.match(service, /CONVERACT_RUSTDESK_NATIVE_CONTROL_PIPE/);
   assert.match(packager, /Invoke-IveKitRustDeskSessionDisconnect\.ps1/);
   assert.match(packager, /Resolve-IveKitRustDeskSession\.ps1/);
 });

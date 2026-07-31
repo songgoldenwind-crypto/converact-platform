@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../src/config/converact-env.js';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -272,7 +273,8 @@ const STANDALONE_MIGRATIONS = [
   '103_ivekit_voice_cdr_convergence.sql',
   '104_ivekit_cell_admission_ledger_runtime.sql',
   '105_tinode_closed_session_inbound.sql',
-  '106_tinode_open_session_mutation_queue.sql'
+  '106_tinode_open_session_mutation_queue.sql',
+  '107_ivekit_sip_effect_oracle.sql'
 ];
 
 const CAPACITY_RUNTIME_SOURCE_PATHS = [
@@ -329,6 +331,7 @@ const CAPACITY_RUNTIME_SOURCE_PATHS = [
   'scripts/capacity/scaling-curve.ts',
   'scripts/capacity/shard-lease.ts',
   'services/converact-service/acceptance/sipp/answer-bye-uac.xml',
+  'src/config/converact-env.ts',
   'src/converact-component-node-admission.ts',
   'src/converact-placement-snapshot-projector.ts',
   'src/infra/nats-connection-options.ts',
@@ -659,6 +662,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rsipstack-ivekit-dialog-recovery.patch',
     'rsipstack-ivekit-prepared-invite.patch',
     'rsipstack-ivekit-rejection-headers.patch',
+    'rsipstack-ivekit-single-trying.patch',
+    'rsipstack-ivekit-server-invite-lifecycle.patch',
     'rustrtc-ivekit-udp-socket-capacity.patch',
     'rustpbx-ivekit-ami-dialogs.patch',
     'rustpbx-ivekit-rwi-originate-hangup.patch',
@@ -690,7 +695,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rustpbx-ivekit-session-media-profile.patch',
     'rustpbx-ivekit-recording-lifecycle-reservation.patch',
     'rustpbx-ivekit-processing-terminal-events.patch',
-    'rustpbx-ivekit-processing-ivr-execution.patch'
+    'rustpbx-ivekit-processing-ivr-execution.patch',
+    'rustpbx-ivekit-server-invite-owner.patch'
   ].map((name) => ({
     source: `infra/converact/rustpbx/patches/${name}`,
     destination: `deploy/rustpbx/patches/${name}`
@@ -834,6 +840,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rustdesk-native-evidence-policy.ts',
     'rustdesk-native-evidence-watcher.ts'
   ].map((name) => ({ source: `scripts/${name}`, destination: `edge/src/${name}` })),
+  { source: 'src/config/converact-env.ts', destination: 'edge/src/config/converact-env.ts' },
   ...[
     'rustdesk-windows-package.ts',
     'rustdesk-windows-capability-policy.ts'
@@ -860,6 +867,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'windows-disconnect.ps1',
     'windows-restart.ps1'
   ].map((name) => ({ source: `scripts/rustdesk-edge-adapters/${name}`, destination: `edge/adapters/${name}` })),
+  { source: 'scripts/converact-env-compat.ps1', destination: 'edge/converact-env-compat.ps1' },
+  { source: 'scripts/converact-env-compat.sh', destination: 'edge/converact-env-compat.sh' },
   { source: 'services/rustdesk-edge-agent/package.json', destination: 'edge/package.json' },
   { source: 'services/rustdesk-edge-agent/package-lock.json', destination: 'edge/package-lock.json' },
   { source: 'services/rustdesk-edge-agent/README.md', destination: 'edge/README.md' }
@@ -881,6 +890,7 @@ const RUSTPBX_ACCEPTANCE_GENERATED_FILES = [
   'acceptance/rustpbx/src/agent-runtime/converact/voice/ports.js',
   'acceptance/rustpbx/src/agent-runtime/converact/voice/secret-resolver.js',
   'acceptance/rustpbx/src/agent-runtime/converact/voice/types.js',
+  'acceptance/rustpbx/src/config/converact-env.js',
   'acceptance/rustpbx/src/db-pg.js',
   'acceptance/rustpbx/src/postgres-migrations.js'
 ] as const;
@@ -892,6 +902,7 @@ const GENERATED_FILES = new Set([
   'acceptance/v6-real-template.json',
   'acceptance/voice-real-template.json',
   'acceptance/voice-real-runbook.md',
+  'edge/src/config/converact-env.js',
   ...RUSTPBX_ACCEPTANCE_GENERATED_FILES,
   'operations/release-contract.json',
   'operations/stage2-deployment-evidence.json',
@@ -973,10 +984,10 @@ const CAPABILITY_MATRIX: readonly IveKitDeliveryCapability[] = [
 ] as const;
 
 const CONTROLLED_PROVIDER_PROFILES = [
-  ['ocr', 'OPC_IVEKIT_OCR_TOKEN', '/v1/ocr'],
-  ['asr', 'OPC_IVEKIT_ASR_TOKEN', '/v1/asr'],
-  ['quality_review', 'OPC_IVEKIT_QUALITY_TOKEN', '/v1/quality-review'],
-  ['translation', 'OPC_IVEKIT_TRANSLATION_TOKEN', '/v1/translate']
+  ['ocr', 'CONVERACT_FABRIC_OCR_TOKEN', '/v1/ocr'],
+  ['asr', 'CONVERACT_FABRIC_ASR_TOKEN', '/v1/asr'],
+  ['quality_review', 'CONVERACT_FABRIC_QUALITY_TOKEN', '/v1/quality-review'],
+  ['translation', 'CONVERACT_FABRIC_TRANSLATION_TOKEN', '/v1/translate']
 ].map(([capability, tokenEnv, endpoint]) => ({
   id: `controlled-${capability.replace('_', '-')}`,
   capability,
@@ -1140,7 +1151,7 @@ export function buildIveKitDeliveryBundle(
     run('npx', [
       'tsc',
       '--outDir', edgeStaging,
-      '--rootDir', 'scripts',
+      '--rootDir', '.',
       '--module', 'NodeNext',
       '--moduleResolution', 'NodeNext',
       '--target', 'ES2022',
@@ -1170,7 +1181,12 @@ export function buildIveKitDeliveryBundle(
       'rustdesk-native-evidence-correlator.js',
       'rustdesk-native-evidence-policy.js',
       'rustdesk-native-evidence-watcher.js'
-    ]) copyFile(outputDir, join(edgeStaging, name), `edge/dist/${name}`);
+    ]) copyFile(outputDir, join(edgeStaging, 'scripts', name), `edge/dist/${name}`);
+    copyFile(
+      outputDir,
+      join(edgeStaging, 'src', 'config', 'converact-env.js'),
+      'edge/src/config/converact-env.js'
+    );
   } finally {
     rmSync(edgeStaging, { recursive: true, force: true });
   }
@@ -1609,7 +1625,7 @@ export function listDeliveryFiles(root: string): string[] {
 
 function prepareBundleFromCli(): { outputDir: string; manifest: IveKitDeliveryManifest } {
   const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
-  const outputDir = resolve(process.env.OPC_IVEKIT_DELIVERY_DIR || join(repoRoot, '.tmp', 'ivekit-led-delivery'));
+  const outputDir = resolve(resolveFabricEnv(process.env, 'DELIVERY_DIR') || join(repoRoot, '.tmp', 'ivekit-led-delivery'));
   const sourceCommit = resolveSourceCommit(repoRoot);
   assertIveKitDeliverySourceState(
     sourceCommit,
@@ -1628,9 +1644,9 @@ function prepareBundleFromCli(): { outputDir: string; manifest: IveKitDeliveryMa
       outputDir,
       sdkTarball: join(stagingDir, filename),
       clientDist: join(repoRoot, 'clients', 'ivekit-reference', 'dist'),
-      imageReference: process.env.OPC_IVEKIT_DELIVERY_IMAGE_REFERENCE,
-      imageDigest: process.env.OPC_IVEKIT_DELIVERY_IMAGE_DIGEST,
-      controlledAcceptanceDir: process.env.OPC_IVEKIT_DELIVERY_CONTROLLED_ACCEPTANCE_DIR,
+      imageReference: resolveFabricEnv(process.env, 'DELIVERY_IMAGE_REFERENCE'),
+      imageDigest: resolveFabricEnv(process.env, 'DELIVERY_IMAGE_DIGEST'),
+      controlledAcceptanceDir: resolveFabricEnv(process.env, 'DELIVERY_CONTROLLED_ACCEPTANCE_DIR'),
       sourceCommit
     });
   } finally {
@@ -1988,7 +2004,7 @@ function validateAcceptanceMetadata(outputDir: string, manifest: IveKitDeliveryM
       profile.mode !== 'self_hosted' ||
       profile.base_url !== 'http://controlled-intelligence-provider:8790' ||
       typeof profile.token_env !== 'string' ||
-      !String(profile.token_env).startsWith('OPC_IVEKIT_')
+      !String(profile.token_env).startsWith('CONVERACT_FABRIC_')
     ) throw new Error('controlled provider profile is unsafe');
   }
 }

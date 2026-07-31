@@ -400,7 +400,7 @@ test('policy resolvers apply governed failover to OCR, ASR, quality review, and 
 
 function providerRegistry(overrides: Record<string, unknown> = {}) {
   return createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
       {
         id: 'translation-primary', capability: 'translation', mode: 'self_hosted',
         base_url: 'http://translation-primary:8080', timeout_ms: 1_000,
@@ -429,7 +429,7 @@ function allCapabilityRegistry() {
       }
     ];
   });
-  return createIntelligenceProviderRegistry({ OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify(profiles) });
+  return createIntelligenceProviderRegistry({ CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify(profiles) });
 }
 
 function jsonResponse(value: unknown): Response {

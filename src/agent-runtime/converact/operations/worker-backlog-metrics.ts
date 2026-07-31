@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import { Gauge } from 'prom-client';
 
 import type { PgQueryable } from '../../../db-pg.js';
@@ -88,18 +89,18 @@ export class WorkerBacklogMetricsObserver {
 export function workerBacklogMetricsConfig(
   env: NodeJS.ProcessEnv = process.env
 ): WorkerBacklogMetricsConfig {
-  const flag = String(env.OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED || '0').trim();
+  const flag = String(resolveFabricEnv(env, 'WORKER_BACKLOG_METRICS_ENABLED') || '0').trim();
   if (flag !== '0' && flag !== '1') {
-    throw new Error('OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED must be 0 or 1');
+    throw new Error('CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_ENABLED must be 0 or 1');
   }
   return {
     enabled: flag === '1',
     interval_ms: boundedInteger(
-      env.OPC_IVEKIT_WORKER_BACKLOG_METRICS_INTERVAL_MS,
+      resolveFabricEnv(env, 'WORKER_BACKLOG_METRICS_INTERVAL_MS'),
       5_000,
       1_000,
       300_000,
-      'OPC_IVEKIT_WORKER_BACKLOG_METRICS_INTERVAL_MS'
+      'CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_INTERVAL_MS'
     )
   };
 }

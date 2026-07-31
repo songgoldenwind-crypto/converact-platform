@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../../config/converact-env.js';
 import { getPostgresOrNull } from '../../../db-pg.js';
 import { ComplianceGate } from './compliance-gate.js';
 import { WINDOW_START_HOUR, WINDOW_END_HOUR, DEFAULT_TIMEZONE, getLocalHour } from './time-window.js';
@@ -13,7 +14,7 @@ export { DEFAULT_TIMEZONE };
 export async function checkOutboundCompliance(
   tenantId: string,
   phoneNumber: string,
-  timezone = process.env.OPC_DEFAULT_TIMEZONE || DEFAULT_TIMEZONE
+  timezone = resolveBrandEnv(process.env, 'DEFAULT_TIMEZONE') || DEFAULT_TIMEZONE
 ): Promise<OutboundComplianceResult> {
   const pg = getPostgresOrNull();
   if (pg) {

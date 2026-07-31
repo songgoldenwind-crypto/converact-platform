@@ -187,11 +187,11 @@ test('Voice HTTP uses the signed tenant and returns stable async command contrac
 });
 
 test('Voice HTTP system credentials require an explicit tenant header', async (t) => {
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'voice-system-key';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'voice-system-key';
   t.after(() => {
-    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousApiKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousApiKey;
   });
   const observedTenants: string[] = [];
   const module = {
@@ -1214,15 +1214,15 @@ test('standalone retryable Voice 503 propagates validated Retry-After', async (t
 });
 
 function installJwtAuth(t: import('node:test').TestContext): { token: string } {
-  const previousSecret = process.env.OPC_JWT_SECRET;
-  const previousIssuer = process.env.OPC_AUTH_ISSUER;
-  process.env.OPC_JWT_SECRET = 'voice-http-test-secret';
-  delete process.env.OPC_AUTH_ISSUER;
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
+  const previousIssuer = process.env.CONVERACT_AUTH_ISSUER;
+  process.env.CONVERACT_JWT_SECRET = 'voice-http-test-secret';
+  delete process.env.CONVERACT_AUTH_ISSUER;
   t.after(() => {
-    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousSecret;
-    if (previousIssuer === undefined) delete process.env.OPC_AUTH_ISSUER;
-    else process.env.OPC_AUTH_ISSUER = previousIssuer;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
+    if (previousIssuer === undefined) delete process.env.CONVERACT_AUTH_ISSUER;
+    else process.env.CONVERACT_AUTH_ISSUER = previousIssuer;
   });
   return { token: signAccessToken({ sub: 'user-auth', tid: 'tenant-auth', role: 'admin' }) };
 }

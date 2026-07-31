@@ -74,7 +74,7 @@ test('capacity runner renders Kamailio, targets the edge and records RTT plus co
   assert.match(runner, /IVEKIT_CAPACITY_INCLUDE_KAMAILIO/);
   assert.match(runner, /IVEKIT_CAPACITY_RUN_ID/);
   assert.match(runner, /IVEKIT_SIP_TARGET_IP/);
-  assert.match(runner, /src\/ivekit-kamailio-compose-config\.ts/);
+  assert.match(runner, /src\/converact-kamailio-compose-config\.ts/);
   assert.match(runner, /scripts\/render-kamailio-config\.ts/);
   assert.match(runner, /wait_for_sip_route/);
   assert.match(runner, /-cid_str/);

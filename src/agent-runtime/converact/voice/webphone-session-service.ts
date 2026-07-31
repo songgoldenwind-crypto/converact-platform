@@ -1,3 +1,4 @@
+import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
@@ -152,28 +153,28 @@ export function createConfiguredWebPhoneExtensionSessionService(
   pg: PgQueryable,
   env: NodeJS.ProcessEnv = process.env
 ): PostgresWebPhoneExtensionSessionService | undefined {
-  if (!enabled(env.OPC_IVEKIT_WEBPHONE_ENABLED)) return undefined;
+  if (!enabled(resolveFabricEnv(env, 'WEBPHONE_ENABLED'))) return undefined;
   return new PostgresWebPhoneExtensionSessionService(pg, {
-    websocket_url: required(env, 'OPC_IVEKIT_WEBPHONE_WSS_URL'),
-    sip_realm: required(env, 'OPC_IVEKIT_WEBPHONE_SIP_REALM'),
-    jwt_secret: required(env, 'OPC_IVEKIT_WEBPHONE_JWT_SECRET'),
-    jwt_issuer: required(env, 'OPC_IVEKIT_WEBPHONE_JWT_ISSUER'),
-    jwt_audience: required(env, 'OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE'),
-    ttl_seconds: integer(env.OPC_IVEKIT_WEBPHONE_TTL_SECONDS, 300),
-    register_expires_seconds: integer(env.OPC_IVEKIT_WEBPHONE_REGISTER_EXPIRES_SECONDS, 240),
-    ice_servers: iceServers(env.OPC_IVEKIT_WEBPHONE_ICE_SERVERS_JSON || '[]')
+    websocket_url: required(env, 'CONVERACT_FABRIC_WEBPHONE_WSS_URL'),
+    sip_realm: required(env, 'CONVERACT_FABRIC_WEBPHONE_SIP_REALM'),
+    jwt_secret: required(env, 'CONVERACT_FABRIC_WEBPHONE_JWT_SECRET'),
+    jwt_issuer: required(env, 'CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER'),
+    jwt_audience: required(env, 'CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE'),
+    ttl_seconds: integer(resolveFabricEnv(env, 'WEBPHONE_TTL_SECONDS'), 300),
+    register_expires_seconds: integer(resolveFabricEnv(env, 'WEBPHONE_REGISTER_EXPIRES_SECONDS'), 240),
+    ice_servers: iceServers(resolveFabricEnv(env, 'WEBPHONE_ICE_SERVERS_JSON') || '[]')
   });
 }
 
 export function webPhoneSessionCleanupConfig(
   env: NodeJS.ProcessEnv = process.env
 ): WebPhoneSessionCleanupConfig {
-  const webphoneEnabled = enabled(env.OPC_IVEKIT_WEBPHONE_ENABLED);
-  const cleanupEnabled = env.OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_ENABLED === undefined
+  const webphoneEnabled = enabled(resolveFabricEnv(env, 'WEBPHONE_ENABLED'));
+  const cleanupEnabled = resolveFabricEnv(env, 'WEBPHONE_SESSION_CLEANUP_ENABLED') === undefined
     ? webphoneEnabled
     : booleanFlag(
-      env.OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_ENABLED,
-      'OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_ENABLED'
+      resolveFabricEnv(env, 'WEBPHONE_SESSION_CLEANUP_ENABLED'),
+      'CONVERACT_FABRIC_WEBPHONE_SESSION_CLEANUP_ENABLED'
     );
   if (cleanupEnabled && !webphoneEnabled) {
     throw new Error('WebPhone session cleanup cannot be enabled while WebPhone is disabled');
@@ -181,20 +182,20 @@ export function webPhoneSessionCleanupConfig(
   return {
     enabled: cleanupEnabled,
     interval_ms: boundedInteger(
-      integer(env.OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_INTERVAL_MS, 60_000),
-      'OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_INTERVAL_MS',
+      integer(resolveFabricEnv(env, 'WEBPHONE_SESSION_CLEANUP_INTERVAL_MS'), 60_000),
+      'CONVERACT_FABRIC_WEBPHONE_SESSION_CLEANUP_INTERVAL_MS',
       1_000,
       3_600_000
     ),
     tenant_limit: boundedInteger(
-      integer(env.OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT, 100),
-      'OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT',
+      integer(resolveFabricEnv(env, 'WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT'), 100),
+      'CONVERACT_FABRIC_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT',
       1,
       1_000
     ),
     batch_size: boundedInteger(
-      integer(env.OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE, 500),
-      'OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE',
+      integer(resolveFabricEnv(env, 'WEBPHONE_SESSION_CLEANUP_BATCH_SIZE'), 500),
+      'CONVERACT_FABRIC_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE',
       1,
       5_000
     )
@@ -207,13 +208,13 @@ export async function runWebPhoneSessionCleanupOnce(
 ): Promise<{ tenants: number; deleted: number }> {
   const tenantLimit = boundedInteger(
     input.tenant_limit,
-    'OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT',
+    'CONVERACT_FABRIC_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT',
     1,
     1_000
   );
   const batchSize = boundedInteger(
     input.batch_size,
-    'OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE',
+    'CONVERACT_FABRIC_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE',
     1,
     5_000
   );
@@ -341,12 +342,12 @@ function validateConfig(input: WebPhoneExtensionSessionConfig): WebPhoneExtensio
   const secret = String(input.jwt_secret || '');
   if (Buffer.byteLength(secret, 'utf8') < MIN_SECRET_BYTES || secret.length > 4_096
     || /[\r\n]/.test(secret)) {
-    throw new Error(`OPC_IVEKIT_WEBPHONE_JWT_SECRET must be ${MIN_SECRET_BYTES}-4096 bytes`);
+    throw new Error(`CONVERACT_FABRIC_WEBPHONE_JWT_SECRET must be ${MIN_SECRET_BYTES}-4096 bytes`);
   }
-  const ttl = boundedInteger(input.ttl_seconds, 'OPC_IVEKIT_WEBPHONE_TTL_SECONDS', MIN_TTL_SECONDS, MAX_TTL_SECONDS);
+  const ttl = boundedInteger(input.ttl_seconds, 'CONVERACT_FABRIC_WEBPHONE_TTL_SECONDS', MIN_TTL_SECONDS, MAX_TTL_SECONDS);
   const register = boundedInteger(
     input.register_expires_seconds,
-    'OPC_IVEKIT_WEBPHONE_REGISTER_EXPIRES_SECONDS',
+    'CONVERACT_FABRIC_WEBPHONE_REGISTER_EXPIRES_SECONDS',
     MIN_TTL_SECONDS,
     ttl - 5
   );
@@ -354,8 +355,8 @@ function validateConfig(input: WebPhoneExtensionSessionConfig): WebPhoneExtensio
     websocket_url: websocket,
     sip_realm: realm,
     jwt_secret: secret,
-    jwt_issuer: boundedText(input.jwt_issuer, 'OPC_IVEKIT_WEBPHONE_JWT_ISSUER', 200),
-    jwt_audience: boundedText(input.jwt_audience, 'OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE', 200),
+    jwt_issuer: boundedText(input.jwt_issuer, 'CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER', 200),
+    jwt_audience: boundedText(input.jwt_audience, 'CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE', 200),
     ttl_seconds: ttl,
     register_expires_seconds: register,
     ice_servers: validateIceServers(input.ice_servers)
@@ -367,11 +368,11 @@ function secureWebsocketUrl(value: unknown): string {
   try {
     parsed = new URL(String(value || ''));
   } catch {
-    throw new Error('OPC_IVEKIT_WEBPHONE_WSS_URL must be a valid WSS URL');
+    throw new Error('CONVERACT_FABRIC_WEBPHONE_WSS_URL must be a valid WSS URL');
   }
   if (parsed.protocol !== 'wss:' || parsed.username || parsed.password || parsed.hash
     || parsed.search || !parsed.hostname || parsed.toString().length > 2_048) {
-    throw new Error('OPC_IVEKIT_WEBPHONE_WSS_URL must be a credential-free WSS URL without query or hash');
+    throw new Error('CONVERACT_FABRIC_WEBPHONE_WSS_URL must be a credential-free WSS URL without query or hash');
   }
   return parsed.toString();
 }
@@ -380,7 +381,7 @@ function sipRealm(value: unknown): string {
   const realm = String(value || '').trim().toLowerCase();
   if (realm.length > 253 || !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(realm)
     || realm.includes('..')) {
-    throw new Error('OPC_IVEKIT_WEBPHONE_SIP_REALM must be a valid SIP hostname');
+    throw new Error('CONVERACT_FABRIC_WEBPHONE_SIP_REALM must be a valid SIP hostname');
   }
   return realm;
 }
@@ -390,9 +391,9 @@ function iceServers(value: string): VoiceExtensionSessionPlan['ice_servers'] {
   try {
     parsed = JSON.parse(value);
   } catch {
-    throw new Error('OPC_IVEKIT_WEBPHONE_ICE_SERVERS_JSON must be valid ICE JSON');
+    throw new Error('CONVERACT_FABRIC_WEBPHONE_ICE_SERVERS_JSON must be valid ICE JSON');
   }
-  if (!Array.isArray(parsed)) throw new Error('OPC_IVEKIT_WEBPHONE_ICE_SERVERS_JSON must be an ICE array');
+  if (!Array.isArray(parsed)) throw new Error('CONVERACT_FABRIC_WEBPHONE_ICE_SERVERS_JSON must be an ICE array');
   return validateIceServers(parsed as VoiceExtensionSessionPlan['ice_servers']);
 }
 
@@ -478,14 +479,14 @@ function integer(value: unknown, fallback: number): number {
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = String(env[name] || '').trim();
+  const value = String(resolveConveractEnv(env, name) || '').trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
 }
 
 function enabled(value: unknown): boolean {
   if (value === undefined || value === '') return false;
-  return booleanFlag(value, 'OPC_IVEKIT_WEBPHONE_ENABLED');
+  return booleanFlag(value, 'CONVERACT_FABRIC_WEBPHONE_ENABLED');
 }
 
 function booleanFlag(value: unknown, field: string): boolean {

@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 
 export interface LiveKitMediaSmokeConfig {
@@ -32,23 +33,23 @@ export interface LiveKitMediaSmokeResult {
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 export function createLiveKitMediaSmokeConfigFromEnv(env: NodeJS.ProcessEnv): LiveKitMediaSmokeConfig {
-  const baseUrl = env.OPC_BASE_URL || '';
-  const mediaApiToken = env.OPC_MEDIA_API_TOKEN || env.LIVEKIT_MEDIA_API_TOKEN || '';
-  const tenantId = env.OPC_MEDIA_SMOKE_TENANT_ID || env.OPC_TENANT_ID || '';
-  if (!baseUrl) throw new Error('OPC_BASE_URL is required');
-  if (!mediaApiToken) throw new Error('OPC_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN is required');
-  if (!tenantId) throw new Error('OPC_MEDIA_SMOKE_TENANT_ID or OPC_TENANT_ID is required');
+  const baseUrl = resolveBrandEnv(env, 'BASE_URL') || '';
+  const mediaApiToken = resolveBrandEnv(env, 'MEDIA_API_TOKEN') || env.LIVEKIT_MEDIA_API_TOKEN || '';
+  const tenantId = resolveBrandEnv(env, 'MEDIA_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || '';
+  if (!baseUrl) throw new Error('CONVERACT_BASE_URL is required');
+  if (!mediaApiToken) throw new Error('CONVERACT_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN is required');
+  if (!tenantId) throw new Error('CONVERACT_MEDIA_SMOKE_TENANT_ID or CONVERACT_TENANT_ID is required');
   return {
     baseUrl,
     mediaApiToken,
     tenantId,
-    roomName: env.OPC_MEDIA_SMOKE_ROOM_NAME,
-    closeRoomOnExit: env.OPC_MEDIA_SMOKE_KEEP_ROOM_OPEN !== '1',
-    requireConfiguredLiveKit: env.OPC_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT === '1',
-    requireSignedCustomerJoinPath: Boolean(env.OPC_MEDIA_INVITE_SECRET || env.LIVEKIT_MEDIA_INVITE_SECRET),
-    verifyRecordingObject: env.OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT === '1',
-    recordingObjectTimeoutMs: positiveInteger(env.OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS, 60_000),
-    recordingObjectPollIntervalMs: positiveInteger(env.OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS, 2_000)
+    roomName: resolveBrandEnv(env, 'MEDIA_SMOKE_ROOM_NAME'),
+    closeRoomOnExit: resolveBrandEnv(env, 'MEDIA_SMOKE_KEEP_ROOM_OPEN') !== '1',
+    requireConfiguredLiveKit: resolveBrandEnv(env, 'MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT') === '1',
+    requireSignedCustomerJoinPath: Boolean(resolveBrandEnv(env, 'MEDIA_INVITE_SECRET') || env.LIVEKIT_MEDIA_INVITE_SECRET),
+    verifyRecordingObject: resolveBrandEnv(env, 'MEDIA_SMOKE_VERIFY_RECORDING_OBJECT') === '1',
+    recordingObjectTimeoutMs: positiveInteger(resolveBrandEnv(env, 'MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS'), 60_000),
+    recordingObjectPollIntervalMs: positiveInteger(resolveBrandEnv(env, 'MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS'), 2_000)
   };
 }
 

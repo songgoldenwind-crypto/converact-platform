@@ -187,7 +187,7 @@ test('generateSchedule warns on under-coverage', () => {
 test('WFM HTTP routes work end-to-end', async () => {
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'HTTP Test' });
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const wfmStore = new WfmStore(db);
   const seatStore = new AgentSeatStore(db);
 

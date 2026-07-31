@@ -15,7 +15,7 @@ import { configuredQualityReviewProvider } from '../src/agent-runtime/collaborat
 
 test('provider registry parses safe profiles and resolves secrets only on explicit internal access', () => {
   const env: NodeJS.ProcessEnv = {
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
       {
         id: 'ocr-internal',
         capability: 'ocr',
@@ -123,7 +123,7 @@ test('provider registry rejects unsafe or ambiguous deployment profiles', () => 
   for (const [label, profiles, pattern] of invalidProfiles) {
     assert.throws(
       () => createIntelligenceProviderRegistry({
-        OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify(profiles)
+        CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify(profiles)
       }),
       pattern,
       label
@@ -133,14 +133,14 @@ test('provider registry rejects unsafe or ambiguous deployment profiles', () => 
 
 test('legacy OCR, ASR, and quality settings become compatible default profiles', () => {
   const env: NodeJS.ProcessEnv = {
-    OPC_OCR_BASE_URL: 'http://ocr-worker:8080',
-    OPC_OCR_TOKEN: 'legacy-ocr-secret',
-    OPC_ASR_BASE_URL: 'https://asr.example.test',
-    OPC_ASR_PROVIDER_MODE: 'third_party',
-    OPC_ASR_TOKEN: 'legacy-asr-secret',
-    OPC_QUALITY_REVIEW_BASE_URL: 'http://quality-worker:8080',
-    OPC_QUALITY_REVIEW_PROVIDER_NAME: 'quality-internal',
-    OPC_QUALITY_REVIEW_TOKEN: 'legacy-quality-secret'
+    CONVERACT_OCR_BASE_URL: 'http://ocr-worker:8080',
+    CONVERACT_OCR_TOKEN: 'legacy-ocr-secret',
+    CONVERACT_ASR_BASE_URL: 'https://asr.example.test',
+    CONVERACT_ASR_PROVIDER_MODE: 'third_party',
+    CONVERACT_ASR_TOKEN: 'legacy-asr-secret',
+    CONVERACT_QUALITY_REVIEW_BASE_URL: 'http://quality-worker:8080',
+    CONVERACT_QUALITY_REVIEW_PROVIDER_NAME: 'quality-internal',
+    CONVERACT_QUALITY_REVIEW_TOKEN: 'legacy-quality-secret'
   };
   const registry = createIntelligenceProviderRegistry(env);
 

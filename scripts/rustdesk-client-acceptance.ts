@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
@@ -141,7 +142,7 @@ export interface RustDeskClientAcceptanceResult {
 export interface RustDeskClientAcceptanceNotRunResult {
   ok: false;
   status: 'not_run';
-  missing_environment: ['OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE'];
+  missing_environment: ['CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE'];
 }
 
 const CLIENT_ACCEPTANCE_RUNBOOK_SECTIONS = [
@@ -235,10 +236,10 @@ const REQUIRED_AUDIT_EVENT_TYPES = [
 ] as const;
 
 export function createRustDeskClientAcceptanceConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskClientAcceptanceConfig {
-  const reportFile = String(env.OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE || '').trim();
-  const auditFile = String(env.OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE || '').trim();
-  const outputFile = String(env.OPC_RUSTDESK_ACCEPTANCE_OUTPUT_FILE || '').trim();
-  if (!reportFile) throw new Error('OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE is required');
+  const reportFile = String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_REPORT_FILE') || '').trim();
+  const auditFile = String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_AUDIT_FILE') || '').trim();
+  const outputFile = String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_OUTPUT_FILE') || '').trim();
+  if (!reportFile) throw new Error('CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE is required');
   return {
     reportFile,
     ...(auditFile ? { auditFile } : {}),
@@ -249,28 +250,28 @@ export function createRustDeskClientAcceptanceConfigFromEnv(env: NodeJS.ProcessE
 export function createRustDeskClientAcceptanceTemplateConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): RustDeskClientAcceptanceTemplateConfig {
-  const templateFile = String(env.OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE || '').trim();
-  if (!templateFile) throw new Error('OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE is required');
+  const templateFile = String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_TEMPLATE_FILE') || '').trim();
+  if (!templateFile) throw new Error('CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE is required');
   return {
     templateFile,
-    externalId: String(env.OPC_RUSTDESK_ACCEPTANCE_EXTERNAL_ID || 'replace-with-rustdesk-gateway-external-id').trim(),
-    rustdeskId: String(env.OPC_RUSTDESK_ACCEPTANCE_RUSTDESK_ID || 'replace-with-rustdesk-runtime-id').trim(),
-    operator: String(env.OPC_RUSTDESK_ACCEPTANCE_OPERATOR || 'replace-with-operator-identity').trim(),
-    checkedAt: String(env.OPC_RUSTDESK_ACCEPTANCE_CHECKED_AT || new Date().toISOString()).trim()
+    externalId: String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_EXTERNAL_ID') || 'replace-with-rustdesk-gateway-external-id').trim(),
+    rustdeskId: String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_RUSTDESK_ID') || 'replace-with-rustdesk-runtime-id').trim(),
+    operator: String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_OPERATOR') || 'replace-with-operator-identity').trim(),
+    checkedAt: String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_CHECKED_AT') || new Date().toISOString()).trim()
   };
 }
 
 export function createRustDeskClientAcceptanceRunbookConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): RustDeskClientAcceptanceRunbookConfig {
-  const outputFile = String(env.OPC_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE || '').trim();
-  if (!outputFile) throw new Error('OPC_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE is required');
+  const outputFile = String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_RUNBOOK_FILE') || '').trim();
+  if (!outputFile) throw new Error('CONVERACT_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE is required');
   return {
     outputFile,
-    externalId: String(env.OPC_RUSTDESK_ACCEPTANCE_EXTERNAL_ID || 'replace-with-rustdesk-gateway-external-id').trim(),
-    rustdeskId: String(env.OPC_RUSTDESK_ACCEPTANCE_RUSTDESK_ID || 'replace-with-rustdesk-runtime-id').trim(),
-    operator: String(env.OPC_RUSTDESK_ACCEPTANCE_OPERATOR || 'replace-with-operator-identity').trim(),
-    checkedAt: String(env.OPC_RUSTDESK_ACCEPTANCE_CHECKED_AT || new Date().toISOString()).trim()
+    externalId: String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_EXTERNAL_ID') || 'replace-with-rustdesk-gateway-external-id').trim(),
+    rustdeskId: String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_RUSTDESK_ID') || 'replace-with-rustdesk-runtime-id').trim(),
+    operator: String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_OPERATOR') || 'replace-with-operator-identity').trim(),
+    checkedAt: String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_CHECKED_AT') || new Date().toISOString()).trim()
   };
 }
 
@@ -296,9 +297,9 @@ export function renderRustDeskClientAcceptanceRunbook(config: RustDeskClientAcce
     '## Server Precheck',
     '',
     '1. Start hbbs and hbbr in the target environment.',
-    '2. Confirm `id_ed25519.pub` exists and OPC can read the same public key through `OPC_RUSTDESK_PUBLIC_KEY_FILE` or `OPC_RUSTDESK_PUBLIC_KEY`.',
+    '2. Confirm `id_ed25519.pub` exists and OPC can read the same public key through `CONVERACT_RUSTDESK_PUBLIC_KEY_FILE` or `CONVERACT_RUSTDESK_PUBLIC_KEY`.',
     '3. Confirm TCP 21115/21116/21117/21118/21119 and UDP 21116 are reachable from the smoke host.',
-    '4. Run `OPC_RUSTDESK_READINESS_REPORT_FILE=<bundle>/readiness.json npm run rustdesk:readiness`.',
+    '4. Run `CONVERACT_RUSTDESK_READINESS_REPORT_FILE=<bundle>/readiness.json npm run rustdesk:readiness`.',
     '',
     '## Client Setup',
     '',
@@ -338,9 +339,9 @@ export function renderRustDeskClientAcceptanceRunbook(config: RustDeskClientAcce
     '2. Confirm audit contains control action, file transfer started/completed, recording started/stopped, clipboard synced, gateway ended, and disconnect requested/claimed/succeeded events.',
     '3. Save one unique structured JSON observation per check. Bind every file to the same run_id, environment_id, deployed_commit, external_id and rustdesk_id, then record its SHA-256 in the report.',
     '4. Do not use controlled E2E, Playwright, mock or synthetic artifacts as real-terminal evidence. The validator rejects those sources.',
-    '5. Run `OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE=<bundle>/client-acceptance-template.json OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE=<bundle>/audit-export.jsonl npm run rustdesk:client-acceptance`.',
-    '6. Run `OPC_RUSTDESK_AUDIT_COVERAGE_FILE=<bundle>/audit-export.jsonl OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=<bundle>/audit-coverage.json npm run rustdesk:audit-coverage`.',
-    '7. Run `OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE=<bundle>/audit-coverage.json npm run rustdesk:evidence-pack` and require `ready_for_customer_review` before customer handoff.',
+    '5. Run `CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE=<bundle>/client-acceptance-template.json CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE=<bundle>/audit-export.jsonl npm run rustdesk:client-acceptance`.',
+    '6. Run `CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE=<bundle>/audit-export.jsonl CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE=<bundle>/audit-coverage.json npm run rustdesk:audit-coverage`.',
+    '7. Run `CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE=<bundle>/audit-coverage.json npm run rustdesk:evidence-pack` and require `ready_for_customer_review` before customer handoff.',
     ''
   ].join('\n');
 }
@@ -473,14 +474,14 @@ export function runRustDeskClientAcceptance(
 export function runRustDeskClientAcceptanceFromEnv(
   env: NodeJS.ProcessEnv
 ): RustDeskClientAcceptanceResult | RustDeskClientAcceptanceNotRunResult {
-  const reportFile = String(env.OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE || '').trim();
+  const reportFile = String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_REPORT_FILE') || '').trim();
   if (!reportFile) {
-    return { ok: false, status: 'not_run', missing_environment: ['OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE'] };
+    return { ok: false, status: 'not_run', missing_environment: ['CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE'] };
   }
   return runRustDeskClientAcceptance({
     reportFile,
-    auditFile: String(env.OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE || '').trim() || undefined,
-    outputFile: String(env.OPC_RUSTDESK_ACCEPTANCE_OUTPUT_FILE || '').trim() || undefined
+    auditFile: String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_AUDIT_FILE') || '').trim() || undefined,
+    outputFile: String(resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_OUTPUT_FILE') || '').trim() || undefined
   });
 }
 
@@ -1120,14 +1121,14 @@ function containsSecretText(value: string): boolean {
 }
 
 async function main(): Promise<void> {
-  if (String(process.env.OPC_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE || '').trim()) {
+  if (String(resolveBrandEnv(process.env, 'RUSTDESK_ACCEPTANCE_RUNBOOK_FILE') || '').trim()) {
     const runbook = writeRustDeskClientAcceptanceRunbook(
       createRustDeskClientAcceptanceRunbookConfigFromEnv(process.env)
     );
     console.log(JSON.stringify(runbook, null, 2));
     return;
   }
-  if (String(process.env.OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE || '').trim()) {
+  if (String(resolveBrandEnv(process.env, 'RUSTDESK_ACCEPTANCE_TEMPLATE_FILE') || '').trim()) {
     const template = writeRustDeskClientAcceptanceTemplate(
       createRustDeskClientAcceptanceTemplateConfigFromEnv(process.env)
     );

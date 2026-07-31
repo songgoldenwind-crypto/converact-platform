@@ -209,7 +209,7 @@ test('media placement recovery excludes the failed owner and converges on one ge
 
 test('media placement policy requires explicit non-empty trusted capacity', () => {
   const policy = mediaCallPlacementPolicyConfig({
-    OPC_IVEKIT_PLACEMENT_MEDIA_POLICY_JSON: JSON.stringify({
+    CONVERACT_FABRIC_PLACEMENT_MEDIA_POLICY_JSON: JSON.stringify({
       profile_id: 'cell-10k-v1',
       fixed_capacity: {},
       per_participant_capacity: { 'video.participants': 1 }
@@ -218,7 +218,7 @@ test('media placement policy requires explicit non-empty trusted capacity', () =
   assert.equal(policy.profile_id, 'cell-10k-v1');
   assert.throws(
     () => mediaCallPlacementPolicyConfig({
-      OPC_IVEKIT_PLACEMENT_MEDIA_POLICY_JSON: JSON.stringify({
+      CONVERACT_FABRIC_PLACEMENT_MEDIA_POLICY_JSON: JSON.stringify({
         profile_id: 'cell-10k-v1',
         fixed_capacity: {},
         per_participant_capacity: {}

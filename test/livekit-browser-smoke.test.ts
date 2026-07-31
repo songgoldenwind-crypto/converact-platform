@@ -10,21 +10,21 @@ import {
 test('browser smoke config requires two authenticated agent browser sessions', () => {
   assert.throws(
     () => createLiveKitBrowserSmokeConfigFromEnv({}),
-    /OPC_FRONTEND_URL is required/
+    /CONVERACT_FRONTEND_URL is required/
   );
 
   const config = createLiveKitBrowserSmokeConfigFromEnv({
-    OPC_FRONTEND_URL: 'http://localhost:5173/',
-    OPC_BROWSER_SMOKE_TENANT_ID: 'tenant-1',
-    OPC_BROWSER_SMOKE_AGENT_A_TOKEN: 'token-a',
-    OPC_BROWSER_SMOKE_AGENT_A_USER_ID: 'user-a',
-    OPC_BROWSER_SMOKE_AGENT_A_SEAT_ID: 'seat-a',
-    OPC_BROWSER_SMOKE_AGENT_B_TOKEN: 'token-b',
-    OPC_BROWSER_SMOKE_AGENT_B_USER_ID: 'user-b',
-    OPC_BROWSER_SMOKE_AGENT_B_SEAT_ID: 'seat-b',
-    OPC_BROWSER_SMOKE_SCREEN_SHARE: '1',
-    OPC_BROWSER_SMOKE_HEADLESS: '0',
-    OPC_BROWSER_SMOKE_TIMEOUT_MS: '12345'
+    CONVERACT_FRONTEND_URL: 'http://localhost:5173/',
+    CONVERACT_BROWSER_SMOKE_TENANT_ID: 'tenant-1',
+    CONVERACT_BROWSER_SMOKE_AGENT_A_TOKEN: 'token-a',
+    CONVERACT_BROWSER_SMOKE_AGENT_A_USER_ID: 'user-a',
+    CONVERACT_BROWSER_SMOKE_AGENT_A_SEAT_ID: 'seat-a',
+    CONVERACT_BROWSER_SMOKE_AGENT_B_TOKEN: 'token-b',
+    CONVERACT_BROWSER_SMOKE_AGENT_B_USER_ID: 'user-b',
+    CONVERACT_BROWSER_SMOKE_AGENT_B_SEAT_ID: 'seat-b',
+    CONVERACT_BROWSER_SMOKE_SCREEN_SHARE: '1',
+    CONVERACT_BROWSER_SMOKE_HEADLESS: '0',
+    CONVERACT_BROWSER_SMOKE_TIMEOUT_MS: '12345'
   });
 
   assert.equal(config.frontendUrl, 'http://localhost:5173');

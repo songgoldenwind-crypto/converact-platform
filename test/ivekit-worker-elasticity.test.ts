@@ -40,8 +40,8 @@ test('backlog observer publishes bounded low-cardinality Prometheus metrics', ()
   assert.match(observer, /opc_ivekit_worker_backlog_depth/);
   assert.match(observer, /opc_ivekit_worker_backlog_oldest_age_seconds/);
   assert.match(observer, /opc_ivekit_worker_backlog_observer_up/);
-  assert.match(observer, /OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED/);
-  assert.match(observer, /OPC_IVEKIT_WORKER_BACKLOG_METRICS_INTERVAL_MS/);
+  assert.match(observer, /CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_ENABLED/);
+  assert.match(observer, /CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_INTERVAL_MS/);
   assert.doesNotMatch(observer, /tenant_id|session_id|message_id/);
 });
 
@@ -68,11 +68,11 @@ test('Helm provides fixed worker pools and backlog-driven KEDA without arbitrary
   assert.match(template, /opc_ivekit_worker_backlog_oldest_age_seconds/);
   assert.match(template, /fallback:[\s\S]*failureThreshold:[\s\S]*replicas:/i);
   assert.match(template, /scaleDown:[\s\S]*stabilizationWindowSeconds:/i);
-  assert.match(template, /OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED/);
-  assert.match(template, /OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED/);
-  assert.match(template, /OPC_QUALITY_REVIEW_WORKER_ENABLED/);
-  assert.match(template, /OPC_TRANSLATION_WORKER_ENABLED/);
-  assert.match(template, /OPC_FILE_SECURITY_SCAN_WORKER_ENABLED/);
+  assert.match(template, /CONVERACT_FABRIC_EVENT_WEBHOOK_WORKER_ENABLED/);
+  assert.match(template, /CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED/);
+  assert.match(template, /CONVERACT_QUALITY_REVIEW_WORKER_ENABLED/);
+  assert.match(template, /CONVERACT_TRANSLATION_WORKER_ENABLED/);
+  assert.match(template, /CONVERACT_FILE_SECURITY_SCAN_WORKER_ENABLED/);
   assert.match(helpers, /workerPools\.autoscaling\.prometheusAddress is required/i);
   assert.match(helpers, /worker pool minReplicas must not exceed maxReplicas/i);
 });
@@ -87,11 +87,11 @@ test('observability profile enables one API backlog observer and keeps workers o
     'utf8'
   );
 
-  assert.match(profile, /OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED: "1"/);
+  assert.match(profile, /CONVERACT_FABRIC_WORKER_BACKLOG_METRICS_ENABLED: "1"/);
   assert.match(aiProfile, /workerPools:[\s\S]*attachment:[\s\S]*enabled: true/);
   assert.match(aiProfile, /workerPools:[\s\S]*quality:[\s\S]*enabled: true/);
   assert.match(aiProfile, /workerPools:[\s\S]*translation:[\s\S]*enabled: true/);
-  assert.doesNotMatch(aiProfile, /config:[\s\S]*OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED: "1"/);
+  assert.doesNotMatch(aiProfile, /config:[\s\S]*CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED: "1"/);
   assert.doesNotMatch(aiProfile, /observability: false/);
   assert.doesNotMatch(profile, /ai: false/);
 });

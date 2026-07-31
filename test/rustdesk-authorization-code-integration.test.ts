@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -355,15 +356,15 @@ test('RustDesk authorization-code deployment contract uses external secrets and 
   const helmSecrets = readFileSync('infra/k8s/templates/secrets.yaml', 'utf8');
 
   for (const env of [rootEnv, productionEnv]) {
-    assert.match(env, /^OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET=$/m);
-    assert.match(env, /^OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE=0$/m);
+    assert.match(env, /^CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET=$/m);
+    assert.match(env, /^CONVERACT_RUSTDESK_REQUIRE_AUTHORIZATION_CODE=0$/m);
   }
-  assert.match(standaloneEnv, /^OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET=replace_with_/m);
-  assert.match(standaloneEnv, /^OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE=1$/m);
-  assert.match(productionCompose, /OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET: \$\{OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET:-\}/);
-  assert.match(standaloneCompose, /OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET: \$\{OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET:\?/);
-  assert.match(serviceCompose, /OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE: \$\{OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE:-0\}/);
-  assert.match(helmDeployment, /name: OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET[\s\S]*key: rustdesk-authorization-code-secret/);
+  assert.match(standaloneEnv, /^CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET=replace_with_/m);
+  assert.match(standaloneEnv, /^CONVERACT_RUSTDESK_REQUIRE_AUTHORIZATION_CODE=1$/m);
+  assert.match(productionCompose, /CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET: \$\{CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET:-\}/);
+  assert.match(standaloneCompose, /CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET: \$\{CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET:\?/);
+  assert.match(serviceCompose, /CONVERACT_RUSTDESK_REQUIRE_AUTHORIZATION_CODE: \$\{CONVERACT_RUSTDESK_REQUIRE_AUTHORIZATION_CODE:-0\}/);
+  assert.match(helmDeployment, /name: CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET[\s\S]*key: rustdesk-authorization-code-secret/);
   assert.match(helmSecrets, /rustdesk-authorization-code-secret:/);
 });
 
@@ -440,26 +441,26 @@ function headers(tenantId: string, userId: string, extra: Record<string, string>
 
 function configureEnvironment(): Record<string, string | undefined> {
   const keys = [
-    'OPC_API_KEY',
-    'OPC_BASE_URL',
-    'OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET',
-    'OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE',
-    'OPC_RUSTDESK_LAUNCH_SECRET',
-    'OPC_RUSTDESK_PUBLIC_KEY',
-    'OPC_RUSTDESK_ID_SERVER',
-    'OPC_RUSTDESK_RELAY_SERVER',
-    'OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE'
+    'CONVERACT_API_KEY',
+    'CONVERACT_BASE_URL',
+    'CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET',
+    'CONVERACT_RUSTDESK_REQUIRE_AUTHORIZATION_CODE',
+    'CONVERACT_RUSTDESK_LAUNCH_SECRET',
+    'CONVERACT_RUSTDESK_PUBLIC_KEY',
+    'CONVERACT_RUSTDESK_ID_SERVER',
+    'CONVERACT_RUSTDESK_RELAY_SERVER',
+    'CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE'
   ];
-  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_BASE_URL = 'https://opc.example.test';
-  process.env.OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET = AUTHORIZATION_SECRET;
-  process.env.OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE = '1';
-  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-authorization-launch-secret';
-  process.env.OPC_RUSTDESK_PUBLIC_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=';
-  process.env.OPC_RUSTDESK_ID_SERVER = 'rustdesk-id.example.test';
-  process.env.OPC_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.test';
-  process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
+  const previous = Object.fromEntries(keys.map((key) => [key, resolveConveractEnv(process.env, key)]));
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_BASE_URL = 'https://opc.example.test';
+  process.env.CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET = AUTHORIZATION_SECRET;
+  process.env.CONVERACT_RUSTDESK_REQUIRE_AUTHORIZATION_CODE = '1';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-authorization-launch-secret';
+  process.env.CONVERACT_RUSTDESK_PUBLIC_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=';
+  process.env.CONVERACT_RUSTDESK_ID_SERVER = 'rustdesk-id.example.test';
+  process.env.CONVERACT_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.test';
+  process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
   return previous;
 }
 

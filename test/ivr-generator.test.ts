@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
 import { FEW_SHOT_M1 } from '../src/agent-runtime/ivr/ivr-generator-seeds.js';
@@ -17,7 +18,7 @@ afterEach(() => {
 });
 
 function setEnv(key: string, value: string | undefined) {
-  if (!(key in saved)) saved[key] = process.env[key];
+  if (!(key in saved)) saved[key] = resolveConveractEnv(process.env, key);
   if (value === undefined) delete process.env[key];
   else process.env[key] = value;
 }

@@ -14,12 +14,12 @@ test('Tinode inbound worker is configurable in OPC and standalone deployment sur
   ].map((path) => ({ path, content: readFileSync(path, 'utf8') }));
 
   for (const { path, content } of sources) {
-    assert.match(content, /OPC_TINODE_INBOUND_WORKER_ENABLED/, path);
-    assert.match(content, /OPC_TINODE_INBOUND_INTERVAL_MS/, path);
-    assert.match(content, /OPC_TINODE_INBOUND_PULL_LIMIT/, path);
-    assert.match(content, /OPC_TINODE_INBOUND_CLAIM_LEASE_MS/, path);
-    assert.match(content, /OPC_TINODE_INBOUND_DEAD_LETTER_MAX_ATTEMPTS/, path);
-    assert.match(content, /OPC_TINODE_ATTACHMENT_ALLOWED_HOSTS/, path);
+    assert.match(content, /CONVERACT_TINODE_INBOUND_WORKER_ENABLED/, path);
+    assert.match(content, /CONVERACT_TINODE_INBOUND_INTERVAL_MS/, path);
+    assert.match(content, /CONVERACT_TINODE_INBOUND_PULL_LIMIT/, path);
+    assert.match(content, /CONVERACT_TINODE_INBOUND_CLAIM_LEASE_MS/, path);
+    assert.match(content, /CONVERACT_TINODE_INBOUND_DEAD_LETTER_MAX_ATTEMPTS/, path);
+    assert.match(content, /CONVERACT_TINODE_ATTACHMENT_ALLOWED_HOSTS/, path);
   }
   const values = readFileSync('infra/k8s/values.yaml', 'utf8');
   assert.match(values, /^  inboundWorker:/m);

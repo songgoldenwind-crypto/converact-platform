@@ -9,16 +9,16 @@ import {
 
 test('collaboration smoke config requires base URL API key and tenant id', () => {
   assert.throws(
-    () => createCollaborationSmokeConfigFromEnv({ OPC_API_KEY: 'key', OPC_COLLAB_SMOKE_TENANT_ID: 'tenant' }),
-    /OPC_BASE_URL is required/
+    () => createCollaborationSmokeConfigFromEnv({ CONVERACT_API_KEY: 'key', CONVERACT_COLLAB_SMOKE_TENANT_ID: 'tenant' }),
+    /CONVERACT_BASE_URL is required/
   );
   assert.throws(
-    () => createCollaborationSmokeConfigFromEnv({ OPC_BASE_URL: 'http://localhost:3000', OPC_COLLAB_SMOKE_TENANT_ID: 'tenant' }),
-    /OPC_COLLAB_SMOKE_API_KEY or OPC_API_KEY is required/
+    () => createCollaborationSmokeConfigFromEnv({ CONVERACT_BASE_URL: 'http://localhost:3000', CONVERACT_COLLAB_SMOKE_TENANT_ID: 'tenant' }),
+    /CONVERACT_COLLAB_SMOKE_API_KEY or CONVERACT_API_KEY is required/
   );
   assert.throws(
-    () => createCollaborationSmokeConfigFromEnv({ OPC_BASE_URL: 'http://localhost:3000', OPC_API_KEY: 'key' }),
-    /OPC_COLLAB_SMOKE_TENANT_ID or OPC_TENANT_ID is required/
+    () => createCollaborationSmokeConfigFromEnv({ CONVERACT_BASE_URL: 'http://localhost:3000', CONVERACT_API_KEY: 'key' }),
+    /CONVERACT_COLLAB_SMOKE_TENANT_ID or CONVERACT_TENANT_ID is required/
   );
 });
 
@@ -33,13 +33,13 @@ test('collaboration smoke is wired into package scripts and env example', () => 
 
   const envExample = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
   for (const key of [
-    'OPC_COLLAB_SMOKE_TENANT_ID=',
-    'OPC_COLLAB_SMOKE_USER_ID=',
-    'OPC_COLLAB_SMOKE_BUSINESS_REF_TYPE=',
-    'OPC_COLLAB_SMOKE_ADAPTER_PROVIDER=',
-    'OPC_COLLAB_SMOKE_USE_GATEWAY_TOOL=',
-    'OPC_COLLAB_SMOKE_GATEWAY_TARGET_ID=',
-    'OPC_COLLAB_SMOKE_CONSENT_SCOPES='
+    'CONVERACT_COLLAB_SMOKE_TENANT_ID=',
+    'CONVERACT_COLLAB_SMOKE_USER_ID=',
+    'CONVERACT_COLLAB_SMOKE_BUSINESS_REF_TYPE=',
+    'CONVERACT_COLLAB_SMOKE_ADAPTER_PROVIDER=',
+    'CONVERACT_COLLAB_SMOKE_USE_GATEWAY_TOOL=',
+    'CONVERACT_COLLAB_SMOKE_GATEWAY_TARGET_ID=',
+    'CONVERACT_COLLAB_SMOKE_CONSENT_SCOPES='
   ]) {
     assert.match(envExample, new RegExp(`^${key}`, 'm'));
   }
@@ -47,11 +47,11 @@ test('collaboration smoke is wired into package scripts and env example', () => 
 
 test('collaboration smoke defaults gateway mode to RustDesk', () => {
   const config = createCollaborationSmokeConfigFromEnv({
-    OPC_BASE_URL: 'http://localhost:3000',
-    OPC_API_KEY: 'key',
-    OPC_COLLAB_SMOKE_TENANT_ID: 'tenant',
-    OPC_COLLAB_SMOKE_USE_GATEWAY_TOOL: '1',
-    OPC_REMOTE_GATEWAY_TARGET_ID: 'rustdesk-device-1'
+    CONVERACT_BASE_URL: 'http://localhost:3000',
+    CONVERACT_API_KEY: 'key',
+    CONVERACT_COLLAB_SMOKE_TENANT_ID: 'tenant',
+    CONVERACT_COLLAB_SMOKE_USE_GATEWAY_TOOL: '1',
+    CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rustdesk-device-1'
   });
 
   assert.equal(config.remoteMode, 'remote_desktop_gateway');

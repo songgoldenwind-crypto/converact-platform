@@ -8,49 +8,49 @@ const composeFiles = [
 ];
 
 const providerTokenNames = [
-  'OPC_IVEKIT_OCR_TOKEN',
-  'OPC_IVEKIT_ASR_TOKEN',
-  'OPC_IVEKIT_QUALITY_TOKEN',
-  'OPC_IVEKIT_TRANSLATION_TOKEN'
+  'CONVERACT_FABRIC_OCR_TOKEN',
+  'CONVERACT_FABRIC_ASR_TOKEN',
+  'CONVERACT_FABRIC_QUALITY_TOKEN',
+  'CONVERACT_FABRIC_TRANSLATION_TOKEN'
 ];
 
 const translationWorkerNames = [
-  'OPC_TRANSLATION_WORKER_ENABLED',
-  'OPC_TRANSLATION_INTERVAL_MS',
-  'OPC_TRANSLATION_BATCH_SIZE',
-  'OPC_TRANSLATION_MAX_ATTEMPTS',
-  'OPC_TRANSLATION_CLAIM_LEASE_MS',
-  'OPC_TRANSLATION_RETRY_DELAYS_MS'
+  'CONVERACT_TRANSLATION_WORKER_ENABLED',
+  'CONVERACT_TRANSLATION_INTERVAL_MS',
+  'CONVERACT_TRANSLATION_BATCH_SIZE',
+  'CONVERACT_TRANSLATION_MAX_ATTEMPTS',
+  'CONVERACT_TRANSLATION_CLAIM_LEASE_MS',
+  'CONVERACT_TRANSLATION_RETRY_DELAYS_MS'
 ];
 
 test('Compose deployments expose V3 provider profiles, secret refs, and bounded workers', () => {
   for (const path of composeFiles) {
     const compose = readFileSync(path, 'utf8');
-    assert.match(compose, /OPC_IVEKIT_PROVIDER_PROFILES_JSON:/, path);
+    assert.match(compose, /CONVERACT_FABRIC_PROVIDER_PROFILES_JSON:/, path);
     for (const name of [...providerTokenNames, ...translationWorkerNames]) {
       assert.match(compose, new RegExp(`${name}:`), `${path}: ${name}`);
     }
-    assert.match(compose, /OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS:/, path);
-    assert.match(compose, /OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS:/, path);
-    assert.match(compose, /OPC_QUALITY_REVIEW_CLAIM_LEASE_MS:/, path);
-    assert.match(compose, /OPC_QUALITY_REVIEW_RETRY_DELAYS_MS:/, path);
+    assert.match(compose, /CONVERACT_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS:/, path);
+    assert.match(compose, /CONVERACT_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS:/, path);
+    assert.match(compose, /CONVERACT_QUALITY_REVIEW_CLAIM_LEASE_MS:/, path);
+    assert.match(compose, /CONVERACT_QUALITY_REVIEW_RETRY_DELAYS_MS:/, path);
   }
 
   const standalone = readFileSync('infra/converact/docker-compose.yml', 'utf8');
-  assert.match(standalone, /OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED: \$\{OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED:-0\}/);
-  assert.match(standalone, /OPC_QUALITY_REVIEW_WORKER_ENABLED: \$\{OPC_QUALITY_REVIEW_WORKER_ENABLED:-0\}/);
-  assert.match(standalone, /OPC_TRANSLATION_WORKER_ENABLED: \$\{OPC_TRANSLATION_WORKER_ENABLED:-0\}/);
+  assert.match(standalone, /CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED: \$\{CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED:-0\}/);
+  assert.match(standalone, /CONVERACT_QUALITY_REVIEW_WORKER_ENABLED: \$\{CONVERACT_QUALITY_REVIEW_WORKER_ENABLED:-0\}/);
+  assert.match(standalone, /CONVERACT_TRANSLATION_WORKER_ENABLED: \$\{CONVERACT_TRANSLATION_WORKER_ENABLED:-0\}/);
   const controlled = standalone.match(
     /^  controlled-intelligence-provider:\n([\s\S]*?)(?=^  [a-zA-Z0-9_-]+:\n|^volumes:)/m
   )?.[0] || '';
   assert.match(controlled, /profiles: \["acceptance"\]/);
   assert.match(controlled, /command: \["npm", "run", "ivekit:controlled-provider"\]/);
-  assert.match(controlled, /OPC_IVEKIT_CONTROLLED_HOST: 0\.0\.0\.0/);
-  assert.match(controlled, /OPC_IVEKIT_CONTROLLED_PORT: "8790"/);
+  assert.match(controlled, /CONVERACT_FABRIC_CONTROLLED_HOST: 0\.0\.0\.0/);
+  assert.match(controlled, /CONVERACT_FABRIC_CONTROLLED_PORT: "8790"/);
   assert.doesNotMatch(controlled, /ports:/);
   const standaloneEnv = readFileSync('infra/converact/env.example', 'utf8');
-  assert.match(standaloneEnv, /^OPC_IVEKIT_CONTROLLED_TOKEN=/m);
-  assert.match(standaloneEnv, /^OPC_IVEKIT_CONTROL_TOKEN=/m);
+  assert.match(standaloneEnv, /^CONVERACT_FABRIC_CONTROLLED_TOKEN=/m);
+  assert.match(standaloneEnv, /^CONVERACT_FABRIC_CONTROL_TOKEN=/m);
 });
 
 test('Helm keeps V3 provider tokens in Secret and renders all worker controls', () => {
@@ -62,7 +62,7 @@ test('Helm keeps V3 provider tokens in Secret and renders all worker controls', 
   assert.match(values, /^  providerProfilesJson: "\[\]"$/m);
   assert.match(values, /^  translationWorker:$/m);
   assert.match(values, /^    enabled: "0"$/m);
-  assert.match(deployment, /- name: OPC_IVEKIT_PROVIDER_PROFILES_JSON\n\s+value: \{\{ \.Values\.intelligence\.providerProfilesJson/);
+  assert.match(deployment, /- name: CONVERACT_FABRIC_PROVIDER_PROFILES_JSON\n\s+value: \{\{ \.Values\.intelligence\.providerProfilesJson/);
   for (const name of [...providerTokenNames, ...translationWorkerNames]) {
     assert.match(deployment, new RegExp(`- name: ${name}`), name);
   }
@@ -94,7 +94,7 @@ test('V3 operations and LED handoff docs preserve deployment and validation boun
   for (const phrase of [
     'self_hosted',
     'third_party',
-    'OPC_IVEKIT_PROVIDER_PROFILES_JSON',
+    'CONVERACT_FABRIC_PROVIDER_PROFILES_JSON',
     'RBAC',
     '重试',
     '告警',

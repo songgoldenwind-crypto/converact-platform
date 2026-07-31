@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 60,
+  "revision": 61,
   "status": "proposed",
-  "generated_at": "2026-07-30T15:52:43+08:00",
+  "generated_at": "2026-07-31T22:13:52+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -36,7 +36,7 @@
       "build": {
         "reproducible": true,
         "lockfile_enforced": true,
-        "script": "infra/ivekit/rustpbx/build.sh",
+        "script": "infra/converact/rustpbx/build.sh",
         "builder_image": "rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55",
         "features": [
           "cross"
@@ -50,193 +50,193 @@
       },
       "patches": [
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-ami-dialogs.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-ami-dialogs.patch",
           "sha256": "ef6f60678eb5d126196b92c3e434597ce6286dd219f83951d387074024f0cf56",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
           "purpose": "Expose bounded dialog observation needed by iveKit voice control and audit."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-rwi-originate-hangup.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-rwi-originate-hangup.patch",
           "sha256": "901ac9c66747098d06381c9aac5086f13f8f4ec3cdee6127cfcde742069c8f25",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
           "purpose": "Add controlled originate and hangup commands used by the iveKit voice gateway."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-local-rsipstack.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-local-rsipstack.patch",
           "sha256": "feda9f849a740dc7ac9e690a81e8b21f3939b8f363483590b4c2869420bdd170",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
           "purpose": "Build against the separately pinned and patched rsipstack source tree."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-local-rustrtc.patch",
           "sha256": "b3b0ec03794eec5272d4a5c904566a4558007e496d7f7e56ba332f19bf2664d3",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-local-rsipstack.patch",
           "purpose": "Build against the separately pinned and patched rustrtc source tree."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-route-snapshot.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-route-snapshot.patch",
           "sha256": "affa18e5ed9b25ba102213cd7f015ef4c0f4a72b913dc48a87ca02e707a1a5b5",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
           "purpose": "Replace per-INVITE control-plane routing calls with signed, short-lived, tenant-fenced HMAC route snapshots and an in-memory lookup, including standards-compliant display-name SIP To parsing."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-inbound-admission.patch",
           "sha256": "629c9488981c8c2f47764c9874b2794ca7109ce74f99852657675c03959b7b1d",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-route-snapshot.patch",
           "purpose": "Require exact Cell and RustPBX node admission before an inbound INVITE may use the local signed route snapshot."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-owner-epoch.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-owner-epoch.patch",
           "sha256": "2a1bc920a9ec092710cea0fc36d0fe7c08bfb6d0ce57d3acb26243e46ab8304d",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-inbound-admission.patch",
           "purpose": "Embed the Rust component guard, accept standards-compliant SIP Call-ID words while keeping node IDs strict, authorize inbound ownership through the local component-node agent, and fence every tracked RWI mutation by the exact owner epoch."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-recording-spool.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-recording-spool.patch",
           "sha256": "4ee41d5762b4295f67c4cfb985b233485e3f34ce4f0468fe5532d3039ea2fd76",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-owner-epoch.patch",
           "purpose": "Rotate bounded local encoded recording segments, publish durable owner-fenced manifests, and keep legacy HTTP/S3 upload outside iveKit spool mode."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
           "sha256": "6d6319d806668e130b7b063f8306cb1a33a6e21089342c83e4971713102e6c6d",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-local-rsipstack.patch",
           "purpose": "Bind profile-tunable rsipstack transaction, queue, cache and transport limits into RustPBX and export bounded-cardinality overload telemetry."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch",
           "sha256": "9a7508bcf1a5b4af0904e47cd78e108e4e23c0e66d66606462ee096f9fc33e5e",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-sip-capacity.patch",
           "purpose": "Move recording codec and disk work out of RTP forwarding loops through profile-tunable bounded capture queues, bounded pre-finalization draining, one-shot disk-failure circuit breaking, and explicit low-cardinality drop telemetry."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-cleanup-isolation.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-session-cleanup-isolation.patch",
           "sha256": "371e4e14e69b919ad5374d7fad68e7e4dc3fb5635c7d1639f0ee872d72026d27",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-hot-path.patch",
           "purpose": "Remove session teardown awaits from the media command loop, submit recording finalization first, and bound playback, MCU, and bridge cleanup with explicit concurrency, timeout, and low-cardinality outcome telemetry."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-registry.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-webphone-registry.patch",
           "sha256": "dbc856affd3052832c189c2f70f036accc0bf2ea8cd9b73a3ed97afd1f0b7e68",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-session-cleanup-isolation.patch",
           "purpose": "Replace the serialized linear WebPhone pre-authentication registry with O(1) keyed lookup and generation-fenced connection-lifetime cleanup."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-capacity.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-capacity.patch",
           "sha256": "2152184c6def8c3b56125a428faa23e6a68b1a7511bf363a79e49cfcf267e8b9",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-webphone-registry.patch",
           "purpose": "Make the asynchronous call-record handoff bounded and profile-tunable, expose low-cardinality loss and queue telemetry, and remove per-call log amplification from the signaling path."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch",
           "sha256": "b21d0bbf45c584c1f5b1d60c6bba53044aca7d243c381c61a7624a09833365b4",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-callrecord-capacity.patch",
           "purpose": "Keep upstream local CDR persistence enabled by default while allowing iveKit to disable the duplicate RustPBX database write when its authenticated HTTP CDR sink is authoritative."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch",
           "sha256": "aa13074e40778b182aeaaa8dd10848ad1d5dab215d1a614e1a5c895eae90ed84",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-callrecord-database-policy.patch",
           "purpose": "Run call-record sinks and hooks on a bounded dedicated Tokio runtime so downstream latency cannot consume SIP transaction workers."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch",
           "sha256": "d6a1920d52a7002a5e9b496e874f3d92d57bff7517942761ea97ab43ec9c9e55",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-callrecord-runtime-isolation.patch",
           "purpose": "Count sink failures by a fixed low-cardinality stage and globally rate-limit failure warnings to one every five seconds."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch",
           "sha256": "b191af5ad8d8eedcf56fe6b28cd583fd7fa5f5666d2692526a123330605fdacb",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-callrecord-failure-telemetry.patch",
           "purpose": "Fence JWT, WebPhone pre-authentication and REGISTER identities at their protocol boundaries without applying WebPhone identity rules to authenticated SIP trunks."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch",
           "sha256": "1a09138a381c010f85da19d3a1de4f44174a1dea53d8a420802f9f7c92f3ae15",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-webphone-edge-auth.patch",
           "purpose": "Tee negotiated speech audio into a bounded non-blocking queue, decode it to mono PCM16 at 16 kHz off the RTP path, and deliver it over a framed local Unix stream authorized by a trusted per-session token propagated by dynamic or snapshot routing."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch",
           "sha256": "7d576209813e3e6975547287bdd7ef4669707e2d14d22f7086aadedc60f88c9a",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-realtime-audio-tap.patch",
           "purpose": "Use asynchronous DNS resolution, retain enough idle HTTP connections for the bounded CDR saver, and apply one keepalive policy to dynamic call routing and CDR delivery."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-media-control-client.patch",
           "sha256": "be2b26312fe4c9c6c2ab6960997722b75ee5adaf146e0bc483bc34c0e97d4ab5",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-http-client-capacity.patch",
           "purpose": "Add a bounded native media-control client with deterministic cross-language command identity, production mTLS, secret-file loading, incremental response limits, explicit before/after-transport failure semantics and safe bounded failure codes without touching RTP packet forwarding."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
           "sha256": "78768f1ee931b8d6614f614e5e5eeb41b7556ff7b263667e89413f0a4fa5e03e",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-control-client.patch",
           "purpose": "Bind ordinary SIP relay initial and bidirectional mid-dialog offer/answer transactions plus RTP DTMF injection to owner-fenced RTPengine reservations, retain safe media-control failure codes across the lifecycle boundary, return unsolicited RTPengine DTMF over a bounded replayable per-owner event stream, and close allocated media through a stable replayable delete bounded outside the SIP cleanup path while keeping IVR, queue, recording, audio-tap, WebRTC, parallel-fork and offerless profiles on the existing local media graph."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch",
           "sha256": "589ac55dfec9865996acc142f4a76aaf7fea7e7f341663c71425eecdb6cde4e6",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-lifecycle.patch",
           "purpose": "Commit bounded PII-minimized per-leg dialog recovery state through the cell-local mTLS shadow service before visible T1 18x, 200 and successful in-dialog responses, with exact replay after uncertain transport outcomes and ordinary-profile isolation."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
           "sha256": "37c4445b9f0ede510cf9d264e9e7c29fed50eb10e3340eb5df37ce1efa3d756c",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dialog-shadow.patch",
           "purpose": "Authenticate reciprocal two-leg recovery capsules, claim and consume one-time owner takeover, atomically publish the new owner epoch, restore RTPengine media state, and run a recovered B2BUA controller for in-dialog signaling, SDP renegotiation and bounded terminal cleanup."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch",
           "sha256": "84c1dd9d91c2d12a8505dd99fb0416e76471bb8ef37e68e0c70e46fd6fa5984f",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dialog-recovery.patch",
           "purpose": "Emit owner-fenced dual-leg CDR projections with exact route revision and recovered timing, hash-bind the configured Region before upload, persist T1 termination intent before Region commit, bind terminal repair to the exact Region receipt and durability contract, use bounded concurrent exact commits without a global network lock, finalize terminating takeovers without restoring SIP or media, and delete records only after an authenticated Region durable-quorum receipt."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-cdr-mtls-noop.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-cdr-mtls-noop.patch",
           "sha256": "c7ed7f87d8afae920298f32fbe0b0c2874f7135e2b13b1731e82b1f570686ce1",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dual-leg-cdr.patch",
           "purpose": "Make the durable dual-leg spool the only authoritative CDR sink, preserve bounded call-record queue tuning through an explicit no-op sink, and protect replay delivery with production-required client identity and private-CA verification."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-tracing.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-media-tracing.patch",
           "sha256": "1d322f5805d364f5d68fd0a038df3ba78dbb3d0803241dc2a3753aaa245b6c37",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-cdr-mtls-noop.patch",
           "purpose": "Propagate a deterministic sampled W3C trace context from each RustPBX call into cell-local media-control requests without exposing raw call identity, SDP, phone numbers, authorization material or service secrets."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch",
           "sha256": "44a2adc257a610d09ffe050eb04a56e158e35e593a0b05b36c5e79e517f42315",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-tracing.patch",
           "purpose": "Align snapshot inbound-admission parsing with the direct iveKit HTTP response body so successful Cell reservation and ownership admission can enter the local signed route snapshot."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch",
           "sha256": "166fbff830dfacb8588c1bfa84fa3d2c1f00b38c359db363f6448084b5e6865c",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-inbound-admission-response-contract.patch",
           "purpose": "Freeze tenant, Cell, owner node and validated media-processing codec facts per call; preserve them across takeover recovery; route RWI and SIP INFO DTMF through the authoritative media lifecycle; reconcile exact command identity; retain bounded cleanup retry; and fail processing overload closed with SIP backoff instead of local-media fallback."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch",
           "sha256": "0d760f506d58c29ec5b1260831219251b82b6a136e34bb8682e6baa482f6b870",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-session-media-profile.patch",
           "purpose": "Reserve asynchronous recorder startup per session, reject duplicate or overlapping lifecycle work before disk dispatch, and release start/finalization reservations on every success, failure, cancellation and bounded-queue rejection path."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch",
           "sha256": "3ed68c0f8a136ae947129459b28a3017b7ddcdbf999346ea12e4441cc8cd6bb7",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-recording-lifecycle-reservation.patch",
           "purpose": "Consume the durable processing terminal stream with an independent cursor, inject only exact owner- and media-reservation-fenced playback/gather completion events into the live call, and replay rather than acknowledge delivery failures."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch",
           "sha256": "4338a10e7f2ce7cba81ee7336c9a3c17ae3a633120a792f5789f65fcdf9ab752",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-processing-terminal-events.patch",
           "purpose": "Execute the existing IVR application through owner-fenced processing media with strict prompt and gather commands, durable terminal projection, SIP INFO digit injection, and a native single-leg commit that does not allocate or transcode toward a fake remote endpoint."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-server-invite-owner.patch",
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-server-invite-owner.patch",
           "sha256": "f0397035f8141e375b0794200cc2c8d6bbbad54577e077175925c65675822c31",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-processing-ivr-execution.patch",
           "purpose": "Retain each stateful 300-699 server INVITE transaction until ACK, Timer H, transport failure or shutdown without retaining the business-concurrency slot, and count abnormal terminal causes with fixed-cardinality telemetry."
@@ -788,8 +788,8 @@
         "benchmark": "partial",
         "real_environment": "not_run",
         "evidence_paths": [
-          "infra/ivekit/rustpbx/build.sh",
-          "infra/ivekit/rustpbx/patches",
+          "infra/converact/rustpbx/build.sh",
+          "infra/converact/rustpbx/patches",
           "integrations/component-hook-rs",
           "test/ivekit-rustpbx-route-snapshot.test.ts",
           "test/ivekit-rustpbx-inbound-admission-patch.test.ts",
@@ -799,8 +799,8 @@
           "test/ivekit-rustpbx-recording-spool-capacity.test.ts",
           "test/ivekit-recording-spool-intake.test.ts",
           "test/ivekit-recording-segment-upload.test.ts",
-          "src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-worker.ts",
-          "src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.ts",
+          "src/agent-runtime/converact/recordings/rustpbx-recording-spool-worker.ts",
+          "src/agent-runtime/converact/recordings/rustpbx-recording-spool-capacity.ts",
           "docs/capacity/rustpbx-recording-spool-implementation-plan.md",
           "test/ivekit-rustpbx-rwi.test.ts",
           "test/ivekit-rustpbx-provider.test.ts",
@@ -812,35 +812,35 @@
           ".github/workflows/ivekit-oci-release-gate.yml",
           "docs/deployment/oci-image-release-gate.md",
           "test/ivekit-image-supply-chain.test.ts",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-cleanup-isolation.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-registry.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-capacity.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-tracing.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-session-cleanup-isolation.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-webphone-registry.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-capacity.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-media-control-client.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-media-tracing.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch",
           "test/ivekit-rustpbx-session-media-profile-patch.test.ts",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch",
           "test/ivekit-rustpbx-recording-lifecycle-reservation-patch.test.ts",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch",
           "test/ivekit-rustpbx-processing-terminal-events-patch.test.ts",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch",
           "test/ivekit-rustpbx-processing-ivr-execution-patch.test.ts",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-server-invite-owner.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-server-invite-owner.patch",
           "test/ivekit-rsipstack-server-invite-lifecycle-patch.test.ts",
-          "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
-          "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
+          "infra/converact/rustpbx/patches/rustpbx-local-rustrtc.patch",
+          "infra/converact/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
           "test/ivekit-rustpbx-webphone-edge-auth.test.ts",
           "test/ivekit-rustpbx-audio-tap.test.ts",
@@ -852,11 +852,11 @@
           "test/ivekit-rustpbx-dual-leg-cdr-patch.test.ts",
           "test/ivekit-rustpbx-media-deployment.test.ts",
           "test/ivekit-voice-cdr-convergence.test.ts",
-          "src/agent-runtime/ivekit/voice/cdr-convergence.ts",
-          "src/agent-runtime/ivekit/voice/postgres/cdr-convergence-store.ts",
+          "src/agent-runtime/converact/voice/cdr-convergence.ts",
+          "src/agent-runtime/converact/voice/postgres/cdr-convergence-store.ts",
           "src/migrations/103_ivekit_voice_cdr_convergence.sql",
           "test/ivekit-media-control-events.test.ts",
-          "src/agent-runtime/ivekit/media-control/events.ts",
+          "src/agent-runtime/converact/media-control/events.ts",
           "scripts/ivekit-media-control-agent.ts",
           "test/ivekit-rustrtc-udp-socket-capacity.test.ts",
           "test/ivekit-capacity-sip-kamailio-baseline.test.ts",
@@ -877,8 +877,8 @@
           "test/ivekit-rustpbx-capacity-baseline.test.ts",
           "test/ivekit-rustpbx-webphone-patch.test.ts",
           "test/ivekit-webphone-session-service.test.ts",
-          "src/agent-runtime/ivekit/voice/rustpbx-config.ts",
-          "services/ivekit-service/helm/ivekit/files/prometheus-rules.yaml",
+          "src/agent-runtime/converact/voice/rustpbx-config.ts",
+          "services/converact-service/helm/ivekit/files/prometheus-rules.yaml",
           "scripts/ivekit-rustpbx-sipp-acceptance.ts",
           "docs/capacity/phase2-code-status.json"
         ],
@@ -924,54 +924,54 @@
       "build": {
         "reproducible": true,
         "lockfile_enforced": true,
-        "script": "infra/ivekit/rustpbx/build.sh",
+        "script": "infra/converact/rustpbx/build.sh",
         "builder_image": "rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
       },
       "patches": [
         {
-          "path": "infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch",
+          "path": "infra/converact/rustpbx/patches/rsipstack-tcp-reconnect.patch",
           "sha256": "8fb7640644cce7e03540d2879783639737a554b3199c9ffe3a28f8d96b497844",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716",
           "purpose": "Correct bounded TCP reconnect behavior required by the RustPBX transport path."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch",
+          "path": "infra/converact/rustpbx/patches/rsipstack-ivekit-capacity.patch",
           "sha256": "48557ba74abba6caf57e1cbbc4805f7ab4edcf05b619295bb93c81e0cf69fe33",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-tcp-reconnect.patch",
           "purpose": "Bound SIP transactions, retransmission cache, inbound transaction queue and reliable transport connections with deterministic overload rejection and low-cardinality statistics."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch",
+          "path": "infra/converact/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch",
           "sha256": "17c770a3948128d1afb1fcf99af871aa543bf93178e31008b6bb053052a732a9",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-capacity.patch",
           "purpose": "Publish the bounded finished transaction response before releasing the active transaction key so an in-flight retransmission cannot be admitted as duplicate Router and CDR work."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch",
+          "path": "infra/converact/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch",
           "sha256": "eb087e1762ecc2edce5cba3d94865a444a41c95fa1fcbbc70362d6dbf155cc66",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-retransmission-atomicity.patch",
           "purpose": "Keep handled in-dialog request events from replacing confirmed dialog authority and expose a uniform immutable snapshot for restored B2BUA persistence."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-prepared-invite.patch",
+          "path": "infra/converact/rustpbx/patches/rsipstack-ivekit-prepared-invite.patch",
           "sha256": "e02d71e1f491a60de19534adc0809eeaee8a8e5d2e7594e1172a9fb465d9801c",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-dialog-recovery.patch",
           "purpose": "Expose a two-phase outbound INVITE so RustPBX can bind the real local dialog tag and replace logical SDP with the authoritative media-control SDP before the first packet is sent."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-rejection-headers.patch",
+          "path": "infra/converact/rustpbx/patches/rsipstack-ivekit-rejection-headers.patch",
           "sha256": "a9047e0bd1a4eed576636a30310054142ada0e0a2c85b29e651d2ba50a0f959d",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-prepared-invite.patch",
           "purpose": "Allow server INVITE rejection to preserve explicit response headers so RustPBX can emit standards-visible Retry-After overload backoff together with its Reason value."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-single-trying.patch",
+          "path": "infra/converact/rustpbx/patches/rsipstack-ivekit-single-trying.patch",
           "sha256": "a86e84a4484e9ec6f416eaa163d12f22171360241fdb8e9ae67a7b235d1c016f",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-rejection-headers.patch",
           "purpose": "Make application-initiated initial 100 Trying emission transaction-owned and at-most-once while leaving protocol retransmission replay unchanged."
         },
         {
-          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-server-invite-lifecycle.patch",
+          "path": "infra/converact/rustpbx/patches/rsipstack-ivekit-server-invite-lifecycle.patch",
           "sha256": "d84ba38aae7e91682d4180e87cdad9a910178a67dd8d5791dade5f765bea6eef",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-single-trying.patch",
           "purpose": "Implement the RFC 3261 server-INVITE 300-699 lifecycle with frozen-response Timer G replay, Timer H/I termination, typed owner outcomes and retained timer-head wakeups while preserving the existing 2xx path."
@@ -1103,20 +1103,20 @@
         "benchmark": "partial",
         "real_environment": "not_run",
         "evidence_paths": [
-          "infra/ivekit/rustpbx/build.sh",
-          "infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch",
-          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch",
-          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch",
-          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch",
-          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-prepared-invite.patch",
-          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-rejection-headers.patch",
-          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-single-trying.patch",
-          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-server-invite-lifecycle.patch",
+          "infra/converact/rustpbx/build.sh",
+          "infra/converact/rustpbx/patches/rsipstack-tcp-reconnect.patch",
+          "infra/converact/rustpbx/patches/rsipstack-ivekit-capacity.patch",
+          "infra/converact/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch",
+          "infra/converact/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch",
+          "infra/converact/rustpbx/patches/rsipstack-ivekit-prepared-invite.patch",
+          "infra/converact/rustpbx/patches/rsipstack-ivekit-rejection-headers.patch",
+          "infra/converact/rustpbx/patches/rsipstack-ivekit-single-trying.patch",
+          "infra/converact/rustpbx/patches/rsipstack-ivekit-server-invite-lifecycle.patch",
           "test/ivekit-rsipstack-prepared-invite-patch.test.ts",
           "test/ivekit-rsipstack-single-trying-patch.test.ts",
           "test/ivekit-rsipstack-server-invite-lifecycle-patch.test.ts",
           "test/ivekit-rustpbx-dialog-recovery-patch.test.ts",
-          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
           "test/ivekit-rustpbx-build.test.ts",
           "test/ivekit-voice-deployment.test.ts"
         ],
@@ -1160,12 +1160,12 @@
       "build": {
         "reproducible": true,
         "lockfile_enforced": true,
-        "script": "infra/ivekit/rustpbx/build.sh",
+        "script": "infra/converact/rustpbx/build.sh",
         "builder_image": "rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
       },
       "patches": [
         {
-          "path": "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
+          "path": "infra/converact/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "sha256": "65b0af42567ac9379619d49eeeca6961062a84a7b262871ac3723a935934111b",
           "applies_to": "rustrtc@166c6d22984429eb6b509920c14fcd69f974f0b3",
           "purpose": "Create RTP and direct RTCP sockets with bounded configurable kernel receive/send buffers and verify the effective socket values."
@@ -1213,10 +1213,10 @@
         "benchmark": "partial",
         "real_environment": "not_run",
         "evidence_paths": [
-          "infra/ivekit/rustpbx/build.sh",
-          "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
-          "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
-          "infra/ivekit/rustpbx/Cargo.lock",
+          "infra/converact/rustpbx/build.sh",
+          "infra/converact/rustpbx/patches/rustpbx-local-rustrtc.patch",
+          "infra/converact/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
+          "infra/converact/rustpbx/Cargo.lock",
           "test/ivekit-rustrtc-udp-socket-capacity.test.ts",
           "test/ivekit-rustpbx-media-baseline-mode.test.ts",
           "docs/evidence/wave3-rustpbx-ivekit19-image-inspect-2026-07-24.json",
@@ -1367,7 +1367,7 @@
       "build": {
         "reproducible": true,
         "lockfile_enforced": true,
-        "script": "infra/ivekit/rtpengine/build.sh",
+        "script": "infra/converact/rtpengine/build.sh",
         "builder_image": "sha256:1b858f21573a2a5322825ee566a204ed34d093b447392d910d4b99e5771c9752",
         "features": [
           "amd64",
@@ -1386,31 +1386,31 @@
       },
       "patches": [
         {
-          "path": "infra/ivekit/rtpengine/patches/0001-tcp-ng-bounded-frame.patch",
+          "path": "infra/converact/rtpengine/patches/0001-tcp-ng-bounded-frame.patch",
           "sha256": "9aed572084c9267f02b76f0847773bb00ab1329cfa4c4332917a461cda1a8c68",
           "applies_to": "rtpengine@506cfa74386a5373e40fca139a932917f22f0524",
           "purpose": "Accept bounded complete TCP NG frames without the upstream 1 KiB cutoff."
         },
         {
-          "path": "infra/ivekit/rtpengine/patches/0002-ivekit-owner-fence.patch",
+          "path": "infra/converact/rtpengine/patches/0002-ivekit-owner-fence.patch",
           "sha256": "327aebdcf0cacff155cc3ea5eb011e50c518788894b5759204be0048879f48f0",
           "applies_to": "rtpengine@506cfa74386a5373e40fca139a932917f22f0524",
           "purpose": "Fence every media mutation by owner epoch, sequence and stable command identity."
         },
         {
-          "path": "infra/ivekit/rtpengine/patches/0003-ivekit-drain-capacity.patch",
+          "path": "infra/converact/rtpengine/patches/0003-ivekit-drain-capacity.patch",
           "sha256": "3f2e13e5bbc2786339e0b60721e8a962ba421b68cd2ee883901960cc9a70cf9a",
           "applies_to": "rtpengine@506cfa74386a5373e40fca139a932917f22f0524",
           "purpose": "Reject new calls during drain or hard-capacity exhaustion while preserving established media."
         },
         {
-          "path": "infra/ivekit/rtpengine/patches/0004-ivekit-metrics.patch",
+          "path": "infra/converact/rtpengine/patches/0004-ivekit-metrics.patch",
           "sha256": "29192549c73775249252ddbdd383c54f6d3c842f51640a7d61a4bbdaa0cafb82",
           "applies_to": "rtpengine@506cfa74386a5373e40fca139a932917f22f0524",
           "purpose": "Export fixed low-cardinality iveKit admission and transport metrics."
         },
         {
-          "path": "infra/ivekit/rtpengine/patches/0005-ivekit-durable-replay.patch",
+          "path": "infra/converact/rtpengine/patches/0005-ivekit-durable-replay.patch",
           "sha256": "b87258a60ceced26efc08b4828b4c86569f9be671ee971101456d0731e5a4969",
           "applies_to": "rtpengine@506cfa74386a5373e40fca139a932917f22f0524",
           "purpose": "Retain effective SDP and deterministic replay facts for WAL-backed recovery."
@@ -1603,7 +1603,7 @@
       "build": {
         "reproducible": true,
         "lockfile_enforced": true,
-        "script": "infra/ivekit/livekit/build.sh",
+        "script": "infra/converact/livekit/build.sh",
         "features": [
           "component-node-owner-guard",
           "small-room-lock-free-fanout"
@@ -1617,13 +1617,13 @@
       },
       "patches": [
         {
-          "path": "infra/ivekit/livekit/apply-overlay.mjs",
-          "sha256": "47c675953cf4fe8f51be60c8b3404673dd566b88977874cfdcfb6a5e17113d47",
+          "path": "infra/converact/livekit/apply-overlay.mjs",
+          "sha256": "7dd890388abbf6755d9d7ab4f48bc0914bb163d672332bcd08178f044abc3f85",
           "applies_to": "livekit-server@0b3fd288e3ef3263ec475ba0d78cf3ad77459981",
           "purpose": "Apply the exact-release owner and SFU overlays and make the upstream image consume a host-generated locked vendor tree so local owner modules compile without build-time network access."
         },
         {
-          "path": "infra/ivekit/livekit/patches/livekit-ivekit-small-room-hot-path.patch",
+          "path": "infra/converact/livekit/patches/livekit-ivekit-small-room-hot-path.patch",
           "sha256": "d7439f99ff5dbc539c201a754d7c3fc1f700b80acd7fdec668d2b216f462eda6",
           "applies_to": "livekit-server@0b3fd288e3ef3263ec475ba0d78cf3ad77459981 after the iveKit owner overlay",
           "purpose": "Publish immutable downtrack snapshots through an atomic pointer and keep one-to-few-subscriber RTP and Opus RED fanout off the parallel closure and atomic aggregation path."
@@ -1748,19 +1748,19 @@
         "evidence_paths": [
           ".env.example",
           "infra/env.example",
-          "src/agent-runtime/ivekit/placement/media-call-placement.ts",
-          "src/agent-runtime/ivekit/placement/component-node-admission.ts",
-          "src/agent-runtime/ivekit/placement/component-node-sync.ts",
-          "src/agent-runtime/ivekit/placement/interaction-placement.ts",
+          "src/agent-runtime/converact/placement/media-call-placement.ts",
+          "src/agent-runtime/converact/placement/component-node-admission.ts",
+          "src/agent-runtime/converact/placement/component-node-sync.ts",
+          "src/agent-runtime/converact/placement/interaction-placement.ts",
           "src/migrations/085_ivekit_interaction_placement_handoffs.sql",
-          "clients/ivekit-reference/src/media/media-rejoin-controller.ts",
+          "clients/converact-reference/src/media/media-rejoin-controller.ts",
           "integrations/component-hook-go/hook.go",
           "integrations/component-hook-go/http_authorizer.go",
           "integrations/livekit-v1.13.4/registry.go",
           "integrations/livekit-v1.13.4/registry_test.go",
-          "infra/ivekit/livekit/apply-overlay.mjs",
-          "infra/ivekit/livekit/build.sh",
-          "infra/ivekit/livekit/patches/livekit-ivekit-small-room-hot-path.patch",
+          "infra/converact/livekit/apply-overlay.mjs",
+          "infra/converact/livekit/build.sh",
+          "infra/converact/livekit/patches/livekit-ivekit-small-room-hot-path.patch",
           ".github/workflows/ivekit-livekit-server-image.yml",
           "docs/evidence/wave1-livekit-server-v1.13.4-validation-2026-07-22.md",
           "infra/capacity/kubernetes/livekit-statefulset.yaml",
@@ -1773,7 +1773,7 @@
           "test/ivekit-component-node-admission.test.ts",
           "test/ivekit-component-node-sync.test.ts",
           "test/ivekit-livekit-owner-patch.test.ts",
-          "clients/ivekit-reference/src/media/media-rejoin-controller.test.ts"
+          "clients/converact-reference/src/media/media-rejoin-controller.test.ts"
         ],
         "checked_at": "2026-07-22T23:55:00+08:00"
       },
@@ -1817,7 +1817,7 @@
       "build": {
         "reproducible": false,
         "lockfile_enforced": true,
-        "script": "infra/ivekit/livekit-egress/build.sh",
+        "script": "infra/converact/livekit-egress/build.sh",
         "output_image": "ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-egress:v1.13.0-ivekit.1-7d3572a0"
       },
       "runtime_artifact": {
@@ -1827,13 +1827,13 @@
       },
       "patches": [
         {
-          "path": "infra/ivekit/livekit-egress/apply-overlay.mjs",
-          "sha256": "9eb3b7c0f7f6abaa7cb4e9be8b46eb039c1a3cdadcf5ff0db6e7b2b11187c45f",
+          "path": "infra/converact/livekit-egress/apply-overlay.mjs",
+          "sha256": "e2c9d2f067888d31aab604881d9620542d33a0776d340316168a15554bf5b959",
           "applies_to": "livekit/egress@7d3572a0bf1959cbbc452f5ba390b6a90b7dc249",
           "purpose": "Patch the Egress monitor before upstream CPU and memory admission, initialize iveKit metrics, and copy the local request-type, slot-limit, drain, and process-observability modules."
         },
         {
-          "path": "infra/ivekit/livekit-egress/build.sh",
+          "path": "infra/converact/livekit-egress/build.sh",
           "sha256": "1f1a405aa269d4d222d7a159df7426cf2e496192888a1aa4e692e71a271b8806",
           "applies_to": "livekit/egress@7d3572a0bf1959cbbc452f5ba390b6a90b7dc249 after apply-overlay.mjs",
           "purpose": "Materialize a SumDB-verified Go 1.26.2 toolchain per target architecture, build the exact-source image, and fail closed on runtime identity, label, user, version, or binary-marker drift."
@@ -1845,7 +1845,7 @@
           "purpose": "Fail startup on invalid pool policy, hard-fence accepted request types, concurrent slots, and drain state, and expose exact rejection reasons inside each worker process."
         },
         {
-          "path": "infra/ivekit/livekit-egress/ivekit_metrics.go",
+          "path": "infra/converact/livekit-egress/ivekit_metrics.go",
           "sha256": "f8bfc0f8a17ac5b758c36535e96f7bce8abe8a38a14e56aa4ea87bc705a17c39",
           "applies_to": "livekit/egress@7d3572a0bf1959cbbc452f5ba390b6a90b7dc249 after apply-overlay.mjs",
           "purpose": "Export bounded process slot, drain, rejection, spool, and network-transmit metrics without adding control-plane calls to the media path."
@@ -1881,9 +1881,9 @@
         "benchmark": "not_run",
         "real_environment": "not_run",
         "evidence_paths": [
-          "infra/ivekit/livekit-egress/apply-overlay.mjs",
-          "infra/ivekit/livekit-egress/build.sh",
-          "infra/ivekit/livekit-egress/ivekit_metrics.go",
+          "infra/converact/livekit-egress/apply-overlay.mjs",
+          "infra/converact/livekit-egress/build.sh",
+          "infra/converact/livekit-egress/ivekit_metrics.go",
           "integrations/livekit-egress-v1.13.0/policy.go",
           "integrations/livekit-egress-v1.13.0/policy_test.go",
           "infra/k8s/templates/livekit-egress-deployment.yaml",
@@ -1943,7 +1943,7 @@
       "build": {
         "reproducible": false,
         "lockfile_enforced": true,
-        "script": "infra/ivekit/livekit-ingress/build.sh",
+        "script": "infra/converact/livekit-ingress/build.sh",
         "output_image": "ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-ingress:v1.5.0-ivekit.1-363f6090"
       },
       "runtime_artifact": {
@@ -1953,13 +1953,13 @@
       },
       "patches": [
         {
-          "path": "infra/ivekit/livekit-ingress/apply-overlay.mjs",
+          "path": "infra/converact/livekit-ingress/apply-overlay.mjs",
           "sha256": "b8859d7a7965e25d61edf49ef962181e0e45b86b096fec7f8f7bd44ccc2fcb4b",
           "applies_to": "livekit/ingress@363f6090d572db8eef5b60c273c0970826fb7ca6",
           "purpose": "Replace mutable toolchain downloads and floating GStreamer stages with a vendored, checksum-bound, digest-pinned, non-root offline image build."
         },
         {
-          "path": "infra/ivekit/livekit-ingress/build.sh",
+          "path": "infra/converact/livekit-ingress/build.sh",
           "sha256": "5b1556ab3b81023993e2bbf5ce0d34db132ec7f6559213821bbabf984c5c754f",
           "applies_to": "livekit/ingress@363f6090d572db8eef5b60c273c0970826fb7ca6 after apply-overlay.mjs",
           "purpose": "Verify exact source and immutable base inputs, materialize the SumDB-bound Go 1.25.0 toolchain, build offline and fail closed on image identity drift."
@@ -1994,13 +1994,13 @@
         "benchmark": "not_run",
         "real_environment": "not_run",
         "evidence_paths": [
-          "infra/ivekit/livekit-ingress/apply-overlay.mjs",
-          "infra/ivekit/livekit-ingress/build.sh",
-          "infra/ivekit/livekit-ingress/README.md",
+          "infra/converact/livekit-ingress/apply-overlay.mjs",
+          "infra/converact/livekit-ingress/build.sh",
+          "infra/converact/livekit-ingress/README.md",
           "infra/k8s/templates/livekit-ingress-deployment.yaml",
           "src/agent-runtime/livekit/livekit-ingress-provider.ts",
-          "src/agent-runtime/ivekit/media-http.ts",
-          "sdk/ivekit/src/http-sdk.ts",
+          "src/agent-runtime/converact/media-http.ts",
+          "sdk/converact/src/http-sdk.ts",
           "test/ivekit-livekit-ingress-foundation.test.ts",
           "test/ivekit-livekit-ingress-api.test.ts",
           "test/ivekit-image-supply-chain.test.ts",
@@ -2050,7 +2050,7 @@
       "build": {
         "reproducible": true,
         "lockfile_enforced": true,
-        "script": "infra/ivekit/livekit-sip/build.sh",
+        "script": "infra/converact/livekit-sip/build.sh",
         "features": [
           "exact-source-runtime-identity",
           "immutable-builder-and-runtime-images",
@@ -2108,9 +2108,9 @@
           ".env.example",
           ".github/workflows/ivekit-livekit-sip-image.yml",
           ".github/workflows/ivekit-oci-release-gate.yml",
-          "infra/ivekit/livekit-sip/Dockerfile",
-          "infra/ivekit/livekit-sip/build.sh",
-          "infra/ivekit/livekit-sip/README.md",
+          "infra/converact/livekit-sip/Dockerfile",
+          "infra/converact/livekit-sip/build.sh",
+          "infra/converact/livekit-sip/README.md",
           "docs/capacity/schemas/workload-profile.schema.json",
           "docs/capacity/profiles/cell-10k-v1.json",
           "docs/capacity/profiles/mix-100k-v1.json",
@@ -2163,7 +2163,7 @@
       "build": {
         "reproducible": true,
         "lockfile_enforced": true,
-        "script": "infra/ivekit/tinode/build.sh",
+        "script": "infra/converact/tinode/build.sh",
         "features": [
           "component-node-owner-guard",
           "stable-cluster-self",
@@ -2185,25 +2185,25 @@
       },
       "patches": [
         {
-          "path": "infra/ivekit/tinode/apply-overlay.mjs",
-          "sha256": "44a93f49abb3a221c12d6051ee0efefc4c3c486f600d1ba35e7ee2a5a4460816",
+          "path": "infra/converact/tinode/apply-overlay.mjs",
+          "sha256": "5ed75fde0a60ec9ecf60ccbb24671eec78fc27e0796e49ab52175e0a101b02aa",
           "applies_to": "tinode@22a7c18e9cd695e9a061bf1b8c84175196ef5a15",
           "purpose": "Apply the exact-release owner and hot-path overlays; parameterize writable runtime, local media and stable cluster members; and convert the upstream Dockerfile into an offline, bounded-source, non-root iveKit server and deterministic database initializer."
         },
         {
-          "path": "infra/ivekit/tinode/build.sh",
+          "path": "infra/converact/tinode/build.sh",
           "sha256": "603b1b2734e9dc7d0784914a3092ba885631cd1e3a0bb611300e7fe0e4ef91a2",
           "applies_to": "tinode@22a7c18e9cd695e9a061bf1b8c84175196ef5a15 after apply-overlay.mjs",
           "purpose": "Validate immutable builder and runtime inputs, vendor dependencies, build with networking disabled, and fail closed on architecture, runtime user, labels or binary-marker drift."
         },
         {
-          "path": "infra/ivekit/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch",
+          "path": "infra/converact/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch",
           "sha256": "01f39f3ad8386844486c512110d4f0daaee8da99f6ddbd616885a575d120e977",
           "applies_to": "tinode@22a7c18e9cd695e9a061bf1b8c84175196ef5a15 after the owner overlay",
           "purpose": "Allocate background timers only for background sessions and reuse immutable ordinary local-group messages while retaining copies for P2P, channel and cluster delivery."
         },
         {
-          "path": "infra/ivekit/tinode/patches/tinode-ivekit-postgres-bootstrap.patch",
+          "path": "infra/converact/tinode/patches/tinode-ivekit-postgres-bootstrap.patch",
           "sha256": "3574014ebbbb08082002b5e8439d2aedfe784c4e85acd4535fe014c23b900fd2",
           "applies_to": "tinode@22a7c18e9cd695e9a061bf1b8c84175196ef5a15 after the owner overlay",
           "purpose": "Classify missing PostgreSQL databases by SQLSTATE, reconnect through the postgres maintenance database, quote database identifiers safely, and initialize a precreated empty target database without attempting to recreate it."
@@ -2330,23 +2330,23 @@
         "real_environment": "not_run",
         "evidence_paths": [
           ".env.example",
-          "services/ivekit-service/helm/ivekit/templates/tinode-deployment.yaml",
-          "services/ivekit-service/helm/ivekit/templates/tinode-statefulset.yaml",
-          "services/ivekit-service/helm/ivekit/templates/tinode-database-bootstrap.yaml",
-          "services/ivekit-service/helm/ivekit/templates/tinode-network-policy.yaml",
+          "services/converact-service/helm/ivekit/templates/tinode-deployment.yaml",
+          "services/converact-service/helm/ivekit/templates/tinode-statefulset.yaml",
+          "services/converact-service/helm/ivekit/templates/tinode-database-bootstrap.yaml",
+          "services/converact-service/helm/ivekit/templates/tinode-network-policy.yaml",
           "src/agent-runtime/collaboration/tinode-message-mutation.ts",
           "src/agent-runtime/collaboration/tinode-inbound-projector.ts",
-          "src/agent-runtime/ivekit/placement/component-node-admission.ts",
-          "src/agent-runtime/ivekit/placement/component-node-sync.ts",
+          "src/agent-runtime/converact/placement/component-node-admission.ts",
+          "src/agent-runtime/converact/placement/component-node-sync.ts",
           "integrations/component-hook-go/hook.go",
           "integrations/component-hook-go/http_authorizer.go",
           "integrations/tinode-v0.25.3/registry.go",
           "integrations/tinode-v0.25.3/registry_test.go",
-          "infra/ivekit/tinode/apply-overlay.mjs",
-          "infra/ivekit/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch",
-          "infra/ivekit/tinode/patches/tinode-ivekit-postgres-bootstrap.patch",
-          "infra/ivekit/tinode/server-hook.go",
-          "infra/ivekit/tinode/build.sh",
+          "infra/converact/tinode/apply-overlay.mjs",
+          "infra/converact/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch",
+          "infra/converact/tinode/patches/tinode-ivekit-postgres-bootstrap.patch",
+          "infra/converact/tinode/server-hook.go",
+          "infra/converact/tinode/build.sh",
           "infra/capacity/kubernetes/tinode-statefulset.yaml",
           "docs/capacity/component-node-admission-protocol-v1.md",
           "src/migrations/074_ivekit_tinode_message_mutations.sql",
@@ -2405,7 +2405,7 @@
       "build": {
         "reproducible": true,
         "lockfile_enforced": true,
-        "script": "infra/ivekit/rustdesk-server/build.sh",
+        "script": "infra/converact/rustdesk-server/build.sh",
         "features": [
           "component-node-owner-guard",
           "stable-paired-relay-owner",
@@ -2421,13 +2421,13 @@
       },
       "patches": [
         {
-          "path": "infra/ivekit/rustdesk-server/Dockerfile",
+          "path": "infra/converact/rustdesk-server/Dockerfile",
           "sha256": "1562f0e65a8b643c60690212963618f80f910d7b0412a1f80345c584362a6468",
           "applies_to": "rustdesk-server@73523b31cfd25d77dee862e6fc9f5e1fb5e485ef after the iveKit owner overlay",
           "purpose": "Build the maintained fork from locked source in a digest-pinned Rust builder and run hbbs, hbbr and rustdesk-utils as an unprivileged user in a digest-pinned runtime image."
         },
         {
-          "path": "infra/ivekit/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch",
+          "path": "infra/converact/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch",
           "sha256": "36a48feb70aece0a8d79bf47cd5440287b5b10463428a9cb89db7cd2d1e7009c",
           "applies_to": "rustdesk-server@73523b31cfd25d77dee862e6fc9f5e1fb5e485ef after the iveKit owner overlay",
           "purpose": "Move relay usage updates out of the global session-map write lock and preserve owned TCP or WebSocket frame allocations across same-protocol forwarding."
@@ -2533,21 +2533,21 @@
         "real_environment": "not_run",
         "evidence_paths": [
           ".env.example",
-          "infra/ivekit/docker-compose.yml",
-          "src/agent-runtime/ivekit/placement/component-node-admission.ts",
-          "src/agent-runtime/ivekit/placement/component-node-sync.ts",
-          "src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts",
+          "infra/converact/docker-compose.yml",
+          "src/agent-runtime/converact/placement/component-node-admission.ts",
+          "src/agent-runtime/converact/placement/component-node-sync.ts",
+          "src/agent-runtime/converact/placement/rustdesk-owner-binding.ts",
           "scripts/ivekit-rustdesk-owner-binding.ts",
           "integrations/component-hook-rs/src/lib.rs",
-          "infra/ivekit/rustdesk-server/server-hook.rs",
-          "infra/ivekit/rustdesk-server/apply-overlay.mjs",
-          "infra/ivekit/rustdesk-server/build.sh",
-          "infra/ivekit/rustdesk-server/Dockerfile",
-          "infra/ivekit/rustdesk-server/Dockerfile.dockerignore",
-          "infra/ivekit/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch",
-          "infra/ivekit/rustdesk-server/bench/relay-hot-path.rs",
-          "infra/ivekit/rustdesk-server/bench/run.sh",
-          "infra/ivekit/rustdesk-server/README.md",
+          "infra/converact/rustdesk-server/server-hook.rs",
+          "infra/converact/rustdesk-server/apply-overlay.mjs",
+          "infra/converact/rustdesk-server/build.sh",
+          "infra/converact/rustdesk-server/Dockerfile",
+          "infra/converact/rustdesk-server/Dockerfile.dockerignore",
+          "infra/converact/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch",
+          "infra/converact/rustdesk-server/bench/relay-hot-path.rs",
+          "infra/converact/rustdesk-server/bench/run.sh",
+          "infra/converact/rustdesk-server/README.md",
           ".github/workflows/ivekit-rustdesk-server-image.yml",
           "infra/capacity/kubernetes/rustdesk-statefulset.yaml",
           "docs/capacity/component-node-admission-protocol-v1.md",
@@ -2599,7 +2599,7 @@
       "build": {
         "reproducible": true,
         "lockfile_enforced": true,
-        "script": "infra/ivekit/homer/build.sh",
+        "script": "infra/converact/homer/build.sh",
         "features": [
           "postgres-ducklake-catalog",
           "offline-duckdb-extensions",
@@ -2618,13 +2618,13 @@
       },
       "patches": [
         {
-          "path": "infra/ivekit/homer/apply-overlay.mjs",
-          "sha256": "4110dee014b20b96d7680fbfbfaf5d48f0ec7de933af8454dfe3ee52eeb4b66e",
+          "path": "infra/converact/homer/apply-overlay.mjs",
+          "sha256": "32d189f06ea04e1b65c60e7295eedbaa36458a3d96144d98f52537ee1bc7b2f8",
           "applies_to": "homer@ac4e1ae7f63660a655a5ef42e6607ab4cefc1c6b",
           "purpose": "Add PostgreSQL-backed DuckLake catalogs to writer and reader paths, isolate SQLite-only maintenance, preserve maintenance CLI tuning, reject DSN-derived spill paths, bundle the PostgreSQL extension, and generate a hardened source-built image."
         },
         {
-          "path": "infra/ivekit/homer/postgres_catalog_test.go",
+          "path": "infra/converact/homer/postgres_catalog_test.go",
           "sha256": "cc4d87dfa8c3ea2db7c5f2cd1d6fa16efc4d99aa5a3ede6f4546a9d3488c8e50",
           "applies_to": "homer@ac4e1ae7f63660a655a5ef42e6607ab4cefc1c6b after apply-overlay.mjs",
           "purpose": "Verify PostgreSQL catalog normalization, injection-safe ATTACH SQL, the one-writer-per-Cell sharding guard, and DSN-safe spill resolution inside the exact upstream Go module."
@@ -2725,13 +2725,13 @@
         "benchmark": "not_run",
         "real_environment": "not_run",
         "evidence_paths": [
-          "infra/ivekit/homer/apply-overlay.mjs",
-          "infra/ivekit/homer/postgres_catalog_test.go",
-          "infra/ivekit/homer/build.sh",
-          "infra/ivekit/homer/README.md",
-          "infra/ivekit/homer/helm/ivekit-homer/Chart.yaml",
-          "infra/ivekit/homer/helm/ivekit-homer/values.yaml",
-          "services/ivekit-service/helm/ivekit/templates/kamailio-network-policy.yaml",
+          "infra/converact/homer/apply-overlay.mjs",
+          "infra/converact/homer/postgres_catalog_test.go",
+          "infra/converact/homer/build.sh",
+          "infra/converact/homer/README.md",
+          "infra/converact/homer/helm/ivekit-homer/Chart.yaml",
+          "infra/converact/homer/helm/ivekit-homer/values.yaml",
+          "services/converact-service/helm/ivekit/templates/kamailio-network-policy.yaml",
           "docs/deployment/kamailio-homer-hep.md",
           ".github/workflows/ivekit-homer-image.yml",
           ".github/workflows/ivekit-oci-release-gate.yml",
@@ -2743,7 +2743,7 @@
           "infra/capacity/homer-maintenance/run.sh",
           "infra/capacity/homer-maintenance/send-hep3.py",
           "test/ivekit-homer-maintenance.test.ts",
-          "src/agent-runtime/ivekit/voice/kamailio-hep-high-water.ts",
+          "src/agent-runtime/converact/voice/kamailio-hep-high-water.ts",
           "scripts/ivekit-kamailio-hep-high-water-acceptance.ts",
           "test/ivekit-kamailio-hep-high-water.test.ts",
           "test/ivekit-kamailio-deployment.test.ts",

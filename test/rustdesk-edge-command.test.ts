@@ -51,12 +51,12 @@ test('edge command executes the primary adapter with fixed args and server ident
         args: [
           '-e',
           `const ok =
-            process.env.OPC_RUSTDESK_COMMAND_ID === 'rdcmd_edge_execution_1' &&
-            process.env.OPC_RUSTDESK_EXTERNAL_ID === 'rdgw_edge_execution_1' &&
-            process.env.OPC_RUSTDESK_TARGET_ID === 'rdesk_edge_execution_1' &&
-            process.env.OPC_RUSTDESK_RUSTDESK_ID === '123456789' &&
-            process.env.OPC_RUSTDESK_CONTROLLER_RUSTDESK_ID === '987654321' &&
-            process.env.OPC_RUSTDESK_DISCONNECT_REASON === 'consent_revoked';
+            process.env.CONVERACT_RUSTDESK_COMMAND_ID === 'rdcmd_edge_execution_1' &&
+            process.env.CONVERACT_RUSTDESK_EXTERNAL_ID === 'rdgw_edge_execution_1' &&
+            process.env.CONVERACT_RUSTDESK_TARGET_ID === 'rdesk_edge_execution_1' &&
+            process.env.CONVERACT_RUSTDESK_RUSTDESK_ID === '123456789' &&
+            process.env.CONVERACT_RUSTDESK_CONTROLLER_RUSTDESK_ID === '987654321' &&
+            process.env.CONVERACT_RUSTDESK_DISCONNECT_REASON === 'consent_revoked';
            process.stdout.write('primary-adapter-output');
            process.exit(ok ? 0 : 9);`
         ]
@@ -128,9 +128,9 @@ test('edge command carries the complete owner identity into the native adapter',
           '17'
         ];
         const envOk =
-          process.env.OPC_RUSTDESK_INTERACTION_ID === expected[1] &&
-          process.env.OPC_RUSTDESK_RESERVATION_ID === expected[2] &&
-          process.env.OPC_RUSTDESK_OWNER_EPOCH === expected[3];
+          process.env.CONVERACT_RUSTDESK_INTERACTION_ID === expected[1] &&
+          process.env.CONVERACT_RUSTDESK_RESERVATION_ID === expected[2] &&
+          process.env.CONVERACT_RUSTDESK_OWNER_EPOCH === expected[3];
         process.exit(
           envOk && JSON.stringify(process.argv.slice(1)) === JSON.stringify(expected) ? 0 : 8
         );`,

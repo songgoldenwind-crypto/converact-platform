@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -167,34 +168,34 @@ export function createLiveKitEvidencePackConfigFromEnv(
   const expectedAcceptance = createLiveKitAcceptanceMetadata(env);
   const expectedDeploymentMode = expectedAcceptance.deployment_mode;
   return {
-    outputFile: optional(env.OPC_LIVEKIT_EVIDENCE_PACK_FILE),
-    title: optional(env.OPC_LIVEKIT_EVIDENCE_TITLE) || 'LiveKit Evidence Pack',
+    outputFile: optional(resolveBrandEnv(env, 'LIVEKIT_EVIDENCE_PACK_FILE')),
+    title: optional(resolveBrandEnv(env, 'LIVEKIT_EVIDENCE_TITLE')) || 'LiveKit Evidence Pack',
     expectedAcceptance,
     expectedDeploymentMode,
-    qaPublicKeyFile: optional(env.OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE),
-    qaPublicKeyFingerprint: optional(env.OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT),
+    qaPublicKeyFile: optional(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE')),
+    qaPublicKeyFingerprint: optional(resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT')),
     artifacts: {
       envChecklistFile: optional(
-        env.OPC_LIVEKIT_EVIDENCE_ENV_CHECKLIST_FILE || env.OPC_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE
+        resolveBrandEnv(env, 'LIVEKIT_EVIDENCE_ENV_CHECKLIST_FILE') || resolveBrandEnv(env, 'LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE')
       ),
       preflightReportFile: optional(
-        env.OPC_LIVEKIT_EVIDENCE_PREFLIGHT_REPORT_FILE || env.OPC_LIVEKIT_PREFLIGHT_REPORT_FILE
+        resolveBrandEnv(env, 'LIVEKIT_EVIDENCE_PREFLIGHT_REPORT_FILE') || resolveBrandEnv(env, 'LIVEKIT_PREFLIGHT_REPORT_FILE')
       ),
       serverEvidenceFile: optional(
-        env.OPC_LIVEKIT_EVIDENCE_SERVER_EVIDENCE_FILE || env.OPC_LIVEKIT_SERVER_EVIDENCE_FILE
+        resolveBrandEnv(env, 'LIVEKIT_EVIDENCE_SERVER_EVIDENCE_FILE') || resolveBrandEnv(env, 'LIVEKIT_SERVER_EVIDENCE_FILE')
       ),
       readinessReportFile: optional(
-        env.OPC_LIVEKIT_EVIDENCE_READINESS_REPORT_FILE || env.OPC_VIDEO_READINESS_REPORT_FILE
+        resolveBrandEnv(env, 'LIVEKIT_EVIDENCE_READINESS_REPORT_FILE') || resolveBrandEnv(env, 'VIDEO_READINESS_REPORT_FILE')
       ),
       clientAcceptanceReportFile: optional(
-        env.OPC_LIVEKIT_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE || env.OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE
+        resolveBrandEnv(env, 'LIVEKIT_EVIDENCE_CLIENT_ACCEPTANCE_REPORT_FILE') || resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_REPORT_FILE')
       ),
       clientAcceptanceResultFile: optional(
-        env.OPC_LIVEKIT_EVIDENCE_CLIENT_ACCEPTANCE_RESULT_FILE || env.OPC_LIVEKIT_ACCEPTANCE_OUTPUT_FILE
+        resolveBrandEnv(env, 'LIVEKIT_EVIDENCE_CLIENT_ACCEPTANCE_RESULT_FILE') || resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_OUTPUT_FILE')
       ),
-      serverRunbookFile: optional(env.OPC_LIVEKIT_EVIDENCE_SERVER_RUNBOOK_FILE),
+      serverRunbookFile: optional(resolveBrandEnv(env, 'LIVEKIT_EVIDENCE_SERVER_RUNBOOK_FILE')),
       clientRunbookFile: optional(
-        env.OPC_LIVEKIT_EVIDENCE_CLIENT_RUNBOOK_FILE || env.OPC_LIVEKIT_ACCEPTANCE_RUNBOOK_FILE
+        resolveBrandEnv(env, 'LIVEKIT_EVIDENCE_CLIENT_RUNBOOK_FILE') || resolveBrandEnv(env, 'LIVEKIT_ACCEPTANCE_RUNBOOK_FILE')
       )
     }
   };
@@ -341,7 +342,7 @@ export function renderLiveKitEvidencePack(pack: LiveKitEvidencePack): string {
 export function writeLiveKitEvidencePack(
   config: LiveKitEvidencePackConfig
 ): LiveKitEvidencePackWriteResult {
-  if (!config.outputFile) throw new Error('OPC_LIVEKIT_EVIDENCE_PACK_FILE is required');
+  if (!config.outputFile) throw new Error('CONVERACT_LIVEKIT_EVIDENCE_PACK_FILE is required');
   const pack = buildLiveKitEvidencePack(config);
   mkdirSync(dirname(config.outputFile), { recursive: true });
   writeFileSync(config.outputFile, renderLiveKitEvidencePack(pack), 'utf8');

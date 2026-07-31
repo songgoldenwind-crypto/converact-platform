@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import type { RustDeskDevice } from './rustdesk-device-store.js';
 
 export function assertRustDeskDeviceOnlineIfRequired(
@@ -43,21 +44,21 @@ function assertRustDeskDeviceOnline(
 }
 
 export function rustDeskRequireDeviceOnline(env: NodeJS.ProcessEnv = process.env): boolean {
-  const value = String(env.OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE || '').trim().toLowerCase();
+  const value = String(resolveBrandEnv(env, 'RUSTDESK_REQUIRE_DEVICE_ONLINE') || '').trim().toLowerCase();
   return value === '1' || value === 'true' || value === 'yes';
 }
 
 export function rustDeskRequirePhysicalDisconnect(env: NodeJS.ProcessEnv = process.env): boolean {
-  const value = String(env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT || '').trim().toLowerCase();
+  const value = String(resolveBrandEnv(env, 'RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT') || '').trim().toLowerCase();
   return value === '1' || value === 'true' || value === 'yes';
 }
 
 export function rustDeskDeviceOnlineTtlMs(env: NodeJS.ProcessEnv = process.env): number {
-  const rawValue = env.OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS;
+  const rawValue = resolveBrandEnv(env, 'RUSTDESK_DEVICE_ONLINE_TTL_MS');
   if (rawValue === undefined || rawValue.trim() === '') return 300_000;
   const value = Number(rawValue);
   if (!Number.isFinite(value) || value < 100) {
-    throw new Error('OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS must be a number >= 100');
+    throw new Error('CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS must be a number >= 100');
   }
   return value;
 }

@@ -90,7 +90,7 @@ test('Voice acceptance writes a template and a runbook for every capability grou
       'IVR', 'Realtime Voice AI', 'LiveKit SIP Bridge', 'Contact Center',
       'Resilience And Isolation', 'Performance And Governance', 'Validation'
     ]) assert.match(runbook, new RegExp(`## ${heading}`));
-    assert.match(runbook, /OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE/);
+    assert.match(runbook, /CONVERACT_FABRIC_VOICE_ACCEPTANCE_REPORT_FILE/);
     assert.match(runbook, /ready_for_review/);
     assert.match(runbook, /does not change.*not_run/is);
   } finally {
@@ -216,7 +216,7 @@ test('Voice acceptance reports not_run without a real report', () => {
   assert.deepEqual(runIveKitVoiceAcceptanceFromEnv({}), {
     ok: false,
     status: 'not_run',
-    missing_environment: ['OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE']
+    missing_environment: ['CONVERACT_FABRIC_VOICE_ACCEPTANCE_REPORT_FILE']
   });
 });
 

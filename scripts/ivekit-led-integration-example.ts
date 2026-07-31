@@ -1,3 +1,4 @@
+import { resolveBrandEnv, resolveFabricEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -21,21 +22,21 @@ export interface IveKitLedExampleConfig {
 }
 
 export function iveKitLedExampleConfigFromEnv(env: NodeJS.ProcessEnv): IveKitLedExampleConfig {
-  const tenantId = required(env.OPC_IVEKIT_LED_TENANT_ID || env.OPC_TENANT_ID, 'OPC_IVEKIT_LED_TENANT_ID');
-  const businessRefType = String(env.OPC_IVEKIT_LED_BUSINESS_REF_TYPE || 'service_order').trim();
-  const businessRefId = required(env.OPC_IVEKIT_LED_BUSINESS_REF_ID, 'OPC_IVEKIT_LED_BUSINESS_REF_ID');
+  const tenantId = required(resolveFabricEnv(env, 'LED_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID'), 'CONVERACT_FABRIC_LED_TENANT_ID');
+  const businessRefType = String(resolveFabricEnv(env, 'LED_BUSINESS_REF_TYPE') || 'service_order').trim();
+  const businessRefId = required(resolveFabricEnv(env, 'LED_BUSINESS_REF_ID'), 'CONVERACT_FABRIC_LED_BUSINESS_REF_ID');
   return {
-    baseUrl: required(env.OPC_IVEKIT_LED_BASE_URL || env.OPC_BASE_URL, 'OPC_IVEKIT_LED_BASE_URL'),
-    apiKey: required(env.OPC_IVEKIT_LED_API_KEY || env.OPC_API_KEY, 'OPC_IVEKIT_LED_API_KEY'),
+    baseUrl: required(resolveFabricEnv(env, 'LED_BASE_URL') || resolveBrandEnv(env, 'BASE_URL'), 'CONVERACT_FABRIC_LED_BASE_URL'),
+    apiKey: required(resolveFabricEnv(env, 'LED_API_KEY') || resolveBrandEnv(env, 'API_KEY'), 'CONVERACT_FABRIC_LED_API_KEY'),
     tenantId,
-    userId: required(env.OPC_IVEKIT_LED_USER_ID, 'OPC_IVEKIT_LED_USER_ID'),
+    userId: required(resolveFabricEnv(env, 'LED_USER_ID'), 'CONVERACT_FABRIC_LED_USER_ID'),
     businessRefType,
     businessRefId,
-    roomName: String(env.OPC_IVEKIT_LED_ROOM_NAME || `${tenantId}-${businessRefType}-${businessRefId}`)
+    roomName: String(resolveFabricEnv(env, 'LED_ROOM_NAME') || `${tenantId}-${businessRefType}-${businessRefId}`)
       .replace(/[^a-zA-Z0-9_-]/g, '-'),
-    remoteSessionId: optional(env.OPC_IVEKIT_LED_REMOTE_SESSION_ID),
-    rustdeskDeviceId: optional(env.OPC_IVEKIT_LED_RUSTDESK_DEVICE_ID),
-    rustdeskId: optional(env.OPC_IVEKIT_LED_RUSTDESK_ID)
+    remoteSessionId: optional(resolveFabricEnv(env, 'LED_REMOTE_SESSION_ID')),
+    rustdeskDeviceId: optional(resolveFabricEnv(env, 'LED_RUSTDESK_DEVICE_ID')),
+    rustdeskId: optional(resolveFabricEnv(env, 'LED_RUSTDESK_ID'))
   };
 }
 

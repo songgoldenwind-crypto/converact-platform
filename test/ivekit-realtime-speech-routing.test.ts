@@ -107,7 +107,7 @@ async function routingFixture(options: {
   lease_renew_interval_ms?: number;
 } = {}) {
   const env: NodeJS.ProcessEnv = {
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
       providerProfile('speech-primary', 'primary-adapter', options),
       providerProfile('speech-fallback', 'fallback-adapter', options)
     ])

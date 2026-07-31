@@ -64,7 +64,7 @@ async function main(): Promise<void> {
     });
     if (!runtime.enabled) {
       throw new Error(
-        'realtime audio tap worker requires OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED=1'
+        'realtime audio tap worker requires CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED=1'
       );
     }
     await runtime.start();

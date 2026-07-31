@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../../config/converact-env.js';
 import { id, json, run } from '../../db-compat.js';
 import type { PgQueryable } from '../../db-pg.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
@@ -67,11 +68,11 @@ export function createIveKitMediaHooks(input: IveKitMediaHooksInput): RouteIveKi
 }
 
 function configuredRetentionDays(): number | undefined {
-  const raw = String(process.env.OPC_RECORDING_RETENTION_DAYS || '').trim();
+  const raw = String(resolveBrandEnv(process.env, 'RECORDING_RETENTION_DAYS') || '').trim();
   if (!raw) return undefined;
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 1 || value > 3650) {
-    throw new Error('OPC_RECORDING_RETENTION_DAYS must be an integer between 1 and 3650');
+    throw new Error('CONVERACT_RECORDING_RETENTION_DAYS must be an integer between 1 and 3650');
   }
   return value;
 }

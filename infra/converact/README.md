@@ -25,11 +25,11 @@ Replace every `replace_with_...` value. Generate independent secrets rather than
 
 The `tinode-bootstrap` one-shot service creates or verifies `TINODE_BASIC_USER`, promotes its `basic:<username>` credential to Tinode Root through the `tinode_app` PostgreSQL role, and reconnects to prove `authlvl=root`. OPC will not start if any of those steps fail. The root API key and Root service account are separate authorization layers; both are required for trusted placement metadata and owner fencing.
 
-Set `OPC_IVEKIT_ALLOWED_ORIGINS` to the comma-separated HTTPS origins that may call iveKit directly from a browser, for example the LED web application origin. Do not include paths. `OPC_IVEKIT_HTTP_BODY_MAX_BYTES` limits every non-attachment JSON and webhook body; attachment uploads keep their separate larger limit.
+Set `CONVERACT_FABRIC_ALLOWED_ORIGINS` to the comma-separated HTTPS origins that may call iveKit directly from a browser, for example the LED web application origin. Do not include paths. `CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES` limits every non-attachment JSON and webhook body; attachment uploads keep their separate larger limit.
 
-Configure V3 OCR, ASR, quality, and translation through `OPC_IVEKIT_PROVIDER_PROFILES_JSON`. Keep provider tokens in the four `OPC_IVEKIT_*_TOKEN` variables, never inline in the JSON. Attachment, quality, and translation workers default to disabled; run `npm run ivekit:intelligence-preflight`, probe provider health, and configure the tenant policy before enabling a worker. Self-hosted and third-party examples, retry recovery, alerts, upgrade, and rollback are documented in [V3 intelligence operations](../../docs/ivekit-v3-intelligence-operations.md).
+Configure V3 OCR, ASR, quality, and translation through `CONVERACT_FABRIC_PROVIDER_PROFILES_JSON`. Keep provider tokens in the four `CONVERACT_IVEKIT_*_TOKEN` variables, never inline in the JSON. Attachment, quality, and translation workers default to disabled; run `npm run ivekit:intelligence-preflight`, probe provider health, and configure the tenant policy before enabling a worker. Self-hosted and third-party examples, retry recovery, alerts, upgrade, and rollback are documented in [V3 intelligence operations](../../docs/ivekit-v3-intelligence-operations.md).
 
-Voice trunk and extension credentials use `env://NAME` references. Put extra values in the optional file selected by `OPC_IVEKIT_VOICE_RUNTIME_ENV_FILE` (default `./voice-runtime.env`), mode it `0600`, and list the exact variable names in `OPC_IVEKIT_VOICE_SECRET_ENV_NAMES`. Compose injects that file only into the application service. Never add credential values to Provider profile JSON or commit the runtime env file.
+Voice trunk and extension credentials use `env://NAME` references. Put extra values in the optional file selected by `CONVERACT_FABRIC_VOICE_RUNTIME_ENV_FILE` (default `./voice-runtime.env`), mode it `0600`, and list the exact variable names in `CONVERACT_FABRIC_VOICE_SECRET_ENV_NAMES`. Compose injects that file only into the application service. Never add credential values to Provider profile JSON or commit the runtime env file.
 
 For isolated server acceptance only, the optional `acceptance` profile starts the deterministic controlled provider on the Compose network without publishing a host port:
 
@@ -95,40 +95,40 @@ npm run test:e2e:ivekit-rustdesk
 Create the intentionally incomplete real-environment checklist, fill it from two real browsers and real Tinode, then validate it:
 
 ```bash
-OPC_IVEKIT_IM_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/im-template.json \
+CONVERACT_FABRIC_IM_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/im-template.json \
   npm run ivekit:im-client-acceptance || true
 
-OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE=/secure/evidence/im-report.json \
-OPC_IVEKIT_IM_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/im-result.json \
+CONVERACT_FABRIC_IM_ACCEPTANCE_REPORT_FILE=/secure/evidence/im-report.json \
+CONVERACT_FABRIC_IM_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/im-result.json \
   npm run ivekit:im-client-acceptance
 ```
 
-Without `OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE`, the command returns `not_run` and a nonzero exit status. Every passed check requires a unique, non-symlink JSON observation bound to the same check, run, environment, timestamp, and tool; layout observations also require a recorded human redaction review. Reports and observations must not contain API keys, authorization headers, JWTs, cookies, passwords, private keys, or provider secrets. A successful validator result means `ready_for_review`, not environment acceptance: a human must inspect the referenced captures and confirm the observations are genuine and redacted.
+Without `CONVERACT_FABRIC_IM_ACCEPTANCE_REPORT_FILE`, the command returns `not_run` and a nonzero exit status. Every passed check requires a unique, non-symlink JSON observation bound to the same check, run, environment, timestamp, and tool; layout observations also require a recorded human redaction review. Reports and observations must not contain API keys, authorization headers, JWTs, cookies, passwords, private keys, or provider secrets. A successful validator result means `ready_for_review`, not environment acceptance: a human must inspect the referenced captures and confirm the observations are genuine and redacted.
 
 Generate and validate the LiveKit real-client report separately. The template now includes reference-client checks for two-identity lifecycle, prejoin/device switching, desktop/mobile layout, screen share, moderation/revoke, recording/evidence, reconnect, and token non-persistence:
 
 ```bash
-OPC_LIVEKIT_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/livekit-template.json \
+CONVERACT_LIVEKIT_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/livekit-template.json \
   npm run livekit:client-acceptance || true
 
-OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE=/secure/evidence/livekit-report.json \
-OPC_LIVEKIT_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/livekit-result.json \
-OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE=/secure/evidence/qa-public.pem \
-OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT=replace_with_sha256 \
+CONVERACT_LIVEKIT_ACCEPTANCE_REPORT_FILE=/secure/evidence/livekit-report.json \
+CONVERACT_LIVEKIT_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/livekit-result.json \
+CONVERACT_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE=/secure/evidence/qa-public.pem \
+CONVERACT_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT=replace_with_sha256 \
   npm run livekit:client-acceptance
 ```
 
-Without `OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE`, this validator also returns `not_run` with a nonzero exit status. Every passed check needs a distinct SHA-256-bound JSON artifact from the real environment and an independent QA attestation. Controlled Playwright screenshots and events cannot satisfy real LiveKit, ICE/TURN, physical device, or Egress checks.
+Without `CONVERACT_LIVEKIT_ACCEPTANCE_REPORT_FILE`, this validator also returns `not_run` with a nonzero exit status. Every passed check needs a distinct SHA-256-bound JSON artifact from the real environment and an independent QA attestation. Controlled Playwright screenshots and events cannot satisfy real LiveKit, ICE/TURN, physical device, or Egress checks.
 
 Generate the RustDesk schema-v2 template separately. It requires exact hbbs/hbbr and native-client versions, agent/target platform and architecture, target ID, server key fingerprint, ID/relay path, and distinct operator/QA identities:
 
 ```bash
-OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/rustdesk-report.json \
+CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/rustdesk-report.json \
   npm run rustdesk:client-acceptance || true
 
-OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE=/secure/evidence/rustdesk-report.json \
-OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE=/secure/evidence/rustdesk-audit.jsonl \
-OPC_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/rustdesk-result.json \
+CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE=/secure/evidence/rustdesk-report.json \
+CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE=/secure/evidence/rustdesk-audit.jsonl \
+CONVERACT_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/rustdesk-result.json \
   npm run rustdesk:client-acceptance
 ```
 
@@ -137,8 +137,8 @@ Without a real report the result is `not_run`. Every check references a unique, 
 Generate the real Voice template and runbook before testing RustPBX, a SIP trunk/DID or approved SIP endpoint, browser WebRTC audio, IVR, recording, LiveKit SIP bridge, and Contact Center behavior. The full environment binding variables are documented in `docs/ivekit-voice-foundation-v1-design.md`; the validation step is:
 
 ```bash
-OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE=/secure/evidence/voice-report.json \
-OPC_IVEKIT_VOICE_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/voice-result.json \
+CONVERACT_FABRIC_VOICE_ACCEPTANCE_REPORT_FILE=/secure/evidence/voice-report.json \
+CONVERACT_FABRIC_VOICE_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/voice-result.json \
   npm run ivekit:voice-acceptance
 ```
 
@@ -158,7 +158,7 @@ All ordinary tables containing `tenant_id` must have both `relrowsecurity=true` 
 
 The iveKit application container never executes device commands. Install the edge agent and the matching files from `scripts/rustdesk-edge-adapters/` on each controlled Windows, macOS, or Linux device. Adapter processes are started with `shell:false`; dynamic values are individual allowlisted placeholders, never a server-provided command string.
 
-RustDesk OSS 1.4.9 does not expose a stable cross-platform CLI for terminating one incoming session. The `*-disconnect` wrapper therefore calls only a locally configured absolute-path session hook. If no version-specific hook exists it exits as unavailable, after which the `*-restart` adapter may restart the local RustDesk service with explicit collateral-session risk. Do not enable `OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=1` until validate mode, command claim/result, and real two-client disconnect observation all pass.
+RustDesk OSS 1.4.9 does not expose a stable cross-platform CLI for terminating one incoming session. The `*-disconnect` wrapper therefore calls only a locally configured absolute-path session hook. If no version-specific hook exists it exits as unavailable, after which the `*-restart` adapter may restart the local RustDesk service with explicit collateral-session risk. Do not enable `CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=1` until validate mode, command claim/result, and real two-client disconnect observation all pass.
 
 Every wrapper supports a non-mutating validate invocation. Linux example:
 
@@ -172,7 +172,7 @@ Every wrapper supports a non-mutating validate invocation. Linux example:
   --rustdesk-id 123456789 --reason gateway_ended
 ```
 
-Configure edge adapter args with the exact placeholders `{external_id}`, `{target_id}`, `{rustdesk_id}`, and `{requested_reason}`. The optional session hook, systemd service name, and launchd label are local-only settings (`OPC_RUSTDESK_SESSION_DISCONNECT_HOOK`, `OPC_RUSTDESK_SERVICE_NAME`, `OPC_RUSTDESK_LAUNCHD_LABEL`); the server cannot override them.
+Configure edge adapter args with the exact placeholders `{external_id}`, `{target_id}`, `{rustdesk_id}`, and `{requested_reason}`. The optional session hook, systemd service name, and launchd label are local-only settings (`CONVERACT_RUSTDESK_SESSION_DISCONNECT_HOOK`, `CONVERACT_RUSTDESK_SERVICE_NAME`, `CONVERACT_RUSTDESK_LAUNCHD_LABEL`); the server cannot override them.
 
 ## OPC Integration Upgrade And Recovery
 

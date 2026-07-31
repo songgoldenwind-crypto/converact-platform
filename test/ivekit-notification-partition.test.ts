@@ -41,10 +41,10 @@ test('Helm deploys notification workers as dynamically scalable competing consum
 
   assert.match(template, /kind: Deployment/i);
   assert.doesNotMatch(template, /partition_index="\$\{HOSTNAME##\*-\}"/);
-  assert.match(template, /OPC_IVEKIT_NOTIFICATION_PARTITION_COUNT[\s\S]*value: "1"/i);
-  assert.match(template, /OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX[\s\S]*value: "0"/i);
-  assert.match(template, /exec node dist\/ivekit-worker\.js/i);
-  assert.match(template, /OPC_TINODE_DELIVERY_WORKER_ENABLED[\s\S]*value: "0"/i);
+  assert.match(template, /CONVERACT_FABRIC_NOTIFICATION_PARTITION_COUNT[\s\S]*value: "1"/i);
+  assert.match(template, /CONVERACT_FABRIC_NOTIFICATION_PARTITION_INDEX[\s\S]*value: "0"/i);
+  assert.match(template, /exec node dist\/converact-worker\.js/i);
+  assert.match(template, /CONVERACT_TINODE_DELIVERY_WORKER_ENABLED[\s\S]*value: "0"/i);
   assert.match(values, /notificationWorker:[\s\S]*replicaCount: 2/i);
   assert.match(values, /notificationWorker:[\s\S]*autoscaling:[\s\S]*enabled: false/i);
   assert.match(template, /kind: ScaledObject/i);

@@ -12,7 +12,7 @@ test('iveKit internal TLS configuration is optional but all-or-none', () => {
   assert.equal(loadIveKitInternalTlsConfig({}), null);
   assert.throws(
     () => loadIveKitInternalTlsConfig({
-      OPC_IVEKIT_INTERNAL_TLS_PORT: '3443'
+      CONVERACT_FABRIC_INTERNAL_TLS_PORT: '3443'
     }),
     /configured together/
   );
@@ -30,10 +30,10 @@ test('iveKit internal TLS configuration reads bounded certificate files', () => 
 
   try {
     const config = loadIveKitInternalTlsConfig({
-      OPC_IVEKIT_INTERNAL_TLS_PORT: '3443',
-      OPC_IVEKIT_INTERNAL_TLS_KEY_FILE: key,
-      OPC_IVEKIT_INTERNAL_TLS_CERT_FILE: cert,
-      OPC_IVEKIT_INTERNAL_TLS_CLIENT_CA_FILE: ca
+      CONVERACT_FABRIC_INTERNAL_TLS_PORT: '3443',
+      CONVERACT_FABRIC_INTERNAL_TLS_KEY_FILE: key,
+      CONVERACT_FABRIC_INTERNAL_TLS_CERT_FILE: cert,
+      CONVERACT_FABRIC_INTERNAL_TLS_CLIENT_CA_FILE: ca
     });
 
     assert.equal(config?.port, 3443);
@@ -64,19 +64,19 @@ test(
       chmodSync(key, 0o444);
       assert.throws(
         () => loadIveKitInternalTlsConfig({
-          OPC_IVEKIT_INTERNAL_TLS_PORT: '3443',
-          OPC_IVEKIT_INTERNAL_TLS_KEY_FILE: key,
-          OPC_IVEKIT_INTERNAL_TLS_CERT_FILE: cert,
-          OPC_IVEKIT_INTERNAL_TLS_CLIENT_CA_FILE: ca
+          CONVERACT_FABRIC_INTERNAL_TLS_PORT: '3443',
+          CONVERACT_FABRIC_INTERNAL_TLS_KEY_FILE: key,
+          CONVERACT_FABRIC_INTERNAL_TLS_CERT_FILE: cert,
+          CONVERACT_FABRIC_INTERNAL_TLS_CLIENT_CA_FILE: ca
         }),
         /permissions/
       );
       chmodSync(key, 0o440);
       assert.doesNotThrow(() => loadIveKitInternalTlsConfig({
-        OPC_IVEKIT_INTERNAL_TLS_PORT: '3443',
-        OPC_IVEKIT_INTERNAL_TLS_KEY_FILE: key,
-        OPC_IVEKIT_INTERNAL_TLS_CERT_FILE: cert,
-        OPC_IVEKIT_INTERNAL_TLS_CLIENT_CA_FILE: ca
+        CONVERACT_FABRIC_INTERNAL_TLS_PORT: '3443',
+        CONVERACT_FABRIC_INTERNAL_TLS_KEY_FILE: key,
+        CONVERACT_FABRIC_INTERNAL_TLS_CERT_FILE: cert,
+        CONVERACT_FABRIC_INTERNAL_TLS_CLIENT_CA_FILE: ca
       }));
     } finally {
       rmSync(directory, { recursive: true, force: true });
@@ -96,19 +96,19 @@ test('iveKit internal TLS rejects relative and oversized files', () => {
   try {
     assert.throws(
       () => loadIveKitInternalTlsConfig({
-        OPC_IVEKIT_INTERNAL_TLS_PORT: '3443',
-        OPC_IVEKIT_INTERNAL_TLS_KEY_FILE: 'server.key',
-        OPC_IVEKIT_INTERNAL_TLS_CERT_FILE: cert,
-        OPC_IVEKIT_INTERNAL_TLS_CLIENT_CA_FILE: ca
+        CONVERACT_FABRIC_INTERNAL_TLS_PORT: '3443',
+        CONVERACT_FABRIC_INTERNAL_TLS_KEY_FILE: 'server.key',
+        CONVERACT_FABRIC_INTERNAL_TLS_CERT_FILE: cert,
+        CONVERACT_FABRIC_INTERNAL_TLS_CLIENT_CA_FILE: ca
       }),
       /absolute/
     );
     assert.throws(
       () => loadIveKitInternalTlsConfig({
-        OPC_IVEKIT_INTERNAL_TLS_PORT: '3443',
-        OPC_IVEKIT_INTERNAL_TLS_KEY_FILE: key,
-        OPC_IVEKIT_INTERNAL_TLS_CERT_FILE: cert,
-        OPC_IVEKIT_INTERNAL_TLS_CLIENT_CA_FILE: ca
+        CONVERACT_FABRIC_INTERNAL_TLS_PORT: '3443',
+        CONVERACT_FABRIC_INTERNAL_TLS_KEY_FILE: key,
+        CONVERACT_FABRIC_INTERNAL_TLS_CERT_FILE: cert,
+        CONVERACT_FABRIC_INTERNAL_TLS_CLIENT_CA_FILE: ca
       }),
       /size/
     );

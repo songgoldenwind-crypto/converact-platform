@@ -1,3 +1,4 @@
+import { resolveFabricEnv } from '../../../config/converact-env.js';
 import {
   createCipheriv,
   createDecipheriv,
@@ -118,8 +119,8 @@ export class EncryptedNotificationProtector {
 export function configuredNotificationProtector(
   env: NodeJS.ProcessEnv = process.env
 ): NotificationContentProtector {
-  const encryptionKey = String(env.OPC_IVEKIT_NOTIFICATION_ENCRYPTION_KEY || '');
-  const hmacKey = String(env.OPC_IVEKIT_NOTIFICATION_HMAC_KEY || '');
+  const encryptionKey = String(resolveFabricEnv(env, 'NOTIFICATION_ENCRYPTION_KEY') || '');
+  const hmacKey = String(resolveFabricEnv(env, 'NOTIFICATION_HMAC_KEY') || '');
   if (encryptionKey && hmacKey) {
     return new EncryptedNotificationProtector({
       encryption_key: encryptionKey,

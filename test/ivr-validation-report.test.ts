@@ -35,7 +35,7 @@ const incompleteMenuGraph: IvrFlowGraph = {
 };
 
 function setup() {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'IVR Validation Report Test' });
   const store = new IvrFlowStore(db);
@@ -90,7 +90,7 @@ test('GET validation-report?flowId= returns single flow entry', async () => {
 });
 
 test('POST /api/ivr/flows/validate returns save/publish blocked flags', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'IVR Validate API Test' });
 
@@ -108,7 +108,7 @@ test('POST /api/ivr/flows/validate returns save/publish blocked flags', async ()
 });
 
 test('POST complete-missing-edges patches menu handles', async () => {
-  process.env.OPC_API_KEY = API_KEY;
+  process.env.CONVERACT_API_KEY = API_KEY;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'IVR Complete Edges Test' });
 

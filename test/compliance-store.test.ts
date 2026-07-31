@@ -10,7 +10,7 @@ const TENANT = 'tenant_compliance_test';
 const PHONE = '+819012345678';
 
 before(async () => {
-  process.env.OPC_USE_MEMORY_PG = '1';
+  process.env.CONVERACT_USE_MEMORY_PG = '1';
   resetPostgresForTests(null);
   pg = (await initPostgres()) as MemoryPg;
   await pg.query(`INSERT INTO tenants (id, name, plan_code) VALUES ($1, $2, 'free') ON CONFLICT DO NOTHING`, [TENANT, 'Compliance Test']);

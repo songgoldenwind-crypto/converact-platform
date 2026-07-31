@@ -203,8 +203,8 @@ test('legacy ai agent dispatch requires tenant_id and matching room tenant', asy
 test('legacy livekit http management endpoints require opc api key when configured', async () => {
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Legacy LiveKit HTTP Auth' });
-  const previousApiKey = process.env.OPC_API_KEY;
-  process.env.OPC_API_KEY = 'legacy-livekit-key';
+  const previousApiKey = process.env.CONVERACT_API_KEY;
+  process.env.CONVERACT_API_KEY = 'legacy-livekit-key';
   try {
     await assert.rejects(
       () =>
@@ -278,9 +278,9 @@ test('legacy livekit http management endpoints require opc api key when configur
     assert.match(String(token.data?.token), /^dev-token:/);
   } finally {
     if (previousApiKey === undefined) {
-      delete process.env.OPC_API_KEY;
+      delete process.env.CONVERACT_API_KEY;
     } else {
-      process.env.OPC_API_KEY = previousApiKey;
+      process.env.CONVERACT_API_KEY = previousApiKey;
     }
     db.close();
   }
@@ -289,9 +289,9 @@ test('legacy livekit http management endpoints require opc api key when configur
 test('legacy livekit http management endpoints fail closed in production when opc api key is not configured', async () => {
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Legacy LiveKit Production Auth' });
-  const previousApiKey = process.env.OPC_API_KEY;
+  const previousApiKey = process.env.CONVERACT_API_KEY;
   const previousNodeEnv = process.env.NODE_ENV;
-  delete process.env.OPC_API_KEY;
+  delete process.env.CONVERACT_API_KEY;
   process.env.NODE_ENV = 'production';
 
   try {
@@ -319,9 +319,9 @@ test('legacy livekit http management endpoints fail closed in production when op
     );
   } finally {
     if (previousApiKey === undefined) {
-      delete process.env.OPC_API_KEY;
+      delete process.env.CONVERACT_API_KEY;
     } else {
-      process.env.OPC_API_KEY = previousApiKey;
+      process.env.CONVERACT_API_KEY = previousApiKey;
     }
     if (previousNodeEnv === undefined) {
       delete process.env.NODE_ENV;
@@ -338,16 +338,16 @@ test('legacy livekit webhook fails closed in production when LiveKit webhook cre
   const previousLiveKitUrl = process.env.LIVEKIT_URL;
   const previousLiveKitKey = process.env.LIVEKIT_API_KEY;
   const previousLiveKitSecret = process.env.LIVEKIT_API_SECRET;
-  const previousOpcLiveKitUrl = process.env.OPC_LIVEKIT_URL;
-  const previousOpcLiveKitKey = process.env.OPC_LIVEKIT_API_KEY;
-  const previousOpcLiveKitSecret = process.env.OPC_LIVEKIT_API_SECRET;
+  const previousOpcLiveKitUrl = process.env.CONVERACT_LIVEKIT_URL;
+  const previousOpcLiveKitKey = process.env.CONVERACT_LIVEKIT_API_KEY;
+  const previousOpcLiveKitSecret = process.env.CONVERACT_LIVEKIT_API_SECRET;
   process.env.NODE_ENV = 'production';
   delete process.env.LIVEKIT_URL;
   delete process.env.LIVEKIT_API_KEY;
   delete process.env.LIVEKIT_API_SECRET;
-  delete process.env.OPC_LIVEKIT_URL;
-  delete process.env.OPC_LIVEKIT_API_KEY;
-  delete process.env.OPC_LIVEKIT_API_SECRET;
+  delete process.env.CONVERACT_LIVEKIT_URL;
+  delete process.env.CONVERACT_LIVEKIT_API_KEY;
+  delete process.env.CONVERACT_LIVEKIT_API_SECRET;
 
   try {
     await assert.rejects(
@@ -380,12 +380,12 @@ test('legacy livekit webhook fails closed in production when LiveKit webhook cre
     else process.env.LIVEKIT_API_KEY = previousLiveKitKey;
     if (previousLiveKitSecret === undefined) delete process.env.LIVEKIT_API_SECRET;
     else process.env.LIVEKIT_API_SECRET = previousLiveKitSecret;
-    if (previousOpcLiveKitUrl === undefined) delete process.env.OPC_LIVEKIT_URL;
-    else process.env.OPC_LIVEKIT_URL = previousOpcLiveKitUrl;
-    if (previousOpcLiveKitKey === undefined) delete process.env.OPC_LIVEKIT_API_KEY;
-    else process.env.OPC_LIVEKIT_API_KEY = previousOpcLiveKitKey;
-    if (previousOpcLiveKitSecret === undefined) delete process.env.OPC_LIVEKIT_API_SECRET;
-    else process.env.OPC_LIVEKIT_API_SECRET = previousOpcLiveKitSecret;
+    if (previousOpcLiveKitUrl === undefined) delete process.env.CONVERACT_LIVEKIT_URL;
+    else process.env.CONVERACT_LIVEKIT_URL = previousOpcLiveKitUrl;
+    if (previousOpcLiveKitKey === undefined) delete process.env.CONVERACT_LIVEKIT_API_KEY;
+    else process.env.CONVERACT_LIVEKIT_API_KEY = previousOpcLiveKitKey;
+    if (previousOpcLiveKitSecret === undefined) delete process.env.CONVERACT_LIVEKIT_API_SECRET;
+    else process.env.CONVERACT_LIVEKIT_API_SECRET = previousOpcLiveKitSecret;
     db.close();
   }
 });

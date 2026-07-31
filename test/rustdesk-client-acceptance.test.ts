@@ -18,9 +18,9 @@ import {
 
 test('RustDesk client acceptance reads report and optional output paths from env', () => {
   const config = createRustDeskClientAcceptanceConfigFromEnv({
-    OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE: '/tmp/rustdesk-acceptance.json',
-    OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE: '/tmp/rustdesk-audit.jsonl',
-    OPC_RUSTDESK_ACCEPTANCE_OUTPUT_FILE: '/tmp/rustdesk-acceptance-result.json'
+    CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE: '/tmp/rustdesk-acceptance.json',
+    CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE: '/tmp/rustdesk-audit.jsonl',
+    CONVERACT_RUSTDESK_ACCEPTANCE_OUTPUT_FILE: '/tmp/rustdesk-acceptance-result.json'
   });
 
   assert.equal(config.reportFile, '/tmp/rustdesk-acceptance.json');
@@ -137,10 +137,10 @@ test('RustDesk client acceptance can generate a complete report template', () =>
   const dir = mkdtempSync(join(tmpdir(), 'rustdesk-acceptance-template-'));
   const templateFile = join(dir, 'template.json');
   const config = createRustDeskClientAcceptanceTemplateConfigFromEnv({
-    OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE: templateFile,
-    OPC_RUSTDESK_ACCEPTANCE_EXTERNAL_ID: 'rdgw_template',
-    OPC_RUSTDESK_ACCEPTANCE_RUSTDESK_ID: '987654321',
-    OPC_RUSTDESK_ACCEPTANCE_OPERATOR: 'agent_template'
+    CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE: templateFile,
+    CONVERACT_RUSTDESK_ACCEPTANCE_EXTERNAL_ID: 'rdgw_template',
+    CONVERACT_RUSTDESK_ACCEPTANCE_RUSTDESK_ID: '987654321',
+    CONVERACT_RUSTDESK_ACCEPTANCE_OPERATOR: 'agent_template'
   });
 
   const template = writeRustDeskClientAcceptanceTemplate(config);
@@ -193,7 +193,7 @@ test('RustDesk client acceptance reports not_run when no real report is supplied
   assert.deepEqual(runRustDeskClientAcceptanceFromEnv({}), {
     ok: false,
     status: 'not_run',
-    missing_environment: ['OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE']
+    missing_environment: ['CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE']
   });
 });
 
@@ -246,10 +246,10 @@ test('RustDesk client acceptance can generate a real-client operation runbook', 
   const dir = mkdtempSync(join(tmpdir(), 'rustdesk-acceptance-runbook-'));
   const runbookFile = join(dir, 'client-acceptance-runbook.md');
   const config = createRustDeskClientAcceptanceRunbookConfigFromEnv({
-    OPC_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE: runbookFile,
-    OPC_RUSTDESK_ACCEPTANCE_EXTERNAL_ID: 'rdgw_runbook',
-    OPC_RUSTDESK_ACCEPTANCE_RUSTDESK_ID: '987654321',
-    OPC_RUSTDESK_ACCEPTANCE_OPERATOR: 'agent_runbook'
+    CONVERACT_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE: runbookFile,
+    CONVERACT_RUSTDESK_ACCEPTANCE_EXTERNAL_ID: 'rdgw_runbook',
+    CONVERACT_RUSTDESK_ACCEPTANCE_RUSTDESK_ID: '987654321',
+    CONVERACT_RUSTDESK_ACCEPTANCE_OPERATOR: 'agent_runbook'
   });
 
   const result = writeRustDeskClientAcceptanceRunbook(config);
@@ -273,10 +273,10 @@ test('RustDesk client acceptance can generate a real-client operation runbook', 
   assert.match(markdown, /disconnect command status/i);
   assert.match(markdown, /operator.*screen\/control access stopped/i);
   assert.match(markdown, /old signed launch URL returns 409/);
-  assert.match(markdown, /OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE/);
-  assert.match(markdown, /OPC_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE/);
   assert.match(markdown, /rustdesk:audit-coverage/);
-  assert.match(markdown, /OPC_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE/);
+  assert.match(markdown, /CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE/);
   assert.match(markdown, /rustdesk:evidence-pack/);
 });
 
@@ -285,22 +285,22 @@ test('RustDesk client acceptance is exposed as a package script with env samples
   assert.equal(packageJson.scripts['rustdesk:client-acceptance'], 'tsx scripts/rustdesk-client-acceptance.ts');
 
   const rootEnv = readFileSync('.env.example', 'utf8');
-  assert.match(rootEnv, /OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_ACCEPTANCE_EXTERNAL_ID=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_ACCEPTANCE_RUSTDESK_ID=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_EXTERNAL_ID=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_RUSTDESK_ID=/);
 
   const productionEnv = readFileSync('infra/env.example', 'utf8');
-  assert.match(productionEnv, /OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE=/);
-  assert.match(productionEnv, /OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE=/);
-  assert.match(productionEnv, /OPC_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/);
-  assert.match(productionEnv, /OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=/);
-  assert.match(productionEnv, /OPC_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE=/);
-  assert.match(productionEnv, /OPC_RUSTDESK_ACCEPTANCE_EXTERNAL_ID=/);
-  assert.match(productionEnv, /OPC_RUSTDESK_ACCEPTANCE_RUSTDESK_ID=/);
+  assert.match(productionEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE=/);
+  assert.match(productionEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE=/);
+  assert.match(productionEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/);
+  assert.match(productionEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=/);
+  assert.match(productionEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE=/);
+  assert.match(productionEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_EXTERNAL_ID=/);
+  assert.match(productionEnv, /CONVERACT_RUSTDESK_ACCEPTANCE_RUSTDESK_ID=/);
 });
 
 function completeReport(dir: string) {

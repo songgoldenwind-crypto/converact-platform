@@ -10,18 +10,18 @@ import {
 
 test('iveKit RustDesk LED example config maps focused env and defaults', () => {
   const config = createIveKitRustDeskLedExampleConfigFromEnv({
-    OPC_RUSTDESK_LED_EXAMPLE_BASE_URL: 'https://opc.example.com/',
-    OPC_RUSTDESK_LED_EXAMPLE_API_KEY: 'led-api-key',
-    OPC_RUSTDESK_LED_EXAMPLE_TENANT_ID: 'tenant_led',
-    OPC_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID: 'remote_led_1',
-    OPC_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID: '987654321',
-    OPC_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_TYPE: 'led_order',
-    OPC_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_ID: 'LED-1',
-    OPC_RUSTDESK_LED_EXAMPLE_DEVICE_DISPLAY_NAME: 'LED controller',
-    OPC_RUSTDESK_LED_EXAMPLE_ACTOR_IDENTITY: 'agent_led',
-    OPC_RUSTDESK_LED_EXAMPLE_PERMISSIONS: 'view_screen,control_mouse_keyboard,clipboard',
-    OPC_RUSTDESK_LED_EXAMPLE_POST_AUDIT_PROBE: '1',
-    OPC_RUSTDESK_LED_EXAMPLE_END_SESSION: '1'
+    CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_API_KEY: 'led-api-key',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_TENANT_ID: 'tenant_led',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID: 'remote_led_1',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID: '987654321',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_TYPE: 'led_order',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_BUSINESS_REF_ID: 'LED-1',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_DEVICE_DISPLAY_NAME: 'LED controller',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_ACTOR_IDENTITY: 'agent_led',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_PERMISSIONS: 'view_screen,control_mouse_keyboard,clipboard',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_POST_AUDIT_PROBE: '1',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_END_SESSION: '1'
   });
 
   assert.equal(config.baseUrl, 'https://opc.example.com');
@@ -111,14 +111,14 @@ test('iveKit RustDesk LED example is exposed as a runnable handoff script with e
   assert.equal(packageJson.scripts['rustdesk:led-example'], 'tsx scripts/ivekit-rustdesk-led-example.ts');
 
   const rootEnv = readFileSync('.env.example', 'utf8');
-  assert.match(rootEnv, /OPC_RUSTDESK_LED_EXAMPLE_BASE_URL=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID=/);
-  assert.match(rootEnv, /OPC_RUSTDESK_LED_EXAMPLE_DEVICE_ID=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID=/);
+  assert.match(rootEnv, /CONVERACT_RUSTDESK_LED_EXAMPLE_DEVICE_ID=/);
 
   const productionEnv = readFileSync('infra/env.example', 'utf8');
-  assert.match(productionEnv, /OPC_RUSTDESK_LED_EXAMPLE_BASE_URL=/);
-  assert.match(productionEnv, /OPC_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID=/);
-  assert.match(productionEnv, /OPC_RUSTDESK_LED_EXAMPLE_DEVICE_ID=/);
+  assert.match(productionEnv, /CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL=/);
+  assert.match(productionEnv, /CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID=/);
+  assert.match(productionEnv, /CONVERACT_RUSTDESK_LED_EXAMPLE_DEVICE_ID=/);
 });
 
 function fakeClient(calls: string[]): IveKitRustDeskHttpClient {

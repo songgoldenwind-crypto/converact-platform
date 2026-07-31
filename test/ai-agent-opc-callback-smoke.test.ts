@@ -57,28 +57,28 @@ test('ai agent opc callback smoke validates legacy business dispatch with tenant
 test('ai agent opc callback smoke config requires base url api keys and tenant', () => {
   assert.throws(
     () => createAiAgentOpcCallbackSmokeConfigFromEnv({}),
-    /OPC_BASE_URL/
+    /CONVERACT_BASE_URL/
   );
   assert.throws(
-    () => createAiAgentOpcCallbackSmokeConfigFromEnv({ OPC_BASE_URL: 'http://localhost:3000' }),
-    /OPC_API_KEY/
-  );
-  assert.throws(
-    () =>
-      createAiAgentOpcCallbackSmokeConfigFromEnv({
-        OPC_BASE_URL: 'http://localhost:3000',
-        OPC_API_KEY: 'opc-key'
-      }),
-    /OPC_MEDIA_API_TOKEN/
+    () => createAiAgentOpcCallbackSmokeConfigFromEnv({ CONVERACT_BASE_URL: 'http://localhost:3000' }),
+    /CONVERACT_API_KEY/
   );
   assert.throws(
     () =>
       createAiAgentOpcCallbackSmokeConfigFromEnv({
-        OPC_BASE_URL: 'http://localhost:3000',
-        OPC_API_KEY: 'opc-key',
-        OPC_MEDIA_API_TOKEN: 'media-token'
+        CONVERACT_BASE_URL: 'http://localhost:3000',
+        CONVERACT_API_KEY: 'opc-key'
       }),
-    /OPC_AI_CALLBACK_SMOKE_TENANT_ID/
+    /CONVERACT_MEDIA_API_TOKEN/
+  );
+  assert.throws(
+    () =>
+      createAiAgentOpcCallbackSmokeConfigFromEnv({
+        CONVERACT_BASE_URL: 'http://localhost:3000',
+        CONVERACT_API_KEY: 'opc-key',
+        CONVERACT_MEDIA_API_TOKEN: 'media-token'
+      }),
+    /CONVERACT_AI_CALLBACK_SMOKE_TENANT_ID/
   );
 });
 

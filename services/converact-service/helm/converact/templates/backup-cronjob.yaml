@@ -40,15 +40,15 @@ spec:
                     name: {{ . }}
               {{- end }}
               env:
-                - name: OPC_IVEKIT_ADMIN_DATABASE_URL
+                - name: CONVERACT_FABRIC_ADMIN_DATABASE_URL
                   valueFrom:
                     secretKeyRef:
                       name: {{ include "ivekit.secretName" . }}
                       key: {{ .Values.secrets.adminDatabaseUrlKey }}
-                - name: OPC_IVEKIT_BACKUP_ROOT
+                - name: CONVERACT_FABRIC_BACKUP_ROOT
                   value: {{ .Values.backup.backupRoot | quote }}
                 {{- if .Values.backup.localObjectStorage.existingClaim }}
-                - name: OPC_UPLOAD_DIR
+                - name: CONVERACT_UPLOAD_DIR
                   value: {{ .Values.backup.localObjectStorage.mountPath | quote }}
                 {{- end }}
               securityContext:

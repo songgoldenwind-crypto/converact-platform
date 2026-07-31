@@ -14,8 +14,8 @@ import { isInDialingWindow, isTaskReadyForRetry } from '../src/agent-runtime/cal
 import { initPostgres, resetPostgresForTests, type MemoryPg } from '../src/db-pg.js';
 import { verifyMediaInvite } from '../src/agent-runtime/livekit/invite-token.js';
 
-process.env.OPC_DIALER_IGNORE_WINDOW = '1';
-process.env.OPC_DIALER_ANSWER_TIMEOUT_MS = '500';
+process.env.CONVERACT_DIALER_IGNORE_WINDOW = '1';
+process.env.CONVERACT_DIALER_ANSWER_TIMEOUT_MS = '500';
 
 let pg: MemoryPg;
 
@@ -26,8 +26,8 @@ let pg: MemoryPg;
 // with 'compliance_database_unavailable'. Also freeze compliance time to a
 // weekday business hour so the time-window check passes.
 before(async () => {
-  process.env.OPC_USE_MEMORY_PG = '1';
-  process.env.OPC_COMPLIANCE_NOW = '2026-06-23T02:00:00Z'; // 11:00 Asia/Tokyo, Tue
+  process.env.CONVERACT_USE_MEMORY_PG = '1';
+  process.env.CONVERACT_COMPLIANCE_NOW = '2026-06-23T02:00:00Z'; // 11:00 Asia/Tokyo, Tue
   resetPostgresForTests(null);
   pg = (await initPostgres()) as MemoryPg;
 });
@@ -257,9 +257,9 @@ test('dialer retries on no_answer', async () => {
 });
 
 test('dialer video_link_sms reaches connected when customer joins', async () => {
-  const previousInviteSecret = process.env.OPC_MEDIA_INVITE_SECRET;
-  process.env.OPC_DIALER_CUSTOMER_JOIN_TIMEOUT_MS = '2000';
-  process.env.OPC_MEDIA_INVITE_SECRET = 'dialer-video-invite-secret';
+  const previousInviteSecret = process.env.CONVERACT_MEDIA_INVITE_SECRET;
+  process.env.CONVERACT_DIALER_CUSTOMER_JOIN_TIMEOUT_MS = '2000';
+  process.env.CONVERACT_MEDIA_INVITE_SECRET = 'dialer-video-invite-secret';
 
   try {
     const db = createDatabase(':memory:');
@@ -312,16 +312,16 @@ test('dialer video_link_sms reaches connected when customer joins', async () => 
     assert.ok(updated);
     assert.equal(updated.status, 'connected');
   } finally {
-    if (previousInviteSecret == null) delete process.env.OPC_MEDIA_INVITE_SECRET;
-    else process.env.OPC_MEDIA_INVITE_SECRET = previousInviteSecret;
+    if (previousInviteSecret == null) delete process.env.CONVERACT_MEDIA_INVITE_SECRET;
+    else process.env.CONVERACT_MEDIA_INVITE_SECRET = previousInviteSecret;
   }
 });
 
 test('dialing window blocks outside JST business hours when enabled', () => {
-  delete process.env.OPC_DIALER_IGNORE_WINDOW;
+  delete process.env.CONVERACT_DIALER_IGNORE_WINDOW;
   const lateNight = new Date('2026-06-15T20:00:00Z');
   assert.equal(isInDialingWindow('t1', lateNight), false);
-  process.env.OPC_DIALER_IGNORE_WINDOW = '1';
+  process.env.CONVERACT_DIALER_IGNORE_WINDOW = '1';
 });
 
 async function waitFor(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {

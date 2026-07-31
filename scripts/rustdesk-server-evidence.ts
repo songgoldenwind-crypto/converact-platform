@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { createHash } from 'node:crypto';
 import { promises as dns } from 'node:dns';
 import { createSocket } from 'node:dgram';
@@ -85,21 +86,21 @@ const DEFAULT_HBBR_TCP_PORTS = [21117, 21119];
 const DEFAULT_UDP_PORTS = [21116];
 
 export function createRustDeskServerEvidenceConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskServerEvidenceConfig {
-  const outputFile = optionalString(env.OPC_RUSTDESK_SERVER_EVIDENCE_FILE);
-  const publicKeyFile = optionalString(env.OPC_RUSTDESK_PUBLIC_KEY_FILE) || '/rustdesk/id_ed25519.pub';
-  const idServer = rustDeskEndpointHost(env.OPC_RUSTDESK_CHECK_HOST || env.OPC_RUSTDESK_ID_SERVER);
-  const relayServer = rustDeskEndpointHost(env.OPC_RUSTDESK_RELAY_SERVER) || idServer;
+  const outputFile = optionalString(resolveBrandEnv(env, 'RUSTDESK_SERVER_EVIDENCE_FILE'));
+  const publicKeyFile = optionalString(resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY_FILE')) || '/rustdesk/id_ed25519.pub';
+  const idServer = rustDeskEndpointHost(resolveBrandEnv(env, 'RUSTDESK_CHECK_HOST') || resolveBrandEnv(env, 'RUSTDESK_ID_SERVER'));
+  const relayServer = rustDeskEndpointHost(resolveBrandEnv(env, 'RUSTDESK_RELAY_SERVER')) || idServer;
   const launchBaseUrl = stripTrailingSlash(optionalString(
-    env.OPC_RUSTDESK_LAUNCH_BASE_URL ||
-    env.OPC_BASE_URL ||
-    env.OPC_REMOTE_GATEWAY_BASE_URL ||
-    env.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL
+    resolveBrandEnv(env, 'RUSTDESK_LAUNCH_BASE_URL') ||
+    resolveBrandEnv(env, 'BASE_URL') ||
+    resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL')
   ));
-  const timeoutMs = positiveInteger(env.OPC_RUSTDESK_SERVER_EVIDENCE_TIMEOUT_MS || env.OPC_RUSTDESK_CHECK_TIMEOUT_MS, 1500);
+  const timeoutMs = positiveInteger(resolveBrandEnv(env, 'RUSTDESK_SERVER_EVIDENCE_TIMEOUT_MS') || resolveBrandEnv(env, 'RUSTDESK_CHECK_TIMEOUT_MS'), 1500);
 
-  if (!idServer) throw new Error('OPC_RUSTDESK_ID_SERVER or OPC_RUSTDESK_CHECK_HOST is required');
-  if (!relayServer) throw new Error('OPC_RUSTDESK_RELAY_SERVER or OPC_RUSTDESK_ID_SERVER is required');
-  if (!launchBaseUrl) throw new Error('OPC_RUSTDESK_LAUNCH_BASE_URL or OPC_BASE_URL is required');
+  if (!idServer) throw new Error('CONVERACT_RUSTDESK_ID_SERVER or CONVERACT_RUSTDESK_CHECK_HOST is required');
+  if (!relayServer) throw new Error('CONVERACT_RUSTDESK_RELAY_SERVER or CONVERACT_RUSTDESK_ID_SERVER is required');
+  if (!launchBaseUrl) throw new Error('CONVERACT_RUSTDESK_LAUNCH_BASE_URL or CONVERACT_BASE_URL is required');
 
   return {
     ...(outputFile ? { outputFile } : {}),
@@ -107,9 +108,9 @@ export function createRustDeskServerEvidenceConfigFromEnv(env: NodeJS.ProcessEnv
     idServer,
     relayServer,
     launchBaseUrl,
-    hbbsTcpPorts: parsePorts(env.OPC_RUSTDESK_SERVER_EVIDENCE_HBBS_TCP_PORTS, DEFAULT_HBBS_TCP_PORTS),
-    hbbrTcpPorts: parsePorts(env.OPC_RUSTDESK_SERVER_EVIDENCE_HBBR_TCP_PORTS, DEFAULT_HBBR_TCP_PORTS),
-    udpPorts: parsePorts(env.OPC_RUSTDESK_SERVER_EVIDENCE_UDP_PORTS, DEFAULT_UDP_PORTS),
+    hbbsTcpPorts: parsePorts(resolveBrandEnv(env, 'RUSTDESK_SERVER_EVIDENCE_HBBS_TCP_PORTS'), DEFAULT_HBBS_TCP_PORTS),
+    hbbrTcpPorts: parsePorts(resolveBrandEnv(env, 'RUSTDESK_SERVER_EVIDENCE_HBBR_TCP_PORTS'), DEFAULT_HBBR_TCP_PORTS),
+    udpPorts: parsePorts(resolveBrandEnv(env, 'RUSTDESK_SERVER_EVIDENCE_UDP_PORTS'), DEFAULT_UDP_PORTS),
     timeoutMs
   };
 }
@@ -154,7 +155,7 @@ export async function writeRustDeskServerEvidence(
   config: RustDeskServerEvidenceConfig,
   probes: RustDeskServerEvidenceProbes = defaultRustDeskServerEvidenceProbes()
 ): Promise<RustDeskServerEvidenceWriteResult> {
-  if (!config.outputFile) throw new Error('OPC_RUSTDESK_SERVER_EVIDENCE_FILE is required when writing server evidence');
+  if (!config.outputFile) throw new Error('CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE is required when writing server evidence');
   const result = await collectRustDeskServerEvidence(config, probes);
   mkdirSync(dirname(config.outputFile), { recursive: true });
   writeFileSync(config.outputFile, `${JSON.stringify(result, null, 2)}\n`, 'utf8');

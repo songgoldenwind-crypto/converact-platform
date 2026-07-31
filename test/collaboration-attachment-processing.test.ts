@@ -1,3 +1,4 @@
+import { resolveConveractEnv } from '../src/config/converact-env.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -386,7 +387,7 @@ test('screen recording attachments select ASR processing', async () => {
 test('tenant policy selects and audits attachment provider profiles', async () => {
   const pg = new MemoryPg();
   const env: NodeJS.ProcessEnv = {
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([
       {
         id: 'ocr-private-a',
         capability: 'ocr',
@@ -482,7 +483,7 @@ test('tenant policy selects and audits attachment provider profiles', async () =
 test('disabled and non-automatic attachment policy records explicit retryable cancellation', async () => {
   const pg = new MemoryPg();
   const registry = createIntelligenceProviderRegistry({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
       id: 'ocr-private',
       capability: 'ocr',
       mode: 'self_hosted',
@@ -556,10 +557,10 @@ test('disabled and non-automatic attachment policy records explicit retryable ca
 });
 
 test('collaboration attachment upload enforces size and returns a pending processable descriptor', async () => {
-  const previous = snapshotEnv(['OPC_API_KEY', 'OPC_UPLOAD_DIR', 'OPC_COLLABORATION_ATTACHMENT_MAX_BYTES']);
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'opc-attachment-upload-'));
-  process.env.OPC_COLLABORATION_ATTACHMENT_MAX_BYTES = '16';
+  const previous = snapshotEnv(['CONVERACT_API_KEY', 'CONVERACT_UPLOAD_DIR', 'CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES']);
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'opc-attachment-upload-'));
+  process.env.CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES = '16';
   try {
     const pg = new MemoryPg();
     const store = new CollaborationStore(pg);
@@ -733,13 +734,13 @@ test('attachment processing migration defines durable jobs, extraction fields, a
 test('attachment worker enables only with a configured provider and validates runtime bounds', () => {
   assert.equal(attachmentProcessingWorkerConfig({}).enabled, false);
   const config = attachmentProcessingWorkerConfig({
-    OPC_OCR_BASE_URL: 'http://ocr.internal:8080',
-    OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED: '1',
-    OPC_ATTACHMENT_PROCESSING_INTERVAL_MS: '2500',
-    OPC_ATTACHMENT_PROCESSING_BATCH_SIZE: '12',
-    OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS: '4',
-    OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS: '45000',
-    OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS: '1000,5000'
+    CONVERACT_OCR_BASE_URL: 'http://ocr.internal:8080',
+    CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED: '1',
+    CONVERACT_ATTACHMENT_PROCESSING_INTERVAL_MS: '2500',
+    CONVERACT_ATTACHMENT_PROCESSING_BATCH_SIZE: '12',
+    CONVERACT_ATTACHMENT_PROCESSING_MAX_ATTEMPTS: '4',
+    CONVERACT_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS: '45000',
+    CONVERACT_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS: '1000,5000'
   });
   assert.deepEqual(config, {
     enabled: true,
@@ -751,8 +752,8 @@ test('attachment worker enables only with a configured provider and validates ru
   });
   assert.throws(
     () => attachmentProcessingWorkerConfig({
-      OPC_OCR_BASE_URL: 'http://ocr.internal',
-      OPC_ATTACHMENT_PROCESSING_BATCH_SIZE: '0'
+      CONVERACT_OCR_BASE_URL: 'http://ocr.internal',
+      CONVERACT_ATTACHMENT_PROCESSING_BATCH_SIZE: '0'
     }),
     /BATCH_SIZE/
   );
@@ -760,12 +761,12 @@ test('attachment worker enables only with a configured provider and validates ru
 
 test('attachment worker claim lease covers the longest configured provider reservation', () => {
   const config = attachmentProcessingWorkerConfig({
-    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+    CONVERACT_FABRIC_PROVIDER_PROFILES_JSON: JSON.stringify([{
       id: 'slow-ocr', capability: 'ocr', mode: 'self_hosted',
       base_url: 'http://slow-ocr:8080', timeout_ms: 300_000,
       reservation_ttl_ms: 305_000
     }]),
-    OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS: '60000'
+    CONVERACT_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS: '60000'
   });
   assert.equal(config.claimLeaseMs >= 310_000, true);
 });
@@ -826,11 +827,11 @@ test('attachment processing preflight validates provider, Postgres, storage, and
     MINIO_BUCKET: 'recordings',
     MINIO_ACCESS_KEY: 'minio-user',
     MINIO_SECRET_KEY: 'minio-secret',
-    OPC_OCR_PROVIDER_MODE: 'third_party',
-    OPC_OCR_BASE_URL: 'https://ocr.example.test',
-    OPC_OCR_TOKEN: 'ocr-super-secret',
-    OPC_OCR_TIMEOUT_MS: '10000',
-    OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED: '1'
+    CONVERACT_OCR_PROVIDER_MODE: 'third_party',
+    CONVERACT_OCR_BASE_URL: 'https://ocr.example.test',
+    CONVERACT_OCR_TOKEN: 'ocr-super-secret',
+    CONVERACT_OCR_TIMEOUT_MS: '10000',
+    CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED: '1'
   });
   assert.equal(configured.ready, true);
   const serialized = JSON.stringify(configured);
@@ -848,10 +849,10 @@ test('attachment processing deployment surfaces expose every provider and worker
     readFileSync('infra/k8s/templates/opc-deployment.yaml', 'utf8')
   ];
   for (const source of sources) {
-    assert.match(source, /OPC_OCR_BASE_URL|ocrBaseUrl/);
-    assert.match(source, /OPC_ASR_BASE_URL|asrBaseUrl/);
-    assert.match(source, /OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED|worker:\s*\n\s*enabled/);
-    assert.match(source, /OPC_COLLABORATION_ATTACHMENT_MAX_BYTES|attachmentMaxBytes/);
+    assert.match(source, /CONVERACT_OCR_BASE_URL|ocrBaseUrl/);
+    assert.match(source, /CONVERACT_ASR_BASE_URL|asrBaseUrl/);
+    assert.match(source, /CONVERACT_ATTACHMENT_PROCESSING_WORKER_ENABLED|worker:\s*\n\s*enabled/);
+    assert.match(source, /CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES|attachmentMaxBytes/);
   }
   const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> };
   assert.equal(pkg.scripts['attachment:deployment-preflight'], 'tsx scripts/attachment-processing-preflight.ts');
@@ -894,7 +895,7 @@ async function createAttachmentMessage(
 }
 
 function snapshotEnv(keys: string[]): Map<string, string | undefined> {
-  return new Map(keys.map((key) => [key, process.env[key]]));
+  return new Map(keys.map((key) => [key, resolveConveractEnv(process.env, key)]));
 }
 
 function restoreEnv(snapshot: Map<string, string | undefined>): void {

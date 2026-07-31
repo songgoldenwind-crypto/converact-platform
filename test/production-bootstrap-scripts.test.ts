@@ -73,7 +73,7 @@ function createPostgresFixture(overrides: NodeJS.ProcessEnv = {}) {
     POSTGRES_USER: 'opc',
     POSTGRES_PASSWORD: 'postgres-test-secret',
     POSTGRES_MAINTENANCE_DATABASE: 'postgres',
-    OPC_POSTGRES_BOOTSTRAP_DATABASES: 'keycloak,tinode',
+    CONVERACT_POSTGRES_BOOTSTRAP_DATABASES: 'keycloak,tinode',
     FAKE_PSQL_LOG: logFile,
     FAKE_PSQL_STATE: stateDir,
     ...overrides
@@ -166,7 +166,7 @@ test('PostgreSQL bootstrap creates requested databases once and verifies them', 
 
 test('PostgreSQL bootstrap rejects unsupported database names before psql', () => {
   const fixture = createPostgresFixture({
-    OPC_POSTGRES_BOOTSTRAP_DATABASES: 'keycloak,customer_data'
+    CONVERACT_POSTGRES_BOOTSTRAP_DATABASES: 'keycloak,customer_data'
   });
   const result = fixture.run();
 
@@ -208,7 +208,7 @@ test('PostgreSQL bootstrap propagates create failures without leaking secrets', 
 
 test('PostgreSQL bootstrap rejects an existing database owned by another role', () => {
   const fixture = createPostgresFixture({
-    OPC_POSTGRES_BOOTSTRAP_DATABASES: 'keycloak',
+    CONVERACT_POSTGRES_BOOTSTRAP_DATABASES: 'keycloak',
     FAKE_PSQL_WRONG_OWNER: '1'
   });
   writeFileSync(join(fixture.stateDir, 'keycloak'), '', 'utf8');
@@ -221,7 +221,7 @@ test('PostgreSQL bootstrap rejects an existing database owned by another role', 
 
 test('PostgreSQL bootstrap isolates RustPBX behind its dedicated role', () => {
   const fixture = createPostgresFixture({
-    OPC_POSTGRES_BOOTSTRAP_DATABASES: 'rustpbx',
+    CONVERACT_POSTGRES_BOOTSTRAP_DATABASES: 'rustpbx',
     RUSTPBX_DB_PASSWORD: 'rustpbx-database-secret'
   });
   const result = fixture.run();
@@ -236,7 +236,7 @@ test('PostgreSQL bootstrap isolates RustPBX behind its dedicated role', () => {
 
 test('PostgreSQL bootstrap refuses RustPBX without its distinct password', () => {
   const fixture = createPostgresFixture({
-    OPC_POSTGRES_BOOTSTRAP_DATABASES: 'rustpbx',
+    CONVERACT_POSTGRES_BOOTSTRAP_DATABASES: 'rustpbx',
     RUSTPBX_DB_PASSWORD: ''
   });
   const result = fixture.run();

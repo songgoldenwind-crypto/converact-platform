@@ -43,10 +43,10 @@ const mutationDeadLetter = {
 };
 
 test('iveKit Tinode operations facade is admin-only, tenant-scoped, and emits replay audit events', async () => {
-  const previousKey = process.env.OPC_API_KEY;
-  const previousJwtSecret = process.env.OPC_JWT_SECRET;
-  process.env.OPC_API_KEY = API_KEY;
-  process.env.OPC_JWT_SECRET = 'tinode-operations-jwt-secret-32-bytes';
+  const previousKey = process.env.CONVERACT_API_KEY;
+  const previousJwtSecret = process.env.CONVERACT_JWT_SECRET;
+  process.env.CONVERACT_API_KEY = API_KEY;
+  process.env.CONVERACT_JWT_SECRET = 'tinode-operations-jwt-secret-32-bytes';
   const calls: Array<Record<string, unknown>> = [];
   const events: Array<{ tenant: string; type: string; data: unknown }> = [];
   const options = {
@@ -158,10 +158,10 @@ test('iveKit Tinode operations facade is admin-only, tenant-scoped, and emits re
       (error: unknown) => Number((error as { status?: unknown })?.status) === 403
     );
   } finally {
-    if (previousKey === undefined) delete process.env.OPC_API_KEY;
-    else process.env.OPC_API_KEY = previousKey;
-    if (previousJwtSecret === undefined) delete process.env.OPC_JWT_SECRET;
-    else process.env.OPC_JWT_SECRET = previousJwtSecret;
+    if (previousKey === undefined) delete process.env.CONVERACT_API_KEY;
+    else process.env.CONVERACT_API_KEY = previousKey;
+    if (previousJwtSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousJwtSecret;
   }
 });
 

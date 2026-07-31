@@ -1,3 +1,4 @@
+import { resolveBrandEnv } from '../config/converact-env.js';
 import { ApprovalPolicy } from './approval/approval-policy.js';
 import { AIWorkerClient } from './ai/ai-worker-client.js';
 import { ApprovalQueue } from './approval/approval-queue.js';
@@ -162,7 +163,7 @@ export function createHarness(db: unknown, options: JsonRecord = {}) {
   );
   const sidecarHealthChecker = new SidecarHealthChecker({
     integrationConfigStore,
-    providerGatewayClient: providerGatewayClient || { gatewayUrl: process.env.OPC_PROVIDER_GATEWAY_URL || null },
+    providerGatewayClient: providerGatewayClient || { gatewayUrl: resolveBrandEnv(process.env, 'PROVIDER_GATEWAY_URL') || null },
     aiWorkerClient,
     voiceMediaClient
   });
