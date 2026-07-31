@@ -1,0 +1,13 @@
+scripts/run-production-media-hotfix-migration.ts
+src/agent-runtime/ivekit/http-server.ts
+src/agent-runtime/ivekit/media-hooks.ts
+src/agent-runtime/ivekit/media-http.ts
+src/agent-runtime/ivekit/operations/readiness.ts
+src/agent-runtime/ivekit/placement/interaction-placement.ts
+src/agent-runtime/ivekit/placement/media-call-placement.ts
+src/agent-runtime/ivekit/placement/placement-service.ts
+src/agent-runtime/ivekit/placement/runtime.ts
+src/agent-runtime/ivekit/placement/types.ts
+src/agent-runtime/livekit/media-call-create-command-store.ts
+src/agent-runtime/livekit/media-call-service.ts
+src/migrations/106_ivekit_media_call_create_commands.sql

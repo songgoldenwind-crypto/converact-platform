@@ -1,0 +1,80 @@
+services:
+  livekit-component-node:
+    image: ${IVEKIT_CAPACITY_TOOLS_IMAGE:?immutable digest required}
+    pull_policy: never
+    command:
+      - node
+      - --import
+      - tsx
+      - scripts/ivekit-component-node-admission.ts
+    init: true
+    restart: unless-stopped
+    user: node
+    read_only: true
+    pids_limit: 128
+    mem_limit: 256m
+    networks:
+      ivekit-owner-control: {}
+      ivekit-owner-loopback:
+        gw_priority: 1
+    ports:
+      - "127.0.0.1:${LIVEKIT_COMPONENT_NODE_LOOPBACK_PORT:-3210}:3210"
+    environment:
+      OPC_IVEKIT_COMPONENT_NODE_HOST: 0.0.0.0
+      OPC_IVEKIT_COMPONENT_NODE_PORT: "3210"
+      OPC_IVEKIT_COMPONENT_NODE_PRODUCTION: "false"
+      OPC_IVEKIT_COMPONENT_NODE_REQUIRE_MTLS: "false"
+      OPC_IVEKIT_COMPONENT_NODE_TOKEN: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN:?required}
+      OPC_IVEKIT_COMPONENT_NODE_COMPONENT: livekit
+      OPC_IVEKIT_COMPONENT_NODE_REGION_ID: ${IVEKIT_CELL_REGION_ID:?required}
+      OPC_IVEKIT_COMPONENT_NODE_ZONE_ID: ${IVEKIT_CELL_ZONE_ID:?required}
+      OPC_IVEKIT_COMPONENT_NODE_CELL_ID: ${IVEKIT_CELL_ID:?required}
+      OPC_IVEKIT_COMPONENT_NODE_ID: ${LIVEKIT_OWNER_NODE_ID:?required}
+      OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS: ${LIVEKIT_COMPONENT_NODE_PROFILE_IDS:?required}
+      OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS: livekit_av
+      OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON: ${LIVEKIT_COMPONENT_NODE_DIMENSIONS_JSON:?required}
+      OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS: "300000"
+      OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS: "1000"
+    labels:
+      io.ivekit.hotfix: production-media-20260730
+      io.ivekit.hotfix.expires-at: ${HOTFIX_NON_MTLS_EXPIRES_AT:?required}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3210/livez').then(r=>{if(!r.ok)process.exit(1)})
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  livekit:
+    image: ${LIVEKIT_SERVER_IMAGE:?exact retained LiveKit image required}
+    pull_policy: never
+    environment:
+      IVEKIT_COMPONENT_NODE_ENDPOINT: http://127.0.0.1:3210
+      IVEKIT_COMPONENT_NODE_TOKEN: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN:?required}
+      IVEKIT_COMPONENT_NODE_ID: ${LIVEKIT_OWNER_NODE_ID:?required}
+      IVEKIT_OWNER_GUARD_REQUIRED: "1"
+      IVEKIT_OWNER_REFRESH_INTERVAL_MS: "3000"
+      IVEKIT_OWNER_REFRESH_TIMEOUT_MS: "1000"
+    labels:
+      io.ivekit.hotfix: production-media-20260730
+      io.ivekit.hotfix.expires-at: ${HOTFIX_NON_MTLS_EXPIRES_AT:?required}
+    depends_on:
+      livekit-component-node:
+        condition: service_healthy
+
+networks:
+  ivekit-owner-control:
+    external: true
+    name: ivekit-owner-control
+  ivekit-owner-loopback:
+    external: true
+    name: ivekit-owner-loopback

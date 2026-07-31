@@ -1,0 +1,26 @@
+services:
+  postgres-migrate:
+    image: ${IVEKIT_OPC_HOTFIX_IMAGE:?exact hotfix image required}
+    pull_policy: never
+    build: !reset null
+    command:
+      - node
+      - --import
+      - tsx
+      - scripts/run-production-media-hotfix-migration.ts
+    labels:
+      io.ivekit.hotfix: production-media-20260730
+
+  opc:
+    image: ${IVEKIT_OPC_HOTFIX_IMAGE:?exact hotfix image required}
+    pull_policy: never
+    build: !reset null
+    environment:
+      OPC_IVEKIT_MEDIA_CALL_CREATE_ATTEMPT_LEASE_MS: "30000"
+      OPC_IVEKIT_MEDIA_CALL_CREATE_FREEZE: ${OPC_IVEKIT_MEDIA_CALL_CREATE_FREEZE:?explicit freeze required}
+      OPC_IVEKIT_MEDIA_CALL_CREATE_FREEZE_RULE_ID: ${OPC_IVEKIT_MEDIA_CALL_CREATE_FREEZE_RULE_ID:?freeze rule required}
+      OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_TENANT_IDS: ${OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_TENANT_IDS-}
+      OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_SUBJECTS: ${OPC_IVEKIT_MEDIA_CALL_CREATE_CANARY_SUBJECTS-}
+      OPC_IVEKIT_MEDIA_CALL_CREATE_REQUIRE_PLACEMENT: ${OPC_IVEKIT_MEDIA_CALL_CREATE_REQUIRE_PLACEMENT:?fail-closed placement requirement required}
+    labels:
+      io.ivekit.hotfix: production-media-20260730

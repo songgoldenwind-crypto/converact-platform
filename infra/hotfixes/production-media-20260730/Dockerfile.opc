@@ -1,0 +1,29 @@
+ARG OPC_BASE_IMAGE
+FROM ${OPC_BASE_IMAGE}
+
+ARG OPC_BASE_IMAGE_ID
+ARG OPC_BASE_PAYLOAD_MANIFEST_SHA256
+ARG OPC_HOTFIX_PAYLOAD_MANIFEST_SHA256
+ARG OPC_HOTFIX_PATCH_SHA256
+ARG OPC_PAYLOAD_FILE_COUNT
+
+COPY scripts/run-production-media-hotfix-migration.ts /app/scripts/run-production-media-hotfix-migration.ts
+COPY src/agent-runtime/ivekit/http-server.ts /app/src/agent-runtime/ivekit/http-server.ts
+COPY src/agent-runtime/ivekit/media-hooks.ts /app/src/agent-runtime/ivekit/media-hooks.ts
+COPY src/agent-runtime/ivekit/media-http.ts /app/src/agent-runtime/ivekit/media-http.ts
+COPY src/agent-runtime/ivekit/operations/readiness.ts /app/src/agent-runtime/ivekit/operations/readiness.ts
+COPY src/agent-runtime/ivekit/placement/interaction-placement.ts /app/src/agent-runtime/ivekit/placement/interaction-placement.ts
+COPY src/agent-runtime/ivekit/placement/media-call-placement.ts /app/src/agent-runtime/ivekit/placement/media-call-placement.ts
+COPY src/agent-runtime/ivekit/placement/placement-service.ts /app/src/agent-runtime/ivekit/placement/placement-service.ts
+COPY src/agent-runtime/ivekit/placement/runtime.ts /app/src/agent-runtime/ivekit/placement/runtime.ts
+COPY src/agent-runtime/ivekit/placement/types.ts /app/src/agent-runtime/ivekit/placement/types.ts
+COPY src/agent-runtime/livekit/media-call-create-command-store.ts /app/src/agent-runtime/livekit/media-call-create-command-store.ts
+COPY src/agent-runtime/livekit/media-call-service.ts /app/src/agent-runtime/livekit/media-call-service.ts
+COPY src/migrations/106_ivekit_media_call_create_commands.sql /app/src/migrations/106_ivekit_media_call_create_commands.sql
+
+LABEL io.ivekit.hotfix="production-media-20260730" \
+      io.ivekit.hotfix.base-image-id="${OPC_BASE_IMAGE_ID}" \
+      io.ivekit.hotfix.base-payload-manifest-sha256="${OPC_BASE_PAYLOAD_MANIFEST_SHA256}" \
+      io.ivekit.hotfix.payload-manifest-sha256="${OPC_HOTFIX_PAYLOAD_MANIFEST_SHA256}" \
+      io.ivekit.hotfix.patch-sha256="${OPC_HOTFIX_PATCH_SHA256}" \
+      io.ivekit.hotfix.payload-file-count="${OPC_PAYLOAD_FILE_COUNT}"

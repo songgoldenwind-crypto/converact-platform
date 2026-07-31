@@ -1,0 +1,26 @@
+services:
+  cell-admission:
+    image: ${IVEKIT_CAPACITY_TOOLS_IMAGE:?immutable digest required}
+    pull_policy: never
+    build: !reset null
+    networks:
+      default: {}
+      ivekit-owner-control: {}
+
+  rustpbx-capacity-projector:
+    image: ${IVEKIT_CAPACITY_TOOLS_IMAGE:?immutable digest required}
+    pull_policy: never
+    build: !reset null
+    networks:
+      default: {}
+      ivekit-owner-control: {}
+
+  rustpbx-placement-snapshot-projector:
+    image: ${IVEKIT_CAPACITY_TOOLS_IMAGE:?immutable digest required}
+    pull_policy: never
+    build: !reset null
+
+networks:
+  ivekit-owner-control:
+    external: true
+    name: ivekit-owner-control
