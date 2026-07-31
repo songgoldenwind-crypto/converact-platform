@@ -1,5 +1,10 @@
 # iveKit Voice Foundation V1 详细设计
 
+> **历史基线声明（2026-07-31）**：本文保留 V1 实现和证据事实；终态 RustPBX/rvoip、
+> RTPengine、LiveKit handoff、HF/Agent 和 ViLTE AV 架构以
+> [统一通信底座 Revision 5](./design/unified-communication-foundation-r5.md) 为准。
+> 旧证据不得外推为 R5 production eligibility。
+>
 > 状态：M2 Voice Core、M3 IVR Runtime、Voice/IVR/Contact Center SDK、headless controller、React Voice 控制工作台和 IVR Designer 代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、配置服务/API、原子排队分配、队列条目与分配历史查询、加密 callback 请求/重试/Voice 外呼/状态对账、队列超时/Offer 回收/自动派单 worker、满队列与超时 durable overflow、Queue Monitor 后端投影与参考客户端 UI、IVR queue adapter，以及 supervisor 监听/耳语/强插通用控制面和 capability 驱动的 RustPBX RWI provider adapter；SIP.js 浏览器 WebPhone、IVR Designer 和 Queue Monitor 的受控桌面/移动浏览器验收已完成。隔离服务器上的 RustPBX Management、RWI/AMI 挂断闭环和 SIPp 信令工程验收已通过；锁定 RustPBX 基线的 supervisor effective capability 仍为 false，真实 WebSocket supervisor 媒体、RTP/设备媒体和完整真实通信环境发布验收未完成
 > 日期：2026-07-15
 > 目标仓库：`opc-platform`

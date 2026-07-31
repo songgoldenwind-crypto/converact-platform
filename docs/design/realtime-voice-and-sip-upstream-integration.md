@@ -1,5 +1,11 @@
 # 实时语音机器人与 SIP 上游项目融合设计
 
+> **Revision 5 覆盖说明（2026-07-31）**：本文保留旧上游评估和现有实现事实；
+> Active Call、LiveKit Agents、HF `speech-to-speech`、Channel Agent 和跨渠道
+> AI-native Authority 的最终裁决以
+> [统一通信底座 Revision 5](./unified-communication-foundation-r5.md) 和
+> [ADR-CCAAS-9](../adr/ccaas-9-channel-agent-and-speech-runtime.md) 为准。
+>
 更新日期：2026-07-22
 
 ## 1. 目标与结论

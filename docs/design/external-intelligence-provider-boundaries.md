@@ -1,5 +1,12 @@
 # 外部 OCR、ASR、翻译与模型 Provider 边界
 
+> **Revision 5 覆盖说明（2026-07-31）**：Provider governance、实时 tap 和故障隔离继续
+> 有效；机器人 speech pipeline 已改为 Channel Agent + OPC `SpeechRuntime`。
+> Hugging Face `speech-to-speech` 只替换功能相同的 VAD/STT/LLM/TTS 执行部分，
+> Active Call 与 LiveKit Agents 的非重叠能力继续保留。规范见
+> [统一通信底座 Revision 5](./unified-communication-foundation-r5.md) 和
+> [ADR-CCAAS-9](../adr/ccaas-9-channel-agent-and-speech-runtime.md)。
+>
 更新日期：2026-07-22
 
 ## 1. 架构裁决
@@ -52,18 +59,32 @@ RustPBX decoded audio fork / LiveKit subscribed audio track
 
 ### 2.2 机器人 STT -> LLM -> TTS
 
-机器人应答与字幕翻译共享外部 Provider 治理，但由 LiveKit Agents 1.6.6 负责 turn、barge-in、tool 和音频输出，不能再引入第二套会话运行时：
+机器人应答与字幕翻译共享外部 Provider 治理。Revision 5 将跨渠道运行边界改为：
 
 ```text
-LiveKit audio input
-  -> worker-prewarmed VAD + streaming STT
-  -> preemptive streaming LLM
-  -> sentence/chunk streaming TTS
-  -> LiveKit audio output
-  -> final heard transcript + latency projection
+RustPBX decoded audio -> Telephony Channel Agent
+LiveKit subscribed track -> Room Channel Agent
+                          |
+                          v
+                  OPC SpeechRuntime
+          HF primary target / native baseline
+                          |
+                          v
+              OPC AI-native Orchestrator
 ```
 
-当前已固定 direct/transitive Python 依赖，完成 worker 级 VAD 预热、低延迟 endpointing、interruption、preemptive generation 和 LiveKit 1.6 当前事件合同。AVA 和 Pipecat 只作为流水线机制参考，不导入其 Asterisk/agent session 控制面。真实外部 STT/LLM/TTS 尚未提供凭据时，延迟、barge-in 和 failover 状态仍为 `not_run`。
+固定边界：
+
+- LiveKit Agents 保留 Room/track、AgentSession、multimodal、workflow、tool adapter、
+  handoff 和 job lifecycle；
+- Active Call 只保留电话 Agent/Playbook/DTMF/REFER/interrupt 等独特能力，不成为
+  第二 PBX；
+- HF 只替换功能重叠的 VAD/STT/LLM/TTS execution；
+- OPC Orchestrator 拥有跨渠道 Task、Tool、Memory、Policy、Approval 和 Action Ledger；
+- 每个 session 只有一个 VAD producer、turn commit 和 response cancel Authority；
+- 真实 A/B 前，HF 相对 native 的延迟、VAD、质量、barge-in 和 failover 均为
+  `not_run`；
+- Provider/Agent 故障只能关闭 AI 旁路或转人工，不能影响 Call/Room。
 
 ### 2.3 离线批量 ASR 与质检
 

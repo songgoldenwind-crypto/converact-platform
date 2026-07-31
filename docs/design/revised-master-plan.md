@@ -1,5 +1,11 @@
 # OPC AI 通信平台 — 修订版总体规划
 
+> **历史规划声明（2026-07-31）**：本文的功能清单与 Sprint 轨道继续保留；通信底座、
+> HF/Agent、LiveKit/ViLTE 音视频和 AI-native 的最新架构及实施顺序以
+> [统一通信底座 Revision 5](./unified-communication-foundation-r5.md) 和
+> [R5 TDD 计划](./2026-07-31-unified-communication-foundation-r5-implementation-plan.md)
+> 为准。
+>
 > **版本**: v3.1（按 `docs/design/README.md` 准绳去内部矛盾与补互链）
 > **日期**: 2026-06-29
 > **核心变更**: 110 项逐一对标 → 12 Sprint 后规划覆盖率 100%（覆盖率 ≠ 功能可用性，见审计报告）

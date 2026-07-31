@@ -1,3 +1,11 @@
+> **Revision 5 架构声明（2026-07-31）**：本文继续作为 AI-native 产品愿景、Task-first、
+> Tool Action Reliability、Policy、Memory、Human approval 与 Evaluation 的战略参考。
+> Channel Agent、HF Speech Runtime、LiveKit/Active Call 分工、ViLTE 和跨渠道唯一
+> Authority 以
+> [统一通信底座与 AI-native 架构 Revision 5](./design/unified-communication-foundation-r5.md)
+> 及 [ADR-CCAAS-9](./adr/ccaas-9-channel-agent-and-speech-runtime.md) 为准；本文中的旧运行时
+> 选型不再授权实现。
+>
 下面我默认说的是：**我们要做一个 AI native 的 CCaaS / Customer Interaction Platform**，覆盖客服、外呼、IM、视频、邮件、短信、工单等所有企业与客户之间的联络场景。
 
 我的完整判断是：

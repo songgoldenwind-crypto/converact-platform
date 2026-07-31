@@ -1,0 +1,1413 @@
+{
+  "$schema": "../schemas/unified-communication-foundation-r5.schema.json",
+  "schema_version": "1.0.0",
+  "contract_id": "unified-communication-foundation-r5-v1",
+  "revision": 5,
+  "status": "target",
+  "inherited_r4": {
+    "inheritance_policy": "all_r4_requirements_and_statuses_remain_binding_unless_explicitly_superseded_by_r5_delta",
+    "objective": {
+      "path": "docs/capacity/contracts/unified-voice-foundation-r4-objective.md",
+      "sha256": "9435c3e28f46f43906d325bb325253da2ecb448d257533547740073d9132bc54"
+    },
+    "machine_contract": {
+      "path": "docs/capacity/contracts/unified-voice-foundation-r4-v1.json",
+      "sha256": "87d8bb604a78550cd298a9056913e4841805708e740a4a8fde81ddf16ccffd39"
+    },
+    "traceability": {
+      "path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "sha256": "ff6cfdc9253fc12e4c816c2ff2a792250ef2fafc17437213e61502c8d170ee14",
+      "row_count": 362
+    },
+    "superseded_r4_statements": [
+      "livekit_sip_bridge_name_is_generalized_to_video",
+      "single_authority_requires_every_executor_in_one_os_address_space",
+      "r4_d0_checkpoint_auto_authorizes_future_r5_delta_without_new_user_confirmation"
+    ],
+    "preserved_r4_authorities": [
+      "kamailio_sip_edge",
+      "unified_rustpbx_call_core",
+      "selected_single_sip_foundation",
+      "rustpbx_media_engine_facade",
+      "rtpengine_ordinary_fast_path",
+      "livekit_room_webrtc_sfu",
+      "region_recording_plane",
+      "opc_billing"
+    ]
+  },
+  "artifacts": {
+    "objective": {
+      "path": "docs/capacity/contracts/unified-communication-foundation-r5-objective.md",
+      "sha256": "86ec798d2aafeb9e7b7f4f413d8a8b2a61d48e9ae8328f7bbc79cc391436469f"
+    },
+    "design": {
+      "path": "docs/design/unified-communication-foundation-r5.md",
+      "sha256": "d89b6f0115ea23772d7312c407c0b4038c91107da01d120028754f92da1c10f8"
+    },
+    "agent_speech_adr": {
+      "path": "docs/adr/ccaas-9-channel-agent-and-speech-runtime.md",
+      "sha256": "b65d3b13a11eb903c82ee0f4ffd0e2dae9ef291abfc416544fa892097cb900dd"
+    },
+    "vilte_gateway_adr": {
+      "path": "docs/adr/ccaas-10-vilte-livekit-av-participant-gateway.md",
+      "sha256": "0fc13ad3d446ea62e6592c684a98728a4acba9f064643e576486937c89f5771e"
+    },
+    "implementation_plan": {
+      "path": "docs/design/2026-07-31-unified-communication-foundation-r5-implementation-plan.md",
+      "sha256": "ccad57bee3902d8fff84e26c7f91645ce02aede67bf3e628fb89ff989e729c4b"
+    },
+    "domain_language": {
+      "path": "CONTEXT.md",
+      "sha256": "f47c081d8b2d6790861bcb909880dd9cf389e7ca71e6fe3c8e619026b9a54977"
+    },
+    "design_navigation": {
+      "path": "docs/design/README.md",
+      "sha256": "a9f99b4c771f2a1e13afee93530399e15286a5d5302a832c9e246fea6b04f5d2"
+    }
+  },
+  "claim_boundary": {
+    "runtime_enablement": false,
+    "server_change_authorized": false,
+    "capacity_claim": "none",
+    "production_eligible": false,
+    "hf_outperforms_native": "not_run",
+    "active_call_integration": "not_run",
+    "livekit_hf_integration": "not_run",
+    "voice_livekit_active_handoff": "not_run",
+    "vilte_bidirectional_av": "not_run",
+    "h264_passthrough": "not_run",
+    "mixed_cell_capacity": "not_run",
+    "upstream_claim_authorizes_opc": false,
+    "borrowed_evidence_allowed": false,
+    "results_inheritable_across_profiles": false
+  },
+  "architecture_profile": {
+    "profile_id": "CARRIER-CELL-V1",
+    "architecture_profile_count": 1,
+    "product_authority": "unified_rustpbx",
+    "sip_edge": "kamailio",
+    "ordinary_media_backend": "rtpengine_ordinary",
+    "decode_media_facade": "voice_media_rs",
+    "room_backend": "livekit",
+    "voice_room_audio_executor": "livekit_sip_audio_bridge",
+    "future_av_executor": "vilte_livekit_av_gateway",
+    "telephony_agent_runtime": "active_call_capability_adapter",
+    "room_agent_runtime": "livekit_agents_adapter",
+    "speech_runtime_primary_target": "hf_speech_to_speech",
+    "ai_business_authority": "opc_ai_native_orchestrator",
+    "rust_native_fast_path_role": "candidate_backend_not_second_profile",
+    "legacy_component_registry": "docs/architecture/component-authority-matrix-v1.json",
+    "legacy_technology_registry": "docs/architecture/communication-technology-baseline-v1.json",
+    "legacy_registry_role": "current_delivery_inventory_not_r5_authority_or_eligibility",
+    "r5_authority_source": "this_contract"
+  },
+  "authority_matrix": {
+    "sip_edge_policy": {
+      "owner": "kamailio_edge_policy",
+      "writer_count": 1
+    },
+    "telephony_business": {
+      "owner": "unified_rustpbx_call_core",
+      "writer_count": 1
+    },
+    "sip_protocol": {
+      "owner": "selected_single_sip_foundation",
+      "writer_count": 1
+    },
+    "logical_media_graph": {
+      "owner": "unified_rustpbx_call_core",
+      "writer_count": 1
+    },
+    "media_plan_and_edge_fence": {
+      "owner": "rustpbx_media_engine_facade",
+      "writer_count": 1
+    },
+    "room_webrtc_sfu": {
+      "owner": "livekit",
+      "writer_count": 1
+    },
+    "bridge_orchestration": {
+      "owner": "opc_bridge_coordinator",
+      "writer_count": 1
+    },
+    "recording_intent": {
+      "owner": "unified_rustpbx_call_core",
+      "writer_count": 1
+    },
+    "recording_manifest": {
+      "owner": "region_recording_plane",
+      "writer_count": 1
+    },
+    "billing_rating": {
+      "owner": "opc_billing",
+      "writer_count": 1
+    },
+    "channel_agent_turn": {
+      "owner": "active_response_lease_holder",
+      "writer_count": 1
+    },
+    "speech_session": {
+      "owner": "selected_speech_runtime_session",
+      "writer_count": 1
+    },
+    "ai_task_tool_memory_policy": {
+      "owner": "opc_ai_native_orchestrator",
+      "writer_count": 1
+    },
+    "tool_effect": {
+      "owner": "opc_action_ledger_and_owning_business_service",
+      "writer_count": 1
+    },
+    "executor_roles": {
+      "rvoip": "qualified_low_level_capability_source_not_authority",
+      "rtpengine": "ordinary_media_executor_not_authority",
+      "voice_media_rs": "decoded_media_executor_not_authority",
+      "livekit_sip": "audio_bridge_executor_not_authority",
+      "av_gateway": "av_bridge_executor_not_authority",
+      "active_call": "telephony_channel_runtime_not_pbx_authority",
+      "livekit_agents": "room_channel_runtime_not_cross_channel_authority",
+      "hf_speech_to_speech": "speech_executor_not_ai_business_authority"
+    }
+  },
+  "runtime_fault_domains": {
+    "policy": "one_authority_does_not_require_one_os_address_space",
+    "domains": [
+      {
+        "id": "sip_call_core",
+        "contents": "unified_rustpbx_and_selected_low_level_rvoip_slices",
+        "must_not_share_failure_with": [
+          "speech_runtime",
+          "video_transcode",
+          "recording_upload"
+        ]
+      },
+      {
+        "id": "ordinary_media",
+        "contents": "rtpengine_pool",
+        "must_not_depend_on": [
+          "database_per_packet",
+          "http_per_packet",
+          "agent_actor_per_packet"
+        ]
+      },
+      {
+        "id": "decoded_media",
+        "contents": "bounded_voice_media_worker_cells",
+        "failure_policy": "affected_processing_sessions_only"
+      },
+      {
+        "id": "native_unsafe",
+        "contents": "native_codec_ffi_gpu_bindings",
+        "failure_policy": "isolated_worker_restart_new_generation"
+      },
+      {
+        "id": "recording_capture",
+        "contents": "bounded_capture_and_local_durable_spool_workers",
+        "must_not_share_failure_with": [
+          "recording_upload"
+        ],
+        "failure_policy": "record_gap_or_degraded_never_backpressure_main_media"
+      },
+      {
+        "id": "recording_upload",
+        "contents": "object_storage_upload_workers",
+        "must_not_share_failure_with": [
+          "recording_capture",
+          "sip_call_core"
+        ],
+        "failure_policy": "upload_delay_or_backlog_never_stops_capture_or_main_media"
+      },
+      {
+        "id": "telephony_agent",
+        "contents": "active_call_capability_workers",
+        "failure_policy": "agent_degrade_or_human_handoff_call_continues"
+      },
+      {
+        "id": "room_agent",
+        "contents": "livekit_agents_job_workers",
+        "failure_policy": "agent_degrade_room_sfu_continues"
+      },
+      {
+        "id": "speech_runtime",
+        "contents": "hf_or_native_speech_workers",
+        "failure_policy": "speech_generation_failed_call_or_room_continues"
+      },
+      {
+        "id": "av_gateway",
+        "contents": "vilte_livekit_participant_gateway_shards",
+        "failure_policy": "video_degrades_to_audio_when_policy_allows"
+      },
+      {
+        "id": "video_transcode",
+        "contents": "isolated_cpu_gpu_codec_pool",
+        "failure_policy": "video_component_only"
+      }
+    ],
+    "hot_path_invariants": [
+      "o1_flow_lookup",
+      "bounded_queues",
+      "no_global_active_session_scan",
+      "no_per_packet_task",
+      "no_per_packet_database_or_http",
+      "no_ai_or_recording_backpressure_to_main_media",
+      "stale_generation_output_rejected"
+    ]
+  },
+  "rvoip_adoption": {
+    "mode": "exact_source_slice_by_slice",
+    "allowed_decisions": [
+      "adopt",
+      "reference",
+      "reject"
+    ],
+    "forbidden_decision": "adopt_both_as_authority",
+    "required_gates": [
+      "exact_source",
+      "rfc_and_interop",
+      "fuzz_and_limits",
+      "same_hardware_performance",
+      "hot_path_complexity",
+      "unsafe_and_ffi",
+      "recovery_and_receipts",
+      "observability",
+      "upgrade_and_backport",
+      "old_authority_active_zero_and_deletion"
+    ],
+    "migration_order": [
+      "shadow_parser_no_effects",
+      "sdp",
+      "message_codec",
+      "transport_dns",
+      "transaction",
+      "protocol_dialog"
+    ],
+    "whole_rvoip_runtime_allowed": false
+  },
+  "media_plane": {
+    "ordinary_path": "rtpengine",
+    "decode_path": "voice_media_rs_bounded_worker",
+    "g729": {
+      "mandatory": true,
+      "wire_identity": "G729/8000",
+      "internal_modes": [
+        "G729A",
+        "G729AB"
+      ],
+      "legal_gate_scope": "distribution_and_enablement_only"
+    },
+    "recording_failure_affects_call": false,
+    "recording_intent_commit_authority": "unified_rustpbx_call_core",
+    "recording_policy_role": "versioned_input_not_writer",
+    "capture_executor_handoff": "prepare_revoke_zero_output_single_component_generation",
+    "billing_usage_idempotency_key": [
+      "billing_key",
+      "media_component",
+      "edge_generation",
+      "interval"
+    ],
+    "usage_terminal_watermark_required": true,
+    "single_writer_per_directed_edge_generation": true,
+    "backend_capability_selection": "closed_and_fail_closed"
+  },
+  "channel_agents": {
+    "telephony": {
+      "runtime": "active_call_capability_adapter",
+      "adapter_mode": "pure_pcm_and_canonical_event_no_sip_rtp_executor",
+      "preserve": [
+        "telephony_playbook_pure_local_state",
+        "canonical_dtmf_event_consumption",
+        "refer_and_call_action_proposal_semantics",
+        "interruption",
+        "agc",
+        "denoise"
+      ],
+      "action_classes": {
+        "pure_local_allowlist": "scene_goto_local_variable_prompt_condition",
+        "communication_actions": "typed_proposal_to_rustpbx",
+        "business_and_http_actions": "typed_proposal_to_opc_tool_broker",
+        "direct_arbitrary_http_or_secret_url": "forbidden_in_production"
+      },
+      "forbid": [
+        "direct_carrier_pbx_authority",
+        "main_rtp_authority",
+        "active_call_sip_rtp_executor_in_production",
+        "second_cdr_writer",
+        "direct_business_or_communication_effect",
+        "cross_channel_task_authority"
+      ]
+    },
+    "livekit_room": {
+      "runtime": "livekit_agents_adapter",
+      "preserve": [
+        "room_participant_tracks",
+        "agent_session",
+        "multimodal_audio_video_text_vision",
+        "tasks_workflows_tools_handoff",
+        "job_dispatch_load_balance_drain"
+      ],
+      "forbid": [
+        "cross_channel_durable_task_authority",
+        "telephone_ai_mandatory_hairpin",
+        "direct_business_tool_effect"
+      ]
+    }
+  },
+  "speech_runtime": {
+    "contract_owner": "opc",
+    "primary_target": "huggingface_speech_to_speech",
+    "native_baselines": [
+      "active_call_native",
+      "livekit_agents_native",
+      "current_provider_chain"
+    ],
+    "replace_only_overlap": [
+      "acoustic_vad_when_selected",
+      "streaming_stt",
+      "streaming_llm_execution",
+      "streaming_tts",
+      "corresponding_realtime_events"
+    ],
+    "must_not_replace": [
+      "telephony_protocol_and_playbook",
+      "livekit_room_tracks_and_multimodal",
+      "channel_interruption_policy",
+      "ai_task_tool_memory_policy_approval",
+      "provider_governance",
+      "recording_cdr_billing"
+    ],
+    "single_session_owners": {
+      "acoustic_vad_producer_count": 1,
+      "turn_commit_authority_count": 1,
+      "response_cancel_authority_count": 1
+    },
+    "required_lifecycle": [
+      "prepare",
+      "commit",
+      "try_write_audio",
+      "commit_turn",
+      "create_response",
+      "submit_tool_result",
+      "subscribe_events",
+      "renew_response_lease",
+      "revoke_response_lease",
+      "cancel_response",
+      "close",
+      "query",
+      "reconcile"
+    ],
+    "mutating_commands_require_current_fence": true,
+    "mutation_fence_policy": {
+      "all_mutations_require": "speech_control_fence",
+      "output_affecting_mutations_also_require": "response_fence",
+      "prepare_semantics": "local_blocked_no_response_lease_required",
+      "stale_control_or_response_fence": "reject_and_count"
+    },
+    "response_plan_authority": "opc_ai_native_orchestrator",
+    "tool_result_binding": "same_interaction_agent_run_context_revision_response_generation_and_fence",
+    "hf_performance_status": "not_run",
+    "production_eligible": false
+  },
+  "ai_native": {
+    "authority": "opc_ai_native_orchestrator",
+    "owned_facts": [
+      "durable_agent_run",
+      "task_dag",
+      "memory_revision",
+      "canonical_context_revision",
+      "orchestrator_signed_response_plan",
+      "tool_catalog_and_capability_digest",
+      "policy_guardrail_approval",
+      "action_ledger",
+      "channel_and_human_handoff",
+      "evaluation_and_cost"
+    ],
+    "response_lease_required": true,
+    "response_lease_protocol": {
+      "issuer": "opc_interaction_lease_store",
+      "key": "interaction_id",
+      "mutation": "durable_cas_with_monotonic_fence",
+      "durable_expiry_clock": "wall_clock",
+      "executor_expiry_clock": "local_monotonic_deadline_derived_from_receipt",
+      "output_gates": [
+        "audio_injector",
+        "livekit_publisher",
+        "rustpbx_communication_action_executor",
+        "tool_broker",
+        "transcript_sink"
+      ],
+      "communication_action_validation_points": [
+        "reserve",
+        "execute",
+        "receipt"
+      ],
+      "hot_path_check": "o1_in_memory_output_permit",
+      "loss_behavior": "agent_output_and_new_actions_fail_closed_main_media_continues",
+      "first_production_handoff": "break_before_make_revoke_zero_output_then_issue_new"
+    },
+    "context_revision": {
+      "authority": "opc_ai_native_orchestrator",
+      "channel_local_history_role": "disposable_projection_cache",
+      "response_create_requires_current_digest": true,
+      "handoff_invalidates_old_revision": true
+    },
+    "tool_call_semantics": "proposal_then_policy_approval_idempotent_ledger_execution",
+    "provider_or_model_is_business_authority": false
+  },
+  "multimodal_handoff": {
+    "new_component_state_machine": [
+      "prepare_local_resources",
+      "prepared_blocked",
+      "commit",
+      "join_connect_enable_new_writer",
+      "observe_output",
+      "reconcile"
+    ],
+    "replacement_state_machine": [
+      "prepare_new_local_resources_blocked",
+      "durable_revoke_old",
+      "invalidate_old_fence_all_output_gates",
+      "old_zero_output_ack",
+      "commit_new_generation",
+      "join_connect_enable_new_writer",
+      "observe_output",
+      "release_old_generation",
+      "reconcile"
+    ],
+    "prepared_blocked_external_effects_allowed": false,
+    "first_production_strategy": "break_before_make",
+    "stable_facts": [
+      "interaction_id",
+      "call_id_while_telephony_exists",
+      "billing_key",
+      "recording_intent",
+      "policy_snapshot",
+      "agent_task_and_memory"
+    ],
+    "livekit_sip_scope": "audio_only",
+    "future_vilte_backend": "vilte_livekit_av_gateway",
+    "agent_browser_video_path": "livekit_only",
+    "vilte_production_topology": "one_gateway_participant_peerconnection_combined_audio_video",
+    "vilte_split_topology": "research_only_not_production_eligible",
+    "livekit_gateway_client": "official_livekit_rust_realtime_sdk_exact_source",
+    "crypto_segments": {
+      "carrier_rtpengine": "rtpengine_terminates_carrier_srtp_and_owns_roc_replay_rekey",
+      "rtpengine_gateway": "independent_internal_srtp_distinct_key_context",
+      "gateway_livekit": "gateway_and_livekit_terminate_ice_dtls_srtp_peerconnection",
+      "key_reuse_across_segments": false
+    },
+    "vilte_audio_codecs": {
+      "required_first_qualification": [
+        "AMR-NB",
+        "AMR-WB"
+      ],
+      "reserved_fail_closed": [
+        "EVS",
+        "AMR-WB-IO"
+      ],
+      "rfc4867_and_dtx_contract_required": true
+    },
+    "h264_rtp_contract": {
+      "required_fields": [
+        "payload_type",
+        "ssrc",
+        "sequence",
+        "timestamp",
+        "marker",
+        "rtp_rtcp_mux",
+        "bundle_mid_extmap_cvo",
+        "packetization_mode_0_1",
+        "stap_a_fu_a_mtu",
+        "sps_pps_level_asymmetry",
+        "nack_rtx_cache_pli_fir",
+        "congestion_control_pacer"
+      ],
+      "mode1_to_mode0_mtu_failure": "transcode_reslice_or_fail_closed",
+      "passthrough_status": "not_run"
+    },
+    "sip_av_state_machine": {
+      "states": [
+        "idle",
+        "audio_active",
+        "local_preparing",
+        "offer_answer_pending",
+        "reliable_provisional_negotiated",
+        "late_offer_ack_answer_pending",
+        "retry_wait",
+        "negotiated_blocked",
+        "old_revoking",
+        "old_zero",
+        "new_committed",
+        "joining",
+        "av_active",
+        "fallback_negotiating",
+        "terminating",
+        "terminal"
+      ],
+      "events": [
+        "initial_inbound",
+        "initial_outbound",
+        "reinvite",
+        "update",
+        "prack",
+        "ack",
+        "local_prepare_succeeded",
+        "local_prepare_failed",
+        "sip_2xx",
+        "sip_4xx",
+        "final_sdp_mismatch",
+        "glare_491",
+        "retry_timer",
+        "negotiation_ready",
+        "old_zero_output",
+        "new_commit_succeeded",
+        "join_started",
+        "join_succeeded",
+        "join_failed",
+        "timeout",
+        "duplicate",
+        "cancel",
+        "bye",
+        "keyframe_observed",
+        "keyframe_missing",
+        "gateway_loss",
+        "video_remove",
+        "compensation_accepted",
+        "compensation_failed",
+        "termination_complete"
+      ],
+      "transition_record_required_fields": [
+        "transition_id",
+        "attempt",
+        "idempotency_key",
+        "from_state",
+        "to_state",
+        "event",
+        "matched_rule_id",
+        "guard_revision",
+        "guard_result",
+        "action",
+        "selected_sip_response",
+        "response_receipt",
+        "negotiation_decision_id",
+        "offer_answer_digest",
+        "old_bridge_generation",
+        "candidate_bridge_generation",
+        "old_zero_output_receipt",
+        "new_commit_receipt",
+        "observation_receipt",
+        "rollback_or_compensation",
+        "terminal_reason"
+      ],
+      "rule_evaluation": "highest_priority_single_match_else_fail_closed",
+      "terminal_precedence": [
+        "bye_established_dialog",
+        "cancel_pre_final_initial_or_reinvite",
+        "late_cancel_no_effect",
+        "existing_terminal_tombstone",
+        "timeout",
+        "glare_retry",
+        "duplicate_replay"
+      ],
+      "unmatched_transition": "reject_fail_closed_and_audit",
+      "allowed_transition_rules": [
+        {
+          "id": "SIPAV-T001",
+          "priority": 1000,
+          "from_states": ["audio_active", "local_preparing", "offer_answer_pending", "reliable_provisional_negotiated", "late_offer_ack_answer_pending", "retry_wait", "negotiated_blocked", "old_revoking", "old_zero", "new_committed", "joining", "av_active", "fallback_negotiating"],
+          "events": ["bye"],
+          "guard": "established_dialog",
+          "to_state": "terminating",
+          "action": "persist_terminal_decision_revoke_media_reply_bye",
+          "sip_response": "200_BYE",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T002",
+          "priority": 990,
+          "from_states": ["idle", "local_preparing", "offer_answer_pending", "reliable_provisional_negotiated"],
+          "events": ["cancel"],
+          "guard": "initial_server_invite_before_final_response_no_predecessor",
+          "to_state": "terminating",
+          "action": "persist_cancel_release_candidate",
+          "sip_response": "200_CANCEL_and_487_INVITE",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T003",
+          "priority": 100,
+          "from_states": ["idle", "audio_active", "local_preparing", "offer_answer_pending", "reliable_provisional_negotiated", "late_offer_ack_answer_pending", "retry_wait", "negotiated_blocked", "old_revoking", "old_zero", "new_committed", "joining", "av_active", "fallback_negotiating", "terminating", "terminal"],
+          "events": ["duplicate"],
+          "guard": "same_transaction_or_transition_identity",
+          "to_state": "SAME_STATE",
+          "action": "replay_stored_response_or_receipt_no_new_effect",
+          "sip_response": "stored_response",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T004",
+          "priority": 990,
+          "from_states": ["local_preparing", "offer_answer_pending", "reliable_provisional_negotiated"],
+          "events": ["cancel"],
+          "guard": "in_dialog_reinvite_before_final_response_has_predecessor_audio",
+          "to_state": "audio_active",
+          "action": "persist_cancel_release_candidate_keep_predecessor",
+          "sip_response": "200_CANCEL_and_487_reINVITE",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T005",
+          "priority": 990,
+          "from_states": ["local_preparing", "offer_answer_pending", "reliable_provisional_negotiated"],
+          "events": ["cancel"],
+          "guard": "in_dialog_reinvite_before_final_response_has_predecessor_av",
+          "to_state": "av_active",
+          "action": "persist_cancel_release_candidate_keep_predecessor",
+          "sip_response": "200_CANCEL_and_487_reINVITE",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T006",
+          "priority": 980,
+          "from_states": ["idle", "audio_active", "retry_wait", "negotiated_blocked", "late_offer_ack_answer_pending", "old_revoking", "old_zero", "new_committed", "joining", "av_active", "fallback_negotiating", "terminating", "terminal"],
+          "events": ["cancel"],
+          "guard": "invite_final_response_already_sent_or_transaction_absent",
+          "to_state": "SAME_STATE",
+          "action": "record_late_cancel_without_changing_dialog_or_media",
+          "sip_response": "200_CANCEL_no_effect_if_transaction_matched_else_481",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T007",
+          "priority": 990,
+          "from_states": ["terminating", "terminal"],
+          "events": ["bye"],
+          "guard": "terminal_decision_or_tombstone_already_present",
+          "to_state": "SAME_STATE",
+          "action": "replay_bye_response_without_new_terminal_or_media_effect",
+          "sip_response": "200_BYE_or_stored_terminal_response",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T010",
+          "priority": 500,
+          "from_states": ["idle"],
+          "events": ["initial_inbound"],
+          "guard": "tenant_policy_and_candidate_capacity",
+          "to_state": "local_preparing",
+          "action": "reserve_local_candidate",
+          "sip_response": "100_Trying_or_applicable_provisional",
+          "compensation": "release_candidate_and_final_failure"
+        },
+        {
+          "id": "SIPAV-T011",
+          "priority": 500,
+          "from_states": ["idle"],
+          "events": ["initial_outbound"],
+          "guard": "tenant_policy_and_candidate_capacity",
+          "to_state": "local_preparing",
+          "action": "reserve_local_candidate_and_send_offer",
+          "sip_response": "outbound_INVITE",
+          "compensation": "cancel_or_bye_and_release_candidate"
+        },
+        {
+          "id": "SIPAV-T020",
+          "priority": 500,
+          "from_states": ["audio_active", "av_active"],
+          "events": ["reinvite", "update"],
+          "guard": "validated_sdp_media_digest_change_hold_resume_codec_direction_or_video_change",
+          "to_state": "local_preparing",
+          "action": "reserve_candidate_keep_old_writer",
+          "sip_response": "100_Trying_when_applicable",
+          "compensation": "reject_change_keep_predecessor"
+        },
+        {
+          "id": "SIPAV-T021",
+          "priority": 600,
+          "from_states": ["audio_active", "av_active"],
+          "events": ["reinvite", "update"],
+          "guard": "session_refresh_without_media_change_or_offer_answer_digest_unchanged",
+          "to_state": "SAME_STATE",
+          "action": "delegate_to_dialog_session_timer_submachine_persist_receipt_keep_writer_generation",
+          "sip_response": "direction_specific_2xx_422_retry_or_BYE_per_RFC4028",
+          "compensation": "session_expiry_terminates_call_without_media_replacement"
+        },
+        {
+          "id": "SIPAV-T030",
+          "priority": 500,
+          "from_states": ["local_preparing"],
+          "events": ["local_prepare_succeeded"],
+          "guard": "all_closed_capabilities_reserved",
+          "to_state": "offer_answer_pending",
+          "action": "persist_candidate_start_offer_answer",
+          "sip_response": "offer_or_answer_pending",
+          "compensation": "release_candidate"
+        },
+        {
+          "id": "SIPAV-T031",
+          "priority": 500,
+          "from_states": ["local_preparing"],
+          "events": ["local_prepare_failed"],
+          "guard": "has_predecessor_audio",
+          "to_state": "audio_active",
+          "action": "release_candidate_keep_predecessor",
+          "sip_response": "488_or_503",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T032",
+          "priority": 500,
+          "from_states": ["local_preparing"],
+          "events": ["local_prepare_failed"],
+          "guard": "no_predecessor",
+          "to_state": "terminating",
+          "action": "release_candidate_persist_failure",
+          "sip_response": "488_or_503",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T033",
+          "priority": 500,
+          "from_states": ["local_preparing"],
+          "events": ["local_prepare_failed"],
+          "guard": "has_predecessor_av",
+          "to_state": "av_active",
+          "action": "release_candidate_keep_predecessor",
+          "sip_response": "488_or_503",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T040",
+          "priority": 600,
+          "from_states": ["offer_answer_pending"],
+          "events": ["prack"],
+          "guard": "valid_100rel_sequence_without_complete_offer_answer",
+          "to_state": "offer_answer_pending",
+          "action": "record_prack_receipt",
+          "sip_response": "200_PRACK",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T041",
+          "priority": 500,
+          "from_states": ["offer_answer_pending"],
+          "events": ["sip_2xx"],
+          "guard": "early_offer_answer_complete_and_digest_matches",
+          "to_state": "negotiated_blocked",
+          "action": "persist_negotiation_decision_and_response_receipt",
+          "sip_response": "selected_2xx_sent_or_received",
+          "compensation": "frozen_compensating_offer_or_termination"
+        },
+        {
+          "id": "SIPAV-T042",
+          "priority": 500,
+          "from_states": ["offer_answer_pending", "reliable_provisional_negotiated"],
+          "events": ["sip_4xx"],
+          "guard": "has_predecessor_audio",
+          "to_state": "audio_active",
+          "action": "release_candidate_keep_predecessor",
+          "sip_response": "propagate_or_record_4xx",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T043",
+          "priority": 500,
+          "from_states": ["offer_answer_pending", "reliable_provisional_negotiated"],
+          "events": ["sip_4xx"],
+          "guard": "no_predecessor",
+          "to_state": "terminating",
+          "action": "release_candidate_persist_failure",
+          "sip_response": "propagate_or_record_4xx",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T044",
+          "priority": 700,
+          "from_states": ["offer_answer_pending", "reliable_provisional_negotiated"],
+          "events": ["glare_491"],
+          "guard": "retry_budget_remaining",
+          "to_state": "retry_wait",
+          "action": "persist_491_receipt_and_retry_deadline",
+          "sip_response": "491_recorded_or_sent",
+          "compensation": "release_on_budget_exhaustion"
+        },
+        {
+          "id": "SIPAV-T045",
+          "priority": 500,
+          "from_states": ["retry_wait"],
+          "events": ["retry_timer"],
+          "guard": "same_attempt_family_and_budget_remaining",
+          "to_state": "local_preparing",
+          "action": "prepare_new_negotiation_attempt",
+          "sip_response": "none",
+          "compensation": "keep_predecessor_or_fail_initial"
+        },
+        {
+          "id": "SIPAV-T046",
+          "priority": 600,
+          "from_states": ["negotiated_blocked"],
+          "events": ["ack"],
+          "guard": "ack_required_and_dialog_matches",
+          "to_state": "negotiated_blocked",
+          "action": "record_ack_receipt",
+          "sip_response": "none",
+          "compensation": "frozen_policy"
+        },
+        {
+          "id": "SIPAV-T047",
+          "priority": 650,
+          "from_states": ["offer_answer_pending"],
+          "events": ["prack"],
+          "guard": "reliable_provisional_offer_answer_complete_and_digest_matches",
+          "to_state": "reliable_provisional_negotiated",
+          "action": "persist_prack_response_receipt_and_provisional_negotiation_digest",
+          "sip_response": "200_PRACK",
+          "compensation": "reject_final_mismatch_keep_predecessor_or_fail_initial"
+        },
+        {
+          "id": "SIPAV-T048",
+          "priority": 550,
+          "from_states": ["reliable_provisional_negotiated"],
+          "events": ["sip_2xx"],
+          "guard": "final_answer_matches_reliable_provisional_negotiation_digest",
+          "to_state": "negotiated_blocked",
+          "action": "persist_final_negotiation_decision_and_response_receipt",
+          "sip_response": "selected_2xx_sent_or_received",
+          "compensation": "frozen_compensating_offer_or_termination"
+        },
+        {
+          "id": "SIPAV-T049",
+          "priority": 550,
+          "from_states": ["offer_answer_pending"],
+          "events": ["sip_2xx"],
+          "guard": "late_offer_in_2xx_requires_answer_in_ack",
+          "to_state": "late_offer_ack_answer_pending",
+          "action": "persist_late_offer_2xx_receipt_and_offer_digest_without_authorizing_media",
+          "sip_response": "selected_2xx_with_offer_sent_or_received",
+          "compensation": "timeout_compensating_offer_or_termination"
+        },
+        {
+          "id": "SIPAV-T052",
+          "priority": 650,
+          "from_states": ["late_offer_ack_answer_pending"],
+          "events": ["ack"],
+          "guard": "ack_answer_complete_and_digest_matches_late_offer",
+          "to_state": "negotiated_blocked",
+          "action": "persist_negotiation_decision_and_ack_receipt",
+          "sip_response": "none",
+          "compensation": "frozen_compensating_offer_or_termination"
+        },
+        {
+          "id": "SIPAV-T053",
+          "priority": 700,
+          "from_states": ["late_offer_ack_answer_pending"],
+          "events": ["ack"],
+          "guard": "uas_received_ack_with_invalid_or_mismatched_answer",
+          "to_state": "terminating",
+          "action": "persist_invalid_ack_answer_without_responding_to_ack_then_send_bye",
+          "sip_response": "none_to_ACK_then_BYE",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T054",
+          "priority": 500,
+          "from_states": ["offer_answer_pending", "reliable_provisional_negotiated"],
+          "events": ["sip_4xx"],
+          "guard": "has_predecessor_av",
+          "to_state": "av_active",
+          "action": "release_candidate_keep_predecessor",
+          "sip_response": "propagate_or_record_4xx",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T055",
+          "priority": 690,
+          "from_states": ["offer_answer_pending", "reliable_provisional_negotiated"],
+          "events": ["glare_491"],
+          "guard": "retry_budget_exhausted_has_predecessor_audio",
+          "to_state": "audio_active",
+          "action": "persist_491_exhaustion_release_candidate_keep_predecessor",
+          "sip_response": "491_recorded_or_sent",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T056",
+          "priority": 690,
+          "from_states": ["offer_answer_pending", "reliable_provisional_negotiated"],
+          "events": ["glare_491"],
+          "guard": "retry_budget_exhausted_has_predecessor_av",
+          "to_state": "av_active",
+          "action": "persist_491_exhaustion_release_candidate_keep_predecessor",
+          "sip_response": "491_recorded_or_sent",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T057",
+          "priority": 690,
+          "from_states": ["offer_answer_pending", "reliable_provisional_negotiated"],
+          "events": ["glare_491"],
+          "guard": "retry_budget_exhausted_no_predecessor",
+          "to_state": "terminating",
+          "action": "persist_491_exhaustion_release_candidate_and_fail",
+          "sip_response": "491_recorded_or_sent",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T058",
+          "priority": 750,
+          "from_states": ["reliable_provisional_negotiated"],
+          "events": ["final_sdp_mismatch"],
+          "guard": "uac_received_final_2xx_sdp_mismatch_or_unacceptable",
+          "to_state": "terminating",
+          "action": "persist_mismatch_send_ack_for_2xx_then_bye",
+          "sip_response": "ACK_then_BYE",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T059",
+          "priority": 750,
+          "from_states": ["reliable_provisional_negotiated"],
+          "events": ["final_sdp_mismatch"],
+          "guard": "uas_detected_mismatch_before_final_response_has_predecessor_audio",
+          "to_state": "audio_active",
+          "action": "persist_mismatch_send_non2xx_release_candidate_keep_predecessor",
+          "sip_response": "488_or_500",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T062",
+          "priority": 750,
+          "from_states": ["reliable_provisional_negotiated"],
+          "events": ["final_sdp_mismatch"],
+          "guard": "uas_detected_mismatch_before_final_response_has_predecessor_av",
+          "to_state": "av_active",
+          "action": "persist_mismatch_send_non2xx_release_candidate_keep_predecessor",
+          "sip_response": "488_or_500",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T063",
+          "priority": 750,
+          "from_states": ["reliable_provisional_negotiated"],
+          "events": ["final_sdp_mismatch"],
+          "guard": "uas_detected_mismatch_before_final_response_no_predecessor",
+          "to_state": "terminating",
+          "action": "persist_mismatch_send_non2xx_release_candidate_and_fail",
+          "sip_response": "488_or_500",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T050",
+          "priority": 500,
+          "from_states": ["negotiated_blocked"],
+          "events": ["negotiation_ready"],
+          "guard": "has_predecessor_writer",
+          "to_state": "old_revoking",
+          "action": "persist_revoke_old_decision_invalidate_old_fence",
+          "sip_response": "none",
+          "compensation": "never_restore_old_fence"
+        },
+        {
+          "id": "SIPAV-T051",
+          "priority": 500,
+          "from_states": ["negotiated_blocked"],
+          "events": ["negotiation_ready"],
+          "guard": "no_predecessor_writer",
+          "to_state": "new_committed",
+          "action": "commit_new_media_generation",
+          "sip_response": "none",
+          "compensation": "compensating_offer_or_termination"
+        },
+        {
+          "id": "SIPAV-T060",
+          "priority": 500,
+          "from_states": ["old_revoking"],
+          "events": ["old_zero_output"],
+          "guard": "all_mandatory_old_gates_ack",
+          "to_state": "old_zero",
+          "action": "persist_zero_output_receipt",
+          "sip_response": "none",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T061",
+          "priority": 500,
+          "from_states": ["old_zero"],
+          "events": ["new_commit_succeeded"],
+          "guard": "candidate_generation_and_fence_match",
+          "to_state": "new_committed",
+          "action": "persist_new_media_commit_receipt",
+          "sip_response": "none",
+          "compensation": "compensating_offer_or_termination"
+        },
+        {
+          "id": "SIPAV-T070",
+          "priority": 500,
+          "from_states": ["new_committed"],
+          "events": ["join_started"],
+          "guard": "commit_receipt_current",
+          "to_state": "joining",
+          "action": "join_participant_publish_subscribe",
+          "sip_response": "none",
+          "compensation": "cleanup_participant_and_compensate"
+        },
+        {
+          "id": "SIPAV-T071",
+          "priority": 500,
+          "from_states": ["joining"],
+          "events": ["join_succeeded"],
+          "guard": "candidate_mode_av_and_tracks_observed",
+          "to_state": "av_active",
+          "action": "enable_av_writers_persist_observation",
+          "sip_response": "none",
+          "compensation": "fallback_negotiation"
+        },
+        {
+          "id": "SIPAV-T072",
+          "priority": 500,
+          "from_states": ["joining"],
+          "events": ["join_succeeded"],
+          "guard": "candidate_mode_audio_and_audio_observed",
+          "to_state": "audio_active",
+          "action": "enable_audio_writer_persist_observation",
+          "sip_response": "none",
+          "compensation": "terminate_if_audio_unavailable"
+        },
+        {
+          "id": "SIPAV-T073",
+          "priority": 500,
+          "from_states": ["joining"],
+          "events": ["join_failed"],
+          "guard": "negotiation_already_accepted_and_policy_allows_audio_fallback",
+          "to_state": "fallback_negotiating",
+          "action": "persist_join_failure_start_compensation",
+          "sip_response": "none",
+          "compensation": "audio_only_offer_or_termination"
+        },
+        {
+          "id": "SIPAV-T074",
+          "priority": 550,
+          "from_states": ["joining"],
+          "events": ["join_failed"],
+          "guard": "negotiation_already_accepted_and_policy_requires_atomic_av_failure",
+          "to_state": "terminating",
+          "action": "persist_atomic_av_failure_revoke_candidate_and_terminate",
+          "sip_response": "BYE_or_protocol_specific_failure",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T080",
+          "priority": 400,
+          "from_states": ["av_active"],
+          "events": ["keyframe_observed"],
+          "guard": "track_and_generation_match",
+          "to_state": "av_active",
+          "action": "persist_healthy_observation",
+          "sip_response": "none",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T081",
+          "priority": 700,
+          "from_states": ["av_active"],
+          "events": ["keyframe_missing", "gateway_loss", "video_remove"],
+          "guard": "policy_allows_audio_fallback",
+          "to_state": "fallback_negotiating",
+          "action": "persist_failure_start_audio_only_negotiation",
+          "sip_response": "reinvite_or_update_audio_only",
+          "compensation": "terminate_when_fallback_rejected"
+        },
+        {
+          "id": "SIPAV-T082",
+          "priority": 710,
+          "from_states": ["av_active"],
+          "events": ["keyframe_missing", "gateway_loss", "video_remove"],
+          "guard": "policy_requires_atomic_av_failure",
+          "to_state": "terminating",
+          "action": "persist_atomic_av_failure_revoke_media_and_terminate",
+          "sip_response": "BYE_or_protocol_specific_failure",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T090",
+          "priority": 500,
+          "from_states": ["fallback_negotiating"],
+          "events": ["compensation_accepted"],
+          "guard": "audio_offer_answer_digest_matches",
+          "to_state": "negotiated_blocked",
+          "action": "persist_compensation_decision_prepare_audio_candidate",
+          "sip_response": "audio_only_2xx_sent_or_received",
+          "compensation": "termination"
+        },
+        {
+          "id": "SIPAV-T091",
+          "priority": 500,
+          "from_states": ["fallback_negotiating"],
+          "events": ["compensation_failed"],
+          "guard": "retry_or_alternate_exhausted",
+          "to_state": "terminating",
+          "action": "persist_terminal_decision",
+          "sip_response": "failure_or_BYE",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T100",
+          "priority": 800,
+          "from_states": ["local_preparing", "offer_answer_pending", "reliable_provisional_negotiated", "retry_wait"],
+          "events": ["timeout"],
+          "guard": "has_predecessor_audio",
+          "to_state": "audio_active",
+          "action": "release_candidate_keep_predecessor_record_timeout",
+          "sip_response": "408_or_504_when_applicable",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T101",
+          "priority": 800,
+          "from_states": ["local_preparing", "offer_answer_pending", "reliable_provisional_negotiated", "retry_wait"],
+          "events": ["timeout"],
+          "guard": "no_predecessor",
+          "to_state": "terminating",
+          "action": "release_candidate_persist_timeout",
+          "sip_response": "408_or_504_when_applicable",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T102",
+          "priority": 800,
+          "from_states": ["negotiated_blocked", "old_revoking", "old_zero", "new_committed", "joining"],
+          "events": ["timeout"],
+          "guard": "sip_acceptance_already_durable_and_safe_compensating_audio_path_available",
+          "to_state": "fallback_negotiating",
+          "action": "persist_timeout_start_frozen_compensation",
+          "sip_response": "compensating_reinvite_or_update",
+          "compensation": "termination"
+        },
+        {
+          "id": "SIPAV-T103",
+          "priority": 800,
+          "from_states": ["negotiated_blocked", "old_revoking", "old_zero", "new_committed", "joining"],
+          "events": ["timeout"],
+          "guard": "sip_acceptance_already_durable_and_no_safe_compensating_path",
+          "to_state": "terminating",
+          "action": "persist_timeout_terminal_decision_revoke_candidate",
+          "sip_response": "BYE_or_protocol_specific_failure",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T104",
+          "priority": 800,
+          "from_states": ["local_preparing", "offer_answer_pending", "reliable_provisional_negotiated", "retry_wait"],
+          "events": ["timeout"],
+          "guard": "has_predecessor_av",
+          "to_state": "av_active",
+          "action": "release_candidate_keep_predecessor_record_timeout",
+          "sip_response": "408_or_504_when_applicable",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T105",
+          "priority": 850,
+          "from_states": ["late_offer_ack_answer_pending"],
+          "events": ["timeout"],
+          "guard": "uas_2xx_offer_retransmission_budget_exhausted_without_valid_ack_answer",
+          "to_state": "terminating",
+          "action": "persist_ack_timeout_stop_2xx_retransmission_then_send_bye",
+          "sip_response": "stored_2xx_retransmissions_then_BYE",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T106",
+          "priority": 850,
+          "from_states": ["late_offer_ack_answer_pending"],
+          "events": ["timeout"],
+          "guard": "uac_local_ack_answer_deadline_exhausted",
+          "to_state": "terminating",
+          "action": "send_valid_rejecting_ack_answer_then_bye_and_persist_failure",
+          "sip_response": "ACK_with_rejected_media_then_BYE",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T107",
+          "priority": 700,
+          "from_states": ["late_offer_ack_answer_pending"],
+          "events": ["ack"],
+          "guard": "uac_offer_unacceptable_but_valid_rejecting_ack_answer_constructed",
+          "to_state": "terminating",
+          "action": "send_valid_rejecting_ack_answer_persist_receipt_then_bye",
+          "sip_response": "ACK_with_rejected_media_then_BYE",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T108",
+          "priority": 850,
+          "from_states": ["fallback_negotiating"],
+          "events": ["timeout"],
+          "guard": "compensation_deadline_exhausted",
+          "to_state": "terminating",
+          "action": "persist_compensation_timeout_terminal_decision",
+          "sip_response": "failure_or_BYE",
+          "compensation": "none"
+        },
+        {
+          "id": "SIPAV-T110",
+          "priority": 900,
+          "from_states": ["terminating"],
+          "events": ["termination_complete"],
+          "guard": "all_terminal_receipts_or_tombstones_present",
+          "to_state": "terminal",
+          "action": "persist_terminal_tombstone",
+          "sip_response": "stored_terminal_response",
+          "compensation": "none"
+        }
+      ],
+      "allowed_transition_rules_sha256": "57ec58f0e5536d1e8c4323e690dad2b947b61b85d114a808a49d0b17f38f07a6",
+      "atomic_boundaries": [
+        "negotiation_decision_before_final_sip_response_or_acceptance_except_late_offer_2xx_receipt_then_ack_answer_decision",
+        "sip_acceptance_does_not_authorize_media_writer",
+        "replacement_old_zero_before_new_media_commit",
+        "new_media_commit_before_participant_join_publish",
+        "external_effect_receipt_then_query_reconcile_same_transition",
+        "rollback_appends_compensation_never_deletes_decision"
+      ]
+    },
+    "room_to_carrier_selection": {
+      "authority": "opc_bridge_coordinator_room_return_policy",
+      "first_production_mode": "LOCKED_AV_PEER",
+      "locked_av_peer": "one_authorized_participant_paired_audio_video",
+      "conference_return": "n_minus_one_authorized_audio_mix_and_one_selected_video",
+      "video_precedence": [
+        "explicit_pin",
+        "policy_approved_screen_share",
+        "active_speaker_camera",
+        "last_known_good"
+      ],
+      "exclude_gateway_published_carrier_tracks": true,
+      "source_change": "new_source_selection_generation_fence_receipt_with_debounce_hysteresis",
+      "conference_lip_sync_claim": "playout_clock_only_except_selected_participant_contribution",
+      "evidence_inheritable_between_modes": false
+    },
+    "required_paths": [
+      "livekit_audio_to_video",
+      "livekit_video_to_audio",
+      "sip_audio_to_livekit_audio",
+      "livekit_audio_to_sip_audio",
+      "sip_audio_to_livekit_video_context",
+      "vilte_inbound_new_av",
+      "vilte_outbound_new_av",
+      "vilte_active_voice_to_video",
+      "vilte_active_video_to_voice",
+      "vilte_repeated_toggle",
+      "vilte_video_failure_to_negotiated_audio",
+      "av_to_rtpengine_audio"
+    ],
+    "results_inheritable_across_paths": false,
+    "video_failure_default": "explicit_audio_only_degrade_when_policy_allows",
+    "production_eligible": false
+  },
+  "capacity_demand": {
+    "independent_profiles": [
+      "VOICE-ORDINARY",
+      "VOICE-DECODED",
+      "VOICE-LIVEKIT-AUDIO",
+      "VILTE-AV-COMBINED",
+      "VILTE-AV-SPLIT-RESEARCH",
+      "SPEECH-TELEPHONY",
+      "SPEECH-LIVEKIT",
+      "REALTIME-TRANSLATION",
+      "AI-NATIVE-TOOLS",
+      "RECORDING",
+      "MIXED-CELL"
+    ],
+    "speech_ab_pairs": [
+      "active_native_vs_active_hf",
+      "livekit_native_vs_livekit_hf"
+    ],
+    "speech_qualification_classes": [
+      "framework_overhead_same_models_hardware_locality",
+      "production_frontier_best_exact_source_configuration"
+    ],
+    "speech_relative_gates": {
+      "absolute_numeric_profile_required_before_run": true,
+      "framework_p95_max_ratio": 1.05,
+      "framework_p99_max_ratio": 1.10,
+      "resource_per_session_max_ratio": 1.10,
+      "safe_capacity_min_ratio": 0.95,
+      "quality_rule": "preregistered_confidence_interval_noninferiority",
+      "stale_cancel_recovery_rule": "no_worse_than_baseline_and_absolute_slo",
+      "hf_default_p95_improvement_min_ratio": 0.10,
+      "hf_default_p99_max_regression_ratio": 0.05,
+      "missing_threshold_status": "not_run"
+    },
+    "speech_metrics": [
+      "vad_endpoint_p50_p95_p99",
+      "stt_final_p50_p95_p99",
+      "llm_ttft_p50_p95_p99",
+      "tts_first_audio_p50_p95_p99",
+      "speech_end_to_first_audible_p50_p95_p99",
+      "barge_in_cutoff_and_stale_audio",
+      "wer_cer_translation_task_completion_mos",
+      "cpu_gpu_vram_per_session",
+      "queue_drop_cancel",
+      "concurrency_and_admission",
+      "endurance_30m_2h_24h",
+      "crash_restart_drain"
+    ],
+    "video_metrics": [
+      "gateway_sessions_and_tracks",
+      "h264_passthrough_transcode_ratio",
+      "resolution_frame_rate_bitrate",
+      "nack_pli_fir",
+      "freeze_black_frame_keyframe",
+      "audio_video_drift_and_lip_sync",
+      "cpu_gpu_vram_slots",
+      "turn_ratio_and_bandwidth",
+      "rtpengine_ports_srtp_contexts_pps",
+      "participant_join_and_sip_control_cps",
+      "audio_mix_codec_slots",
+      "room_source_selection_generation_and_churn",
+      "conference_n_minus_one_mix",
+      "jitter_retransmit_keyframe_cache_memory",
+      "rtcp_keyframe_burst_pacer",
+      "nic_irq_numa_and_failure_reserve",
+      "voice_video_switch_gap_loss",
+      "recording_continuity",
+      "endurance_30m_2h_24h"
+    ],
+    "all_status": "not_run"
+  },
+  "server_freeze": {
+    "containers_mutable": false,
+    "documentation_authorizes_deploy": false,
+    "git_commit_authorizes_deploy": false,
+    "code_test_authorizes_feature_flag": false,
+    "old_server_results_authorize_r5": false,
+    "future_change_requires_explicit_user_authorization": true
+  },
+  "phase_gates": [
+    "R5-D0",
+    "R4-COMM",
+    "R5-F0",
+    "R5-S0",
+    "R5-S1",
+    "R5-S2",
+    "R5-S3",
+    "R5-A0",
+    "R5-A1",
+    "R5-A2",
+    "R5-A3",
+    "R5-A4",
+    "R5-EVIDENCE",
+    "R5-MIXED-CELL",
+    "R5-PRODUCTION"
+  ],
+  "current_target_eligibility": {
+    "current_snapshot_date": "2026-07-31",
+    "target_architecture_accepted": true,
+    "runtime_changes_in_this_revision": false,
+    "r4_d0_checkpoint_commit": "2c360a3990201e037be33a98623ae65720c6a092",
+    "r4_implementation_started": true,
+    "r5_delta_development_authorized": false,
+    "production_eligible": false,
+    "unproved_status": "not_run"
+  }
+}

@@ -1,0 +1,290 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opc.local/schemas/unified-communication-foundation-r5-traceability.schema.json",
+  "title": "OPC Unified Communication Foundation Revision 5 Traceability",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "contract_id",
+    "revision",
+    "status",
+    "source_identity",
+    "inherited_r4",
+    "summary",
+    "claim_boundary",
+    "delta_rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "contract_id": {
+      "const": "unified-communication-foundation-r5-traceability-v1"
+    },
+    "revision": {
+      "const": 5
+    },
+    "status": {
+      "const": "target"
+    },
+    "source_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "r5_objective",
+        "r5_design",
+        "r5_machine_contract",
+        "r5_agent_speech_adr",
+        "r5_vilte_gateway_adr",
+        "r5_plan"
+      ],
+      "properties": {
+        "r5_objective": {
+          "$ref": "#/$defs/artifactBinding"
+        },
+        "r5_design": {
+          "$ref": "#/$defs/artifactBinding"
+        },
+        "r5_machine_contract": {
+          "$ref": "#/$defs/artifactBinding"
+        },
+        "r5_agent_speech_adr": {
+          "$ref": "#/$defs/artifactBinding"
+        },
+        "r5_vilte_gateway_adr": {
+          "$ref": "#/$defs/artifactBinding"
+        },
+        "r5_plan": {
+          "$ref": "#/$defs/artifactBinding"
+        }
+      }
+    },
+    "inherited_r4": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "objective",
+        "machine_contract",
+        "traceability",
+        "status_rule",
+        "r5_document_acceptance_upgrades_r4_rows"
+      ],
+      "properties": {
+        "policy": {
+          "const": "compose_not_copy"
+        },
+        "objective": {
+          "$ref": "#/$defs/artifactBinding"
+        },
+        "machine_contract": {
+          "$ref": "#/$defs/artifactBinding"
+        },
+        "traceability": {
+          "$ref": "#/$defs/r4TraceBinding"
+        },
+        "status_rule": {
+          "const": "each_r4_row_keeps_its_exact_r4_status_until_its_own_evidence_changes"
+        },
+        "r5_document_acceptance_upgrades_r4_rows": {
+          "const": false
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inherited_r4_row_count",
+        "r5_delta_row_count",
+        "composed_requirement_count",
+        "r5_operational_verification_status",
+        "production_eligible"
+      ],
+      "properties": {
+        "inherited_r4_row_count": {
+          "const": 362
+        },
+        "r5_delta_row_count": {
+          "const": 66
+        },
+        "composed_requirement_count": {
+          "const": 428
+        },
+        "r5_operational_verification_status": {
+          "const": "not_run"
+        },
+        "production_eligible": {
+          "const": false
+        }
+      }
+    },
+    "claim_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capacity_claim",
+        "runtime_enablement",
+        "server_change_authorized",
+        "upstream_claim_is_evidence",
+        "mock_or_microbenchmark_is_production_evidence",
+        "cross_profile_result_inheritance",
+        "unproved_status"
+      ],
+      "properties": {
+        "capacity_claim": {
+          "const": "none"
+        },
+        "runtime_enablement": {
+          "const": false
+        },
+        "server_change_authorized": {
+          "const": false
+        },
+        "upstream_claim_is_evidence": {
+          "const": false
+        },
+        "mock_or_microbenchmark_is_production_evidence": {
+          "const": false
+        },
+        "cross_profile_result_inheritance": {
+          "const": false
+        },
+        "unproved_status": {
+          "const": "not_run"
+        }
+      }
+    },
+    "delta_rows": {
+      "type": "array",
+      "minItems": 66,
+      "maxItems": 66,
+      "items": {
+        "$ref": "#/$defs/traceRow"
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "uniqueNonEmptyStrings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "artifactBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "r4TraceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "row_count"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "row_count": {
+          "const": 362
+        }
+      }
+    },
+    "traceRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trace_id",
+        "category",
+        "requirement",
+        "source_refs",
+        "design_refs",
+        "phase",
+        "verification_status",
+        "production_eligible"
+      ],
+      "properties": {
+        "trace_id": {
+          "type": "string",
+          "pattern": "^R5-[A-Z0-9-]+$"
+        },
+        "category": {
+          "enum": [
+            "inheritance",
+            "authority",
+            "rvoip",
+            "media",
+            "codec",
+            "recording",
+            "fault_domain",
+            "livekit",
+            "vilte",
+            "agent",
+            "speech",
+            "ai_native",
+            "performance",
+            "security",
+            "recovery",
+            "migration",
+            "observability",
+            "change_control",
+            "evidence",
+            "delivery",
+            "completion"
+          ]
+        },
+        "requirement": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "source_refs": {
+          "$ref": "#/$defs/uniqueNonEmptyStrings"
+        },
+        "design_refs": {
+          "$ref": "#/$defs/uniqueNonEmptyStrings"
+        },
+        "phase": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "verification_status": {
+          "const": "not_run"
+        },
+        "production_eligible": {
+          "const": false
+        }
+      }
+    }
+  }
+}

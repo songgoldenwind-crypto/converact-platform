@@ -5,6 +5,12 @@ OPC 的通信底座上下文定义企业通信中的呼叫、信令、媒体和�
 
 ## Language
 
+**Interaction**:
+跨电话、LiveKit、IM、未来 ViLTE 和人工/AI 接管保持稳定的业务联络身份。一个
+Interaction 可以包含多个 Call、Room、Agent Run 和 Task；它不等于任一协议、房间或
+模型会话 ID。
+_Avoid_: SIP Call-ID、LiveKit Room、Conversation（未说明边界）
+
 **Call**:
 一次具有业务身份、租户归属和生命周期的通信交互，可以包含一条或多条 Leg。
 _Avoid_: Session、Conversation
@@ -80,6 +86,18 @@ command sequence、writer fence、handoff decision、provider receipt 与 termin
 receipt；不是第二个 Call、CDR、Room、RecordingManifest 或 billing Authority。
 _Avoid_: second Call、LiveKit-owned CDR、recording authority
 
+**LiveKit SIP Audio Bridge**:
+`Voice-LiveKit Bridge` 的音频执行器精确名称。它使用 LiveKit SIP 把 SIP/RTP 音频映射
+成 Room participant/audio track；不表示 Video over SIP，也不能继承 ViLTE 视频资格。
+_Avoid_: LiveKit video bridge、AV Gateway
+
+**AV Participant Gateway**:
+把 RTPengine-facing ViLTE 音视频映射成同一个 LiveKit participant/PeerConnection 的
+audio/video tracks，并把订阅的 Room tracks 反向发送给 carrier 的双向执行器。carrier、
+内部和 LiveKit 三段 crypto context 分离。它遵守 Media Plan、Bridge Generation 和
+writer fence，不拥有 Call、Room、billing、RecordingManifest 或 Agent 业务状态。
+_Avoid_: PBX、SFU、LiveKit SIP Audio Bridge、RTPengine
+
 **Bridge Generation**:
 Voice-LiveKit Bridge 一次不可变的执行尝试。改变方向、participant、Room、Backend、
 transport 或 writer 必须产生新 generation，并通过
@@ -128,11 +146,74 @@ _Avoid_: Logical Media Graph、Media Plan、duplicated physical transport owners
 需要解码、转码、播放、收号、混音或 AI 音频处理的有界媒体执行上下文。
 _Avoid_: Protocol Session、Call
 
+**Channel Agent Runtime**:
+面向一个通信渠道、拥有当前连接/turn/buffer/playback 和短期 framework state 的 Agent
+执行上下文。Telephony Channel Agent 可吸收 Active Call 的电话能力；Room Channel
+Agent 可使用 LiveKit Agents。它不拥有跨渠道 Task、Memory、Policy、Approval 或 Tool
+side effect。
+_Avoid_: AI-native Orchestrator、Call Authority、Speech Runtime
+
+**Speech Runtime**:
+通过 OPC-owned normalized contract 执行 VAD/STT/LLM/TTS、streaming event、cancel、
+usage 和 session lifecycle 的可替换运行时。Hugging Face `speech-to-speech` 是目标主
+实现，channel-native pipeline 是迁移/A-B baseline。Speech Runtime 不拥有 Task、
+Tool、Memory、Call 或 Room。
+_Avoid_: Agent framework、AI-native Orchestrator、Provider-specific domain model
+
+**AI-native Orchestrator**:
+跨渠道 AgentRun、Task DAG、Tool、Memory、Policy、Approval、Action Ledger、Handoff
+和 Evaluation 的唯一业务 Authority。它通过 Channel Agent Runtime 与 Speech Runtime
+执行，不管理 RTP、Room 或 SIP Protocol Dialog。
+_Avoid_: Speech Runtime、LiveKit Agents、Active Call、LLM
+
+**Context Revision**:
+由 AI-native Orchestrator 单写的 canonical conversation/task context 版本，绑定
+Interaction、AgentRun、memory/policy/tool catalog revisions 与内容 digest。Channel
+framework、Speech Runtime 和 Provider 的 chat/history 只是可丢弃 projection；每次
+response 创建和 tool-result 回注必须匹配当前 Context Revision。
+_Avoid_: framework-local chat authority、Provider session history
+
+**Response Lease**:
+由 OPC Interaction Lease Store 通过 durable CAS 唯一签发，绑定 Interaction、AgentRun、
+Channel Binding、lease/response generation、owner epoch、fence 和 expiry 的独占响应
+许可。只有当前 lease holder 可以提交 turn、播放/发布 Agent 输出、取消响应或提交本
+generation 的 tool proposal；audio/publisher/tool/transcript output gate 必须拒绝旧
+fence。lease 丢失只停止 Agent 输出与动作，不停止主通信媒体。
+_Avoid_: channel presence、best-effort active flag
+
+**Speech Control Fence**:
+由 Speech session coordinator 签发，保护 prepare、resource ownership 和 lifecycle
+mutation 的 session/generation owner fence。它允许在新 Response Lease 签发前做无外部
+输出的 blocked prepare，但不能授权 turn、TTS、tool 或电话动作。
+_Avoid_: Response Fence、unfenced prepare
+
+**Response Fence**:
+从当前 Response Lease 派生，保护 turn、response、tool-result、cancel 以及所有可听、
+可见或有副作用输出。output-affecting Speech mutation 同时验证 Speech Control Fence
+和 Response Fence。
+_Avoid_: Speech Control Fence、framework-local active flag
+
+**Output Permit**:
+由当前 Response Lease receipt 编译到 audio injector、LiveKit publisher、RustPBX
+communication-action executor、Tool Broker 和 transcript sink 的本地只读 gate，使用
+Interaction、lease/response generation 和 fence 做 `O(1)` 判定。它避免逐帧访问
+durable store；到期或撤销时 fail closed。
+_Avoid_: unguarded output、database lookup per audio frame
+
+**Qualification Profile**:
+在证据运行前固定 source/model/binary/config/hardware/workload/clock、绝对 SLO 与相对
+门禁的签名测试身份。运行后补阈值、跨 profile 借证据或用 upstream claim 填 passed 均
+不合法。
+_Avoid_: benchmark description without thresholds、post-hoc gate
+
 **Unified RustPBX Process**:
 包含 RustPBX 产品层、Call Core、进程内 rvoip `SipFoundation` Adapter，以及首期
 进程内嵌入的 `voice-media-rs` library/worker shards 的单一可执行进程；这些 Rust
 模块只通过 Rust Interface、bounded queue 和内存对象调用，不使用 HTTP/gRPC/RPC。
-RTPengine 仍是外部专用 ordinary media data plane。
+RTPengine 仍是外部专用 ordinary media data plane。Revision 5 明确：该术语固定产品、
+Call 和 Media Plan Authority，不要求 native/unsafe codec、recording upload、AI、
+GPU 或 AV Gateway 永远位于同一 OS 地址空间；风险执行器可以进入受监管 worker fault
+domain，而不成为第二 Authority。
 _Avoid_: rvoip node、voice-media service、all-media-in-one-thread
 
 **Media Engine Facade**:

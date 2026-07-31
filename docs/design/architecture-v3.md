@@ -1,5 +1,10 @@
 # OPC AI 通信平台 — 完整架构设计 v3
 
+> **历史实现规格声明（2026-07-31）**：本文保留 Sprint 1–12 和既有代码对照价值；
+> 通信、媒体、Channel Agent、HF Speech Runtime、ViLTE 与 AI-native Authority 已由
+> [统一通信底座 Revision 5](./unified-communication-foundation-r5.md) 覆盖。冲突处以
+> Revision 5 为准。
+>
 > **版本**: v3.1（按 `docs/design/README.md` 准绳标注现状/目标态差异并补互链）
 > **日期**: 2026-06-29
 > **状态**: 执行级规格（**可直接编码** caveat：见下方「现状校准」段——§3/§4 的若干"现状"项与 spec 目标态存在差距，已在正文相应位置就地标注 `【现状】`）

@@ -1,7 +1,7 @@
 # OPC 设计文档区 — 导航与治理
 
 > 本文件是 `docs/design/` 的导航与治理入口。新增/修改本目录任意 `.md` 前，先读本文件。
-> **快照日期**：2026-07-29（RustPBX × rvoip 唯一生产基线、Media Edge 与 Backend Binding Group 模型已重扫）
+> **快照日期**：2026-07-31（Revision 5 统一通信、HF Speech Runtime、AI-native 与 ViLTE AV Gateway 已冻结为目标架构）
 
 ---
 
@@ -21,8 +21,10 @@
 | [communication-foundation-production-completion.md](./communication-foundation-production-completion.md) | — | 执行基线 | 2026-07-21 | IM/SIP/视频集群完备性与后续 Goals | 活跃、覆盖早期 MVP 裁决 |
 | [kamailio-sip-edge-design.md](./kamailio-sip-edge-design.md) | — | 执行设计 | 2026-07-21 | Kamailio/RustPBX Cell/Zone 路由与故障语义 | 活跃 |
 | [quic-video-transport-assessment.md](./quic-video-transport-assessment.md) | — | 技术裁决 | 2026-07-21 | QUIC/RoQ、LiveKit 与传输竞争治理 | 活跃、RoQ 仅实验 |
-| [communication-foundation-vos5000-parity-performance-plan.md](./communication-foundation-vos5000-parity-performance-plan.md) | — | Revision 3 | 2026-07-29 | VOS5000 对标、Goal 0-11、100K 性能与唯一生产架构总入口 | Accepted |
-| [rvoip-opc-communication-foundation-integration-design.md](./rvoip-opc-communication-foundation-integration-design.md) | — | Revision 3 | 2026-07-29 | RustPBX 产品主干、rvoip 低层吸收、Media Edge/Binding Group/Wire Bundle 与 Backend 资格设计 | Accepted |
+| [unified-communication-foundation-r5.md](./unified-communication-foundation-r5.md) | — | Revision 5 | 2026-07-31 | 当前统一入口：R4 通信底座 + fault domains + HF/Agent + LiveKit/ViLTE AV + AI-native | Accepted target；runtime/production `not_run` |
+| [2026-07-31-unified-communication-foundation-r5-implementation-plan.md](./2026-07-31-unified-communication-foundation-r5-implementation-plan.md) | — | v1 | 2026-07-31 | R5 TDD、故障域、Speech/Agent、AV Gateway 与 mixed-cell 实施计划 | R4 已进入实现；R5 delta 暂停待确认 |
+| [communication-foundation-vos5000-parity-performance-plan.md](./communication-foundation-vos5000-parity-performance-plan.md) | — | Revision 4 | 2026-07-30 | R4 VOS5000 对标、历史 Goal 0-11、100K 性能与通信底座详细入口 | Accepted；由 R5 完整继承 |
+| [rvoip-opc-communication-foundation-integration-design.md](./rvoip-opc-communication-foundation-integration-design.md) | — | Revision 4 | 2026-07-30 | R4 RustPBX 产品主干、rvoip 低层吸收、Media Edge/Binding Group/Wire Bundle 与 Backend 资格设计 | Accepted；由 R5 完整继承 |
 | [2026-07-28-ivekit-media-processing-goal4-implementation-plan.md](./2026-07-28-ivekit-media-processing-goal4-implementation-plan.md) | — | Revision 3 | 2026-07-29 | Goal 4 codec/IVR/G.729、进程内 `voice-media-rs` 与 co-resident 验收计划 | 活跃、真实容量 `not_run` |
 
 **上级文档**（不在本目录）：[../product-direction-2026-06.md](../product-direction-2026-06.md) — 产品方向总纲 v1.1（2026-06-29 CCaaS 校准）。
@@ -44,7 +46,31 @@
 
 ## 2. 文档关系图（实测）
 
-> 下方为本次审计实测到的引用关系 —— 当前是稀疏网络，**几乎不互链**是其系统性弱点。
+当前通信与 AI 架构的 canonical 链：
+
+```mermaid
+flowchart TD
+  R5["Unified Communication Foundation R5"]
+  R5C["R5 machine contract + trace"]
+  R5P["R5 TDD plan"]
+  ADR9["ADR-9 Channel Agent + HF SpeechRuntime"]
+  ADR10["ADR-10 ViLTE AV Gateway"]
+  R4["R4 RustPBX × rvoip design"]
+  VOS["R4 VOS-EQ / 100K plan"]
+  ADR578["ADR-5 / ADR-7 / ADR-8"]
+  CTX["CONTEXT.md"]
+
+  R5 --> R5C
+  R5 --> R5P
+  R5 --> ADR9
+  R5 --> ADR10
+  R5 --> R4
+  R5 --> VOS
+  R4 --> ADR578
+  R5 --> CTX
+```
+
+下方是产品/CCaaS 文档的历史互链审计。它继续用于旧产品路线，不覆盖上面的 R5 权威链：
 
 ```mermaid
 flowchart LR
@@ -140,7 +166,15 @@ MVP 历史裁决，不得覆盖现行 Cell 架构。
 
 ## 7. 本次审计核心结论（速查）
 
-- **跨文档互链**：2026-06-29 批次已在各文档头部补 `<关联文档>`；本文件 §2 关系图仍待重绘为实线网。
+- **跨文档互链**：§2 已新增 Revision 5 canonical 实线链；下方产品/CCaaS 历史图的虚线仍作为旧文档治理 backlog。
 - **已废组件**：§3 五词已在正文中标注；勿回退为裸词。
 - **时间轴双轨**：见 §5；Sprint↔Phase 对照表仍待补。
 - **与代码对照**：以各文档「现状校准（核查日期=2026-06-29）」为准；SQLite 主库、SSE 等 gap 仍 open。
+
+---
+
+## 8. 变更记录
+
+| 日期 | Revision | 作者 | 变更 |
+| --- | --- | --- | --- |
+| 2026-07-31 | R5 navigation | OPC/Codex | 新增统一通信 R5、Agent/HF、ViLTE AV、机器合同与实施计划入口；修正 R4 主设计版本登记 |

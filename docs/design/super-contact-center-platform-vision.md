@@ -1,5 +1,10 @@
 # OPC「超级联络中心平台」战略与演进报告
 
+> **Revision 5 通信/AI 架构覆盖说明（2026-07-31）**：本文继续作为产品战略北极星；
+> RustPBX/rvoip、RTPengine、LiveKit、Active Call、HF Speech Runtime、ViLTE 和
+> AI-native Authority 的实现边界以
+> [统一通信底座 Revision 5](./unified-communication-foundation-r5.md) 为准。
+>
 > **版本**: 1.4
 > **日期**: 2026-07-29
 > **状态**: 活跃 — 后续功能优先级、Sprint 排期、投资讨论均以此为准

@@ -1,6 +1,13 @@
 # VoiceAgentSpec v1
 
-> 语音 Agent 的可版本化描述。Agent 工厂（阶段 2）生成此结构；运行时 `ai-agent-py` 与 Dialer 消费此结构。
+> **Revision 5 边界（2026-07-31）**：本文件仍是 Voice Agent 配置结构参考；
+> `ai-agent-py` 不再被视为终态跨渠道 Runtime。Channel Agent、HF
+> `SpeechRuntime`、OPC AI-native Orchestrator 与 ResponseLease 以
+> [Revision 5 总设计](./design/unified-communication-foundation-r5.md) 和
+> [ADR-CCAAS-9](./adr/ccaas-9-channel-agent-and-speech-runtime.md) 为准。
+>
+> 语音 Agent 的可版本化描述。Agent 工厂（阶段 2）生成此结构；当前运行时
+> `ai-agent-py` 与 Dialer 消费此结构。
 
 ## 字段
 

@@ -1,0 +1,729 @@
+{
+  "$schema": "../schemas/unified-communication-foundation-r5-traceability.schema.json",
+  "schema_version": "1.0.0",
+  "contract_id": "unified-communication-foundation-r5-traceability-v1",
+  "revision": 5,
+  "status": "target",
+  "source_identity": {
+    "r5_objective": {
+      "path": "docs/capacity/contracts/unified-communication-foundation-r5-objective.md",
+      "sha256": "86ec798d2aafeb9e7b7f4f413d8a8b2a61d48e9ae8328f7bbc79cc391436469f"
+    },
+    "r5_design": {
+      "path": "docs/design/unified-communication-foundation-r5.md",
+      "sha256": "d89b6f0115ea23772d7312c407c0b4038c91107da01d120028754f92da1c10f8"
+    },
+    "r5_machine_contract": {
+      "path": "docs/capacity/contracts/unified-communication-foundation-r5-v1.json",
+      "sha256": "00790bb78abdd0b2a78c70c0193479421cc6998ec2be629d1cdffa288fa7b544"
+    },
+    "r5_agent_speech_adr": {
+      "path": "docs/adr/ccaas-9-channel-agent-and-speech-runtime.md",
+      "sha256": "b65d3b13a11eb903c82ee0f4ffd0e2dae9ef291abfc416544fa892097cb900dd"
+    },
+    "r5_vilte_gateway_adr": {
+      "path": "docs/adr/ccaas-10-vilte-livekit-av-participant-gateway.md",
+      "sha256": "0fc13ad3d446ea62e6592c684a98728a4acba9f064643e576486937c89f5771e"
+    },
+    "r5_plan": {
+      "path": "docs/design/2026-07-31-unified-communication-foundation-r5-implementation-plan.md",
+      "sha256": "ccad57bee3902d8fff84e26c7f91645ce02aede67bf3e628fb89ff989e729c4b"
+    }
+  },
+  "inherited_r4": {
+    "policy": "compose_not_copy",
+    "objective": {
+      "path": "docs/capacity/contracts/unified-voice-foundation-r4-objective.md",
+      "sha256": "9435c3e28f46f43906d325bb325253da2ecb448d257533547740073d9132bc54"
+    },
+    "machine_contract": {
+      "path": "docs/capacity/contracts/unified-voice-foundation-r4-v1.json",
+      "sha256": "87d8bb604a78550cd298a9056913e4841805708e740a4a8fde81ddf16ccffd39"
+    },
+    "traceability": {
+      "path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "sha256": "ff6cfdc9253fc12e4c816c2ff2a792250ef2fafc17437213e61502c8d170ee14",
+      "row_count": 362
+    },
+    "status_rule": "each_r4_row_keeps_its_exact_r4_status_until_its_own_evidence_changes",
+    "r5_document_acceptance_upgrades_r4_rows": false
+  },
+  "summary": {
+    "inherited_r4_row_count": 362,
+    "r5_delta_row_count": 66,
+    "composed_requirement_count": 428,
+    "r5_operational_verification_status": "not_run",
+    "production_eligible": false
+  },
+  "claim_boundary": {
+    "capacity_claim": "none",
+    "runtime_enablement": false,
+    "server_change_authorized": false,
+    "upstream_claim_is_evidence": false,
+    "mock_or_microbenchmark_is_production_evidence": false,
+    "cross_profile_result_inheritance": false,
+    "unproved_status": "not_run"
+  },
+  "delta_rows": [
+    {
+      "trace_id": "R5-INHERIT-001",
+      "category": "inheritance",
+      "requirement": "Revision 5 composes the exact R4 objective, machine contract and all 362 trace rows without resetting status.",
+      "source_refs": ["objective:1", "design:1"],
+      "design_refs": ["machine#/inherited_r4", "trace#/inherited_r4"],
+      "phase": "R5-D0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-INHERIT-002",
+      "category": "inheritance",
+      "requirement": "Three explicit R4 statements are superseded: LiveKit SIP is not a video bridge, one Authority does not require one OS address space, and the old D0 auto-start checkpoint does not authorize new R5 delta work after the user's later documentation-first instruction.",
+      "source_refs": ["objective:1", "design:1"],
+      "design_refs": ["machine#/inherited_r4/superseded_r4_statements"],
+      "phase": "R5-D0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AUTH-001",
+      "category": "authority",
+      "requirement": "Kamailio remains the SIP edge and does not own Call, billing or media business state.",
+      "source_refs": ["objective:2"],
+      "design_refs": ["design:2", "design:6", "machine#/authority_matrix/sip_edge_policy"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AUTH-002",
+      "category": "authority",
+      "requirement": "Unified RustPBX remains the only telephony Call, Leg, Business Dialog, routing, CDR and recording-intent Authority.",
+      "source_refs": ["objective:2"],
+      "design_refs": ["design:2", "design:6", "machine#/authority_matrix/telephony_business", "machine#/authority_matrix/recording_intent"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AUTH-003",
+      "category": "authority",
+      "requirement": "RustPBX Call Core is the single Logical Media Graph Authority while Media Engine Facade is the single Media Plan, Directed Edge generation and writer-fence Authority.",
+      "source_refs": ["objective:6"],
+      "design_refs": ["design:6", "machine#/authority_matrix/logical_media_graph", "machine#/authority_matrix/media_plan_and_edge_fence"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AUTH-004",
+      "category": "authority",
+      "requirement": "LiveKit remains the only Room, participant, track, WebRTC and SFU Authority.",
+      "source_refs": ["objective:8"],
+      "design_refs": ["design:6", "machine#/authority_matrix/room_webrtc_sfu"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AUTH-005",
+      "category": "authority",
+      "requirement": "OPC AI-native Orchestrator owns cross-channel Task, Tool, Memory, Policy, Approval, Handoff, Action Ledger and Evaluation.",
+      "source_refs": ["objective:19"],
+      "design_refs": ["design:15", "machine#/ai_native"],
+      "phase": "R5-S3",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-RVOIP-001",
+      "category": "rvoip",
+      "requirement": "rvoip is evaluated and adopted only as exact-source low-level slices.",
+      "source_refs": ["objective:3"],
+      "design_refs": ["design:9", "machine#/rvoip_adoption"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-RVOIP-002",
+      "category": "rvoip",
+      "requirement": "rvoip shadow parsing is read-only and cannot emit SIP effects, create authoritative dialogs or allocate media.",
+      "source_refs": ["objective:3"],
+      "design_refs": ["design:9.3", "machine#/rvoip_adoption/migration_order"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-RVOIP-003",
+      "category": "rvoip",
+      "requirement": "After each adopted slice, new calls move, old calls drain to active-zero and the displaced implementation is deleted.",
+      "source_refs": ["objective:3", "objective:22"],
+      "design_refs": ["design:9.3", "design:18.2"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-MEDIA-001",
+      "category": "media",
+      "requirement": "RTPengine remains the ordinary RTP, RTCP and SRTP default fast path and performance floor.",
+      "source_refs": ["objective:4"],
+      "design_refs": ["design:10.2", "machine#/media_plane/ordinary_path"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-MEDIA-002",
+      "category": "media",
+      "requirement": "A Rust-native ordinary path is only a candidate after same-hardware full-function evidence and never creates a second production profile.",
+      "source_refs": ["objective:4"],
+      "design_refs": ["design:10.2", "machine#/architecture_profile/rust_native_fast_path_role"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-MEDIA-003",
+      "category": "media",
+      "requirement": "voice-media-rs executes bounded decode-required media while Media Plan and writer Authority remain in RustPBX.",
+      "source_refs": ["objective:6", "objective:7"],
+      "design_refs": ["design:8", "design:10.1", "machine#/runtime_fault_domains"],
+      "phase": "R5-F0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-G729-001",
+      "category": "codec",
+      "requirement": "G729/8000 engineering is mandatory with G729A and G729AB internal modes; legal review gates only distribution and enablement.",
+      "source_refs": ["objective:5"],
+      "design_refs": ["design:10.3", "machine#/media_plane/g729"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-RECORDING-001",
+      "category": "recording",
+      "requirement": "Recording capture and upload are separate fault domains; upload failure never stops capture, and neither backpressures or terminates established main media.",
+      "source_refs": ["objective:21"],
+      "design_refs": ["design:10.4", "machine#/runtime_fault_domains/domains"],
+      "phase": "R5-F0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-RECORDING-002",
+      "category": "recording",
+      "requirement": "Each media component has one fenced capture executor, one root recording timeline, and usage receipts deduplicate by billing key, component, edge generation and interval.",
+      "source_refs": ["objective:9", "objective:21"],
+      "design_refs": ["design:10.4", "adr10:11", "plan:F0.4", "machine#/media_plane/capture_executor_handoff", "machine#/media_plane/billing_usage_idempotency_key"],
+      "phase": "R5-A4",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-FAULT-001",
+      "category": "fault_domain",
+      "requirement": "One business Authority is explicitly decoupled from one OS address space.",
+      "source_refs": ["objective:7"],
+      "design_refs": ["design:8.1", "machine#/runtime_fault_domains/policy"],
+      "phase": "R5-F0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-FAULT-002",
+      "category": "fault_domain",
+      "requirement": "The packet hot path has O(1) lookup, bounded queues and no global scans, per-packet tasks, database or HTTP.",
+      "source_refs": ["objective:22"],
+      "design_refs": ["design:8.2", "design:16.3", "machine#/runtime_fault_domains/hot_path_invariants"],
+      "phase": "R5-F0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-FAULT-003",
+      "category": "fault_domain",
+      "requirement": "Native codec, GPU, model and video failures are contained by supervised worker generations and stale-output fences.",
+      "source_refs": ["objective:7"],
+      "design_refs": ["design:8.3", "plan:F0"],
+      "phase": "R5-F0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-LIVEKIT-001",
+      "category": "livekit",
+      "requirement": "LiveKit SIP is named and qualified only as an audio bridge executor.",
+      "source_refs": ["objective:8"],
+      "design_refs": ["design:2", "design:12.1", "machine#/multimodal_handoff/livekit_sip_scope"],
+      "phase": "R5-D0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-LIVEKIT-002",
+      "category": "livekit",
+      "requirement": "Voice and LiveKit handoff uses durable prepare, commit, abort, query and reconcile with immutable generations and single writers.",
+      "source_refs": ["objective:9"],
+      "design_refs": ["design:11.1", "machine#/multimodal_handoff/new_component_state_machine", "machine#/multimodal_handoff/replacement_state_machine"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-LIVEKIT-003",
+      "category": "livekit",
+      "requirement": "Each Voice-LiveKit direction and new-call or active-handoff path has independent evidence.",
+      "source_refs": ["objective:9", "objective:23"],
+      "design_refs": ["design:11.2", "machine#/multimodal_handoff/results_inheritable_across_paths"],
+      "phase": "R4-COMM",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-001",
+      "category": "vilte",
+      "requirement": "A separate bidirectional ViLTE-LiveKit AV Participant Gateway is the future video executor and has no business Authority.",
+      "source_refs": ["objective:11"],
+      "design_refs": ["design:12", "adr10:2", "machine#/multimodal_handoff/future_vilte_backend"],
+      "phase": "R5-A0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-002",
+      "category": "vilte",
+      "requirement": "Engineer and customer browser video use LiveKit; RustPBX does not create a second browser WebRTC video stack.",
+      "source_refs": ["objective:12"],
+      "design_refs": ["design:12.2", "adr10:2", "machine#/multimodal_handoff/agent_browser_video_path"],
+      "phase": "R5-A0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-003",
+      "category": "vilte",
+      "requirement": "Bidirectional AV is modeled as four separately fenced directed audio and video edges.",
+      "source_refs": ["objective:10", "objective:11"],
+      "design_refs": ["design:5.2", "adr10:5"],
+      "phase": "R5-A3",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-004",
+      "category": "vilte",
+      "requirement": "H264 passthrough, repacketization and transcoding are distinct capabilities with exact interop evidence.",
+      "source_refs": ["objective:10", "objective:24"],
+      "design_refs": ["design:12.4", "adr10:7.2", "machine#/multimodal_handoff/h264_rtp_contract"],
+      "phase": "R5-A3",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-005",
+      "category": "vilte",
+      "requirement": "ViLTE voice-to-video and video-to-voice use SIP offer-answer and new media generations without creating a second business Call.",
+      "source_refs": ["objective:10"],
+      "design_refs": ["design:12.5", "adr10:8"],
+      "phase": "R5-A4",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-006",
+      "category": "vilte",
+      "requirement": "Video failure explicitly degrades to audio when policy allows and never silently black-screens as success.",
+      "source_refs": ["objective:10"],
+      "design_refs": ["design:12.5", "adr10:8.3", "machine#/multimodal_handoff/video_failure_default"],
+      "phase": "R5-A4",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-007",
+      "category": "vilte",
+      "requirement": "AV capacity, quality, switching and endurance evidence is independent from audio and bridge-excluded profiles.",
+      "source_refs": ["objective:23"],
+      "design_refs": ["design:12.6", "adr10:13", "machine#/capacity_demand/video_metrics"],
+      "phase": "R5-EVIDENCE",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-008",
+      "category": "vilte",
+      "requirement": "Production ViLTE AV uses one Gateway LiveKit participant and PeerConnection for synchronized audio and video; split audio/video participants remain research-only.",
+      "source_refs": ["objective:10", "objective:11"],
+      "design_refs": ["design:12.2", "adr10:5", "adr10:9", "machine#/multimodal_handoff/vilte_production_topology"],
+      "phase": "R5-A0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-009",
+      "category": "vilte",
+      "requirement": "Prepared-blocked AV work reserves only local invisible resources; participant join, track publish and packet output occur after durable commit or have an explicit compensating receipt.",
+      "source_refs": ["objective:9", "objective:10"],
+      "design_refs": ["design:11.1", "design:12.5", "adr10:8.1", "machine#/multimodal_handoff/prepared_blocked_external_effects_allowed"],
+      "phase": "R5-A0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-010",
+      "category": "vilte",
+      "requirement": "Carrier-RTPengine, RTPengine-Gateway and Gateway-LiveKit use three explicit crypto termination contexts with no key reuse.",
+      "source_refs": ["objective:10", "objective:24"],
+      "design_refs": ["design:12.2", "adr10:12", "machine#/multimodal_handoff/crypto_segments"],
+      "phase": "R5-A0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-011",
+      "category": "codec",
+      "requirement": "ViLTE first qualification includes AMR-NB and AMR-WB with RFC4867, mode, ptime, DTX, SID and PLC contracts; EVS and AMR-WB IO remain fail-closed capability ports.",
+      "source_refs": ["objective:10"],
+      "design_refs": ["design:12.4", "adr10:7.1", "machine#/multimodal_handoff/vilte_audio_codecs"],
+      "phase": "R5-A0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-012",
+      "category": "vilte",
+      "requirement": "Inbound/outbound AV, active audio/AV renegotiation, media-neutral session refresh, late offer, 100rel/PRACK, 491 exhaustion, direction-correct SDP mismatch, exact CANCEL/BYE semantics, repeated toggles, policy fallback and atomic AV termination use one explicit state/event/guard/action/response/receipt/compensation contract and separate evidence gates.",
+      "source_refs": ["objective:10", "objective:23"],
+      "design_refs": ["design:11.2", "design:12.5", "adr10:8", "machine#/multimodal_handoff/sip_av_state_machine", "machine#/multimodal_handoff/required_paths"],
+      "phase": "R5-A4",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-013",
+      "category": "vilte",
+      "requirement": "The LiveKit Gateway publishes and subscribes through an exact-source official Rust real-time SDK PeerConnection; Egress and Ingress are not the bidirectional publisher path.",
+      "source_refs": ["objective:11", "objective:24"],
+      "design_refs": ["design:12.3", "adr10:7.2", "machine#/multimodal_handoff/livekit_gateway_client"],
+      "phase": "R5-A1",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AV-014",
+      "category": "vilte",
+      "requirement": "Bridge Coordinator owns RoomReturnPolicy; first production locks paired audio/video to one participant, while N-1 conference return and deterministic video selection require independent evidence and source-generation fencing.",
+      "source_refs": ["objective:10", "objective:23"],
+      "design_refs": ["design:12.3", "adr10:5", "plan:A2", "machine#/multimodal_handoff/room_to_carrier_selection"],
+      "phase": "R5-A2",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AGENT-001",
+      "category": "agent",
+      "requirement": "Active Call is retained through a pure PCM and canonical-event Telephony adapter; its SIP/RTP executors cannot become a second PBX, RTP or CDR Authority.",
+      "source_refs": ["objective:13"],
+      "design_refs": ["design:13.2", "adr9:2.1", "machine#/channel_agents/telephony"],
+      "phase": "R5-S1",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AGENT-002",
+      "category": "agent",
+      "requirement": "LiveKit Agents retains Room, AgentSession, multimodal, workflow, tool, handoff and job capabilities without owning cross-channel durable state.",
+      "source_refs": ["objective:14"],
+      "design_refs": ["design:13.3", "adr9:2.1", "machine#/channel_agents/livekit_room"],
+      "phase": "R5-S2",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AGENT-003",
+      "category": "agent",
+      "requirement": "No single channel framework is the global Agent or session Authority.",
+      "source_refs": ["objective:13", "objective:14", "objective:19"],
+      "design_refs": ["design:13", "adr9:3"],
+      "phase": "R5-S3",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AGENT-004",
+      "category": "agent",
+      "requirement": "Active Playbook pure-local tags are allowlisted, communication actions become fenced idempotent RustPBX proposals, business actions become Tool Broker proposals, and direct arbitrary HTTP is disabled in production.",
+      "source_refs": ["objective:13", "objective:19"],
+      "design_refs": ["design:13.2", "design:14.6", "adr9:2.1", "machine#/channel_agents/telephony/action_classes"],
+      "phase": "R5-S1",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-SPEECH-001",
+      "category": "speech",
+      "requirement": "Hugging Face speech-to-speech is the primary target implementation behind an OPC-owned SpeechRuntime contract.",
+      "source_refs": ["objective:15", "objective:16"],
+      "design_refs": ["design:14.1", "adr9:2.2", "machine#/speech_runtime/primary_target"],
+      "phase": "R5-S0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-SPEECH-002",
+      "category": "speech",
+      "requirement": "HF replaces only overlapping VAD, STT, LLM and TTS execution while every non-overlapping Active and LiveKit capability remains.",
+      "source_refs": ["objective:15"],
+      "design_refs": ["design:14.2", "adr9:2.2", "machine#/speech_runtime/replace_only_overlap"],
+      "phase": "R5-S1",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-SPEECH-003",
+      "category": "speech",
+      "requirement": "SpeechRuntime provides normalized prepare, commit, audio, turn, response creation, tool-result injection, event subscription, lease renew/revoke, cancel, close, query and reconcile semantics.",
+      "source_refs": ["objective:16"],
+      "design_refs": ["design:14.4", "adr9:4", "machine#/speech_runtime/required_lifecycle"],
+      "phase": "R5-S0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-SPEECH-004",
+      "category": "speech",
+      "requirement": "Each speech session has exactly one acoustic VAD producer, turn commit Authority and response cancel Authority.",
+      "source_refs": ["objective:17"],
+      "design_refs": ["design:14.5", "adr9:5", "machine#/speech_runtime/single_session_owners"],
+      "phase": "R5-S0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-SPEECH-005",
+      "category": "speech",
+      "requirement": "HF qualification separates same-component framework overhead from best-configuration production frontier, with thresholds frozen before each run.",
+      "source_refs": ["objective:18"],
+      "design_refs": ["design:16.2", "adr9:7.3", "machine#/capacity_demand/speech_ab_pairs", "machine#/capacity_demand/speech_relative_gates"],
+      "phase": "R5-EVIDENCE",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-SPEECH-006",
+      "category": "speech",
+      "requirement": "HF, Active, LiveKit, VAD, model and runtime identities are exact-source pinned before qualification.",
+      "source_refs": ["objective:24"],
+      "design_refs": ["design:17.3", "plan:S0.4"],
+      "phase": "R5-S0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-SPEECH-007",
+      "category": "speech",
+      "requirement": "Speech and Provider failure degrades Agent behavior without affecting Call or Room media.",
+      "source_refs": ["objective:21"],
+      "design_refs": ["design:15.3", "adr9:8"],
+      "phase": "R5-F0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-SPEECH-008",
+      "category": "speech",
+      "requirement": "Every SpeechRuntime mutation validates SpeechControlFence; output-affecting mutations also validate ResponseFence, and tool results return only to the same active Interaction, AgentRun, ContextRevision and response generation.",
+      "source_refs": ["objective:16", "objective:20"],
+      "design_refs": ["design:14.4", "adr9:4", "machine#/speech_runtime/mutating_commands_require_current_fence"],
+      "phase": "R5-S0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AI-001",
+      "category": "ai_native",
+      "requirement": "AI-native architecture covers durable tasks, memory, tools, policy, approval, human handoff and evaluation beyond speech.",
+      "source_refs": ["objective:19"],
+      "design_refs": ["design:15", "machine#/ai_native"],
+      "phase": "R5-S3",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AI-002",
+      "category": "ai_native",
+      "requirement": "OPC Interaction Lease Store uses durable CAS, expiry and monotonic fences so audio, LiveKit, RustPBX communication-action, Tool Broker and transcript gates admit only one Channel Agent generation.",
+      "source_refs": ["objective:20"],
+      "design_refs": ["design:11.3", "adr9:6", "machine#/ai_native/response_lease_protocol"],
+      "phase": "R5-S3",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AI-003",
+      "category": "ai_native",
+      "requirement": "LLM, Active Playbook and LiveKit workflow actions are proposals; communication effects go to RustPBX and business effects pass schema, lease, policy, approval and an idempotent Action Ledger.",
+      "source_refs": ["objective:19"],
+      "design_refs": ["design:14.6", "adr9:2.3", "machine#/ai_native/tool_call_semantics"],
+      "phase": "R5-S3",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AI-004",
+      "category": "ai_native",
+      "requirement": "The old AI-native vision remains strategic input but old framework-specific runtime assumptions cannot authorize implementation.",
+      "source_refs": ["objective:19"],
+      "design_refs": ["design:15.4", "docs/ainative.md"],
+      "phase": "R5-D0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-AI-005",
+      "category": "ai_native",
+      "requirement": "OPC Orchestrator owns canonical ContextRevision and signed ResponsePlan; channel and provider histories are disposable projections invalidated by handoff or revision change.",
+      "source_refs": ["objective:19", "objective:20"],
+      "design_refs": ["design:14.4", "design:15.2", "adr9:4.3", "machine#/ai_native/context_revision"],
+      "phase": "R5-S3",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-PERF-001",
+      "category": "performance",
+      "requirement": "Ordinary voice, decoded media, LiveKit audio, ViLTE AV, Telephony speech, LiveKit speech, translation, recording and mixed-cell use independent profiles.",
+      "source_refs": ["objective:23"],
+      "design_refs": ["design:16.1", "machine#/capacity_demand/independent_profiles"],
+      "phase": "R5-EVIDENCE",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-PERF-002",
+      "category": "performance",
+      "requirement": "Speech metrics and pre-registered absolute and relative gates cover end-to-end latency, barge-in, quality, resources, concurrency, endurance and recovery.",
+      "source_refs": ["objective:18", "objective:23"],
+      "design_refs": ["design:16.2", "machine#/capacity_demand/speech_metrics", "machine#/capacity_demand/speech_relative_gates"],
+      "phase": "R5-EVIDENCE",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-PERF-003",
+      "category": "performance",
+      "requirement": "Voice 100K evidence cannot be interpreted as including Agent, bridge, AV or mixed-cell capacity.",
+      "source_refs": ["objective:23"],
+      "design_refs": ["design:16.4", "machine#/claim_boundary"],
+      "phase": "R5-MIXED-CELL",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-SEC-001",
+      "category": "security",
+      "requirement": "Every source, model, binary, image, configuration, license and SBOM identity is fixed before evidence is accepted.",
+      "source_refs": ["objective:24"],
+      "design_refs": ["design:17.3"],
+      "phase": "R5-EVIDENCE",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-SEC-002",
+      "category": "security",
+      "requirement": "Raw audio, video, prompts, secrets and provider payloads do not enter ordinary logs, metrics or ungoverned durable stores.",
+      "source_refs": ["objective:21", "objective:24"],
+      "design_refs": ["design:17.2", "adr9:9", "adr10:12"],
+      "phase": "R5-F0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-RECOVERY-001",
+      "category": "recovery",
+      "requirement": "Timeout and crash recovery query and reconcile the same attempt identity rather than issuing a new create.",
+      "source_refs": ["objective:22"],
+      "design_refs": ["design:18.1"],
+      "phase": "R5-F0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-DRAIN-001",
+      "category": "migration",
+      "requirement": "Every runtime moves new sessions, pins and drains old sessions to active-zero, reconciles and only then deletes old implementation.",
+      "source_refs": ["objective:22"],
+      "design_refs": ["design:18.2"],
+      "phase": "R5-PRODUCTION",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-OBS-001",
+      "category": "observability",
+      "requirement": "Interaction, Call, media, bridge, Room, Agent, Speech, Task, action, recording and billing correlate under explicit clock domains without high-cardinality metric labels.",
+      "source_refs": ["objective:24"],
+      "design_refs": ["design:19"],
+      "phase": "R5-EVIDENCE",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-SERVER-001",
+      "category": "change_control",
+      "requirement": "Current production containers remain frozen and no document, commit or test authorizes deployment or feature enablement.",
+      "source_refs": ["objective:25"],
+      "design_refs": ["design:23", "machine#/server_freeze"],
+      "phase": "R5-D0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-STATUS-001",
+      "category": "evidence",
+      "requirement": "Current, target, verified and production-eligible states remain distinct and all unproved results are not_run.",
+      "source_refs": ["objective:1", "objective:24"],
+      "design_refs": ["design:4", "machine#/current_target_eligibility"],
+      "phase": "R5-D0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-PLAN-001",
+      "category": "delivery",
+      "requirement": "Implementation follows TDD, narrow commits, bounded independent parallelism and evidence before claims.",
+      "source_refs": ["objective:development_authorization"],
+      "design_refs": ["plan:1", "plan:2"],
+      "phase": "R5-D0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-PLAN-002",
+      "category": "delivery",
+      "requirement": "R4 implementation already started after its D0 commit, but this documentation revision does not authorize R5 delta development; user confirmation is required after document review.",
+      "source_refs": ["objective:development_authorization"],
+      "design_refs": ["plan:metadata", "machine#/current_target_eligibility/r4_implementation_started", "machine#/current_target_eligibility/r5_delta_development_authorized"],
+      "phase": "R5-D0",
+      "verification_status": "not_run",
+      "production_eligible": false
+    },
+    {
+      "trace_id": "R5-QUALITY-001",
+      "category": "completion",
+      "requirement": "Overall completion requires all applicable R4 and R5 functional, fault, security, quality, capacity, source, endurance, drain and production approval gates.",
+      "source_refs": ["objective:completion"],
+      "design_refs": ["design:24", "plan:15"],
+      "phase": "R5-PRODUCTION",
+      "verification_status": "not_run",
+      "production_eligible": false
+    }
+  ]
+}
