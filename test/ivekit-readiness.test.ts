@@ -38,7 +38,7 @@ test('readiness requires the latest communication correctness migrations', () =>
   assert.equal(REQUIRED_MIGRATIONS.includes('095_rustdesk_authorization_claims'), true);
   assert.equal(REQUIRED_MIGRATIONS.includes('104_ivekit_cell_admission_ledger_runtime'), true);
   assert.equal(REQUIRED_MIGRATIONS.includes('105_tinode_closed_session_inbound'), true);
-  assert.equal(REQUIRED_MIGRATIONS.at(-1), '106_tinode_open_session_mutation_queue');
+  assert.equal(REQUIRED_MIGRATIONS.at(-1), '106_ivekit_media_call_create_commands');
 });
 
 test('readiness executes SQL, verifies migrations, and reports nonblocking provider degradation', async () => {
@@ -55,7 +55,7 @@ test('readiness executes SQL, verifies migrations, and reports nonblocking provi
 });
 
 test('readiness migration exposes only a bounded migration-version probe to the runtime role', () => {
-  assert.equal(REQUIRED_MIGRATIONS.at(-1), '106_tinode_open_session_mutation_queue');
+  assert.equal(REQUIRED_MIGRATIONS.at(-1), '106_ivekit_media_call_create_commands');
   const sql = readFileSync(
     new URL('../src/migrations/101_ivekit_migration_readiness.sql', import.meta.url),
     'utf8'

@@ -143,7 +143,7 @@ test('placement never falls through to a third Cell and fails closed on stale ca
     }
   }), (error: any) =>
     error?.code === 'placement_capacity_exhausted' &&
-    error?.details?.attempted_cells?.length === 2
+    error?.details?.attempted_cell_count === 2
   );
   assert.equal(calls.length, 2);
   assert.equal(calls.includes('cell-c'), false);

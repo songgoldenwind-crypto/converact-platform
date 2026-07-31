@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/http-server.js';
+import type { MediaCallCreateCommand } from '../src/agent-runtime/livekit/media-call-create-command-store.js';
 import type {
   MediaCallPlacementPort,
   MediaCallPlacementReservation
 } from '../src/agent-runtime/livekit/media-call-service.js';
+import type { MediaCallCreateCommandStorePort } from '../src/agent-runtime/ivekit/media-http.js';
 import type { PgQueryable } from '../src/db-pg.js';
 import { listenOnRandomPort } from './test-helpers.js';
 
@@ -34,10 +36,14 @@ test('media HTTP reserves Cell capacity before opening the tenant PostgreSQL tra
     }
   };
   const pg = new RecordingPool(events);
+  const commandStore = mediaCallCreateCommandStoreFixture();
   const server = createIveKitHttpServer({
     db: {},
     pg,
-    mediaOptions: { placement },
+    mediaOptions: {
+      placement,
+      mediaCallCreateCommandStoreFactory: () => commandStore
+    },
     routes: {
       media: async (_db, method, path, _url, _body, _raw, _headers, options) => {
         if (method !== 'POST' || path !== '/api/ivekit/media/calls') return undefined;
@@ -70,7 +76,8 @@ test('media HTTP reserves Cell capacity before opening the tenant PostgreSQL tra
       'content-type': 'application/json',
       'x-api-key': 'placement-http-system-key',
       'x-tenant-id': 'tenant-a',
-      'x-user-id': 'host-a'
+      'x-user-id': 'host-a',
+      'idempotency-key': 'placement-http-boundary'
     },
     body: JSON.stringify({
       media: 'video',
@@ -107,4 +114,60 @@ class RecordingPool implements PgQueryable {
   async query() {
     return { rows: [], rowCount: 0, command: '', oid: 0, fields: [] };
   }
+}
+
+function mediaCallCreateCommandStoreFixture(): MediaCallCreateCommandStorePort {
+  const timestamp = '2026-07-30T02:00:00.000Z';
+  const command: MediaCallCreateCommand = {
+    tenant_id: 'tenant-a',
+    call_id: 'mcall_http_boundary',
+    idempotency_key_hash: '1'.repeat(64),
+    payload_hash: '2'.repeat(64),
+    requester_identity_hash: '3'.repeat(64),
+    state: 'pending',
+    attempt_generation: 1,
+    lease_until: '2026-07-30T02:00:30.000Z',
+    result_snapshot: null,
+    error_code: '',
+    error_status: 0,
+    error_retryable: false,
+    next_retry_at: null,
+    created_at: timestamp,
+    updated_at: timestamp,
+    completed_at: null,
+    expires_at: '2026-07-31T02:00:00.000Z'
+  };
+  return {
+    async claim() {
+      return {
+        command,
+        replayed: false,
+        attempt: {
+          generation: 1,
+          token: 'test-attempt-token-0000000000000000',
+          lease_until: command.lease_until || timestamp
+        }
+      };
+    },
+    async findByIdempotencyKey() {
+      return command;
+    },
+    async markSucceeded(input) {
+      return {
+        ...command,
+        state: 'succeeded',
+        result_snapshot: input.result_snapshot,
+        completed_at: timestamp
+      };
+    },
+    async markFailed(input) {
+      return {
+        ...command,
+        state: input.retryable ? 'retryable_failed' : 'terminal_failed',
+        error_code: input.error_code,
+        error_status: input.error_status,
+        error_retryable: input.retryable
+      };
+    }
+  };
 }

@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
+import {
+  prepareIveKitMediaCallPlacement,
+  routeIveKitMediaApi,
+  type MediaCallCreateCommandStorePort
+} from '../src/agent-runtime/ivekit/media-http.js';
+import type {
+  MediaCallCreateCommand
+} from '../src/agent-runtime/livekit/media-call-create-command-store.js';
 import {
   MediaCallService,
   type MediaCallPlacementPort
@@ -18,28 +25,51 @@ test('media call create activates its durable reservation in the post-commit pat
   const pg = new MemoryPg();
   const calls: string[] = [];
   const placement = placementFixture(calls);
+  const commandStore = mediaCallCreateCommandStoreFixture(
+    'tenant-placement-create',
+    'mcall_placement_create'
+  );
+  const body = {
+    media: 'video',
+    participant_identities: ['guest-a'],
+    business_ref: { type: 'service_order', id: 'order-placement-create' }
+  };
+  const headers = {
+    authorization: `Bearer ${signAccessToken({
+      sub: 'host-a',
+      tid: 'tenant-placement-create',
+      role: 'operator'
+    })}`,
+    'idempotency-key': 'placement-create'
+  };
 
   try {
+    const prepared = await prepareIveKitMediaCallPlacement(
+      'POST',
+      '/api/ivekit/media/calls',
+      body,
+      headers,
+      {
+        pg,
+        placement,
+        mediaCallCreateCommandStoreFactory: () => commandStore
+      }
+    );
+    assert.ok(prepared);
     const response = await routeIveKitMediaApi(
       db,
       'POST',
       '/api/ivekit/media/calls',
       new URL('http://localhost/api/ivekit/media/calls'),
-      {
-        media: 'video',
-        participant_identities: ['guest-a'],
-        business_ref: { type: 'service_order', id: 'order-placement-create' }
-      },
+      body,
       '',
+      headers,
       {
-        authorization: `Bearer ${signAccessToken({
-          sub: 'host-a',
-          tid: 'tenant-placement-create',
-          role: 'operator'
-        })}`,
-        'idempotency-key': 'placement-create'
-      },
-      { pg, placement }
+        pg,
+        placement,
+        preparedMediaCallPlacement: prepared,
+        mediaCallCreateCommandStoreFactory: () => commandStore
+      }
     ) as {
       data: { call: { id: string } };
       afterCommit: () => Promise<unknown>;
@@ -325,6 +355,65 @@ function placementFixture(calls: string[]): MediaCallPlacementPort {
     },
     async resolveOwner() {
       throw new Error('not used');
+    }
+  };
+}
+
+function mediaCallCreateCommandStoreFixture(
+  tenantId: string,
+  callId: string
+): MediaCallCreateCommandStorePort {
+  const timestamp = '2026-07-30T02:00:00.000Z';
+  const command: MediaCallCreateCommand = {
+    tenant_id: tenantId,
+    call_id: callId,
+    idempotency_key_hash: '1'.repeat(64),
+    payload_hash: '2'.repeat(64),
+    requester_identity_hash: '3'.repeat(64),
+    state: 'pending',
+    attempt_generation: 1,
+    lease_until: '2026-07-30T02:00:30.000Z',
+    result_snapshot: null,
+    error_code: '',
+    error_status: 0,
+    error_retryable: false,
+    next_retry_at: null,
+    created_at: timestamp,
+    updated_at: timestamp,
+    completed_at: null,
+    expires_at: '2026-07-31T02:00:00.000Z'
+  };
+  return {
+    async claim() {
+      return {
+        command,
+        replayed: false,
+        attempt: {
+          generation: 1,
+          token: 'test-attempt-token-0000000000000000',
+          lease_until: command.lease_until || timestamp
+        }
+      };
+    },
+    async findByIdempotencyKey() {
+      return command;
+    },
+    async markSucceeded(input) {
+      return {
+        ...command,
+        state: 'succeeded',
+        result_snapshot: input.result_snapshot,
+        completed_at: timestamp
+      };
+    },
+    async markFailed(input) {
+      return {
+        ...command,
+        state: input.retryable ? 'retryable_failed' : 'terminal_failed',
+        error_code: input.error_code,
+        error_status: input.error_status,
+        error_retryable: input.retryable
+      };
     }
   };
 }
