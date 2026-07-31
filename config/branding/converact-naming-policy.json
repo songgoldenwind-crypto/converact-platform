@@ -1,0 +1,63 @@
+{
+  "$schema": "./converact-naming-policy.schema.json",
+  "schema_version": 1,
+  "brand": {
+    "legacy": ["OPC", "iveKit"],
+    "current": "Converact"
+  },
+  "repository": {
+    "legacy": "songgoldenwind-crypto/opc-platform",
+    "current": "songgoldenwind-crypto/converact-platform"
+  },
+  "environment": {
+    "legacyPrefixes": ["OPC_", "OPC_IVEKIT_"],
+    "currentPrefixes": ["CONVERACT_", "CONVERACT_FABRIC_"]
+  },
+  "classifications": {
+    "compatibility": [
+      {
+        "id": "rename_migration_control",
+        "path_globs": [
+          "config/branding/**",
+          "docs/design/2026-07-31-converact-*.md",
+          "docs/design/converact-rename-inventory.md",
+          "docs/migrations/**",
+          "scripts/converact-*.ts",
+          "test/converact-*.test.ts"
+        ],
+        "tokens": ["OPC", "OPC_", "iveKit", "songgoldenwind-crypto/opc-platform"],
+        "reason": "The migration contract, verifier, tests, and guide must name legacy inputs explicitly.",
+        "owner": "platform-foundation",
+        "removal_condition": "Retain while any supported legacy alias or historical repository redirect exists."
+      }
+    ],
+    "historical": [
+      {
+        "id": "immutable_evidence",
+        "path_globs": ["docs/evidence/**"],
+        "tokens": ["OPC", "OPC_", "iveKit", "songgoldenwind-crypto/opc-platform"],
+        "reason": "Signed and timestamped evidence preserves the identity under which it was produced.",
+        "owner": "platform-assurance",
+        "removal_condition": "Never rewrite; supersede with new evidence when a new run occurs."
+      },
+      {
+        "id": "patch_provenance",
+        "path_globs": ["patches/**", "**/*.patch"],
+        "tokens": ["OPC", "OPC_", "iveKit", "songgoldenwind-crypto/opc-platform"],
+        "reason": "Patch payloads and their paths are immutable source provenance.",
+        "owner": "platform-assurance",
+        "removal_condition": "Retain for as long as the corresponding source or release is supported."
+      }
+    ],
+    "external": [
+      {
+        "id": "vendored_external_source",
+        "path_globs": ["third_party/**", "vendor/**"],
+        "tokens": ["OPC", "OPC_", "iveKit", "songgoldenwind-crypto/opc-platform"],
+        "reason": "Vendored source identity is controlled by its upstream project.",
+        "owner": "supply-chain",
+        "removal_condition": "Change only through an independently verified upstream update."
+      }
+    ]
+  }
+}
