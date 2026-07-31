@@ -14,7 +14,8 @@
     "baseSnapshotGitTree": "660484e2ec9cefada4bfbab274ace6830a88c8e4",
     "baseSnapshotInventoryManifestSha256": "119203e5db9bcc6e2d9747d57ce115b7886505197a6cac7926daa9159059fef5",
     "baseCommit": "011de6f11a39aed14633e22f3ee5988dddc59038",
-    "mediaHotfixCommit": "f4027853eb45addab284928f4e1541f6dac3d1ff"
+    "mediaHotfixCommit": "f4027853eb45addab284928f4e1541f6dac3d1ff",
+    "releaseContractTestCommit": "bed230f158e39f589e256497f32488727e6cad20"
   },
   "components": {
     "opc": {
@@ -105,6 +106,20 @@
     "databaseReadOnlyCounts": "passed",
     "browserCreateJoinTracksReconnectHangupAfterRecovery": "not_run",
     "productionWriteTestAuthorized": false
+  },
+  "localVerification": {
+    "dependencyInstall": "passed_with_engine_warning",
+    "runtimeNodeVersion": "v23.11.0",
+    "declaredNodeEngine": ">=24.0.0 <25.0.0",
+    "typecheck": "passed",
+    "productionHotfixContractTests": {
+      "passed": 12,
+      "failed": 0
+    },
+    "placementAndLiveKitFocusedTests": {
+      "passed": 40,
+      "failed": 0
+    }
   },
   "supersedes": "/secure/releases/production-media-20260730-5418f3bcb38d"
 }
