@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.0",
+  "observed_date": "2026-07-31",
+  "status": "passed_with_scope_limitations",
+  "surface": {
+    "browser": "Chrome",
+    "livekit_client_version": "2.21.0",
+    "layout": "two independent LiveKit Room clients in one visible browser page",
+    "livekit_url": "wss://rtc.freeotp.win:2096",
+    "media": {
+      "engineer": [
+        "synthetic_microphone",
+        "synthetic_camera",
+        "synthetic_screen_share"
+      ],
+      "customer": [
+        "synthetic_microphone",
+        "synthetic_camera"
+      ],
+      "real_user_media_captured": false
+    }
+  },
+  "short_call": {
+    "call_id": "mcall_d5591847-943c-4ce7-ad70-2f57cf90464d",
+    "started_at": "2026-07-31T00:10:49.879Z",
+    "ended_at": "2026-07-31T00:11:50.414Z",
+    "actual_duration_ms": 60010,
+    "sample_count": 13,
+    "minimum_rooms_connected": 2,
+    "remote_audio_tracks": 2,
+    "remote_video_tracks": 3,
+    "packets_sent": 10000,
+    "packets_received": 7902,
+    "packets_lost": 0,
+    "bytes_sent": 4495902,
+    "bytes_received": 2665972,
+    "frames_dropped_max": 0,
+    "jitter_p95_ms": 5,
+    "jitter_max_ms": 5,
+    "rtt_p95_ms": 200,
+    "rtt_max_ms": 200,
+    "reconnecting_events": 0,
+    "reconnected_events": 0,
+    "unexpected_disconnects": 0,
+    "codecs": [
+      "audio/opus",
+      "video/VP8"
+    ],
+    "result": "passed"
+  },
+  "long_call": {
+    "call_id": "mcall_25b24594-7e04-41b0-a415-b3baf8cc9346",
+    "started_at": "2026-07-31T00:13:14.707Z",
+    "ended_at": "2026-07-31T00:43:15.265Z",
+    "actual_duration_ms": 1800031,
+    "sample_interval_ms": 5000,
+    "sample_count": 361,
+    "minimum_rooms_connected": 2,
+    "remote_audio_tracks": 2,
+    "remote_video_tracks": 3,
+    "packets_sent": 421534,
+    "packets_received": 419495,
+    "packets_lost_final": 12,
+    "packets_lost_max_observed": 14,
+    "final_loss_ratio_percent": 0.00286050054,
+    "bytes_sent": 290225561,
+    "bytes_received": 288497164,
+    "frames_encoded": 79649,
+    "frames_decoded": 79085,
+    "frames_dropped_max": 0,
+    "jitter_p95_ms": 9,
+    "jitter_max_after_warmup_ms": 12,
+    "rtt_p95_ms": 206,
+    "rtt_max_after_warmup_ms": 238,
+    "reconnecting_events": 0,
+    "reconnected_events": 0,
+    "unexpected_disconnects": 0,
+    "codecs": [
+      "audio/opus",
+      "video/VP8"
+    ],
+    "result": "passed"
+  },
+  "post_test_cleanup": {
+    "short_call": {
+      "call_status": "ended",
+      "end_reason": "duration_test_completed",
+      "placement_state": "closed",
+      "placement_desired_state": "closed",
+      "placement_sync_state": "succeeded",
+      "cell_admission_state": "closed",
+      "matching_livekit_rooms": 0
+    },
+    "long_call": {
+      "call_status": "ended",
+      "end_reason": "duration_test_completed",
+      "participant_statuses": {
+        "engineer": "left",
+        "customer": "left"
+      },
+      "placement_state": "closed",
+      "placement_desired_state": "closed",
+      "placement_sync_state": "succeeded",
+      "cell_admission_state": "closed",
+      "matching_livekit_rooms": 0
+    },
+    "capabilities": {
+      "calls": true,
+      "join": true,
+      "media_call_create_availability": "ready",
+      "candidate_count": 1
+    }
+  },
+  "limitations": {
+    "led_native_join_route": "not_run_blocked_by_known_led_join_gate",
+    "separate_browser_processes_or_physical_devices": "not_run",
+    "real_camera_microphone_and_human_speech_quality": "not_run",
+    "acoustic_echo_cancellation": "not_run",
+    "forced_network_loss_reconnect": "not_run",
+    "capacity_or_concurrency_benchmark": "not_run"
+  }
+}

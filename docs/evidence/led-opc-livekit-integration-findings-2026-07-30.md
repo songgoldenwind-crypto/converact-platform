@@ -12,8 +12,10 @@ isolated:
 - No LED source, configuration, image, container, or database row was changed
   directly. The browser and official API workflow created only the retained
   test order, assignment, payment, and call-lifecycle rows described below.
-- The complete two-browser audio/video and reconnect test remains `not_run`
-  until LED separates its create and join readiness gates.
+- OPC/LiveKit direct browser media passed separate 60-second and 30-minute
+  duration tests. The complete **LED-native**, two-account browser join and
+  reconnect flow remains `not_run` until LED separates its create and join
+  readiness gates.
 
 OPC remains the generic communications substrate. LED must adapt its
 application workflow to the operation-specific OPC capability contract.
@@ -116,6 +118,116 @@ original result:
 Relevant LED and OPC containers remained running; containers with configured
 health checks reported healthy. No server configuration or deployment artifact
 was changed.
+
+### Direct OPC/LiveKit media duration validation — 2026-07-31
+
+This test answers a narrower question than the LED integration reproduction
+above: can the current OPC/LiveKit media substrate sustain an
+engineer-to-customer installation-support session after a durable call has
+already been admitted?
+
+The visible local Chrome page ran two independent LiveKit client instances in
+the same browser process:
+
+- engineer: synthetic microphone, camera, and screen-share tracks;
+- customer: synthetic microphone and camera tracks;
+- both clients subscribed to the other participant;
+- the customer received both the engineer camera and screen share;
+- no real camera, microphone, desktop image, or user audio was captured.
+
+The calls used the official OPC durable-call create, action, and call-bound join
+endpoints with the production LED canary identities. They did **not** use LED's
+currently broken join endpoint. Therefore these results prove the media
+substrate path, not the LED-native browser workflow.
+
+#### Short call
+
+```text
+call_id=mcall_d5591847-943c-4ce7-ad70-2f57cf90464d
+actual_media_duration_ms=60010
+samples=13
+rooms_connected_min=2
+remote_tracks=2 audio / 3 video
+packets_sent=10000
+packets_received=7902
+packets_lost=0
+frames_dropped=0
+codecs=audio/opus,video/VP8
+reconnects=0
+unexpected_disconnects=0
+result=passed
+```
+
+The call ended as `duration_test_completed`; its placement became
+`closed/closed/succeeded`, its Cell admission reservation became `closed`, the
+LiveKit room count returned to zero, and create capacity returned to one
+eligible candidate.
+
+#### Thirty-minute call
+
+```text
+call_id=mcall_25b24594-7e04-41b0-a415-b3baf8cc9346
+actual_media_duration_ms=1800031
+samples=361 at five-second intervals
+rooms_connected_min=2
+remote_tracks=2 audio / 3 video
+packets_sent=421534
+packets_received=419495
+packets_lost_final=12
+packets_lost_max_observed=14
+final_loss_ratio=0.002861%
+bytes_sent=290225561
+bytes_received=288497164
+frames_encoded=79649
+frames_decoded=79085
+frames_dropped_max=0
+jitter_p95_ms=9
+jitter_max_after_warmup_ms=12
+rtt_p95_ms=206
+rtt_max_after_warmup_ms=238
+codecs=audio/opus,video/VP8
+reconnecting_events=0
+reconnected_events=0
+unexpected_disconnects=0
+result=passed
+```
+
+LiveKit independently logged client session durations of approximately
+30 minutes 8 seconds for the engineer and 30 minutes 5 seconds for the
+customer. Both left through an explicit client close. LiveKit's
+`User Initiated Abort: Close called` data-channel warnings and subsequent
+idempotent participant-removal `404` records occurred only during this
+controlled shutdown; no unexpected media disconnect occurred during the
+duration window.
+
+Sparse container samples are not a capacity benchmark, but they did not show a
+retained-resource leak:
+
+- OPC memory was about 192 MiB before/early in the call and 192.5 MiB after;
+- LiveKit memory rose to about 99 MiB while carrying the call and returned to
+  about 90 MiB after room deletion;
+- Cell admission remained about 74.6 MiB;
+- the LiveKit component node remained about 52.4–52.8 MiB;
+- all four relevant containers remained `restart=0`;
+- OPC, Cell admission, and the component node remained healthy; LiveKit
+  remained running and has no configured Docker health check.
+
+After the long call:
+
+```text
+call=ended,duration_test_completed
+participants=engineer:left,customer:left
+placement=closed,closed,succeeded
+cell_admission=closed
+matching_livekit_rooms=0
+calls=true
+join=true
+media_call_create_availability=ready
+candidate_count=1
+```
+
+See the
+[machine-readable duration summary](led-opc-livekit-duration-validation-2026-07-31.json).
 
 ### Successful workflow before media join
 
@@ -375,17 +487,21 @@ These are LED test-fixture or tooling issues, not OPC media defects:
 | OPC placement and bounded capacity behavior | passed |
 | LED join with `calls=false, join=true` | failed — LED defect |
 | Direct OPC join plan and correct WSS endpoint | passed |
+| Direct OPC/LiveKit 60-second bidirectional media | passed |
+| Direct OPC/LiveKit 30-minute bidirectional media and screen share | passed |
 | Terminal call cleanup and capacity release | passed |
 | LiveKit room cleanup | passed |
-| Two-browser audio/video tracks | `not_run` — blocked by LED join gate |
-| Browser reconnect/rejoin | `not_run` — blocked by LED join gate |
+| LED-native two-account audio/video tracks | `not_run` — blocked by LED join gate |
+| Two physical devices / separate browser processes | `not_run` |
+| Real camera/microphone speech quality and echo cancellation | `not_run` |
+| Forced network-loss reconnect/rejoin | `not_run` |
 
 Test data retained in LED because no safe cancel/refund control was exposed in
 the tested customer UI:
 
 - funded test order `cms7pyogi0011ru1rs2z97urq`;
 - funded assignment `cms7pzlui0016ru1rm8sn8ise`;
-- unused open test order `cms7pqcl3000xru1rsc59sc55`.
+- unused open test order `cms7pqcl3000xru1rsc59sc55`;
 - funded revalidation order `cms85mbkz002aru1r3qqz75pm`;
 - funded revalidation assignment `cms85ms98002fru1r6tqgkju7`.
 
