@@ -15,7 +15,8 @@
     "baseSnapshotInventoryManifestSha256": "119203e5db9bcc6e2d9747d57ce115b7886505197a6cac7926daa9159059fef5",
     "baseCommit": "011de6f11a39aed14633e22f3ee5988dddc59038",
     "mediaHotfixCommit": "f4027853eb45addab284928f4e1541f6dac3d1ff",
-    "releaseContractTestCommit": "bed230f158e39f589e256497f32488727e6cad20"
+    "releaseContractTestCommit": "bed230f158e39f589e256497f32488727e6cad20",
+    "retainedContractAlignmentCommit": "fa254b414b9e7a144d15e887d38c39ef28e50510"
   },
   "components": {
     "opc": {
@@ -108,6 +109,7 @@
     "productionWriteTestAuthorized": false
   },
   "localVerification": {
+    "verifiedAt": "2026-07-31T10:16:44Z",
     "dependencyInstall": "passed_with_engine_warning",
     "runtimeNodeVersion": "v23.11.0",
     "declaredNodeEngine": ">=24.0.0 <25.0.0",
@@ -119,6 +121,33 @@
     "placementAndLiveKitFocusedTests": {
       "passed": 40,
       "failed": 0
+    },
+    "retainedContractAlignmentTests": {
+      "passed": 17,
+      "failed": 0
+    },
+    "fullRegressionComparison": {
+      "status": "failed_inherited_baseline_only",
+      "hotfixSnapshot": {
+        "tests": 4447,
+        "passed": 4424,
+        "failed": 9,
+        "skipped": 14
+      },
+      "baseSnapshot": {
+        "commit": "011de6f11a39aed14633e22f3ee5988dddc59038",
+        "tests": 4435,
+        "passed": 4412,
+        "failed": 9,
+        "skipped": 14
+      },
+      "newFailuresRelativeToBase": 0,
+      "inheritedFailureCount": 9,
+      "inheritedFailureAreas": [
+        "placement owner-recovery fixture",
+        "RustPBX patchset/build/deployment assertions",
+        "Cell admission deployment environment assertion"
+      ]
     }
   },
   "supersedes": "/secure/releases/production-media-20260730-5418f3bcb38d"
