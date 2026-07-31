@@ -25,4 +25,3 @@ Commit `f4027853eb45addab284928f4e1541f6dac3d1ff` applies the exact 13-file prod
 4. Build a candidate release and verify its checksums and base-only rollback locally.
 5. Obtain separate authorization for push, production build, migration, configuration change, restart, or deployment as applicable.
 6. Freeze and observe after deployment. Collect redacted evidence before rollback or another fix.
-
