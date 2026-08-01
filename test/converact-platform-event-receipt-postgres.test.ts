@@ -130,6 +130,25 @@ test('effect receipt append uses latest generation and owner epoch fencing', asy
   assert.equal(stalePg.calls.some((call) => /INSERT INTO converact_platform_effect_receipts/i.test(call.text)), false);
 });
 
+test('effect receipt append serializes each effect before reading its authority head', async () => {
+  const accepted = receipt('accepted');
+  const completed = receipt('completed');
+  const pg = new RecordingPg((sql) => {
+    if (/MAX\(current_receipt\.generation\)/i.test(sql)) return [accepted];
+    if (/INSERT INTO converact_platform_effect_receipts/i.test(sql)) return [completed];
+    return [];
+  });
+
+  await new PostgresPlatformEventReceiptStore(pg).appendEffectReceipt(completed);
+
+  const lockIndex = pg.calls.findIndex((call) => /pg_advisory_xact_lock/i.test(call.text));
+  const headIndex = pg.calls.findIndex((call) => /MAX\(current_receipt\.generation\)/i.test(call.text));
+  assert.notEqual(lockIndex, -1, 'the effect authority needs a transaction-scoped serialization point');
+  assert.ok(lockIndex < headIndex, 'the lock must be acquired before the latest-generation snapshot');
+  assert.match(pg.calls[lockIndex]!.text, /\$1::text[\s\S]*\$2::text/i);
+  assert.deepEqual(pg.calls[lockIndex]!.params, ['tenant-a', 'effect-a']);
+});
+
 test('state-observed receipt replays from a complete persisted generation', async () => {
   const history = [receipt('accepted'), receipt('completed'), receipt('state_observed')];
   const pg = new RecordingPg((sql) => /MAX\(current_receipt\.generation\)/i.test(sql)

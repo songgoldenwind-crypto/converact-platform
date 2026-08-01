@@ -136,6 +136,16 @@ export class PostgresPlatformEventReceiptStore {
   appendEffectReceipt(receipt: EffectReceipt): Promise<{ status: 'inserted' | 'replay' }> {
     assertReceiptIdentity(receipt);
     return withPgTenant(this.pg, receipt.tenant_id, async (pg) => {
+      await pg.query(
+        `SELECT pg_advisory_xact_lock(
+           hashtextextended(
+             concat_ws(E'\\x1f', 'platform-effect-receipt', $1::text, $2::text),
+             0
+           )
+         )`,
+        [receipt.tenant_id, receipt.effect_id]
+      );
+
       const current = await pg.query<Row>(
         `SELECT current_receipt.*
          FROM converact_platform_effect_receipts current_receipt
