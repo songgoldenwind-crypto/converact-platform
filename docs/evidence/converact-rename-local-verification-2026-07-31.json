@@ -1,0 +1,277 @@
+{
+  "schema_version": 1,
+  "evidence_id": "converact-rename-local-verification-2026-07-31",
+  "generated_at": "2026-08-01T00:06:42Z",
+  "subject": {
+    "repository": "songgoldenwind-crypto/converact-platform",
+    "branch": "codex/converact-platform-rename",
+    "commit": "a3e9e5a18bc08156e3c25d59e94cc95c19bec676",
+    "commit_created_at": "2026-08-01T08:04:29+08:00",
+    "working_directory": "/Users/songjinfeng/Projects/converact-worktrees/platform-renaming"
+  },
+  "repository_identity": {
+    "origin": "https://github.com/songgoldenwind-crypto/converact-platform.git",
+    "private": true,
+    "default_branch": "main",
+    "legacy_product_url": "https://github.com/songgoldenwind-crypto/opc-platform.git",
+    "legacy_url_resolves_to": "songgoldenwind-crypto/converact-platform",
+    "remote_main_head_at_verification": "ddddcd50cebd7eb5c07bf307d4c9f96814e8bca0"
+  },
+  "scope": {
+    "status": "local_verified",
+    "statement": "The Converact product, repository, package, configuration, documentation, and active source identity migration is locally verified at the subject commit.",
+    "non_claims": [
+      "This evidence does not claim a production deployment.",
+      "This evidence does not claim real-environment media or capacity acceptance.",
+      "This evidence does not claim that frozen wire, schema, storage, event, metric, evidence, source, patch, or release identifiers were renamed."
+    ]
+  },
+  "naming_inventory": {
+    "rename": 0,
+    "unclassified": 0,
+    "compatibility": 13645,
+    "historical": 6791,
+    "external": 0,
+    "status": "passed"
+  },
+  "verification": [
+    {
+      "id": "post_commit_identity_and_contracts",
+      "status": "passed",
+      "command": "npm run verify:converact-naming && node --test test/converact-goal-manifest.test.ts test/converact-architecture-source-ledger.test.ts test/converact-historical-artifact-preservation.test.ts test/converact-capacity-fork-status.test.ts && git diff --check",
+      "cwd": "/Users/songjinfeng/Projects/converact-worktrees/platform-renaming",
+      "started_at": "2026-08-01T00:06:36Z",
+      "ended_at": "2026-08-01T00:06:42Z",
+      "exit_code": 0,
+      "result": {
+        "tests": 18,
+        "passed": 18,
+        "failed": 0
+      },
+      "local_log": "/private/tmp/converact-post-commit-contracts.log",
+      "log_sha256": "7fe776522f7705ffbc91ed6d29a5397e934b20cd52789e2e70ee4fb5847b1179"
+    },
+    {
+      "id": "node_full_suite",
+      "status": "passed",
+      "command": "npm test",
+      "cwd": "/Users/songjinfeng/Projects/converact-worktrees/platform-renaming",
+      "started_at": "2026-07-31T23:54:25.662Z",
+      "ended_at": "2026-07-31T23:55:17.922Z",
+      "exit_code": 0,
+      "result": {
+        "suites": 58,
+        "tests": 4790,
+        "passed": 4775,
+        "failed": 0,
+        "skipped": 15,
+        "duration_ms": 52259.409584
+      },
+      "local_log": "/private/tmp/converact-final-npm-test.log",
+      "log_sha256": "c0bfcc8e1436c905fa0b257c5c489ca144f2b0b8b6b8ac84617a710515fba2c8"
+    },
+    {
+      "id": "typescript_typecheck",
+      "status": "passed",
+      "command": "npm run typecheck",
+      "exit_code": 0,
+      "local_log": "/private/tmp/converact-final-typecheck.log",
+      "log_sha256": "40bc31d5c95fb879712acd5d1ffc8bcac91b04826d82c408f5246ca6e9bdcea9"
+    },
+    {
+      "id": "sidecars",
+      "status": "passed",
+      "command": "npm run check:sidecars with isolated Go, Python, and Rust output directories",
+      "exit_code": 0,
+      "local_log": "/private/tmp/converact-final-sidecars.log",
+      "log_sha256": "606b31bf406a2e4f500a67e8cc957380c2dfebde6116fbb468646997cfed5565"
+    },
+    {
+      "id": "standalone_generated_context",
+      "status": "passed",
+      "command": "npm run verify:converact:standalone-context",
+      "exit_code": 0,
+      "result": {
+        "generated_sources": 424,
+        "converact_entrypoints": 17
+      },
+      "local_log": "/private/tmp/converact-final-standalone.log",
+      "log_sha256": "e997b2d96f6594067c60962a3531654e6524d48328cdbc8ceb8e9b55433c4358"
+    },
+    {
+      "id": "reference_client",
+      "status": "passed",
+      "command": "npm --prefix clients/converact-reference test && npm --prefix clients/converact-reference run build",
+      "exit_code": 0,
+      "result": {
+        "tests": 158,
+        "passed": 158,
+        "bundle_budget": "passed"
+      },
+      "local_log": "/private/tmp/converact-final-reference_client.log",
+      "log_sha256": "4ff5112f49b235394495db129eb6bd3af6c9f5c506a0de1bc8b1be1025942c83"
+    },
+    {
+      "id": "web_builds",
+      "status": "passed",
+      "command": "npm --prefix frontend run build && npm --prefix services/agent-panel run build",
+      "exit_code": 0,
+      "local_log": "/private/tmp/converact-final-web_builds.log",
+      "log_sha256": "c901696f1dcfb355ff2b280af5723da81afcbe5f6d4ff7256484a396ae96d9fd"
+    },
+    {
+      "id": "sdk_build_and_pack",
+      "status": "passed",
+      "command": "npm run build:converact-sdk && npm --prefix sdk/javascript run build && npm run pack:converact-sdk",
+      "exit_code": 0,
+      "result": {
+        "package": "@converact/sdk",
+        "version": "0.1.0",
+        "dry_run_files": 87
+      },
+      "local_log": "/private/tmp/converact-final-sdk_build_pack.log",
+      "log_sha256": "cedc0a03088eaabf31d30ffcbceebc05b84214e9e425ebe5d39988eb622eb960"
+    },
+    {
+      "id": "python_ai_agent",
+      "status": "passed",
+      "command": "pytest services/ai-agent-py/tests -q in an isolated locked virtual environment",
+      "exit_code": 0,
+      "result": {
+        "tests": 75,
+        "passed": 75,
+        "warnings": 3,
+        "warning_classification": "expected deprecation warnings"
+      },
+      "local_log": "/private/tmp/converact-final-python.log",
+      "log_sha256": "6345ad7d91337ccc11675cf74614feeb127a45b048a5a8a7c7125fa864fef697"
+    },
+    {
+      "id": "go_provider_gateway",
+      "status": "passed",
+      "command": "go test ./...",
+      "cwd": "services/provider-gateway-go",
+      "exit_code": 0,
+      "local_log": "/private/tmp/converact-final-go_provider_gateway.log",
+      "log_sha256": "827846b0842fda876a91fadc4959c6ebd2d71b3e6038fed44294d23cd76eec57"
+    },
+    {
+      "id": "go_component_hook",
+      "status": "passed",
+      "command": "go test ./...",
+      "cwd": "integrations/component-hook-go",
+      "exit_code": 0,
+      "local_log": "/private/tmp/converact-final-go_component_hook.log",
+      "log_sha256": "f7c415a3d39d5c83d5368fa98a8e68a8109c7511467cb88c718eee7a7d25f1b5"
+    },
+    {
+      "id": "go_livekit_egress",
+      "status": "passed",
+      "command": "go test ./...",
+      "cwd": "integrations/livekit-egress-v1.13.0",
+      "exit_code": 0,
+      "local_log": "/private/tmp/converact-final-go_livekit_egress.log",
+      "log_sha256": "08dbe8a465b05e08e55725dfd9658fd8d509bcc6f1f7866ac00483428e4834e3"
+    },
+    {
+      "id": "go_livekit_owner",
+      "status": "passed",
+      "command": "go test ./...",
+      "cwd": "integrations/livekit-v1.13.4",
+      "exit_code": 0,
+      "local_log": "/private/tmp/converact-final-go_livekit_owner.log",
+      "log_sha256": "f7c60ee0d00c5399a836c2d0ae0924b3f2cef984b33d4e6bf226f9a8240033f9"
+    },
+    {
+      "id": "go_tinode_owner",
+      "status": "passed",
+      "command": "go test ./...",
+      "cwd": "integrations/tinode-v0.25.3",
+      "exit_code": 0,
+      "local_log": "/private/tmp/converact-final-go_tinode_owner.log",
+      "log_sha256": "f5945da624aa683c808dbffba1fb47cacdb9e54dc250187f87da4def06881598"
+    },
+    {
+      "id": "rust_component_hook",
+      "status": "passed",
+      "command": "cargo test --locked",
+      "cwd": "integrations/component-hook-rs",
+      "exit_code": 0,
+      "result": {
+        "tests": 5,
+        "passed": 5
+      },
+      "local_log": "/private/tmp/converact-final-rust_component_hook.log",
+      "log_sha256": "9f3f60ee30a6a967f04695a635dfee71252e6ae715c24d75791f2d926bdfa6cb"
+    },
+    {
+      "id": "rust_voice_media",
+      "status": "passed_with_ignored_gates",
+      "command": "rustup run 1.94.1 cargo test --locked",
+      "cwd": "services/voice-media-rs",
+      "exit_code": 0,
+      "ignored": [
+        "official G.729 reference vectors",
+        "100K bounded-state stress"
+      ],
+      "local_log": "/private/tmp/converact-final-rust_voice_media.log",
+      "log_sha256": "e3c209df9e3445a68b2ec67ee3a54fd357913d5b01844c8efb10d19cb0a7b4fd"
+    },
+    {
+      "id": "helm_lint",
+      "status": "passed",
+      "command": "checksum-verified Helm v3.18.4 lint of infra/k8s, RTPengine, and Converact service charts",
+      "exit_code": 0,
+      "result": {
+        "charts": 3,
+        "failed": 0
+      },
+      "local_log": "/private/tmp/converact-final-helm_lint.log",
+      "log_sha256": "c5b9602597781018ac5edbb36617f51b55dfe08743cf5209f0551e3cc7f55855"
+    }
+  ],
+  "not_applicable": [
+    {
+      "id": "direct_converact_service_template_build",
+      "status": "not_applicable",
+      "reason": "services/converact-service is a generation template and intentionally has no src directory; verify:converact:standalone-context is its supported verifier and passed."
+    }
+  ],
+  "not_run": [
+    {
+      "id": "production_deployment",
+      "reason": "The rename task forbids server, container, database, and deployment changes."
+    },
+    {
+      "id": "local_docker_or_compose_cli",
+      "reason": "Local Docker was forbidden; Compose behavior is covered only by static contract tests."
+    },
+    {
+      "id": "sdk_registry_publication",
+      "reason": "Only local build and npm pack dry-run were authorized."
+    },
+    {
+      "id": "real_environment_media_and_capacity",
+      "reason": "No production or external media environment was changed or exercised."
+    },
+    {
+      "id": "official_g729_itu_vectors",
+      "reason": "Pending a rights-reviewed official ITU reference bundle."
+    },
+    {
+      "id": "voice_media_100k_stress",
+      "reason": "The ignored 100K bounded-state stress gate was not executed."
+    },
+    {
+      "id": "legacy_opc_workspace_archive",
+      "reason": "Archive remains blocked until Goal 00 closes a full file-level ledger for every staged, unstaged, and untracked legacy workspace artifact."
+    }
+  ],
+  "frozen_production": {
+    "path": "/Users/songjinfeng/Projects/opc-worktrees/legacy-production-20260730",
+    "branch": "maintenance/legacy-production-20260730",
+    "head": "0991dd515a563fab95b3de69b4c2f8276e6105d9",
+    "working_tree": "clean",
+    "mutated_by_rename_task": false
+  }
+}

@@ -11,7 +11,7 @@ This is a migration inventory, not completion evidence. A `rename` item remains 
 | rename | 0 |
 | unclassified | 0 |
 | compatibility | 13645 |
-| historical | 6781 |
+| historical | 6791 |
 | external | 0 |
 
 ## Files
@@ -159,6 +159,8 @@ This is a migration inventory, not completion evidence. A `rename` item remains 
 | `docs/design/rvoip-converact-communication-foundation-integration-design.md` | compatibility:2 |
 | `docs/design/rvoip-opc-communication-foundation-integration-design.md` | compatibility:50 |
 | `docs/design/security-design.md` | compatibility:2 |
+| `docs/evidence/converact-rename-completion-audit-2026-07-31.md` | historical:7 |
+| `docs/evidence/converact-rename-local-verification-2026-07-31.json` | historical:3 |
 | `docs/evidence/goal2-rtpengine-compile-runtime-inspection-2026-07-26.json` | historical:10 |
 | `docs/evidence/goal2-rtpengine-deployment-server-validation-2026-07-26.md` | historical:8 |
 | `docs/evidence/goal2-rtpengine-exact-source-unit-2026-07-26.tap` | historical:18 |
