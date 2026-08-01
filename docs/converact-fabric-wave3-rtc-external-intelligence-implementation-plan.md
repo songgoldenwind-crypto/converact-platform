@@ -16,7 +16,7 @@ Wave 3 交付两组可以独立验收、但共享同一容量与治理原则的�
 - 代码、迁移、部署配置、API、SDK、指标、告警、故障语义和自动化验收完整；
 - Provider、存储、字幕或审计依赖故障不能终止正在进行的 SIP、RTP、LiveKit 或 RustDesk 会话；
 - 所有队列有上限，实时辅助能力只能降级、丢弃或重建，不能向媒体主链路反压；
-- 本机只做编辑和静态检查；Node/Python/Rust 回归、Docker、Helm、故障注入和运行验收只在 `64.225.122.227` 执行；
+- 本机只做编辑和静态检查；Node/Python/Rust 回归、Docker、Helm、故障注入和运行验收只在 canonical non-production 目标 `ubuntu@101.42.7.139` 执行，操作纪律见 [`docs/deployment/converact-validation-server.md`](./deployment/converact-validation-server.md)；
 - 未提供真实 Provider、PSTN、双 Windows、目标 Kubernetes 或跨地域环境的项目保持 `not_run`。
 
 ## 2. 已有基础与真实缺口

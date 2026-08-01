@@ -2,7 +2,8 @@
 
 > Status: controlled single-host acceptance passed; production cutover not authorized
 > Evidence date: 2026-07-23
-> Validation server: `64.225.122.227`
+> Historical evidence server: `64.225.122.227`
+> Future validation target: `ubuntu@101.42.7.139`; see [Converact 非生产测试服务器](./converact-validation-server.md)
 
 ## 1. Scope and Authority
 

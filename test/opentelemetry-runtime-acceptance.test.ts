@@ -19,10 +19,13 @@ test('OpenTelemetry acceptance is isolated, bounded and server-only', () => {
   assert.match(collector, /batch:/);
   assert.match(collector, /otlp_http\/traces:/);
   assert.match(script, /CONVERACT_FABRIC_VALIDATION_SERVER_IP/);
-  assert.match(script, /64\.225\.122\.227/);
-  assert.match(script, /docker compose[\s\S]*stop collector/);
+  assert.match(script, /scripts\/lib\/converact-validation-server\.sh/);
+  assert.doesNotMatch(script, /64\.225\.122\.227/);
+  assert.match(script, /COMPOSE_COMMAND/);
+  assert.match(script, /docker-compose/);
+  assert.match(script, /"\$\{COMPOSE\[@\]\}" stop collector/);
   assert.match(script, /--mode fail-open/);
   assert.match(script, /trap cleanup EXIT/);
-  assert.match(script, /led-platform-admin-1/);
-  assert.match(script, /led-platform-web-1/);
+  assert.match(script, /assert_container_baseline/);
+  assert.doesNotMatch(script, /led-platform-/);
 });

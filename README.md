@@ -23,6 +23,7 @@ Converact Platform
 - [Converact Platform 范围、领域模型与产品组合 R2](./docs/design/2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md)
 - [Converact Fabric 统一通信底座 R5.1](./docs/design/unified-communication-foundation-r5.md)
 - [Converact Resolve Profile R1](./docs/design/2026-07-31-ai-native-multimodal-resolution-platform-r1.md)
+- [非生产测试服务器运行手册](./docs/deployment/converact-validation-server.md)
 - [Goal 00–17 执行总表](./goals/README.md)
 - [Goal 机器清单与 SHA-256](./goals/manifest.json)
 

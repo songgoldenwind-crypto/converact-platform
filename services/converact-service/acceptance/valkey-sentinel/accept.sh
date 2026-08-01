@@ -2,8 +2,9 @@
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd)
+. "$ROOT_DIR/scripts/lib/converact-validation-server.sh"
 COMPOSE_FILE="$ROOT_DIR/services/converact-service/acceptance/valkey-sentinel/docker-compose.yml"
-EXPECTED_SERVER_IP=64.225.122.227
+EXPECTED_SERVER_IP="$CONVERACT_VALIDATION_SERVER_IP"
 VALKEY_ACCEPTANCE_IMAGE=${VALKEY_ACCEPTANCE_IMAGE:-valkey/valkey@sha256:1da6597cc08f09748b05f7a845492581c9442ea240be8e7bbfeb5f83ad1bcec8}
 VALKEY_ACCEPTANCE_NODE_IMAGE=${VALKEY_ACCEPTANCE_NODE_IMAGE:-node@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d}
 PROJECT=${VALKEY_ACCEPTANCE_PROJECT:-converact-valkey-sentinel-$(date +%s)-$$}
@@ -30,8 +31,12 @@ for command_name in docker timeout od tr awk grep sed wc date sha256sum; do
     exit 1
   fi
 done
-if ! docker compose version >/dev/null 2>&1; then
-  printf '%s\n' 'docker compose is required' >&2
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_STYLE=plugin
+elif docker-compose version >/dev/null 2>&1; then
+  COMPOSE_STYLE=standalone
+else
+  printf '%s\n' 'docker compose or docker-compose is required' >&2
   exit 1
 fi
 if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT")" ]; then
@@ -42,18 +47,36 @@ fi
 export VALKEY_ACCEPTANCE_IMAGE VALKEY_ACCEPTANCE_RUNTIME_DIR
 umask 077
 
+compose() {
+  if [ "$COMPOSE_STYLE" = plugin ]; then
+    docker compose "$@"
+  else
+    docker-compose "$@"
+  fi
+}
+
+compose_timeout() {
+  duration=$1
+  shift
+  if [ "$COMPOSE_STYLE" = plugin ]; then
+    timeout "$duration" docker compose "$@"
+  else
+    timeout "$duration" docker-compose "$@"
+  fi
+}
+
 cleanup() {
   if [ "$CLEANED" -eq 1 ]; then return; fi
-  timeout 20 docker compose -p "$PROJECT" -f "$COMPOSE_FILE" unpause >/dev/null 2>&1 || true
-  timeout 60 docker compose -p "$PROJECT" -f "$COMPOSE_FILE" down --volumes --remove-orphans >/dev/null 2>&1 || true
+  compose_timeout 20 -p "$PROJECT" -f "$COMPOSE_FILE" unpause >/dev/null 2>&1 || true
+  compose_timeout 60 -p "$PROJECT" -f "$COMPOSE_FILE" down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$VALKEY_ACCEPTANCE_RUNTIME_DIR"
   CLEANED=1
 }
 
 failure_diagnostics() {
   printf '%s\n' '--- redacted Valkey acceptance diagnostics ---' >&2
-  timeout 20 docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -a >&2 || true
-  timeout 20 docker compose -p "$PROJECT" -f "$COMPOSE_FILE" logs --no-color --tail 100 2>&1 \
+  compose_timeout 20 -p "$PROJECT" -f "$COMPOSE_FILE" ps -a >&2 || true
+  compose_timeout 20 -p "$PROJECT" -f "$COMPOSE_FILE" logs --no-color --tail 100 2>&1 \
     | sed -E 's/[[:xdigit:]]{48}/[REDACTED]/g' >&2 || true
 }
 
@@ -142,20 +165,20 @@ write_sentinel_config sentinel-2
 write_sentinel_config sentinel-3
 chmod 0644 "$VALKEY_ACCEPTANCE_RUNTIME_DIR"/*.conf "$VALKEY_ACCEPTANCE_RUNTIME_DIR"/*.acl
 
-assert_led_running() {
-  expected=$(cat <<'EOF'
-led-platform-admin-1
-led-platform-api-1
-led-platform-edge-1
-led-platform-minio-1
-led-platform-postgres-1
-led-platform-system-tasks-1
-led-platform-web-1
-EOF
-)
-  actual=$(docker ps --filter status=running --format '{{.Names}}' | grep '^led-platform-' | sort || true)
-  if [ "$actual" != "$expected" ]; then
-    printf '%s\n' 'LED running-container invariant failed' >&2
+BASELINE_CONTAINERS=''
+BASELINE_CONTAINER_COUNT=0
+
+capture_container_baseline() {
+  BASELINE_CONTAINERS=$(docker ps --format '{{.Names}}' | sort)
+  if [ -n "$BASELINE_CONTAINERS" ]; then
+    BASELINE_CONTAINER_COUNT=$(printf '%s\n' "$BASELINE_CONTAINERS" | wc -l | tr -d ' ')
+  fi
+}
+
+assert_container_baseline() {
+  actual_containers=$(docker ps --format '{{.Names}}' | sort)
+  if [ "$actual_containers" != "$BASELINE_CONTAINERS" ]; then
+    printf '%s\n' 'running-container baseline changed' >&2
     exit 1
   fi
 }
@@ -163,14 +186,14 @@ EOF
 data_cli() {
   service=$1
   shift
-  timeout 10 docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T "$service" \
+  compose_timeout 10 -p "$PROJECT" -f "$COMPOSE_FILE" exec -T "$service" \
     valkey-cli --raw --user app --pass "$APP_PASSWORD" --no-auth-warning "$@"
 }
 
 sentinel_cli() {
   service=$1
   shift
-  timeout 10 docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T "$service" \
+  compose_timeout 10 -p "$PROJECT" -f "$COMPOSE_FILE" exec -T "$service" \
     valkey-cli --raw -p 26379 --user sentinel-client --pass "$SENTINEL_CLIENT_PASSWORD" --no-auth-warning "$@"
 }
 
@@ -244,7 +267,7 @@ sentinel_endpoint() {
 }
 
 service_ip() {
-  container_id=$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q "$1")
+  container_id=$(compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q "$1")
   docker inspect "$container_id" --format "{{with index .NetworkSettings.Networks \"$NETWORK_NAME\"}}{{.IPAddress}}{{end}}"
 }
 
@@ -347,7 +370,8 @@ now_ms() {
   date +%s%3N
 }
 
-assert_led_running
+capture_container_baseline
+assert_container_baseline
 timeout 180 docker pull "$VALKEY_ACCEPTANCE_IMAGE" >/dev/null
 timeout 180 docker pull "$VALKEY_ACCEPTANCE_NODE_IMAGE" >/dev/null
 image_arch=$(docker image inspect "$VALKEY_ACCEPTANCE_IMAGE" --format '{{.Architecture}}')
@@ -356,7 +380,7 @@ version_output=$(timeout 20 docker run --rm "$VALKEY_ACCEPTANCE_IMAGE" valkey-se
 printf '%s\n' "$version_output" | grep -q 'v=9\.1\.0'
 
 started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-timeout 120 docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d >/dev/null
+compose_timeout 120 -p "$PROJECT" -f "$COMPOSE_FILE" up -d >/dev/null
 for service in valkey-1 valkey-2 valkey-3; do wait_for_ping data "$service"; done
 for service in sentinel-1 sentinel-2 sentinel-3; do wait_for_ping sentinel "$service"; done
 
@@ -376,7 +400,7 @@ wait_for_value_copies "$PRE_KEY" "$PRE_VALUE" 3
 wait_for_sentinel_topology
 
 failover_started_ms=$(now_ms)
-docker compose -p "$PROJECT" -f "$COMPOSE_FILE" pause "$old_primary" >/dev/null
+compose -p "$PROJECT" -f "$COMPOSE_FILE" pause "$old_primary" >/dev/null
 new_primary=$(wait_for_new_primary "$old_primary")
 primary_elected_ms=$(now_ms)
 after_endpoint=$(sentinel_endpoint sentinel-1)
@@ -399,6 +423,7 @@ acceptance_source_sha256=$(
     services/converact-service/acceptance/valkey-sentinel/accept.sh \
     services/converact-service/acceptance/valkey-sentinel/docker-compose.yml \
     services/converact-service/acceptance/valkey-sentinel/probe.ts \
+    scripts/lib/converact-validation-server.sh \
     src/infra/redis-connection-options.ts \
     package-lock.json \
     | sha256sum | awk '{ print $1 }'
@@ -432,7 +457,8 @@ cat >"$EVIDENCE_FILE" <<EOF
   "pubsub_before_failover": true,
   "pubsub_after_failover": true,
   "credentials_recorded": false,
-  "led_running_containers": 7,
+  "preexisting_running_containers": $BASELINE_CONTAINER_COUNT,
+  "container_baseline_invariant": "passed",
   "scope": "isolated single-host three-data-node and three-Sentinel controlled failover",
   "not_proven": ["cross-Zone partition", "target Kubernetes", "LiveKit real-room continuity", "soak", "throughput", "MIX-100K capacity"]
 }
@@ -445,5 +471,5 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT")" 
   printf '%s\n' 'Valkey acceptance project cleanup left containers behind' >&2
   exit 1
 fi
-assert_led_running
+assert_container_baseline
 printf 'Valkey Sentinel controlled acceptance passed; evidence=%s\n' "$EVIDENCE_FILE"

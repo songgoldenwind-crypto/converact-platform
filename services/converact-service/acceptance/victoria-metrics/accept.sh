@@ -1,28 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXPECTED_SERVER_IP="64.225.122.227"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+source "$ROOT/scripts/lib/converact-validation-server.sh"
+EXPECTED_SERVER_IP="$CONVERACT_VALIDATION_SERVER_IP"
 if [[ "${CONVERACT_FABRIC_VALIDATION_SERVER_IP:-}" != "$EXPECTED_SERVER_IP" ]]; then
   echo "CONVERACT_FABRIC_VALIDATION_SERVER_IP must identify the controlled validation server" >&2
   exit 2
 fi
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PACKAGE_DIR="$ROOT/services/converact-service/acceptance/victoria-metrics"
 PROJECT="converact_vm_accept_${$}_${RANDOM}"
 RUNTIME_DIR="/tmp/$PROJECT"
-EVIDENCE_FILE="${CONVERACT_FABRIC_VM_EVIDENCE_FILE:-$ROOT/docs/evidence/wave2-victoria-metrics-runtime-2026-07-22.json}"
-NODE="${CONVERACT_FABRIC_NODE_BIN:-/opt/converact-wave123-validation-20260722/cache/toolchain/bin/node}"
-COMPOSE=(docker compose -p "$PROJECT" -f "$PACKAGE_DIR/docker-compose.yml")
-EXPECTED_LED=(
-  led-platform-admin-1
-  led-platform-api-1
-  led-platform-edge-1
-  led-platform-minio-1
-  led-platform-postgres-1
-  led-platform-system-tasks-1
-  led-platform-web-1
-)
+EVIDENCE_FILE="${CONVERACT_FABRIC_VM_EVIDENCE_FILE:-$ROOT/docs/evidence/wave2-victoria-metrics-runtime-$(date -u +%Y%m%dT%H%M%SZ).json}"
+NODE="${CONVERACT_FABRIC_NODE_BIN:-node}"
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_COMMAND=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1 && docker-compose version >/dev/null 2>&1; then
+  COMPOSE_COMMAND=(docker-compose)
+else
+  echo "docker compose or docker-compose is required" >&2
+  exit 2
+fi
+COMPOSE=("${COMPOSE_COMMAND[@]}" -p "$PROJECT" -f "$PACKAGE_DIR/docker-compose.yml")
+mapfile -t BASELINE_CONTAINERS < <(docker ps --format '{{.Names}}' | sort)
 CLEANED=0
 CURRENT_STAGE="bootstrap"
 
@@ -46,10 +47,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-assert_led() {
-  mapfile -t actual < <(docker ps --format '{{.Names}}' | grep '^led-platform-' | sort)
-  if [[ "${actual[*]}" != "${EXPECTED_LED[*]}" ]]; then
-    echo "LED container invariant failed" >&2
+assert_container_baseline() {
+  local -a actual=()
+  mapfile -t actual < <(docker ps --format '{{.Names}}' | sort)
+  if [[ "${actual[*]}" != "${BASELINE_CONTAINERS[*]}" ]]; then
+    echo "running-container baseline changed" >&2
     printf '%s\n' "${actual[@]}" >&2
     exit 3
   fi
@@ -117,7 +119,7 @@ wait_metric_at_least() {
   return 1
 }
 
-assert_led
+assert_container_baseline
 CURRENT_STAGE="compose-up"
 "${COMPOSE[@]}" up -d source victoria-metrics prometheus
 SOURCE_PORT="$(mapped_port source 9100)"
@@ -181,21 +183,22 @@ VM_IMAGE_ID="$(docker image inspect victoriametrics/victoria-metrics@sha256:4070
 PROM_IMAGE_ID="$(docker image inspect prom/prometheus@sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac --format '{{.Id}}')"
 "${COMPOSE[@]}" down --volumes --remove-orphans >/dev/null
 CLEANED=1
-CURRENT_STAGE="led-invariant"
-assert_led
+CURRENT_STAGE="container-baseline"
+assert_container_baseline
 
 INITIAL_VALUE="$INITIAL_VALUE" OUTAGE_START_VALUE="$OUTAGE_START_VALUE" \
 OUTAGE_END_VALUE="$OUTAGE_END_VALUE" RECOVERED_VALUE="$RECOVERED_VALUE" \
 BACKUP_FLOOR_VALUE="$BACKUP_FLOOR_VALUE" RESTORED_VALUE="$RESTORED_VALUE" \
 BACKUP_FILE_COUNT="$BACKUP_FILE_COUNT" VM_IMAGE_ID="$VM_IMAGE_ID" \
 PROM_IMAGE_ID="$PROM_IMAGE_ID" EVIDENCE_FILE="$EVIDENCE_FILE" \
+VALIDATION_SERVER_IP="$EXPECTED_SERVER_IP" BASELINE_CONTAINER_COUNT="${#BASELINE_CONTAINERS[@]}" \
 "$NODE" --input-type=module - <<'NODE'
 import { writeFileSync } from 'node:fs';
 
 const evidence = {
   schema_version: '1.0.0',
   status: 'passed_controlled_server',
-  server: '64.225.122.227',
+  server: process.env.VALIDATION_SERVER_IP,
   victoria_metrics_version: 'v1.148.0',
   victoria_metrics_image_id: process.env.VM_IMAGE_ID,
   prometheus_version: 'v3.12.0',
@@ -208,7 +211,8 @@ const evidence = {
   backup_file_count: Number(process.env.BACKUP_FILE_COUNT),
   restored_value: Number(process.env.RESTORED_VALUE),
   communication_hot_path_dependency: false,
-  led_container_invariant: 'passed',
+  preexisting_running_containers: Number(process.env.BASELINE_CONTAINER_COUNT),
+  container_baseline_invariant: 'passed',
   production_object_store: 'not_run',
   target_kubernetes: 'not_run',
   dual_zone: 'not_run',

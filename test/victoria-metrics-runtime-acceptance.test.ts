@@ -24,10 +24,14 @@ test('VictoriaMetrics acceptance covers WAL recovery and backup restore on the s
   assert.match(prometheus, /remote_write:/);
   assert.match(prometheus, /victoria-metrics:8428\/api\/v1\/write/);
   assert.match(script, /CONVERACT_FABRIC_VALIDATION_SERVER_IP/);
-  assert.match(script, /docker compose[\s\S]*stop victoria-metrics/);
+  assert.match(script, /scripts\/lib\/converact-validation-server\.sh/);
+  assert.doesNotMatch(script, /64\.225\.122\.227/);
+  assert.match(script, /COMPOSE_COMMAND/);
+  assert.match(script, /docker-compose/);
+  assert.match(script, /"\$\{COMPOSE\[@\]\}" stop victoria-metrics/);
   assert.match(script, /run --rm --no-deps backup/);
   assert.match(script, /run --rm --no-deps restore/);
-  assert.match(script, /led-platform-admin-1/);
-  assert.match(script, /led-platform-web-1/);
+  assert.match(script, /assert_container_baseline/);
+  assert.doesNotMatch(script, /led-platform-/);
   assert.match(script, /trap cleanup EXIT/);
 });
