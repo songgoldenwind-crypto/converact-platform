@@ -61,10 +61,8 @@ export function createConveractFabricReadinessProbe(input: {
   const probeTimeoutMs = boundedProbeTimeout(input.probeTimeoutMs ?? 2_000);
   const scheduler = input.scheduler || defaultReadinessScheduler();
   assertReadinessScheduler(scheduler);
-  return {
-    async probe() {
-      const deadline = scheduler.now() + probeTimeoutMs;
-      const result: ConveractFabricReadinessResult = {
+  let activeWave: Promise<ConveractFabricReadinessResult> | null = null;
+  const createResult = (): ConveractFabricReadinessResult => ({
         status: 'not_ready',
         checks: {
           database: { status: 'failed' },
@@ -84,13 +82,11 @@ export function createConveractFabricReadinessProbe(input: {
             error_code: placementEnabled ? 'placement_probe_missing' : ''
           }
         }
-      };
+      });
+  const runProbeWave = async (): Promise<ConveractFabricReadinessResult> => {
+      const result = createResult();
       if (!input.pg) return result;
-      const query = <R>(text: string, params?: unknown[]) => withReadinessDeadline(
-        scheduler,
-        deadline,
-        () => input.pg!.query<R>(text, params)
-      );
+      const query = <R>(text: string, params?: unknown[]) => input.pg!.query<R>(text, params);
       try {
         await query('SELECT 1 AS ready');
         result.checks.database.status = 'ok';
@@ -161,11 +157,7 @@ export function createConveractFabricReadinessProbe(input: {
       if (placementEnabled && input.placementProbe) {
         independentProbes.push((async () => {
           try {
-            const snapshot = await withReadinessDeadline(
-              scheduler,
-              deadline,
-              () => input.placementProbe!.probe()
-            );
+            const snapshot = await input.placementProbe!.probe();
             result.checks.placement_snapshot = {
               status: 'ok',
               snapshot_version: positiveSafeInteger(snapshot.snapshot_version),
@@ -192,6 +184,22 @@ export function createConveractFabricReadinessProbe(input: {
         ? 'ready'
         : 'not_ready';
       return result;
+  };
+  return {
+    async probe() {
+      const deadline = scheduler.now() + probeTimeoutMs;
+      if (!activeWave) {
+        const started = runProbeWave();
+        activeWave = started;
+        void started.finally(() => {
+          if (activeWave === started) activeWave = null;
+        }).catch(() => undefined);
+      }
+      try {
+        return await withReadinessDeadline(scheduler, deadline, () => activeWave!);
+      } catch {
+        return createResult();
+      }
     }
   };
 }

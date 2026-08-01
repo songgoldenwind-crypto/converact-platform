@@ -32,6 +32,10 @@ export type PlatformMetricLabel =
   | 'capability'
   | 'identity_kind';
 
+export interface PlatformMetricLabelPolicy {
+  allows(label: PlatformMetricLabel, value: string): boolean;
+}
+
 export type TelemetryDropReason = 'queue_full' | 'exporter_unavailable' | 'deadline_exceeded';
 
 const CORRELATION_FIELDS = new Set([
@@ -46,6 +50,9 @@ const METRIC_LABELS: ReadonlySet<string> = new Set([
   'service', 'region', 'zone', 'cell', 'component', 'operation', 'status',
   'error_class', 'dependency', 'queue', 'capability', 'identity_kind'
 ]);
+const METRIC_LABEL_POLICIES = new WeakSet<object>();
+const MAX_VALUES_PER_METRIC_LABEL = 64;
+const MAX_VALUES_PER_METRIC_POLICY = 256;
 const HIGH_CARDINALITY_LABELS: ReadonlySet<string> = new Set([
   'tenant_id', 'profile_type', 'user_id', 'engagement_id', 'interaction_id', 'call_id',
   'leg_id', 'room_id', 'resolution_id', 'action_intent_id', 'agent_run_id',
@@ -89,18 +96,55 @@ export function normalizeCorrelationContext(value: unknown): Readonly<PlatformCo
 }
 
 export function assertMetricLabels(
-  value: Readonly<Record<string, string>>
+  value: Readonly<Record<string, string>>,
+  policy: PlatformMetricLabelPolicy
 ): Readonly<Partial<Record<PlatformMetricLabel, string>>> {
-  if (!plainRecord(value) || Object.keys(value).length > METRIC_LABELS.size) {
+  if (!plainRecord(value) || Object.keys(value).length > METRIC_LABELS.size
+    || !policy || typeof policy !== 'object' || !METRIC_LABEL_POLICIES.has(policy)) {
     throw new Error('metric_label_invalid');
   }
   const normalized: Record<string, string> = {};
   for (const key of Object.keys(value).sort()) {
     if (HIGH_CARDINALITY_LABELS.has(key)) throw new Error('metric_label_forbidden');
     if (!METRIC_LABELS.has(key) || !lowCardinalityValue(value[key])) throw new Error('metric_label_invalid');
+    if (!policy.allows(key as PlatformMetricLabel, value[key])) {
+      throw new Error('metric_label_value_not_allowed');
+    }
     normalized[key] = value[key];
   }
   return Object.freeze(normalized) as Readonly<Partial<Record<PlatformMetricLabel, string>>>;
+}
+
+export function createMetricLabelPolicy(
+  value: Readonly<Partial<Record<PlatformMetricLabel, readonly string[]>>>
+): Readonly<PlatformMetricLabelPolicy> {
+  if (!plainRecord(value) || Object.keys(value).length < 1
+    || Object.keys(value).length > METRIC_LABELS.size) throw metricPolicyError();
+  const allowed = new Map<PlatformMetricLabel, ReadonlySet<string>>();
+  let totalValues = 0;
+  for (const key of Object.keys(value).sort()) {
+    if (!METRIC_LABELS.has(key)) throw metricPolicyError();
+    const entries = value[key as PlatformMetricLabel];
+    if (!Array.isArray(entries) || entries.length < 1
+      || entries.length > MAX_VALUES_PER_METRIC_LABEL) throw metricPolicyError();
+    const values = new Set<string>();
+    for (const entry of entries) {
+      if (!lowCardinalityValue(entry) || highCardinalityValueShape(entry) || values.has(entry)) {
+        throw metricPolicyError();
+      }
+      values.add(entry);
+    }
+    totalValues += values.size;
+    if (totalValues > MAX_VALUES_PER_METRIC_POLICY) throw metricPolicyError();
+    allowed.set(key as PlatformMetricLabel, values);
+  }
+  const policy: PlatformMetricLabelPolicy = Object.freeze({
+    allows(label: PlatformMetricLabel, candidate: string): boolean {
+      return allowed.get(label)?.has(candidate) === true;
+    }
+  });
+  METRIC_LABEL_POLICIES.add(policy);
+  return policy;
 }
 
 export function redactObservabilityValue(value: unknown): unknown {
@@ -195,6 +239,16 @@ function boundedIdentifier(value: unknown): value is string {
 
 function lowCardinalityValue(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u.test(value);
+}
+
+function highCardinalityValueShape(value: string): boolean {
+  return /^[a-f0-9]{32,64}$/iu.test(value)
+    || /^[0-9A-HJKMNP-TV-Z]{26}$/u.test(value)
+    || /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iu.test(value);
+}
+
+function metricPolicyError(): Error {
+  return new Error('metric_label_policy_invalid');
 }
 
 function nonNegativeInteger(value: unknown): value is number {

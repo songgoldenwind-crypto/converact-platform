@@ -14,6 +14,7 @@ test('platform foundation exposes one explicit public module boundary', () => {
     'assertMetricLabels',
     'assertSafeSecretSink',
     'createEffectAuditLink',
+    'createMetricLabelPolicy',
     'createPlatformDeadline',
     'decideEffectReceiptAppend',
     'decideInboxWrite',

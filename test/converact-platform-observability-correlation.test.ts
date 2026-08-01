@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   assertMetricLabels,
+  createMetricLabelPolicy,
   decideTelemetryExport,
   normalizeCorrelationContext,
   redactObservabilityValue
@@ -51,18 +52,34 @@ test('correlation rejects missing malformed unknown and overlong fields', () => 
 });
 
 test('metric labels allow only bounded low-cardinality dimensions', () => {
+  const policy = createMetricLabelPolicy({
+    service: ['platform-core'],
+    region: ['us-east'],
+    operation: ['event_decode'],
+    status: ['ok', 'failed']
+  });
   assert.deepEqual(assertMetricLabels({
     service: 'platform-core', region: 'us-east', operation: 'event_decode', status: 'ok'
-  }), {
+  }, policy), {
     operation: 'event_decode', region: 'us-east', service: 'platform-core', status: 'ok'
   });
   for (const key of [
     'tenant_id', 'profile_type', 'user_id', 'engagement_id', 'interaction_id',
     'call_id', 'room_id', 'agent_run_id', 'trace_id', 'request_id'
   ]) {
-    assert.throws(() => assertMetricLabels({ [key]: 'high-cardinality-a' }), /metric_label_forbidden/, key);
+    assert.throws(() => assertMetricLabels({ [key]: 'high-cardinality-a' }, policy), /metric_label_forbidden/, key);
   }
-  assert.throws(() => assertMetricLabels({ status: 'x'.repeat(129) }), /metric_label_invalid/);
+  assert.throws(() => assertMetricLabels({ status: 'x'.repeat(129) }, policy), /metric_label_invalid/);
+  assert.throws(
+    () => assertMetricLabels({ operation: '550e8400-e29b-41d4-a716-446655440000' }, policy),
+    /metric_label_value_not_allowed/
+  );
+  assert.throws(
+    () => createMetricLabelPolicy({
+      operation: Array.from({ length: 65 }, (_, index) => `operation_${index}`)
+    }),
+    /metric_label_policy_invalid/
+  );
 });
 
 test('recursive redaction removes secret keys and PII-shaped values before sink', () => {

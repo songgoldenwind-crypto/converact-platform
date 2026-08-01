@@ -85,6 +85,7 @@ export type {
 
 export {
   assertMetricLabels,
+  createMetricLabelPolicy,
   decideTelemetryExport,
   normalizeCorrelationContext,
   redactObservabilityValue
@@ -92,6 +93,7 @@ export {
 export type {
   PlatformCorrelationContext,
   PlatformMetricLabel,
+  PlatformMetricLabelPolicy,
   TelemetryDropReason
 } from './correlation.js';
 

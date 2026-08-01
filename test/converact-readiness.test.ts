@@ -219,3 +219,30 @@ test('readiness returns not_ready when a driver never settles before the injecte
   assert.equal(result.status, 'not_ready');
   assert.equal(result.checks.database.status, 'failed');
 });
+
+test('readiness admits at most one unresolved probe wave after caller deadlines', async () => {
+  let queries = 0;
+  const pg: PgQueryable = {
+    query: async () => {
+      queries += 1;
+      return new Promise(() => undefined);
+    }
+  };
+  const probe = createConveractFabricReadinessProbe({
+    pg,
+    env: validEnv,
+    probeTimeoutMs: 100,
+    scheduler: {
+      now: () => 0,
+      setTimeout(callback) {
+        queueMicrotask(callback);
+        return 1;
+      },
+      clearTimeout() {}
+    }
+  });
+
+  assert.equal((await probe.probe()).status, 'not_ready');
+  assert.equal((await probe.probe()).status, 'not_ready');
+  assert.equal(queries, 1, 'an unresolved driver must be shared instead of leaking one query per poll');
+});
