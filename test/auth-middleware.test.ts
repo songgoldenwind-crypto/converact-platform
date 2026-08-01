@@ -491,6 +491,36 @@ test('JWKS refresh cancels an oversized stream before buffering its complete bod
   }
 });
 
+test('JWKS refresh cancels a body whose declared content length exceeds the budget', async () => {
+  const originalFetch = globalThis.fetch;
+  let pulls = 0;
+  let cancelled = false;
+  try {
+    globalThis.fetch = (async () => new Response(new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(new Uint8Array([0x7b]));
+      },
+      cancel() {
+        cancelled = true;
+      }
+    }), {
+      status: 200,
+      headers: { 'content-length': '131073' }
+    })) as typeof fetch;
+
+    await assert.rejects(
+      () => warmJwksCache('https://auth.example.test'),
+      /bounded|size|exceeds/i
+    );
+    assert.equal(cancelled, true, 'a rejected declared length must release the response body');
+    assert.ok(pulls <= 1, `the oversized declared body was consumed ${pulls} times`);
+  } finally {
+    globalThis.fetch = originalFetch;
+    _clearJwksCache();
+  }
+});
+
 function futureEpoch(): number {
   return Math.floor(Date.now() / 1000) + 60;
 }

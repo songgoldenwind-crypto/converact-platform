@@ -377,7 +377,7 @@ async function fetchAndValidateJwks(issuer: string): Promise<JwksKey[]> {
       throw Object.assign(new Error(`JWKS fetch failed: ${response.status}`), { status: 401 });
     }
 
-    const text = await readBoundedJwksBody(response);
+    const text = await readBoundedJwksBody(response, controller);
     let body: unknown;
     try {
       body = JSON.parse(text);
@@ -392,11 +392,20 @@ async function fetchAndValidateJwks(issuer: string): Promise<JwksKey[]> {
   }
 }
 
-async function readBoundedJwksBody(response: Response): Promise<string> {
+async function readBoundedJwksBody(
+  response: Response,
+  controller: AbortController
+): Promise<string> {
   const declaredLength = response.headers.get('content-length');
   if (declaredLength !== null
     && (!/^(?:0|[1-9][0-9]*)$/u.test(declaredLength)
       || Number(declaredLength) > JWKS_MAX_RESPONSE_BYTES)) {
+    try {
+      await response.body?.cancel('jwks_response_budget_exceeded');
+    } catch {
+      // The bounded rejection below remains authoritative.
+    }
+    controller.abort();
     throw unauthorizedToken('JWKS response exceeds the bounded size');
   }
   if (!response.body) return '';
@@ -415,6 +424,7 @@ async function readBoundedJwksBody(response: Response): Promise<string> {
         } catch {
           // The bounded rejection below remains authoritative.
         }
+        controller.abort();
         throw unauthorizedToken('JWKS response exceeds the bounded size');
       }
       chunks.push(value);
