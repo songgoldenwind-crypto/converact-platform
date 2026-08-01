@@ -1,0 +1,43 @@
+# G02 platform fault matrix acceptance
+
+This directory is the fenced, isolated entrypoint for controlled G02 dependency-fault campaigns. It is not a
+production deploy path and it must never target the frozen production host or reuse a production Compose project,
+volume, network, database, credential, port, or evidence directory.
+
+## Current implementation status
+
+- The evidence contract covers all 12 dependencies and every failure mode in the G02 machine fault matrix.
+- The first executable slice only validates the isolated PostgreSQL campaign configuration. Fault execution and
+  dependency adapters are added through failing tests before use.
+- Every unexecuted dependency remains `not_run`.
+- `production_eligible` is always `false`; controlled evidence cannot change it.
+- A synthetic packet or transport probe is useful for causal-isolation diagnostics, but synthetic transport is not
+  real long human media and cannot satisfy the Human Communication acceptance gate.
+
+## Safety boundary
+
+The runner requires all of the following before any Compose action:
+
+1. `CONVERACT_G02_FAULT_CONFIRM=G02_PLATFORM_FAULT_MATRIX`;
+2. a bounded run ID, producing a dedicated `converact-g02-*` Compose project;
+3. every container image by immutable `name@sha256:digest` reference;
+4. a randomly generated campaign-only database password that is never written to evidence;
+5. loopback-only published ports and an internal Compose network;
+6. source commit, config hash, image digests, host/hardware/clock/workload/seed/time and raw-output hashes in the
+   final evidence identity;
+7. project-scoped cleanup only. The runner must not prune Docker or stop unrelated containers.
+
+Validation plan example (no container is started):
+
+```bash
+CONVERACT_G02_FAULT_CONFIRM=G02_PLATFORM_FAULT_MATRIX \
+CONVERACT_G02_FAULT_RUN_ID=contract-check \
+POSTGRES_IMAGE='postgres@sha256:<64 hex digest>' \
+POSTGRES_HOST_PORT=55432 \
+POSTGRES_PASSWORD='<campaign-only random value>' \
+./accept.sh plan
+```
+
+Secrets, tokens, passwords, cookies, private keys and credentials are forbidden in evidence. Missing prerequisites,
+partial campaigns, mock services, loopback media, upstream benchmarks and historical results never promote a real
+dependency, long-media, capacity, DR or production claim.

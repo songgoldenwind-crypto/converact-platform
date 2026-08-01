@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE immutable digest reference is required}
+    restart: "no"
+    environment:
+      POSTGRES_USER: converact_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: converact_validation
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:?POSTGRES_HOST_PORT is required}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U converact_admin -d converact_validation"]
+      interval: 1s
+      timeout: 1s
+      retries: 60
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - validation
+
+networks:
+  validation:
+    internal: true
+
+volumes:
+  postgres_data:
