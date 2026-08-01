@@ -7,6 +7,9 @@ import {
   faultScenarioCatalog,
   summarizeFaultCampaign
 } from '../services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs';
+import {
+  buildDatabaseEvidence
+} from '../services/converact-service/acceptance/platform-fault-matrix/database-probe.js';
 
 const acceptanceRoot = new URL(
   '../services/converact-service/acceptance/platform-fault-matrix/',
@@ -203,4 +206,88 @@ test('acceptance entrypoints are project-scoped digest-pinned and explicit about
   assert.match(readme, /synthetic.*not.*real.*human media/is);
   assert.match(readme, /production[_ -]eligible.*false/is);
   assert.match(readme, /not_run/);
+});
+
+test('database evidence requires actual RLS restart recovery and synthetic continuity facts', () => {
+  const result = buildDatabaseEvidence({
+    identity,
+    prepare: {
+      status: 'passed', process_pid: 101, migration_head: '111_converact_platform_key_lifecycle',
+      tenant_a_visible: 1, tenant_b_visible_from_a: 0, no_context_visible: 0,
+      cross_tenant_insert_denied: true, inbox_inserted: true,
+      accepted_receipt_inserted: true, usage_inserted: true
+    },
+    outage: { status: 'passed', query_failed_during_outage: true },
+    restart: {
+      status: 'passed', same_container: true,
+      before_started_at: '2026-08-01T16:00:01.000Z',
+      after_started_at: '2026-08-01T16:00:05.123456789Z',
+      validation_resources_remaining: 0, unrelated_containers_unchanged: true
+    },
+    recover: {
+      status: 'passed', process_pid: 202, tenant_a_visible: 1,
+      tenant_b_visible_from_a: 0, no_context_visible: 0,
+      inbox_replayed: true, inbox_conflict_rejected: true,
+      accepted_receipt_replayed: true, completed_receipt_inserted: true,
+      observed_receipt_inserted: true, usage_replayed: true,
+      stale_writer_rejected: true, immutable_update_rejected: true
+    },
+    media: {
+      status: 'passed', kind: 'synthetic_transport', sent_packets: 1500,
+      received_packets: 1500, lost_packets: 0, duplicate_packets: 0,
+      maximum_gap_ms: 31, established_before_fault: true,
+      continuous_during_fault: true, completed_after_recovery: true
+    }
+  });
+  assert.equal(result.status, 'verified_controlled');
+  assert.equal(result.real_human_media, false);
+  assert.equal(result.production_eligible, false);
+  assert.equal(result.evidence.checks.length, 8);
+
+  const sameProcess = buildDatabaseEvidence({
+    identity,
+    prepare: {
+      status: 'passed', process_pid: 101, migration_head: '111_converact_platform_key_lifecycle',
+      tenant_a_visible: 1, tenant_b_visible_from_a: 0, no_context_visible: 0,
+      cross_tenant_insert_denied: true, inbox_inserted: true,
+      accepted_receipt_inserted: true, usage_inserted: true
+    },
+    outage: { status: 'passed', query_failed_during_outage: true },
+    restart: {
+      status: 'passed', same_container: true,
+      before_started_at: '2026-08-01T16:00:01.000Z',
+      after_started_at: '2026-08-01T16:00:05.123456789Z',
+      validation_resources_remaining: 0, unrelated_containers_unchanged: true
+    },
+    recover: {
+      status: 'passed', process_pid: 101, tenant_a_visible: 1,
+      tenant_b_visible_from_a: 0, no_context_visible: 0,
+      inbox_replayed: true, inbox_conflict_rejected: true,
+      accepted_receipt_replayed: true, completed_receipt_inserted: true,
+      observed_receipt_inserted: true, usage_replayed: true,
+      stale_writer_rejected: true, immutable_update_rejected: true
+    },
+    media: {
+      status: 'passed', kind: 'synthetic_transport', sent_packets: 1500,
+      received_packets: 1500, lost_packets: 0, duplicate_packets: 0,
+      maximum_gap_ms: 31, established_before_fault: true,
+      continuous_during_fault: true, completed_after_recovery: true
+    }
+  });
+  assert.equal(sameProcess.status, 'failed');
+});
+
+test('database runner has bounded actual stop-start lifecycle and cleanup', () => {
+  const script = readFileSync(new URL('accept.sh', acceptanceRoot), 'utf8');
+  assert.match(script, /compose up --detach postgres/);
+  assert.match(script, /compose stop --timeout [0-9]+ postgres/);
+  assert.match(script, /compose start postgres/);
+  assert.match(script, /database-probe\.ts.*prepare/s);
+  assert.match(script, /database-probe\.ts.*outage/s);
+  assert.match(script, /database-probe\.ts.*recover/s);
+  assert.match(script, /database-probe\.ts.*finalize/s);
+  assert.match(script, /git -C "\$ROOT_DIR" rev-parse HEAD/);
+  assert.match(script, /git -C "\$ROOT_DIR" status --porcelain/);
+  assert.match(script, /trap cleanup EXIT HUP INT TERM/);
+  assert.match(script, /compose down --volumes --remove-orphans/);
 });
