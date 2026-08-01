@@ -82,6 +82,22 @@ test('metric labels allow only bounded low-cardinality dimensions', () => {
   );
 });
 
+test('metric label values remain bounded across dynamically created policies', () => {
+  let accepted = 0;
+  for (let index = 0; index < 1_000; index += 1) {
+    try {
+      const value = `request_${index}`;
+      const policy = createMetricLabelPolicy({ status: [value] });
+      assert.deepEqual(assertMetricLabels({ status: value }, policy), { status: value });
+      accepted += 1;
+    } catch (error) {
+      assert.match(String((error as Error).message), /metric_label_policy_invalid/);
+      break;
+    }
+  }
+  assert.ok(accepted <= 64, `cross-policy status cardinality was ${accepted}`);
+});
+
 test('recursive redaction removes secret keys and PII-shaped values before sink', () => {
   const redacted = redactObservabilityValue({
     status: 'failed',

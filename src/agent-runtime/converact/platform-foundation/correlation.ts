@@ -51,8 +51,11 @@ const METRIC_LABELS: ReadonlySet<string> = new Set([
   'error_class', 'dependency', 'queue', 'capability', 'identity_kind'
 ]);
 const METRIC_LABEL_POLICIES = new WeakSet<object>();
+const METRIC_LABEL_POLICY_CACHE = new Map<string, Readonly<PlatformMetricLabelPolicy>>();
+const METRIC_LABEL_GLOBAL_VALUES = new Map<PlatformMetricLabel, Set<string>>();
 const MAX_VALUES_PER_METRIC_LABEL = 64;
 const MAX_VALUES_PER_METRIC_POLICY = 256;
+const MAX_METRIC_LABEL_POLICIES = 64;
 const HIGH_CARDINALITY_LABELS: ReadonlySet<string> = new Set([
   'tenant_id', 'profile_type', 'user_id', 'engagement_id', 'interaction_id', 'call_id',
   'leg_id', 'room_id', 'resolution_id', 'action_intent_id', 'agent_run_id',
@@ -138,12 +141,41 @@ export function createMetricLabelPolicy(
     if (totalValues > MAX_VALUES_PER_METRIC_POLICY) throw metricPolicyError();
     allowed.set(key as PlatformMetricLabel, values);
   }
+  const policyKey = JSON.stringify([...allowed].map(([label, values]) => [
+    label,
+    [...values].sort()
+  ]));
+  const existingPolicy = METRIC_LABEL_POLICY_CACHE.get(policyKey);
+  if (existingPolicy) return existingPolicy;
+  if (METRIC_LABEL_POLICY_CACHE.size >= MAX_METRIC_LABEL_POLICIES) throw metricPolicyError();
+
+  let newGlobalValues = 0;
+  for (const [label, values] of allowed) {
+    const existing = METRIC_LABEL_GLOBAL_VALUES.get(label);
+    const additions = [...values].filter((candidate) => !existing?.has(candidate));
+    if ((existing?.size || 0) + additions.length > MAX_VALUES_PER_METRIC_LABEL) {
+      throw metricPolicyError();
+    }
+    newGlobalValues += additions.length;
+  }
+  const currentGlobalValues = [...METRIC_LABEL_GLOBAL_VALUES.values()]
+    .reduce((total, values) => total + values.size, 0);
+  if (currentGlobalValues + newGlobalValues > MAX_VALUES_PER_METRIC_POLICY) {
+    throw metricPolicyError();
+  }
+
   const policy: PlatformMetricLabelPolicy = Object.freeze({
     allows(label: PlatformMetricLabel, candidate: string): boolean {
       return allowed.get(label)?.has(candidate) === true;
     }
   });
+  for (const [label, values] of allowed) {
+    const globalValues = METRIC_LABEL_GLOBAL_VALUES.get(label) || new Set<string>();
+    for (const candidate of values) globalValues.add(candidate);
+    METRIC_LABEL_GLOBAL_VALUES.set(label, globalValues);
+  }
   METRIC_LABEL_POLICIES.add(policy);
+  METRIC_LABEL_POLICY_CACHE.set(policyKey, policy);
   return policy;
 }
 
