@@ -439,11 +439,11 @@ Controlled progress, without promoting the aggregate task:
 
 ## 15. Task T13 — Independent review and closeout
 
-- [ ] Give a fresh read-only reviewer the Goal, PROGRAM-RULES, design, contracts, source/test map, diff and raw results.
-- [ ] Reviewer checks requirement coverage, Authority duplication, fail-open paths, hot-path dependencies, algorithmic
+- [x] Give a fresh read-only reviewer the Goal, PROGRAM-RULES, design, contracts, source/test map, diff and raw results.
+- [x] Reviewer checks requirement coverage, Authority duplication, fail-open paths, hot-path dependencies, algorithmic
   complexity, secrets, schemas, evidence promotion and all open High/Critical threats.
-- [ ] Fix findings through new red tests; rerun relevant verification.
-- [ ] Update `independent-review.md` with reviewer identity, commit/diff boundary, commands, findings and disposition.
-- [ ] Mark only proven local entries; runtime/production remains false while any real campaign is `not_run`.
-- [ ] Use narrow explicit `git add <path>`; never `git add .`; commit only G02 files.
-- [ ] Do not call `create_goal` for G03.
+- [x] Fix findings through new red tests; rerun relevant verification.
+- [x] Update `independent-review.md` with reviewer identity, commit/diff boundary, commands, findings and disposition.
+- [x] Mark only proven local entries; runtime/production remains false while any real campaign is `not_run`.
+- [x] Use narrow explicit `git add <path>`; never `git add .`; commit only G02 files.
+- [x] Do not call `create_goal` for G03.

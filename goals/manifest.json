@@ -201,7 +201,7 @@
       "title": "平台、安全与可观测基础",
       "path": "goals/goal-02-platform-foundation-security-observability.md",
       "sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9",
-      "status": "not_run",
+      "status": "blocked_external",
       "conditional": false,
       "dependencies": [
         {

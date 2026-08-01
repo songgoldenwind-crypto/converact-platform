@@ -588,6 +588,8 @@ function evidenceIndex() {
     'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-4f9ea6f-01/raw-output.sha256';
   const controlledDatabaseSupplementalManifestUri =
     'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-4f9ea6f-01/supplemental-manifest.sha256';
+  const independentReviewUri =
+    'architecture-foundation/execution/goal-02/independent-review.md';
   const entry = (
     id,
     evidenceClass,
@@ -645,7 +647,17 @@ function evidenceIndex() {
     entry('G02-E13-CAPACITY', 'capacity', 'bounded_queue_retry_fanout_overload', ['same-hardware raw capacity output']),
     entry('G02-E14-REGION', 'region_recovery', 'region_failover_split_brain_reconcile', ['raw region recovery output']),
     entry('G02-E15-NATIVE', 'native_safety', 'core_dump_unsafe_ffi_source', ['exact-source review', 'fault/fuzz evidence']),
-    entry('G02-E16-REVIEW', 'independent_review', 'spec_security_quality', ['independent review with no open high risk']),
+    {
+      ...entry(
+        'G02-E16-REVIEW',
+        'independent_review',
+        'spec_security_quality',
+        ['independent review with no open high risk'],
+        'verified_local',
+        [independentReviewUri],
+      ),
+      non_claim: 'Independent review accepted the local foundation only; external dependency, long-media, restore, drain, capacity, region, native-safety and production gates remain unproved.',
+    },
   ];
   return {
     $schema: './evidence-index-v1.schema.json',

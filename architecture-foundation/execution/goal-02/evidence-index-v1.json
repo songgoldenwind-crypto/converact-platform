@@ -256,21 +256,23 @@
       "evidence_id": "G02-E16-REVIEW",
       "evidence_class": "independent_review",
       "scope": "spec_security_quality",
-      "status": "not_run",
+      "status": "verified_local",
       "production_eligible": false,
       "required_evidence": [
         "independent review with no open high risk"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/independent-review.md"
+      ],
+      "non_claim": "Independent review accepted the local foundation only; external dependency, long-media, restore, drain, capacity, region, native-safety and production gates remain unproved."
     }
   ],
   "summary": {
     "entries": 18,
     "target_contract_entries": 1,
-    "verified_local_entries": 8,
+    "verified_local_entries": 9,
     "verified_controlled_entries": 1,
-    "not_run_entries": 8,
+    "not_run_entries": 7,
     "production_eligible_entries": 0
   }
 }

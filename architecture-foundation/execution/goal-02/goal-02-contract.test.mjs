@@ -109,6 +109,42 @@ test('required design, threat, recovery, mapping, plan and review artifacts exis
   }
 });
 
+test('final independent review is accepted only with explicit external evidence blockers', () => {
+  const reviewUri = 'architecture-foundation/execution/goal-02/independent-review.md';
+  const review = readFileSync(join(repositoryRoot, reviewUri), 'utf8');
+  assert.match(review, /Review status: `accepted_with_external_evidence_blockers`/);
+  assert.match(review, /Reviewer task: `\/root\/g02_final_independent_review`/);
+  assert.match(review, /Reviewed commit: `c920d7a59e02daba38118491217630fef94ce393`/);
+  assert.match(review, /Binary diff SHA-256: `341e2bbb844e3bbf705c1f6e6faec670a258434a1d489de2dd2fc0d8a2781cae`/);
+  assert.match(review, /Critical: `0`/);
+  assert.match(review, /High: `0`/);
+  assert.match(review, /Important: `0`/);
+  assert.match(review, /Minor: `0`/);
+  assert.match(review, /Production eligibility: `false`/);
+
+  const evidence = readJson(join(goalDirectory, documents.evidence[1]));
+  const reviewEntry = evidence.entries.find((entry) => entry.evidence_id === 'G02-E16-REVIEW');
+  assert.equal(reviewEntry?.status, 'verified_local');
+  assert.deepEqual(reviewEntry?.evidence_uris, [reviewUri]);
+  assert.equal(reviewEntry?.production_eligible, false);
+
+  const remainingNotRun = new Set([
+    'G02-E09-DEPENDENCY',
+    'G02-E10-RESTORE',
+    'G02-E11-DRAIN',
+    'G02-E12-LONG-MEDIA',
+    'G02-E13-CAPACITY',
+    'G02-E14-REGION',
+    'G02-E15-NATIVE',
+  ]);
+  assert.deepEqual(
+    new Set(evidence.entries.filter((entry) => entry.status === 'not_run').map((entry) => entry.evidence_id)),
+    remainingNotRun,
+  );
+  const manifest = readJson(join(repositoryRoot, 'goals/manifest.json'));
+  assert.equal(manifest.goals.find((goal) => goal.id === 'G02')?.status, 'blocked_external');
+});
+
 test('identity and consent contract is fail closed and separates every capability', () => {
   const contract = readJson(join(goalDirectory, documents.identity[1]));
   assert.deepEqual(contract.identity.kinds, ['human', 'service', 'workload', 'edge', 'provider']);
@@ -238,6 +274,12 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
         controlledDatabaseSupplementalManifest,
       ]);
       assert.match(entry.non_claim, /synthetic.*not.*real human media/is);
+    } else if (entry.evidence_id === 'G02-E16-REVIEW') {
+      assert.equal(entry.status, 'verified_local');
+      assert.deepEqual(entry.evidence_uris, [
+        'architecture-foundation/execution/goal-02/independent-review.md',
+      ]);
+      assert.match(entry.non_claim, /external.*production.*unproved/is);
     } else if (entry.evidence_class !== 'document_contract') {
       assert.equal(entry.status, 'not_run');
     }
@@ -247,7 +289,7 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
     'not_run',
   );
   assert.equal(evidence.summary.production_eligible_entries, 0);
-  assert.equal(evidence.summary.verified_local_entries, verifiedLocal.size);
+  assert.equal(evidence.summary.verified_local_entries, verifiedLocal.size + 1);
   assert.equal(evidence.summary.verified_controlled_entries, 1);
   const localVerificationRecord = readFileSync(
     join(repositoryRoot, localEvidence),
