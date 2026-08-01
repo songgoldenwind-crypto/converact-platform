@@ -179,11 +179,30 @@ test('G00 to G02 traceability preserves every source row exactly once without ev
 
 test('evidence registry never promotes historical or unexecuted acceptance', () => {
   const evidence = readJson(join(goalDirectory, documents.evidence[1]));
+  const verifiedLocal = new Set([
+    'G02-E01-IDENTITY',
+    'G02-E02-CONSENT',
+    'G02-E03-EVENT',
+    'G02-E04-RECEIPT',
+    'G02-E05-BILLING',
+    'G02-E06-KEY',
+    'G02-E07-OBSERVABILITY',
+    'G02-E08-CLOCK',
+  ]);
   for (const entry of evidence.entries) {
     assert.equal(entry.production_eligible, false);
-    if (entry.evidence_class !== 'document_contract') assert.equal(entry.status, 'not_run');
+    if (verifiedLocal.has(entry.evidence_id)) {
+      assert.equal(entry.status, 'verified_local');
+      assert.deepEqual(entry.evidence_uris, [
+        'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md',
+      ]);
+      assert.match(entry.non_claim, /does not prove controlled or production behavior/i);
+    } else if (entry.evidence_class !== 'document_contract') {
+      assert.equal(entry.status, 'not_run');
+    }
   }
   assert.equal(evidence.summary.production_eligible_entries, 0);
+  assert.equal(evidence.summary.verified_local_entries, verifiedLocal.size);
   assert.ok(evidence.entries.some((entry) => entry.evidence_class === 'real_dependency'));
   assert.ok(evidence.entries.some((entry) => entry.evidence_class === 'long_media_fault'));
   assert.ok(evidence.entries.some((entry) => entry.evidence_class === 'region_recovery'));

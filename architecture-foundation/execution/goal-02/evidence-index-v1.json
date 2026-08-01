@@ -29,99 +29,116 @@
       "evidence_id": "G02-E01-IDENTITY",
       "evidence_class": "local_test",
       "scope": "tenant_identity_cross_tenant",
-      "status": "not_run",
+      "status": "verified_local",
       "production_eligible": false,
       "required_evidence": [
         "focused tests",
         "RLS integration"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md"
+      ],
+      "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
     {
       "evidence_id": "G02-E02-CONSENT",
       "evidence_class": "local_test",
       "scope": "consent_purpose_region_lease",
-      "status": "not_run",
+      "status": "verified_local",
       "production_eligible": false,
       "required_evidence": [
         "focused tests"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md"
+      ],
+      "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
     {
       "evidence_id": "G02-E03-EVENT",
       "evidence_class": "local_test",
       "scope": "event_N_N_minus_1_replay_unknown",
-      "status": "not_run",
+      "status": "verified_local",
       "production_eligible": false,
       "required_evidence": [
         "schema/property tests"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md"
+      ],
+      "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
     {
       "evidence_id": "G02-E04-RECEIPT",
       "evidence_class": "local_test",
       "scope": "audit_effect_receipt_rebuild",
-      "status": "not_run",
+      "status": "verified_local",
       "production_eligible": false,
       "required_evidence": [
         "focused tests"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md"
+      ],
+      "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
     {
       "evidence_id": "G02-E05-BILLING",
       "evidence_class": "local_test",
       "scope": "single_writer_usage_ledger",
-      "status": "not_run",
+      "status": "verified_local",
       "production_eligible": false,
       "required_evidence": [
         "focused tests",
         "crash boundary tests"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md"
+      ],
+      "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
     {
       "evidence_id": "G02-E06-KEY",
       "evidence_class": "key_rotation",
       "scope": "secret_key_cert_lifecycle",
-      "status": "not_run",
+      "status": "verified_local",
       "production_eligible": false,
       "required_evidence": [
+        "focused lifecycle and certificate policy tests",
         "real PKI/KMS rotation and revoke"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md"
+      ],
+      "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
     {
       "evidence_id": "G02-E07-OBSERVABILITY",
       "evidence_class": "local_test",
       "scope": "correlation_redaction_cardinality",
-      "status": "not_run",
+      "status": "verified_local",
       "production_eligible": false,
       "required_evidence": [
         "focused tests"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md"
+      ],
+      "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
     {
       "evidence_id": "G02-E08-CLOCK",
       "evidence_class": "local_test",
       "scope": "wall_monotonic_skew_jump",
-      "status": "not_run",
+      "status": "verified_local",
       "production_eligible": false,
       "required_evidence": [
         "deterministic fault tests"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md"
+      ],
+      "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
     {
       "evidence_id": "G02-E09-DEPENDENCY",
@@ -225,8 +242,8 @@
   "summary": {
     "entries": 17,
     "target_contract_entries": 1,
-    "verified_local_entries": 0,
-    "not_run_entries": 16,
+    "verified_local_entries": 8,
+    "not_run_entries": 8,
     "production_eligible_entries": 0
   }
 }

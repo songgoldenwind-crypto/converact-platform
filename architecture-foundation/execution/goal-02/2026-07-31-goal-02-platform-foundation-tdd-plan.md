@@ -31,11 +31,11 @@ repository contract；复用现有 RLS、audit、retention、worker、recording�
 - `src/agent-runtime/converact/platform-foundation/fault-policy.ts` — dependency→media/degradation/recovery policy。
 - `src/agent-runtime/converact/platform-foundation/index.ts` — only public exports。
 - `src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts` — tenant-scoped outbox/inbox/receipt adapter。
-- `src/agent-runtime/converact/platform-foundation/postgres-billing-store.ts` — tenant-scoped immutable usage adapter。
-- `src/migrations/108_ivekit_platform_identity_policy.sql`
-- `src/migrations/109_ivekit_platform_event_receipts.sql`
-- `src/migrations/110_ivekit_platform_billing_ledger.sql`
-- `src/migrations/111_ivekit_platform_key_lifecycle.sql`
+- `src/agent-runtime/converact/platform-foundation/postgres-billing-ledger-store.ts` — tenant-scoped immutable usage adapter。
+- `src/migrations/108_converact_platform_identity_consent.sql`
+- `src/migrations/109_converact_platform_event_receipts.sql`
+- `src/migrations/110_converact_platform_usage_ledger.sql`
+- `src/migrations/111_converact_platform_key_lifecycle.sql`
 - focused tests named in Tasks 2–10。
 - `services/converact-service/acceptance/platform-fault-matrix/README.md` — reproducible acceptance contract only；
   executable harness is added only after local fault policy passes。
@@ -64,11 +64,11 @@ repository contract；复用现有 RLS、audit、retention、worker、recording�
 - [x] Write `goal-02-contract.test.mjs` first and run it with machine contracts absent.
 - [x] Verify expected RED: one binding test passed and eight tests failed because required artifacts were absent.
 - [x] Generate strict contracts/schemas and exact 543-row G00 trace through `generate-goal-02.mjs`.
-- [ ] Run `node architecture-foundation/execution/goal-02/generate-goal-02.mjs` twice and verify the second run
+- [x] Run `node architecture-foundation/execution/goal-02/generate-goal-02.mjs` twice and verify the second run
   leaves no diff.
-- [ ] Run `node --test architecture-foundation/execution/goal-02/goal-02-contract.test.mjs`; expected 9/9 pass
+- [x] Run `node --test architecture-foundation/execution/goal-02/goal-02-contract.test.mjs`; expected 9/9 pass
   after the plan and initial review record exist.
-- [ ] Commit only this directory as `docs(platform): freeze G02 foundation contracts` after review of the diff.
+- [x] Commit only this directory as `docs(platform): freeze G02 foundation contracts` after review of the diff.
 
 ## 3. Task T1 — Wall/monotonic clock
 
@@ -106,14 +106,14 @@ export function platformDeadlineState(
 ): 'active' | 'expired' | 'restart_reauthorization_required' | 'clock_invalid';
 ```
 
-- [ ] RED: backward/forward wall jumps do not change a 5-second monotonic deadline; monotonic reversal returns
+- [x] RED: backward/forward wall jumps do not change a 5-second monotonic deadline; monotonic reversal returns
   `restart_reauthorization_required`; NaN/negative clocks return `clock_invalid`; duration above max is rejected.
-- [ ] Run `node --import tsx --test test/converact-platform-clock.test.ts`; expected failure because module is absent.
-- [ ] GREEN: implement using `performance.now()` for system monotonic time and `Date` only for durable UTC fields.
-- [ ] Re-run the focused test; expected pass with no timers or sleeps.
-- [ ] Add a regression test showing `ComponentNodeSynchronizer` timeout is unaffected by injected wall jump, then
+- [x] Run `node --import tsx --test test/converact-platform-clock.test.ts`; expected failure because module is absent.
+- [x] GREEN: implement using `performance.now()` for system monotonic time and `Date` only for durable UTC fields.
+- [x] Re-run the focused test; expected pass with no timers or sleeps.
+- [x] Add a regression test showing `ComponentNodeSynchronizer` timeout is unaffected by injected wall jump, then
   change only its default monotonic source.
-- [ ] Run `test/converact-component-node-sync.test.ts` plus the new clock test.
+- [x] Run `test/converact-component-node-sync.test.ts` plus the new clock test.
 
 ## 4. Task T2 — Identity and tenant fail-closed decision
 
@@ -160,17 +160,17 @@ export function evaluatePlatformAccess(input: {
 }): { allowed: true } | { allowed: false; reason: string };
 ```
 
-- [ ] RED one behavior per test: tenant mismatch; missing/blank required claim; wrong audience; unknown capability;
+- [x] RED one behavior per test: tenant mismatch; missing/blank required claim; wrong audience; unknown capability;
   wrong purpose; before `not_before`; expired; stale policy; stale revocation; service request without mTLS-equivalent
   strength. Every case returns deny and never throws raw claim content.
-- [ ] RED compatibility test: with `NODE_ENV=production`, no issuer/JWT secret and no explicit valid auth must throw
+- [x] RED compatibility test: with `NODE_ENV=production`, no issuer/JWT secret and no explicit valid auth must throw
   401 instead of accepting `X-Tenant-Id`.
-- [ ] Run the two focused auth tests and confirm failure occurs at the expected assertions.
-- [ ] GREEN implement the pure O(1) evaluator with bounded identifier/array limits and no I/O.
-- [ ] GREEN change `resolveAuthContext` so production never enters implicit dev context; retain explicit non-production
+- [x] Run the two focused auth tests and confirm failure occurs at the expected assertions.
+- [x] GREEN implement the pure O(1) evaluator with bounded identifier/array limits and no I/O.
+- [x] GREEN change `resolveAuthContext` so production never enters implicit dev context; retain explicit non-production
   compatibility only under the documented rollout gate.
-- [ ] Run `test/auth-middleware.test.ts`, `test/db-pg-tenant.test.ts`, and the new identity test.
-- [ ] Verify no new authority is added to `auth-http.ts` or RBAC store; they remain adapters/projections.
+- [x] Run `test/auth-middleware.test.ts`, `test/db-pg-tenant.test.ts`, and the new identity test.
+- [x] Verify no new authority is added to `auth-http.ts` or RBAC store; they remain adapters/projections.
 
 ## 5. Task T3 — Consent lease and recording fail-closed adapter
 
@@ -202,15 +202,15 @@ export function evaluateConsentLease(input: {
 }): 'active' | 'expired' | 'revoked' | 'stale_policy' | 'restart_reauthorization_required';
 ```
 
-- [ ] RED: `pending`, absent, denied, expired, wrong tenant/subject/scope/purpose/region, stale policy/revocation and
+- [x] RED: `pending`, absent, denied, expired, wrong tenant/subject/scope/purpose/region, stale policy/revocation and
   overlong TTL cannot issue/continue a lease.
-- [ ] RED: recording consent cannot authorize transcription/translation/AI/tool action.
-- [ ] RED: consent store exception in `shouldRecordCall` returns `false`; missing tenant or Postgres for a requested
+- [x] RED: recording consent cannot authorize transcription/translation/AI/tool action.
+- [x] RED: consent store exception in `shouldRecordCall` returns `false`; missing tenant or Postgres for a requested
   governed recording returns `false`; explicit valid granted consent returns `true`.
-- [ ] Verify RED with the consent and recording focused tests.
-- [ ] GREEN implement pure lease issuance/evaluation; persist no monotonic instant across restart.
-- [ ] GREEN adapt recording policy so only new capture is denied; do not invoke call termination or media teardown.
-- [ ] Run voice compliance, retention, recording policy and new consent tests.
+- [x] Verify RED with the consent and recording focused tests.
+- [x] GREEN implement pure lease issuance/evaluation; persist no monotonic instant across restart.
+- [x] GREEN adapt recording policy so only new capture is denied; do not invoke call termination or media teardown.
+- [x] Run voice compliance, retention, recording policy and new consent tests.
 
 ## 6. Task T4 — Versioned event envelope and inbox/outbox decisions
 
@@ -233,13 +233,13 @@ export function decideInboxWrite(
 ): 'insert' | 'replay' | 'stale' | 'conflict' | 'gap_requires_reconcile';
 ```
 
-- [ ] RED: valid v2 and declared v1 normalize deterministically; unknown major quarantines; unknown effect semantics
+- [x] RED: valid v2 and declared v1 normalize deterministically; unknown major quarantines; unknown effect semantics
   fail closed; missing ordering/authority/producer/correlation/purpose/region is rejected.
-- [ ] RED: duplicate same digest is replay; same event id different digest is conflict; lower revision stale; revision gap
+- [x] RED: duplicate same digest is replay; same event id different digest is conflict; lower revision stale; revision gap
   freezes effect and requests reconcile; reorder across distinct ordering keys is allowed.
-- [ ] RED property loop over payload sizes 0, 65,536 and 65,537 bytes proves upper bound.
-- [ ] GREEN implement pure canonicalization/digest/decision without importing event bus, DB or HTTP.
-- [ ] Run new tests plus existing tenant-event and integration-event catalog/store/worker tests.
+- [x] RED property loop over payload sizes 0, 65,536 and 65,537 bytes proves upper bound.
+- [x] GREEN implement pure canonicalization/digest/decision without importing event bus, DB or HTTP.
+- [x] Run new tests plus existing tenant-event and integration-event catalog/store/worker tests.
 
 ## 7. Task T5 — EffectReceipt lifecycle and Audit link
 
@@ -261,12 +261,12 @@ export function decideEffectReceiptAppend(
 export function effectNeedsReconcile(history: readonly EffectReceipt[]): boolean;
 ```
 
-- [ ] RED: accepted→completed→state_observed is the only forward sequence; same key/digest replays; same key
+- [x] RED: accepted→completed→state_observed is the only forward sequence; same key/digest replays; same key
   different digest conflicts; lower generation/owner epoch is stale; accepted-only and completed-only unknown states
   require query/reconcile and never authorize blind execution.
-- [ ] RED: audit link requires tenant/effect/event/receipt/correlation IDs but never raw request/secret/payload.
-- [ ] GREEN implement O(number of stages), bounded at three receipts per effect generation.
-- [ ] Run new tests and existing canonical audit/SIP effect oracle tests; verify the SIP oracle remains a domain adapter.
+- [x] RED: audit link requires tenant/effect/event/receipt/correlation IDs but never raw request/secret/payload.
+- [x] GREEN implement O(number of stages), bounded at three receipts per effect generation.
+- [x] Run new tests and existing canonical audit/SIP effect oracle tests; verify the SIP oracle remains a domain adapter.
 
 ## 8. Task T6 — Immutable usage/billing ledger
 
@@ -289,12 +289,12 @@ export function decideUsageAppend(
 ): 'append' | 'replay' | 'conflict' | 'stale_writer';
 ```
 
-- [ ] RED exact keys for four source types include tenant and generation/epoch/direction where required.
-- [ ] RED duplicate same receipt digest does not charge; different digest, writer or writer epoch conflicts and freezes
+- [x] RED exact keys for four source types include tenant and generation/epoch/direction where required.
+- [x] RED duplicate same receipt digest does not charge; different digest, writer or writer epoch conflicts and freezes
   rating; stale takeover is rejected; negative/non-finite unit values rejected; corrections require reversal/credit entry.
-- [ ] RED reconstruction folds immutable entries/reversals to the expected balance without reading mutable counters.
-- [ ] GREEN implement deterministic bounded validation; never call Stripe/CDR/recording/provider directly.
-- [ ] Run new billing tests and existing quota/BillingStore/CDR convergence tests; document legacy stores as projection only.
+- [x] RED reconstruction folds immutable entries/reversals to the expected balance without reading mutable counters.
+- [x] GREEN implement deterministic bounded validation; never call Stripe/CDR/recording/provider directly.
+- [x] Run new billing tests and existing quota/BillingStore/CDR convergence tests; document legacy stores as projection only.
 
 ## 9. Task T7 — Key/certificate lifecycle and secret sinks
 
@@ -321,13 +321,13 @@ export function assertSafeSecretSink(input: {
 }): void;
 ```
 
-- [ ] RED lifecycle graph, dual-read/single-write bounded overlap, revoke/expiry, stale writer, KMS/PKI unavailable,
+- [x] RED lifecycle graph, dual-read/single-write bounded overlap, revoke/expiry, stale writer, KMS/PKI unavailable,
   no plaintext downgrade, and raw material forbidden sinks.
-- [ ] RED cert binding requires SAN/service/audience/key version/expiry/revocation; CA trust alone is insufficient.
-- [ ] RED source policy requires exact source/ABI/bounds/zeroize/core dump/fuzz/fault isolation before enabling native slice.
-- [ ] GREEN implement pure lifecycle policy and immutable references only.
-- [ ] Run internal TLS/config/protector tests with the new focused tests.
-- [ ] Keep the current plaintext SSO secret path explicitly non-eligible until a separately tested secret-ref migration is
+- [x] RED cert binding requires SAN/service/audience/key version/expiry/revocation; CA trust alone is insufficient.
+- [x] RED source policy requires exact source/ABI/bounds/zeroize/core dump/fuzz/fault isolation before enabling native slice.
+- [x] GREEN implement pure lifecycle policy and immutable references only.
+- [x] Run internal TLS/config/protector tests with the new focused tests.
+- [x] Keep the current plaintext SSO secret path explicitly non-eligible until a separately tested secret-ref migration is
   implemented; do not silently encrypt with an unversioned ad-hoc key.
 
 ## 10. Task T8 — Correlation, redaction and cardinality
@@ -339,13 +339,13 @@ export function assertSafeSecretSink(input: {
 - Modify `src/metrics.ts` only for new foundation metrics; retain legacy names for compatibility without claiming them
   compliant.
 
-- [ ] RED: all required correlation IDs validate length/character bounds; high-cardinality IDs are allowed in controlled
+- [x] RED: all required correlation IDs validate length/character bounds; high-cardinality IDs are allowed in controlled
   trace/log context but rejected as metric labels; `profile_type`, Tenant/Call/Room/Engagement IDs are prohibited.
-- [ ] RED: recursive key and value redaction removes token/password/cookie/private-key/PII-shaped data; cyclic, deep,
+- [x] RED: recursive key and value redaction removes token/password/cookie/private-key/PII-shaped data; cyclic, deep,
   huge array/string inputs are rejected or truncated within fixed budgets.
-- [ ] RED: exporter queue-full/down/timeout returns drop decision and never blocks or changes business result.
-- [ ] GREEN implement bounded pure functions; do not add global mutable correlation state.
-- [ ] Run OTEL, metrics, runtime acceptance unit contracts and the new focused test; real collector outage remains `not_run`.
+- [x] RED: exporter queue-full/down/timeout returns drop decision and never blocks or changes business result.
+- [x] GREEN implement bounded pure functions; do not add global mutable correlation state.
+- [x] Run OTEL, metrics, runtime acceptance unit contracts and the new focused test; real collector outage remains `not_run`.
 
 ## 11. Task T9 — Bounded admission and fault policy
 
@@ -368,12 +368,12 @@ export class BoundedAdmissionGate {
 }
 ```
 
-- [ ] RED: exact active/pending bounds, double release, forged/stale lease, checked counter overflow, O(1) snapshot and
+- [x] RED: exact active/pending bounds, double release, forged/stale lease, checked counter overflow, O(1) snapshot and
   independent gates for AI/recording/event/telemetry.
-- [ ] RED: every machine fault dependency maps to expected media/new-work/attachment/recovery behavior; optional
+- [x] RED: every machine fault dependency maps to expected media/new-work/attachment/recovery behavior; optional
   fault never emits a call-termination action; ordinary media dependency set is empty.
-- [ ] GREEN implement counters with instance-local state and opaque generation; no queue, scan, timer or task is created.
-- [ ] Run placement/readiness/worker tests and both focused tests.
+- [x] GREEN implement counters with instance-local state and opaque generation; no queue, scan, timer or task is created.
+- [x] Run placement/readiness/worker tests and both focused tests.
 
 ## 12. Task T10 — Tenant-scoped persistence and migrations
 
@@ -390,25 +390,25 @@ Persistence split:
 - 110: immutable usage entries/reversals and unique billing key/writer fence；
 - 111: key/cert metadata/reference/lifecycle receipt only, never raw material。
 
-- [ ] RED migration text tests require `tenant_id`, composite uniqueness, CHECK constraints, RLS + FORCE RLS,
+- [x] RED migration text tests require `tenant_id`, composite uniqueness, CHECK constraints, RLS + FORCE RLS,
   tenant policy, append-only trigger for receipt/usage, bounded claim indexes and no raw-secret column names.
-- [ ] RED store tests require `withPgTenant`, same-digest replay, changed-digest conflict, generation/epoch fence,
+- [x] RED store tests require `withPgTenant`, same-digest replay, changed-digest conflict, generation/epoch fence,
   bounded claim limit and no cross-tenant query.
-- [ ] GREEN write additive migrations after 107 and minimal stores using existing transaction/RLS conventions.
-- [ ] Update standalone migration allowlist/order and readiness required migrations; verify 108<109<110<111.
-- [ ] Run migration checksum/files/standalone/readiness tests and all three focused persistence tests.
-- [ ] Real PostgreSQL/RLS/crash boundary remains `not_run` until controlled evidence stage.
+- [x] GREEN write additive migrations after 107 and minimal stores using existing transaction/RLS conventions.
+- [x] Update standalone migration allowlist/order and readiness required migrations; verify 108<109<110<111.
+- [x] Run migration checksum/files/standalone/readiness tests and all three focused persistence tests.
+- [x] Real PostgreSQL/RLS/crash boundary remains `not_run` until controlled evidence stage.
 
 ## 13. Task T11 — Focused local verification and contract evidence
 
-- [ ] Run the exact G02 contract test.
-- [ ] Run all new `test/converact-platform-*.test.ts` files with test concurrency 1 for store-like tests.
-- [ ] Run impacted existing suites listed per task.
-- [ ] Run `npm run typecheck`.
-- [ ] Run the full `npm test` only after focused suites are green; record unrelated pre-existing failures separately.
-- [ ] Re-run generator and verify zero diff.
-- [ ] Update evidence index only for commands whose raw output was observed; unexecuted items remain `not_run`.
-- [ ] Commit narrow slices: contract, clock/identity, consent/event, receipt/billing, key/correlation/resilience,
+- [x] Run the exact G02 contract test.
+- [x] Run all new `test/converact-platform-*.test.ts` files with test concurrency 1 for store-like tests.
+- [x] Run impacted existing suites listed per task.
+- [x] Run `npm run typecheck`.
+- [x] Run the full `npm test` only after focused suites are green; record unrelated pre-existing failures separately.
+- [x] Re-run generator and verify zero diff.
+- [x] Update evidence index only for commands whose raw output was observed; unexecuted items remain `not_run`.
+- [x] Commit narrow slices: contract, clock/identity, consent/event, receipt/billing, key/correlation/resilience,
   persistence, local evidence.
 
 ## 14. Task T12 — Controlled and real evidence

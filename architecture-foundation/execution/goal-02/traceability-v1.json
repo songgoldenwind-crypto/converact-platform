@@ -152,10 +152,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -451,10 +452,13 @@
       "g02_disposition": "deferred_preserved",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -502,10 +506,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -526,10 +531,13 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -552,10 +560,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -601,10 +610,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -627,10 +637,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -651,10 +662,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -677,10 +689,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -703,10 +716,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -727,10 +741,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/policy.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-consent-policy.test.ts"
+        "test/converact-platform-consent-policy.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -751,10 +766,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -777,10 +793,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -801,10 +818,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -825,10 +843,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -849,10 +868,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -875,10 +895,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1083,10 +1104,11 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1153,10 +1175,11 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1177,10 +1200,11 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1411,10 +1435,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1460,10 +1487,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1484,10 +1512,11 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1533,10 +1562,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1695,10 +1725,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1719,10 +1752,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1766,10 +1802,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1790,10 +1829,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2074,10 +2116,11 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2749,10 +2792,11 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2958,10 +3002,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3189,10 +3236,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3213,10 +3263,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3308,10 +3361,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3332,10 +3386,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3448,10 +3505,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3495,10 +3555,11 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/policy.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-consent-policy.test.ts"
+        "test/converact-platform-consent-policy.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3519,10 +3580,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3545,10 +3609,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3571,10 +3636,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3595,10 +3661,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3644,10 +3713,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3737,10 +3807,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3786,10 +3859,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3836,10 +3912,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3862,10 +3939,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3934,10 +4012,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3958,10 +4037,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -4007,10 +4089,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -4033,10 +4116,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -4587,10 +4671,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -4611,10 +4698,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -4980,10 +5070,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -5535,10 +5628,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -5559,10 +5655,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -5583,10 +5682,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -5632,10 +5734,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -5658,10 +5761,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6144,10 +6248,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6168,10 +6275,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6192,10 +6302,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6216,10 +6329,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6240,10 +6356,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6264,10 +6383,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6288,10 +6410,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6312,10 +6437,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6336,10 +6464,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6360,10 +6491,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6384,10 +6518,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6408,10 +6545,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6432,10 +6572,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6456,10 +6599,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6480,10 +6626,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6504,10 +6653,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6528,10 +6680,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6552,10 +6707,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6576,10 +6734,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6600,10 +6761,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6624,10 +6788,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6648,10 +6815,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6672,10 +6842,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6696,10 +6869,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6720,10 +6896,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6746,10 +6925,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6770,10 +6950,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6794,10 +6977,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6818,10 +7004,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6842,10 +7031,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6866,10 +7058,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6890,10 +7085,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7032,10 +7230,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7056,10 +7257,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7080,10 +7284,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7150,10 +7357,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7546,10 +7756,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7570,10 +7783,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7941,10 +8157,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8013,10 +8232,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8085,10 +8307,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8157,10 +8380,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8183,10 +8407,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8322,10 +8547,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8346,10 +8574,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8416,10 +8647,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8602,10 +8836,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8626,10 +8863,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8788,10 +9028,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8929,10 +9172,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8999,10 +9243,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -9069,10 +9316,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -9208,10 +9458,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -9419,10 +9672,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -9512,10 +9768,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -9605,10 +9864,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10000,10 +10262,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10024,10 +10289,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10072,10 +10340,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10351,10 +10622,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10606,10 +10880,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10630,10 +10907,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10932,10 +11212,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10956,10 +11239,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11097,10 +11383,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11192,10 +11479,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11469,10 +11757,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11493,10 +11784,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-audit-effect.test.ts"
+        "test/converact-platform-audit-effect.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11634,10 +11928,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11683,10 +11978,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11707,10 +12003,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11733,10 +12032,11 @@
         "src/agent-runtime/converact/platform-foundation/identity.ts",
         "src/middleware/auth.ts",
         "src/db-pg-tenant.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-identity-isolation.test.ts"
+        "test/converact-platform-identity-isolation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11826,10 +12126,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -12127,10 +12430,11 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/policy.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-consent-policy.test.ts"
+        "test/converact-platform-consent-policy.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -12151,10 +12455,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -12383,10 +12690,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -12407,10 +12717,13 @@
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
-        "src/migrations/109_ivekit_platform_event_receipts.sql"
+        "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+        "src/migrations/109_converact_platform_event_receipts.sql"
       ],
       "test_paths": [
-        "test/converact-platform-event-compatibility.test.ts"
+        "test/converact-platform-event-compatibility.test.ts",
+        "test/converact-platform-event-receipt-postgres.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -12606,10 +12919,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/policy.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-consent-policy.test.ts"
+        "test/converact-platform-consent-policy.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -12632,10 +12946,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/policy.ts",
-        "src/migrations/108_ivekit_platform_identity_policy.sql"
+        "src/migrations/108_converact_platform_identity_consent.sql"
       ],
       "test_paths": [
-        "test/converact-platform-consent-policy.test.ts"
+        "test/converact-platform-consent-policy.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -12760,10 +13075,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -12786,10 +13102,11 @@
       "g02_disposition": "contract_and_test_mapping",
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/key-lifecycle.ts",
-        "src/migrations/111_ivekit_platform_key_lifecycle.sql"
+        "src/migrations/111_converact_platform_key_lifecycle.sql"
       ],
       "test_paths": [
-        "test/converact-platform-key-rotation.test.ts"
+        "test/converact-platform-key-rotation.test.ts",
+        "test/converact-platform-foundation-migration.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,

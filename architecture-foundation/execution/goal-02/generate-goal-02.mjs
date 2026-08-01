@@ -17,49 +17,73 @@ const sourceMaps = {
       'src/agent-runtime/converact/platform-foundation/identity.ts',
       'src/middleware/auth.ts',
       'src/db-pg-tenant.ts',
-      'src/migrations/108_ivekit_platform_identity_policy.sql',
+      'src/migrations/108_converact_platform_identity_consent.sql',
     ],
-    test_paths: ['test/converact-platform-identity-isolation.test.ts'],
+    test_paths: [
+      'test/converact-platform-identity-isolation.test.ts',
+      'test/converact-platform-foundation-migration.test.ts',
+    ],
   },
   consent: {
     patterns: /(?:consent|purpose|retention|legal.?hold|deletion|region|recording|transcript|translation)/iu,
     implementation_paths: [
       'src/agent-runtime/converact/platform-foundation/policy.ts',
-      'src/migrations/108_ivekit_platform_identity_policy.sql',
+      'src/migrations/108_converact_platform_identity_consent.sql',
     ],
-    test_paths: ['test/converact-platform-consent-policy.test.ts'],
+    test_paths: [
+      'test/converact-platform-consent-policy.test.ts',
+      'test/converact-platform-foundation-migration.test.ts',
+    ],
   },
   events: {
     patterns: /(?:event|outbox|inbox|webhook|replay|schema|version|ordering|nats|jetstream)/iu,
     implementation_paths: [
       'src/agent-runtime/converact/platform-foundation/event-envelope.ts',
-      'src/migrations/109_ivekit_platform_event_receipts.sql',
+      'src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts',
+      'src/migrations/109_converact_platform_event_receipts.sql',
     ],
-    test_paths: ['test/converact-platform-event-compatibility.test.ts'],
+    test_paths: [
+      'test/converact-platform-event-compatibility.test.ts',
+      'test/converact-platform-event-receipt-postgres.test.ts',
+      'test/converact-platform-foundation-migration.test.ts',
+    ],
   },
   audit_receipts: {
     patterns: /(?:audit|effect|receipt|action|reconcile|idempotenc)/iu,
     implementation_paths: [
       'src/agent-runtime/converact/platform-foundation/effect-receipt.ts',
-      'src/migrations/109_ivekit_platform_event_receipts.sql',
+      'src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts',
+      'src/migrations/109_converact_platform_event_receipts.sql',
     ],
-    test_paths: ['test/converact-platform-audit-effect.test.ts'],
+    test_paths: [
+      'test/converact-platform-audit-effect.test.ts',
+      'test/converact-platform-event-receipt-postgres.test.ts',
+      'test/converact-platform-foundation-migration.test.ts',
+    ],
   },
   billing: {
     patterns: /(?:billing|meter|usage|quota|cdr|charge|cost)/iu,
     implementation_paths: [
       'src/agent-runtime/converact/platform-foundation/billing-ledger.ts',
-      'src/migrations/110_ivekit_platform_billing_ledger.sql',
+      'src/agent-runtime/converact/platform-foundation/postgres-billing-ledger-store.ts',
+      'src/migrations/110_converact_platform_usage_ledger.sql',
     ],
-    test_paths: ['test/converact-platform-billing-ledger.test.ts'],
+    test_paths: [
+      'test/converact-platform-billing-ledger.test.ts',
+      'test/converact-platform-billing-postgres.test.ts',
+      'test/converact-platform-foundation-migration.test.ts',
+    ],
   },
   key_lifecycle: {
     patterns: /(?:secret|key|kms|pki|cert|credential|core.?dump|unsafe|ffi|native|supply)/iu,
     implementation_paths: [
       'src/agent-runtime/converact/platform-foundation/key-lifecycle.ts',
-      'src/migrations/111_ivekit_platform_key_lifecycle.sql',
+      'src/migrations/111_converact_platform_key_lifecycle.sql',
     ],
-    test_paths: ['test/converact-platform-key-rotation.test.ts'],
+    test_paths: [
+      'test/converact-platform-key-rotation.test.ts',
+      'test/converact-platform-foundation-migration.test.ts',
+    ],
   },
   observability: {
     patterns: /(?:observab|telemetry|trace|metric|prometheus|otel|victoria|log|correlat)/iu,
@@ -543,28 +567,41 @@ function traceabilityContract() {
 }
 
 function evidenceIndex() {
-  const entry = (id, evidenceClass, scope, requiredEvidence, status = 'not_run') => ({
+  const localEvidenceUri =
+    'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md';
+  const entry = (
+    id,
+    evidenceClass,
+    scope,
+    requiredEvidence,
+    status = 'not_run',
+    evidenceUris = [],
+  ) => ({
     evidence_id: id,
     evidence_class: evidenceClass,
     scope,
     status,
     production_eligible: false,
     required_evidence: requiredEvidence,
-    evidence_uris: [],
+    evidence_uris: evidenceUris,
     non_claim: status === 'target_contract'
       ? 'Document contract only; it does not prove runtime or production behavior.'
-      : 'No current-commit raw evidence has been accepted; remains not_run.',
+      : status === 'verified_local'
+        ? 'Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR.'
+        : 'No current-commit raw evidence has been accepted; remains not_run.',
   });
+  const local = (id, evidenceClass, scope, requiredEvidence) =>
+    entry(id, evidenceClass, scope, requiredEvidence, 'verified_local', [localEvidenceUri]);
   const entries = [
     entry('G02-E00-DESIGN', 'document_contract', 'design_authority_threat_recovery', ['contract test'], 'target_contract'),
-    entry('G02-E01-IDENTITY', 'local_test', 'tenant_identity_cross_tenant', ['focused tests', 'RLS integration']),
-    entry('G02-E02-CONSENT', 'local_test', 'consent_purpose_region_lease', ['focused tests']),
-    entry('G02-E03-EVENT', 'local_test', 'event_N_N_minus_1_replay_unknown', ['schema/property tests']),
-    entry('G02-E04-RECEIPT', 'local_test', 'audit_effect_receipt_rebuild', ['focused tests']),
-    entry('G02-E05-BILLING', 'local_test', 'single_writer_usage_ledger', ['focused tests', 'crash boundary tests']),
-    entry('G02-E06-KEY', 'key_rotation', 'secret_key_cert_lifecycle', ['real PKI/KMS rotation and revoke']),
-    entry('G02-E07-OBSERVABILITY', 'local_test', 'correlation_redaction_cardinality', ['focused tests']),
-    entry('G02-E08-CLOCK', 'local_test', 'wall_monotonic_skew_jump', ['deterministic fault tests']),
+    local('G02-E01-IDENTITY', 'local_test', 'tenant_identity_cross_tenant', ['focused tests', 'RLS integration']),
+    local('G02-E02-CONSENT', 'local_test', 'consent_purpose_region_lease', ['focused tests']),
+    local('G02-E03-EVENT', 'local_test', 'event_N_N_minus_1_replay_unknown', ['schema/property tests']),
+    local('G02-E04-RECEIPT', 'local_test', 'audit_effect_receipt_rebuild', ['focused tests']),
+    local('G02-E05-BILLING', 'local_test', 'single_writer_usage_ledger', ['focused tests', 'crash boundary tests']),
+    local('G02-E06-KEY', 'key_rotation', 'secret_key_cert_lifecycle', ['focused lifecycle and certificate policy tests', 'real PKI/KMS rotation and revoke']),
+    local('G02-E07-OBSERVABILITY', 'local_test', 'correlation_redaction_cardinality', ['focused tests']),
+    local('G02-E08-CLOCK', 'local_test', 'wall_monotonic_skew_jump', ['deterministic fault tests']),
     entry('G02-E09-DEPENDENCY', 'real_dependency', 'postgres_event_object_pki_dns_config_ai_recording', ['raw dependency fault output']),
     entry('G02-E10-RESTORE', 'backup_restore', 'backup_restore_rehearsal', ['raw restore output', 'RPO/RTO']),
     entry('G02-E11-DRAIN', 'rolling_drain', 'node_loss_rolling_schema_active_zero', ['raw multi-node output']),
@@ -585,7 +622,7 @@ function evidenceIndex() {
     summary: {
       entries: entries.length,
       target_contract_entries: entries.filter((value) => value.status === 'target_contract').length,
-      verified_local_entries: 0,
+      verified_local_entries: entries.filter((value) => value.status === 'verified_local').length,
       not_run_entries: entries.filter((value) => value.status === 'not_run').length,
       production_eligible_entries: 0,
     },
