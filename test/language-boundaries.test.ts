@@ -314,6 +314,7 @@ test('Python AI worker sidecar exposes page capture routes expected by the TypeS
     cwd: repoRoot,
     env: {
       ...process.env,
+      HOST: '127.0.0.1',
       PORT: String(port)
     },
     stdio: ['ignore', 'pipe', 'pipe']

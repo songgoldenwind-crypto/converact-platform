@@ -362,7 +362,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8092"))
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"ai-worker-py listening on :{port}")
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"ai-worker-py listening on {host}:{port}")
     server.serve_forever()
