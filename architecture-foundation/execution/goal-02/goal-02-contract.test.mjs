@@ -202,6 +202,8 @@ test('G00 to G02 traceability preserves every source row exactly once without ev
 
 test('evidence registry never promotes historical or unexecuted acceptance', () => {
   const evidence = readJson(join(goalDirectory, documents.evidence[1]));
+  const controlledDatabaseEvidence =
+    'architecture-foundation/execution/goal-02/evidence/database-restart-db-d8cd864-01.md';
   const supersededDatabaseEvidence =
     'architecture-foundation/execution/goal-02/evidence/database-restart-db-4fc7b59-01.md';
   const verifiedLocal = new Set([
@@ -223,9 +225,9 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
       ]);
       assert.match(entry.non_claim, /does not prove controlled or production behavior/i);
     } else if (entry.evidence_id === 'G02-E09A-DATABASE-RESTART') {
-      assert.equal(entry.status, 'not_run');
-      assert.deepEqual(entry.evidence_uris, [supersededDatabaseEvidence]);
-      assert.match(entry.non_claim, /superseded diagnostic.*not persisted/is);
+      assert.equal(entry.status, 'verified_controlled');
+      assert.deepEqual(entry.evidence_uris, [controlledDatabaseEvidence]);
+      assert.match(entry.non_claim, /synthetic.*not.*real human media/is);
     } else if (entry.evidence_class !== 'document_contract') {
       assert.equal(entry.status, 'not_run');
     }
@@ -236,7 +238,17 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
   );
   assert.equal(evidence.summary.production_eligible_entries, 0);
   assert.equal(evidence.summary.verified_local_entries, verifiedLocal.size);
-  assert.equal(evidence.summary.verified_controlled_entries, 0);
+  assert.equal(evidence.summary.verified_controlled_entries, 1);
+  const controlledDatabaseRecord = readFileSync(
+    join(repositoryRoot, controlledDatabaseEvidence),
+    'utf8',
+  );
+  assert.match(controlledDatabaseRecord, /d8cd86458e35b85ea543888ac17c06afee4e0507/);
+  assert.match(controlledDatabaseRecord, /994a2916a5d61cabf39342a62d025b3bfff638302b2fe2ea5dd072ff66ff5f84/);
+  assert.match(controlledDatabaseRecord, /migration_head.*112_converact_platform_history_receipt_integrity/is);
+  assert.match(controlledDatabaseRecord, /completed receipt.*usage/is);
+  assert.match(controlledDatabaseRecord, /production_eligible.*false/is);
+  assert.match(controlledDatabaseRecord, /real_human_media.*false/is);
   const supersededDatabaseRecord = readFileSync(
     join(repositoryRoot, supersededDatabaseEvidence),
     'utf8',

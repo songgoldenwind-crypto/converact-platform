@@ -580,8 +580,8 @@ function traceabilityContract() {
 function evidenceIndex() {
   const localEvidenceUri =
     'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md';
-  const supersededDatabaseEvidenceUri =
-    'architecture-foundation/execution/goal-02/evidence/database-restart-db-4fc7b59-01.md';
+  const controlledDatabaseEvidenceUri =
+    'architecture-foundation/execution/goal-02/evidence/database-restart-db-d8cd864-01.md';
   const entry = (
     id,
     evidenceClass,
@@ -607,10 +607,8 @@ function evidenceIndex() {
   });
   const local = (id, evidenceClass, scope, requiredEvidence) =>
     entry(id, evidenceClass, scope, requiredEvidence, 'verified_local', [localEvidenceUri]);
-  const supersededDatabase = (id, evidenceClass, scope, requiredEvidence) => ({
-    ...entry(id, evidenceClass, scope, requiredEvidence, 'not_run', [supersededDatabaseEvidenceUri]),
-    non_claim: 'The prior controlled run is preserved only as a superseded diagnostic: its usage row referenced a receipt that was not persisted by the effect authority. Current exact-source evidence remains not_run until a corrected campaign passes.',
-  });
+  const controlledDatabase = (id, evidenceClass, scope, requiredEvidence) =>
+    entry(id, evidenceClass, scope, requiredEvidence, 'verified_controlled', [controlledDatabaseEvidenceUri]);
   const entries = [
     entry('G02-E00-DESIGN', 'document_contract', 'design_authority_threat_recovery', ['contract test'], 'target_contract'),
     local('G02-E01-IDENTITY', 'local_test', 'tenant_identity_cross_tenant', ['focused tests', 'RLS integration']),
@@ -622,7 +620,7 @@ function evidenceIndex() {
     local('G02-E07-OBSERVABILITY', 'local_test', 'correlation_redaction_cardinality', ['focused tests']),
     local('G02-E08-CLOCK', 'local_test', 'wall_monotonic_skew_jump', ['deterministic fault tests']),
     entry('G02-E09-DEPENDENCY', 'real_dependency', 'postgres_event_object_pki_dns_config_ai_recording', ['raw dependency fault output']),
-    supersededDatabase(
+    controlledDatabase(
       'G02-E09A-DATABASE-RESTART',
       'controlled_dependency_fault',
       'postgres_restart_runtime_rls_reconcile_synthetic_transport',
