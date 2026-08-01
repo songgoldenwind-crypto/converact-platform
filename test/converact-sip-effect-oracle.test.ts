@@ -2005,7 +2005,7 @@ test('Postgres admission queue and connect share one monotonic pool wait deadlin
 test('Postgres late connect rejection restores exactly one admission permit', async () => {
   const deferred = new DeferredConnections();
   const pool = new TestConnectPool(() => deferred.connect());
-  const store = singlePermitStore(pool);
+  const store = singlePermitStore(pool, 200);
 
   await expectSipEffectRejection(store.query(identity()), 'store_pool_exhausted');
   const second = store.query(identity());
