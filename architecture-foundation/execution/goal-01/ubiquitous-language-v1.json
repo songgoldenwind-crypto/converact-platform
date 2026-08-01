@@ -1,0 +1,279 @@
+{
+  "$schema": "./ubiquitous-language-v1.schema.json",
+  "contract_id": "converact-ubiquitous-language-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-01T00:00:00Z",
+  "platform_root": "Engagement",
+  "status": {
+    "contract": "verified_contract",
+    "runtime_implementation": "not_run",
+    "production_eligible": false
+  },
+  "terms": [
+    {
+      "term_id": "TERM:TENANT",
+      "canonical_name": "Tenant",
+      "layer": "platform",
+      "classification": "platform_boundary",
+      "authority": "Converact Identity",
+      "definition": "Security, policy, data and billing isolation boundary.",
+      "invariants": [
+        "Every platform object belongs to exactly one Tenant."
+      ],
+      "forbidden_aliases": [
+        "Account"
+      ]
+    },
+    {
+      "term_id": "TERM:ENGAGEMENT",
+      "canonical_name": "Engagement",
+      "layer": "platform",
+      "classification": "platform_root",
+      "authority": "Converact Engage",
+      "definition": "Long-lived, objective-driven unit of governed business execution across interactions.",
+      "invariants": [
+        "Stable EngagementId across channels.",
+        "A Profile specializes but never replaces this aggregate."
+      ],
+      "forbidden_aliases": [
+        "Call",
+        "Room",
+        "Ticket",
+        "Case",
+        "Opportunity",
+        "WorkOrder",
+        "Resolution"
+      ]
+    },
+    {
+      "term_id": "TERM:ENGAGEMENT_ITEM",
+      "canonical_name": "EngagementItem",
+      "layer": "platform",
+      "classification": "platform_aggregate_child",
+      "authority": "Converact Engage",
+      "definition": "A separately measurable and verifiable item inside an Engagement.",
+      "invariants": [
+        "Belongs to one Engagement.",
+        "Item type is a Profile discriminator, not a new Authority."
+      ],
+      "forbidden_aliases": [
+        "Ticket",
+        "ProblemRecord"
+      ]
+    },
+    {
+      "term_id": "TERM:ENGAGEMENT_PROFILE",
+      "canonical_name": "EngagementProfile",
+      "layer": "platform",
+      "classification": "profile_contract",
+      "authority": "Converact Product Contract",
+      "definition": "Versioned specialization contract for schema, policy, metrics, UI and dependencies.",
+      "invariants": [
+        "Cannot own a platform Authority.",
+        "Failure is scoped to the Profile."
+      ],
+      "forbidden_aliases": [
+        "WorkflowTemplate"
+      ]
+    },
+    {
+      "term_id": "TERM:PROFILE_BINDING",
+      "canonical_name": "ProfileBinding",
+      "layer": "platform",
+      "classification": "platform_aggregate_child",
+      "authority": "Converact Engage",
+      "definition": "Immutable binding from an Engagement to a Profile contract version.",
+      "invariants": [
+        "Exactly one active Profile version per binding generation."
+      ],
+      "forbidden_aliases": []
+    },
+    {
+      "term_id": "TERM:OBJECTIVE",
+      "canonical_name": "Objective",
+      "layer": "platform",
+      "classification": "platform_aggregate_child",
+      "authority": "Converact Engage",
+      "definition": "Versioned intended business result with measurable policy.",
+      "invariants": [
+        "Does not equal an AI prompt or call disposition."
+      ],
+      "forbidden_aliases": [
+        "Prompt"
+      ]
+    },
+    {
+      "term_id": "TERM:INTERACTION",
+      "canonical_name": "Interaction",
+      "layer": "collaboration",
+      "classification": "collaboration_root",
+      "authority": "Converact Fabric Coordination",
+      "definition": "One continuous participation window that may span communication sessions.",
+      "invariants": [
+        "Stable across media switches.",
+        "Does not equal a Call or Room."
+      ],
+      "forbidden_aliases": [
+        "Call",
+        "Room"
+      ]
+    },
+    {
+      "term_id": "TERM:COMMUNICATION_SESSION",
+      "canonical_name": "CommunicationSession",
+      "layer": "collaboration",
+      "classification": "collaboration_child",
+      "authority": "Converact Fabric Coordination",
+      "definition": "A bounded communication realization linked to native communication Authorities.",
+      "invariants": [
+        "References, but does not own, Call and Room state."
+      ],
+      "forbidden_aliases": [
+        "CallSession",
+        "Room"
+      ]
+    },
+    {
+      "term_id": "TERM:TASK",
+      "canonical_name": "Task",
+      "layer": "agent_runtime",
+      "classification": "execution_unit",
+      "authority": "Converact Agent Runtime",
+      "definition": "Leased human or AI work unit with bounded context and handoff.",
+      "invariants": [
+        "Task execution cannot finalize an Action or Outcome by itself."
+      ],
+      "forbidden_aliases": [
+        "AgentRun"
+      ]
+    },
+    {
+      "term_id": "TERM:EVIDENCE",
+      "canonical_name": "Evidence",
+      "layer": "engage",
+      "classification": "evidence_fact",
+      "authority": "Converact Engage",
+      "definition": "Provenance, consent, retention and integrity-bound observation used by verification.",
+      "invariants": [
+        "Candidate AI output is not verified Evidence.",
+        "Evidence is append-only by revision."
+      ],
+      "forbidden_aliases": [
+        "Transcript",
+        "Recording"
+      ]
+    },
+    {
+      "term_id": "TERM:ACTION",
+      "canonical_name": "Action",
+      "layer": "engage_action",
+      "classification": "action_lifecycle",
+      "authority": "Converact Engage Action Authority",
+      "definition": "Intent, authorization, attempt, receipt, verification and compensation lifecycle for an external effect.",
+      "invariants": [
+        "Network delivery is not exactly once.",
+        "Unknown effects require query/reconcile."
+      ],
+      "forbidden_aliases": [
+        "ToolCall",
+        "Webhook"
+      ]
+    },
+    {
+      "term_id": "TERM:OUTCOME_CLAIM",
+      "canonical_name": "OutcomeClaim",
+      "layer": "engage",
+      "classification": "outcome_fact",
+      "authority": "Converact Engage",
+      "definition": "Versioned claim that an Objective result occurred under a VerificationPolicy.",
+      "invariants": [
+        "Only Finalized claims may later become billable.",
+        "Disputes use immutable reversal or credit."
+      ],
+      "forbidden_aliases": [
+        "ResolutionStatus",
+        "ModelAnswer"
+      ]
+    },
+    {
+      "term_id": "TERM:RESOLUTION",
+      "canonical_name": "Resolution",
+      "layer": "resolve_profile",
+      "classification": "profile_projection",
+      "authority": "Converact Engage",
+      "definition": "Resolve Profile projection of an Engagement.",
+      "invariants": [
+        "Never the horizontal platform root.",
+        "Uses the same Engagement Authority."
+      ],
+      "forbidden_aliases": [
+        "Engagement"
+      ],
+      "strict_specialization_of": {
+        "term": "Engagement",
+        "discriminator": "profile_type=resolution"
+      }
+    },
+    {
+      "term_id": "TERM:RESOLUTION_ITEM",
+      "canonical_name": "ResolutionItem",
+      "layer": "resolve_profile",
+      "classification": "profile_projection",
+      "authority": "Converact Engage",
+      "definition": "Resolve Profile projection of a problem EngagementItem.",
+      "invariants": [
+        "Uses the same EngagementItem Authority."
+      ],
+      "forbidden_aliases": [
+        "Ticket"
+      ],
+      "strict_specialization_of": {
+        "term": "EngagementItem",
+        "discriminator": "item_type=problem"
+      }
+    },
+    {
+      "term_id": "TERM:CALL",
+      "canonical_name": "Call",
+      "layer": "communication",
+      "classification": "external_reference",
+      "authority": "Unified RustPBX or external PBX/CCaaS",
+      "definition": "Telephony business object owned by the selected telephony Authority.",
+      "invariants": [
+        "Referenced by CommunicationSession; never the platform root."
+      ],
+      "forbidden_aliases": [
+        "Engagement"
+      ]
+    },
+    {
+      "term_id": "TERM:ROOM",
+      "canonical_name": "Room",
+      "layer": "communication",
+      "classification": "external_reference",
+      "authority": "LiveKit",
+      "definition": "WebRTC/SFU runtime room.",
+      "invariants": [
+        "Referenced by CommunicationSession; never the platform root."
+      ],
+      "forbidden_aliases": [
+        "Engagement",
+        "Interaction"
+      ]
+    },
+    {
+      "term_id": "TERM:EXTERNAL_CASE",
+      "canonical_name": "ExternalCase",
+      "layer": "overlay",
+      "classification": "external_reference",
+      "authority": "Customer CRM/FSM",
+      "definition": "Formal Case, Ticket or WorkOrder retained by the customer system in Overlay.",
+      "invariants": [
+        "Converact never mirrors a second formal Authority."
+      ],
+      "forbidden_aliases": [
+        "Engagement"
+      ]
+    }
+  ]
+}

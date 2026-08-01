@@ -1,0 +1,709 @@
+{
+  "$schema": "./competitive-source-register-v1.schema.json",
+  "register_id": "g01-competitive-source-register-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-01T00:00:00Z",
+  "fact_policy": "Official public facts, Converact inferences and Converact test requirements are separate and cannot upgrade each other.",
+  "sources": [
+    {
+      "source_id": "SRC:GENESYS:CLOUD",
+      "subject": "Genesys Cloud CX",
+      "url": "https://www.genesys.com/genesys-cloud",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "voice, digital, AI, journey and workforce engagement capability overview"
+      ],
+      "usage_limit": "Vendor capability statement only.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:ZOOM:CONTACT_CENTER",
+      "subject": "Zoom Contact Center",
+      "url": "https://www.zoom.com/en/products/contact-center/",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "phone, video, email, chat, SMS, social, AI and WEM overview"
+      ],
+      "usage_limit": "Vendor capability and packaging statement only.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:TWILIO:CPAAS",
+      "subject": "Twilio CPaaS",
+      "url": "https://www.twilio.com/en-us/cpaas",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "communications API and channel overview"
+      ],
+      "usage_limit": "Vendor capability statement only; no scale or performance claim is inherited.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:LIVEKIT:TELEPHONY",
+      "subject": "LiveKit Telephony",
+      "url": "https://docs.livekit.io/telephony/",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "supported SIP features, service architecture"
+      ],
+      "usage_limit": "Current official documentation; dynamic page must be re-captured before implementation.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:LIVEKIT:AGENTS",
+      "subject": "LiveKit Agents",
+      "url": "https://docs.livekit.io/agents/",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "framework and model integration overview"
+      ],
+      "usage_limit": "Framework capability statement only.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:LIVEKIT:ABOUT",
+      "subject": "LiveKit platform",
+      "url": "https://docs.livekit.io/intro/about/",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "open-source SFU and realtime platform overview"
+      ],
+      "usage_limit": "Architecture statement only; no borrowed scale claim.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:SIGHTCALL:RVS",
+      "subject": "SightCall Remote Visual Support",
+      "url": "https://sightcall.com/platform/remote-visual-support-2026/",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "live video, AR, no-app join, evidence and integrations"
+      ],
+      "usage_limit": "Vendor capability statement; published outcome percentages are excluded.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:TECHSEE:FIELD",
+      "subject": "TechSee Live for Field Services",
+      "url": "https://techsee.com/techsee-live-field-services/",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "AI-powered visual assistance and remote technician support"
+      ],
+      "usage_limit": "Vendor capability statement only.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:CAREAR:ASSIST",
+      "subject": "CareAR Assist",
+      "url": "https://carear.com/assist-demo",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "AR remote assistance, live video and annotations"
+      ],
+      "usage_limit": "Vendor capability statement only.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:SALESFORCE:SERVICE",
+      "subject": "Salesforce Service Cloud",
+      "url": "https://www.salesforce.com/service/cloud/guide/",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "case, omnichannel, knowledge, voice and field service overview"
+      ],
+      "usage_limit": "Vendor capability statement; published ROI is excluded.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:SALESFORCE:FIELD",
+      "subject": "Salesforce Field Service",
+      "url": "https://www.salesforce.com/service/field-service-management/guide/",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "scheduling, mobile, asset, inventory and work-order overview"
+      ],
+      "usage_limit": "Vendor capability statement only.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:SERVICENOW:CSM",
+      "subject": "ServiceNow Customer Service Management",
+      "url": "https://www.servicenow.com/products/customer-service-management.html",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "case, agent workspace, workflow, knowledge and AI overview"
+      ],
+      "usage_limit": "Vendor capability statement only.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:SERVICENOW:FSM",
+      "subject": "ServiceNow Field Service Management",
+      "url": "https://www.servicenow.com/docs/en-US/bundle/zurich-field-service-management/page/product/field-service-management/concept/fsm-application-landing-page.html",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "dispatcher, technician and mobile field-service overview"
+      ],
+      "usage_limit": "Official product documentation only.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:SIERRA:AGENT",
+      "subject": "Sierra Agent",
+      "url": "https://sierra.ai/product/meet-your-agent",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "phone, chat, SMS, email, multilingual action, handoff and studio overview"
+      ],
+      "usage_limit": "Vendor capability statement only; outcome claims are excluded.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:DECAGON:AGENT",
+      "subject": "Decagon Agent",
+      "url": "https://decagon.ai/product/overview",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "chat, voice, email, integration, guardrail, testing, versioning and observability overview"
+      ],
+      "usage_limit": "Vendor capability statement only; outcome claims are excluded.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:HF:S2S",
+      "subject": "Hugging Face speech-to-speech",
+      "url": "https://github.com/huggingface/speech-to-speech",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "README modular VAD-STT-LLM-TTS pipeline, swappable backends and Realtime-compatible API"
+      ],
+      "usage_limit": "Repository README and license are availability evidence only; performance must be reproduced.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:LIVEKIT:AGENTS_REPO",
+      "subject": "LiveKit Agents source",
+      "url": "https://github.com/livekit/agents",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "open-source framework repository"
+      ],
+      "usage_limit": "Repository existence and source review entry only.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:ACTIVE_CALL:PIN",
+      "subject": "Active Call source",
+      "url": "https://github.com/miuda-ai/active-call/tree/a5c7a88490b65975c0b0ae2787311c49022d4a8d",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "README capabilities and Cargo package metadata at immutable commit"
+      ],
+      "usage_limit": "Source identity and declared metadata only. The LICENSE body is absent at this revision; no integration or performance conclusion is authorized.",
+      "used_as_converact_performance_evidence": false,
+      "repository_url": "https://github.com/miuda-ai/active-call",
+      "immutable_revision": "a5c7a88490b65975c0b0ae2787311c49022d4a8d",
+      "declared_license": "MIT",
+      "license_body_status": "missing_at_revision",
+      "source_hash_status": "not_run",
+      "integration_status": "not_run",
+      "performance_status": "not_run"
+    },
+    {
+      "source_id": "SRC:RUSTPBX:REPO",
+      "subject": "RustPBX source",
+      "url": "https://github.com/restsend/rustpbx",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "PBX repository overview"
+      ],
+      "usage_limit": "Candidate source only; exact commit, license, security and performance remain gated.",
+      "used_as_converact_performance_evidence": false
+    },
+    {
+      "source_id": "SRC:RVOIP:REPO",
+      "subject": "rvoip source",
+      "url": "https://github.com/eisenzopf/rvoip",
+      "source_tier": "official_primary",
+      "captured_at": "2026-08-01T00:00:00Z",
+      "reviewed_sections": [
+        "SIP, media and session workspace overview"
+      ],
+      "usage_limit": "Candidate source only; exact slices and same-source tests remain gated.",
+      "used_as_converact_performance_evidence": false
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "CLAIM:FACT:GENESYS",
+      "layer": "platform_market",
+      "subject": "Genesys",
+      "claim_type": "public_fact",
+      "statement": "Genesys publicly presents Cloud CX as a platform spanning voice, digital, AI, journey and workforce engagement.",
+      "source_ids": [
+        "SRC:GENESYS:CLOUD"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:ZOOM",
+      "layer": "platform_market",
+      "subject": "Zoom",
+      "claim_type": "public_fact",
+      "statement": "Zoom publicly presents Contact Center with phone, video, digital channels, AI assistance and workforce/quality capabilities.",
+      "source_ids": [
+        "SRC:ZOOM:CONTACT_CENTER"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:TWILIO",
+      "layer": "platform_market",
+      "subject": "Twilio",
+      "claim_type": "public_fact",
+      "statement": "Twilio publicly presents CPaaS APIs for embedding messaging, voice, video, email and verification into applications.",
+      "source_ids": [
+        "SRC:TWILIO:CPAAS"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:LIVEKIT_SIP_VIDEO",
+      "layer": "component",
+      "subject": "LiveKit",
+      "claim_type": "public_fact",
+      "statement": "LiveKit Telephony currently documents Video over SIP as not supported while listing DTMF, transfer, RTP and SRTP support.",
+      "source_ids": [
+        "SRC:LIVEKIT:TELEPHONY"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:LIVEKIT_AGENTS",
+      "layer": "component",
+      "subject": "LiveKit Agents",
+      "claim_type": "public_fact",
+      "statement": "LiveKit Agents documents model interfaces for STT, LLM, TTS and realtime speech-to-speech paths.",
+      "source_ids": [
+        "SRC:LIVEKIT:AGENTS",
+        "SRC:LIVEKIT:AGENTS_REPO"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:LIVEKIT_SFU",
+      "layer": "component",
+      "subject": "LiveKit",
+      "claim_type": "public_fact",
+      "statement": "LiveKit documents its server as an open-source WebRTC SFU and realtime platform.",
+      "source_ids": [
+        "SRC:LIVEKIT:ABOUT"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:SIGHTCALL",
+      "layer": "resolve_market",
+      "subject": "SightCall",
+      "claim_type": "public_fact",
+      "statement": "SightCall publicly offers no-app remote visual support with video, AR guidance, evidence capture and enterprise integrations.",
+      "source_ids": [
+        "SRC:SIGHTCALL:RVS"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:TECHSEE",
+      "layer": "resolve_market",
+      "subject": "TechSee",
+      "claim_type": "public_fact",
+      "statement": "TechSee publicly offers AI-powered visual assistance for field service and remote technicians.",
+      "source_ids": [
+        "SRC:TECHSEE:FIELD"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:CAREAR",
+      "layer": "resolve_market",
+      "subject": "CareAR",
+      "claim_type": "public_fact",
+      "statement": "CareAR publicly offers AR remote assistance with live video and annotations.",
+      "source_ids": [
+        "SRC:CAREAR:ASSIST"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:SALESFORCE",
+      "layer": "platform_market",
+      "subject": "Salesforce",
+      "claim_type": "public_fact",
+      "statement": "Salesforce publicly provides Case, omnichannel service, knowledge, voice and field-service workflows.",
+      "source_ids": [
+        "SRC:SALESFORCE:SERVICE",
+        "SRC:SALESFORCE:FIELD"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:SERVICENOW",
+      "layer": "platform_market",
+      "subject": "ServiceNow",
+      "claim_type": "public_fact",
+      "statement": "ServiceNow publicly provides CSM case/workflow/agent workspace and FSM operations.",
+      "source_ids": [
+        "SRC:SERVICENOW:CSM",
+        "SRC:SERVICENOW:FSM"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:SIERRA",
+      "layer": "platform_market",
+      "subject": "Sierra",
+      "claim_type": "public_fact",
+      "statement": "Sierra publicly presents an enterprise agent spanning phone, chat, SMS and email with actions, handoff and a studio.",
+      "source_ids": [
+        "SRC:SIERRA:AGENT"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:DECAGON",
+      "layer": "platform_market",
+      "subject": "Decagon",
+      "claim_type": "public_fact",
+      "statement": "Decagon publicly presents chat, voice and email agents with integrations, guardrails, testing, versioning and observability.",
+      "source_ids": [
+        "SRC:DECAGON:AGENT"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:HF_S2S",
+      "layer": "component",
+      "subject": "Hugging Face speech-to-speech",
+      "claim_type": "public_fact",
+      "statement": "The official repository describes a modular VAD→STT→LLM→TTS pipeline with swappable backends and a Realtime-compatible interface.",
+      "source_ids": [
+        "SRC:HF:S2S"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:ACTIVE_CALL",
+      "layer": "component",
+      "subject": "Active Call",
+      "claim_type": "public_fact",
+      "statement": "At the pinned commit, Active Call is a Rust SIP/WebRTC voice-agent crate whose README documents traditional and realtime speech paths, Playbooks, telephony actions and media processing; Cargo metadata declares version 0.3.75 and MIT.",
+      "source_ids": [
+        "SRC:ACTIVE_CALL:PIN"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:FACT:RUST_CANDIDATES",
+      "layer": "component",
+      "subject": "RustPBX and rvoip",
+      "claim_type": "public_fact",
+      "statement": "RustPBX and rvoip have public source repositories that can be evaluated as candidates.",
+      "source_ids": [
+        "SRC:RUSTPBX:REPO",
+        "SRC:RVOIP:REPO"
+      ],
+      "inference_basis": "",
+      "proven": true,
+      "status": "publicly_documented",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:INFERENCE:CCAAS_BUDGET",
+      "layer": "platform_market",
+      "subject": "Enterprise CCaaS",
+      "claim_type": "converact_inference",
+      "statement": "Genesys and Zoom compete for broad contact-center budgets; Converact should integrate or coexist before attempting full-suite replacement.",
+      "source_ids": [
+        "SRC:GENESYS:CLOUD",
+        "SRC:ZOOM:CONTACT_CENTER"
+      ],
+      "inference_basis": "Their official scope includes broad channel, routing, AI and workforce capabilities beyond the fixed Resolve Pilot.",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:INFERENCE:CPAAS_PARTNER",
+      "layer": "platform_market",
+      "subject": "CPaaS",
+      "claim_type": "converact_inference",
+      "statement": "Twilio represents a communications API and carrier integration layer that Converact should buy, partner with or wrap rather than treat as Engagement Authority.",
+      "source_ids": [
+        "SRC:TWILIO:CPAAS"
+      ],
+      "inference_basis": "The documented product scope is API-based channel execution, while Converact owns cross-channel Engagement, Evidence, Action and Outcome semantics.",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:INFERENCE:ENTERPRISE_AGENT",
+      "layer": "platform_market",
+      "subject": "Enterprise AI Agent",
+      "claim_type": "converact_inference",
+      "statement": "Sierra and Decagon compete for enterprise agent automation budgets, so Converact cannot claim differentiation from channels, tools, handoff or framework features alone.",
+      "source_ids": [
+        "SRC:SIERRA:AGENT",
+        "SRC:DECAGON:AGENT"
+      ],
+      "inference_basis": "Their official product descriptions already include multiple channels, actions, handoff or governance tooling; Converact differentiation must be tested on the same high-value Resolution flow.",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:INFERENCE:CRM_AUTHORITY",
+      "layer": "platform_market",
+      "subject": "CRM/FSM",
+      "claim_type": "converact_inference",
+      "statement": "Salesforce and ServiceNow should remain formal Case/WorkOrder Authorities in the initial Overlay Offer.",
+      "source_ids": [
+        "SRC:SALESFORCE:SERVICE",
+        "SRC:SERVICENOW:CSM"
+      ],
+      "inference_basis": "Their official product scope centers on formal service records and workflows; duplicating them creates a second Authority.",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:INFERENCE:VISUAL_DIRECT",
+      "layer": "resolve_market",
+      "subject": "Visual support vendors",
+      "claim_type": "converact_inference",
+      "statement": "SightCall, TechSee and CareAR are direct Resolve alternatives for visual remote support, but Converact differentiation remains a hypothesis.",
+      "source_ids": [
+        "SRC:SIGHTCALL:RVS",
+        "SRC:TECHSEE:FIELD",
+        "SRC:CAREAR:ASSIST"
+      ],
+      "inference_basis": "Their published capability overlaps no-app/live visual guidance; same-flow buyer win/loss evidence is absent.",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:INFERENCE:LIVEKIT_PARTNER",
+      "layer": "component",
+      "subject": "LiveKit",
+      "claim_type": "converact_inference",
+      "statement": "LiveKit is a Room/WebRTC/SFU execution partner or component, not Converact Engagement or telephony business Authority.",
+      "source_ids": [
+        "SRC:LIVEKIT:TELEPHONY",
+        "SRC:LIVEKIT:ABOUT"
+      ],
+      "inference_basis": "LiveKit documents Room/Participant/SFU primitives and SIP bridging, while Converact owns cross-system business continuity.",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:INFERENCE:HF_CANDIDATE",
+      "layer": "component",
+      "subject": "Hugging Face speech-to-speech",
+      "claim_type": "converact_inference",
+      "statement": "HF speech-to-speech is a candidate to replace only overlapping SpeechRuntime stages; it is not presumed faster or more accurate.",
+      "source_ids": [
+        "SRC:HF:S2S",
+        "SRC:LIVEKIT:AGENTS"
+      ],
+      "inference_basis": "Both expose overlapping speech loops, but no Converact same-source benchmark exists.",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:INFERENCE:ACTIVE_ADAPTER",
+      "layer": "component",
+      "subject": "Active Call",
+      "claim_type": "converact_inference",
+      "statement": "Converact should evaluate only Active Call capabilities that fit a pure PCM and canonical-event adapter, while RustPBX remains the sole SIP, RTP control, Call and telephony billing Authority.",
+      "source_ids": [
+        "SRC:ACTIVE_CALL:PIN"
+      ],
+      "inference_basis": "The pinned upstream includes overlapping SIP, WebRTC, media and speech execution as well as useful Playbook and telephony-agent semantics; adopting it wholesale would duplicate Converact Authorities.",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [
+        "LICENSE body and notice resolution",
+        "dependency, unsafe and FFI inventory",
+        "capability-level keep-wrap-rewrite-reject matrix",
+        "same-workload quality, latency, capacity and failure tests"
+      ],
+      "usage_limit": "A pinned identity proves only provenance; it does not authorize source absorption or prove Converact performance."
+    },
+    {
+      "claim_id": "CLAIM:TEST:RESOLVE_WIN_LOSS",
+      "layer": "resolve_market",
+      "subject": "Resolve differentiation",
+      "claim_type": "converact_test_requirement",
+      "statement": "Run auditable same-flow buyer evaluations and win/loss interviews against current phone/video/CRM/FSM alternatives.",
+      "source_ids": [],
+      "inference_basis": "",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [
+        "same ICP and flow",
+        "buyer-owned baseline",
+        "decision and budget evidence",
+        "competitor or status-quo alternative"
+      ],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:TEST:SPEECH_PARITY",
+      "layer": "component",
+      "subject": "SpeechRuntime candidates",
+      "claim_type": "converact_test_requirement",
+      "statement": "Compare HF, retained LiveKit Agents functions and any pinned Active Call overlap on identical audio, language, hardware, network, turn definitions, quality and total cost.",
+      "source_ids": [],
+      "inference_basis": "",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [
+        "exact commits/models",
+        "identical corpus and seeds",
+        "VAD false accept/reject",
+        "first stable partial",
+        "first audible audio",
+        "long-session and failure evidence"
+      ],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:TEST:RUST_SLICES",
+      "layer": "component",
+      "subject": "RustPBX/rvoip absorption",
+      "claim_type": "converact_test_requirement",
+      "statement": "Evaluate exact low-level slices without creating duplicate SIP, RTP, media or business Authorities.",
+      "source_ids": [],
+      "inference_basis": "",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [
+        "exact commits and licenses",
+        "source and dependency security review",
+        "same-function benchmarks",
+        "fault/recovery tests",
+        "migration and active-zero deletion plan"
+      ],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    },
+    {
+      "claim_id": "CLAIM:TEST:PLATFORM_COMPETITION",
+      "layer": "platform_market",
+      "subject": "Platform competition",
+      "claim_type": "converact_test_requirement",
+      "statement": "Test whether the horizontal platform wins a defined budget without borrowing Resolve outcomes or feature-count parity.",
+      "source_ids": [],
+      "inference_basis": "",
+      "proven": false,
+      "status": "not_run",
+      "required_evidence": [
+        "profile-specific buyer evidence",
+        "build/buy/partner cost",
+        "integration burden",
+        "measurable outcome and no-bid threshold"
+      ],
+      "usage_limit": "Does not prove Converact capability, performance, market demand or superiority."
+    }
+  ]
+}

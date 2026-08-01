@@ -1,0 +1,31 @@
+{
+  "fixture_id": "ROI:SYNTHETIC:NO_BID",
+  "evidence_class": "synthetic_non_market_evidence",
+  "market_evidence": false,
+  "description": "Synthetic case below the 3x value gate and economic thresholds.",
+  "contains_customer_data": false,
+  "input": {
+    "eligible_annual_items": 200,
+    "baseline_avoidable_event_rate": 0.1,
+    "verified_value_per_avoided_event_usd": 2000,
+    "primary_value_dedupe_key": "dispatch:led-installation:annual-baseline-v1",
+    "additional_value_pools": [],
+    "first_year_subscription_usd": 80000,
+    "first_year_services_usd": 50000,
+    "first_year_usage_cost_usd": 30000,
+    "first_year_customer_change_cost_usd": 40000,
+    "annual_recognized_revenue_usd": 150000,
+    "credits_usd": 10000,
+    "reversals_usd": 0,
+    "refunds_usd": 0,
+    "costs": {
+      "carrier_line_sfu_usd": 18000,
+      "gpu_model_usd": 16000,
+      "storage_egress_usd": 6000,
+      "support_sre_usd": 22000,
+      "implementation_amortized_usd": 10000,
+      "partner_fees_usd": 8000
+    },
+    "cac_usd": 120000
+  }
+}

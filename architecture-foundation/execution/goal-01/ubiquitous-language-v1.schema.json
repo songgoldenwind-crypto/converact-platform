@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.example/contracts/g01/ubiquitous-language-v1.schema.json",
+  "title": "Converact G01 Ubiquitous Language",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "contract_id", "version", "generated_at", "platform_root", "status", "terms"],
+  "properties": {
+    "$schema": { "const": "./ubiquitous-language-v1.schema.json" },
+    "contract_id": { "const": "converact-ubiquitous-language-v1" },
+    "version": { "const": "1.0.0" },
+    "generated_at": { "type": "string", "pattern": "^2026-08-01T" },
+    "platform_root": { "const": "Engagement" },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "runtime_implementation", "production_eligible"],
+      "properties": {
+        "contract": { "const": "verified_contract" },
+        "runtime_implementation": { "const": "not_run" },
+        "production_eligible": { "const": false }
+      }
+    },
+    "terms": {
+      "type": "array",
+      "minItems": 12,
+      "items": { "$ref": "#/$defs/term" }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": { "type": "string", "minLength": 1 },
+    "stringArray": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/nonEmptyString" }
+    },
+    "term": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["term_id", "canonical_name", "layer", "classification", "authority", "definition", "invariants", "forbidden_aliases"],
+      "properties": {
+        "term_id": { "type": "string", "pattern": "^TERM:[A-Z0-9_]+$" },
+        "canonical_name": { "$ref": "#/$defs/nonEmptyString" },
+        "layer": {
+          "enum": ["platform", "collaboration", "communication", "engage", "engage_action", "agent_runtime", "overlay", "resolve_profile"]
+        },
+        "classification": {
+          "enum": ["platform_boundary", "platform_root", "platform_aggregate_child", "profile_contract", "collaboration_root", "collaboration_child", "execution_unit", "evidence_fact", "action_lifecycle", "outcome_fact", "profile_projection", "external_reference"]
+        },
+        "authority": { "$ref": "#/$defs/nonEmptyString" },
+        "definition": { "type": "string", "minLength": 10 },
+        "invariants": { "$ref": "#/$defs/stringArray" },
+        "forbidden_aliases": { "$ref": "#/$defs/stringArray" },
+        "strict_specialization_of": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["term", "discriminator"],
+          "properties": {
+            "term": { "enum": ["Engagement", "EngagementItem"] },
+            "discriminator": { "enum": ["profile_type=resolution", "item_type=problem"] }
+          }
+        }
+      }
+    }
+  }
+}

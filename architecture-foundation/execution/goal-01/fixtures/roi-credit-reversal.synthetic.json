@@ -1,0 +1,37 @@
+{
+  "fixture_id": "ROI:SYNTHETIC:CREDIT_REVERSAL",
+  "evidence_class": "synthetic_non_market_evidence",
+  "market_evidence": false,
+  "description": "Synthetic case proving credits, reversals and refunds reduce recognized revenue and margin.",
+  "contains_customer_data": false,
+  "input": {
+    "eligible_annual_items": 1000,
+    "baseline_avoidable_event_rate": 0.25,
+    "verified_value_per_avoided_event_usd": 3000,
+    "primary_value_dedupe_key": "dispatch:led-installation:annual-baseline-v1",
+    "additional_value_pools": [
+      {
+        "pool_id": "expert-wait",
+        "dedupe_key": "expert-wait:team-window",
+        "annual_value_usd": 50000
+      }
+    ],
+    "first_year_subscription_usd": 120000,
+    "first_year_services_usd": 40000,
+    "first_year_usage_cost_usd": 30000,
+    "first_year_customer_change_cost_usd": 10000,
+    "annual_recognized_revenue_usd": 400000,
+    "credits_usd": 50000,
+    "reversals_usd": 20000,
+    "refunds_usd": 10000,
+    "costs": {
+      "carrier_line_sfu_usd": 18000,
+      "gpu_model_usd": 16000,
+      "storage_egress_usd": 6000,
+      "support_sre_usd": 22000,
+      "implementation_amortized_usd": 10000,
+      "partner_fees_usd": 8000
+    },
+    "cac_usd": 100000
+  }
+}

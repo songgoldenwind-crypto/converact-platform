@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.example/contracts/g01/engagement-profile-contract-v1.schema.json",
+  "title": "Converact Platform Profile Offer Option Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "contract_id", "version", "generated_at", "binding_goal", "current_state", "platform", "profile_extension", "resolve_profile", "resolve_offer", "option_register", "gates", "non_propagation"],
+  "properties": {
+    "$schema": { "const": "./engagement-profile-contract-v1.schema.json" },
+    "contract_id": { "const": "converact-platform-profile-offer-option-v1" },
+    "version": { "const": "1.0.0" },
+    "generated_at": { "type": "string", "pattern": "^2026-08-01T" },
+    "binding_goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "const": "goals/goal-01-product-domain-commercial-gates.md" },
+        "sha256": { "const": "736225a0d4c0d8abe2d951b95bf502e81f4dfbbcefce8a8defb81e330b7c5af1" }
+      }
+    },
+    "current_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["document_contract", "runtime_implementation", "market_qualification", "production_eligible", "goal_outcome"],
+      "properties": {
+        "document_contract": { "const": "verified_contract" },
+        "runtime_implementation": { "const": "not_run" },
+        "market_qualification": { "const": "not_run" },
+        "production_eligible": { "const": false },
+        "goal_outcome": { "const": "blocked_external" }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root_aggregate", "layer_contracts", "authorities", "stable_ids", "stable_invariants"],
+      "properties": {
+        "root_aggregate": { "const": "Engagement" },
+        "layer_contracts": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["layer", "owns", "cannot_own", "gate"],
+            "properties": {
+              "layer": { "enum": ["horizontal_platform", "engagement_profile", "product_offer", "deployment_option"] },
+              "owns": { "$ref": "#/$defs/stringArray" },
+              "cannot_own": { "$ref": "#/$defs/stringArray" },
+              "gate": { "$ref": "#/$defs/nonEmptyString" }
+            }
+          }
+        },
+        "authorities": {
+          "type": "array",
+          "minItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["domain", "writer", "writer_count", "executors", "external_overlay_authority"],
+            "properties": {
+              "domain": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+              "writer": { "$ref": "#/$defs/nonEmptyString" },
+              "writer_count": { "const": 1 },
+              "executors": { "$ref": "#/$defs/stringArray" },
+              "external_overlay_authority": { "type": "boolean" }
+            }
+          }
+        },
+        "stable_ids": { "type": "array", "minItems": 10, "items": { "type": "string", "pattern": "Id$" } },
+        "stable_invariants": { "type": "array", "minItems": 5, "items": { "$ref": "#/$defs/nonEmptyString" } }
+      }
+    },
+    "profile_extension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "forbidden", "validator_contract"],
+      "properties": {
+        "allowed": { "type": "array", "minItems": 5, "items": { "$ref": "#/$defs/nonEmptyString" } },
+        "forbidden": { "type": "array", "minItems": 5, "items": { "$ref": "#/$defs/nonEmptyString" } },
+        "validator_contract": { "$ref": "#/$defs/validator" }
+      }
+    },
+    "resolve_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_id", "version", "profile_type", "base_aggregate", "item_base_aggregate", "authority_domains", "schema_namespace", "icp", "budget_owner", "champion", "jtbd", "product_family_id", "flow_id", "flow_version", "product_scope", "language_pair", "validator"],
+      "properties": {
+        "profile_id": { "const": "converact-resolve-v1" },
+        "version": { "const": "1.0.0" },
+        "profile_type": { "const": "resolution" },
+        "base_aggregate": { "const": "Engagement" },
+        "item_base_aggregate": { "const": "EngagementItem" },
+        "authority_domains": { "type": "array", "maxItems": 0 },
+        "schema_namespace": { "const": "profiles.resolve.v1" },
+        "icp": { "type": "string", "minLength": 30 },
+        "budget_owner": { "type": "string", "minLength": 20 },
+        "champion": { "type": "string", "minLength": 20 },
+        "jtbd": { "type": "string", "minLength": 40 },
+        "product_family_id": { "const": "led-display-system-v1" },
+        "flow_id": { "const": "remote-installation-commissioning-v1" },
+        "flow_version": { "const": "1.0.0" },
+        "product_scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["customer_teams", "product_families", "agreed_flows"],
+          "properties": {
+            "customer_teams": { "const": 1 },
+            "product_families": { "const": 1 },
+            "agreed_flows": { "const": 1 }
+          }
+        },
+        "language_pair": {
+          "type": "array",
+          "prefixItems": [{ "const": "zh-CN" }, { "const": "en-US" }],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "validator": { "$ref": "#/$defs/validator" }
+      }
+    },
+    "resolve_offer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["offer_id", "profile_contract", "sales_status", "payment_percentages", "market_validation_signature", "pilot", "out_of_scope"],
+      "properties": {
+        "offer_id": { "const": "resolve-assist-pilot-a-b1-v1" },
+        "profile_contract": { "const": "converact-resolve-v1@1.0.0" },
+        "sales_status": { "const": "not_run" },
+        "payment_percentages": {
+          "type": "array",
+          "prefixItems": [{ "const": 50 }, { "const": 25 }, { "const": 25 }],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "market_validation_signature": { "$ref": "#/$defs/marketValidationSignature" },
+        "pilot": { "$ref": "#/$defs/pilot" },
+        "out_of_scope": { "type": "array", "minItems": 7, "items": { "$ref": "#/$defs/nonEmptyString" } }
+      }
+    },
+    "option_register": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["option_id", "category", "sales_status", "eligible_for_pilot", "required_gates", "changes_authority"],
+        "properties": {
+          "option_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "category": { "enum": ["deployment", "capability", "capability_and_deployment", "offer"] },
+          "sales_status": { "enum": ["available", "pilot", "planned", "option", "not_run"] },
+          "eligible_for_pilot": { "type": "boolean" },
+          "required_gates": { "$ref": "#/$defs/stringArray" },
+          "changes_authority": { "const": false }
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform_contract", "resolve_profile_contract", "resolve_market"],
+      "properties": {
+        "platform_contract": { "$ref": "#/$defs/verifiedGate" },
+        "resolve_profile_contract": { "$ref": "#/$defs/verifiedGate" },
+        "resolve_market": { "$ref": "#/$defs/notRunGate" }
+      }
+    },
+    "non_propagation": { "type": "array", "minItems": 4, "items": { "$ref": "#/$defs/nonEmptyString" } }
+  },
+  "$defs": {
+    "nonEmptyString": { "type": "string", "minLength": 1 },
+    "stringArray": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonEmptyString" } },
+    "validator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["side_effects_allowed", "owns_store", "return_values"],
+      "properties": {
+        "side_effects_allowed": { "const": false },
+        "owns_store": { "const": false },
+        "return_values": {
+          "type": "array",
+          "prefixItems": [{ "const": "accept" }, { "const": "reject" }, { "const": "defer" }],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        }
+      }
+    },
+    "pilot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["offer_id", "price_usd", "duration_weeks", "integration_weeks", "operating_weeks", "review_weeks", "max_named_experts", "max_agreed_eligible_items", "max_converact_person_days", "customer_teams", "product_families", "agreed_flows", "phone_adapters", "crm_fsm_connectors", "product_family_id", "flow_id", "flow_version", "milestones", "b1", "service_scope"],
+      "properties": {
+        "offer_id": { "const": "resolve-assist-pilot-a-b1-v1" },
+        "price_usd": { "const": 20000 },
+        "duration_weeks": { "const": 12 },
+        "integration_weeks": { "const": 2 },
+        "operating_weeks": { "const": 8 },
+        "review_weeks": { "const": 2 },
+        "max_named_experts": { "const": 20 },
+        "max_agreed_eligible_items": { "const": 300 },
+        "max_converact_person_days": { "const": 20 },
+        "customer_teams": { "const": 1 },
+        "product_families": { "const": 1 },
+        "agreed_flows": { "const": 1 },
+        "phone_adapters": { "const": 1 },
+        "crm_fsm_connectors": { "const": 1 },
+        "product_family_id": { "const": "led-display-system-v1" },
+        "flow_id": { "const": "remote-installation-commissioning-v1" },
+        "flow_version": { "const": "1.0.0" },
+        "milestones": {
+          "type": "array",
+          "prefixItems": [{ "const": "A" }, { "const": "B1" }],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "b1": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cn_en_captions_text_translation_required", "translated_tts_injection"],
+          "properties": {
+            "cn_en_captions_text_translation_required": { "const": true },
+            "translated_tts_injection": { "const": false }
+          }
+        },
+        "service_scope": { "type": "array", "minItems": 4, "items": { "$ref": "#/$defs/nonEmptyString" } }
+      }
+    },
+    "marketValidationSignature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commercial_evidence_state", "conditional_signature_permitted", "counts_toward_market_gate", "activates_delivery", "pre_signature_requires", "activation_requires"],
+      "properties": {
+        "commercial_evidence_state": { "const": "not_run" },
+        "conditional_signature_permitted": { "const": true },
+        "counts_toward_market_gate": { "const": true },
+        "activates_delivery": { "const": false },
+        "pre_signature_requires": { "type": "array", "minItems": 5, "items": { "$ref": "#/$defs/nonEmptyString" } },
+        "activation_requires": { "type": "array", "minItems": 4, "items": { "$ref": "#/$defs/nonEmptyString" } }
+      }
+    },
+    "verifiedGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "satisfied", "evidence"],
+      "properties": {
+        "status": { "const": "verified_contract" },
+        "satisfied": { "const": true },
+        "evidence": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "notRunGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "satisfied", "evidence"],
+      "properties": {
+        "status": { "const": "not_run" },
+        "satisfied": { "const": false },
+        "evidence": { "type": "array", "maxItems": 0 }
+      }
+    }
+  }
+}

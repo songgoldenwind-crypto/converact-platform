@@ -1,0 +1,11 @@
+{
+  "contract_id": "invalid-profile-contract",
+  "version": "1.0.0",
+  "platform": {
+    "root_aggregate": "Resolution",
+    "authorities": []
+  },
+  "resolve_profile": {
+    "authority_domains": ["Engagement"]
+  }
+}

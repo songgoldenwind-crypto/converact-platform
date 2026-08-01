@@ -1,0 +1,14 @@
+{
+  "register_id": "invalid-competitive-source-register",
+  "version": "1.0.0",
+  "sources": [],
+  "claims": [
+    {
+      "claim_id": "unsupported-fact",
+      "claim_type": "public_fact",
+      "statement": "Unsupported performance superiority claim",
+      "source_ids": [],
+      "proven": true
+    }
+  ]
+}

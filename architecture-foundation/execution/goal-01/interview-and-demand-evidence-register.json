@@ -1,0 +1,70 @@
+{
+  "$schema": "./interview-and-demand-evidence-register.schema.json",
+  "register_id": "resolve-market-evidence-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-01T00:00:00Z",
+  "scope": {
+    "profile_id": "converact-resolve-v1",
+    "offer_id": "resolve-assist-pilot-a-b1-v1",
+    "product_family_id": "led-display-system-v1",
+    "flow_id": "remote-installation-commissioning-v1",
+    "flow_version": "1.0.0",
+    "icp": "Chinese LED display system exporters serving US/English first-installation and commissioning flows",
+    "same_flow_required": true
+  },
+  "synthetic_data_allowed": false,
+  "privacy_contract": {
+    "git_content": "Non-reversible organization/interviewee pseudonyms, evidence metadata, hashes and controlled-store references only.",
+    "controlled_store_required": true,
+    "prohibited_in_git": [
+      "personal names",
+      "email",
+      "phone",
+      "contract body",
+      "credentials",
+      "customer confidential values"
+    ],
+    "integrity": "SHA-256 of controlled evidence plus immutable review revision."
+  },
+  "qualification_thresholds": {
+    "qualifying_interviews": 20,
+    "signed_usd_20000_pilots": 1,
+    "additional_time_bound_paid_commitments": 2,
+    "distinct_organizations": 3
+  },
+  "interviews": [],
+  "paid_commitments": [],
+  "summary": {
+    "qualifying_interviews": 0,
+    "distinct_interview_organizations": 0,
+    "signed_usd_20000_pilots": 0,
+    "time_bound_paid_commitments": 0,
+    "distinct_paid_organizations": 0,
+    "same_flow_organizations": 0,
+    "auditable_value_pool_organizations": 0,
+    "auditable_budget_organizations": 0,
+    "auditable_data_availability_organizations": 0
+  },
+  "market_gate": {
+    "status": "not_run",
+    "candidate_satisfied": false,
+    "satisfied": false,
+    "missing": [
+      "20 qualifying Budget Owner/Champion interviews",
+      "1 signed USD 20,000 Pilot contract",
+      "2 additional time-bound written paid commitments for the same flow",
+      "auditable value pool, budget and data-availability evidence"
+    ],
+    "permitted_next_actions": [
+      "recruit ICP Budget Owners and Champions",
+      "store evidence in approved controlled storage",
+      "update this register only from audited evidence"
+    ],
+    "forbidden_unlocks": [
+      "G11 Resolve connector implementation",
+      "G16 Resolve commercialization",
+      "Resolve market-qualified claim",
+      "second Profile development"
+    ]
+  }
+}

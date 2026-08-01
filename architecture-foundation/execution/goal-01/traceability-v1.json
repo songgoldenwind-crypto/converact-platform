@@ -1,0 +1,1007 @@
+{
+  "$schema": "./traceability-v1.schema.json",
+  "goal_id": "G01",
+  "version": "1.0.0",
+  "generated_at": "2026-08-01T00:00:00Z",
+  "entry_baseline_commit": "c10a3a2c636fa0f62f8108a113a729138e367929",
+  "binding_inputs": [
+    {
+      "path": "goals/PROGRAM-RULES.md",
+      "sha256": "97a1ab64f1deae1cb82072a6a4535e6a4bfbc4a13205c10253c58a399ce4a247"
+    },
+    {
+      "path": "goals/goal-01-product-domain-commercial-gates.md",
+      "sha256": "736225a0d4c0d8abe2d951b95bf502e81f4dfbbcefce8a8defb81e330b7c5af1"
+    },
+    {
+      "path": "goals/manifest.json",
+      "sha256": "28bd84f6e4ce1b74679cc55140a61d5b882474fedcc569e7bfc004270d4d1a55"
+    },
+    {
+      "path": "architecture-foundation/execution/goal-00/requirement-traceability-v1.json",
+      "sha256": "d5fbafcb5ee97530928e999f1dbf7e9a268293558026977f6e9b07c5e5895edf"
+    }
+  ],
+  "current_state": "contract_gates_verified_market_blocked_external",
+  "goal_outcome": "blocked_external",
+  "market_gate_status": "not_run",
+  "production_eligible": false,
+  "rows": [
+    {
+      "requirement_id": "G01:FROM_G00:PLATFORM_R2:S01",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "PLATFORM_R2:S01",
+      "requirement": "本文解决的范围错误: 旧 AI-native R1 把“面向出口设备安装与售后的技术问题解决平台”同时用作： 1. Converact 的最终平台类别；",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:PLATFORM_R2:S02",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "PLATFORM_R2:S02",
+      "requirement": "权威关系与裁决优先级: 本文决定平台范围、顶层领域模型、产品组合和跨 Profile Gate。其他文档按领域继续有效： 跨文档冲突时使用：",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:PLATFORM_R2:S03",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "PLATFORM_R2:S03",
+      "requirement": "四层产品结构: 所有 Profile 共享的长期平台： - SIP/PSTN、WebRTC、视频、屏幕、消息与未来 ViLTE 通信；",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:PLATFORM_R2:S04",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "PLATFORM_R2:S04",
+      "requirement": "通用领域模型: Tenant └── Engagement",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:PLATFORM_R2:S05",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "PLATFORM_R2:S05",
+      "requirement": "Authority 分配: Native 模式下 Converact 可以成为相应业务对象的正式 Authority。Overlay 模式下 Converact 只拥有自己的 Engagement execution、Evidence、Action Ledger 和 OutcomeClaim，不把外部 Case、Opportunity、",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:PLATFORM_R2:S06",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "PLATFORM_R2:S06",
+      "requirement": "平台产品组合: 以下是同一平台上的不同 Profile/Offer 方向，不是当前同时承诺的 SKU： 新增 Profile 必须有自己的文档、术语映射、市场证据、机器合同、威胁模型、测试和 Stop Gate。",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:PLATFORM_R2:S10",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "PLATFORM_R2:S10",
+      "requirement": "商业 Gate 分层: 冻结 Horizontal Platform 的术语、Authority、接口、故障域、状态和 Evidence 纪律。该 Gate 不需要先证明某一个行业付费，但不能据此声称产品市场匹配。",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:PLATFORM_R2:S12",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "PLATFORM_R2:S12",
+      "requirement": "对 18 个 Goal 的修正: 现有 18 个 Goal 继续使用，但其语义调整为： 这 18 个 Goal 覆盖 Horizontal Foundation、首个 Resolve Profile 和一个条件式电信 Option，",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:PLATFORM_R2:S14",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "PLATFORM_R2:S14",
+      "requirement": "被拒绝的方案: 拒绝。销售、咨询、运营、Agent service 和 OEM 会被迫伪装成技术问题，指标、状态机和结果 语义持续泄漏，最终产生大量例外。",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:PLATFORM_R2:S15",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "PLATFORM_R2:S15",
+      "requirement": "Definition of Done: 本次 R2 文档修订完成要求： - R2 成为平台/产品范围权威；",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:RESOLVE_R1:W0",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "RESOLVE_R1:W0",
+      "requirement": "Product & Domain: Persona、JTBD、Resolution、Outcome、术语和用户旅程",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/authority-and-user-journey.md",
+        "architecture-foundation/execution/goal-01/pilot-scope-and-acceptance-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:RESOLVE_R1:W10",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "RESOLVE_R1:W10",
+      "requirement": "Commercialization: Pilot、包装、价格、ROI、伙伴和交付方法",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/authority-and-user-journey.md",
+        "architecture-foundation/execution/goal-01/pilot-scope-and-acceptance-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:PROGRAM:G01",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "PROGRAM:G01",
+      "requirement": "Execute G01 平台、Profile 领域与首发商业 Gate only after its declared entry gate and dependencies.",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:6C7C352961F654F5",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:6C7C352961F654F5",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:architecture-foundation/docs/plans/2026-07-31-platform-scope-engagement-domain-r2.md before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:4A09F42FF7ECD614",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:4A09F42FF7ECD614",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:architecture-foundation/goals/goal-01-product-domain-commercial-gates.md before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:AE2FC46FF362C466",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:AE2FC46FF362C466",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:docs/adr/ccaas-g01-unified-domain-authority.md before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:B1B8B60FEDB856E5",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:B1B8B60FEDB856E5",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:infra/docker-compose.production.yml before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:660BFE1E7D80AC47",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:660BFE1E7D80AC47",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:public/openapi/interaction-domain-v1.json before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:D1FCBD87525DA4BC",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:D1FCBD87525DA4BC",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/ivr/ivr-production-effects.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:6391A43E969FA882",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:6391A43E969FA882",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/migrations/031_ccaas_unified_domain.sql before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:542B31051E4DA264",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:542B31051E4DA264",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/platform/interaction-domain/events.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:0FF6CCFE250D7C5C",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:0FF6CCFE250D7C5C",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/platform/interaction-domain/index.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:87BC2296814D9185",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:87BC2296814D9185",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/platform/interaction-domain/legacy-mapper.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:71FEBEB7FD027517",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:71FEBEB7FD027517",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/platform/interaction-domain/lifecycle.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:8E1AB7E55E2DE531",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:8E1AB7E55E2DE531",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/platform/interaction-domain/mapping-audit.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:F2EED5924EDBCDAC",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:F2EED5924EDBCDAC",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/platform/interaction-domain/postgres-repository.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:8BA4E207EBFE2F46",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:8BA4E207EBFE2F46",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/platform/interaction-domain/repository.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:4EAC8E9F9C3BE2EC",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:4EAC8E9F9C3BE2EC",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/platform/interaction-domain/types.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:2805832BCA6470FA",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:2805832BCA6470FA",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:test/g01-unified-domain.test.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:9580C8895A81EDB7",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:9580C8895A81EDB7",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:test/ivr-production-barge-in.test.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:CD92D50976D09A96",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:CD92D50976D09A96",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:test/ivr-production-knowledge.test.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:FROM_G00:LEGACY_CHANGE:726646FC892D51FA",
+      "source_id": "G00_TRACE",
+      "source_requirement_id": "LEGACY_CHANGE:726646FC892D51FA",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:test/ivr-transfer-production-bridge.test.ts before any migration.",
+      "gate": "preservation_boundary",
+      "disposition": "preserve_read_only_no_migration",
+      "evidence_status": "preserved_read_only",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-00/workspace-inventory-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:OUTCOME:01",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-1",
+      "requirement": "Freeze Platform/Profile/Offer/Deployment Option four-layer contract.",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md",
+        "architecture-foundation/execution/goal-01/engagement-profile-contract-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:OUTCOME:02",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-2",
+      "requirement": "Freeze Engagement upper model and Resolution strict specialization.",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/ubiquitous-language-v1.json",
+        "architecture-foundation/execution/goal-01/product-domain-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:OUTCOME:03",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-3",
+      "requirement": "Freeze Native/Overlay Authority, Profile extension, degradation and AI/human boundaries.",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/engagement-profile-contract-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:OUTCOME:04",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-4",
+      "requirement": "Freeze one Resolve ICP, buyers, users, JTBD, product family, language pair and main flow.",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/authority-and-user-journey.md",
+        "architecture-foundation/execution/goal-01/engagement-profile-contract-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:OUTCOME:05",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-5",
+      "requirement": "Freeze fixed 12-week USD 20k Pilot A+B1 scope and limits.",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/pilot-scope-and-acceptance-contract.md",
+        "architecture-foundation/execution/goal-01/engagement-profile-contract-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:OUTCOME:06",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-6",
+      "requirement": "Freeze objective Pilot metrics, baseline, eligibility, sampling, attribution, dispute and verification.",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/pilot-scope-and-acceptance-contract.md",
+        "architecture-foundation/execution/goal-01/roi-unit-economics-model.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:OUTCOME:07",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-7",
+      "requirement": "Freeze sales vocabulary, no-bid/partner, change order and unavailable scope.",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md",
+        "architecture-foundation/execution/goal-01/commercial-stop-gates.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:OUTCOME:08",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-8",
+      "requirement": "Establish real-market evidence protocol without fabricating evidence.",
+      "gate": "resolve_market_protocol",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/market-evidence-protocol.md",
+        "architecture-foundation/execution/goal-01/interview-and-demand-evidence-register.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:OUTCOME:09",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-9",
+      "requirement": "Establish ROI and unit-economics model including real costs and reversals.",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/roi-unit-economics-model.md",
+        "architecture-foundation/execution/goal-01/evaluate-roi.mjs"
+      ]
+    },
+    {
+      "requirement_id": "G01:OUTCOME:10",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-10",
+      "requirement": "Freeze Profile-scoped stop gates without invalidating the Horizontal Platform.",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/commercial-stop-gates.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:OUTCOME:11",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-11",
+      "requirement": "Freeze two-layer competition and Build/Absorb/Buy/Partner baseline.",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/platform-market-and-competitive-map.md",
+        "architecture-foundation/execution/goal-01/competitive-and-build-buy-partner-review.md",
+        "architecture-foundation/execution/goal-01/competitive-source-register-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:WORK_ORDER:01",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "work-order-1",
+      "requirement": "Extract from G00 trace, Platform R2 and Resolve R1 without adding a parallel Offer.",
+      "gate": "program",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/traceability-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:WORK_ORDER:02",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "work-order-2",
+      "requirement": "Freeze Platform/Profile/Offer/Option, language and Authority first.",
+      "gate": "program",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/platform-profile-offer-option-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:WORK_ORDER:03",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "work-order-3",
+      "requirement": "Freeze Resolve Pilot and Evidence schema without leaking after-sales fields into horizontal core.",
+      "gate": "program",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/engagement-profile-contract-v1.json",
+        "architecture-foundation/execution/goal-01/market-evidence-protocol.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:WORK_ORDER:04",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "work-order-4",
+      "requirement": "Validate schemas and metric formula with synthetic non-market fixtures.",
+      "gate": "program",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/goal-01-contract.test.mjs",
+        "architecture-foundation/execution/goal-01/evaluate-roi.mjs",
+        "architecture-foundation/execution/goal-01/evaluate-market-gate.mjs",
+        "architecture-foundation/execution/goal-01/tdd-evidence.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:WORK_ORDER:05",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "work-order-5",
+      "requirement": "Execute real interviews/paid validation or record the exact external blocker.",
+      "gate": "resolve_market",
+      "disposition": "external_evidence_required",
+      "evidence_status": "not_run",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/interview-and-demand-evidence-register.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:WORK_ORDER:06",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "work-order-6",
+      "requirement": "Update ICP/scope/no-bid from real evidence with version and reason.",
+      "gate": "resolve_market",
+      "disposition": "external_evidence_required",
+      "evidence_status": "not_run",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/market-evidence-protocol.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:WORK_ORDER:07",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "work-order-7",
+      "requirement": "Independently review extensibility, isolation, sellability, measurability, privacy and customization risk.",
+      "gate": "program",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/independent-review.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:PLATFORM:01",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-platform-1",
+      "requirement": "Platform/Profile/Offer/Option boundary, Engagement upper model and single Authority are unambiguous.",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md",
+        "architecture-foundation/execution/goal-01/engagement-profile-contract-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:PLATFORM:02",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-platform-2",
+      "requirement": "Resolution is a Profile and cannot bypass platform state.",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/ubiquitous-language-v1.json",
+        "architecture-foundation/execution/goal-01/engagement-profile-contract-v1.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:PLATFORM:03",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-platform-3",
+      "requirement": "Communication, Speech, Agent, Action, Evidence and Options can be qualified behind stable interfaces.",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/product-domain-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:PLATFORM:04",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-platform-4",
+      "requirement": "Platform competition and Resolve win/no-bid remain separate.",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/platform-market-and-competitive-map.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:PLATFORM:05",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-platform-5",
+      "requirement": "Machine contracts, schemas, trace and links validate.",
+      "gate": "platform_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/goal-01-contract.test.mjs"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:RESOLVE:01",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-resolve-1",
+      "requirement": "One ICP/JTBD/main flow and one Pilot contract have no Authority ambiguity.",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/authority-and-user-journey.md",
+        "architecture-foundation/execution/goal-01/pilot-scope-and-acceptance-contract.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:RESOLVE:02",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-resolve-2",
+      "requirement": "Milestone A/B1, ROI, Outcome, degradation and change order are objectively testable.",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/pilot-scope-and-acceptance-contract.md",
+        "architecture-foundation/execution/goal-01/roi-unit-economics-model.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:RESOLVE:03",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-resolve-3",
+      "requirement": "Competition distinguishes fact, inference and Converact tests and yields win/no-bid/partner decisions.",
+      "gate": "resolve_profile_contract",
+      "disposition": "implemented_in_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/competitive-source-register-v1.json",
+        "architecture-foundation/execution/goal-01/competitive-and-build-buy-partner-review.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:MARKET:01",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-market-1",
+      "requirement": "At least 20 auditable target buyer/Champion interviews.",
+      "gate": "resolve_market",
+      "disposition": "external_evidence_required",
+      "evidence_status": "not_run",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/interview-and-demand-evidence-register.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:MARKET:02",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-market-2",
+      "requirement": "Three organizations validate one flow: one signed Pilot plus two time-bound paid commitments.",
+      "gate": "resolve_market",
+      "disposition": "external_evidence_required",
+      "evidence_status": "not_run",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/interview-and-demand-evidence-register.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:MARKET:03",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-market-3",
+      "requirement": "Value pool, budget and data availability exist in real evidence.",
+      "gate": "resolve_market",
+      "disposition": "external_evidence_required",
+      "evidence_status": "not_run",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/interview-and-demand-evidence-register.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:ACCEPTANCE:MARKET:04",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "acceptance-market-4",
+      "requirement": "Vendor benchmarks, demos and internal opinions do not substitute buyer evidence.",
+      "gate": "resolve_market",
+      "disposition": "external_evidence_required",
+      "evidence_status": "not_run",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/market-evidence-protocol.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:GATE:PLATFORM_CONTRACT",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "platform-contract-gate",
+      "requirement": "Platform Contract Gate.",
+      "gate": "platform_contract",
+      "disposition": "gate_evaluated",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/independent-review.md",
+        "architecture-foundation/execution/goal-01/goal-01-contract.test.mjs"
+      ]
+    },
+    {
+      "requirement_id": "G01:GATE:RESOLVE_PROFILE_CONTRACT",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "resolve-profile-contract-gate",
+      "requirement": "Resolve Profile Contract Gate.",
+      "gate": "resolve_profile_contract",
+      "disposition": "gate_evaluated",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/independent-review.md",
+        "architecture-foundation/execution/goal-01/goal-01-contract.test.mjs"
+      ]
+    },
+    {
+      "requirement_id": "G01:GATE:RESOLVE_MARKET",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "resolve-market-gate",
+      "requirement": "Resolve Market Gate.",
+      "gate": "resolve_market",
+      "disposition": "external_evidence_required",
+      "evidence_status": "not_run",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/interview-and-demand-evidence-register.json"
+      ]
+    },
+    {
+      "requirement_id": "G01:NON_GOAL:01",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "non-goal-1",
+      "requirement": "Do not build generic CCaaS, low-code Studio, multi-Agent market or full CRM/FSM in G01.",
+      "gate": "program",
+      "disposition": "excluded_by_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/2026-07-31-goal-01-product-commercial-plan.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:NON_GOAL:02",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "non-goal-2",
+      "requirement": "Do not select multiple phone providers, CRMs or launch industries.",
+      "gate": "program",
+      "disposition": "excluded_by_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/2026-07-31-goal-01-product-commercial-plan.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:NON_GOAL:03",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "non-goal-3",
+      "requirement": "Do not develop communication, AI, Connector or UI.",
+      "gate": "program",
+      "disposition": "excluded_by_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/2026-07-31-goal-01-product-commercial-plan.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:NON_GOAL:04",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "non-goal-4",
+      "requirement": "Do not promise ViLTE, Native PBX, remote control, generic Vision or autonomous high-risk actions.",
+      "gate": "program",
+      "disposition": "excluded_by_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/2026-07-31-goal-01-product-commercial-plan.md"
+      ]
+    },
+    {
+      "requirement_id": "G01:NON_GOAL:05",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "non-goal-5",
+      "requirement": "Do not use broad platform ambition to bypass Profile market validation.",
+      "gate": "program",
+      "disposition": "excluded_by_contract",
+      "evidence_status": "verified_contract",
+      "production_eligible": false,
+      "artifacts": [
+        "architecture-foundation/execution/goal-01/2026-07-31-goal-01-product-commercial-plan.md"
+      ]
+    }
+  ],
+  "closure": {
+    "row_count": 70,
+    "g00_to_g01_row_count": 32,
+    "direct_g01_row_count": 38,
+    "unresolved_count": 0,
+    "verified_contract_count": 44,
+    "preserved_read_only_count": 19,
+    "not_run_count": 7,
+    "market_evidence_rows_verified": 0
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.example/contracts/g01/traceability-v1.schema.json",
+  "title": "G01 Requirement Traceability",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "goal_id", "version", "generated_at", "entry_baseline_commit", "binding_inputs", "current_state", "goal_outcome", "market_gate_status", "production_eligible", "rows", "closure"],
+  "properties": {
+    "$schema": { "const": "./traceability-v1.schema.json" },
+    "goal_id": { "const": "G01" },
+    "version": { "const": "1.0.0" },
+    "generated_at": { "type": "string", "pattern": "^2026-08-01T" },
+    "entry_baseline_commit": { "const": "c10a3a2c636fa0f62f8108a113a729138e367929" },
+    "binding_inputs": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/artifactIdentity" }
+    },
+    "current_state": { "const": "contract_gates_verified_market_blocked_external" },
+    "goal_outcome": { "const": "blocked_external" },
+    "market_gate_status": { "const": "not_run" },
+    "production_eligible": { "const": false },
+    "rows": {
+      "type": "array",
+      "minItems": 60,
+      "items": { "$ref": "#/$defs/row" }
+    },
+    "closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["row_count", "g00_to_g01_row_count", "direct_g01_row_count", "unresolved_count", "verified_contract_count", "preserved_read_only_count", "not_run_count", "market_evidence_rows_verified"],
+      "properties": {
+        "row_count": { "type": "integer", "minimum": 60 },
+        "g00_to_g01_row_count": { "const": 32 },
+        "direct_g01_row_count": { "type": "integer", "minimum": 30 },
+        "unresolved_count": { "const": 0 },
+        "verified_contract_count": { "type": "integer", "minimum": 1 },
+        "preserved_read_only_count": { "type": "integer", "minimum": 1 },
+        "not_run_count": { "type": "integer", "minimum": 1 },
+        "market_evidence_rows_verified": { "const": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "artifactIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirement_id", "source_id", "source_requirement_id", "requirement", "gate", "disposition", "evidence_status", "production_eligible", "artifacts"],
+      "properties": {
+        "requirement_id": { "type": "string", "minLength": 4 },
+        "source_id": { "enum": ["G00_TRACE", "G01_GOAL"] },
+        "source_requirement_id": { "type": "string", "minLength": 1 },
+        "requirement": { "type": "string", "minLength": 4 },
+        "gate": { "enum": ["program", "preservation_boundary", "platform_contract", "resolve_profile_contract", "resolve_market_protocol", "resolve_market"] },
+        "disposition": { "enum": ["implemented_in_contract", "preserve_read_only_no_migration", "external_evidence_required", "gate_evaluated", "excluded_by_contract"] },
+        "evidence_status": { "enum": ["verified_contract", "not_run", "preserved_read_only"] },
+        "production_eligible": { "const": false },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^architecture-foundation/execution/goal-(?:00|01)/" }
+        }
+      }
+    }
+  }
+}

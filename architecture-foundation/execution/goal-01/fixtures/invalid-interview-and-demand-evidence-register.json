@@ -1,0 +1,16 @@
+{
+  "register_id": "invalid-market-evidence",
+  "synthetic_data_allowed": true,
+  "interviews": [
+    {
+      "full_name": "Must not enter Git",
+      "email": "forbidden@example.invalid",
+      "evidence_class": "synthetic"
+    }
+  ],
+  "paid_commitments": [],
+  "market_gate": {
+    "status": "completed",
+    "satisfied": true
+  }
+}

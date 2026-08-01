@@ -1,0 +1,19 @@
+{
+  "goal_id": "G01",
+  "version": "1.0.0",
+  "rows": [
+    {
+      "requirement_id": "G01:OUTCOME:01",
+      "source_id": "G01_GOAL",
+      "source_requirement_id": "required-outcome-1",
+      "gate": "platform_contract",
+      "evidence_status": "verified_contract",
+      "artifacts": []
+    }
+  ],
+  "closure": {
+    "row_count": 1,
+    "unresolved_count": 1,
+    "market_evidence_rows_verified": 1
+  }
+}

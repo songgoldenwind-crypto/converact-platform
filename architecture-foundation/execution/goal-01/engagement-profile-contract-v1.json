@@ -1,0 +1,469 @@
+{
+  "$schema": "./engagement-profile-contract-v1.schema.json",
+  "contract_id": "converact-platform-profile-offer-option-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-01T00:00:00Z",
+  "binding_goal": {
+    "path": "goals/goal-01-product-domain-commercial-gates.md",
+    "sha256": "736225a0d4c0d8abe2d951b95bf502e81f4dfbbcefce8a8defb81e330b7c5af1"
+  },
+  "current_state": {
+    "document_contract": "verified_contract",
+    "runtime_implementation": "not_run",
+    "market_qualification": "not_run",
+    "production_eligible": false,
+    "goal_outcome": "blocked_external"
+  },
+  "platform": {
+    "root_aggregate": "Engagement",
+    "layer_contracts": [
+      {
+        "layer": "horizontal_platform",
+        "owns": [
+          "upper domain model",
+          "single authorities",
+          "stable interfaces",
+          "evidence discipline"
+        ],
+        "cannot_own": [
+          "vertical ICP",
+          "vertical price"
+        ],
+        "gate": "platform_contract"
+      },
+      {
+        "layer": "engagement_profile",
+        "owns": [
+          "namespaced schema",
+          "policy",
+          "metrics",
+          "UI projection",
+          "profile stop gate"
+        ],
+        "cannot_own": [
+          "second platform state",
+          "second authority"
+        ],
+        "gate": "profile_contract_and_market"
+      },
+      {
+        "layer": "product_offer",
+        "owns": [
+          "purchasable scope",
+          "price",
+          "acceptance",
+          "responsibility",
+          "change order"
+        ],
+        "cannot_own": [
+          "unqualified roadmap capability"
+        ],
+        "gate": "offer_gate"
+      },
+      {
+        "layer": "deployment_option",
+        "owns": [
+          "qualified delivery and capability selection"
+        ],
+        "cannot_own": [
+          "implicit authority change"
+        ],
+        "gate": "option_and_capability_gate"
+      }
+    ],
+    "authorities": [
+      {
+        "domain": "sip_edge",
+        "writer": "Kamailio",
+        "writer_count": 1,
+        "executors": [
+          "Unified RustPBX"
+        ],
+        "external_overlay_authority": false
+      },
+      {
+        "domain": "native_call_leg_dialog_cdr_recording_intent_media_plan",
+        "writer": "Unified RustPBX",
+        "writer_count": 1,
+        "executors": [
+          "RTPengine",
+          "voice-media-rs",
+          "rvoip low-level adapters"
+        ],
+        "external_overlay_authority": false
+      },
+      {
+        "domain": "ordinary_rtp_rtcp_srtp",
+        "writer": "RTPengine",
+        "writer_count": 1,
+        "executors": [
+          "Unified RustPBX control adapter"
+        ],
+        "external_overlay_authority": false
+      },
+      {
+        "domain": "decoded_media_mix_capture_ai_tap",
+        "writer": "voice-media-rs",
+        "writer_count": 1,
+        "executors": [
+          "codec and DSP backends",
+          "fenced recording capture worker"
+        ],
+        "external_overlay_authority": false
+      },
+      {
+        "domain": "recording_manifest_evidence",
+        "writer": "Converact Region Recording Plane",
+        "writer_count": 1,
+        "executors": [
+          "voice-media-rs capture worker",
+          "LiveKit Egress adapter",
+          "object storage adapter",
+          "Converact Engage evidence linker"
+        ],
+        "external_overlay_authority": false
+      },
+      {
+        "domain": "webrtc_room_participant_publication_sfu",
+        "writer": "LiveKit",
+        "writer_count": 1,
+        "executors": [
+          "Fabric Coordination"
+        ],
+        "external_overlay_authority": false
+      },
+      {
+        "domain": "engagement_evidence_outcome",
+        "writer": "Converact Engage",
+        "writer_count": 1,
+        "executors": [
+          "Engagement Profile validators"
+        ],
+        "external_overlay_authority": false
+      },
+      {
+        "domain": "interaction_communication_session_bridge_generation",
+        "writer": "Converact Fabric Coordination",
+        "writer_count": 1,
+        "executors": [
+          "communication authorities"
+        ],
+        "external_overlay_authority": false
+      },
+      {
+        "domain": "agent_run_task_context_handoff_evaluation",
+        "writer": "Converact Agent Runtime",
+        "writer_count": 1,
+        "executors": [
+          "bounded agent framework adapters"
+        ],
+        "external_overlay_authority": false
+      },
+      {
+        "domain": "action_intent_attempt_receipt_verification",
+        "writer": "Converact Engage Action Authority",
+        "writer_count": 1,
+        "executors": [
+          "provider and connector executors"
+        ],
+        "external_overlay_authority": false
+      },
+      {
+        "domain": "external_case_opportunity_workorder_sla",
+        "writer": "Customer CRM/FSM",
+        "writer_count": 1,
+        "executors": [
+          "Converact Overlay connector"
+        ],
+        "external_overlay_authority": true
+      }
+    ],
+    "stable_ids": [
+      "TenantId",
+      "EngagementId",
+      "EngagementItemId",
+      "ProfileBindingId",
+      "InteractionId",
+      "CommunicationSessionId",
+      "TaskId",
+      "EvidenceId",
+      "ActionIntentId",
+      "OutcomeClaimId"
+    ],
+    "stable_invariants": [
+      "one writer per authority domain and generation",
+      "Profile validators are pure and side-effect free",
+      "Call and Room are references, not Engagement aliases",
+      "network effects use idempotency plus query/reconcile",
+      "AI, recording and connector failure must not terminate established Human Communication"
+    ]
+  },
+  "profile_extension": {
+    "allowed": [
+      "namespaced schema",
+      "validation policy",
+      "metrics",
+      "UI projection",
+      "connector requirements",
+      "capability requirements",
+      "profile-scoped stop gates"
+    ],
+    "forbidden": [
+      "second authority",
+      "second platform store",
+      "platform state bypass",
+      "side effects in validator",
+      "vertical fields in horizontal core",
+      "market result propagation to platform"
+    ],
+    "validator_contract": {
+      "side_effects_allowed": false,
+      "owns_store": false,
+      "return_values": [
+        "accept",
+        "reject",
+        "defer"
+      ]
+    }
+  },
+  "resolve_profile": {
+    "profile_id": "converact-resolve-v1",
+    "version": "1.0.0",
+    "profile_type": "resolution",
+    "base_aggregate": "Engagement",
+    "item_base_aggregate": "EngagementItem",
+    "authority_domains": [],
+    "schema_namespace": "profiles.resolve.v1",
+    "icp": "Chinese LED display system exporters serving US/English markets with measurable first-installation and commissioning failure cost.",
+    "budget_owner": "Service or after-sales executive who owns avoidable dispatch, downtime, rework and expert-wait economics.",
+    "champion": "Service operations or digital transformation leader able to align telephony, CRM/FSM and support engineers.",
+    "jtbd": "Resolve a US onsite LED display first-installation or commissioning failure through existing phone to no-app video to CN/EN collaboration to Evidence to human-verified acceptance while existing PBX and CRM/FSM retain Authority.",
+    "product_family_id": "led-display-system-v1",
+    "flow_id": "remote-installation-commissioning-v1",
+    "flow_version": "1.0.0",
+    "product_scope": {
+      "customer_teams": 1,
+      "product_families": 1,
+      "agreed_flows": 1
+    },
+    "language_pair": [
+      "zh-CN",
+      "en-US"
+    ],
+    "validator": {
+      "side_effects_allowed": false,
+      "owns_store": false,
+      "return_values": [
+        "accept",
+        "reject",
+        "defer"
+      ]
+    }
+  },
+  "resolve_offer": {
+    "offer_id": "resolve-assist-pilot-a-b1-v1",
+    "profile_contract": "converact-resolve-v1@1.0.0",
+    "sales_status": "not_run",
+    "payment_percentages": [
+      50,
+      25,
+      25
+    ],
+    "market_validation_signature": {
+      "commercial_evidence_state": "not_run",
+      "conditional_signature_permitted": true,
+      "counts_toward_market_gate": true,
+      "activates_delivery": false,
+      "pre_signature_requires": [
+        "platform contract gate",
+        "resolve profile contract gate",
+        "ICP/flow/value/budget/data qualification",
+        "fixed A+B1 order form",
+        "procurement path and expiry"
+      ],
+      "activation_requires": [
+        "resolve_market_gate",
+        "applicable capability gates",
+        "security and DPA approval",
+        "runtime production eligibility for contracted scope"
+      ]
+    },
+    "pilot": {
+      "offer_id": "resolve-assist-pilot-a-b1-v1",
+      "price_usd": 20000,
+      "duration_weeks": 12,
+      "integration_weeks": 2,
+      "operating_weeks": 8,
+      "review_weeks": 2,
+      "max_named_experts": 20,
+      "max_agreed_eligible_items": 300,
+      "max_converact_person_days": 20,
+      "customer_teams": 1,
+      "product_families": 1,
+      "agreed_flows": 1,
+      "phone_adapters": 1,
+      "crm_fsm_connectors": 1,
+      "product_family_id": "led-display-system-v1",
+      "flow_id": "remote-installation-commissioning-v1",
+      "flow_version": "1.0.0",
+      "milestones": [
+        "A",
+        "B1"
+      ],
+      "b1": {
+        "cn_en_captions_text_translation_required": true,
+        "translated_tts_injection": false
+      },
+      "service_scope": [
+        "two-week integration",
+        "eight-week operation",
+        "two-week review",
+        "weekly evidence review"
+      ]
+    },
+    "out_of_scope": [
+      "second team/product/flow/provider/connector",
+      "ViLTE",
+      "Native PBX",
+      "translated TTS injection",
+      "remote control",
+      "autonomous high-risk action",
+      "B2/B3"
+    ]
+  },
+  "option_register": [
+    {
+      "option_id": "overlay-existing-pbx-crm-fsm",
+      "category": "deployment",
+      "sales_status": "not_run",
+      "eligible_for_pilot": true,
+      "required_gates": [
+        "G01 contract",
+        "G11 selected real connectors"
+      ],
+      "changes_authority": false
+    },
+    {
+      "option_id": "native-converact-pbx",
+      "category": "deployment",
+      "sales_status": "option",
+      "eligible_for_pilot": false,
+      "required_gates": [
+        "G02",
+        "G03",
+        "G04",
+        "G05",
+        "G06",
+        "G08"
+      ],
+      "changes_authority": false
+    },
+    {
+      "option_id": "dedicated-on-prem",
+      "category": "deployment",
+      "sales_status": "option",
+      "eligible_for_pilot": false,
+      "required_gates": [
+        "security",
+        "operations",
+        "capacity",
+        "unit economics"
+      ],
+      "changes_authority": false
+    },
+    {
+      "option_id": "oem-white-label",
+      "category": "deployment",
+      "sales_status": "option",
+      "eligible_for_pilot": false,
+      "required_gates": [
+        "brand",
+        "support",
+        "supply chain",
+        "commercial"
+      ],
+      "changes_authority": false
+    },
+    {
+      "option_id": "vilte-operator-av",
+      "category": "capability_and_deployment",
+      "sales_status": "option",
+      "eligible_for_pilot": false,
+      "required_gates": [
+        "G17 and independent carrier/IMS evidence"
+      ],
+      "changes_authority": false
+    },
+    {
+      "option_id": "resolve-b1-text-translation",
+      "category": "capability",
+      "sales_status": "planned",
+      "eligible_for_pilot": true,
+      "required_gates": [
+        "G12 speech and translation qualification"
+      ],
+      "changes_authority": false
+    },
+    {
+      "option_id": "translated-tts-injection",
+      "category": "capability",
+      "sales_status": "not_run",
+      "eligible_for_pilot": false,
+      "required_gates": [
+        "separate safety, experience, latency and market gate"
+      ],
+      "changes_authority": false
+    },
+    {
+      "option_id": "remote-desktop-control",
+      "category": "capability",
+      "sales_status": "option",
+      "eligible_for_pilot": false,
+      "required_gates": [
+        "authorization, audit, security, support and market"
+      ],
+      "changes_authority": false
+    },
+    {
+      "option_id": "resolve-b2-b3-autonomous-assist",
+      "category": "offer",
+      "sales_status": "not_run",
+      "eligible_for_pilot": false,
+      "required_gates": [
+        "independent customer conversion, action safety and evaluation"
+      ],
+      "changes_authority": false
+    }
+  ],
+  "gates": {
+    "platform_contract": {
+      "status": "verified_contract",
+      "satisfied": true,
+      "evidence": [
+        "G01 machine contracts",
+        "G01 focused tests",
+        "G01 rule-based independent review"
+      ]
+    },
+    "resolve_profile_contract": {
+      "status": "verified_contract",
+      "satisfied": true,
+      "evidence": [
+        "fixed ICP/JTBD",
+        "Pilot A+B1 contract",
+        "ROI and stop-gate contracts"
+      ]
+    },
+    "resolve_market": {
+      "status": "not_run",
+      "satisfied": false,
+      "evidence": []
+    }
+  },
+  "non_propagation": [
+    "Platform contract completion is not Resolve market qualification.",
+    "Resolve contract completion is not production eligibility.",
+    "A Profile stop decision does not invalidate the Horizontal Platform.",
+    "An Option failure does not change platform Authority."
+  ]
+}
