@@ -179,6 +179,8 @@ test('G00 to G02 traceability preserves every source row exactly once without ev
 
 test('evidence registry never promotes historical or unexecuted acceptance', () => {
   const evidence = readJson(join(goalDirectory, documents.evidence[1]));
+  const controlledDatabaseEvidence =
+    'architecture-foundation/execution/goal-02/evidence/database-restart-db-4fc7b59-01.md';
   const verifiedLocal = new Set([
     'G02-E01-IDENTITY',
     'G02-E02-CONSENT',
@@ -197,12 +199,29 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
         'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md',
       ]);
       assert.match(entry.non_claim, /does not prove controlled or production behavior/i);
+    } else if (entry.evidence_id === 'G02-E09A-DATABASE-RESTART') {
+      assert.equal(entry.status, 'verified_controlled');
+      assert.deepEqual(entry.evidence_uris, [controlledDatabaseEvidence]);
+      assert.match(entry.non_claim, /synthetic.*not.*real human media/is);
     } else if (entry.evidence_class !== 'document_contract') {
       assert.equal(entry.status, 'not_run');
     }
   }
+  assert.equal(
+    evidence.entries.find((entry) => entry.evidence_id === 'G02-E09-DEPENDENCY')?.status,
+    'not_run',
+  );
   assert.equal(evidence.summary.production_eligible_entries, 0);
   assert.equal(evidence.summary.verified_local_entries, verifiedLocal.size);
+  assert.equal(evidence.summary.verified_controlled_entries, 1);
+  const controlledDatabaseRecord = readFileSync(
+    join(repositoryRoot, controlledDatabaseEvidence),
+    'utf8',
+  );
+  assert.match(controlledDatabaseRecord, /4fc7b59b57958a2db0077a91c96bd68ac233f255/);
+  assert.match(controlledDatabaseRecord, /5820c5b917fb21a5e89011475944631cdea2727f7f6a7bcb31012a9c0f278210/);
+  assert.match(controlledDatabaseRecord, /production_eligible.*false/is);
+  assert.match(controlledDatabaseRecord, /real_human_media.*false/is);
   assert.ok(evidence.entries.some((entry) => entry.evidence_class === 'real_dependency'));
   assert.ok(evidence.entries.some((entry) => entry.evidence_class === 'long_media_fault'));
   assert.ok(evidence.entries.some((entry) => entry.evidence_class === 'region_recovery'));

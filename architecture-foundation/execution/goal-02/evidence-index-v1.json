@@ -153,6 +153,22 @@
       "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
     },
     {
+      "evidence_id": "G02-E09A-DATABASE-RESTART",
+      "evidence_class": "controlled_dependency_fault",
+      "scope": "postgres_restart_runtime_rls_reconcile_synthetic_transport",
+      "status": "verified_controlled",
+      "production_eligible": false,
+      "required_evidence": [
+        "raw database restart output",
+        "source and runtime identity",
+        "post-run integrity verification"
+      ],
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/database-restart-db-4fc7b59-01.md"
+      ],
+      "non_claim": "One isolated PostgreSQL restart was verified with synthetic transport; synthetic transport is not real human media and this does not prove the remaining dependency matrix, production behavior, long media, capacity, restore, drain, region recovery, PKI/KMS, or DR."
+    },
+    {
       "evidence_id": "G02-E10-RESTORE",
       "evidence_class": "backup_restore",
       "scope": "backup_restore_rehearsal",
@@ -240,9 +256,10 @@
     }
   ],
   "summary": {
-    "entries": 17,
+    "entries": 18,
     "target_contract_entries": 1,
     "verified_local_entries": 8,
+    "verified_controlled_entries": 1,
     "not_run_entries": 8,
     "production_eligible_entries": 0
   }

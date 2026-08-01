@@ -145,6 +145,7 @@
         "entries",
         "target_contract_entries",
         "verified_local_entries",
+        "verified_controlled_entries",
         "not_run_entries",
         "production_eligible_entries"
       ],
@@ -158,6 +159,10 @@
           "minimum": 0
         },
         "verified_local_entries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verified_controlled_entries": {
           "type": "integer",
           "minimum": 0
         },

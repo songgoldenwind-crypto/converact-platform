@@ -569,6 +569,8 @@ function traceabilityContract() {
 function evidenceIndex() {
   const localEvidenceUri =
     'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md';
+  const controlledDatabaseEvidenceUri =
+    'architecture-foundation/execution/goal-02/evidence/database-restart-db-4fc7b59-01.md';
   const entry = (
     id,
     evidenceClass,
@@ -588,10 +590,14 @@ function evidenceIndex() {
       ? 'Document contract only; it does not prove runtime or production behavior.'
       : status === 'verified_local'
         ? 'Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR.'
-        : 'No current-commit raw evidence has been accepted; remains not_run.',
+        : status === 'verified_controlled'
+          ? 'One isolated PostgreSQL restart was verified with synthetic transport; synthetic transport is not real human media and this does not prove the remaining dependency matrix, production behavior, long media, capacity, restore, drain, region recovery, PKI/KMS, or DR.'
+          : 'No current-commit raw evidence has been accepted; remains not_run.',
   });
   const local = (id, evidenceClass, scope, requiredEvidence) =>
     entry(id, evidenceClass, scope, requiredEvidence, 'verified_local', [localEvidenceUri]);
+  const controlledDatabase = (id, evidenceClass, scope, requiredEvidence) =>
+    entry(id, evidenceClass, scope, requiredEvidence, 'verified_controlled', [controlledDatabaseEvidenceUri]);
   const entries = [
     entry('G02-E00-DESIGN', 'document_contract', 'design_authority_threat_recovery', ['contract test'], 'target_contract'),
     local('G02-E01-IDENTITY', 'local_test', 'tenant_identity_cross_tenant', ['focused tests', 'RLS integration']),
@@ -603,6 +609,12 @@ function evidenceIndex() {
     local('G02-E07-OBSERVABILITY', 'local_test', 'correlation_redaction_cardinality', ['focused tests']),
     local('G02-E08-CLOCK', 'local_test', 'wall_monotonic_skew_jump', ['deterministic fault tests']),
     entry('G02-E09-DEPENDENCY', 'real_dependency', 'postgres_event_object_pki_dns_config_ai_recording', ['raw dependency fault output']),
+    controlledDatabase(
+      'G02-E09A-DATABASE-RESTART',
+      'controlled_dependency_fault',
+      'postgres_restart_runtime_rls_reconcile_synthetic_transport',
+      ['raw database restart output', 'source and runtime identity', 'post-run integrity verification'],
+    ),
     entry('G02-E10-RESTORE', 'backup_restore', 'backup_restore_rehearsal', ['raw restore output', 'RPO/RTO']),
     entry('G02-E11-DRAIN', 'rolling_drain', 'node_loss_rolling_schema_active_zero', ['raw multi-node output']),
     entry('G02-E12-LONG-MEDIA', 'long_media_fault', 'established_human_media_fault_isolation', ['real long media and fault schedule']),
@@ -623,6 +635,7 @@ function evidenceIndex() {
       entries: entries.length,
       target_contract_entries: entries.filter((value) => value.status === 'target_contract').length,
       verified_local_entries: entries.filter((value) => value.status === 'verified_local').length,
+      verified_controlled_entries: entries.filter((value) => value.status === 'verified_controlled').length,
       not_run_entries: entries.filter((value) => value.status === 'not_run').length,
       production_eligible_entries: 0,
     },
@@ -778,7 +791,8 @@ function evidenceSchema() {
     entries: type('array', { items: evidenceEntry, minItems: 1 }),
     summary: object({
       entries: type('integer', { minimum: 1 }), target_contract_entries: type('integer', { minimum: 0 }),
-      verified_local_entries: type('integer', { minimum: 0 }), not_run_entries: type('integer', { minimum: 0 }),
+      verified_local_entries: type('integer', { minimum: 0 }), verified_controlled_entries: type('integer', { minimum: 0 }),
+      not_run_entries: type('integer', { minimum: 0 }),
       production_eligible_entries: type('integer', { const: 0 }),
     }),
   });

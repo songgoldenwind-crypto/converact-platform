@@ -42,7 +42,9 @@ fixtures write explicit granted consent. Focused reproduction and the final full
 
 ## Explicit non-claims
 
-The following remain `not_run`: actual PostgreSQL RLS enforcement, process crash boundaries, event/object-store
-faults, real PKI/KMS rotation, DNS/config/AI/GPU/provider faults, backup/restore, rolling drain, long real media,
-capacity, region recovery, native fuzz/sanitizer evidence, and production eligibility. Static SQL tests do not prove
-database runtime behavior; the full local suite does not prove controlled or production behavior.
+At this local-verification checkpoint, actual PostgreSQL RLS enforcement, process crash boundaries,
+event/object-store faults, real PKI/KMS rotation, DNS/config/AI/GPU/provider faults, backup/restore, rolling drain,
+long real media, capacity, region recovery, native fuzz/sanitizer evidence and production eligibility were
+`not_run`. The later isolated database restart campaign is recorded separately in
+[database-restart-db-4fc7b59-01.md](database-restart-db-4fc7b59-01.md); it verifies only that controlled PostgreSQL
+scenario. Every other listed campaign remains `not_run`, and neither record proves production behavior.

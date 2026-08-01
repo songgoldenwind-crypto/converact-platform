@@ -416,6 +416,16 @@ Persistence split:
 This task is authorized only in a reproducible isolated validation environment and never on the frozen production
 release. The validation host does not itself make a test reproducible; exact source/image/config/runbook are required.
 
+Controlled progress, without promoting the aggregate task:
+
+- [x] Build and test the fenced matrix catalog and an exact-source PostgreSQL restart slice.
+- [x] Run the PostgreSQL slice with real migrations/RLS, actual stop/start, fresh-process reconciliation, synthetic
+  transport continuity and project-scoped cleanup; record it as `verified_controlled` only.
+- [x] Verify every retained raw hash, byte-identical unrelated-container snapshots, zero campaign resources and
+  secret-shaped evidence rejection.
+- [x] Keep the aggregate dependency matrix, real Human Communication, capacity, restore, drain, region and production
+  claims `not_run`.
+
 - [ ] Build a fenced fault harness for Postgres, event system, object store, PKI/KMS, DNS, config, wall clock,
   AI/GPU, recording upload, provider, observability and node crash.
 - [ ] Prove single-node crash/restart, stale owner, duplicate/reorder, N/N-1 rolling and key rotation.
@@ -425,7 +435,7 @@ release. The validation host does not itself make a test reproducible; exact sou
   dependencies; separately report embedded process-owned edge interruption.
 - [ ] Run bounded queue/retry/fanout overload and capacity on fixed hardware/config/workload.
 - [ ] Record commit/source/binary/image/config/model/hardware/clocks/workload/seed/time/raw output in evidence index.
-- [ ] If any prerequisite or campaign is absent, keep that entry `not_run`; never borrow historical evidence.
+- [x] If any prerequisite or campaign is absent, keep that entry `not_run`; never borrow historical evidence.
 
 ## 15. Task T13 — Independent review and closeout
 
