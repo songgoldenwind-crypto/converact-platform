@@ -2007,7 +2007,7 @@ test('Postgres late connect rejection restores exactly one admission permit', as
   const pool = new TestConnectPool(() => deferred.connect());
   const store = singlePermitStore(pool, 200);
 
-  await expectSipEffectRejection(store.query(identity()), 'store_pool_exhausted');
+  await expectSipEffectRejection(store.query(identity()), 'store_pool_exhausted', 300);
   const second = store.query(identity());
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(pool.connectCount, 1);
