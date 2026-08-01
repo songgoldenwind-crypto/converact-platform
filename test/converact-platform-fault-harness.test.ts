@@ -472,10 +472,14 @@ test('drain evidence requires distinct live processes, active-zero and stale-own
 test('capacity evidence requires observed hard bounds for active pending retry and fanout', () => {
   const result = buildBoundedCapacityEvidence({
     identity,
+    status: 'passed',
     operations: 200_000,
     duration_ms: 2_000,
     accepted: 120_000,
     overloaded: 80_000,
+    rejected_overloaded: 60_000,
+    rejected_retry_exhausted: 10_000,
+    rejected_fanout_exceeded: 10_000,
     configured_active_limit: 64,
     configured_pending_limit: 256,
     configured_retry_limit: 3,
@@ -484,6 +488,12 @@ test('capacity evidence requires observed hard bounds for active pending retry a
     observed_max_pending: 256,
     observed_max_retry: 3,
     observed_max_fanout: 8,
+    attempted_max_retry: 4,
+    attempted_max_fanout: 9,
+    configured_retained_lease_limit: 320,
+    observed_max_retained_leases: 320,
+    queued_requests_at_completion: 0,
+    policy_rejections_preserved_admission_counters: true,
     p99_operation_us: 80,
     event_loop_delay_p99_ms: 12,
     rss_start_bytes: 80_000_000,
@@ -497,10 +507,14 @@ test('capacity evidence requires observed hard bounds for active pending retry a
 
   assert.equal(buildBoundedCapacityEvidence({
     identity,
+    status: 'passed',
     operations: 200_000,
     duration_ms: 2_000,
     accepted: 120_000,
     overloaded: 80_000,
+    rejected_overloaded: 60_000,
+    rejected_retry_exhausted: 10_000,
+    rejected_fanout_exceeded: 10_000,
     configured_active_limit: 64,
     configured_pending_limit: 256,
     configured_retry_limit: 3,
@@ -509,6 +523,45 @@ test('capacity evidence requires observed hard bounds for active pending retry a
     observed_max_pending: 256,
     observed_max_retry: 3,
     observed_max_fanout: 8,
+    attempted_max_retry: 4,
+    attempted_max_fanout: 9,
+    configured_retained_lease_limit: 320,
+    observed_max_retained_leases: 320,
+    queued_requests_at_completion: 0,
+    policy_rejections_preserved_admission_counters: true,
+    p99_operation_us: 80,
+    event_loop_delay_p99_ms: 12,
+    rss_start_bytes: 80_000_000,
+    rss_peak_bytes: 96_000_000,
+    rss_end_bytes: 88_000_000,
+    counter_integrity: true,
+    no_unbounded_queue: true
+  }).status, 'failed');
+
+  assert.equal(buildBoundedCapacityEvidence({
+    identity,
+    status: 'failed',
+    operations: 200_000,
+    duration_ms: 2_000,
+    accepted: 120_000,
+    overloaded: 80_000,
+    rejected_overloaded: 60_000,
+    rejected_retry_exhausted: 10_000,
+    rejected_fanout_exceeded: 10_000,
+    configured_active_limit: 64,
+    configured_pending_limit: 256,
+    configured_retry_limit: 3,
+    configured_fanout_limit: 8,
+    observed_max_active: 64,
+    observed_max_pending: 256,
+    observed_max_retry: 3,
+    observed_max_fanout: 8,
+    attempted_max_retry: 4,
+    attempted_max_fanout: 9,
+    configured_retained_lease_limit: 320,
+    observed_max_retained_leases: 320,
+    queued_requests_at_completion: 0,
+    policy_rejections_preserved_admission_counters: true,
     p99_operation_us: 80,
     event_loop_delay_p99_ms: 12,
     rss_start_bytes: 80_000_000,
@@ -529,6 +582,21 @@ test('capacity probe executes overload against the production bounded work gate'
   assert.equal(result.observed_max_pending, result.configured_pending_limit);
   assert.equal(result.observed_max_retry, result.configured_retry_limit);
   assert.equal(result.observed_max_fanout, result.configured_fanout_limit);
+  assert.equal(result.attempted_max_retry, result.configured_retry_limit + 1);
+  assert.equal(result.attempted_max_fanout, result.configured_fanout_limit + 1);
+  assert.ok(result.rejected_overloaded > 0);
+  assert.ok(result.rejected_retry_exhausted > 0);
+  assert.ok(result.rejected_fanout_exceeded > 0);
+  assert.equal(result.configured_retained_lease_limit, 320);
+  assert.equal(result.observed_max_retained_leases, result.configured_retained_lease_limit);
+  assert.equal(result.queued_requests_at_completion, 0);
+  assert.equal(result.policy_rejections_preserved_admission_counters, true);
+  assert.equal(
+    result.overloaded,
+    result.rejected_overloaded
+      + result.rejected_retry_exhausted
+      + result.rejected_fanout_exceeded
+  );
   assert.equal(result.counter_integrity, true);
   assert.equal(result.no_unbounded_queue, true);
   assert.ok(result.p99_operation_us > 0);

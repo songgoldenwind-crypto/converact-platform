@@ -22,6 +22,9 @@ export interface BoundedCapacityResult {
   duration_ms: number;
   accepted: number;
   overloaded: number;
+  rejected_overloaded: number;
+  rejected_retry_exhausted: number;
+  rejected_fanout_exceeded: number;
   configured_active_limit: number;
   configured_pending_limit: number;
   configured_retry_limit: number;
@@ -30,13 +33,19 @@ export interface BoundedCapacityResult {
   observed_max_pending: number;
   observed_max_retry: number;
   observed_max_fanout: number;
+  attempted_max_retry: number;
+  attempted_max_fanout: number;
+  configured_retained_lease_limit: number;
+  observed_max_retained_leases: number;
+  queued_requests_at_completion: number;
+  policy_rejections_preserved_admission_counters: boolean;
   p99_operation_us: number;
   event_loop_delay_p99_ms: number;
   rss_start_bytes: number;
   rss_peak_bytes: number;
   rss_end_bytes: number;
   counter_integrity: true;
-  no_unbounded_queue: true;
+  no_unbounded_queue: boolean;
 }
 
 export async function runBoundedCapacityWorkload(input: {
@@ -53,10 +62,17 @@ export async function runBoundedCapacityWorkload(input: {
   const pendingLeases: AdmissionLease[] = [];
   let accepted = 0;
   let overloaded = 0;
+  let rejectedOverloaded = 0;
+  let rejectedRetryExhausted = 0;
+  let rejectedFanoutExceeded = 0;
   let observedMaxActive = 0;
   let observedMaxPending = 0;
   let observedMaxRetry = 0;
   let observedMaxFanout = 0;
+  let attemptedMaxRetry = 0;
+  let attemptedMaxFanout = 0;
+  let immediateDecisions = 0;
+  let observedMaxRetainedLeases = 0;
   const rssStart = process.memoryUsage().rss;
   let rssPeak = rssStart;
   eventLoop.enable();
@@ -69,18 +85,30 @@ export async function runBoundedCapacityWorkload(input: {
     const sampled = (accepted + overloaded) % SAMPLE_INTERVAL === 0;
     const sampleStarted = sampled ? performance.now() : 0;
     const result = gate.tryAcquire({ kind, retry, fanout });
+    immediateDecisions += 1;
     if (sampled) samples.push(Math.max(Number.EPSILON, (performance.now() - sampleStarted) * 1_000));
-    observedMaxRetry = Math.max(observedMaxRetry, Math.min(retry, LIMITS.retry));
-    observedMaxFanout = Math.max(observedMaxFanout, Math.min(fanout, LIMITS.fanout));
-    if (!result.accepted) {
+    attemptedMaxRetry = Math.max(attemptedMaxRetry, retry);
+    attemptedMaxFanout = Math.max(attemptedMaxFanout, fanout);
+    if (result.accepted === false) {
       overloaded += 1;
+      if (result.reason === 'overloaded') rejectedOverloaded += 1;
+      else if (result.reason === 'retry_exhausted') rejectedRetryExhausted += 1;
+      else rejectedFanoutExceeded += 1;
       return;
     }
     accepted += 1;
+    observedMaxRetry = Math.max(observedMaxRetry, retry);
+    observedMaxFanout = Math.max(observedMaxFanout, fanout);
     const snapshot = gate.snapshot();
     observedMaxActive = Math.max(observedMaxActive, snapshot.active);
     observedMaxPending = Math.max(observedMaxPending, snapshot.pending);
-    if (keep) keep.push(result.lease);
+    if (keep) {
+      keep.push(result.lease);
+      observedMaxRetainedLeases = Math.max(
+        observedMaxRetainedLeases,
+        activeLeases.length + pendingLeases.length
+      );
+    }
     else gate.release(result.lease);
   };
 
@@ -98,8 +126,20 @@ export async function runBoundedCapacityWorkload(input: {
       await yieldImmediate();
     }
   }
+  const beforePolicyRejections = gate.snapshot();
+  const policyRejectsPerReason = Math.max(1, Math.floor(input.operations / 20));
+  for (let index = 0; index < policyRejectsPerReason; index += 1) {
+    acquire(index % 2 === 0 ? 'active' : 'pending', LIMITS.retry + 1, LIMITS.fanout, null);
+    acquire(index % 2 === 0 ? 'pending' : 'active', LIMITS.retry, LIMITS.fanout + 1, null);
+  }
+  const afterPolicyRejections = gate.snapshot();
+  const policyRejectionsPreservedAdmissionCounters =
+    beforePolicyRejections.active === afterPolicyRejections.active
+    && beforePolicyRejections.pending === afterPolicyRejections.pending;
   for (const lease of activeLeases) gate.release(lease);
   for (const lease of pendingLeases) gate.release(lease);
+  activeLeases.length = 0;
+  pendingLeases.length = 0;
 
   while (accepted + overloaded < input.operations) {
     const index = accepted + overloaded;
@@ -119,10 +159,21 @@ export async function runBoundedCapacityWorkload(input: {
   const p99 = samples[Math.min(samples.length - 1, Math.floor(samples.length * 0.99))] || Number.EPSILON;
   const delayP99 = eventLoop.percentile(99) / 1_000_000;
   const snapshot = gate.snapshot();
+  const retainedLeaseLimit = LIMITS.active + LIMITS.pending;
+  const queuedRequestsAtCompletion = input.operations - immediateDecisions;
+  const noUnboundedQueue = queuedRequestsAtCompletion === 0
+    && observedMaxRetainedLeases === retainedLeaseLimit
+    && snapshot.active === 0
+    && snapshot.pending === 0;
   if (accepted + overloaded !== input.operations
     || snapshot.active !== 0 || snapshot.pending !== 0
     || observedMaxActive !== LIMITS.active || observedMaxPending !== LIMITS.pending
-    || observedMaxRetry !== LIMITS.retry || observedMaxFanout !== LIMITS.fanout) {
+    || observedMaxRetry !== LIMITS.retry || observedMaxFanout !== LIMITS.fanout
+    || attemptedMaxRetry !== LIMITS.retry + 1 || attemptedMaxFanout !== LIMITS.fanout + 1
+    || rejectedOverloaded < 1 || rejectedRetryExhausted < 1 || rejectedFanoutExceeded < 1
+    || rejectedOverloaded + rejectedRetryExhausted + rejectedFanoutExceeded !== overloaded
+    || !policyRejectionsPreservedAdmissionCounters
+    || !noUnboundedQueue) {
     throw new Error('capacity_counter_integrity_failed');
   }
   return Object.freeze({
@@ -131,6 +182,9 @@ export async function runBoundedCapacityWorkload(input: {
     duration_ms: duration,
     accepted,
     overloaded,
+    rejected_overloaded: rejectedOverloaded,
+    rejected_retry_exhausted: rejectedRetryExhausted,
+    rejected_fanout_exceeded: rejectedFanoutExceeded,
     configured_active_limit: LIMITS.active,
     configured_pending_limit: LIMITS.pending,
     configured_retry_limit: LIMITS.retry,
@@ -139,13 +193,19 @@ export async function runBoundedCapacityWorkload(input: {
     observed_max_pending: observedMaxPending,
     observed_max_retry: observedMaxRetry,
     observed_max_fanout: observedMaxFanout,
+    attempted_max_retry: attemptedMaxRetry,
+    attempted_max_fanout: attemptedMaxFanout,
+    configured_retained_lease_limit: retainedLeaseLimit,
+    observed_max_retained_leases: observedMaxRetainedLeases,
+    queued_requests_at_completion: queuedRequestsAtCompletion,
+    policy_rejections_preserved_admission_counters: policyRejectionsPreservedAdmissionCounters,
     p99_operation_us: p99,
     event_loop_delay_p99_ms: Number.isFinite(delayP99) ? delayP99 : 0,
     rss_start_bytes: rssStart,
     rss_peak_bytes: rssPeak,
     rss_end_bytes: rssEnd,
     counter_integrity: true,
-    no_unbounded_queue: true
+    no_unbounded_queue: noUnboundedQueue
   });
 }
 

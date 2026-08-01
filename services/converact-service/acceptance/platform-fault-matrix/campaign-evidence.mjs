@@ -88,16 +88,31 @@ export function buildBoundedCapacityEvidence(input) {
     input.observed_max_retry,
     input.observed_max_fanout
   ];
-  const valid = positiveInteger(input.operations)
+  const rejectionTotal = input.rejected_overloaded
+    + input.rejected_retry_exhausted
+    + input.rejected_fanout_exceeded;
+  const valid = input.status === 'passed'
+    && positiveInteger(input.operations)
     && input.operations <= MAX_OPERATIONS
     && positiveInteger(input.duration_ms)
     && input.duration_ms <= MAX_RECOVERY_MS
     && nonNegativeInteger(input.accepted)
     && positiveInteger(input.overloaded)
     && input.accepted + input.overloaded === input.operations
+    && positiveInteger(input.rejected_overloaded)
+    && positiveInteger(input.rejected_retry_exhausted)
+    && positiveInteger(input.rejected_fanout_exceeded)
+    && rejectionTotal === input.overloaded
     && configured.every(positiveInteger)
     && observed.every(nonNegativeInteger)
     && observed.every((value, index) => value === configured[index])
+    && input.attempted_max_retry === input.configured_retry_limit + 1
+    && input.attempted_max_fanout === input.configured_fanout_limit + 1
+    && input.configured_retained_lease_limit
+      === input.configured_active_limit + input.configured_pending_limit
+    && input.observed_max_retained_leases === input.configured_retained_lease_limit
+    && input.queued_requests_at_completion === 0
+    && input.policy_rejections_preserved_admission_counters === true
     && finitePositive(input.p99_operation_us)
     && finiteNonNegative(input.event_loop_delay_p99_ms)
     && positiveInteger(input.rss_start_bytes)
