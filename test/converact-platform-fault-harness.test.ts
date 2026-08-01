@@ -547,5 +547,6 @@ test('capacity runner is exact-source bounded and cannot alter unrelated contain
   assert.match(script, /unrelated-containers-before\.tsv/);
   assert.match(script, /unrelated-containers-after\.tsv/);
   assert.doesNotMatch(script, /docker (?:system )?prune|docker (?:stop|rm) /);
+  assert.doesNotMatch(script, /awk '[^']*\\"/);
   assert.match(script, /production_eligible.*false/is);
 });

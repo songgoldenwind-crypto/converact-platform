@@ -115,7 +115,7 @@ export CONVERACT_G02_NODE_VERSION="$NODE_VERSION"
 export CONVERACT_G02_HOST
 CONVERACT_G02_HOST=$(hostname)
 export CONVERACT_G02_HARDWARE
-CONVERACT_G02_HARDWARE="$(uname -srmo); $(nproc) vCPU; $(awk '/MemTotal/ {printf \"%.1f GiB RAM\", $2/1024/1024}' /proc/meminfo); Node $NODE_VERSION"
+CONVERACT_G02_HARDWARE="$(uname -srmo); $(nproc) vCPU; $(awk '/MemTotal/ {printf "%.1f GiB RAM", $2/1024/1024}' /proc/meminfo); Node $NODE_VERSION"
 export CONVERACT_G02_CLOCK="UTC wall clock; Node monotonic performance clock; $(cat /sys/devices/system/clocksource/clocksource0/current_clocksource 2>/dev/null || printf unknown) kernel clocksource"
 export CONVERACT_G02_WORKLOAD="$OPERATIONS production BoundedWorkGate admissions; active=64; pending=256; retry=3; fanout=8; fixed host; synthetic control-plane only"
 export CONVERACT_G02_SEED="$RUN_ID"
