@@ -721,7 +721,7 @@ function scheduleCallRecording(
   metadata: Record<string, unknown>
 ): void {
   void (async () => {
-    if (!await shouldRecordCall(pg, callSessionId, metadata)) return;
+    if (!await shouldRecordCall(pg, callSessionId, { ...metadata, tenant_id: tenantId })) return;
     const egress = new EgressManager(db, readEgressConfigFromEnv());
     await egress.startRecording(tenantId, callSessionId, roomName, {
       format: 'ogg',

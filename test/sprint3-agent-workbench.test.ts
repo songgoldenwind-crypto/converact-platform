@@ -13,6 +13,7 @@ import { onboardCallCenterTenant } from '../src/tenant-onboarding.js';
 import { initWebSocket, shutdownWebSocket, _resetWsState, wsBroadcast } from '../src/ws.js';
 import { resetRedisPubSubForTests } from '../src/redis-pubsub.js';
 import { useMemoryRedisForTests } from '../src/agent-runtime/call-center/call-center-runtime.js';
+import { ConsentTracker } from '../src/agent-runtime/call-center/compliance/consent-tracker.js';
 
 async function httpJson(
   server: ReturnType<typeof createServer>,
@@ -65,6 +66,7 @@ async function waitFor(predicate: () => boolean, timeoutMs = 2500): Promise<void
 
 let server: ReturnType<typeof createServer>;
 let db: ReturnType<typeof createDatabase>;
+let pg: MemoryPg;
 let token = '';
 let tenantId = '';
 let userId = '';
@@ -81,7 +83,9 @@ before(async () => {
   _resetWsState();
   useMemoryRedisForTests();
 
-  const pg = await initPostgres();
+  const initializedPg = await initPostgres();
+  assert.ok(initializedPg instanceof MemoryPg);
+  pg = initializedPg;
   db = createDatabase(':memory:');
   server = createServer(db, pg);
   await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -166,6 +170,7 @@ test('accept transfer issues livekit token and starts recording record', async (
     status: 'active',
     phone: '+8613900139002'
   });
+  await new ConsentTracker(pg).recordRecordingConsent(session.id, tenantId, 'granted');
 
   const roomStore = new LiveKitRoomStore(db);
   const room = await roomStore.createRoom({
@@ -222,6 +227,7 @@ test('accept transfer keeps media available when recording storage path fails', 
       status: 'active',
       phone: '+8613900139003'
     });
+    await new ConsentTracker(pg).recordRecordingConsent(session.id, tenantId, 'granted');
     const roomStore = new LiveKitRoomStore(db);
     const room = await roomStore.createRoom({
       tenant_id: tenantId,
