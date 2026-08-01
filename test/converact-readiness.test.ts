@@ -220,7 +220,33 @@ test('readiness returns not_ready when a driver never settles before the injecte
   assert.equal(result.checks.database.status, 'failed');
 });
 
-test('readiness admits at most one unresolved probe wave after caller deadlines', async () => {
+test('readiness uses one bounded replacement wave after a permanently wedged driver', async () => {
+  let queries = 0;
+  const pg: PgQueryable = {
+    query: async <R>(sql: string): Promise<any> => {
+      queries += 1;
+      if (queries === 1) return new Promise(() => undefined);
+      if (/migration_versions/i.test(sql)) {
+        return { rows: REQUIRED_MIGRATIONS.map((version) => ({ version })) as R[] };
+      }
+      if (/notification_endpoints/i.test(sql)) {
+        return { rows: [{ active: '1', unhealthy: '0' }] as R[] };
+      }
+      return { rows: [{ ready: 1 }] as R[] };
+    }
+  };
+  const probe = createConveractFabricReadinessProbe({
+    pg,
+    env: validEnv,
+    probeTimeoutMs: 10
+  });
+
+  assert.equal((await probe.probe()).status, 'not_ready');
+  assert.equal((await probe.probe()).status, 'ready');
+  assert.equal(queries, 4, 'one replacement wave must run after the first wave reaches its deadline');
+});
+
+test('readiness never admits more than one abandoned and one active wave', async () => {
   let queries = 0;
   const pg: PgQueryable = {
     query: async () => {
@@ -231,18 +257,11 @@ test('readiness admits at most one unresolved probe wave after caller deadlines'
   const probe = createConveractFabricReadinessProbe({
     pg,
     env: validEnv,
-    probeTimeoutMs: 100,
-    scheduler: {
-      now: () => 0,
-      setTimeout(callback) {
-        queueMicrotask(callback);
-        return 1;
-      },
-      clearTimeout() {}
-    }
+    probeTimeoutMs: 10
   });
 
   assert.equal((await probe.probe()).status, 'not_ready');
   assert.equal((await probe.probe()).status, 'not_ready');
-  assert.equal(queries, 1, 'an unresolved driver must be shared instead of leaking one query per poll');
+  assert.equal((await probe.probe()).status, 'not_ready');
+  assert.equal(queries, 2, 'the readiness-instance recovery budget must remain constant');
 });

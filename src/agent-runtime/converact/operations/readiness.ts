@@ -61,7 +61,13 @@ export function createConveractFabricReadinessProbe(input: {
   const probeTimeoutMs = boundedProbeTimeout(input.probeTimeoutMs ?? 2_000);
   const scheduler = input.scheduler || defaultReadinessScheduler();
   assertReadinessScheduler(scheduler);
-  let activeWave: Promise<ConveractFabricReadinessResult> | null = null;
+  type ProbeWave = {
+    promise: Promise<ConveractFabricReadinessResult>;
+    timedOut: boolean;
+  };
+  let activeWave: ProbeWave | null = null;
+  const abandonedWaves = new Set<Promise<ConveractFabricReadinessResult>>();
+  const maxAbandonedWaves = 1;
   const createResult = (): ConveractFabricReadinessResult => ({
         status: 'not_ready',
         checks: {
@@ -188,16 +194,23 @@ export function createConveractFabricReadinessProbe(input: {
   return {
     async probe() {
       const deadline = scheduler.now() + probeTimeoutMs;
+      if (activeWave?.timedOut && abandonedWaves.size < maxAbandonedWaves) {
+        abandonedWaves.add(activeWave.promise);
+        activeWave = null;
+      }
       if (!activeWave) {
-        const started = runProbeWave();
-        activeWave = started;
-        void started.finally(() => {
-          if (activeWave === started) activeWave = null;
+        const wave: ProbeWave = { promise: runProbeWave(), timedOut: false };
+        activeWave = wave;
+        void wave.promise.finally(() => {
+          abandonedWaves.delete(wave.promise);
+          if (activeWave === wave) activeWave = null;
         }).catch(() => undefined);
       }
+      const selected = activeWave;
       try {
-        return await withReadinessDeadline(scheduler, deadline, () => activeWave!);
+        return await withReadinessDeadline(scheduler, deadline, () => selected.promise);
       } catch {
+        if (activeWave === selected) selected.timedOut = true;
         return createResult();
       }
     }
