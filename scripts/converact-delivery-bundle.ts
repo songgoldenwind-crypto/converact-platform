@@ -279,7 +279,11 @@ const STANDALONE_MIGRATIONS = [
   '104_ivekit_cell_admission_ledger_runtime.sql',
   '105_tinode_closed_session_inbound.sql',
   '106_tinode_open_session_mutation_queue.sql',
-  '107_ivekit_sip_effect_oracle.sql'
+  '107_ivekit_sip_effect_oracle.sql',
+  '108_converact_platform_identity_consent.sql',
+  '109_converact_platform_event_receipts.sql',
+  '110_converact_platform_usage_ledger.sql',
+  '111_converact_platform_key_lifecycle.sql'
 ];
 
 const CAPACITY_RUNTIME_SOURCE_PATHS = [
@@ -353,6 +357,7 @@ const CAPACITY_RUNTIME_SOURCE_PATHS = [
   'src/agent-runtime/converact/placement/rustdesk-owner-binding.ts',
   'src/agent-runtime/converact/placement/snapshot.ts',
   'src/agent-runtime/converact/placement/types.ts',
+  'src/agent-runtime/converact/platform-foundation/clock.ts',
   'src/agent-runtime/converact/recordings/recording-manifest.ts',
   'src/agent-runtime/converact/recordings/rustpbx-recording-spool-capacity.ts',
   'src/agent-runtime/converact/voice/rustpbx-media-readiness.ts',

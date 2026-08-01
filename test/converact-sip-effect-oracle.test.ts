@@ -2424,9 +2424,10 @@ test('migration 107 is authoritative; local projection has no duplicate DDL and 
   assert.match(migration, /WHERE terminal_at IS NOT NULL AND payload_retained = TRUE/);
 
   const plan = readPostgresMigrationPlan(new URL('../src/migrations', import.meta.url).pathname);
-  assert.equal(plan.at(-1)?.file, '107_ivekit_sip_effect_oracle.sql');
+  const sipEffectMigration = plan.find((entry) => entry.file === '107_ivekit_sip_effect_oracle.sql');
+  assert.ok(sipEffectMigration);
   const runner = new MigrationRecorder();
-  await runPostgresMigrationsOnClient(runner, [plan.at(-1)!]);
+  await runPostgresMigrationsOnClient(runner, [sipEffectMigration]);
   assert.deepEqual(runner.applied, ['107_ivekit_sip_effect_oracle']);
 
   assert.equal(SIP_EFFECT_SCHEMA_ID, 'ivekit.sip-effect-oracle');

@@ -195,7 +195,12 @@ export const REQUIRED_MIGRATIONS = [
   '103_ivekit_voice_cdr_convergence',
   '104_ivekit_cell_admission_ledger_runtime',
   '105_tinode_closed_session_inbound',
-  '106_tinode_open_session_mutation_queue'
+  '106_tinode_open_session_mutation_queue',
+  '107_ivekit_sip_effect_oracle',
+  '108_converact_platform_identity_consent',
+  '109_converact_platform_event_receipts',
+  '110_converact_platform_usage_ledger',
+  '111_converact_platform_key_lifecycle'
 ] as const;
 
 function configurationCheck(env: NodeJS.ProcessEnv): ConveractFabricReadinessResult['checks']['configuration'] {
