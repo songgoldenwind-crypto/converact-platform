@@ -174,6 +174,7 @@ export function resolveKeyUsage(input: {
       && now < Date.parse(item.expires_at)
       && now < overlapUntil;
   }).sort((left, right) => right.key_version - left.key_version);
+  if (retiring.length > 1) throw new Error('key_read_authority_invalid');
   return {
     write_key_id: active[0].key_id,
     read_key_ids: [active[0].key_id, ...retiring.map((item) => item.key_id)]

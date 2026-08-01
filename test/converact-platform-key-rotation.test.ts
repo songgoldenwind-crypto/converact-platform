@@ -119,6 +119,18 @@ test('rotation is dual-read single-write with a bounded overlap', () => {
     keys: [{ ...oldKey, overlap_until: '2026-08-02T12:01:00.000Z' }, activeKey],
     wall_now: new Date('2026-08-01T12:05:00.000Z'), max_overlap_ms: 3_600_000
   }), /key_overlap_invalid/);
+  assert.throws(() => resolveKeyUsage({
+    keys: [
+      oldKey,
+      key({
+        key_id: 'internal-mtls-v2', key_version: 2, state: 'retiring',
+        state_changed_at: '2026-08-01T12:00:00.000Z',
+        overlap_until: '2026-08-01T12:10:00.000Z'
+      }),
+      activeKey
+    ],
+    wall_now: new Date('2026-08-01T12:05:00.000Z'), max_overlap_ms: 3_600_000
+  }), /key_read_authority_invalid/);
 });
 
 function certificate(overrides: Partial<CertificateBindingInput> = {}): CertificateBindingInput {
