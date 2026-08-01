@@ -7,7 +7,7 @@ volume, network, database, credential, port, or evidence directory.
 ## Current implementation status
 
 - The evidence contract covers all 12 dependencies and every failure mode in the G02 machine fault matrix.
-- The first executable slice runs an isolated PostgreSQL campaign: all migrations through 111, the real
+- The first executable slice runs an isolated PostgreSQL campaign: all migrations through 112, the real
   `opc_runtime` role, cross-tenant RLS negative checks, Inbox/EffectReceipt/Usage persistence, an actual PostgreSQL
   container stop/start, a fresh recovery process, replay/conflict/writer-fence checks and append-only enforcement.
 - A bounded synthetic UDP stream runs across the database outage to diagnose causal isolation without making a
@@ -70,3 +70,8 @@ real long media, capacity, multi-node drain, region recovery, DR and production 
 Secrets, tokens, passwords, cookies, private keys and credentials are forbidden in evidence. Missing prerequisites,
 partial campaigns, mock services, loopback media, upstream benchmarks and historical results never promote a real
 dependency, long-media, capacity, DR or production claim.
+
+Before finalization, every regular raw artifact in the bounded run directory is scanned for credential-shaped keys
+and values. The scanner fails closed on private keys, bearer/JWT/provider tokens, password or API-key assignments,
+binary data, symlinks, oversized files, or oversized campaigns. Its sorted SHA-256 manifest binds every scanned
+artifact to `raw_output_sha256`; a hand-maintained artifact allowlist cannot silently omit a raw log.

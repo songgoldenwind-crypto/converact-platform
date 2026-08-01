@@ -6,6 +6,7 @@ ACCEPTANCE_DIR="$ROOT_DIR/services/converact-service/acceptance/platform-fault-m
 COMPOSE_FILE="$ACCEPTANCE_DIR/docker-compose.yml"
 DATABASE_PROBE="$ACCEPTANCE_DIR/database-probe.ts"
 MEDIA_PROBE="$ACCEPTANCE_DIR/synthetic-media.mjs"
+SECRET_SCANNER="$ACCEPTANCE_DIR/evidence-secret-scan.mjs"
 NODE_BIN=${NODE_BIN:-node}
 NODE_IMAGE=${CONVERACT_G02_NODE_IMAGE:-}
 CONFIRMATION=${CONVERACT_G02_FAULT_CONFIRM:-}
@@ -253,18 +254,16 @@ CONFIG_SHA256=$(
     services/converact-service/acceptance/platform-fault-matrix/database-probe.ts \
     services/converact-service/acceptance/platform-fault-matrix/docker-compose.yml \
     services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs \
+    services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs \
     services/converact-service/acceptance/platform-fault-matrix/synthetic-media.mjs \
     | sha256sum | awk '{print $1}'
 )
 
-for file in \
-  "$BEFORE_CONTAINERS" "$AFTER_CONTAINERS" "$PREPARE_RESULT" "$OUTAGE_RESULT" \
-  "$RESTART_RESULT" "$RECOVER_RESULT" "$MEDIA_RESULT" "$FAULT_WINDOW" \
-  "$EVIDENCE_DIR/runtime-role.log" "$EVIDENCE_DIR/migrations.log" \
-  "$EVIDENCE_DIR/postgres.log"; do
-  hash=$(sha256sum "$file" | awk '{print $1}')
-  printf '%s  %s\n' "$hash" "$(basename "$file")" >>"$RAW_MANIFEST"
-done
+mapfile -d '' -t RAW_ARTIFACTS < <(
+  find "$EVIDENCE_DIR" -mindepth 1 -maxdepth 1 ! -name "$(basename "$RAW_MANIFEST")" -print0 \
+    | LC_ALL=C sort -z
+)
+"$NODE_BIN" "$SECRET_SCANNER" "$RAW_MANIFEST" "${RAW_ARTIFACTS[@]}"
 RAW_OUTPUT_SHA256=$(sha256sum "$RAW_MANIFEST" | awk '{print $1}')
 
 export CONVERACT_G02_SOURCE_COMMIT="$SOURCE_COMMIT"
@@ -282,7 +281,7 @@ export CONVERACT_G02_WORKLOAD="single PostgreSQL restart; one runtime role; two 
 export CONVERACT_G02_SEED="$RUN_ID"
 
 "$NODE_BIN" --import tsx "$DATABASE_PROBE" identity "$IDENTITY_RESULT" \
-  >"$EVIDENCE_DIR/evidence-identity.log" 2>&1
+  >/dev/null
 "$NODE_BIN" --import tsx "$DATABASE_PROBE" finalize \
   "$IDENTITY_RESULT" "$PREPARE_RESULT" "$OUTAGE_RESULT" "$RESTART_RESULT" \
   "$RECOVER_RESULT" "$MEDIA_RESULT" "$FINAL_RESULT"

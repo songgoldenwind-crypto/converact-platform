@@ -38,20 +38,32 @@ export interface ConveractFabricReadinessProbe {
   probe(): Promise<ConveractFabricReadinessResult>;
 }
 
+export interface ConveractFabricReadinessScheduler {
+  now(): number;
+  setTimeout(callback: () => void, delay_ms: number): unknown;
+  clearTimeout(handle: unknown): void;
+}
+
 export function createConveractFabricReadinessProbe(input: {
   pg: PgQueryable | null;
   env?: NodeJS.ProcessEnv;
   requiredMigrations?: readonly string[];
   instanceId?: string;
   placementProbe?: ConveractFabricPlacementReadinessProbe;
+  probeTimeoutMs?: number;
+  scheduler?: ConveractFabricReadinessScheduler;
 }): ConveractFabricReadinessProbe {
   const env = input.env || process.env;
   const requiredMigrations = [...(input.requiredMigrations || REQUIRED_MIGRATIONS)];
   const heartbeatConfig = converactFabricRuntimeHeartbeatConfig(env);
   const placementEnabled = booleanEnv(resolveFabricEnv(env, 'PLACEMENT_ENABLED'), false);
   const instanceId = String(input.instanceId || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || '');
+  const probeTimeoutMs = boundedProbeTimeout(input.probeTimeoutMs ?? 2_000);
+  const scheduler = input.scheduler || defaultReadinessScheduler();
+  assertReadinessScheduler(scheduler);
   return {
     async probe() {
+      const deadline = scheduler.now() + probeTimeoutMs;
       const result: ConveractFabricReadinessResult = {
         status: 'not_ready',
         checks: {
@@ -74,45 +86,58 @@ export function createConveractFabricReadinessProbe(input: {
         }
       };
       if (!input.pg) return result;
+      const query = <R>(text: string, params?: unknown[]) => withReadinessDeadline(
+        scheduler,
+        deadline,
+        () => input.pg!.query<R>(text, params)
+      );
       try {
-        await input.pg.query('SELECT 1 AS ready');
+        await query('SELECT 1 AS ready');
         result.checks.database.status = 'ok';
       } catch {
         return result;
       }
-      try {
-        const migrations = await input.pg.query<{ version: string }>(
-          'SELECT version FROM public.opc_ivekit_applied_migration_versions($1::text[])',
-          [requiredMigrations]
-        );
-        const present = new Set(migrations.rows.map((row) => String(row.version)));
-        result.checks.migrations.missing = requiredMigrations.filter((version) => !present.has(version));
-        result.checks.migrations.status = result.checks.migrations.missing.length ? 'failed' : 'ok';
-      } catch {
-        result.checks.migrations.status = 'failed';
-      }
-      try {
-        const providers = await input.pg.query<{ active: unknown; unhealthy: unknown }>(
-          `SELECT COUNT(*) FILTER (WHERE status = 'active') AS active,
-             COUNT(*) FILTER (WHERE status = 'active' AND health_status = 'unhealthy') AS unhealthy
-           FROM ivekit_notification_endpoints`
-        );
-        const active = nonNegativeInteger(providers.rows[0]?.active);
-        const unhealthy = nonNegativeInteger(providers.rows[0]?.unhealthy);
-        result.checks.notification_providers.active = active;
-        result.checks.notification_providers.unhealthy = unhealthy;
-        result.checks.notification_providers.status = active === 0
-          ? 'not_configured'
-          : unhealthy > 0 ? 'degraded' : 'ok';
-      } catch {
-        result.checks.notification_providers.status = 'unknown';
-      }
-      if (heartbeatConfig.enabled) {
-        if (!instanceId) {
-          result.checks.runtime_heartbeat.status = 'missing';
-        } else {
+      const independentProbes: Array<Promise<void>> = [
+        (async () => {
           try {
-            const heartbeat = await input.pg.query<{ state: string; heartbeat_at: unknown }>(
+            const migrations = await query<{ version: string }>(
+              'SELECT version FROM public.opc_ivekit_applied_migration_versions($1::text[])',
+              [requiredMigrations]
+            );
+            const present = new Set(migrations.rows.map((row) => String(row.version)));
+            result.checks.migrations.missing = requiredMigrations.filter((version) => !present.has(version));
+            result.checks.migrations.status = result.checks.migrations.missing.length ? 'failed' : 'ok';
+          } catch {
+            result.checks.migrations.status = 'failed';
+          }
+        })(),
+        (async () => {
+          try {
+            const providers = await query<{ active: unknown; unhealthy: unknown }>(
+              `SELECT COUNT(*) FILTER (WHERE status = 'active') AS active,
+                 COUNT(*) FILTER (WHERE status = 'active' AND health_status = 'unhealthy') AS unhealthy
+               FROM ivekit_notification_endpoints`
+            );
+            const active = nonNegativeInteger(providers.rows[0]?.active);
+            const unhealthy = nonNegativeInteger(providers.rows[0]?.unhealthy);
+            result.checks.notification_providers.active = active;
+            result.checks.notification_providers.unhealthy = unhealthy;
+            result.checks.notification_providers.status = active === 0
+              ? 'not_configured'
+              : unhealthy > 0 ? 'degraded' : 'ok';
+          } catch {
+            result.checks.notification_providers.status = 'unknown';
+          }
+        })()
+      ];
+      if (heartbeatConfig.enabled) {
+        independentProbes.push((async () => {
+          if (!instanceId) {
+            result.checks.runtime_heartbeat.status = 'missing';
+            return;
+          }
+          try {
+            const heartbeat = await query<{ state: string; heartbeat_at: unknown }>(
               `SELECT state, heartbeat_at FROM ivekit_runtime_heartbeats
                WHERE instance_id = $1`,
               [instanceId]
@@ -131,24 +156,31 @@ export function createConveractFabricReadinessProbe(input: {
           } catch {
             result.checks.runtime_heartbeat.status = 'unknown';
           }
-        }
+        })());
       }
       if (placementEnabled && input.placementProbe) {
-        try {
-          const snapshot = await input.placementProbe.probe();
-          result.checks.placement_snapshot = {
-            status: 'ok',
-            snapshot_version: positiveSafeInteger(snapshot.snapshot_version),
-            error_code: ''
-          };
-        } catch (error) {
-          result.checks.placement_snapshot = {
-            status: 'failed',
-            snapshot_version: 0,
-            error_code: placementProbeErrorCode(error)
-          };
-        }
+        independentProbes.push((async () => {
+          try {
+            const snapshot = await withReadinessDeadline(
+              scheduler,
+              deadline,
+              () => input.placementProbe!.probe()
+            );
+            result.checks.placement_snapshot = {
+              status: 'ok',
+              snapshot_version: positiveSafeInteger(snapshot.snapshot_version),
+              error_code: ''
+            };
+          } catch (error) {
+            result.checks.placement_snapshot = {
+              status: 'failed',
+              snapshot_version: 0,
+              error_code: placementProbeErrorCode(error)
+            };
+          }
+        })());
       }
+      await Promise.all(independentProbes);
       const providerBlockingFailure = result.checks.notification_providers.blocking
         && result.checks.notification_providers.status !== 'ok';
       result.status = result.checks.database.status === 'ok'
@@ -162,6 +194,69 @@ export function createConveractFabricReadinessProbe(input: {
       return result;
     }
   };
+}
+
+function withReadinessDeadline<T>(
+  scheduler: ConveractFabricReadinessScheduler,
+  deadline: number,
+  operation: () => Promise<T>
+): Promise<T> {
+  const remaining = Math.ceil(deadline - scheduler.now());
+  if (!Number.isFinite(remaining) || remaining <= 0) {
+    return Promise.reject(readinessTimeout());
+  }
+  let operationPromise: Promise<T>;
+  try {
+    operationPromise = Promise.resolve(operation());
+  } catch (error) {
+    operationPromise = Promise.reject(error);
+  }
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const handle = scheduler.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(readinessTimeout());
+    }, remaining);
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      scheduler.clearTimeout(handle);
+      callback();
+    };
+    operationPromise.then(
+      (value) => finish(() => resolve(value)),
+      (error) => finish(() => reject(error))
+    );
+  });
+}
+
+function defaultReadinessScheduler(): ConveractFabricReadinessScheduler {
+  return {
+    now: () => performance.now(),
+    setTimeout: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
+    clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>)
+  };
+}
+
+function assertReadinessScheduler(value: ConveractFabricReadinessScheduler): void {
+  if (!value || typeof value.now !== 'function' || typeof value.setTimeout !== 'function'
+    || typeof value.clearTimeout !== 'function' || !Number.isFinite(value.now())) {
+    throw new Error('readiness_scheduler_invalid');
+  }
+}
+
+function boundedProbeTimeout(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 10 || value > 30_000) {
+    throw new Error('readiness_probe_timeout_invalid');
+  }
+  return value;
+}
+
+function readinessTimeout(): Error & { code: string } {
+  return Object.assign(new Error('readiness probe deadline exceeded'), {
+    code: 'readiness_probe_timeout'
+  });
 }
 
 export const REQUIRED_MIGRATIONS = [

@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import {
+  assertEvidenceArtifactSafe,
   evaluateControlledFaultScenario,
   faultScenarioCatalog,
   summarizeFaultCampaign
@@ -196,6 +200,54 @@ test('evidence rejects secret-shaped fields and values', () => {
     },
     checks: [{ id: 'x', passed: true }]
   } as never), /evidence_secret_forbidden/);
+
+  for (const secret of [
+    'Bearer abcdefghijklmnopqrstuvwxyz012345',
+    'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZW5hbnQtYSJ9.abcdefghijklmnop',
+    'api_key=sk-test-abcdefghijklmnopqrstuvwxyz',
+    'password=qwe.312..',
+    'postgresql://runtime-user:runtime-password@database.internal/platform'
+  ]) {
+    assert.throws(() => evaluateControlledFaultScenario({
+      dependency: 'database',
+      failure_mode: 'restart',
+      executed: false,
+      blocker: `generic note ${secret}`
+    }), /evidence_secret_forbidden/, secret);
+    assert.throws(() => assertEvidenceArtifactSafe(`raw log: ${secret}\n`),
+      /evidence_secret_forbidden/, secret);
+  }
+});
+
+test('raw evidence scanner binds every safe artifact and rejects a secret in a generic log', () => {
+  const root = mkdtempSync(join(tmpdir(), 'converact-g02-evidence-scan-'));
+  const scanner = new URL(
+    '../services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs',
+    import.meta.url
+  );
+  try {
+    const safeA = join(root, 'a.log');
+    const safeB = join(root, 'b.json');
+    const manifest = join(root, 'raw-output.sha256');
+    writeFileSync(safeA, 'bounded non-secret output\n');
+    writeFileSync(safeB, '{"status":"passed"}\n');
+    execFileSync(process.execPath, [scanner.pathname, manifest, safeB, safeA], { stdio: 'pipe' });
+    assert.deepEqual(
+      readFileSync(manifest, 'utf8').trim().split('\n').map((line) => line.slice(66)),
+      ['a.log', 'b.json']
+    );
+
+    const secret = join(root, 'generic.log');
+    const rejectedManifest = join(root, 'rejected.sha256');
+    writeFileSync(secret, '{"note":"password=qwe.312.."}\n');
+    assert.throws(
+      () => execFileSync(process.execPath, [scanner.pathname, rejectedManifest, secret], { stdio: 'pipe' }),
+      /Command failed/
+    );
+    assert.throws(() => readFileSync(rejectedManifest, 'utf8'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('acceptance entrypoints are project-scoped digest-pinned and explicit about non-claims', () => {
@@ -205,6 +257,9 @@ test('acceptance entrypoints are project-scoped digest-pinned and explicit about
 
   assert.match(script, /G02_PLATFORM_FAULT_MATRIX/);
   assert.match(script, /docker compose --project-name/);
+  assert.match(script, /evidence-secret-scan\.mjs/);
+  assert.match(script, /RAW_ARTIFACTS/);
+  assert.match(script, /RAW_OUTPUT_SHA256=\$\(sha256sum "\$RAW_MANIFEST"/);
   assert.doesNotMatch(script, /docker (?:system )?prune|docker stop \$\(docker ps/);
   assert.match(compose, /\?POSTGRES_IMAGE immutable digest reference is required/);
   assert.match(compose, /internal: true/);

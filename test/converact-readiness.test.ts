@@ -151,3 +151,71 @@ test('readiness accepts a verified placement snapshot without contacting Cell ad
     error_code: ''
   });
 });
+
+test('readiness starts independent probes concurrently after the bounded database gate', async () => {
+  const pending = new Map<string, (value: any) => void>();
+  let placementResolve: ((value: any) => void) | null = null;
+  const pg: PgQueryable = {
+    async query<R>(text: string): Promise<any> {
+      if (/SELECT 1 AS ready/i.test(text)) return { rows: [{ ready: 1 }] as R[] };
+      return new Promise((resolve) => pending.set(text, resolve));
+    }
+  };
+  const probe = createConveractFabricReadinessProbe({
+    pg,
+    env: {
+      ...validEnv,
+      CONVERACT_FABRIC_PLACEMENT_ENABLED: '1',
+      CONVERACT_FABRIC_RUNTIME_HEARTBEAT_ENABLED: '1'
+    },
+    instanceId: 'node-a',
+    probeTimeoutMs: 5_000,
+    placementProbe: {
+      probe: () => new Promise((resolve) => { placementResolve = resolve; })
+    }
+  });
+  const resultPromise = probe.probe();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(pending.size, 3, 'migration, provider, and heartbeat probes must be in flight together');
+  assert.notEqual(placementResolve, null, 'placement probe must share the same bounded wave');
+  for (const [sql, resolve] of pending) {
+    if (/migration_versions/i.test(sql)) {
+      resolve({ rows: REQUIRED_MIGRATIONS.map((version) => ({ version })) });
+    } else if (/notification_endpoints/i.test(sql)) {
+      resolve({ rows: [{ active: '1', unhealthy: '0' }] });
+    } else {
+      resolve({ rows: [{ state: 'running', heartbeat_at: new Date().toISOString() }] });
+    }
+  }
+  placementResolve!({
+    snapshot_version: 7,
+    generated_at: '2026-08-01T12:00:00.000Z',
+    expires_at: '2026-08-01T12:01:00.000Z'
+  });
+  assert.equal((await resultPromise).status, 'ready');
+});
+
+test('readiness returns not_ready when a driver never settles before the injected overall deadline', async () => {
+  const pg: PgQueryable = {
+    query: async () => new Promise(() => undefined)
+  };
+  const result = await Promise.race([
+    createConveractFabricReadinessProbe({
+      pg,
+      env: validEnv,
+      probeTimeoutMs: 100,
+      scheduler: {
+        now: () => 0,
+        setTimeout(callback) {
+          queueMicrotask(callback);
+          return 1;
+        },
+        clearTimeout() {}
+      }
+    }).probe(),
+    new Promise<'external_timeout'>((resolve) => setTimeout(() => resolve('external_timeout'), 100))
+  ]);
+  if (result === 'external_timeout') assert.fail('readiness probe exceeded its own deadline');
+  assert.equal(result.status, 'not_ready');
+  assert.equal(result.checks.database.status, 'failed');
+});

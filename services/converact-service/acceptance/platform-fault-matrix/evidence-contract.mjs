@@ -5,7 +5,8 @@ const COMMIT = /^[a-f0-9]{40}$/u;
 const IMAGE_DIGEST = /^[^\s@]+@sha256:[a-f0-9]{64}$/u;
 const TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255}$/u;
 const SECRET_KEY = /(?:password|passwd|secret|token|cookie|authorization|private[_-]?key|credential)/iu;
-const SECRET_VALUE = /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/u;
+const SECRET_VALUE = /(?:-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\bBearer\s+[A-Za-z0-9._~+\/-]{12,}={0,2}|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b|\b(?:sk-(?:proj-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16})\b|\b(?:postgres(?:ql)?|redis|amqp|https?):\/\/[^/\s:@]+:[^@\s/]+@|\b(?:api[_-]?key|client[_-]?secret|password|passwd|access[_-]?token|refresh[_-]?token)\b["']?\s*(?:=|:)\s*["']?[^\s"',}\]]{6,})/iu;
+const MAX_ARTIFACT_BYTES = 64 * 1024 * 1024;
 
 const CATALOG = Object.freeze([
   scenario('database', ['timeout', 'partition', 'pool_exhaustion', 'restart']),
@@ -99,6 +100,14 @@ export function summarizeFaultCampaign(results) {
     ).length,
     complete_matrix: complete
   });
+}
+
+export function assertEvidenceArtifactSafe(value) {
+  if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > MAX_ARTIFACT_BYTES) {
+    throw new Error('evidence_budget_exceeded');
+  }
+  if (value.includes('\u0000')) throw new Error('evidence_artifact_invalid');
+  if (SECRET_VALUE.test(value)) throw new Error('evidence_secret_forbidden');
 }
 
 function scenario(dependency, failureModes) {
