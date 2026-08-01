@@ -130,6 +130,8 @@ O(1) 确定性组合：
 - external action：tenant + ActionIntent + attempt generation。
 
 同一 billing key 只允许一个 writer identity/epoch；重复相同 digest 幂等，重复异 digest 冲突。
+现有 `BillingStore`、`QuotaStore` 与 Voice CDR billing event 在迁移期只作为订阅/额度投影和
+domain input adapter；它们不得自行形成权威 charge、修改已入账 Usage 或绕过 receipt/writer fence。
 
 ### 4.6 `correlation.ts`
 
