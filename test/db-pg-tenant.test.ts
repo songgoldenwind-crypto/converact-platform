@@ -7,6 +7,7 @@ import {
   withPgRequestContext
 } from '../src/db-pg-tenant.js';
 import type { PgQueryable } from '../src/db-pg.js';
+import { signAccessToken } from '../src/middleware/auth.js';
 
 test('resolvePgTenantContextForRequest does not grant auth routes a generic RLS bypass', () => {
   assert.deepEqual(resolvePgTenantContextForRequest('/api/auth/register', {}), {});
@@ -15,7 +16,9 @@ test('resolvePgTenantContextForRequest does not grant auth routes a generic RLS 
 
 test('resolvePgTenantContextForRequest reads tenant from API key auth', () => {
   const prevKey = process.env.CONVERACT_API_KEY;
+  const prevDisabled = process.env.CONVERACT_AUTH_DISABLED;
   process.env.CONVERACT_API_KEY = 'test-tenant-ctx-key';
+  process.env.CONVERACT_AUTH_DISABLED = '1';
   try {
     const ctx = resolvePgTenantContextForRequest('/api/call-center/queues', {
       'X-API-Key': 'test-tenant-ctx-key',
@@ -26,26 +29,35 @@ test('resolvePgTenantContextForRequest reads tenant from API key auth', () => {
   } finally {
     if (prevKey === undefined) delete process.env.CONVERACT_API_KEY;
     else process.env.CONVERACT_API_KEY = prevKey;
+    if (prevDisabled === undefined) delete process.env.CONVERACT_AUTH_DISABLED;
+    else process.env.CONVERACT_AUTH_DISABLED = prevDisabled;
   }
 });
 
-test('resolvePgTenantContextForRequest reads tenant from authenticated Media Core requests', () => {
+test('shared Media Core token cannot bind an unsigned tenant into PostgreSQL context', () => {
   const previousToken = process.env.CONVERACT_MEDIA_API_TOKEN;
+  const previousSecret = process.env.CONVERACT_JWT_SECRET;
   process.env.CONVERACT_MEDIA_API_TOKEN = 'media-tenant-context-token';
+  process.env.CONVERACT_JWT_SECRET = 'media-tenant-jwt-secret-at-least-32-bytes';
   try {
     const postContext = resolvePgTenantContextForRequest(
       '/api/media/livekit/recordings/start',
       { authorization: 'Bearer media-tenant-context-token' },
       { body: { tenant_id: 'tenant_media_post' } }
     );
-    assert.deepEqual(postContext, { tenantId: 'tenant_media_post' });
+    assert.deepEqual(postContext, {});
 
-    const getContext = resolvePgTenantContextForRequest(
+    const signedContext = resolvePgTenantContextForRequest(
       '/api/media/livekit/recordings',
-      { authorization: 'Bearer media-tenant-context-token' },
-      { url: new URL('http://localhost/api/media/livekit/recordings?tenant_id=tenant_media_get') }
+      {
+        authorization: `Bearer ${signAccessToken({
+          sub: 'media-operator', tid: 'tenant_signed', role: 'operator'
+        })}`,
+        'x-tenant-id': 'tenant_spoofed'
+      },
+      { url: new URL('http://localhost/api/media/livekit/recordings?tenant_id=tenant_spoofed') }
     );
-    assert.deepEqual(getContext, { tenantId: 'tenant_media_get' });
+    assert.deepEqual(signedContext, { tenantId: 'tenant_signed' });
 
     const invalid = resolvePgTenantContextForRequest(
       '/api/media/livekit/recordings',
@@ -56,6 +68,8 @@ test('resolvePgTenantContextForRequest reads tenant from authenticated Media Cor
   } finally {
     if (previousToken === undefined) delete process.env.CONVERACT_MEDIA_API_TOKEN;
     else process.env.CONVERACT_MEDIA_API_TOKEN = previousToken;
+    if (previousSecret === undefined) delete process.env.CONVERACT_JWT_SECRET;
+    else process.env.CONVERACT_JWT_SECRET = previousSecret;
   }
 });
 

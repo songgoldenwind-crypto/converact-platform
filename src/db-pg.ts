@@ -504,7 +504,7 @@ export class MemoryPg implements PgQueryable {
       return row ? [{ status: row.status }] : [];
     }
 
-    if (sql.startsWith('INSERT INTO users')) {
+    if (sql.startsWith('INSERT INTO users') && !sql.includes('external_sub')) {
       const role = sql.includes("'owner'") ? 'owner' : String(params[4] ?? 'operator');
       const name = sql.includes("'owner'") ? (params[4] ?? null) : (params[5] ?? null);
       const row: TableRow = {

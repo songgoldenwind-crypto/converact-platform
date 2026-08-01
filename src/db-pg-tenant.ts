@@ -1,6 +1,4 @@
-import { resolveBrandEnv } from './config/converact-env.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { timingSafeEqual } from 'node:crypto';
 import type { PgQueryable } from './db-pg.js';
 import { MemoryPg, withPgTransaction } from './db-pg.js';
 import { resolveAuthContext } from './middleware/auth.js';
@@ -29,13 +27,10 @@ export async function runWithPgTenantContextAsync<T>(
 }
 
 export function resolvePgTenantContextForRequest(
-  path: string,
+  _path: string,
   headers: Record<string, string | string[] | undefined>,
-  request: { url?: URL; body?: unknown } = {}
+  _request: { url?: URL; body?: unknown } = {}
 ): PgTenantContext {
-  const mediaContext = resolveMediaServiceTenantContext(path, headers, request);
-  if (mediaContext) return mediaContext;
-
   try {
     const auth = resolveAuthContext(headers);
     if (auth.tenantId) {
@@ -46,46 +41,6 @@ export function resolvePgTenantContextForRequest(
   }
 
   return {};
-}
-
-function resolveMediaServiceTenantContext(
-  path: string,
-  headers: Record<string, string | string[] | undefined>,
-  request: { url?: URL; body?: unknown }
-): PgTenantContext | null {
-  if (!path.startsWith('/api/media/livekit/')) return null;
-  const expected = String(resolveBrandEnv(process.env, 'MEDIA_API_TOKEN') || process.env.LIVEKIT_MEDIA_API_TOKEN || '');
-  const authorization = headerValue(headers, 'authorization');
-  if (expected) {
-    if (!safeEqual(authorization, `Bearer ${expected}`)) return null;
-  } else if (process.env.NODE_ENV === 'production') {
-    return null;
-  }
-  const body = request.body && typeof request.body === 'object' && !Array.isArray(request.body)
-    ? request.body as Record<string, unknown>
-    : {};
-  const tenantId = String(
-    headerValue(headers, 'x-tenant-id') ||
-    request.url?.searchParams.get('tenant_id') ||
-    body.tenant_id ||
-    ''
-  ).trim();
-  return tenantId ? { tenantId } : null;
-}
-
-function headerValue(
-  headers: Record<string, string | string[] | undefined>,
-  key: string
-): string {
-  const found = Object.entries(headers).find(([name]) => name.toLowerCase() === key.toLowerCase());
-  const value = Array.isArray(found?.[1]) ? found?.[1][0] : found?.[1];
-  return String(value || '');
-}
-
-function safeEqual(left: string, right: string): boolean {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 export async function withPgBypass<T>(

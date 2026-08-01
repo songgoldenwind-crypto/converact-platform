@@ -232,8 +232,8 @@ export class AuthStore {
     await withPgTenant(this.pg, input.tenantId, async (client) => {
       await client.query(
         `INSERT INTO users (id, tenant_id, email, password_hash, role, name, external_sub)
-         VALUES ($1, $2, $3, '', $4, $5, $6)`,
-        [userId, input.tenantId, email, role, input.name, input.externalSub]
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [userId, input.tenantId, email, '', role, input.name, input.externalSub]
       );
     });
     const user = await this.findByUserId(userId, input.tenantId);

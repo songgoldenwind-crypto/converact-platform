@@ -138,6 +138,7 @@ test('provisionOidcUser creates new SSO user', async () => {
   assert.ok(ssoUser.user_id);
   assert.equal(ssoUser.email, 'sso-user@test.com');
   assert.equal(ssoUser.tenant_id, owner.tenant_id);
+  assert.equal(ssoUser.role, 'operator');
   // Verify the user was actually persisted by finding it again
   const found = await store.findByEmailInTenant('sso-user@test.com', owner.tenant_id);
   assert.ok(found);
