@@ -200,7 +200,8 @@ export const REQUIRED_MIGRATIONS = [
   '108_converact_platform_identity_consent',
   '109_converact_platform_event_receipts',
   '110_converact_platform_usage_ledger',
-  '111_converact_platform_key_lifecycle'
+  '111_converact_platform_key_lifecycle',
+  '112_converact_platform_history_receipt_integrity'
 ] as const;
 
 function configurationCheck(env: NodeJS.ProcessEnv): ConveractFabricReadinessResult['checks']['configuration'] {

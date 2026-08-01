@@ -21,7 +21,12 @@ import type {
   EffectReceiptStage
 } from '../../../../src/agent-runtime/converact/platform-foundation/effect-receipt.js';
 import type {
+  AiRunUsage,
   UsageEntry
+} from '../../../../src/agent-runtime/converact/platform-foundation/billing-ledger.js';
+import {
+  platformBillingEffectId,
+  platformBillingKey
 } from '../../../../src/agent-runtime/converact/platform-foundation/billing-ledger.js';
 import {
   PostgresPlatformEventReceiptStore
@@ -33,7 +38,7 @@ import { evaluateControlledFaultScenario } from './evidence-contract.mjs';
 
 type JsonRecord = Record<string, any>;
 
-const EXPECTED_MIGRATION = '111_converact_platform_key_lifecycle';
+const EXPECTED_MIGRATION = '112_converact_platform_history_receipt_integrity';
 const GOAL_SHA256 = '742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9';
 
 export function buildDatabaseEvidence(input: {
@@ -60,6 +65,7 @@ export function buildDatabaseEvidence(input: {
     && recover.no_context_visible === 0;
   const durablePrepare = prepare.inbox_inserted === true
     && prepare.accepted_receipt_inserted === true
+    && prepare.completed_receipt_inserted === true
     && prepare.usage_inserted === true;
   const actualOutage = outage.status === 'passed'
     && outage.query_failed_during_outage === true;
@@ -74,7 +80,7 @@ export function buildDatabaseEvidence(input: {
     && prepare.process_pid !== recover.process_pid
     && recover.inbox_replayed === true
     && recover.accepted_receipt_replayed === true
-    && recover.completed_receipt_inserted === true
+    && recover.completed_receipt_replayed === true
     && recover.observed_receipt_inserted === true
     && recover.usage_replayed === true;
   const fences = recover.inbox_conflict_rejected === true
@@ -195,7 +201,8 @@ async function runPrepare(output: string): Promise<void> {
       tenant_id: ids.tenantA, consumer_id: ids.consumer, event: platformEvent(ids)
     });
     const accepted = await eventStore.appendEffectReceipt(effectReceipt(ids, 'accepted'));
-    const usageResult = await billingStore.append(usageEntry(ids));
+    const completed = await eventStore.appendEffectReceipt(effectReceipt(ids, 'completed'));
+    const usageResult = await billingStore.append(usageEntry(ids), billableSource(ids));
     const result = {
       status: 'passed', process_pid: process.pid, migration_head: migrationHead,
       tenant_a_visible: tenantAVisible, tenant_b_visible_from_a: tenantBVisibleFromA,
@@ -203,10 +210,12 @@ async function runPrepare(output: string): Promise<void> {
       cross_tenant_insert_denied: crossTenantInsertDenied,
       inbox_inserted: inbox.status === 'inserted',
       accepted_receipt_inserted: accepted.status === 'inserted',
+      completed_receipt_inserted: completed.status === 'inserted',
       usage_inserted: usageResult.status === 'inserted'
     };
     if (!result.cross_tenant_insert_denied || !result.inbox_inserted
-      || !result.accepted_receipt_inserted || !result.usage_inserted
+      || !result.accepted_receipt_inserted || !result.completed_receipt_inserted
+      || !result.usage_inserted
       || result.tenant_a_visible !== 1 || result.tenant_b_visible_from_a !== 0
       || result.no_context_visible !== 0) throw new Error('database_prepare_checks_failed');
     writeJson(output, result);
@@ -258,16 +267,14 @@ async function runRecover(output: string): Promise<void> {
       'platform_inbox_conflict'
     );
     const acceptedReplay = await eventStore.appendEffectReceipt(effectReceipt(ids, 'accepted'));
-    const completed = await eventStore.appendEffectReceipt(effectReceipt(ids, 'completed'));
+    const completedReplay = await eventStore.appendEffectReceipt(effectReceipt(ids, 'completed'));
     const observed = await eventStore.appendEffectReceipt(effectReceipt(ids, 'state_observed'));
-    const usageReplay = await billingStore.append(usageEntry(ids));
+    const usageReplay = await billingStore.append(usageEntry(ids), billableSource(ids));
     const staleWriter = await rejectsCode(
       () => billingStore.append(usageEntry(ids, {
         entry_id: `usage-stale-${ids.runId}`,
-        receipt_id: `usage-stale-receipt-${ids.runId}`,
-        receipt_digest: 'd'.repeat(64),
         writer_epoch: 5
-      })),
+      }), billableSource(ids)),
       'platform_usage_stale_writer'
     );
     const immutableUpdate = await rejectsPgCode(
@@ -286,7 +293,7 @@ async function runRecover(output: string): Promise<void> {
       inbox_replayed: inboxReplay.status === 'replay',
       inbox_conflict_rejected: inboxConflict,
       accepted_receipt_replayed: acceptedReplay.status === 'replay',
-      completed_receipt_inserted: completed.status === 'inserted',
+      completed_receipt_replayed: completedReplay.status === 'replay',
       observed_receipt_inserted: observed.status === 'inserted',
       usage_replayed: usageReplay.status === 'replay',
       stale_writer_rejected: staleWriter,
@@ -430,7 +437,7 @@ function effectReceipt(
   return {
     receipt_id: `receipt-${stage}-${ids.runId}`,
     tenant_id: ids.tenantA,
-    effect_id: `effect-${ids.runId}`,
+    effect_id: platformBillingEffectId(billableSource(ids)),
     event_id: `event-${ids.runId}`,
     correlation_id: `correlation-${ids.runId}`,
     stage,
@@ -449,17 +456,26 @@ function usageEntry(
   return {
     entry_id: `usage-${ids.runId}`,
     tenant_id: ids.tenantA,
-    billing_key: `ai:${ids.tenantA}:agent-${ids.runId}:1`,
+    billing_key: platformBillingKey(billableSource(ids)),
     entry_kind: 'usage',
     unit: 'seconds',
     quantity: 1,
-    receipt_id: `usage-receipt-${ids.runId}`,
-    receipt_digest: 'e'.repeat(64),
+    receipt_id: `receipt-completed-${ids.runId}`,
+    receipt_digest: 'b'.repeat(64),
     writer_id: `rating-${ids.runId}`,
     writer_epoch: 6,
     occurred_at: campaignTimestamp(),
     reverses_entry_id: null,
     ...overrides
+  };
+}
+
+function billableSource(ids: ReturnType<typeof campaignIds>): AiRunUsage {
+  return {
+    kind: 'ai_run',
+    tenant_id: ids.tenantA,
+    agent_run_id: `agent-${ids.runId}`,
+    generation: 1
   };
 }
 

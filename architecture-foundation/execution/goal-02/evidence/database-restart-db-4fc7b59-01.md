@@ -1,10 +1,16 @@
-# G02 controlled PostgreSQL restart evidence
+# G02 superseded PostgreSQL restart diagnostic
+
+> Superseded on 2026-08-02 after independent review. The run exercised a real
+> PostgreSQL restart, but its usage row referenced `usage-receipt-*` rather than
+> a receipt persisted by the effect authority. It therefore does **not** prove
+> receipt-backed billing and is not accepted as current G02 evidence. Raw
+> identity, hashes, and observations below are preserved for audit only.
 
 ## Classification
 
 - Scenario: `database / restart`
 - Run ID: `db-4fc7b59-01`
-- Status: `verified_controlled`
+- Status: `superseded_invalid_receipt_linkage`
 - `production_eligible`: `false`
 - `real_human_media`: `false`
 - Media probe: bounded synthetic UDP transport only

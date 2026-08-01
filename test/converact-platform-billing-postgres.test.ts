@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { PgQueryable } from '../src/db-pg.js';
-import type { UsageEntry } from '../src/agent-runtime/converact/platform-foundation/billing-ledger.js';
+import {
+  platformBillingEffectId,
+  type AiRunUsage,
+  type UsageEntry
+} from '../src/agent-runtime/converact/platform-foundation/billing-ledger.js';
 import {
   PlatformBillingStoreError,
   PostgresPlatformBillingLedgerStore
@@ -21,6 +25,7 @@ class RecordingPg implements PgQueryable {
 test('usage append elects one tenant-scoped writer and inserts immutable entry', async () => {
   const candidate = usage();
   const pg = new RecordingPg((sql) => {
+    if (/FROM converact_platform_effect_receipts/i.test(sql)) return [receipt()];
     if (/SELECT entry\./i.test(sql)) return [];
     if (/SELECT writer\./i.test(sql)) return [];
     if (/INSERT INTO converact_platform_billing_writers/i.test(sql)) return [{
@@ -30,7 +35,7 @@ test('usage append elects one tenant-scoped writer and inserts immutable entry',
     if (/INSERT INTO converact_platform_usage_entries/i.test(sql)) return [candidate];
     return [];
   });
-  const result = await new PostgresPlatformBillingLedgerStore(pg).append(candidate);
+  const result = await new PostgresPlatformBillingLedgerStore(pg).append(candidate, source());
   assert.deepEqual(result, { status: 'inserted' });
   for (const call of pg.calls.filter((item) => /converact_platform_(?:billing|usage)/i.test(item.text))) {
     assert.equal(call.params[0], 'tenant-a');
@@ -40,24 +45,29 @@ test('usage append elects one tenant-scoped writer and inserts immutable entry',
 
 test('same receipt digest replays while changed digest conflicts', async () => {
   const original = usage();
-  const replayPg = new RecordingPg((sql) => /SELECT entry\./i.test(sql) ? [original] : []);
+  const replayPg = new RecordingPg((sql) => /FROM converact_platform_effect_receipts/i.test(sql)
+    ? [receipt()]
+    : /SELECT entry\./i.test(sql) ? [original] : []);
   const replay = await new PostgresPlatformBillingLedgerStore(replayPg).append(usage({
-    entry_id: 'retry-entry', receipt_id: 'retry-receipt'
-  }));
+    entry_id: 'retry-entry'
+  }), source());
   assert.deepEqual(replay, { status: 'replay' });
   assert.equal(replayPg.calls.some((call) => /INSERT INTO converact_platform_usage_entries/i.test(call.text)), false);
 
-  const conflictPg = new RecordingPg((sql) => /SELECT entry\./i.test(sql) ? [original] : []);
+  const conflictPg = new RecordingPg((sql) => /FROM converact_platform_effect_receipts/i.test(sql)
+    ? [receipt({ receipt_digest: 'f'.repeat(64) })]
+    : /SELECT entry\./i.test(sql) ? [original] : []);
   await assert.rejects(
     () => new PostgresPlatformBillingLedgerStore(conflictPg).append(usage({
       receipt_digest: 'f'.repeat(64)
-    })),
+    }), source()),
     (error: unknown) => (error as PlatformBillingStoreError).code === 'platform_usage_conflict'
   );
 });
 
 test('writer epoch is fenced before a stale usage write', async () => {
   const pg = new RecordingPg((sql) => {
+    if (/FROM converact_platform_effect_receipts/i.test(sql)) return [receipt()];
     if (/SELECT entry\./i.test(sql)) return [];
     if (/SELECT writer\./i.test(sql)) return [{
       tenant_id: 'tenant-a', billing_key: usage().billing_key,
@@ -66,7 +76,7 @@ test('writer epoch is fenced before a stale usage write', async () => {
     return [];
   });
   await assert.rejects(
-    () => new PostgresPlatformBillingLedgerStore(pg).append(usage({ writer_epoch: 7 })),
+    () => new PostgresPlatformBillingLedgerStore(pg).append(usage({ writer_epoch: 7 }), source()),
     (error: unknown) => (error as PlatformBillingStoreError).code === 'platform_usage_stale_writer'
   );
   assert.equal(pg.calls.some((call) => /INSERT INTO converact_platform_usage_entries/i.test(call.text)), false);
@@ -79,6 +89,9 @@ test('credit requires an exact original entry under the same writer fence', asyn
     receipt_digest: 'b'.repeat(64), reverses_entry_id: original.entry_id
   });
   const pg = new RecordingPg((sql) => {
+    if (/FROM converact_platform_effect_receipts/i.test(sql)) return [receipt({
+      receipt_id: credit.receipt_id, receipt_digest: credit.receipt_digest
+    })];
     if (/SELECT entry\.[\s\S]*entry_id = \$2 OR/i.test(sql)) return [];
     if (/SELECT writer\./i.test(sql)) return [{
       tenant_id: original.tenant_id, billing_key: original.billing_key,
@@ -88,7 +101,7 @@ test('credit requires an exact original entry under the same writer fence', asyn
     if (/INSERT INTO converact_platform_usage_entries/i.test(sql)) return [credit];
     return [];
   });
-  assert.deepEqual(await new PostgresPlatformBillingLedgerStore(pg).append(credit), { status: 'inserted' });
+  assert.deepEqual(await new PostgresPlatformBillingLedgerStore(pg).append(credit, source()), { status: 'inserted' });
 });
 
 test('credit cannot exceed the remaining immutable usage quantity', async () => {
@@ -99,6 +112,9 @@ test('credit cannot exceed the remaining immutable usage quantity', async () => 
     reverses_entry_id: original.entry_id
   });
   const pg = new RecordingPg((sql) => {
+    if (/FROM converact_platform_effect_receipts/i.test(sql)) return [receipt({
+      receipt_id: credit.receipt_id, receipt_digest: credit.receipt_digest
+    })];
     if (/SELECT entry\.[\s\S]*entry_id = \$2 OR/i.test(sql)) return [];
     if (/SELECT writer\./i.test(sql)) return [{
       tenant_id: original.tenant_id, billing_key: original.billing_key,
@@ -109,10 +125,39 @@ test('credit cannot exceed the remaining immutable usage quantity', async () => 
     return [];
   });
   await assert.rejects(
-    () => new PostgresPlatformBillingLedgerStore(pg).append(credit),
+    () => new PostgresPlatformBillingLedgerStore(pg).append(credit, source()),
     (error: unknown) => (error as PlatformBillingStoreError).code === 'platform_usage_conflict'
   );
   assert.equal(pg.calls.some((call) => /INSERT INTO converact_platform_usage_entries/i.test(call.text)), false);
+});
+
+test('usage rejects missing mismatched or non-completed effect receipts before writer mutation', async () => {
+  const cases: Array<[Record<string, unknown> | null, string]> = [
+    [null, 'platform_usage_receipt_missing'],
+    [receipt({ receipt_digest: 'f'.repeat(64) }), 'platform_usage_receipt_conflict'],
+    [receipt({ stage: 'accepted' }), 'platform_usage_receipt_not_billable'],
+    [receipt({ effect_id: 'billing:'.concat('f'.repeat(64)) }), 'platform_usage_receipt_not_billable']
+  ];
+  for (const [receiptRow, code] of cases) {
+    const pg = new RecordingPg((sql) => /FROM converact_platform_effect_receipts/i.test(sql)
+      ? receiptRow ? [receiptRow] : []
+      : []);
+    await assert.rejects(
+      () => new PostgresPlatformBillingLedgerStore(pg).append(usage(), source()),
+      (error: unknown) => (error as PlatformBillingStoreError).code === code,
+      code
+    );
+    assert.equal(pg.calls.some((call) => /INSERT INTO converact_platform_billing_writers/i.test(call.text)), false);
+  }
+});
+
+test('typed billable source must derive the exact tenant and billing key before database access', async () => {
+  const pg = new RecordingPg();
+  await assert.rejects(
+    () => new PostgresPlatformBillingLedgerStore(pg).append(usage(), source({ agent_run_id: 'other-run' })),
+    (error: unknown) => (error as PlatformBillingStoreError).code === 'platform_usage_invalid'
+  );
+  assert.equal(pg.calls.length, 0);
 });
 
 function usage(overrides: Partial<UsageEntry> = {}): UsageEntry {
@@ -121,5 +166,20 @@ function usage(overrides: Partial<UsageEntry> = {}): UsageEntry {
     entry_kind: 'usage', unit: 'seconds', quantity: 10, receipt_id: 'receipt-a',
     receipt_digest: 'a'.repeat(64), writer_id: 'rating-worker-a', writer_epoch: 6,
     occurred_at: '2026-08-01T12:00:00.000Z', reverses_entry_id: null, ...overrides
+  };
+}
+
+function source(overrides: Partial<AiRunUsage> = {}): AiRunUsage {
+  return {
+    kind: 'ai_run', tenant_id: 'tenant-a', agent_run_id: 'agent-run-a', generation: 4,
+    ...overrides
+  };
+}
+
+function receipt(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    tenant_id: 'tenant-a', receipt_id: 'receipt-a', receipt_digest: 'a'.repeat(64),
+    effect_id: platformBillingEffectId(source()), stage: 'completed',
+    ...overrides
   };
 }

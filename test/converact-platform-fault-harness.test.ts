@@ -228,10 +228,10 @@ test('database evidence requires actual RLS restart recovery and synthetic conti
   const result = buildDatabaseEvidence({
     identity,
     prepare: {
-      status: 'passed', process_pid: 101, migration_head: '111_converact_platform_key_lifecycle',
+      status: 'passed', process_pid: 101, migration_head: '112_converact_platform_history_receipt_integrity',
       tenant_a_visible: 1, tenant_b_visible_from_a: 0, no_context_visible: 0,
       cross_tenant_insert_denied: true, inbox_inserted: true,
-      accepted_receipt_inserted: true, usage_inserted: true
+      accepted_receipt_inserted: true, completed_receipt_inserted: true, usage_inserted: true
     },
     outage: { status: 'passed', query_failed_during_outage: true },
     restart: {
@@ -244,7 +244,7 @@ test('database evidence requires actual RLS restart recovery and synthetic conti
       status: 'passed', process_pid: 202, tenant_a_visible: 1,
       tenant_b_visible_from_a: 0, no_context_visible: 0,
       inbox_replayed: true, inbox_conflict_rejected: true,
-      accepted_receipt_replayed: true, completed_receipt_inserted: true,
+      accepted_receipt_replayed: true, completed_receipt_replayed: true,
       observed_receipt_inserted: true, usage_replayed: true,
       stale_writer_rejected: true, immutable_update_rejected: true
     },
@@ -263,10 +263,10 @@ test('database evidence requires actual RLS restart recovery and synthetic conti
   const sameProcess = buildDatabaseEvidence({
     identity,
     prepare: {
-      status: 'passed', process_pid: 101, migration_head: '111_converact_platform_key_lifecycle',
+      status: 'passed', process_pid: 101, migration_head: '112_converact_platform_history_receipt_integrity',
       tenant_a_visible: 1, tenant_b_visible_from_a: 0, no_context_visible: 0,
       cross_tenant_insert_denied: true, inbox_inserted: true,
-      accepted_receipt_inserted: true, usage_inserted: true
+      accepted_receipt_inserted: true, completed_receipt_inserted: true, usage_inserted: true
     },
     outage: { status: 'passed', query_failed_during_outage: true },
     restart: {
@@ -279,7 +279,7 @@ test('database evidence requires actual RLS restart recovery and synthetic conti
       status: 'passed', process_pid: 101, tenant_a_visible: 1,
       tenant_b_visible_from_a: 0, no_context_visible: 0,
       inbox_replayed: true, inbox_conflict_rejected: true,
-      accepted_receipt_replayed: true, completed_receipt_inserted: true,
+      accepted_receipt_replayed: true, completed_receipt_replayed: true,
       observed_receipt_inserted: true, usage_replayed: true,
       stale_writer_rejected: true, immutable_update_rejected: true
     },

@@ -156,7 +156,7 @@
       "evidence_id": "G02-E09A-DATABASE-RESTART",
       "evidence_class": "controlled_dependency_fault",
       "scope": "postgres_restart_runtime_rls_reconcile_synthetic_transport",
-      "status": "verified_controlled",
+      "status": "not_run",
       "production_eligible": false,
       "required_evidence": [
         "raw database restart output",
@@ -166,7 +166,7 @@
       "evidence_uris": [
         "architecture-foundation/execution/goal-02/evidence/database-restart-db-4fc7b59-01.md"
       ],
-      "non_claim": "One isolated PostgreSQL restart was verified with synthetic transport; synthetic transport is not real human media and this does not prove the remaining dependency matrix, production behavior, long media, capacity, restore, drain, region recovery, PKI/KMS, or DR."
+      "non_claim": "The prior controlled run is preserved only as a superseded diagnostic: its usage row referenced a receipt that was not persisted by the effect authority. Current exact-source evidence remains not_run until a corrected campaign passes."
     },
     {
       "evidence_id": "G02-E10-RESTORE",
@@ -259,8 +259,8 @@
     "entries": 18,
     "target_contract_entries": 1,
     "verified_local_entries": 8,
-    "verified_controlled_entries": 1,
-    "not_run_entries": 8,
+    "verified_controlled_entries": 0,
+    "not_run_entries": 9,
     "production_eligible_entries": 0
   }
 }

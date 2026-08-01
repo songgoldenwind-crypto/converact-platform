@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   decideUsageAppend,
+  platformBillingEffectId,
   platformBillingKey,
   reconstructUsage,
   type BillableSource,
@@ -26,7 +27,12 @@ test('four billable source types produce exact generation-bound keys', () => {
       kind: 'external_action', tenant_id: 'tenant-a', intent_id: 'intent-a', attempt_generation: 2
     }, 'action:tenant-a:intent-a:2']
   ];
-  for (const [source, expected] of cases) assert.equal(platformBillingKey(source), expected);
+  for (const [source, expected] of cases) {
+    assert.equal(platformBillingKey(source), expected);
+    assert.match(platformBillingEffectId(source), /^billing:[a-f0-9]{64}$/u);
+    assert.equal(platformBillingEffectId(source), platformBillingEffectId({ ...source }));
+  }
+  assert.notEqual(platformBillingEffectId(cases[0][0]), platformBillingEffectId(cases[1][0]));
   assert.throws(() => platformBillingKey({
     kind: 'ai_run', tenant_id: 'tenant:escape', agent_run_id: 'run-a', generation: 1
   }), /billable_source_invalid/);

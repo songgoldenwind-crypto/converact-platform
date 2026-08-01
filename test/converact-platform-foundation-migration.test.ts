@@ -9,22 +9,45 @@ const EXPECTED = [
   '108_converact_platform_identity_consent.sql',
   '109_converact_platform_event_receipts.sql',
   '110_converact_platform_usage_ledger.sql',
-  '111_converact_platform_key_lifecycle.sql'
+  '111_converact_platform_key_lifecycle.sql',
+  '112_converact_platform_history_receipt_integrity.sql'
 ] as const;
 
 test('platform foundation migrations are additive and ordered immediately after 107', () => {
   const plan = readPostgresMigrationPlan(new URL('../src/migrations', import.meta.url).pathname);
-  assert.deepEqual(plan.slice(-5).map((entry) => entry.file), [
+  assert.deepEqual(plan.slice(-6).map((entry) => entry.file), [
     '107_ivekit_sip_effect_oracle.sql', ...EXPECTED
   ]);
   for (const file of EXPECTED) assert.match(readFileSync(new URL(`../src/migrations/${file}`, import.meta.url), 'utf8'), /tenant_id/i);
-  assert.deepEqual(REQUIRED_MIGRATIONS.slice(-5), [
+  assert.deepEqual(REQUIRED_MIGRATIONS.slice(-6), [
     '107_ivekit_sip_effect_oracle',
     '108_converact_platform_identity_consent',
     '109_converact_platform_event_receipts',
     '110_converact_platform_usage_ledger',
-    '111_converact_platform_key_lifecycle'
+    '111_converact_platform_key_lifecycle',
+    '112_converact_platform_history_receipt_integrity'
   ]);
+});
+
+test('history integrity blocks tenant cascades and usage requires a completed exact effect receipt', () => {
+  const sql = migration(112);
+  assert.match(sql, /FOREIGN KEY\s*\(tenant_id, receipt_id\)[\s\S]*converact_platform_effect_receipts[\s\S]*ON DELETE RESTRICT/i);
+  assert.match(sql, /BEFORE INSERT ON converact_platform_usage_entries/i);
+  assert.match(sql, /receipt\.stage NOT IN \('completed', 'state_observed'\)/i);
+  assert.match(sql, /encode\(sha256\(convert_to\(NEW\.billing_key, 'UTF8'\)\), 'hex'\)/i);
+  for (const table of [
+    'converact_platform_outbox',
+    'converact_platform_inbox',
+    'converact_platform_effect_receipts',
+    'converact_platform_billing_writers',
+    'converact_platform_usage_entries',
+    'converact_platform_key_versions',
+    'converact_platform_key_lifecycle_receipts',
+    'converact_platform_certificate_bindings'
+  ]) {
+    assert.match(sql, new RegExp(`${table}[\\s\\S]*ON DELETE RESTRICT`, 'i'), table);
+  }
+  assert.doesNotMatch(sql, /TG_OP = 'DELETE'[\s\S]*NOT EXISTS[\s\S]*RETURN OLD/i);
 });
 
 test('identity consent and policy tables are tenant scoped without persisted monotonic instants', () => {
@@ -73,11 +96,11 @@ test('usage and key metadata are immutable writer-fenced references without raw 
   assert.doesNotMatch(keys, /\b(?:raw_material|private_key|client_secret|secret_value)\b/i);
 });
 
-test('standalone package and delivery allowlists include the four platform migrations', () => {
+test('standalone package and delivery allowlists include all platform migrations', () => {
   const sourcePolicy = JSON.parse(readFileSync(new URL(
     '../services/converact-service/source-policy.json', import.meta.url
   ), 'utf8')) as { migrations: string[] };
-  assert.deepEqual(sourcePolicy.migrations.slice(-4), [...EXPECTED]);
+  assert.deepEqual(sourcePolicy.migrations.slice(-5), [...EXPECTED]);
   const delivery = readFileSync(new URL('../scripts/converact-delivery-bundle.ts', import.meta.url), 'utf8');
   for (const file of EXPECTED) assert.match(delivery, new RegExp(file.replace('.', '\\.')));
 });

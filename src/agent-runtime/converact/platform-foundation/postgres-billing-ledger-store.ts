@@ -2,6 +2,9 @@ import type { PgQueryable } from '../../../db-pg.js';
 import { withPgTenant } from '../../../db-pg-tenant.js';
 import {
   decideUsageAppend,
+  platformBillingEffectId,
+  platformBillingKey,
+  type BillableSource,
   type UsageAppendDecision,
   type UsageEntry
 } from './billing-ledger.js';
@@ -25,9 +28,10 @@ export class PlatformBillingStoreError extends Error {
 export class PostgresPlatformBillingLedgerStore {
   constructor(private readonly pg: PgQueryable) {}
 
-  append(candidate: UsageEntry): Promise<{ status: 'inserted' | 'replay' }> {
-    assertCandidate(candidate);
+  async append(candidate: UsageEntry, source: BillableSource): Promise<{ status: 'inserted' | 'replay' }> {
+    assertCandidate(candidate, source);
     return withPgTenant(this.pg, candidate.tenant_id, async (pg) => {
+      await assertBillableReceipt(pg, candidate, source);
       const collision = await readCandidateCollision(pg, candidate);
       if (collision) return decideExisting(collision, candidate);
 
@@ -69,6 +73,31 @@ export class PostgresPlatformBillingLedgerStore {
       if (!raced) billingStoreError('platform_usage_conflict');
       return decideExisting(raced, candidate);
     });
+  }
+}
+
+async function assertBillableReceipt(
+  pg: PgQueryable,
+  candidate: UsageEntry,
+  source: BillableSource
+): Promise<void> {
+  const result = await pg.query<Row>(
+    `SELECT receipt.receipt_id, receipt.receipt_digest, receipt.effect_id, receipt.stage
+     FROM converact_platform_effect_receipts receipt
+     WHERE receipt.tenant_id = $1 AND receipt.receipt_id = $2
+     LIMIT 2
+     FOR KEY SHARE`,
+    [candidate.tenant_id, candidate.receipt_id]
+  );
+  if (result.rows.length === 0) billingStoreError('platform_usage_receipt_missing');
+  if (result.rows.length !== 1) billingStoreError('platform_usage_store_invalid');
+  const receipt = result.rows[0]!;
+  if (text(receipt.receipt_digest) !== candidate.receipt_digest) {
+    billingStoreError('platform_usage_receipt_conflict');
+  }
+  if (!['completed', 'state_observed'].includes(text(receipt.stage))
+    || text(receipt.effect_id) !== platformBillingEffectId(source)) {
+    billingStoreError('platform_usage_receipt_not_billable');
   }
 }
 
@@ -200,9 +229,12 @@ function assertWriterFence(writer: BillingWriter, candidate: UsageEntry): void {
   }
 }
 
-function assertCandidate(candidate: UsageEntry): void {
+function assertCandidate(candidate: UsageEntry, source: BillableSource): void {
   try {
     if (decideUsageAppend(candidate, candidate) !== 'replay') throw new Error('invalid');
+    if (candidate.tenant_id !== source.tenant_id || candidate.billing_key !== platformBillingKey(source)) {
+      throw new Error('source mismatch');
+    }
   } catch {
     billingStoreError('platform_usage_invalid');
   }

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 export interface DirectedMediaEdgeUsage {
   kind: 'directed_media_edge';
   tenant_id: string;
@@ -108,6 +110,10 @@ export function platformBillingKey(source: BillableSource): string {
     default:
       throw billingError('billable_source_invalid');
   }
+}
+
+export function platformBillingEffectId(source: BillableSource): string {
+  return `billing:${createHash('sha256').update(platformBillingKey(source), 'utf8').digest('hex')}`;
 }
 
 export function decideUsageAppend(
