@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evidence-index-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "contract_id",
+    "version",
+    "generated_at",
+    "binding_goal",
+    "status",
+    "entries",
+    "summary"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^1\\.0\\.0$"
+    },
+    "generated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T"
+    },
+    "binding_goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "const": "goals/goal-02-platform-foundation-security-observability.md"
+        },
+        "sha256": {
+          "type": "string",
+          "const": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9"
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "runtime",
+        "production_eligible"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "target_contract",
+            "verified_contract"
+          ]
+        },
+        "runtime": {
+          "type": "string",
+          "enum": [
+            "not_run",
+            "verified_local",
+            "verified_controlled",
+            "failed"
+          ]
+        },
+        "production_eligible": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evidence_id",
+          "evidence_class",
+          "scope",
+          "status",
+          "production_eligible",
+          "required_evidence",
+          "evidence_uris",
+          "non_claim"
+        ],
+        "properties": {
+          "evidence_id": {
+            "type": "string"
+          },
+          "evidence_class": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "target_contract",
+              "not_run",
+              "verified_local",
+              "verified_controlled",
+              "failed"
+            ]
+          },
+          "production_eligible": {
+            "type": "boolean",
+            "const": false
+          },
+          "required_evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "evidence_uris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "non_claim": {
+            "type": "string"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entries",
+        "target_contract_entries",
+        "verified_local_entries",
+        "not_run_entries",
+        "production_eligible_entries"
+      ],
+      "properties": {
+        "entries": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "target_contract_entries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verified_local_entries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "not_run_entries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "production_eligible_entries": {
+          "type": "integer",
+          "const": 0
+        }
+      }
+    }
+  }
+}

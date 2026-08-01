@@ -1,0 +1,275 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "traceability-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "contract_id",
+    "version",
+    "generated_at",
+    "binding_goal",
+    "status",
+    "rows",
+    "summary"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^1\\.0\\.0$"
+    },
+    "generated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T"
+    },
+    "binding_goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "const": "goals/goal-02-platform-foundation-security-observability.md"
+        },
+        "sha256": {
+          "type": "string",
+          "const": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9"
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "runtime",
+        "production_eligible"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "target_contract",
+            "verified_contract"
+          ]
+        },
+        "runtime": {
+          "type": "string",
+          "enum": [
+            "not_run",
+            "verified_local",
+            "verified_controlled",
+            "failed"
+          ]
+        },
+        "production_eligible": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requirement_id",
+          "source_id",
+          "source_path",
+          "source_pointer",
+          "source_kind",
+          "requirement",
+          "source_prior_status",
+          "source_disposition",
+          "source_evidence_status",
+          "g02_domain",
+          "g02_disposition",
+          "implementation_paths",
+          "test_paths",
+          "status",
+          "production_eligible",
+          "evidence_uris",
+          "rationale"
+        ],
+        "properties": {
+          "requirement_id": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "source_path": {
+            "type": "string"
+          },
+          "source_pointer": {
+            "type": "string"
+          },
+          "source_kind": {
+            "type": "string"
+          },
+          "requirement": {
+            "type": "string"
+          },
+          "source_prior_status": {
+            "type": "string"
+          },
+          "source_disposition": {
+            "type": "string"
+          },
+          "source_evidence_status": {
+            "type": "string"
+          },
+          "g02_domain": {
+            "type": "string"
+          },
+          "g02_disposition": {
+            "type": "string"
+          },
+          "implementation_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "test_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "status": {
+            "type": "string",
+            "const": "not_run"
+          },
+          "production_eligible": {
+            "type": "boolean",
+            "const": false
+          },
+          "evidence_uris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      },
+      "minItems": 543,
+      "maxItems": 543
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_rows",
+        "mapped_rows",
+        "unmapped_rows",
+        "production_eligible_rows",
+        "historical_evidence_not_requalified",
+        "domain_counts"
+      ],
+      "properties": {
+        "source_rows": {
+          "type": "integer",
+          "const": 543
+        },
+        "mapped_rows": {
+          "type": "integer",
+          "const": 543
+        },
+        "unmapped_rows": {
+          "type": "integer",
+          "const": 0
+        },
+        "production_eligible_rows": {
+          "type": "integer",
+          "const": 0
+        },
+        "historical_evidence_not_requalified": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "domain_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "identity",
+            "consent",
+            "events",
+            "audit_receipts",
+            "billing",
+            "key_lifecycle",
+            "observability",
+            "clock",
+            "resilience",
+            "fault_matrix",
+            "legacy_assessment"
+          ],
+          "properties": {
+            "identity": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "consent": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "events": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "audit_receipts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "billing": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "key_lifecycle": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "observability": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "clock": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "resilience": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fault_matrix": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "legacy_assessment": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

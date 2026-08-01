@@ -1,0 +1,232 @@
+{
+  "$schema": "./evidence-index-v1.schema.json",
+  "contract_id": "converact-goal-02-evidence-index-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-01T00:00:00Z",
+  "binding_goal": {
+    "path": "goals/goal-02-platform-foundation-security-observability.md",
+    "sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9"
+  },
+  "status": {
+    "contract": "target_contract",
+    "runtime": "not_run",
+    "production_eligible": false
+  },
+  "entries": [
+    {
+      "evidence_id": "G02-E00-DESIGN",
+      "evidence_class": "document_contract",
+      "scope": "design_authority_threat_recovery",
+      "status": "target_contract",
+      "production_eligible": false,
+      "required_evidence": [
+        "contract test"
+      ],
+      "evidence_uris": [],
+      "non_claim": "Document contract only; it does not prove runtime or production behavior."
+    },
+    {
+      "evidence_id": "G02-E01-IDENTITY",
+      "evidence_class": "local_test",
+      "scope": "tenant_identity_cross_tenant",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "focused tests",
+        "RLS integration"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E02-CONSENT",
+      "evidence_class": "local_test",
+      "scope": "consent_purpose_region_lease",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "focused tests"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E03-EVENT",
+      "evidence_class": "local_test",
+      "scope": "event_N_N_minus_1_replay_unknown",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "schema/property tests"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E04-RECEIPT",
+      "evidence_class": "local_test",
+      "scope": "audit_effect_receipt_rebuild",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "focused tests"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E05-BILLING",
+      "evidence_class": "local_test",
+      "scope": "single_writer_usage_ledger",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "focused tests",
+        "crash boundary tests"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E06-KEY",
+      "evidence_class": "key_rotation",
+      "scope": "secret_key_cert_lifecycle",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "real PKI/KMS rotation and revoke"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E07-OBSERVABILITY",
+      "evidence_class": "local_test",
+      "scope": "correlation_redaction_cardinality",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "focused tests"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E08-CLOCK",
+      "evidence_class": "local_test",
+      "scope": "wall_monotonic_skew_jump",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "deterministic fault tests"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E09-DEPENDENCY",
+      "evidence_class": "real_dependency",
+      "scope": "postgres_event_object_pki_dns_config_ai_recording",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "raw dependency fault output"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E10-RESTORE",
+      "evidence_class": "backup_restore",
+      "scope": "backup_restore_rehearsal",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "raw restore output",
+        "RPO/RTO"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E11-DRAIN",
+      "evidence_class": "rolling_drain",
+      "scope": "node_loss_rolling_schema_active_zero",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "raw multi-node output"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E12-LONG-MEDIA",
+      "evidence_class": "long_media_fault",
+      "scope": "established_human_media_fault_isolation",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "real long media and fault schedule"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E13-CAPACITY",
+      "evidence_class": "capacity",
+      "scope": "bounded_queue_retry_fanout_overload",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "same-hardware raw capacity output"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E14-REGION",
+      "evidence_class": "region_recovery",
+      "scope": "region_failover_split_brain_reconcile",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "raw region recovery output"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E15-NATIVE",
+      "evidence_class": "native_safety",
+      "scope": "core_dump_unsafe_ffi_source",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "exact-source review",
+        "fault/fuzz evidence"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    },
+    {
+      "evidence_id": "G02-E16-REVIEW",
+      "evidence_class": "independent_review",
+      "scope": "spec_security_quality",
+      "status": "not_run",
+      "production_eligible": false,
+      "required_evidence": [
+        "independent review with no open high risk"
+      ],
+      "evidence_uris": [],
+      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+    }
+  ],
+  "summary": {
+    "entries": 17,
+    "target_contract_entries": 1,
+    "verified_local_entries": 0,
+    "not_run_entries": 16,
+    "production_eligible_entries": 0
+  }
+}

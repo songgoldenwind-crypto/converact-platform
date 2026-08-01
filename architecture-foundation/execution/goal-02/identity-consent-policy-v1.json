@@ -1,0 +1,217 @@
+{
+  "$schema": "./identity-consent-policy-v1.schema.json",
+  "contract_id": "converact-platform-identity-consent-policy-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-01T00:00:00Z",
+  "binding_goal": {
+    "path": "goals/goal-02-platform-foundation-security-observability.md",
+    "sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9"
+  },
+  "status": {
+    "contract": "target_contract",
+    "runtime": "not_run",
+    "production_eligible": false
+  },
+  "identity": {
+    "authority": "Converact Platform Identity",
+    "kinds": [
+      "human",
+      "service",
+      "workload",
+      "edge",
+      "provider"
+    ],
+    "required_claims": [
+      "tenant_id",
+      "identity_id",
+      "identity_kind",
+      "session_id",
+      "token_id",
+      "issuer",
+      "audience",
+      "key_id",
+      "issued_at",
+      "not_before",
+      "expires_at",
+      "policy_version",
+      "revocation_epoch",
+      "role",
+      "capabilities",
+      "purpose"
+    ],
+    "production_dev_fallback": "forbidden",
+    "edge_to_core": "mtls_or_equivalent_strong_identity",
+    "resource_tenant_check": "exact_match_before_store_and_force_rls_in_store"
+  },
+  "authorization": {
+    "default_decision": "deny",
+    "allow_requires": [
+      "cryptographically_verified_identity",
+      "tenant_match",
+      "audience_match",
+      "unexpired_session_and_token",
+      "current_policy_version",
+      "revocation_epoch_not_stale",
+      "declared_capability",
+      "allowed_purpose"
+    ],
+    "deny_conditions": [
+      "missing_claim",
+      "unknown_identity_kind",
+      "cross_tenant",
+      "expired",
+      "stale_policy",
+      "stale_revocation",
+      "unknown_capability",
+      "unknown_purpose",
+      "pki_or_kms_unavailable_for_new_session"
+    ],
+    "plaintext_downgrade": "forbidden"
+  },
+  "consent": {
+    "authority": "Converact Platform Consent Policy",
+    "scopes": [
+      {
+        "scope": "phone_audio",
+        "purpose": "human_communication",
+        "independent_authorization": true,
+        "unknown_or_store_failure": "deny_new_capability",
+        "revocation_behavior": "detach_capability_keep_human_media"
+      },
+      {
+        "scope": "video",
+        "purpose": "human_video",
+        "independent_authorization": true,
+        "unknown_or_store_failure": "deny_new_capability",
+        "revocation_behavior": "detach_capability_keep_human_media"
+      },
+      {
+        "scope": "recording",
+        "purpose": "quality_legal_or_support_evidence",
+        "independent_authorization": true,
+        "unknown_or_store_failure": "deny_new_capability",
+        "revocation_behavior": "detach_capability_keep_human_media"
+      },
+      {
+        "scope": "transcription",
+        "purpose": "captions_or_case_notes",
+        "independent_authorization": true,
+        "unknown_or_store_failure": "deny_new_capability",
+        "revocation_behavior": "detach_capability_keep_human_media"
+      },
+      {
+        "scope": "translation",
+        "purpose": "language_assistance",
+        "independent_authorization": true,
+        "unknown_or_store_failure": "deny_new_capability",
+        "revocation_behavior": "detach_capability_keep_human_media"
+      },
+      {
+        "scope": "ai_processing",
+        "purpose": "agent_assist_or_summary",
+        "independent_authorization": true,
+        "unknown_or_store_failure": "deny_new_capability",
+        "revocation_behavior": "detach_capability_keep_human_media"
+      },
+      {
+        "scope": "tool_action",
+        "purpose": "authorized_external_effect",
+        "independent_authorization": true,
+        "unknown_or_store_failure": "deny_new_capability",
+        "revocation_behavior": "detach_capability_keep_human_media"
+      },
+      {
+        "scope": "remote_control",
+        "purpose": "attended_remote_assistance",
+        "independent_authorization": true,
+        "unknown_or_store_failure": "deny_new_capability",
+        "revocation_behavior": "detach_capability_keep_human_media"
+      }
+    ],
+    "evidence_fields": [
+      "consent_id",
+      "tenant_id",
+      "subject_id",
+      "scope",
+      "purpose",
+      "policy_version",
+      "region_policy",
+      "retention_policy",
+      "legal_hold_policy",
+      "evidence_ref",
+      "actor_id",
+      "occurred_at",
+      "status",
+      "revision"
+    ],
+    "lease": {
+      "fields": [
+        "lease_id",
+        "tenant_id",
+        "subject_id",
+        "scope",
+        "purpose",
+        "generation",
+        "policy_version",
+        "revocation_epoch",
+        "issued_at",
+        "expires_at",
+        "monotonic_duration_ms",
+        "issuer_key_id",
+        "evidence_digest"
+      ],
+      "max_ttl_ms": 300000,
+      "expiry_behavior": "detach_capability_keep_human_media",
+      "normal_revocation": "versioned_event_snapshot",
+      "urgent_revocation": "signed_independent_control_channel",
+      "stale_snapshot": "deny_or_detach_capability"
+    }
+  },
+  "policy": {
+    "versioning": "immutable_revision",
+    "region_selection": "before_provider_selection",
+    "retention": "separate_per_data_category",
+    "legal_hold": "resource_and_category_scoped",
+    "deletion": "append_only_request_receipt_verification",
+    "backup_restore": "preserve_region_hold_and_deletion_tombstone"
+  },
+  "key_lifecycle": {
+    "authority": "Converact Platform Key Lifecycle",
+    "states": [
+      "generated",
+      "staged",
+      "active",
+      "retiring",
+      "revoked",
+      "expired",
+      "destroyed"
+    ],
+    "rotation": "dual_read_single_write_bounded_overlap",
+    "raw_material_storage": "kms_pki_or_locked_memory_only",
+    "forbidden_sinks": [
+      "database_payload",
+      "event",
+      "log",
+      "metric",
+      "prompt",
+      "evidence",
+      "core_dump"
+    ],
+    "native_gate": [
+      "exact_source",
+      "abi_review",
+      "bounded_memory",
+      "zeroize",
+      "core_dump_disabled",
+      "fuzz_or_sanitizer_evidence",
+      "independent_fault_isolation"
+    ]
+  },
+  "invariants": [
+    "cross_tenant_unknown_or_mismatch_denies",
+    "one_identity_and_policy_authority",
+    "consent_scopes_do_not_imply_each_other",
+    "revoking_optional_capability_does_not_terminate_human_media",
+    "ordinary_media_does_not_read_identity_or_consent_store_per_packet"
+  ]
+}

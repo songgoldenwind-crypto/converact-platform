@@ -1,0 +1,134 @@
+{
+  "$schema": "./observability-correlation-contract-v1.schema.json",
+  "contract_id": "converact-platform-observability-correlation-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-01T00:00:00Z",
+  "binding_goal": {
+    "path": "goals/goal-02-platform-foundation-security-observability.md",
+    "sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9"
+  },
+  "status": {
+    "contract": "target_contract",
+    "runtime": "not_run",
+    "production_eligible": false
+  },
+  "correlation": {
+    "fields": [
+      "tenant_id",
+      "engagement_id",
+      "profile_binding_id",
+      "interaction_id",
+      "communication_session_id",
+      "call_id",
+      "leg_id",
+      "room_id",
+      "resolution_id",
+      "action_intent_id",
+      "agent_run_id",
+      "media_edge_id",
+      "generation",
+      "owner_epoch",
+      "trace_id",
+      "span_id",
+      "request_id"
+    ],
+    "propagation": "signed_or_authenticated_boundary_metadata",
+    "maximum_field_length": 256,
+    "unknown_or_invalid": "omit_and_record_bounded_validation_counter"
+  },
+  "metrics": {
+    "allowed_low_cardinality_labels": [
+      "service",
+      "region",
+      "zone",
+      "cell",
+      "component",
+      "operation",
+      "status",
+      "error_class",
+      "dependency",
+      "queue",
+      "capability",
+      "identity_kind"
+    ],
+    "prohibited_unbounded_labels": [
+      "tenant_id",
+      "profile_type",
+      "user_id",
+      "engagement_id",
+      "interaction_id",
+      "call_id",
+      "leg_id",
+      "room_id",
+      "resolution_id",
+      "action_intent_id",
+      "agent_run_id",
+      "media_edge_id",
+      "trace_id",
+      "request_id"
+    ],
+    "cardinality_policy": "allowlist_only_with_ci_and_runtime_budget"
+  },
+  "logging": {
+    "format": "structured_json",
+    "redaction": "key_and_value_before_sink",
+    "forbidden_values": [
+      "secret",
+      "token",
+      "password",
+      "authorization",
+      "cookie",
+      "raw_pii",
+      "media_payload"
+    ],
+    "high_cardinality": "controlled_log_or_trace_only_never_metric_label"
+  },
+  "tracing": {
+    "sampling": "parent_based_bounded_ratio_with_error_override_budget",
+    "payload_capture": "forbidden_by_default",
+    "cross_domain_links": "correlation_context_and_effect_receipt_links"
+  },
+  "exporter": {
+    "queue": "bounded",
+    "retries": "bounded",
+    "timeout": "bounded",
+    "failure_behavior": "drop_bounded_telemetry_never_backpressure_media"
+  },
+  "worker": {
+    "concurrency": "fixed_or_admission_bounded",
+    "pending": "bounded",
+    "retry": "bounded_with_deadline_and_jitter",
+    "fanout": "bounded",
+    "overload": "reject_or_defer_optional_work",
+    "fairness": "tenant_or_partition_aware"
+  },
+  "health": {
+    "liveness": "process_and_supervisor_only",
+    "readiness": "new_admission_capability_specific",
+    "drain": "withdraw_readiness_then_stop_claim_then_active_zero",
+    "rolling": "reader_before_writer_N_and_N_minus_1"
+  },
+  "media_hot_path": {
+    "observability_dependency": "forbidden",
+    "database_io_per_packet": 0,
+    "event_io_per_packet": 0,
+    "http_io_per_packet": 0,
+    "ai_io_per_packet": 0,
+    "external_io_per_packet": 0,
+    "global_lock": "forbidden",
+    "task_per_packet": "forbidden"
+  },
+  "clocks": {
+    "wall": "durable_utc_audit_and_correlation_only",
+    "monotonic": "elapsed_deadline_lease_and_latency_only",
+    "rtp": "sequence_timestamp_jitter_and_drift_only",
+    "cross_node": "record_offset_quality_and_skew",
+    "jump_behavior": "wall_jump_must_not_change_monotonic_deadline"
+  },
+  "invariants": [
+    "observability_failure_does_not_change_business_success",
+    "observability_failure_does_not_terminate_human_media",
+    "profile_type_is_not_an_unbounded_metric_label",
+    "all_queues_retries_and_fanout_are_bounded"
+  ]
+}

@@ -1,0 +1,267 @@
+{
+  "$schema": "./fault-matrix-v1.schema.json",
+  "contract_id": "converact-platform-fault-matrix-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-01T00:00:00Z",
+  "binding_goal": {
+    "path": "goals/goal-02-platform-foundation-security-observability.md",
+    "sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9"
+  },
+  "status": {
+    "contract": "target_contract",
+    "runtime": "not_run",
+    "production_eligible": false
+  },
+  "dependencies": [
+    {
+      "dependency": "database",
+      "failure_modes": [
+        "timeout",
+        "partition",
+        "pool_exhaustion",
+        "restart"
+      ],
+      "established_human_media": "continue",
+      "new_work": "reject_durable_new_work",
+      "optional_attachment": "degrade_or_bounded_spool",
+      "recovery": "reconnect_query_reconcile",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    },
+    {
+      "dependency": "event_system",
+      "failure_modes": [
+        "timeout",
+        "partition",
+        "duplicate",
+        "reorder"
+      ],
+      "established_human_media": "continue",
+      "new_work": "commit_domain_state_and_bound_outbox_or_reject",
+      "optional_attachment": "degrade",
+      "recovery": "replay_inbox_query_reconcile",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    },
+    {
+      "dependency": "object_store",
+      "failure_modes": [
+        "timeout",
+        "partition",
+        "partial_write",
+        "stale_read"
+      ],
+      "established_human_media": "continue",
+      "new_work": "reject_object_required_work",
+      "optional_attachment": "bounded_spool_or_detach",
+      "recovery": "checksum_query_reconcile",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    },
+    {
+      "dependency": "pki_kms",
+      "failure_modes": [
+        "timeout",
+        "partition",
+        "revoked_key",
+        "expired_cert"
+      ],
+      "established_human_media": "continue",
+      "new_work": "reject_new_secure_session_or_effect",
+      "optional_attachment": "detach_at_lease_expiry",
+      "recovery": "rotate_reauthorize_no_plaintext_downgrade",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    },
+    {
+      "dependency": "dns",
+      "failure_modes": [
+        "timeout",
+        "nxdomain",
+        "stale_answer",
+        "poisoned_answer"
+      ],
+      "established_human_media": "continue",
+      "new_work": "reject_or_use_unexpired_signed_snapshot",
+      "optional_attachment": "keep_pinned_generation",
+      "recovery": "new_generation_after_resolution",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    },
+    {
+      "dependency": "configuration",
+      "failure_modes": [
+        "missing",
+        "invalid",
+        "stale",
+        "conflicting_revision"
+      ],
+      "established_human_media": "continue",
+      "new_work": "reject_new_admission",
+      "optional_attachment": "keep_pinned_generation",
+      "recovery": "load_signed_revision_then_reconcile",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    },
+    {
+      "dependency": "wall_clock",
+      "failure_modes": [
+        "backward_jump",
+        "forward_jump",
+        "cross_node_skew",
+        "quality_unknown"
+      ],
+      "established_human_media": "continue",
+      "new_work": "reject_new_lease_when_skew_exceeds_policy",
+      "optional_attachment": "monotonic_deadline_continues",
+      "recovery": "resync_then_reissue_lease",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    },
+    {
+      "dependency": "ai_gpu",
+      "failure_modes": [
+        "timeout",
+        "oom",
+        "process_crash",
+        "capacity_exhaustion"
+      ],
+      "established_human_media": "continue",
+      "new_work": "defer_or_reject_ai_work",
+      "optional_attachment": "detach_ai_keep_human_media",
+      "recovery": "fenced_worker_restart",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    },
+    {
+      "dependency": "recording_upload",
+      "failure_modes": [
+        "timeout",
+        "partition",
+        "checksum_mismatch",
+        "capacity_exhaustion"
+      ],
+      "established_human_media": "continue",
+      "new_work": "reject_or_degrade_new_recording",
+      "optional_attachment": "bounded_capture_spool_or_detach",
+      "recovery": "owner_epoch_checksum_reconcile",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    },
+    {
+      "dependency": "provider",
+      "failure_modes": [
+        "timeout",
+        "duplicate",
+        "reorder",
+        "unknown_effect"
+      ],
+      "established_human_media": "continue",
+      "new_work": "reject_or_mark_unknown",
+      "optional_attachment": "degrade_provider_feature",
+      "recovery": "query_reconcile_compensate",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    },
+    {
+      "dependency": "observability",
+      "failure_modes": [
+        "collector_down",
+        "exporter_timeout",
+        "queue_full"
+      ],
+      "established_human_media": "continue",
+      "new_work": "continue",
+      "optional_attachment": "drop_bounded_telemetry",
+      "recovery": "resume_without_unbounded_replay",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    },
+    {
+      "dependency": "node_crash",
+      "failure_modes": [
+        "process_abort",
+        "oom",
+        "host_loss"
+      ],
+      "established_human_media": "continue_if_external_edge_owner",
+      "new_work": "reroute_new_admission",
+      "optional_attachment": "interrupt_only_process_owned_edges",
+      "recovery": "owner_epoch_takeover_and_reconcile",
+      "hot_path_dependency": false,
+      "evidence": {
+        "status": "not_run",
+        "production_eligible": false,
+        "evidence_uris": []
+      }
+    }
+  ],
+  "acceptance": {
+    "required_campaigns": [
+      "local_deterministic",
+      "real_dependency",
+      "rolling_schema",
+      "key_rotation",
+      "backup_restore",
+      "node_loss",
+      "region_recovery",
+      "long_media_fault",
+      "bounded_overload_capacity",
+      "independent_security_review"
+    ],
+    "mock_or_loopback_production_evidence": "forbidden",
+    "historical_evidence_inheritance": "forbidden",
+    "any_unproved_item": "not_run"
+  },
+  "invariants": [
+    "ordinary_media_bypasses_all_platform_dependencies",
+    "optional_failure_never_sends_call_termination",
+    "stale_generation_or_owner_epoch_never_writes",
+    "unknown_effect_requires_query_reconcile",
+    "capacity_exhaustion_rejects_new_optional_work_before_human_media"
+  ]
+}

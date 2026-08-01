@@ -1,0 +1,361 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "observability-correlation-contract-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "contract_id",
+    "version",
+    "generated_at",
+    "binding_goal",
+    "status",
+    "correlation",
+    "metrics",
+    "logging",
+    "tracing",
+    "exporter",
+    "worker",
+    "health",
+    "media_hot_path",
+    "clocks",
+    "invariants"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^1\\.0\\.0$"
+    },
+    "generated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T"
+    },
+    "binding_goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "const": "goals/goal-02-platform-foundation-security-observability.md"
+        },
+        "sha256": {
+          "type": "string",
+          "const": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9"
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "runtime",
+        "production_eligible"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "target_contract",
+            "verified_contract"
+          ]
+        },
+        "runtime": {
+          "type": "string",
+          "enum": [
+            "not_run",
+            "verified_local",
+            "verified_controlled",
+            "failed"
+          ]
+        },
+        "production_eligible": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields",
+        "propagation",
+        "maximum_field_length",
+        "unknown_or_invalid"
+      ],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "propagation": {
+          "type": "string"
+        },
+        "maximum_field_length": {
+          "type": "integer",
+          "maximum": 256
+        },
+        "unknown_or_invalid": {
+          "type": "string"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed_low_cardinality_labels",
+        "prohibited_unbounded_labels",
+        "cardinality_policy"
+      ],
+      "properties": {
+        "allowed_low_cardinality_labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "prohibited_unbounded_labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "cardinality_policy": {
+          "type": "string"
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "redaction",
+        "forbidden_values",
+        "high_cardinality"
+      ],
+      "properties": {
+        "format": {
+          "type": "string"
+        },
+        "redaction": {
+          "type": "string"
+        },
+        "forbidden_values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "high_cardinality": {
+          "type": "string"
+        }
+      }
+    },
+    "tracing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sampling",
+        "payload_capture",
+        "cross_domain_links"
+      ],
+      "properties": {
+        "sampling": {
+          "type": "string"
+        },
+        "payload_capture": {
+          "type": "string"
+        },
+        "cross_domain_links": {
+          "type": "string"
+        }
+      }
+    },
+    "exporter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "queue",
+        "retries",
+        "timeout",
+        "failure_behavior"
+      ],
+      "properties": {
+        "queue": {
+          "type": "string"
+        },
+        "retries": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "string"
+        },
+        "failure_behavior": {
+          "type": "string"
+        }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "concurrency",
+        "pending",
+        "retry",
+        "fanout",
+        "overload",
+        "fairness"
+      ],
+      "properties": {
+        "concurrency": {
+          "type": "string"
+        },
+        "pending": {
+          "type": "string"
+        },
+        "retry": {
+          "type": "string"
+        },
+        "fanout": {
+          "type": "string"
+        },
+        "overload": {
+          "type": "string"
+        },
+        "fairness": {
+          "type": "string"
+        }
+      }
+    },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "liveness",
+        "readiness",
+        "drain",
+        "rolling"
+      ],
+      "properties": {
+        "liveness": {
+          "type": "string"
+        },
+        "readiness": {
+          "type": "string"
+        },
+        "drain": {
+          "type": "string"
+        },
+        "rolling": {
+          "type": "string"
+        }
+      }
+    },
+    "media_hot_path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observability_dependency",
+        "database_io_per_packet",
+        "event_io_per_packet",
+        "http_io_per_packet",
+        "ai_io_per_packet",
+        "external_io_per_packet",
+        "global_lock",
+        "task_per_packet"
+      ],
+      "properties": {
+        "observability_dependency": {
+          "type": "string",
+          "const": "forbidden"
+        },
+        "database_io_per_packet": {
+          "type": "integer",
+          "const": 0
+        },
+        "event_io_per_packet": {
+          "type": "integer",
+          "const": 0
+        },
+        "http_io_per_packet": {
+          "type": "integer",
+          "const": 0
+        },
+        "ai_io_per_packet": {
+          "type": "integer",
+          "const": 0
+        },
+        "external_io_per_packet": {
+          "type": "integer",
+          "const": 0
+        },
+        "global_lock": {
+          "type": "string"
+        },
+        "task_per_packet": {
+          "type": "string"
+        }
+      }
+    },
+    "clocks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wall",
+        "monotonic",
+        "rtp",
+        "cross_node",
+        "jump_behavior"
+      ],
+      "properties": {
+        "wall": {
+          "type": "string"
+        },
+        "monotonic": {
+          "type": "string"
+        },
+        "rtp": {
+          "type": "string"
+        },
+        "cross_node": {
+          "type": "string"
+        },
+        "jump_behavior": {
+          "type": "string"
+        }
+      }
+    },
+    "invariants": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}
