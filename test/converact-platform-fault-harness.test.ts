@@ -285,6 +285,10 @@ test('database evidence requires actual RLS restart recovery and synthetic conti
 test('database runner has bounded actual stop-start lifecycle and cleanup', () => {
   const script = readFileSync(new URL('accept.sh', acceptanceRoot), 'utf8');
   assert.match(script, /compose up --detach postgres/);
+  assert.match(
+    script,
+    /net\.createConnection\(\{ host: process\.env\.PGHOST, port: Number\(process\.env\.PGPORT\) \}/
+  );
   assert.match(script, /compose stop --timeout [0-9]+ postgres/);
   assert.match(script, /compose start postgres/);
   assert.match(script, /database-probe\.ts.*prepare/s);

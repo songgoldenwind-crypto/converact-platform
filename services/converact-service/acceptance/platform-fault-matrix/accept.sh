@@ -146,7 +146,15 @@ snapshot_unrelated() {
 
 wait_postgres() {
   local attempt=0
-  until compose exec --no-TTY postgres pg_isready -U opc_admin -d opc >/dev/null 2>&1; do
+  until compose exec --no-TTY postgres pg_isready -U opc_admin -d opc >/dev/null 2>&1 &&
+    "$NODE_BIN" -e '
+      const net = require("node:net");
+      const socket = net.createConnection({ host: process.env.PGHOST, port: Number(process.env.PGPORT) });
+      socket.setTimeout(500, () => socket.destroy(new Error("timeout")));
+      socket.once("error", () => process.exit(1));
+      socket.once("connect", () => socket.end());
+    ' >/dev/null 2>&1
+  do
     attempt=$((attempt + 1))
     if (( attempt >= 90 )); then
       compose logs --no-color --tail 120 postgres >&2 || true
