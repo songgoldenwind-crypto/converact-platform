@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { createHmac, createSign, generateKeyPairSync } from 'node:crypto';
+import { createServer as createHttpServer, type Server } from 'node:http';
 import { test } from 'node:test';
 import {
   _clearJwksCache,
   _injectJwksForTest,
   resolveAuthContext,
-  signAccessToken
+  signAccessToken,
+  startAuthJwksLifecycle
 } from '../src/middleware/auth.js';
 
 test('dev mode: X-API-Key matching CONVERACT_API_KEY returns system context', () => {
@@ -384,11 +386,87 @@ test('RS256 auth rejects otherwise signed identity without exp', () => {
   }
 });
 
+test('RS256 lifecycle warms before service, refreshes periodically, and refreshes an unknown kid', async () => {
+  const restore = isolateAuthEnvironment();
+  const first = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const second = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const firstJwk = first.publicKey.export({ format: 'jwk' });
+  const secondJwk = second.publicKey.export({ format: 'jwk' });
+  let active = jwksKey(firstJwk, 'auth-key-1');
+  let requests = 0;
+  const server = createHttpServer((_request, response) => {
+    requests += 1;
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ keys: [active] }));
+  });
+  let scheduledRefresh: (() => void) | null = null;
+  let cleared = false;
+  let lifecycle: Awaited<ReturnType<typeof startAuthJwksLifecycle>> = null;
+  try {
+    const issuer = await listenIssuer(server);
+    process.env.NODE_ENV = 'production';
+    process.env.CONVERACT_AUTH_ISSUER = issuer;
+    process.env.CONVERACT_AUTH_AUDIENCE = 'converact-core';
+    process.env.CONVERACT_AUTH_POLICY_VERSION = '12';
+    process.env.CONVERACT_AUTH_REVOCATION_EPOCH = '4';
+
+    lifecycle = await startAuthJwksLifecycle({
+      issuer,
+      refreshIntervalMs: 60_000,
+      scheduler: {
+        setInterval(callback) {
+          scheduledRefresh = callback;
+          return 1;
+        },
+        clearInterval() {
+          cleared = true;
+        }
+      }
+    });
+    assert.ok(lifecycle);
+    assert.equal(requests, 1, 'startup must synchronously warm JWKS');
+    assert.equal(resolveAuthContext({
+      authorization: `Bearer ${signRs256(strictRs256Claims(issuer, 'auth-key-1'), first.privateKey, 'auth-key-1')}`
+    }).tenantId, 'signed-tenant');
+
+    active = jwksKey(secondJwk, 'auth-key-2');
+    scheduledRefresh!();
+    await waitFor(() => requests === 2);
+    assert.equal(resolveAuthContext({
+      authorization: `Bearer ${signRs256(strictRs256Claims(issuer, 'auth-key-2'), second.privateKey, 'auth-key-2')}`
+    }).userId, 'user-1');
+    assert.throws(
+      () => resolveAuthContext({
+        authorization: `Bearer ${signRs256(strictRs256Claims(issuer, 'auth-key-1'), first.privateKey, 'auth-key-1')}`
+      }),
+      (error: any) => error.status === 401
+    );
+
+    active = jwksKey(firstJwk, 'auth-key-1');
+    assert.throws(
+      () => resolveAuthContext({
+        authorization: `Bearer ${signRs256(strictRs256Claims(issuer, 'auth-key-1'), first.privateKey, 'auth-key-1')}`
+      }),
+      (error: any) => error.status === 401 && /matching|refresh/i.test(error.message)
+    );
+    await waitFor(() => requests === 3);
+    assert.equal(resolveAuthContext({
+      authorization: `Bearer ${signRs256(strictRs256Claims(issuer, 'auth-key-1'), first.privateKey, 'auth-key-1')}`
+    }).role, 'operator');
+  } finally {
+    lifecycle?.stop();
+    assert.equal(lifecycle === null || cleared, true);
+    await closeServer(server);
+    _clearJwksCache();
+    restore();
+  }
+});
+
 function futureEpoch(): number {
   return Math.floor(Date.now() / 1000) + 60;
 }
 
-function strictRs256Claims(issuer: string): Record<string, unknown> {
+function strictRs256Claims(issuer: string, keyId = 'auth-test-key'): Record<string, unknown> {
   const now = Math.floor(Date.now() / 1000);
   return {
     sub: 'user-1',
@@ -401,7 +479,7 @@ function strictRs256Claims(issuer: string): Record<string, unknown> {
     issuer,
     aud: ['converact-core'],
     audience: ['converact-core'],
-    key_id: 'auth-test-key',
+    key_id: keyId,
     iat: now,
     nbf: now,
     exp: futureEpoch(),
@@ -424,12 +502,53 @@ function signHs256Raw(payload: Record<string, unknown>, secret: string, kid?: st
   return `${header}.${body}.${signature}`;
 }
 
-function signRs256(payload: Record<string, unknown>, privateKey: ReturnType<typeof generateKeyPairSync>['privateKey']): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: 'auth-test-key' })).toString('base64url');
+function signRs256(
+  payload: Record<string, unknown>,
+  privateKey: ReturnType<typeof generateKeyPairSync>['privateKey'],
+  kid = 'auth-test-key'
+): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid })).toString('base64url');
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const input = `${header}.${body}`;
   const signature = createSign('RSA-SHA256').update(input).sign(privateKey).toString('base64url');
   return `${input}.${signature}`;
+}
+
+function jwksKey(jwk: Record<string, unknown>, kid: string): Record<string, string> {
+  return {
+    kty: String(jwk.kty),
+    kid,
+    n: String(jwk.n),
+    e: String(jwk.e),
+    use: 'sig',
+    alg: 'RS256'
+  };
+}
+
+async function listenIssuer(server: Server): Promise<string> {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  return `http://127.0.0.1:${address.port}`;
+}
+
+async function closeServer(server: Server): Promise<void> {
+  if (!server.listening) return;
+  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) return;
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+  }
+  assert.fail('condition did not become true');
 }
 
 function isolateAuthEnvironment(): () => void {

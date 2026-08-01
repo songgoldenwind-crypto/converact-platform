@@ -237,8 +237,26 @@ interface JwksKey {
   alg?: string;
 }
 
-const jwksCache = new Map<string, { keys: JwksKey[]; fetchedAt: number }>();
+export interface AuthJwksLifecycleScheduler {
+  setInterval(callback: () => void, delayMs: number): unknown;
+  clearInterval(handle: unknown): void;
+}
+
+export interface AuthJwksLifecycle {
+  refreshNow(): Promise<void>;
+  stop(): void;
+}
+
+const jwksCache = new Map<string, { keys: JwksKey[]; refreshedAtMonotonicMs: number }>();
+const jwksRefreshes = new Map<string, Promise<JwksKey[]>>();
+const jwksLastRefreshAttempt = new Map<string, number>();
 const JWKS_CACHE_TTL_MS = 300_000;
+const JWKS_DEFAULT_REFRESH_INTERVAL_MS = 120_000;
+const JWKS_MIN_REFRESH_INTERVAL_MS = 1_000;
+const JWKS_ON_DEMAND_REFRESH_FLOOR_MS = 5_000;
+const JWKS_FETCH_TIMEOUT_MS = 5_000;
+const JWKS_MAX_RESPONSE_BYTES = 131_072;
+const JWKS_MAX_KEYS = 64;
 
 function base64UrlEncode(input: Buffer | string): string {
   const buf = typeof input === 'string' ? Buffer.from(input, 'utf8') : input;
@@ -331,21 +349,52 @@ function jwtAlgorithm(token: string): string {
   }
 }
 
-async function fetchJwks(issuer: string): Promise<JwksKey[]> {
+async function fetchJwks(issuer: string, force = false): Promise<JwksKey[]> {
   const cached = jwksCache.get(issuer);
-  if (cached && Date.now() - cached.fetchedAt < JWKS_CACHE_TTL_MS) {
+  if (!force && cached && jwksCacheAgeMs(cached) < JWKS_CACHE_TTL_MS) {
     return cached.keys;
   }
 
-  const wellKnownUrl = `${issuer.replace(/\/$/, '')}/.well-known/jwks.json`;
-  const response = await fetch(wellKnownUrl);
+  const pending = jwksRefreshes.get(issuer);
+  if (pending) return pending;
+
+  const refresh = fetchAndValidateJwks(issuer);
+  jwksRefreshes.set(issuer, refresh);
+  try {
+    return await refresh;
+  } finally {
+    if (jwksRefreshes.get(issuer) === refresh) jwksRefreshes.delete(issuer);
+  }
+}
+
+async function fetchAndValidateJwks(issuer: string): Promise<JwksKey[]> {
+  const wellKnownUrl = jwksUrl(issuer);
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), JWKS_FETCH_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(wellKnownUrl, { signal: controller.signal });
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+
   if (!response.ok) {
     throw Object.assign(new Error(`JWKS fetch failed: ${response.status}`), { status: 401 });
   }
 
-  const body = (await response.json()) as { keys: JwksKey[] };
-  jwksCache.set(issuer, { keys: body.keys, fetchedAt: Date.now() });
-  return body.keys;
+  const text = await response.text();
+  if (Buffer.byteLength(text, 'utf8') > JWKS_MAX_RESPONSE_BYTES) {
+    throw unauthorizedToken('JWKS response exceeds the bounded size');
+  }
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw unauthorizedToken('JWKS response is invalid');
+  }
+  const keys = decodeJwks(body);
+  jwksCache.set(issuer, { keys, refreshedAtMonotonicMs: performance.now() });
+  return keys;
 }
 
 function rsaPublicKeyFromJwk(jwk: JwksKey): string {
@@ -398,8 +447,9 @@ function verifyJwt(token: string, issuer: string): JwtPayload {
   }
 
   const cached = jwksCache.get(issuer);
-  if (!cached) {
-    throw Object.assign(new Error('JWKS not cached — call warmJwksCache at startup'), { status: 401 });
+  if (!cached || jwksCacheAgeMs(cached) >= JWKS_CACHE_TTL_MS) {
+    queueJwksRefresh(issuer);
+    throw unauthorizedToken('JWKS cache is unavailable or expired; refresh scheduled');
   }
 
   const jwk = cached.keys.find((key) => key.kid === jwtHeader.kid
@@ -408,7 +458,8 @@ function verifyJwt(token: string, issuer: string): JwtPayload {
     && (key.alg === 'RS256' || !key.alg));
 
   if (!jwk) {
-    throw Object.assign(new Error('no matching JWKS key found'), { status: 401 });
+    queueJwksRefresh(issuer);
+    throw unauthorizedToken('no matching JWKS key found; refresh scheduled');
   }
 
   const publicKey = rsaPublicKeyFromJwk(jwk);
@@ -558,15 +609,138 @@ function unauthorizedToken(message: string): Error & { status: number } {
 
 /** Pre-fetch JWKS keys at server startup. */
 export async function warmJwksCache(issuer: string): Promise<void> {
-  await fetchJwks(issuer);
+  await fetchJwks(issuer, true);
+}
+
+export async function startConfiguredAuthJwksLifecycle(): Promise<AuthJwksLifecycle | null> {
+  return startAuthJwksLifecycle();
+}
+
+export async function startAuthJwksLifecycle(input: {
+  issuer?: string;
+  refreshIntervalMs?: number;
+  scheduler?: AuthJwksLifecycleScheduler;
+} = {}): Promise<AuthJwksLifecycle | null> {
+  const issuer = String(input.issuer ?? resolveBrandEnv(process.env, 'AUTH_ISSUER') ?? '').trim();
+  if (!issuer) return null;
+  const refreshIntervalMs = boundedJwksRefreshInterval(
+    input.refreshIntervalMs ?? JWKS_DEFAULT_REFRESH_INTERVAL_MS
+  );
+  const scheduler = input.scheduler ?? defaultJwksLifecycleScheduler();
+  if (!scheduler || typeof scheduler.setInterval !== 'function'
+    || typeof scheduler.clearInterval !== 'function') {
+    throw Object.assign(new Error('JWKS lifecycle scheduler is invalid'), { status: 503 });
+  }
+  await fetchJwks(issuer, true);
+  let stopped = false;
+  const refreshNow = async (): Promise<void> => {
+    if (stopped) return;
+    await fetchJwks(issuer, true);
+  };
+  const handle = scheduler.setInterval(() => {
+    void refreshNow().catch(() => undefined);
+  }, refreshIntervalMs);
+  return Object.freeze({
+    refreshNow,
+    stop(): void {
+      if (stopped) return;
+      stopped = true;
+      scheduler.clearInterval(handle);
+    }
+  });
 }
 
 /** Exposed for testing: inject JWKS keys directly. */
 export function _injectJwksForTest(issuer: string, keys: JwksKey[]): void {
-  jwksCache.set(issuer, { keys, fetchedAt: Date.now() });
+  jwksCache.set(issuer, { keys, refreshedAtMonotonicMs: performance.now() });
 }
 
 /** Exposed for testing: clear JWKS cache. */
 export function _clearJwksCache(): void {
   jwksCache.clear();
+  jwksLastRefreshAttempt.clear();
+}
+
+function queueJwksRefresh(issuer: string): void {
+  const now = performance.now();
+  const lastAttempt = jwksLastRefreshAttempt.get(issuer) ?? Number.NEGATIVE_INFINITY;
+  if (now - lastAttempt < JWKS_ON_DEMAND_REFRESH_FLOOR_MS || jwksRefreshes.has(issuer)) return;
+  jwksLastRefreshAttempt.set(issuer, now);
+  void fetchJwks(issuer, true).catch(() => undefined);
+}
+
+function jwksCacheAgeMs(cache: { refreshedAtMonotonicMs: number }): number {
+  return Math.max(0, performance.now() - cache.refreshedAtMonotonicMs);
+}
+
+function jwksUrl(issuer: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(issuer);
+  } catch {
+    throw unauthorizedToken('JWKS issuer URL is invalid');
+  }
+  const loopback = ['127.0.0.1', '::1', 'localhost'].includes(parsed.hostname);
+  if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)) {
+    throw unauthorizedToken('JWKS issuer must use HTTPS');
+  }
+  parsed.pathname = `${parsed.pathname.replace(/\/$/u, '')}/.well-known/jwks.json`;
+  parsed.search = '';
+  parsed.hash = '';
+  return parsed.toString();
+}
+
+function decodeJwks(value: unknown): JwksKey[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw unauthorizedToken('JWKS response is invalid');
+  }
+  const keys = (value as { keys?: unknown }).keys;
+  if (!Array.isArray(keys) || keys.length < 1 || keys.length > JWKS_MAX_KEYS) {
+    throw unauthorizedToken('JWKS key count is invalid');
+  }
+  const seen = new Set<string>();
+  return keys.map((candidate) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      throw unauthorizedToken('JWKS key is invalid');
+    }
+    const key = candidate as Partial<JwksKey>;
+    if (key.kty !== 'RSA' || typeof key.kid !== 'string'
+      || !/^[A-Za-z0-9._:/-]{1,256}$/u.test(key.kid) || seen.has(key.kid)
+      || typeof key.n !== 'string' || !/^[A-Za-z0-9_-]{64,1024}$/u.test(key.n)
+      || typeof key.e !== 'string' || !/^[A-Za-z0-9_-]{1,16}$/u.test(key.e)
+      || (key.use !== undefined && key.use !== 'sig')
+      || (key.alg !== undefined && key.alg !== 'RS256')) {
+      throw unauthorizedToken('JWKS key is invalid');
+    }
+    seen.add(key.kid);
+    return {
+      kty: key.kty,
+      kid: key.kid,
+      n: key.n,
+      e: key.e,
+      ...(key.use === undefined ? {} : { use: key.use }),
+      ...(key.alg === undefined ? {} : { alg: key.alg })
+    };
+  });
+}
+
+function boundedJwksRefreshInterval(value: number): number {
+  if (!Number.isSafeInteger(value) || value < JWKS_MIN_REFRESH_INTERVAL_MS
+    || value >= JWKS_CACHE_TTL_MS) {
+    throw Object.assign(new Error('JWKS refresh interval is invalid'), { status: 503 });
+  }
+  return value;
+}
+
+function defaultJwksLifecycleScheduler(): AuthJwksLifecycleScheduler {
+  return {
+    setInterval(callback, delayMs) {
+      const handle = globalThis.setInterval(callback, delayMs);
+      handle.unref?.();
+      return handle;
+    },
+    clearInterval(handle) {
+      globalThis.clearInterval(handle as ReturnType<typeof setInterval>);
+    }
+  };
 }

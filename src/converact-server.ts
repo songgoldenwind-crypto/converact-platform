@@ -25,6 +25,10 @@ import {
 import { closePostgres, initPostgres } from './db-pg.js';
 import { PgSyncDatabase } from './db-pg-sync.js';
 import { validateEnvOrExit } from './env-config.js';
+import {
+  startConfiguredAuthJwksLifecycle,
+  type AuthJwksLifecycle
+} from './middleware/auth.js';
 import { createObjectStorage } from './storage/object-storage.js';
 import { initWebSocket } from './ws.js';
 import { shutdownOpenTelemetry } from './telemetry.js';
@@ -54,6 +58,7 @@ async function main(): Promise<void> {
     ReturnType<typeof createConfiguredRealtimeAudioTapRuntime> | null = null;
   let server: ReturnType<typeof createConveractFabricHttpServer> | null = null;
   let internalServer: ReturnType<typeof createConveractFabricHttpServer> | null = null;
+  let authJwksLifecycle: AuthJwksLifecycle | null = null;
   let shutdownPromise: Promise<void> | null = null;
 
   const shutdown = (): Promise<void> => {
@@ -89,6 +94,11 @@ async function main(): Promise<void> {
           }
         }
         try {
+          authJwksLifecycle?.stop();
+        } catch (error) {
+          errors.push(error);
+        }
+        try {
           db.close();
         } catch (error) {
           errors.push(error);
@@ -122,6 +132,7 @@ async function main(): Promise<void> {
   process.on('SIGTERM', exitAfterShutdown);
 
   try {
+    authJwksLifecycle = await startConfiguredAuthJwksLifecycle();
     const placement = createConfiguredPlacementFoundation({
       pg,
       instance_id: instanceId

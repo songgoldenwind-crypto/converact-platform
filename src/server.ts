@@ -17,6 +17,7 @@ import {
 import { migrateIvrRuntimeTables } from './db-migrations/ivr-runtime-schema.js';
 import { validateEnvOrExit } from './env-config.js';
 import { shutdownOpenTelemetry } from './telemetry.js';
+import { startConfiguredAuthJwksLifecycle } from './middleware/auth.js';
 
 // Fail-fast on missing required env vars (production) / warn (other envs).
 validateEnvOrExit();
@@ -61,6 +62,7 @@ async function main() {
   }
 
   console.log('[postgres] migrations applied');
+  const authJwksLifecycle = await startConfiguredAuthJwksLifecycle();
 
   // PgSyncDatabase makes run/one/all (from db.ts) work against Postgres synchronously.
   // Existing 72 stores call run(db, sql, params) — zero changes needed.
@@ -114,6 +116,7 @@ async function main() {
 
   const shutdown = async () => {
     server.close();
+    authJwksLifecycle?.stop();
     await converactFabricApplication.stop();
     db.close();
     await closePostgres();
