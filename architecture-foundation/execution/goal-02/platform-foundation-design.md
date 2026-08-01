@@ -139,7 +139,19 @@ domain input adapter；它们不得自行形成权威 charge、修改已入账 U
 合同白名单中的低基数维度。Tenant/Profile/Engagement/Call/Room 等 ID 不进入无界 metric label。
 Exporter 使用有界队列，丢 telemetry 时只计 drop，不回压媒体或业务成功路径。
 
-### 4.7 `fault-policy.ts`
+### 4.7 `key-lifecycle.ts`
+
+只保存 versioned KMS/PKI reference 和状态，不保存 raw material。Rotation 是 bounded
+dual-read/single-write；SAN、service、audience、key version、expiry 与 revocation 全部匹配后才接受
+Edge-to-Core identity。KMS/PKI 故障拒绝新的 stage/activate/destroy，仍允许 fail-closed revocation，
+禁止 plaintext downgrade。Native/unsafe slice 必须同时通过 exact source、ABI、memory bound、
+zeroize、core-dump disabled、fuzz/sanitizer evidence 与独立 fault isolation Gate。
+
+当前 `sso-config-store.ts` 的明文 OIDC `client_secret` 路径明确为 `not_production_eligible`。
+在独立完成 versioned secret-ref migration、rotation/revocation 和回滚测试以前，不得由 ad-hoc
+本地加密掩盖该缺口，也不得把它纳入新 Key Lifecycle 的合格路径。
+
+### 4.8 `fault-policy.ts`
 
 把 dependency fault 映射为 `continue_human_media`、`degrade_attachment`、`reject_new_work`、
 `query_reconcile` 或 `interrupt_only_owned_edge`。该模块是断言和 admission policy，不是运行时总线。
