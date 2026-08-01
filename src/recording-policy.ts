@@ -3,7 +3,7 @@ import { ConsentTracker } from './agent-runtime/call-center/compliance/consent-t
 
 /**
  * Decide whether to start egress recording for a call session.
- * Denies only when recording consent is explicitly denied in Postgres.
+ * Only an explicit tenant-scoped durable grant authorizes new capture.
  */
 export async function shouldRecordCall(
   pg: PgQueryable | null,
@@ -11,15 +11,15 @@ export async function shouldRecordCall(
   sessionMetadata?: Record<string, unknown>
 ): Promise<boolean> {
   if (sessionMetadata?.recording_consent === 'denied') return false;
-  if (!pg) return true;
+  if (!pg || !callSessionId) return false;
   const tenantId = String(sessionMetadata?.tenant_id || '');
-  if (!tenantId) return true;
+  if (!tenantId) return false;
   try {
     const tracker = new ConsentTracker(pg);
-    return await tracker.shouldRecord(callSessionId, tenantId);
-  } catch (error) {
-    console.warn('[recording-policy] consent lookup failed, defaulting to record:', error);
-    return true;
+    return await tracker.getRecordingConsent(callSessionId, tenantId) === 'granted';
+  } catch {
+    console.warn('[recording-policy] consent lookup failed; new recording denied');
+    return false;
   }
 }
 
