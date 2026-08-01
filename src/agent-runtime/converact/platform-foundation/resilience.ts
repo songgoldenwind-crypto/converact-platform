@@ -15,6 +15,15 @@ class OpaqueAdmissionLease {}
 
 const MAX_ADMISSION_LIMIT = 1_000_000;
 
+export interface BoundedWorkLimits {
+  active: number;
+  pending: number;
+  retry: number;
+  fanout: number;
+}
+
+export type BoundedWorkRejection = 'overloaded' | 'retry_exhausted' | 'fanout_exceeded';
+
 export class BoundedAdmissionGate {
   readonly #limits: Readonly<Record<AdmissionKind, number>>;
   readonly #leases = new WeakMap<object, LeaseState>();
@@ -66,8 +75,74 @@ export class BoundedAdmissionGate {
   }
 }
 
+export class BoundedWorkGate {
+  readonly #admission: BoundedAdmissionGate;
+  readonly #limits: Readonly<BoundedWorkLimits>;
+
+  constructor(limits: BoundedWorkLimits) {
+    if (!plainRecord(limits) || Object.keys(limits).length !== 4
+      || !boundedLimit(limits.active) || !boundedLimit(limits.pending)
+      || !nonNegativeLimit(limits.retry) || !positiveLimit(limits.fanout)) {
+      throw new Error('work_limits_invalid');
+    }
+    this.#limits = Object.freeze({ ...limits });
+    this.#admission = new BoundedAdmissionGate({
+      active: limits.active,
+      pending: limits.pending
+    });
+  }
+
+  tryAcquire(input: { kind: AdmissionKind; retry: number; fanout: number }):
+    { accepted: true; lease: AdmissionLease }
+    | { accepted: false; reason: BoundedWorkRejection } {
+    if (!plainRecord(input) || Object.keys(input).length !== 3
+      || (input.kind !== 'active' && input.kind !== 'pending')
+      || !nonNegativeLimit(input.retry) || !nonNegativeLimit(input.fanout)) {
+      throw new Error('work_request_invalid');
+    }
+    if (input.retry > this.#limits.retry) {
+      return Object.freeze({ accepted: false, reason: 'retry_exhausted' });
+    }
+    if (input.fanout > this.#limits.fanout) {
+      return Object.freeze({ accepted: false, reason: 'fanout_exceeded' });
+    }
+    return this.#admission.tryAcquire(input.kind);
+  }
+
+  release(lease: AdmissionLease): void {
+    this.#admission.release(lease);
+  }
+
+  snapshot(): Readonly<{
+    active: number;
+    pending: number;
+    active_limit: number;
+    pending_limit: number;
+    retry_limit: number;
+    fanout_limit: number;
+  }> {
+    const current = this.#admission.snapshot();
+    return Object.freeze({
+      active: current.active,
+      pending: current.pending,
+      active_limit: this.#limits.active,
+      pending_limit: this.#limits.pending,
+      retry_limit: this.#limits.retry,
+      fanout_limit: this.#limits.fanout
+    });
+  }
+}
+
 function boundedLimit(value: unknown): value is number {
   return Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= MAX_ADMISSION_LIMIT;
+}
+
+function nonNegativeLimit(value: unknown): value is number {
+  return boundedLimit(value);
+}
+
+function positiveLimit(value: unknown): value is number {
+  return boundedLimit(value) && Number(value) > 0;
 }
 
 function plainRecord(value: unknown): value is Record<string, unknown> {

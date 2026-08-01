@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   BoundedAdmissionGate,
+  BoundedWorkGate,
   type AdmissionLease
 } from '../src/agent-runtime/converact/platform-foundation/resilience.js';
 
@@ -63,4 +64,52 @@ test('AI recording event and telemetry gates are independent bulkheads', () => {
   assert.equal(gates.recording.tryAcquire('active').accepted, true);
   assert.equal(gates.event.tryAcquire('active').accepted, true);
   assert.equal(gates.telemetry.tryAcquire('active').accepted, true);
+});
+
+test('bounded work rejects retry and fanout before consuming active or pending capacity', () => {
+  const gate = new BoundedWorkGate({
+    active: 1,
+    pending: 2,
+    retry: 3,
+    fanout: 8
+  });
+  assert.deepEqual(gate.tryAcquire({ kind: 'active', retry: 4, fanout: 1 }), {
+    accepted: false,
+    reason: 'retry_exhausted'
+  });
+  assert.deepEqual(gate.tryAcquire({ kind: 'active', retry: 0, fanout: 9 }), {
+    accepted: false,
+    reason: 'fanout_exceeded'
+  });
+  assert.deepEqual(gate.snapshot(), {
+    active: 0,
+    pending: 0,
+    active_limit: 1,
+    pending_limit: 2,
+    retry_limit: 3,
+    fanout_limit: 8
+  });
+
+  const active = gate.tryAcquire({ kind: 'active', retry: 3, fanout: 8 });
+  assert.equal(active.accepted, true);
+  assert.deepEqual(gate.tryAcquire({ kind: 'active', retry: 0, fanout: 1 }), {
+    accepted: false,
+    reason: 'overloaded'
+  });
+  assert.equal(active.accepted, true);
+  if (active.accepted) gate.release(active.lease);
+  assert.equal(gate.snapshot().active, 0);
+});
+
+test('bounded work configuration is finite and disabled limits fail closed', () => {
+  for (const limits of [
+    { active: 1, pending: 1, retry: -1, fanout: 1 },
+    { active: 1, pending: 1, retry: 1, fanout: 0 },
+    { active: 1, pending: 1, retry: 1, fanout: 1_000_001 }
+  ]) assert.throws(() => new BoundedWorkGate(limits), /work_limits_invalid/);
+  const disabled = new BoundedWorkGate({ active: 0, pending: 0, retry: 0, fanout: 1 });
+  assert.deepEqual(disabled.tryAcquire({ kind: 'pending', retry: 0, fanout: 1 }), {
+    accepted: false,
+    reason: 'overloaded'
+  });
 });

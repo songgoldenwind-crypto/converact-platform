@@ -110,6 +110,16 @@ export function assertEvidenceArtifactSafe(value) {
   if (SECRET_VALUE.test(value)) throw new Error('evidence_secret_forbidden');
 }
 
+export function assertControlledEvidenceSafe(value) {
+  assertNoSecrets(value);
+}
+
+export function assertControlledEvidenceIdentity(value) {
+  assertNoSecrets(value);
+  if (!validIdentity(value)) throw new Error('evidence_identity_invalid');
+  return deepFreezeCopy(value);
+}
+
 function scenario(dependency, failureModes) {
   return Object.freeze({ dependency, failure_modes: Object.freeze([...failureModes]) });
 }

@@ -14,6 +14,14 @@ import {
 import {
   buildDatabaseEvidence
 } from '../services/converact-service/acceptance/platform-fault-matrix/database-probe.js';
+import {
+  buildBackupRestoreEvidence,
+  buildBoundedCapacityEvidence,
+  buildDrainEvidence
+} from '../services/converact-service/acceptance/platform-fault-matrix/campaign-evidence.mjs';
+import {
+  runBoundedCapacityWorkload
+} from '../services/converact-service/acceptance/platform-fault-matrix/capacity-probe.js';
 
 const acceptanceRoot = new URL(
   '../services/converact-service/acceptance/platform-fault-matrix/',
@@ -368,4 +376,176 @@ test('database runner has bounded actual stop-start lifecycle and cleanup', () =
   assert.match(script, /NODE_BINARY_SHA256/);
   assert.match(script, /trap cleanup EXIT HUP INT TERM/);
   assert.match(script, /compose down --volumes --remove-orphans/);
+});
+
+test('backup restore evidence requires a distinct empty target and measured zero-loss RPO/RTO', () => {
+  const result = buildBackupRestoreEvidence({
+    identity,
+    backup: {
+      status: 'passed',
+      source_database_id: 'source-db-a',
+      artifact_sha256: '1'.repeat(64),
+      checkpoint_records: 7,
+      checkpoint_digest: '2'.repeat(64),
+      backup_started_at: '2026-08-01T16:00:01.000Z',
+      backup_completed_at: '2026-08-01T16:00:02.000Z'
+    },
+    restore: {
+      status: 'passed',
+      target_database_id: 'restore-db-b',
+      target_was_empty: true,
+      fresh_process_pid: 202,
+      migration_head: '112_converact_platform_history_receipt_integrity',
+      restored_records: 7,
+      restored_digest: '2'.repeat(64),
+      measured_rpo_ms: 0,
+      measured_rto_ms: 3_250,
+      runtime_rls_verified: true,
+      append_only_verified: true,
+      unrelated_containers_unchanged: true,
+      validation_resources_remaining: 0
+    }
+  });
+  assert.equal(result.status, 'verified_controlled');
+  assert.equal(result.production_eligible, false);
+  assert.equal(result.measured_rpo_ms, 0);
+  assert.equal(result.measured_rto_ms, 3_250);
+
+  assert.equal(buildBackupRestoreEvidence({
+    identity,
+    backup: {
+      status: 'passed', source_database_id: 'same-db', artifact_sha256: '1'.repeat(64),
+      checkpoint_records: 7, checkpoint_digest: '2'.repeat(64),
+      backup_started_at: '2026-08-01T16:00:01.000Z',
+      backup_completed_at: '2026-08-01T16:00:02.000Z'
+    },
+    restore: {
+      status: 'passed', target_database_id: 'same-db', target_was_empty: true,
+      fresh_process_pid: 202, migration_head: '112_converact_platform_history_receipt_integrity',
+      restored_records: 7, restored_digest: '2'.repeat(64), measured_rpo_ms: 0,
+      measured_rto_ms: 3_250, runtime_rls_verified: true, append_only_verified: true,
+      unrelated_containers_unchanged: true, validation_resources_remaining: 0
+    }
+  }).status, 'failed');
+});
+
+test('drain evidence requires distinct live processes, active-zero and stale-owner fencing', () => {
+  const result = buildDrainEvidence({
+    identity,
+    process_a_pid: 301,
+    process_b_pid: 302,
+    initial_owner_node_id: 'node-a',
+    post_drain_owner_node_id: 'node-b',
+    drain_rejected_new_work: true,
+    established_work_survived_drain: true,
+    active_zero_observed: true,
+    offline_after_active_zero: true,
+    process_loss_observed: true,
+    stale_owner_rejected: true,
+    n_minus_1_schema_accepted: true,
+    duplicate_replayed: true,
+    unrelated_containers_unchanged: true,
+    validation_processes_remaining: 0
+  });
+  assert.equal(result.status, 'verified_controlled');
+  assert.equal(result.production_eligible, false);
+
+  assert.equal(buildDrainEvidence({
+    identity,
+    process_a_pid: 301,
+    process_b_pid: 302,
+    initial_owner_node_id: 'node-a',
+    post_drain_owner_node_id: 'node-b',
+    drain_rejected_new_work: true,
+    established_work_survived_drain: true,
+    active_zero_observed: false,
+    offline_after_active_zero: false,
+    process_loss_observed: true,
+    stale_owner_rejected: true,
+    n_minus_1_schema_accepted: true,
+    duplicate_replayed: true,
+    unrelated_containers_unchanged: true,
+    validation_processes_remaining: 0
+  }).status, 'failed');
+});
+
+test('capacity evidence requires observed hard bounds for active pending retry and fanout', () => {
+  const result = buildBoundedCapacityEvidence({
+    identity,
+    operations: 200_000,
+    duration_ms: 2_000,
+    accepted: 120_000,
+    overloaded: 80_000,
+    configured_active_limit: 64,
+    configured_pending_limit: 256,
+    configured_retry_limit: 3,
+    configured_fanout_limit: 8,
+    observed_max_active: 64,
+    observed_max_pending: 256,
+    observed_max_retry: 3,
+    observed_max_fanout: 8,
+    p99_operation_us: 80,
+    event_loop_delay_p99_ms: 12,
+    rss_start_bytes: 80_000_000,
+    rss_peak_bytes: 96_000_000,
+    rss_end_bytes: 88_000_000,
+    counter_integrity: true,
+    no_unbounded_queue: true
+  });
+  assert.equal(result.status, 'verified_controlled');
+  assert.equal(result.production_eligible, false);
+
+  assert.equal(buildBoundedCapacityEvidence({
+    identity,
+    operations: 200_000,
+    duration_ms: 2_000,
+    accepted: 120_000,
+    overloaded: 80_000,
+    configured_active_limit: 64,
+    configured_pending_limit: 256,
+    configured_retry_limit: 3,
+    configured_fanout_limit: 8,
+    observed_max_active: 65,
+    observed_max_pending: 256,
+    observed_max_retry: 3,
+    observed_max_fanout: 8,
+    p99_operation_us: 80,
+    event_loop_delay_p99_ms: 12,
+    rss_start_bytes: 80_000_000,
+    rss_peak_bytes: 96_000_000,
+    rss_end_bytes: 88_000_000,
+    counter_integrity: true,
+    no_unbounded_queue: true
+  }).status, 'failed');
+});
+
+test('capacity probe executes overload against the production bounded work gate', async () => {
+  const result = await runBoundedCapacityWorkload({ operations: 20_000 });
+  assert.equal(result.status, 'passed');
+  assert.equal(result.operations, 20_000);
+  assert.equal(result.accepted + result.overloaded, result.operations);
+  assert.equal(result.configured_active_limit, 64);
+  assert.equal(result.observed_max_active, result.configured_active_limit);
+  assert.equal(result.observed_max_pending, result.configured_pending_limit);
+  assert.equal(result.observed_max_retry, result.configured_retry_limit);
+  assert.equal(result.observed_max_fanout, result.configured_fanout_limit);
+  assert.equal(result.counter_integrity, true);
+  assert.equal(result.no_unbounded_queue, true);
+  assert.ok(result.p99_operation_us > 0);
+});
+
+test('capacity runner is exact-source bounded and cannot alter unrelated containers', () => {
+  const script = readFileSync(new URL('control-accept.sh', acceptanceRoot), 'utf8');
+  assert.match(script, /G02_PLATFORM_CONTROL_EVIDENCE/);
+  assert.match(script, /git -C "\$ROOT_DIR" rev-parse HEAD/);
+  assert.match(script, /git -C "\$ROOT_DIR" status --porcelain/);
+  assert.match(script, /NODE_VERSION.*v24/);
+  assert.match(script, /CONVERACT_G02_CAPACITY_OPERATIONS/);
+  assert.match(script, /capacity-probe\.ts.*run/s);
+  assert.match(script, /capacity-probe\.ts.*finalize/s);
+  assert.match(script, /evidence-secret-scan\.mjs/);
+  assert.match(script, /unrelated-containers-before\.tsv/);
+  assert.match(script, /unrelated-containers-after\.tsv/);
+  assert.doesNotMatch(script, /docker (?:system )?prune|docker (?:stop|rm) /);
+  assert.match(script, /production_eligible.*false/is);
 });
