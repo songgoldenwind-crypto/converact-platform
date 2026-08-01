@@ -7,7 +7,8 @@ import {
   _injectJwksForTest,
   resolveAuthContext,
   signAccessToken,
-  startAuthJwksLifecycle
+  startAuthJwksLifecycle,
+  warmJwksCache
 } from '../src/middleware/auth.js';
 
 test('dev mode: X-API-Key matching CONVERACT_API_KEY returns system context', () => {
@@ -459,6 +460,34 @@ test('RS256 lifecycle warms before service, refreshes periodically, and refreshe
     await closeServer(server);
     _clearJwksCache();
     restore();
+  }
+});
+
+test('JWKS refresh cancels an oversized stream before buffering its complete body', async () => {
+  const originalFetch = globalThis.fetch;
+  let pulls = 0;
+  let cancelled = false;
+  try {
+    globalThis.fetch = (async () => new Response(new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(new Uint8Array(65_536).fill(0x61));
+        if (pulls === 8) controller.close();
+      },
+      cancel() {
+        cancelled = true;
+      }
+    }), { status: 200 })) as typeof fetch;
+
+    await assert.rejects(
+      () => warmJwksCache('https://auth.example.test'),
+      /bounded|size|exceeds/i
+    );
+    assert.equal(cancelled, true, 'the reader must cancel after crossing the byte budget');
+    assert.ok(pulls < 8, `the reader consumed every oversized chunk (${pulls})`);
+  } finally {
+    globalThis.fetch = originalFetch;
+    _clearJwksCache();
   }
 });
 

@@ -371,30 +371,64 @@ async function fetchAndValidateJwks(issuer: string): Promise<JwksKey[]> {
   const wellKnownUrl = jwksUrl(issuer);
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), JWKS_FETCH_TIMEOUT_MS);
-  let response: Response;
   try {
-    response = await fetch(wellKnownUrl, { signal: controller.signal });
+    const response = await fetch(wellKnownUrl, { signal: controller.signal });
+    if (!response.ok) {
+      throw Object.assign(new Error(`JWKS fetch failed: ${response.status}`), { status: 401 });
+    }
+
+    const text = await readBoundedJwksBody(response);
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw unauthorizedToken('JWKS response is invalid');
+    }
+    const keys = decodeJwks(body);
+    jwksCache.set(issuer, { keys, refreshedAtMonotonicMs: performance.now() });
+    return keys;
   } finally {
     globalThis.clearTimeout(timeout);
   }
+}
 
-  if (!response.ok) {
-    throw Object.assign(new Error(`JWKS fetch failed: ${response.status}`), { status: 401 });
-  }
-
-  const text = await response.text();
-  if (Buffer.byteLength(text, 'utf8') > JWKS_MAX_RESPONSE_BYTES) {
+async function readBoundedJwksBody(response: Response): Promise<string> {
+  const declaredLength = response.headers.get('content-length');
+  if (declaredLength !== null
+    && (!/^(?:0|[1-9][0-9]*)$/u.test(declaredLength)
+      || Number(declaredLength) > JWKS_MAX_RESPONSE_BYTES)) {
     throw unauthorizedToken('JWKS response exceeds the bounded size');
   }
-  let body: unknown;
+  if (!response.body) return '';
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
   try {
-    body = JSON.parse(text);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > JWKS_MAX_RESPONSE_BYTES) {
+        try {
+          await reader.cancel('jwks_response_budget_exceeded');
+        } catch {
+          // The bounded rejection below remains authoritative.
+        }
+        throw unauthorizedToken('JWKS response exceeds the bounded size');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), totalBytes);
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
     throw unauthorizedToken('JWKS response is invalid');
   }
-  const keys = decodeJwks(body);
-  jwksCache.set(issuer, { keys, refreshedAtMonotonicMs: performance.now() });
-  return keys;
 }
 
 function rsaPublicKeyFromJwk(jwk: JwksKey): string {
