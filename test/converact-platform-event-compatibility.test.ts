@@ -68,6 +68,27 @@ test('unknown major and unknown effect semantics quarantine fail closed', () => 
   );
 });
 
+test('unknown minor fields are preserved only when the event declares no effect semantics', () => {
+  const additive = decoded(event({}, {
+    effect_semantics: 'none',
+    future_projection_hint: { mode: 'compact' }
+  }));
+  assert.deepEqual(additive.extensions, {
+    future_projection_hint: { mode: 'compact' }
+  });
+
+  for (const effectSemantics of ['state_projection_v1', 'effect_receipt_v1'] as const) {
+    assert.deepEqual(
+      decodePlatformEvent(event({}, {
+        effect_semantics: effectSemantics,
+        future_effect_instruction: { operation: 'unknown' }
+      }), POLICY),
+      { quarantine: true, reason: 'unknown_extension_with_effect_semantics' },
+      effectSemantics
+    );
+  }
+});
+
 test('missing ordering authority producer correlation purpose or region is rejected', () => {
   for (const field of [
     'ordering_key', 'authority', 'producer_identity', 'correlation', 'purpose', 'region_policy'

@@ -126,6 +126,11 @@ export function decodePlatformEvent(
 
   const extensions = decodeExtensions(value);
   if (!extensions) return quarantine('extensions_invalid');
+  if (Object.keys(extensions).length > 0
+    && value.effect_semantics !== undefined
+    && value.effect_semantics !== 'none') {
+    return quarantine('unknown_extension_with_effect_semantics');
+  }
   const normalizedData = deepFreezeJson(JSON.parse(canonicalData) as unknown);
   return Object.freeze({
     schema_version: policy.current_version,
