@@ -1320,7 +1320,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1586,10 +1587,13 @@
       "g02_domain": "fault_matrix",
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
-        "src/agent-runtime/converact/platform-foundation/fault-policy.ts"
+        "src/agent-runtime/converact/platform-foundation/fault-policy.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs"
       ],
       "test_paths": [
-        "test/converact-platform-fault-matrix-contract.test.ts"
+        "test/converact-platform-fault-matrix-contract.test.ts",
+        "test/converact-platform-fault-harness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1951,7 +1955,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1975,7 +1980,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -1999,7 +2005,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2023,7 +2030,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2047,7 +2055,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2071,7 +2080,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2095,7 +2105,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2627,7 +2638,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2651,7 +2663,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2675,7 +2688,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2699,7 +2713,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2723,7 +2738,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2747,7 +2763,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2771,7 +2788,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -2820,7 +2838,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3189,10 +3208,13 @@
       "g02_domain": "fault_matrix",
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
-        "src/agent-runtime/converact/platform-foundation/fault-policy.ts"
+        "src/agent-runtime/converact/platform-foundation/fault-policy.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs"
       ],
       "test_paths": [
-        "test/converact-platform-fault-matrix-contract.test.ts"
+        "test/converact-platform-fault-matrix-contract.test.ts",
+        "test/converact-platform-fault-harness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -3889,7 +3911,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -4466,7 +4489,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -4532,10 +4556,13 @@
       "g02_domain": "fault_matrix",
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
-        "src/agent-runtime/converact/platform-foundation/fault-policy.ts"
+        "src/agent-runtime/converact/platform-foundation/fault-policy.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs"
       ],
       "test_paths": [
-        "test/converact-platform-fault-matrix-contract.test.ts"
+        "test/converact-platform-fault-matrix-contract.test.ts",
+        "test/converact-platform-fault-harness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -4555,10 +4582,13 @@
       "g02_domain": "fault_matrix",
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
-        "src/agent-runtime/converact/platform-foundation/fault-policy.ts"
+        "src/agent-runtime/converact/platform-foundation/fault-policy.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs"
       ],
       "test_paths": [
-        "test/converact-platform-fault-matrix-contract.test.ts"
+        "test/converact-platform-fault-matrix-contract.test.ts",
+        "test/converact-platform-fault-harness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6042,7 +6072,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -6204,7 +6235,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7115,7 +7147,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7162,7 +7195,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7209,7 +7243,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7479,7 +7514,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7689,7 +7725,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -7974,7 +8011,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8067,7 +8105,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -8792,7 +8831,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -9605,7 +9645,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10172,7 +10213,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10319,7 +10361,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10370,7 +10413,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10394,7 +10438,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10790,7 +10835,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -10960,7 +11006,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11122,7 +11169,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11188,10 +11236,13 @@
       "g02_domain": "fault_matrix",
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
-        "src/agent-runtime/converact/platform-foundation/fault-policy.ts"
+        "src/agent-runtime/converact/platform-foundation/fault-policy.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs"
       ],
       "test_paths": [
-        "test/converact-platform-fault-matrix-contract.test.ts"
+        "test/converact-platform-fault-matrix-contract.test.ts",
+        "test/converact-platform-fault-harness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11334,10 +11385,13 @@
       "g02_domain": "fault_matrix",
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
-        "src/agent-runtime/converact/platform-foundation/fault-policy.ts"
+        "src/agent-runtime/converact/platform-foundation/fault-policy.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs"
       ],
       "test_paths": [
-        "test/converact-platform-fault-matrix-contract.test.ts"
+        "test/converact-platform-fault-matrix-contract.test.ts",
+        "test/converact-platform-fault-harness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11503,10 +11557,13 @@
       "g02_domain": "fault_matrix",
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
-        "src/agent-runtime/converact/platform-foundation/fault-policy.ts"
+        "src/agent-runtime/converact/platform-foundation/fault-policy.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs"
       ],
       "test_paths": [
-        "test/converact-platform-fault-matrix-contract.test.ts"
+        "test/converact-platform-fault-matrix-contract.test.ts",
+        "test/converact-platform-fault-harness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -11549,10 +11606,13 @@
       "g02_domain": "fault_matrix",
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
-        "src/agent-runtime/converact/platform-foundation/fault-policy.ts"
+        "src/agent-runtime/converact/platform-foundation/fault-policy.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs"
       ],
       "test_paths": [
-        "test/converact-platform-fault-matrix-contract.test.ts"
+        "test/converact-platform-fault-matrix-contract.test.ts",
+        "test/converact-platform-fault-harness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -12340,7 +12400,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -12481,10 +12542,13 @@
       "g02_domain": "fault_matrix",
       "g02_disposition": "assess_before_migrate",
       "implementation_paths": [
-        "src/agent-runtime/converact/platform-foundation/fault-policy.ts"
+        "src/agent-runtime/converact/platform-foundation/fault-policy.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs"
       ],
       "test_paths": [
-        "test/converact-platform-fault-matrix-contract.test.ts"
+        "test/converact-platform-fault-matrix-contract.test.ts",
+        "test/converact-platform-fault-harness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,
@@ -12646,7 +12710,8 @@
         "src/agent-runtime/converact/operations/readiness.ts"
       ],
       "test_paths": [
-        "test/converact-platform-resilience.test.ts"
+        "test/converact-platform-resilience.test.ts",
+        "test/converact-readiness.test.ts"
       ],
       "status": "not_run",
       "production_eligible": false,

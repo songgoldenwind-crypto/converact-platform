@@ -78,6 +78,29 @@ test('all required machine contracts validate and reject drift', () => {
   }
 });
 
+test('machine schemas freeze authority and media hot-path semantics', () => {
+  const mutations = [
+    ['identity', ['identity', 'authority'], 'Other Identity Authority'],
+    ['identity', ['consent', 'authority'], 'Other Consent Authority'],
+    ['identity', ['key_lifecycle', 'authority'], 'Other Key Authority'],
+    ['event', ['event', 'authority'], 'Other Event Authority'],
+    ['event', ['audit', 'authority'], 'Other Audit Authority'],
+    ['event', ['billing', 'authority'], 'Other Billing Authority'],
+    ['event', ['outbox', 'media_hot_path'], 'allowed'],
+    ['observability', ['media_hot_path', 'global_lock'], 'allowed'],
+    ['observability', ['media_hot_path', 'task_per_packet'], 'allowed'],
+  ];
+  for (const [name, path, replacement] of mutations) {
+    const [schemaName, documentName] = documents[name];
+    const validate = compile(schemaName);
+    const mutated = structuredClone(readJson(join(goalDirectory, documentName)));
+    let target = mutated;
+    for (const segment of path.slice(0, -1)) target = target[segment];
+    target[path.at(-1)] = replacement;
+    assertInvalid(validate, mutated, `${name} ${path.join('.')}`);
+  }
+});
+
 test('required design, threat, recovery, mapping, plan and review artifacts exist', () => {
   for (const path of requiredMarkdown) {
     assert.ok(existsSync(join(goalDirectory, path)), `missing required artifact: ${path}`);
@@ -179,7 +202,7 @@ test('G00 to G02 traceability preserves every source row exactly once without ev
 
 test('evidence registry never promotes historical or unexecuted acceptance', () => {
   const evidence = readJson(join(goalDirectory, documents.evidence[1]));
-  const controlledDatabaseEvidence =
+  const supersededDatabaseEvidence =
     'architecture-foundation/execution/goal-02/evidence/database-restart-db-4fc7b59-01.md';
   const verifiedLocal = new Set([
     'G02-E01-IDENTITY',
@@ -200,9 +223,9 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
       ]);
       assert.match(entry.non_claim, /does not prove controlled or production behavior/i);
     } else if (entry.evidence_id === 'G02-E09A-DATABASE-RESTART') {
-      assert.equal(entry.status, 'verified_controlled');
-      assert.deepEqual(entry.evidence_uris, [controlledDatabaseEvidence]);
-      assert.match(entry.non_claim, /synthetic.*not.*real human media/is);
+      assert.equal(entry.status, 'not_run');
+      assert.deepEqual(entry.evidence_uris, [supersededDatabaseEvidence]);
+      assert.match(entry.non_claim, /superseded diagnostic.*not persisted/is);
     } else if (entry.evidence_class !== 'document_contract') {
       assert.equal(entry.status, 'not_run');
     }
@@ -213,15 +236,15 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
   );
   assert.equal(evidence.summary.production_eligible_entries, 0);
   assert.equal(evidence.summary.verified_local_entries, verifiedLocal.size);
-  assert.equal(evidence.summary.verified_controlled_entries, 1);
-  const controlledDatabaseRecord = readFileSync(
-    join(repositoryRoot, controlledDatabaseEvidence),
+  assert.equal(evidence.summary.verified_controlled_entries, 0);
+  const supersededDatabaseRecord = readFileSync(
+    join(repositoryRoot, supersededDatabaseEvidence),
     'utf8',
   );
-  assert.match(controlledDatabaseRecord, /4fc7b59b57958a2db0077a91c96bd68ac233f255/);
-  assert.match(controlledDatabaseRecord, /5820c5b917fb21a5e89011475944631cdea2727f7f6a7bcb31012a9c0f278210/);
-  assert.match(controlledDatabaseRecord, /production_eligible.*false/is);
-  assert.match(controlledDatabaseRecord, /real_human_media.*false/is);
+  assert.match(supersededDatabaseRecord, /4fc7b59b57958a2db0077a91c96bd68ac233f255/);
+  assert.match(supersededDatabaseRecord, /superseded_invalid_receipt_linkage/);
+  assert.match(supersededDatabaseRecord, /production_eligible.*false/is);
+  assert.match(supersededDatabaseRecord, /real_human_media.*false/is);
   assert.ok(evidence.entries.some((entry) => entry.evidence_class === 'real_dependency'));
   assert.ok(evidence.entries.some((entry) => entry.evidence_class === 'long_media_fault'));
   assert.ok(evidence.entries.some((entry) => entry.evidence_class === 'region_recovery'));

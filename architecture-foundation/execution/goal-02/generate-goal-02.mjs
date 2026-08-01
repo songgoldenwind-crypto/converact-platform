@@ -106,12 +106,22 @@ const sourceMaps = {
       'src/agent-runtime/converact/platform-foundation/resilience.ts',
       'src/agent-runtime/converact/operations/readiness.ts',
     ],
-    test_paths: ['test/converact-platform-resilience.test.ts'],
+    test_paths: [
+      'test/converact-platform-resilience.test.ts',
+      'test/converact-readiness.test.ts',
+    ],
   },
   fault_matrix: {
     patterns: /(?:fault|failure|crash|partition|dns|object.?store|gpu|provider|long.?run|media)/iu,
-    implementation_paths: ['src/agent-runtime/converact/platform-foundation/fault-policy.ts'],
-    test_paths: ['test/converact-platform-fault-matrix-contract.test.ts'],
+    implementation_paths: [
+      'src/agent-runtime/converact/platform-foundation/fault-policy.ts',
+      'services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs',
+      'services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs',
+    ],
+    test_paths: [
+      'test/converact-platform-fault-matrix-contract.test.ts',
+      'test/converact-platform-fault-harness.test.ts',
+    ],
   },
   legacy_assessment: {
     patterns: /.*/u,
@@ -657,6 +667,10 @@ function object(properties, required = Object.keys(properties)) {
   return type('object', { additionalProperties: false, required, properties });
 }
 
+function semantic(value, schema) {
+  return { ...schema, const: value };
+}
+
 function statusSchema() {
   return object({
     contract: type('string', { enum: ['target_contract', 'verified_contract'] }),
@@ -689,6 +703,7 @@ function schemaBase(id, properties) {
 }
 
 function identitySchema() {
+  const contract = identityContract();
   const scope = object({
     scope: type('string'),
     purpose: type('string'),
@@ -697,16 +712,16 @@ function identitySchema() {
     revocation_behavior: type('string', { const: 'detach_capability_keep_human_media' }),
   });
   return schemaBase('identity-consent-policy-v1.schema.json', {
-    identity: object({
+    identity: semantic(contract.identity, object({
       authority: type('string'), kinds: strings(), required_claims: strings(),
       production_dev_fallback: type('string', { const: 'forbidden' }),
       edge_to_core: type('string'), resource_tenant_check: type('string'),
-    }),
-    authorization: object({
+    })),
+    authorization: semantic(contract.authorization, object({
       default_decision: type('string', { const: 'deny' }), allow_requires: strings(),
       deny_conditions: strings(), plaintext_downgrade: type('string', { const: 'forbidden' }),
-    }),
-    consent: object({
+    })),
+    consent: semantic(contract.consent, object({
       authority: type('string'),
       scopes: type('array', { items: scope, minItems: 8, maxItems: 8 }),
       evidence_fields: strings(),
@@ -715,56 +730,59 @@ function identitySchema() {
         expiry_behavior: type('string'), normal_revocation: type('string'),
         urgent_revocation: type('string'), stale_snapshot: type('string'),
       }),
-    }),
-    policy: object({
+    })),
+    policy: semantic(contract.policy, object({
       versioning: type('string'), region_selection: type('string'), retention: type('string'),
       legal_hold: type('string'), deletion: type('string'), backup_restore: type('string'),
-    }),
-    key_lifecycle: object({
+    })),
+    key_lifecycle: semantic(contract.key_lifecycle, object({
       authority: type('string'), states: strings(), rotation: type('string'),
       raw_material_storage: type('string'), forbidden_sinks: strings(), native_gate: strings(),
-    }),
-    invariants: strings(),
+    })),
+    invariants: semantic(contract.invariants, strings()),
   });
 }
 
 function eventSchema() {
+  const contract = eventContract();
   const billingSource = object({
     source: type('string'), key_template: type('string'), writer: type('string'),
   });
   return schemaBase('event-audit-billing-contract-v1.schema.json', {
-    event: object({
+    event: semantic(contract.event, object({
       authority: type('string'), write_version: type('integer', { const: 2 }),
       read_versions: type('array', { prefixItems: [type('integer', { const: 2 }), type('integer', { const: 1 })], minItems: 2, maxItems: 2 }),
       max_payload_bytes: type('integer', { maximum: 65536 }), envelope_fields: strings(),
       compatibility: type('string'), unknown_minor: type('string'),
       unknown_major: type('string', { const: 'quarantine_fail_closed' }), ordering: type('string'),
-    }),
-    outbox: object({ transaction: type('string'), claim: type('string'), delivery: type('string'), retry: type('string'), media_hot_path: type('string') }),
-    inbox: object({ uniqueness: type('string'), same_id_same_digest: type('string'), same_id_different_digest: type('string', { const: 'conflict' }), stale_revision: type('string'), gap_or_unknown: type('string') }),
-    audit: object({ authority: type('string'), append_only: type('boolean', { const: true }), integrity: type('string'), links: strings(), correction: type('string') }),
-    effect_receipt: object({ stages: strings(), uniqueness: type('string'), monotonic_stage_progression: type('boolean', { const: true }), same_key_same_digest: type('string'), same_key_different_digest: type('string'), unknown_effect: type('string', { const: 'query_reconcile_no_blind_retry' }), stale_writer: type('string') }),
-    billing: object({ authority: type('string'), writer_policy: type('string'), ledger: type('string'), sources: type('array', { items: billingSource, minItems: 4, maxItems: 4 }), duplicate_same_digest: type('string'), duplicate_different_digest_or_writer: type('string'), reconstruction: type('string') }),
-    invariants: strings(),
+    })),
+    outbox: semantic(contract.outbox, object({ transaction: type('string'), claim: type('string'), delivery: type('string'), retry: type('string'), media_hot_path: type('string') })),
+    inbox: semantic(contract.inbox, object({ uniqueness: type('string'), same_id_same_digest: type('string'), same_id_different_digest: type('string', { const: 'conflict' }), stale_revision: type('string'), gap_or_unknown: type('string') })),
+    audit: semantic(contract.audit, object({ authority: type('string'), append_only: type('boolean', { const: true }), integrity: type('string'), links: strings(), correction: type('string') })),
+    effect_receipt: semantic(contract.effect_receipt, object({ stages: strings(), uniqueness: type('string'), monotonic_stage_progression: type('boolean', { const: true }), same_key_same_digest: type('string'), same_key_different_digest: type('string'), unknown_effect: type('string', { const: 'query_reconcile_no_blind_retry' }), stale_writer: type('string') })),
+    billing: semantic(contract.billing, object({ authority: type('string'), writer_policy: type('string'), ledger: type('string'), sources: type('array', { items: billingSource, minItems: 4, maxItems: 4 }), duplicate_same_digest: type('string'), duplicate_different_digest_or_writer: type('string'), reconstruction: type('string') })),
+    invariants: semantic(contract.invariants, strings()),
   });
 }
 
 function observabilitySchema() {
+  const contract = observabilityContract();
   return schemaBase('observability-correlation-contract-v1.schema.json', {
-    correlation: object({ fields: strings(), propagation: type('string'), maximum_field_length: type('integer', { maximum: 256 }), unknown_or_invalid: type('string') }),
-    metrics: object({ allowed_low_cardinality_labels: strings(), prohibited_unbounded_labels: strings(), cardinality_policy: type('string') }),
-    logging: object({ format: type('string'), redaction: type('string'), forbidden_values: strings(), high_cardinality: type('string') }),
-    tracing: object({ sampling: type('string'), payload_capture: type('string'), cross_domain_links: type('string') }),
-    exporter: object({ queue: type('string'), retries: type('string'), timeout: type('string'), failure_behavior: type('string') }),
-    worker: object({ concurrency: type('string'), pending: type('string'), retry: type('string'), fanout: type('string'), overload: type('string'), fairness: type('string') }),
-    health: object({ liveness: type('string'), readiness: type('string'), drain: type('string'), rolling: type('string') }),
-    media_hot_path: object({ observability_dependency: type('string', { const: 'forbidden' }), database_io_per_packet: type('integer', { const: 0 }), event_io_per_packet: type('integer', { const: 0 }), http_io_per_packet: type('integer', { const: 0 }), ai_io_per_packet: type('integer', { const: 0 }), external_io_per_packet: type('integer', { const: 0 }), global_lock: type('string'), task_per_packet: type('string') }),
-    clocks: object({ wall: type('string'), monotonic: type('string'), rtp: type('string'), cross_node: type('string'), jump_behavior: type('string') }),
-    invariants: strings(),
+    correlation: semantic(contract.correlation, object({ fields: strings(), propagation: type('string'), maximum_field_length: type('integer', { maximum: 256 }), unknown_or_invalid: type('string') })),
+    metrics: semantic(contract.metrics, object({ allowed_low_cardinality_labels: strings(), prohibited_unbounded_labels: strings(), cardinality_policy: type('string') })),
+    logging: semantic(contract.logging, object({ format: type('string'), redaction: type('string'), forbidden_values: strings(), high_cardinality: type('string') })),
+    tracing: semantic(contract.tracing, object({ sampling: type('string'), payload_capture: type('string'), cross_domain_links: type('string') })),
+    exporter: semantic(contract.exporter, object({ queue: type('string'), retries: type('string'), timeout: type('string'), failure_behavior: type('string') })),
+    worker: semantic(contract.worker, object({ concurrency: type('string'), pending: type('string'), retry: type('string'), fanout: type('string'), overload: type('string'), fairness: type('string') })),
+    health: semantic(contract.health, object({ liveness: type('string'), readiness: type('string'), drain: type('string'), rolling: type('string') })),
+    media_hot_path: semantic(contract.media_hot_path, object({ observability_dependency: type('string', { const: 'forbidden' }), database_io_per_packet: type('integer', { const: 0 }), event_io_per_packet: type('integer', { const: 0 }), http_io_per_packet: type('integer', { const: 0 }), ai_io_per_packet: type('integer', { const: 0 }), external_io_per_packet: type('integer', { const: 0 }), global_lock: type('string'), task_per_packet: type('string') })),
+    clocks: semantic(contract.clocks, object({ wall: type('string'), monotonic: type('string'), rtp: type('string'), cross_node: type('string'), jump_behavior: type('string') })),
+    invariants: semantic(contract.invariants, strings()),
   });
 }
 
 function faultSchema() {
+  const contract = faultContract();
   const evidence = object({
     status: type('string', { const: 'not_run' }),
     production_eligible: type('boolean', { const: false }),
@@ -777,9 +795,9 @@ function faultSchema() {
     hot_path_dependency: type('boolean', { const: false }), evidence,
   });
   return schemaBase('fault-matrix-v1.schema.json', {
-    dependencies: type('array', { items: dependency, minItems: 12, maxItems: 12 }),
-    acceptance: object({ required_campaigns: strings(), mock_or_loopback_production_evidence: type('string'), historical_evidence_inheritance: type('string'), any_unproved_item: type('string', { const: 'not_run' }) }),
-    invariants: strings(),
+    dependencies: semantic(contract.dependencies, type('array', { items: dependency, minItems: 12, maxItems: 12 })),
+    acceptance: semantic(contract.acceptance, object({ required_campaigns: strings(), mock_or_loopback_production_evidence: type('string'), historical_evidence_inheritance: type('string'), any_unproved_item: type('string', { const: 'not_run' }) })),
+    invariants: semantic(contract.invariants, strings()),
   });
 }
 

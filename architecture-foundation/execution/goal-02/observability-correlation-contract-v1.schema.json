@@ -114,6 +114,30 @@
         "unknown_or_invalid": {
           "type": "string"
         }
+      },
+      "const": {
+        "fields": [
+          "tenant_id",
+          "engagement_id",
+          "profile_binding_id",
+          "interaction_id",
+          "communication_session_id",
+          "call_id",
+          "leg_id",
+          "room_id",
+          "resolution_id",
+          "action_intent_id",
+          "agent_run_id",
+          "media_edge_id",
+          "generation",
+          "owner_epoch",
+          "trace_id",
+          "span_id",
+          "request_id"
+        ],
+        "propagation": "signed_or_authenticated_boundary_metadata",
+        "maximum_field_length": 256,
+        "unknown_or_invalid": "omit_and_record_bounded_validation_counter"
       }
     },
     "metrics": {
@@ -144,6 +168,39 @@
         "cardinality_policy": {
           "type": "string"
         }
+      },
+      "const": {
+        "allowed_low_cardinality_labels": [
+          "service",
+          "region",
+          "zone",
+          "cell",
+          "component",
+          "operation",
+          "status",
+          "error_class",
+          "dependency",
+          "queue",
+          "capability",
+          "identity_kind"
+        ],
+        "prohibited_unbounded_labels": [
+          "tenant_id",
+          "profile_type",
+          "user_id",
+          "engagement_id",
+          "interaction_id",
+          "call_id",
+          "leg_id",
+          "room_id",
+          "resolution_id",
+          "action_intent_id",
+          "agent_run_id",
+          "media_edge_id",
+          "trace_id",
+          "request_id"
+        ],
+        "cardinality_policy": "allowlist_only_with_ci_and_runtime_budget"
       }
     },
     "logging": {
@@ -173,6 +230,20 @@
         "high_cardinality": {
           "type": "string"
         }
+      },
+      "const": {
+        "format": "structured_json",
+        "redaction": "key_and_value_before_sink",
+        "forbidden_values": [
+          "secret",
+          "token",
+          "password",
+          "authorization",
+          "cookie",
+          "raw_pii",
+          "media_payload"
+        ],
+        "high_cardinality": "controlled_log_or_trace_only_never_metric_label"
       }
     },
     "tracing": {
@@ -193,6 +264,11 @@
         "cross_domain_links": {
           "type": "string"
         }
+      },
+      "const": {
+        "sampling": "parent_based_bounded_ratio_with_error_override_budget",
+        "payload_capture": "forbidden_by_default",
+        "cross_domain_links": "correlation_context_and_effect_receipt_links"
       }
     },
     "exporter": {
@@ -217,6 +293,12 @@
         "failure_behavior": {
           "type": "string"
         }
+      },
+      "const": {
+        "queue": "bounded",
+        "retries": "bounded",
+        "timeout": "bounded",
+        "failure_behavior": "drop_bounded_telemetry_never_backpressure_media"
       }
     },
     "worker": {
@@ -249,6 +331,14 @@
         "fairness": {
           "type": "string"
         }
+      },
+      "const": {
+        "concurrency": "fixed_or_admission_bounded",
+        "pending": "bounded",
+        "retry": "bounded_with_deadline_and_jitter",
+        "fanout": "bounded",
+        "overload": "reject_or_defer_optional_work",
+        "fairness": "tenant_or_partition_aware"
       }
     },
     "health": {
@@ -273,6 +363,12 @@
         "rolling": {
           "type": "string"
         }
+      },
+      "const": {
+        "liveness": "process_and_supervisor_only",
+        "readiness": "new_admission_capability_specific",
+        "drain": "withdraw_readiness_then_stop_claim_then_active_zero",
+        "rolling": "reader_before_writer_N_and_N_minus_1"
       }
     },
     "media_hot_path": {
@@ -319,6 +415,16 @@
         "task_per_packet": {
           "type": "string"
         }
+      },
+      "const": {
+        "observability_dependency": "forbidden",
+        "database_io_per_packet": 0,
+        "event_io_per_packet": 0,
+        "http_io_per_packet": 0,
+        "ai_io_per_packet": 0,
+        "external_io_per_packet": 0,
+        "global_lock": "forbidden",
+        "task_per_packet": "forbidden"
       }
     },
     "clocks": {
@@ -347,6 +453,13 @@
         "jump_behavior": {
           "type": "string"
         }
+      },
+      "const": {
+        "wall": "durable_utc_audit_and_correlation_only",
+        "monotonic": "elapsed_deadline_lease_and_latency_only",
+        "rtp": "sequence_timestamp_jitter_and_drift_only",
+        "cross_node": "record_offset_quality_and_skew",
+        "jump_behavior": "wall_jump_must_not_change_monotonic_deadline"
       }
     },
     "invariants": {
@@ -355,7 +468,13 @@
         "type": "string"
       },
       "minItems": 1,
-      "uniqueItems": true
+      "uniqueItems": true,
+      "const": [
+        "observability_failure_does_not_change_business_success",
+        "observability_failure_does_not_terminate_human_media",
+        "profile_type_is_not_an_unbounded_metric_label",
+        "all_queues_retries_and_fanout_are_bounded"
+      ]
     }
   }
 }
