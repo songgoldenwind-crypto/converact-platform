@@ -1,0 +1,20 @@
+{
+  "goal_id": "G02",
+  "goal_sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9",
+  "source_commit": "3108ecf03d850a2c97f88e1507982305b0b522fa",
+  "config_sha256": "9bafde0ca05604b878cb7c03e36be5a2a99238431e4b48d56c9c7eadf6acb088",
+  "raw_output_sha256": "3126db0ecf3f6b29196b082423bacdb09486a97a9b2940d296586a5861809055",
+  "image_digests": [
+    "postgres@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb",
+    "node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d"
+  ],
+  "node_binary_sha256": "41a74efb34cbde5c7632cdac0cf8bd1a14d0b8d73dc1e82755014d9a9ce70f5c",
+  "node_version": "v24.18.0",
+  "host": "VM-0-3-ubuntu",
+  "hardware": "Linux 6.8.0-71-generic x86_64 GNU/Linux; 2 vCPU; 7.5 GiB RAM; Node v24.18.0",
+  "clock": "UTC wall clock; Node monotonic performance clock; kvm-clock kernel clocksource",
+  "workload": "single PostgreSQL restart; one runtime role; two tenants; one inbox event; three effect stages; one usage key; 30000ms synthetic UDP at 20ms interval",
+  "seed": "db-3108ecf-01",
+  "started_at": "2026-08-01T21:08:18.950Z",
+  "completed_at": "2026-08-01T21:08:58.065Z"
+}

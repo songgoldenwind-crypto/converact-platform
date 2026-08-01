@@ -36,7 +36,8 @@
         "RLS integration"
       ],
       "evidence_uris": [
-        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md"
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/local-verification-3108ecf/part-manifest.sha256"
       ],
       "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
@@ -50,7 +51,8 @@
         "focused tests"
       ],
       "evidence_uris": [
-        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md"
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/local-verification-3108ecf/part-manifest.sha256"
       ],
       "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
@@ -64,7 +66,8 @@
         "schema/property tests"
       ],
       "evidence_uris": [
-        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md"
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/local-verification-3108ecf/part-manifest.sha256"
       ],
       "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
@@ -78,7 +81,8 @@
         "focused tests"
       ],
       "evidence_uris": [
-        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md"
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/local-verification-3108ecf/part-manifest.sha256"
       ],
       "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
@@ -93,7 +97,8 @@
         "crash boundary tests"
       ],
       "evidence_uris": [
-        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md"
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/local-verification-3108ecf/part-manifest.sha256"
       ],
       "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
@@ -108,7 +113,8 @@
         "real PKI/KMS rotation and revoke"
       ],
       "evidence_uris": [
-        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md"
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/local-verification-3108ecf/part-manifest.sha256"
       ],
       "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
@@ -122,7 +128,8 @@
         "focused tests"
       ],
       "evidence_uris": [
-        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md"
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/local-verification-3108ecf/part-manifest.sha256"
       ],
       "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
@@ -136,7 +143,8 @@
         "deterministic fault tests"
       ],
       "evidence_uris": [
-        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md"
+        "architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/local-verification-3108ecf/part-manifest.sha256"
       ],
       "non_claim": "Deterministic local tests passed; this does not prove controlled or production behavior, real dependencies, RLS enforcement, PKI/KMS rotation, crash recovery, long media, capacity, or DR."
     },
@@ -164,8 +172,9 @@
         "post-run integrity verification"
       ],
       "evidence_uris": [
-        "architecture-foundation/execution/goal-02/evidence/database-restart-db-9166ad9-01.md",
-        "architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-9166ad9-01/raw-output.sha256"
+        "architecture-foundation/execution/goal-02/evidence/database-restart-db-3108ecf-01.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-3108ecf-01/raw-output.sha256",
+        "architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-3108ecf-01/supplemental-manifest.sha256"
       ],
       "non_claim": "One isolated PostgreSQL restart was verified with synthetic transport; synthetic transport is not real human media and this does not prove the remaining dependency matrix, production behavior, long media, capacity, restore, drain, region recovery, PKI/KMS, or DR."
     },

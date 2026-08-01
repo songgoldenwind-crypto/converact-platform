@@ -579,11 +579,15 @@ function traceabilityContract() {
 
 function evidenceIndex() {
   const localEvidenceUri =
-    'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md';
+    'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md';
+  const localEvidenceRawManifestUri =
+    'architecture-foundation/execution/goal-02/evidence/raw/local-verification-3108ecf/part-manifest.sha256';
   const controlledDatabaseEvidenceUri =
-    'architecture-foundation/execution/goal-02/evidence/database-restart-db-9166ad9-01.md';
+    'architecture-foundation/execution/goal-02/evidence/database-restart-db-3108ecf-01.md';
   const controlledDatabaseRawManifestUri =
-    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-9166ad9-01/raw-output.sha256';
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-3108ecf-01/raw-output.sha256';
+  const controlledDatabaseSupplementalManifestUri =
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-3108ecf-01/supplemental-manifest.sha256';
   const entry = (
     id,
     evidenceClass,
@@ -608,11 +612,15 @@ function evidenceIndex() {
           : 'No current-commit raw evidence has been accepted; remains not_run.',
   });
   const local = (id, evidenceClass, scope, requiredEvidence) =>
-    entry(id, evidenceClass, scope, requiredEvidence, 'verified_local', [localEvidenceUri]);
+    entry(id, evidenceClass, scope, requiredEvidence, 'verified_local', [
+      localEvidenceUri,
+      localEvidenceRawManifestUri,
+    ]);
   const controlledDatabase = (id, evidenceClass, scope, requiredEvidence) =>
     entry(id, evidenceClass, scope, requiredEvidence, 'verified_controlled', [
       controlledDatabaseEvidenceUri,
       controlledDatabaseRawManifestUri,
+      controlledDatabaseSupplementalManifestUri,
     ]);
   const entries = [
     entry('G02-E00-DESIGN', 'document_contract', 'design_authority_threat_recovery', ['contract test'], 'target_contract'),

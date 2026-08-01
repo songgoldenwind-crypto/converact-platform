@@ -203,9 +203,15 @@ test('G00 to G02 traceability preserves every source row exactly once without ev
 test('evidence registry never promotes historical or unexecuted acceptance', () => {
   const evidence = readJson(join(goalDirectory, documents.evidence[1]));
   const controlledDatabaseEvidence =
-    'architecture-foundation/execution/goal-02/evidence/database-restart-db-9166ad9-01.md';
+    'architecture-foundation/execution/goal-02/evidence/database-restart-db-3108ecf-01.md';
   const controlledDatabaseRawManifest =
-    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-9166ad9-01/raw-output.sha256';
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-3108ecf-01/raw-output.sha256';
+  const controlledDatabaseSupplementalManifest =
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-3108ecf-01/supplemental-manifest.sha256';
+  const localEvidence =
+    'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md';
+  const localRawManifest =
+    'architecture-foundation/execution/goal-02/evidence/raw/local-verification-3108ecf/part-manifest.sha256';
   const supersededDatabaseEvidence =
     'architecture-foundation/execution/goal-02/evidence/database-restart-db-4fc7b59-01.md';
   const verifiedLocal = new Set([
@@ -222,13 +228,15 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
     assert.equal(entry.production_eligible, false);
     if (verifiedLocal.has(entry.evidence_id)) {
       assert.equal(entry.status, 'verified_local');
-      assert.deepEqual(entry.evidence_uris, [
-        'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md',
-      ]);
+      assert.deepEqual(entry.evidence_uris, [localEvidence, localRawManifest]);
       assert.match(entry.non_claim, /does not prove controlled or production behavior/i);
     } else if (entry.evidence_id === 'G02-E09A-DATABASE-RESTART') {
       assert.equal(entry.status, 'verified_controlled');
-      assert.deepEqual(entry.evidence_uris, [controlledDatabaseEvidence, controlledDatabaseRawManifest]);
+      assert.deepEqual(entry.evidence_uris, [
+        controlledDatabaseEvidence,
+        controlledDatabaseRawManifest,
+        controlledDatabaseSupplementalManifest,
+      ]);
       assert.match(entry.non_claim, /synthetic.*not.*real human media/is);
     } else if (entry.evidence_class !== 'document_contract') {
       assert.equal(entry.status, 'not_run');
@@ -242,19 +250,37 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
   assert.equal(evidence.summary.verified_local_entries, verifiedLocal.size);
   assert.equal(evidence.summary.verified_controlled_entries, 1);
   const localVerificationRecord = readFileSync(
-    join(repositoryRoot, 'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md'),
+    join(repositoryRoot, localEvidence),
     'utf8',
   );
-  assert.match(localVerificationRecord, /1674eacfd6c56c23d1fbb7dcf082fb2054aec40f/);
-  assert.match(localVerificationRecord, /4,905 tests; 4,890 passed; 0 failed; 15 skipped/);
-  assert.match(localVerificationRecord, /database-restart-db-9166ad9-01\.md/);
+  assert.match(localVerificationRecord, /3108ecf03d850a2c97f88e1507982305b0b522fa/);
+  assert.match(localVerificationRecord, /4,909 tests; 4,894 passed; 0 failed; 15 skipped/);
+  assert.match(localVerificationRecord, /6f21a4ca94fc0e255810498559a1590fa87bc21c8982181b3f3ba0a16fe9c456/);
+  assert.match(localVerificationRecord, /database-restart-db-3108ecf-01\.md/);
+  const localRawEntries = readFileSync(join(repositoryRoot, localRawManifest), 'utf8').trim().split('\n');
+  assert.equal(localRawEntries.length, 4);
+  for (const line of localRawEntries) {
+    const match = /^([a-f0-9]{64})  (full-suite\.log\.xz\.b64\.part-[0-9]{2})$/u.exec(line);
+    assert.ok(match, `invalid full-suite evidence manifest entry: ${line}`);
+    const rawPath = join(dirname(join(repositoryRoot, localRawManifest)), match[2]);
+    assert.equal(sha256File(rawPath), match[1], `full-suite evidence digest mismatch: ${match[2]}`);
+  }
+  const encodedFullSuite = localRawEntries
+    .map((line) => line.split('  ')[1])
+    .map((name) => readFileSync(join(dirname(join(repositoryRoot, localRawManifest)), name), 'utf8'))
+    .join('')
+    .replace(/\s/gu, '');
+  assert.equal(
+    createHash('sha256').update(Buffer.from(encodedFullSuite, 'base64')).digest('hex'),
+    '1bfcb56ae58ba7f931a421d50fffde128443ade5e5e864b4ee6b788d15ffde7b',
+  );
   const controlledDatabaseRecord = readFileSync(
     join(repositoryRoot, controlledDatabaseEvidence),
     'utf8',
   );
-  assert.match(controlledDatabaseRecord, /9166ad93f626d47b823383677868131fcfb2015f/);
-  assert.match(controlledDatabaseRecord, /86be66466e8242903306009f66f97e49f7565715e094d4851705dbcce15c46c1/);
-  assert.match(controlledDatabaseRecord, /d977b63033d68aac787c657a00e9b540ab759795a457f869992c1f90fef10d13/);
+  assert.match(controlledDatabaseRecord, /3108ecf03d850a2c97f88e1507982305b0b522fa/);
+  assert.match(controlledDatabaseRecord, /3126db0ecf3f6b29196b082423bacdb09486a97a9b2940d296586a5861809055/);
+  assert.match(controlledDatabaseRecord, /70f598ce98b3c4a4bcf9c72c662200e073c8a2426c9df5671382a86215fc87b0/);
   assert.match(controlledDatabaseRecord, /migration_head.*112_converact_platform_history_receipt_integrity/is);
   assert.match(controlledDatabaseRecord, /completed receipt.*usage/is);
   assert.match(controlledDatabaseRecord, /production_eligible.*false/is);
@@ -268,6 +294,26 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
     const rawPath = join(dirname(join(repositoryRoot, controlledDatabaseRawManifest)), match[2]);
     assert.equal(sha256File(rawPath), match[1], `raw evidence digest mismatch: ${match[2]}`);
   }
+  const supplementalEntries = readFileSync(
+    join(repositoryRoot, controlledDatabaseSupplementalManifest),
+    'utf8',
+  ).trim().split('\n');
+  assert.equal(supplementalEntries.length, 2);
+  for (const line of supplementalEntries) {
+    const match = /^([a-f0-9]{64})  (database-controlled-evidence\.json|evidence-identity\.json)$/u.exec(line);
+    assert.ok(match, `invalid supplemental evidence manifest entry: ${line}`);
+    const rawPath = join(dirname(join(repositoryRoot, controlledDatabaseSupplementalManifest)), match[2]);
+    assert.equal(sha256File(rawPath), match[1], `supplemental evidence digest mismatch: ${match[2]}`);
+  }
+  const controlledResult = readJson(join(
+    dirname(join(repositoryRoot, controlledDatabaseSupplementalManifest)),
+    'database-controlled-evidence.json',
+  ));
+  assert.equal(controlledResult.status, 'verified_controlled');
+  assert.equal(controlledResult.production_eligible, false);
+  assert.equal(controlledResult.real_human_media, false);
+  assert.equal(controlledResult.evidence.identity.source_commit, '3108ecf03d850a2c97f88e1507982305b0b522fa');
+  assert.equal(controlledResult.evidence.checks.every((check) => check.passed === true), true);
   const supersededDatabaseRecord = readFileSync(
     join(repositoryRoot, supersededDatabaseEvidence),
     'utf8',
