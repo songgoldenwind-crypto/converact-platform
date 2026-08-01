@@ -1,0 +1,9 @@
+035493835a0c	wenxin-studio-proxy-1	nginx:1.27-alpine	exited	2026-07-13 09:53:03 +0800 CST
+0703278300f8	opc-rustpbx-1	ghcr.io/restsend/rustpbx:latest	exited	2026-06-26 15:08:21 +0800 CST
+2a17422f280d	opc-opc-1	opc-opc	exited	2026-06-26 15:17:15 +0800 CST
+612c3bd43873	wenxin-studio-app-1	wenxin-studio:latest	exited	2026-07-16 14:43:59 +0800 CST
+802fdda2d9b4	opc-postgres-1	postgres:16-alpine	exited	2026-06-26 13:30:49 +0800 CST
+b8fe1c32534e	mysql-metafate	mysql:8	exited	2026-04-03 22:04:48 +0800 CST
+dd332ccf0dd1	mongodb-metafate	mongo:7	exited	2026-04-03 22:04:30 +0800 CST
+f7536f50896c	opc-livekit-1	livekit/livekit-server:v1.8	exited	2026-06-26 13:30:49 +0800 CST
+f7faaf76a2a1	opc-redis-1	redis:7-alpine	exited	2026-06-26 13:30:49 +0800 CST

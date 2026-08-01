@@ -203,9 +203,9 @@ test('G00 to G02 traceability preserves every source row exactly once without ev
 test('evidence registry never promotes historical or unexecuted acceptance', () => {
   const evidence = readJson(join(goalDirectory, documents.evidence[1]));
   const controlledDatabaseEvidence =
-    'architecture-foundation/execution/goal-02/evidence/database-restart-db-d8cd864-01.md';
+    'architecture-foundation/execution/goal-02/evidence/database-restart-db-9166ad9-01.md';
   const controlledDatabaseRawManifest =
-    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-d8cd864-01/raw-output.sha256';
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-9166ad9-01/raw-output.sha256';
   const supersededDatabaseEvidence =
     'architecture-foundation/execution/goal-02/evidence/database-restart-db-4fc7b59-01.md';
   const verifiedLocal = new Set([
@@ -223,7 +223,7 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
     if (verifiedLocal.has(entry.evidence_id)) {
       assert.equal(entry.status, 'verified_local');
       assert.deepEqual(entry.evidence_uris, [
-        'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md',
+        'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md',
       ]);
       assert.match(entry.non_claim, /does not prove controlled or production behavior/i);
     } else if (entry.evidence_id === 'G02-E09A-DATABASE-RESTART') {
@@ -242,18 +242,19 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
   assert.equal(evidence.summary.verified_local_entries, verifiedLocal.size);
   assert.equal(evidence.summary.verified_controlled_entries, 1);
   const localVerificationRecord = readFileSync(
-    join(repositoryRoot, 'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md'),
+    join(repositoryRoot, 'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md'),
     'utf8',
   );
-  assert.match(localVerificationRecord, /d8cd86458e35b85ea543888ac17c06afee4e0507/);
-  assert.match(localVerificationRecord, /4,901 tests; 4,886 passed; 0 failed; 15 skipped/);
-  assert.match(localVerificationRecord, /database-restart-db-d8cd864-01\.md/);
+  assert.match(localVerificationRecord, /1674eacfd6c56c23d1fbb7dcf082fb2054aec40f/);
+  assert.match(localVerificationRecord, /4,905 tests; 4,890 passed; 0 failed; 15 skipped/);
+  assert.match(localVerificationRecord, /database-restart-db-9166ad9-01\.md/);
   const controlledDatabaseRecord = readFileSync(
     join(repositoryRoot, controlledDatabaseEvidence),
     'utf8',
   );
-  assert.match(controlledDatabaseRecord, /d8cd86458e35b85ea543888ac17c06afee4e0507/);
-  assert.match(controlledDatabaseRecord, /994a2916a5d61cabf39342a62d025b3bfff638302b2fe2ea5dd072ff66ff5f84/);
+  assert.match(controlledDatabaseRecord, /9166ad93f626d47b823383677868131fcfb2015f/);
+  assert.match(controlledDatabaseRecord, /86be66466e8242903306009f66f97e49f7565715e094d4851705dbcce15c46c1/);
+  assert.match(controlledDatabaseRecord, /d977b63033d68aac787c657a00e9b540ab759795a457f869992c1f90fef10d13/);
   assert.match(controlledDatabaseRecord, /migration_head.*112_converact_platform_history_receipt_integrity/is);
   assert.match(controlledDatabaseRecord, /completed receipt.*usage/is);
   assert.match(controlledDatabaseRecord, /production_eligible.*false/is);

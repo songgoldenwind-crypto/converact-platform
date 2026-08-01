@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "kind": "synthetic_transport",
+  "sent_packets": 1483,
+  "received_packets": 1483,
+  "lost_packets": 0,
+  "duplicate_packets": 0,
+  "maximum_gap_ms": 23.625,
+  "established_before_fault": true,
+  "continuous_during_fault": true,
+  "completed_after_recovery": true,
+  "interval_ms": 20,
+  "duration_ms": 30000,
+  "production_eligible": false,
+  "real_human_media": false
+}

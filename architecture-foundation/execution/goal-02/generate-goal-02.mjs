@@ -579,11 +579,11 @@ function traceabilityContract() {
 
 function evidenceIndex() {
   const localEvidenceUri =
-    'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md';
+    'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-review-closure.md';
   const controlledDatabaseEvidenceUri =
-    'architecture-foundation/execution/goal-02/evidence/database-restart-db-d8cd864-01.md';
+    'architecture-foundation/execution/goal-02/evidence/database-restart-db-9166ad9-01.md';
   const controlledDatabaseRawManifestUri =
-    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-d8cd864-01/raw-output.sha256';
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-9166ad9-01/raw-output.sha256';
   const entry = (
     id,
     evidenceClass,
