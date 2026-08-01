@@ -431,10 +431,22 @@ test('RS256 lifecycle warms before service, refreshes periodically, and refreshe
     }).tenantId, 'signed-tenant');
 
     active = jwksKey(secondJwk, 'auth-key-2');
+    const secondToken = signRs256(
+      strictRs256Claims(issuer, 'auth-key-2'),
+      second.privateKey,
+      'auth-key-2'
+    );
     scheduledRefresh!();
-    await waitFor(() => requests === 2);
+    await waitFor(() => {
+      try {
+        return resolveAuthContext({ authorization: `Bearer ${secondToken}` }).userId === 'user-1';
+      } catch {
+        return false;
+      }
+    });
+    assert.equal(requests, 2);
     assert.equal(resolveAuthContext({
-      authorization: `Bearer ${signRs256(strictRs256Claims(issuer, 'auth-key-2'), second.privateKey, 'auth-key-2')}`
+      authorization: `Bearer ${secondToken}`
     }).userId, 'user-1');
     assert.throws(
       () => resolveAuthContext({
@@ -444,15 +456,27 @@ test('RS256 lifecycle warms before service, refreshes periodically, and refreshe
     );
 
     active = jwksKey(firstJwk, 'auth-key-1');
+    const firstToken = signRs256(
+      strictRs256Claims(issuer, 'auth-key-1'),
+      first.privateKey,
+      'auth-key-1'
+    );
     assert.throws(
       () => resolveAuthContext({
-        authorization: `Bearer ${signRs256(strictRs256Claims(issuer, 'auth-key-1'), first.privateKey, 'auth-key-1')}`
+        authorization: `Bearer ${firstToken}`
       }),
       (error: any) => error.status === 401 && /matching|refresh/i.test(error.message)
     );
-    await waitFor(() => requests === 3);
+    await waitFor(() => {
+      try {
+        return resolveAuthContext({ authorization: `Bearer ${firstToken}` }).role === 'operator';
+      } catch {
+        return false;
+      }
+    });
+    assert.equal(requests, 3);
     assert.equal(resolveAuthContext({
-      authorization: `Bearer ${signRs256(strictRs256Claims(issuer, 'auth-key-1'), first.privateKey, 'auth-key-1')}`
+      authorization: `Bearer ${firstToken}`
     }).role, 'operator');
   } finally {
     lifecycle?.stop();
