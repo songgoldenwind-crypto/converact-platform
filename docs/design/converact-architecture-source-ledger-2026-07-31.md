@@ -87,7 +87,7 @@ this reconciliation snapshot; they are not runtime or production evidence.
 | Canonical target | Final target SHA-256 |
 | --- | --- |
 | `CONTEXT.md` | `2c32d0aff9ce367a9221418cd2ce7d87d637f5c804889aa76f5a8ac22422779c` |
-| `README.md` | `80b1bb6e11f21368838ae215571883955421277a269695e8bec5383671b385f6` |
+| `README.md` | `4cf993c6eac5fa442d2486c4549f52fe11e2a2f75d2c451ab350496c569fea00` |
 | `docs/architecture/ai-native-platform-index.md` | `4cb84f093914f8ee34722419b5fa98bb963a34fe08b42a0713d5afadcfb63301` |
 | `docs/architecture/communication-foundation-index.md` | `ce46bfda41be44b2a7ea4090f1c1d49750d3b54cd0d2a51f80d60a92942fb8b7` |
 | `docs/adr/ccaas-10-vilte-livekit-av-participant-gateway.md` | `42cf7647d4fb004c902ef652106932d018aa566eaa4bc60c4cabd7efeebac931` |
