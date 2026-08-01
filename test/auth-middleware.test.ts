@@ -521,6 +521,37 @@ test('JWKS refresh cancels a body whose declared content length exceeds the budg
   }
 });
 
+test('JWKS refresh cancels and aborts a failed HTTP response body', async () => {
+  const originalFetch = globalThis.fetch;
+  let cancelled = false;
+  let aborted = false;
+  try {
+    globalThis.fetch = (async (_input, init) => {
+      init?.signal?.addEventListener('abort', () => {
+        aborted = true;
+      });
+      return new Response(new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.enqueue(new Uint8Array([0x7b]));
+        },
+        cancel() {
+          cancelled = true;
+        }
+      }), { status: 503 });
+    }) as typeof fetch;
+
+    await assert.rejects(
+      () => warmJwksCache('https://auth.example.test'),
+      /JWKS fetch failed: 503/
+    );
+    assert.equal(cancelled, true, 'a failed response must release its response body');
+    assert.equal(aborted, true, 'a failed response must abort the underlying request');
+  } finally {
+    globalThis.fetch = originalFetch;
+    _clearJwksCache();
+  }
+});
+
 function futureEpoch(): number {
   return Math.floor(Date.now() / 1000) + 60;
 }

@@ -374,6 +374,7 @@ async function fetchAndValidateJwks(issuer: string): Promise<JwksKey[]> {
   try {
     const response = await fetch(wellKnownUrl, { signal: controller.signal });
     if (!response.ok) {
+      await cancelUnreadJwksBody(response, controller);
       throw Object.assign(new Error(`JWKS fetch failed: ${response.status}`), { status: 401 });
     }
 
@@ -400,12 +401,7 @@ async function readBoundedJwksBody(
   if (declaredLength !== null
     && (!/^(?:0|[1-9][0-9]*)$/u.test(declaredLength)
       || Number(declaredLength) > JWKS_MAX_RESPONSE_BYTES)) {
-    try {
-      await response.body?.cancel('jwks_response_budget_exceeded');
-    } catch {
-      // The bounded rejection below remains authoritative.
-    }
-    controller.abort();
+    await cancelUnreadJwksBody(response, controller);
     throw unauthorizedToken('JWKS response exceeds the bounded size');
   }
   if (!response.body) return '';
@@ -439,6 +435,18 @@ async function readBoundedJwksBody(
   } catch {
     throw unauthorizedToken('JWKS response is invalid');
   }
+}
+
+async function cancelUnreadJwksBody(
+  response: Response,
+  controller: AbortController
+): Promise<void> {
+  try {
+    await response.body?.cancel('jwks_response_rejected');
+  } catch {
+    // The caller's rejection remains authoritative.
+  }
+  controller.abort();
 }
 
 function rsaPublicKeyFromJwk(jwk: JwksKey): string {
