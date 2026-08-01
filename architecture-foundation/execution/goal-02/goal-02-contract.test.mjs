@@ -239,6 +239,13 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
   assert.equal(evidence.summary.production_eligible_entries, 0);
   assert.equal(evidence.summary.verified_local_entries, verifiedLocal.size);
   assert.equal(evidence.summary.verified_controlled_entries, 1);
+  const localVerificationRecord = readFileSync(
+    join(repositoryRoot, 'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md'),
+    'utf8',
+  );
+  assert.match(localVerificationRecord, /d8cd86458e35b85ea543888ac17c06afee4e0507/);
+  assert.match(localVerificationRecord, /4,901 tests; 4,886 passed; 0 failed; 15 skipped/);
+  assert.match(localVerificationRecord, /database-restart-db-d8cd864-01\.md/);
   const controlledDatabaseRecord = readFileSync(
     join(repositoryRoot, controlledDatabaseEvidence),
     'utf8',
