@@ -7,6 +7,7 @@ COMPOSE_FILE="$ACCEPTANCE_DIR/docker-compose.yml"
 DATABASE_PROBE="$ACCEPTANCE_DIR/database-probe.ts"
 MEDIA_PROBE="$ACCEPTANCE_DIR/synthetic-media.mjs"
 NODE_BIN=${NODE_BIN:-node}
+NODE_IMAGE=${CONVERACT_G02_NODE_IMAGE:-}
 CONFIRMATION=${CONVERACT_G02_FAULT_CONFIRM:-}
 RUN_ID=${CONVERACT_G02_FAULT_RUN_ID:-}
 SOURCE_COMMIT=${CONVERACT_G02_SOURCE_COMMIT:-}
@@ -34,6 +35,10 @@ if [[ ! "$POSTGRES_IMAGE" =~ @sha256:[a-f0-9]{64}$ ]]; then
   printf '%s\n' 'POSTGRES_IMAGE must be an immutable digest reference' >&2
   exit 2
 fi
+if [[ ! "$NODE_IMAGE" =~ @sha256:[a-f0-9]{64}$ ]]; then
+  printf '%s\n' 'CONVERACT_G02_NODE_IMAGE must be an immutable digest reference' >&2
+  exit 2
+fi
 if [[ ! "$MEDIA_DURATION_MS" =~ ^[0-9]+$ ]] || (( MEDIA_DURATION_MS < 5000 || MEDIA_DURATION_MS > 300000 )); then
   printf '%s\n' 'CONVERACT_G02_MEDIA_DURATION_MS must be between 5000 and 300000' >&2
   exit 2
@@ -42,6 +47,17 @@ if [[ ! -f "$ROOT_DIR/package-lock.json" || ! -d "$ROOT_DIR/node_modules/tsx" ]]
   printf '%s\n' 'exact-source npm dependencies must be installed before the campaign' >&2
   exit 2
 fi
+NODE_BIN_PATH=$(command -v "$NODE_BIN" || true)
+if [[ -z "$NODE_BIN_PATH" || ! -x "$NODE_BIN_PATH" ]]; then
+  printf '%s\n' 'NODE_BIN must resolve to an executable' >&2
+  exit 2
+fi
+NODE_VERSION=$("$NODE_BIN_PATH" --version)
+if [[ ! "$NODE_VERSION" =~ ^v24\.[0-9]+\.[0-9]+$ ]]; then
+  printf '%s\n' 'fault campaign requires Node v24' >&2
+  exit 2
+fi
+NODE_BINARY_SHA256=$(sha256sum "$NODE_BIN_PATH" | awk '{print $1}')
 if ! git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   printf '%s\n' 'campaign source must be an exact Git checkout' >&2
   exit 2
@@ -251,10 +267,13 @@ RAW_OUTPUT_SHA256=$(sha256sum "$RAW_MANIFEST" | awk '{print $1}')
 export CONVERACT_G02_SOURCE_COMMIT="$SOURCE_COMMIT"
 export CONVERACT_G02_CONFIG_SHA256="$CONFIG_SHA256"
 export CONVERACT_G02_RAW_OUTPUT_SHA256="$RAW_OUTPUT_SHA256"
+export CONVERACT_G02_NODE_IMAGE="$NODE_IMAGE"
+export CONVERACT_G02_NODE_BINARY_SHA256="$NODE_BINARY_SHA256"
+export CONVERACT_G02_NODE_VERSION="$NODE_VERSION"
 export CONVERACT_G02_HOST
 CONVERACT_G02_HOST=$(hostname)
 export CONVERACT_G02_HARDWARE
-CONVERACT_G02_HARDWARE="$(uname -srmo); $(nproc) vCPU; $(awk '/MemTotal/ {printf "%.1f GiB RAM", $2/1024/1024}' /proc/meminfo)"
+CONVERACT_G02_HARDWARE="$(uname -srmo); $(nproc) vCPU; $(awk '/MemTotal/ {printf "%.1f GiB RAM", $2/1024/1024}' /proc/meminfo); Node $NODE_VERSION"
 export CONVERACT_G02_CLOCK="UTC wall clock; Node monotonic performance clock; $(cat /sys/devices/system/clocksource/clocksource0/current_clocksource 2>/dev/null || printf unknown) kernel clocksource"
 export CONVERACT_G02_WORKLOAD="single PostgreSQL restart; one runtime role; two tenants; one inbox event; three effect stages; one usage key; ${MEDIA_DURATION_MS}ms synthetic UDP at 20ms interval"
 export CONVERACT_G02_SEED="$RUN_ID"

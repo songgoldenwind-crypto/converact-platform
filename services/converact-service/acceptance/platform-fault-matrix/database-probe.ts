@@ -340,7 +340,12 @@ function writeIdentity(output: string): void {
     source_commit: requiredEnv('CONVERACT_G02_SOURCE_COMMIT', /^[a-f0-9]{40}$/u),
     config_sha256: requiredEnv('CONVERACT_G02_CONFIG_SHA256', /^[a-f0-9]{64}$/u),
     raw_output_sha256: requiredEnv('CONVERACT_G02_RAW_OUTPUT_SHA256', /^[a-f0-9]{64}$/u),
-    image_digests: [requiredEnv('POSTGRES_IMAGE', /^[^\s@]+@sha256:[a-f0-9]{64}$/u)],
+    image_digests: [
+      requiredEnv('POSTGRES_IMAGE', /^[^\s@]+@sha256:[a-f0-9]{64}$/u),
+      requiredEnv('CONVERACT_G02_NODE_IMAGE', /^[^\s@]+@sha256:[a-f0-9]{64}$/u)
+    ],
+    node_binary_sha256: requiredEnv('CONVERACT_G02_NODE_BINARY_SHA256', /^[a-f0-9]{64}$/u),
+    node_version: requiredEnv('CONVERACT_G02_NODE_VERSION', /^v24\.\d+\.\d+$/u),
     host: requiredEnv('CONVERACT_G02_HOST', /^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$/u),
     hardware: requiredTextEnv('CONVERACT_G02_HARDWARE'),
     clock: requiredTextEnv('CONVERACT_G02_CLOCK'),

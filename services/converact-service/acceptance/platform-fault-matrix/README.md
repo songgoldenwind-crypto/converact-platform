@@ -39,6 +39,8 @@ CONVERACT_G02_FAULT_CONFIRM=G02_PLATFORM_FAULT_MATRIX \
 CONVERACT_G02_FAULT_RUN_ID=contract-check \
 CONVERACT_G02_SOURCE_COMMIT='<40 hex exact commit>' \
 POSTGRES_IMAGE='postgres@sha256:<64 hex digest>' \
+CONVERACT_G02_NODE_IMAGE='node@sha256:<64 hex digest>' \
+NODE_BIN='/absolute/path/to/node-v24' \
 ./accept.sh plan
 ```
 
@@ -49,11 +51,14 @@ CONVERACT_G02_FAULT_CONFIRM=G02_PLATFORM_FAULT_MATRIX \
 CONVERACT_G02_FAULT_RUN_ID='db-<unique suffix>' \
 CONVERACT_G02_SOURCE_COMMIT='<40 hex exact commit>' \
 POSTGRES_IMAGE='postgres@sha256:<64 hex digest>' \
+CONVERACT_G02_NODE_IMAGE='node@sha256:<64 hex digest>' \
+NODE_BIN='/absolute/path/to/node-v24' \
 CONVERACT_G02_MEDIA_DURATION_MS=30000 \
 ./accept.sh database
 ```
 
-The source tree must already contain `npm ci` dependencies. The runner reserves a loopback port, creates a unique
+The source tree must already contain `npm ci` dependencies and must run with Node v24. The runner records the exact
+Node image and binary SHA-256, reserves a loopback port, creates a unique
 Compose project and evidence directory, generates both database passwords in memory, and removes only its own
 container/network/volume. It refuses to overwrite an existing run. Evidence is written under
 `.runtime/platform-fault-matrix/<run-id>/` with raw-file hashes, exact source/config/image/host/hardware/clock/workload

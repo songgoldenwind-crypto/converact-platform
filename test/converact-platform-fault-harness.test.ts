@@ -28,7 +28,12 @@ const identity = {
   source_commit: 'a'.repeat(40),
   config_sha256: 'b'.repeat(64),
   raw_output_sha256: 'c'.repeat(64),
-  image_digests: ['postgres@sha256:' + 'd'.repeat(64)],
+  image_digests: [
+    'postgres@sha256:' + 'd'.repeat(64),
+    'node@sha256:' + 'e'.repeat(64)
+  ],
+  node_binary_sha256: 'f'.repeat(64),
+  node_version: 'v24.5.0',
   host: 'validation.example',
   hardware: '2 vCPU; 8 GiB',
   clock: 'UTC synchronized; monotonic process clock',
@@ -288,6 +293,9 @@ test('database runner has bounded actual stop-start lifecycle and cleanup', () =
   assert.match(script, /database-probe\.ts.*finalize/s);
   assert.match(script, /git -C "\$ROOT_DIR" rev-parse HEAD/);
   assert.match(script, /git -C "\$ROOT_DIR" status --porcelain/);
+  assert.match(script, /NODE_VERSION.*v24/);
+  assert.match(script, /CONVERACT_G02_NODE_IMAGE/);
+  assert.match(script, /NODE_BINARY_SHA256/);
   assert.match(script, /trap cleanup EXIT HUP INT TERM/);
   assert.match(script, /compose down --volumes --remove-orphans/);
 });

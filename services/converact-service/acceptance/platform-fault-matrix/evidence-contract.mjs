@@ -110,6 +110,8 @@ function validIdentity(value) {
     || !COMMIT.test(String(value.source_commit || ''))
     || !SHA256.test(String(value.config_sha256 || ''))
     || !SHA256.test(String(value.raw_output_sha256 || ''))
+    || !SHA256.test(String(value.node_binary_sha256 || ''))
+    || !/^v24\.\d+\.\d+$/u.test(String(value.node_version || ''))
     || !boundedToken(value.host) || !boundedTextOrFalse(value.hardware)
     || !boundedTextOrFalse(value.clock) || !boundedTextOrFalse(value.workload)
     || !boundedToken(value.seed) || !validTimestamp(value.started_at)
