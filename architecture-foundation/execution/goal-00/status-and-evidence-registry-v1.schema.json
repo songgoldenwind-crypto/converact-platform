@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.dev/schemas/goal-00/status-and-evidence-registry-v1.schema.json",
+  "title": "Converact Goal 00 Status And Evidence Registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "registry_id",
+    "generated_at",
+    "hash_algorithm",
+    "status_policy",
+    "binding_inputs",
+    "capabilities",
+    "closure"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "registry_id": { "const": "converact-goal-00-status-and-evidence-registry-v1" },
+    "generated_at": { "$ref": "#/$defs/timestamp" },
+    "hash_algorithm": { "const": "SHA-256" },
+    "status_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_target_production_separated",
+        "unproved_status",
+        "upstream_claim_is_evidence",
+        "mock_is_production_evidence"
+      ],
+      "properties": {
+        "current_target_production_separated": { "const": true },
+        "unproved_status": { "const": "not_run" },
+        "upstream_claim_is_evidence": { "const": false },
+        "mock_is_production_evidence": { "const": false }
+      }
+    },
+    "binding_inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/artifactIdentity" }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 18,
+      "items": { "$ref": "#/$defs/capability" }
+    },
+    "closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_count",
+        "duplicate_capability_id_count",
+        "unknown_goal_reference_count",
+        "production_eligible_true_count",
+        "unproved_promoted_count",
+        "sorted_capability_ids_sha256",
+        "closed"
+      ],
+      "properties": {
+        "capability_count": { "type": "integer", "minimum": 18 },
+        "duplicate_capability_id_count": { "const": 0 },
+        "unknown_goal_reference_count": { "const": 0 },
+        "production_eligible_true_count": { "const": 0 },
+        "unproved_promoted_count": { "const": 0 },
+        "sorted_capability_ids_sha256": { "$ref": "#/$defs/sha256" },
+        "closed": { "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "goalId": { "type": "string", "pattern": "^G(?:0[0-9]|1[0-7])$" },
+    "artifactIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "kind"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "kind": { "type": "string", "minLength": 1 }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "basis"],
+      "properties": {
+        "status": {
+          "enum": [
+            "not_run",
+            "implemented_local",
+            "partial",
+            "verified_local",
+            "historical",
+            "unknown",
+            "conditional",
+            "rejected",
+            "required"
+          ]
+        },
+        "basis": { "type": "string", "minLength": 1 }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_id",
+        "category",
+        "authority",
+        "source_identities",
+        "target_goals",
+        "current",
+        "target",
+        "production_eligible",
+        "evidence_uris",
+        "next_gate",
+        "non_claim"
+      ],
+      "properties": {
+        "capability_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9_.:-]*$" },
+        "category": {
+          "enum": [
+            "program",
+            "platform",
+            "sip",
+            "codec",
+            "media",
+            "rvoip",
+            "livekit",
+            "performance",
+            "engagement",
+            "collaboration",
+            "connector",
+            "speech",
+            "agent",
+            "action",
+            "knowledge",
+            "commercial",
+            "vilte",
+            "evidence",
+            "security",
+            "observability",
+            "recovery",
+            "recording"
+          ]
+        },
+        "authority": { "type": "string", "minLength": 1 },
+        "source_identities": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/artifactIdentity" }
+        },
+        "target_goals": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/goalId" }
+        },
+        "current": { "$ref": "#/$defs/state" },
+        "target": { "$ref": "#/$defs/state" },
+        "production_eligible": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "eligible", "basis"],
+          "properties": {
+            "status": {
+              "enum": ["not_run", "conditional", "rejected", "historical"]
+            },
+            "eligible": { "const": false },
+            "basis": { "type": "string", "minLength": 1 }
+          }
+        },
+        "evidence_uris": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "next_gate": { "type": "string", "minLength": 1 },
+        "non_claim": { "const": true }
+      }
+    }
+  }
+}

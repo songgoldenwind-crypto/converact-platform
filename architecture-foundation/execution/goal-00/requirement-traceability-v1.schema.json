@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.dev/schemas/goal-00/requirement-traceability-v1.schema.json",
+  "title": "Converact Goal 00 Requirement Traceability",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "traceability_id",
+    "generated_at",
+    "hash_algorithm",
+    "binding_inputs",
+    "sources",
+    "requirements",
+    "new_goal_coverage",
+    "closure"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "traceability_id": { "const": "converact-goal-00-requirement-traceability-v1" },
+    "generated_at": { "$ref": "#/$defs/timestamp" },
+    "hash_algorithm": { "const": "SHA-256" },
+    "binding_inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/artifactIdentity" }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_id",
+          "path",
+          "sha256",
+          "kind",
+          "requirement_count",
+          "authority"
+        ],
+        "properties": {
+          "source_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9_.:-]*$" },
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "kind": {
+            "enum": [
+              "r4_traceability",
+              "r5_delta",
+              "platform_r2",
+              "resolve_r1",
+              "goal_program",
+              "legacy_local_change",
+              "production_evidence"
+            ]
+          },
+          "requirement_count": { "type": "integer", "minimum": 0 },
+          "authority": { "enum": ["binding", "inherited", "historical", "evidence_only"] }
+        }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/requirement" }
+    },
+    "new_goal_coverage": {
+      "type": "array",
+      "minItems": 18,
+      "maxItems": 18,
+      "items": { "$ref": "#/$defs/goalCoverage" }
+    },
+    "closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_requirement_count",
+        "mapped_count",
+        "deferred_count",
+        "rejected_count",
+        "superseded_count",
+        "unresolved_count",
+        "duplicate_id_count",
+        "requirements_with_zero_targets",
+        "requirements_with_unknown_targets",
+        "sorted_requirement_ids_sha256",
+        "closed"
+      ],
+      "properties": {
+        "source_requirement_count": { "type": "integer", "minimum": 1 },
+        "mapped_count": { "type": "integer", "minimum": 0 },
+        "deferred_count": { "type": "integer", "minimum": 0 },
+        "rejected_count": { "type": "integer", "minimum": 0 },
+        "superseded_count": { "type": "integer", "minimum": 0 },
+        "unresolved_count": { "const": 0 },
+        "duplicate_id_count": { "const": 0 },
+        "requirements_with_zero_targets": { "type": "integer", "minimum": 0 },
+        "requirements_with_unknown_targets": { "const": 0 },
+        "sorted_requirement_ids_sha256": { "$ref": "#/$defs/sha256" },
+        "closed": { "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "goalId": { "type": "string", "pattern": "^G(?:0[0-9]|1[0-7])$" },
+    "artifactIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "kind"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "kind": { "type": "string", "minLength": 1 }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_id",
+        "source_id",
+        "source_path",
+        "source_pointer",
+        "source_kind",
+        "source_requirement_id",
+        "requirement",
+        "prior_status",
+        "disposition",
+        "target_goals",
+        "rationale",
+        "evidence_status",
+        "production_eligible",
+        "evidence_uris",
+        "supersedes"
+      ],
+      "properties": {
+        "requirement_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9_.:-]*$" },
+        "source_id": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9_.:-]*$" },
+        "source_path": { "type": "string", "minLength": 1 },
+        "source_pointer": { "type": "string", "minLength": 1 },
+        "source_kind": {
+          "enum": [
+            "r4_trace_row",
+            "r5_delta_row",
+            "platform_r2_section",
+            "resolve_r1_workstream",
+            "goal_program_contract",
+            "legacy_local_change",
+            "production_evidence_artifact"
+          ]
+        },
+        "source_requirement_id": { "type": "string", "minLength": 1 },
+        "requirement": { "type": "string", "minLength": 1 },
+        "prior_status": {
+          "enum": [
+            "not_run",
+            "implemented_local",
+            "partial",
+            "historical_superseded",
+            "target",
+            "conditional",
+            "unknown"
+          ]
+        },
+        "disposition": {
+          "enum": ["mapped", "deferred", "rejected", "superseded"]
+        },
+        "target_goals": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/goalId" }
+        },
+        "rationale": { "type": "string", "minLength": 1 },
+        "evidence_status": {
+          "enum": [
+            "not_run",
+            "implemented_local",
+            "partial",
+            "historical",
+            "evidence_exists_not_requalified",
+            "unknown"
+          ]
+        },
+        "production_eligible": { "const": false },
+        "evidence_uris": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "supersedes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "disposition": { "const": "mapped" } },
+            "required": ["disposition"]
+          },
+          "then": {
+            "properties": {
+              "target_goals": {
+                "type": "array",
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "goalCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal_id",
+        "title",
+        "goal_path",
+        "goal_sha256",
+        "authority_domains",
+        "dependencies",
+        "inputs",
+        "outputs",
+        "evidence_targets",
+        "stop_gates",
+        "mapped_requirement_count"
+      ],
+      "properties": {
+        "goal_id": { "$ref": "#/$defs/goalId" },
+        "title": { "type": "string", "minLength": 1 },
+        "goal_path": { "type": "string", "minLength": 1 },
+        "goal_sha256": { "$ref": "#/$defs/sha256" },
+        "authority_domains": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["goal_id", "gate"],
+            "properties": {
+              "goal_id": { "$ref": "#/$defs/goalId" },
+              "gate": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "inputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "outputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "evidence_targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "stop_gates": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "mapped_requirement_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

@@ -1,0 +1,453 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.dev/schemas/goal-00/workspace-inventory-v1.schema.json",
+  "title": "Converact Goal 00 Workspace Inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "inventory_id",
+    "captured_at",
+    "hash_algorithm",
+    "canonical_execution_root",
+    "large_file_threshold_bytes",
+    "snapshot_policy",
+    "binding_inputs",
+    "workspaces",
+    "cross_workspace",
+    "non_mutation"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "inventory_id": { "const": "converact-goal-00-workspace-inventory-v1" },
+    "captured_at": { "$ref": "#/$defs/timestamp" },
+    "hash_algorithm": { "const": "SHA-256" },
+    "canonical_execution_root": {
+      "const": "/Users/songjinfeng/Projects/converact-worktrees/platform"
+    },
+    "large_file_threshold_bytes": { "type": "integer", "minimum": 1048576 },
+    "snapshot_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tracked_and_nonignored_paths",
+        "ignored_entries",
+        "credential_content",
+        "provenance_default"
+      ],
+      "properties": {
+        "tracked_and_nonignored_paths": { "const": "explicit_file_records" },
+        "ignored_entries": { "const": "git_matching_entries_without_content_read" },
+        "credential_content": { "const": "never_recorded" },
+        "provenance_default": { "const": "unknown_provenance" }
+      }
+    },
+    "binding_inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/artifactIdentity" }
+    },
+    "workspaces": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/workspace" }
+    },
+    "cross_workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shared_repository_groups",
+        "canonical_tracked_manifest_sha256",
+        "legacy_change_manifest_sha256",
+        "duplicate_change_paths"
+      ],
+      "properties": {
+        "shared_repository_groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["common_git_dir", "workspace_ids"],
+            "properties": {
+              "common_git_dir": { "type": "string", "minLength": 1 },
+              "workspace_ids": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "$ref": "#/$defs/workspaceId" }
+              }
+            }
+          }
+        },
+        "canonical_tracked_manifest_sha256": { "$ref": "#/$defs/sha256" },
+        "legacy_change_manifest_sha256": { "$ref": "#/$defs/sha256" },
+        "duplicate_change_paths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "workspace_ids"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "workspace_ids": {
+                "type": "array",
+                "minItems": 2,
+                "uniqueItems": true,
+                "items": { "$ref": "#/$defs/workspaceId" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "non_mutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checked_workspace_ids", "before", "after", "unchanged"],
+      "properties": {
+        "checked_workspace_ids": {
+          "type": "array",
+          "const": ["legacy_desktop", "legacy_ivekit", "frozen_production"]
+        },
+        "before": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["legacy_desktop", "legacy_ivekit", "frozen_production"],
+          "properties": {
+            "legacy_desktop": { "$ref": "#/$defs/workspaceGuard" },
+            "legacy_ivekit": { "$ref": "#/$defs/workspaceGuard" },
+            "frozen_production": { "$ref": "#/$defs/workspaceGuard" }
+          }
+        },
+        "after": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["legacy_desktop", "legacy_ivekit", "frozen_production"],
+          "properties": {
+            "legacy_desktop": { "$ref": "#/$defs/workspaceGuard" },
+            "legacy_ivekit": { "$ref": "#/$defs/workspaceGuard" },
+            "frozen_production": { "$ref": "#/$defs/workspaceGuard" }
+          }
+        },
+        "unchanged": { "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "workspaceId": {
+      "enum": ["canonical", "legacy_desktop", "legacy_ivekit", "frozen_production"]
+    },
+    "provenance": {
+      "enum": ["user_owned", "prior_codex", "generated", "unknown_provenance"]
+    },
+    "artifactIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "kind"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "kind": { "type": "string", "minLength": 1 }
+      }
+    },
+    "workspaceGuard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["head", "branch", "status_sha256"],
+      "properties": {
+        "head": { "$ref": "#/$defs/gitSha" },
+        "branch": { "type": "string", "minLength": 1 },
+        "status_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspace_id",
+        "role",
+        "requested_path",
+        "resolved_path",
+        "repository",
+        "clean",
+        "status_counts",
+        "status_projection_sha256",
+        "submodules",
+        "worktrees",
+        "commits",
+        "unpushed_commits",
+        "files",
+        "ignored_entries",
+        "large_files",
+        "git_storage"
+      ],
+      "properties": {
+        "workspace_id": { "$ref": "#/$defs/workspaceId" },
+        "role": {
+          "enum": [
+            "canonical_execution_root",
+            "read_only_legacy_source",
+            "frozen_production_boundary"
+          ]
+        },
+        "requested_path": { "type": "string", "minLength": 1 },
+        "resolved_path": { "type": "string", "minLength": 1 },
+        "repository": { "$ref": "#/$defs/repository" },
+        "clean": { "type": "boolean" },
+        "status_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tracked", "staged", "unstaged", "untracked", "ignored_entries"],
+          "properties": {
+            "tracked": { "type": "integer", "minimum": 0 },
+            "staged": { "type": "integer", "minimum": 0 },
+            "unstaged": { "type": "integer", "minimum": 0 },
+            "untracked": { "type": "integer", "minimum": 0 },
+            "ignored_entries": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "status_projection_sha256": { "$ref": "#/$defs/sha256" },
+        "submodules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "commit", "state"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "commit": { "$ref": "#/$defs/gitSha" },
+              "state": { "enum": ["clean", "modified", "uninitialized", "conflict"] }
+            }
+          }
+        },
+        "worktrees": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "head", "branch"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "head": { "$ref": "#/$defs/gitSha" },
+              "branch": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "commits": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/commit" }
+        },
+        "unpushed_commits": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/gitSha" }
+        },
+        "files": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/file" }
+        },
+        "ignored_entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ignoredEntry" }
+        },
+        "large_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "size_bytes", "sha256", "states"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "size_bytes": { "type": "integer", "minimum": 1 },
+              "sha256": { "$ref": "#/$defs/sha256" },
+              "states": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "$ref": "#/$defs/fileState" }
+              }
+            }
+          }
+        },
+        "git_storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["count", "size", "in_pack", "packs", "size_pack", "prune_packable", "garbage"],
+          "properties": {
+            "count": { "type": "integer", "minimum": 0 },
+            "size": { "type": "string", "minLength": 1 },
+            "in_pack": { "type": "integer", "minimum": 0 },
+            "packs": { "type": "integer", "minimum": 0 },
+            "size_pack": { "type": "string", "minLength": 1 },
+            "prune_packable": { "type": "integer", "minimum": 0 },
+            "garbage": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "common_git_dir",
+        "git_dir",
+        "branch",
+        "head",
+        "upstream",
+        "ahead",
+        "behind",
+        "head_commit_count",
+        "all_ref_commit_count",
+        "remotes"
+      ],
+      "properties": {
+        "common_git_dir": { "type": "string", "minLength": 1 },
+        "git_dir": { "type": "string", "minLength": 1 },
+        "branch": { "type": "string", "minLength": 1 },
+        "head": { "$ref": "#/$defs/gitSha" },
+        "upstream": { "type": ["string", "null"] },
+        "ahead": { "type": "integer", "minimum": 0 },
+        "behind": { "type": "integer", "minimum": 0 },
+        "head_commit_count": { "type": "integer", "minimum": 1 },
+        "all_ref_commit_count": { "type": "integer", "minimum": 1 },
+        "remotes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "fetch_url", "push_url"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "fetch_url": { "type": "string", "minLength": 1 },
+              "push_url": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "parents",
+        "author_name",
+        "authored_at",
+        "committed_at",
+        "subject",
+        "provenance",
+        "provenance_basis"
+      ],
+      "properties": {
+        "commit": { "$ref": "#/$defs/gitSha" },
+        "parents": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/gitSha" }
+        },
+        "author_name": { "type": "string" },
+        "authored_at": { "$ref": "#/$defs/timestamp" },
+        "committed_at": { "$ref": "#/$defs/timestamp" },
+        "subject": { "type": "string" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "provenance_basis": { "type": "string", "minLength": 1 }
+      }
+    },
+    "fileState": {
+      "enum": ["tracked", "staged", "unstaged", "untracked", "deleted", "renamed"]
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "states",
+        "file_type",
+        "size_bytes",
+        "content_sha256",
+        "head_blob",
+        "index_blob",
+        "provenance",
+        "provenance_basis",
+        "protection",
+        "target_goals",
+        "migration_disposition"
+      ],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "states": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/fileState" }
+        },
+        "file_type": { "enum": ["file", "directory", "symlink", "missing", "other"] },
+        "size_bytes": { "type": ["integer", "null"], "minimum": 0 },
+        "content_sha256": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "head_blob": {
+          "oneOf": [{ "$ref": "#/$defs/gitSha" }, { "type": "null" }]
+        },
+        "index_blob": {
+          "oneOf": [{ "$ref": "#/$defs/gitSha" }, { "type": "null" }]
+        },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "provenance_basis": { "type": "string", "minLength": 1 },
+        "protection": {
+          "enum": [
+            "canonical_read_only_until_goal_owner",
+            "preserve_legacy_user_work",
+            "frozen_production_do_not_modify"
+          ]
+        },
+        "target_goals": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^G(?:0[0-9]|1[0-7])$" }
+        },
+        "migration_disposition": {
+          "enum": [
+            "keep_canonical",
+            "assess_before_migrate",
+            "quarantine_generated",
+            "frozen_no_migration",
+            "delete_after_drain",
+            "unresolved"
+          ]
+        }
+      }
+    },
+    "ignoredEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "entry_kind",
+        "provenance",
+        "provenance_basis",
+        "content_inspected",
+        "protection"
+      ],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "entry_kind": { "enum": ["file", "directory", "unknown"] },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "provenance_basis": { "type": "string", "minLength": 1 },
+        "content_inspected": { "const": false },
+        "protection": {
+          "enum": [
+            "ignored_generated_no_migration",
+            "ignored_sensitive_no_content_read",
+            "ignored_unknown_preserve"
+          ]
+        }
+      }
+    }
+  }
+}

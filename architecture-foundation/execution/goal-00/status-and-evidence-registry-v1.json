@@ -1,0 +1,819 @@
+{
+  "schema_version": "1.0.0",
+  "registry_id": "converact-goal-00-status-and-evidence-registry-v1",
+  "generated_at": "2026-08-01T08:24:22.792Z",
+  "hash_algorithm": "SHA-256",
+  "status_policy": {
+    "current_target_production_separated": true,
+    "unproved_status": "not_run",
+    "upstream_claim_is_evidence": false,
+    "mock_is_production_evidence": false
+  },
+  "binding_inputs": [
+    {
+      "path": "goals/goal-00-execution-baseline-and-traceability.md",
+      "sha256": "5f2eb42220067f8c0fe3d454351ace6000b5c3186d2607528bce4ada2c390fbf",
+      "kind": "binding_goal"
+    },
+    {
+      "path": "goals/PROGRAM-RULES.md",
+      "sha256": "97a1ab64f1deae1cb82072a6a4535e6a4bfbc4a13205c10253c58a399ce4a247",
+      "kind": "program_rules"
+    },
+    {
+      "path": "goals/manifest.json",
+      "sha256": "28bd84f6e4ce1b74679cc55140a61d5b882474fedcc569e7bfc004270d4d1a55",
+      "kind": "goal_manifest"
+    }
+  ],
+  "capabilities": [
+    {
+      "capability_id": "CAPABILITY:G00",
+      "category": "program",
+      "authority": "Program baseline; Requirement traceability; Migration evidence",
+      "source_identities": [
+        {
+          "path": "goals/goal-00-execution-baseline-and-traceability.md",
+          "sha256": "5f2eb42220067f8c0fe3d454351ace6000b5c3186d2607528bce4ada2c390fbf",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G00"
+      ],
+      "current": {
+        "status": "implemented_local",
+        "basis": "G00 artifacts exist locally; final verification, review and commit are separate gates."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G00 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [
+        "docs/evidence/converact-rename-completion-audit-2026-07-31.md",
+        "docs/evidence/converact-rename-local-verification-2026-07-31.json"
+      ],
+      "next_gate": "canonical root、legacy source 和冻结生产 worktree 的 HEAD、dirty/untracked/unpushed 事实可由命令重放，且没有工作被改变。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G01",
+      "category": "platform",
+      "authority": "Horizontal Platform contract; Profile and Offer gates; Commercial discovery",
+      "source_identities": [
+        {
+          "path": "goals/goal-01-product-domain-commercial-gates.md",
+          "sha256": "736225a0d4c0d8abe2d951b95bf502e81f4dfbbcefce8a8defb81e330b7c5af1",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G01"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G01 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [],
+      "next_gate": "Platform/Profile/Offer/Option 边界、Engagement 上位模型和单一 Authority 无歧义。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G02",
+      "category": "security",
+      "authority": "Tenant and identity; Security and consent; Durability, audit and observability",
+      "source_identities": [
+        {
+          "path": "goals/goal-02-platform-foundation-security-observability.md",
+          "sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G02"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G02 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [
+        "docs/evidence/wave1-clamav-server-validation-2026-07-22.md",
+        "docs/evidence/wave1-homer-hep-ab-server-validation-2026-07-25.json",
+        "docs/evidence/wave1-homer-hep-ab-server-validation-2026-07-25.md",
+        "docs/evidence/wave1-homer-hep-high-water-server-validation-2026-07-25.json",
+        "docs/evidence/wave1-homer-hep-high-water-server-validation-2026-07-25.md",
+        "docs/evidence/wave1-homer-postgres-hep-server-validation-2026-07-24.json",
+        "docs/evidence/wave1-homer-postgres-hep-server-validation-2026-07-24.md",
+        "docs/evidence/wave1-homer-retention-compaction-server-validation-2026-07-25.json",
+        "docs/evidence/wave1-homer-retention-compaction-server-validation-2026-07-25.md",
+        "docs/evidence/wave1-oci-source-image-server-validation-2026-07-22.md",
+        "docs/evidence/wave2-opentelemetry-runtime-2026-07-22.json",
+        "docs/evidence/wave2-seaweedfs-s3-runtime-2026-07-22.json",
+        "docs/evidence/wave2-seaweedfs-s3-validation-2026-07-22.md",
+        "docs/evidence/wave2-valkey-sentinel-runtime-2026-07-23.json",
+        "docs/evidence/wave2-valkey-sentinel-validation-2026-07-23.md",
+        "docs/evidence/wave2-victoria-metrics-runtime-2026-07-22.json"
+      ],
+      "next_gate": "cross-tenant 数据、token、Room、Call、Evidence 和 Action 访问全部 fail closed。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G03",
+      "category": "sip",
+      "authority": "Kamailio SIP Edge; Unified RustPBX Call Authority; Durable effect oracle",
+      "source_identities": [
+        {
+          "path": "goals/goal-03-sip-call-durable-foundation.md",
+          "sha256": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G03"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G03 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [
+        "docs/evidence/wave3-rustpbx-direct-sip-capacity-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-ivekit19-image-inspect-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-kamailio-sip-capacity-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-kamailio-sip-capacity-server-validation-2026-07-24.md",
+        "docs/evidence/wave3-rustpbx-rtp-media-capacity-server-validation-2026-07-24.md",
+        "docs/evidence/wave3-rustpbx-rtp-strict-10-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-strict-150-generator-bound-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-600-800-ivekit18-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-600-800-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-900-mixed-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-900-rbuf2m-mixed-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-udp-socket-host-observation-2026-07-24.txt",
+        "docs/evidence/wave3-sip-kamailio-frontier-led-off-2026-07-24.json",
+        "docs/evidence/wave3-sip-kamailio-frontier-refine-soft503-fix-led-off-2026-07-24.json",
+        "docs/evidence/wave3-sip-kamailio-frontier-soft503-fix-led-off-2026-07-24.json"
+      ],
+      "next_gate": "同一业务 Call 的多 Dialog/Leg、fork、transfer、CANCEL/BYE race 和 re-INVITE 状态无歧义。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G04",
+      "category": "codec",
+      "authority": "Unified Codec Registry; G729/8000 exact-source engineering",
+      "source_identities": [
+        {
+          "path": "goals/goal-04-g729-exact-source-codec.md",
+          "sha256": "afff3278bd19259d91c10896cbb553326fcc297cc19910adfbd2f2641ca08e82",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G04"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G04 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [],
+      "next_gate": "SDP/RTP/API/metrics 中 wire identity 只有 `G729/8000`；A/AB/AB+Annex B 仅为内部 mode。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G05",
+      "category": "media",
+      "authority": "Media Graph and Plan; RTPengine fast path; voice-media-rs decode path",
+      "source_identities": [
+        {
+          "path": "goals/goal-05-rtpengine-media-authority.md",
+          "sha256": "1900ac97f6f41fbf695630ee99a7d7625f13e22487f744e15a7d2c54b6ab8912",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G05"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G05 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [
+        "docs/evidence/goal2-rtpengine-compile-runtime-inspection-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-deployment-server-validation-2026-07-26.md",
+        "docs/evidence/goal2-rtpengine-exact-source-unit-2026-07-26.tap",
+        "docs/evidence/goal2-rtpengine-final-evidence-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-lifecycle-stages-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-package-inventory-media-regression-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-provenance-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-real-media-acceptance-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-real-media-acceptance-2026-07-26.md",
+        "docs/evidence/goal2-rtpengine-sbom-cyclonedx-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-sbom-spdx-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-supply-chain-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-supply-chain-server-validation-2026-07-26.md",
+        "docs/evidence/goal2-rtpengine-trivy-secrets-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-trivy-vulnerabilities-2026-07-26.json",
+        "docs/evidence/wave3-rustpbx-direct-sip-capacity-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-ivekit19-image-inspect-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-kamailio-sip-capacity-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-kamailio-sip-capacity-server-validation-2026-07-24.md",
+        "docs/evidence/wave3-rustpbx-recording-storage-isolation-server-validation-2026-07-25.json",
+        "docs/evidence/wave3-rustpbx-recording-storage-isolation-server-validation-2026-07-25.md",
+        "docs/evidence/wave3-rustpbx-rtp-media-capacity-server-validation-2026-07-24.md",
+        "docs/evidence/wave3-rustpbx-rtp-strict-10-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-strict-150-generator-bound-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-600-800-ivekit18-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-600-800-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-900-mixed-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-900-rbuf2m-mixed-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-udp-socket-host-observation-2026-07-24.txt",
+        "docs/evidence/wave3-sip-kamailio-frontier-led-off-2026-07-24.json",
+        "docs/evidence/wave3-sip-kamailio-frontier-refine-soft503-fix-led-off-2026-07-24.json",
+        "docs/evidence/wave3-sip-kamailio-frontier-soft503-fix-led-off-2026-07-24.json"
+      ],
+      "next_gate": "ordinary Edge 默认只由 RTPengine 写；decode-required Edge 只由 embedded worker 写；",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G06",
+      "category": "rvoip",
+      "authority": "rvoip low-level slices; Protocol Adapter replacement gates",
+      "source_identities": [
+        {
+          "path": "goals/goal-06-rvoip-selective-absorption.md",
+          "sha256": "23c08a8c3106a256d854b8345364147111d65e5037b120335d37daea20d05bef",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G06"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G06 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [],
+      "next_gate": "Shadow 在任何输入下无外部 response、timer owner、dialog、port、CDR、billing 或 recording",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G07",
+      "category": "livekit",
+      "authority": "Fabric Coordination; LiveKit Room Authority; Voice-LiveKit handoff",
+      "source_identities": [
+        {
+          "path": "goals/goal-07-voice-livekit-bidirectional-handoff.md",
+          "sha256": "22ab72466b7e2ad68fc527432c7fe5a2bbc9ec42c5260d9a9e93cf3490556450",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G07"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G07 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [
+        "docs/evidence/led-opc-livekit-duration-validation-2026-07-31.json",
+        "docs/evidence/led-opc-livekit-integration-findings-2026-07-30.md",
+        "docs/evidence/wave1-livekit-server-v1.13.4-validation-2026-07-22.md",
+        "docs/evidence/wave2-livekit-ingress-v1.5.0-validation-2026-07-23.md",
+        "docs/evidence/wave2-livekit-storage-isolation-server-validation-2026-07-25.json",
+        "docs/evidence/wave2-livekit-storage-isolation-server-validation-2026-07-25.md",
+        "docs/evidence/wave3-livekit-browser-forced-turn-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-forced-turn-playout-controlled-pass-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-manyrooms-fairness-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-qoe-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-qoe-distributions-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-reconnect-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-reconnect-storm-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-screen-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-staircase-r1-led-off-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-staircase-r2-led-off-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-calibration-cold-buffer0-network-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-calibration-cold-buffer400-network-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-calibration-prewarmed-buffer0-network-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-calibration-prewarmed-buffer400-network-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-capacity-server-validation-2026-07-24.md",
+        "docs/evidence/wave3-livekit-native-capacity-160-tracks-2026-07-24.json",
+        "docs/evidence/wave3-livekit-native-capacity-160-tracks-led-off-2026-07-24.json",
+        "docs/evidence/wave3-livekit-native-capacity-250-tracks-2026-07-24.json",
+        "docs/evidence/wave3-livekit-native-capacity-90-tracks-2026-07-24.json",
+        "docs/evidence/wave3-livekit-native-capacity-90-tracks-led-off-2026-07-24.json",
+        "docs/evidence/wave3-livekit-native-large-room-bound-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-network-bandwidth-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-network-loss-jitter-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-network-loss-jitter-first-frame-controlled-pass-2026-07-24.json",
+        "docs/evidence/wave3-livekit-official-helm-profile-server-validation-2026-07-24.json"
+      ],
+      "next_gate": "相同 idempotency/hash 只产生一个 generation/participant/billing/recording intent；冲突",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G08",
+      "category": "performance",
+      "authority": "Communication qualification; VOS-EQ and 100K evidence; Capacity claims",
+      "source_identities": [
+        {
+          "path": "goals/goal-08-communication-vos-eq-100k-qualification.md",
+          "sha256": "ccf6ecd7c5842a4204363081ce4ddc333424f2bfac9ea083ea7bf2510a98d4f3",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G08"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G08 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [
+        "docs/evidence/goal2-rtpengine-compile-runtime-inspection-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-deployment-server-validation-2026-07-26.md",
+        "docs/evidence/goal2-rtpengine-exact-source-unit-2026-07-26.tap",
+        "docs/evidence/goal2-rtpengine-final-evidence-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-lifecycle-stages-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-package-inventory-media-regression-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-provenance-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-real-media-acceptance-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-real-media-acceptance-2026-07-26.md",
+        "docs/evidence/goal2-rtpengine-sbom-cyclonedx-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-sbom-spdx-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-supply-chain-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-supply-chain-server-validation-2026-07-26.md",
+        "docs/evidence/goal2-rtpengine-trivy-secrets-2026-07-26.json",
+        "docs/evidence/goal2-rtpengine-trivy-vulnerabilities-2026-07-26.json",
+        "docs/evidence/led-opc-livekit-duration-validation-2026-07-31.json",
+        "docs/evidence/led-opc-livekit-integration-findings-2026-07-30.md",
+        "docs/evidence/wave1-clamav-server-validation-2026-07-22.md",
+        "docs/evidence/wave1-homer-hep-ab-server-validation-2026-07-25.json",
+        "docs/evidence/wave1-homer-hep-ab-server-validation-2026-07-25.md",
+        "docs/evidence/wave1-homer-hep-high-water-server-validation-2026-07-25.json",
+        "docs/evidence/wave1-homer-hep-high-water-server-validation-2026-07-25.md",
+        "docs/evidence/wave1-homer-postgres-hep-server-validation-2026-07-24.json",
+        "docs/evidence/wave1-homer-postgres-hep-server-validation-2026-07-24.md",
+        "docs/evidence/wave1-homer-retention-compaction-server-validation-2026-07-25.json",
+        "docs/evidence/wave1-homer-retention-compaction-server-validation-2026-07-25.md",
+        "docs/evidence/wave1-livekit-server-v1.13.4-validation-2026-07-22.md",
+        "docs/evidence/wave1-oci-source-image-server-validation-2026-07-22.md",
+        "docs/evidence/wave2-livekit-ingress-v1.5.0-validation-2026-07-23.md",
+        "docs/evidence/wave2-livekit-storage-isolation-server-validation-2026-07-25.json",
+        "docs/evidence/wave2-livekit-storage-isolation-server-validation-2026-07-25.md",
+        "docs/evidence/wave2-opentelemetry-runtime-2026-07-22.json",
+        "docs/evidence/wave2-seaweedfs-s3-runtime-2026-07-22.json",
+        "docs/evidence/wave2-seaweedfs-s3-validation-2026-07-22.md",
+        "docs/evidence/wave2-valkey-sentinel-runtime-2026-07-23.json",
+        "docs/evidence/wave2-valkey-sentinel-validation-2026-07-23.md",
+        "docs/evidence/wave2-victoria-metrics-runtime-2026-07-22.json",
+        "docs/evidence/wave3-livekit-browser-forced-turn-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-forced-turn-playout-controlled-pass-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-manyrooms-fairness-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-qoe-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-qoe-distributions-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-reconnect-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-reconnect-storm-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-screen-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-staircase-r1-led-off-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-browser-staircase-r2-led-off-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-calibration-cold-buffer0-network-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-calibration-cold-buffer400-network-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-calibration-prewarmed-buffer0-network-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-calibration-prewarmed-buffer400-network-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-capacity-server-validation-2026-07-24.md",
+        "docs/evidence/wave3-livekit-native-capacity-160-tracks-2026-07-24.json",
+        "docs/evidence/wave3-livekit-native-capacity-160-tracks-led-off-2026-07-24.json",
+        "docs/evidence/wave3-livekit-native-capacity-250-tracks-2026-07-24.json",
+        "docs/evidence/wave3-livekit-native-capacity-90-tracks-2026-07-24.json",
+        "docs/evidence/wave3-livekit-native-capacity-90-tracks-led-off-2026-07-24.json",
+        "docs/evidence/wave3-livekit-native-large-room-bound-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-network-bandwidth-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-network-loss-jitter-controlled-2026-07-24.json",
+        "docs/evidence/wave3-livekit-network-loss-jitter-first-frame-controlled-pass-2026-07-24.json",
+        "docs/evidence/wave3-livekit-official-helm-profile-server-validation-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-direct-sip-capacity-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-ivekit19-image-inspect-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-kamailio-sip-capacity-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-kamailio-sip-capacity-server-validation-2026-07-24.md",
+        "docs/evidence/wave3-rustpbx-recording-storage-isolation-server-validation-2026-07-25.json",
+        "docs/evidence/wave3-rustpbx-recording-storage-isolation-server-validation-2026-07-25.md",
+        "docs/evidence/wave3-rustpbx-rtp-media-capacity-server-validation-2026-07-24.md",
+        "docs/evidence/wave3-rustpbx-rtp-strict-10-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-strict-150-generator-bound-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-600-800-ivekit18-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-600-800-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-900-mixed-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-rtp-throughput-900-rbuf2m-mixed-ivekit19-2026-07-24.json",
+        "docs/evidence/wave3-rustpbx-udp-socket-host-observation-2026-07-24.txt",
+        "docs/evidence/wave3-sip-kamailio-frontier-led-off-2026-07-24.json",
+        "docs/evidence/wave3-sip-kamailio-frontier-refine-soft503-fix-led-off-2026-07-24.json",
+        "docs/evidence/wave3-sip-kamailio-frontier-soft503-fix-led-off-2026-07-24.json"
+      ],
+      "next_gate": "generator/receiver 在目标点合格；否则整轮 `invalid_generator_capacity`。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G09",
+      "category": "engagement",
+      "authority": "Engagement Authority; Resolve Profile; Evidence and Outcome",
+      "source_identities": [
+        {
+          "path": "goals/goal-09-resolution-evidence-outcome-core.md",
+          "sha256": "9324512237428e13df2a399d0a4130d96d9b2a9cba69e32c136d2e7f254ec97e",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G09"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G09 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [],
+      "next_gate": "Call-ID、Room、Ticket、Opportunity 不可被当作 EngagementId；一个 Engagement 可有多个",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G10",
+      "category": "collaboration",
+      "authority": "Human and AI collaboration; Workspace and handoff projection",
+      "source_identities": [
+        {
+          "path": "goals/goal-10-human-ai-collaboration-overlay.md",
+          "sha256": "e7ca4d7e5cd48ae9bef8bfe2824cc5c185b8c2107e94942b5913992d77959dde",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G10"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G10 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [
+        "docs/evidence/wave1-tinode-egress-oci-server-validation-2026-07-22.md",
+        "docs/evidence/wave2-tinode-three-node-cluster-validation-2026-07-23.md",
+        "docs/evidence/wave3-tinode-capacity-collector-2026-07-23.json",
+        "docs/evidence/wave3-tinode-capacity-collector-server-validation-2026-07-23.md",
+        "docs/evidence/wave3-tinode-composite-frontier-2026-07-23.json",
+        "docs/evidence/wave3-tinode-composite-strict-staircase-2026-07-23.json"
+      ],
+      "next_gate": "Human-only 从电话到 additive video、Evidence、Handoff 的主链不调用 Speech/LLM。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G11",
+      "category": "connector",
+      "authority": "Minimal Connector effect; External-system overlay boundary",
+      "source_identities": [
+        {
+          "path": "goals/goal-11-minimal-connector-pilot-a.md",
+          "sha256": "18276efab968540b8eddc6131d6e65786ac6840762db170bc41188b5fdd787ee",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G11"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G11 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [],
+      "next_gate": "Provider 与 CRM/FSM 由真实 G01 Evidence 选择；没有并行第二套 Connector。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G12",
+      "category": "speech",
+      "authority": "SpeechRuntime; HF speech execution; Translation capability",
+      "source_identities": [
+        {
+          "path": "goals/goal-12-speech-runtime-hf-translation.md",
+          "sha256": "b813b031b36a452ace4e054e5fa1cc3c224250a56172e312846b4bce5a66bbf9",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G12"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G12 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [
+        "docs/evidence/wave3-ai-voice-latency-server-validation-2026-07-23.md",
+        "docs/evidence/wave3-ai-voice-provider-fallback-server-validation-2026-07-23.md",
+        "docs/evidence/wave3-realtime-audio-tap-recovery-server-validation-2026-07-23.md",
+        "docs/evidence/wave3-realtime-audio-tap-server-validation-2026-07-23.md",
+        "docs/evidence/wave3-realtime-process-recovery-2026-07-23.json",
+        "docs/evidence/wave3-realtime-process-recovery-server-validation-2026-07-23.md",
+        "docs/evidence/wave3-realtime-provider-failure-matrix-server-validation-2026-07-23.md"
+      ],
+      "next_gate": "只有 `same_function_as_HF_speech_loop=true` 的功能被替换；所有非重叠能力有 parity/retain",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G13",
+      "category": "agent",
+      "authority": "Cross-channel Agent Runtime; Agent lease and handoff",
+      "source_identities": [
+        {
+          "path": "goals/goal-13-agent-orchestrator-cross-channel-handoff.md",
+          "sha256": "54e194f092ff7c17e1995280e9742264162e789fe2ded39749aa0d37c749bb40",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G13"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G13 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [
+        "docs/evidence/wave3-ai-voice-latency-server-validation-2026-07-23.md",
+        "docs/evidence/wave3-ai-voice-provider-fallback-server-validation-2026-07-23.md",
+        "docs/evidence/wave3-realtime-audio-tap-recovery-server-validation-2026-07-23.md",
+        "docs/evidence/wave3-realtime-audio-tap-server-validation-2026-07-23.md",
+        "docs/evidence/wave3-realtime-process-recovery-2026-07-23.json",
+        "docs/evidence/wave3-realtime-process-recovery-server-validation-2026-07-23.md",
+        "docs/evidence/wave3-realtime-provider-failure-matrix-server-validation-2026-07-23.md"
+      ],
+      "next_gate": "删除任一 Agent framework 不改变 Engagement/Profile/Task/Action/Context/Release 的持久语义。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G14",
+      "category": "action",
+      "authority": "Action Authority; Durable workflow and compensation",
+      "source_identities": [
+        {
+          "path": "goals/goal-14-action-durable-workflow.md",
+          "sha256": "b5020125b6eb1ef646a2f6f5f03196a336aeb0cfe2935d40b4573c8787261926",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G14"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G14 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [],
+      "next_gate": "Agent/UI/Connector 都不能绕过 ActionIntent 与 Authorization 直接产生外部副作用。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G15",
+      "category": "knowledge",
+      "authority": "Context and Knowledge; Studio, evaluation and governance",
+      "source_identities": [
+        {
+          "path": "goals/goal-15-context-knowledge-studio-governance.md",
+          "sha256": "560810993a5363ba8e9d3fb5d61f73313ca788bf3357e2366e289ccfd3aa4cc8",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G15"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G15 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [],
+      "next_gate": "每个 Context/Memory/Knowledge/Playbook/Output 都可追溯到版本化 source/policy/release。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G16",
+      "category": "commercial",
+      "authority": "Resolve V1 release; Commercial and production eligibility",
+      "source_identities": [
+        {
+          "path": "goals/goal-16-v1-pilot-commercial-production.md",
+          "sha256": "c20f8b775f90009f767761077f6f278ea489eaadd7dfda621a41e57ad601a6c7",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G16"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G16 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [
+        "docs/evidence/wave1-clamav-server-validation-2026-07-22.md",
+        "docs/evidence/wave1-homer-hep-ab-server-validation-2026-07-25.json",
+        "docs/evidence/wave1-homer-hep-ab-server-validation-2026-07-25.md",
+        "docs/evidence/wave1-homer-hep-high-water-server-validation-2026-07-25.json",
+        "docs/evidence/wave1-homer-hep-high-water-server-validation-2026-07-25.md",
+        "docs/evidence/wave1-homer-postgres-hep-server-validation-2026-07-24.json",
+        "docs/evidence/wave1-homer-postgres-hep-server-validation-2026-07-24.md",
+        "docs/evidence/wave1-homer-retention-compaction-server-validation-2026-07-25.json",
+        "docs/evidence/wave1-homer-retention-compaction-server-validation-2026-07-25.md",
+        "docs/evidence/wave1-oci-source-image-server-validation-2026-07-22.md",
+        "docs/evidence/wave2-opentelemetry-runtime-2026-07-22.json",
+        "docs/evidence/wave2-seaweedfs-s3-runtime-2026-07-22.json",
+        "docs/evidence/wave2-seaweedfs-s3-validation-2026-07-22.md",
+        "docs/evidence/wave2-valkey-sentinel-runtime-2026-07-23.json",
+        "docs/evidence/wave2-valkey-sentinel-validation-2026-07-23.md",
+        "docs/evidence/wave2-victoria-metrics-runtime-2026-07-22.json"
+      ],
+      "next_gate": "3 个真实付费 Pilot，至少 2 个转年约；没有把 LOI、免费试用或内部演示算付费。",
+      "non_claim": true
+    },
+    {
+      "capability_id": "CAPABILITY:G17",
+      "category": "vilte",
+      "authority": "Operator IMS boundary; ViLTE AV Gateway; Future telecom option",
+      "source_identities": [
+        {
+          "path": "goals/goal-17-vilte-future-telecom-conditional.md",
+          "sha256": "d323667615cd60696a409e9e42b32063c9947ab9a7c609125496eaa6804959a3",
+          "kind": "binding_goal"
+        }
+      ],
+      "target_goals": [
+        "G17"
+      ],
+      "current": {
+        "status": "not_run",
+        "basis": "This Goal has not executed under the new program; historical code and evidence are not requalified."
+      },
+      "target": {
+        "status": "required",
+        "basis": "The binding G17 Goal defines target Authority, outputs, evidence and stop gates."
+      },
+      "production_eligible": {
+        "status": "not_run",
+        "eligible": false,
+        "basis": "No capability is promoted by G00; its own real-dependency, fault, security, endurance and capacity gates must pass."
+      },
+      "evidence_uris": [],
+      "next_gate": "所有 External start gate 有可审计 Evidence；否则无 runtime code 资格。",
+      "non_claim": true
+    }
+  ],
+  "closure": {
+    "capability_count": 18,
+    "duplicate_capability_id_count": 0,
+    "unknown_goal_reference_count": 0,
+    "production_eligible_true_count": 0,
+    "unproved_promoted_count": 0,
+    "sorted_capability_ids_sha256": "592181369e8a7dd5af979eb9369b65cd252b7d37acc42bd71bec1dd7e3d39963",
+    "closed": true
+  }
+}
