@@ -87,7 +87,10 @@ The acceptance contract returned eight passing checks:
 
 The retained raw directory is
 `/home/ubuntu/converact-validation/platform/.runtime/platform-fault-matrix/db-d8cd864-01`
-on validation host `101.42.7.139`. Before promotion, the exact-source scanner
+on validation host `101.42.7.139`. An independently reviewable, byte-identical
+copy of the 21 manifest-bound artifacts and the original manifest is retained at
+`architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-d8cd864-01/`.
+Before promotion, the exact-source scanner
 read every one of the 21 bounded directory artifacts, rejected binary/symlink/
 oversized input and credential-shaped keys or values, then wrote the sorted
 manifest. A separate `sha256sum -c raw-output.sha256` verification passed after

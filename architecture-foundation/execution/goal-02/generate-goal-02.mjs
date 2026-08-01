@@ -582,6 +582,8 @@ function evidenceIndex() {
     'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02.md';
   const controlledDatabaseEvidenceUri =
     'architecture-foundation/execution/goal-02/evidence/database-restart-db-d8cd864-01.md';
+  const controlledDatabaseRawManifestUri =
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-d8cd864-01/raw-output.sha256';
   const entry = (
     id,
     evidenceClass,
@@ -608,7 +610,10 @@ function evidenceIndex() {
   const local = (id, evidenceClass, scope, requiredEvidence) =>
     entry(id, evidenceClass, scope, requiredEvidence, 'verified_local', [localEvidenceUri]);
   const controlledDatabase = (id, evidenceClass, scope, requiredEvidence) =>
-    entry(id, evidenceClass, scope, requiredEvidence, 'verified_controlled', [controlledDatabaseEvidenceUri]);
+    entry(id, evidenceClass, scope, requiredEvidence, 'verified_controlled', [
+      controlledDatabaseEvidenceUri,
+      controlledDatabaseRawManifestUri,
+    ]);
   const entries = [
     entry('G02-E00-DESIGN', 'document_contract', 'design_authority_threat_recovery', ['contract test'], 'target_contract'),
     local('G02-E01-IDENTITY', 'local_test', 'tenant_identity_cross_tenant', ['focused tests', 'RLS integration']),

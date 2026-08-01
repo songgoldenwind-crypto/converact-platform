@@ -204,6 +204,8 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
   const evidence = readJson(join(goalDirectory, documents.evidence[1]));
   const controlledDatabaseEvidence =
     'architecture-foundation/execution/goal-02/evidence/database-restart-db-d8cd864-01.md';
+  const controlledDatabaseRawManifest =
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-d8cd864-01/raw-output.sha256';
   const supersededDatabaseEvidence =
     'architecture-foundation/execution/goal-02/evidence/database-restart-db-4fc7b59-01.md';
   const verifiedLocal = new Set([
@@ -226,7 +228,7 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
       assert.match(entry.non_claim, /does not prove controlled or production behavior/i);
     } else if (entry.evidence_id === 'G02-E09A-DATABASE-RESTART') {
       assert.equal(entry.status, 'verified_controlled');
-      assert.deepEqual(entry.evidence_uris, [controlledDatabaseEvidence]);
+      assert.deepEqual(entry.evidence_uris, [controlledDatabaseEvidence, controlledDatabaseRawManifest]);
       assert.match(entry.non_claim, /synthetic.*not.*real human media/is);
     } else if (entry.evidence_class !== 'document_contract') {
       assert.equal(entry.status, 'not_run');
@@ -256,6 +258,15 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
   assert.match(controlledDatabaseRecord, /completed receipt.*usage/is);
   assert.match(controlledDatabaseRecord, /production_eligible.*false/is);
   assert.match(controlledDatabaseRecord, /real_human_media.*false/is);
+  const rawManifest = readFileSync(join(repositoryRoot, controlledDatabaseRawManifest), 'utf8');
+  const rawEntries = rawManifest.trim().split('\n');
+  assert.equal(rawEntries.length, 21);
+  for (const line of rawEntries) {
+    const match = /^([a-f0-9]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,127})$/u.exec(line);
+    assert.ok(match, `invalid raw evidence manifest entry: ${line}`);
+    const rawPath = join(dirname(join(repositoryRoot, controlledDatabaseRawManifest)), match[2]);
+    assert.equal(sha256File(rawPath), match[1], `raw evidence digest mismatch: ${match[2]}`);
+  }
   const supersededDatabaseRecord = readFileSync(
     join(repositoryRoot, supersededDatabaseEvidence),
     'utf8',
