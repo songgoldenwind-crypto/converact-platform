@@ -1,1 +1,2 @@
 *.patch whitespace=-trailing-space,-space-before-tab
+architecture-foundation/execution/goal-02/evidence/raw/**/*.log -diff
