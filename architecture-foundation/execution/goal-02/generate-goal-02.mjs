@@ -581,13 +581,13 @@ function evidenceIndex() {
   const localEvidenceUri =
     'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md';
   const localEvidenceRawManifestUri =
-    'architecture-foundation/execution/goal-02/evidence/raw/local-verification-86bf925/part-manifest.sha256';
+    'architecture-foundation/execution/goal-02/evidence/raw/local-verification-4f9ea6f/part-manifest.sha256';
   const controlledDatabaseEvidenceUri =
-    'architecture-foundation/execution/goal-02/evidence/database-restart-db-86bf925-01.md';
+    'architecture-foundation/execution/goal-02/evidence/database-restart-db-4f9ea6f-01.md';
   const controlledDatabaseRawManifestUri =
-    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-86bf925-01/raw-output.sha256';
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-4f9ea6f-01/raw-output.sha256';
   const controlledDatabaseSupplementalManifestUri =
-    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-86bf925-01/supplemental-manifest.sha256';
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-4f9ea6f-01/supplemental-manifest.sha256';
   const entry = (
     id,
     evidenceClass,

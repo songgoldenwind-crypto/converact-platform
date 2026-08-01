@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "process_pid": 3356742,
+  "tenant_a_visible": 1,
+  "tenant_b_visible_from_a": 0,
+  "no_context_visible": 0,
+  "inbox_replayed": true,
+  "inbox_conflict_rejected": true,
+  "accepted_receipt_replayed": true,
+  "completed_receipt_replayed": true,
+  "observed_receipt_inserted": true,
+  "usage_replayed": true,
+  "stale_writer_rejected": true,
+  "immutable_update_rejected": true
+}

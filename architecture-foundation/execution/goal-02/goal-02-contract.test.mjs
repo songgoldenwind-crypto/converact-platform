@@ -203,15 +203,15 @@ test('G00 to G02 traceability preserves every source row exactly once without ev
 test('evidence registry never promotes historical or unexecuted acceptance', () => {
   const evidence = readJson(join(goalDirectory, documents.evidence[1]));
   const controlledDatabaseEvidence =
-    'architecture-foundation/execution/goal-02/evidence/database-restart-db-86bf925-01.md';
+    'architecture-foundation/execution/goal-02/evidence/database-restart-db-4f9ea6f-01.md';
   const controlledDatabaseRawManifest =
-    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-86bf925-01/raw-output.sha256';
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-4f9ea6f-01/raw-output.sha256';
   const controlledDatabaseSupplementalManifest =
-    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-86bf925-01/supplemental-manifest.sha256';
+    'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-4f9ea6f-01/supplemental-manifest.sha256';
   const localEvidence =
     'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md';
   const localRawManifest =
-    'architecture-foundation/execution/goal-02/evidence/raw/local-verification-86bf925/part-manifest.sha256';
+    'architecture-foundation/execution/goal-02/evidence/raw/local-verification-4f9ea6f/part-manifest.sha256';
   const supersededDatabaseEvidence =
     'architecture-foundation/execution/goal-02/evidence/database-restart-db-4fc7b59-01.md';
   const verifiedLocal = new Set([
@@ -253,10 +253,10 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
     join(repositoryRoot, localEvidence),
     'utf8',
   );
-  assert.match(localVerificationRecord, /86bf9255f7be597677bc3fb086e824b50db782eb/);
-  assert.match(localVerificationRecord, /4,910 tests; 4,895 passed; 0 failed; 15 skipped/);
-  assert.match(localVerificationRecord, /fae845ed49536f7e2102d2307d8214376b3a1523e57a324ae6bdef5418efc8ec/);
-  assert.match(localVerificationRecord, /database-restart-db-86bf925-01\.md/);
+  assert.match(localVerificationRecord, /4f9ea6f94a8e0740975c801aff5a6a180124a62b/);
+  assert.match(localVerificationRecord, /4,911 tests; 4,896 passed; 0 failed; 15 skipped/);
+  assert.match(localVerificationRecord, /ffc569ed594e55af67c5a5e4e7b14d01fceedc9bc3e51f753ba9c442ece3100c/);
+  assert.match(localVerificationRecord, /database-restart-db-4f9ea6f-01\.md/);
   const localRawEntries = readFileSync(join(repositoryRoot, localRawManifest), 'utf8').trim().split('\n');
   assert.equal(localRawEntries.length, 4);
   for (const line of localRawEntries) {
@@ -272,15 +272,15 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
     .replace(/\s/gu, '');
   assert.equal(
     createHash('sha256').update(Buffer.from(encodedFullSuite, 'base64')).digest('hex'),
-    '899ef7a7ea432a4f70e83318afdda6791ab85120003b09d4cd073d26c1e7afc6',
+    '3bf89d55eaec390fbbd21013b3680e89a42b5fd617989533076381982ca91a5d',
   );
   const controlledDatabaseRecord = readFileSync(
     join(repositoryRoot, controlledDatabaseEvidence),
     'utf8',
   );
-  assert.match(controlledDatabaseRecord, /86bf9255f7be597677bc3fb086e824b50db782eb/);
-  assert.match(controlledDatabaseRecord, /cda01c982c78804ddfd74ae8de29ba1f6e4bb422cfab23103b6958c50122ec1e/);
-  assert.match(controlledDatabaseRecord, /3e7d4312dee483a6af850ee2db2d1b3fb3b9818663f8f0df12e94417a5dce439/);
+  assert.match(controlledDatabaseRecord, /4f9ea6f94a8e0740975c801aff5a6a180124a62b/);
+  assert.match(controlledDatabaseRecord, /c095c7a7c026cfd0b87e432f2037ccd6414368431dc607d652716f856442ea98/);
+  assert.match(controlledDatabaseRecord, /383719938e86665993cb9d42fe27c7eb259f91408ff4b2119e600a28bcd57384/);
   assert.match(controlledDatabaseRecord, /migration_head.*112_converact_platform_history_receipt_integrity/is);
   assert.match(controlledDatabaseRecord, /completed receipt.*usage/is);
   assert.match(controlledDatabaseRecord, /production_eligible.*false/is);
@@ -312,7 +312,7 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
   assert.equal(controlledResult.status, 'verified_controlled');
   assert.equal(controlledResult.production_eligible, false);
   assert.equal(controlledResult.real_human_media, false);
-  assert.equal(controlledResult.evidence.identity.source_commit, '86bf9255f7be597677bc3fb086e824b50db782eb');
+  assert.equal(controlledResult.evidence.identity.source_commit, '4f9ea6f94a8e0740975c801aff5a6a180124a62b');
   assert.equal(controlledResult.evidence.checks.every((check) => check.passed === true), true);
   const supersededDatabaseRecord = readFileSync(
     join(repositoryRoot, supersededDatabaseEvidence),

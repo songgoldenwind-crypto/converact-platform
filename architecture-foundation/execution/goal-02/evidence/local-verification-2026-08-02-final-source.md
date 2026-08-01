@@ -4,7 +4,7 @@
 
 - Goal: `goals/goal-02-platform-foundation-security-observability.md`
 - Goal SHA-256: `742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9`
-- Tested source commit: `86bf9255f7be597677bc3fb086e824b50db782eb`
+- Tested source commit: `4f9ea6f94a8e0740975c801aff5a6a180124a62b`
 - Branch: `codex/converact-platform-rename`
 - Host: macOS 26.2 build 25C56, arm64
 - Node.js: `v23.11.0`
@@ -14,22 +14,31 @@
 This exact runtime source closes the final independent-review findings: effect
 takeover serialization, bounded and recoverable readiness waves, process-wide
 metric-policy cardinality, streaming bounded JWKS reads, and deterministic
-release of both streamed and declared-oversized JWKS bodies. Evidence-only
-commits after this record do not change the tested runtime.
+release of streamed, declared-oversized and non-success JWKS response bodies.
+The final tests also wait for cache publication rather than request arrival.
+Evidence-only commits after this record do not change the tested runtime.
 
 ## Observed outcomes
 
 | Command scope | Outcome |
 | --- | --- |
-| JWKS auth command | 20 passed, 0 failed |
+| JWKS auth command | 21 passed, 0 failed; repeated 10 times before the full run |
 | `npm run typecheck` | exit 0 |
-| `npm test` | 4,910 tests; 4,895 passed; 0 failed; 15 skipped; 52,885.083375 ms |
-| Full log | 470,915 bytes; 5,431 lines; SHA-256 `fae845ed49536f7e2102d2307d8214376b3a1523e57a324ae6bdef5418efc8ec` |
+| `npm test` | 4,911 tests; 4,896 passed; 0 failed; 15 skipped; 52,659.384208 ms |
+| Full log | 470,808 bytes; 5,432 lines; SHA-256 `ffc569ed594e55af67c5a5e4e7b14d01fceedc9bc3e51f753ba9c442ece3100c` |
 
 The raw full-suite log passed the bounded secret scanner before deterministic
 compression. Four repository-retained base64 fragments reconstruct its XZ
 stream and reproduce the raw hash; see
-`evidence/raw/local-verification-86bf925/README.md`.
+`evidence/raw/local-verification-4f9ea6f/README.md`.
+
+Two earlier, unaccepted diagnostic full-suite attempts each exposed one timing
+test rather than being relabelled as passing evidence. The first (`daeedae`,
+SHA-256 `59d1017370355f8a79ac9e2b3a59e31c5b2f7c7ecd5b9f1b6466cd0c8949a785`)
+showed a 5 ms SIP permit test/watchdog race. The second (`8136415`, SHA-256
+`69fa7bf7e7d2b2f86d685994b6802b4e550506d2b6ad6a8680a33e1591d6b140`)
+showed that the JWKS lifecycle test waited for HTTP request arrival instead of
+cache publication. Both tests were made deterministic before this accepted run.
 
 ## Proven local scope
 
@@ -49,7 +58,7 @@ stream and reproduce the raw hash; see
 ## Controlled exact-source evidence
 
 The separate
-[database-restart-db-86bf925-01.md](database-restart-db-86bf925-01.md)
+[database-restart-db-4f9ea6f-01.md](database-restart-db-4f9ea6f-01.md)
 campaign ran this same source commit with real PostgreSQL RLS, stop/start,
 fresh-process reconciliation and synthetic transport continuity.
 
