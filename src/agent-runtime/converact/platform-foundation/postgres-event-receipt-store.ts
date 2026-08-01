@@ -50,7 +50,7 @@ export class PostgresPlatformEventReceiptStore {
     return withPgTenant(this.pg, input.tenant_id, async (pg) => {
       await pg.query(
         `SELECT pg_advisory_xact_lock(
-           hashtextextended(concat_ws(E'\\x1f', $1, $2, $3), 0)
+           hashtextextended(concat_ws(E'\\x1f', $1::text, $2::text, $3::text), 0)
          )`,
         [input.tenant_id, input.consumer_id, input.event.ordering_key]
       );

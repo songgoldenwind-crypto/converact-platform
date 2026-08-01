@@ -76,7 +76,9 @@ test('inbox serializes an ordering scope and does not apply stale revisions', as
     true,
     'a stale event is persisted as an inbox receipt but must not be applied'
   );
-  assert.equal(pg.calls.some((call) => /pg_advisory_xact_lock/i.test(call.text)), true);
+  const orderingLock = pg.calls.find((call) => /pg_advisory_xact_lock/i.test(call.text));
+  assert.ok(orderingLock);
+  assert.match(orderingLock.text, /\$1::text[\s\S]*\$2::text[\s\S]*\$3::text/i);
 });
 
 test('inbox freezes revision gaps and same-revision conflicts before persistence', async () => {
