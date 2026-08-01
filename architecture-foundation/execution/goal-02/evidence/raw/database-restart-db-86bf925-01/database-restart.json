@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "same_container": true,
+  "before_started_at": "2026-08-01T21:31:58.173455842Z",
+  "after_started_at": "2026-08-01T21:32:07.118363449Z",
+  "validation_resources_remaining": 0,
+  "unrelated_containers_unchanged": true
+}

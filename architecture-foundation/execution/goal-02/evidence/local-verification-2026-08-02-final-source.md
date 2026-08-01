@@ -4,7 +4,7 @@
 
 - Goal: `goals/goal-02-platform-foundation-security-observability.md`
 - Goal SHA-256: `742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9`
-- Tested source commit: `3108ecf03d850a2c97f88e1507982305b0b522fa`
+- Tested source commit: `86bf9255f7be597677bc3fb086e824b50db782eb`
 - Branch: `codex/converact-platform-rename`
 - Host: macOS 26.2 build 25C56, arm64
 - Node.js: `v23.11.0`
@@ -13,23 +13,23 @@
 
 This exact runtime source closes the final independent-review findings: effect
 takeover serialization, bounded and recoverable readiness waves, process-wide
-metric-policy cardinality, and streaming bounded JWKS reads. Evidence-only
+metric-policy cardinality, streaming bounded JWKS reads, and deterministic
+release of both streamed and declared-oversized JWKS bodies. Evidence-only
 commits after this record do not change the tested runtime.
 
 ## Observed outcomes
 
 | Command scope | Outcome |
 | --- | --- |
-| Review-closure auth/metric/readiness command | 38 passed, 0 failed |
-| Effect/inbox store command | 8 passed, 0 failed |
+| JWKS auth command | 20 passed, 0 failed |
 | `npm run typecheck` | exit 0 |
-| `npm test` | 4,909 tests; 4,894 passed; 0 failed; 15 skipped; 52,541.606208 ms |
-| Full log | 470,887 bytes; 5,430 lines; SHA-256 `6f21a4ca94fc0e255810498559a1590fa87bc21c8982181b3f3ba0a16fe9c456` |
+| `npm test` | 4,910 tests; 4,895 passed; 0 failed; 15 skipped; 52,885.083375 ms |
+| Full log | 470,915 bytes; 5,431 lines; SHA-256 `fae845ed49536f7e2102d2307d8214376b3a1523e57a324ae6bdef5418efc8ec` |
 
 The raw full-suite log passed the bounded secret scanner before deterministic
 compression. Four repository-retained base64 fragments reconstruct its XZ
 stream and reproduce the raw hash; see
-`evidence/raw/local-verification-3108ecf/README.md`.
+`evidence/raw/local-verification-86bf925/README.md`.
 
 ## Proven local scope
 
@@ -49,7 +49,7 @@ stream and reproduce the raw hash; see
 ## Controlled exact-source evidence
 
 The separate
-[database-restart-db-3108ecf-01.md](database-restart-db-3108ecf-01.md)
+[database-restart-db-86bf925-01.md](database-restart-db-86bf925-01.md)
 campaign ran this same source commit with real PostgreSQL RLS, stop/start,
 fresh-process reconciliation and synthetic transport continuity.
 
