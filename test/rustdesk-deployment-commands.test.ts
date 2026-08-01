@@ -44,19 +44,19 @@ test('RustDesk deployment command plan renders the Docker Compose server bring-u
 test('RustDesk deployment command plan renders the Kubernetes Helm server bring-up flow', () => {
   const plan = createRustDeskDeploymentCommandPlan({
     CONVERACT_RUSTDESK_DEPLOYMENT_MODE: 'k8s',
-    CONVERACT_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE: 'opc',
-    CONVERACT_RUSTDESK_DEPLOYMENT_HELM_RELEASE: 'opc',
+    CONVERACT_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE: 'converact',
+    CONVERACT_RUSTDESK_DEPLOYMENT_HELM_RELEASE: 'converact',
     CONVERACT_RUSTDESK_DEPLOYMENT_HELM_CHART: 'infra/k8s',
     CONVERACT_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE: 'infra/k8s/values.production.yaml',
-    CONVERACT_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT: 'opc',
-    CONVERACT_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT: 'opc-rustdesk'
+    CONVERACT_RUSTDESK_DEPLOYMENT_CONTROL_PLANE: 'converact',
+    CONVERACT_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT: 'converact-rustdesk'
   });
 
   assert.equal(plan.mode, 'k8s');
   const commands = commandLines(plan);
-  assert.equal(commands.includes('helm upgrade --install opc infra/k8s --namespace opc --create-namespace --values infra/k8s/values.production.yaml --set rustdesk.enabled=true'), true);
-  assert.equal(commands.includes('helm upgrade --install opc infra/k8s --namespace opc --values infra/k8s/values.production.yaml --set rustdesk.enabled=false'), true);
-  assert.equal(commands.includes('kubectl -n opc rollout status deployment/opc-rustdesk'), true);
+  assert.equal(commands.includes('helm upgrade --install converact infra/k8s --namespace converact --create-namespace --values infra/k8s/values.production.yaml --set rustdesk.enabled=true'), true);
+  assert.equal(commands.includes('helm upgrade --install converact infra/k8s --namespace converact --values infra/k8s/values.production.yaml --set rustdesk.enabled=false'), true);
+  assert.equal(commands.includes('kubectl -n converact rollout status deployment/converact-rustdesk'), true);
   assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_PREFLIGHT_REPORT_FILE=/tmp/rustdesk-preflight.json') && command.includes('npm run rustdesk:deployment-preflight')), true);
   assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json') && command.includes('npm run rustdesk:server-evidence')), true);
   assert.equal(commands.some((command) => command.includes('CONVERACT_RUSTDESK_READINESS_REPORT_FILE=/tmp/rustdesk-readiness.json') && command.includes('npm run rustdesk:readiness')), true);
@@ -102,7 +102,7 @@ test('RustDesk deployment command markdown captures ports, key mount, validation
 });
 
 test('RustDesk deployment commands write an artifact and expose package/env wiring', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-deployment-commands-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-deployment-commands-'));
   const outputFile = join(dir, 'rustdesk-deployment-commands.md');
   const result = writeRustDeskDeploymentCommands(outputFile, {
     CONVERACT_RUSTDESK_DEPLOYMENT_MODE: 'compose',
@@ -129,7 +129,7 @@ test('RustDesk deployment commands write an artifact and expose package/env wiri
     'CONVERACT_RUSTDESK_DEPLOYMENT_HELM_RELEASE=',
     'CONVERACT_RUSTDESK_DEPLOYMENT_HELM_CHART=',
     'CONVERACT_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE=',
-    'CONVERACT_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT=',
+    'CONVERACT_RUSTDESK_DEPLOYMENT_CONTROL_PLANE=',
     'CONVERACT_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT='
   ]) {
     assert.match(envExample, new RegExp(`^${key}`, 'm'));
@@ -138,7 +138,7 @@ test('RustDesk deployment commands write an artifact and expose package/env wiri
 });
 
 test('RustDesk deployment commands CLI can emit a markdown artifact', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-deployment-commands-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-deployment-commands-cli-'));
   const outputFile = join(dir, 'rustdesk-deployment-commands.md');
   const result = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/rustdesk-deployment-commands.ts'], {
     cwd: new URL('..', import.meta.url),
@@ -147,11 +147,11 @@ test('RustDesk deployment commands CLI can emit a markdown artifact', () => {
       ...process.env,
       CONVERACT_RUSTDESK_DEPLOYMENT_COMMANDS_FILE: outputFile,
       CONVERACT_RUSTDESK_DEPLOYMENT_MODE: 'k8s',
-      CONVERACT_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE: 'opc',
-      CONVERACT_RUSTDESK_DEPLOYMENT_HELM_RELEASE: 'opc',
+      CONVERACT_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE: 'converact',
+      CONVERACT_RUSTDESK_DEPLOYMENT_HELM_RELEASE: 'converact',
       CONVERACT_RUSTDESK_DEPLOYMENT_HELM_CHART: 'infra/k8s',
-      CONVERACT_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT: 'opc',
-      CONVERACT_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT: 'opc-rustdesk'
+      CONVERACT_RUSTDESK_DEPLOYMENT_CONTROL_PLANE: 'converact',
+      CONVERACT_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT: 'converact-rustdesk'
     }
   });
 
@@ -160,7 +160,7 @@ test('RustDesk deployment commands CLI can emit a markdown artifact', () => {
   assert.equal(payload.outputFile, outputFile);
   assert.equal(payload.mode, 'k8s');
   assert.equal(payload.commands > 8, true);
-  assert.match(readFileSync(outputFile, 'utf8'), /helm upgrade --install opc infra\/k8s/);
+  assert.match(readFileSync(outputFile, 'utf8'), /helm upgrade --install converact infra\/k8s/);
 });
 
 function commandLines(plan: ReturnType<typeof createRustDeskDeploymentCommandPlan>): string[] {

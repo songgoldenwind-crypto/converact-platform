@@ -1,0 +1,69 @@
+name: Converact Fabric core source images
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'converact-release-*'
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+concurrency:
+  group: converact-core-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: converact-platform
+            image: ghcr.io/songgoldenwind-crypto/converact-platform
+            context: .
+            dockerfile: Dockerfile
+            platforms: linux/amd64,linux/arm64
+            prepare: none
+          - id: converact-console
+            image: ghcr.io/songgoldenwind-crypto/converact-console
+            context: frontend
+            dockerfile: frontend/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            prepare: none
+          - id: converact-fabric
+            image: ghcr.io/songgoldenwind-crypto/converact-fabric
+            context: .tmp/converact-fabric-standalone-context
+            dockerfile: .tmp/converact-fabric-standalone-context/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            prepare: converact-fabric-standalone
+          - id: capacity-tools
+            image: ghcr.io/songgoldenwind-crypto/converact-capacity-tools
+            context: .
+            dockerfile: infra/capacity/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            prepare: none
+          - id: kamailio
+            image: ghcr.io/songgoldenwind-crypto/converact-kamailio
+            context: infra/converact/kamailio
+            dockerfile: infra/converact/kamailio/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            prepare: none
+          - id: ai-agent
+            image: ghcr.io/songgoldenwind-crypto/converact-agent-runtime
+            context: services/ai-agent-py
+            dockerfile: services/ai-agent-py/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            prepare: none
+    uses: ./.github/workflows/converact-source-image-release.yml
+    with:
+      image: ${{ matrix.image }}
+      context: ${{ matrix.context }}
+      dockerfile: ${{ matrix.dockerfile }}
+      platforms: ${{ matrix.platforms }}
+      prepare: ${{ matrix.prepare }}
+    secrets: inherit

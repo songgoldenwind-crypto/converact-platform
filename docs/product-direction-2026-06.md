@@ -1,11 +1,11 @@
-# OPC 产品方向总纲（2026.06）
+# Converact Platform 产品方向总纲（2026.06）
 
 > **2026-07-29 通信底座修订：** 本文 2026-06-15 的 `voice-media-rs`
 > “仅 token 生成器”结论是历史代码快照，不再描述当前仓库。现有
 > `services/voice-media-rs` 已扩展为 repo-local Rust media crate/module；唯一生产
 > 目标是把其 library/fixed worker shards 嵌入 Unified RustPBX Process，承担需要解码
 > 的有向 Media Edge。普通 RTP 仍默认由外部 RTPengine 执行。权威架构见
-> [`rvoip-opc-communication-foundation-integration-design.md`](./design/rvoip-opc-communication-foundation-integration-design.md)。
+> [`rvoip-converact-communication-foundation-integration-design.md`](./design/rvoip-converact-communication-foundation-integration-design.md)。
 
 ## 1. 方向变更史
 
@@ -27,7 +27,7 @@
 **完整表述**：
 - AI 数字人视频外呼筛选意向 → 高意向客户转人工视频客服深度沟通 → 输出可成交的预约/线索。
 - 主卖 **outcome**（有效预约/成交线索）与 **平台能力**（外呼、IVR、坐席、QM）；不单卖座席数。
-- **交付形态**：OPC **托管的多租户 CCaaS**（统一运维、统一升级）。**不做**按客户机房/on-prem/单租户 compose 的私有化项目交付。
+- **交付形态**：Converact Platform **托管的多租户 CCaaS**（统一运维、统一升级）。**不做**按客户机房/on-prem/单租户 compose 的私有化项目交付。
 - 大客户通过 **专属子域、租户隔离、SLA、DPA/审计导出** 满足合规，而非单独装一套栈。
 
 > 详细战略见 [`docs/design/super-contact-center-platform-vision.md`](./design/super-contact-center-platform-vision.md)
@@ -181,10 +181,10 @@
 │                    租户客户端（浏览器 / H5）                  │
 │  坐席面板（React + LiveKit SDK）· 客户视频页 · 管理台         │
 └──────────────────────────────┬──────────────────────────────┘
-                               │ HTTPS / WSS → app.opc.cloud
+                               │ HTTPS / WSS → app.converact.cloud
 ┌──────────────────────────────▼──────────────────────────────┐
-│              OPC CCaaS 平台（多租户 · 统一运维）              │
-│  OPC Core · VoiceStore · IVR · 合规 · QM · 计费计量          │
+│              Converact Platform CCaaS 平台（多租户 · 统一运维）              │
+│  Converact Platform Core · VoiceStore · IVR · 合规 · QM · 计费计量          │
 │  tenant_id + PostgreSQL RLS · Redis · 对象存储（按租户前缀）  │
 └──────────────────────────────┬──────────────────────────────┘
                                │
@@ -208,7 +208,7 @@
 ## 8. 执行路线图
 
 ### Phase 0：基础设施（2 周）
-- 平台 staging：LiveKit + RustPBX + OPC（Compose **仅内部**）
+- 平台 staging：LiveKit + RustPBX + Converact Platform（Compose **仅内部**）
 - LiveKit SIP 桥接 RustPBX
 - Schema 扩展（media_type / livekit_room_name / video_recording_url）
 - PostgreSQL 多租户 + RLS（CCaaS 上线闸门）
@@ -303,7 +303,7 @@
 | 大厂入场通用 AI 外呼 | 保持垂直深度（话术、节点、合规知识）+ 视频差异化，大厂不会做这么细 |
 | 日本敬语/文化门槛 | 先打中文/英语外国人市场，日语模型后期补 |
 | 数据隐私顾虑 | **CCaaS 租户隔离**（RLS、加密、DPA、审计导出）；销售不承诺客户机房 on-prem |
-| 人力坐席成本 | 初期用客户自己的销售做坐席，OPC 只提供 AI 筛客 + 转接 |
+| 人力坐席成本 | 初期用客户自己的销售做坐席，Converact Platform 只提供 AI 筛客 + 转接 |
 | LiveKit 许可 | 平台托管使用 LiveKit；不修改服务端源码即可合规；客户无需自行部署 LiveKit |
 
 ---
@@ -329,7 +329,7 @@
 
 ## 13. 归档说明
 
-旧方向文档已归档（移出本仓库，存于 `~/Desktop/opc-archive/`），包含：
+旧方向文档已归档（移出本仓库，存于 `~/Desktop/converact-archive/`），包含：
 - 小红书 scraping 脚本（8 个）
 - 小红书浏览器适配器源码
 - L2 全自动获客 Agent 旧计划（crispy-percolating-wand.md）

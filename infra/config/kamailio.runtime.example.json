@@ -29,7 +29,7 @@
   "dmq_source_cidrs": ["10.20.0.0/16"],
   "allow_public_wss": true,
   "webphone_auth": {
-    "jwt_issuer": "ivekit",
+    "jwt_issuer": "converact",
     "jwt_audience": "rustpbx-webphone",
     "jwt_secret_file": "/run/secrets/kamailio-webphone-jwt-secret",
     "allowed_origins": ["https://led.example.com"],
@@ -41,8 +41,8 @@
     "server_host": "10.20.0.10",
     "server_port": 5066,
     "notification_addresses": [
-      "sip:ivekit-kamailio-0.ivekit-kamailio-headless:5066",
-      "sip:ivekit-kamailio-1.ivekit-kamailio-headless:5066"
+      "sip:converact-kamailio-0.converact-kamailio-headless:5066",
+      "sip:converact-kamailio-1.converact-kamailio-headless:5066"
     ],
     "num_workers": 4,
     "ping_interval_seconds": 30,

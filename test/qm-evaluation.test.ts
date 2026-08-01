@@ -22,7 +22,7 @@ const server = createServer(db);
 let baseUrl = '';
 let tenantId = '';
 let sessionId = '';
-const apiKey = 'dev-opc-key';
+const apiKey = 'dev-converact-key';
 
 /** Auth headers for the API-key path (requireAuth needs authenticated: true). */
 function authHeaders(): Record<string, string> {

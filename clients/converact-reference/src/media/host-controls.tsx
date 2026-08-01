@@ -1,10 +1,10 @@
 import { MonitorOff, PhoneOff, UserMinus, VideoOff, VolumeX } from 'lucide-react';
-import type { IveKitMediaCallParticipant } from '@converact/sdk';
+import type { ConveractFabricMediaCallParticipant } from '@converact/sdk';
 import type { MediaTrackHandle } from './types.js';
 
 export function HostControls(props: {
   role: 'host' | 'participant' | 'observer';
-  participants: readonly IveKitMediaCallParticipant[];
+  participants: readonly ConveractFabricMediaCallParticipant[];
   tracks: Readonly<Record<string, MediaTrackHandle>>;
   disabled: boolean;
   onMute(identity: string, track: MediaTrackHandle): Promise<void>;

@@ -56,7 +56,7 @@ test('Web Assist events can be recorded through collaboration HTTP', async () =>
     {
       collaboration_session_id: sessionResult.data.id,
       mode: 'web_remote_assist',
-      adapter_provider: 'ivekit_web'
+      adapter_provider: 'converact_web'
     },
     authHeaders(tenantId)
   )) as { data: { id: string } };
@@ -133,7 +133,7 @@ test('public Web Assist tokens can record customer browser events', async () => 
     {
       collaboration_session_id: sessionResult.data.id,
       mode: 'web_remote_assist',
-      adapter_provider: 'ivekit_web'
+      adapter_provider: 'converact_web'
     },
     authHeaders(tenantId)
   )) as { data: { id: string } };

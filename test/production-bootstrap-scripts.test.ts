@@ -58,7 +58,7 @@ esac
 }
 
 function createPostgresFixture(overrides: NodeJS.ProcessEnv = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-postgres-bootstrap-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-postgres-bootstrap-'));
   const binDir = join(dir, 'bin');
   const stateDir = join(dir, 'state');
   const logFile = join(dir, 'psql.log');
@@ -112,7 +112,7 @@ case "$1 $2" in
       printf "Access permission is 'public'\n"
     fi
     ;;
-  "stat opc/recordings")
+  "stat converact/recordings")
     if [ "\${FAKE_MC_STAT_FAIL:-0}" = "1" ]; then exit 8; fi
     [ -f "$FAKE_MC_STATE/bucket" ]
     ;;
@@ -121,7 +121,7 @@ esac
 }
 
 function createMinioFixture(overrides: NodeJS.ProcessEnv = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-minio-bootstrap-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-minio-bootstrap-'));
   const binDir = join(dir, 'bin');
   const stateDir = join(dir, 'state');
   const logFile = join(dir, 'mc.log');
@@ -175,7 +175,7 @@ test('PostgreSQL bootstrap rejects unsupported database names before psql', () =
   assert.equal(existsSync(fixture.logFile), false);
 });
 
-test('PostgreSQL bootstrap requires credentials and the opc owner', () => {
+test('PostgreSQL bootstrap requires credentials and the stable opc owner', () => {
   const cases: Array<{ overrides: NodeJS.ProcessEnv; expectedError: RegExp }> = [
     {
       overrides: { POSTGRES_PASSWORD: '' },
@@ -253,10 +253,10 @@ test('MinIO bootstrap retries, creates a private bucket, and verifies it', () =>
   assert.equal(result.status, 0, result.stderr);
   const log = readFileSync(fixture.logFile, 'utf8');
   assert.equal((log.match(/^alias set /gm) ?? []).length, 3);
-  assert.match(log, /^mb --ignore-existing opc\/recordings$/m);
-  assert.match(log, /^anonymous set none opc\/recordings$/m);
-  assert.match(log, /^anonymous get opc\/recordings$/m);
-  assert.match(log, /^stat opc\/recordings$/m);
+  assert.match(log, /^mb --ignore-existing converact\/recordings$/m);
+  assert.match(log, /^anonymous set none converact\/recordings$/m);
+  assert.match(log, /^anonymous get converact\/recordings$/m);
+  assert.match(log, /^stat converact\/recordings$/m);
   assert.equal(`${result.stdout}${result.stderr}`.includes('minio-test-secret'), false);
   assert.equal(`${result.stdout}${result.stderr}`.includes('minio-test-access'), false);
 });
@@ -314,7 +314,7 @@ test('MinIO bootstrap fails when private access cannot be verified', () => {
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /bucket privacy verification failed: recordings/);
-  assert.match(readFileSync(fixture.logFile, 'utf8'), /^anonymous get opc\/recordings$/m);
+  assert.match(readFileSync(fixture.logFile, 'utf8'), /^anonymous get converact\/recordings$/m);
 });
 
 test('MinIO bootstrap fails when the created bucket cannot be statted', () => {
@@ -323,5 +323,5 @@ test('MinIO bootstrap fails when the created bucket cannot be statted', () => {
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /bucket verification failed: recordings/);
-  assert.match(readFileSync(fixture.logFile, 'utf8'), /^stat opc\/recordings$/m);
+  assert.match(readFileSync(fixture.logFile, 'utf8'), /^stat converact\/recordings$/m);
 });

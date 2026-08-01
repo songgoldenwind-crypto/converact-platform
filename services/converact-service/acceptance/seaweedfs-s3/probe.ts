@@ -49,7 +49,7 @@ async function runMatrix(statePath: string | undefined): Promise<void> {
   const storage = createObjectStorage(process.env);
   const durations: Record<string, number> = {};
 
-  const small = Buffer.from(`ivekit-seaweedfs-small-${randomUUID()}`);
+  const small = Buffer.from(`converact-seaweedfs-small-${randomUUID()}`);
   const smallObject = await measured(durations, 'small_object', () => storage.upload({
     tenantId: 'acceptance',
     keyPrefix: 'seaweedfs',
@@ -141,7 +141,7 @@ async function runMatrix(statePath: string | undefined): Promise<void> {
     throw new Error('S3 versioning did not retain both object versions');
   }
 
-  const recoveryBody = Buffer.from(`ivekit-seaweedfs-recovery-${randomUUID()}`);
+  const recoveryBody = Buffer.from(`converact-seaweedfs-recovery-${randomUUID()}`);
   const recoveryObject = await storage.upload({
     tenantId: 'acceptance',
     keyPrefix: 'seaweedfs',

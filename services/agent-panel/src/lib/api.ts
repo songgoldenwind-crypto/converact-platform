@@ -1,12 +1,14 @@
+import { readAgentAuthStorage, writeAgentAuthStorage } from './auth-storage';
+
 const API_BASE = '';
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('opc_token');
+  const token = readAgentAuthStorage('token');
   if (token) return { Authorization: `Bearer ${token}` };
-  const apiKey = localStorage.getItem('opc_api_key');
+  const apiKey = readAgentAuthStorage('api_key');
   const headers: Record<string, string> = {};
   if (apiKey) headers['X-API-Key'] = apiKey;
-  const tenantId = localStorage.getItem('opc_tenant_id');
+  const tenantId = readAgentAuthStorage('tenant_id');
   if (tenantId) headers['X-Tenant-Id'] = tenantId;
   return headers;
 }
@@ -47,9 +49,9 @@ export async function login(email: string, password: string): Promise<AuthSessio
   const json = await res.json();
   if (!res.ok) throw new Error(json?.error?.message || '登录失败');
   const session = json.data as AuthSession;
-  localStorage.setItem('opc_token', session.token);
-  localStorage.setItem('opc_tenant_id', session.tenant.id);
-  localStorage.setItem('opc_user_id', session.user.id);
-  if (session.onboarding?.seat_id) localStorage.setItem('opc_seat_id', session.onboarding.seat_id);
+  writeAgentAuthStorage('token', session.token);
+  writeAgentAuthStorage('tenant_id', session.tenant.id);
+  writeAgentAuthStorage('user_id', session.user.id);
+  if (session.onboarding?.seat_id) writeAgentAuthStorage('seat_id', session.onboarding.seat_id);
   return session;
 }

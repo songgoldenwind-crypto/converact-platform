@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { createIveKitRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
+import { createConveractFabricRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
 
 const typesSource = readFileSync('sdk/converact/src/types.ts', 'utf8');
 const clientSource = readFileSync('sdk/converact/src/rustdesk-http-client.ts', 'utf8');
@@ -63,8 +63,8 @@ test('RustDesk terminal DTOs keep configured, available, granted, and observed s
 });
 
 test('RustDesk HTTP client preserves the lifecycle and adds policy and control ownership methods', () => {
-  const client = createIveKitRustDeskHttpClient({
-    baseUrl: 'https://ivekit.example.test',
+  const client = createConveractFabricRustDeskHttpClient({
+    baseUrl: 'https://converact.example.test',
     accessToken: 'short-lived-browser-token',
     tenantId: 'tenant-led',
     fetch: async () => new Response('{}', { status: 200 })
@@ -100,7 +100,7 @@ test('RustDesk HTTP client preserves the lifecycle and adds policy and control o
     'transferControl',
     'verifyAuthorizationCode'
   ]);
-  const legacyDisconnect = interfaceBody(clientSource, 'IveKitRustDeskGatewayDisconnectState');
+  const legacyDisconnect = interfaceBody(clientSource, 'ConveractFabricRustDeskGatewayDisconnectState');
   assert.match(legacyDisconnect, /required:\s*true/);
   assert.match(legacyDisconnect, /status:\s*RustDeskDeviceCommandStatus \| 'unavailable'/);
   assert.match(legacyDisconnect, /command:\s*RustDeskDeviceCommand \| null/);
@@ -115,7 +115,7 @@ test('RustDesk type contract uses the reproducible root TypeScript compiler', ()
   const compilerPath = typeContractTest.match(/['"]([^'"]*node_modules\/typescript\/bin\/tsc)['"]/)?.[1];
 
   assert.equal(compilerPath, 'node_modules/typescript/bin/tsc');
-  assert.doesNotMatch(typeContractTest, /['"]sdk\/ivekit\/node_modules\/typescript\/bin\/tsc['"]/);
+  assert.doesNotMatch(typeContractTest, /['"]sdk\/converact\/node_modules\/typescript\/bin\/tsc['"]/);
 });
 
 test('RustDesk client matrix pins OSS versions and platform limitations without claiming real acceptance', () => {
@@ -148,7 +148,7 @@ test('RustDesk client matrix pins OSS versions and platform limitations without 
     const env = readFileSync(envPath, 'utf8');
     assert.match(
       env,
-      /^RUSTDESK_SERVER_IMAGE=ghcr\.io\/songgoldenwind-crypto\/opc-rustdesk-server:1\.1\.16-ivekit\.1-73523b31@sha256:[a-f0-9]{64}$/m,
+      /^RUSTDESK_SERVER_IMAGE=ghcr\.io\/songgoldenwind-crypto\/converact-rustdesk-server:1\.1\.16-ivekit\.1-73523b31@sha256:[a-f0-9]{64}$/m,
       envPath
     );
   }
@@ -157,13 +157,13 @@ test('RustDesk client matrix pins OSS versions and platform limitations without 
   }
   assert.match(matrix, /configured[\s\S]*available[\s\S]*granted[\s\S]*observed/);
 
-  const detailedDesign = readFileSync('docs/iveKit视频IM通用能力详细设计.md', 'utf8');
+  const detailedDesign = readFileSync('docs/converact-fabric-video-im-capability-design.md', 'utf8');
   assert.match(detailedDesign, /RUSTDESK_SERVER_IMAGE_TAG=1\.1\.16/);
   assert.doesNotMatch(detailedDesign, /RUSTDESK_SERVER_IMAGE_TAG=latest/);
 });
 
 test('RustDesk public docs link the frozen matrix and explain capability truth states', () => {
-  for (const path of ['docs/ivekit-openapi.md', 'docs/iveKit视频IM通用能力详细设计.md']) {
+  for (const path of ['docs/converact-openapi.md', 'docs/converact-fabric-video-im-capability-design.md']) {
     const doc = readFileSync(path, 'utf8');
     assert.match(doc, /rustdesk-client-version-matrix\.md/);
     assert.match(doc, /configured/);
@@ -172,7 +172,7 @@ test('RustDesk public docs link the frozen matrix and explain capability truth s
     assert.match(doc, /observed/);
     assert.match(doc, /not_observed/);
     assert.match(doc, /top-level `operation_id`[^.。\n]*authoritative/);
-    assert.match(doc, /IveKitRustDeskGatewayDisconnectState[^.。\n]*interface/);
+    assert.match(doc, /ConveractFabricRustDeskGatewayDisconnectState[^.。\n]*interface/);
     assert.match(doc, /declaration merging/);
     assert.match(doc, /extends consumers/);
     assert.doesNotMatch(doc, /TypeScript source-compatibility risk/);
@@ -183,7 +183,7 @@ test('RustDesk public docs link the frozen matrix and explain capability truth s
 });
 
 test('RustDesk client config pack command guidance keeps launch URLs runtime-only', () => {
-  const detailedDesign = readFileSync('docs/iveKit视频IM通用能力详细设计.md', 'utf8');
+  const detailedDesign = readFileSync('docs/converact-fabric-video-im-capability-design.md', 'utf8');
   const row = detailedDesign.match(/\| `npm run rustdesk:client-config-pack` \|([^\n]+)\|/);
   assert.ok(row, 'rustdesk:client-config-pack command guidance must exist');
   assert.doesNotMatch(row[1], /把 launch URL、protocol URL[^。]*写入 Markdown/);
@@ -192,7 +192,7 @@ test('RustDesk client config pack command guidance keeps launch URLs runtime-onl
   assert.match(row[1], /用户主动发起启动前立即调用 `getGatewayLaunchPlan\(\)`/);
 });
 
-test('iveKit SDK RustDesk sources remain browser-safe and independent from OPC server source', () => {
+test('Converact Fabric SDK RustDesk sources remain browser-safe and independent from Converact server source', () => {
   const sourceDir = 'sdk/converact/src';
   for (const filename of readdirSync(sourceDir).filter((name) => name.endsWith('.ts'))) {
     const source = readFileSync(join(sourceDir, filename), 'utf8');

@@ -93,13 +93,13 @@ export class PostgresVoiceCdrConvergenceStore {
     }
     return withPgTenant(this.#pg, tenantId, async (pg) => {
       await pg.query(
-        `/* ivekit-voice-cdr:lock-key */
+        `/* converact-voice-cdr:lock-key */
          SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
         [`${tenantId}:${envelope.interaction_id}`]
       );
       await this.#assertCallIdentity(pg, tenantId, profileId, envelope);
       const existingResult = await pg.query<VoiceCdrRow>(
-        `/* ivekit-voice-cdr:lock-cdr */
+        `/* converact-voice-cdr:lock-cdr */
          SELECT *
          FROM ivekit_voice_cdr_calls
          WHERE tenant_id = $1 AND call_id = $2
@@ -107,7 +107,7 @@ export class PostgresVoiceCdrConvergenceStore {
         [tenantId, envelope.interaction_id]
       );
       const legResult = await pg.query<Record<string, unknown>>(
-        `/* ivekit-voice-cdr:load-legs */
+        `/* converact-voice-cdr:load-legs */
          SELECT *
          FROM ivekit_voice_cdr_legs
          WHERE tenant_id = $1 AND call_id = $2
@@ -268,7 +268,7 @@ export class PostgresVoiceCdrConvergenceStore {
     envelope: VoiceDualLegCdr
   ): Promise<void> {
     const result = await pg.query<Record<string, unknown>>(
-      `/* ivekit-voice-cdr:lock-authoritative-call */
+      `/* converact-voice-cdr:lock-authoritative-call */
        SELECT id, provider_profile_id, provider_call_id
        FROM ivekit_voice_calls
        WHERE tenant_id = $1 AND id = $2
@@ -294,7 +294,7 @@ export class PostgresVoiceCdrConvergenceStore {
   ): Promise<void> {
     if (envelope.availability_profile !== 'VOICE-HA-T1') return;
     const authority = await pg.query<Record<string, unknown>>(
-      `/* ivekit-voice-cdr:lock-dialog-authority */
+      `/* converact-voice-cdr:lock-dialog-authority */
        SELECT owner_node_id, owner_epoch, pending_takeover_id, terminal
        FROM ivekit_voice_dialog_ownership
        WHERE tenant_id = $1
@@ -320,7 +320,7 @@ export class PostgresVoiceCdrConvergenceStore {
     if (!committedContractId && !this.#regionId) return null;
     const result = committedContractId
       ? await pg.query<Record<string, unknown>>(
-        `/* ivekit-voice-cdr:load-durability */
+        `/* converact-voice-cdr:load-durability */
          SELECT id, region_id, fault_domains, quorum_size, status
          FROM ivekit_voice_cdr_durability_contracts
          WHERE id = $1
@@ -329,7 +329,7 @@ export class PostgresVoiceCdrConvergenceStore {
         [committedContractId]
       )
       : await pg.query<Record<string, unknown>>(
-        `/* ivekit-voice-cdr:load-durability */
+        `/* converact-voice-cdr:load-durability */
          SELECT id, region_id, fault_domains, quorum_size, status
          FROM ivekit_voice_cdr_durability_contracts
          WHERE status = 'active'
@@ -359,7 +359,7 @@ export class PostgresVoiceCdrConvergenceStore {
     sequence: string
   ): Promise<StoredVoiceCdrAcknowledgement | null> {
     const result = await pg.query<Record<string, unknown>>(
-      `/* ivekit-voice-cdr:load-acknowledgement */
+      `/* converact-voice-cdr:load-acknowledgement */
        SELECT s.payload_hash AS submission_payload_hash,
               r.receipt_id,
               r.committed_sequence,
@@ -408,7 +408,7 @@ export class PostgresVoiceCdrConvergenceStore {
   ): Promise<string> {
     const expiresAt = new Date(now.getTime() + this.#eventRetentionMs);
     const result = await pg.query<{ id: unknown }>(
-      `/* ivekit-voice-cdr:insert-billing-event */
+      `/* converact-voice-cdr:insert-billing-event */
        INSERT INTO ivekit_tenant_events
          (tenant_id, event_type, visibility_scope, visibility_ref_id,
           audience_user_ids, payload, occurred_at, expires_at)
@@ -445,7 +445,7 @@ export class PostgresVoiceCdrConvergenceStore {
     now: Date
   ): Promise<void> {
     await pg.query(
-      `/* ivekit-voice-cdr:upsert-cdr */
+      `/* converact-voice-cdr:upsert-cdr */
        INSERT INTO ivekit_voice_cdr_calls
          (tenant_id, call_id, provider_profile_id, provider_call_id, cell_id,
           owner_node_id, availability_profile, owner_epoch, highest_sequence,
@@ -508,7 +508,7 @@ export class PostgresVoiceCdrConvergenceStore {
     leg: VoiceCdrLeg
   ): Promise<void> {
     await pg.query(
-      `/* ivekit-voice-cdr:upsert-leg */
+      `/* converact-voice-cdr:upsert-leg */
        INSERT INTO ivekit_voice_cdr_legs
          (tenant_id, call_id, role, sequence, dialog_id_hash, direction,
           sip_final_code, hangup_cause, answered_at, ended_at, media_result,
@@ -559,7 +559,7 @@ export class PostgresVoiceCdrConvergenceStore {
     committedAt: string
   ): Promise<void> {
     await pg.query(
-      `/* ivekit-voice-cdr:insert-receipt */
+      `/* converact-voice-cdr:insert-receipt */
        INSERT INTO ivekit_voice_cdr_receipts
          (tenant_id, call_id, acknowledged_sequence, committed_sequence,
           acknowledged_payload_hash, receipt_id, durability_contract_id,
@@ -592,7 +592,7 @@ export class PostgresVoiceCdrConvergenceStore {
     envelope: VoiceDualLegCdr
   ): Promise<void> {
     await pg.query(
-      `/* ivekit-voice-cdr:insert-submission */
+      `/* converact-voice-cdr:insert-submission */
        INSERT INTO ivekit_voice_cdr_submissions
          (tenant_id, call_id, sequence, payload_hash, cell_id, owner_node_id,
           availability_profile, owner_epoch)
@@ -619,7 +619,7 @@ export class PostgresVoiceCdrConvergenceStore {
     durability: VoiceCdrDurabilityContract
   ): Promise<void> {
     const result = await pg.query(
-      `/* ivekit-voice-cdr:mark-dialog-terminal-pending-shadow */
+      `/* converact-voice-cdr:mark-dialog-terminal-pending-shadow */
        UPDATE ivekit_voice_dialog_ownership
        SET terminal = TRUE,
            terminal_shadow_pending = TRUE,

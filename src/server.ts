@@ -5,14 +5,14 @@ import { createServer } from './http.js';
 import { initWebSocket, wsBroadcast } from './ws.js';
 import { connectNats } from './infra/nats-client.js';
 import { startCallCenterRuntime } from './agent-runtime/call-center/call-center-runtime.js';
-import { startIveKitApplication } from './agent-runtime/converact/application.js';
+import { startConveractFabricApplication } from './agent-runtime/converact/application.js';
 import { createConfiguredPlacementFoundation } from './agent-runtime/converact/placement/index.js';
 import {
   rustDeskOwnerBindingPrepareClientFromEnv
 } from './agent-runtime/converact/placement/rustdesk-owner-binding.js';
 import {
-  IveKitTenantEventStore,
-  iveKitEventReplayEnabled
+  ConveractFabricTenantEventStore,
+  converactFabricEventReplayEnabled
 } from './agent-runtime/converact/tenant-event-store.js';
 import { migrateIvrRuntimeTables } from './db-migrations/ivr-runtime-schema.js';
 import { validateEnvOrExit } from './env-config.js';
@@ -69,7 +69,7 @@ async function main() {
 
   const instanceId = resolveFabricEnv(process.env, 'INSTANCE_ID') ||
     process.env.HOSTNAME ||
-    `opc-${process.pid}`;
+    `converact-${process.pid}`;
   process.env.CONVERACT_FABRIC_INSTANCE_ID = instanceId;
   const placement = createConfiguredPlacementFoundation({
     pg,
@@ -77,11 +77,11 @@ async function main() {
   });
   const rustdeskOwnerBindings = rustDeskOwnerBindingPrepareClientFromEnv();
   const server = createServer(db, pg, {
-    ivekitMedia: {
+    converactFabricMedia: {
       placement: placement?.media,
       egressPlacement: placement?.egress
     },
-    ivekitChat: {
+    converactFabricChat: {
       tinodePlacement: placement?.tinode,
       placementWorkerId: placement?.worker_id
     },
@@ -91,10 +91,10 @@ async function main() {
       placementWorkerId: placement?.worker_id
     }
   });
-  initWebSocket(server, iveKitEventReplayEnabled()
-    ? { eventStore: new IveKitTenantEventStore(pg) }
+  initWebSocket(server, converactFabricEventReplayEnabled()
+    ? { eventStore: new ConveractFabricTenantEventStore(pg) }
     : {});
-  const iveKitApplication = startIveKitApplication({
+  const converactFabricApplication = startConveractFabricApplication({
     pg,
     instanceId,
     placement: placement || undefined
@@ -109,12 +109,12 @@ async function main() {
   });
 
   server.listen(port, () => {
-    console.log(`OPC AI 通信平台 running at http://localhost:${port}`);
+    console.log(`Converact Platform running at http://localhost:${port}`);
   });
 
   const shutdown = async () => {
     server.close();
-    await iveKitApplication.stop();
+    await converactFabricApplication.stop();
     db.close();
     await closePostgres();
     await shutdownOpenTelemetry();

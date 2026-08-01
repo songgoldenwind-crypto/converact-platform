@@ -66,7 +66,7 @@ test('Phase 5D cost analysis projects annual savings from live tables', () => {
 });
 
 test('Phase 5D cache load test returns throughput and cleanup metrics', () => {
-  const dbDir = mkdtempSync(join(tmpdir(), 'opc-phase5d-test-'));
+  const dbDir = mkdtempSync(join(tmpdir(), 'converact-phase5d-test-'));
   try {
     const result = runPhase5DCacheLoadTest({
       dbPath: join(dbDir, 'phase5d.sqlite'),

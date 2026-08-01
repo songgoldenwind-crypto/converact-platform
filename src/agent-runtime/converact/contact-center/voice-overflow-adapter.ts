@@ -1,7 +1,7 @@
 import type { VoiceCallService } from '../voice/call-service.js';
 import type { ContactCenterOverflowVoicePort } from './ports.js';
 
-export class IveKitVoiceOverflowAdapter implements ContactCenterOverflowVoicePort {
+export class ConveractFabricVoiceOverflowAdapter implements ContactCenterOverflowVoicePort {
   readonly #calls: Pick<VoiceCallService, 'enqueueAction'>;
 
   constructor(input: { calls: Pick<VoiceCallService, 'enqueueAction'> }) {

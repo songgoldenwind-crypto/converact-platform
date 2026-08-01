@@ -34,7 +34,7 @@ test('Windows package config requires pinned source and service wrapper artifact
   });
 
   assert.equal(config.sourceCommit, SOURCE_COMMIT);
-  assert.equal(config.serviceName, 'IveKitRustDeskEdge');
+  assert.equal(config.serviceName, 'ConveractFabricRustDeskEdge');
   assert.equal(config.winSw.version, '2.12.0');
   assert.equal(config.winSw.sha256, WINSW_SHA256);
   assert.equal(config.placementEnabled, true);
@@ -49,7 +49,7 @@ test('Windows package config requires pinned source and service wrapper artifact
   );
 });
 
-test('effective Windows capability policy maps every iveKit scope to exact RustDesk options', () => {
+test('effective Windows capability policy maps every Converact Fabric scope to exact RustDesk options', () => {
   const policy = createRustDeskWindowsCapabilityPolicy();
 
   assert.deepEqual(policy.scopes, [
@@ -103,7 +103,7 @@ test('Windows package binds installer, network config, companion, policy, servic
     built.manifest.rustdesk.network_config.sha256,
     sha256(`${fixture.networkConfig}\n`)
   );
-  assert.equal(built.manifest.companion.service_name, 'IveKitRustDeskEdge');
+  assert.equal(built.manifest.companion.service_name, 'ConveractFabricRustDeskEdge');
   assert.equal(built.manifest.companion.service_wrapper.sha256, WINSW_SHA256);
   assert.equal(built.manifest.companion.package_version, 6);
   assert.equal(
@@ -147,8 +147,8 @@ test('Windows package writes a secret-free deterministic handoff with executable
   });
 
   const manifest = JSON.parse(readFileSync(join(fixture.config.outputDir, 'manifest.json'), 'utf8'));
-  const script = readFileSync(join(fixture.config.outputDir, 'Deploy-IveKitRustDesk.ps1'), 'utf8');
-  const service = readFileSync(join(fixture.config.outputDir, 'IveKitRustDeskEdge.xml.template'), 'utf8');
+  const script = readFileSync(join(fixture.config.outputDir, 'Deploy-ConveractFabricRustDesk.ps1'), 'utf8');
+  const service = readFileSync(join(fixture.config.outputDir, 'ConveractFabricRustDeskEdge.xml.template'), 'utf8');
   assert.equal(result.files, manifest.package_files.length + 1);
   assert.equal(result.edgePackageSha256, manifest.companion.edge_package_sha256);
   assert.match(script, /ValidateSet\('validate', 'install', 'repair', 'uninstall'\)/);
@@ -160,7 +160,7 @@ test('Windows package writes a secret-free deterministic handoff with executable
   assert.match(script, /Get-FileHash/);
   assert.match(script, /icacls/);
   assert.match(script, /rollback-state\.json/);
-  assert.match(script, /Restore-IveKitRollback/);
+  assert.match(script, /Restore-ConveractFabricRollback/);
   assert.match(service, /<serviceaccount>\s*<username>LocalSystem<\/username>\s*<\/serviceaccount>/);
   assert.match(service, /CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE/);
   assert.match(service, /CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR/);
@@ -175,7 +175,7 @@ test('Windows package writes a secret-free deterministic handoff with executable
   assert.match(script, /native-evidence-roots-v1\.txt/);
   assert.match(script, /native-evidence\\candidates/);
   assert.match(
-    readFileSync(join(fixture.config.outputDir, 'edge/windows/Publish-IveKitRustDeskEvidence.ps1'), 'utf8'),
+    readFileSync(join(fixture.config.outputDir, 'edge/windows/Publish-ConveractFabricRustDeskEvidence.ps1'), 'utf8'),
     /FileMode\]::CreateNew/
   );
   assert.match(service, /CONVERACT_RUSTDESK_PRECISE_DISCONNECT_SCRIPT/);
@@ -237,7 +237,7 @@ test('Windows package rejects drift, unsafe config text, and incomplete profile 
         }]
       }
     }),
-    /installer must include an ivekit native control protocol/
+    /installer must include a supported native control protocol/
   );
   assert.throws(
     () => buildRustDeskWindowsPackage(fixture.config, {
@@ -305,7 +305,7 @@ test('Windows package command, environment samples, and Windows AST validation C
   const rootEnv = readFileSync(join(process.cwd(), '.env.example'), 'utf8');
   const standaloneEnv = readFileSync(join(process.cwd(), 'infra/converact/env.example'), 'utf8');
   const workflow = readFileSync(
-    join(process.cwd(), '.github/workflows/ivekit-rustdesk-windows-ci.yml'),
+    join(process.cwd(), '.github/workflows/converact-rustdesk-windows-ci.yml'),
     'utf8'
   );
 
@@ -334,7 +334,7 @@ test('Windows package command, environment samples, and Windows AST validation C
   assert.match(standaloneEnv, /CONVERACT_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR=/);
   assert.match(standaloneEnv, /CONVERACT_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS=604800000/);
   assert.match(
-    readFileSync(join(process.cwd(), 'scripts/rustdesk-windows/IveKitRustDeskEdge.xml.template'), 'utf8'),
+    readFileSync(join(process.cwd(), 'scripts/rustdesk-windows/ConveractFabricRustDeskEdge.xml.template'), 'utf8'),
     /CONVERACT_RUSTDESK_EDGE_EVIDENCE_DEAD_LETTER_RETENTION_MS/
   );
   assert.match(workflow, /runs-on: windows-latest/);
@@ -350,7 +350,7 @@ test('Windows package command, environment samples, and Windows AST validation C
 });
 
 function createFixture() {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-rustdesk-windows-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-rustdesk-windows-'));
   const outputDir = join(root, 'package');
   const profileFile = join(root, 'client-profile.json');
   const networkConfigFile = join(root, 'network-config.txt');
@@ -371,7 +371,7 @@ function createFixture() {
       architecture: 'x86_64',
       install_source: {
         state: 'configured',
-        url: 'https://github.com/acme/ivekit-rustdesk/releases/download/1.4.9/rustdesk-1.4.9-ivekit1-x86_64.exe',
+        url: 'https://github.com/acme/converact-rustdesk/releases/download/1.4.9/rustdesk-1.4.9-ivekit1-x86_64.exe',
         filename: 'rustdesk-1.4.9-ivekit1-x86_64.exe',
         sha256: INSTALLER_SHA256,
         native_control_protocol: 'ivekit-rustdesk-native-control-v2',
@@ -389,12 +389,12 @@ function createFixture() {
     networkConfigFile,
     sourceCommit: SOURCE_COMMIT,
     expectedServerKeyFingerprint: SERVER_FINGERPRINT,
-    serviceName: 'IveKitRustDeskEdge',
+    serviceName: 'ConveractFabricRustDeskEdge',
     placementEnabled: true,
     winSw: {
       version: '2.12.0',
       url: 'https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe',
-      filename: 'IveKitRustDeskEdge.exe',
+      filename: 'ConveractFabricRustDeskEdge.exe',
       sha256: WINSW_SHA256
     }
   } as const;
@@ -411,7 +411,7 @@ function createFixture() {
     ['rustdesk-native-evidence-policy.ts', 'export const nativeEvidencePolicySchema: number = 1;\n'],
     ['rustdesk-native-evidence-watcher.ts', 'export const nativeEvidenceWatcherSchema: number = 1;\n']
   ]);
-  const deploymentScript = '# Deploy-IveKitRustDesk.ps1 fixture\n';
+  const deploymentScript = '# Deploy-ConveractFabricRustDesk.ps1 fixture\n';
   const serviceTemplate = '<service></service>\n';
   const inputs = {
     profile,

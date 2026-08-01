@@ -515,7 +515,7 @@ voice:
   regionId: ""
   zoneId: ""
   image:
-    repository: ghcr.io/songgoldenwind-crypto/opc-rustpbx
+    repository: ghcr.io/songgoldenwind-crypto/converact-rustpbx
     digest: ""
     pullPolicy: IfNotPresent
   sipCapacity:
@@ -573,7 +573,7 @@ voice:
     # Exact HTTPS origins allowed to open the Kamailio WSS endpoint.
     allowedOrigins: []
     jwtSecretKey: rustpbx-webphone-jwt-secret
-    jwtIssuer: ivekit
+    jwtIssuer: converact
     jwtAudience: rustpbx-webphone
     ttlSeconds: "300"
     registerExpiresSeconds: "240"
@@ -582,7 +582,7 @@ voice:
       intervalMs: "60000"
       tenantLimit: "100"
       batchSize: "500"
-  addressHmacKeyKey: ivekit-voice-address-hmac-key
+  addressHmacKeyKey: converact-voice-address-hmac-key
   routeSnapshot:
     hmacKeyKey: rustpbx-route-snapshot-hmac-key
     intervalMs: "1000"
@@ -616,7 +616,7 @@ voice:
         memory: 512Mi
   componentNode:
     enabled: true
-    tokenKey: ivekit-component-node-token
+    tokenKey: converact-component-node-token
     regionId: ""
     zoneId: ""
     profileIds:
@@ -664,13 +664,13 @@ voice:
     enabled: false
     endpoint: https://localhost:3212/
     faultDomain: ""
-    spiffeTrustDomain: ivekit.internal
-    serviceTokenKey: ivekit-dialog-shadow-token
-    recoveryDatabaseUrlKey: ivekit-dialog-recovery-database-url
+    spiffeTrustDomain: converact.internal
+    serviceTokenKey: converact-dialog-shadow-token
+    recoveryDatabaseUrlKey: converact-dialog-recovery-database-url
     currentRecoveryKeyId: recovery-current
-    currentRecoveryKeyKey: ivekit-dialog-recovery-current-key
+    currentRecoveryKeyKey: converact-dialog-recovery-current-key
     previousRecoveryKeyId: recovery-previous
-    previousRecoveryKeyKey: ivekit-dialog-recovery-previous-key
+    previousRecoveryKeyKey: converact-dialog-recovery-previous-key
     serverTlsSecretName: ""
     serverTlsKeyKey: tls.key
     serverTlsCertificateKey: tls.crt
@@ -707,7 +707,7 @@ voice:
       faultDomainsKey: fault-domains.json
       placementCluster: ""
       placementTags: []
-      streamName: IVEKIT_DIALOG_SHADOW
+      streamName: CONVERACT_FABRIC_DIALOG_SHADOW
       subjectPrefix: ivekit.dialog_shadow
       streamReplicas: 3
       requiredFaultDomains: 2
@@ -741,7 +741,7 @@ voice:
     zoneTopologyKey: topology.kubernetes.io/zone
     hostnameTopologyKey: kubernetes.io/hostname
     nodeSelector:
-      ivekit.io/media-node: "true"
+      converact.io/media-node: "true"
     tolerations: []
   podDisruptionBudget:
     enabled: true
@@ -762,7 +762,7 @@ voice:
     replicaCount: 2
     cellLeaseEpoch: 1
     image:
-      repository: ghcr.io/songgoldenwind-crypto/opc-kamailio
+      repository: ghcr.io/songgoldenwind-crypto/converact-kamailio
       digest: ""
       pullPolicy: IfNotPresent
     runtime:
@@ -916,11 +916,11 @@ tinode:
   mode: compact
   replicaCount: 1
   image:
-    repository: ghcr.io/songgoldenwind-crypto/opc-ivekit-tinode-server
+    repository: ghcr.io/songgoldenwind-crypto/converact-tinode-server
     digest: ""
     pullPolicy: IfNotPresent
     allowedRepositories:
-      - ghcr.io/songgoldenwind-crypto/opc-ivekit-tinode-server
+      - ghcr.io/songgoldenwind-crypto/converact-tinode-server
   secrets:
     postgresDsnKey: tinode-postgres-dsn
     apiKeySaltKey: tinode-api-key-salt

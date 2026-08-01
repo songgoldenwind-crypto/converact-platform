@@ -1,16 +1,16 @@
-# OPC 视频+语音呼叫中心 — 整体架构设计
+# Converact Platform 视频+语音呼叫中心 — 整体架构设计
 
 > **2026-07-29 权威性修订：** 本文保留为视频/产品历史设计；所有把 RustPBX direct
 > media proxy 画成 ordinary 生产数据面、删除 `services/voice-media-rs` 或由 LiveKit
 > 完全接管语音处理的旧裁决均已废止。LiveKit 继续负责视频/SFU；`voice-media-rs` 是
 > 现有 repo-local Rust crate/module，目标为 Unified RustPBX Process 内嵌的解码媒体
 > Backend。普通 RTP Edge 默认由外部 RTPengine 执行。生产权威以
-> `docs/design/rvoip-opc-communication-foundation-integration-design.md` 和
+> `docs/design/rvoip-converact-communication-foundation-integration-design.md` 和
 > `docs/adr/ccaas-5-media-authority-and-rtpengine.md` 为准。
 
 > **软交换**: [RustPBX](https://github.com/restsend/rustpbx)（AI-native Rust PBX, HTTP/WebSocket/Webhook 全可编程）
 > **视频服务**: [LiveKit](https://github.com/livekit/livekit)（开源 WebRTC SFU, 自托管）
-> **业务核心**: OPC（获客 Agent + CRM + 审批 + 记忆系统）
+> **业务核心**: Converact Platform（获客 Agent + CRM + 审批 + 记忆系统）
 
 ---
 
@@ -53,7 +53,7 @@
 │                      AI & 业务控制层 (Control Plane)                     │
 │                                                                         │
 │  ┌─────────────────────┐  ┌────────────────┐  ┌─────────────────────┐ │
-│  │   LiveKit AI Agent   │  │  Call Control   │  │    OPC Core         │ │
+│  │   LiveKit AI Agent   │  │  Call Control   │  │    Converact Platform Core         │ │
 │  │   (Python/Node.js)   │  │  Service (TS)   │  │                     │ │
 │  │                      │  │                 │  │  Lead Acquisition   │ │
 │  │  ┌───────────────┐  │  │  HTTP Router ←──┼──┤  Prospect Outreach  │ │
@@ -88,7 +88,7 @@
 |------|------|
 | **SIP 信令** | 全栈 SIP (UDP/TCP/WS/TLS/WebRTC)，管理注册、认证、B2BUA |
 | **PSTN 对接** | SIP Trunk 连接运营商（Twilio Japan / NTT / Telnyx） |
-| **呼叫路由** | HTTP Router — 每个 INVITE 回调 OPC，OPC 返回 JSON 路由决策 |
+| **呼叫路由** | HTTP Router — 每个 INVITE 回调 Converact Platform，Converact Platform 返回 JSON 路由决策 |
 | **队列 / ACD** | 坐席排队、优先级调度、顺序/并行振铃 |
 | **实时控制 (RWI)** | WebSocket JSON 接口：外呼、转接、Hold、Whisper、Barge、PCM 注入 |
 | **纯语音录音** | SipFlow 统一 SIP+RTP 采集，CDR 推送 |
@@ -109,7 +109,7 @@
 
 **不负责**：呼叫路由决策、坐席排队、SIP 外呼发起 — 这些交给 RustPBX。
 
-### 2.3 OPC Core — 业务控制中心
+### 2.3 Converact Platform Core — 业务控制中心
 
 | 职责 | 说明 |
 |------|------|
@@ -148,7 +148,7 @@
 
 **关键流程**：当需要把纯语音通话升级到视频，RustPBX 通过 `transfer` 命令将呼叫 REFER 到 LiveKit SIP Bridge 地址，客户音频进入 LiveKit Room，然后坐席面板发送视频链接给客户。
 
-### 3.2 RustPBX ↔ OPC（HTTP Router + RWI + Webhook）
+### 3.2 RustPBX ↔ Converact Platform（HTTP Router + RWI + Webhook）
 
 ```
                   ┌─────────────┐
@@ -162,14 +162,14 @@
           │              │              │
           ▼              ▼              ▼
       ┌─────────────────────────────────────┐
-      │           OPC Call Control           │
+      │           Converact Platform Call Control           │
       │   POST /api/call-router             │
       │   WS   /api/call-control/rwi        │
       │   POST /api/webhooks/rustpbx-cdr    │
       └─────────────────────────────────────┘
 ```
 
-**HTTP Router 回调格式**（RustPBX → OPC）：
+**HTTP Router 回调格式**（RustPBX → Converact Platform）：
 ```json
 {
   "call_id": "uuid",
@@ -179,7 +179,7 @@
 }
 ```
 
-**OPC 路由响应**：
+**Converact Platform 路由响应**：
 ```json
 {
   "action": "forward",
@@ -189,10 +189,10 @@
 }
 ```
 
-### 3.3 LiveKit ↔ OPC（Server SDK + Webhooks）
+### 3.3 LiveKit ↔ Converact Platform（Server SDK + Webhooks）
 
 ```
-OPC (Node.js)                             LiveKit Server
+Converact Platform (Node.js)                             LiveKit Server
      │                                         │
      ├── CreateRoom(name, options) ───────────►│
      ├── GenerateToken(identity, grants) ─────►│
@@ -204,7 +204,7 @@ OPC (Node.js)                             LiveKit Server
      │◄── Webhook: egress_ended ───────────────┤
 ```
 
-**OPC 使用 `livekit-server-sdk-js`**：
+**Converact Platform 使用 `livekit-server-sdk-js`**：
 - 创建房间、生成 JWT token
 - 管理 AI Agent dispatch
 - 接收 LiveKit webhook events → 更新 VoiceStore
@@ -219,7 +219,7 @@ OPC (Node.js)                             LiveKit Server
 
 ```
 ┌─────┐        ┌─────┐       ┌────────┐      ┌────────┐      ┌──────────┐
-│ OPC │        │RustPBX│     │LiveKit │      │AI Agent│      │ Customer │
+│ Converact Platform │        │RustPBX│     │LiveKit │      │AI Agent│      │ Customer │
 └──┬──┘        └──┬───┘     └───┬────┘      └───┬────┘      └────┬─────┘
    │               │             │               │                │
    │ 1. 触发外呼任务│             │               │                │
@@ -261,7 +261,7 @@ OPC (Node.js)                             LiveKit Server
 
 ```
 ┌─────┐        ┌─────┐       ┌────────┐      ┌──────────┐
-│ OPC │        │RustPBX│     │LiveKit │      │ Customer │
+│ Converact Platform │        │RustPBX│     │LiveKit │      │ Customer │
 └──┬──┘        └──┬───┘     └───┬────┘      └────┬─────┘
    │               │             │                │
    │ 1. RWI:originate            │                │
@@ -289,12 +289,12 @@ OPC (Node.js)                             LiveKit Server
 
 **关键点**：
 - 纯语音场景也经过 LiveKit Room，这样 AI Agent 可以复用同一套 STT/LLM/TTS 管道
-- 如果客户在 PSTN 上且想要升级到视频 → OPC 发 SMS 链接，客户打开 H5 后加入同一 Room
+- 如果客户在 PSTN 上且想要升级到视频 → Converact Platform 发 SMS 链接，客户打开 H5 后加入同一 Room
 
 ### 4.3 客户来电（Inbound）
 
 ```
-Customer → PSTN → SIP Trunk → RustPBX → HTTP Router → OPC 决策:
+Customer → PSTN → SIP Trunk → RustPBX → HTTP Router → Converact Platform 决策:
   ├── AI 接待 → Bridge to LiveKit Room (AI Agent)
   ├── 人工队列 → RustPBX Queue/ACD → 坐席接听
   └── IVR → RustPBX play prompts → 按键分流
@@ -304,9 +304,9 @@ Customer → PSTN → SIP Trunk → RustPBX → HTTP Router → OPC 决策:
 
 ```
 Customer → 点击网页/App "视频咨询" 按钮
-  → OPC 创建 LiveKit Room + 生成 Token
+  → Converact Platform 创建 LiveKit Room + 生成 Token
   → Customer WebRTC 加入 Room
-  → OPC 通知空闲坐席 → 坐席面板加入 Room
+  → Converact Platform 通知空闲坐席 → 坐席面板加入 Room
   → 视频通话开始
   → Egress 自动录制
 ```
@@ -330,14 +330,14 @@ services:
       - DATABASE_URL=postgresql://opc:${POSTGRES_PASSWORD}@postgres:5432/opc
 
   livekit:
-    image: ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server@sha256:<digest>
+    image: ghcr.io/songgoldenwind-crypto/converact-livekit-server@sha256:<digest>
     network_mode: host              # WebRTC 需要 host network
     volumes:
       - ./config/livekit.yaml:/etc/livekit.yaml
     command: --config /etc/livekit.yaml
 
   livekit-sip:
-    image: ghcr.io/songgoldenwind-crypto/opc-livekit-sip@sha256:<digest>
+    image: ghcr.io/songgoldenwind-crypto/converact-livekit-sip@sha256:<digest>
     network_mode: host
     environment:
       - LIVEKIT_URL=ws://localhost:7880
@@ -370,7 +370,7 @@ services:
     depends_on: [livekit, redis]
 
   # --- 业务层 ---
-  opc:
+  converact:
     build: .
     ports:
       - "3000:3000"
@@ -405,7 +405,7 @@ services:
 | LiveKit Server | 7880 (HTTP) / 7881 (RTC) | HTTP + UDP |
 | LiveKit SIP | 5061 | UDP |
 | LiveKit SIP RTP | 10000-20000 | UDP |
-| OPC Server | 3000 | HTTP |
+| Converact Platform Server | 3000 | HTTP |
 | Redis | 6379 | TCP |
 | MinIO | 9000/9001 | HTTP |
 
@@ -509,7 +509,7 @@ CREATE TABLE outbound_tasks (
 
 ---
 
-## 7. OPC 新增服务模块
+## 7. Converact Platform 新增服务模块
 
 ### 7.1 模块结构
 
@@ -657,8 +657,8 @@ async def check_intent(conversation_history: str) -> dict:
     pass
 
 async def transfer_to_human(reason: str, customer_summary: str):
-    """通知 OPC 编排转接"""
-    await opc_api.request_transfer(
+    """通知 Converact Platform 编排转接"""
+    await converact_api.request_transfer(
         room_name=current_room,
         reason=reason,
         summary=customer_summary,
@@ -691,10 +691,10 @@ frontend/
 │   ├── hooks/
 │   │   ├── useLiveKit.ts          # LiveKit Room 连接
 │   │   ├── useRustPBX.ts          # RustPBX WebRTC 软电话（纯语音）
-│   │   └── useCallCenter.ts       # OPC API 调用
+│   │   └── useCallCenter.ts       # Converact Platform API 调用
 │   └── lib/
 │       ├── livekit-token.ts       # Token 请求
-│       └── opc-api.ts             # REST API client
+│       └── converact-api.ts             # REST API client
 ├── package.json
 └── vite.config.ts
 ```
@@ -742,7 +742,7 @@ bind_addr = "0.0.0.0:5060"
 transports = ["udp", "tcp", "ws"]
 
 [proxy.http_router]
-url = "http://opc:3000/api/call-router"
+url = "http://converact:3000/api/call-router"
 timeout_ms = 3000
 fallback_action = "reject"
 
@@ -777,7 +777,7 @@ storage = "local"
 path = "/app/recordings"
 
 [cdr]
-webhook_url = "http://opc:3000/api/webhooks/rustpbx-cdr"
+webhook_url = "http://converact:3000/api/webhooks/rustpbx-cdr"
 ```
 
 ### 10.2 LiveKit (`config/livekit.yaml`)
@@ -797,7 +797,7 @@ keys:
 
 webhook:
   urls:
-    - "http://opc:3000/api/media/webhooks/livekit"
+    - "http://converact:3000/api/media/webhooks/livekit"
   api_key: ${LK_API_KEY}
 
 room:
@@ -846,10 +846,10 @@ s3:
 ### Phase 0: 基础设施搭建（1 周）
 
 - [ ] Docker Compose 编排所有服务
-- [ ] RustPBX 基础配置 + HTTP Router 回调 OPC
+- [ ] RustPBX 基础配置 + HTTP Router 回调 Converact Platform
 - [ ] LiveKit 自托管 + Redis + 验证 Room 创建
 - [ ] LiveKit SIP Bridge 配置对接 RustPBX trunk
-- [ ] OPC schema 扩展（上述 SQL）
+- [ ] Converact Platform schema 扩展（上述 SQL）
 - [ ] 验证：RustPBX 外呼 → SIP 桥接 → LiveKit Room → 能听到音频
 
 ### Phase 1: AI 语音外呼闭环（2 周）
@@ -859,7 +859,7 @@ s3:
 - [ ] `cdr-receiver.ts` — CDR webhook 入库
 - [ ] `ai-agent-py` — 基础 STT→LLM→TTS Agent
 - [ ] `outbound-dialer.ts` — 外呼任务调度
-- [ ] 端到端验证：OPC 触发 → RustPBX 外呼 → LiveKit Room → AI 对话 → CDR 入库
+- [ ] 端到端验证：Converact Platform 触发 → RustPBX 外呼 → LiveKit Room → AI 对话 → CDR 入库
 
 ### Phase 2: AI 视频外呼（2 周）
 
@@ -894,7 +894,7 @@ s3:
 | 项目 | 规格 | 月成本 |
 |------|------|--------|
 | 云服务器 (媒体) | 8C16G + 公网 IP（承载 RustPBX + LiveKit） | ¥500–800 |
-| 云服务器 (业务) | 4C8G（OPC + AI Agent + Redis） | ¥300–500 |
+| 云服务器 (业务) | 4C8G（Converact Platform + AI Agent + Redis） | ¥300–500 |
 | SIP Trunk (日本) | Twilio Japan / NTT（按分钟计费） | ¥0.03/分钟 |
 | Deepgram STT | Pay-as-you-go | $0.0043/分钟 |
 | OpenAI GPT-4o | API 调用 | ~$0.01/轮 |
@@ -904,7 +904,7 @@ s3:
 
 ---
 
-## 14. 与现有 OPC 代码的关系
+## 14. 与现有 Converact Platform 代码的关系
 
 | 现有资产 | 如何复用 |
 |----------|----------|
@@ -937,7 +937,7 @@ LiveKit = 视频SFU + AI Agent host + 视频录制
 
 ✅ 各自职责清晰，RustPBX 的 ACD 能力成熟
 ✅ 纯语音场景不需要经过 LiveKit，资源消耗低
-✅ RustPBX 的 HTTP Router 天然适配 OPC 的路由决策模型
+✅ RustPBX 的 HTTP Router 天然适配 Converact Platform 的路由决策模型
 
 ### 方案 B（备选）：LiveKit SIP 直接对接运营商
 

@@ -198,7 +198,7 @@ function clientConfig(plan: CollaborationChatClientPlan): Record<string, unknown
   return {
     host: url.host,
     secure: url.protocol === 'wss:',
-    appName: 'OPC iveKit Chat',
+    appName: 'Converact Fabric Chat',
     apiKey: plan.api_key,
     transport: 'ws',
     persist: false

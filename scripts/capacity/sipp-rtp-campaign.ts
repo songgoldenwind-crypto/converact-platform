@@ -15,7 +15,7 @@ import {
   parseSippStatistics,
   SIPP_BINARY_SHA256,
   type SippStatistics
-} from '../ivekit-rustpbx-sipp-acceptance.js';
+} from '../converact-rustpbx-sipp-acceptance.js';
 import {
   buildSippRtpCheckDockerPlan,
   evaluateSippRtpCheckEvidence,
@@ -78,7 +78,7 @@ export interface SippRtpCheckCampaignDependencies {
 
 export interface SippRtpCheckCampaignReport {
   schema_version: '1.0.0';
-  suite: 'iveKit RustPBX SIPp PCMU RTP check';
+  suite: 'Converact Fabric RustPBX SIPp PCMU RTP check';
   status: 'passed' | 'failed';
   error_code: string;
   generated_at: string;
@@ -184,7 +184,7 @@ export async function runSippRtpCheckCampaign(
       udpBefore = await readUdpCounters(
         command,
         options.docker,
-        options.sut_container || 'ivekit-rustpbx-baseline-rustpbx-1'
+        options.sut_container || 'converact-rustpbx-baseline-rustpbx-1'
       );
     }
     const uasStart = await command(options.docker, plan.uas_args, 15_000);
@@ -224,7 +224,7 @@ export async function runSippRtpCheckCampaign(
               command,
               options.docker,
               options.sut_container ||
-              'ivekit-rustpbx-baseline-rustpbx-1'
+              'converact-rustpbx-baseline-rustpbx-1'
             );
           }
         } else {
@@ -265,15 +265,15 @@ export async function runSippRtpCheckCampaign(
 export function sippRtpCheckCampaignOptionsFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): SippRtpCheckCampaignOptions {
-  const calls = integer(env.IVEKIT_RTP_CHECK_CALLS || '1', 1, 20_000, 'calls');
+  const calls = integer(env.CONVERACT_FABRIC_RTP_CHECK_CALLS || '1', 1, 20_000, 'calls');
   const callsPerSecond = integer(
-    env.IVEKIT_RTP_CHECK_CPS || String(Math.min(calls, 10)),
+    env.CONVERACT_FABRIC_RTP_CHECK_CPS || String(Math.min(calls, 10)),
     1,
     100_000,
     'call rate'
   );
   const mediaDurationMs = integer(
-    env.IVEKIT_RTP_CHECK_MEDIA_DURATION_MS || '5000',
+    env.CONVERACT_FABRIC_RTP_CHECK_MEDIA_DURATION_MS || '5000',
     1_000,
     300_000,
     'media duration'
@@ -284,69 +284,69 @@ export function sippRtpCheckCampaignOptionsFromEnv(
   const defaultTimeout =
     Math.ceil(calls / callsPerSecond) + mediaDurationMs / 1_000 + 20;
   const resultDirectory = resolve(
-    env.IVEKIT_RTP_CHECK_RESULT_DIR ||
-    `.tmp/ivekit-sipp-rtp-${Date.now()}`
+    env.CONVERACT_FABRIC_RTP_CHECK_RESULT_DIR ||
+    `.tmp/converact-sipp-rtp-${Date.now()}`
   );
   return {
-    docker: String(env.IVEKIT_DOCKER_COMMAND || 'docker').trim(),
-    network: required(env, 'IVEKIT_RTP_CHECK_NETWORK'),
+    docker: String(env.CONVERACT_FABRIC_DOCKER_COMMAND || 'docker').trim(),
+    network: required(env, 'CONVERACT_FABRIC_RTP_CHECK_NETWORK'),
     target_ip: String(
-      env.IVEKIT_RTP_CHECK_TARGET_IP || '172.30.44.9'
+      env.CONVERACT_FABRIC_RTP_CHECK_TARGET_IP || '172.30.44.9'
     ).trim(),
-    uac_ip: String(env.IVEKIT_RTP_CHECK_UAC_IP || '172.30.44.20').trim(),
-    uas_ip: String(env.IVEKIT_RTP_CHECK_UAS_IP || '172.30.44.22').trim(),
-    sipp_binary: resolve(required(env, 'IVEKIT_SIPP_BINARY')),
+    uac_ip: String(env.CONVERACT_FABRIC_RTP_CHECK_UAC_IP || '172.30.44.20').trim(),
+    uas_ip: String(env.CONVERACT_FABRIC_RTP_CHECK_UAS_IP || '172.30.44.22').trim(),
+    sipp_binary: resolve(required(env, 'CONVERACT_FABRIC_SIPP_BINARY')),
     sipp_sha256: SIPP_BINARY_SHA256,
     result_dir: resultDirectory,
     container_image: ALPINE_ACCEPTANCE_IMAGE,
     run_id: String(
-      env.IVEKIT_RTP_CHECK_RUN_ID || `pcmu-${calls}-${Date.now()}`
+      env.CONVERACT_FABRIC_RTP_CHECK_RUN_ID || `pcmu-${calls}-${Date.now()}`
     ).trim(),
     service: String(
-      env.IVEKIT_RTP_CHECK_SERVICE || '18005550200'
+      env.CONVERACT_FABRIC_RTP_CHECK_SERVICE || '18005550200'
     ).trim(),
     calls,
     calls_per_second: callsPerSecond,
     media_duration_ms: mediaDurationMs,
     timeout_seconds: integer(
-      env.IVEKIT_RTP_CHECK_TIMEOUT_SECONDS || String(defaultTimeout),
+      env.CONVERACT_FABRIC_RTP_CHECK_TIMEOUT_SECONDS || String(defaultTimeout),
       1,
       3_600,
       'timeout'
     ),
     packets_per_second: 50,
     maximum_invalid_or_missing_ratio: ratio(
-      env.IVEKIT_RTP_CHECK_MAXIMUM_ERROR_RATIO || '0.001',
+      env.CONVERACT_FABRIC_RTP_CHECK_MAXIMUM_ERROR_RATIO || '0.001',
       'maximum error ratio'
     ),
     maximum_startup_missing_packets_per_call: integer(
-      env.IVEKIT_RTP_CHECK_MAXIMUM_STARTUP_MISSING_PACKETS_PER_CALL || '3',
+      env.CONVERACT_FABRIC_RTP_CHECK_MAXIMUM_STARTUP_MISSING_PACKETS_PER_CALL || '3',
       0,
       1_000,
       'maximum startup missing packets per call'
     ),
     minimum_packet_coverage_ratio: ratio(
-      env.IVEKIT_RTP_CHECK_MINIMUM_COVERAGE_RATIO || '0.95',
+      env.CONVERACT_FABRIC_RTP_CHECK_MINIMUM_COVERAGE_RATIO || '0.95',
       'minimum packet coverage'
     ),
     rtp_port_min: integer(
-      env.IVEKIT_RTP_CHECK_RTP_PORT_MIN || '6000',
+      env.CONVERACT_FABRIC_RTP_CHECK_RTP_PORT_MIN || '6000',
       1_024,
       65_534,
       'RTP port minimum'
     ),
     rtp_tasks_per_thread: integer(
-      env.IVEKIT_RTP_CHECK_TASKS_PER_THREAD || '64',
+      env.CONVERACT_FABRIC_RTP_CHECK_TASKS_PER_THREAD || '64',
       1,
       4_096,
       'RTP tasks per thread'
     ),
     evidence_mode: evidenceMode(
-      env.IVEKIT_RTP_CHECK_EVIDENCE_MODE || 'strict'
+      env.CONVERACT_FABRIC_RTP_CHECK_EVIDENCE_MODE || 'strict'
     ),
     sut_container: containerName(
-      env.IVEKIT_RTP_CHECK_SUT_CONTAINER ||
-      'ivekit-rustpbx-baseline-rustpbx-1'
+      env.CONVERACT_FABRIC_RTP_CHECK_SUT_CONTAINER ||
+      'converact-rustpbx-baseline-rustpbx-1'
     )
   };
 }
@@ -407,7 +407,7 @@ function buildReport(input: {
 
   return {
     schema_version: '1.0.0',
-    suite: 'iveKit RustPBX SIPp PCMU RTP check',
+    suite: 'Converact Fabric RustPBX SIPp PCMU RTP check',
     status: passed ? 'passed' : 'failed',
     error_code: errorCode,
     generated_at: input.generated_at,
@@ -591,7 +591,7 @@ function validateCampaignOptions(options: SippRtpCheckCampaignOptions): void {
   ratio(String(options.minimum_packet_coverage_ratio), 'minimum packet coverage');
   evidenceMode(options.evidence_mode || 'strict');
   containerName(
-    options.sut_container || 'ivekit-rustpbx-baseline-rustpbx-1'
+    options.sut_container || 'converact-rustpbx-baseline-rustpbx-1'
   );
 }
 

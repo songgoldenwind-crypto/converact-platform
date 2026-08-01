@@ -1,10 +1,10 @@
 import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import type { PgQueryable } from '../../../db-pg.js';
 import { voiceProfileConfigHash } from './deployment-profile-service.js';
-import { iveKitVoiceWorkerConfig, type IveKitVoiceWorkerConfig } from './runtime.js';
+import { converactFabricVoiceWorkerConfig, type ConveractFabricVoiceWorkerConfig } from './runtime.js';
 import type { VoiceAdapter, VoiceDeploymentProfile } from './types.js';
 
-export interface IveKitVoicePreflightReport {
+export interface ConveractFabricVoicePreflightReport {
   ready: boolean;
   issues: string[];
   database: {
@@ -14,12 +14,12 @@ export interface IveKitVoicePreflightReport {
     runtime_role_safe: boolean;
   };
   address_keys: { configured: boolean; valid: boolean };
-  workers: IveKitVoiceWorkerConfig;
-  profiles: IveKitVoicePreflightProfile[];
+  workers: ConveractFabricVoiceWorkerConfig;
+  profiles: ConveractFabricVoicePreflightProfile[];
   verification_scope: 'configuration_and_database';
 }
 
-export interface IveKitVoicePreflightProfile {
+export interface ConveractFabricVoicePreflightProfile {
   adapter: VoiceAdapter;
   status: VoiceDeploymentProfile['status'];
   endpoint: SafeEndpoint | null;
@@ -58,19 +58,19 @@ interface ProfileRow extends Record<string, unknown> {
   capability_config_hash?: string | null;
 }
 
-export async function inspectIveKitVoice(input: {
+export async function inspectConveractFabricVoice(input: {
   pg: PgQueryable | null;
   env?: NodeJS.ProcessEnv;
   now?: () => Date;
-}): Promise<IveKitVoicePreflightReport> {
+}): Promise<ConveractFabricVoicePreflightReport> {
   const env = input.env || process.env;
   const now = input.now ?? (() => new Date());
   const issues = new Set<string>();
-  let workers: IveKitVoiceWorkerConfig;
+  let workers: ConveractFabricVoiceWorkerConfig;
   try {
-    workers = iveKitVoiceWorkerConfig(env);
+    workers = converactFabricVoiceWorkerConfig(env);
   } catch {
-    workers = iveKitVoiceWorkerConfig({});
+    workers = converactFabricVoiceWorkerConfig({});
     workers.enabled = String(resolveFabricEnv(env, 'VOICE_WORKERS_ENABLED') || '') === '1';
     issues.add('worker_config_invalid');
   }
@@ -107,7 +107,7 @@ export async function inspectIveKitVoice(input: {
 
   const profiles = rows.map((row) => inspectProfile(row, env, now(), issues));
   if (workers.enabled && migrationPresent && !profiles.length) issues.add('profile_missing');
-  const report: IveKitVoicePreflightReport = {
+  const report: ConveractFabricVoicePreflightReport = {
     ready: issues.size === 0,
     issues: [...issues].sort(),
     database: {
@@ -161,7 +161,7 @@ function inspectProfile(
   env: NodeJS.ProcessEnv,
   now: Date,
   issues: Set<string>
-): IveKitVoicePreflightProfile {
+): ConveractFabricVoicePreflightProfile {
   const profile = profileFromRow(row);
   const internalService = profile.config.internal_service === true;
   const endpoint = safeEndpoint(profile.base_url, env.NODE_ENV === 'production', internalService, issues);
@@ -231,7 +231,7 @@ function safeEndpoint(
   return { scheme: url.protocol, origin: url.origin, path: url.pathname };
 }
 
-function capabilityStatus(value: unknown): IveKitVoicePreflightProfile['capability']['status'] {
+function capabilityStatus(value: unknown): ConveractFabricVoicePreflightProfile['capability']['status'] {
   if (value === 'ready' || value === 'degraded' || value === 'not_available' || value === 'failed') return value;
   return 'missing';
 }
@@ -289,7 +289,7 @@ function stringRecord(value: unknown): Record<string, string> {
   ));
 }
 
-function assertSecretSafe(report: IveKitVoicePreflightReport, env: NodeJS.ProcessEnv): void {
+function assertSecretSafe(report: ConveractFabricVoicePreflightReport, env: NodeJS.ProcessEnv): void {
   const serialized = JSON.stringify(report);
   const secrets = Object.entries(env)
     .filter(([key, value]) => /(?:PASSWORD|TOKEN|SECRET|DATABASE_URL|ADDRESS_KEY)/.test(key)

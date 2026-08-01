@@ -24,7 +24,7 @@ export function buildVideoInviteSms(params: {
   const lang = params.language || 'ja';
   const template =
     SMS_TEMPLATES.video_call_invite[lang] || SMS_TEMPLATES.video_call_invite.ja;
-  return template.replace('{company}', params.company || 'OPC').replace('{url}', params.url);
+  return template.replace('{company}', params.company || 'Converact').replace('{url}', params.url);
 }
 
 export class LogSMSSender implements SMSSender {

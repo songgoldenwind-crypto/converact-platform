@@ -60,7 +60,7 @@ test('operation observer reuses forwarder retry and stable idempotency', async (
     external_id: 'rdgw-1', actor_identity: 'agent-1', operation_id: 'view-1',
     operation: 'view_screen', status: 'not_observed', observer: 'none'
   }], {
-    baseUrl: 'https://opc.example', apiToken: 'token', defaultExternalId: '',
+    baseUrl: 'https://converact.example', apiToken: 'token', defaultExternalId: '',
     defaultActorIdentity: 'observer', retryAttempts: 0
   }, async (_url, init) => {
     bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);

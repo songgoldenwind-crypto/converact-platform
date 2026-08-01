@@ -425,7 +425,7 @@ async function evidenceFixture(
     target: { type: 'device', id: device.rustdesk_id },
     permissions: ['view_screen', 'record_screen', 'transfer_file'],
     actor_identity: 'agent-evidence-owner',
-    launch_url: 'https://ivekit.example.com/rustdesk/evidence-session',
+    launch_url: 'https://fabric.converact.example.com/rustdesk/evidence-session',
     metadata: {
       rustdesk_device_id: device.id,
       rustdesk_id: device.rustdesk_id,

@@ -2,64 +2,64 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../db-pg.js';
 import { resolveAuthContext } from '../../middleware/auth.js';
-import { IveKitTenantEventStore, iveKitEventReplayEnabled } from './tenant-event-store.js';
-import { IVEKIT_INTEGRATION_EVENT_CATALOG } from './integration-events/catalog.js';
+import { ConveractFabricTenantEventStore, converactFabricEventReplayEnabled } from './tenant-event-store.js';
+import { CONVERACT_FABRIC_INTEGRATION_EVENT_CATALOG } from './integration-events/catalog.js';
 import type {
-  CreateIveKitEventWebhookSubscriptionInput,
-  IveKitEventWebhookSubscription,
-  IveKitEventWebhookSubscriptionCreateResult,
-  IveKitEventWebhookSubscriptionPage,
-  UpdateIveKitEventWebhookSubscriptionInput
+  CreateConveractFabricEventWebhookSubscriptionInput,
+  ConveractFabricEventWebhookSubscription,
+  ConveractFabricEventWebhookSubscriptionCreateResult,
+  ConveractFabricEventWebhookSubscriptionPage,
+  UpdateConveractFabricEventWebhookSubscriptionInput
 } from './integration-events/types.js';
-import { PostgresIveKitEventWebhookStore } from './integration-events/postgres-store.js';
-import { IveKitEventWebhookSubscriptionService } from './integration-events/subscription-service.js';
+import { PostgresConveractFabricEventWebhookStore } from './integration-events/postgres-store.js';
+import { ConveractFabricEventWebhookSubscriptionService } from './integration-events/subscription-service.js';
 import { PostgresNotificationStore } from './notifications/postgres/store.js';
-import { iveKitCapabilityAllowed } from './authorization.js';
+import { converactFabricCapabilityAllowed } from './authorization.js';
 import {
-  createPostgresIveKitAuditService,
-  type IveKitAuditService
+  createPostgresConveractFabricAuditService,
+  type ConveractFabricAuditService
 } from './operations/audit/index.js';
 import {
-  configuredIveKitRateLimiter,
-  iveKitRateLimitConfiguration,
-  type IveKitRateLimiter
+  configuredConveractFabricRateLimiter,
+  converactFabricRateLimitConfiguration,
+  type ConveractFabricRateLimiter
 } from './operations/rate-limit/index.js';
 
-export interface IveKitEventHttpModule {
+export interface ConveractFabricEventHttpModule {
   createSubscription(
-    input: CreateIveKitEventWebhookSubscriptionInput
-  ): Promise<IveKitEventWebhookSubscriptionCreateResult>;
-  getSubscription(tenantId: string, subscriptionId: string): Promise<IveKitEventWebhookSubscription | null>;
+    input: CreateConveractFabricEventWebhookSubscriptionInput
+  ): Promise<ConveractFabricEventWebhookSubscriptionCreateResult>;
+  getSubscription(tenantId: string, subscriptionId: string): Promise<ConveractFabricEventWebhookSubscription | null>;
   listSubscriptions(input: {
     tenant_id: string;
-    status?: IveKitEventWebhookSubscription['status'];
+    status?: ConveractFabricEventWebhookSubscription['status'];
     limit?: number;
     cursor?: string;
-  }): Promise<IveKitEventWebhookSubscriptionPage>;
-  updateSubscription(input: UpdateIveKitEventWebhookSubscriptionInput): Promise<IveKitEventWebhookSubscription>;
+  }): Promise<ConveractFabricEventWebhookSubscriptionPage>;
+  updateSubscription(input: UpdateConveractFabricEventWebhookSubscriptionInput): Promise<ConveractFabricEventWebhookSubscription>;
   archiveSubscription(input: {
     tenant_id: string;
     actor: string;
     subscription_id: string;
     expected_revision: number;
-  }): Promise<IveKitEventWebhookSubscription>;
+  }): Promise<ConveractFabricEventWebhookSubscription>;
 }
 
-export interface RouteIveKitEventApiOptions {
-  module?: IveKitEventHttpModule;
+export interface RouteConveractFabricEventApiOptions {
+  module?: ConveractFabricEventHttpModule;
   env?: NodeJS.ProcessEnv;
-  audit?: Pick<IveKitAuditService, 'append'> | null;
-  rateLimiter?: Pick<IveKitRateLimiter, 'check'> | null;
+  audit?: Pick<ConveractFabricAuditService, 'append'> | null;
+  rateLimiter?: Pick<ConveractFabricRateLimiter, 'check'> | null;
 }
 
-export async function routeIveKitEventApi(
+export async function routeConveractFabricEventApi(
   pg: PgQueryable | null,
   method: string,
   path: string,
   url: URL,
   headers: Record<string, string | string[] | undefined> = {},
   body?: unknown,
-  options: RouteIveKitEventApiOptions = {}
+  options: RouteConveractFabricEventApiOptions = {}
 ): Promise<unknown | undefined> {
   if (path !== '/api/ivekit/events' && !path.startsWith('/api/ivekit/events/')) return undefined;
 
@@ -70,15 +70,15 @@ export async function routeIveKitEventApi(
   }
 
   if (path === '/api/ivekit/events/catalog' && method === 'GET') {
-    return { data: IVEKIT_INTEGRATION_EVENT_CATALOG };
+    return { data: CONVERACT_FABRIC_INTEGRATION_EVENT_CATALOG };
   }
 
   const root = '/api/ivekit/events/webhook-subscriptions';
   if (path === root || path.startsWith(`${root}/`)) {
-    if (!iveKitCapabilityAllowed(auth, 'events.manage')) {
+    if (!converactFabricCapabilityAllowed(auth, 'events.manage')) {
       throw Object.assign(new Error('event subscription administration is forbidden'), { status: 403 });
     }
-    const module = options.module || createPostgresIveKitEventHttpModule(requiredPg(pg));
+    const module = options.module || createPostgresConveractFabricEventHttpModule(requiredPg(pg));
     if (path === root && method === 'GET') {
       const page = await module.listSubscriptions({
         tenant_id: auth.tenantId,
@@ -166,12 +166,12 @@ export async function routeIveKitEventApi(
   }
 
   if (path !== '/api/ivekit/events' || method !== 'GET') return undefined;
-  if (!iveKitEventReplayEnabled()) {
+  if (!converactFabricEventReplayEnabled()) {
     throw Object.assign(new Error('durable event replay is disabled'), { status: 503 });
   }
   if (!pg) throw Object.assign(new Error('PostgreSQL is required'), { status: 503 });
 
-  const store = new IveKitTenantEventStore(pg);
+  const store = new ConveractFabricTenantEventStore(pg);
   const cursor = String(url.searchParams.get('cursor') || '').trim();
   if (!cursor) {
     return {
@@ -194,9 +194,9 @@ export async function routeIveKitEventApi(
   return page.snapshot_required ? { status: 409, data: page } : { data: page };
 }
 
-export function createPostgresIveKitEventHttpModule(pg: PgQueryable): IveKitEventHttpModule {
-  const repository = new PostgresIveKitEventWebhookStore(pg);
-  const service = new IveKitEventWebhookSubscriptionService({
+export function createPostgresConveractFabricEventHttpModule(pg: PgQueryable): ConveractFabricEventHttpModule {
+  const repository = new PostgresConveractFabricEventWebhookStore(pg);
+  const service = new ConveractFabricEventWebhookSubscriptionService({
     repository,
     endpoints: new PostgresNotificationStore(pg)
   });
@@ -218,7 +218,7 @@ function queryLimit(value: string | null): number | undefined {
   return parsed;
 }
 
-function projectSubscription(value: IveKitEventWebhookSubscription): Record<string, unknown> {
+function projectSubscription(value: ConveractFabricEventWebhookSubscription): Record<string, unknown> {
   return {
     id: value.id,
     endpoint_id: value.endpoint_id,
@@ -270,12 +270,12 @@ function requiredInteger(value: unknown): number {
   return parsed;
 }
 
-function subscriptionStatus(value: string | null): IveKitEventWebhookSubscription['status'] | undefined {
+function subscriptionStatus(value: string | null): ConveractFabricEventWebhookSubscription['status'] | undefined {
   if (!value) return undefined;
   if (!['active', 'paused', 'archived'].includes(value)) {
     throw Object.assign(new Error('subscription status is invalid'), { status: 422 });
   }
-  return value as IveKitEventWebhookSubscription['status'];
+  return value as ConveractFabricEventWebhookSubscription['status'];
 }
 
 function mutableSubscriptionStatus(value: unknown): 'active' | 'paused' {
@@ -302,13 +302,13 @@ function decodeSegment(value: string): string {
 async function checkSubscriptionMutationRateLimit(
   pg: PgQueryable | null,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitEventApiOptions,
+  options: RouteConveractFabricEventApiOptions,
   tenantId: string,
   actorId: string
 ): Promise<void> {
-  const config = iveKitRateLimitConfiguration(options.env);
+  const config = converactFabricRateLimitConfiguration(options.env);
   if (!config.enabled || options.rateLimiter === null) return;
-  const limiter = options.rateLimiter || (pg ? configuredIveKitRateLimiter(pg, options.env) : null);
+  const limiter = options.rateLimiter || (pg ? configuredConveractFabricRateLimiter(pg, options.env) : null);
   if (!limiter) return;
   await limiter.check({
     tenant_id: tenantId,
@@ -333,18 +333,18 @@ async function checkSubscriptionMutationRateLimit(
 async function appendSubscriptionAudit(
   pg: PgQueryable | null,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitEventApiOptions,
+  options: RouteConveractFabricEventApiOptions,
   input: {
     tenant_id: string;
     actor_id: string;
     actor_role: 'owner' | 'admin' | 'operator' | 'viewer' | 'system';
     action: string;
-    subscription: IveKitEventWebhookSubscription;
+    subscription: ConveractFabricEventWebhookSubscription;
     metadata?: Record<string, unknown>;
   }
 ): Promise<void> {
   const audit = options.audit === undefined
-    ? (pg ? createPostgresIveKitAuditService(pg, options.env) : null)
+    ? (pg ? createPostgresConveractFabricAuditService(pg, options.env) : null)
     : options.audit;
   if (!audit) return;
   const requestId = safeRequestId(headers);

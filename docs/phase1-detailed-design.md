@@ -1,6 +1,6 @@
 # Phase 1 — AI 语音外呼闭环 · 细节设计
 
-> **目标**：OPC 触发一通外呼任务 → RustPBX 拨打 PSTN → 音频桥接到 LiveKit Room → AI Agent 对话 → CDR 写回。
+> **目标**：Converact Platform 触发一通外呼任务 → RustPBX 拨打 PSTN → 音频桥接到 LiveKit Room → AI Agent 对话 → CDR 写回。
 > **依赖**：Phase 0 全部通过。
 
 ---
@@ -109,7 +109,7 @@ RustPBX 主动推送通话事件（无 request_id）：
 }
 ```
 
-OPC 监听这些事件用于：
+Converact Platform 监听这些事件用于：
 - `ringing` → 更新 session.status = 'ringing'
 - `answered` → 更新 session.status = 'active', started_at
 - `hangup` → 触发 CDR 级别的 session 更新（CDR webhook 是最终真相）
@@ -304,7 +304,7 @@ services/ai-agent-py/
 │   ├── transfer_human.py    # 请求转人工 tool
 │   ├── schedule_callback.py # 预约回电 tool
 │   └── send_material.py     # 发送资料 tool
-├── opc_client.py             # OPC HTTP API 客户端
+├── converact_client.py             # Converact Platform HTTP API 客户端
 ├── scripts/
 │   └── loader.py             # 话术脚本加载
 ├── config.py                 # 环境变量配置
@@ -349,9 +349,9 @@ from plugins.tts_selector import select_tts
 from plugins.llm_config import get_llm
 from tools import check_intent, transfer_human, schedule_callback, send_material
 from scripts.loader import load_script
-from opc_client import OPCClient
+from converact_client import OPCClient
 
-opc = OPCClient()
+converact = OPCClient()
 
 async def handle_session(ctx: RtcSession):
     room_meta = json.loads(ctx.room.metadata or '{}')
@@ -373,12 +373,12 @@ async def handle_session(ctx: RtcSession):
         tts=tts,
     )
 
-    # 注入 OPC 上下文到 tools
+    # 注入 Converact Platform 上下文到 tools
     tools = [
-        check_intent.create(opc, call_session_id),
-        transfer_human.create(opc, ctx.room.name, tenant_id, call_session_id),
-        schedule_callback.create(opc, tenant_id),
-        send_material.create(opc, tenant_id),
+        check_intent.create(converact, call_session_id),
+        transfer_human.create(converact, ctx.room.name, tenant_id, call_session_id),
+        schedule_callback.create(converact, tenant_id),
+        send_material.create(converact, tenant_id),
     ]
 
     agent = Agent(
@@ -389,11 +389,11 @@ async def handle_session(ctx: RtcSession):
     # 上报 conversation turn 的回调
     @session.on("user_speech_committed")
     async def on_user_speech(text: str):
-        await opc.report_turn(call_session_id, 'customer', text)
+        await converact.report_turn(call_session_id, 'customer', text)
 
     @session.on("agent_speech_committed")
     async def on_agent_speech(text: str):
-        await opc.report_turn(call_session_id, 'ai', text)
+        await converact.report_turn(call_session_id, 'ai', text)
 
     await session.start(agent=agent, room=ctx.room)
     await session.generate_reply(instructions=script.greeting)
@@ -437,7 +437,7 @@ def select_tts(language: str):
 # tools/check_intent.py
 from livekit.agents import function_tool
 
-def create(opc_client, call_session_id):
+def create(converact_client, call_session_id):
     @function_tool(
         name="check_intent",
         description="分析当前对话判断客户意向等级。在客户表达兴趣、询问价格、确认时间时调用。"
@@ -465,7 +465,7 @@ def create(opc_client, call_session_id):
         score = min(score, 1.0)
         recommendation = 'transfer' if score >= 0.7 else 'continue'
 
-        await opc_client.report_intent(call_session_id, score, signals)
+        await converact_client.report_intent(call_session_id, score, signals)
         return {"score": score, "signals": signals, "recommendation": recommendation}
 
     return check_intent
@@ -477,13 +477,13 @@ def create(opc_client, call_session_id):
 # tools/transfer_human.py
 from livekit.agents import function_tool
 
-def create(opc_client, room_name, tenant_id, call_session_id):
+def create(converact_client, room_name, tenant_id, call_session_id):
     @function_tool(
         name="transfer_to_human",
         description="当客户意向高或请求人工服务时，请求转接给人工坐席。调用后你应告知客户'正在为您转接专人客服'。"
     )
     async def transfer_to_human(reason: str, customer_summary: str) -> dict:
-        result = await opc_client.request_transfer(
+        result = await converact_client.request_transfer(
             room_name=room_name,
             tenant_id=tenant_id,
             call_session_id=call_session_id,
@@ -495,19 +495,19 @@ def create(opc_client, room_name, tenant_id, call_session_id):
     return transfer_to_human
 ```
 
-### 3.7 OPC Client
+### 3.7 Converact Platform Client
 
 ```python
-# opc_client.py
+# converact_client.py
 import httpx
-from config import OPC_API_URL, OPC_API_KEY
+from config import CONVERACT_API_URL, CONVERACT_API_KEY
 
 class OPCClient:
     def __init__(self):
-        self.base_url = OPC_API_URL
+        self.base_url = CONVERACT_API_URL
         self.headers = {
             "Content-Type": "application/json",
-            "X-API-Key": OPC_API_KEY,
+            "X-API-Key": CONVERACT_API_KEY,
         }
         self.client = httpx.AsyncClient(timeout=10.0)
 
@@ -576,7 +576,7 @@ def load_script(script_id: str, language: str) -> Script:
 
 ---
 
-## 4. Phase 1 新增 OPC API
+## 4. Phase 1 新增 Converact Platform API
 
 ### 4.1 新端点
 
@@ -648,7 +648,7 @@ error                  error                          failed
 ## 6. Dialer 与 AI Agent 的协调时序
 
 ```
-  Dialer              OPC DB            LiveKit          RustPBX         AI Agent
+  Dialer              Converact Platform DB            LiveKit          RustPBX         AI Agent
     │                   │                  │               │               │
     │ create session    │                  │               │               │
     ├─────────────────►│                  │               │               │
@@ -690,7 +690,7 @@ error                  error                          failed
 | `dialer:pause:{tenantId}` | String | 租户暂停外呼标记 | 无 (手动删除) |
 | `call:active:{callId}` | Hash | 通话实时状态缓存 | 3600s |
 
-### 7.1 OPC Redis 连接
+### 7.1 Converact Platform Redis 连接
 
 ```typescript
 // src/agent-runtime/call-center/redis-client.ts

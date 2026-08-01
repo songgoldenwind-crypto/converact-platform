@@ -4,7 +4,7 @@ from tools.check_compliance import run_check_compliance
 from tools.disclosure_complete import run_disclosure_complete
 
 
-class FakeOpc:
+class FakeConveract:
     def __init__(self) -> None:
         self.compliance_calls: list[tuple[str, str, str]] = []
         self.disclosure_calls: list[tuple[str, str]] = []
@@ -19,8 +19,8 @@ class FakeOpc:
 
 
 @pytest.mark.asyncio
-async def test_run_check_compliance_calls_opc_api():
-    fake = FakeOpc()
+async def test_run_check_compliance_calls_converact_api():
+    fake = FakeConveract()
     result = await run_check_compliance(
         fake,
         tenant_id="tenant_1",
@@ -34,7 +34,7 @@ async def test_run_check_compliance_calls_opc_api():
 
 @pytest.mark.asyncio
 async def test_run_check_compliance_requires_tenant_id():
-    fake = FakeOpc()
+    fake = FakeConveract()
     result = await run_check_compliance(fake, tenant_id="", phone_number="+8613800138000")
     assert result["allowed"] is False
     assert result["reason"] == "tenant_id_missing"
@@ -43,7 +43,7 @@ async def test_run_check_compliance_requires_tenant_id():
 
 @pytest.mark.asyncio
 async def test_run_disclosure_complete_records_consent():
-    fake = FakeOpc()
+    fake = FakeConveract()
     result = await run_disclosure_complete(
         fake,
         call_session_id="call_1",

@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "OPC Call Center API",
+    "title": "Converact Platform Call Center API",
     "version": "1.0.0",
     "description": "呼叫中心开放平台 API（Sprint 10）"
   },

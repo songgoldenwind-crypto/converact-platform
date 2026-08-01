@@ -2,7 +2,7 @@
 set -euo pipefail
 
 : "${HOMER_SOURCE_DIR:?HOMER_SOURCE_DIR is required}"
-: "${IVEKIT_HOMER_IMAGE:?IVEKIT_HOMER_IMAGE is required}"
+: "${CONVERACT_FABRIC_HOMER_IMAGE:?CONVERACT_FABRIC_HOMER_IMAGE is required}"
 : "${HOMER_BUILDER_IMAGE:?HOMER_BUILDER_IMAGE immutable digest reference is required}"
 : "${HOMER_NODE_IMAGE:?HOMER_NODE_IMAGE immutable digest reference is required}"
 : "${HOMER_RUNTIME_IMAGE:?HOMER_RUNTIME_IMAGE immutable digest reference is required}"
@@ -37,12 +37,12 @@ docker build \
   --build-arg "TARGETARCH=${HOMER_TARGETARCH}" \
   --label "org.opencontainers.image.revision=${EXPECTED_COMMIT}" \
   --label "org.opencontainers.image.version=11.0.297-ivekit.2" \
-  --label "io.ivekit.component=homer" \
-  --tag "${IVEKIT_HOMER_IMAGE}" \
+  --label "io.converact.component=homer" \
+  --tag "${CONVERACT_FABRIC_HOMER_IMAGE}" \
   "${HOMER_SOURCE_DIR}"
 
 VERSION_OUTPUT="$(
-  docker run --rm --entrypoint /usr/local/bin/homer "${IVEKIT_HOMER_IMAGE}" version
+  docker run --rm --entrypoint /usr/local/bin/homer "${CONVERACT_FABRIC_HOMER_IMAGE}" version
 )"
 if [[ "${VERSION_OUTPUT}" != *"commit ${EXPECTED_COMMIT:0:8}"* ]]; then
   printf 'HOMER binary revision mismatch: expected commit %s\n%s\n' \
@@ -50,4 +50,4 @@ if [[ "${VERSION_OUTPUT}" != *"commit ${EXPECTED_COMMIT:0:8}"* ]]; then
   exit 1
 fi
 
-printf '%s\n' "${IVEKIT_HOMER_IMAGE}"
+printf '%s\n' "${CONVERACT_FABRIC_HOMER_IMAGE}"

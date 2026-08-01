@@ -7,10 +7,10 @@
     "node": ">=24.0.0 <25.0.0"
   },
   "scripts": {
-    "tinode-composite": "node --import tsx scripts/ivekit-capacity-tinode-composite.ts",
-    "tinode-provision": "node --import tsx scripts/ivekit-capacity-tinode-provision.ts",
-    "tinode-staircase": "node --import tsx scripts/ivekit-capacity-tinode-staircase.ts",
-    "sip-kamailio-staircase": "node --import tsx scripts/ivekit-capacity-sip-kamailio-staircase.ts"
+    "tinode-composite": "node --import tsx scripts/converact-capacity-tinode-composite.ts",
+    "tinode-provision": "node --import tsx scripts/converact-capacity-tinode-provision.ts",
+    "tinode-staircase": "node --import tsx scripts/converact-capacity-tinode-staircase.ts",
+    "sip-kamailio-staircase": "node --import tsx scripts/converact-capacity-sip-kamailio-staircase.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1092.0",

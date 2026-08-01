@@ -36,7 +36,7 @@ L4 VIP
 ```
 
 JSON-RPC 只监听 Pod loopback，NetworkPolicy 和配置同时拒绝非 `127.0.0.1` 来源。Kamailio
-自身没有 PostgreSQL、Redis 或 iveKit API 凭据。
+自身没有 PostgreSQL、Redis 或 Converact Fabric API 凭据。
 
 ### 2.1 Cell/Zone 发布单元
 
@@ -52,8 +52,8 @@ JSON-RPC 只监听 Pod loopback，NetworkPolicy 和配置同时拒绝非 `127.0.
   因此节点防火墙、安全组和独占 RTP 端口预算是生产必选项，不能只依赖 Chart policy。
 
 生产镜像固定为上游 `kamailio/kamailio@6.0.7` 源码构建，源码归档 SHA-256、模块集合、
-amd64/arm64 buildx、SBOM 和 provenance 由 `infra/ivekit/kamailio/` 固化。历史
-`kamailio/kamailio:5.8` 镜像引用无对应制品，不得继续使用；部署只接受 iveKit registry
+amd64/arm64 buildx、SBOM 和 provenance 由 `infra/converact/kamailio/` 固化。历史
+`kamailio/kamailio:5.8` 镜像引用无对应制品，不得继续使用；部署只接受 Converact Fabric registry
 中的 `@sha256:` 引用。
 
 ## 3. 路由快照
@@ -176,7 +176,7 @@ pin set ID 由控制面稳定分配并随节点身份持久，不能按列表顺
 
 ### 5.4 WebPhone、REGISTER 与 Edge 间位置同步
 
-WebPhone 不再直连任意 RustPBX。iveKit 先签发 30-300 秒的 extension session，浏览器再携带短期
+WebPhone 不再直连任意 RustPBX。Converact Fabric 先签发 30-300 秒的 extension session，浏览器再携带短期
 JWT 建立 WSS。Edge 必须逐项完成以下验证：精确 HTTPS Origin、HS256 签名、`iss`、`aud`、`exp/nbf`
 和合法 `sub`。通过后本地 htable 只保存 `connection id -> sub`，不保存完整浏览器 token，也不通过
 DMQ 复制连接级身份。

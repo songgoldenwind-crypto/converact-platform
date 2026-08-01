@@ -1,10 +1,10 @@
 runtimeMode: userspace
 
 nodeSelector:
-  ivekit.io/rtpengine-userspace-ready: "true"
+  converact.io/rtpengine-userspace-ready: "true"
 
 tolerations:
-  - key: ivekit.io/media-node
+  - key: converact.io/media-node
     operator: Equal
     value: "true"
     effect: NoSchedule
@@ -13,7 +13,7 @@ terminationGracePeriodSeconds: 45
 
 rtpengine:
   image:
-    repository: ghcr.io/example/ivekit-rtpengine-userspace
+    repository: ghcr.io/example/converact-rtpengine-userspace
     digest: ""
     pullPolicy: IfNotPresent
   interfaceFromHostIP: true
@@ -38,7 +38,7 @@ rtpengine:
 
 voiceMedia:
   image:
-    repository: ghcr.io/example/ivekit-voice-media
+    repository: ghcr.io/example/converact-voice-media
     digest: ""
     pullPolicy: IfNotPresent
   clientIdentity: media-control-sidecar
@@ -75,13 +75,13 @@ mediaControl:
     scheduledDelayMs: "5000"
     exportTimeoutMs: "10000"
   image:
-    repository: ghcr.io/example/ivekit-media-control
+    repository: ghcr.io/example/converact-media-control
     digest: ""
     pullPolicy: IfNotPresent
   admissionEndpoint: http://127.0.0.1:3210
   admissionRequireMtls: false
-  existingSecret: ivekit-media-control
-  tlsSecret: ivekit-media-control-tls
+  existingSecret: converact-media-control
+  tlsSecret: converact-media-control-tls
   maxReservations: 100000
   maxTerminalReservations: 100000
   maxCommandsPerReservation: 16
@@ -107,7 +107,7 @@ mediaControl:
     maxSessions: 100000
     maxCommands: 1600000
   wal:
-    hostPath: /var/lib/ivekit-media-control
+    hostPath: /var/lib/converact-media-control
     maxRecords: 1000000
     maxBytes: 268435456
     maxRecordBytes: 2097152

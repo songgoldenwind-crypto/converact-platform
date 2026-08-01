@@ -1,26 +1,26 @@
-{{- define "ivekit-homer.name" -}}
-ivekit-homer
+{{- define "converact-homer.name" -}}
+converact-homer
 {{- end }}
 
-{{- define "ivekit-homer.fullname" -}}
+{{- define "converact-homer.fullname" -}}
 {{- printf "%s-homer" .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "ivekit-homer.labels" -}}
-app.kubernetes.io/name: {{ include "ivekit-homer.name" . }}
+{{- define "converact-homer.labels" -}}
+app.kubernetes.io/name: {{ include "converact-homer.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/component: homer
 {{- end }}
 
-{{- define "ivekit-homer.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "ivekit-homer.name" . }}
+{{- define "converact-homer.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "converact-homer.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: homer
 {{- end }}
 
-{{- define "ivekit-homer.image" -}}
+{{- define "converact-homer.image" -}}
 {{- $repository := required "image.repository is required" .Values.image.repository -}}
 {{- $digest := required "image.digest is required" .Values.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -29,9 +29,9 @@ app.kubernetes.io/component: homer
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "ivekit-homer.validate" -}}
+{{- define "converact-homer.validate" -}}
 {{- if ne .Values.homer.catalogType "postgres" -}}
-{{- fail "homer.catalogType must be postgres; iveKit does not deploy SQLite" -}}
+{{- fail "homer.catalogType must be postgres; Converact Fabric does not deploy SQLite" -}}
 {{- end -}}
 {{- if ne (int .Values.replicaCount) 1 -}}
 {{- fail "replicaCount must be 1; deploy one independent release per Cell" -}}

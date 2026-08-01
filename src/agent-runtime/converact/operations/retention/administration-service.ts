@@ -1,24 +1,24 @@
-import type { IveKitRetentionPolicyRepository } from './ports.js';
-import { IveKitRetentionError } from './errors.js';
+import type { ConveractFabricRetentionPolicyRepository } from './ports.js';
+import { ConveractFabricRetentionError } from './errors.js';
 import type {
-  IveKitLegalHold,
-  IveKitLegalHoldCreateInput,
-  IveKitRetentionCategory,
-  IveKitRetentionPolicy,
-  IveKitRetentionPolicyWrite
+  ConveractFabricLegalHold,
+  ConveractFabricLegalHoldCreateInput,
+  ConveractFabricRetentionCategory,
+  ConveractFabricRetentionPolicy,
+  ConveractFabricRetentionPolicyWrite
 } from './types.js';
 
-export class IveKitRetentionAdministrationService {
+export class ConveractFabricRetentionAdministrationService {
   constructor(
-    private readonly repository: IveKitRetentionPolicyRepository,
+    private readonly repository: ConveractFabricRetentionPolicyRepository,
     private readonly now: () => Date = () => new Date()
   ) {}
 
-  listPolicies(tenantId: string): Promise<IveKitRetentionPolicy[]> {
+  listPolicies(tenantId: string): Promise<ConveractFabricRetentionPolicy[]> {
     return this.repository.listPolicies(requiredText(tenantId, 255));
   }
 
-  putPolicy(input: Omit<IveKitRetentionPolicyWrite, 'now'>): Promise<IveKitRetentionPolicy> {
+  putPolicy(input: Omit<ConveractFabricRetentionPolicyWrite, 'now'>): Promise<ConveractFabricRetentionPolicy> {
     return this.repository.putPolicy({
       tenant_id: requiredText(input.tenant_id, 255),
       category: category(input.category),
@@ -36,7 +36,7 @@ export class IveKitRetentionAdministrationService {
     tenant_id: string;
     category?: string;
     status?: 'active' | 'released';
-  }): Promise<IveKitLegalHold[]> {
+  }): Promise<ConveractFabricLegalHold[]> {
     return this.repository.listLegalHolds({
       tenant_id: requiredText(input.tenant_id, 255),
       category: input.category === undefined ? undefined : category(input.category),
@@ -45,8 +45,8 @@ export class IveKitRetentionAdministrationService {
   }
 
   placeLegalHold(
-    input: Omit<IveKitLegalHoldCreateInput, 'now'>
-  ): Promise<{ hold: IveKitLegalHold; created: boolean }> {
+    input: Omit<ConveractFabricLegalHoldCreateInput, 'now'>
+  ): Promise<{ hold: ConveractFabricLegalHold; created: boolean }> {
     return this.repository.placeLegalHold({
       tenant_id: requiredText(input.tenant_id, 255),
       category: category(input.category),
@@ -63,7 +63,7 @@ export class IveKitRetentionAdministrationService {
     tenant_id: string;
     hold_id: string;
     actor: string;
-  }): Promise<IveKitLegalHold> {
+  }): Promise<ConveractFabricLegalHold> {
     return this.repository.releaseLegalHold({
       tenant_id: requiredText(input.tenant_id, 255),
       hold_id: requiredText(input.hold_id, 255),
@@ -78,9 +78,9 @@ const CATEGORIES = new Set([
   'media_recordings', 'tenant_events'
 ]);
 
-function category(value: unknown): IveKitRetentionCategory {
+function category(value: unknown): ConveractFabricRetentionCategory {
   if (!CATEGORIES.has(String(value))) throw validationError();
-  return value as IveKitRetentionCategory;
+  return value as ConveractFabricRetentionCategory;
 }
 
 function holdStatus(value: unknown): 'active' | 'released' {
@@ -113,5 +113,5 @@ function boolean(value: unknown): boolean {
 }
 
 function validationError(): Error {
-  return new IveKitRetentionError('validation_failed', 422);
+  return new ConveractFabricRetentionError('validation_failed', 422);
 }

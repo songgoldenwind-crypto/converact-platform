@@ -2,7 +2,7 @@
 
 **Supersedes（M1 路径，ADR-4 E1）：** 自 [`ivr-4-genesys-audio-queue.md`](./ivr-4-genesys-audio-queue.md) 落地起，**队列未 flush 前**的 barge-in 由 `gather_digits.prompt_queue` / `flush_play_queue` 的 `interruptible` 驱动；`IVR_BARGE_IN_PRODUCTION` **不再改变** M1 语义（图配置即行为）。下列 env 闸门仅约束 **独立 `play_audio`** 路径（若生产仍单独下发 play action）。
 
-**Status:** Provisional（OPC Phase B 以环境变量灰度，待 RustPBX 团队书面确认）  
+**Status:** Provisional（Converact Platform Phase B 以环境变量灰度，待 RustPBX 团队书面确认）
 **Date:** 2026-06-25
 
 ## 背景
@@ -11,13 +11,13 @@
 
 ## 闸门结论（待 RustPBX 确认）
 
-| 项 | OPC 假设（Phase B） | 待确认 |
+| 项 | Converact Platform 假设（Phase B） | 待确认 |
 |----|---------------------|--------|
 | `play_audio.interruptible` | 已映射至 RWI（`ivr-rwi-bridge.ts`） | 参数名是否一致 |
 | 播中 DTMF | 媒体层 `digits_collected` → `advance({ playCompleted, bargeInDigits })` | 是否停止 TTS 并立即上报 |
 | 无原生支持时 | `IVR_BARGE_IN_PRODUCTION` 保持未设置；设计器仍可配置，生产不转换 | 2-G0.3 降级 |
 
-## OPC 决策
+## Converact Platform 决策
 
 1. **Phase A**（已完成）：模拟器 + `interruptible` action + 单元测试。
 2. **Phase B**（本 ADR）：`IVR_BARGE_IN_PRODUCTION=1` 时，`advanceIvrStep` 将播中 `dtmf` 转为 `playCompleted + bargeInDigits`（**仅限非 ADR-4 队列路径**）。

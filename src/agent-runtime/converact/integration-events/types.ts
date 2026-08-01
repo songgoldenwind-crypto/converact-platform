@@ -1,12 +1,12 @@
-export type IveKitEventWebhookSubscriptionStatus = 'active' | 'paused' | 'archived';
+export type ConveractFabricEventWebhookSubscriptionStatus = 'active' | 'paused' | 'archived';
 
-export interface IveKitEventWebhookSubscription {
+export interface ConveractFabricEventWebhookSubscription {
   id: string;
   tenant_id: string;
   endpoint_id: string;
   name: string;
   event_patterns: string[];
-  status: IveKitEventWebhookSubscriptionStatus;
+  status: ConveractFabricEventWebhookSubscriptionStatus;
   last_event_id: string;
   next_attempt_at: string;
   attempt_count: number;
@@ -23,7 +23,7 @@ export interface IveKitEventWebhookSubscription {
   updated_at: string;
 }
 
-export interface CreateIveKitEventWebhookSubscriptionInput {
+export interface CreateConveractFabricEventWebhookSubscriptionInput {
   tenant_id: string;
   actor: string;
   endpoint_id: string;
@@ -32,17 +32,17 @@ export interface CreateIveKitEventWebhookSubscriptionInput {
   idempotency_key: string;
 }
 
-export interface IveKitEventWebhookSubscriptionCreateResult {
-  subscription: IveKitEventWebhookSubscription;
+export interface ConveractFabricEventWebhookSubscriptionCreateResult {
+  subscription: ConveractFabricEventWebhookSubscription;
   created: boolean;
 }
 
-export interface IveKitEventWebhookSubscriptionPage {
-  items: IveKitEventWebhookSubscription[];
+export interface ConveractFabricEventWebhookSubscriptionPage {
+  items: ConveractFabricEventWebhookSubscription[];
   next_cursor: string | null;
 }
 
-export interface UpdateIveKitEventWebhookSubscriptionInput {
+export interface UpdateConveractFabricEventWebhookSubscriptionInput {
   tenant_id: string;
   actor: string;
   subscription_id: string;
@@ -54,7 +54,7 @@ export interface UpdateIveKitEventWebhookSubscriptionInput {
   };
 }
 
-export interface IveKitIntegrationEventEnvelope<T = unknown> {
+export interface ConveractFabricIntegrationEventEnvelope<T = unknown> {
   schema_version: 1;
   event_id: string;
   event_type: string;
@@ -69,20 +69,20 @@ export interface IveKitIntegrationEventEnvelope<T = unknown> {
   data: T;
 }
 
-export interface IveKitWebhookDeliveryEnvelope<T = unknown> {
+export interface ConveractFabricWebhookDeliveryEnvelope<T = unknown> {
   id: string;
   event: string;
   tenant_id: string;
   timestamp: string;
   business_ref: { type: string; id: string };
-  data: IveKitIntegrationEventEnvelope<T>;
+  data: ConveractFabricIntegrationEventEnvelope<T>;
 }
 
-export interface IveKitStoredIntegrationEvent {
+export interface ConveractFabricStoredIntegrationEvent {
   id: string;
   tenant_id: string;
   event_type: string;
-  visibility_scope: IveKitIntegrationEventEnvelope['visibility']['scope'];
+  visibility_scope: ConveractFabricIntegrationEventEnvelope['visibility']['scope'];
   visibility_ref_id: string;
   audience_user_ids: string[];
   payload: unknown;

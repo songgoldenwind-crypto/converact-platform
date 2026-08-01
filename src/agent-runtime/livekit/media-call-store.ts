@@ -1,12 +1,12 @@
 import { MemoryPg, pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
 import type {
-  IveKitMediaCall,
-  IveKitMediaCallAction,
-  IveKitMediaModerationActionRecord,
-  IveKitMediaModerationCommandRecord,
-  IveKitMediaCallParticipant,
-  IveKitMediaCallSnapshot,
-  IveKitMediaTrackSource,
+  ConveractFabricMediaCall,
+  ConveractFabricMediaCallAction,
+  ConveractFabricMediaModerationActionRecord,
+  ConveractFabricMediaModerationCommandRecord,
+  ConveractFabricMediaCallParticipant,
+  ConveractFabricMediaCallSnapshot,
+  ConveractFabricMediaTrackSource,
   MediaBusinessRef
 } from './types.js';
 
@@ -27,7 +27,7 @@ export class MediaCallStore {
     title: string;
     metadata: Record<string, unknown>;
     ring_timeout_seconds: number;
-  }): Promise<IveKitMediaCall> {
+  }): Promise<ConveractFabricMediaCall> {
     const callId = input.id || pgId('mcall');
     const result = await this.pg.query(
       `INSERT INTO ivekit_media_calls
@@ -39,7 +39,7 @@ export class MediaCallStore {
       [
         callId,
         input.tenant_id,
-        input.room_name || `ivekit-${callId}`,
+        input.room_name || `converact-${callId}`,
         input.media,
         input.initiated_by,
         input.business_ref.type,
@@ -58,11 +58,11 @@ export class MediaCallStore {
     tenant_id: string;
     call_id: string;
     identity: string;
-    role: IveKitMediaCallParticipant['role'];
-    status: IveKitMediaCallParticipant['status'];
+    role: ConveractFabricMediaCallParticipant['role'];
+    status: ConveractFabricMediaCallParticipant['status'];
     display_name?: string;
     metadata?: Record<string, unknown>;
-  }): Promise<IveKitMediaCallParticipant> {
+  }): Promise<ConveractFabricMediaCallParticipant> {
     const joinedAt = input.status === 'joined' ? new Date().toISOString() : null;
     const result = await this.pg.query(
       `INSERT INTO ivekit_media_call_participants
@@ -88,7 +88,7 @@ export class MediaCallStore {
     tenantId: string,
     callId: string,
     options: { forUpdate?: boolean } = {}
-  ): Promise<IveKitMediaCall | null> {
+  ): Promise<ConveractFabricMediaCall | null> {
     const result = await this.pg.query(
       `SELECT * FROM ivekit_media_calls
        WHERE tenant_id = $1 AND id = $2${options.forUpdate ? ' FOR UPDATE' : ''}`,
@@ -101,7 +101,7 @@ export class MediaCallStore {
     tenantId: string,
     roomName: string,
     options: { forUpdate?: boolean } = {}
-  ): Promise<IveKitMediaCall | null> {
+  ): Promise<ConveractFabricMediaCall | null> {
     const result = await this.pg.query(
       `SELECT * FROM ivekit_media_calls
        WHERE tenant_id = $1 AND room_name = $2${options.forUpdate ? ' FOR UPDATE' : ''}`,
@@ -115,7 +115,7 @@ export class MediaCallStore {
     business_ref: Pick<MediaBusinessRef, 'type' | 'id'>;
     identity?: string;
     limit?: number;
-  }): Promise<IveKitMediaCall[]> {
+  }): Promise<ConveractFabricMediaCall[]> {
     const tenantId = String(input.tenant_id || '').trim();
     const type = String(input.business_ref?.type || '').trim();
     const id = String(input.business_ref?.id || '').trim();
@@ -141,7 +141,7 @@ export class MediaCallStore {
     return result.rows.map(decodeCall);
   }
 
-  async listParticipants(tenantId: string, callId: string): Promise<IveKitMediaCallParticipant[]> {
+  async listParticipants(tenantId: string, callId: string): Promise<ConveractFabricMediaCallParticipant[]> {
     const result = await this.pg.query(
       `SELECT * FROM ivekit_media_call_participants
        WHERE tenant_id = $1 AND call_id = $2
@@ -155,7 +155,7 @@ export class MediaCallStore {
     tenantId: string,
     now: Date,
     limit = 25
-  ): Promise<IveKitMediaCall[]> {
+  ): Promise<ConveractFabricMediaCall[]> {
     const boundedLimit = Math.max(1, Math.min(100, Math.floor(limit)));
     const result = await this.pg.query(
       `SELECT * FROM ivekit_media_calls
@@ -168,13 +168,13 @@ export class MediaCallStore {
     return result.rows.map(decodeCall);
   }
 
-  async snapshot(tenantId: string, callId: string): Promise<IveKitMediaCallSnapshot | null> {
+  async snapshot(tenantId: string, callId: string): Promise<ConveractFabricMediaCallSnapshot | null> {
     const call = await this.getCall(tenantId, callId);
     if (!call) return null;
     return { call, participants: await this.listParticipants(tenantId, callId) };
   }
 
-  async updateCall(call: IveKitMediaCall): Promise<IveKitMediaCall> {
+  async updateCall(call: ConveractFabricMediaCall): Promise<ConveractFabricMediaCall> {
     const result = await this.pg.query(
       `UPDATE ivekit_media_calls
        SET status = $3, ring_expires_at = $4, accepted_at = $5, started_at = $6,
@@ -195,7 +195,7 @@ export class MediaCallStore {
     return decodeCall(result.rows[0]);
   }
 
-  async updateParticipant(participant: IveKitMediaCallParticipant): Promise<IveKitMediaCallParticipant> {
+  async updateParticipant(participant: ConveractFabricMediaCallParticipant): Promise<ConveractFabricMediaCallParticipant> {
     const result = await this.pg.query(
       `UPDATE ivekit_media_call_participants
        SET status = $4, accepted_at = $5, joined_at = $6, left_at = $7,
@@ -218,7 +218,7 @@ export class MediaCallStore {
   async getActionByIdempotencyKey(tenantId: string, idempotencyKey: string): Promise<{
     call_id: string;
     payload_hash: string;
-    result_snapshot: IveKitMediaCallSnapshot;
+    result_snapshot: ConveractFabricMediaCallSnapshot;
   } | null> {
     const result = await this.pg.query(
       `SELECT call_id, payload_hash, result_snapshot
@@ -230,7 +230,7 @@ export class MediaCallStore {
     return {
       call_id: String(result.rows[0].call_id),
       payload_hash: String(result.rows[0].payload_hash),
-      result_snapshot: jsonValue<IveKitMediaCallSnapshot>(result.rows[0].result_snapshot)
+      result_snapshot: jsonValue<ConveractFabricMediaCallSnapshot>(result.rows[0].result_snapshot)
     };
   }
 
@@ -248,13 +248,13 @@ export class MediaCallStore {
     call_id: string;
     idempotency_key: string;
     payload_hash: string;
-    action: IveKitMediaCallAction;
+    action: ConveractFabricMediaCallAction;
     actor_identity: string;
     reason: string;
     metadata: Record<string, unknown>;
-    from_status: IveKitMediaCall['status'];
-    to_status: IveKitMediaCall['status'];
-    result_snapshot: IveKitMediaCallSnapshot;
+    from_status: ConveractFabricMediaCall['status'];
+    to_status: ConveractFabricMediaCall['status'];
+    result_snapshot: ConveractFabricMediaCallSnapshot;
   }): Promise<void> {
     await this.pg.query(
       `INSERT INTO ivekit_media_call_actions
@@ -288,12 +288,12 @@ export class MediaCallStore {
     idempotency_key: string;
     payload_hash: string;
     track_sid?: string;
-    source?: IveKitMediaTrackSource;
+    source?: ConveractFabricMediaTrackSource;
     muted?: boolean;
     reason?: string;
     metadata?: Record<string, unknown>;
     result_snapshot: Record<string, unknown>;
-  }): Promise<IveKitMediaModerationActionRecord> {
+  }): Promise<ConveractFabricMediaModerationActionRecord> {
     const result = await this.pg.query(
       `INSERT INTO ivekit_media_moderation_actions
         (id, tenant_id, call_id, room_name, participant_identity, action, actor_identity,
@@ -324,7 +324,7 @@ export class MediaCallStore {
   async getModerationActionByIdempotencyKey(
     tenantId: string,
     idempotencyKey: string
-  ): Promise<IveKitMediaModerationActionRecord | null> {
+  ): Promise<ConveractFabricMediaModerationActionRecord | null> {
     const result = await this.pg.query(
       `SELECT * FROM ivekit_media_moderation_actions
        WHERE tenant_id = $1 AND idempotency_key = $2`,
@@ -336,7 +336,7 @@ export class MediaCallStore {
   async listModerationActions(
     tenantId: string,
     callId: string
-  ): Promise<IveKitMediaModerationActionRecord[]> {
+  ): Promise<ConveractFabricMediaModerationActionRecord[]> {
     const result = await this.pg.query(
       `SELECT * FROM ivekit_media_moderation_actions
        WHERE tenant_id = $1 AND call_id = $2
@@ -357,7 +357,7 @@ export class MediaCallStore {
     idempotency_key: string;
     payload_hash: string;
     request_payload: Record<string, unknown>;
-  }): Promise<IveKitMediaModerationCommandRecord> {
+  }): Promise<ConveractFabricMediaModerationCommandRecord> {
     const inserted = await this.pg.query(
       `INSERT INTO ivekit_media_moderation_commands
         (id, tenant_id, call_id, room_name, participant_identity, action, actor_identity,
@@ -391,7 +391,7 @@ export class MediaCallStore {
   async getModerationCommandByIdempotencyKey(
     tenantId: string,
     idempotencyKey: string
-  ): Promise<IveKitMediaModerationCommandRecord | null> {
+  ): Promise<ConveractFabricMediaModerationCommandRecord | null> {
     const result = await this.pg.query(
       `SELECT * FROM ivekit_media_moderation_commands
        WHERE tenant_id = $1 AND idempotency_key = $2`,
@@ -403,7 +403,7 @@ export class MediaCallStore {
   async listPendingModerationCommands(
     tenantId: string,
     limit = 50
-  ): Promise<IveKitMediaModerationCommandRecord[]> {
+  ): Promise<ConveractFabricMediaModerationCommandRecord[]> {
     const result = await this.pg.query(
       `SELECT * FROM ivekit_media_moderation_commands
        WHERE tenant_id = $1 AND status = 'pending'
@@ -417,11 +417,11 @@ export class MediaCallStore {
   async updateModerationCommand(input: {
     tenant_id: string;
     idempotency_key: string;
-    status: IveKitMediaModerationCommandRecord['status'];
+    status: ConveractFabricMediaModerationCommandRecord['status'];
     result_snapshot?: Record<string, unknown> | null;
     error_code?: string;
     error_message?: string;
-  }): Promise<IveKitMediaModerationCommandRecord | null> {
+  }): Promise<ConveractFabricMediaModerationCommandRecord | null> {
     const result = await this.pg.query(
       `UPDATE ivekit_media_moderation_commands
        SET status = $3, result_snapshot = $4, error_code = $5, error_message = $6,
@@ -442,13 +442,13 @@ export class MediaCallStore {
   }
 }
 
-function decodeCall(row: Record<string, unknown>): IveKitMediaCall {
+function decodeCall(row: Record<string, unknown>): ConveractFabricMediaCall {
   return {
     id: String(row.id),
     tenant_id: String(row.tenant_id),
     room_name: String(row.room_name),
-    media: String(row.media) as IveKitMediaCall['media'],
-    status: String(row.status) as IveKitMediaCall['status'],
+    media: String(row.media) as ConveractFabricMediaCall['media'],
+    status: String(row.status) as ConveractFabricMediaCall['status'],
     initiated_by: String(row.initiated_by),
     business_ref: {
       tenant_id: String(row.tenant_id),
@@ -470,14 +470,14 @@ function decodeCall(row: Record<string, unknown>): IveKitMediaCall {
   };
 }
 
-function decodeParticipant(row: Record<string, unknown>): IveKitMediaCallParticipant {
+function decodeParticipant(row: Record<string, unknown>): ConveractFabricMediaCallParticipant {
   return {
     id: String(row.id),
     tenant_id: String(row.tenant_id),
     call_id: String(row.call_id),
     identity: String(row.identity),
-    role: String(row.role) as IveKitMediaCallParticipant['role'],
-    status: String(row.status) as IveKitMediaCallParticipant['status'],
+    role: String(row.role) as ConveractFabricMediaCallParticipant['role'],
+    status: String(row.status) as ConveractFabricMediaCallParticipant['status'],
     display_name: String(row.display_name || ''),
     metadata: jsonObject(row.metadata),
     invited_at: timestamp(row.invited_at),
@@ -485,33 +485,33 @@ function decodeParticipant(row: Record<string, unknown>): IveKitMediaCallPartici
     joined_at: nullableTimestamp(row.joined_at),
     left_at: nullableTimestamp(row.left_at),
     connection_revision: Number(row.connection_revision || 0),
-    connection_state: String(row.connection_state || 'disconnected') as IveKitMediaCallParticipant['connection_state'],
+    connection_state: String(row.connection_state || 'disconnected') as ConveractFabricMediaCallParticipant['connection_state'],
     connection_updated_at: nullableTimestamp(row.connection_updated_at),
     last_disconnected_at: nullableTimestamp(row.last_disconnected_at),
     last_rejoined_at: nullableTimestamp(row.last_rejoined_at),
-    quality_state: String(row.quality_state || 'unknown') as IveKitMediaCallParticipant['quality_state'],
+    quality_state: String(row.quality_state || 'unknown') as ConveractFabricMediaCallParticipant['quality_state'],
     quality_degraded_streak: Number(row.quality_degraded_streak || 0),
     quality_recovered_streak: Number(row.quality_recovered_streak || 0),
-    last_quality_level: String(row.last_quality_level || 'unknown') as IveKitMediaCallParticipant['last_quality_level'],
+    last_quality_level: String(row.last_quality_level || 'unknown') as ConveractFabricMediaCallParticipant['last_quality_level'],
     last_quality_sample_id: String(row.last_quality_sample_id || ''),
     last_qos_at: nullableTimestamp(row.last_qos_at),
     updated_at: timestamp(row.updated_at)
   };
 }
 
-function decodeModerationAction(row: Record<string, unknown>): IveKitMediaModerationActionRecord {
+function decodeModerationAction(row: Record<string, unknown>): ConveractFabricMediaModerationActionRecord {
   return {
     id: String(row.id),
     tenant_id: String(row.tenant_id),
     call_id: String(row.call_id),
     room_name: String(row.room_name),
     participant_identity: String(row.participant_identity),
-    action: String(row.action) as IveKitMediaModerationActionRecord['action'],
+    action: String(row.action) as ConveractFabricMediaModerationActionRecord['action'],
     actor_identity: String(row.actor_identity),
     idempotency_key: String(row.idempotency_key),
     payload_hash: String(row.payload_hash),
     track_sid: String(row.track_sid || ''),
-    source: String(row.source || '') as IveKitMediaModerationActionRecord['source'],
+    source: String(row.source || '') as ConveractFabricMediaModerationActionRecord['source'],
     muted: row.muted == null ? null : Boolean(row.muted),
     reason: String(row.reason || ''),
     metadata: jsonObject(row.metadata),
@@ -520,20 +520,20 @@ function decodeModerationAction(row: Record<string, unknown>): IveKitMediaModera
   };
 }
 
-function decodeModerationCommand(row: Record<string, unknown>): IveKitMediaModerationCommandRecord {
+function decodeModerationCommand(row: Record<string, unknown>): ConveractFabricMediaModerationCommandRecord {
   return {
     id: String(row.id),
     tenant_id: String(row.tenant_id),
     call_id: String(row.call_id),
     room_name: String(row.room_name),
     participant_identity: String(row.participant_identity),
-    action: String(row.action) as IveKitMediaModerationCommandRecord['action'],
+    action: String(row.action) as ConveractFabricMediaModerationCommandRecord['action'],
     actor_identity: String(row.actor_identity),
     actor_is_system: Boolean(row.actor_is_system),
     idempotency_key: String(row.idempotency_key),
     payload_hash: String(row.payload_hash),
     request_payload: jsonObject(row.request_payload),
-    status: String(row.status) as IveKitMediaModerationCommandRecord['status'],
+    status: String(row.status) as ConveractFabricMediaModerationCommandRecord['status'],
     result_snapshot: row.result_snapshot == null ? null : jsonObject(row.result_snapshot),
     error_code: String(row.error_code || ''),
     error_message: String(row.error_message || ''),

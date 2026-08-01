@@ -1,6 +1,6 @@
 import type { AuthContext, AuthRole } from '../../middleware/auth.js';
 
-export type IveKitCapability =
+export type ConveractFabricCapability =
   | 'events.manage'
   | 'notifications.create'
   | 'notifications.force_delivery'
@@ -12,7 +12,7 @@ export type IveKitCapability =
   | 'retention.read'
   | 'retention.manage';
 
-const capabilityRoles: Readonly<Record<IveKitCapability, ReadonlySet<AuthRole>>> = {
+const capabilityRoles: Readonly<Record<ConveractFabricCapability, ReadonlySet<AuthRole>>> = {
   'events.manage': roles('owner', 'admin', 'system'),
   'notifications.create': roles('owner', 'admin', 'operator', 'system'),
   'notifications.force_delivery': roles('owner', 'admin', 'system'),
@@ -25,9 +25,9 @@ const capabilityRoles: Readonly<Record<IveKitCapability, ReadonlySet<AuthRole>>>
   'retention.manage': roles('owner', 'admin', 'system')
 };
 
-export function iveKitCapabilityAllowed(
+export function converactFabricCapabilityAllowed(
   auth: Pick<AuthContext, 'authenticated' | 'role' | 'tenantId' | 'userId'>,
-  capability: IveKitCapability
+  capability: ConveractFabricCapability
 ): boolean {
   return Boolean(auth.tenantId && auth.userId) && capabilityRoles[capability].has(auth.role);
 }

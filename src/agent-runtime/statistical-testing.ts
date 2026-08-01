@@ -103,7 +103,7 @@ function chiSquareToPValue(chi_square: number): number {
  *
  * Effect size thresholds (Cohen's conventions):
  * h = 0.2 (small)
- * h = 0.5 (medium) ← OPC standard for practical significance
+ * h = 0.5 (medium) ← Converact standard for practical significance
  * h = 0.8 (large)
  */
 function calculateEffectSize(results: TestResults): number {

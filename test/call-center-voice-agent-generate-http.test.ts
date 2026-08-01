@@ -9,7 +9,7 @@ const db = createDatabase(':memory:');
 const server = createServer(db);
 let baseUrl = '';
 let tenantId = '';
-const apiKey = 'dev-opc-key';
+const apiKey = 'dev-converact-key';
 
 before(async () => {
   process.env.CONVERACT_API_KEY = apiKey;
@@ -42,7 +42,7 @@ test('POST /api/voice-agents/generate creates draft spec from goal', async () =>
       tenant_id: tenantId,
       goal: '邀请客户参加线上产品演示',
       industry: 'SaaS',
-      brand_name: 'OPC',
+      brand_name: 'Converact',
       language: 'zh'
     },
     { 'X-API-Key': apiKey }
@@ -51,7 +51,7 @@ test('POST /api/voice-agents/generate creates draft spec from goal', async () =>
   const body = res.data as { id: string; status: string; generation_source: string; runtime: { greeting: string } };
   assert.equal(body.status, 'draft');
   assert.equal(body.generation_source, 'template');
-  assert.ok(body.runtime.greeting.includes('OPC'));
+  assert.ok(body.runtime.greeting.includes('Converact'));
 
   (globalThis as any).__generatedSpecId = body.id;
 });

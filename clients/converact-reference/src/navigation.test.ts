@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { readIveKitLocation, sessionLocationPatch, updateIveKitLocation } from './navigation.js';
+import { readConveractFabricLocation, sessionLocationPatch, updateConveractFabricLocation } from './navigation.js';
 
-test('iveKit navigation parses complete resource deep links and call fallback', () => {
-  assert.deepEqual(readIveKitLocation(
+test('Converact Fabric navigation parses complete resource deep links and call fallback', () => {
+  assert.deepEqual(readConveractFabricLocation(
     'https://led.example/support?workspace=remote&business_ref_type=service_order&business_ref_id=SO-1&session_id=chat-1&call_id=call-1&voice_call_id=voice-1&remote_session_id=remote-1'
   ), {
     workspace: 'remote',
@@ -15,18 +15,18 @@ test('iveKit navigation parses complete resource deep links and call fallback', 
     remoteSessionId: 'remote-1',
     flowId: ''
   });
-  assert.equal(readIveKitLocation('https://led.example/support?call_id=call-2').workspace, 'calls');
-  assert.equal(readIveKitLocation('https://led.example/support?voice_call_id=voice-2').workspace, 'voice');
-  assert.equal(readIveKitLocation('https://led.example/support?workspace=quality').workspace, 'quality');
-  assert.equal(readIveKitLocation('https://led.example/support?workspace=operations').workspace, 'operations');
-  assert.equal(readIveKitLocation('https://led.example/support?workspace=ivr&flow_id=flow-1').workspace, 'ivr');
-  assert.equal(readIveKitLocation('https://led.example/support?workspace=ivr&flow_id=flow-1').flowId, 'flow-1');
-  assert.equal(readIveKitLocation('https://led.example/support?workspace=unknown').workspace, 'messages');
+  assert.equal(readConveractFabricLocation('https://led.example/support?call_id=call-2').workspace, 'calls');
+  assert.equal(readConveractFabricLocation('https://led.example/support?voice_call_id=voice-2').workspace, 'voice');
+  assert.equal(readConveractFabricLocation('https://led.example/support?workspace=quality').workspace, 'quality');
+  assert.equal(readConveractFabricLocation('https://led.example/support?workspace=operations').workspace, 'operations');
+  assert.equal(readConveractFabricLocation('https://led.example/support?workspace=ivr&flow_id=flow-1').workspace, 'ivr');
+  assert.equal(readConveractFabricLocation('https://led.example/support?workspace=ivr&flow_id=flow-1').flowId, 'flow-1');
+  assert.equal(readConveractFabricLocation('https://led.example/support?workspace=unknown').workspace, 'messages');
 });
 
-test('iveKit navigation updates only patched fields and removes empty resources', () => {
+test('Converact Fabric navigation updates only patched fields and removes empty resources', () => {
   const source = 'https://led.example/support?host=embedded&session_id=chat-1&call_id=call-1';
-  const next = updateIveKitLocation(source, {
+  const next = updateConveractFabricLocation(source, {
     workspace: 'remote',
     businessRef: { type: 'service_order', id: 'SO-2' },
     sessionId: '',
@@ -45,9 +45,9 @@ test('iveKit navigation updates only patched fields and removes empty resources'
   assert.equal(next.searchParams.get('flow_id'), 'flow-2');
 });
 
-test('iveKit navigation rejects incomplete business references', () => {
-  assert.equal(readIveKitLocation('https://led.example/?business_ref_type=service_order').businessRef, null);
-  const next = updateIveKitLocation('https://led.example/?business_ref_type=old&business_ref_id=1', {
+test('Converact Fabric navigation rejects incomplete business references', () => {
+  assert.equal(readConveractFabricLocation('https://led.example/?business_ref_type=service_order').businessRef, null);
+  const next = updateConveractFabricLocation('https://led.example/?business_ref_type=old&business_ref_id=1', {
     businessRef: null
   });
   assert.equal(next.searchParams.has('business_ref_type'), false);

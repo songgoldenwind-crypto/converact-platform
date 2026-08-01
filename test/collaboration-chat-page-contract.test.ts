@@ -70,7 +70,7 @@ test('collaboration chat page requests a Tinode client join plan', () => {
   assert.match(page, /apiPost<CollaborationChatClientPlan>/);
 });
 
-test('collaboration chat page uses the receive-only Tinode adapter and iveKit state APIs', () => {
+test('collaboration chat page uses the receive-only Tinode adapter and Converact Fabric state APIs', () => {
   const page = readFileSync('frontend/src/pages/CollaborationChatPage.tsx', 'utf8');
   const adapter = readFileSync('frontend/src/pages/tinode-realtime.ts', 'utf8');
   assert.match(page, /new TinodeRealtimeAdapter/);

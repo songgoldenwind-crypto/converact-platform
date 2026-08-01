@@ -4,7 +4,7 @@ import {
   type SafeIntelligenceProviderProfile
 } from '../collaboration/intelligence-provider-registry.js';
 
-export interface IveKitIntelligencePreflightReport {
+export interface ConveractFabricIntelligencePreflightReport {
   ready: boolean;
   issues: string[];
   database: { configured: boolean };
@@ -23,9 +23,9 @@ interface WorkerBudget {
   claim_lease_ms: number | null;
 }
 
-export function inspectIveKitIntelligenceEnv(
+export function inspectConveractFabricIntelligenceEnv(
   env: NodeJS.ProcessEnv = process.env
-): IveKitIntelligencePreflightReport {
+): ConveractFabricIntelligencePreflightReport {
   const issues: string[] = [];
   const databaseConfigured = hasValue(env.DATABASE_URL) || (
     hasValue(env.PGHOST) && hasValue(env.PGDATABASE) && hasValue(env.PGUSER)
@@ -90,7 +90,7 @@ export function inspectIveKitIntelligenceEnv(
     }
   }
 
-  const report: IveKitIntelligencePreflightReport = {
+  const report: ConveractFabricIntelligencePreflightReport = {
     ready: issues.length === 0,
     issues: [...new Set(issues)],
     database: { configured: databaseConfigured },
@@ -156,7 +156,7 @@ function secretValues(env: NodeJS.ProcessEnv, tokenEnvNames: string[]): string[]
   return names.map((name) => String(resolveConveractEnv(env, name) || '')).filter((value) => value.length >= 6);
 }
 
-function assertSecretSafe(report: IveKitIntelligencePreflightReport, secrets: string[]): void {
+function assertSecretSafe(report: ConveractFabricIntelligencePreflightReport, secrets: string[]): void {
   const serialized = JSON.stringify(report);
   if (secrets.some((secret) => serialized.includes(secret))) {
     throw new Error('intelligence preflight report failed secret-safety validation');

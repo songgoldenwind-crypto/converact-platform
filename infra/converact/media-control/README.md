@@ -1,4 +1,4 @@
-# iveKit Media Control Agent
+# Converact Fabric Media Control Agent
 
 This image is the cell-local RustPBX-to-media-node control agent.
 It provides the versioned owner/reservation/epoch/command_sequence contract,
@@ -8,7 +8,7 @@ metrics.
 Three transport modes are compiled:
 
 - `simulator` is limited to development and controlled Goal 1 acceptance;
-- `rtpengine` executes the G.711 relay fast path against the pinned iveKit
+- `rtpengine` executes the G.711 relay fast path against the pinned Converact Fabric
   RTPengine fork;
 - `hybrid` routes `g711-relay-v1` to RTPengine and
   `VOICE-IVR-G711-OPUS-V1` to the Cell-local `voice-media-rs` processing
@@ -17,37 +17,37 @@ Three transport modes are compiled:
 Development simulator configuration:
 
 ```text
-IVEKIT_MEDIA_CONTROL_PRODUCTION=false
-IVEKIT_MEDIA_CONTROL_TRANSPORT=simulator
-IVEKIT_MEDIA_CONTROL_TOKEN_FILE=/run/secrets/media-control-token
-IVEKIT_MEDIA_CONTROL_ADMISSION_ENDPOINT=http://rustpbx:3210
-IVEKIT_MEDIA_CONTROL_ADMISSION_TOKEN_FILE=/run/secrets/component-node-token
+CONVERACT_FABRIC_MEDIA_CONTROL_PRODUCTION=false
+CONVERACT_FABRIC_MEDIA_CONTROL_TRANSPORT=simulator
+CONVERACT_FABRIC_MEDIA_CONTROL_TOKEN_FILE=/run/secrets/media-control-token
+CONVERACT_FABRIC_MEDIA_CONTROL_ADMISSION_ENDPOINT=http://rustpbx:3210
+CONVERACT_FABRIC_MEDIA_CONTROL_ADMISSION_TOKEN_FILE=/run/secrets/component-node-token
 ```
 
 Production additionally requires:
 
 ```text
-IVEKIT_MEDIA_CONTROL_PRODUCTION=true
-IVEKIT_MEDIA_CONTROL_TRANSPORT=hybrid
-IVEKIT_RTPENGINE_NG_ENDPOINT=tcp://rtpengine:22222
-IVEKIT_RTPENGINE_RUNTIME_MODE=userspace
-IVEKIT_PROCESSING_MEDIA_ENDPOINT=http://127.0.0.1:8093
-IVEKIT_PROCESSING_MEDIA_TOKEN_FILE=/run/secrets/voice-media-processing-token
-IVEKIT_PROCESSING_MEDIA_CLIENT_IDENTITY=media-control-sidecar
-IVEKIT_MEDIA_CONTROL_WAL_DIRECTORY=/var/lib/ivekit-media-control
-IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORDS=1000000
-IVEKIT_MEDIA_CONTROL_WAL_MAX_BYTES=268435456
-IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORD_BYTES=2097152
-IVEKIT_MEDIA_CONTROL_TLS_KEY_FILE=/run/secrets/media-control-tls-key
-IVEKIT_MEDIA_CONTROL_TLS_CERT_FILE=/run/secrets/media-control-tls-cert
-IVEKIT_MEDIA_CONTROL_TLS_CA_FILE=/run/secrets/media-control-tls-ca
-IVEKIT_MEDIA_CONTROL_ADMISSION_ENDPOINT=http://127.0.0.1:3210
-IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS=false
+CONVERACT_FABRIC_MEDIA_CONTROL_PRODUCTION=true
+CONVERACT_FABRIC_MEDIA_CONTROL_TRANSPORT=hybrid
+CONVERACT_FABRIC_RTPENGINE_NG_ENDPOINT=tcp://rtpengine:22222
+CONVERACT_FABRIC_RTPENGINE_RUNTIME_MODE=userspace
+CONVERACT_FABRIC_PROCESSING_MEDIA_ENDPOINT=http://127.0.0.1:8093
+CONVERACT_FABRIC_PROCESSING_MEDIA_TOKEN_FILE=/run/secrets/voice-media-processing-token
+CONVERACT_FABRIC_PROCESSING_MEDIA_CLIENT_IDENTITY=media-control-sidecar
+CONVERACT_FABRIC_MEDIA_CONTROL_WAL_DIRECTORY=/var/lib/converact-media-control
+CONVERACT_FABRIC_MEDIA_CONTROL_WAL_MAX_RECORDS=1000000
+CONVERACT_FABRIC_MEDIA_CONTROL_WAL_MAX_BYTES=268435456
+CONVERACT_FABRIC_MEDIA_CONTROL_WAL_MAX_RECORD_BYTES=2097152
+CONVERACT_FABRIC_MEDIA_CONTROL_TLS_KEY_FILE=/run/secrets/media-control-tls-key
+CONVERACT_FABRIC_MEDIA_CONTROL_TLS_CERT_FILE=/run/secrets/media-control-tls-cert
+CONVERACT_FABRIC_MEDIA_CONTROL_TLS_CA_FILE=/run/secrets/media-control-tls-ca
+CONVERACT_FABRIC_MEDIA_CONTROL_ADMISSION_ENDPOINT=http://127.0.0.1:3210
+CONVERACT_FABRIC_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS=false
 ```
 
 Production permits admission without mTLS only for the exact loopback HTTP
 endpoint above. A non-loopback component-node endpoint must use HTTPS and set
-`IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS=true` together with the admission
+`CONVERACT_FABRIC_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS=true` together with the admission
 client key, certificate, and CA files. RustPBX-to-media-control traffic always
 uses mTLS in production.
 
@@ -77,7 +77,7 @@ CONVERACT_FABRIC_MEDIA_GOAL1_CONTAINER_NAME=<running-media-control-container> \
 CONVERACT_FABRIC_MEDIA_GOAL1_RENDERED_CONFIG_FILE=<saved-compose-config> \
 CONVERACT_FABRIC_MEDIA_GOAL1_GENERATED_AT=<ISO-8601-UTC-timestamp> \
 CONVERACT_FABRIC_MEDIA_GOAL1_ACCEPTANCE_DIR=<new-empty-output-directory> \
-npm run ivekit:voice-media-goal1:acceptance
+npm run converact:voice-media-goal1:acceptance
 ```
 
 The controlled output proves Goal 1 fencing, idempotency, lifecycle, uncertainty
@@ -91,7 +91,7 @@ persistence as `not_run`.
 ## Goal 2 RTPengine Runtime
 
 RustPBX owns Call, Leg, Dialog, routing policy, and the logical media graph.
-The media-control agent is the only iveKit caller of RTPengine. RTPengine owns
+The media-control agent is the only Converact Fabric caller of RTPengine. RTPengine owns
 effective wire SDP, relay ports, packet forwarding, SRTP state, drain state,
 and its native transport counters.
 
@@ -114,7 +114,7 @@ Deployment rules:
 Before replacing an RTPengine process:
 
 1. remove the media node from new-call placement;
-2. run `scripts/ivekit-rtpengine-drain.ts` against its private NG endpoint;
+2. run `scripts/converact-rtpengine-drain.ts` against its private NG endpoint;
 3. verify new offers are rejected and wait for the active-call count to reach
    zero;
 4. retain the rendered config, image digest, WAL, and evidence before replacing
@@ -139,7 +139,7 @@ facts; it must not copy an active RTP transport through Redis or PostgreSQL.
 
 ## Kernel Compatibility And Fallback
 
-`IVEKIT_RTPENGINE_RUNTIME_MODE` accepts `userspace`, `kernel`, or `auto`.
+`CONVERACT_FABRIC_RTPENGINE_RUNTIME_MODE` accepts `userspace`, `kernel`, or `auto`.
 `kernel` fails closed unless the loaded `nft_rtpengine` source identity matches
 the identity embedded in the runtime image. `auto` may select userspace only
 with an explicit fallback metric and a distinct capacity profile.
@@ -153,15 +153,15 @@ The finalizer reads the immutable contract, supply-chain evidence, lifecycle
 stages, every retained acceptance attempt, and the complete failure matrix:
 
 ```bash
-IVEKIT_RTPENGINE_GOAL2_CONTRACT=<absolute-contract-path> \
-IVEKIT_RTPENGINE_GOAL2_SUPPLY_CHAIN=<absolute-supply-chain-path> \
-IVEKIT_RTPENGINE_GOAL2_STAGES=<absolute-stage-evidence-path> \
-IVEKIT_RTPENGINE_GOAL2_ATTEMPTS=<absolute-attempt-manifest-path> \
-IVEKIT_RTPENGINE_GOAL2_FAILURE_EVIDENCE=<absolute-failure-evidence-path> \
-IVEKIT_RTPENGINE_GOAL2_GENERATED_AT=<ISO-8601-UTC-timestamp> \
-IVEKIT_RTPENGINE_GOAL2_CAPACITY_CLAIM=none \
-IVEKIT_RTPENGINE_GOAL2_OUTPUT=<new-absolute-output-path> \
-npm run ivekit:voice-media-goal2:finalize
+CONVERACT_FABRIC_RTPENGINE_GOAL2_CONTRACT=<absolute-contract-path> \
+CONVERACT_FABRIC_RTPENGINE_GOAL2_SUPPLY_CHAIN=<absolute-supply-chain-path> \
+CONVERACT_FABRIC_RTPENGINE_GOAL2_STAGES=<absolute-stage-evidence-path> \
+CONVERACT_FABRIC_RTPENGINE_GOAL2_ATTEMPTS=<absolute-attempt-manifest-path> \
+CONVERACT_FABRIC_RTPENGINE_GOAL2_FAILURE_EVIDENCE=<absolute-failure-evidence-path> \
+CONVERACT_FABRIC_RTPENGINE_GOAL2_GENERATED_AT=<ISO-8601-UTC-timestamp> \
+CONVERACT_FABRIC_RTPENGINE_GOAL2_CAPACITY_CLAIM=none \
+CONVERACT_FABRIC_RTPENGINE_GOAL2_OUTPUT=<new-absolute-output-path> \
+npm run converact:voice-media-goal2:finalize
 ```
 
 The output is created once with mode `0600`. Functional acceptance can promote

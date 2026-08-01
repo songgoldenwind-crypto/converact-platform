@@ -2,7 +2,10 @@
   "$schema": "./converact-naming-policy.schema.json",
   "schema_version": 1,
   "brand": {
-    "legacy": ["OPC", "iveKit"],
+    "legacy": [
+      "OPC",
+      "iveKit"
+    ],
     "current": "Converact"
   },
   "repository": {
@@ -10,8 +13,15 @@
     "current": "songgoldenwind-crypto/converact-platform"
   },
   "environment": {
-    "legacyPrefixes": ["OPC_", "OPC_IVEKIT_"],
-    "currentPrefixes": ["CONVERACT_", "CONVERACT_FABRIC_"]
+    "legacyPrefixes": [
+      "OPC_",
+      "OPC_IVEKIT_",
+      "IVEKIT_"
+    ],
+    "currentPrefixes": [
+      "CONVERACT_",
+      "CONVERACT_FABRIC_"
+    ]
   },
   "classifications": {
     "compatibility": [
@@ -19,16 +29,33 @@
         "id": "rename_migration_control",
         "path_globs": [
           "config/branding/**",
-          "docs/design/2026-07-31-converact-*.md",
+          "docs/design/2026-07-31-converact-full-rename-implementation-plan.md",
+          "docs/design/2026-07-31-converact-naming-and-repository-migration-design.md",
           "docs/design/converact-rename-inventory.md",
+          "docs/capacity/forks/converact-rustdesk-client-rename-v2.json",
           "docs/migrations/**",
-          "scripts/converact-*.ts",
-          "test/converact-*.test.ts"
+          "scripts/converact-env-codemod.ts",
+          "scripts/converact-name-inventory.ts",
+          "scripts/lib/converact-product-contract.ts",
+          "scripts/verify-converact-naming.ts",
+          "test/converact-historical-artifact-preservation.test.ts",
+          "test/converact-name-inventory.test.ts",
+          "test/converact-name-migration-compatibility.test.ts",
+          "test/converact-naming-policy.test.ts",
+          "test/converact-capacity-fork-status.test.ts",
+          "test/converact-product-identity.test.ts",
+          "test/converact-product-contract-compatibility.test.ts"
         ],
-        "tokens": ["OPC", "OPC_", "iveKit", "songgoldenwind-crypto/opc-platform"],
+        "tokens": [
+          "OPC",
+          "OPC_",
+          "iveKit",
+          "songgoldenwind-crypto/opc-platform"
+        ],
         "reason": "The migration contract, verifier, tests, and guide must name legacy inputs explicitly.",
         "owner": "platform-foundation",
-        "removal_condition": "Retain while any supported legacy alias or historical repository redirect exists."
+        "removal_condition": "Retain while any supported legacy alias or historical repository redirect exists.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
       },
       {
         "id": "environment_compatibility_alias",
@@ -40,51 +67,2219 @@
           "scripts/converact-env-compat.sh",
           "scripts/converact-env-compat.ps1",
           "scripts/test-converact-env-compat.ps1",
+          "scripts/rustdesk-audit-export.ts",
+          "scripts/rustdesk-client-config-pack.ts",
+          "scripts/rustdesk-client-profile-pack.ts",
+          "scripts/rustdesk-deployment-preflight.ts",
+          "scripts/rustdesk-handoff-pack.ts",
           "test/converact-env.test.ts",
           "test/converact-env-shell.test.ts",
           "test/converact-env-powershell.test.ts",
+          "test/converact-rustpbx-route-snapshot.test.ts",
+          "test/web-assist-token-env.test.ts",
           "services/ai-agent-py/tests/test_converact_env.py"
         ],
-        "tokens": ["OPC_", "OPC_IVEKIT_"],
+        "tokens": [
+          "OPC_",
+          "OPC_IVEKIT_",
+          "IVEKIT_"
+        ],
         "reason": "Supported legacy environment keys are parsed only by tested compatibility boundaries.",
         "owner": "platform-foundation",
-        "removal_condition": "Remove after the documented compatibility window and observed legacy-use count reach zero."
+        "removal_condition": "Remove after the documented compatibility window and observed legacy-use count reach zero.",
+        "evidence": "test/converact-env.test.ts"
+      },
+      {
+        "id": "frontend_auth_storage_compatibility",
+        "path_globs": [
+          "frontend/src/auth-storage.ts",
+          "services/agent-panel/dist/**",
+          "services/agent-panel/src/lib/auth-storage.ts",
+          "test/converact-agent-panel-auth-storage.test.ts",
+          "test/converact-frontend-auth-storage.test.ts"
+        ],
+        "tokens": [
+          "OPC"
+        ],
+        "reason": "The browser auth-storage boundary reads and removes legacy opc_* keys once, migrates their values into converact_* keys, and writes only the current namespace.",
+        "owner": "console-platform",
+        "removal_condition": "Remove after the documented browser-session compatibility window and observed legacy-key migration count reach zero.",
+        "evidence": "test/converact-frontend-auth-storage.test.ts"
       },
       {
         "id": "repository_rename_record",
-        "path_globs": ["docs/operations/converact-repository-rename-runbook.md"],
-        "tokens": ["OPC", "iveKit", "songgoldenwind-crypto/opc-platform"],
+        "path_globs": [
+          "docs/operations/converact-repository-rename-runbook.md"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit",
+          "songgoldenwind-crypto/opc-platform"
+        ],
         "reason": "The repository migration record must identify both ends of the completed rename.",
         "owner": "platform-foundation",
-        "removal_condition": "Retain permanently as an operational migration record."
+        "removal_condition": "Retain permanently as an operational migration record.",
+        "evidence": "docs/operations/converact-repository-rename-runbook.md"
+      },
+      {
+        "id": "immutable_database_migrations",
+        "path_globs": [
+          "src/migrations/**",
+          "services/converact-service/migrations/**"
+        ],
+        "tokens": [
+          "OPC",
+          "OPC_",
+          "iveKit",
+          "songgoldenwind-crypto/opc-platform"
+        ],
+        "reason": "Applied migration filenames, checksums, roles, tables, indexes, and event identifiers are append-only compatibility surfaces.",
+        "owner": "data-platform",
+        "removal_condition": "Retain while any supported installation may contain the migration or its persisted identifiers.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "immutable_versioned_machine_contracts",
+        "path_globs": [
+          "docs/architecture/communication-technology-baseline-v1.json",
+          "docs/architecture/component-authority-matrix-v1.json",
+          "docs/architecture/valkey-command-inventory-v1.json",
+          "docs/capacity/contracts/**",
+          "docs/capacity/phase1-controlled-status.json",
+          "docs/capacity/profiles/**",
+          "docs/capacity/schemas/**",
+          "docs/capacity/targets/**"
+        ],
+        "exclude_path_globs": [
+          "docs/capacity/contracts/unified-voice-foundation-historical-objective.md",
+          "docs/capacity/contracts/unified-voice-foundation-r4-*"
+        ],
+        "tokens": [
+          "OPC",
+          "OPC_",
+          "iveKit",
+          "IVEKIT_",
+          "songgoldenwind-crypto/opc-platform"
+        ],
+        "reason": "Published versioned architecture records, capacity contracts, schemas, profiles, targets, and status artifacts remain byte-stable; a name change requires a newly versioned successor.",
+        "owner": "platform-assurance",
+        "removal_condition": "Never rewrite an existing version; supersede it with a reviewed Converact version and update consumers explicitly.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "stable_wire_and_sdk_identifiers",
+        "path_globs": [
+          ".env.example",
+          ".github/**",
+          "clients/**",
+          "config/**",
+          "docker-compose*.yml",
+          "docs/**",
+          "frontend/**",
+          "goals/**",
+          "infra/**",
+          "integrations/**",
+          "package.json",
+          "public/**",
+          "scripts/**",
+          "sdk/**",
+          "services/**",
+          "src/**",
+          "test/**"
+        ],
+        "exclude_path_globs": [
+          "docs/capacity/contracts/unified-voice-foundation-historical-objective.md",
+          "docs/evidence/**",
+          "docs/superpowers/**",
+          "docs/审核文档.md",
+          "docs/audit-2026-06/**",
+          "docs/capacity/forks/ivekit-forks-v1.json",
+          "docs/capacity/phase2-code-status.json",
+          "docs/capacity/contracts/unified-voice-foundation-r4-*",
+          "docs/converact-fabric-voice-foundation-v1-design.md",
+          "docs/converact-fabric-v3-completion-audit.md",
+          "docs/iveKit服务器部署验收报告-*.md",
+          "docs/代码质量审查报告-*.md",
+          "docs/design/2026-07-25-converact-fabric-voice-media-control-goal1-implementation-plan.md",
+          "docs/design/2026-07-26-converact-fabric-rtpengine-goal2-implementation-plan.md",
+          "docs/design/2026-07-26-converact-fabric-rustpbx-rtpengine-goal3-implementation-plan.md",
+          "patches/**",
+          "**/*.patch"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "(?:^|/)api/(?:opc|ivekit)(?:/|$)",
+          "^/ivekit$",
+          "^ivekit://",
+          "^(?:io\\.)?ivekit\\.[a-z0-9_.-]+$"
+        ],
+        "reason": "Versioned HTTP routes, published legacy SDK coordinates, durable source-reference URIs, and wire protocol identifiers remain byte-stable during the product rename.",
+        "owner": "platform-api",
+        "removal_condition": "Change only through a separately versioned protocol or API migration with dual-read, drain, and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "openapi_v1_identifiers",
+        "path_globs": [
+          "docs/openapi.yaml"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "reason": "The versioned OpenAPI document retains published /api/ivekit routes, IveKit schema and operation identifiers, and X-OPC/X-ivekit authentication headers while its title, tags and product descriptions use Converact.",
+        "owner": "platform-api",
+        "removal_condition": "Change only through a separately versioned API with dual publication, generated-client compatibility, consumer migration and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "kamailio_recovery_header_assertions",
+        "path_globs": [
+          "test/converact-kamailio-dialog-recovery-routing.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "reason": "The recovery-routing regression test asserts the exact deployed X-IveKit-* SIP header ABI while current test credentials, issuer and service DNS use Converact names.",
+        "owner": "voice-foundation",
+        "removal_condition": "Replace only through a versioned SIP edge protocol with mixed-version routing, drain and rollback evidence.",
+        "evidence": "test/converact-kamailio-dialog-recovery-routing.test.ts"
+      },
+      {
+        "id": "kamailio_metric_and_control_assertions",
+        "path_globs": [
+          "test/converact-kamailio-route-agent.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "reason": "The route-agent regression test asserts deployed Kamailio metric series and HEP control hash names exactly; all temporary resources and product-facing configuration in the test use Converact names.",
+        "owner": "voice-foundation",
+        "removal_condition": "Replace only through versioned dual-published metrics and control-state migration with dashboard, alert and mixed-version evidence.",
+        "evidence": "test/converact-kamailio-route-agent.test.ts"
+      },
+      {
+        "id": "legacy_sdk_alias",
+        "path_globs": [
+          "config/branding/**",
+          "docs/migrations/**",
+          "sdk/converact/src/legacy-fabric-v1-aliases.ts",
+          "test/converact-*.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^@opc/ivekit-sdk(?:/.*)?$"
+        ],
+        "reason": "The published legacy SDK coordinate is named only by its compatibility shim, migration guide, and contract tests.",
+        "owner": "platform-api",
+        "removal_condition": "Remove after the published package compatibility window closes and observed legacy imports reach zero.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "im_acceptance_v1_endpoint_alias",
+        "path_globs": [
+          "scripts/converact-im-client-acceptance.ts",
+          "test/converact-im-client-acceptance.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^endpoints\\.ivekit$",
+          "^report\\.endpoints\\.ivekit$",
+          "^ivekit$",
+          "^ivekit:$"
+        ],
+        "reason": "The current IM acceptance template emits endpoints.converact while the validator dual-reads the published v1 endpoints.ivekit field during the evidence compatibility window.",
+        "owner": "platform-assurance",
+        "removal_condition": "Remove after all retained v1 acceptance reports have expired and current evidence producers emit endpoints.converact exclusively.",
+        "evidence": "test/converact-im-client-acceptance.test.ts"
+      },
+      {
+        "id": "stable_integration_ids_v1",
+        "path_globs": [
+          "clients/**",
+          "docs/**",
+          "sdk/**",
+          "services/**",
+          "src/**",
+          "test/**"
+        ],
+        "exclude_path_globs": [
+          "docs/evidence/**",
+          "docs/superpowers/**",
+          "src/migrations/**"
+        ],
+        "tokens": [
+          "OPC"
+        ],
+        "match_patterns": [
+          "^lean_opc_default$",
+          "^opc-ai-worker$",
+          "^opc-native(?:-[a-z0-9-]+)?$"
+        ],
+        "reason": "The v1 integration_id, provider and recommendation-profile values are persisted in tenant configuration, routing policy and recording rows and are returned by versioned APIs; Converact display names remain authoritative while these machine IDs stay byte-stable.",
+        "owner": "agent-runtime",
+        "removal_condition": "Replace only through a versioned integration-ID migration with dual-read, canonical-write, policy/config backfill, rollback and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "stable_platform_metrics_v1",
+        "path_globs": [
+          "config/grafana/dashboards/ops-overview.json",
+          "config/alert-rules.yml",
+          "src/metrics.ts",
+          "src/agent-runtime/converact/placement/rustdesk-owner-binding.ts",
+          "test/ai-agent-voice-latency-monitoring.test.ts",
+          "test/converact-component-node-admission-http.test.ts",
+          "test/converact-worker-elasticity.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "reason": "Prometheus series and the applied worker-backlog function are published v1 operational contracts; producers, dashboards, KEDA queries and rollback versions must continue using the same byte-stable identifiers.",
+        "owner": "platform-observability",
+        "removal_condition": "Replace only through versioned dual-published metrics and a separately versioned database migration with dashboard, alert, autoscaling, mixed-version and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "legacy_infrastructure_path_rejection_assertions",
+        "path_globs": [
+          "test/converact-infrastructure-identity.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "reason": "The infrastructure identity gate spells retired workflow, Helm, OCI and public artifact names only in negative assertions that prevent those active identities from returning.",
+        "owner": "release-engineering",
+        "removal_condition": "Retain while old branches or worktrees can reintroduce retired active infrastructure names.",
+        "evidence": "test/converact-infrastructure-identity.test.ts"
+      },
+      {
+        "id": "chat_placement_metadata_v1",
+        "path_globs": [
+          "docs/capacity/README.md",
+          "docs/capacity/implementation-plan-phase2.md",
+          "src/agent-runtime/collaboration/chat-gateway.ts",
+          "test/collaboration-chat.test.ts",
+          "test/converact-chat-placement-http-boundary.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit_placement:?$",
+          "^\\.ivekit_placement$",
+          "^desc\\.trusted\\.ivekit_placement$"
+        ],
+        "reason": "The Tinode trusted metadata field ivekit_placement is persisted and consumed by the published v1 chat binding contract while all current placement resources use Converact identities.",
+        "owner": "collaboration-runtime",
+        "removal_condition": "Replace only through a versioned metadata contract with dual-read, canonical-write, backfill, rollback and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "tinode_account_identity_v1",
+        "path_globs": [
+          "src/agent-runtime/collaboration/chat-gateway.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "reason": "Tinode usernames, passwords, account tags, trusted fields, request IDs and x-opc headers are persisted or exchanged by the deployed v1 chat identity protocol; changing them in place would fork accounts and message reconciliation.",
+        "owner": "collaboration-runtime",
+        "removal_condition": "Replace only through a versioned Tinode identity protocol with dual-login, canonical-write, account migration, message drain, rollback and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "voice_acceptance_evidence_v1",
+        "path_globs": [
+          "scripts/converact-voice-acceptance.ts",
+          "test/converact-voice-acceptance.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "reason": "The voice acceptance schema v1 retains its published check IDs, image keys and observation digest fields so existing real-environment evidence remains verifiable; image values and active resources use Converact names.",
+        "owner": "platform-assurance",
+        "removal_condition": "Change only in a newly versioned evidence schema with dual validation across the full evidence-retention window.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "voice_runtime_metadata_v1",
+        "path_globs": [
+          "src/agent-runtime/converact/voice/call-service.ts",
+          "test/converact-voice-call-service.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^(?:call\\.metadata\\.)?_ivekit_(?:request_hash|owner_contract_facts|provider_runtime_binding)$",
+          "^_ivekit_$"
+        ],
+        "reason": "Private call metadata keys are persisted v1 replay and owner-fencing fields; the service hides them from public output while current audit actors use Converact identities.",
+        "owner": "voice-foundation",
+        "removal_condition": "Replace only through dual-read, canonical-write metadata migration with replay, recovery, rollback and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "applied_migration_regression_assertions",
+        "path_globs": [
+          "test/converact-contact-center-migration.test.ts",
+          "test/converact-ivr-runtime-migration.test.ts",
+          "test/converact-interaction-placement.test.ts",
+          "test/converact-livekit-egress-reconciliation.test.ts",
+          "test/converact-notification-migration.test.ts",
+          "test/converact-notification-partition.test.ts",
+          "test/converact-sip-effect-oracle.test.ts",
+          "test/converact-voice-cdr-convergence.test.ts",
+          "test/converact-webphone-session-service.test.ts",
+          "test/db-pg-runtime-schema.test.ts",
+          "test/livekit-egress-reconciliation.test.ts",
+          "test/postgres-migrations-checksum.test.ts",
+          "test/tinode-inbound-migration.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "reason": "These regression tests assert append-only applied migration filenames, tables, indexes, triggers, functions and PostgreSQL roles exactly; active product and deployment identities are already Converact.",
+        "owner": "data-platform",
+        "removal_condition": "Retain for every installation that can contain these migrations; supersede through new migrations rather than rewriting established SQL identities.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "collaboration_message_protocol_v1",
+        "path_globs": [
+          "test/collaboration-message-state.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "reason": "The test asserts the persisted v1 receipt-source enum and append-only Tinode worker database functions used for message reconciliation.",
+        "owner": "collaboration-runtime",
+        "removal_condition": "Change only through versioned source-enum and database migrations with dual-read, drain and rollback evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "message_receipt_source_v1",
+        "path_globs": [
+          "frontend/src/pages/CollaborationChatPage.tsx",
+          "sdk/converact/src/chat-types.ts",
+          "src/agent-runtime/collaboration/collaboration-http.ts",
+          "src/agent-runtime/collaboration/message-state-store.ts",
+          "src/agent-runtime/collaboration/types.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit$"
+        ],
+        "reason": "ivekit is the persisted receipt-source enum value defined by migration 030; HTTP validation must continue accepting and canonically writing that v1 value until a data migration exists.",
+        "owner": "collaboration-runtime",
+        "removal_condition": "Replace only through a new migration with dual-read, canonical-write, backfill, rollback and active-zero evidence.",
+        "evidence": "src/migrations/030_collaboration_message_state.sql"
+      },
+      {
+        "id": "rvoip_capability_contract_v1",
+        "path_globs": [
+          "test/converact-rvoip-capability-integration.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "reason": "The capability regression test validates topology authority and gate IDs from the versioned rvoip integration evidence contract; those machine values remain stable while product prose uses Converact.",
+        "owner": "voice-foundation",
+        "removal_condition": "Change only through a newly versioned capability contract and evidence migration.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "legacy_evidence_path_aliases",
+        "path_globs": [
+          "docs/design/2026-07-28-ivekit-media-processing-goal4-implementation-plan.md",
+          "docs/design/rvoip-opc-communication-foundation-integration-design.md",
+          "docs/ivekit-v3-completion-audit.md"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "reason": "A published v1 rvoip evidence contract resolves this exact historical path; the alias points readers to the maintained Converact document without mutating retained contract JSON.",
+        "owner": "platform-assurance",
+        "removal_condition": "Retain for the full lifetime of every v1 evidence artifact that references this path.",
+        "evidence": "docs/capacity/contracts/rvoip-capability-integration-v1.json"
+      },
+      {
+        "id": "embedded_voice_fork_assertions",
+        "path_globs": [
+          "test/converact-kamailio-compose.test.ts",
+          "test/converact-rtpengine-deployment.test.ts",
+          "test/converact-rustpbx-cdr-transport-contract.test.ts"
+        ],
+        "tokens": [
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "reason": "These deployment tests assert exact environment variables, patch names, versions and internal process ABI consumed by pinned RustPBX and RTPengine forks while their enclosing resources and public inputs use Converact names.",
+        "owner": "voice-foundation",
+        "removal_condition": "Update only with a newly versioned fork ABI that has source, build, mixed-version rollout, drain and rollback evidence.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "rtpengine_acceptance_evidence_v1",
+        "path_globs": [
+          "scripts/converact-rtpengine-ng-acceptance.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit\\.rtpengine-ng-acceptance\\.v1$"
+        ],
+        "reason": "The emitted schema_version identifies already retained RTPengine acceptance evidence; current runtime environment keys use CONVERACT_FABRIC_*.",
+        "owner": "platform-assurance",
+        "removal_condition": "Emit a new schema version and retain dual validation for the evidence-retention window before retiring this ID.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "metrics_documented_series_v1",
+        "path_globs": [
+          "docs/design/metrics-design.md",
+          "docs/implementation-spec.md"
+        ],
+        "tokens": [
+          "OPC"
+        ],
+        "reason": "The metrics design documents deployed Prometheus v1 series verbatim so operators can query the same series through mixed-version rollout and rollback.",
+        "owner": "platform-observability",
+        "removal_condition": "Replace only after versioned dual-publish, dashboard and alert migration, rollback validation and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "durable_database_metric_and_wire_identifiers",
+        "path_globs": [
+          ".env.example",
+          ".github/**",
+          "clients/**",
+          "config/**",
+          "docker-compose*.yml",
+          "docs/**",
+          "frontend/**",
+          "goals/**",
+          "infra/**",
+          "integrations/**",
+          "package.json",
+          "public/**",
+          "scripts/**",
+          "sdk/**",
+          "services/**",
+          "src/**",
+          "test/**"
+        ],
+        "exclude_path_globs": [
+          "docs/capacity/contracts/unified-voice-foundation-historical-objective.md",
+          "docs/evidence/**",
+          "docs/superpowers/**",
+          "docs/审核文档.md",
+          "docs/audit-2026-06/**",
+          "docs/capacity/forks/ivekit-forks-v1.json",
+          "docs/capacity/phase2-code-status.json",
+          "docs/capacity/contracts/unified-voice-foundation-r4-*",
+          "docs/converact-fabric-voice-foundation-v1-design.md",
+          "docs/converact-fabric-v3-completion-audit.md",
+          "docs/iveKit服务器部署验收报告-*.md",
+          "docs/代码质量审查报告-*.md",
+          "docs/design/2026-07-25-converact-fabric-voice-media-control-goal1-implementation-plan.md",
+          "docs/design/2026-07-26-converact-fabric-rtpengine-goal2-implementation-plan.md",
+          "docs/design/2026-07-26-converact-fabric-rustpbx-rtpengine-goal3-implementation-plan.md",
+          "patches/**",
+          "**/*.patch"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^(?:public\\.)?opc_ivekit_[a-z0-9_]+/?$",
+          "(?:^|[./])opc_ivekit_[a-z0-9_]+(?:[/.:][a-z0-9_.]+)?$",
+          "(?:^|[./])opc_(?:runtime|admin|current_tenant|tenant_id|seat_id|message_id|api_key|user_id|rls_bypass|worker_tenant_ids|sip_effect_executor|ai_native_orchestrator|commit|image_digest|service|field|role|tenant_name|user_email):?$",
+          "(?:^|\\.)opc_(?:commit|image_digest):?$",
+          "(?:^|[/@:])opc_(?:runtime|admin|sip_effect_executor)(?:$|[/@:])",
+          "(?:^|[./])opc_(?:auth|event|livekit|notification|register|rustdesk|secure_file|tinode|worker)_[a-z0-9_]+(?:[/.:][a-z0-9_.]+)?$",
+          "(?:^|[./])opc_(?:http|ai)_[a-z0-9_]+$",
+          "(?:^|[./])ivekit_(?:tenant_events|secure_file|media_|sip_|voice_|cc_|capacity_|recording_|legal_holds|notifications|notification_|event_|ivr_|interaction_|runtime_|migration_|dispatch_failures|retention_|source_cps|global_cps|webphone_auth_failures|component_node_|kamailio_|rustpbx_|livekit_|native_|realtime_|audit_|cell_|rate_limit_|ws_|assert_sip_)[a-z0-9_]*(?:[/.:][a-z0-9_.]+)?/?$",
+          "^/?kamailio_core_ivekit_[a-z0-9_]+/?$",
+          "^/?idx_ivekit_[a-z0-9_]+/?$",
+          "^x-(?:opc|ivekit)-[a-z0-9-]+$",
+          "^X-IveKit(?:-[A-Za-z0-9-]+)?:?$",
+          "^IVEKIT_DIALOG_SHADOW$",
+          "^/?ivekit_userspace_fallback/?$",
+          "^/?ivekit_(?:hep_control|hep_trace_events|hep_trace_dropped_control|hep_trace_sampled|new_invites|failovers|pin_failures|webphone_assertion_failures|webphone_registrations|webphone_location_save_failures|webphone_delivery_misses|dmq_rejects|recovery_attempt|pin_set|node_id)/?$",
+          "^ivekit-(?:command|owner|reservation|invariants)[a-z0-9-]*$",
+          "^ivekit-rustdesk-native-control-v[0-9]+$",
+          "^ivekit-rustpbx-[a-z0-9-]+-v[0-9]+$",
+          "^ivekit-voice-address-v1$",
+          "^ivekit-route-snapshot-v1\\.$",
+          "^ivekit_(?:native_session_id|session_id|guard_epoch|owner_epoch|owner_node_id|cell_id|reservation_id|route_attempts|event):?$",
+          "(?:^|\\.)ivekit_owners:?$",
+          "^ivekit_[a-z0-9_]+_v[0-9]+$",
+          "^ivekit\\.local/[a-z0-9_.-]+$",
+          "^ivekit-secure-file://(?:[A-Za-z0-9_.:/@+-]+)?$",
+          "^ivekit-egress-pool-v1$",
+          "^rtpengine-ivekit-atomic-binding-lifecycle-v1$",
+          "^opc-persistent-schema-registry-v1$",
+          "^postgres(?:ql)?://(?:opc|opc_runtime|opc_admin|opc_sip_effect_executor|ivekit|postgres)(?::[^@/]*)?@[^/]+/(?:opc|ivekit)$",
+          "^ivekit-forks-v1$",
+          "^spiffe://ivekit\\.internal(?:/.*)?$"
+        ],
+        "reason": "Persisted database names, metric series, event headers, and versioned wire identifiers remain byte-stable under the rename contract.",
+        "owner": "platform-foundation",
+        "removal_condition": "Change only through a versioned dual-read or dual-publish migration with drain and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "stable_database_runtime_identity",
+        "path_globs": [
+          ".env.example",
+          "docker-compose.callcenter.yml",
+          "docs/architecture-video-voice-callcenter.md",
+          "docs/converact-backup-restore-runbook.md",
+          "docs/design/architecture-v3.md",
+          "docs/implementation-spec.md",
+          "docs/phase4-detailed-design.md",
+          "infra/converact/docker-compose*.yml",
+          "infra/docker-compose.production.yml",
+          "infra/env.example",
+          "infra/k8s/templates/postgres-statefulset.yaml",
+          "infra/k8s/templates/secrets.yaml",
+          "infra/k8s/values.yaml",
+          "infra/platform/cloudnative-pg/**",
+          "infra/scripts/bootstrap-postgres-databases.sh",
+          "scripts/configure-ivr-inbound-route.ts",
+          "scripts/ivr-migrate-flow-edges.ts",
+          "scripts/seed-ivr-m1-flow.ts",
+          "scripts/verify-converact-postgres.sh",
+          "services/converact-service/acceptance/realtime-recovery/**",
+          "services/converact-service/docker-compose*.yml",
+          "test/collaboration-attachment-processing.test.ts",
+          "test/collaboration-policy-finding.test.ts",
+          "test/db-pg-config.test.ts",
+          "test/db-rls-integration.test.ts",
+          "test/env-config.test.ts",
+          "test/production-bootstrap-scripts.test.ts",
+          "test/server-startup-failfast.test.ts",
+          "test/converact-intelligence-preflight.test.ts",
+          "test/tinode-deployment-preflight.test.ts",
+          "test/video-readiness-compose.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^opc(?:_(?:admin|runtime|app|sip_effect_executor|dev|dev_pass))?$",
+          "^POSTGRES_(?:USER|PASSWORD):-opc(?:_dev_pass)?$",
+          "^postgres(?:ql)?://opc(?:_[a-z_]+)?(?::[A-Za-z0-9_.%+-]*)?$",
+          "^postgres(?:ql)?://[A-Za-z0-9_./:@+-]+/opc$",
+          "^(?:@|[A-Za-z0-9_.%+-]+@)[A-Za-z0-9_.:-]+/opc$",
+          "^/opc$",
+          "^data/opc\\.(?:db|sqlite)$",
+          "^http://keycloak:8080/realms/opc$",
+          "^ivekit_(?:fresh|upgrade)$"
+        ],
+        "reason": "The in-place rename keeps existing PostgreSQL databases, roles, local SQLite paths, and the Keycloak realm byte-stable so mixed-version upgrade and rollback do not fork durable state or identity.",
+        "owner": "data-platform",
+        "removal_condition": "Change only through a separately versioned data and identity migration with dual-read, drain, rollback, and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "backup_v1_identity",
+        "path_globs": [
+          "src/agent-runtime/converact/operations/backup-runner.ts",
+          "src/agent-runtime/converact/operations/backup.ts",
+          "test/converact-backup-runner.test.ts",
+          "test/converact-backup.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^\\.ivekit-backup$",
+          "^ivekit$",
+          "^postgres(?:ql)?://[A-Za-z0-9_.%+-]+(?::[A-Za-z0-9_.%+-]*)?@[A-Za-z0-9_.:-]+/ivekit$",
+          "^[A-Za-z0-9_.+-]+@[A-Za-z0-9_.:-]+/ivekit$"
+        ],
+        "reason": "Backup manifest schema v1 names the deployed primary database ivekit and uses .ivekit-backup as its completion marker; restore and rollback must keep accepting these byte-stable identities.",
+        "owner": "data-platform",
+        "removal_condition": "Change only in a versioned backup schema that dual-reads v1 through the full restore and rollback retention window.",
+        "evidence": "docs/converact-backup-restore-runbook.md"
+      },
+      {
+        "id": "standalone_migration_assertions",
+        "path_globs": [
+          "test/converact-standalone-migrations.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "reason": "The standalone migration regression test asserts append-only migration filenames, PostgreSQL roles, security-definer functions, tables and indexes exactly while current Compose services and entrypoints use Converact names.",
+        "owner": "data-platform",
+        "removal_condition": "Retain with the applied migration generation; update only through a separately versioned database identity migration with mixed-version rollback evidence.",
+        "evidence": "test/converact-standalone-migrations.test.ts"
+      },
+      {
+        "id": "pinned_rtpengine_overlay_source",
+        "path_globs": [
+          "infra/converact/rtpengine/overlay-tests/**"
+        ],
+        "tokens": [
+          "OPC",
+          "OPC_",
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "reason": "The overlay tests are copied into and executed against the pinned RTPengine source tree; their file paths, protocol fixtures, symbols, and metrics are part of the immutable fork generation.",
+        "owner": "supply-chain",
+        "removal_condition": "Replace only with a newly versioned RTPengine overlay and independently verified source identity.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "rtpengine_overlay_assertion_abi",
+        "path_globs": [
+          "test/converact-rtpengine-source-overlay.test.ts"
+        ],
+        "tokens": [
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "match_patterns": [
+          "^/?IVEKIT_[A-Z0-9_]+(?::|/)?$",
+          "^/?ivekit(?:[-_][a-z0-9_]+)*(?:\\.json)?/?$",
+          "^infra/converact/rtpengine/overlay-tests/ivekit_[a-z0-9_.-]+$",
+          "^rtpengine-ivekit-[a-z0-9-]+-v[0-9]+$"
+        ],
+        "reason": "This test asserts exact symbols, paths, environment ABI, metrics, and release markers in the pinned RTPengine overlay; its own temporary fixtures use Converact names.",
+        "owner": "supply-chain",
+        "removal_condition": "Update only when a newly versioned overlay deliberately changes the asserted source ABI.",
+        "evidence": "test/converact-rtpengine-source-overlay.test.ts"
+      },
+      {
+        "id": "rtpengine_control_command_abi",
+        "path_globs": [
+          "scripts/converact-media-control-agent.ts",
+          "scripts/converact-rtpengine-acceptance-cli.ts",
+          "scripts/converact-rtpengine-drain.ts",
+          "src/agent-runtime/converact/media-control/rtpengine.ts",
+          "test/converact-media-control-*.test.ts",
+          "test/converact-rtpengine-*.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit$",
+          "^ivekit-active-calls$",
+          "^ivekit-(?:status|ack|guard|command|owner|reservation|replay)[a-z0-9-]*$"
+        ],
+        "reason": "The patched RTPengine status and drain commands are deployed wire protocol values; current Converact configuration maps to this immutable command ABI.",
+        "owner": "media-foundation",
+        "removal_condition": "Change only with a versioned RTPengine control protocol and mixed-version drain evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "rtpengine_goal2_v1_source_contract",
+        "path_globs": [
+          "infra/converact/rtpengine/source-lock.json",
+          "test/converact-voice-media-goal2-contract.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "reason": "The Goal 2 source lock and contract regression test retain the exact fork version, patch IDs and RTPengine command groups from the published v1 contract.",
+        "owner": "media-foundation",
+        "removal_condition": "Retain with the Goal 2 v1 contract; add a newly versioned contract and tests instead of rewriting these byte-stable identifiers.",
+        "evidence": "docs/capacity/schemas/voice-media-goal2.schema.json"
+      },
+      {
+        "id": "rtpengine_supply_chain_provenance_v1",
+        "path_globs": [
+          "scripts/converact-rtpengine-supply-chain.ts",
+          "test/converact-rtpengine-supply-chain.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^https://ivekit\\.dev/buildtypes/rtpengine-container/v1$",
+          "^ivekit:rtpengine-(?:upstream-archive|patch-set)$"
+        ],
+        "reason": "The SLSA build type and resolved-dependency URIs are identifiers in the published Goal 2 provenance schema and remain stable for existing evidence consumers.",
+        "owner": "supply-chain",
+        "removal_condition": "Introduce a new versioned provenance schema before emitting replacement identifiers; never rewrite existing evidence.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "rtpengine_image_metadata_assertions",
+        "path_globs": [
+          "test/converact-rtpengine-build-contract.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^\\.ivekit$"
+        ],
+        "reason": "The build contract asserts immutable io.ivekit image-label keys so existing release evidence and rollback tooling keep reading the same metadata ABI.",
+        "owner": "supply-chain",
+        "removal_condition": "Replace only through a versioned image-metadata schema with dual-read acceptance evidence.",
+        "evidence": "test/converact-rtpengine-build-contract.test.ts"
+      },
+      {
+        "id": "legacy_path_rejection_assertions",
+        "path_globs": [
+          "test/converact-package-paths.test.ts"
+        ],
+        "tokens": [
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "reason": "The package-path regression test spells retired directories and filename prefixes only to prove that none remain in the active tree.",
+        "owner": "release-engineering",
+        "removal_condition": "Retain while supported inputs or old worktrees can reintroduce those paths; remove only when the negative migration gate is no longer required.",
+        "evidence": "test/converact-package-paths.test.ts"
+      },
+      {
+        "id": "rustpbx_route_snapshot_v1_assertions",
+        "path_globs": [
+          "test/converact-rustpbx-route-snapshot.test.ts"
+        ],
+        "tokens": [
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "reason": "The route-snapshot regression test deliberately covers direct legacy environment aliases, the deployed v1 envelope prefix, append-only SQL identities and exact pinned RustPBX patch content.",
+        "owner": "voice-foundation",
+        "removal_condition": "Retain for the v1 snapshot and migration lifetime; replace only through separately versioned wire, database and fork migrations with compatibility evidence.",
+        "evidence": "docs/converact-fabric-voice-foundation-v1-design.md"
+      },
+      {
+        "id": "rustpbx_v0_4_11_source_abi",
+        "path_globs": [
+          ".github/workflows/converact-rustpbx-image.yml",
+          "infra/converact/rustpbx/README.md",
+          "infra/converact/rustpbx/build.sh",
+          "test/converact-rustpbx-build.test.ts"
+        ],
+        "tokens": [
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "reason": "The pinned RustPBX v0.4.11 generation retains its immutable patch-set suffix, patch filenames, source test identifiers, Docker build ARGs and image metadata labels while public build inputs and registry coordinates use Converact names.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove only after a newly versioned RustPBX fork generation is built, verified, rolled out, drained, and no rollback consumer requires the v0.4.11 source ABI.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "rustdesk_pinned_source_abi",
+        "path_globs": [
+          "infra/converact/rustdesk-server/apply-overlay.mjs",
+          "infra/converact/rustdesk-server/server-hook.rs",
+          "integrations/rustdesk-1.4.9/apply-overlay.mjs",
+          "integrations/rustdesk-1.4.9/ivekit_native_control.rs",
+          "integrations/rustdesk-1.4.9/ivekit_native_evidence.rs",
+          "test/converact-rustdesk-server-owner-patch.test.ts",
+          "test/rustdesk-native-control-overlay.test.ts",
+          "test/rustdesk-windows-package.test.ts",
+          "test/rustdesk-windows-session-companion.test.ts"
+        ],
+        "tokens": [
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "reason": "The exact RustDesk client/server overlays and regression tests retain published module names, source-tree paths, hook identifiers, process ABI and the v2 native-control protocol while user-facing branding moves to Converact.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove only after a newly versioned RustDesk client and server fork ABI is built, verified, rolled out, drained, and no rollback consumer requires these source identifiers.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "rustdesk_led_legacy_environment_alias",
+        "path_globs": [
+          "scripts/converact-rustdesk-led-example.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^RUSTDESK_IVEKIT_[A-Z0-9_]+$"
+        ],
+        "reason": "The LED handoff example accepts its pre-rename focused suffixes after the current RUSTDESK_FABRIC names so existing operator environments continue to work during migration.",
+        "owner": "developer-experience",
+        "removal_condition": "Remove after the documented compatibility window and observed use of all legacy LED example keys reaches zero.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "tinode_v0_25_3_source_abi",
+        "path_globs": [
+          "infra/converact/tinode/apply-overlay.mjs",
+          "infra/converact/tinode/server-hook.go",
+          "infra/converact/tinode/server-hook_test.go",
+          "integrations/tinode-v0.25.3/**",
+          "test/converact-tinode-owner-patch.test.ts"
+        ],
+        "tokens": [
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "reason": "The exact Tinode v0.25.3 overlay, injected Go modules and regression tests reproduce pinned source paths, internal identifiers, trusted metadata, hook routes and process ABI byte-for-byte.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove only after a newly versioned Tinode fork ABI is built, verified, rolled out, drained, and no rollback consumer requires the v0.25.3 overlay.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "livekit_ingress_v1_source_abi",
+        "path_globs": [
+          "infra/converact/livekit-ingress/apply-overlay.mjs",
+          "test/converact-livekit-ingress-foundation.test.ts"
+        ],
+        "tokens": [
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "reason": "The exact LiveKit Ingress v1.5.0 overlay and regression test reproduce pinned Docker ARGs, source-tree paths, build-stage names, cache paths and image metadata byte-for-byte.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove only after a newly versioned Ingress fork source ABI is built, verified, rolled out, drained, and no rollback consumer requires the v1.5.0 overlay.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "livekit_server_v1_source_abi",
+        "path_globs": [
+          "infra/converact/livekit/apply-overlay.mjs",
+          "infra/converact/livekit/README.md",
+          "integrations/livekit-v1.13.4/**",
+          "test/converact-livekit-owner-patch.test.ts"
+        ],
+        "tokens": [
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "reason": "The exact LiveKit v1.13.4 owner overlay and regression test retain pinned Go module paths, source-tree paths, internal identifiers and process environment ABI while product-facing configuration uses Converact names.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove only after a newly versioned LiveKit server fork ABI is built, verified, rolled out, drained, and no rollback consumer requires the v1.13.4 overlay.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "livekit_egress_v1_source_abi",
+        "path_globs": [
+          "infra/converact/livekit-egress/apply-overlay.mjs",
+          "infra/converact/livekit-egress/ivekit_metrics.go",
+          "integrations/livekit-egress-v1.13.0/policy.go",
+          "test/converact-livekit-egress-pool-patch.test.ts"
+        ],
+        "tokens": [
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "reason": "The exact LiveKit Egress v1.13.0 overlay generator and its regression test reproduce pinned Go identifiers, source-tree paths, build-stage names, rejection reasons, and cache paths byte-for-byte.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove only after a newly versioned Egress fork source ABI is built, verified, rolled out, drained, and no rollback consumer requires the v1.13.0 overlay.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "embedded_fork_environment_abi",
+        "path_globs": [
+          "infra/capacity/rustpbx-baseline/**",
+          "infra/capacity/kubernetes/livekit-statefulset.yaml",
+          "infra/capacity/kubernetes/rustdesk-statefulset.yaml",
+          "infra/capacity/kubernetes/tinode-statefulset.yaml",
+          "infra/converact/docker-compose.voice.yml",
+          "infra/converact/helm/rtpengine/**",
+          "infra/converact/livekit-egress/**",
+          "infra/converact/livekit-ingress/**",
+          "infra/converact/rtpengine/**",
+          "infra/converact/rustpbx/**",
+          "infra/converact/tinode/**",
+          "infra/docker-compose.production.yml",
+          "infra/k8s/templates/livekit-egress-deployment.yaml",
+          "infra/k8s/templates/rustpbx-deployment.yaml",
+          "services/converact-service/acceptance/rustpbx-recording-isolation/docker-compose.yml",
+          "services/converact-service/docker-compose.voice.yml",
+          "services/converact-service/helm/converact/templates/rustpbx-deployment.yaml",
+          "services/converact-service/source-policy.json",
+          "test/converact-capacity-worker-deployment.test.ts",
+          "test/converact-dialog-recovery-deployment.test.ts",
+          "test/converact-livekit-*-patch.test.ts",
+          "test/converact-rtpengine-build-contract.test.ts",
+          "test/converact-rtpengine-deployment.test.ts",
+          "test/converact-rsipstack-*-patch.test.ts",
+          "test/converact-rustpbx-*-patch.test.ts",
+          "test/converact-rustpbx-build.test.ts",
+          "test/converact-rustpbx-media-deployment.test.ts",
+          "test/converact-rustpbx-recording-isolation-acceptance.test.ts",
+          "test/converact-tinode-*-patch.test.ts",
+          "test/converact-placement-deployment.test.ts",
+          "test/converact-voice-deployment.test.ts"
+        ],
+        "exclude_path_globs": [
+          "patches/**",
+          "**/*.patch"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^/?IVEKIT_[A-Z0-9_]+(?::[-+?=]?)?/?$"
+        ],
+        "reason": "Pinned RustPBX, RTPengine, Tinode, and LiveKit fork payloads still consume the pre-rename build and process ABI; Converact public configuration is mapped into those names only at this boundary.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove after each fork is rebuilt with a versioned Converact ABI and the old image generation has drained to zero.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "frozen_fork_build_scripts_v1",
+        "path_globs": [
+          "infra/converact/livekit-egress/build.sh",
+          "infra/converact/livekit-ingress/build.sh",
+          "infra/converact/tinode/build.sh"
+        ],
+        "tokens": [
+          "iveKit",
+          "IVEKIT_"
+        ],
+        "reason": "These three build scripts are byte-frozen inputs in the v1 fork manifest; current Converact entrypoints translate public inputs into this exact source and build ABI without modifying the attested payload.",
+        "owner": "supply-chain",
+        "removal_condition": "Replace only through a new fork-manifest generation after rebuilt images are verified, rolled out, drained and no supported rollback uses the v1 payload.",
+        "evidence": "docs/capacity/forks/ivekit-forks-v1.json"
+      },
+      {
+        "id": "legacy_baseline_observation_scope",
+        "path_globs": [
+          "scripts/converact-rustpbx-recording-isolation-acceptance.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit-homer-acceptance$",
+          "^ivekit-livekit-$",
+          "^ivekit-rustpbx-baseline-$"
+        ],
+        "reason": "The isolation acceptance observes both new Converact baseline containers and already-running legacy baseline containers so the test cannot hide collateral restarts during the compatibility window.",
+        "owner": "platform-assurance",
+        "removal_condition": "Remove after legacy benchmark generations have drained to zero and can no longer coexist on supported validation hosts.",
+        "evidence": "scripts/converact-rustpbx-recording-isolation-acceptance.ts"
+      },
+      {
+        "id": "legacy_resource_rejection_assertions",
+        "path_globs": [
+          "test/converact-voice-deployment.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^s\\+ivekit:/m$"
+        ],
+        "reason": "The deployment regression test spells the retired service name only to prove that generated Converact resources do not reintroduce it.",
+        "owner": "release-engineering",
+        "removal_condition": "Remove when the legacy service name can no longer appear in any supported input or generated deployment.",
+        "evidence": "test/converact-voice-deployment.test.ts"
+      },
+      {
+        "id": "delivery_compatibility_assertions",
+        "path_globs": [
+          "test/converact-delivery-bundle.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^:ivekit-$",
+          "^:opc$",
+          "^opc:/m$",
+          "^/[0-9]{3}_ivekit_[a-z0-9_]+/$",
+          "^/ivekit$"
+        ],
+        "reason": "Delivery validation deliberately rejects obsolete image and service names while asserting stable migration filenames and the published /api/ivekit route family.",
+        "owner": "release-engineering",
+        "removal_condition": "Remove only when the corresponding compatibility surface is versioned away and the delivery validator no longer needs the regression assertion.",
+        "evidence": "test/converact-delivery-bundle.test.ts"
+      },
+      {
+        "id": "immutable_release_and_source_tree_abi",
+        "path_globs": [
+          ".env.example",
+          ".github/**",
+          "docker-compose*.yml",
+          "docs/**",
+          "infra/**",
+          "scripts/**",
+          "services/**",
+          "src/**",
+          "test/**",
+          "services/converact-service/source-policy.json"
+        ],
+        "exclude_path_globs": [
+          "docs/capacity/contracts/unified-voice-foundation-historical-objective.md",
+          "docs/evidence/**",
+          "docs/superpowers/**",
+          "docs/审核文档.md",
+          "docs/audit-2026-06/**",
+          "docs/capacity/forks/ivekit-forks-v1.json",
+          "docs/capacity/phase2-code-status.json",
+          "docs/capacity/contracts/unified-voice-foundation-r4-*",
+          "docs/converact-fabric-voice-foundation-v1-design.md",
+          "docs/converact-fabric-v3-completion-audit.md",
+          "docs/iveKit服务器部署验收报告-*.md",
+          "docs/代码质量审查报告-*.md",
+          "docs/design/2026-07-25-converact-fabric-voice-media-control-goal1-implementation-plan.md",
+          "docs/design/2026-07-26-converact-fabric-rtpengine-goal2-implementation-plan.md",
+          "docs/design/2026-07-26-converact-fabric-rustpbx-rtpengine-goal3-implementation-plan.md",
+          "patches/**",
+          "**/*.patch"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^[A-Za-z0-9_./:@+-]+-ivekit\\.[A-Za-z0-9_.+-]+(?:@sha256:[A-Za-z0-9_]+)?$",
+          "^[v0-9][A-Za-z0-9.+-]*-ivekit\\.[A-Za-z0-9.+-]+$",
+          "(?:^|[:@])[v0-9][A-Za-z0-9.+-]*-ivekit\\.[A-Za-z0-9.+-]+$",
+          "^[A-Za-z0-9_./:@+-]*[0-9][A-Za-z0-9_./:@+-]*-ivekit\\.[A-Za-z0-9.+-]+$",
+          "^[.0-9]+-ivekit(?:\\.[0-9]+)?$",
+          "^-ivekit$",
+          "^\\+ivekit$",
+          "(?:^|/)[0-9]{3}_ivekit_[a-z0-9_]+(?:\\.sql)?$",
+          "(?:^|/)ivekit/(?:toolchain|component-hook-go|livekit-owner|egress-pool|tinode-owner)(?:/|$)",
+          "(?:^|/)src/ivekit_owner$",
+          "(?:^|/)src/ivekit_owner\\.rs$",
+          "(?:^|/)ivekit-forks-v1(?:\\.json)?$",
+          "(?:^|/)ivekit_metrics\\.go$"
+        ],
+        "reason": "Pinned release versions, applied migration filenames, and directories materialized by immutable fork patches retain their original byte-level identity.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove only after a newly versioned fork release and migration/source-tree transition has drained all old generations.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "patch_reference_provenance",
+        "path_globs": [
+          ".github/**",
+          "docs/**",
+          "infra/**",
+          "integrations/**",
+          "scripts/**",
+          "services/**",
+          "test/**"
+        ],
+        "exclude_path_globs": [
+          "docs/capacity/contracts/unified-voice-foundation-historical-objective.md",
+          "docs/evidence/**",
+          "docs/superpowers/**",
+          "docs/审核文档.md",
+          "docs/audit-2026-06/**",
+          "docs/capacity/forks/ivekit-forks-v1.json",
+          "docs/capacity/phase2-code-status.json",
+          "docs/capacity/contracts/unified-voice-foundation-r4-*",
+          "docs/converact-fabric-voice-foundation-v1-design.md",
+          "docs/converact-fabric-v3-completion-audit.md",
+          "docs/iveKit服务器部署验收报告-*.md",
+          "docs/代码质量审查报告-*.md",
+          "docs/design/2026-07-25-converact-fabric-voice-media-control-goal1-implementation-plan.md",
+          "docs/design/2026-07-26-converact-fabric-rtpengine-goal2-implementation-plan.md",
+          "docs/design/2026-07-26-converact-fabric-rustpbx-rtpengine-goal3-implementation-plan.md",
+          "patches/**",
+          "**/*.patch"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "(?:^|/)patches/[A-Za-z0-9_.-]*ivekit[A-Za-z0-9_.-]*\\.patch$",
+          "^PATCH_DIR/[A-Za-z0-9_.-]*ivekit[A-Za-z0-9_.-]*\\.patch$",
+          "^[A-Za-z0-9_.-]*ivekit[A-Za-z0-9_.-]*\\.patch$"
+        ],
+        "reason": "Tests, builders, and source manifests must reference immutable patch filenames exactly even though current product-facing artifacts use Converact names.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove with the corresponding immutable patch generation after a newly named fork release drains the old patch set.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "python_legacy_import_shims",
+        "path_globs": [
+          "sdk/python/opc_client/**",
+          "services/ai-agent-py/opc_client.py"
+        ],
+        "tokens": [
+          "OPC"
+        ],
+        "reason": "These two files are intentionally narrow import shims that forward pre-Converact Python imports to the authoritative Converact clients.",
+        "owner": "agent-runtime",
+        "removal_condition": "Remove at Python SDK and Agent Runtime 1.0 after legacy import telemetry reaches zero.",
+        "evidence": "services/ai-agent-py/tests/test_converact_client_identity.py"
+      },
+      {
+        "id": "historical_fork_image_coordinates",
+        "path_globs": [
+          "test/converact-capacity-fork-status.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ghcr\\.io/songgoldenwind-crypto/opc-ivekit-(?:tinode-server|livekit-egress|livekit-ingress):[A-Za-z0-9_.-]+$",
+          "^ivekit/rustpbx:[A-Za-z0-9_.-]+$",
+          "^\\.github/workflows/ivekit-(?:tinode-server|livekit-egress|livekit-ingress)-image\\.yml$"
+        ],
+        "reason": "The fork-status test validates immutable registry coordinates recorded by the historical v1 fork manifest.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove only when a new manifest version supersedes those images and old release support ends.",
+        "evidence": "docs/capacity/forks/ivekit-forks-v1.json"
+      },
+      {
+        "id": "patched_source_internal_identifiers",
+        "path_globs": [
+          "scripts/**",
+          "test/converact-rsipstack-*.test.ts",
+          "test/converact-rustpbx-*.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^(?:/)?(?:rustpbx|rsipstack)-ivekit-[a-z0-9-]+$",
+          "^z9hG4bK-ivekit-$"
+        ],
+        "reason": "Patch validation must assert exact internal marker, branch, and test identifiers embedded in immutable upstream patch payloads.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove with the corresponding patch generation after a newly named fork release is adopted.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "rustpbx_rwi_acceptance_evidence_v1",
+        "path_globs": [
+          "scripts/converact-rustpbx-rwi-acceptance.ts",
+          "test/converact-rustpbx-rwi-acceptance.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^(?:report\\.rwi\\.)?ivekit_composed_capabilities:?$"
+        ],
+        "reason": "The published RWI acceptance report v1 retains its composed-capabilities property so historical evidence and validators remain byte-compatible; new run and call identities use Converact.",
+        "owner": "voice-foundation",
+        "removal_condition": "Change only in an independently versioned acceptance-report schema with dual validation for retained evidence.",
+        "evidence": "test/converact-rustpbx-rwi-acceptance.test.ts"
+      },
+      {
+        "id": "ivr_provider_replay_metadata_v1",
+        "path_globs": [
+          "src/agent-runtime/converact/ivr/session-service.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "(?:^|\\.)_ivekit_last_exchange_(?:action|operation):?$"
+        ],
+        "reason": "These replay keys can already be persisted in IVR provider metadata; keeping them stable prevents duplicate provider effects during a mixed-version rollout or rollback.",
+        "owner": "interaction-runtime",
+        "removal_condition": "Remove only after a versioned dual-read migration, old-call drain and persisted-metadata active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "capacity_profile_v1_regression_inputs",
+        "path_globs": [
+          "test/converact-capacity-profile-compiler.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "reason": "This regression test binds the frozen v1 fork-manifest path, release IDs, fleet IDs and workload protocol IDs that contribute to deterministic capacity-manifest hashes.",
+        "owner": "platform-performance",
+        "removal_condition": "Retain for v1 evidence; introduce new IDs only through a new capacity-profile and manifest schema version.",
+        "evidence": "docs/capacity/forks/ivekit-forks-v1.json"
+      },
+      {
+        "id": "kamailio_route_snapshot_wire_v1",
+        "path_globs": [
+          "test/converact-kamailio-route-snapshot.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit-kamailio-route-v1(?:[.:][A-Za-z0-9_.:-]+)?$"
+        ],
+        "reason": "The route-snapshot envelope prefix is a deployed v1 wire identifier used for reconciliation across mixed versions.",
+        "owner": "voice-foundation",
+        "removal_condition": "Replace only with a versioned dual-read wire migration and active-zero evidence for v1 snapshots.",
+        "evidence": "docs/design/kamailio-sip-edge-design.md"
+      },
+      {
+        "id": "rustpbx_management_mapping_v1",
+        "path_globs": [
+          "src/agent-runtime/converact/voice/adapters/rustpbx-management.ts",
+          "test/converact-rustpbx-management.test.ts",
+          "test/converact-voice-controlled-postgres.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit-http-router:(?:did|route):[A-Za-z0-9_.:-]+$",
+          "^ivekit_http_router:?$",
+          "^ivekit_resource_id:?$"
+        ],
+        "reason": "RustPBX management mapping references and metadata keys may be persisted or returned by existing providers; renaming them in place would orphan route and DID reconciliation.",
+        "owner": "voice-foundation",
+        "removal_condition": "Remove after a versioned mapping migration, dual-read reconciliation and active-zero evidence for old references.",
+        "evidence": "test/converact-rustpbx-management.test.ts"
+      },
+      {
+        "id": "voice_media_goal3_contract_v1",
+        "path_globs": [
+          "test/converact-voice-media-goal3-contract.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "reason": "The Goal 3 regression test validates immutable patch IDs and evidence keys from the signed v1 RustPBX/RTPengine contract; rewriting them would invalidate retained evidence.",
+        "owner": "platform-assurance",
+        "removal_condition": "Retain permanently for v1 evidence and supersede with a separately versioned contract test.",
+        "evidence": "docs/design/2026-07-26-converact-fabric-rustpbx-rtpengine-goal3-implementation-plan.md"
+      },
+      {
+        "id": "legacy_branch_rejection_assertion",
+        "path_globs": [
+          "test/converact-capacity-sip-kamailio-baseline.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^branch=z9hG4bK-ivekit-$"
+        ],
+        "reason": "This negative assertion ensures the current SIPp scenario cannot regress to a legacy product-prefixed transaction branch.",
+        "owner": "voice-foundation",
+        "removal_condition": "Retain while the migrated scenario remains supported; delete with the scenario rather than weakening the regression assertion.",
+        "evidence": "test/converact-capacity-sip-kamailio-baseline.test.ts"
+      },
+      {
+        "id": "collaboration_placement_metadata_and_route_v1",
+        "path_globs": [
+          "src/agent-runtime/collaboration/collaboration-http.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit_(?:region_id|zone_id|placement):?$",
+          "^/opc$"
+        ],
+        "reason": "Placement fields and the published RustDesk API route are persisted or deployed v1 surfaces; product-facing resources surrounding them use current Converact identities.",
+        "owner": "collaboration-runtime",
+        "removal_condition": "Replace only through a versioned metadata/API migration with dual-read, backfill, rollback and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "generic_provider_governance_metadata_v1",
+        "path_globs": [
+          "src/agent-runtime/collaboration/generic-provider-routing.ts",
+          "test/converact-generic-provider-routing.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "(?:^|\\.)ivekit_(?:governance_completion_pending|route_attempt_count|route_failed_over):?$"
+        ],
+        "reason": "These provider-routing diagnostics can be persisted in durable collaboration metadata and must remain readable across mixed-version failover and rollback.",
+        "owner": "collaboration-runtime",
+        "removal_condition": "Remove after a versioned dual-read metadata migration, old-work drain and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "tinode_inbound_protocol_v1",
+        "path_globs": [
+          "src/agent-runtime/collaboration/tinode-inbound-projector.ts",
+          "src/agent-runtime/collaboration/tinode-inbound-protocol.ts",
+          "test/tinode-inbound-protocol.test.ts",
+          "test/tinode-inbound-worker.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "(?:^|\\.)opc_(?:idempotency_key|mutation_id):?$",
+          "^x-opc-(?:idempotency-key|mutation-id)$",
+          "^ivekit$"
+        ],
+        "reason": "Tinode inbound headers, payload properties, mutation keys and provider-origin enum values are a deployed v1 projection contract used for idempotency and durable reconciliation.",
+        "owner": "collaboration-runtime",
+        "removal_condition": "Replace only through a versioned dual-read protocol and data migration with replay, rollback and active-zero evidence.",
+        "evidence": "test/tinode-inbound-migration.test.ts"
+      },
+      {
+        "id": "embedded_voice_patch_contract_assertions",
+        "path_globs": [
+          "test/converact-rsipstack-*-patch.test.ts",
+          "test/converact-rsipstack-server-invite-lifecycle-patch.test.ts",
+          "test/converact-rustpbx-audio-tap.test.ts",
+          "test/converact-rustpbx-*-patch.test.ts",
+          "test/converact-rustpbx-dual-leg-cdr-patch.test.ts",
+          "test/converact-rustpbx-owner-epoch-patch.test.ts",
+          "test/converact-rustpbx-recording-isolation-acceptance.test.ts",
+          "test/converact-rustpbx-webphone-edge-auth.test.ts",
+          "test/converact-rustrtc-*.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "reason": "These tests assert exact pinned patchset releases, filenames, module names and upstream test symbols; they are immutable source provenance rather than active product identity.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove with the corresponding patch generation after a newly named fork release drains the old source ABI.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "sip_effect_via_branch_v1",
+        "path_globs": [
+          "test/converact-sip-effect-oracle.test.ts",
+          "src/agent-runtime/converact/voice/sip-effect-oracle.ts"
+        ],
+        "tokens": [
+          "OPC"
+        ],
+        "match_patterns": [
+          "^z9hG4bK-opc-$"
+        ],
+        "reason": "The deterministic SIP-effect Via branch participates in durable retry and receipt correlation; changing it in place could create a second transaction for an existing effect.",
+        "owner": "voice-foundation",
+        "removal_condition": "Replace only with a versioned effect-key algorithm after old effects, receipts and retry leases reach active zero.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "rtpengine_overlay_identity_files_v1",
+        "path_globs": [
+          "infra/converact/rtpengine/apply-overlay.mjs"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit-(?:source|patch-set)-identity\\.json$"
+        ],
+        "reason": "The RTPengine overlay verifies identity files emitted by the pinned fork generation; their names are immutable source-provenance inputs.",
+        "owner": "supply-chain",
+        "removal_condition": "Replace only with a newly versioned overlay and independently verified source-identity transition.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "provider_route_metadata_v1",
+        "path_globs": [
+          "src/agent-runtime/collaboration/attachment-processing.ts",
+          "src/agent-runtime/collaboration/generic-provider-routing.ts",
+          "src/agent-runtime/collaboration/intelligence-provider-routing.ts",
+          "src/agent-runtime/collaboration/quality-review.ts",
+          "src/agent-runtime/collaboration/translation-service.ts",
+          "test/collaboration-attachment-processing.test.ts",
+          "test/collaboration-policy-finding.test.ts",
+          "test/converact-translation-service.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "(?:^|\\.)ivekit_route_(?:attempts|provider_invoked|failover_attempted|retry_at|attempt_count|failed_over):?$",
+          "(?:^|\\.)ivekit_governance_completion_pending:?$"
+        ],
+        "reason": "Provider routing diagnostics are stored in durable job metadata and must remain readable during mixed-version retries, failover and rollback.",
+        "owner": "collaboration-runtime",
+        "removal_condition": "Remove after a versioned dual-read metadata migration, old-job drain and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "legacy_webhook_header_v1",
+        "path_globs": [
+          "docs/openapi.yaml",
+          "docs/design/security-design.md",
+          "src/agent-runtime/call-center/webhooks/webhook-dispatcher.ts",
+          "src/agent-runtime/ivr/ivr-webhook-request.ts",
+          "test/webhook-dispatch.test.ts",
+          "test/ivr-webhook-request.test.ts"
+        ],
+        "tokens": [
+          "OPC"
+        ],
+        "match_patterns": [
+          "^X-OPC-(?:Signature|Event|Delivery|Timestamp)$"
+        ],
+        "reason": "These signed webhook headers are a published v1 wire protocol and must stay byte-identical for existing receivers and signature verification.",
+        "owner": "platform-api",
+        "removal_condition": "Replace only through versioned dual-header emission and receiver active-zero evidence.",
+        "evidence": "docs/openapi.yaml"
+      },
+      {
+        "id": "processing_media_content_type_v1",
+        "path_globs": [
+          "src/agent-runtime/converact/media-control/processing.ts",
+          "services/voice-media-rs/src/http.rs",
+          "services/voice-media-rs/tests/http.rs",
+          "test/converact-processing-media-transport.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^application/vnd\\.ivekit\\.pcm16le$"
+        ],
+        "reason": "The PCM prompt media type is the deployed TypeScript-to-Rust processing wire contract; it remains stable while product and process identities migrate.",
+        "owner": "media-foundation",
+        "removal_condition": "Replace only with versioned content negotiation and dual-codec acceptance evidence.",
+        "evidence": "test/converact-processing-media-transport.test.ts"
+      },
+      {
+        "id": "livekit_ingress_metadata_v1",
+        "path_globs": [
+          "src/agent-runtime/livekit/livekit-ingress-provider.ts",
+          "test/converact-livekit-ingress-api.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "(?:^|\\.)ivekit:?$"
+        ],
+        "reason": "The LiveKit Ingress metadata namespace is persisted by existing resources and read during ownership reconciliation; renaming it in place would orphan active ingress state.",
+        "owner": "media-foundation",
+        "removal_condition": "Remove after dual-read metadata rollout, resource backfill, rollback validation and old-ingress active zero.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "capacity_event_websocket_workload_v1",
+        "path_globs": [
+          "test/converact-capacity-cli.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit_event_websocket:?$"
+        ],
+        "reason": "The workload ID contributes to the deterministic v1 capacity manifest and retained evidence hashes; current SUT release IDs use Converact.",
+        "owner": "platform-performance",
+        "removal_condition": "Change only in a new capacity-profile and manifest schema version.",
+        "evidence": "docs/capacity/forks/ivekit-forks-v1.json"
+      },
+      {
+        "id": "collaboration_lock_key_v1",
+        "path_globs": [
+          "docs/converact-fabric-video-im-capability-design.md",
+          "src/agent-runtime/collaboration/collaboration-lock.ts",
+          "test/collaboration-participant-lock.test.ts"
+        ],
+        "tokens": [
+          "OPC"
+        ],
+        "match_patterns": [
+          "^opc\\.collaboration\\.(?:session|participant)\\.v1$"
+        ],
+        "reason": "Distributed collaboration lock keys are deployed v1 coordination identities; renaming them in place would create a second lock domain during rollout.",
+        "owner": "collaboration-runtime",
+        "removal_condition": "Replace only through a fenced dual-key migration after all v1 lock holders and waiters reach active zero.",
+        "evidence": "test/collaboration-participant-lock.test.ts"
+      },
+      {
+        "id": "callcenter_nats_subject_v1",
+        "path_globs": [
+          "test/nats-client.test.ts"
+        ],
+        "tokens": [
+          "OPC"
+        ],
+        "match_patterns": [
+          "^(?:publish:)?opc\\.callcenter\\.started:?$"
+        ],
+        "reason": "The NATS subject is a published v1 event identity and must remain routable for mixed-version publishers and subscribers.",
+        "owner": "event-platform",
+        "removal_condition": "Replace only through versioned dual-publish/dual-subscribe rollout and old-subject active-zero evidence.",
+        "evidence": "test/nats-client.test.ts"
+      },
+      {
+        "id": "valkey_inventory_gate_v1",
+        "path_globs": [
+          "test/valkey-command-inventory.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^opc-ivekit-sentinel-failover$"
+        ],
+        "reason": "The test must address the exact gate ID stored in the immutable v1 Valkey command inventory and its controlled evidence.",
+        "owner": "data-platform",
+        "removal_condition": "Retain with v1 inventory evidence; supersede through a newly versioned inventory rather than rewriting it.",
+        "evidence": "docs/architecture/valkey-command-inventory-v1.json"
+      },
+      {
+        "id": "stable_database_runtime_identity_v1_remaining",
+        "path_globs": [
+          ".env.example",
+          "docker-compose.yml",
+          "docs/design/gap-analysis.md",
+          "infra/env.example",
+          "src/db.ts",
+          "test/call-center-phase0.test.ts",
+          "test/db-pg-tenant.test.ts",
+          "test/db-rls-integration.test.ts",
+          "test/production-bootstrap-scripts.test.ts",
+          "test/tinode-deployment-preflight.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^postgres(?:ql)?://opc(?::[A-Za-z0-9_.%+-]+)?@[A-Za-z0-9_.:-]+/tinode$",
+          "^(?:/data/|data/)?opc\\.sqlite$",
+          "^postgres://opc_app@host/db$",
+          "^/?opc_rls_bypass/?$",
+          "^opc/?$"
+        ],
+        "reason": "The in-place product rename keeps the existing SQLite file, PostgreSQL role, Tinode DSN and RLS bypass identity so upgrades and rollback continue to address one durable store and one security boundary.",
+        "owner": "data-platform",
+        "removal_condition": "Change only through a separately versioned data and role migration with dual access, backup/restore, rollback and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "stable_schema_and_metric_identifiers_v1_remaining",
+        "path_globs": [
+          "docs/converact-fabric-voice-cdr-durability-runbook.md",
+          "docs/converact-monitoring-runbook.md",
+          "infra/capacity/rustpbx-baseline/run.sh",
+          "services/converact-service/helm/converact/files/prometheus-rules.yaml",
+          "src/agent-runtime/converact/tenant-event-store.ts",
+          "src/agent-runtime/converact/unified-timeline-store.ts",
+          "src/db-pg.ts",
+          "src/postgres-migrations.ts",
+          "src/schema.sql",
+          "test/converact-capacity-orchestrator-migration.test.ts",
+          "test/converact-capacity-sip-kamailio-baseline.test.ts",
+          "test/converact-cell-admission-ledger.test.ts",
+          "test/converact-integration-event-migration.test.ts",
+          "test/converact-ivr-resource-migration.test.ts",
+          "test/converact-notification-health-migration.test.ts",
+          "test/converact-secure-file-contract.test.ts",
+          "test/converact-standalone-http.test.ts",
+          "test/converact-voice-operations-migration.test.ts",
+          "test/livekit-egress-capacity-metrics.test.ts",
+          "test/rustdesk-evidence-intelligence-migration.test.ts",
+          "test/tinode-file-delivery-operations-migration.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^/?(?:idx|uq)_ivekit_[A-Za-z0-9_]+(?:/i)?$",
+          "^/?opc_(?:event_webhook_worker_tenant_ids|notification_health_tenant_ids|rustdesk_evidence_intelligence_candidates|tinode_delivery_worker_tenant_ids|livekit_egress_capacity_metrics|node_[A-Za-z0-9_]*)(?:/i)?/?$",
+          "^/?opc_ivekit_tinode_inbound_dead_letters/?$",
+          "^ivekit_tenant_events\\.id::text$",
+          "^ivekit_unified_timeline$",
+          "^src/migrations/[0-9]{3}_ivekit_[a-z0-9_]+\\.sql\\.?$",
+          "^/?kamailio_script_ivekit_new_invites/?$"
+        ],
+        "reason": "Applied schema objects and published metric series are append-only operational identities; changing them in place would fork durable state, dashboards, alerts or retained evidence.",
+        "owner": "data-platform",
+        "removal_condition": "Supersede only through new migrations and dual-query dashboards after the old schema and metric retention windows reach zero.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "database_migration_lock_v1",
+        "path_globs": [
+          "scripts/converact-release-operations.ts",
+          "src/converact-migrate.ts",
+          "src/converact-migrations.ts",
+          "src/db-pg.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit_schema_migrations$",
+          "^opc_schema_migrations$"
+        ],
+        "reason": "Migration advisory locks must remain one global lock domain across old and new binaries; renaming the lock would permit concurrent schema writers during rollout.",
+        "owner": "data-platform",
+        "removal_condition": "Replace only during a coordinated maintenance window after every old migration runner is disabled and rollback is no longer supported.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "stable_sip_edge_and_control_wire_v1",
+        "path_globs": [
+          "config/rustpbx-routes/m1-ivr.toml",
+          "docs/adr/ivr-5-rustpbx-step-ivr.md",
+          "docs/api/converact-media-control-v1.openapi.yaml",
+          "docs/converact-led-integration-guide.md",
+          "docs/design/kamailio-sip-edge-design.md",
+          "frontend/src/pages/remote-assist-data-channel.ts",
+          "infra/capacity/rustpbx-baseline/run.sh",
+          "infra/converact/kamailio/README.md",
+          "services/converact-service/acceptance/sipp/*.xml",
+          "src/agent-runtime/call-center/compliance/event-bus.ts",
+          "src/agent-runtime/converact/ivr/rustpbx-step-service.ts",
+          "src/agent-runtime/converact/voice/http.ts",
+          "src/agent-runtime/converact/voice/kamailio-route-compiler.ts",
+          "src/agent-runtime/converact/voice/kamailio-route-snapshot.ts",
+          "src/agent-runtime/converact/voice/sip-foundation/route-binding.ts",
+          "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+          "test/converact-capacity-sip-kamailio-baseline.test.ts",
+          "test/converact-kamailio-image.test.ts",
+          "test/converact-kamailio-route-compiler.test.ts",
+          "test/converact-kamailio-route-snapshot.test.ts",
+          "test/converact-rustpbx-step-service.test.ts",
+          "test/converact-sip-foundation.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivr:opc-m1$",
+          "^x-ivekit-limits:?$",
+          "^x-ivekit-signature:$",
+          "^X-IveKit-$",
+          "^opc\\.remote_assist\\.web_assist\\.event$",
+          "^opc\\.callcenter\\.$",
+          "^z9hG4bK-(?:opc|ivekit)-$",
+          "^/?ivekit_retain_state/?$",
+          "^ivekit-kamailio-route-v1\\.?$",
+          "^ivekit-voice:assert-route-snapshot-revision$",
+          "^ivekit_worker$",
+          "^/?kamailio_script_ivekit_new_invites/?$"
+        ],
+        "reason": "These values are deployed SIP transaction, route-snapshot, edge-header, data-channel, IVR and event-subject wire identities; existing peers and replay records require byte compatibility.",
+        "owner": "voice-foundation",
+        "removal_condition": "Change only through an explicitly versioned dual-read/dual-route protocol after mixed-version calls, retries and retained evidence drain to zero.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "stable_collaboration_metadata_v1_remaining",
+        "path_globs": [
+          "docs/converact-fabric-video-im-capability-design.md",
+          "scripts/converact-rustdesk-owner-binding.ts",
+          "services/converact-service/acceptance/rustpbx-recording-isolation/owner-admission.mjs",
+          "src/agent-runtime/collaboration/intelligence-source-service.ts",
+          "src/agent-runtime/collaboration/rustdesk-gateway-security.ts",
+          "src/agent-runtime/collaboration/rustdesk-owner-epoch.ts",
+          "src/agent-runtime/converact/contact-center/postgres/configuration-store.ts",
+          "src/agent-runtime/converact/ivr/postgres/rustpbx-step-binding.ts",
+          "src/agent-runtime/converact/voice/http.ts",
+          "test/converact-contact-center-postgres.test.ts",
+          "test/converact-ivr-postgres.test.ts",
+          "test/converact-rustdesk-placement-http-boundary.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit_web$",
+          "^/var/lib/ivekit-rustdesk-owner/bindings\\.json$",
+          "^ivekit-source:$",
+          "^ivekit:cc:configuration(?::[A-Za-z0-9_.-]+)*:?$",
+          "^(?:metadata\\.)?_ivekit_ivr$",
+          "^(?:body\\.|input\\.|gateway\\.metadata\\.|metadata\\.)?ivekit_(?:owner_node_id|reservation_id|owner_epoch|region_id|zone_id):?$"
+        ],
+        "reason": "These v1 metadata and idempotency namespaces are persisted or exchanged with embedded providers; canonical writes cannot move until dual-read backfill and active-zero are proven.",
+        "owner": "collaboration-runtime",
+        "removal_condition": "Replace through a versioned metadata migration with dual-read, canonical-write, replay, rollback and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "stable_voice_metadata_and_crypto_v1",
+        "path_globs": [
+          "sdk/converact/src/webhook.ts",
+          "src/agent-runtime/converact/notifications/protector.ts",
+          "src/agent-runtime/converact/voice/adapters/livekit-sip.ts",
+          "src/agent-runtime/converact/voice/adapters/rustpbx-management.ts",
+          "src/agent-runtime/converact/voice/address-protector.ts",
+          "src/agent-runtime/converact/voice/dialog-recovery-capsule.ts",
+          "src/agent-runtime/converact/voice/webhook-auth.ts",
+          "test/converact-rustpbx-media-goal3-finalizer.test.ts",
+          "test/converact-voice-controlled-postgres.test.ts",
+          "test/converact-webhook-verifier.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit:$",
+          "^ivekit:tenant-[A-Za-z0-9_.:-]+$",
+          "^ivekit-notification(?:-v1|:v1)$",
+          "^ivekit-voice-address:v1$",
+          "^ivekit-dialog-recovery-v1$",
+          "^ivekit-webhook-compare$",
+          "^ivekit_(?:voice_call_id|media_call_id):?$",
+          "^ivekit-http-router(?::(?:did|route):[A-Za-z0-9_.:-]+|:(?:did|route):|:)$",
+          "^opc_commit_mismatch$"
+        ],
+        "reason": "Persisted voice metadata, evidence keys and cryptographic domain separators must remain byte-stable so old ciphertext, signatures, receipts and provider mappings continue to verify.",
+        "owner": "voice-foundation",
+        "removal_condition": "Replace only with versioned dual-read metadata and cryptographic key-context rotation across the full retention and rollback window.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "external_realtime_speech_wire_v1",
+        "path_globs": [
+          "docs/converact-fabric-v3-intelligence-operations.md",
+          "docs/converact-fabric-wave3-rtc-external-intelligence-implementation-plan.md",
+          "docs/design/external-intelligence-provider-boundaries.md",
+          "src/agent-runtime/converact/voice/adapters/external-realtime-speech.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit-realtime-speech-v1$"
+        ],
+        "reason": "The external realtime speech adapter protocol is a published v1 WebSocket contract; product naming changed without silently creating a second protocol.",
+        "owner": "intelligence-platform",
+        "removal_condition": "Supersede with a negotiated v2 protocol after every v1 provider session and retained replay reaches zero.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "capacity_event_workload_v1",
+        "path_globs": [
+          "scripts/capacity/profile-compiler.ts",
+          "test/converact-capacity-event-ws-generator.test.ts",
+          "test/converact-capacity-evidence.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit_event_websocket:?$",
+          "^connection[:/]ivekit_event_websocket(?:/[0-9-]+)?$"
+        ],
+        "reason": "The capacity workload and shard IDs are frozen v1 evidence dimensions; renaming them would make retained baselines incomparable rather than improve the active product identity.",
+        "owner": "platform-performance",
+        "removal_condition": "Introduce a new workload ID only with a new profile/evidence schema and independently established baseline.",
+        "evidence": "docs/capacity/schemas/workload-profile.schema.json"
+      },
+      {
+        "id": "frozen_fork_release_references_v1_remaining",
+        "path_globs": [
+          ".github/renovate-upstreams.env",
+          "docs/adr/ccaas-4-open-source-fork-governance.md",
+          "docs/converact-fabric-v6-real-environment-acceptance.md",
+          "infra/converact/env.example",
+          "infra/env.example",
+          "infra/livekit/helm/values.production-performance.yaml",
+          "services/converact-service/env.example",
+          "test/livekit-official-helm-production-profile.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^docs/capacity/forks/ivekit-forks-v1\\.json\\.$",
+          "^rustpbx-ivekit$",
+          "^rustdesk-[0-9.]+-ivekit$",
+          "^[A-Za-z0-9_./:@+-]+-ivekit\\.[A-Za-z0-9_.+-]+(?:@sha256:(?:[A-Za-z0-9_]+)?)?$"
+        ],
+        "reason": "Pinned fork names, package versions and digest coordinates are immutable supply-chain provenance; surrounding repository and resource names are Converact.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove only after a newly named fork generation is built, attested, rolled out, drained and no supported rollback uses v1 artifacts.",
+        "evidence": "docs/capacity/forks/ivekit-forks-v1.json"
+      },
+      {
+        "id": "versioned_contract_and_negative_assertions_v1",
+        "path_globs": [
+          "test/converact-homer-maintenance.test.ts",
+          "test/converact-unified-voice-foundation-r4-contract.test.ts",
+          "test/converact-v3-deployment.test.ts",
+          "test/livekit-standalone-deployment.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^/ivekit-rustpbx-baseline/$",
+          "^ivekit$",
+          "^upstream_claim_authorizes_ivekit:$",
+          "^opc_owned_bridge_coordinator_store$",
+          "^@opc$",
+          "^/ivekit-sdk$",
+          "^opc:$"
+        ],
+        "reason": "These assertions validate source-bound historical controls, frozen Revision 4 fields, supported SDK aliases or the absence of an active legacy service; they are not current product presentation.",
+        "owner": "platform-assurance",
+        "removal_condition": "Retain with the corresponding v1 contract or compatibility window; supersede through a new versioned contract or remove the negative assertion with its retired surface.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "rustdesk_tooling_legacy_environment_alias",
+        "path_globs": [
+          "scripts/rustdesk-audit-export.ts",
+          "scripts/rustdesk-client-config-pack.ts",
+          "scripts/rustdesk-client-profile-pack.ts",
+          "scripts/rustdesk-deployment-preflight.ts",
+          "scripts/rustdesk-handoff-pack.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^RUSTDESK_IVEKIT_[A-Z0-9_]+$"
+        ],
+        "reason": "RustDesk command-line tools read current RUSTDESK_FABRIC_* keys first and retain the exact focused legacy suffixes as a tested migration fallback.",
+        "owner": "remote-support",
+        "removal_condition": "Remove after the documented compatibility window and observed use of every RUSTDESK_IVEKIT_* fallback reaches zero.",
+        "evidence": "test/rustdesk-deployment-preflight.test.ts"
+      },
+      {
+        "id": "frozen_homer_capacity_inputs_v1",
+        "path_globs": [
+          "infra/capacity/homer-hep-ab/run.sh",
+          "infra/capacity/homer-maintenance/run.sh",
+          "infra/converact/homer/apply-overlay.mjs",
+          "test/communication-technology-baseline.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "reason": "The HOMER capacity runners, overlay comment and baseline ID are byte-bound inputs to retained v1 evidence; current Converact wrappers and resource identities are validated separately.",
+        "owner": "platform-performance",
+        "removal_condition": "Supersede only with a newly versioned capacity input set and independently established Converact baseline; never rewrite the retained source generation.",
+        "evidence": "docs/capacity/forks/ivekit-forks-v1.json"
+      },
+      {
+        "id": "component_governance_v1_helper_aliases",
+        "path_globs": [
+          "scripts/lib/component-governance.ts",
+          "test/component-governance.test.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit\\.(?:kamailioImage|rustpbxImage|sipExporterImage|tinodeImage|clamavImage)$",
+          "^ivekit-homer\\.image$"
+        ],
+        "reason": "The component-governance adapter maps immutable v1 helper IDs to current Converact helper IDs so frozen fork manifests remain verifiable without becoming active product names.",
+        "owner": "supply-chain",
+        "removal_condition": "Remove only after every v1 manifest and rollback generation is retired and a newly versioned manifest uses Converact helper IDs.",
+        "evidence": "docs/capacity/forks/ivekit-forks-v1.json"
+      },
+      {
+        "id": "rustdesk_windows_artifact_compatibility_v1",
+        "path_globs": [
+          "src/agent-runtime/collaboration/rustdesk-client-profile.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit$"
+        ],
+        "reason": "The client profile accepts the exact previously distributed RustDesk Windows filename while new artifacts use the Converact variant.",
+        "owner": "remote-support",
+        "removal_condition": "Remove after the legacy Windows artifact inventory and all supported rollback generations reach zero.",
+        "evidence": "test/rustdesk-client-profile.test.ts"
+      },
+      {
+        "id": "durable_event_family_compatibility_v1",
+        "path_globs": [
+          "src/ws.ts"
+        ],
+        "tokens": [
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^ivekit\\.?$"
+        ],
+        "reason": "Durable ivekit.* event families remain readable and replayable beside current Converact event families so transactional buffering cannot lose pre-rename events.",
+        "owner": "event-platform",
+        "removal_condition": "Remove only after retained replay data, publishers, subscribers and rollback generations using the legacy event family reach active zero.",
+        "evidence": "test/ws.test.ts"
+      },
+      {
+        "id": "frozen_foundation_contract_assertions_v1",
+        "path_globs": [
+          "test/converact-unified-communication-foundation-r5-contract.test.ts",
+          "test/converact-unified-voice-foundation-r4-contract.test.ts",
+          "test/converact-unified-voice-foundation-r4-traceability.test.ts",
+          "test/converact-voice-media-goal4-contract.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^OPC$",
+          "^https://opc\\.local/schemas/[A-Za-z0-9_.-]+\\.json$",
+          "^docs/design/rvoip-opc-communication-foundation-integration-design\\.md$",
+          "^docs/design/2026-07-28-ivekit-media-processing-goal4-implementation-plan\\.md$",
+          "^test/ivekit-voice-media-goal4-contract\\.test\\.ts$"
+        ],
+        "reason": "These tests assert exact Revision 4/5 and Goal 4 contract bytes, schema IDs and source paths at their frozen compatibility commits; current successors are independently branded Converact.",
+        "owner": "platform-assurance",
+        "removal_condition": "Retain with the immutable contract generations; add new Converact contract tests rather than rewriting frozen assertions.",
+        "evidence": "docs/capacity/contracts/unified-communication-foundation-r5-traceability-v1.json"
+      },
+      {
+        "id": "stable_runtime_identity_assertions_v1",
+        "path_globs": [
+          "test/db-pg-migration-files.test.ts",
+          "test/rustdesk-gateway-security-boundary.test.ts",
+          "test/tinode-chat-smoke.test.ts"
+        ],
+        "tokens": [
+          "OPC"
+        ],
+        "match_patterns": [
+          "^opc_$",
+          "^/opc$"
+        ],
+        "reason": "These regression assertions preserve applied PostgreSQL function prefixes, the published /api/opc route and the durable Tinode provider login namespace across the presentation rename.",
+        "owner": "platform-api",
+        "removal_condition": "Change only through separately versioned data, route and provider-identity migrations with dual-read, rollback and active-zero evidence.",
+        "evidence": "docs/migrations/opc-to-converact-v1.md"
+      },
+      {
+        "id": "legacy_workspace_source_paths",
+        "path_globs": [
+          "goals/PROGRAM-RULES.md",
+          "goals/goal-00-execution-baseline-and-traceability.md"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^/Users/songjinfeng/Desktop/opc$",
+          "^/Users/songjinfeng/Projects/opc-worktrees/ivekit-v3$",
+          "^/Users/songjinfeng/Projects/opc-worktrees/legacy-production-20260730$"
+        ],
+        "reason": "Goal 00 must address the exact retained legacy source and frozen production paths; renaming text without moving those worktrees would make the execution baseline false.",
+        "owner": "platform-foundation",
+        "removal_condition": "Remove only after the corresponding source is fully reconciled or the worktree is explicitly moved and every active goal references the verified successor path.",
+        "evidence": "docs/design/converact-architecture-source-ledger-2026-07-31.md"
+      },
+      {
+        "id": "legacy_runtime_access_source_path",
+        "path_globs": [
+          "goals/PROGRAM-RULES.md"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit"
+        ],
+        "match_patterns": [
+          "^/private/tmp/opc-ivekit-runtime-access-2026-07-29\\.md$"
+        ],
+        "reason": "The program rules reference the exact externally supplied credential file path; silently renaming the path would bypass the no-echo safety control.",
+        "owner": "platform-security",
+        "removal_condition": "Remove only after the credential source is explicitly reissued at a Converact path and all active tasks use it.",
+        "evidence": "goals/PROGRAM-RULES.md"
       }
     ],
     "historical": [
       {
         "id": "immutable_evidence",
-        "path_globs": ["docs/evidence/**"],
-        "tokens": ["OPC", "OPC_", "iveKit", "songgoldenwind-crypto/opc-platform"],
+        "path_globs": [
+          "docs/evidence/**"
+        ],
+        "tokens": [
+          "OPC",
+          "OPC_",
+          "iveKit",
+          "songgoldenwind-crypto/opc-platform"
+        ],
         "reason": "Signed and timestamped evidence preserves the identity under which it was produced.",
         "owner": "platform-assurance",
-        "removal_condition": "Never rewrite; supersede with new evidence when a new run occurs."
+        "removal_condition": "Never rewrite; supersede with new evidence when a new run occurs.",
+        "evidence": "docs/adr/ccaas-3-recording-evidence.md"
       },
       {
         "id": "patch_provenance",
-        "path_globs": ["patches/**", "**/*.patch"],
-        "tokens": ["OPC", "OPC_", "iveKit", "songgoldenwind-crypto/opc-platform"],
+        "path_globs": [
+          "patches/**",
+          "**/*.patch"
+        ],
+        "tokens": [
+          "OPC",
+          "OPC_",
+          "iveKit",
+          "songgoldenwind-crypto/opc-platform"
+        ],
         "reason": "Patch payloads and their paths are immutable source provenance.",
         "owner": "platform-assurance",
-        "removal_condition": "Retain for as long as the corresponding source or release is supported."
+        "removal_condition": "Retain for as long as the corresponding source or release is supported.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
+      },
+      {
+        "id": "superseded_design_history",
+        "path_globs": [
+          "docs/superpowers/**"
+        ],
+        "tokens": [
+          "OPC",
+          "OPC_",
+          "iveKit",
+          "songgoldenwind-crypto/opc-platform"
+        ],
+        "reason": "These dated plans and specifications are superseded design provenance and are not the canonical execution plan.",
+        "owner": "platform-assurance",
+        "removal_condition": "Retain as read-only design history; canonical work remains under docs/design and goals.",
+        "evidence": "docs/design/2026-07-31-converact-full-rename-implementation-plan.md"
+      },
+      {
+        "id": "legacy_audit_timeline",
+        "path_globs": [
+          "docs/审核文档.md"
+        ],
+        "tokens": [
+          "OPC",
+          "OPC_",
+          "iveKit",
+          "songgoldenwind-crypto/opc-platform"
+        ],
+        "reason": "The dated audit timeline records the exact names, commands, and artifacts observed before the Converact migration.",
+        "owner": "platform-assurance",
+        "removal_condition": "Retain permanently as audit provenance and supersede with new Converact evidence.",
+        "evidence": "docs/审核文档.md"
+      },
+      {
+        "id": "dated_pre_converact_records",
+        "path_globs": [
+          "docs/audit-2026-06/**",
+          "docs/capacity/forks/ivekit-forks-v1.json",
+          "docs/capacity/phase2-code-status.json",
+          "docs/capacity/contracts/unified-voice-foundation-r4-*",
+          "docs/converact-fabric-voice-foundation-v1-design.md",
+          "docs/converact-fabric-v3-completion-audit.md",
+          "docs/iveKit服务器部署验收报告-*.md",
+          "docs/代码质量审查报告-*.md",
+          "docs/design/2026-07-25-converact-fabric-voice-media-control-goal1-implementation-plan.md",
+          "docs/design/2026-07-26-converact-fabric-rtpengine-goal2-implementation-plan.md",
+          "docs/design/2026-07-26-converact-fabric-rustpbx-rtpengine-goal3-implementation-plan.md"
+        ],
+        "tokens": [
+          "OPC",
+          "OPC_",
+          "iveKit",
+          "songgoldenwind-crypto/opc-platform"
+        ],
+        "reason": "These dated acceptance reports, audits, source manifests, and superseded Goal 1–3 plans preserve the exact pre-Converact inputs and results they recorded.",
+        "owner": "platform-assurance",
+        "removal_condition": "Retain as immutable provenance; supersede with newly generated Converact evidence instead of rewriting it.",
+        "evidence": "docs/design/2026-07-31-converact-full-rename-implementation-plan.md"
+      },
+      {
+        "id": "superseded_full_objective",
+        "path_globs": [
+          "docs/capacity/contracts/unified-voice-foundation-historical-objective.md"
+        ],
+        "tokens": [
+          "OPC",
+          "OPC_",
+          "iveKit",
+          "IVEKIT_",
+          "songgoldenwind-crypto/opc-platform"
+        ],
+        "reason": "The superseded full objective is a read-only execution record whose paths, branch names, configuration keys, and repository coordinates must remain exact.",
+        "owner": "platform-assurance",
+        "removal_condition": "Retain permanently as immutable execution provenance; create a new objective instead of rewriting this record.",
+        "evidence": "docs/capacity/contracts/unified-voice-foundation-historical-objective.md"
+      },
+      {
+        "id": "architecture_source_ledger_provenance",
+        "path_globs": [
+          "docs/design/converact-architecture-source-ledger-2026-07-31.md"
+        ],
+        "tokens": [
+          "OPC"
+        ],
+        "match_patterns": [
+          "^docs/design/rvoip-opc-communication-foundation-integration-design\\.md$"
+        ],
+        "reason": "The architecture ledger retains the exact pre-rename source path beside its Converact target so the imported artifact remains independently traceable.",
+        "owner": "platform-assurance",
+        "removal_condition": "Retain permanently as migration provenance; new source imports must use current Converact paths.",
+        "evidence": "docs/design/converact-architecture-source-ledger-2026-07-31.md"
+      },
+      {
+        "id": "legacy_execution_provenance",
+        "path_globs": [
+          "docs/adr/**",
+          "docs/capacity/contracts/**",
+          "docs/design/converact-architecture-source-ledger-2026-07-31.md",
+          "docs/plans/**",
+          "test/converact-architecture-source-ledger.test.ts",
+          "test/converact-unified-voice-foundation-r4-contract.test.ts",
+          "test/converact-unified-voice-foundation-r4-traceability.test.ts"
+        ],
+        "tokens": [
+          "OPC",
+          "iveKit",
+          "songgoldenwind-crypto/opc-platform"
+        ],
+        "match_patterns": [
+          "^/private/tmp/opc-ivekit-[A-Za-z0-9_.-]+$",
+          "^/Users/songjinfeng/Projects/opc-worktrees/ivekit-v3$",
+          "^/Users/songjinfeng/Desktop/opc(?:/architecture-foundation)?$",
+          "^codex/ivekit-v5-shared-foundation$",
+          "^https://github\\.com/songgoldenwind-crypto/opc-platform(?:\\.git)?$",
+          "^songgoldenwind-crypto/opc-platform$",
+          "^OPC/iveKit$"
+        ],
+        "reason": "Binding objectives and architecture records retain exact source paths, branch names, and repository identities so their hashes and provenance remain auditable.",
+        "owner": "platform-assurance",
+        "removal_condition": "Never rewrite existing provenance; new evidence must reference the Converact repository and paths.",
+        "evidence": "docs/operations/converact-repository-rename-runbook.md"
       }
     ],
     "external": [
       {
         "id": "vendored_external_source",
-        "path_globs": ["third_party/**", "vendor/**"],
-        "tokens": ["OPC", "OPC_", "iveKit", "songgoldenwind-crypto/opc-platform"],
+        "path_globs": [
+          "third_party/**",
+          "vendor/**"
+        ],
+        "tokens": [
+          "OPC",
+          "OPC_",
+          "iveKit",
+          "songgoldenwind-crypto/opc-platform"
+        ],
         "reason": "Vendored source identity is controlled by its upstream project.",
         "owner": "supply-chain",
-        "removal_condition": "Change only through an independently verified upstream update."
+        "removal_condition": "Change only through an independently verified upstream update.",
+        "evidence": "docs/adr/ccaas-4-open-source-fork-governance.md"
       }
     ]
   }

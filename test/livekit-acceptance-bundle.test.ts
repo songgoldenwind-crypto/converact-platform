@@ -10,7 +10,7 @@ import {
 } from '../scripts/livekit-acceptance-bundle.js';
 
 test('LiveKit acceptance bundle creates deterministic local handoff artifacts without forging runtime evidence', () => {
-  const outputDir = mkdtempSync(join(tmpdir(), 'opc-livekit-acceptance-bundle-'));
+  const outputDir = mkdtempSync(join(tmpdir(), 'converact-livekit-acceptance-bundle-'));
   try {
     const result = writeLiveKitAcceptanceBundle({
       outputDir,
@@ -48,7 +48,7 @@ test('LiveKit acceptance bundle creates deterministic local handoff artifacts wi
 });
 
 test('LiveKit acceptance bundle refuses to reuse a directory containing real evidence', () => {
-  const outputDir = mkdtempSync(join(tmpdir(), 'opc-livekit-acceptance-existing-'));
+  const outputDir = mkdtempSync(join(tmpdir(), 'converact-livekit-acceptance-existing-'));
   try {
     writeFileSync(join(outputDir, 'server-evidence.json'), '{}\n');
     assert.throws(
@@ -61,7 +61,7 @@ test('LiveKit acceptance bundle refuses to reuse a directory containing real evi
 });
 
 test('LiveKit acceptance bundle shell-quotes paths with spaces and single quotes', () => {
-  const parent = mkdtempSync(join(tmpdir(), 'opc-livekit-acceptance-quote-'));
+  const parent = mkdtempSync(join(tmpdir(), 'converact-livekit-acceptance-quote-'));
   const outputDir = join(parent, "bundle with ' quote");
   try {
     const result = writeLiveKitAcceptanceBundle({ outputDir, title: 'Quoted paths', env: configuredEnv() });
@@ -73,7 +73,7 @@ test('LiveKit acceptance bundle shell-quotes paths with spaces and single quotes
 });
 
 test('LiveKit acceptance bundle masks deployment secrets in every generated artifact', () => {
-  const outputDir = mkdtempSync(join(tmpdir(), 'opc-livekit-acceptance-secrets-'));
+  const outputDir = mkdtempSync(join(tmpdir(), 'converact-livekit-acceptance-secrets-'));
   const secrets = [
     'bundle-livekit-secret-value',
     'bundle-media-token-value',
@@ -123,7 +123,7 @@ test('LiveKit acceptance bundle config requires an output directory', () => {
 });
 
 test('LiveKit acceptance bundle rejects an invalid acceptance deployment mode', () => {
-  const outputDir = mkdtempSync(join(tmpdir(), 'opc-livekit-acceptance-mode-'));
+  const outputDir = mkdtempSync(join(tmpdir(), 'converact-livekit-acceptance-mode-'));
   try {
     assert.throws(
       () => writeLiveKitAcceptanceBundle({
@@ -165,7 +165,7 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     LIVEKIT_SIP_IMAGE_TAG: 'v1.6.0',
     LIVEKIT_CADDYL4_IMAGE_TAG: 'v2.11.3',
     LIVEKIT_REDIS_IMAGE_TAG: '7.4.9',
-    CONVERACT_BASE_URL: 'https://opc.example.com',
+    CONVERACT_BASE_URL: 'https://converact.example.com',
     CONVERACT_MEDIA_API_TOKEN: 'bundle-media-token',
     CONVERACT_MEDIA_INVITE_SECRET: 'bundle-invite-secret',
     CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-led',

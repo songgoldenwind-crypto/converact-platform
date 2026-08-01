@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.local/schemas/architecture-foundation-goal-manifest-v1.schema.json",
+  "title": "Converact Architecture Foundation Goal Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "program_id",
+    "manifest_version",
+    "generated_date",
+    "program_status",
+    "active_goal",
+    "hash_algorithm",
+    "execution_baseline",
+    "global_rules",
+    "source_artifacts",
+    "goals"
+  ],
+  "properties": {
+    "program_id": {
+      "const": "converact-architecture-foundation-goals"
+    },
+    "manifest_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "generated_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "program_status": {
+      "enum": [
+        "not_started",
+        "active",
+        "completed",
+        "blocked_external",
+        "rejected"
+      ]
+    },
+    "active_goal": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^G[0-9]{2}$"
+    },
+    "hash_algorithm": {
+      "const": "SHA-256"
+    },
+    "execution_baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_goal",
+        "canonical_execution_root"
+      ],
+      "properties": {
+        "decision_goal": {
+          "const": "G00"
+        },
+        "canonical_execution_root": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "global_rules": {
+      "$ref": "#/$defs/hashedArtifact"
+    },
+    "source_artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/hashedArtifact"
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "context",
+                  "design",
+                  "plan",
+                  "adr",
+                  "objective",
+                  "contract",
+                  "traceability",
+                  "schema"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "goals": {
+      "type": "array",
+      "minItems": 18,
+      "maxItems": 18,
+      "items": {
+        "$ref": "#/$defs/goal"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "hashedArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "kind": {
+          "type": "string"
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal_id",
+        "gate"
+      ],
+      "properties": {
+        "goal_id": {
+          "type": "string",
+          "pattern": "^G[0-9]{2}$"
+        },
+        "gate": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "order",
+        "title",
+        "path",
+        "sha256",
+        "status",
+        "conditional",
+        "dependencies",
+        "external_conditions",
+        "unlocks",
+        "allowed_terminal_statuses",
+        "entry_gate"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^G[0-9]{2}$"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 17
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^goals/goal-[0-9]{2}-[a-z0-9-]+\\.md$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "conditional": {
+          "type": "boolean"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dependency"
+          }
+        },
+        "external_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "unlocks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^G[0-9]{2}$"
+          }
+        },
+        "allowed_terminal_statuses": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/status"
+          }
+        },
+        "entry_gate": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "completed_design_only",
+        "blocked_external",
+        "not_run",
+        "rejected",
+        "conditional"
+      ]
+    }
+  }
+}

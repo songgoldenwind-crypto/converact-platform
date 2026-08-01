@@ -22,7 +22,7 @@ spec:
               service:
                 name: {{ $.Release.Name }}-{{ .backend }}
                 port:
-                  number: {{ if eq .backend "opc" }}{{ $.Values.opc.service.port }}{{ else }}{{ $.Values.frontend.service.port }}{{ end }}
+                  number: {{ if eq .backend "converact" }}{{ $.Values.converact.service.port }}{{ else }}{{ $.Values.frontend.service.port }}{{ end }}
           {{- end }}
     {{- end }}
 {{- end }}

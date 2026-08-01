@@ -43,7 +43,7 @@ Unless explicitly requested, do not prioritize:
 2. Phase D/E materialize refactor batches,
 3. broad admin/platform consoles,
 4. generic marketing automation,
-5. restoring root-level `OPC*.md` planning docs.
+5. restoring root-level `Converact Platform*.md` planning docs.
 
 ## One decision filter
 

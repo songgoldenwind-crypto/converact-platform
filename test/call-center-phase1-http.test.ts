@@ -11,7 +11,7 @@ const voiceStore = new VoiceStore(db);
 const server = createServer(db);
 let baseUrl = '';
 let tenantId = '';
-const apiKey = 'dev-opc-key';
+const apiKey = 'dev-converact-key';
 
 before(async () => {
   process.env.CONVERACT_API_KEY = apiKey;

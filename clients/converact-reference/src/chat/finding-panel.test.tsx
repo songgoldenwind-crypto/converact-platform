@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, afterEach, test } from 'node:test';
 import React from 'react';
 
-import type { IveKitPolicyFinding, IveKitPolicyFindingResult } from '@converact/sdk';
+import type { ConveractFabricPolicyFinding, ConveractFabricPolicyFindingResult } from '@converact/sdk';
 import { installTestDom } from '../test-dom.js';
 
 const closeDom = installTestDom();
@@ -144,7 +144,7 @@ test('finding panel redacts reviewer identities in immutable history', () => {
   assert.ok(view.getByText(/\[phone\]/));
 });
 
-function finding(): IveKitPolicyFinding {
+function finding(): ConveractFabricPolicyFinding {
   return {
     id: 'finding-1', tenant_id: 'tenant-1', session_id: 'session-1', message_id: 'message-1',
     source: 'text', source_ref_id: 'message-1', policy_type: 'contact_exchange', severity: 'high',
@@ -156,6 +156,6 @@ function finding(): IveKitPolicyFinding {
   };
 }
 
-function detail(item: IveKitPolicyFinding): IveKitPolicyFindingResult {
+function detail(item: ConveractFabricPolicyFinding): ConveractFabricPolicyFindingResult {
   return { session_id: item.session_id, finding: item, reviews: [] };
 }

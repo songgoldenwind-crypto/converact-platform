@@ -17,7 +17,7 @@ import {
   placementRuntimeConfig
 } from './runtime.js';
 
-export interface IveKitPlacementFoundation {
+export interface ConveractFabricPlacementFoundation {
   runtime: FilePlacementRuntime;
   coordinator: InteractionPlacementCoordinator;
   media: MediaCallPlacementAdapter;
@@ -34,7 +34,7 @@ export function createConfiguredPlacementFoundation(input: {
   env?: NodeJS.ProcessEnv;
   fetch?: typeof fetch;
   now?: () => Date;
-}): IveKitPlacementFoundation | null {
+}): ConveractFabricPlacementFoundation | null {
   const env = input.env || process.env;
   const config = placementRuntimeConfig(env);
   if (!config.enabled) return null;
@@ -104,6 +104,6 @@ export function createConfiguredPlacementFoundation(input: {
 
 function identifierDigest(value: string): string {
   const normalized = String(value || '').trim();
-  if (!normalized) throw new Error('iveKit placement instance ID is required');
+  if (!normalized) throw new Error('Converact Fabric placement instance ID is required');
   return createHash('sha256').update(normalized).digest('hex').slice(0, 32);
 }

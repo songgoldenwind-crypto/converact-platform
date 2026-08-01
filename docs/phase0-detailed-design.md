@@ -13,7 +13,7 @@
 
 | # | 项 | 验证命令/操作 | 预期 |
 |---|---|---|---|
-| 1 | OPC schema 含新表 | `npm run dev` → `SELECT name FROM sqlite_master` | 5 张新表 |
+| 1 | Converact Platform schema 含新表 | `npm run dev` → `SELECT name FROM sqlite_master` | 5 张新表 |
 | 2 | call-router 返回合法 JSON | `curl -X POST localhost:3000/api/call-router -d '{...}'` | 200 + action 字段 |
 | 3 | CDR webhook 入库 | `curl -X POST localhost:3000/api/webhooks/rustpbx-cdr -d '{...}'` | 200 |
 | 4 | LiveKit webhook 不报错 | `curl -X POST localhost:3000/api/media/webhooks/livekit -d '{"event":"room_started",...}'` | 200 |
@@ -40,7 +40,7 @@
 │  └─────────┘  └──────────┘  └────────────┘  └─────────────────┘│
 │                                                                   │
 │  ┌──────────────┐  ┌─────────────┐  ┌────────────┐             │
-│  │ livekit-egress│  │   rustpbx   │  │    opc     │             │
+│  │ livekit-egress│  │   rustpbx   │  │    converact     │             │
 │  │  (internal)   │  │ :5060 :8080 │  │   :3000    │             │
 │  └──────────────┘  └─────────────┘  └────────────┘             │
 │                                                                   │
@@ -54,23 +54,23 @@
 
 | 源 → 目标 | 协议 | 端口 | 用途 |
 |---|---|---|---|
-| rustpbx → opc | HTTP POST | 3000 | call-router 回调 + CDR webhook |
-| opc → rustpbx | HTTP/WS | 8080 | 管理 API + RWI |
+| rustpbx → converact | HTTP POST | 3000 | call-router 回调 + CDR webhook |
+| converact → rustpbx | HTTP/WS | 8080 | 管理 API + RWI |
 | rustpbx → livekit-sip | SIP/RTP | 5061 + 50000-50100 | 音频桥接 |
 | livekit-sip → livekit | gRPC over Redis | 6379 | 信令 + room join |
-| livekit → opc | HTTP POST | 3000 | webhook events |
-| opc → livekit | HTTP | 7880 | Room API + Token 验证 |
+| livekit → converact | HTTP POST | 3000 | webhook events |
+| converact → livekit | HTTP | 7880 | Room API + Token 验证 |
 | livekit → redis | TCP | 6379 | 房间状态 + 消息总线 |
 | livekit-egress → livekit | WebSocket | 7880 | 加入 Room 录制 |
 | livekit-egress → minio | HTTP | 9000 | 上传录制文件 |
 | ai-agent → livekit | WebSocket | 7880 | 加入 Room 发布音视频 |
-| ai-agent → opc | HTTP | 3000 | 转接请求 + 状态上报 |
+| ai-agent → converact | HTTP | 3000 | 转接请求 + 状态上报 |
 
 ### 1.3 宿主机端口暴露
 
 | 宿主端口 | 容器 | 必须暴露 | 原因 |
 |---|---|---|---|
-| 3000 | opc | ✅ | 开发调试 + 坐席面板访问 |
+| 3000 | converact | ✅ | 开发调试 + 坐席面板访问 |
 | 5060/udp+tcp | rustpbx | ✅ | PSTN trunk + 测试工具接入 |
 | 5061/udp+tcp | livekit-sip | ✅ | RustPBX 到 SIP Bridge |
 | 7880 | livekit | ✅ | WebRTC 客户端连接 |
@@ -104,11 +104,11 @@ bind_addr = "0.0.0.0:5060"     # SIP 信令监听
 transports = ["udp", "tcp"]    # 不开 TLS/WSS（开发环境）
 
 #═══════════════════════════════════════════════
-# HTTP 路由器 — 每个 INVITE 回调 OPC
+# HTTP 路由器 — 每个 INVITE 回调 Converact Platform
 #═══════════════════════════════════════════════
 [proxy.http_router]
 url = "http://host.docker.internal:3000/api/call-router"
-timeout_ms = 3000              # OPC 必须 3s 内响应
+timeout_ms = 3000              # Converact Platform 必须 3s 内响应
 fallback_action = "reject"     # 超时/错误 → 拒绝来电
 
 #═══════════════════════════════════════════════
@@ -156,7 +156,7 @@ webhook_url = "http://host.docker.internal:3000/api/webhooks/rustpbx-cdr"
 ### 2.2 HTTP Router 回调时序
 
 ```
-     PSTN caller                RustPBX              OPC /api/call-router
+     PSTN caller                RustPBX              Converact Platform /api/call-router
          │                         │                         │
          ├── SIP INVITE ──────────►│                         │
          │                         │── POST {call_id,...} ──►│
@@ -169,15 +169,15 @@ webhook_url = "http://host.docker.internal:3000/api/webhooks/rustpbx-cdr"
 ```
 
 **超时行为**：
-- OPC 3s 未响应 → RustPBX 给来电方 `486 Busy Here`
-- OPC 返回 5xx → 同上
-- OPC 返回非 JSON → 同上
-- OPC 返回 `action=reject` → 使用返回的 `code` (默认 603)
+- Converact Platform 3s 未响应 → RustPBX 给来电方 `486 Busy Here`
+- Converact Platform 返回 5xx → 同上
+- Converact Platform 返回非 JSON → 同上
+- Converact Platform 返回 `action=reject` → 使用返回的 `code` (默认 603)
 
 ### 2.3 CDR Webhook 时序
 
 ```
-    RustPBX                    OPC /api/webhooks/rustpbx-cdr
+    RustPBX                    Converact Platform /api/webhooks/rustpbx-cdr
        │                              │
        │ (call ends: BYE received)    │
        │── POST CDR JSON ────────────►│
@@ -187,7 +187,7 @@ webhook_url = "http://host.docker.internal:3000/api/webhooks/rustpbx-cdr"
        │◄── 200 OK ──────────────────┤
 ```
 
-**CDR 推送重试**：RustPBX 内置重试 3 次，间隔 5s/10s/30s。OPC 用 `rustpbx_call_id` UNIQUE 约束保证幂等。
+**CDR 推送重试**：RustPBX 内置重试 3 次，间隔 5s/10s/30s。Converact Platform 用 `rustpbx_call_id` UNIQUE 约束保证幂等。
 
 ---
 
@@ -212,7 +212,7 @@ keys:
 webhook:
   api_key: devkey
   urls:
-    - http://opc:3000/api/media/webhooks/livekit   # OPC Media Core 接收事件
+    - http://converact:3000/api/media/webhooks/livekit   # Converact Platform Media Core 接收事件
 
 room:
   empty_timeout: 300          # 空 Room 5 分钟后自动销毁
@@ -280,7 +280,7 @@ lk sip dispatch-rule create \
 
 ---
 
-## 4. OPC Call Router 模块设计
+## 4. Converact Platform Call Router 模块设计
 
 ### 4.1 模块职责
 
@@ -328,7 +328,7 @@ decideCallRoute(request):
 }
 ```
 
-**输出** (OPC 响应):
+**输出** (Converact Platform 响应):
 ```json
 {
   "action": "forward",
@@ -445,7 +445,7 @@ break   ──[resume]───────────► idle
 
 **心跳机制**：
 - 前端每 15s POST `/api/call-center/seats/:id/heartbeat`
-- OPC 更新 `last_heartbeat_at`
+- Converact Platform 更新 `last_heartbeat_at`
 - 若 60s 无心跳 → 自动切 offline（Phase 0 不实现自动扫描，Phase 4 加定时任务）
 
 ### 6.4 坐席选择算法
@@ -513,7 +513,7 @@ Phase 0 仅在 CDR 入库时 `attempt_count++` + 重置 status 为 pending；不
 
 `src/agent-runtime/livekit/room-store.ts`
 
-管理 LiveKit Room 在 OPC 侧的注册表。Room 创建/激活/关闭的生命周期。
+管理 LiveKit Room 在 Converact Platform 侧的注册表。Room 创建/激活/关闭的生命周期。
 
 ### 8.2 Room 命名规范
 
@@ -566,7 +566,7 @@ await client.createRoom({
 await client.deleteRoom(roomName);
 ```
 
-**降级**：若 `LIVEKIT_URL` 未配置 → `createLiveKitRoomClient()` 返回 null → 不调用 LiveKit API，仅写本地 DB。开发时可以不启动 LiveKit 容器也能运行 OPC。
+**降级**：若 `LIVEKIT_URL` 未配置 → `createLiveKitRoomClient()` 返回 null → 不调用 LiveKit API，仅写本地 DB。开发时可以不启动 LiveKit 容器也能运行 Converact Platform。
 
 ---
 
@@ -614,11 +614,11 @@ dev-token:{room_name}:{identity}:{role}
 
 `src/agent-runtime/livekit/webhook-handler.ts`
 
-接收 LiveKit Server 推送的事件，更新 OPC 数据。
+接收 LiveKit Server 推送的事件，更新 Converact Platform 数据。
 
 ### 10.2 验签
 
-LiveKit webhook 请求带 `Authorization` header，使用 HMAC-SHA256 签名。OPC 用 `WebhookReceiver` 验证：
+LiveKit webhook 请求带 `Authorization` header，使用 HMAC-SHA256 签名。Converact Platform 用 `WebhookReceiver` 验证：
 
 ```typescript
 const receiver = new WebhookReceiver(apiKey, apiSecret);
@@ -629,7 +629,7 @@ const event = await receiver.receive(rawBody, authHeader);
 
 ### 10.3 事件处理表
 
-| event | OPC 动作 |
+| event | Converact Platform 动作 |
 |---|---|
 | `room_started` | `livekit_rooms.status = 'active'`，更新 `room_sid` |
 | `room_finished` | `livekit_rooms.status = 'closed'`，`closed_at = now` |
@@ -732,7 +732,7 @@ http.ts (主路由文件)
 ### 13.1 启动顺序
 
 ```
-redis → livekit → livekit-sip → livekit-egress → rustpbx → opc → ai-agent
+redis → livekit → livekit-sip → livekit-egress → rustpbx → converact → ai-agent
 ```
 
 使用 `depends_on` 保证顺序，但不做健康检查（Phase 0 简化）。
@@ -745,7 +745,7 @@ redis → livekit → livekit-sip → livekit-egress → rustpbx → opc → ai-
 | `minio_data` | minio:/data | 录音录像文件 |
 | `rustpbx_data` | rustpbx:/app/db | PBX 配置和 CDR |
 | `rustpbx_recordings` | rustpbx:/app/recordings | 音频录音 |
-| `opc_data` | opc:/data | SQLite 业务数据 |
+| `converact_data` | converact:/data | SQLite 业务数据 |
 
 ### 13.3 环境变量模板
 
@@ -757,14 +757,14 @@ LIVEKIT_SIP_BRIDGE_TARGET=sip:livekit-bridge@livekit-sip:5061
 RUSTPBX_WEBHOOK_KEY=dev-pbx-key
 MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
-OPC_API_KEY=dev-opc-key
+CONVERACT_API_KEY=dev-converact-key
 ```
 
 ### 13.4 Host Network 问题
 
 **开发环境**：不用 `network_mode: host`。用 Docker 默认 bridge + 端口映射。
 
-**原因**：macOS Docker Desktop 不支持 host network；bridge 模式通过 `host.docker.internal` 让容器访问宿主机 OPC（开发模式 OPC 跑在宿主机上）。
+**原因**：macOS Docker Desktop 不支持 host network；bridge 模式通过 `host.docker.internal` 让容器访问宿主机 Converact Platform（开发模式 Converact Platform 跑在宿主机上）。
 
 **生产环境**：Linux 下 RustPBX 和 LiveKit 使用 `network_mode: host`（SIP/RTP 需要宽端口范围）。
 
@@ -848,7 +848,7 @@ Phase 0 完成后，Phase 1 需要新增的模块和能力：
 | `outbound-dialer.ts` | outbound-task-store | 定时器 + Redis 锁 + RWI 调用 |
 | `ai-agent-py` 完整版 | LiveKit + Room | STT→LLM→TTS + function calling |
 | CDR 实时更新 | cdr-receiver | event 类型扩展 (answered → active) |
-| Transfer orchestrator | seat-store + room-store | AI → OPC → RWI transfer |
+| Transfer orchestrator | seat-store + room-store | AI → Converact Platform → RWI transfer |
 
 **Phase 0 留给 Phase 1 的接口契约**：
 - `/api/call-router` 的 metadata 中 `outbound_task_id` — Dialer 写入，CDR 读取

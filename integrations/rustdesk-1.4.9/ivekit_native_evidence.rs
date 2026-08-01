@@ -49,10 +49,24 @@ fn run() {
         log::error!("iveKit native evidence is disabled: ProgramData is unavailable");
         return;
     };
-    let install_root = PathBuf::from(program_data).join("iveKit").join("RustDesk");
-    let roots_file = install_root
+    let current_install_root = PathBuf::from(&program_data).join("Converact").join("RustDesk");
+    let legacy_install_root = PathBuf::from(program_data).join("iveKit").join("RustDesk");
+    let current_roots_file = current_install_root
         .join("state")
         .join("native-evidence-roots-v1.txt");
+    let legacy_roots_file = legacy_install_root
+        .join("state")
+        .join("native-evidence-roots-v1.txt");
+    // New installations use the Converact directory. Existing installations
+    // keep working until their signed roots file is migrated; never merge both
+    // roots because that would create two evidence writers.
+    let (install_root, roots_file) = if current_roots_file.is_file()
+        || !legacy_roots_file.is_file()
+    {
+        (current_install_root, current_roots_file)
+    } else {
+        (legacy_install_root, legacy_roots_file)
+    };
     let candidate_dir = install_root.join(r"native-evidence\candidates");
     let roots = match read_roots(&roots_file) {
         Ok(value) if !value.is_empty() => value,

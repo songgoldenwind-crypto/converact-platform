@@ -1,4 +1,4 @@
-# iveKit RustDesk Server 1.1.16 Owner Overlay
+# Converact Fabric RustDesk Server 1.1.16 Owner Overlay
 
 This exact-release overlay keeps the upstream RustDesk rendezvous and relay
 protocol intact while adding Cell ownership at connection establishment:
@@ -12,8 +12,8 @@ protocol intact while adding Cell ownership at connection establishment:
   binding broker;
 - pending UUID timeouts and completed relay sessions close their exact owner.
 
-The owner hook is opt-in. With all `IVEKIT_*` owner variables unset and
-`IVEKIT_OWNER_GUARD_REQUIRED=0`, hbbs and hbbr preserve upstream behavior and
+The owner hook is opt-in. With all `CONVERACT_FABRIC_*` owner variables unset and
+`CONVERACT_FABRIC_OWNER_GUARD_REQUIRED=0`, hbbs and hbbr preserve upstream behavior and
 perform no owner-broker or component-node requests. A partial owner
 configuration fails startup instead of silently running without fencing.
 
@@ -29,7 +29,7 @@ idempotently and `cargo test --locked --all-features` passes against the exact r
 submodule identities.
 
 The 1.1.16 rebase also carries the upstream unauthenticated UDP punch-hole
-reflection/amplification fix. The iveKit overlay does not weaken or bypass that
+reflection/amplification fix. The Converact Fabric overlay does not weaken or bypass that
 upstream validation path.
 
 The relay hot-path patch makes two bounded changes:
@@ -58,7 +58,7 @@ not relay throughput, node density, Cell capacity, Windows correctness, or a
 1.1.16 benchmark. They remain historical optimization evidence only.
 
 The repository now defines the candidate image
-`ghcr.io/songgoldenwind-crypto/opc-rustdesk-server:1.1.16-ivekit.1-73523b31`.
+`ghcr.io/songgoldenwind-crypto/converact-rustdesk-server:1.1.16-ivekit.1-73523b31`.
 Its workflow verifies the exact root and submodule identities, builds and tests
 the source, performs binary smoke checks, publishes by digest, and delegates
 SBOM, Trivy, Cosign and provenance checks to the shared OCI release gate. That

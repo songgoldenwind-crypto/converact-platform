@@ -1,6 +1,6 @@
 # CloudNativePG external platform profile
 
-This directory defines the iveKit PostgreSQL HA consumer profile. It does not install the CloudNativePG operator, its CRDs, cert-manager, or the Barman Cloud Plugin. Platform operators install and lifecycle those cluster-scoped dependencies independently from the OPC/iveKit application Chart.
+This directory defines the Converact Fabric PostgreSQL HA consumer profile. It does not install the CloudNativePG operator, its CRDs, cert-manager, or the Barman Cloud Plugin. Platform operators install and lifecycle those cluster-scoped dependencies independently from the Converact Platform/Converact Fabric application Chart.
 
 ## Fixed upstreams
 
@@ -12,15 +12,15 @@ The image digest is the multi-architecture OCI index resolved on 2026-07-23. Mir
 
 ## Required namespace and Secrets
 
-Create the `opc-data` namespace through the platform repository. Create these Secrets through the production secret manager; this directory deliberately contains no credentials:
+Create the `converact-data` namespace through the platform repository. Create these Secrets through the production secret manager; this directory deliberately contains no credentials:
 
 | Secret | Keys | Consumer |
 | --- | --- | --- |
-| `opc-postgres-bootstrap` | `username`, `password` | CNPG `initdb`; username must be `opc_app` |
-| `opc-postgres-backup-credentials` | `ACCESS_KEY_ID`, `ACCESS_SECRET_KEY` | Barman Cloud Plugin sidecar |
-| `opc-database-runtime` | `database-url` | OPC/iveKit application Chart |
+| `converact-postgres-bootstrap` | `username`, `password` | CNPG `initdb`; username must be `opc_app` |
+| `converact-postgres-backup-credentials` | `ACCESS_KEY_ID`, `ACCESS_SECRET_KEY` | Barman Cloud Plugin sidecar |
+| `converact-database-runtime` | `database-url` | Converact Platform/Converact Fabric application Chart |
 
-`opc-database-runtime.database-url` should point to `opc-postgres-rw-pooler.opc-data.svc:5432` for ordinary request/worker traffic. Schema migrations, PostgreSQL `LISTEN/NOTIFY`, session advisory locks, temporary tables spanning transactions, and other session-bound operations must use a separately scoped Secret pointing to `opc-postgres-rw.opc-data.svc:5432`.
+`converact-database-runtime.database-url` should point to `converact-postgres-rw-pooler.converact-data.svc:5432` for ordinary request/worker traffic. Schema migrations, PostgreSQL `LISTEN/NOTIFY`, session advisory locks, temporary tables spanning transactions, and other session-bound operations must use a separately scoped Secret pointing to `converact-postgres-rw.converact-data.svc:5432`.
 
 ## Availability and connection budget
 
@@ -35,7 +35,7 @@ These are admission limits, not measured throughput claims. Update them only wit
 
 The profile uses the CNPG-I Barman Cloud Plugin. The deprecated in-tree `barmanObjectStore` field is intentionally absent. WAL is archived continuously and the six-field cron schedule starts a base backup at 02:15 UTC each day, preferring a standby.
 
-The base `ObjectStore` uses `s3://opc-postgres-backups/cluster`. For AWS-compatible private storage, patch `spec.configuration.endpointURL` and optional `endpointCA`; do not change the Secret names or expose object-store credentials in Git.
+The base `ObjectStore` uses `s3://converact-postgres-backups/cluster`. For AWS-compatible private storage, patch `spec.configuration.endpointURL` and optional `endpointCA`; do not change the Secret names or expose object-store credentials in Git.
 
 PITR is a create-and-cut-over operation:
 
@@ -54,7 +54,7 @@ PITR is a create-and-cut-over operation:
 2. Apply external Secrets and validate backup bucket permissions.
 3. Apply this Kustomize base and wait for three healthy instances, synchronous state, WAL archive health and three Pooler pods.
 4. Restore the most recent backup into a disposable cluster and run the acceptance suite.
-5. Set the application Chart to `postgres.mode=external` and point `postgres.external` at `opc-database-runtime`.
+5. Set the application Chart to `postgres.mode=external` and point `postgres.external` at `converact-database-runtime`.
 6. Drain old application pods; do not dual-write databases.
 
 Rollback changes only the application Secret reference to the previous PostgreSQL endpoint. Do not roll a schema backward and do not reuse one WAL archive server name for two writable clusters.

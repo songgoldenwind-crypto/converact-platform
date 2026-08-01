@@ -1,13 +1,13 @@
-# OPC Platform Helm Values
+# Converact Platform Helm Values
 
 global:
   imageRegistry: ""
   imagePullSecrets: []
 
-opc:
+converact:
   replicaCount: 2
   image:
-    repository: opc/platform
+    repository: ghcr.io/songgoldenwind-crypto/converact-platform
     digest: ""
     pullPolicy: IfNotPresent
   service:
@@ -37,7 +37,7 @@ aiAgent:
   replicaCount: 2
   tmpSizeLimit: 256Mi
   image:
-    repository: opc/ai-agent
+    repository: ghcr.io/songgoldenwind-crypto/converact-agent-runtime
     digest: ""
     pullPolicy: IfNotPresent
   providerRuntime:
@@ -95,7 +95,7 @@ aiAgent:
 frontend:
   replicaCount: 1
   image:
-    repository: opc/frontend
+    repository: ghcr.io/songgoldenwind-crypto/converact-console
     digest: ""
     pullPolicy: IfNotPresent
   service:
@@ -106,7 +106,7 @@ postgres:
   # external is the production contract. bundled-dev is a single-instance rollback for development only.
   mode: external
   external:
-    existingSecret: opc-database-runtime
+    existingSecret: converact-database-runtime
     secretKey: database-url
   image:
     repository: postgres
@@ -160,7 +160,7 @@ livekit:
       clientCertKey: ""
       clientKeyKey: ""
   image:
-    repository: ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server
+    repository: ghcr.io/songgoldenwind-crypto/converact-livekit-server
     digest: ""
     pullPolicy: IfNotPresent
   service:
@@ -194,7 +194,7 @@ voice:
   regionId: ""
   zoneId: ""
   image:
-    repository: ivekit/rustpbx
+    repository: ghcr.io/songgoldenwind-crypto/converact-rustpbx
     digest: ""
     pullPolicy: IfNotPresent
   sipCapacity:
@@ -263,7 +263,7 @@ voice:
     publicWssUrl: ""
     sipRealm: ""
     jwtSecret: ""
-    jwtIssuer: ivekit
+    jwtIssuer: converact
     jwtAudience: rustpbx-webphone
     ttlSeconds: "300"
     registerExpiresSeconds: "240"
@@ -324,7 +324,7 @@ voice:
     recordingStateSize: 1Gi
   componentNode:
     enabled: false
-    tokenKey: ivekit-component-node-token
+    tokenKey: converact-component-node-token
     token: ""
     regionId: ""
     zoneId: ""
@@ -374,16 +374,16 @@ voice:
     enabled: false
     endpoint: https://localhost:3212/
     faultDomain: ""
-    spiffeTrustDomain: ivekit.internal
-    serviceTokenKey: ivekit-dialog-shadow-token
+    spiffeTrustDomain: converact.internal
+    serviceTokenKey: converact-dialog-shadow-token
     serviceToken: ""
-    recoveryDatabaseUrlKey: ivekit-dialog-recovery-database-url
+    recoveryDatabaseUrlKey: converact-dialog-recovery-database-url
     recoveryDatabaseUrl: ""
     currentRecoveryKeyId: recovery-current
-    currentRecoveryKeyKey: ivekit-dialog-recovery-current-key
+    currentRecoveryKeyKey: converact-dialog-recovery-current-key
     currentRecoveryKey: ""
     previousRecoveryKeyId: recovery-previous
-    previousRecoveryKeyKey: ivekit-dialog-recovery-previous-key
+    previousRecoveryKeyKey: converact-dialog-recovery-previous-key
     previousRecoveryKey: ""
     serverTlsSecretName: ""
     serverTlsKeyKey: tls.key
@@ -418,7 +418,7 @@ voice:
       faultDomainsKey: fault-domains.json
       placementCluster: ""
       placementTags: []
-      streamName: IVEKIT_DIALOG_SHADOW
+      streamName: CONVERACT_FABRIC_DIALOG_SHADOW
       subjectPrefix: ivekit.dialog_shadow
       streamReplicas: 3
       requiredFaultDomains: 2
@@ -447,7 +447,7 @@ voice:
     zoneTopologyKey: topology.kubernetes.io/zone
     hostnameTopologyKey: kubernetes.io/hostname
     nodeSelector:
-      ivekit.io/media-node: "true"
+      converact.io/media-node: "true"
     tolerations: []
   service:
     managementPort: 8080
@@ -559,7 +559,7 @@ media:
     bucket: recordings
     region: us-east-1
     forcePathStyle: false
-    existingSecret: opc-object-storage-runtime
+    existingSecret: converact-object-storage-runtime
     accessKeyIdKey: access-key-id
     secretAccessKeyKey: secret-access-key
   minio:
@@ -567,7 +567,7 @@ media:
     # Legacy development rollback only. Production uses media.objectStorage.mode=external.
     endpoint: ""
     bucket: recordings
-    existingSecret: opc-minio-legacy
+    existingSecret: converact-minio-legacy
     accessKeyIdKey: access-key-id
     secretAccessKeyKey: secret-access-key
     image:
@@ -592,7 +592,7 @@ media:
   egress:
     enabled: false
     image:
-      repository: ivekit/livekit-egress
+      repository: ghcr.io/songgoldenwind-crypto/converact-livekit-egress
       allowedRegistries:
         - docker.io
       upstreamTag: v1.13.0
@@ -720,7 +720,7 @@ media:
     enabled: false
     replicaCount: 3
     image:
-      repository: ivekit/livekit-ingress
+      repository: ghcr.io/songgoldenwind-crypto/converact-livekit-ingress
       digest: ""
       pullPolicy: IfNotPresent
     hostNetwork: true
@@ -763,7 +763,7 @@ media:
     rustpbxTrunk: ""
     rustpbxRwiUrl: ""
     image:
-      repository: ghcr.io/songgoldenwind-crypto/opc-livekit-sip
+      repository: ghcr.io/songgoldenwind-crypto/converact-livekit-sip
       digest: ""
       pullPolicy: IfNotPresent
     service:
@@ -872,7 +872,7 @@ rustdesk:
   controlPlaneBaseUrl: ""
   publicKey: ""
   publicKeyFile: /rustdesk/id_ed25519.pub
-  launchBaseUrl: https://opc.example.com
+  launchBaseUrl: https://converact.example.com
   launchSecret: ""
   authorizationCodeSecret: ""
   requireAuthorizationCode: "0"
@@ -909,7 +909,7 @@ rustdesk:
   alwaysUseRelay: "N"
   hostNetwork: false
   image:
-    repository: ghcr.io/songgoldenwind-crypto/opc-rustdesk-server
+    repository: ghcr.io/songgoldenwind-crypto/converact-rustdesk-server
     digest: ""
     pullPolicy: IfNotPresent
   service:
@@ -966,11 +966,11 @@ ingress:
   enabled: true
   className: nginx
   hosts:
-    - host: opc.example.com
+    - host: converact.example.com
       paths:
         - path: /api
           pathType: Prefix
-          backend: opc
+          backend: converact
         - path: /
           pathType: Prefix
           backend: frontend

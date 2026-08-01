@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="ISO-8859-1" ?>
 <!DOCTYPE scenario SYSTEM "sipp.dtd">
 
-<scenario name="iveKit RustPBX invalid extension Digest REGISTER">
+<scenario name="Converact Fabric RustPBX invalid extension Digest REGISTER">
   <send retrans="500">
     <![CDATA[
       REGISTER sip:[remote_ip]:[remote_port] SIP/2.0

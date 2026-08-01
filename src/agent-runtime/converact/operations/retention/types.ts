@@ -1,10 +1,10 @@
-export type IveKitRetentionCategory =
+export type ConveractFabricRetentionCategory =
   | 'notifications' | 'audit' | 'rate_limit_buckets' | 'secure_files'
   | 'media_recordings' | 'tenant_events';
 
-export interface IveKitRetentionPolicy {
+export interface ConveractFabricRetentionPolicy {
   tenant_id: string;
-  category: IveKitRetentionCategory;
+  category: ConveractFabricRetentionCategory;
   enabled: boolean;
   retention_days: number;
   batch_size: number;
@@ -19,21 +19,21 @@ export interface IveKitRetentionPolicy {
   updated_at: string;
 }
 
-export interface IveKitRetentionClaim {
+export interface ConveractFabricRetentionClaim {
   run_id: string;
-  policy: IveKitRetentionPolicy;
+  policy: ConveractFabricRetentionPolicy;
   worker_id: string;
   cutoff_at: string;
   started_at: string;
 }
 
-export interface IveKitRetentionDeletionSummary {
+export interface ConveractFabricRetentionDeletionSummary {
   scanned_count: number;
   deleted_count: number;
   held_count: number;
 }
 
-export interface IveKitRetentionBatchSummary {
+export interface ConveractFabricRetentionBatchSummary {
   tenants: number;
   claimed: number;
   completed: number;
@@ -43,10 +43,10 @@ export interface IveKitRetentionBatchSummary {
   held: number;
 }
 
-export interface IveKitLegalHold {
+export interface ConveractFabricLegalHold {
   id: string;
   tenant_id: string;
-  category: IveKitRetentionCategory;
+  category: ConveractFabricRetentionCategory;
   resource_type: string;
   resource_id: string;
   reason_code: string;
@@ -58,9 +58,9 @@ export interface IveKitLegalHold {
   released_at: string | null;
 }
 
-export interface IveKitRetentionPolicyWrite {
+export interface ConveractFabricRetentionPolicyWrite {
   tenant_id: string;
-  category: IveKitRetentionCategory;
+  category: ConveractFabricRetentionCategory;
   enabled: boolean;
   retention_days: number;
   batch_size: number;
@@ -70,9 +70,9 @@ export interface IveKitRetentionPolicyWrite {
   now: string;
 }
 
-export interface IveKitLegalHoldCreateInput {
+export interface ConveractFabricLegalHoldCreateInput {
   tenant_id: string;
-  category: IveKitRetentionCategory;
+  category: ConveractFabricRetentionCategory;
   resource_type: string;
   resource_id: string;
   reason_code: string;

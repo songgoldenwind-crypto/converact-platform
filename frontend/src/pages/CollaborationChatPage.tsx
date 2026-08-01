@@ -230,7 +230,7 @@ export default function CollaborationChatPage() {
       try {
         tinodeAdapter.current?.noteTyping();
       } catch {
-        // iveKit typing remains available while Tinode reconnects.
+        // Converact Fabric typing remains available while Tinode reconnects.
       }
       void apiPost(buildCollaborationTypingPath(sessionId), {
         identity,

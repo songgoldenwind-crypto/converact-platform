@@ -17,45 +17,45 @@ import {
   withPgRequestContext
 } from '../../db-pg-tenant.js';
 import {
-  prepareIveKitRustDeskPlacement,
+  prepareConveractFabricRustDeskPlacement,
   routeCollaborationApi,
   type PreparedRustDeskSessionPlacement,
   type PreparedTinodeSessionPlacement,
   type RouteCollaborationApiOptions
 } from '../collaboration/collaboration-http.js';
 import {
-  prepareIveKitChatPlacement,
-  routeIveKitChatApi,
-  type RouteIveKitChatApiOptions
+  prepareConveractFabricChatPlacement,
+  routeConveractFabricChatApi,
+  type RouteConveractFabricChatApiOptions
 } from './chat-http.js';
 import {
-  routeIveKitIntelligenceApi,
-  type RouteIveKitIntelligenceApiOptions
+  routeConveractFabricIntelligenceApi,
+  type RouteConveractFabricIntelligenceApiOptions
 } from './intelligence-http.js';
 import {
-  routeIveKitEventApi,
-  type RouteIveKitEventApiOptions
+  routeConveractFabricEventApi,
+  type RouteConveractFabricEventApiOptions
 } from './event-http.js';
-import { createIveKitMediaHooks } from './media-hooks.js';
+import { createConveractFabricMediaHooks } from './media-hooks.js';
 import {
-  prepareIveKitMediaCallPlacement,
-  routeIveKitMediaApi,
+  prepareConveractFabricMediaCallPlacement,
+  routeConveractFabricMediaApi,
   type PreparedMediaCallPlacement,
-  type RouteIveKitMediaApiOptions
+  type RouteConveractFabricMediaApiOptions
 } from './media-http.js';
 import {
-  prepareIveKitVoiceCallPlacement,
-  routeIveKitVoiceApi,
+  prepareConveractFabricVoiceCallPlacement,
+  routeConveractFabricVoiceApi,
   type PreparedVoiceCallPlacement,
-  type RouteIveKitVoiceApiOptions
+  type RouteConveractFabricVoiceApiOptions
 } from './voice/http.js';
 import {
-  routeIveKitIvrApi,
-  type RouteIveKitIvrApiOptions
+  routeConveractFabricIvrApi,
+  type RouteConveractFabricIvrApiOptions
 } from './ivr/http.js';
 import {
-  routeIveKitContactCenterApi,
-  type RouteIveKitContactCenterApiOptions
+  routeConveractFabricContactCenterApi,
+  type RouteConveractFabricContactCenterApiOptions
 } from './contact-center/http.js';
 import { ContactCenterError } from './contact-center/errors.js';
 import { PlacementError } from './placement/types.js';
@@ -66,45 +66,45 @@ import {
 } from './voice/sip-foundation/admission-error.js';
 import { IvrError } from './ivr/errors.js';
 import {
-  routeIveKitNotificationApi,
-  type RouteIveKitNotificationApiOptions
+  routeConveractFabricNotificationApi,
+  type RouteConveractFabricNotificationApiOptions
 } from './notifications/http.js';
 import { NotificationError } from './notifications/errors.js';
 import {
-  routeIveKitAuditApi,
-  type RouteIveKitAuditApiOptions
+  routeConveractFabricAuditApi,
+  type RouteConveractFabricAuditApiOptions
 } from './operations/audit/http.js';
-import { IveKitOperationsError } from './operations/audit/errors.js';
-import { IveKitRateLimitError } from './operations/rate-limit/errors.js';
+import { ConveractFabricOperationsError } from './operations/audit/errors.js';
+import { ConveractFabricRateLimitError } from './operations/rate-limit/errors.js';
 import {
-  routeIveKitRetentionApi,
-  type RouteIveKitRetentionApiOptions
+  routeConveractFabricRetentionApi,
+  type RouteConveractFabricRetentionApiOptions
 } from './operations/retention/http.js';
-import { IveKitRetentionError } from './operations/retention/errors.js';
+import { ConveractFabricRetentionError } from './operations/retention/errors.js';
 import {
   RecordingSpoolIntakeError,
   recordingSpoolHttpPartMaxBytes
 } from './recordings/index.js';
 import {
-  createIveKitReadinessProbe,
-  type IveKitPlacementReadinessProbe,
-  type IveKitReadinessProbe
+  createConveractFabricReadinessProbe,
+  type ConveractFabricPlacementReadinessProbe,
+  type ConveractFabricReadinessProbe
 } from './operations/readiness.js';
 import { runWithWsBroadcastBuffer } from '../../ws.js';
 
-type MediaRoute = typeof routeIveKitMediaApi;
-type ChatRoute = typeof routeIveKitChatApi;
-type IntelligenceRoute = typeof routeIveKitIntelligenceApi;
-type EventRoute = typeof routeIveKitEventApi;
+type MediaRoute = typeof routeConveractFabricMediaApi;
+type ChatRoute = typeof routeConveractFabricChatApi;
+type IntelligenceRoute = typeof routeConveractFabricIntelligenceApi;
+type EventRoute = typeof routeConveractFabricEventApi;
 type CollaborationRoute = typeof routeCollaborationApi;
-type VoiceRoute = typeof routeIveKitVoiceApi;
-type IvrRoute = typeof routeIveKitIvrApi;
-type ContactCenterRoute = typeof routeIveKitContactCenterApi;
-type NotificationRoute = typeof routeIveKitNotificationApi;
-type AuditRoute = typeof routeIveKitAuditApi;
-type RetentionRoute = typeof routeIveKitRetentionApi;
+type VoiceRoute = typeof routeConveractFabricVoiceApi;
+type IvrRoute = typeof routeConveractFabricIvrApi;
+type ContactCenterRoute = typeof routeConveractFabricContactCenterApi;
+type NotificationRoute = typeof routeConveractFabricNotificationApi;
+type AuditRoute = typeof routeConveractFabricAuditApi;
+type RetentionRoute = typeof routeConveractFabricRetentionApi;
 
-export interface IveKitRouteAdapters {
+export interface ConveractFabricRouteAdapters {
   media: MediaRoute;
   chat: ChatRoute;
   intelligence: IntelligenceRoute;
@@ -118,24 +118,24 @@ export interface IveKitRouteAdapters {
   collaboration: CollaborationRoute;
 }
 
-export interface IveKitHttpServerInput {
+export interface ConveractFabricHttpServerInput {
   db: unknown;
   pg: PgQueryable | null;
   tls?: HttpsServerOptions;
-  routes?: Partial<IveKitRouteAdapters>;
-  mediaOptions?: RouteIveKitMediaApiOptions;
-  chatOptions?: RouteIveKitChatApiOptions;
+  routes?: Partial<ConveractFabricRouteAdapters>;
+  mediaOptions?: RouteConveractFabricMediaApiOptions;
+  chatOptions?: RouteConveractFabricChatApiOptions;
   collaborationOptions?: RouteCollaborationApiOptions;
-  intelligenceOptions?: RouteIveKitIntelligenceApiOptions;
-  eventOptions?: RouteIveKitEventApiOptions;
-  voiceOptions?: RouteIveKitVoiceApiOptions;
-  ivrOptions?: RouteIveKitIvrApiOptions;
-  contactCenterOptions?: RouteIveKitContactCenterApiOptions;
-  notificationOptions?: RouteIveKitNotificationApiOptions;
-  auditOptions?: RouteIveKitAuditApiOptions;
-  retentionOptions?: RouteIveKitRetentionApiOptions;
-  readinessProbe?: IveKitReadinessProbe;
-  placementReadinessProbe?: IveKitPlacementReadinessProbe;
+  intelligenceOptions?: RouteConveractFabricIntelligenceApiOptions;
+  eventOptions?: RouteConveractFabricEventApiOptions;
+  voiceOptions?: RouteConveractFabricVoiceApiOptions;
+  ivrOptions?: RouteConveractFabricIvrApiOptions;
+  contactCenterOptions?: RouteConveractFabricContactCenterApiOptions;
+  notificationOptions?: RouteConveractFabricNotificationApiOptions;
+  auditOptions?: RouteConveractFabricAuditApiOptions;
+  retentionOptions?: RouteConveractFabricRetentionApiOptions;
+  readinessProbe?: ConveractFabricReadinessProbe;
+  placementReadinessProbe?: ConveractFabricPlacementReadinessProbe;
 }
 
 const allowedPrefixes = [
@@ -165,28 +165,28 @@ const allowedExactPaths = new Set([
   '/remote/rustdesk/launch'
 ]);
 
-export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
+export function createConveractFabricHttpServer(input: ConveractFabricHttpServerInput): Server {
   if (input.tls &&
       (input.tls.requestCert !== true || input.tls.rejectUnauthorized !== true)) {
-    throw new Error('iveKit internal TLS must require an authorized client certificate');
+    throw new Error('Converact Fabric internal TLS must require an authorized client certificate');
   }
-  const routes: IveKitRouteAdapters = {
-    media: input.routes?.media || routeIveKitMediaApi,
-    chat: input.routes?.chat || routeIveKitChatApi,
-    intelligence: input.routes?.intelligence || routeIveKitIntelligenceApi,
-    events: input.routes?.events || routeIveKitEventApi,
-    voice: input.routes?.voice || routeIveKitVoiceApi,
-    ivr: input.routes?.ivr || routeIveKitIvrApi,
-    contactCenter: input.routes?.contactCenter || routeIveKitContactCenterApi,
-    notifications: input.routes?.notifications || routeIveKitNotificationApi,
-    audit: input.routes?.audit || routeIveKitAuditApi,
-    retention: input.routes?.retention || routeIveKitRetentionApi,
+  const routes: ConveractFabricRouteAdapters = {
+    media: input.routes?.media || routeConveractFabricMediaApi,
+    chat: input.routes?.chat || routeConveractFabricChatApi,
+    intelligence: input.routes?.intelligence || routeConveractFabricIntelligenceApi,
+    events: input.routes?.events || routeConveractFabricEventApi,
+    voice: input.routes?.voice || routeConveractFabricVoiceApi,
+    ivr: input.routes?.ivr || routeConveractFabricIvrApi,
+    contactCenter: input.routes?.contactCenter || routeConveractFabricContactCenterApi,
+    notifications: input.routes?.notifications || routeConveractFabricNotificationApi,
+    audit: input.routes?.audit || routeConveractFabricAuditApi,
+    retention: input.routes?.retention || routeConveractFabricRetentionApi,
     collaboration: input.routes?.collaboration || routeCollaborationApi
   };
   const mediaOptions = input.mediaOptions || (input.pg
-    ? createIveKitMediaHooks({ db: input.db, pg: input.pg })
+    ? createConveractFabricMediaHooks({ db: input.db, pg: input.pg })
     : {});
-  const readiness = input.readinessProbe || createIveKitReadinessProbe({
+  const readiness = input.readinessProbe || createConveractFabricReadinessProbe({
     pg: input.pg,
     instanceId: resolveFabricEnv(process.env, 'INSTANCE_ID'),
     placementProbe: input.placementReadinessProbe
@@ -208,7 +208,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
       const path = url.pathname;
       requestPath = path;
-      if (!isAllowedIveKitPath(path)) {
+      if (!isAllowedConveractFabricPath(path)) {
         sendJson(response, 404, { error: { message: 'not found', status: 404 } });
         return;
       }
@@ -269,7 +269,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
                 ? secureFileUploadMaxBytes()
                 : collaborationAttachmentMaxBytes()
           )
-        : await readText(request, iveKitHttpBodyMaxBytes());
+        : await readText(request, converactFabricHttpBodyMaxBytes());
       const body = isAttachmentUpload || isSecureFileUpload || isRustDeskEvidenceUpload ||
         isRecordingSpoolPartUpload
         ? null
@@ -288,21 +288,21 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         ? '/api/ivekit/media/webhooks/livekit'
         : path;
       const mediaUrl = mediaPath === path ? url : new URL(mediaPath, url);
-      preparedMediaCallPlacement = await prepareIveKitMediaCallPlacement(
+      preparedMediaCallPlacement = await prepareConveractFabricMediaCallPlacement(
         method,
         mediaPath,
         body,
         headers,
         mediaOptions
       );
-      preparedTinodePlacement = await prepareIveKitChatPlacement(
+      preparedTinodePlacement = await prepareConveractFabricChatPlacement(
         method,
         path,
         headers,
         input.chatOptions || {},
         input.pg
       );
-      preparedRustDeskPlacement = await prepareIveKitRustDeskPlacement(
+      preparedRustDeskPlacement = await prepareConveractFabricRustDeskPlacement(
         method,
         path,
         body,
@@ -310,7 +310,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         input.collaborationOptions || {},
         input.pg
       );
-      preparedVoiceCallPlacement = await prepareIveKitVoiceCallPlacement(
+      preparedVoiceCallPlacement = await prepareConveractFabricVoiceCallPlacement(
         method,
         path,
         body,
@@ -468,7 +468,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           preparedMediaCallPlacement
         ).catch((releaseError) => {
           console.error(
-            '[ivekit] failed to release media placement after request failure:',
+            '[converact] failed to release media placement after request failure:',
             releaseError instanceof Error ? releaseError.message : String(releaseError)
           );
         });
@@ -479,7 +479,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           preparedVoiceCallPlacement
         ).catch((releaseError) => {
           console.error(
-            '[ivekit] failed to release voice placement after request failure:',
+            '[converact] failed to release voice placement after request failure:',
             releaseError instanceof Error ? releaseError.message : String(releaseError)
           );
         });
@@ -490,7 +490,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           preparedTinodePlacement
         ).catch((releaseError) => {
           console.error(
-            '[ivekit] failed to release Tinode placement after request failure:',
+            '[converact] failed to release Tinode placement after request failure:',
             releaseError instanceof Error ? releaseError.message : String(releaseError)
           );
         });
@@ -501,7 +501,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           preparedRustDeskPlacement
         ).catch((releaseError) => {
           console.error(
-            '[ivekit] failed to release RustDesk placement after request failure:',
+            '[converact] failed to release RustDesk placement after request failure:',
             releaseError instanceof Error ? releaseError.message : String(releaseError)
           );
         });
@@ -514,9 +514,9 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           responseError instanceof IvrError ||
           responseError instanceof ContactCenterError ||
           responseError instanceof NotificationError ||
-          responseError instanceof IveKitOperationsError ||
-          responseError instanceof IveKitRateLimitError ||
-          responseError instanceof IveKitRetentionError ||
+          responseError instanceof ConveractFabricOperationsError ||
+          responseError instanceof ConveractFabricRateLimitError ||
+          responseError instanceof ConveractFabricRetentionError ||
           responseError instanceof RecordingSpoolIntakeError ||
           responseError instanceof PlacementError
             ? responseError : null;
@@ -532,7 +532,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
             requestId,
             structuredErrorDetails(domainError)
           ),
-          error instanceof IveKitRateLimitError
+          error instanceof ConveractFabricRateLimitError
             ? { 'retry-after': error.retry_after_seconds }
             : storeRetryAfter !== null
               ? { 'retry-after': storeRetryAfter }
@@ -554,7 +554,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
 }
 
 async function releasePreparedMediaCallPlacement(
-  options: RouteIveKitMediaApiOptions,
+  options: RouteConveractFabricMediaApiOptions,
   prepared: PreparedMediaCallPlacement | null
 ): Promise<void> {
   if (!prepared || !options.placement) return;
@@ -562,7 +562,7 @@ async function releasePreparedMediaCallPlacement(
 }
 
 async function releasePreparedVoiceCallPlacement(
-  options: RouteIveKitVoiceApiOptions | undefined,
+  options: RouteConveractFabricVoiceApiOptions | undefined,
   prepared: PreparedVoiceCallPlacement | null
 ): Promise<void> {
   if (!options?.placement || !prepared?.reservation) return;
@@ -570,7 +570,7 @@ async function releasePreparedVoiceCallPlacement(
 }
 
 async function releasePreparedTinodePlacement(
-  options: RouteIveKitChatApiOptions | undefined,
+  options: RouteConveractFabricChatApiOptions | undefined,
   prepared: PreparedTinodeSessionPlacement | null
 ): Promise<void> {
   if (!options?.tinodePlacement || !prepared?.reservation || prepared.persisted) return;
@@ -707,11 +707,11 @@ async function runAfterCommit(result: unknown): Promise<void> {
   try {
     await callback();
   } catch (error) {
-    console.error('[ivekit] post-commit event failed', error);
+    console.error('[converact] post-commit event failed', error);
   }
 }
 
-function isAllowedIveKitPath(path: string): boolean {
+function isAllowedConveractFabricPath(path: string): boolean {
   return allowedExactPaths.has(path) || allowedPrefixes.some((prefix) => path.startsWith(prefix));
 }
 
@@ -760,7 +760,7 @@ function parseJsonBody(value: string | Buffer): unknown {
   }
 }
 
-function iveKitHttpBodyMaxBytes(): number {
+function converactFabricHttpBodyMaxBytes(): number {
   const value = Number(resolveFabricEnv(process.env, 'HTTP_BODY_MAX_BYTES') || 1_048_576);
   if (!Number.isInteger(value) || value < 1 || value > 26_214_400) {
     throw new Error('CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES is invalid');

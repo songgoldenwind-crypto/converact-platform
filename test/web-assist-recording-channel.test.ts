@@ -63,7 +63,7 @@ async function createWebAssistSession(input: { pg: MemoryPg; db: unknown; tenant
     body: {
       collaboration_session_id: sessionResult.data.id,
       mode: 'web_remote_assist',
-      adapter_provider: 'ivekit_web',
+      adapter_provider: 'converact_web',
       metadata: { media_room_name: input.roomName }
     },
     headers: authHeaders(input.tenantId)

@@ -1,7 +1,7 @@
 replicaCount: 2
 
 image:
-  repository: ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server
+  repository: ghcr.io/songgoldenwind-crypto/converact-livekit-server
   tag: v1.13.4-ivekit.1@sha256:REPLACE_WITH_64_HEX_DIGEST
   pullPolicy: IfNotPresent
 
@@ -31,12 +31,12 @@ livekit:
       batch_size: 128
       max_flush_interval: 2ms
   redis:
-    address: opc-valkey-primary.data.svc.cluster.local:6379
+    address: converact-valkey-primary.data.svc.cluster.local:6379
     db: 0
     tls:
       enabled: true
       insecure: false
-      server_name: opc-valkey-primary.data.svc.cluster.local
+      server_name: converact-valkey-primary.data.svc.cluster.local
       ca_cert_file: /etc/livekit-redis-tls/ca.crt
       client_cert_file: /etc/livekit-redis-tls/tls.crt
       client_key_file: /etc/livekit-redis-tls/tls.key
@@ -91,7 +91,7 @@ autoscaling:
   targetCPUUtilizationPercentage: 55
 
 nodeSelector:
-  opc.ivekit.io/media-plane: "true"
+  converact.io/media-plane: "true"
 
 resources:
   requests:
@@ -128,7 +128,7 @@ securityContext:
       - ALL
 
 tolerations:
-  - key: opc.ivekit.io/media-plane
+  - key: converact.io/media-plane
     operator: Equal
     value: "true"
     effect: NoSchedule

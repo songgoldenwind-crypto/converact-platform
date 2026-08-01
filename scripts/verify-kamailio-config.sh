@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image="${IVEKIT_KAMAILIO_IMAGE:?IVEKIT_KAMAILIO_IMAGE is required}"
-config_dir="${IVEKIT_KAMAILIO_CONFIG_DIR:?IVEKIT_KAMAILIO_CONFIG_DIR is required}"
-secrets_dir="${IVEKIT_KAMAILIO_SECRETS_DIR:?IVEKIT_KAMAILIO_SECRETS_DIR is required}"
-state_dir="${IVEKIT_KAMAILIO_STATE_DIR:?IVEKIT_KAMAILIO_STATE_DIR is required}"
+image="${CONVERACT_FABRIC_KAMAILIO_IMAGE:?CONVERACT_FABRIC_KAMAILIO_IMAGE is required}"
+config_dir="${CONVERACT_FABRIC_KAMAILIO_CONFIG_DIR:?CONVERACT_FABRIC_KAMAILIO_CONFIG_DIR is required}"
+secrets_dir="${CONVERACT_FABRIC_KAMAILIO_SECRETS_DIR:?CONVERACT_FABRIC_KAMAILIO_SECRETS_DIR is required}"
+state_dir="${CONVERACT_FABRIC_KAMAILIO_STATE_DIR:?CONVERACT_FABRIC_KAMAILIO_STATE_DIR is required}"
 
 if [[ ! "${image}" =~ @sha256:[0-9a-f]{64}$ ]]; then
-  printf '%s\n' 'IVEKIT_KAMAILIO_IMAGE must be pinned by @sha256:<64 lowercase hex>' >&2
+  printf '%s\n' 'CONVERACT_FABRIC_KAMAILIO_IMAGE must be pinned by @sha256:<64 lowercase hex>' >&2
   exit 1
 fi
 

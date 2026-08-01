@@ -13,7 +13,7 @@ keys:
 webhook:
   api_key: devkey
   urls:
-    - http://opc:3000/api/media/webhooks/livekit
+    - http://converact:3000/api/media/webhooks/livekit
 
 room:
   empty_timeout: 300

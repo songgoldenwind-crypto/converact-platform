@@ -85,7 +85,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-        <h1 className="text-2xl font-bold text-gray-900 text-center">OPC 呼叫中心</h1>
+        <h1 className="text-2xl font-bold text-gray-900 text-center">Converact Console</h1>
         <p className="text-sm text-gray-500 text-center mt-1 mb-6">注册或登录以管理外呼任务</p>
 
         <div className="flex rounded-lg border border-gray-200 mb-6 overflow-hidden">

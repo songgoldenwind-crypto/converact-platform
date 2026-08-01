@@ -10,11 +10,11 @@ import {
   type RustDeskAuditExportClient
 } from '../scripts/rustdesk-audit-export.js';
 
-test('RustDesk audit export config maps focused env and iveKit fallbacks', () => {
+test('RustDesk audit export config maps focused env and Converact Fabric fallbacks', () => {
   const config = createRustDeskAuditExportConfigFromEnv({
     CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE: '/tmp/audit-export.jsonl',
     CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID: 'rdgw_1',
-    CONVERACT_RUSTDESK_IVEKIT_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_FABRIC_BASE_URL: 'https://converact.example.com/',
     CONVERACT_COLLABORATION_API_KEY: 'api-key',
     CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
     CONVERACT_RUSTDESK_AUDIT_EXPORT_USER_ID: 'qa_operator',
@@ -23,14 +23,14 @@ test('RustDesk audit export config maps focused env and iveKit fallbacks', () =>
 
   assert.equal(config.outputFile, '/tmp/audit-export.jsonl');
   assert.equal(config.externalId, 'rdgw_1');
-  assert.equal(config.baseUrl, 'https://opc.example.com');
+  assert.equal(config.baseUrl, 'https://converact.example.com');
   assert.equal(config.apiKey, 'api-key');
   assert.equal(config.tenantId, 'tenant_led');
   assert.equal(config.userId, 'qa_operator');
   assert.equal(config.since, '2026-07-06T00:00:00.000Z');
 });
 
-test('RustDesk audit export requires output file, external id, and iveKit credentials', () => {
+test('RustDesk audit export requires output file, external id, and Converact Fabric credentials', () => {
   assert.throws(
     () => createRustDeskAuditExportConfigFromEnv({}),
     /CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE is required/
@@ -46,12 +46,12 @@ test('RustDesk audit export requires output file, external id, and iveKit creden
       CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE: '/tmp/audit-export.jsonl',
       CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID: 'rdgw_1'
     }),
-    /CONVERACT_RUSTDESK_AUDIT_EXPORT_BASE_URL, CONVERACT_RUSTDESK_IVEKIT_BASE_URL, CONVERACT_BASE_URL, or CONVERACT_COLLABORATION_BASE_URL is required/
+    /CONVERACT_RUSTDESK_AUDIT_EXPORT_BASE_URL, CONVERACT_RUSTDESK_FABRIC_BASE_URL, CONVERACT_BASE_URL, or CONVERACT_COLLABORATION_BASE_URL is required/
   );
 });
 
-test('RustDesk audit export writes JSONL from iveKit gateway audit events', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-audit-export-'));
+test('RustDesk audit export writes JSONL from Converact Fabric gateway audit events', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-audit-export-'));
   const outputFile = join(dir, 'nested', 'audit-export.jsonl');
   const calls: string[] = [];
   const client: RustDeskAuditExportClient = {
@@ -85,7 +85,7 @@ test('RustDesk audit export writes JSONL from iveKit gateway audit events', asyn
   const result = await writeRustDeskAuditExport({
     outputFile,
     externalId: 'rdgw_1',
-    baseUrl: 'https://opc.example.com',
+    baseUrl: 'https://converact.example.com',
     apiKey: 'api-key',
     tenantId: 'tenant_led',
     since: '2026-07-06T00:00:00.000Z'

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiGet, apiPost, apiPut } from '../api/client';
+import { readAuthStorage, writeAuthStorage } from '../auth-storage';
 import { useAuth } from './useAuth';
 import { useWebSocket } from './useWebSocket';
 import { requestDesktopNotificationPermission, showDesktopNotification } from './useDesktopNotification';
@@ -99,7 +100,7 @@ export function useAgentWorkbench() {
 
   const loadSeat = useCallback(async () => {
     const seats = await apiGet<AgentSeatRow[]>(`/api/call-center/seats?tenant_id=${tenantId}`);
-    const storedSeatId = localStorage.getItem('opc_seat_id');
+    const storedSeatId = readAuthStorage('seat_id');
     const mine =
       seats.find((s) => s.id === storedSeatId) ||
       seats.find((s) => s.user_id === userId) ||
@@ -107,7 +108,7 @@ export function useAgentWorkbench() {
       null;
     setSeat(mine);
     if (mine) {
-      localStorage.setItem('opc_seat_id', mine.id);
+      writeAuthStorage('seat_id', mine.id);
       setStatus(mine.status as AgentSeatStatus);
     }
     setPeerSeats(seats.filter((s) => s.id !== mine?.id));

@@ -16,7 +16,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [opc, ai-agent]
+                values: [converact, ai-agent]
       ports:
         - protocol: TCP
           port: 4222

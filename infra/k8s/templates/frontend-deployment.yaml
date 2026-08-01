@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: {{ include "opc.frontendImage" . | quote }}
+          image: {{ include "converact.frontendImage" . | quote }}
           imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
           ports:
             - containerPort: 80

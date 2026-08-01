@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, afterEach, before, test } from 'node:test';
 import { cleanup, render } from '@testing-library/react';
 
-import type { IveKitMediaCallParticipant } from '@converact/sdk';
+import type { ConveractFabricMediaCallParticipant } from '@converact/sdk';
 import { installTestDom } from '../test-dom.js';
 import { initialMediaCallState, mediaCallReducer } from './media-reducer.js';
 import { ParticipantGrid } from './participant-grid.js';
@@ -80,7 +80,7 @@ test('duplicate subscription stays singular and participant leave removes all of
   assert.equal(Object.keys(state.tracks).length, 0);
 });
 
-function participant(identity: string): IveKitMediaCallParticipant {
+function participant(identity: string): ConveractFabricMediaCallParticipant {
   return {
     id: identity, tenant_id: 'tenant-1', call_id: 'call-1', identity, role: 'participant', status: 'joined',
     display_name: identity.replace('-', ' ').replace(/\b\w/g, (value) => value.toUpperCase()), metadata: {},

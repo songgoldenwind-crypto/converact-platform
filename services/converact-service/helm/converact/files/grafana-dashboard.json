@@ -280,11 +280,11 @@
   ],
   "refresh": "30s",
   "schemaVersion": 39,
-  "tags": ["ivekit", "shared-foundation"],
+  "tags": ["converact", "shared-foundation"],
   "templating": {
     "list": [
       {
-        "current": { "selected": true, "text": ".*ivekit.*", "value": ".*ivekit.*" },
+        "current": { "selected": true, "text": ".*converact.*", "value": ".*converact.*" },
         "hide": 0,
         "label": "Prometheus job",
         "name": "job",
@@ -298,7 +298,7 @@
   "time": { "from": "now-6h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "iveKit Shared Foundation Operations",
-  "uid": "ivekit-shared-foundation",
+  "title": "Converact Fabric Shared Foundation Operations",
+  "uid": "converact-shared-foundation",
   "version": 1
 }

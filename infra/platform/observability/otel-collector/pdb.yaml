@@ -1,10 +1,10 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: ivekit-otel-collector
+  name: converact-otel-collector
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-otel-collector
+      app.kubernetes.io/name: converact-otel-collector
       app.kubernetes.io/component: trace-gateway

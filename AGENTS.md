@@ -2,7 +2,7 @@
 
 **call-center 新功能**：新增能力前请读 [new-feature-application-checklist.md](docs/new-feature-application-checklist.md)。
 
-**编码规范**：见 [CLAUDE.md](CLAUDE.md)（Karpathy guidelines + OPC 编码规范）。
+**编码规范**：见 [CLAUDE.md](CLAUDE.md)（Karpathy guidelines + Converact Platform 编码规范）。
 
 **Skills**：通过 `npx openskills read <skill-name>` 加载；项目内 canonical 副本在 `.claude/skills/`（不入库，本地安装后可用）。
 

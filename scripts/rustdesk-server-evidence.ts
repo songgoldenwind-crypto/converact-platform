@@ -352,7 +352,7 @@ function udpProbe(host: string, port: number, timeoutMs: number): Promise<boolea
       socket.close();
       resolve(false);
     }, timeoutMs);
-    socket.send(Buffer.from('opc-rustdesk-udp-probe'), port, host, (error) => {
+    socket.send(Buffer.from('converact-rustdesk-udp-probe'), port, host, (error) => {
       clearTimeout(timer);
       socket.close();
       resolve(!error);

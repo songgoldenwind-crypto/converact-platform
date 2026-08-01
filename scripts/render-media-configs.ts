@@ -49,9 +49,9 @@ export interface MediaConfigRenderResult {
 export interface LiveKitEdgeConfigRenderInput extends MediaConfigRenderInput {
   signalDomain: string;
   turnDomain: string;
-  ivekitApiDomain?: string;
+  converactFabricApiDomain?: string;
   tinodePublicDomain?: string;
-  ivekitApiHttpPort: number;
+  converactFabricApiHttpPort: number;
   tinodeHttpPort: number;
   acmeEmail: string;
   rtcPortRangeStart: number;
@@ -77,7 +77,7 @@ export function createMediaConfigRenderInputFromEnv(env: NodeJS.ProcessEnv): Med
     livekitApiSecret: requiredRuntimeSecret(env, 'LIVEKIT_API_SECRET'),
     livekitWsUrl: resolveBrandEnv(env, 'MEDIA_CONFIG_LIVEKIT_URL') || 'ws://livekit:7880',
     livekitRedis: createMediaRedisRenderConfigFromEnv(env, 'redis:6379'),
-    livekitWebhookUrl: resolveBrandEnv(env, 'MEDIA_CONFIG_WEBHOOK_URL') || 'http://opc:3000/api/media/webhooks/livekit',
+    livekitWebhookUrl: resolveBrandEnv(env, 'MEDIA_CONFIG_WEBHOOK_URL') || 'http://converact:3000/api/media/webhooks/livekit',
     livekitRtcTcpPort: parsePort(resolveBrandEnv(env, 'MEDIA_CONFIG_RTC_TCP_PORT'), 'CONVERACT_MEDIA_CONFIG_RTC_TCP_PORT', 7881),
     livekitRtcUdpPort: parsePortRange(resolveBrandEnv(env, 'MEDIA_CONFIG_RTC_UDP_PORT'), 'CONVERACT_MEDIA_CONFIG_RTC_UDP_PORT', '7882-7892'),
     livekitUseExternalIp: parseBoolean(resolveBrandEnv(env, 'MEDIA_CONFIG_USE_EXTERNAL_IP'), 'CONVERACT_MEDIA_CONFIG_USE_EXTERNAL_IP', true),
@@ -109,11 +109,11 @@ export function createLiveKitEdgeConfigRenderInputFromEnv(
   if (signalDomain === turnDomain) {
     throw new Error('LIVEKIT_TURN_DOMAIN must differ from LIVEKIT_SIGNAL_DOMAIN');
   }
-  const ivekitApiDomain = optionalDomain(env, 'IVEKIT_API_DOMAIN');
+  const converactFabricApiDomain = optionalDomain(env, 'CONVERACT_FABRIC_API_DOMAIN');
   const tinodePublicDomain = optionalDomain(env, 'TINODE_PUBLIC_DOMAIN');
-  const domains = [signalDomain, turnDomain, ivekitApiDomain, tinodePublicDomain].filter(Boolean);
+  const domains = [signalDomain, turnDomain, converactFabricApiDomain, tinodePublicDomain].filter(Boolean);
   if (new Set(domains).size !== domains.length) {
-    throw new Error('LiveKit and iveKit edge domains must be unique');
+    throw new Error('LiveKit and Converact Fabric edge domains must be unique');
   }
   const rtcPortRangeStart = parsePort(
     resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_START'),
@@ -133,9 +133,9 @@ export function createLiveKitEdgeConfigRenderInputFromEnv(
     outputDir: normalizeEdgeOutputDir(resolveBrandEnv(env, 'LIVEKIT_EDGE_CONFIG_DIR') || '.runtime/livekit-edge'),
     signalDomain,
     turnDomain,
-    ivekitApiDomain,
+    converactFabricApiDomain,
     tinodePublicDomain,
-    ivekitApiHttpPort: parsePort(env.IVEKIT_API_HTTP_PORT, 'IVEKIT_API_HTTP_PORT', 8300),
+    converactFabricApiHttpPort: parsePort(env.CONVERACT_FABRIC_API_HTTP_PORT, 'CONVERACT_FABRIC_API_HTTP_PORT', 8300),
     tinodeHttpPort: parsePort(env.TINODE_HTTP_PORT, 'TINODE_HTTP_PORT', 6060),
     acmeEmail: requiredEmail(env, 'LIVEKIT_ACME_EMAIL'),
     livekitApiKey: requiredRuntimeSecret(env, 'LIVEKIT_API_KEY'),
@@ -290,7 +290,7 @@ function renderCaddyL4Config(input: LiveKitEdgeConfigRenderInput): string {
   const automatedDomains = [
     input.signalDomain,
     input.turnDomain,
-    input.ivekitApiDomain,
+    input.converactFabricApiDomain,
     input.tinodePublicDomain
   ].filter((domain): domain is string => Boolean(domain));
   return [
@@ -325,8 +325,8 @@ function renderCaddyL4Config(input: LiveKitEdgeConfigRenderInput): string {
     '              - handler: proxy',
     '                upstreams:',
     `                  - dial: ["localhost:${input.turnTlsPort}"]`,
-    ...(input.ivekitApiDomain
-      ? renderCaddyHttpRoute(input.ivekitApiDomain, input.ivekitApiHttpPort)
+    ...(input.converactFabricApiDomain
+      ? renderCaddyHttpRoute(input.converactFabricApiDomain, input.converactFabricApiHttpPort)
       : []),
     ...(input.tinodePublicDomain
       ? renderCaddyHttpRoute(input.tinodePublicDomain, input.tinodeHttpPort)
@@ -382,7 +382,7 @@ function renderEdgeSummary(input: LiveKitEdgeConfigRenderInput): Record<string, 
     signal_url: `wss://${input.signalDomain}`,
     turn_domain: input.turnDomain,
     application_routes: {
-      ivekit_api: input.ivekitApiDomain ? `https://${input.ivekitApiDomain}` : null,
+      converact_api: input.converactFabricApiDomain ? `https://${input.converactFabricApiDomain}` : null,
       tinode: input.tinodePublicDomain ? `https://${input.tinodePublicDomain}` : null
     },
     api_key_configured: Boolean(input.livekitApiKey),

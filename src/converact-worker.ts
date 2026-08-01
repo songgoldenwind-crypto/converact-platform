@@ -1,5 +1,5 @@
 import { resolveFabricEnv } from './config/converact-env.js';
-import { startIveKitApplication } from './agent-runtime/converact/application.js';
+import { startConveractFabricApplication } from './agent-runtime/converact/application.js';
 import { closePostgres, initPostgres } from './db-pg.js';
 import { validateEnvOrExit } from './env-config.js';
 import { shutdownOpenTelemetry } from './telemetry.js';
@@ -8,7 +8,7 @@ validateEnvOrExit();
 
 if (process.env.NODE_ENV !== 'test') {
   process.on('unhandledRejection', (reason) => {
-    console.error('[ivekit-worker] unhandled rejection', reason);
+    console.error('[converact-fabric-worker] unhandled rejection', reason);
   });
 }
 
@@ -19,9 +19,9 @@ async function main(): Promise<void> {
   const pg = await initPostgres();
   if (!pg) throw new Error('cannot connect to Postgres');
   const instanceId = resolveFabricEnv(process.env, 'INSTANCE_ID') ||
-    process.env.HOSTNAME || `ivekit-worker-${process.pid}`;
+    process.env.HOSTNAME || `converact-fabric-worker-${process.pid}`;
   process.env.CONVERACT_FABRIC_INSTANCE_ID = instanceId;
-  const application = startIveKitApplication({ pg, instanceId });
+  const application = startConveractFabricApplication({ pg, instanceId });
   let shutdownPromise: Promise<void> | null = null;
 
   const shutdown = (): Promise<void> => {
@@ -44,7 +44,7 @@ async function main(): Promise<void> {
           errors.push(error);
         }
         if (errors.length) {
-          throw new AggregateError(errors, 'iveKit worker shutdown failed');
+          throw new AggregateError(errors, 'Converact Fabric worker shutdown failed');
         }
       })();
     }
@@ -55,19 +55,19 @@ async function main(): Promise<void> {
     void shutdown().then(
       () => process.exit(0),
       (error) => {
-        console.error('[ivekit-worker-shutdown] FATAL:', error);
+        console.error('[converact-fabric-worker-shutdown] FATAL:', error);
         process.exit(1);
       }
     );
   };
   process.on('SIGINT', exitAfterShutdown);
   process.on('SIGTERM', exitAfterShutdown);
-  console.log(`iveKit worker ${instanceId} started`);
+  console.log(`Converact Fabric worker ${instanceId} started`);
 }
 
 void main().catch((error) => {
   console.error(
-    '[ivekit-worker-startup] FATAL:',
+    '[converact-fabric-worker-startup] FATAL:',
     error instanceof Error ? error.message : String(error)
   );
   process.exit(1);

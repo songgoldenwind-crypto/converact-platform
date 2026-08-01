@@ -1,4 +1,4 @@
-# iveKit Go Component Hook
+# Converact Fabric Go Component Hook
 
 This package is the source-level hook for LiveKit Server and Tinode Server forks.
 It has no third-party dependencies.

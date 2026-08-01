@@ -92,7 +92,7 @@ test('recording start can resolve a tenant retention policy without coupling Med
 test('default recording export returns a bounded stream instead of buffering the object', async () => {
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Streaming recording export' });
-  const dir = await mkdtemp(join(tmpdir(), 'opc-recording-stream-'));
+  const dir = await mkdtemp(join(tmpdir(), 'converact-recording-stream-'));
   try {
     const path = join(dir, 'recording.webm');
     const body = Buffer.from('streamed-recording-body');
@@ -672,16 +672,16 @@ test('compliance retention discovers recording cleanup candidates without deleti
   db.close();
 });
 
-test('iveKit HTTP export streams bytes with download headers and persists an audit log', async () => {
+test('Converact Fabric HTTP export streams bytes with download headers and persists an audit log', async () => {
   const previousApiKey = process.env.CONVERACT_API_KEY;
   process.env.CONVERACT_API_KEY = 'recording-export-api-key';
   const db = createDatabase(':memory:');
-  const tenant = createTenant(db, { name: 'iveKit recording export HTTP' });
+  const tenant = createTenant(db, { name: 'Converact Fabric recording export HTTP' });
   const media = createLiveKitMediaModule({ db });
   const room = await media.rooms.createRoom({
     tenant_id: tenant.id,
     purpose: 'video_service',
-    room_name: 'ivekit-recording-export-http-room'
+    room_name: 'converact-recording-export-http-room'
   });
   const recording = await media.recordings.startRecording(tenant.id, null, room.room_name, {
     format: 'mp4',
@@ -689,12 +689,12 @@ test('iveKit HTTP export streams bytes with download headers and persists an aud
     businessRef: {
       tenant_id: tenant.id,
       type: 'service_order',
-      id: 'order-ivekit-export-http'
+      id: 'order-converact-export-http'
     }
   });
-  const dir = await mkdtemp(join(tmpdir(), 'opc-recording-export-http-'));
+  const dir = await mkdtemp(join(tmpdir(), 'converact-recording-export-http-'));
   const filePath = join(dir, 'recording.mp4');
-  const content = Buffer.from('ivekit recording export http bytes');
+  const content = Buffer.from('converact recording export http bytes');
   await writeFile(filePath, content);
   run(
     db,
@@ -741,17 +741,17 @@ test('iveKit HTTP export streams bytes with download headers and persists an aud
   }
 });
 
-test('iveKit HTTP retention cleanup deletes the object and reconciles PostgreSQL evidence', async () => {
+test('Converact Fabric HTTP retention cleanup deletes the object and reconciles PostgreSQL evidence', async () => {
   const previousApiKey = process.env.CONVERACT_API_KEY;
   process.env.CONVERACT_API_KEY = 'recording-cleanup-api-key';
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
-  const tenant = createTenant(db, { name: 'iveKit recording cleanup HTTP' });
+  const tenant = createTenant(db, { name: 'Converact Fabric recording cleanup HTTP' });
   const media = createLiveKitMediaModule({ db });
   const room = await media.rooms.createRoom({
     tenant_id: tenant.id,
     purpose: 'video_service',
-    room_name: 'ivekit-recording-cleanup-http-room'
+    room_name: 'converact-recording-cleanup-http-room'
   });
   const recording = await media.recordings.startRecording(tenant.id, null, room.room_name, {
     format: 'ogg',
@@ -759,12 +759,12 @@ test('iveKit HTTP retention cleanup deletes the object and reconciles PostgreSQL
     businessRef: {
       tenant_id: tenant.id,
       type: 'service_order',
-      id: 'order-ivekit-cleanup-http'
+      id: 'order-converact-cleanup-http'
     }
   });
-  const dir = await mkdtemp(join(tmpdir(), 'opc-recording-cleanup-http-'));
+  const dir = await mkdtemp(join(tmpdir(), 'converact-recording-cleanup-http-'));
   const filePath = join(dir, 'recording.ogg');
-  await writeFile(filePath, 'ivekit recording cleanup bytes');
+  await writeFile(filePath, 'converact recording cleanup bytes');
   run(
     db,
     "UPDATE call_recordings SET storage_url = ?, status = 'completed' WHERE id = ?",

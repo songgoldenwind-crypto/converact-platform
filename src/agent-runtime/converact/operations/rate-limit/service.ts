@@ -1,22 +1,22 @@
 import { resolveFabricEnv } from '../../../../config/converact-env.js';
 import { createHmac } from 'node:crypto';
 
-import { IveKitRateLimitError } from './errors.js';
-import { observeIveKitRateLimit } from './metrics.js';
-import type { IveKitRateLimitRepository } from './ports.js';
+import { ConveractFabricRateLimitError } from './errors.js';
+import { observeConveractFabricRateLimit } from './metrics.js';
+import type { ConveractFabricRateLimitRepository } from './ports.js';
 import type {
-  IveKitRateLimitCheckInput,
-  IveKitRateLimitDecision,
-  IveKitRateLimitReservationDimension
+  ConveractFabricRateLimitCheckInput,
+  ConveractFabricRateLimitDecision,
+  ConveractFabricRateLimitReservationDimension
 } from './types.js';
 
-export class IveKitRateLimiter {
-  readonly #repository: IveKitRateLimitRepository;
+export class ConveractFabricRateLimiter {
+  readonly #repository: ConveractFabricRateLimitRepository;
   readonly #hmacKey: Buffer;
   readonly #now: () => Date;
 
   constructor(input: {
-    repository: IveKitRateLimitRepository;
+    repository: ConveractFabricRateLimitRepository;
     hmac_key: string;
     now?: () => Date;
   }) {
@@ -25,13 +25,13 @@ export class IveKitRateLimiter {
     this.#now = input.now || (() => new Date());
   }
 
-  async check(input: IveKitRateLimitCheckInput): Promise<IveKitRateLimitDecision> {
+  async check(input: ConveractFabricRateLimitCheckInput): Promise<ConveractFabricRateLimitDecision> {
     const tenantId = requiredText(input.tenant_id, 255);
     const routeGroup = route(input.route_group);
     if (!Array.isArray(input.dimensions) || input.dimensions.length < 1
       || input.dimensions.length > 20) throw validationError();
     const seen = new Set<string>();
-    const dimensions: IveKitRateLimitReservationDimension[] = input.dimensions.map((dimension) => {
+    const dimensions: ConveractFabricRateLimitReservationDimension[] = input.dimensions.map((dimension) => {
       const scope = scopeType(dimension.scope_type);
       const key = requiredText(dimension.key, 2_048);
       const limit = integer(dimension.limit, 1, 1_000_000_000);
@@ -57,13 +57,13 @@ export class IveKitRateLimiter {
       dimensions,
       now: this.#now().toISOString()
     });
-    observeIveKitRateLimit({
+    observeConveractFabricRateLimit({
       route_group: routeGroup,
       allowed: decision.allowed,
       denied_scope: decision.denied_scope
     });
     if (!decision.allowed) {
-      throw new IveKitRateLimitError(
+      throw new ConveractFabricRateLimitError(
         integer(decision.retry_after_seconds, 1, 86_400),
         scopeType(decision.denied_scope)
       );
@@ -89,7 +89,7 @@ function scopeType(value: unknown) {
   if (!['tenant', 'actor', 'source_ip', 'recipient', 'provider'].includes(String(value))) {
     throw validationError();
   }
-  return value as IveKitRateLimitReservationDimension['scope_type'];
+  return value as ConveractFabricRateLimitReservationDimension['scope_type'];
 }
 
 function route(value: unknown): string {

@@ -1,0 +1,76 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+test('Converact Fabric Kamailio image is source-pinned, multi-arch buildable and non-root', async () => {
+  const [dockerfile, build, readme, dispatcherPatch] = await Promise.all([
+    source('infra/converact/kamailio/Dockerfile'),
+    source('infra/converact/kamailio/build.sh'),
+    source('infra/converact/kamailio/README.md'),
+    source('infra/converact/kamailio/patches/0001-dispatcher-retain-probe-state.patch')
+  ]);
+
+  assert.match(dockerfile, /ARG KAMAILIO_VERSION=6\.0\.7/);
+  assert.match(
+    dockerfile,
+    /https:\/\/www\.kamailio\.org\/pub\/kamailio\/6\.0\.7\/src\/kamailio-6\.0\.7_src\.tar\.gz/
+  );
+  assert.match(dockerfile, /f147c3237bb43749eac7bbc1bc97761f6636e7b9cacda120b0911c2be9447865/);
+  assert.match(dockerfile, /ARG LIBJWT_VERSION=2\.1\.3/);
+  assert.match(
+    dockerfile,
+    /https:\/\/github\.com\/benmcollins\/libjwt\/releases\/download\/v2\.1\.3\/libjwt-2\.1\.3\.tar\.xz/
+  );
+  assert.match(dockerfile, /f095f503c3a33fd9c6e3439212b461bda59d9c37ce64bffbe5a871fbd11ed29b/);
+  for (const module of [
+    'dispatcher', 'dialog', 'dmq', 'dmq_usrloc', 'htable', 'jansson', 'jwt', 'outbound', 'path',
+    'registrar', 'siptrace', 'tls', 'usrloc', 'websocket', 'xhttp_prom'
+  ]) assert.match(dockerfile, new RegExp(`include_modules=.*${module}`));
+  for (const dependency of ['libjansson-dev', 'libjansson4', 'netbase']) {
+    assert.match(dockerfile, new RegExp(dependency));
+  }
+  assert.doesNotMatch(dockerfile, /libjwt-dev|libjwt0/);
+  assert.match(dockerfile, /USER 10001:10001/);
+  assert.match(dockerfile, /HEALTHCHECK NONE/);
+  assert.match(dockerfile, /0001-dispatcher-retain-probe-state\.patch/);
+  assert.match(dockerfile, /patch -p1/);
+  assert.doesNotMatch(dockerfile, /sqlite|apt-get install[^\n]*kamailio/i);
+  assert.match(dispatcherPatch, /ivekit_retain_state=1/);
+  assert.match(dispatcherPatch, /probing_count/);
+  assert.match(build, /docker buildx build/);
+  assert.match(build, /CONVERACT_FABRIC_KAMAILIO_IMAGE/);
+  assert.match(readme, /kamailio\/kamailio@6\.0\.7/);
+  assert.match(readme, /kamailio -c/);
+});
+
+test('Kamailio syntax verifier requires an immutable image and disables networking', async () => {
+  const verifier = await source('scripts/verify-kamailio-config.sh');
+  assert.match(verifier, /@sha256:/);
+  assert.match(verifier, /--network none/);
+  assert.match(verifier, /--read-only/);
+  assert.match(verifier, /--cap-drop ALL/);
+  assert.match(verifier, /kamailio -c -f/);
+});
+
+test('standalone Converact Fabric image compiles the Kamailio renderer and route agent', async () => {
+  const [policySource, packageSource, verifier, renderer, agent] = await Promise.all([
+    source('services/converact-service/source-policy.json'),
+    source('services/converact-service/package.json'),
+    source('scripts/verify-converact-standalone-context.ts'),
+    source('src/converact-render-kamailio-config.ts'),
+    source('src/converact-kamailio-route-agent.ts')
+  ]);
+  const policy = JSON.parse(policySource) as { entrypoints: string[] };
+  assert.ok(policy.entrypoints.includes('src/converact-render-kamailio-config.ts'));
+  assert.ok(policy.entrypoints.includes('src/converact-kamailio-route-agent.ts'));
+  assert.match(packageSource, /"render:kamailio"/);
+  assert.match(packageSource, /"route:kamailio"/);
+  assert.match(verifier, /converact-render-kamailio-config\.js/);
+  assert.match(verifier, /converact-kamailio-route-agent\.js/);
+  assert.match(renderer, /loadKamailioConfigRuntime/);
+  assert.match(agent, /loadKamailioRouteAgentRuntimeConfig/);
+});
+
+async function source(path: string) {
+  return readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+}

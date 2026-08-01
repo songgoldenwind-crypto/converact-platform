@@ -28,8 +28,8 @@ export interface KamailioComposeRuntime {
   topology: KamailioComposeTopology;
 }
 
-const CONFIG_OUTPUT = '/etc/ivekit-kamailio/kamailio-runtime.json';
-const TOPOLOGY_OUTPUT = '/etc/ivekit-kamailio/kamailio-topology.json';
+const CONFIG_OUTPUT = '/etc/converact-kamailio/kamailio-runtime.json';
+const TOPOLOGY_OUTPUT = '/etc/converact-kamailio/kamailio-topology.json';
 
 export function buildKamailioComposeRuntime(
   env: NodeJS.ProcessEnv = process.env
@@ -376,7 +376,7 @@ async function main(): Promise<void> {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
     console.error(
-      '[ivekit-kamailio-compose-config] FATAL:',
+      '[converact-kamailio-compose-config] FATAL:',
       error instanceof Error ? error.message : String(error)
     );
     process.exitCode = 1;

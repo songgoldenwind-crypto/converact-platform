@@ -1,9 +1,9 @@
-import type { IveKitVoiceExtensionSessionPlan } from '@converact/sdk';
+import type { ConveractFabricVoiceExtensionSessionPlan } from '@converact/sdk';
 import {
-  createIveKitSipWebPhone,
-  type IveKitSipAudioDevice,
-  type IveKitSipWebPhone,
-  type IveKitSipWebPhoneState
+  createConveractFabricSipWebPhone,
+  type ConveractFabricSipAudioDevice,
+  type ConveractFabricSipWebPhone,
+  type ConveractFabricSipWebPhoneState
 } from '@converact/sdk/sip-webphone';
 import {
   Grid3X3,
@@ -24,29 +24,29 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 declare global {
   interface Window {
-    __IVEKIT_DEV_SIP_WEBPHONE_FACTORY__?: (
-      plan: IveKitVoiceExtensionSessionPlan
-    ) => IveKitSipWebPhone;
+    __CONVERACT_FABRIC_DEV_SIP_WEBPHONE_FACTORY__?: (
+      plan: ConveractFabricVoiceExtensionSessionPlan
+    ) => ConveractFabricSipWebPhone;
   }
 }
 
 export function SipPhonePanel(props: {
-  plan: IveKitVoiceExtensionSessionPlan;
-  createPhone?: (plan: IveKitVoiceExtensionSessionPlan) => IveKitSipWebPhone;
+  plan: ConveractFabricVoiceExtensionSessionPlan;
+  createPhone?: (plan: ConveractFabricVoiceExtensionSessionPlan) => ConveractFabricSipWebPhone;
 }) {
   const phone = useMemo(
-    () => (props.createPhone ?? window.__IVEKIT_DEV_SIP_WEBPHONE_FACTORY__)
-      ? (props.createPhone ?? window.__IVEKIT_DEV_SIP_WEBPHONE_FACTORY__)!(props.plan)
-      : createIveKitSipWebPhone({ plan: props.plan }),
+    () => (props.createPhone ?? window.__CONVERACT_FABRIC_DEV_SIP_WEBPHONE_FACTORY__)
+      ? (props.createPhone ?? window.__CONVERACT_FABRIC_DEV_SIP_WEBPHONE_FACTORY__)!(props.plan)
+      : createConveractFabricSipWebPhone({ plan: props.plan }),
     [props.createPhone, props.plan]
   );
-  const [state, setState] = useState<Readonly<IveKitSipWebPhoneState>>(phone.getSnapshot());
+  const [state, setState] = useState<Readonly<ConveractFabricSipWebPhoneState>>(phone.getSnapshot());
   const [destination, setDestination] = useState('');
-  const [devices, setDevices] = useState<IveKitSipAudioDevice[]>([]);
+  const [devices, setDevices] = useState<ConveractFabricSipAudioDevice[]>([]);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
   const audioRef = useRef<HTMLAudioElement>(null);
-  const pendingDispose = useRef<{ phone: IveKitSipWebPhone; timer: number } | null>(null);
+  const pendingDispose = useRef<{ phone: ConveractFabricSipWebPhone; timer: number } | null>(null);
 
   useEffect(() => {
     if (pendingDispose.current?.phone === phone) {

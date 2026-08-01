@@ -1,88 +1,88 @@
 import type {
-  IveKitVoiceHttpClient,
-  IveKitVoiceIdempotencyOptions
+  ConveractFabricVoiceHttpClient,
+  ConveractFabricVoiceIdempotencyOptions
 } from './http-sdk.js';
 import type {
-  IveKitVoiceCall,
-  IveKitVoiceCallActionInput,
-  IveKitVoiceCallCommand,
-  IveKitVoiceCapabilities,
-  IveKitVoiceClearAddress,
-  IveKitVoiceCommandKind,
-  IveKitVoiceConferenceCreateOptions,
-  IveKitVoiceCreateCallResult,
-  IveKitVoiceCreateOutboundCallInput,
-  IveKitVoiceExtensionSessionPlan
+  ConveractFabricVoiceCall,
+  ConveractFabricVoiceCallActionInput,
+  ConveractFabricVoiceCallCommand,
+  ConveractFabricVoiceCapabilities,
+  ConveractFabricVoiceClearAddress,
+  ConveractFabricVoiceCommandKind,
+  ConveractFabricVoiceConferenceCreateOptions,
+  ConveractFabricVoiceCreateCallResult,
+  ConveractFabricVoiceCreateOutboundCallInput,
+  ConveractFabricVoiceExtensionSessionPlan
 } from './voice-types.js';
 
-export type IveKitVoiceControllerPhase = 'idle' | 'loading' | 'submitting' | 'ready';
+export type ConveractFabricVoiceControllerPhase = 'idle' | 'loading' | 'submitting' | 'ready';
 
-export interface IveKitVoiceControllerError {
+export interface ConveractFabricVoiceControllerError {
   message: string;
   status: number | null;
   retryable: boolean;
 }
 
-export interface IveKitVoiceControllerState {
-  phase: IveKitVoiceControllerPhase;
-  call: IveKitVoiceCall | null;
-  command: IveKitVoiceCallCommand | null;
-  capabilities: IveKitVoiceCapabilities | null;
-  extension_session: IveKitVoiceExtensionSessionPlan | null;
-  pending_action: IveKitVoiceCommandKind | 'dial' | 'extension_session' | null;
-  error: IveKitVoiceControllerError | null;
+export interface ConveractFabricVoiceControllerState {
+  phase: ConveractFabricVoiceControllerPhase;
+  call: ConveractFabricVoiceCall | null;
+  command: ConveractFabricVoiceCallCommand | null;
+  capabilities: ConveractFabricVoiceCapabilities | null;
+  extension_session: ConveractFabricVoiceExtensionSessionPlan | null;
+  pending_action: ConveractFabricVoiceCommandKind | 'dial' | 'extension_session' | null;
+  error: ConveractFabricVoiceControllerError | null;
 }
 
-export type IveKitVoiceControllerClient = Pick<IveKitVoiceHttpClient,
+export type ConveractFabricVoiceControllerClient = Pick<ConveractFabricVoiceHttpClient,
   'getCapabilities' | 'createOutboundCall' | 'getCall' | 'enqueueCallAction' |
   'createLiveKitBridge' | 'createExtensionSession'>;
 
-export interface IveKitVoiceControllerInput {
-  client: IveKitVoiceControllerClient;
+export interface ConveractFabricVoiceControllerInput {
+  client: ConveractFabricVoiceControllerClient;
   idempotencyKey?: () => string;
 }
 
-export interface IveKitVoiceController {
-  getSnapshot(): Readonly<IveKitVoiceControllerState>;
-  subscribe(listener: (state: Readonly<IveKitVoiceControllerState>) => void): () => void;
-  loadCapabilities(): Promise<IveKitVoiceCapabilities>;
-  prepareExtensionSession(extensionId: string): Promise<IveKitVoiceExtensionSessionPlan>;
-  selectCall(callId: string): Promise<IveKitVoiceCall>;
-  refresh(): Promise<IveKitVoiceCall>;
-  dial(input: IveKitVoiceCreateOutboundCallInput): Promise<IveKitVoiceCreateCallResult>;
-  answer(): Promise<IveKitVoiceCallCommand>;
-  hangup(): Promise<IveKitVoiceCallCommand>;
-  sendDtmf(digits: string): Promise<IveKitVoiceCallCommand>;
-  hold(): Promise<IveKitVoiceCallCommand>;
-  resume(): Promise<IveKitVoiceCallCommand>;
-  blindTransfer(target: IveKitVoiceClearAddress): Promise<IveKitVoiceCallCommand>;
-  warmTransfer(target: IveKitVoiceClearAddress): Promise<IveKitVoiceCallCommand>;
-  conference(conferenceId: string): Promise<IveKitVoiceCallCommand>;
-  createConference(conferenceId: string, options?: IveKitVoiceConferenceCreateOptions): Promise<IveKitVoiceCallCommand>;
-  addToConference(conferenceId: string): Promise<IveKitVoiceCallCommand>;
-  removeFromConference(conferenceId: string): Promise<IveKitVoiceCallCommand>;
-  destroyConference(conferenceId: string): Promise<IveKitVoiceCallCommand>;
-  park(slot: string): Promise<IveKitVoiceCallCommand>;
-  pickup(slot: string): Promise<IveKitVoiceCallCommand>;
-  startRecording(): Promise<IveKitVoiceCallCommand>;
-  pauseRecording(): Promise<IveKitVoiceCallCommand>;
-  resumeRecording(): Promise<IveKitVoiceCallCommand>;
-  stopRecording(): Promise<IveKitVoiceCallCommand>;
-  createLiveKitBridge(sipTrunkId: string): Promise<IveKitVoiceCallCommand>;
+export interface ConveractFabricVoiceController {
+  getSnapshot(): Readonly<ConveractFabricVoiceControllerState>;
+  subscribe(listener: (state: Readonly<ConveractFabricVoiceControllerState>) => void): () => void;
+  loadCapabilities(): Promise<ConveractFabricVoiceCapabilities>;
+  prepareExtensionSession(extensionId: string): Promise<ConveractFabricVoiceExtensionSessionPlan>;
+  selectCall(callId: string): Promise<ConveractFabricVoiceCall>;
+  refresh(): Promise<ConveractFabricVoiceCall>;
+  dial(input: ConveractFabricVoiceCreateOutboundCallInput): Promise<ConveractFabricVoiceCreateCallResult>;
+  answer(): Promise<ConveractFabricVoiceCallCommand>;
+  hangup(): Promise<ConveractFabricVoiceCallCommand>;
+  sendDtmf(digits: string): Promise<ConveractFabricVoiceCallCommand>;
+  hold(): Promise<ConveractFabricVoiceCallCommand>;
+  resume(): Promise<ConveractFabricVoiceCallCommand>;
+  blindTransfer(target: ConveractFabricVoiceClearAddress): Promise<ConveractFabricVoiceCallCommand>;
+  warmTransfer(target: ConveractFabricVoiceClearAddress): Promise<ConveractFabricVoiceCallCommand>;
+  conference(conferenceId: string): Promise<ConveractFabricVoiceCallCommand>;
+  createConference(conferenceId: string, options?: ConveractFabricVoiceConferenceCreateOptions): Promise<ConveractFabricVoiceCallCommand>;
+  addToConference(conferenceId: string): Promise<ConveractFabricVoiceCallCommand>;
+  removeFromConference(conferenceId: string): Promise<ConveractFabricVoiceCallCommand>;
+  destroyConference(conferenceId: string): Promise<ConveractFabricVoiceCallCommand>;
+  park(slot: string): Promise<ConveractFabricVoiceCallCommand>;
+  pickup(slot: string): Promise<ConveractFabricVoiceCallCommand>;
+  startRecording(): Promise<ConveractFabricVoiceCallCommand>;
+  pauseRecording(): Promise<ConveractFabricVoiceCallCommand>;
+  resumeRecording(): Promise<ConveractFabricVoiceCallCommand>;
+  stopRecording(): Promise<ConveractFabricVoiceCallCommand>;
+  createLiveKitBridge(sipTrunkId: string): Promise<ConveractFabricVoiceCallCommand>;
   resetCall(): void;
   dispose(): void;
 }
 
-export function createIveKitVoiceController(input: IveKitVoiceControllerInput): IveKitVoiceController {
-  return new DefaultIveKitVoiceController(input);
+export function createConveractFabricVoiceController(input: ConveractFabricVoiceControllerInput): ConveractFabricVoiceController {
+  return new DefaultConveractFabricVoiceController(input);
 }
 
-class DefaultIveKitVoiceController implements IveKitVoiceController {
-  readonly #client: IveKitVoiceControllerClient;
+class DefaultConveractFabricVoiceController implements ConveractFabricVoiceController {
+  readonly #client: ConveractFabricVoiceControllerClient;
   readonly #idempotencyKey: () => string;
-  readonly #listeners = new Set<(state: Readonly<IveKitVoiceControllerState>) => void>();
+  readonly #listeners = new Set<(state: Readonly<ConveractFabricVoiceControllerState>) => void>();
   readonly #ambiguousKeys = new Map<string, string>();
-  #state: IveKitVoiceControllerState = {
+  #state: ConveractFabricVoiceControllerState = {
     phase: 'idle',
     call: null,
     command: null,
@@ -92,24 +92,24 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
     error: null
   };
 
-  constructor(input: IveKitVoiceControllerInput) {
+  constructor(input: ConveractFabricVoiceControllerInput) {
     if (!input?.client) throw new Error('client is required');
     this.#client = input.client;
     this.#idempotencyKey = input.idempotencyKey ?? defaultIdempotencyKey;
   }
 
-  getSnapshot(): Readonly<IveKitVoiceControllerState> {
+  getSnapshot(): Readonly<ConveractFabricVoiceControllerState> {
     return this.#state;
   }
 
-  subscribe(listener: (state: Readonly<IveKitVoiceControllerState>) => void): () => void {
+  subscribe(listener: (state: Readonly<ConveractFabricVoiceControllerState>) => void): () => void {
     if (typeof listener !== 'function') throw new Error('listener is required');
     this.#listeners.add(listener);
     notifyListener(listener, this.#state);
     return () => this.#listeners.delete(listener);
   }
 
-  async loadCapabilities(): Promise<IveKitVoiceCapabilities> {
+  async loadCapabilities(): Promise<ConveractFabricVoiceCapabilities> {
     return this.#run({
       phase: 'loading',
       request: () => this.#client.getCapabilities(),
@@ -117,7 +117,7 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
     });
   }
 
-  async prepareExtensionSession(extensionIdInput: string): Promise<IveKitVoiceExtensionSessionPlan> {
+  async prepareExtensionSession(extensionIdInput: string): Promise<ConveractFabricVoiceExtensionSessionPlan> {
     const extensionId = requiredValue(extensionIdInput, 'extensionId');
     const capabilities = this.#state.capabilities ?? await this.loadCapabilities();
     if (!capabilities.capabilities.extension_sessions) {
@@ -135,7 +135,7 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
     });
   }
 
-  async selectCall(callIdInput: string): Promise<IveKitVoiceCall> {
+  async selectCall(callIdInput: string): Promise<ConveractFabricVoiceCall> {
     const callId = requiredValue(callIdInput, 'callId');
     return this.#run({
       phase: 'loading',
@@ -144,11 +144,11 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
     });
   }
 
-  async refresh(): Promise<IveKitVoiceCall> {
+  async refresh(): Promise<ConveractFabricVoiceCall> {
     return this.selectCall(this.#requiredCall().id);
   }
 
-  async dial(body: IveKitVoiceCreateOutboundCallInput): Promise<IveKitVoiceCreateCallResult> {
+  async dial(body: ConveractFabricVoiceCreateOutboundCallInput): Promise<ConveractFabricVoiceCreateCallResult> {
     const intent = `dial:${stableJson(body)}`;
     return this.#runIdempotent({
       phase: 'submitting',
@@ -159,42 +159,42 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
     });
   }
 
-  answer(): Promise<IveKitVoiceCallCommand> {
+  answer(): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('answer');
   }
 
-  hangup(): Promise<IveKitVoiceCallCommand> {
+  hangup(): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('hangup');
   }
 
-  sendDtmf(digits: string): Promise<IveKitVoiceCallCommand> {
+  sendDtmf(digits: string): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('dtmf', { digits: requiredValue(digits, 'digits') });
   }
 
-  hold(): Promise<IveKitVoiceCallCommand> {
+  hold(): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('hold');
   }
 
-  resume(): Promise<IveKitVoiceCallCommand> {
+  resume(): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('resume');
   }
 
-  blindTransfer(target: IveKitVoiceClearAddress): Promise<IveKitVoiceCallCommand> {
+  blindTransfer(target: ConveractFabricVoiceClearAddress): Promise<ConveractFabricVoiceCallCommand> {
     return this.#transfer('blind_transfer', target);
   }
 
-  warmTransfer(target: IveKitVoiceClearAddress): Promise<IveKitVoiceCallCommand> {
+  warmTransfer(target: ConveractFabricVoiceClearAddress): Promise<ConveractFabricVoiceCallCommand> {
     return this.#transfer('warm_transfer', target);
   }
 
-  conference(conferenceId: string): Promise<IveKitVoiceCallCommand> {
+  conference(conferenceId: string): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('conference', { conference_id: requiredValue(conferenceId, 'conferenceId') });
   }
 
   createConference(
     conferenceId: string,
-    options: IveKitVoiceConferenceCreateOptions = {}
-  ): Promise<IveKitVoiceCallCommand> {
+    options: ConveractFabricVoiceConferenceCreateOptions = {}
+  ): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('conference', {
       ...options,
       operation: 'create',
@@ -202,50 +202,50 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
     });
   }
 
-  addToConference(conferenceId: string): Promise<IveKitVoiceCallCommand> {
+  addToConference(conferenceId: string): Promise<ConveractFabricVoiceCallCommand> {
     return this.#conferenceAction('add', conferenceId);
   }
 
-  removeFromConference(conferenceId: string): Promise<IveKitVoiceCallCommand> {
+  removeFromConference(conferenceId: string): Promise<ConveractFabricVoiceCallCommand> {
     return this.#conferenceAction('remove', conferenceId);
   }
 
-  destroyConference(conferenceId: string): Promise<IveKitVoiceCallCommand> {
+  destroyConference(conferenceId: string): Promise<ConveractFabricVoiceCallCommand> {
     return this.#conferenceAction('destroy', conferenceId);
   }
 
-  park(slot: string): Promise<IveKitVoiceCallCommand> {
+  park(slot: string): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('park', { slot: requiredValue(slot, 'slot') });
   }
 
-  pickup(slot: string): Promise<IveKitVoiceCallCommand> {
+  pickup(slot: string): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('pickup', { slot: requiredValue(slot, 'slot') });
   }
 
-  startRecording(): Promise<IveKitVoiceCallCommand> {
+  startRecording(): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('recording_start');
   }
 
-  pauseRecording(): Promise<IveKitVoiceCallCommand> {
+  pauseRecording(): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('recording_pause');
   }
 
-  resumeRecording(): Promise<IveKitVoiceCallCommand> {
+  resumeRecording(): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('recording_resume');
   }
 
-  stopRecording(): Promise<IveKitVoiceCallCommand> {
+  stopRecording(): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('recording_stop');
   }
 
-  #conferenceAction(operation: 'add' | 'remove' | 'destroy', conferenceId: string): Promise<IveKitVoiceCallCommand> {
+  #conferenceAction(operation: 'add' | 'remove' | 'destroy', conferenceId: string): Promise<ConveractFabricVoiceCallCommand> {
     return this.#action('conference', {
       operation,
       conference_id: requiredValue(conferenceId, 'conferenceId')
     });
   }
 
-  async createLiveKitBridge(sipTrunkIdInput: string): Promise<IveKitVoiceCallCommand> {
+  async createLiveKitBridge(sipTrunkIdInput: string): Promise<ConveractFabricVoiceCallCommand> {
     const callId = this.#requiredCall().id;
     const sipTrunkId = requiredValue(sipTrunkIdInput, 'sipTrunkId');
     const body = { sip_trunk_id: sipTrunkId };
@@ -268,19 +268,19 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
   }
 
   #transfer(
-    kind: Extract<IveKitVoiceCommandKind, 'blind_transfer' | 'warm_transfer'>,
-    target: IveKitVoiceClearAddress
-  ): Promise<IveKitVoiceCallCommand> {
+    kind: Extract<ConveractFabricVoiceCommandKind, 'blind_transfer' | 'warm_transfer'>,
+    target: ConveractFabricVoiceClearAddress
+  ): Promise<ConveractFabricVoiceCallCommand> {
     if (!target || typeof target !== 'object') throw new Error('target is required');
     return this.#action(kind, { target: transferAddressValue(target) });
   }
 
   #action(
-    kind: Exclude<IveKitVoiceCommandKind, 'originate' | 'livekit_bridge_create'>,
+    kind: Exclude<ConveractFabricVoiceCommandKind, 'originate' | 'livekit_bridge_create'>,
     payload: Record<string, unknown> = {}
-  ): Promise<IveKitVoiceCallCommand> {
+  ): Promise<ConveractFabricVoiceCallCommand> {
     const callId = this.#requiredCall().id;
-    const body: IveKitVoiceCallActionInput = {
+    const body: ConveractFabricVoiceCallActionInput = {
       action: kind,
       ...(Object.keys(payload).length ? { payload } : {})
     };
@@ -293,17 +293,17 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
     });
   }
 
-  #requiredCall(): IveKitVoiceCall {
+  #requiredCall(): ConveractFabricVoiceCall {
     if (!this.#state.call) throw new Error('select or dial a call first');
     return this.#state.call;
   }
 
   async #runIdempotent<T>(input: {
-    phase: IveKitVoiceControllerPhase;
-    pendingAction: IveKitVoiceControllerState['pending_action'];
+    phase: ConveractFabricVoiceControllerPhase;
+    pendingAction: ConveractFabricVoiceControllerState['pending_action'];
     intent: string;
-    request: (options: IveKitVoiceIdempotencyOptions) => Promise<T>;
-    apply: (result: T) => Partial<IveKitVoiceControllerState>;
+    request: (options: ConveractFabricVoiceIdempotencyOptions) => Promise<T>;
+    apply: (result: T) => Partial<ConveractFabricVoiceControllerState>;
   }): Promise<T> {
     const key = this.#ambiguousKeys.get(input.intent) ?? this.#newKey(input.intent);
     return this.#run({
@@ -321,11 +321,11 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
   }
 
   async #run<T>(input: {
-    phase: IveKitVoiceControllerPhase;
-    pendingAction?: IveKitVoiceControllerState['pending_action'];
+    phase: ConveractFabricVoiceControllerPhase;
+    pendingAction?: ConveractFabricVoiceControllerState['pending_action'];
     request: () => Promise<T>;
-    apply: (result: T) => Partial<IveKitVoiceControllerState>;
-    onError?: (error: IveKitVoiceControllerError) => void;
+    apply: (result: T) => Partial<ConveractFabricVoiceControllerState>;
+    onError?: (error: ConveractFabricVoiceControllerError) => void;
   }): Promise<T> {
     this.#assertIdle();
     this.#setState({
@@ -374,11 +374,11 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
     this.#setState({ error: controllerError(cause), phase: this.#readyPhase(), pending_action: null });
   }
 
-  #readyPhase(): IveKitVoiceControllerPhase {
+  #readyPhase(): ConveractFabricVoiceControllerPhase {
     return this.#state.call || this.#state.capabilities || this.#state.extension_session ? 'ready' : 'idle';
   }
 
-  #setState(patch: Partial<IveKitVoiceControllerState>): void {
+  #setState(patch: Partial<ConveractFabricVoiceControllerState>): void {
     this.#state = Object.freeze({ ...this.#state, ...patch });
     for (const listener of this.#listeners) notifyListener(listener, this.#state);
   }
@@ -391,7 +391,7 @@ class VoiceControllerOperationError extends Error {
   }
 }
 
-function controllerError(cause: unknown): IveKitVoiceControllerError {
+function controllerError(cause: unknown): ConveractFabricVoiceControllerError {
   const status = numericStatus(cause);
   return {
     message: cause instanceof Error ? cause.message : String(cause),
@@ -418,7 +418,7 @@ function requiredValue(value: unknown, field: string): string {
   return result;
 }
 
-function transferAddressValue(target: IveKitVoiceClearAddress): string {
+function transferAddressValue(target: ConveractFabricVoiceClearAddress): string {
   const value = requiredValue(target.value, 'target.value');
   if (target.kind === 'e164') {
     const normalized = value.replace(/[\s().-]/g, '');
@@ -469,8 +469,8 @@ function stableValue(value: unknown, ancestors: Set<object>): unknown {
 }
 
 function notifyListener(
-  listener: (state: Readonly<IveKitVoiceControllerState>) => void,
-  state: Readonly<IveKitVoiceControllerState>
+  listener: (state: Readonly<ConveractFabricVoiceControllerState>) => void,
+  state: Readonly<ConveractFabricVoiceControllerState>
 ): void {
   try {
     listener(state);

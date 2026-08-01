@@ -1,4 +1,4 @@
-# OPC AI 通讯平台 — 产品设计文档
+# Converact Platform AI 通讯平台 — 产品设计文档
 
 > **版本**: v2.2（按 `docs/design/README.md` 准绳去 Chatwoot/SSE 污染并补互链）
 > **日期**: 2026-06-29
@@ -28,7 +28,7 @@
 
 | 维度 | 描述 |
 |------|------|
-| **角色画像** | OPC 平台运维/运营人员，负责多租户环境的整体健康运转 |
+| **角色画像** | Converact Platform 平台运维/运营人员，负责多租户环境的整体健康运转 |
 | **核心目标** | 确保平台稳定、安全，保障所有租户 SLA；管控成本，优化资源利用率 |
 | **关键任务** | ① 租户生命周期管理（创建/暂停/注销）② 系统监控与告警处置 ③ 全局计费核算与账单管理 ④ SIP trunk/运营商线路配置 ⑤ 平台级合规审计（录音保留策略、外呼频率上限） |
 | **痛点** | 租户数量增长后手动配置不可扩展；跨租户资源争抢导致服务降级；外呼封号后需要快速切换线路 |
@@ -38,7 +38,7 @@
 
 | 维度 | 描述 |
 |------|------|
-| **角色画像** | 企业主或 IT 负责人，购买 OPC 服务后配置自己公司的呼叫中心 |
+| **角色画像** | 企业主或 IT 负责人，购买 Converact Platform 服务后配置自己公司的呼叫中心 |
 | **核心目标** | 快速上线 AI 外呼+人工客服混合能力；可视化监控 ROI |
 | **关键任务** | ① 坐席账号管理与技能标签分配 ② AI 话术配置与数字人选择 ③ 外呼名单导入与任务创建 ④ IVR 路由规则设定 ⑤ 费用监控与用量限制 ⑥ 知识库维护 |
 | **痛点** | 话术调优周期长，缺乏 A/B 测试能力；外呼合规规则复杂（时间窗口、频次限制、AI 标识）；无法量化 AI 外呼 vs 人工的 ROI |
@@ -437,7 +437,7 @@
 以便 提前发现和处理问题。
 
 验收标准：
-1. 展示各组件状态：RustPBX / LiveKit / Redis / OPC / AI Agent
+1. 展示各组件状态：RustPBX / LiveKit / Redis / Converact Platform / AI Agent
 2. 关键指标实时展示：并发通话数、CPU/内存使用率、队列深度
 3. 异常自动告警（CDR 丢失、Agent 崩溃、丢包率高）
 4. 7 天历史趋势图
@@ -450,7 +450,7 @@
 ```
 作为 租户管理员（技术型），
 我希望 通过 REST API 创建外呼任务并接收通话结果回调，
-以便 将 OPC 集成到我们自己的 CRM 系统。
+以便 将 Converact Platform 集成到我们自己的 CRM 系统。
 
 验收标准：
 1. 提供 API Key 管理页面（生成/吊销/权限范围）
@@ -583,7 +583,7 @@ flowchart TD
     U --> V{意向评估}
 
     V -->|高意向 ≥ 0.7| W[AI 告知客户\n正在转接]
-    W --> X[OPC 查找\n空闲坐席]
+    W --> X[Converact Platform 查找\n空闲坐席]
     X --> Y{有坐席?}
     Y -->|是| Z[坐席加入 Room\nAI Agent 退出]
     Y -->|否| AA[排队等待\n或记录回调]
@@ -607,8 +607,8 @@ flowchart TD
 ```mermaid
 flowchart TD
     A[客户拨打\n企业号码] --> B[PSTN → SIP Trunk\n→ RustPBX]
-    B --> C[RustPBX HTTP Router\n回调 OPC]
-    C --> D{OPC 路由决策}
+    B --> C[RustPBX HTTP Router\n回调 Converact Platform]
+    C --> D{Converact Platform 路由决策}
 
     D -->|黑名单| E[reject 603]
     D -->|非工作时间| F[转 AI Agent]
@@ -844,7 +844,7 @@ flowchart TD
 
 ```mermaid
 gantt
-    title OPC 产品路线图
+    title Converact Platform 产品路线图
     dateFormat  YYYY-MM-DD
     axisFormat  %m/%d
 
@@ -968,7 +968,7 @@ v2.0 依赖:
 
 ### 7.1 功能矩阵对比
 
-| 能力 | Genesys Cloud CX | Avaya OneCloud | Zoom Contact Center | OPC (Planned) |
+| 能力 | Genesys Cloud CX | Avaya OneCloud | Zoom Contact Center | Converact Platform (Planned) |
 |------|:-:|:-:|:-:|:-:|
 | **部署模式** | 纯云 | 混合云/私有云 | 纯云 | **CCaaS 多租户 SaaS** |
 | **AI 语音外呼** | ✓ (Predictive) | ✓ (基础) | ✓ (Power Dialer) | ✓ (AI 对话式) |
@@ -991,7 +991,7 @@ v2.0 依赖:
 
 ### 7.2 定价对比
 
-| 维度 | Genesys Cloud | Avaya OneCloud | Zoom Contact Center | OPC |
+| 维度 | Genesys Cloud | Avaya OneCloud | Zoom Contact Center | Converact Platform |
 |------|------|------|------|------|
 | **起步价** | $75/agent/月 (Voice) | 联系销售 (约$60/agent/月) | $69/agent/月 | **Free (2席)** |
 | **全功能价** | $155/agent/月 (CX3+WEM) | $100+/agent/月 | $109/agent/月 | **$59/seat/月** |
@@ -1001,7 +1001,7 @@ v2.0 依赖:
 
 ### 7.3 竞争优势分析
 
-| OPC 差异化 | 说明 |
+| Converact Platform 差异化 | 说明 |
 |------------|------|
 | **AI 视频外呼** | 全球首创数字人视频外呼能力，竞品 99% 是纯语音 |
 | **Outcome-based 定价** | 按有效预约收费，客户零风险，竞品全按坐席/分钟计费 |
@@ -1111,10 +1111,10 @@ v2.0 依赖:
         Zoom CC ────  ┤
         ($69/agent)   │        ← 中型企业市场
                       │
-        OPC Pro ────  ┤
+        Converact Platform Pro ────  ┤
         ($29/seat)    │        ← 中小企业 + 垂直行业
                       │
-        OPC Free ──── ┤
+        Converact Platform Free ──── ┤
         ($0)          │        ← 试用/POC
                       │
                      低价
@@ -1126,12 +1126,12 @@ v2.0 依赖:
 
 1. **Free tier 是获客漏斗**：2 坐席 + 100 AI 分钟足够完成 POC，证明价值后自然升级
 2. **Pro 低于竞品 50%+**：$29 vs 竞品 $69–$155，中小企业决策门槛低
-3. **Enterprise 含 AI**：竞品 AI 能力额外收费，OPC 内含，总 TCO 仍低于竞品
+3. **Enterprise 含 AI**：竞品 AI 能力额外收费，Converact Platform 内含，总 TCO 仍低于竞品
 4. **效果版高毛利**：86% 毛利空间，可以让利给渠道合作伙伴（中介抽成 20%）
 
 ---
 
-*文档维护人：OPC 产品团队*
+*文档维护人：Converact Platform 产品团队*
 *最后更新：2026-06-29（v2.2，按 `docs/design/README.md` 准绳去 Chatwoot/SSE 污染并补互链）*
 *下一次评审：每个 Sprint 结束时*
 
@@ -1141,5 +1141,5 @@ v2.0 依赖:
 
 | 版本 | 日期 | 作者 | 变更内容 |
 |------|------|------|---------|
-| v2.1 | 2026-06-25 | OPC 产品团队 | CCaaS 多租户 SaaS 战略锁定、角色/功能矩阵/用户故事/MVP/定价 |
-| v2.2 | 2026-06-29 | OPC Team | 按 `docs/design/README.md` §3/§4 准绳：(1) §2 与 §6 Gantt/MVP 限制/竞品对照 5 处 Chatwoot 标【已废】→ 现状 `omnichannel/`；(2) §5 SSE 标【目标态】WebSocket + Redis PubSub；(3) 头部加 `<关联文档>` block 与校准段，补链 architecture-v3/security/metrics/本目录 README；(4) 页脚日期由 06-21 对齐到 06-29。未改既有 KPI/定价数字与用户故事文本。 |
+| v2.1 | 2026-06-25 | Converact Platform 产品团队 | CCaaS 多租户 SaaS 战略锁定、角色/功能矩阵/用户故事/MVP/定价 |
+| v2.2 | 2026-06-29 | Converact Platform Team | 按 `docs/design/README.md` §3/§4 准绳：(1) §2 与 §6 Gantt/MVP 限制/竞品对照 5 处 Chatwoot 标【已废】→ 现状 `omnichannel/`；(2) §5 SSE 标【目标态】WebSocket + Redis PubSub；(3) 头部加 `<关联文档>` block 与校准段，补链 architecture-v3/security/metrics/本目录 README；(4) 页脚日期由 06-21 对齐到 06-29。未改既有 KPI/定价数字与用户故事文本。 |

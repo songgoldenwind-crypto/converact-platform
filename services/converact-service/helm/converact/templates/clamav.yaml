@@ -8,15 +8,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.clamavHeadlessFullname" . }}
+  name: {{ include "converact.clamavHeadlessFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: clamav
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
   selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    {{- include "converact.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: clamav
   ports:
     - name: clamd
@@ -27,14 +27,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.clamavFullname" . }}
+  name: {{ include "converact.clamavFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: clamav
 spec:
   type: ClusterIP
   selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    {{- include "converact.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: clamav
   ports:
     - name: clamd
@@ -45,12 +45,12 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "ivekit.clamavFullname" . }}
+  name: {{ include "converact.clamavFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: clamav
 spec:
-  serviceName: {{ include "ivekit.clamavHeadlessFullname" . }}
+  serviceName: {{ include "converact.clamavHeadlessFullname" . }}
   podManagementPolicy: Parallel
   replicas: {{ .Values.clamav.replicaCount }}
   updateStrategy:
@@ -60,12 +60,12 @@ spec:
     whenScaled: Retain
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: clamav
   template:
     metadata:
       labels:
-        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        {{- include "converact.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: clamav
     spec:
       automountServiceAccountToken: false
@@ -76,7 +76,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchLabels:
-                  {{- include "ivekit.selectorLabels" . | nindent 18 }}
+                  {{- include "converact.selectorLabels" . | nindent 18 }}
                   app.kubernetes.io/component: clamav
               topologyKey: {{ .Values.clamav.podAntiAffinity.topologyKey | quote }}
       {{- end }}
@@ -87,7 +87,7 @@ spec:
           whenUnsatisfiable: {{ .Values.clamav.topologySpreadConstraints.whenUnsatisfiable }}
           labelSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: clamav
       {{- end }}
       securityContext:
@@ -98,7 +98,7 @@ spec:
       {{- end }}
       containers:
         - name: clamav
-          image: {{ include "ivekit.clamavImage" . | quote }}
+          image: {{ include "converact.clamavImage" . | quote }}
           imagePullPolicy: {{ .Values.clamav.image.pullPolicy }}
           command: ["/init-unprivileged"]
           ports:
@@ -152,7 +152,7 @@ spec:
     - metadata:
         name: signatures
         labels:
-          {{- include "ivekit.labels" . | nindent 10 }}
+          {{- include "converact.labels" . | nindent 10 }}
           app.kubernetes.io/component: clamav
       spec:
         accessModes: ["ReadWriteOnce"]
@@ -168,15 +168,15 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "ivekit.clamavFullname" . }}
+  name: {{ include "converact.clamavFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: clamav
 spec:
   minAvailable: {{ .Values.clamav.podDisruptionBudget.minAvailable }}
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: clamav
 {{- end }}
 {{- if .Values.clamav.networkPolicy.enabled }}
@@ -184,14 +184,14 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "ivekit.clamavFullname" . }}
+  name: {{ include "converact.clamavFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: clamav
 spec:
   podSelector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: clamav
   policyTypes:
     - Ingress
@@ -200,7 +200,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: api
       ports:
         - port: 3310

@@ -57,7 +57,7 @@ test('remote assistance requires consent before starting an external tool sessio
   const session = await module.sessions.openSession({
     tenant_id: tenantId,
     business_ref: { tenant_id: tenantId, type: 'call_session', id: 'call_1' },
-    title: 'OPC support call'
+    title: 'Converact support call'
   });
   const remote = await module.remote.createSession({
     tenant_id: tenantId,
@@ -289,7 +289,7 @@ test('remote assistance exposes consent, tool, audit, and evidence timelines', a
     business_ref: businessRef,
     session_id: remote.id,
     kind: 'remote_control_log',
-    storage_url: 's3://opc-audit/ticket_audit_1/log.json',
+    storage_url: 's3://converact-audit/ticket_audit_1/log.json',
     checksum: 'sha256:remote-log',
     created_by: 'agent_audit'
   });
@@ -403,7 +403,7 @@ test('remote gateway adapters normalize RustDesk sessions for tool launch', asyn
   const rustdeskGateway = {
     provider: 'rustdesk',
     external_id: 'rustdesk-session-1',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
     target: { type: 'device', id: 'rustdesk-device-1', display_name: 'LED RustDesk controller' },
     permissions: ['view_screen', 'control_mouse_keyboard'],
     metadata: { rustdesk_id: '123456789', id_server: 'rustdesk-id.example.com' }
@@ -421,7 +421,7 @@ test('remote gateway adapters normalize RustDesk sessions for tool launch', asyn
   assert.equal(rustdeskLaunch.metadata.target_id, 'rustdesk-device-1');
   assert.equal(rustdeskLaunch.metadata.rustdesk_id, '123456789');
   assert.equal(tool.provider, 'rustdesk');
-  assert.equal(tool.launch_url, 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z');
+  assert.equal(tool.launch_url, 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z');
   assert.equal(tool.metadata.gateway_provider, 'rustdesk');
 });
 
@@ -526,7 +526,7 @@ test('remote gateway sync rejects RustDesk audit events for another target', asy
   const gateway = {
     provider: 'rustdesk',
     external_id: 'rustdesk-sync-target-1',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-sync-target-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-sync-target-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
     target: { type: 'device', id: '123456789', display_name: 'LED RustDesk controller' },
     permissions: ['view_screen', 'record_screen'],
     metadata: { rustdesk_id: '123456789' }
@@ -611,7 +611,7 @@ test('remote gateway client session does not create upstream session before cons
 test('remote gateway in-memory client creates and ends RustDesk sessions', async () => {
   const client = moduleFactory().remoteGateways.createInMemoryRemoteGatewayClient({
     provider: 'rustdesk',
-    base_url: 'https://opc.example.com'
+    base_url: 'https://converact.example.com'
   });
 
   const descriptor = await client.createSession({
@@ -626,14 +626,14 @@ test('remote gateway in-memory client creates and ends RustDesk sessions', async
   });
 
   assert.equal(descriptor.provider, 'rustdesk');
-  assert.equal(descriptor.launch_url, 'https://opc.example.com/remote/rustdesk/device/rustdesk-device-2');
+  assert.equal(descriptor.launch_url, 'https://converact.example.com/remote/rustdesk/device/rustdesk-device-2');
   assert.equal(client.getSession(descriptor.external_id)?.status, 'ended');
 });
 
 test('remote gateway in-memory client rejects invalid lifecycle inputs', async () => {
   const client = moduleFactory().remoteGateways.createInMemoryRemoteGatewayClient({
     provider: 'rustdesk',
-    base_url: 'https://opc.example.com'
+    base_url: 'https://converact.example.com'
   });
   const descriptor = await client.createSession({
     target: { type: 'device', id: 'rustdesk-device-invalid-inputs' },
@@ -667,7 +667,7 @@ test('remote gateway in-memory client rejects invalid lifecycle inputs', async (
 test('remote gateway in-memory client rejects invalid create inputs', async () => {
   const client = moduleFactory().remoteGateways.createInMemoryRemoteGatewayClient({
     provider: 'rustdesk',
-    base_url: 'https://opc.example.com'
+    base_url: 'https://converact.example.com'
   });
 
   await assert.rejects(
@@ -884,7 +884,7 @@ test('RustDesk HTTP gateway client maps remote sessions and audit events', async
       return new Response(
         JSON.stringify({
           external_id: 'rustdesk-session-http-1',
-          launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+          launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
           metadata: {
             rustdesk_id: '123456789',
             id_server: 'rustdesk-id.example.com',
@@ -919,7 +919,7 @@ test('RustDesk HTTP gateway client maps remote sessions and audit events', async
     return new Response(JSON.stringify({ error: 'unexpected request' }), { status: 500 });
   };
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: fetchMock
   });
@@ -940,17 +940,17 @@ test('RustDesk HTTP gateway client maps remote sessions and audit events', async
 
   assert.equal(descriptor.provider, 'rustdesk');
   assert.equal(descriptor.external_id, 'rustdesk-session-http-1');
-  assert.equal(descriptor.launch_url, 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z');
+  assert.equal(descriptor.launch_url, 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z');
   assert.equal(descriptor.metadata?.rustdesk_id, '123456789');
   assert.equal(events[0]?.event_type, 'rustdesk.session.connected');
   assert.equal(calls.length, 3);
-  assert.equal(calls[0]?.url, 'https://opc.example.com/api/opc/rustdesk/sessions');
+  assert.equal(calls[0]?.url, 'https://converact.example.com/api/opc/rustdesk/sessions');
   assert.equal(calls[0]?.init?.headers && (calls[0].init.headers as Record<string, string>).authorization, 'Bearer rustdesk-token');
   assert.equal(
     JSON.parse(String(calls[0]?.init?.body)).target.id,
     '123456789'
   );
-  assert.equal(calls[1]?.url, 'https://opc.example.com/api/opc/rustdesk/sessions/rustdesk-session-http-1/audit');
+  assert.equal(calls[1]?.url, 'https://converact.example.com/api/opc/rustdesk/sessions/rustdesk-session-http-1/audit');
   assert.equal(calls[2]?.init?.method, 'DELETE');
 });
 
@@ -961,7 +961,7 @@ test('RustDesk HTTP gateway client includes control-plane error details', async 
       headers: { 'content-type': 'application/json' }
     });
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: fetchMock
   });
@@ -998,7 +998,7 @@ test('RustDesk HTTP gateway client rejects invalid gateway configuration', () =>
   assert.throws(
     () =>
       moduleFactory().remoteGateways.createRustDeskGatewayClient({
-        base_url: 'https://opc.example.com',
+        base_url: 'https://converact.example.com',
         api_token: '  '
       }),
     /api_token is required/
@@ -1008,7 +1008,7 @@ test('RustDesk HTTP gateway client rejects invalid gateway configuration', () =>
 test('RustDesk HTTP gateway client rejects invalid create inputs before network calls', async () => {
   let requestCount = 0;
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () => {
       requestCount += 1;
@@ -1056,7 +1056,7 @@ test('RustDesk HTTP gateway client rejects invalid create inputs before network 
 test('RustDesk HTTP gateway client rejects invalid lifecycle inputs before network calls', async () => {
   let requestCount = 0;
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () => {
       requestCount += 1;
@@ -1095,7 +1095,7 @@ test('RustDesk HTTP gateway client rejects invalid lifecycle inputs before netwo
 test('RustDesk HTTP gateway client rejects incomplete create responses', async () => {
   const createClient = (body: Record<string, unknown>) =>
     moduleFactory().remoteGateways.createRustDeskGatewayClient({
-      base_url: 'https://opc.example.com/',
+      base_url: 'https://converact.example.com/',
       api_token: 'rustdesk-token',
       fetch: async () =>
         new Response(JSON.stringify(body), {
@@ -1113,7 +1113,7 @@ test('RustDesk HTTP gateway client rejects incomplete create responses', async (
   await assert.rejects(
     () =>
       createClient({
-        launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-incomplete'
+        launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-incomplete'
       }).createSession(input),
     /RustDesk gateway response missing external_id/
   );
@@ -1128,13 +1128,13 @@ test('RustDesk HTTP gateway client rejects incomplete create responses', async (
 
 test('RustDesk HTTP gateway client rejects launch URLs without tokens', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
         JSON.stringify({
           external_id: 'rustdesk-session-http-token-missing',
-          launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-token-missing'
+          launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-token-missing'
         }),
         {
           status: 201,
@@ -1156,13 +1156,13 @@ test('RustDesk HTTP gateway client rejects launch URLs without tokens', async ()
 
 test('RustDesk HTTP gateway client rejects launch URLs without expiry timestamps', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
         JSON.stringify({
           external_id: 'rustdesk-session-http-expiry-missing',
-          launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-expiry-missing&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-expiry-missing&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
         }),
         {
           status: 201,
@@ -1184,13 +1184,13 @@ test('RustDesk HTTP gateway client rejects launch URLs without expiry timestamps
 
 test('RustDesk HTTP gateway client rejects expired launch URLs', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
         JSON.stringify({
           external_id: 'rustdesk-session-http-expired',
-          launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-expired&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2000-01-01T00:00:00.000Z'
+          launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-expired&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2000-01-01T00:00:00.000Z'
         }),
         {
           status: 201,
@@ -1212,13 +1212,13 @@ test('RustDesk HTTP gateway client rejects expired launch URLs', async () => {
 
 test('RustDesk HTTP gateway client rejects malformed launch tokens', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
         JSON.stringify({
           external_id: 'rustdesk-session-http-token-malformed',
-          launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-token-malformed&token=launch-token&expires_at=2099-01-01T00:00:00.000Z'
+          launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-token-malformed&token=launch-token&expires_at=2099-01-01T00:00:00.000Z'
         }),
         {
           status: 201,
@@ -1240,13 +1240,13 @@ test('RustDesk HTTP gateway client rejects malformed launch tokens', async () =>
 
 test('RustDesk HTTP gateway client rejects launch URLs for another session', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
         JSON.stringify({
           external_id: 'rustdesk-session-http-expected',
-          launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-other&token=launch-token'
+          launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-other&token=launch-token'
         }),
         {
           status: 201,
@@ -1268,13 +1268,13 @@ test('RustDesk HTTP gateway client rejects launch URLs for another session', asy
 
 test('RustDesk HTTP gateway client rejects launch URLs for the wrong path', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
         JSON.stringify({
           external_id: 'rustdesk-session-http-wrong-path',
-          launch_url: 'https://opc.example.com/remote/other/launch?session_id=rustdesk-session-http-wrong-path&token=launch-token'
+          launch_url: 'https://converact.example.com/remote/other/launch?session_id=rustdesk-session-http-wrong-path&token=launch-token'
         }),
         {
           status: 201,
@@ -1296,13 +1296,13 @@ test('RustDesk HTTP gateway client rejects launch URLs for the wrong path', asyn
 
 test('RustDesk HTTP gateway client rejects launch URLs without HTTP protocols', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
         JSON.stringify({
           external_id: 'rustdesk-session-http-wrong-protocol',
-          launch_url: 'ftp://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-wrong-protocol&token=launch-token'
+          launch_url: 'ftp://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-http-wrong-protocol&token=launch-token'
         }),
         {
           status: 201,
@@ -1324,7 +1324,7 @@ test('RustDesk HTTP gateway client rejects launch URLs without HTTP protocols', 
 
 test('RustDesk HTTP gateway client rejects malformed audit responses', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(JSON.stringify({ events: {} }), {
@@ -1344,7 +1344,7 @@ test('RustDesk HTTP gateway client rejects malformed audit responses', async () 
 
 test('RustDesk HTTP gateway client rejects audit events without event types', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
@@ -1373,7 +1373,7 @@ test('RustDesk HTTP gateway client rejects audit events without event types', as
 
 test('RustDesk HTTP gateway client rejects audit events without timestamps', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
@@ -1402,7 +1402,7 @@ test('RustDesk HTTP gateway client rejects audit events without timestamps', asy
 
 test('RustDesk HTTP gateway client rejects audit events without actors', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
@@ -1431,7 +1431,7 @@ test('RustDesk HTTP gateway client rejects audit events without actors', async (
 
 test('RustDesk HTTP gateway client rejects audit events with invalid timestamps', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
@@ -1461,7 +1461,7 @@ test('RustDesk HTTP gateway client rejects audit events with invalid timestamps'
 
 test('RustDesk HTTP gateway client rejects audit events from another session', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
@@ -1492,7 +1492,7 @@ test('RustDesk HTTP gateway client rejects audit events from another session', a
 
 test('RustDesk HTTP gateway client rejects audit events with non-object metadata', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response(
@@ -1522,7 +1522,7 @@ test('RustDesk HTTP gateway client rejects audit events with non-object metadata
 
 test('RustDesk HTTP gateway client rejects invalid JSON success responses', async () => {
   const client = moduleFactory().remoteGateways.createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com/',
+    base_url: 'https://converact.example.com/',
     api_token: 'rustdesk-token',
     fetch: async () =>
       new Response('<html>gateway booting</html>', {
@@ -1673,7 +1673,7 @@ class StaticRustDeskAuditClient implements RemoteGatewayClient {
     return {
       provider: this.provider,
       external_id: 'static-rustdesk-session',
-      launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=static-rustdesk-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+      launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=static-rustdesk-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
       target: input.target,
       permissions: input.permissions,
       metadata: input.metadata

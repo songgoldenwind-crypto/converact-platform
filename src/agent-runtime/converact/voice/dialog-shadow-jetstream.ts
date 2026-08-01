@@ -268,7 +268,7 @@ implements DialogShadowJetStreamPort {
       fault_domain: token(input.fault_domain, 'fault_domain')
     };
     const streamName = streamNameValue(
-      input.stream_name ?? 'IVEKIT_DIALOG_SHADOW'
+      input.stream_name ?? 'CONVERACT_FABRIC_DIALOG_SHADOW'
     );
     const prefix = subjectPrefix(
       input.subject_prefix ?? 'ivekit.dialog_shadow'

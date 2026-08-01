@@ -10,7 +10,7 @@ const startedAt = Date.now();
 Object.assign(process.env, {
   NODE_ENV: 'production',
   CONVERACT_OTEL_ENABLED: '1',
-  CONVERACT_OTEL_SERVICE_NAME: 'ivekit-otel-acceptance',
+  CONVERACT_OTEL_SERVICE_NAME: 'converact-otel-acceptance',
   CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: endpoint,
   CONVERACT_OTEL_TRACE_SAMPLE_RATIO: '1',
   CONVERACT_OTEL_MAX_QUEUE_SIZE: '128',
@@ -22,7 +22,7 @@ const {
   initializeOpenTelemetry,
   shutdownOpenTelemetry
 } = await import('../../../../src/telemetry.js');
-await initializeOpenTelemetry(process.env, 'ivekit-otel-acceptance');
+await initializeOpenTelemetry(process.env, 'converact-otel-acceptance');
 
 let canaryCompleted = false;
 let spanRecording = false;

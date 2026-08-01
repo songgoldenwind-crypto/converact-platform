@@ -1,5 +1,5 @@
 services:
-  opc:
+  converact:
     build: .
     ports:
       - "${CONVERACT_HOST_PORT:-3000}:3000"
@@ -7,7 +7,7 @@ services:
       PORT: "3000"
       CONVERACT_DB_PATH: "/data/opc.sqlite"
     volumes:
-      - opc_data:/data
+      - converact_data:/data
 
 volumes:
-  opc_data:
+  converact_data:

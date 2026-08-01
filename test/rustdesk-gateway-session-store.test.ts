@@ -15,7 +15,7 @@ test('RustDeskGatewaySessionStore rejects empty and unsupported permission scope
         target: { type: 'device', id: '123456789' },
         permissions: [],
         actor_identity: 'engineer_42',
-        launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-store-permissions&token=launch-token'
+        launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-store-permissions&token=launch-token'
       }),
     /permissions required/
   );
@@ -27,7 +27,7 @@ test('RustDeskGatewaySessionStore rejects empty and unsupported permission scope
         target: { type: 'device', id: '123456789' },
         permissions: ['view_screen', 'root_shell' as 'view_screen'],
         actor_identity: 'engineer_42',
-        launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-store-permissions&token=launch-token'
+        launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-store-permissions&token=launch-token'
       }),
     /unsupported RustDesk permission scope: root_shell/
   );
@@ -44,7 +44,7 @@ test('RustDeskGatewaySessionStore rejects invalid core session fields', async ()
     target: { type: 'device', id: '123456789' },
     permissions: ['view_screen'],
     actor_identity: 'engineer_42',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-store-core&token=launch-token'
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-store-core&token=launch-token'
   };
 
   await assert.rejects(
@@ -84,7 +84,7 @@ test('RustDeskGatewaySessionStore recursively rejects secret-bearing metadata be
     target: { type: 'device', id: '123456789' },
     permissions: ['view_screen'],
     actor_identity: 'engineer_42',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-store-secret&token=launch-token'
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-store-secret&token=launch-token'
   };
   const unsafeMetadata = [
     { nested: [{ unattended_password: 'do-not-store' }] },
@@ -105,7 +105,7 @@ test('RustDeskGatewaySessionStore recursively rejects secret-bearing metadata be
 
   const session = await store.createSession({
     ...validInput,
-    metadata: { source: 'ivekit', site: 'showroom-7' }
+    metadata: { source: 'converact', site: 'showroom-7' }
   });
   await assert.rejects(
     () => store.appendAuditEvent({
@@ -117,7 +117,7 @@ test('RustDeskGatewaySessionStore recursively rejects secret-bearing metadata be
     /RustDesk gateway metadata contains sensitive material/
   );
 
-  assert.equal(session.metadata.source, 'ivekit');
+  assert.equal(session.metadata.source, 'converact');
   assert.equal(session.metadata.site, 'showroom-7');
   assert.match(String(session.metadata.ivekit_native_session_id), /^[1-9][0-9]{0,18}$/);
   assert.equal((await store.listSessions({ tenant_id: validInput.tenant_id })).length, 1);
@@ -152,7 +152,7 @@ test('RustDeskGatewaySessionStore rejects invalid lifecycle identifiers and acto
     target: { type: 'device', id: '123456789' },
     permissions: ['view_screen'],
     actor_identity: 'engineer_42',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-store-lifecycle&token=launch-token'
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-store-lifecycle&token=launch-token'
   });
 
   await assert.rejects(
@@ -211,7 +211,7 @@ test('RustDeskGatewaySessionStore rejects known operation events with incomplete
     target: { type: 'device', id: '123456789' },
     permissions: ['view_screen', 'record_screen', 'transfer_file', 'clipboard'],
     actor_identity: 'engineer_42',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-store-event-metadata&token=launch-token'
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-store-event-metadata&token=launch-token'
   });
 
   await assert.rejects(
@@ -237,7 +237,7 @@ test('RustDeskGatewaySessionStore rejects known operation events with invalid me
     target: { type: 'device', id: '123456789' },
     permissions: ['view_screen', 'record_screen', 'transfer_file', 'clipboard'],
     actor_identity: 'engineer_42',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-store-event-metadata-values&token=launch-token'
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-store-event-metadata-values&token=launch-token'
   });
 
   await assert.rejects(
@@ -285,7 +285,7 @@ test('RustDeskGatewaySessionStore rejects events targeting another RustDesk devi
     target: { type: 'device', id: '123456789' },
     permissions: ['view_screen', 'record_screen'],
     actor_identity: 'engineer_42',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-store-event-target&token=launch-token'
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-store-event-target&token=launch-token'
   });
 
   await assert.rejects(
@@ -315,7 +315,7 @@ test('RustDeskGatewaySessionStore accepts the runtime RustDesk id recorded on th
     target: { type: 'device', id: 'device-inventory-1' },
     permissions: ['view_screen', 'record_screen'],
     actor_identity: 'engineer_42',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-store-event-runtime-target&token=launch-token',
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-store-event-runtime-target&token=launch-token',
     metadata: {
       rustdesk_id: '123456789',
       target_id: 'device-inventory-1'

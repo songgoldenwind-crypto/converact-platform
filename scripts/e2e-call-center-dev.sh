@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end dev smoke: requires OPC HTTP on :3000 and optional RustPBX on :8080
+# End-to-end dev smoke: requires Converact HTTP on :3000 and optional RustPBX on :8080
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

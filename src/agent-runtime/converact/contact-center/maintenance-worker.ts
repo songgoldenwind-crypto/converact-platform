@@ -289,12 +289,12 @@ export function startContactCenterMaintenanceWorker(input: {
       overflow_retry_delay_ms: config.overflow_retry_delay_ms,
       on_tenant_error: (tenantId, error) => {
         const message = error instanceof Error ? error.message : String(error);
-        console.error(`[ivekit-contact-center] tenant ${tenantId} failed:`, message.slice(0, 500));
+        console.error(`[converact-contact-center] tenant ${tenantId} failed:`, message.slice(0, 500));
       }
     }),
     on_error: (error) => {
       const message = error instanceof Error ? error.message : String(error);
-      console.error('[ivekit-contact-center] worker failed:', message.slice(0, 500));
+      console.error('[converact-contact-center] worker failed:', message.slice(0, 500));
     }
   });
   worker.start();

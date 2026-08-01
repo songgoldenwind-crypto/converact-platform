@@ -23,9 +23,9 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     LIVEKIT_SERVER_IMAGE_TAG: 'v1.13.4-ivekit.1',
     LIVEKIT_EGRESS_IMAGE_TAG: 'v1.12.0',
     LIVEKIT_SIP_IMAGE_TAG: 'v1.1.0',
-    LIVEKIT_SERVER_IMAGE: `ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server@sha256:${'1'.repeat(64)}`,
+    LIVEKIT_SERVER_IMAGE: `ghcr.io/songgoldenwind-crypto/converact-livekit-server@sha256:${'1'.repeat(64)}`,
     LIVEKIT_EGRESS_IMAGE: `livekit/egress:v1.12.0@sha256:${'2'.repeat(64)}`,
-    LIVEKIT_SIP_IMAGE: `ghcr.io/songgoldenwind-crypto/opc-livekit-sip@sha256:${'5'.repeat(64)}`,
+    LIVEKIT_SIP_IMAGE: `ghcr.io/songgoldenwind-crypto/converact-livekit-sip@sha256:${'5'.repeat(64)}`,
     LIVEKIT_CADDYL4_IMAGE: `livekit/caddyl4:v2.11.3@sha256:${'3'.repeat(64)}`,
     LIVEKIT_REDIS_IMAGE: `redis:7.4.9@sha256:${'4'.repeat(64)}`,
     CONVERACT_MEDIA_CONFIG_REDIS_ADDRESS: 'redis://livekit-redis.internal:6379',
@@ -34,11 +34,11 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_START: '50000',
     CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_END: '60000',
     CONVERACT_MEDIA_EGRESS_ENABLED: '1',
-    CONVERACT_MEDIA_CONFIG_WEBHOOK_URL: 'https://opc.example.com/api/media/webhooks/livekit',
+    CONVERACT_MEDIA_CONFIG_WEBHOOK_URL: 'https://converact.example.com/api/media/webhooks/livekit',
     CONVERACT_LIVEKIT_TIME_SYNC_STATUS: 'synchronized',
     CONVERACT_LIVEKIT_TIME_SYNC_OFFSET_MS: '12',
     CONVERACT_LIVEKIT_TIME_SYNC_MAX_SKEW_MS: '5000',
-    CONVERACT_BASE_URL: 'https://opc.example.com',
+    CONVERACT_BASE_URL: 'https://converact.example.com',
     CONVERACT_MEDIA_API_TOKEN: 'media-secret',
     CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
     CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant_livekit',
@@ -76,7 +76,7 @@ test('LiveKit deployment preflight reports missing required media deployment env
       'livekit_public_url',
       'livekit_api_key',
       'livekit_api_secret',
-      'opc_base_url',
+      'converact_base_url',
       'media_api_token',
       'media_invite_secret',
       'media_smoke_tenant',
@@ -118,7 +118,7 @@ test('LiveKit deployment preflight passes a configured media and SIP deployment'
   assert.equal(report.summary.livekitInternalUrlConfigured, true);
   assert.equal(report.summary.livekitPublicUrlConfigured, true);
   assert.equal(report.summary.deploymentMode, 'external');
-  assert.equal(report.summary.opcBaseUrlConfigured, true);
+  assert.equal(report.summary.converactBaseUrlConfigured, true);
   assert.equal(report.summary.frontendUrlConfigured, false);
   assert.equal(report.summary.mediaTokenConfigured, true);
   assert.equal(report.summary.inviteSecretConfigured, true);
@@ -142,7 +142,7 @@ test('LiveKit deployment preflight passes a configured media and SIP deployment'
     'minio-secret-secret',
     'rwi-secret-token',
     'wss://livekit.example.com',
-    'https://opc.example.com',
+    'https://converact.example.com',
     'https://storage.example.com',
     'sip:livekit-bridge@livekit-sip:5061',
     'livekit-bridge',
@@ -201,7 +201,7 @@ test('LiveKit deployment env checklist groups required variables and masks secre
   assert.match(checklist, /\| MINIO_SECRET_KEY \| required \| `configured` \|/);
   assert.match(checklist, /\| MINIO_BUCKET \| required \| `recordings` \|/);
   assert.match(checklist, /\| CONVERACT_MEDIA_CONFIG_REDIS_ADDRESS \| required \| `configured` \|/);
-  assert.match(checklist, /\| CONVERACT_MEDIA_CONFIG_WEBHOOK_URL \| required \| `https:\/\/opc\.example\.com\/api\/media\/webhooks\/livekit` \|/);
+  assert.match(checklist, /\| CONVERACT_MEDIA_CONFIG_WEBHOOK_URL \| required \| `https:\/\/converact\.example\.com\/api\/media\/webhooks\/livekit` \|/);
   assert.match(checklist, /\| CONVERACT_LIVEKIT_TIME_SYNC_OFFSET_MS \| required \| `12` \|/);
   assert.match(checklist, /\| CONVERACT_MEDIA_RECORDING_RETENTION_DAYS \| optional \| `90` \|/);
   assert.match(checklist, /\| CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT \| optional \| `1` \|/);
@@ -337,7 +337,7 @@ test('LiveKit production preflight rejects incomplete TURN, Redis, Egress, webho
     CONVERACT_MEDIA_EGRESS_ENABLED: '0',
     MINIO_ENDPOINT: 'file:///recordings',
     MINIO_BUCKET: '../recordings',
-    CONVERACT_MEDIA_CONFIG_WEBHOOK_URL: 'http://opc.example.com/api/media/webhooks/livekit',
+    CONVERACT_MEDIA_CONFIG_WEBHOOK_URL: 'http://converact.example.com/api/media/webhooks/livekit',
     CONVERACT_LIVEKIT_TIME_SYNC_STATUS: 'unsynchronized',
     CONVERACT_LIVEKIT_TIME_SYNC_OFFSET_MS: '6000'
   }));
@@ -369,7 +369,7 @@ test('LiveKit production preflight never serializes Redis credentials', () => {
 });
 
 test('LiveKit deployment preflight writes checklist and report artifacts', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-preflight-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-preflight-'));
   const checklistPath = join(dir, 'livekit-env-checklist.md');
   const reportPath = join(dir, 'livekit-preflight.json');
   const env = configuredEnv();
@@ -387,7 +387,7 @@ test('LiveKit deployment preflight writes checklist and report artifacts', () =>
 });
 
 test('LiveKit deployment preflight CLI writes requested artifacts without leaking secrets', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-preflight-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-preflight-cli-'));
   const checklistPath = join(dir, 'livekit-env-checklist.md');
   const reportPath = join(dir, 'livekit-preflight.json');
   const stdout = execFileSync(

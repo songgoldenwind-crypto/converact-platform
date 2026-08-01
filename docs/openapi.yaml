@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: OPC AI Communication Platform API
+  title: Converact Platform API
   version: 1.0.0
   description: |
     AI-powered communication platform API for voice, video, and omnichannel customer engagement.
@@ -16,7 +16,7 @@ info:
     - Enterprise plan: 1000 requests/minute
 
 servers:
-  - url: https://api.opc.example.com
+  - url: https://api.converact.example.com
     description: Production
   - url: http://localhost:3000
     description: Development
@@ -306,7 +306,7 @@ paths:
   /api/ivekit/intelligence/capabilities:
     get:
       summary: Get tenant intelligence capabilities and ordered provider routes
-      tags: [iveKit Intelligence]
+      tags: [Converact Fabric Intelligence]
       responses:
         '200':
           description: Tenant capability projection with no provider credentials or endpoints
@@ -318,7 +318,7 @@ paths:
     get:
       summary: Get versioned tenant intelligence policy
       description: Requires owner, admin, or system role.
-      tags: [iveKit Intelligence]
+      tags: [Converact Fabric Intelligence]
       responses:
         '200':
           description: Effective tenant policy
@@ -328,7 +328,7 @@ paths:
     put:
       summary: Replace versioned tenant intelligence policy
       description: Requires owner, admin, or system role. Routes contain at most 10 ordered profile ids.
-      tags: [iveKit Intelligence]
+      tags: [Converact Fabric Intelligence]
       requestBody:
         required: true
         content:
@@ -351,7 +351,7 @@ paths:
     get:
       summary: List safe provider profiles and governance budgets
       description: Requires owner, admin, or system role. URLs, token values, and token environment names are omitted.
-      tags: [iveKit Intelligence]
+      tags: [Converact Fabric Intelligence]
       responses:
         '200':
           description: Safe provider profiles
@@ -369,7 +369,7 @@ paths:
     get:
       summary: List tenant provider quota and circuit runtime
       description: Requires owner, admin, or system role. Runtime rows are tenant scoped by PostgreSQL RLS.
-      tags: [iveKit Intelligence]
+      tags: [Converact Fabric Intelligence]
       responses:
         '200':
           description: Safe provider runtime snapshots
@@ -387,7 +387,7 @@ paths:
     post:
       summary: Probe selected or all configured provider health endpoints
       description: Requires owner, admin, or system role. Probe output never contains endpoint or credential material.
-      tags: [iveKit Intelligence]
+      tags: [Converact Fabric Intelligence]
       requestBody:
         content:
           application/json:
@@ -407,7 +407,7 @@ paths:
     get:
       summary: List the tenant policy review queue
       description: Includes text, OCR, ASR, aggregate, and AI findings. Evidence is hash-only.
-      tags: [iveKit Intelligence]
+      tags: [Converact Fabric Intelligence]
       parameters:
         - name: source
           in: query
@@ -436,7 +436,7 @@ paths:
     get:
       summary: Get the tenant Tinode delivery and inbound operations snapshot
       description: Requires owner, admin, or system role. Refreshes bounded Prometheus queue gauges.
-      tags: [iveKit Chat Operations]
+      tags: [Converact Fabric Chat Operations]
       responses:
         '200':
           description: Tenant-scoped queue, cursor, dead-letter, and file-gate state
@@ -449,7 +449,7 @@ paths:
     get:
       summary: List safe Tinode inbound dead letters
       description: Requires owner, admin, or system role. Provider payloads and attachment URLs are omitted.
-      tags: [iveKit Chat Operations]
+      tags: [Converact Fabric Chat Operations]
       parameters:
         - name: state
           in: query
@@ -476,7 +476,7 @@ paths:
     post:
       summary: Request an idempotent manual Tinode dead-letter replay
       description: Schedules replay inside the normal binding lease; it never publishes or projects inline.
-      tags: [iveKit Chat Operations]
+      tags: [Converact Fabric Chat Operations]
       parameters:
         - name: dead_letter_id
           in: path
@@ -502,7 +502,7 @@ paths:
     get:
       summary: List safe Tinode message mutation dead letters
       description: Requires owner, admin, or system role. Message bodies and Provider credentials are omitted.
-      tags: [iveKit Chat Operations]
+      tags: [Converact Fabric Chat Operations]
       parameters:
         - name: limit
           in: query
@@ -527,7 +527,7 @@ paths:
     post:
       summary: Request an idempotent manual Tinode mutation replay
       description: Requires owner, admin, or system role. An edit with an unknown publish outcome is never retried automatically; inspect Tinode state first, then use this endpoint only when replay is safe.
-      tags: [iveKit Chat Operations]
+      tags: [Converact Fabric Chat Operations]
       parameters:
         - name: outbox_id
           in: path
@@ -553,7 +553,7 @@ paths:
   /api/ivekit/chat/sessions/{session_id}/attachments/{attachment_id}:
     get:
       summary: Get attachment processing, dual video jobs, and safe visual observations
-      tags: [iveKit Intelligence]
+      tags: [Converact Fabric Intelligence]
       parameters:
         - name: session_id
           in: path
@@ -574,7 +574,7 @@ paths:
   /api/ivekit/chat/sessions/{session_id}/files:
     post:
       summary: Create an idempotent secure file upload
-      tags: [iveKit Files]
+      tags: [Converact Fabric Files]
       parameters:
         - { $ref: '#/components/parameters/IveKitSessionId' }
         - { $ref: '#/components/parameters/IdempotencyKey' }
@@ -594,7 +594,7 @@ paths:
   /api/ivekit/chat/sessions/{session_id}/files/{file_id}:
     get:
       summary: Get the safe secure file status and derivative projection
-      tags: [iveKit Files]
+      tags: [Converact Fabric Files]
       parameters:
         - { $ref: '#/components/parameters/IveKitSessionId' }
         - { $ref: '#/components/parameters/IveKitFileId' }
@@ -607,7 +607,7 @@ paths:
         '404': { description: Session or file not found }
     delete:
       summary: Abort an initiated or uploading secure file
-      tags: [iveKit Files]
+      tags: [Converact Fabric Files]
       parameters:
         - { $ref: '#/components/parameters/IveKitSessionId' }
         - { $ref: '#/components/parameters/IveKitFileId' }
@@ -622,7 +622,7 @@ paths:
   /api/ivekit/chat/sessions/{session_id}/files/{file_id}/content:
     put:
       summary: Upload a complete single-mode secure file
-      tags: [iveKit Files]
+      tags: [Converact Fabric Files]
       parameters:
         - { $ref: '#/components/parameters/IveKitSessionId' }
         - { $ref: '#/components/parameters/IveKitFileId' }
@@ -643,7 +643,7 @@ paths:
   /api/ivekit/chat/sessions/{session_id}/files/{file_id}/parts:
     get:
       summary: List multipart upload progress for resume
-      tags: [iveKit Files]
+      tags: [Converact Fabric Files]
       parameters:
         - { $ref: '#/components/parameters/IveKitSessionId' }
         - { $ref: '#/components/parameters/IveKitFileId' }
@@ -664,7 +664,7 @@ paths:
   /api/ivekit/chat/sessions/{session_id}/files/{file_id}/parts/{part_number}:
     put:
       summary: Idempotently reserve and upload one multipart part
-      tags: [iveKit Files]
+      tags: [Converact Fabric Files]
       parameters:
         - { $ref: '#/components/parameters/IveKitSessionId' }
         - { $ref: '#/components/parameters/IveKitFileId' }
@@ -694,7 +694,7 @@ paths:
   /api/ivekit/chat/sessions/{session_id}/files/{file_id}/complete:
     post:
       summary: Complete a multipart upload and enter the scanning gate
-      tags: [iveKit Files]
+      tags: [Converact Fabric Files]
       parameters:
         - { $ref: '#/components/parameters/IveKitSessionId' }
         - { $ref: '#/components/parameters/IveKitFileId' }
@@ -720,7 +720,7 @@ paths:
   /api/ivekit/chat/sessions/{session_id}/files/{file_id}/download:
     get:
       summary: Download a ready and threat-clean secure file
-      tags: [iveKit Files]
+      tags: [Converact Fabric Files]
       parameters:
         - { $ref: '#/components/parameters/IveKitSessionId' }
         - { $ref: '#/components/parameters/IveKitFileId' }
@@ -739,7 +739,7 @@ paths:
   /api/ivekit/rustdesk/gateway-sessions/{external_id}/disconnect:
     get:
       summary: Get the durable targeted-disconnect state for a RustDesk gateway session
-      tags: [iveKit RustDesk]
+      tags: [Converact Fabric RustDesk]
       parameters:
         - { $ref: '#/components/parameters/RustDeskGatewayExternalId' }
       responses:
@@ -754,7 +754,7 @@ paths:
     post:
       summary: Explicitly authorize service-restart fallback after targeted disconnect fails
       description: Requires an owner or admin Bearer JWT. The caller must acknowledge that other sessions on the same host may disconnect.
-      tags: [iveKit RustDesk]
+      tags: [Converact Fabric RustDesk]
       parameters:
         - { $ref: '#/components/parameters/RustDeskGatewayExternalId' }
       requestBody:
@@ -776,7 +776,7 @@ paths:
     post:
       summary: Heartbeat an existing RustDesk device with a device-bound edge token
       description: Edge-internal endpoint. It cannot register a device and the token identity must match tenant, RustDesk ID, and edge instance.
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       requestBody:
         required: true
@@ -795,7 +795,7 @@ paths:
     post:
       summary: Claim the next targeted RustDesk device command
       description: Edge-internal lease endpoint. controller_rustdesk_id identifies the exact active peer that the native named-pipe bridge must disconnect.
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -816,7 +816,7 @@ paths:
   /api/ivekit/rustdesk/devices/{device_id}/commands/{command_id}/progress:
     post:
       summary: Report an intermediate targeted-disconnect state
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -837,7 +837,7 @@ paths:
   /api/ivekit/rustdesk/devices/{device_id}/commands/{command_id}/result:
     post:
       summary: Complete a targeted RustDesk device command
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -858,7 +858,7 @@ paths:
   /api/ivekit/rustdesk/devices/{device_id}/commands/{command_id}/recover:
     post:
       summary: Recover a durable edge command after companion restart
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -880,7 +880,7 @@ paths:
     post:
       summary: Ingest device-bound native RustDesk operation observations
       description: Edge-internal endpoint. Content payloads, clipboard text, keystrokes, screen pixels, tokens, passwords, and local paths are forbidden.
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -902,7 +902,7 @@ paths:
     get:
       summary: Get short-lived device-bound native evidence authorization context
       description: Edge-internal endpoint. Returns only active or finalization-grace operation bindings and never returns tokens, launch URLs, content, or local paths.
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -918,7 +918,7 @@ paths:
     post:
       summary: Create an authorized secure upload for native RustDesk evidence
       description: Edge-internal endpoint. The server revalidates the active device, gateway session, permission, native event, and started operation before accepting content.
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -941,7 +941,7 @@ paths:
   /api/ivekit/rustdesk/devices/{device_id}/evidence/{file_id}:
     get:
       summary: Get an edge-owned native evidence upload
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -955,7 +955,7 @@ paths:
         '404': { description: Evidence is absent or not owned by this edge identity }
     delete:
       summary: Abort an initiated or uploading edge evidence upload
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -972,7 +972,7 @@ paths:
   /api/ivekit/rustdesk/devices/{device_id}/evidence/{file_id}/content:
     put:
       summary: Upload complete native evidence in single mode
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -995,7 +995,7 @@ paths:
   /api/ivekit/rustdesk/devices/{device_id}/evidence/{file_id}/parts:
     get:
       summary: List uploaded native evidence parts for resume
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -1016,7 +1016,7 @@ paths:
   /api/ivekit/rustdesk/devices/{device_id}/evidence/{file_id}/parts/{part_number}:
     put:
       summary: Idempotently upload one native evidence part
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -1048,7 +1048,7 @@ paths:
   /api/ivekit/rustdesk/devices/{device_id}/evidence/{file_id}/complete:
     post:
       summary: Complete native multipart evidence and enter the scanning gate
-      tags: [iveKit RustDesk Edge]
+      tags: [Converact Fabric RustDesk Edge]
       security: [{ RustDeskEdgeToken: [] }]
       parameters:
         - { $ref: '#/components/parameters/RustDeskDeviceId' }
@@ -1070,7 +1070,7 @@ paths:
   /api/ivekit/media/capabilities:
     get:
       summary: Get reusable Media Core capabilities and secret-safe deployment readiness
-      tags: [iveKit Media]
+      tags: [Converact Fabric Media]
       responses:
         '200':
           description: Tenant-scoped capability truth without URLs, credentials, or provider payloads
@@ -1081,7 +1081,7 @@ paths:
   /api/ivekit/media/calls/{call_id}/qos:
     get:
       summary: Get the bounded QoS and connection summary for a media call
-      tags: [iveKit Media]
+      tags: [Converact Fabric Media]
       parameters:
         - name: call_id
           in: path
@@ -1099,7 +1099,7 @@ paths:
         '404': { description: Call is missing or not visible to the caller }
     post:
       summary: Submit bounded participant and track QoS samples
-      tags: [iveKit Media]
+      tags: [Converact Fabric Media]
       parameters:
         - name: call_id
           in: path
@@ -1132,7 +1132,7 @@ paths:
   /api/ivekit/media/calls/{call_id}/connection-events:
     post:
       summary: Submit an idempotent monotonic media connection event
-      tags: [iveKit Media]
+      tags: [Converact Fabric Media]
       parameters:
         - name: call_id
           in: path
@@ -1162,7 +1162,7 @@ paths:
     get:
       summary: Replay durable tenant events from an opaque cursor
       description: Without a cursor returns the current head. A 409 response requires the consumer to rebuild its snapshot before continuing.
-      tags: [iveKit Events]
+      tags: [Converact Fabric Events]
       parameters:
         - { $ref: '#/components/parameters/Cursor' }
         - { $ref: '#/components/parameters/PageLimit' }
@@ -1182,7 +1182,7 @@ paths:
   /api/ivekit/events/catalog:
     get:
       summary: Get the versioned integration event catalog and pattern contract
-      tags: [iveKit Events]
+      tags: [Converact Fabric Events]
       responses:
         '200':
           description: Additive event family catalog
@@ -1194,7 +1194,7 @@ paths:
     get:
       summary: List durable integration event webhook subscriptions
       description: Requires owner, admin, or system role. Lease and idempotency internals are omitted.
-      tags: [iveKit Events]
+      tags: [Converact Fabric Events]
       parameters:
         - { $ref: '#/components/parameters/Cursor' }
         - { $ref: '#/components/parameters/PageLimit' }
@@ -1211,7 +1211,7 @@ paths:
     post:
       summary: Idempotently subscribe an active webhook endpoint to event patterns
       description: Patterns are exact event names or trailing family wildcards. Endpoint allowlists remain authoritative.
-      tags: [iveKit Events]
+      tags: [Converact Fabric Events]
       parameters:
         - { $ref: '#/components/parameters/IdempotencyKey' }
       requestBody:
@@ -1229,7 +1229,7 @@ paths:
   /api/ivekit/events/webhook-subscriptions/{subscription_id}:
     get:
       summary: Get a safe event webhook subscription projection
-      tags: [iveKit Events]
+      tags: [Converact Fabric Events]
       parameters:
         - { $ref: '#/components/parameters/EventWebhookSubscriptionId' }
       responses:
@@ -1241,7 +1241,7 @@ paths:
         '404': { description: Subscription not found }
     put:
       summary: Optimistically update or pause an event webhook subscription
-      tags: [iveKit Events]
+      tags: [Converact Fabric Events]
       parameters:
         - { $ref: '#/components/parameters/EventWebhookSubscriptionId' }
         - { $ref: '#/components/parameters/IdempotencyKey' }
@@ -1259,7 +1259,7 @@ paths:
   /api/ivekit/events/webhook-subscriptions/{subscription_id}/archive:
     post:
       summary: Optimistically archive an event webhook subscription
-      tags: [iveKit Events]
+      tags: [Converact Fabric Events]
       parameters:
         - { $ref: '#/components/parameters/EventWebhookSubscriptionId' }
         - { $ref: '#/components/parameters/IdempotencyKey' }
@@ -1281,7 +1281,7 @@ paths:
   /api/ivekit/notifications/capabilities:
     get:
       summary: Get notification channel and operations capabilities
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       responses:
         '200':
           description: Deployment capability projection; mobile push is explicitly unsupported
@@ -1292,7 +1292,7 @@ paths:
   /api/ivekit/notifications:
     post:
       summary: Create one logical notification and durable channel deliveries
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/IdempotencyKey' }
       requestBody:
@@ -1317,7 +1317,7 @@ paths:
   /api/ivekit/notifications/{notification_id}:
     get:
       summary: Get a safe logical notification projection
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/NotificationId' }
       responses:
@@ -1335,7 +1335,7 @@ paths:
   /api/ivekit/notifications/inbox:
     get:
       summary: List the authenticated user's in-app notification projection
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/Cursor' }
         - { $ref: '#/components/parameters/PageLimit' }
@@ -1356,7 +1356,7 @@ paths:
   /api/ivekit/notifications/inbox/unread-count:
     get:
       summary: Count unread in-app notifications
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       responses:
         '200':
           description: Current user unread count
@@ -1371,7 +1371,7 @@ paths:
   /api/ivekit/notifications/inbox/{item_id}/{action}:
     post:
       summary: Mutate one user-owned inbox item
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - name: item_id
           in: path
@@ -1393,7 +1393,7 @@ paths:
     get:
       summary: List safe Provider endpoint projections
       description: Requires owner, admin, or system role. Cursors are bound to tenant and filters.
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/Cursor' }
         - { $ref: '#/components/parameters/PageLimit' }
@@ -1412,7 +1412,7 @@ paths:
     post:
       summary: Idempotently create a Provider endpoint
       description: Requires owner, admin, or system role. Credentials are env:// references.
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/IdempotencyKey' }
       requestBody:
@@ -1429,7 +1429,7 @@ paths:
   /api/ivekit/notifications/endpoints/{endpoint_id}:
     get:
       summary: Get one safe Provider endpoint projection
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/EndpointId' }
       responses:
@@ -1445,7 +1445,7 @@ paths:
         '404': { description: Endpoint not found }
     put:
       summary: Optimistically update a Provider endpoint
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/EndpointId' }
       requestBody:
@@ -1466,7 +1466,7 @@ paths:
     post:
       summary: Create a one-attempt durable endpoint test delivery
       description: Uses the normal encrypted queue, quota, circuit, worker, audit, and Provider path.
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/EndpointId' }
         - { $ref: '#/components/parameters/IdempotencyKey' }
@@ -1483,7 +1483,7 @@ paths:
   /api/ivekit/notifications/endpoints/{endpoint_id}/archive:
     post:
       summary: Optimistically archive a Provider endpoint
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/EndpointId' }
       requestBody:
@@ -1502,7 +1502,7 @@ paths:
   /api/ivekit/notifications/templates:
     get:
       summary: List notification templates
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/Cursor' }
         - { $ref: '#/components/parameters/PageLimit' }
@@ -1517,7 +1517,7 @@ paths:
               schema: { $ref: '#/components/schemas/IveKitNotificationTemplatePage' }
     post:
       summary: Create a template and immutable revision one
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       requestBody:
         required: true
         content:
@@ -1533,7 +1533,7 @@ paths:
   /api/ivekit/notifications/templates/{template_id}:
     get:
       summary: Get template metadata
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/TemplateId' }
       responses:
@@ -1549,7 +1549,7 @@ paths:
         '404': { description: Template not found }
     put:
       summary: Append an immutable template draft revision
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/TemplateId' }
       requestBody:
@@ -1564,7 +1564,7 @@ paths:
   /api/ivekit/notifications/templates/{template_id}/versions:
     get:
       summary: List immutable template versions
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/TemplateId' }
         - { $ref: '#/components/parameters/Cursor' }
@@ -1582,7 +1582,7 @@ paths:
   /api/ivekit/notifications/templates/{template_id}/publish:
     post:
       summary: Publish the expected draft revision for one locale
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/TemplateId' }
       requestBody:
@@ -1602,7 +1602,7 @@ paths:
   /api/ivekit/notifications/templates/{template_id}/archive:
     post:
       summary: Optimistically archive a template
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/TemplateId' }
       requestBody:
@@ -1621,7 +1621,7 @@ paths:
   /api/ivekit/notifications/preferences:
     get:
       summary: List notification preferences for the authenticated user
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       responses:
         '200':
           description: User preference list
@@ -1638,7 +1638,7 @@ paths:
   /api/ivekit/notifications/preferences/{event_type}/{channel}:
     put:
       summary: Revisioned upsert of one user notification preference
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - name: event_type
           in: path
@@ -1668,7 +1668,7 @@ paths:
     get:
       summary: List tenant notification deliveries
       description: Requires owner, admin, or system role. Safe projection excludes recipient and payload ciphertext.
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/Cursor' }
         - { $ref: '#/components/parameters/PageLimit' }
@@ -1694,7 +1694,7 @@ paths:
   /api/ivekit/notifications/deliveries/{delivery_id}:
     get:
       summary: Get one safe notification delivery
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/DeliveryId' }
       responses:
@@ -1713,7 +1713,7 @@ paths:
     post:
       summary: Guarded manual retry of a terminal or uncertain delivery
       description: Uncertain retry additionally requires notifications.force_delivery capability and explicit allow_uncertain=true.
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       parameters:
         - { $ref: '#/components/parameters/DeliveryId' }
       requestBody:
@@ -1735,7 +1735,7 @@ paths:
     post:
       summary: Receive an authenticated Provider delivery receipt
       description: Uses X-Tenant-Id, X-OPC-Timestamp, and X-OPC-Signature instead of user authentication.
-      tags: [iveKit Notifications]
+      tags: [Converact Fabric Notifications]
       security: []
       parameters:
         - { $ref: '#/components/parameters/EndpointId' }
@@ -1763,56 +1763,56 @@ paths:
         '429': { description: Provider, tenant, or source IP receipt limit exceeded }
 
   /api/ivekit/voice/capabilities:
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetCapabilities, summary: Get runtime Voice capabilities, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceGetCapabilities, summary: Get runtime Voice capabilities, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/profiles:
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListProfiles, summary: List Voice deployment profiles, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateProfile, summary: Create a Voice deployment profile, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListProfiles, summary: List Voice deployment profiles, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceCreateProfile, summary: Create a Voice deployment profile, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/voice/profiles/{profile_id}:
     parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetProfile, summary: Get a Voice deployment profile, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdateProfile, summary: Update a Voice deployment profile with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceGetProfile, summary: Get a Voice deployment profile, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric Voice], operationId: iveKitVoiceUpdateProfile, summary: Update a Voice deployment profile with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/profiles/{profile_id}/preflight:
     parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
-    post: { tags: [iveKit Voice], operationId: iveKitVoicePreflightProfile, summary: Probe and persist effective provider capabilities, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoicePreflightProfile, summary: Probe and persist effective provider capabilities, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/profiles/{profile_id}/capabilities:
     parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetProfileCapabilities, summary: Get the effective provider capability snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceGetProfileCapabilities, summary: Get the effective provider capability snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/trunks:
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListTrunks, summary: List SIP trunks, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateTrunk, summary: Create a SIP trunk, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListTrunks, summary: List SIP trunks, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceCreateTrunk, summary: Create a SIP trunk, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/voice/trunks/{trunk_id}:
     parameters: [{ $ref: '#/components/parameters/VoiceTrunkId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetTrunk, summary: Get a SIP trunk, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdateTrunk, summary: Update a SIP trunk with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceGetTrunk, summary: Get a SIP trunk, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric Voice], operationId: iveKitVoiceUpdateTrunk, summary: Update a SIP trunk with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/trunks/{trunk_id}/apply:
     parameters: [{ $ref: '#/components/parameters/VoiceTrunkId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceApplyTrunk, summary: Enqueue a durable trunk apply command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceApplyTrunk, summary: Enqueue a durable trunk apply command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
   /api/ivekit/voice/trunks/{trunk_id}/test:
     parameters: [{ $ref: '#/components/parameters/VoiceTrunkId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceTestTrunk, summary: Enqueue a durable trunk test command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceTestTrunk, summary: Enqueue a durable trunk test command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
   /api/ivekit/voice/dids:
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListDids, summary: List DIDs, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateDid, summary: Create a DID, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListDids, summary: List DIDs, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceCreateDid, summary: Create a DID, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/voice/dids/{did_id}:
     parameters: [{ $ref: '#/components/parameters/VoiceDidId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetDid, summary: Get a DID, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdateDid, summary: Update a DID with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceGetDid, summary: Get a DID, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric Voice], operationId: iveKitVoiceUpdateDid, summary: Update a DID with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/dids/{did_id}/apply:
     parameters: [{ $ref: '#/components/parameters/VoiceDidId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceApplyDid, summary: Enqueue a durable DID apply command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceApplyDid, summary: Enqueue a durable DID apply command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
   /api/ivekit/voice/extensions:
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListExtensions, summary: List Voice extensions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateExtension, summary: Create a Voice extension, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListExtensions, summary: List Voice extensions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceCreateExtension, summary: Create a Voice extension, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/voice/extensions/{extension_id}:
     parameters: [{ $ref: '#/components/parameters/VoiceExtensionId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetExtension, summary: Get a Voice extension, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdateExtension, summary: Update a Voice extension with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceGetExtension, summary: Get a Voice extension, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric Voice], operationId: iveKitVoiceUpdateExtension, summary: Update a Voice extension with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/extensions/{extension_id}/apply:
     parameters: [{ $ref: '#/components/parameters/VoiceExtensionId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceApplyExtension, summary: Enqueue a durable extension apply command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceApplyExtension, summary: Enqueue a durable extension apply command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
   /api/ivekit/voice/extensions/{extension_id}/session:
     post:
-      tags: [iveKit Voice]
+      tags: [Converact Fabric Voice]
       operationId: iveKitVoiceCreateExtensionSession
       summary: Issue a short-lived browser WebPhone session plan
       description: |
@@ -1834,27 +1834,27 @@ paths:
         '409': { description: The idempotency key was reused with different or expired input }
         '503': { description: WebPhone capability is disabled or unavailable }
   /api/ivekit/voice/routes:
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListRoutes, summary: List Voice routes, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateRoute, summary: Create a Voice route draft, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListRoutes, summary: List Voice routes, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceCreateRoute, summary: Create a Voice route draft, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/voice/routes/{route_id}:
     parameters: [{ $ref: '#/components/parameters/VoiceRouteId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetRoute, summary: Get a Voice route, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdateRoute, summary: Update a Voice route draft with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceGetRoute, summary: Get a Voice route, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric Voice], operationId: iveKitVoiceUpdateRoute, summary: Update a Voice route draft with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/routes/{route_id}/validate:
     parameters: [{ $ref: '#/components/parameters/VoiceRouteId' }]
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceValidateRoute, summary: Validate and hash Voice route rules, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceValidateRoute, summary: Validate and hash Voice route rules, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/routes/{route_id}/versions:
     parameters: [{ $ref: '#/components/parameters/VoiceRouteId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListRouteVersions, summary: List immutable Voice route versions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListRouteVersions, summary: List immutable Voice route versions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/routes/{route_id}/publish:
     parameters: [{ $ref: '#/components/parameters/VoiceRouteId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
-    post: { tags: [iveKit Voice], operationId: iveKitVoicePublishRoute, summary: Publish and apply a Voice route version, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoicePublishRoute, summary: Publish and apply a Voice route version, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
   /api/ivekit/voice/parking-slots:
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListParkingSlots, summary: List durable call parking slots, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListParkingSlots, summary: List durable call parking slots, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/calls:
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListCalls, summary: List Voice calls, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListCalls, summary: List Voice calls, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
     post:
-      tags: [iveKit Voice]
+      tags: [Converact Fabric Voice]
       operationId: iveKitVoiceCreateOutboundCall
       summary: Create and place an outbound Voice call
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
@@ -1862,112 +1862,112 @@ paths:
       responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } }
   /api/ivekit/voice/calls/{call_id}:
     parameters: [{ $ref: '#/components/parameters/VoiceCallId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetCall, summary: Get a Voice call snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceGetCall, summary: Get a Voice call snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/calls/{call_id}/actions:
     parameters: [{ $ref: '#/components/parameters/VoiceCallId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceEnqueueCallAction, summary: Enqueue a fenced durable call-control action, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceEnqueueCallAction, summary: Enqueue a fenced durable call-control action, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
   /api/ivekit/voice/calls/{call_id}/livekit-bridge:
     parameters: [{ $ref: '#/components/parameters/VoiceCallId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateLiveKitBridge, summary: Enqueue a LiveKit SIP bridge command, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceCreateLiveKitBridge, summary: Enqueue a LiveKit SIP bridge command, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
   /api/ivekit/voice/calls/{call_id}/events:
     parameters: [{ $ref: '#/components/parameters/VoiceCallId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListCallEvents, summary: List normalized provider events for a call, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListCallEvents, summary: List normalized provider events for a call, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/calls/{call_id}/recordings:
     parameters: [{ $ref: '#/components/parameters/VoiceCallId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListCallRecordings, summary: List recordings for a Voice call, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListCallRecordings, summary: List recordings for a Voice call, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/calls/{call_id}/bridges:
     parameters: [{ $ref: '#/components/parameters/VoiceCallId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListCallBridges, summary: List LiveKit bridges for a Voice call, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListCallBridges, summary: List LiveKit bridges for a Voice call, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/calls/{call_id}/participants:
     parameters: [{ $ref: '#/components/parameters/VoiceCallId' }]
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListCallParticipants, summary: List Voice call participants, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListCallParticipants, summary: List Voice call participants, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/policy:
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetPolicy, summary: Get tenant Voice compliance policy, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdatePolicy, summary: Update tenant Voice compliance policy, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceGetPolicy, summary: Get tenant Voice compliance policy, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric Voice], operationId: iveKitVoiceUpdatePolicy, summary: Update tenant Voice compliance policy, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/voice/consents:
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListConsents, summary: List Voice consent records, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateConsent, summary: Create a Voice consent evidence record, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListConsents, summary: List Voice consent records, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Voice], operationId: iveKitVoiceCreateConsent, summary: Create a Voice consent evidence record, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/voice/recordings:
-    get: { tags: [iveKit Voice], operationId: iveKitVoiceListRecordings, summary: List tenant Voice recordings, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Voice], operationId: iveKitVoiceListRecordings, summary: List tenant Voice recordings, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
 
   /api/ivekit/ivr/flows:
-    get: { tags: [iveKit IVR], operationId: iveKitIvrListFlows, summary: List IVR flows, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit IVR], operationId: iveKitIvrCreateFlow, summary: Create an IVR flow draft, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrListFlows, summary: List IVR flows, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric IVR], operationId: iveKitIvrCreateFlow, summary: Create an IVR flow draft, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/ivr/flows/{flow_id}:
     parameters: [{ $ref: '#/components/parameters/IvrFlowId' }]
-    get: { tags: [iveKit IVR], operationId: iveKitIvrGetFlow, summary: Get an IVR flow, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateFlow, summary: Update an IVR flow draft with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrGetFlow, summary: Get an IVR flow, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric IVR], operationId: iveKitIvrUpdateFlow, summary: Update an IVR flow draft with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/flows/{flow_id}/versions:
     parameters: [{ $ref: '#/components/parameters/IvrFlowId' }]
-    get: { tags: [iveKit IVR], operationId: iveKitIvrListVersions, summary: List immutable IVR flow versions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrListVersions, summary: List immutable IVR flow versions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/flows/{flow_id}/validate:
     parameters: [{ $ref: '#/components/parameters/IvrFlowId' }]
-    post: { tags: [iveKit IVR], operationId: iveKitIvrValidateFlow, summary: Validate and compile an IVR flow, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric IVR], operationId: iveKitIvrValidateFlow, summary: Validate and compile an IVR flow, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/flows/{flow_id}/publish:
     parameters: [{ $ref: '#/components/parameters/IvrFlowId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
-    post: { tags: [iveKit IVR], operationId: iveKitIvrPublishFlow, summary: Publish an IVR flow version, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric IVR], operationId: iveKitIvrPublishFlow, summary: Publish an IVR flow version, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/flows/{flow_id}/rollback:
     parameters: [{ $ref: '#/components/parameters/IvrFlowId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
-    post: { tags: [iveKit IVR], operationId: iveKitIvrRollbackFlow, summary: Publish a rollback IVR flow version, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric IVR], operationId: iveKitIvrRollbackFlow, summary: Publish a rollback IVR flow version, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/simulations:
-    post: { tags: [iveKit IVR], operationId: iveKitIvrSimulate, summary: Simulate an IVR flow without provider side effects, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric IVR], operationId: iveKitIvrSimulate, summary: Simulate an IVR flow without provider side effects, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/sessions:
-    get: { tags: [iveKit IVR], operationId: iveKitIvrListSessions, summary: List IVR runtime sessions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit IVR], operationId: iveKitIvrStartSession, summary: Start a durable IVR runtime session, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrListSessions, summary: List IVR runtime sessions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric IVR], operationId: iveKitIvrStartSession, summary: Start a durable IVR runtime session, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/ivr/sessions/{session_id}:
     parameters: [{ $ref: '#/components/parameters/IveKitSessionId' }]
-    get: { tags: [iveKit IVR], operationId: iveKitIvrGetSession, summary: Get an IVR session and step history, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrGetSession, summary: Get an IVR session and step history, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/sessions/{session_id}/advance:
     parameters: [{ $ref: '#/components/parameters/IveKitSessionId' }]
-    post: { tags: [iveKit IVR], operationId: iveKitIvrAdvanceSession, summary: Advance an IVR session with sequence and action fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric IVR], operationId: iveKitIvrAdvanceSession, summary: Advance an IVR session with sequence and action fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/audio-assets:
-    get: { tags: [iveKit IVR], operationId: iveKitIvrListAudioAssets, summary: List IVR audio assets, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit IVR], operationId: iveKitIvrCreateAudioAsset, summary: Create an IVR audio asset, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrListAudioAssets, summary: List IVR audio assets, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric IVR], operationId: iveKitIvrCreateAudioAsset, summary: Create an IVR audio asset, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/ivr/audio-assets/{resource_id}:
     parameters: [{ $ref: '#/components/parameters/IvrResourceId' }]
-    get: { tags: [iveKit IVR], operationId: iveKitIvrGetAudioAsset, summary: Get an IVR audio asset, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateAudioAsset, summary: Update an IVR audio asset, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrGetAudioAsset, summary: Get an IVR audio asset, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric IVR], operationId: iveKitIvrUpdateAudioAsset, summary: Update an IVR audio asset, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/time-groups:
-    get: { tags: [iveKit IVR], operationId: iveKitIvrListTimeGroups, summary: List IVR time groups, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit IVR], operationId: iveKitIvrCreateTimeGroup, summary: Create an IVR time group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrListTimeGroups, summary: List IVR time groups, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric IVR], operationId: iveKitIvrCreateTimeGroup, summary: Create an IVR time group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/ivr/time-groups/{resource_id}:
     parameters: [{ $ref: '#/components/parameters/IvrResourceId' }]
-    get: { tags: [iveKit IVR], operationId: iveKitIvrGetTimeGroup, summary: Get an IVR time group, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateTimeGroup, summary: Update an IVR time group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrGetTimeGroup, summary: Get an IVR time group, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric IVR], operationId: iveKitIvrUpdateTimeGroup, summary: Update an IVR time group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/region-groups:
-    get: { tags: [iveKit IVR], operationId: iveKitIvrListRegionGroups, summary: List IVR region groups, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit IVR], operationId: iveKitIvrCreateRegionGroup, summary: Create an IVR region group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrListRegionGroups, summary: List IVR region groups, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric IVR], operationId: iveKitIvrCreateRegionGroup, summary: Create an IVR region group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/ivr/region-groups/{resource_id}:
     parameters: [{ $ref: '#/components/parameters/IvrResourceId' }]
-    get: { tags: [iveKit IVR], operationId: iveKitIvrGetRegionGroup, summary: Get an IVR region group, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateRegionGroup, summary: Update an IVR region group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrGetRegionGroup, summary: Get an IVR region group, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric IVR], operationId: iveKitIvrUpdateRegionGroup, summary: Update an IVR region group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/ring-groups:
-    get: { tags: [iveKit IVR], operationId: iveKitIvrListRingGroups, summary: List IVR ring groups, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit IVR], operationId: iveKitIvrCreateRingGroup, summary: Create an IVR ring group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrListRingGroups, summary: List IVR ring groups, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric IVR], operationId: iveKitIvrCreateRingGroup, summary: Create an IVR ring group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
   /api/ivekit/ivr/ring-groups/{resource_id}:
     parameters: [{ $ref: '#/components/parameters/IvrResourceId' }]
-    get: { tags: [iveKit IVR], operationId: iveKitIvrGetRingGroup, summary: Get an IVR ring group, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateRingGroup, summary: Update an IVR ring group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrGetRingGroup, summary: Get an IVR ring group, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric IVR], operationId: iveKitIvrUpdateRingGroup, summary: Update an IVR ring group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/ivr/settings:
-    get: { tags: [iveKit IVR], operationId: iveKitIvrGetSettings, summary: Get tenant IVR settings, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateSettings, summary: Update tenant IVR settings, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric IVR], operationId: iveKitIvrGetSettings, summary: Get tenant IVR settings, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric IVR], operationId: iveKitIvrUpdateSettings, summary: Update tenant IVR settings, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
 
   /api/ivekit/contact-center/capabilities:
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetCapabilities, summary: Get runtime Contact Center capabilities, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterGetCapabilities, summary: Get runtime Contact Center capabilities, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/monitor:
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetMonitorSnapshot, summary: Get the queue and agent monitor snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterGetMonitorSnapshot, summary: Get the queue and agent monitor snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/supervisor/actions:
     post:
-      tags: [iveKit Contact Center]
+      tags: [Converact Fabric Contact Center]
       operationId: iveKitContactCenterSupervisorAction
       summary: Start or end a capability-gated supervisor session
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
       responses: { '200': { $ref: '#/components/responses/IveKitOk' }, '201': { $ref: '#/components/responses/IveKitCreated' } }
   /api/ivekit/contact-center/callbacks:
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListCallbacks, summary: List callback requests, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterListCallbacks, summary: List callback requests, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
     post:
-      tags: [iveKit Contact Center]
+      tags: [Converact Fabric Contact Center]
       operationId: iveKitContactCenterRequestCallback
       summary: Create an encrypted durable callback request
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
@@ -1975,14 +1975,14 @@ paths:
       responses: { '201': { $ref: '#/components/responses/IveKitCreated' } }
   /api/ivekit/contact-center/callbacks/{callback_id}:
     parameters: [{ $ref: '#/components/parameters/ContactCenterCallbackId' }]
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetCallback, summary: Get a callback request, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterGetCallback, summary: Get a callback request, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/callbacks/{callback_id}/cancel:
     parameters: [{ $ref: '#/components/parameters/ContactCenterCallbackId' }]
-    post: { tags: [iveKit Contact Center], operationId: iveKitContactCenterCancelCallback, summary: Cancel a callback request, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterCancelCallback, summary: Cancel a callback request, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/skills:
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListSkills, summary: List routing skills, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterListSkills, summary: List routing skills, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
     post:
-      tags: [iveKit Contact Center]
+      tags: [Converact Fabric Contact Center]
       operationId: iveKitContactCenterCreateSkill
       summary: Create a routing skill
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
@@ -1990,12 +1990,12 @@ paths:
       responses: { '201': { $ref: '#/components/responses/IveKitCreated' } }
   /api/ivekit/contact-center/skills/{skill_id}:
     parameters: [{ $ref: '#/components/parameters/ContactCenterSkillId' }]
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetSkill, summary: Get a routing skill, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit Contact Center], operationId: iveKitContactCenterUpdateSkill, summary: Update a routing skill with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterGetSkill, summary: Get a routing skill, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterUpdateSkill, summary: Update a routing skill with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/agents:
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListAgents, summary: List Contact Center agents, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterListAgents, summary: List Contact Center agents, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
     post:
-      tags: [iveKit Contact Center]
+      tags: [Converact Fabric Contact Center]
       operationId: iveKitContactCenterCreateAgent
       summary: Create a Contact Center agent
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
@@ -2003,19 +2003,19 @@ paths:
       responses: { '201': { $ref: '#/components/responses/IveKitCreated' } }
   /api/ivekit/contact-center/agents/{agent_id}:
     parameters: [{ $ref: '#/components/parameters/ContactCenterAgentId' }]
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetAgent, summary: Get a Contact Center agent snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit Contact Center], operationId: iveKitContactCenterUpdateAgent, summary: Update an agent with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterGetAgent, summary: Get a Contact Center agent snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterUpdateAgent, summary: Update an agent with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/agents/{agent_id}/presence:
     parameters: [{ $ref: '#/components/parameters/ContactCenterAgentId' }]
-    post: { tags: [iveKit Contact Center], operationId: iveKitContactCenterUpdatePresence, summary: Update self or administratively managed agent presence, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterUpdatePresence, summary: Update self or administratively managed agent presence, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/agents/{agent_id}/skills:
     parameters: [{ $ref: '#/components/parameters/ContactCenterAgentId' }]
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListAgentSkills, summary: List skills assigned to an agent, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    put: { tags: [iveKit Contact Center], operationId: iveKitContactCenterReplaceAgentSkills, summary: Replace skills assigned to an agent, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterListAgentSkills, summary: List skills assigned to an agent, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    put: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterReplaceAgentSkills, summary: Replace skills assigned to an agent, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/queues:
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListQueues, summary: List ACD queues, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterListQueues, summary: List ACD queues, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
     post:
-      tags: [iveKit Contact Center]
+      tags: [Converact Fabric Contact Center]
       operationId: iveKitContactCenterCreateQueue
       summary: Create an ACD queue
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
@@ -2023,25 +2023,25 @@ paths:
       responses: { '201': { $ref: '#/components/responses/IveKitCreated' } }
   /api/ivekit/contact-center/queues/{queue_id}:
     parameters: [{ $ref: '#/components/parameters/ContactCenterQueueId' }]
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetQueue, summary: Get an ACD queue configuration, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    patch: { tags: [iveKit Contact Center], operationId: iveKitContactCenterUpdateQueue, summary: Update an ACD queue with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterGetQueue, summary: Get an ACD queue configuration, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterUpdateQueue, summary: Update an ACD queue with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/queues/{queue_id}/memberships:
     parameters: [{ $ref: '#/components/parameters/ContactCenterQueueId' }]
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListMemberships, summary: List queue memberships, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    post: { tags: [iveKit Contact Center], operationId: iveKitContactCenterUpsertMembership, summary: Add or update a queue membership, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterListMemberships, summary: List queue memberships, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterUpsertMembership, summary: Add or update a queue membership, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/queues/{queue_id}/memberships/{agent_id}:
     parameters: [{ $ref: '#/components/parameters/ContactCenterQueueId' }, { $ref: '#/components/parameters/ContactCenterAgentId' }]
-    delete: { tags: [iveKit Contact Center], operationId: iveKitContactCenterRemoveMembership, summary: Remove a queue membership, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    delete: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterRemoveMembership, summary: Remove a queue membership, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/queues/{queue_id}/skill-requirements:
     parameters: [{ $ref: '#/components/parameters/ContactCenterQueueId' }]
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListQueueSkillRequirements, summary: List queue skill requirements, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
-    put: { tags: [iveKit Contact Center], operationId: iveKitContactCenterReplaceQueueSkillRequirements, summary: Replace queue skill requirements, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterListQueueSkillRequirements, summary: List queue skill requirements, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    put: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterReplaceQueueSkillRequirements, summary: Replace queue skill requirements, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/queues/{queue_id}/entries:
     parameters: [{ $ref: '#/components/parameters/ContactCenterQueueId' }]
-    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListQueueEntries, summary: List queue entries and assignment history, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    get: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterListQueueEntries, summary: List queue entries and assignment history, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
   /api/ivekit/contact-center/routing/assignments:
     post:
-      tags: [iveKit Contact Center]
+      tags: [Converact Fabric Contact Center]
       operationId: iveKitContactCenterOfferNext
       summary: Atomically offer the next eligible queue entry
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
@@ -2049,15 +2049,15 @@ paths:
       responses: { '201': { $ref: '#/components/responses/IveKitCreated' }, '204': { description: No eligible queue entry } }
   /api/ivekit/contact-center/assignments/{assignment_id}/{action}:
     parameters: [{ $ref: '#/components/parameters/ContactCenterAssignmentId' }, { $ref: '#/components/parameters/ContactCenterAssignmentAction' }]
-    post: { tags: [iveKit Contact Center], operationId: iveKitContactCenterActOnAssignment, summary: Accept reject connect or complete an assignment, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [Converact Fabric Contact Center], operationId: iveKitContactCenterActOnAssignment, summary: Accept reject connect or complete an assignment, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
 
   /api/ivekit/voice/providers/{profile_id}/router:
     parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
     post:
-      tags: [iveKit Voice]
+      tags: [Converact Fabric Voice]
       operationId: iveKitVoiceProviderResolveRoute
       summary: Resolve an authenticated RustPBX inbound route
-      description: Authenticated with X-PBX-Key or the timestamped iveKit HMAC headers. Tenant identity is derived from the deployment profile and cannot be supplied by the caller.
+      description: Authenticated with X-PBX-Key or the timestamped Converact Fabric HMAC headers. Tenant identity is derived from the deployment profile and cannot be supplied by the caller.
       security: [{ RustPbxServiceKey: [] }]
       requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
       responses:
@@ -2068,10 +2068,10 @@ paths:
   /api/ivekit/voice/providers/{profile_id}/inbound-admission:
     parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
     post:
-      tags: [iveKit Voice]
+      tags: [Converact Fabric Voice]
       operationId: iveKitVoiceProviderAdmitInboundCall
       summary: Reserve capacity for an authenticated RustPBX inbound call
-      description: Authenticated with X-PBX-Key or the timestamped iveKit HMAC headers. Admission is idempotent for the provider call identity and fails closed when durable placement is unavailable.
+      description: Authenticated with X-PBX-Key or the timestamped Converact Fabric HMAC headers. Admission is idempotent for the provider call identity and fails closed when durable placement is unavailable.
       security: [{ RustPbxServiceKey: [] }]
       requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
       responses:
@@ -2083,10 +2083,10 @@ paths:
   /api/ivekit/voice/providers/{profile_id}/events:
     parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
     post:
-      tags: [iveKit Voice]
+      tags: [Converact Fabric Voice]
       operationId: iveKitVoiceProviderIngestEvent
       summary: Ingest an authenticated RustPBX call event
-      description: Authenticated with X-PBX-Key or the timestamped iveKit HMAC headers. Provider event identity and canonical payload hashing make replay idempotent.
+      description: Authenticated with X-PBX-Key or the timestamped Converact Fabric HMAC headers. Provider event identity and canonical payload hashing make replay idempotent.
       security: [{ RustPbxServiceKey: [] }]
       requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
       responses:
@@ -2096,10 +2096,10 @@ paths:
   /api/ivekit/voice/providers/{profile_id}/cdrs:
     parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
     post:
-      tags: [iveKit Voice]
+      tags: [Converact Fabric Voice]
       operationId: iveKitVoiceProviderIngestCdr
       summary: Ingest an authenticated RustPBX call detail record
-      description: Authenticated with X-PBX-Key or the timestamped iveKit HMAC headers. Provider record identity and canonical payload hashing make replay idempotent.
+      description: Authenticated with X-PBX-Key or the timestamped Converact Fabric HMAC headers. Provider record identity and canonical payload hashing make replay idempotent.
       security: [{ RustPbxServiceKey: [] }]
       requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
       responses:
@@ -2109,7 +2109,7 @@ paths:
   /api/ivekit/voice/providers/{profile_id}/recording-spool/segments:
     parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
     post:
-      tags: [iveKit Voice]
+      tags: [Converact Fabric Voice]
       operationId: iveKitVoiceProviderRegisterRecordingSegment
       summary: Register an owner-fenced RustPBX recording segment
       description: Authenticated with X-PBX-Key or timestamped HMAC headers. This asynchronous evidence path is isolated from RTP and call control, so upload or storage failure never blocks an active call.
@@ -2127,7 +2127,7 @@ paths:
       - { $ref: '#/components/parameters/VoiceProfileId' }
       - { $ref: '#/components/parameters/VoiceRecordingSegmentId' }
     get:
-      tags: [iveKit Voice]
+      tags: [Converact Fabric Voice]
       operationId: iveKitVoiceProviderListRecordingSegmentParts
       summary: List accepted parts for a RustPBX recording segment
       description: Authenticated with X-PBX-Key or timestamped HMAC headers. The uploader uses this endpoint to resume after interruption without involving the active media session.
@@ -2143,7 +2143,7 @@ paths:
       - { $ref: '#/components/parameters/VoiceRecordingSegmentId' }
       - { $ref: '#/components/parameters/VoiceRecordingPartNumber' }
     put:
-      tags: [iveKit Voice]
+      tags: [Converact Fabric Voice]
       operationId: iveKitVoiceProviderUploadRecordingSegmentPart
       summary: Upload one resumable RustPBX recording segment part
       description: Authenticated with X-PBX-Key or timestamped HMAC headers. The service streams and verifies the declared SHA-256; storage failure is confined to recording evidence and never backpressures RTP.
@@ -2167,7 +2167,7 @@ paths:
       - { $ref: '#/components/parameters/VoiceProfileId' }
       - { $ref: '#/components/parameters/VoiceRecordingSegmentId' }
     post:
-      tags: [iveKit Voice]
+      tags: [Converact Fabric Voice]
       operationId: iveKitVoiceProviderCompleteRecordingSegment
       summary: Verify and seal a RustPBX recording segment
       description: Authenticated with X-PBX-Key or timestamped HMAC headers. Completion verifies byte count and SHA-256 independently from call control.
@@ -2183,7 +2183,7 @@ paths:
       - { $ref: '#/components/parameters/VoiceProfileId' }
       - { $ref: '#/components/parameters/VoiceRecordingId' }
     post:
-      tags: [iveKit Voice]
+      tags: [Converact Fabric Voice]
       operationId: iveKitVoiceProviderCompleteRecording
       summary: Seal a complete RustPBX recording manifest
       description: Authenticated with X-PBX-Key or timestamped HMAC headers. Completion requires a contiguous owner-fenced segment sequence but remains outside the real-time call path.
@@ -2197,10 +2197,10 @@ paths:
   /api/ivekit/ivr/provider-webhooks/rustpbx/{profile_id}/step:
     parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
     post:
-      tags: [iveKit IVR]
+      tags: [Converact Fabric IVR]
       operationId: iveKitIvrProviderAdvanceStep
       summary: Advance a RustPBX Step IVR session
-      description: Authenticated with X-PBX-Key or the timestamped iveKit HMAC headers. Sequence and action revision fencing make provider retries deterministic.
+      description: Authenticated with X-PBX-Key or the timestamped Converact Fabric HMAC headers. Sequence and action revision fencing make provider retries deterministic.
       security: [{ RustPbxServiceKey: [] }]
       requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
       responses:
@@ -2222,9 +2222,9 @@ paths:
 webhooks:
   iveKitIntegrationEvent:
     post:
-      summary: Receive a durable signed iveKit integration event
+      summary: Receive a durable signed Converact Fabric integration event
       description: Verify the timestamp and HMAC against the exact raw body, then atomically claim the delivery in a shared durable inbox.
-      tags: [iveKit Events]
+      tags: [Converact Fabric Events]
       parameters:
         - name: x-ivekit-timestamp
           in: header
@@ -2258,8 +2258,8 @@ webhooks:
       responses:
         '200': { description: Accepted or already present in the durable inbox }
         '401': { description: Timestamp, signature, or envelope verification failed }
-        '429': { description: Receiver is rate limited and iveKit may retry }
-        '503': { description: Receiver signing-secret service or durable inbox is unavailable and iveKit should retry }
+        '429': { description: Receiver is rate limited and Converact Fabric may retry }
+        '503': { description: Receiver signing-secret service or durable inbox is unavailable and Converact Fabric should retry }
 
 components:
   securitySchemes:
@@ -2378,11 +2378,11 @@ components:
           schema:
             type: object
             additionalProperties: true
-          description: Use the strongly typed @opc/ivekit-sdk input for this operation. Tenant and actor identity come from authentication and cannot be overridden in the body.
+          description: Use the strongly typed @converact/sdk input for this operation. Tenant and actor identity come from authentication and cannot be overridden in the body.
 
   responses:
     IveKitOk:
-      description: Successful iveKit response body.
+      description: Successful Converact Fabric response body.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/IveKitJsonValue' }
@@ -2392,7 +2392,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/IveKitJsonValue' }
     IveKitAccepted:
-      description: Durable command accepted. Poll the resource or consume iveKit events for the terminal outcome.
+      description: Durable command accepted. Poll the resource or consume Converact Fabric events for the terminal outcome.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/IveKitJsonValue' }
@@ -3874,12 +3874,12 @@ tags:
   - name: Webhooks
   - name: WFM
   - name: White Label
-  - name: iveKit Intelligence
-  - name: iveKit Files
-  - name: iveKit Events
-  - name: iveKit Notifications
-  - name: iveKit RustDesk
-  - name: iveKit RustDesk Edge
-  - name: iveKit Voice
-  - name: iveKit IVR
-  - name: iveKit Contact Center
+  - name: Converact Fabric Intelligence
+  - name: Converact Fabric Files
+  - name: Converact Fabric Events
+  - name: Converact Fabric Notifications
+  - name: Converact Fabric RustDesk
+  - name: Converact Fabric RustDesk Edge
+  - name: Converact Fabric Voice
+  - name: Converact Fabric IVR
+  - name: Converact Fabric Contact Center

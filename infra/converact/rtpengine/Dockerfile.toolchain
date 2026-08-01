@@ -8,18 +8,18 @@ RUN printf '%s\n' \
       'Acquire::Check-Valid-Until "false";' \
       'Acquire::Retries "3";' \
       'Acquire::https::Timeout "30";' \
-      > /etc/apt/apt.conf.d/99ivekit-snapshot \
+      > /etc/apt/apt.conf.d/99converact-snapshot \
     && printf '%s\n' \
       "deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT} trixie main" \
       "deb [check-valid-until=no] https://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT} trixie-security main" \
       > /etc/apt/sources.list \
     && rm -f /etc/apt/sources.list.d/debian.sources \
     && printf '%s\n' 'Acquire::https::Verify-Peer "false";' \
-      > /etc/apt/apt.conf.d/98ivekit-ca-bootstrap \
+      > /etc/apt/apt.conf.d/98converact-ca-bootstrap \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       ca-certificates \
-    && rm -f /etc/apt/apt.conf.d/98ivekit-ca-bootstrap \
+    && rm -f /etc/apt/apt.conf.d/98converact-ca-bootstrap \
     && apt-get update
 
 FROM snapshot-base AS runtime-rootfs
@@ -54,19 +54,19 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       nftables \
       procps \
       tzdata \
-    && groupadd --gid 10001 ivekit-rtpengine \
+    && groupadd --gid 10001 converact-rtpengine \
     && useradd --uid 10001 --gid 10001 --no-create-home \
-      --home-dir /var/lib/ivekit-rtpengine --shell /usr/sbin/nologin \
-      ivekit-rtpengine \
+      --home-dir /var/lib/converact-rtpengine --shell /usr/sbin/nologin \
+      converact-rtpengine \
     && install -d -o 10001 -g 10001 -m 0750 \
       /rec \
-      /run/ivekit-rtpengine \
-      /var/lib/ivekit-rtpengine \
-    && install -d -o root -g root -m 0755 /etc/ivekit \
+      /run/converact-rtpengine \
+      /var/lib/converact-rtpengine \
+    && install -d -o root -g root -m 0755 /etc/converact \
     && dpkg-query -W -f='${Package}=${Version}\n' \
-      | LC_ALL=C sort > /usr/share/ivekit-runtime-packages.txt \
+      | LC_ALL=C sort > /usr/share/converact-runtime-packages.txt \
     && install -m 0444 /var/lib/dpkg/status \
-      /usr/share/ivekit-runtime-dpkg-status \
+      /usr/share/converact-runtime-dpkg-status \
     && rm -f \
       /usr/bin/apt \
       /usr/bin/apt-cache \
@@ -97,7 +97,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       /usr/share/doc \
       /usr/share/man \
     && install -d -o root -g root -m 0755 /var/lib/dpkg \
-    && install -m 0444 /usr/share/ivekit-runtime-dpkg-status \
+    && install -m 0444 /usr/share/converact-runtime-dpkg-status \
       /var/lib/dpkg/status \
     && find /var/log -type f -exec truncate -s 0 {} +
 
@@ -105,8 +105,8 @@ FROM snapshot-base AS toolchain
 
 ARG DEBIAN_SNAPSHOT=20260725T000000Z
 
-LABEL org.opencontainers.image.source="https://github.com/songgoldenwind-crypto/opc-platform"
-LABEL org.opencontainers.image.description="iveKit reproducible RTPengine toolchain"
+LABEL org.opencontainers.image.source="https://github.com/songgoldenwind-crypto/converact-platform"
+LABEL org.opencontainers.image.description="Converact Fabric reproducible RTPengine toolchain"
 LABEL io.ivekit.toolchain.base="debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd"
 LABEL io.ivekit.toolchain.snapshot="${DEBIAN_SNAPSHOT}"
 
@@ -151,10 +151,10 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       pkg-config \
       xz-utils \
     && dpkg-query -W -f='${Package}=${Version}\n' \
-      | LC_ALL=C sort > /usr/share/ivekit-toolchain-packages.txt \
+      | LC_ALL=C sort > /usr/share/converact-toolchain-packages.txt \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=runtime-rootfs / /opt/ivekit-runtime-rootfs
+COPY --from=runtime-rootfs / /opt/converact-runtime-rootfs
 
 WORKDIR /workspace

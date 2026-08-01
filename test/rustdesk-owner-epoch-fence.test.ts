@@ -38,7 +38,7 @@ test('RustDesk owner binding rejects commands outside the server-bound placement
 });
 
 test('RustDesk owner epoch fence persists the greatest accepted exact-session epoch', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'ivekit-rustdesk-owner-fence-'));
+  const directory = mkdtempSync(join(tmpdir(), 'converact-rustdesk-owner-fence-'));
   const first = await RustDeskOwnerEpochFence.open({ directory });
   try {
     assert.equal(await first.accept({
@@ -110,7 +110,7 @@ test('RustDesk owner epoch fence persists the greatest accepted exact-session ep
 });
 
 test('RustDesk owner epoch fence recovers a lock left by a dead process', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'ivekit-rustdesk-owner-fence-dead-lock-'));
+  const directory = mkdtempSync(join(tmpdir(), 'converact-rustdesk-owner-fence-dead-lock-'));
   writeFileSync(join(directory, '.owner-epochs.lock'), `${JSON.stringify({
     schema_version: 1,
     pid: 2_147_483_647,
@@ -122,7 +122,7 @@ test('RustDesk owner epoch fence recovers a lock left by a dead process', async 
 });
 
 test('RustDesk owner epoch fence migrates the legacy aggregate state without losing fencing', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'ivekit-rustdesk-owner-fence-legacy-'));
+  const directory = mkdtempSync(join(tmpdir(), 'converact-rustdesk-owner-fence-legacy-'));
   writeFileSync(join(directory, 'owner-epochs.json'), `${JSON.stringify({
     schema_version: 1,
     records: [{
@@ -165,7 +165,7 @@ test('RustDesk owner epoch fence migrates the legacy aggregate state without los
 });
 
 test('RustDesk owner epoch fence rejects a second live companion process', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'ivekit-rustdesk-owner-fence-live-lock-'));
+  const directory = mkdtempSync(join(tmpdir(), 'converact-rustdesk-owner-fence-live-lock-'));
   const first = await RustDeskOwnerEpochFence.open({ directory });
   try {
     await assert.rejects(

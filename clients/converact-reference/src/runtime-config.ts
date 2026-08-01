@@ -1,4 +1,4 @@
-export interface IveKitRuntimeConfig {
+export interface ConveractFabricRuntimeConfig {
   baseUrl: string;
   tenantId: string;
   websocketUrl?: string;
@@ -6,20 +6,20 @@ export interface IveKitRuntimeConfig {
 
 declare global {
   interface Window {
-    iveKitHost?: {
+    converactFabricHost?: {
       getAccessToken(): Promise<string> | string;
       getIdentity?(): Promise<string> | string;
       openExternal?(url: string): Promise<void> | void;
     };
-    __IVEKIT_DEV_ACCESS_TOKEN__?: string;
-    __IVEKIT_DEV_IDENTITY__?: string;
+    __CONVERACT_FABRIC_DEV_ACCESS_TOKEN__?: string;
+    __CONVERACT_FABRIC_DEV_IDENTITY__?: string;
   }
 }
 
-export async function loadRuntimeConfig(fetchImpl: typeof fetch = fetch): Promise<IveKitRuntimeConfig> {
+export async function loadRuntimeConfig(fetchImpl: typeof fetch = fetch): Promise<ConveractFabricRuntimeConfig> {
   const response = await fetchImpl('/converact-config.json', { cache: 'no-store' });
   if (!response.ok) throw new Error(`runtime config unavailable (${response.status})`);
-  const value = await response.json() as Partial<IveKitRuntimeConfig>;
+  const value = await response.json() as Partial<ConveractFabricRuntimeConfig>;
   const baseUrl = required(value.baseUrl, 'baseUrl');
   const tenantId = required(value.tenantId, 'tenantId');
   const parsed = new URL(baseUrl);
@@ -28,16 +28,16 @@ export async function loadRuntimeConfig(fetchImpl: typeof fetch = fetch): Promis
 }
 
 export async function requestAccessToken(): Promise<string> {
-  const token = window.iveKitHost
-    ? await window.iveKitHost.getAccessToken()
-    : window.__IVEKIT_DEV_ACCESS_TOKEN__;
+  const token = window.converactFabricHost
+    ? await window.converactFabricHost.getAccessToken()
+    : window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__;
   return required(token, 'short-lived access token');
 }
 
 export async function requestIdentity(accessToken: string): Promise<string> {
-  const hostIdentity = window.iveKitHost?.getIdentity
-    ? await window.iveKitHost.getIdentity()
-    : window.__IVEKIT_DEV_IDENTITY__;
+  const hostIdentity = window.converactFabricHost?.getIdentity
+    ? await window.converactFabricHost.getIdentity()
+    : window.__CONVERACT_FABRIC_DEV_IDENTITY__;
   if (hostIdentity) return required(hostIdentity, 'identity');
   const payload = jwtPayload(accessToken);
   return required(payload?.sub || payload?.userId || payload?.user_id, 'authenticated identity');

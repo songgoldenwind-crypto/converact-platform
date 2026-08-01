@@ -2,17 +2,17 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import test from 'node:test';
 
-import { createIveKitClient } from '../sdk/converact/src/index.js';
-import { routeIveKitMediaApi } from '../src/agent-runtime/converact/media-http.js';
+import { createConveractFabricClient } from '../sdk/converact/src/index.js';
+import { routeConveractFabricMediaApi } from '../src/agent-runtime/converact/media-http.js';
 import type {
-  IveKitMediaConnectionEventResult,
-  IveKitMediaQualityReportResult,
-  IveKitMediaQualitySummary
+  ConveractFabricMediaConnectionEventResult,
+  ConveractFabricMediaQualityReportResult,
+  ConveractFabricMediaQualitySummary
 } from '../src/agent-runtime/livekit/types.js';
 import { createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
-import { IveKitTenantEventStore } from '../src/agent-runtime/converact/tenant-event-store.js';
+import { ConveractFabricTenantEventStore } from '../src/agent-runtime/converact/tenant-event-store.js';
 import { initWebSocket, shutdownWebSocket } from '../src/ws.js';
 
 const JWT_SECRET = 'livekit-media-quality-jwt-secret-32-bytes';
@@ -33,7 +33,7 @@ test('media QoS routes are call-bound, self-scoped, and publish safe events', as
   }> = [];
   const calls: Array<Record<string, unknown>> = [];
   let callId = '';
-  const durableEvents = new IveKitTenantEventStore(pg, {
+  const durableEvents = new ConveractFabricTenantEventStore(pg, {
     cursor_secret: 'media-quality-http-event-secret'
   });
   const beforeEvents = await durableEvents.headCursor(tenantId);
@@ -58,7 +58,7 @@ test('media QoS routes are call-bound, self-scoped, and publish safe events', as
     last_qos_at: sampledAt
   };
   const qualityService = {
-    reportQuality: async (input: Record<string, unknown>): Promise<IveKitMediaQualityReportResult> => {
+    reportQuality: async (input: Record<string, unknown>): Promise<ConveractFabricMediaQualityReportResult> => {
       calls.push(input);
       const reportedAt = String(
         (input.snapshots as Array<{ sampled_at?: string }> | undefined)?.[0]?.sampled_at || sampledAt
@@ -80,7 +80,7 @@ test('media QoS routes are call-bound, self-scoped, and publish safe events', as
         }]
       };
     },
-    getSummary: async (input: Record<string, unknown>): Promise<IveKitMediaQualitySummary> => {
+    getSummary: async (input: Record<string, unknown>): Promise<ConveractFabricMediaQualitySummary> => {
       calls.push(input);
       return {
         tenant_id: tenantId,
@@ -92,7 +92,7 @@ test('media QoS routes are call-bound, self-scoped, and publish safe events', as
     },
     reportConnectionEvent: async (
       input: Record<string, unknown>
-    ): Promise<IveKitMediaConnectionEventResult> => {
+    ): Promise<ConveractFabricMediaConnectionEventResult> => {
       calls.push(input);
       return {
         replayed: false,
@@ -158,7 +158,7 @@ test('media QoS routes are call-bound, self-scoped, and publish safe events', as
       }]
     }, hostHeaders, options) as {
       status: number;
-      data: IveKitMediaQualityReportResult;
+      data: ConveractFabricMediaQualityReportResult;
       afterCommit: () => Promise<void>;
     };
     assert.equal(qos.status, 202);
@@ -171,7 +171,7 @@ test('media QoS routes are call-bound, self-scoped, and publish safe events', as
     assert.equal(JSON.stringify(events).includes('token'), false);
 
     const summary = await route(db, 'GET', `${qosPath}?limit=10`, null, hostHeaders, options) as {
-      data: IveKitMediaQualitySummary;
+      data: ConveractFabricMediaQualitySummary;
     };
     assert.equal(summary.data.call_id, callId);
     assert.equal(calls[1]?.limit, 10);
@@ -202,7 +202,7 @@ test('media QoS routes are call-bound, self-scoped, and publish safe events', as
       occurred_at: sampledAt
     }, hostHeaders, options) as {
       status: number;
-      data: IveKitMediaConnectionEventResult;
+      data: ConveractFabricMediaConnectionEventResult;
       afterCommit: () => Promise<void>;
     };
     assert.equal(connection.status, 202);
@@ -244,10 +244,10 @@ test('media QoS routes are call-bound, self-scoped, and publish safe events', as
   }
 });
 
-test('iveKit SDK maps QoS summary, report, and connection event routes', async () => {
+test('Converact Fabric SDK maps QoS summary, report, and connection event routes', async () => {
   const calls: Array<{ method: string; url: URL; body: unknown }> = [];
-  const client = createIveKitClient({
-    baseUrl: 'https://ivekit.example.test',
+  const client = createConveractFabricClient({
+    baseUrl: 'https://converact.example.test',
     tenantId: 'tenant-media-sdk',
     apiKey: 'media-sdk-key',
     userId: 'host-sdk',
@@ -293,9 +293,9 @@ function route(
   path: string,
   body: unknown,
   headers: Record<string, string>,
-  options: Parameters<typeof routeIveKitMediaApi>[7]
+  options: Parameters<typeof routeConveractFabricMediaApi>[7]
 ) {
-  return routeIveKitMediaApi(
+  return routeConveractFabricMediaApi(
     db,
     method,
     path.split('?')[0],

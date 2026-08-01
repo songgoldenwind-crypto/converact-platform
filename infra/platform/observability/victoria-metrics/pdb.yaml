@@ -1,10 +1,10 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: ivekit-victoria-metrics
+  name: converact-victoria-metrics
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-victoria-metrics
+      app.kubernetes.io/name: converact-victoria-metrics
       app.kubernetes.io/component: metrics-storage

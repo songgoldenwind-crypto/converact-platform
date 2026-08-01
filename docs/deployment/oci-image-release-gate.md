@@ -1,15 +1,15 @@
-# iveKit OCI Image Release Gate
+# Converact Fabric OCI Image Release Gate
 
 ## 1. Purpose
 
-`.github/workflows/ivekit-oci-release-gate.yml` is the single post-publish gate
-for iveKit-owned OCI images. Component workflows remain responsible for exact
+`.github/workflows/converact-oci-release-gate.yml` is the single post-publish gate
+for Converact Fabric-owned OCI images. Component workflows remain responsible for exact
 source checkout, build, tests and publication. They pass only a digestless GHCR
 repository and a resolved `sha256:` manifest digest to this gate.
 
 Repository-owned application images use
-`.github/workflows/ivekit-source-image-release.yml` as their common build stage
-and `.github/workflows/ivekit-core-images.yml` as the release matrix. The build
+`.github/workflows/converact-source-image-release.yml` as their common build stage
+and `.github/workflows/converact-core-images.yml` as the release matrix. The build
 stage publishes only the Git commit tag, returns the manifest digest and then
 hands that immutable subject to the same post-publish gate.
 
@@ -45,33 +45,33 @@ The common source-image workflow does not accept an arbitrary preparation
 command. Its allowlist contains only:
 
 - `none`, for a context already present in the checkout;
-- `ivekit-standalone`, which runs the repository's source-graph generator and
-  builds `.tmp/ivekit-standalone-context` with `GITHUB_SHA` as its source identity.
+- `converact-standalone`, which runs the repository's source-graph generator and
+  builds `.tmp/converact-standalone-context` with `GITHUB_SHA` as its source identity.
 
-The latter is required for the iveKit service because its authoritative source
-lives under the root `src/` graph. Building `services/ivekit-service` directly
+The latter is required for the Converact Fabric service because its authoritative source
+lives under the root `src/` graph. Building `services/converact-service` directly
 would omit that source and fail at `COPY src ./src`. The generated context
-contains only the policy-approved iveKit graph, independent package lock,
+contains only the policy-approved Converact Fabric graph, independent package lock,
 Dockerfile, migrations, checksum manifest and operational entrypoints.
 
 ## 3. Onboarded Images
 
 | Image | Component workflow | Published subject |
 | --- | --- | --- |
-| RustPBX | `.github/workflows/ivekit-rustpbx-image.yml` | final amd64/arm64 manifest digest |
-| HOMER | `.github/workflows/ivekit-homer-image.yml` | exact `11.0.297` iveKit fork digest |
-| LiveKit SIP | `.github/workflows/ivekit-livekit-sip-image.yml` | exact `v1.7.0` hardened image digest |
-| LiveKit Server | `.github/workflows/ivekit-livekit-server-image.yml` | exact `v1.13.4` iveKit fork manifest digest |
-| LiveKit Egress | `.github/workflows/ivekit-livekit-egress-image.yml` | exact `v1.13.0` iveKit fork manifest digest |
-| LiveKit Ingress | `.github/workflows/ivekit-livekit-ingress-image.yml` | exact `v1.5.0` hardened manifest digest |
-| Tinode Server | `.github/workflows/ivekit-tinode-server-image.yml` | exact `v0.25.3` iveKit fork manifest digest |
-| RustDesk Server | `.github/workflows/ivekit-rustdesk-server-image.yml` | exact `1.1.16` iveKit server fork manifest digest |
-| OPC platform | `.github/workflows/ivekit-core-images.yml` | root application amd64/arm64 manifest digest |
-| OPC frontend | `.github/workflows/ivekit-core-images.yml` | frontend amd64/arm64 manifest digest |
-| iveKit service | `.github/workflows/ivekit-core-images.yml` | generated standalone-context amd64/arm64 manifest digest |
-| Capacity tools | `.github/workflows/ivekit-core-images.yml` | dispatcher/controller/worker/finalizer amd64/arm64 manifest digest |
-| Kamailio | `.github/workflows/ivekit-core-images.yml` | iveKit SIP Edge amd64/arm64 manifest digest |
-| AI agent | `.github/workflows/ivekit-core-images.yml` | external-provider adapter runtime amd64/arm64 manifest digest |
+| RustPBX | `.github/workflows/converact-rustpbx-image.yml` | final amd64/arm64 manifest digest |
+| HOMER | `.github/workflows/converact-homer-image.yml` | exact `11.0.297` Converact Fabric fork digest |
+| LiveKit SIP | `.github/workflows/converact-livekit-sip-image.yml` | exact `v1.7.0` hardened image digest |
+| LiveKit Server | `.github/workflows/converact-livekit-server-image.yml` | exact `v1.13.4` Converact Fabric fork manifest digest |
+| LiveKit Egress | `.github/workflows/converact-livekit-egress-image.yml` | exact `v1.13.0` Converact Fabric fork manifest digest |
+| LiveKit Ingress | `.github/workflows/converact-livekit-ingress-image.yml` | exact `v1.5.0` hardened manifest digest |
+| Tinode Server | `.github/workflows/converact-tinode-server-image.yml` | exact `v0.25.3` Converact Fabric fork manifest digest |
+| RustDesk Server | `.github/workflows/converact-rustdesk-server-image.yml` | exact `1.1.16` Converact Fabric server fork manifest digest |
+| Converact Platform core | `.github/workflows/converact-core-images.yml` | root application amd64/arm64 manifest digest |
+| Converact Platform frontend | `.github/workflows/converact-core-images.yml` | frontend amd64/arm64 manifest digest |
+| Converact Fabric service | `.github/workflows/converact-core-images.yml` | generated standalone-context amd64/arm64 manifest digest |
+| Capacity tools | `.github/workflows/converact-core-images.yml` | dispatcher/controller/worker/finalizer amd64/arm64 manifest digest |
+| Kamailio | `.github/workflows/converact-core-images.yml` | Converact Fabric SIP Edge amd64/arm64 manifest digest |
+| AI agent | `.github/workflows/converact-core-images.yml` | external-provider adapter runtime amd64/arm64 manifest digest |
 
 The LiveKit Egress and Tinode exact-source workflows are now wired to the same
 gate. They are not production eligible until those workflows actually publish
@@ -82,31 +82,31 @@ build or an unexecuted workflow never satisfies that requirement.
 
 HOMER's source build additionally requires these GitHub repository variables:
 
-- `IVEKIT_HOMER_BUILDER_IMAGE`
-- `IVEKIT_HOMER_RUNTIME_IMAGE`
+- `CONVERACT_FABRIC_HOMER_BUILDER_IMAGE`
+- `CONVERACT_FABRIC_HOMER_RUNTIME_IMAGE`
 
 Both values must be complete image references ending in `@sha256:<64 hex>`.
-The workflow and `infra/ivekit/homer/build.sh` validate them independently.
+The workflow and `infra/converact/homer/build.sh` validate them independently.
 
-LiveKit SIP similarly requires `IVEKIT_LIVEKIT_SIP_BUILDER_IMAGE` and
-`IVEKIT_LIVEKIT_SIP_RUNTIME_IMAGE` repository variables. Both must be immutable
+LiveKit SIP similarly requires `CONVERACT_FABRIC_LIVEKIT_SIP_BUILDER_IMAGE` and
+`CONVERACT_FABRIC_LIVEKIT_SIP_RUNTIME_IMAGE` repository variables. Both must be immutable
 digest references; the component workflow and build script validate them.
 
 Tinode additionally requires:
 
-- `IVEKIT_TINODE_BUILDER_IMAGE`
-- `IVEKIT_TINODE_RUNTIME_IMAGE`
+- `CONVERACT_FABRIC_TINODE_BUILDER_IMAGE`
+- `CONVERACT_FABRIC_TINODE_RUNTIME_IMAGE`
 
 LiveKit Egress additionally requires:
 
-- `IVEKIT_LIVEKIT_EGRESS_TEMPLATE_IMAGE`
-- `IVEKIT_LIVEKIT_EGRESS_BUILDER_IMAGE`
-- `IVEKIT_LIVEKIT_EGRESS_RUNTIME_IMAGE`
+- `CONVERACT_FABRIC_LIVEKIT_EGRESS_TEMPLATE_IMAGE`
+- `CONVERACT_FABRIC_LIVEKIT_EGRESS_BUILDER_IMAGE`
+- `CONVERACT_FABRIC_LIVEKIT_EGRESS_RUNTIME_IMAGE`
 
 LiveKit Ingress additionally requires:
 
-- `IVEKIT_LIVEKIT_INGRESS_BUILDER_IMAGE`
-- `IVEKIT_LIVEKIT_INGRESS_RUNTIME_IMAGE`
+- `CONVERACT_FABRIC_LIVEKIT_INGRESS_BUILDER_IMAGE`
+- `CONVERACT_FABRIC_LIVEKIT_INGRESS_RUNTIME_IMAGE`
 
 Every value must be a complete image reference ending in
 `@sha256:<64 lowercase hex>`. Component workflows and build scripts validate
@@ -117,7 +117,7 @@ the values independently before source construction.
 Repository tests verify workflow structure, immutable Action pins, permissions,
 source identity, digest handoff, allowlisted context preparation and gate policy.
 On 2026-07-22 the isolated validation server passed Actionlint `1.7.12`, built
-the capacity-tools image and generated then built the standalone iveKit-service
+the capacity-tools image and generated then built the standalone Converact Fabric-service
 image. Both images run as UID 1000; required entrypoints and media/database tools
 were checked with networking disabled. The same server also rebased and tested
 the exact LiveKit Server `v1.13.4` source and produced a non-root Linux amd64

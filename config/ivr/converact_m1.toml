@@ -1,0 +1,16 @@
+# Converact Fabric IVR profile
+[ivr]
+name = "converact-m1"
+ivr_mode = "step"
+
+[ivr.provider]
+url = "http://converact:3000/api/ivr/rustpbx/step"
+max_retries = 3
+retry_delay_ms = 1000
+timeout_secs = 10
+
+[ivr.provider.headers]
+X-PBX-Key = "dev-pbx-key"
+
+[ivr.tts]
+enabled = true

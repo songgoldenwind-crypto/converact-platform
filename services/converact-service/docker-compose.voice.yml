@@ -1,7 +1,7 @@
-# Optional RustPBX data plane for the generated standalone iveKit build context.
+# Optional RustPBX data plane for the generated standalone Converact Fabric build context.
 services:
   rustpbx-db-init:
-    image: ${IVEKIT_POSTGRES_IMAGE:?IVEKIT_POSTGRES_IMAGE immutable digest reference is required}
+    image: ${CONVERACT_POSTGRES_IMAGE:?CONVERACT_POSTGRES_IMAGE immutable digest reference is required}
     profiles: ["voice", "voice-capacity", "voice-t1"]
     entrypoint: ["sh", "/bootstrap/init-rustpbx-database.sh"]
     restart: "no"
@@ -17,7 +17,7 @@ services:
         condition: service_completed_successfully
 
   rustpbx-config-render:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice", "voice-capacity", "voice-t1"]
     command: ["node", "dist/converact-render-rustpbx-config.js"]
     restart: "no"
@@ -32,9 +32,9 @@ services:
       RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
       CONVERACT_FABRIC_WEBPHONE_ENABLED: "1"
       CONVERACT_FABRIC_WEBPHONE_JWT_SECRET: ${CONVERACT_FABRIC_WEBPHONE_JWT_SECRET:?CONVERACT_FABRIC_WEBPHONE_JWT_SECRET is required}
-      CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER: ${CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER:-ivekit}
+      CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER: ${CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER:-converact}
       CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE: ${CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE:-rustpbx-webphone}
-      RUSTPBX_ROUTER_URL: http://ivekit:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/router
+      RUSTPBX_ROUTER_URL: http://converact:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/router
       RUSTPBX_EXTERNAL_IP: ${RUSTPBX_EXTERNAL_IP:-}
       RUSTPBX_SIP_PORT: "5060"
       RUSTPBX_RTP_START_PORT: ${RUSTPBX_RTP_START_PORT:-20000}
@@ -48,7 +48,7 @@ services:
       RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY:-256}
       RUSTPBX_MEDIA_RECORDING_WORKER_THREADS: ${RUSTPBX_MEDIA_RECORDING_WORKER_THREADS:-4}
       RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY:-4096}
-      RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/ivekit/realtime-audio-tap.sock
+      RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/converact/realtime-audio-tap.sock
       RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY: ${RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY:-256}
       RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS: ${RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS:-10}
       RUSTPBX_CALL_RECORD_MAX_CONCURRENT: ${RUSTPBX_CALL_RECORD_MAX_CONCURRENT:-64}
@@ -61,7 +61,7 @@ services:
         condition: service_completed_successfully
 
   rustpbx-route-snapshot:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice", "voice-capacity", "voice-t1"]
     command: ["node", "dist/converact-rustpbx-route-snapshot.js"]
     init: true
@@ -99,7 +99,7 @@ services:
       IVEKIT_RUSTPBX_ROUTE_TENANT_ID: ${RUSTPBX_TENANT_ID:?RUSTPBX_TENANT_ID is required}
       IVEKIT_RUSTPBX_ROUTE_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
       IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS: ${RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS:-500}
-      IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL: http://ivekit:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/inbound-admission
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL: http://converact:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/inbound-admission
       IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
       IVEKIT_RUSTPBX_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
       IVEKIT_RUSTPBX_OWNER_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:?RUSTPBX_OWNER_NODE_ID is required}
@@ -147,7 +147,7 @@ services:
       - rustpbx-route-snapshot:/app/route-snapshot:ro
       - rustpbx-storage:/app/storage
       - rustpbx-recording-spool:/app/recording-spool
-      - realtime_audio_tap:/run/ivekit
+      - realtime_audio_tap:/run/converact
     secrets:
       - dialog-shadow-token
       - dialog-shadow-client-identity
@@ -179,45 +179,45 @@ services:
       - no-new-privileges:true
 
   rustpbx-dialog-shadow:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice-t1"]
     command: ["node", "dist/converact-dialog-shadow-agent.js"]
     init: true
     restart: unless-stopped
     network_mode: service:rustpbx
     environment:
-      IVEKIT_DIALOG_SHADOW_PRODUCTION: "true"
-      IVEKIT_DIALOG_SHADOW_HOST: 127.0.0.1
-      IVEKIT_DIALOG_SHADOW_PORT: 3212
-      IVEKIT_DIALOG_SHADOW_CELL_ID: ${RUSTPBX_CELL_ID:-invalid}
-      IVEKIT_DIALOG_SHADOW_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:-invalid}
-      IVEKIT_DIALOG_SHADOW_FAULT_DOMAIN: ${RUSTPBX_FAULT_DOMAIN:-invalid}
-      IVEKIT_DIALOG_SHADOW_JOURNAL_PATH: /app/dialog-shadow/dialog-shadow.wal
-      IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORDS: ${IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORDS:-1000000}
-      IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_BYTES: ${IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_BYTES:-268435456}
-      IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES: ${IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES:-32768}
-      IVEKIT_DIALOG_SHADOW_COMPACT_INTERVAL_MS: ${IVEKIT_DIALOG_SHADOW_COMPACT_INTERVAL_MS:-60000}
-      IVEKIT_DIALOG_SHADOW_SERVICE_TOKEN_FILE: /run/secrets/dialog-shadow-token
-      IVEKIT_DIALOG_SHADOW_TLS_KEY_FILE: /run/secrets/dialog-shadow-server-key
-      IVEKIT_DIALOG_SHADOW_TLS_CERT_FILE: /run/secrets/dialog-shadow-server-cert
-      IVEKIT_DIALOG_SHADOW_TLS_CA_FILE: /run/secrets/dialog-shadow-ca
-      IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN: ${IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN:-ivekit.internal}
-      IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE: /run/secrets/dialog-recovery-database-url
-      IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_ID:-recovery-current}
-      IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_FILE: /run/secrets/dialog-recovery-current-key
-      IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_ID:-recovery-previous}
-      IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_FILE: /run/secrets/dialog-recovery-previous-key
-      IVEKIT_DIALOG_RECOVERY_TOKEN_TTL_MS: ${IVEKIT_DIALOG_RECOVERY_TOKEN_TTL_MS:-5000}
-      IVEKIT_DIALOG_RECOVERY_NODE_LEASE_TTL_MS: ${IVEKIT_DIALOG_RECOVERY_NODE_LEASE_TTL_MS:-3000}
-      IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX: ${IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX:-8}
-      IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS: ${IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS:-1000}
-      IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS: ${IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS:-10000}
-      IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE: ${IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE:-32}
-      IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE: /run/secrets/dialog-shadow-nats-fault-domains
-      IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER: ${IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER:-invalid}
-      IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_TAGS: ${IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_TAGS:-}
-      IVEKIT_DIALOG_SHADOW_NATS_STREAM_REPLICAS: ${IVEKIT_DIALOG_SHADOW_NATS_STREAM_REPLICAS:-3}
-      IVEKIT_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS: ${IVEKIT_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS:-2}
+      CONVERACT_FABRIC_DIALOG_SHADOW_PRODUCTION: "true"
+      CONVERACT_FABRIC_DIALOG_SHADOW_HOST: 127.0.0.1
+      CONVERACT_FABRIC_DIALOG_SHADOW_PORT: 3212
+      CONVERACT_FABRIC_DIALOG_SHADOW_CELL_ID: ${RUSTPBX_CELL_ID:-invalid}
+      CONVERACT_FABRIC_DIALOG_SHADOW_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:-invalid}
+      CONVERACT_FABRIC_DIALOG_SHADOW_FAULT_DOMAIN: ${RUSTPBX_FAULT_DOMAIN:-invalid}
+      CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_PATH: /app/dialog-shadow/dialog-shadow.wal
+      CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORDS: ${CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORDS:-1000000}
+      CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_BYTES: ${CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_BYTES:-268435456}
+      CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES: ${CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES:-32768}
+      CONVERACT_FABRIC_DIALOG_SHADOW_COMPACT_INTERVAL_MS: ${CONVERACT_FABRIC_DIALOG_SHADOW_COMPACT_INTERVAL_MS:-60000}
+      CONVERACT_FABRIC_DIALOG_SHADOW_SERVICE_TOKEN_FILE: /run/secrets/dialog-shadow-token
+      CONVERACT_FABRIC_DIALOG_SHADOW_TLS_KEY_FILE: /run/secrets/dialog-shadow-server-key
+      CONVERACT_FABRIC_DIALOG_SHADOW_TLS_CERT_FILE: /run/secrets/dialog-shadow-server-cert
+      CONVERACT_FABRIC_DIALOG_SHADOW_TLS_CA_FILE: /run/secrets/dialog-shadow-ca
+      CONVERACT_FABRIC_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN: ${CONVERACT_FABRIC_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN:-converact.internal}
+      CONVERACT_FABRIC_DIALOG_RECOVERY_DATABASE_URL_FILE: /run/secrets/dialog-recovery-database-url
+      CONVERACT_FABRIC_DIALOG_RECOVERY_CURRENT_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_ID:-recovery-current}
+      CONVERACT_FABRIC_DIALOG_RECOVERY_CURRENT_KEY_FILE: /run/secrets/dialog-recovery-current-key
+      CONVERACT_FABRIC_DIALOG_RECOVERY_PREVIOUS_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_ID:-recovery-previous}
+      CONVERACT_FABRIC_DIALOG_RECOVERY_PREVIOUS_KEY_FILE: /run/secrets/dialog-recovery-previous-key
+      CONVERACT_FABRIC_DIALOG_RECOVERY_TOKEN_TTL_MS: ${CONVERACT_FABRIC_DIALOG_RECOVERY_TOKEN_TTL_MS:-5000}
+      CONVERACT_FABRIC_DIALOG_RECOVERY_NODE_LEASE_TTL_MS: ${CONVERACT_FABRIC_DIALOG_RECOVERY_NODE_LEASE_TTL_MS:-3000}
+      CONVERACT_FABRIC_DIALOG_RECOVERY_POSTGRES_POOL_MAX: ${CONVERACT_FABRIC_DIALOG_RECOVERY_POSTGRES_POOL_MAX:-8}
+      CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_INTERVAL_MS: ${CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_INTERVAL_MS:-1000}
+      CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS: ${CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS:-10000}
+      CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE: ${CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE:-32}
+      CONVERACT_FABRIC_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE: /run/secrets/dialog-shadow-nats-fault-domains
+      CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER: ${CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER:-invalid}
+      CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_TAGS: ${CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_TAGS:-}
+      CONVERACT_FABRIC_DIALOG_SHADOW_NATS_STREAM_REPLICAS: ${CONVERACT_FABRIC_DIALOG_SHADOW_NATS_STREAM_REPLICAS:-3}
+      CONVERACT_FABRIC_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS: ${CONVERACT_FABRIC_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS:-2}
       NATS_URL: ${RUSTPBX_DIALOG_SHADOW_NATS_URL:-}
       NATS_TLS_MODE: required
       NATS_TLS_CA_FILE: /run/secrets/dialog-shadow-nats-ca
@@ -258,13 +258,13 @@ services:
       - no-new-privileges:true
 
   rustpbx-recording-spool:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice", "voice-capacity", "voice-t1"]
     command: ["node", "dist/converact-rustpbx-recording-spool.js"]
     init: true
     restart: unless-stopped
     environment:
-      CONVERACT_FABRIC_RECORDING_BASE_URL: http://ivekit:3000
+      CONVERACT_FABRIC_RECORDING_BASE_URL: http://converact:3000
       CONVERACT_FABRIC_RECORDING_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
       CONVERACT_FABRIC_RECORDING_WORKER_ID: ${RUSTPBX_RECORDING_WORKER_ID:-rustpbx-recording-sidecar}
       CONVERACT_FABRIC_RECORDING_SPOOL_DIR: /app/recording-spool
@@ -287,13 +287,13 @@ services:
         required: false
       rustpbx:
         condition: service_started
-      ivekit:
+      converact:
         condition: service_started
     security_opt:
       - no-new-privileges:true
 
   rustpbx-component-node:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice", "voice-capacity", "voice-t1"]
     command:
       - sh
@@ -338,7 +338,7 @@ services:
       - no-new-privileges:true
 
   rustpbx-b-config-render:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice-capacity", "voice-t1"]
     command: ["node", "dist/converact-render-rustpbx-config.js"]
     restart: "no"
@@ -353,9 +353,9 @@ services:
       RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
       CONVERACT_FABRIC_WEBPHONE_ENABLED: "1"
       CONVERACT_FABRIC_WEBPHONE_JWT_SECRET: ${CONVERACT_FABRIC_WEBPHONE_JWT_SECRET:?CONVERACT_FABRIC_WEBPHONE_JWT_SECRET is required}
-      CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER: ${CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER:-ivekit}
+      CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER: ${CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER:-converact}
       CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE: ${CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE:-rustpbx-webphone}
-      RUSTPBX_ROUTER_URL: http://ivekit:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/router
+      RUSTPBX_ROUTER_URL: http://converact:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/router
       RUSTPBX_EXTERNAL_IP: ${RUSTPBX_EXTERNAL_IP:-}
       RUSTPBX_SIP_PORT: "5060"
       RUSTPBX_RTP_START_PORT: ${RUSTPBX_RTP_START_PORT_B:-20100}
@@ -369,7 +369,7 @@ services:
       RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY:-256}
       RUSTPBX_MEDIA_RECORDING_WORKER_THREADS: ${RUSTPBX_MEDIA_RECORDING_WORKER_THREADS:-4}
       RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY:-4096}
-      RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/ivekit/realtime-audio-tap.sock
+      RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/converact/realtime-audio-tap.sock
       RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY: ${RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY:-256}
       RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS: ${RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS:-10}
       RUSTPBX_CALL_RECORD_MAX_CONCURRENT: ${RUSTPBX_CALL_RECORD_MAX_CONCURRENT:-64}
@@ -397,7 +397,7 @@ services:
       IVEKIT_RUSTPBX_ROUTE_TENANT_ID: ${RUSTPBX_TENANT_ID:?RUSTPBX_TENANT_ID is required}
       IVEKIT_RUSTPBX_ROUTE_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
       IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS: ${RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS:-500}
-      IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL: http://ivekit:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/inbound-admission
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL: http://converact:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/inbound-admission
       IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
       IVEKIT_RUSTPBX_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
       IVEKIT_RUSTPBX_OWNER_NODE_ID: ${RUSTPBX_OWNER_NODE_ID_B:?RUSTPBX_OWNER_NODE_ID_B is required}
@@ -445,7 +445,7 @@ services:
       - rustpbx-route-snapshot:/app/route-snapshot:ro
       - rustpbx-b-storage:/app/storage
       - rustpbx-b-recording-spool:/app/recording-spool
-      - realtime_audio_tap:/run/ivekit
+      - realtime_audio_tap:/run/converact
     secrets:
       - dialog-shadow-token
       - dialog-shadow-client-identity-b
@@ -477,45 +477,45 @@ services:
       - no-new-privileges:true
 
   rustpbx-b-dialog-shadow:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice-t1"]
     command: ["node", "dist/converact-dialog-shadow-agent.js"]
     init: true
     restart: unless-stopped
     network_mode: service:rustpbx-b
     environment:
-      IVEKIT_DIALOG_SHADOW_PRODUCTION: "true"
-      IVEKIT_DIALOG_SHADOW_HOST: 127.0.0.1
-      IVEKIT_DIALOG_SHADOW_PORT: 3212
-      IVEKIT_DIALOG_SHADOW_CELL_ID: ${RUSTPBX_CELL_ID:-invalid}
-      IVEKIT_DIALOG_SHADOW_NODE_ID: ${RUSTPBX_OWNER_NODE_ID_B:-invalid}
-      IVEKIT_DIALOG_SHADOW_FAULT_DOMAIN: ${RUSTPBX_FAULT_DOMAIN_B:-invalid}
-      IVEKIT_DIALOG_SHADOW_JOURNAL_PATH: /app/dialog-shadow/dialog-shadow.wal
-      IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORDS: ${IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORDS:-1000000}
-      IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_BYTES: ${IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_BYTES:-268435456}
-      IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES: ${IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES:-32768}
-      IVEKIT_DIALOG_SHADOW_COMPACT_INTERVAL_MS: ${IVEKIT_DIALOG_SHADOW_COMPACT_INTERVAL_MS:-60000}
-      IVEKIT_DIALOG_SHADOW_SERVICE_TOKEN_FILE: /run/secrets/dialog-shadow-token
-      IVEKIT_DIALOG_SHADOW_TLS_KEY_FILE: /run/secrets/dialog-shadow-server-key
-      IVEKIT_DIALOG_SHADOW_TLS_CERT_FILE: /run/secrets/dialog-shadow-server-cert
-      IVEKIT_DIALOG_SHADOW_TLS_CA_FILE: /run/secrets/dialog-shadow-ca
-      IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN: ${IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN:-ivekit.internal}
-      IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE: /run/secrets/dialog-recovery-database-url
-      IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_ID:-recovery-current}
-      IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_FILE: /run/secrets/dialog-recovery-current-key
-      IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_ID:-recovery-previous}
-      IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_FILE: /run/secrets/dialog-recovery-previous-key
-      IVEKIT_DIALOG_RECOVERY_TOKEN_TTL_MS: ${IVEKIT_DIALOG_RECOVERY_TOKEN_TTL_MS:-5000}
-      IVEKIT_DIALOG_RECOVERY_NODE_LEASE_TTL_MS: ${IVEKIT_DIALOG_RECOVERY_NODE_LEASE_TTL_MS:-3000}
-      IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX: ${IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX:-8}
-      IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS: ${IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS:-1000}
-      IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS: ${IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS:-10000}
-      IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE: ${IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE:-32}
-      IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE: /run/secrets/dialog-shadow-nats-fault-domains
-      IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER: ${IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER:-invalid}
-      IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_TAGS: ${IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_TAGS:-}
-      IVEKIT_DIALOG_SHADOW_NATS_STREAM_REPLICAS: ${IVEKIT_DIALOG_SHADOW_NATS_STREAM_REPLICAS:-3}
-      IVEKIT_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS: ${IVEKIT_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS:-2}
+      CONVERACT_FABRIC_DIALOG_SHADOW_PRODUCTION: "true"
+      CONVERACT_FABRIC_DIALOG_SHADOW_HOST: 127.0.0.1
+      CONVERACT_FABRIC_DIALOG_SHADOW_PORT: 3212
+      CONVERACT_FABRIC_DIALOG_SHADOW_CELL_ID: ${RUSTPBX_CELL_ID:-invalid}
+      CONVERACT_FABRIC_DIALOG_SHADOW_NODE_ID: ${RUSTPBX_OWNER_NODE_ID_B:-invalid}
+      CONVERACT_FABRIC_DIALOG_SHADOW_FAULT_DOMAIN: ${RUSTPBX_FAULT_DOMAIN_B:-invalid}
+      CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_PATH: /app/dialog-shadow/dialog-shadow.wal
+      CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORDS: ${CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORDS:-1000000}
+      CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_BYTES: ${CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_BYTES:-268435456}
+      CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES: ${CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES:-32768}
+      CONVERACT_FABRIC_DIALOG_SHADOW_COMPACT_INTERVAL_MS: ${CONVERACT_FABRIC_DIALOG_SHADOW_COMPACT_INTERVAL_MS:-60000}
+      CONVERACT_FABRIC_DIALOG_SHADOW_SERVICE_TOKEN_FILE: /run/secrets/dialog-shadow-token
+      CONVERACT_FABRIC_DIALOG_SHADOW_TLS_KEY_FILE: /run/secrets/dialog-shadow-server-key
+      CONVERACT_FABRIC_DIALOG_SHADOW_TLS_CERT_FILE: /run/secrets/dialog-shadow-server-cert
+      CONVERACT_FABRIC_DIALOG_SHADOW_TLS_CA_FILE: /run/secrets/dialog-shadow-ca
+      CONVERACT_FABRIC_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN: ${CONVERACT_FABRIC_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN:-converact.internal}
+      CONVERACT_FABRIC_DIALOG_RECOVERY_DATABASE_URL_FILE: /run/secrets/dialog-recovery-database-url
+      CONVERACT_FABRIC_DIALOG_RECOVERY_CURRENT_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_ID:-recovery-current}
+      CONVERACT_FABRIC_DIALOG_RECOVERY_CURRENT_KEY_FILE: /run/secrets/dialog-recovery-current-key
+      CONVERACT_FABRIC_DIALOG_RECOVERY_PREVIOUS_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_ID:-recovery-previous}
+      CONVERACT_FABRIC_DIALOG_RECOVERY_PREVIOUS_KEY_FILE: /run/secrets/dialog-recovery-previous-key
+      CONVERACT_FABRIC_DIALOG_RECOVERY_TOKEN_TTL_MS: ${CONVERACT_FABRIC_DIALOG_RECOVERY_TOKEN_TTL_MS:-5000}
+      CONVERACT_FABRIC_DIALOG_RECOVERY_NODE_LEASE_TTL_MS: ${CONVERACT_FABRIC_DIALOG_RECOVERY_NODE_LEASE_TTL_MS:-3000}
+      CONVERACT_FABRIC_DIALOG_RECOVERY_POSTGRES_POOL_MAX: ${CONVERACT_FABRIC_DIALOG_RECOVERY_POSTGRES_POOL_MAX:-8}
+      CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_INTERVAL_MS: ${CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_INTERVAL_MS:-1000}
+      CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS: ${CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS:-10000}
+      CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE: ${CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE:-32}
+      CONVERACT_FABRIC_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE: /run/secrets/dialog-shadow-nats-fault-domains
+      CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER: ${CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER:-invalid}
+      CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_TAGS: ${CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_TAGS:-}
+      CONVERACT_FABRIC_DIALOG_SHADOW_NATS_STREAM_REPLICAS: ${CONVERACT_FABRIC_DIALOG_SHADOW_NATS_STREAM_REPLICAS:-3}
+      CONVERACT_FABRIC_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS: ${CONVERACT_FABRIC_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS:-2}
       NATS_URL: ${RUSTPBX_DIALOG_SHADOW_NATS_URL:-}
       NATS_TLS_MODE: required
       NATS_TLS_CA_FILE: /run/secrets/dialog-shadow-nats-ca
@@ -556,13 +556,13 @@ services:
       - no-new-privileges:true
 
   rustpbx-b-recording-spool:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice-capacity", "voice-t1"]
     command: ["node", "dist/converact-rustpbx-recording-spool.js"]
     init: true
     restart: unless-stopped
     environment:
-      CONVERACT_FABRIC_RECORDING_BASE_URL: http://ivekit:3000
+      CONVERACT_FABRIC_RECORDING_BASE_URL: http://converact:3000
       CONVERACT_FABRIC_RECORDING_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
       CONVERACT_FABRIC_RECORDING_WORKER_ID: ${RUSTPBX_RECORDING_WORKER_ID_B:-rustpbx-b-recording-sidecar}
       CONVERACT_FABRIC_RECORDING_SPOOL_DIR: /app/recording-spool
@@ -582,13 +582,13 @@ services:
     depends_on:
       rustpbx-b:
         condition: service_started
-      ivekit:
+      converact:
         condition: service_started
     security_opt:
       - no-new-privileges:true
 
   rustpbx-b-component-node:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice-capacity", "voice-t1"]
     command:
       - sh
@@ -633,7 +633,7 @@ services:
       - no-new-privileges:true
 
   rustpbx-b-runtime-recovery:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice-capacity", "voice-t1"]
     command: ["node", "dist/converact-rustpbx-recovery.js"]
     restart: "no"
@@ -643,7 +643,7 @@ services:
         condition: service_healthy
 
   rustpbx-runtime-recovery:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice", "voice-capacity", "voice-t1"]
     command: ["node", "dist/converact-rustpbx-recovery.js"]
     restart: "no"
@@ -653,13 +653,13 @@ services:
         condition: service_healthy
 
   kamailio-compose-config-render:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice", "voice-capacity", "voice-t1"]
     user: "0:0"
     command:
       - sh
       - -ec
-      - node dist/converact-kamailio-compose-config.js; chown 1000:1000 /etc/ivekit-kamailio/*.json; chmod 0440 /etc/ivekit-kamailio/*.json
+      - node dist/converact-kamailio-compose-config.js; chown 1000:1000 /etc/converact-kamailio/*.json; chmod 0440 /etc/converact-kamailio/*.json
     restart: "no"
     environment:
       CONVERACT_FABRIC_KAMAILIO_REGION_ID: ${RUSTPBX_REGION_ID:?RUSTPBX_REGION_ID is required}
@@ -678,7 +678,7 @@ services:
       CONVERACT_FABRIC_KAMAILIO_HEP_CAPTURE_ID: ${CONVERACT_FABRIC_KAMAILIO_HEP_CAPTURE_ID:-101}
       CONVERACT_FABRIC_KAMAILIO_HEP_INCLUDE_OPTIONS: ${CONVERACT_FABRIC_KAMAILIO_HEP_INCLUDE_OPTIONS:-false}
       CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS: ${CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS:?CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS is required}
-      CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER: ${CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER:-ivekit}
+      CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER: ${CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER:-converact}
       CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE: ${CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE:-rustpbx-webphone}
       CONVERACT_FABRIC_KAMAILIO_ALLOW_PUBLIC_WSS: ${CONVERACT_FABRIC_KAMAILIO_ALLOW_PUBLIC_WSS:-true}
       CONVERACT_FABRIC_KAMAILIO_REQUIRE_CLIENT_CERTIFICATE: ${CONVERACT_FABRIC_KAMAILIO_REQUIRE_CLIENT_CERTIFICATE:-false}
@@ -692,12 +692,12 @@ services:
       RUSTPBX_OWNER_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:?RUSTPBX_OWNER_NODE_ID is required}
       RUSTPBX_OWNER_NODE_ID_B: ${RUSTPBX_OWNER_NODE_ID_B:?RUSTPBX_OWNER_NODE_ID_B is required}
     volumes:
-      - kamailio-runtime-config:/etc/ivekit-kamailio
+      - kamailio-runtime-config:/etc/converact-kamailio
     security_opt:
       - no-new-privileges:true
 
   kamailio-config-render:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice", "voice-capacity", "voice-t1"]
     user: "0:0"
     command:
@@ -706,14 +706,14 @@ services:
       - node dist/converact-render-kamailio-config.js; chown 10001:10001 /etc/kamailio/*.cfg; chmod 0440 /etc/kamailio/*.cfg
     restart: "no"
     environment:
-      CONVERACT_FABRIC_KAMAILIO_CONFIG_FILE: /etc/ivekit-kamailio/kamailio-runtime.json
+      CONVERACT_FABRIC_KAMAILIO_CONFIG_FILE: /etc/converact-kamailio/kamailio-runtime.json
       CONVERACT_FABRIC_KAMAILIO_TOPOH_KEY_FILE: /run/secrets/kamailio-topoh-key
       CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE: /run/secrets/kamailio-jsonrpc-token
       CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_SECRET_FILE: /run/secrets/kamailio-webphone-jwt-secret
       CONVERACT_FABRIC_KAMAILIO_OUTPUT_FILE: /etc/kamailio/kamailio.cfg
       CONVERACT_FABRIC_KAMAILIO_TLS_OUTPUT_FILE: /etc/kamailio/tls.cfg
     volumes:
-      - kamailio-runtime-config:/etc/ivekit-kamailio:ro
+      - kamailio-runtime-config:/etc/converact-kamailio:ro
       - kamailio-generated-config:/etc/kamailio
     secrets:
       - kamailio-topoh-key
@@ -726,7 +726,7 @@ services:
       - no-new-privileges:true
 
   kamailio-state-init:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice", "voice-capacity", "voice-t1"]
     user: "0:0"
     command:
@@ -741,7 +741,7 @@ services:
       - no-new-privileges:true
 
   kamailio:
-    image: ${IVEKIT_KAMAILIO_IMAGE:?IVEKIT_KAMAILIO_IMAGE immutable digest reference is required}
+    image: ${CONVERACT_FABRIC_KAMAILIO_IMAGE:?CONVERACT_FABRIC_KAMAILIO_IMAGE immutable digest reference is required}
     profiles: ["voice", "voice-capacity", "voice-t1"]
     command:
       - -DD
@@ -789,7 +789,7 @@ services:
       - no-new-privileges:true
 
   kamailio-route-agent:
-    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
     profiles: ["voice", "voice-capacity", "voice-t1"]
     command: ["node", "dist/converact-kamailio-route-agent.js"]
     init: true
@@ -804,7 +804,7 @@ services:
       CONVERACT_FABRIC_KAMAILIO_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
       CONVERACT_FABRIC_KAMAILIO_CELL_LEASE_EPOCH: ${CONVERACT_FABRIC_KAMAILIO_CELL_LEASE_EPOCH:?CONVERACT_FABRIC_KAMAILIO_CELL_LEASE_EPOCH is required}
       CONVERACT_FABRIC_KAMAILIO_EDGE_REPLICA_COUNT: "1"
-      CONVERACT_FABRIC_KAMAILIO_TOPOLOGY_FILE: /etc/ivekit-kamailio/kamailio-topology.json
+      CONVERACT_FABRIC_KAMAILIO_TOPOLOGY_FILE: /etc/converact-kamailio/kamailio-topology.json
       CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_ID: ${CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_ID:-kamailio-route-key-1}
       CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_FILE: /run/secrets/kamailio-route-key-current
       CONVERACT_FABRIC_KAMAILIO_SNAPSHOT_PATH: /var/lib/kamailio/routes.snapshot
@@ -838,7 +838,7 @@ services:
       CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_FAILURE_SAMPLES_TO_OFF: ${CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_FAILURE_SAMPLES_TO_OFF:-3}
       CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_RECOVERY_SAMPLES: ${CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_RECOVERY_SAMPLES:-5}
     volumes:
-      - kamailio-runtime-config:/etc/ivekit-kamailio:ro
+      - kamailio-runtime-config:/etc/converact-kamailio:ro
       - kamailio-route-state:/var/lib/kamailio
     secrets:
       - kamailio-route-key-current
@@ -864,7 +864,7 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  ivekit:
+  converact:
     env_file:
       - path: ${CONVERACT_FABRIC_VOICE_RUNTIME_ENV_FILE:-./voice-runtime.env}
         required: false
@@ -886,7 +886,7 @@ services:
       CONVERACT_FABRIC_WEBPHONE_WSS_URL: ${CONVERACT_FABRIC_WEBPHONE_WSS_URL:?CONVERACT_FABRIC_WEBPHONE_WSS_URL is required}
       CONVERACT_FABRIC_WEBPHONE_SIP_REALM: ${CONVERACT_FABRIC_WEBPHONE_SIP_REALM:?CONVERACT_FABRIC_WEBPHONE_SIP_REALM is required}
       CONVERACT_FABRIC_WEBPHONE_JWT_SECRET: ${CONVERACT_FABRIC_WEBPHONE_JWT_SECRET:?CONVERACT_FABRIC_WEBPHONE_JWT_SECRET is required}
-      CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER: ${CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER:-ivekit}
+      CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER: ${CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER:-converact}
       CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE: ${CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE:-rustpbx-webphone}
       CONVERACT_FABRIC_WEBPHONE_TTL_SECONDS: ${CONVERACT_FABRIC_WEBPHONE_TTL_SECONDS:-300}
       CONVERACT_FABRIC_WEBPHONE_REGISTER_EXPIRES_SECONDS: ${CONVERACT_FABRIC_WEBPHONE_REGISTER_EXPIRES_SECONDS:-240}

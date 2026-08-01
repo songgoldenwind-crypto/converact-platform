@@ -1,13 +1,13 @@
 import { runMigrations, type PgQueryable } from './db-pg.js';
 
-export interface ApplyIveKitMigrationsOptions {
+export interface ApplyConveractFabricMigrationsOptions {
   directory: string;
   advisoryLockName?: string;
 }
 
-export async function applyIveKitMigrations(
+export async function applyConveractFabricMigrations(
   pg: PgQueryable,
-  options: ApplyIveKitMigrationsOptions
+  options: ApplyConveractFabricMigrationsOptions
 ): Promise<void> {
   await runMigrations(pg, {
     directory: options.directory,

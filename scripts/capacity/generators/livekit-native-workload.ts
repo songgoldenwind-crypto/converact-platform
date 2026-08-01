@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { hashLinuxCommandArguments } from '../../ivekit-linux-process-observer.js';
+import { hashLinuxCommandArguments } from '../../converact-linux-process-observer.js';
 
 export interface LiveKitNativeWorkloadManifest {
   schema_version: '1.0.0';

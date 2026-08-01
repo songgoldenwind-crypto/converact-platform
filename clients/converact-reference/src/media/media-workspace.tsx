@@ -2,7 +2,7 @@ import type { FormEvent } from 'react';
 import { PhoneCall, PhoneOff, Search, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import type { IveKitHttpSdk, IveKitMediaCallAction } from '@converact/sdk';
+import type { ConveractFabricHttpSdk, ConveractFabricMediaCallAction } from '@converact/sdk';
 import { CallHeader } from './call-header.js';
 import { BrowserDeviceController, type DeviceControllerSnapshot } from './device-controller.js';
 import { HostControls } from './host-controls.js';
@@ -15,7 +15,7 @@ import { RecordingPanel } from './recording-panel.js';
 import { useMediaCall } from './use-media-call.js';
 
 export function MediaWorkspace(props: {
-  client: IveKitHttpSdk | null;
+  client: ConveractFabricHttpSdk | null;
   identity: string;
   callId: string;
   onCallIdChange(callId: string): void;
@@ -48,7 +48,7 @@ export function MediaWorkspace(props: {
     setError('');
     try { await command(); } catch (cause) { setError(errorMessage(cause)); }
   };
-  const command = (action: IveKitMediaCallAction, reason?: string) => run(() => media.transition(action, reason));
+  const command = (action: ConveractFabricMediaCallAction, reason?: string) => run(() => media.transition(action, reason));
   const call = media.state.call;
   const me = media.state.participants.find((participant) => participant.identity === props.identity);
   const isHost = me?.role === 'host';
@@ -88,8 +88,8 @@ export function MediaWorkspace(props: {
     <section className="media-workspace-pane">
       {!props.callId ? (
         <form className="call-locator" onSubmit={openCall}>
-          <label htmlFor="ivekit-call-id">Call ID</label>
-          <div><input id="ivekit-call-id" value={draftCallId} onChange={(event) => setDraftCallId(event.target.value)} /><button title="Open call" disabled={!draftCallId.trim()}><Search size={17} /></button></div>
+          <label htmlFor="converact-call-id">Call ID</label>
+          <div><input id="converact-call-id" value={draftCallId} onChange={(event) => setDraftCallId(event.target.value)} /><button title="Open call" disabled={!draftCallId.trim()}><Search size={17} /></button></div>
           <span>No call selected</span>
         </form>
       ) : (

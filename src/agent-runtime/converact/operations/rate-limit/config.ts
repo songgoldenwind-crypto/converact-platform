@@ -1,9 +1,9 @@
 import { resolveFabricEnv } from '../../../../config/converact-env.js';
 import type { PgQueryable } from '../../../../db-pg.js';
-import { PostgresIveKitRateLimitStore } from './postgres-store.js';
-import { IveKitRateLimiter, requiredRateLimitHmacKey } from './service.js';
+import { PostgresConveractFabricRateLimitStore } from './postgres-store.js';
+import { ConveractFabricRateLimiter, requiredRateLimitHmacKey } from './service.js';
 
-export interface IveKitRateLimitConfiguration {
+export interface ConveractFabricRateLimitConfiguration {
   enabled: boolean;
   notification_create: {
     tenant_per_minute: number;
@@ -23,19 +23,19 @@ export interface IveKitRateLimitConfiguration {
   };
 }
 
-export function configuredIveKitRateLimiter(
+export function configuredConveractFabricRateLimiter(
   pg: PgQueryable,
   env: NodeJS.ProcessEnv = process.env
-): IveKitRateLimiter {
-  return new IveKitRateLimiter({
-    repository: new PostgresIveKitRateLimitStore(pg),
+): ConveractFabricRateLimiter {
+  return new ConveractFabricRateLimiter({
+    repository: new PostgresConveractFabricRateLimitStore(pg),
     hmac_key: requiredRateLimitHmacKey(env)
   });
 }
 
-export function iveKitRateLimitConfiguration(
+export function converactFabricRateLimitConfiguration(
   env: NodeJS.ProcessEnv = process.env
-): IveKitRateLimitConfiguration {
+): ConveractFabricRateLimitConfiguration {
   return {
     enabled: booleanEnv(resolveFabricEnv(env, 'RATE_LIMIT_ENABLED'), true),
     notification_create: {

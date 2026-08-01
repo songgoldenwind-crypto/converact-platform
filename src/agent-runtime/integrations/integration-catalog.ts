@@ -55,7 +55,7 @@ export class IntegrationCatalog {
       .slice(0, input.limit || 10);
   }
 
-  stableStackForOPC(): JsonRecord {
+  stableStackForConveract(): JsonRecord {
     const core = getMany(this, [
       'opc-native-crm',
       'opc-native-wiki',
@@ -87,7 +87,7 @@ export class IntegrationCatalog {
 
     return {
       profile: 'lean_opc_default',
-      principle: 'Use OPC-native core first. For voice, prefer lightweight RustPBX plus the native WebRTC boundary; keep Asterisk/FreeSWITCH only as heavy fallbacks.',
+      principle: 'Use Converact-native core first. For voice, prefer lightweight RustPBX plus the native WebRTC boundary; keep Asterisk/FreeSWITCH only as heavy fallbacks.',
       core,
       optional,
       crm: getMany(this, ['opc-native-crm']),

@@ -1,5 +1,5 @@
 /**
- * Maps OPC IvrAction ↔ RustPBX Step IVR ActionNode (Miuda Step IVR protocol).
+ * Maps Converact IvrAction ↔ RustPBX Step IVR ActionNode (Miuda Step IVR protocol).
  */
 
 import type { IvrAction, IvrStepInput } from './ivr-executor.js';
@@ -98,7 +98,7 @@ function collectTail(action: Extract<IvrAction, { kind: 'collect_digits' }>): St
   };
 }
 
-/** OPC action → RustPBX Step IVR ActionNode. Returns null when IVR should end with no media step. */
+/** Converact action → RustPBX Step IVR ActionNode. Returns null when IVR should end with no media step. */
 export function ivrActionToStepNode(action: IvrAction | undefined | null): StepActionNode | null {
   if (!action) return { type: 'hangup' };
 

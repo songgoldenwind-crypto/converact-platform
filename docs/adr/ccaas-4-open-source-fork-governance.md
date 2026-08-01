@@ -1,14 +1,14 @@
 # ADR-CCAAS-4：容量关键开源组件 Fork 与源码优化治理
 
 **Status:** Proposed（2026-07-16）
-**Decision owner:** iveKit shared communication foundation
+**Decision owner:** Converact Fabric shared communication foundation
 **Related:** [`../capacity/README.md`](../capacity/README.md)、[`../capacity/schemas/fork-manifest.schema.json`](../capacity/schemas/fork-manifest.schema.json)、[`../capacity/forks/ivekit-forks-v1.json`](../capacity/forks/ivekit-forks-v1.json)、[`ccaas-1-cell-placement.md`](ccaas-1-cell-placement.md)、[`ccaas-2-dual-zone-quorum.md`](ccaas-2-dual-zone-quorum.md)、[`ccaas-3-recording-evidence.md`](ccaas-3-recording-evidence.md)
 
 ## 1. 背景
 
-iveKit 选择 RustPBX、rsipstack、LiveKit、Tinode 和 RustDesk 作为语音、视频、IM 与远程协助底座。MIX-100K、双 Zone、Cell placement、owner epoch、统一 CapacityVector、精确 drain 和统一录制证据链不是这些项目现有上游版本共同提供的一套合同。
+Converact Fabric 选择 RustPBX、rsipstack、LiveKit、Tinode 和 RustDesk 作为语音、视频、IM 与远程协助底座。MIX-100K、双 Zone、Cell placement、owner epoch、统一 CapacityVector、精确 drain 和统一录制证据链不是这些项目现有上游版本共同提供的一套合同。
 
-如果只在 iveKit 外层增加适配器，会出现三个结构性问题：
+如果只在 Converact Fabric 外层增加适配器，会出现三个结构性问题：
 
 1. 适配器看不到组件内部队列、锁、packet、fanout、codec、relay 和录制 spool 的真实瓶颈，无法做可信 admission。
 2. owner epoch 只存在于控制面时，旧媒体节点、旧 topic owner 或旧远控 relay 仍可能在网络分区后执行副作用。
@@ -16,7 +16,7 @@ iveKit 选择 RustPBX、rsipstack、LiveKit、Tinode 和 RustDesk 作为语音�
 
 因此本 ADR 明确授权：
 
-> 当上游接口、状态机、调度或热路径不能满足 iveKit 的架构、性能、故障和审计要求时，可以直接修改开源项目源码并维护 iveKit fork。不得为了保持零源码改动而降低 MIX-100K、双 Zone、Cell、精确控制、录制或一致性目标。
+> 当上游接口、状态机、调度或热路径不能满足 Converact Fabric 的架构、性能、故障和审计要求时，可以直接修改开源项目源码并维护 Converact Fabric fork。不得为了保持零源码改动而降低 MIX-100K、双 Zone、Cell、精确控制、录制或一致性目标。
 
 这项授权不等于无证据重写。源码改造仍以 profile、测量、合同、回滚和升级能力为约束。
 
@@ -24,12 +24,12 @@ iveKit 选择 RustPBX、rsipstack、LiveKit、Tinode 和 RustDesk 作为语音�
 
 ### 2.1 核心决策
 
-1. `iveKit API + SDK + event + webhook` 是 OPC、LED 和其他业务的稳定公共边界。
-2. RustPBX、LiveKit、Tinode、RustDesk 的 fork 协议是 iveKit 内部实现，不直接暴露给业务服务。
+1. `Converact Fabric API + SDK + event + webhook` 是 Converact Platform、LED 和其他业务的稳定公共边界。
+2. RustPBX、LiveKit、Tinode、RustDesk 的 fork 协议是 Converact Fabric 内部实现，不直接暴露给业务服务。
 3. 所有容量关键组件必须进入机器可读 fork manifest；没有精确源身份、patch hash、artifact digest 和验证状态的组件不得成为容量证据的一部分。
 4. 结构性能力缺口直接进入 maintained fork；局部、可独立应用的变更可以先用 patch queue 或 fail-closed overlay。
 5. 性能改造必须由相同 profile 的前后证据证明；单个 microbenchmark 不能替代 interaction、Cell 和 Zone 验收。
-6. 上游兼容是成本目标，不是功能上限。兼容与正确性、隔离、性能或可恢复性冲突时，以 iveKit 合同为准。
+6. 上游兼容是成本目标，不是功能上限。兼容与正确性、隔离、性能或可恢复性冲突时，以 Converact Fabric 合同为准。
 7. fork 必须持续吸收上游安全修复和关键 bugfix；不能成为一次性复制后无人维护的代码快照。
 
 ### 2.2 不做的决策
@@ -37,7 +37,7 @@ iveKit 选择 RustPBX、rsipstack、LiveKit、Tinode 和 RustDesk 作为语音�
 本 ADR 不决定：
 
 - 供应商商务授权、商业谈判或产品定价。
-- LED、OPC 的业务流程和页面。
+- LED、Converact Platform 的业务流程和页面。
 - 100K 已经通过。当前所有容量数字仍按 `target/not_run` 管理。
 - 未经 profile 的通用“极限性能”宣传口径。
 
@@ -53,7 +53,7 @@ iveKit 选择 RustPBX、rsipstack、LiveKit、Tinode 和 RustDesk 作为语音�
 | Admission | 外部只能看到 CPU，无法原子预留关键维度 | RTP legs、track fanout、relay Mbps、recording slots |
 | Drain | 上游只能停进程，不能停止新会话并保留旧会话 | RustDesk 精确 drain、LiveKit room drain、Tinode topic drain |
 | 恢复 | 上游状态不足以确定性重建或去重 | LiveKit room rebuild、录制 job reconciliation、Tinode mutation |
-| 一致性 | 外层投影与原生客户端永久分叉 | Tinode edit/delete 只在 iveKit 生效 |
+| 一致性 | 外层投影与原生客户端永久分叉 | Tinode edit/delete 只在 Converact Fabric 生效 |
 | 热路径 | profile 显示内部 allocation、lock、timer、copy 或序列化限制 safe capacity | RTP、SFU packet、IM fanout、RustDesk relay |
 | 可观测性 | 缺少有界、低基数、可核对的容量与队列指标 | 活跃 dialog、topic owner、track、relay bytes、spool depth |
 | 安全隔离 | 只有重启服务才能撤销单个会话或旧授权 | RustDesk exact disconnect、owner epoch fencing |
@@ -73,7 +73,7 @@ iveKit 选择 RustPBX、rsipstack、LiveKit、Tinode 和 RustDesk 作为语音�
 
 | 模式 | 用途 | 生产身份 |
 | --- | --- | --- |
-| `upstream_image` | 上游能力完整，iveKit 仅做外部集成 | release ref + image digest |
+| `upstream_image` | 上游能力完整，Converact Fabric 仅做外部集成 | release ref + image digest |
 | `pinned_source` | 从精确 commit 构建，但无本地源码变化 | commit + lockfile + builder digest + artifact digest |
 | `patch_queue` | 少量局部变更，能稳定重放到精确上游 commit | upstream commit + ordered patch hash + artifact digest |
 | `overlay` | 对固定源码锚点注入少量平台代码，锚点漂移时 fail closed | upstream commit + overlay hash +生成器 hash + artifact digest |
@@ -110,11 +110,11 @@ iveKit 选择 RustPBX、rsipstack、LiveKit、Tinode 和 RustDesk 作为语音�
 
 ### 5.1 代码位置
 
-短期 patch queue 和 overlay 可以留在 OPC monorepo：
+短期 patch queue 和 overlay 可以留在 Converact Platform monorepo：
 
 ```text
-infra/ivekit/<component>/build.sh
-infra/ivekit/<component>/patches/
+infra/converact/<component>/build.sh
+infra/converact/<component>/patches/
 integrations/<component-version>/
 docs/capacity/forks/
 ```
@@ -123,20 +123,20 @@ maintained fork 使用独立受控仓库，逻辑命名：
 
 ```text
 rustpbx-ivekit
-livekit-ivekit
-tinode-ivekit
-rustdesk-server-ivekit
-rustdesk-client-ivekit
+livekit-converact
+tinode-converact
+rustdesk-server-converact
+rustdesk-client-converact
 ```
 
-独立仓库不是对业务拆成多个产品。运行时仍是一套 iveKit 平台；独立 fork 只是隔离上游历史、构建权限和升级工作。
+独立仓库不是对业务拆成多个产品。运行时仍是一套 Converact Fabric 平台；独立 fork 只是隔离上游历史、构建权限和升级工作。
 
 ### 5.2 Git remote
 
 每个 maintained fork 保留两个 remote：
 
 ```text
-origin    -> iveKit controlled fork
+origin    -> Converact Fabric controlled fork
 upstream  -> official upstream repository
 ```
 
@@ -145,24 +145,24 @@ upstream  -> official upstream repository
 ### 5.3 分支与标签
 
 ```text
-ivekit/main                    长期集成主线
-ivekit/release/<upstream>      受支持发布线
-ivekit/feature/<change-id>     与 manifest change_id 对应
-ivekit/hotfix/<cve-or-defect>  紧急安全或生产修复
+converact/main                    长期集成主线
+converact/release/<upstream>      受支持发布线
+converact/feature/<change-id>     与 manifest change_id 对应
+converact/hotfix/<cve-or-defect>  紧急安全或生产修复
 ```
 
 发布标签：
 
 ```text
-ivekit/<upstream-version>+ivekit.<revision>
+converact/<upstream-version>+converact.<revision>
 ```
 
 示例：
 
 ```text
-ivekit/v1.13.4+ivekit.1
-ivekit/0.25.3+ivekit.2
-ivekit/1.1.16+ivekit.1
+converact/v1.13.4+converact.1
+converact/0.25.3+converact.2
+converact/1.1.16+converact.1
 ```
 
 标签只能指向不可变 commit。容器、Windows installer 和符号包使用同一个 release identity，并在 fork manifest 中记录 digest。
@@ -198,7 +198,7 @@ ivekit/1.1.16+ivekit.1
 每个 candidate build 必须固定：
 
 - 40 字符 upstream base commit。
-- iveKit fork commit 或 ordered patch SHA-256。
+- Converact Fabric fork commit 或 ordered patch SHA-256。
 - submodule commit。
 - Cargo.lock、go.sum、package lock、vcpkg baseline 等依赖锁。
 - compiler/toolchain version。
@@ -242,16 +242,16 @@ provenance 至少包含：
 
 ### 8.1 公共边界
 
-OPC/LED 只依赖：
+Converact Platform/LED 只依赖：
 
-- iveKit HTTP/OpenAPI。
-- iveKit TypeScript/后续语言 SDK。
-- iveKit event schema。
-- iveKit webhook schema。
+- Converact Fabric HTTP/OpenAPI。
+- Converact Fabric TypeScript/后续语言 SDK。
+- Converact Fabric event schema。
+- Converact Fabric webhook schema。
 
 业务客户端不得直接依赖：
 
-- `ivekit-rustpbx-rwi`。
+- `converact-rustpbx-rwi`。
 - `ivekit-rustdesk-native-control-v2`；v1 只保留给关闭 Cell placement 的滚动兼容包。
 - `rustdesk-native-evidence-v1`。
 - fork 内部 placement、epoch、drain 或 CapacityVector transport。
@@ -409,7 +409,7 @@ G0-G2 不能因为“只是性能补丁”而跳过。G3 的单节点峰值不�
 1. 记录 old upstream base、new upstream base 和 release notes。
 2. 建立新的 manifest revision，初始所有运行验证为 `not_run`。
 3. rebase patch queue 或 merge maintained fork。
-4. 冲突逐项关联 change ID；禁止为完成合并而静默删除 iveKit 行为。
+4. 冲突逐项关联 change ID；禁止为完成合并而静默删除 Converact Fabric 行为。
 5. 运行 G0-G3；容量关键 release 再运行 G4。
 6. 生成协议、配置、数据 schema 和性能差异报告。
 7. canary 到一个非关键 Cell，再扩大到 Zone。
@@ -542,12 +542,12 @@ Egress 保持独立 worker pool。TrackEgress 为主，RoomComposite 不超过 p
 必须进入 fork 的能力：
 
 - topic owner epoch、Cell shard placement、drain 和 recover。
-- iveKit edit/delete 映射为原生 mutation。
+- Converact Fabric edit/delete 映射为原生 mutation。
 - connection/topic/fanout/persistence 的 CapacityVector 和 backpressure。
-- outbox、native client 和 iveKit projection 的幂等一致性。
+- outbox、native client 和 Converact Fabric projection 的幂等一致性。
 - 90k WebSocket、60k active topic、5k steady/20k burst message profile 下的 hot-path 优化。
 
-Tinode 原生 wire compatibility保留为目标，但不能绕过 iveKit tenant、授权、文件安全和审计边界。
+Tinode 原生 wire compatibility保留为目标，但不能绕过 Converact Fabric tenant、授权、文件安全和审计边界。
 
 ### 16.4 RustDesk Server/Client
 
@@ -575,7 +575,7 @@ Client/companion fork：
 | 构建无法复现 | exact commit、builder digest、lockfile、SBOM、provenance |
 | fork 漏掉安全更新 | 月度同步、critical 1 日研判/7 日 release 目标 |
 | 优化只减少服务器却耗尽故障余量 | safe capacity 独立于 hard limit，Zone failure reserve 不参与正常 admission |
-| 内部 fork 泄漏为业务合同 | OPC/LED 只使用 iveKit public API/SDK/event/webhook |
+| 内部 fork 泄漏为业务合同 | Converact Platform/LED 只使用 Converact Fabric public API/SDK/event/webhook |
 
 ## 18. 实施顺序
 
@@ -634,7 +634,7 @@ baseline -> profile -> one bottleneck -> one change -> correctness -> benchmark 
 
 ## 20. 结论
 
-iveKit 不把上游项目当前结构视为不可修改的边界。对 MIX-100K 来说，真正稳定的边界是 profile、CapacityVector、owner epoch、recording manifest 和 iveKit public contract。
+Converact Fabric 不把上游项目当前结构视为不可修改的边界。对 MIX-100K 来说，真正稳定的边界是 profile、CapacityVector、owner epoch、recording manifest 和 Converact Fabric public contract。
 
 RustPBX、LiveKit、Tinode、RustDesk 可以被深度修改，甚至长期维护 fork；但每一次修改都必须回答四个问题：
 

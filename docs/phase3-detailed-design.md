@@ -50,7 +50,7 @@ services/agent-panel/
 │   ├── store/
 │   │   └── agent-store.ts     # zustand
 │   └── lib/
-│       ├── api.ts              # OPC API client
+│       ├── api.ts              # Converact Platform API client
 │       └── types.ts
 ├── public/
 └── vite.config.ts
@@ -60,7 +60,7 @@ services/agent-panel/
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  [Logo] OPC Call Center                    [状态: 🟢 在线 ▾] [退出]│
+│  [Logo] Converact Platform Call Center                    [状态: 🟢 在线 ▾] [退出]│
 ├──────────┬───────────────────────────────────────────────────────┤
 │          │                                                        │
 │ 等待队列  │              通话主区域                                 │
@@ -136,7 +136,7 @@ interface CurrentCallInfo {
 
 ## 2. 实时通信 (SSE)
 
-### 2.1 OPC → 坐席面板通道
+### 2.1 Converact Platform → 坐席面板通道
 
 选择 SSE 而非 WebSocket 的原因：
 - 单向推送足够 (坐席操作通过 REST API)
@@ -159,7 +159,7 @@ Event types:
   - system          → 系统通知
 ```
 
-### 2.3 OPC SSE 实现
+### 2.3 Converact Platform SSE 实现
 
 ```typescript
 // src/agent-runtime/call-center/sse-manager.ts
@@ -245,11 +245,11 @@ export function useSSE(seatId: string) {
 ### 3.1 心跳协议
 
 ```
-坐席面板 → OPC:
+坐席面板 → Converact Platform:
   POST /api/call-center/seats/:seatId/heartbeat
   每 30s 一次
 
-OPC 检测:
+Converact Platform 检测:
   如果 last_heartbeat_at > 90s 前 → status = 'offline'
   如果当前有通话 + offline → 触发通话重新排队
 ```
@@ -272,7 +272,7 @@ export function useHeartbeat(seatId: string) {
 }
 ```
 
-### 3.3 OPC 后台超时检测
+### 3.3 Converact Platform 后台超时检测
 
 ```typescript
 // 每 15s 扫描一次
@@ -320,7 +320,7 @@ setInterval(() => {
 
 ```
 1. AI Agent 调用 transfer_to_human tool
-2. OPC 收到 agent-dispatch 请求
+2. Converact Platform 收到 agent-dispatch 请求
 3. Transfer Orchestrator:
    a. 查找匹配的 idle 坐席 (skills + language)
    b. 如果有 → 分配
@@ -332,7 +332,7 @@ setInterval(() => {
    d. 坐席面板显示通话信息 + "接听"按钮
 5. 坐席点击"接听":
    a. 坐席加入 LiveKit Room
-   b. OPC 通知 AI Agent 退出 (通过 Room metadata update 或直接 remove participant)
+   b. Converact Platform 通知 AI Agent 退出 (通过 Room metadata update 或直接 remove participant)
    c. AI 离开 Room
    d. 坐席与客户直接通话
 ```
@@ -461,7 +461,7 @@ interface WrapUpData {
 
 ---
 
-## 6. Phase 3 新增 OPC API
+## 6. Phase 3 新增 Converact Platform API
 
 | Method | Path | 说明 |
 |---|---|---|
@@ -563,7 +563,7 @@ ALTER TABLE agent_seats ADD COLUMN password_hash TEXT;
 ### 8.1 通过 Room Metadata
 
 ```typescript
-// OPC 更新 Room metadata:
+// Converact Platform 更新 Room metadata:
 await livekitRoomClient.updateRoomMetadata(roomName, JSON.stringify({
   ...existingMeta,
   agent_should_leave: true,
@@ -603,7 +603,7 @@ async def on_room_metadata_changed(metadata: str):
       - VITE_API_URL=http://localhost:3000
       - VITE_LIVEKIT_URL=ws://localhost:7880
     depends_on:
-      - opc
+      - converact
       - livekit
 ```
 

@@ -1,9 +1,9 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: ivekit-victoria-metrics-restore
+  name: converact-victoria-metrics-restore
   labels:
-    app.kubernetes.io/name: ivekit-victoria-metrics
+    app.kubernetes.io/name: converact-victoria-metrics
     app.kubernetes.io/component: restore
 spec:
   suspend: true
@@ -13,9 +13,9 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: ivekit-victoria-metrics
+        app.kubernetes.io/name: converact-victoria-metrics
         app.kubernetes.io/component: restore
-        opc.ivekit.io/victoria-metrics-role: backup
+        converact.io/victoria-metrics-role: backup
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
@@ -41,23 +41,23 @@ spec:
             - name: VM_src
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-victoria-metrics-backup
+                  name: converact-victoria-metrics-backup
                   key: restoreSource
             - name: VM_customS3Endpoint
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-victoria-metrics-backup
+                  name: converact-victoria-metrics-backup
                   key: endpoint
                   optional: true
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-victoria-metrics-backup
+                  name: converact-victoria-metrics-backup
                   key: accessKeyId
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-victoria-metrics-backup
+                  name: converact-victoria-metrics-backup
                   key: secretAccessKey
           securityContext:
             allowPrivilegeEscalation: false
@@ -79,7 +79,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: ivekit-victoria-metrics-data
+            claimName: converact-victoria-metrics-data
         - name: tmp
           emptyDir:
             sizeLimit: 128Mi

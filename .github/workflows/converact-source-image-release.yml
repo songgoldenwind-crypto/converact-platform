@@ -1,0 +1,160 @@
+name: Converact Fabric source image release
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: Digestless lowercase GHCR repository
+        required: true
+        type: string
+      context:
+        description: Repository-relative Docker build context
+        required: true
+        type: string
+      dockerfile:
+        description: Repository-relative Dockerfile
+        required: true
+        type: string
+      platforms:
+        description: Comma-separated target platforms
+        required: false
+        default: linux/amd64,linux/arm64
+        type: string
+      prepare:
+        description: Allowlisted build-context preparation mode
+        required: false
+        default: none
+        type: string
+    outputs:
+      digest:
+        description: Published OCI manifest digest
+        value: ${{ jobs.publish.outputs.digest }}
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    env:
+      DOCKER_CONFIG: /tmp/converact-docker-config
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Validate build identity
+        shell: bash
+        env:
+          IMAGE: ${{ inputs.image }}
+          CONTEXT: ${{ inputs.context }}
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          PLATFORMS: ${{ inputs.platforms }}
+          PREPARE: ${{ inputs.prepare }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${IMAGE}" =~ ^ghcr\.io/[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._/-]*$ ]] ||
+             [[ "${IMAGE}" == *..* || "${IMAGE}" == *//* || "${IMAGE}" == */ ]]; then
+            printf 'invalid GHCR image repository: %s\n' "${IMAGE}" >&2
+            exit 1
+          fi
+          for path in "${CONTEXT}" "${DOCKERFILE}"; do
+            if [[ -z "${path}" || "${path}" = /* || "${path}" == *..* || "${path}" =~ [[:cntrl:]] ]]; then
+              printf 'invalid repository-relative build path: %s\n' "${path}" >&2
+              exit 1
+            fi
+          done
+          if [[ ! "${PLATFORMS}" =~ ^linux/(amd64|arm64)(,linux/(amd64|arm64))?$ ]]; then
+            printf 'unsupported platform list: %s\n' "${PLATFORMS}" >&2
+            exit 1
+          fi
+          if [[ ! "${PREPARE}" =~ ^(none|converact-fabric-standalone)$ ]]; then
+            printf 'unsupported build preparation mode: %s\n' "${PREPARE}" >&2
+            exit 1
+          fi
+
+      - name: Prepare allowlisted build context
+        shell: bash
+        env:
+          CONTEXT: ${{ inputs.context }}
+          PREPARE: ${{ inputs.prepare }}
+        run: |
+          set -euo pipefail
+          case "${PREPARE}" in
+            none)
+              ;;
+            converact-fabric-standalone)
+              npm ci --ignore-scripts
+              CONVERACT_FABRIC_STANDALONE_CONTEXT_DIR="${CONTEXT}" \
+              CONVERACT_FABRIC_SOURCE_COMMIT="${GITHUB_SHA}" \
+                node --import tsx scripts/converact-standalone-build-context.ts
+              ;;
+          esac
+
+      - name: Validate prepared build paths
+        shell: bash
+        env:
+          CONTEXT: ${{ inputs.context }}
+          DOCKERFILE: ${{ inputs.dockerfile }}
+        run: |
+          set -euo pipefail
+          test -d "${CONTEXT}"
+          test -f "${DOCKERFILE}"
+
+      - name: Authenticate to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+
+      - name: Build and publish immutable source image
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+          push: true
+          tags: ${{ inputs.image }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=${{ inputs.image }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.image }}
+
+      - name: Verify published digest
+        shell: bash
+        env:
+          IMAGE: ${{ inputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "${DIGEST}" =~ ^sha256:[a-f0-9]{64}$ ]]
+          docker buildx imagetools inspect "${IMAGE}@${DIGEST}"
+
+  release:
+    needs: publish
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: ./.github/workflows/converact-oci-release-gate.yml
+    with:
+      image: ${{ inputs.image }}
+      digest: ${{ needs.publish.outputs.digest }}

@@ -46,7 +46,7 @@ export class JetStreamCapacityCommandBus implements CapacityCommandBus {
     subject_prefix?: string;
     max_age_days?: number;
   }): Promise<JetStreamCapacityCommandBus> {
-    const streamName = input.stream_name || 'IVEKIT_CAPACITY_COMMANDS';
+    const streamName = input.stream_name || 'CONVERACT_FABRIC_CAPACITY_COMMANDS';
     const subjectPrefix = input.subject_prefix || 'ivekit.capacity.command';
     validStreamName(streamName);
     validSubjectPrefix(subjectPrefix);
@@ -137,7 +137,7 @@ export class JetStreamCapacityCommandConsumer {
     retry_delay_ms?: number;
     max_ack_pending?: number;
   }): Promise<JetStreamCapacityCommandConsumer> {
-    const streamName = input.stream_name || 'IVEKIT_CAPACITY_COMMANDS';
+    const streamName = input.stream_name || 'CONVERACT_FABRIC_CAPACITY_COMMANDS';
     const prefix = input.subject_prefix || 'ivekit.capacity.command';
     validStreamName(streamName);
     validSubjectPrefix(prefix);

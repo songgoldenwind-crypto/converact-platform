@@ -4,7 +4,7 @@ from livekit.agents import function_tool
 
 
 async def run_disclosure_complete(
-    opc_client,
+    converact_client,
     *,
     call_session_id: str,
     tenant_id: str,
@@ -14,7 +14,7 @@ async def run_disclosure_complete(
     if not tenant_id:
         return {"status": "error", "error": "tenant_id_missing"}
 
-    result = await opc_client.disclosure_complete(
+    result = await converact_client.disclosure_complete(
         call_session_id=call_session_id,
         tenant_id=tenant_id,
     )
@@ -25,7 +25,7 @@ async def run_disclosure_complete(
     }
 
 
-def create(opc_client, call_session_id: str, tenant_id: str):
+def create(converact_client, call_session_id: str, tenant_id: str):
     @function_tool(
         name="disclosure_complete",
         description=(
@@ -35,7 +35,7 @@ def create(opc_client, call_session_id: str, tenant_id: str):
     )
     async def disclosure_complete_tool() -> dict:
         return await run_disclosure_complete(
-            opc_client,
+            converact_client,
             call_session_id=call_session_id,
             tenant_id=tenant_id,
         )

@@ -1,41 +1,41 @@
-export interface IveKitUploadProgress {
+export interface ConveractFabricUploadProgress {
   loaded: number;
   total: number;
   percent: number;
 }
 
-export type IveKitUploadFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
+export type ConveractFabricUploadFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
-export interface IveKitUploadRequest {
+export interface ConveractFabricUploadRequest {
   url: string;
   headers: Record<string, string>;
   body: Exclude<RequestInit['body'], null | undefined>;
   timeoutMs: number;
-  fetch?: IveKitUploadFetch;
-  onProgress?: (progress: IveKitUploadProgress) => void;
+  fetch?: ConveractFabricUploadFetch;
+  onProgress?: (progress: ConveractFabricUploadProgress) => void;
 }
 
-export interface IveKitUploadOperation<T = unknown> {
+export interface ConveractFabricUploadOperation<T = unknown> {
   result: Promise<T>;
   abort(): void;
 }
 
-export interface IveKitUploadTransport {
-  upload(request: IveKitUploadRequest): IveKitUploadOperation<unknown>;
+export interface ConveractFabricUploadTransport {
+  upload(request: ConveractFabricUploadRequest): ConveractFabricUploadOperation<unknown>;
 }
 
-export class IveKitUploadTransportError extends Error {
+export class ConveractFabricUploadTransportError extends Error {
   constructor(
     message: string,
     readonly status: number,
     readonly payload: unknown
   ) {
     super(message);
-    this.name = 'IveKitUploadTransportError';
+    this.name = 'ConveractFabricUploadTransportError';
   }
 }
 
-export function createIveKitUploadTransport(): IveKitUploadTransport {
+export function createConveractFabricUploadTransport(): ConveractFabricUploadTransport {
   return {
     upload(request) {
       return xhrConstructor()
@@ -45,7 +45,7 @@ export function createIveKitUploadTransport(): IveKitUploadTransport {
   };
 }
 
-function fetchUpload(request: IveKitUploadRequest): IveKitUploadOperation<unknown> {
+function fetchUpload(request: ConveractFabricUploadRequest): ConveractFabricUploadOperation<unknown> {
   const controller = new AbortController();
   let timedOut = false;
   const result = (async () => {
@@ -56,7 +56,7 @@ function fetchUpload(request: IveKitUploadRequest): IveKitUploadOperation<unknow
     }, request.timeoutMs);
     try {
       const fetchImpl = request.fetch || globalThis.fetch;
-      if (!fetchImpl) throw new IveKitUploadTransportError('fetch is required', 0, null);
+      if (!fetchImpl) throw new ConveractFabricUploadTransportError('fetch is required', 0, null);
       const response = await fetchImpl(request.url, {
         method: 'POST',
         headers: request.headers,
@@ -65,7 +65,7 @@ function fetchUpload(request: IveKitUploadRequest): IveKitUploadOperation<unknow
       });
       const payload = await readResponsePayload(response);
       if (!response.ok) {
-        throw new IveKitUploadTransportError(
+        throw new ConveractFabricUploadTransportError(
           `attachment upload failed with ${response.status}: ${errorDetail(payload)}`,
           response.status,
           payload
@@ -75,13 +75,13 @@ function fetchUpload(request: IveKitUploadRequest): IveKitUploadOperation<unknow
       request.onProgress?.({ loaded: total, total, percent: 100 });
       return payload;
     } catch (error) {
-      if (error instanceof IveKitUploadTransportError) throw error;
+      if (error instanceof ConveractFabricUploadTransportError) throw error;
       const message = timedOut
         ? `attachment upload timed out after ${request.timeoutMs}ms`
         : controller.signal.aborted
           ? 'attachment upload aborted'
           : `attachment upload failed: ${error instanceof Error ? error.message : String(error)}`;
-      throw new IveKitUploadTransportError(message, 0, null);
+      throw new ConveractFabricUploadTransportError(message, 0, null);
     } finally {
       clearTimeout(timer);
     }
@@ -89,7 +89,7 @@ function fetchUpload(request: IveKitUploadRequest): IveKitUploadOperation<unknow
   return { result, abort: () => controller.abort() };
 }
 
-function xhrUpload(request: IveKitUploadRequest): IveKitUploadOperation<unknown> {
+function xhrUpload(request: ConveractFabricUploadRequest): ConveractFabricUploadOperation<unknown> {
   const Xhr = xhrConstructor();
   if (!Xhr) return fetchUpload(request);
   const xhr = new Xhr();
@@ -106,7 +106,7 @@ function xhrUpload(request: IveKitUploadRequest): IveKitUploadOperation<unknown>
     xhr.onload = () => {
       const payload = parseTextPayload(xhr.responseText);
       if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new IveKitUploadTransportError(
+        reject(new ConveractFabricUploadTransportError(
           `attachment upload failed with ${xhr.status}: ${errorDetail(payload)}`,
           xhr.status,
           payload
@@ -117,15 +117,15 @@ function xhrUpload(request: IveKitUploadRequest): IveKitUploadOperation<unknown>
       request.onProgress?.({ loaded: total, total, percent: 100 });
       resolve(payload);
     };
-    xhr.onerror = () => reject(new IveKitUploadTransportError('attachment upload failed', 0, null));
-    xhr.onabort = () => reject(new IveKitUploadTransportError(
+    xhr.onerror = () => reject(new ConveractFabricUploadTransportError('attachment upload failed', 0, null));
+    xhr.onabort = () => reject(new ConveractFabricUploadTransportError(
       timedOut ? `attachment upload timed out after ${request.timeoutMs}ms` : 'attachment upload aborted',
       0,
       null
     ));
     xhr.ontimeout = () => {
       timedOut = true;
-      reject(new IveKitUploadTransportError(`attachment upload timed out after ${request.timeoutMs}ms`, 0, null));
+      reject(new ConveractFabricUploadTransportError(`attachment upload timed out after ${request.timeoutMs}ms`, 0, null));
     };
     xhr.send(request.body);
   });
@@ -161,17 +161,17 @@ function bodySize(body: Exclude<RequestInit['body'], null | undefined>): number 
   return 0;
 }
 
-interface IveKitXhrProgressEvent {
+interface ConveractFabricXhrProgressEvent {
   loaded: number;
   total: number;
   lengthComputable: boolean;
 }
 
-interface IveKitXhr {
+interface ConveractFabricXhr {
   status: number;
   responseText: string;
   timeout: number;
-  upload: { onprogress: ((event: IveKitXhrProgressEvent) => void) | null };
+  upload: { onprogress: ((event: ConveractFabricXhrProgressEvent) => void) | null };
   onload: (() => void) | null;
   onerror: (() => void) | null;
   onabort: (() => void) | null;
@@ -182,9 +182,9 @@ interface IveKitXhr {
   abort(): void;
 }
 
-type IveKitXhrConstructor = new () => IveKitXhr;
+type ConveractFabricXhrConstructor = new () => ConveractFabricXhr;
 
-function xhrConstructor(): IveKitXhrConstructor | null {
-  const value = (globalThis as typeof globalThis & { XMLHttpRequest?: IveKitXhrConstructor }).XMLHttpRequest;
+function xhrConstructor(): ConveractFabricXhrConstructor | null {
+  const value = (globalThis as typeof globalThis & { XMLHttpRequest?: ConveractFabricXhrConstructor }).XMLHttpRequest;
   return typeof value === 'function' ? value : null;
 }

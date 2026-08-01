@@ -121,7 +121,7 @@ export class RwiV1Client {
     return this.sendAction('call.hangup', { call_id: callId, reason });
   }
 
-  /** Legacy OPC gather_digits envelope → best-effort RWI v1 action name. */
+  /** Legacy Converact gather_digits envelope → best-effort RWI v1 action name. */
   sendLegacyCommand(command: string, params: Record<string, unknown>): string {
     return this.sendAction(command, params);
   }

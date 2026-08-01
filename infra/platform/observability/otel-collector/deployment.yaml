@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ivekit-otel-collector
+  name: converact-otel-collector
   labels:
-    app.kubernetes.io/name: ivekit-otel-collector
+    app.kubernetes.io/name: converact-otel-collector
     app.kubernetes.io/component: trace-gateway
 spec:
   replicas: 2
@@ -14,12 +14,12 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-otel-collector
+      app.kubernetes.io/name: converact-otel-collector
       app.kubernetes.io/component: trace-gateway
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: ivekit-otel-collector
+        app.kubernetes.io/name: converact-otel-collector
         app.kubernetes.io/component: trace-gateway
     spec:
       automountServiceAccountToken: false
@@ -30,13 +30,13 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app.kubernetes.io/name: ivekit-otel-collector
+              app.kubernetes.io/name: converact-otel-collector
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app.kubernetes.io/name: ivekit-otel-collector
+              app.kubernetes.io/name: converact-otel-collector
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -54,7 +54,7 @@ spec:
             - name: OTEL_TRACE_BACKEND_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-otel-backend
+                  name: converact-otel-backend
                   key: endpoint
           ports:
             - name: otlp-grpc
@@ -101,7 +101,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: ivekit-otel-collector
+            name: converact-otel-collector
         - name: tmp
           emptyDir:
             sizeLimit: 128Mi

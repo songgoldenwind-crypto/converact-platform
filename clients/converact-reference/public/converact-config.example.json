@@ -1,5 +1,5 @@
 {
-  "baseUrl": "https://ivekit.example.com",
+  "baseUrl": "https://fabric.converact.example.com",
   "tenantId": "tenant-led",
-  "websocketUrl": "wss://ivekit.example.com/ws"
+  "websocketUrl": "wss://converact.example.com/ws"
 }

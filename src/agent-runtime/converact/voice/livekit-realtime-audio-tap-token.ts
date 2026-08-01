@@ -21,7 +21,7 @@ export interface LiveKitRealtimeAudioTapTokenClaims {
 
 export interface VerifiedLiveKitRealtimeAudioTapTokenClaims
 extends LiveKitRealtimeAudioTapTokenClaims {
-  issuer: 'ivekit';
+  issuer: 'converact';
   audience: 'livekit-audio-tap';
   version: 1;
   issued_at: number;
@@ -103,7 +103,7 @@ export function createLiveKitRealtimeAudioTapTokenCodec(
           );
       const payload = normalizeClaims({
         ...input,
-        issuer: 'ivekit',
+        issuer: 'converact',
         audience: 'livekit-audio-tap',
         version: 1,
         issued_at: issuedAt,
@@ -164,7 +164,7 @@ export function createLiveKitRealtimeAudioTapTokenCodec(
 function normalizeClaims(input: unknown): VerifiedLiveKitRealtimeAudioTapTokenClaims {
   if (!record(input)) throw tokenError('token_claim_invalid');
   exactKeys(input, PAYLOAD_KEYS);
-  if (input.issuer !== 'ivekit' || input.audience !== 'livekit-audio-tap' ||
+  if (input.issuer !== 'converact' || input.audience !== 'livekit-audio-tap' ||
       input.version !== 1) {
     throw tokenError('token_claim_invalid');
   }
@@ -190,7 +190,7 @@ function normalizeClaims(input: unknown): VerifiedLiveKitRealtimeAudioTapTokenCl
   ).sort();
   if (audienceUserIds.length === 0) throw tokenError('token_claim_invalid');
   return {
-    issuer: 'ivekit',
+    issuer: 'converact',
     audience: 'livekit-audio-tap',
     version: 1,
     tenant_id: boundedText(input.tenant_id, 1, 128),

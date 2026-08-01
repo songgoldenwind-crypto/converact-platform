@@ -38,19 +38,19 @@ import type {
   RustDeskTerminalProfile
 } from './types.js';
 
-export type IveKitRustDeskFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
+export type ConveractFabricRustDeskFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
-export interface IveKitRustDeskHttpClientInput {
+export interface ConveractFabricRustDeskHttpClientInput {
   baseUrl: string;
   apiKey?: string;
   accessToken?: string;
   tenantId: string;
   userId?: string;
   timeoutMs?: number;
-  fetch?: IveKitRustDeskFetch;
+  fetch?: ConveractFabricRustDeskFetch;
 }
 
-export interface IveKitRustDeskBusinessRefInput {
+export interface ConveractFabricRustDeskBusinessRefInput {
   tenant_id?: string;
   type: string;
   id: string;
@@ -58,19 +58,19 @@ export interface IveKitRustDeskBusinessRefInput {
   metadata?: Record<string, unknown>;
 }
 
-export interface RegisterIveKitRustDeskDeviceInput {
-  business_ref: IveKitRustDeskBusinessRefInput;
+export interface RegisterConveractFabricRustDeskDeviceInput {
+  business_ref: ConveractFabricRustDeskBusinessRefInput;
   rustdesk_id: string;
   display_name: string;
   metadata?: Record<string, unknown>;
 }
 
-export interface ListIveKitRustDeskDevicesByRefInput {
-  business_ref: IveKitRustDeskBusinessRefInput;
+export interface ListConveractFabricRustDeskDevicesByRefInput {
+  business_ref: ConveractFabricRustDeskBusinessRefInput;
   limit?: number;
 }
 
-export interface GetIveKitRustDeskClientProfileInput {
+export interface GetConveractFabricRustDeskClientProfileInput {
   platform: RustDeskClientDistributionPlatform;
   architecture: RustDeskClientDistributionArchitecture;
   client_version: string;
@@ -78,14 +78,14 @@ export interface GetIveKitRustDeskClientProfileInput {
   expected_server_key_fingerprint: string;
 }
 
-export interface HeartbeatIveKitRustDeskDeviceInput {
+export interface HeartbeatConveractFabricRustDeskDeviceInput {
   actor_identity: string;
   runtime_status?: 'online' | 'offline';
   seen_at?: string;
   metadata?: Record<string, unknown>;
 }
 
-export interface StartIveKitRustDeskGatewaySessionInput {
+export interface StartConveractFabricRustDeskGatewaySessionInput {
   remote_session_id: string;
   device_id: string;
   actor_identity: string;
@@ -95,7 +95,7 @@ export interface StartIveKitRustDeskGatewaySessionInput {
   metadata?: Record<string, unknown>;
 }
 
-export interface RequestIveKitRustDeskAuthorizationCodeInput {
+export interface RequestConveractFabricRustDeskAuthorizationCodeInput {
   remote_session_id: string;
   device_id: string;
   scopes: readonly RemoteConsentScope[];
@@ -103,59 +103,59 @@ export interface RequestIveKitRustDeskAuthorizationCodeInput {
   max_attempts?: number;
 }
 
-export interface VerifyIveKitRustDeskAuthorizationCodeInput { code: string; }
+export interface VerifyConveractFabricRustDeskAuthorizationCodeInput { code: string; }
 
-export interface IveKitRustDeskAuthorizationCodeOptions { idempotencyKey: string; }
+export interface ConveractFabricRustDeskAuthorizationCodeOptions { idempotencyKey: string; }
 
-export interface GetIveKitRustDeskGatewayLaunchPlanInput {
+export interface GetConveractFabricRustDeskGatewayLaunchPlanInput {
   confirmation_id?: string;
 }
 
-export interface ConfigureIveKitRustDeskAccessPolicyInput {
+export interface ConfigureConveractFabricRustDeskAccessPolicyInput {
   mode: RustDeskAccessPolicyMode;
   allowed_scopes: readonly RemoteConsentScope[];
-  business_ref: Pick<IveKitRustDeskBusinessRefInput, 'type' | 'id'>;
+  business_ref: Pick<ConveractFabricRustDeskBusinessRefInput, 'type' | 'id'>;
   expires_at?: string | null;
   reason: string;
 }
 
-export interface RevokeIveKitRustDeskAccessPolicyInput {
+export interface RevokeConveractFabricRustDeskAccessPolicyInput {
   reason: string;
 }
 
-export interface IveKitRustDeskAccessPolicyMutationOptions {
+export interface ConveractFabricRustDeskAccessPolicyMutationOptions {
   idempotencyKey: string;
 }
 
-export interface IssueIveKitRustDeskConfirmationInput {
+export interface IssueConveractFabricRustDeskConfirmationInput {
   operation: RustDeskConfirmedOperation;
   ttl_seconds?: number;
 }
 
-export interface AcquireIveKitRustDeskControlInput {
+export interface AcquireConveractFabricRustDeskControlInput {
   confirmation_id: string;
   lease_ms?: number;
 }
 
-export interface HeartbeatIveKitRustDeskControlInput {
+export interface HeartbeatConveractFabricRustDeskControlInput {
   version: number;
   lease_ms?: number;
 }
 
-export interface ReleaseIveKitRustDeskControlInput { version: number; }
+export interface ReleaseConveractFabricRustDeskControlInput { version: number; }
 
-export interface TransferIveKitRustDeskControlInput extends HeartbeatIveKitRustDeskControlInput {
+export interface TransferConveractFabricRustDeskControlInput extends HeartbeatConveractFabricRustDeskControlInput {
   to_identity: string;
   confirmation_id: string;
 }
 
-export interface ConfirmIveKitRustDeskOperationInput {
+export interface ConfirmConveractFabricRustDeskOperationInput {
   operation: RustDeskConfirmedOperation;
   confirmation_id: string;
   version?: number;
 }
 
-export interface RecordIveKitRustDeskGatewayEventInput {
+export interface RecordConveractFabricRustDeskGatewayEventInput {
   event_type: string;
   actor_identity: string;
   target?: string;
@@ -164,89 +164,89 @@ export interface RecordIveKitRustDeskGatewayEventInput {
   occurred_at?: string;
 }
 
-export interface ListIveKitRustDeskGatewayAuditEventsInput {
+export interface ListConveractFabricRustDeskGatewayAuditEventsInput {
   since?: string;
 }
 
-export interface EndIveKitRustDeskGatewaySessionInput {
+export interface EndConveractFabricRustDeskGatewaySessionInput {
   actor_identity: string;
 }
 
-export interface AuthorizeIveKitRustDeskEmergencyFallbackInput {
+export interface AuthorizeConveractFabricRustDeskEmergencyFallbackInput {
   reason: string;
   collateral_sessions_may_disconnect: true;
 }
 
-export interface IveKitRustDeskGatewayDisconnectState {
+export interface ConveractFabricRustDeskGatewayDisconnectState {
   required: true;
   status: RustDeskDeviceCommandStatus | 'unavailable';
   command: RustDeskDeviceCommand | null;
 }
 
-export interface IveKitRustDeskHttpClient {
+export interface ConveractFabricRustDeskHttpClient {
   getClientConfig(): Promise<RustDeskClientConfig>;
-  getClientProfile(input: GetIveKitRustDeskClientProfileInput): Promise<RustDeskClientDistributionProfile>;
-  registerDevice(input: RegisterIveKitRustDeskDeviceInput): Promise<RustDeskDevice>;
+  getClientProfile(input: GetConveractFabricRustDeskClientProfileInput): Promise<RustDeskClientDistributionProfile>;
+  registerDevice(input: RegisterConveractFabricRustDeskDeviceInput): Promise<RustDeskDevice>;
   getDevice(deviceId: string): Promise<RustDeskDevice>;
-  listDevicesByBusinessRef(input: ListIveKitRustDeskDevicesByRefInput): Promise<RustDeskDevice[]>;
-  heartbeatDevice(deviceId: string, input: HeartbeatIveKitRustDeskDeviceInput): Promise<RustDeskDevice>;
+  listDevicesByBusinessRef(input: ListConveractFabricRustDeskDevicesByRefInput): Promise<RustDeskDevice[]>;
+  heartbeatDevice(deviceId: string, input: HeartbeatConveractFabricRustDeskDeviceInput): Promise<RustDeskDevice>;
   deactivateDevice(deviceId: string): Promise<RustDeskDevice>;
-  startGatewaySession(input: StartIveKitRustDeskGatewaySessionInput): Promise<RemoteToolSession>;
-  getGatewayLaunchPlan(externalId: string, input?: GetIveKitRustDeskGatewayLaunchPlanInput): Promise<RustDeskGatewayLaunchPlan>;
+  startGatewaySession(input: StartConveractFabricRustDeskGatewaySessionInput): Promise<RemoteToolSession>;
+  getGatewayLaunchPlan(externalId: string, input?: GetConveractFabricRustDeskGatewayLaunchPlanInput): Promise<RustDeskGatewayLaunchPlan>;
   recordGatewayEvent(
     externalId: string,
-    input: RecordIveKitRustDeskGatewayEventInput
+    input: RecordConveractFabricRustDeskGatewayEventInput
   ): Promise<RemoteGatewayAuditEvent>;
   listGatewayAuditEvents(
     externalId: string,
-    input?: ListIveKitRustDeskGatewayAuditEventsInput
+    input?: ListConveractFabricRustDeskGatewayAuditEventsInput
   ): Promise<RemoteGatewayAuditEvent[]>;
-  endGatewaySession(externalId: string, input: EndIveKitRustDeskGatewaySessionInput): Promise<void>;
+  endGatewaySession(externalId: string, input: EndConveractFabricRustDeskGatewaySessionInput): Promise<void>;
   authorizeEmergencyFallback(
     externalId: string,
-    input: AuthorizeIveKitRustDeskEmergencyFallbackInput
+    input: AuthorizeConveractFabricRustDeskEmergencyFallbackInput
   ): Promise<RustDeskDeviceCommand>;
   getGatewayDisconnectState(externalId: string): Promise<RustDeskDisconnectState>;
 }
 
-export interface IveKitRustDeskAuthorizationHttpClient extends IveKitRustDeskHttpClient {
+export interface ConveractFabricRustDeskAuthorizationHttpClient extends ConveractFabricRustDeskHttpClient {
   requestAuthorizationCode(
-    input: RequestIveKitRustDeskAuthorizationCodeInput,
-    options: IveKitRustDeskAuthorizationCodeOptions
+    input: RequestConveractFabricRustDeskAuthorizationCodeInput,
+    options: ConveractFabricRustDeskAuthorizationCodeOptions
   ): Promise<RustDeskAuthorizationCodeCreateResult>;
   getAuthorizationCode(authorizationId: string): Promise<RustDeskAuthorizationCode>;
   verifyAuthorizationCode(
     authorizationId: string,
-    input: VerifyIveKitRustDeskAuthorizationCodeInput
+    input: VerifyConveractFabricRustDeskAuthorizationCodeInput
   ): Promise<RustDeskAuthorizationCode>;
 }
 
-export interface IveKitRustDeskAccessPolicyHttpClient extends IveKitRustDeskAuthorizationHttpClient {
+export interface ConveractFabricRustDeskAccessPolicyHttpClient extends ConveractFabricRustDeskAuthorizationHttpClient {
   getAccessPolicy(deviceId: string): Promise<RustDeskAccessPolicyCurrent>;
   listAccessPolicyHistory(deviceId: string): Promise<RustDeskAccessPolicyHistory>;
   configureAccessPolicy(
     deviceId: string,
-    input: ConfigureIveKitRustDeskAccessPolicyInput,
-    options: IveKitRustDeskAccessPolicyMutationOptions
+    input: ConfigureConveractFabricRustDeskAccessPolicyInput,
+    options: ConveractFabricRustDeskAccessPolicyMutationOptions
   ): Promise<RustDeskAccessPolicyMutationResult>;
   revokeAccessPolicy(
     deviceId: string,
-    input: RevokeIveKitRustDeskAccessPolicyInput,
-    options: IveKitRustDeskAccessPolicyMutationOptions
+    input: RevokeConveractFabricRustDeskAccessPolicyInput,
+    options: ConveractFabricRustDeskAccessPolicyMutationOptions
   ): Promise<RustDeskAccessPolicyMutationResult>;
 }
 
-export interface IveKitRustDeskControlHttpClient extends IveKitRustDeskAccessPolicyHttpClient {
+export interface ConveractFabricRustDeskControlHttpClient extends ConveractFabricRustDeskAccessPolicyHttpClient {
   getControlOwnership(externalId: string): Promise<RustDeskControlOwnership>;
-  issueControlConfirmation(externalId: string, input: IssueIveKitRustDeskConfirmationInput): Promise<RustDeskSecondaryConfirmation>;
-  acquireControl(externalId: string, input: AcquireIveKitRustDeskControlInput): Promise<RustDeskControlOwnership>;
-  heartbeatControl(externalId: string, input: HeartbeatIveKitRustDeskControlInput): Promise<RustDeskControlOwnership>;
-  releaseControl(externalId: string, input: ReleaseIveKitRustDeskControlInput): Promise<RustDeskControlOwnership>;
-  transferControl(externalId: string, input: TransferIveKitRustDeskControlInput): Promise<RustDeskControlOwnership>;
-  confirmOperation(externalId: string, input: ConfirmIveKitRustDeskOperationInput): Promise<RustDeskOperationAuthorization>;
+  issueControlConfirmation(externalId: string, input: IssueConveractFabricRustDeskConfirmationInput): Promise<RustDeskSecondaryConfirmation>;
+  acquireControl(externalId: string, input: AcquireConveractFabricRustDeskControlInput): Promise<RustDeskControlOwnership>;
+  heartbeatControl(externalId: string, input: HeartbeatConveractFabricRustDeskControlInput): Promise<RustDeskControlOwnership>;
+  releaseControl(externalId: string, input: ReleaseConveractFabricRustDeskControlInput): Promise<RustDeskControlOwnership>;
+  transferControl(externalId: string, input: TransferConveractFabricRustDeskControlInput): Promise<RustDeskControlOwnership>;
+  confirmOperation(externalId: string, input: ConfirmConveractFabricRustDeskOperationInput): Promise<RustDeskOperationAuthorization>;
 }
 
-export class IveKitRustDeskHttpError extends Error {
+export class ConveractFabricRustDeskHttpError extends Error {
   constructor(
     message: string,
     readonly status: number,
@@ -255,13 +255,13 @@ export class IveKitRustDeskHttpError extends Error {
     readonly payload: unknown
   ) {
     super(message);
-    this.name = 'IveKitRustDeskHttpError';
+    this.name = 'ConveractFabricRustDeskHttpError';
   }
 }
 
-export function createIveKitRustDeskHttpClient(
-  input: IveKitRustDeskHttpClientInput
-): IveKitRustDeskControlHttpClient {
+export function createConveractFabricRustDeskHttpClient(
+  input: ConveractFabricRustDeskHttpClientInput
+): ConveractFabricRustDeskControlHttpClient {
   const baseUrl = validateBaseUrl(input.baseUrl);
   const apiKey = String(input.apiKey || '').trim();
   const accessToken = String(input.accessToken || '').trim();
@@ -306,13 +306,13 @@ export function createIveKitRustDeskHttpClient(
       const message = controller.signal.aborted
         ? `${method} ${path} timed out after ${timeoutMs}ms`
         : `${method} ${path} failed: ${error instanceof Error ? error.message : String(error)}`;
-      throw new IveKitRustDeskHttpError(message, 0, method, path, null);
+      throw new ConveractFabricRustDeskHttpError(message, 0, method, path, null);
     } finally {
       clearTimeout(timer);
     }
     const payload = await readResponsePayload(response);
     if (!response.ok) {
-      throw new IveKitRustDeskHttpError(
+      throw new ConveractFabricRustDeskHttpError(
         `${method} ${path} failed with ${response.status}: ${errorDetail(payload)}`,
         response.status,
         method,
@@ -615,7 +615,7 @@ export function projectRustDeskAccessPolicyEvent(value: unknown): RustDeskAccess
   };
 }
 
-function projectConfigureAccessPolicyInput(input: ConfigureIveKitRustDeskAccessPolicyInput) {
+function projectConfigureAccessPolicyInput(input: ConfigureConveractFabricRustDeskAccessPolicyInput) {
   const policy = policyMutationInput(input, [
     'mode',
     'allowed_scopes',
@@ -646,7 +646,7 @@ function projectConfigureAccessPolicyInput(input: ConfigureIveKitRustDeskAccessP
   };
 }
 
-function projectRevokeAccessPolicyInput(input: RevokeIveKitRustDeskAccessPolicyInput) {
+function projectRevokeAccessPolicyInput(input: RevokeConveractFabricRustDeskAccessPolicyInput) {
   const policy = policyMutationInput(input, ['reason']);
   return { reason: policyReason(policy.reason) };
 }
@@ -658,7 +658,7 @@ function policyMutationInput(value: unknown, allowed: readonly string[]): Record
   return input;
 }
 
-function policyIdempotencyKey(options: IveKitRustDeskAccessPolicyMutationOptions): string {
+function policyIdempotencyKey(options: ConveractFabricRustDeskAccessPolicyMutationOptions): string {
   const key = String(options?.idempotencyKey || '').trim();
   if (!key) throw new Error('idempotencyKey is required');
   if (key.length > 200) throw new Error('idempotencyKey must be at most 200 characters');
@@ -675,7 +675,7 @@ function rustDeskAuthorizationCodePath(authorizationId: string): string {
   )}`;
 }
 
-function projectAuthorizationCodeRequest(input: RequestIveKitRustDeskAuthorizationCodeInput) {
+function projectAuthorizationCodeRequest(input: RequestConveractFabricRustDeskAuthorizationCodeInput) {
   const row = policyMutationInput(input, [
     'remote_session_id',
     'device_id',
@@ -883,7 +883,7 @@ function invalidPolicyInput(): Error {
 
 export async function projectRustDeskClientDistributionProfile(
   value: unknown,
-  expected: GetIveKitRustDeskClientProfileInput,
+  expected: GetConveractFabricRustDeskClientProfileInput,
   now = new Date()
 ): Promise<RustDeskClientDistributionProfile> {
   const nowMs = now.getTime();
@@ -1142,7 +1142,7 @@ function validateDistributionArtifactIdentity(
     throw invalidDistribution('install_source.extension');
   }
   const customWindowsFilename = platform === 'windows' && architecture === 'x86_64' &&
-    /^rustdesk-1\.4\.9-ivekit[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename);
+    /^rustdesk-1\.4\.9-converact[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename);
   if (filename !== `rustdesk-1.4.9-${architecture}${extension}` && !customWindowsFilename) {
     throw invalidDistribution('install_source.filename');
   }

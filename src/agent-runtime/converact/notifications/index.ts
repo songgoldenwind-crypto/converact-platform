@@ -148,11 +148,11 @@ export type { NotificationProviderResolverInput } from './provider-resolver.js';
 export { NotificationEndpointService } from './endpoint-service.js';
 export {
   createPostgresNotificationHttpModule,
-  routeIveKitNotificationApi
+  routeConveractFabricNotificationApi
 } from './http.js';
 export type {
   NotificationHttpModule,
-  RouteIveKitNotificationApiOptions
+  RouteConveractFabricNotificationApiOptions
 } from './http.js';
 export {
   NotificationDeliveryWorker,

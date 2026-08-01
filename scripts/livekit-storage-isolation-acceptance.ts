@@ -106,7 +106,7 @@ export async function runLiveKitStorageIsolationAcceptance(
   config: LiveKitStorageIsolationConfig,
   runtime: LiveKitStorageIsolationRuntime
 ): Promise<LiveKitStorageIsolationResult> {
-  const roomName = `ivekit-storage-isolation-${Date.now().toString(36)}`;
+  const roomName = `converact-storage-isolation-${Date.now().toString(36)}`;
   let roomCreated = false;
   let peersOpened = false;
   let storageStopped = false;
@@ -271,9 +271,9 @@ export async function createDefaultLiveKitStorageIsolationRuntime(
       for (const page of pages) {
         await page.evaluate(async () => {
           const state = globalThis as typeof globalThis & {
-            __ivekitStorageIsolationRoom?: { disconnect(): Promise<void> };
+            __converactFabricStorageIsolationRoom?: { disconnect(): Promise<void> };
           };
-          await state.__ivekitStorageIsolationRoom?.disconnect();
+          await state.__converactFabricStorageIsolationRoom?.disconnect();
         }).catch(() => undefined);
       }
       for (const context of contexts.reverse()) {
@@ -343,9 +343,9 @@ interface BrowserStatsReport {
 
 export async function readLiveKitMediaPeerSnapshotInBrowser(): Promise<LiveKitMediaPeerSnapshot> {
   const state = globalThis as typeof globalThis & {
-    __ivekitStorageIsolationRoom?: BrowserLiveKitRoom;
+    __converactFabricStorageIsolationRoom?: BrowserLiveKitRoom;
   };
-  const room = state.__ivekitStorageIsolationRoom;
+  const room = state.__converactFabricStorageIsolationRoom;
   if (!room) throw new Error('LiveKit browser peer is unavailable');
   const pcManager = room.engine?.pcManager;
   if (!pcManager) throw new Error('LiveKit peer connection manager is unavailable');
@@ -427,14 +427,14 @@ async function connectBrowserPeer(
           };
         };
       };
-      __ivekitStorageIsolationRoom?: BrowserLiveKitRoom;
+      __converactFabricStorageIsolationRoom?: BrowserLiveKitRoom;
     };
     if (!state.LivekitClient) throw new Error('LiveKit browser SDK is unavailable');
     const room = new state.LivekitClient.Room({ adaptiveStream: false, dynacast: false });
     await room.connect(url, accessToken);
     await room.localParticipant.setMicrophoneEnabled(true);
     await room.localParticipant.setCameraEnabled(true);
-    state.__ivekitStorageIsolationRoom = room;
+    state.__converactFabricStorageIsolationRoom = room;
   }, { url: livekitUrl, accessToken: token });
 }
 
@@ -473,11 +473,11 @@ function resolveClientDependency(packageName: 'playwright' | 'livekit-client'): 
   }
   const scriptDirectory = dirname(fileURLToPath(import.meta.url));
   const roots = [
-    join(scriptDirectory, '..', 'clients', 'ivekit-reference'),
-    join(process.cwd(), 'clients', 'ivekit-reference')
+    join(scriptDirectory, '..', 'clients', 'converact-reference'),
+    join(process.cwd(), 'clients', 'converact-reference')
   ];
   const clientRoot = roots.find((candidate) => existsSync(candidate));
-  if (!clientRoot) throw new Error('iveKit reference client dependencies are unavailable');
+  if (!clientRoot) throw new Error('Converact Fabric reference client dependencies are unavailable');
   return resolver.resolve(packageName, { paths: [clientRoot] });
 }
 

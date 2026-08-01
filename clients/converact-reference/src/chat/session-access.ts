@@ -1,10 +1,10 @@
 import type {
-  IveKitChatMessage,
-  IveKitChatParticipant,
-  IveKitChatPin,
-  IveKitChatReaction,
-  IveKitChatSession,
-  IveKitPolicyFinding
+  ConveractFabricChatMessage,
+  ConveractFabricChatParticipant,
+  ConveractFabricChatPin,
+  ConveractFabricChatReaction,
+  ConveractFabricChatSession,
+  ConveractFabricPolicyFinding
 } from '@converact/sdk';
 
 export interface CollaborationRealtimeEnvelope {
@@ -13,16 +13,16 @@ export interface CollaborationRealtimeEnvelope {
     session_id?: string;
     participant?: { identity?: string };
     message_id?: string;
-    message?: IveKitChatMessage;
-    reactions?: IveKitChatReaction[];
-    pins?: IveKitChatPin[];
-    finding?: IveKitPolicyFinding;
+    message?: ConveractFabricChatMessage;
+    reactions?: ConveractFabricChatReaction[];
+    pins?: ConveractFabricChatPin[];
+    finding?: ConveractFabricPolicyFinding;
   };
 }
 
 export function sessionAllowsWrites(
-  session: Pick<IveKitChatSession, 'status'>,
-  participants: Pick<IveKitChatParticipant, 'identity' | 'left_at'>[],
+  session: Pick<ConveractFabricChatSession, 'status'>,
+  participants: Pick<ConveractFabricChatParticipant, 'identity' | 'left_at'>[],
   identity: string
 ): boolean {
   return session.status === 'open' && participants.some(

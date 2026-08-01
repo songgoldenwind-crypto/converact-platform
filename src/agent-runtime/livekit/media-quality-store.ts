@@ -2,11 +2,11 @@ import { pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import type { MediaQualityStorePort } from './media-quality-service.js';
 import type {
-  IveKitMediaConnectionEvent,
-  IveKitMediaConnectionState,
-  IveKitMediaQualityParticipantState,
-  IveKitMediaQualitySnapshot,
-  IveKitMediaQualitySummary
+  ConveractFabricMediaConnectionEvent,
+  ConveractFabricMediaConnectionState,
+  ConveractFabricMediaQualityParticipantState,
+  ConveractFabricMediaQualitySnapshot,
+  ConveractFabricMediaQualitySummary
 } from './types.js';
 
 export class MediaQualityStore implements MediaQualityStorePort {
@@ -25,7 +25,7 @@ export class MediaQualityStore implements MediaQualityStorePort {
     tenant_id: string;
     call_id: string;
     identity: string;
-  }): Promise<IveKitMediaQualityParticipantState | null> {
+  }): Promise<ConveractFabricMediaQualityParticipantState | null> {
     const result = await this.pg.query(
       `SELECT tenant_id, call_id, identity, status AS participant_status,
               connection_revision, connection_state, connection_updated_at,
@@ -42,7 +42,7 @@ export class MediaQualityStore implements MediaQualityStorePort {
 
   async insertQualitySnapshot(
     input: Parameters<MediaQualityStorePort['insertQualitySnapshot']>[0]
-  ): Promise<{ snapshot: IveKitMediaQualitySnapshot; replayed: boolean }> {
+  ): Promise<{ snapshot: ConveractFabricMediaQualitySnapshot; replayed: boolean }> {
     const result = await this.pg.query(
       `INSERT INTO ivekit_media_quality_snapshots
         (id, tenant_id, call_id, participant_identity, connection_revision,
@@ -96,7 +96,7 @@ export class MediaQualityStore implements MediaQualityStorePort {
 
   async updateParticipantQuality(
     input: Parameters<MediaQualityStorePort['updateParticipantQuality']>[0]
-  ): Promise<IveKitMediaQualityParticipantState> {
+  ): Promise<ConveractFabricMediaQualityParticipantState> {
     const result = await this.pg.query(
       `UPDATE ivekit_media_call_participants
        SET connection_state = CASE
@@ -140,7 +140,7 @@ export class MediaQualityStore implements MediaQualityStorePort {
 
   async getConnectionEvent(
     input: Parameters<MediaQualityStorePort['getConnectionEvent']>[0]
-  ): Promise<{ value: IveKitMediaConnectionEvent; payloadHash: string } | null> {
+  ): Promise<{ value: ConveractFabricMediaConnectionEvent; payloadHash: string } | null> {
     const result = await this.pg.query(
       `SELECT * FROM ivekit_media_connection_events
        WHERE tenant_id = $1 AND call_id = $2 AND participant_identity = $3 AND event_id = $4`,
@@ -155,7 +155,7 @@ export class MediaQualityStore implements MediaQualityStorePort {
 
   async insertConnectionEvent(
     input: Parameters<MediaQualityStorePort['insertConnectionEvent']>[0]
-  ): Promise<IveKitMediaConnectionEvent> {
+  ): Promise<ConveractFabricMediaConnectionEvent> {
     const result = await this.pg.query(
       `INSERT INTO ivekit_media_connection_events
         (id, tenant_id, call_id, participant_identity, event_id,
@@ -180,7 +180,7 @@ export class MediaQualityStore implements MediaQualityStorePort {
 
   async updateParticipantConnection(
     input: Parameters<MediaQualityStorePort['updateParticipantConnection']>[0]
-  ): Promise<IveKitMediaQualityParticipantState> {
+  ): Promise<ConveractFabricMediaQualityParticipantState> {
     const result = await this.pg.query(
       `UPDATE ivekit_media_call_participants
        SET quality_state = CASE WHEN connection_revision < $4 THEN 'unknown' ELSE quality_state END,
@@ -218,7 +218,7 @@ export class MediaQualityStore implements MediaQualityStorePort {
 
   async getQualitySummary(
     input: Parameters<MediaQualityStorePort['getQualitySummary']>[0]
-  ): Promise<IveKitMediaQualitySummary | null> {
+  ): Promise<ConveractFabricMediaQualitySummary | null> {
     const call = await this.pg.query(
       'SELECT id FROM ivekit_media_calls WHERE tenant_id = $1 AND id = $2',
       [input.tenant_id, input.call_id]
@@ -272,27 +272,27 @@ export class MediaQualityStore implements MediaQualityStorePort {
   }
 }
 
-function decodeParticipantState(row: Record<string, unknown>): IveKitMediaQualityParticipantState {
+function decodeParticipantState(row: Record<string, unknown>): ConveractFabricMediaQualityParticipantState {
   return {
     tenant_id: String(row.tenant_id),
     call_id: String(row.call_id),
     identity: String(row.identity),
-    participant_status: String(row.participant_status) as IveKitMediaQualityParticipantState['participant_status'],
+    participant_status: String(row.participant_status) as ConveractFabricMediaQualityParticipantState['participant_status'],
     connection_revision: Number(row.connection_revision || 0),
-    connection_state: String(row.connection_state || 'disconnected') as IveKitMediaConnectionState,
+    connection_state: String(row.connection_state || 'disconnected') as ConveractFabricMediaConnectionState,
     connection_updated_at: nullableTimestamp(row.connection_updated_at),
     last_disconnected_at: nullableTimestamp(row.last_disconnected_at),
     last_rejoined_at: nullableTimestamp(row.last_rejoined_at),
-    quality_state: String(row.quality_state || 'unknown') as IveKitMediaQualityParticipantState['quality_state'],
+    quality_state: String(row.quality_state || 'unknown') as ConveractFabricMediaQualityParticipantState['quality_state'],
     quality_degraded_streak: Number(row.quality_degraded_streak || 0),
     quality_recovered_streak: Number(row.quality_recovered_streak || 0),
-    last_quality_level: String(row.last_quality_level || 'unknown') as IveKitMediaQualityParticipantState['last_quality_level'],
+    last_quality_level: String(row.last_quality_level || 'unknown') as ConveractFabricMediaQualityParticipantState['last_quality_level'],
     last_quality_sample_id: String(row.last_quality_sample_id || ''),
     last_qos_at: nullableTimestamp(row.last_qos_at)
   };
 }
 
-function decodeSnapshot(row: Record<string, unknown>): IveKitMediaQualitySnapshot {
+function decodeSnapshot(row: Record<string, unknown>): ConveractFabricMediaQualitySnapshot {
   return {
     id: String(row.id),
     tenant_id: String(row.tenant_id),
@@ -300,8 +300,8 @@ function decodeSnapshot(row: Record<string, unknown>): IveKitMediaQualitySnapsho
     participant_identity: String(row.participant_identity),
     connection_revision: Number(row.connection_revision),
     sample_id: String(row.sample_id),
-    track_source: String(row.track_source) as IveKitMediaQualitySnapshot['track_source'],
-    quality_level: String(row.quality_level) as IveKitMediaQualitySnapshot['quality_level'],
+    track_source: String(row.track_source) as ConveractFabricMediaQualitySnapshot['track_source'],
+    quality_level: String(row.quality_level) as ConveractFabricMediaQualitySnapshot['quality_level'],
     rtt_ms: nullableNumber(row.rtt_ms),
     jitter_ms: nullableNumber(row.jitter_ms),
     packet_loss_ratio: nullableNumber(row.packet_loss_ratio),
@@ -312,8 +312,8 @@ function decodeSnapshot(row: Record<string, unknown>): IveKitMediaQualitySnapsho
   };
 }
 
-function decodeConnectionEvent(row: Record<string, unknown>): IveKitMediaConnectionEvent {
-  const eventType = String(row.event_type) as IveKitMediaConnectionEvent['event_type'];
+function decodeConnectionEvent(row: Record<string, unknown>): ConveractFabricMediaConnectionEvent {
+  const eventType = String(row.event_type) as ConveractFabricMediaConnectionEvent['event_type'];
   return {
     id: String(row.id),
     tenant_id: String(row.tenant_id),
@@ -330,8 +330,8 @@ function decodeConnectionEvent(row: Record<string, unknown>): IveKitMediaConnect
 }
 
 function connectionStateForEvent(
-  eventType: IveKitMediaConnectionEvent['event_type']
-): IveKitMediaConnectionState {
+  eventType: ConveractFabricMediaConnectionEvent['event_type']
+): ConveractFabricMediaConnectionState {
   if (eventType === 'connected' || eventType === 'reconnected' || eventType === 'rejoined') {
     return 'connected';
   }

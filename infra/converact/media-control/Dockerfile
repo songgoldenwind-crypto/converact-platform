@@ -13,15 +13,15 @@ COPY src ./src
 COPY scripts ./scripts
 COPY shared ./shared
 
-RUN install -d -m 0700 /var/lib/ivekit-media-control \
-    && chown node:node /var/lib/ivekit-media-control
+RUN install -d -m 0700 /var/lib/converact-media-control \
+    && chown node:node /var/lib/converact-media-control
 
 ENV NODE_ENV=production
-ENV IVEKIT_MEDIA_CONTROL_HOST=0.0.0.0
-ENV IVEKIT_MEDIA_CONTROL_PORT=3211
+ENV CONVERACT_FABRIC_MEDIA_CONTROL_HOST=0.0.0.0
+ENV CONVERACT_FABRIC_MEDIA_CONTROL_PORT=3211
 
 USER node:node
 
 EXPOSE 3211
 
-ENTRYPOINT ["node", "--import", "tsx", "scripts/ivekit-media-control-agent.ts"]
+ENTRYPOINT ["node", "--import", "tsx", "scripts/converact-media-control-agent.ts"]

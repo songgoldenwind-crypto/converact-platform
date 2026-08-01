@@ -1,4 +1,4 @@
-# OPC AI 通信平台 — 完整架构设计 v3
+# Converact Platform AI 通信平台 — 完整架构设计 v3
 
 > **历史实现规格声明（2026-07-31）**：本文保留 Sprint 1–12 和既有代码对照价值；
 > 通信、媒体、Channel Agent、HF Speech Runtime、ViLTE 与 AI-native Authority 已由
@@ -48,7 +48,7 @@
                                 │ HTTP / WebSocket / WebRTC
 ┌───────────────────────────────▼─────────────────────────────────┐
 │                      接入层 (Gateway)                            │
-│  OPC Core (Node.js :3000)                                       │
+│  Converact Platform Core (Node.js :3000)                                       │
 │  ┌─────────┐ ┌──────────┐ ┌───────────┐ ┌─────────────────┐   │
 │  │ HTTP API│ │WebSocket │ │ Auth MW   │ │ Rate Limiter    │   │
 │  └─────────┘ └──────────┘ └───────────┘ └─────────────────┘   │
@@ -95,7 +95,7 @@
 
 ```mermaid
 graph LR
-    subgraph OPC["OPC Core (Node.js)"]
+    subgraph Converact Platform["Converact Platform Core (Node.js)"]
         HTTP[HTTP Router]
         WS[WebSocket Server]
         Auth[Auth Middleware]
@@ -134,9 +134,9 @@ graph LR
 | HTTP Handler | 业务模块 | 直接调用 | `transferOrchestrator.execute(...)` |
 | 业务模块 | WebSocket | `wsBroadcast(tenantId, event, data)` | 来电通知 |
 | 业务模块 | AI Agent | LiveKit Agent Dispatch | 创建 room + 派发 |
-| AI Agent | OPC | HTTP callback + Redis | tool call 结果写回 |
-| OPC | RustPBX | HTTP API / RWI WebSocket | 拨号/路由指令 |
-| RustPBX | OPC | HTTP webhook | 来电/CDR 事件 |
+| AI Agent | Converact Platform | HTTP callback + Redis | tool call 结果写回 |
+| Converact Platform | RustPBX | HTTP API / RWI WebSocket | 拨号/路由指令 |
+| RustPBX | Converact Platform | HTTP webhook | 来电/CDR 事件 |
 
 ---
 
@@ -669,15 +669,15 @@ Key 结构:
 | `pendingDisclosures` | AI 披露状态 | ❌ 进程内 `Map`（`disclosure-enforcer.ts:43`） | P1：多实例失效 |
 | `dialerWaitRegistry` | 拨号等待 | ❌ 进程内 `Map`（`dialer-wait-registry.ts:6`） | P1：多实例失效 |
 
-> **结论**：Redis session cache 已落地，但 5 处关键运行态仍是进程内 Map/DB 查询，多实例水平扩展会失真。`src/redis.ts` 文件不存在——实际 Redis 客户端在 `src/agent-runtime/call-center/redis-client.ts`（ioredis + `OPC_USE_MEMORY_REDIS=1` 时退回 MemoryRedis）。
+> **结论**：Redis session cache 已落地，但 5 处关键运行态仍是进程内 Map/DB 查询，多实例水平扩展会失真。`src/redis.ts` 文件不存在——实际 Redis 客户端在 `src/agent-runtime/call-center/redis-client.ts`（ioredis + `CONVERACT_USE_MEMORY_REDIS=1` 时退回 MemoryRedis）。
 
 **AI Agent 读写时序**:
 ```
-1. OPC 创建 call session → 写 Postgres + 写 Redis session:{id}
+1. Converact Platform 创建 call session → 写 Postgres + 写 Redis session:{id}
 2. AI Agent 启动 → Redis GET session:{id} (5ms)
 3. AI Agent tool call → Redis SET session:{id} fields (5ms)
 4. AI Agent fire-and-forget → HTTP POST /api/.../persist (异步落库 Postgres)
-5. 通话结束 → OPC 从 Redis 读最终状态 → 写 Postgres → DEL session:{id}
+5. 通话结束 → Converact Platform 从 Redis 读最终状态 → 写 Postgres → DEL session:{id}
 ```
 
 ---
@@ -691,7 +691,7 @@ Key 结构:
 from livekit.agents import Agent, AgentSession, function_tool
 
 class BaseOPCAgent(Agent):
-    """所有 OPC Agent 的基类"""
+    """所有 Converact Platform Agent 的基类"""
     
     def __init__(self, session_id: str, tenant_id: str, **kwargs):
         self.session_id = session_id
@@ -704,8 +704,8 @@ class BaseOPCAgent(Agent):
         self.state = await self.redis.load()
     
     async def on_session_end(self):
-        """持久化最终状态到 Postgres（通过 OPC API）"""
-        await self.opc.persist_session(self.session_id, self.state)
+        """持久化最终状态到 Postgres（通过 Converact Platform API）"""
+        await self.converact.persist_session(self.session_id, self.state)
 
 
 # services/ai-agent-py/agents/outbound.py
@@ -769,8 +769,8 @@ async def tool_name(
     # 1. 先操作 Redis（同步返回给 LLM，< 10ms）
     await redis.hset(f"session:{ctx.session_id}", ...)
     
-    # 2. 异步通知 OPC（fire-and-forget，不阻塞 LLM）
-    asyncio.create_task(opc.notify(...))
+    # 2. 异步通知 Converact Platform（fire-and-forget，不阻塞 LLM）
+    asyncio.create_task(converact.notify(...))
     
     # 3. 返回结构化结果
     return {"status": "ok", "data": ...}
@@ -850,7 +850,7 @@ interface DisclosureConfig {
 // 1. Agent 进入 room → 立即播放 disclosure audio
 // 2. 等待播放完成（durationMs + 500ms buffer）
 // 3. AI Agent 调用 disclosure_complete() tool
-// 4. OPC 记录 consent（ai_disclosure: granted）
+// 4. Converact Platform 记录 consent（ai_disclosure: granted）
 // 5. 正式开始对话
 ```
 
@@ -910,26 +910,26 @@ GET /api/auth/me
 sequenceDiagram
     participant PSTN as 客户电话
     participant RPX as RustPBX
-    participant OPC as OPC Core
+    participant Converact Platform as Converact Platform Core
     participant Q as 队列引擎
     participant WS as WebSocket
     participant Agent as 坐席
 
     PSTN->>RPX: SIP INVITE
-    RPX->>OPC: POST /api/call-router {from, to, did}
-    OPC->>OPC: DID → tenant → 路由规则查找
+    RPX->>Converact Platform: POST /api/call-router {from, to, did}
+    Converact Platform->>Converact Platform: DID → tenant → 路由规则查找
     
     alt AI IVR 分流
-        OPC->>RPX: route_to_livekit (AI InboundAgent)
+        Converact Platform->>RPX: route_to_livekit (AI InboundAgent)
         Note over RPX: AI 处理来电
     else 直接排队
-        OPC->>RPX: route_to_queue {queueId, music}
-        OPC->>Q: enqueue(callId, queueId, priority)
+        Converact Platform->>RPX: route_to_queue {queueId, music}
+        Converact Platform->>Q: enqueue(callId, queueId, priority)
         Q->>Q: 找到最佳坐席 (ACD 策略)
         Q->>WS: call.incoming {callId, from, summary}
         WS->>Agent: 来电弹屏
-        Agent->>OPC: POST /accept-call {callId}
-        OPC->>RPX: bridge(callId, agentSipUri)
+        Agent->>Converact Platform: POST /accept-call {callId}
+        Converact Platform->>RPX: bridge(callId, agentSipUri)
     end
 ```
 
@@ -978,10 +978,10 @@ interface PredictiveDialer {
 interface ChannelAdapter {
   readonly channelType: 'webchat' | 'whatsapp' | 'sms' | 'email' | 'wechat';
   
-  // 接收消息（外部 webhook → OPC）
+  // 接收消息（外部 webhook → Converact Platform）
   handleIncoming(payload: unknown): Promise<IncomingMessage>;
   
-  // 发送消息（OPC → 外部）
+  // 发送消息（Converact Platform → 外部）
   sendMessage(conversationId: string, message: OutgoingMessage): Promise<void>;
   
   // 验证 webhook 签名
@@ -1002,7 +1002,7 @@ interface IncomingMessage {
 
 | 渠道 | 接入方式 | Adapter 实现 |
 |------|---------|-------------|
-| Web Chat | 自建 JS Widget → OPC WS | `webchat-adapter.ts` |
+| Web Chat | 自建 JS Widget → Converact Platform WS | `webchat-adapter.ts` |
 | WhatsApp | WhatsApp Cloud API webhook | `whatsapp-adapter.ts` |
 | SMS | Twilio/阿里云 webhook | `sms-adapter.ts` |
 | Email | IMAP 轮询 + SMTP 发送 | `email-adapter.ts` (已有基础) |
@@ -1052,7 +1052,7 @@ services:
     image: ghcr.io/restsend/rustpbx
     ports: ["5060:5060/udp", "8080:8080"]
   
-  opc:
+  converact:
     build: .
     ports: ["3000:3000"]
     depends_on: [postgres, redis, minio, livekit, rustpbx]
@@ -1064,9 +1064,9 @@ services:
   
   ai-agent:
     build: ./services/ai-agent-py
-    depends_on: [opc, redis, livekit]
+    depends_on: [converact, redis, livekit]
     environment:
-      OPC_API_URL: http://opc:3000
+      CONVERACT_API_URL: http://converact:3000
       REDIS_URL: redis://redis:6379
       LIVEKIT_URL: ws://livekit:7880
 ```
@@ -1081,7 +1081,7 @@ services:
               ┌────────────┼────────────┐
               │            │            │
         ┌─────▼─────┐ ┌───▼────┐ ┌────▼────┐
-        │  OPC ×3   │ │Frontend│ │ AI Agent│
+        │  Converact Platform ×3   │ │Frontend│ │ AI Agent│
         │  (K8s Pod)│ │ (Nginx)│ │  ×N     │
         └─────┬─────┘ └────────┘ └────┬────┘
               │                        │
@@ -1354,9 +1354,9 @@ src/agent-runtime/call-center/agent-tools/
 
 | Subject | 数据 | 消费者 |
 |---------|------|--------|
-| `opc.call.ended` | call session 全量 | QM Worker, Analytics |
-| `opc.qm.scored` | evaluation result | Notification, Webhook |
-| `opc.seat.timeout` | seat info | ACD Engine |
+| `converact.call.ended` | call session 全量 | QM Worker, Analytics |
+| `converact.qm.scored` | evaluation result | Notification, Webhook |
+| `converact.seat.timeout` | seat info | ACD Engine |
 
 ---
 
@@ -1365,7 +1365,7 @@ src/agent-runtime/call-center/agent-tools/
 ### 14.1 最终目标结构
 
 ```
-opc/
+converact/
 ├── docs/design/               # 设计文档
 ├── frontend/                  # React SPA
 │   └── src/
@@ -1381,7 +1381,7 @@ opc/
 │       ├── plugins/          # STT/TTS/LLM 插件
 │       ├── tools/            # function_tool 定义
 │       └── tests/
-├── src/                      # OPC Core (Node.js)
+├── src/                      # Converact Platform Core (Node.js)
 │   ├── migrations/           # SQL migrations (NEW)
 │   ├── middleware/           # auth, rate-limit
 │   ├── agent-runtime/
@@ -1435,7 +1435,7 @@ opc/
 | 维度 | 旧版 (v2) | 本版 (v3) |
 |------|-----------|-----------|
 | 数据库 | SQLite + 未来 Postgres | **Postgres Day 1**, SQLite 仅 unit test | ⚠️ **现状校准**：SQLite 仍是业务主库（`src/server.ts:11` 无条件创建），Postgres 仅在设 `DATABASE_URL` 时启用且仅服务 auth/compliance 子集。billing/audit/inbound 仍用 SQLite。 |
-| API Gateway | Kong | **去掉**, OPC 自带 | ✅ 已落地（`src/middleware/auth.ts`） |
+| API Gateway | Kong | **去掉**, Converact Platform 自带 | ✅ 已落地（`src/middleware/auth.ts`） |
 | 实时通知 | 无 | **WebSocket + Redis PubSub** | ⚠️ SSE 已实现（`sse-manager.ts`），Redis PubSub 部分实现（session cache 已用 Redis，roundRobinCursor/pendingDisclosures/dialerWaitRegistry 仍是进程内 Map） |
 | 认证 | Keycloak | **自签 JWT + bcrypt** | ✅ 已落地（`src/middleware/auth.ts`） |
 | AI Agent 状态 | HTTP 每次查 DB | **Redis cache + 异步落库** | ⚠️ session cache 已用 Redis（`redis-session-cache.ts`），异步落库部分实现 |
@@ -1452,4 +1452,4 @@ opc/
 | 版本 | 日期 | 作者 | 变更内容 |
 |------|------|------|---------|
 | v3.0 | 2026-06-21 | - | 初始完整架构 v3（Sprint 1-12 规格全决策，含 2026-06-22 内嵌现状校准笔记） |
-| v3.1 | 2026-06-29 | OPC Team | 按 `docs/design/README.md` §4 准绳：(1) 头部加 `<关联文档>` block 与「现状校准」总纲段，强化 §4 SSE-vs-WS / §3 SQLite-vs-Postgres 的现状-vs-spec 差异提醒（正文已有内嵌校准 L239/L647/L1398/L1425 等，未改写 spec）；(2) 附录「全渠道」行 Chatwoot 加 `【已废】` 前缀；(3) 状态从「可直接编码」加 caveat 指向现状校准段。未改 §1-§13 任何目标态规格与内嵌现状笔记。 |
+| v3.1 | 2026-06-29 | Converact Platform Team | 按 `docs/design/README.md` §4 准绳：(1) 头部加 `<关联文档>` block 与「现状校准」总纲段，强化 §4 SSE-vs-WS / §3 SQLite-vs-Postgres 的现状-vs-spec 差异提醒（正文已有内嵌校准 L239/L647/L1398/L1425 等，未改写 spec）；(2) 附录「全渠道」行 Chatwoot 加 `【已废】` 前缀；(3) 状态从「可直接编码」加 caveat 指向现状校准段。未改 §1-§13 任何目标态规格与内嵌现状笔记。 |

@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: ivekit-rtpengine
+  name: converact-rtpengine
   labels:
-    app.kubernetes.io/name: ivekit-rtpengine
+    app.kubernetes.io/name: converact-rtpengine
 spec:
   type: ClusterIP
   clusterIP: None
   selector:
-    app.kubernetes.io/name: ivekit-rtpengine
+    app.kubernetes.io/name: converact-rtpengine
   ports:
     - name: metrics
       port: 8080

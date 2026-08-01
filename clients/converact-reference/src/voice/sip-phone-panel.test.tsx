@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { after, afterEach, test } from 'node:test';
 import React from 'react';
 import type {
-  IveKitSipWebPhone,
-  IveKitSipWebPhoneState
+  ConveractFabricSipWebPhone,
+  ConveractFabricSipWebPhoneState
 } from '@converact/sdk/sip-webphone';
-import type { IveKitVoiceExtensionSessionPlan } from '@converact/sdk';
+import type { ConveractFabricVoiceExtensionSessionPlan } from '@converact/sdk';
 
 import { installTestDom } from '../test-dom.js';
 
@@ -18,16 +18,16 @@ afterEach(() => cleanup());
 
 test('SIP phone panel exposes the complete single-call workflow without rendering credentials', async () => {
   const actions: string[] = [];
-  let state: Readonly<IveKitSipWebPhoneState> = {
+  let state: Readonly<ConveractFabricSipWebPhoneState> = {
     registration: 'idle', call: 'idle', remote_identity: '', muted: false,
     input_device_id: '', output_device_id: '', error: null
   };
-  const listeners = new Set<(value: Readonly<IveKitSipWebPhoneState>) => void>();
-  const emit = (patch: Partial<IveKitSipWebPhoneState>) => {
+  const listeners = new Set<(value: Readonly<ConveractFabricSipWebPhoneState>) => void>();
+  const emit = (patch: Partial<ConveractFabricSipWebPhoneState>) => {
     state = { ...state, ...patch };
     for (const listener of listeners) listener(state);
   };
-  const phone: IveKitSipWebPhone = {
+  const phone: ConveractFabricSipWebPhone = {
     getSnapshot: () => state,
     subscribe(listener) { listeners.add(listener); listener(state); return () => listeners.delete(listener); },
     async connect() { actions.push('connect'); emit({ registration: 'registered' }); },
@@ -88,7 +88,7 @@ test('SIP phone panel exposes the complete single-call workflow without renderin
   assert.ok(actions.includes('input:mic-a'));
 });
 
-function sessionPlan(): IveKitVoiceExtensionSessionPlan {
+function sessionPlan(): ConveractFabricVoiceExtensionSessionPlan {
   return {
     session_id: 'webrtc-session-a', extension_id: 'extension-a', transport: 'wss',
     websocket_url: 'wss://pbx.example/ws', address_of_record: 'sip:1001@pbx.example',

@@ -1,4 +1,4 @@
-import type { IveKitBusinessContext, IveKitHttpSdk } from '@converact/sdk';
+import type { ConveractFabricBusinessContext, ConveractFabricHttpSdk } from '@converact/sdk';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface BusinessRefSelection {
@@ -7,10 +7,10 @@ export interface BusinessRefSelection {
 }
 
 export function useBusinessContext(
-  client: IveKitHttpSdk | null,
+  client: ConveractFabricHttpSdk | null,
   businessRef: BusinessRefSelection | null
 ) {
-  const [context, setContext] = useState<IveKitBusinessContext | null>(null);
+  const [context, setContext] = useState<ConveractFabricBusinessContext | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const requestId = useRef(0);

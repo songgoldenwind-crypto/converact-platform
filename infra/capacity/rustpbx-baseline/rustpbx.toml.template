@@ -14,7 +14,7 @@ secure_cookie = false
 [[console.api_tokens]]
 token = "{{RUSTPBX_MANAGEMENT_TOKEN}}"
 scopes = ["extensions.write", "trunks.write", "routing.write"]
-description = "iveKit capacity baseline"
+description = "Converact Fabric capacity baseline"
 
 [ami]
 allows = ["172.30.44.0/24"]

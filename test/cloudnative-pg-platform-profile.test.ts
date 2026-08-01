@@ -41,7 +41,7 @@ test('CloudNativePG Cluster is three-node, synchronous and spread across zones a
 
   assert.equal(cluster.apiVersion, 'postgresql.cnpg.io/v1');
   assert.equal(cluster.kind, 'Cluster');
-  assert.equal(cluster.metadata.name, 'opc-postgres');
+  assert.equal(cluster.metadata.name, 'converact-postgres');
   assert.equal(spec.instances, 3);
   assert.match(spec.imageName, /^ghcr\.io\/cloudnative-pg\/postgresql:18\.4-standard-trixie@sha256:[a-f0-9]{64}$/);
   assert.deepEqual(spec.postgresql.synchronous, {
@@ -68,8 +68,8 @@ test('PgBouncer profile has bounded transaction pooling and independent high ava
   const pdb = documents(`${ROOT}/pooler-pdb.yaml`)[0];
 
   assert.equal(pooler.kind, 'Pooler');
-  assert.equal(pooler.metadata.name, 'opc-postgres-rw-pooler');
-  assert.equal(pooler.spec.cluster.name, 'opc-postgres');
+  assert.equal(pooler.metadata.name, 'converact-postgres-rw-pooler');
+  assert.equal(pooler.spec.cluster.name, 'converact-postgres');
   assert.equal(pooler.spec.type, 'rw');
   assert.equal(pooler.spec.instances, 3);
   assert.equal(pooler.spec.pgbouncer.poolMode, 'transaction');
@@ -80,7 +80,7 @@ test('PgBouncer profile has bounded transaction pooling and independent high ava
   assert.ok(pooler.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution.length > 0);
   assert.equal(pdb.kind, 'PodDisruptionBudget');
   assert.equal(pdb.spec.minAvailable, 2);
-  assert.equal(pdb.spec.selector.matchLabels['cnpg.io/poolerName'], 'opc-postgres-rw-pooler');
+  assert.equal(pdb.spec.selector.matchLabels['cnpg.io/poolerName'], 'converact-postgres-rw-pooler');
 });
 
 test('CloudNativePG backups use the CNPG-I plugin and external Secret references only', () => {
@@ -94,17 +94,17 @@ test('CloudNativePG backups use the CNPG-I plugin and external Secret references
   assert.match(cluster, /isWALArchiver: true/);
   assert.equal(objectStore.apiVersion, 'barmancloud.cnpg.io/v1');
   assert.equal(objectStore.kind, 'ObjectStore');
-  assert.equal(objectStore.metadata.name, 'opc-postgres-backup');
+  assert.equal(objectStore.metadata.name, 'converact-postgres-backup');
   assert.match(objectStore.spec.configuration.destinationPath, /^s3:\/\//);
-  assert.equal(objectStore.spec.configuration.s3Credentials.accessKeyId.name, 'opc-postgres-backup-credentials');
+  assert.equal(objectStore.spec.configuration.s3Credentials.accessKeyId.name, 'converact-postgres-backup-credentials');
   assert.deepEqual(objectStore.spec.configuration.s3Credentials.secretAccessKey, {
-    name: 'opc-postgres-backup-credentials',
+    name: 'converact-postgres-backup-credentials',
     key: 'ACCESS_SECRET_KEY'
   });
   assert.equal(scheduled.spec.method, 'plugin');
   assert.equal(scheduled.spec.pluginConfiguration.name, 'barman-cloud.cloudnative-pg.io');
   assert.equal(scheduled.spec.target, 'prefer-standby');
-  assert.equal(recovery.metadata.name, 'opc-postgres-recovery');
+  assert.equal(recovery.metadata.name, 'converact-postgres-recovery');
   assert.equal(recovery.spec.bootstrap.recovery.source, 'source');
   assert.ok(recovery.spec.bootstrap.recovery.recoveryTarget.targetTime);
 });

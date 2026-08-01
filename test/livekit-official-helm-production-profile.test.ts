@@ -42,7 +42,7 @@ test('vendored LiveKit chart is upstream-pinned and carries only targeted produc
 
   assert.equal(chart.version, '1.11.0-ivekit.1');
   assert.equal(chart.appVersion, 'v1.13.4-ivekit.1');
-  assert.equal(chart.annotations['ivekit.io/upstream-commit'], lock.commit);
+  assert.equal(chart.annotations['converact.io/upstream-commit'], lock.commit);
   assert.match(configMap, /toYaml \.Values\.livekit/);
   assert.match(deployment, /name: REDIS_PASSWORD[\s\S]*secretKeyRef/);
   assert.match(deployment, /name: redis-tls[\s\S]*mountPath: \/etc\/livekit-redis-tls/);
@@ -58,7 +58,7 @@ test('production performance profile is horizontally scalable and keeps credenti
 
   const result = validateLiveKitOfficialHelmProfile(values);
 
-  assert.equal(result.image_reference, `ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server:v1.13.4-ivekit.1@sha256:${'a'.repeat(64)}`);
+  assert.equal(result.image_reference, `ghcr.io/songgoldenwind-crypto/converact-livekit-server:v1.13.4-ivekit.1@sha256:${'a'.repeat(64)}`);
   assert.equal(result.minimum_replicas, 2);
   assert.equal(result.maximum_replicas, 32);
   assert.equal(result.rtc_udp_port_count, 10_001);

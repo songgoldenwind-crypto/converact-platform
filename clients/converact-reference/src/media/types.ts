@@ -99,7 +99,7 @@ export type MediaAdapterEvent =
     }>;
 
 export interface LiveKitRoomAdapter {
-  connect(plan: import('@converact/sdk').IveKitMediaJoinPlan): Promise<void>;
+  connect(plan: import('@converact/sdk').ConveractFabricMediaJoinPlan): Promise<void>;
   disconnect(): Promise<void>;
   setMicrophone(enabled: boolean): Promise<void>;
   setCamera(enabled: boolean): Promise<void>;

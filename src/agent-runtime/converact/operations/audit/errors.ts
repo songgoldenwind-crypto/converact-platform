@@ -1,4 +1,4 @@
-export class IveKitOperationsError extends Error {
+export class ConveractFabricOperationsError extends Error {
   readonly retryable = false;
 
   constructor(
@@ -13,6 +13,6 @@ export class IveKitOperationsError extends Error {
     readonly details: Readonly<Record<string, unknown>> = {}
   ) {
     super(code);
-    this.name = 'IveKitOperationsError';
+    this.name = 'ConveractFabricOperationsError';
   }
 }

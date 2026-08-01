@@ -1,0 +1,380 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { describe, it } from 'node:test';
+import { Ajv2020 } from 'ajv/dist/2020.js';
+
+import {
+  checkedMediaControlCommand,
+  checkedMediaControlReconcileInput,
+  mediaControlCommandHash,
+  mediaControlIdempotencyHash,
+  mediaControlPayloadHash,
+  type MediaControlCommand
+} from '../src/agent-runtime/converact/media-control/protocol.js';
+
+const schema = JSON.parse(
+  readFileSync(
+    'docs/capacity/schemas/voice-media-control-v1.schema.json',
+    'utf8'
+  )
+) as Record<string, unknown>;
+
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+ajv.addFormat('date-time', {
+  type: 'string',
+  validate: (value: string) => !Number.isNaN(Date.parse(value))
+});
+const validate = ajv.compile(schema);
+
+const offerPayload = {
+  offer_sdp: 'v=0\r\n',
+  media_profile_id: 'g711-relay-v1'
+};
+const processingOfferPayload = {
+  offer_sdp: 'v=0\r\n',
+  media_profile_id: 'VOICE-IVR-G711-OPUS-V1',
+  leg_a_codec: 'PCMU',
+  leg_b_codec: 'OPUS',
+  leg_a_payload_type: 0,
+  leg_b_payload_type: 111,
+  packetization_ms: 20
+};
+const prepare: MediaControlCommand = {
+  protocol_version: 'ivekit.media-control.v1',
+  action: 'offer',
+  command_id: 'command-1',
+  tenant_id: 'tenant-handle-1',
+  call_id: 'call-1',
+  leg_id: 'leg-1',
+  cell_id: 'cell-1',
+  owner_node_id: 'rustpbx-1',
+  owner_epoch: ((1n << 32n) | 1n).toString(),
+  admission_reservation_id: 'admission-reservation-1',
+  media_reservation_id: 'reservation-1',
+  command_sequence: 1,
+  idempotency_key: 'idempotency-1',
+  expires_at: '2026-07-25T00:01:00.000Z',
+  payload: offerPayload,
+  payload_hash: mediaControlPayloadHash(offerPayload)
+};
+
+function commandWithPayload(
+  action: MediaControlCommand['action'],
+  payload: Record<string, unknown>
+): MediaControlCommand {
+  return {
+    ...prepare,
+    action,
+    command_id: `command-${action}`,
+    command_sequence: 2,
+    idempotency_key: `idempotency-${action}`,
+    payload,
+    payload_hash: mediaControlPayloadHash(payload)
+  };
+}
+
+describe('Converact Fabric media control protocol v1', () => {
+  it('validates command, reconciliation, and response documents', () => {
+    const documents = [
+      prepare,
+      {
+        ...prepare,
+        protocol_version: 'ivekit.media-control.v1',
+        action: 'answer',
+        command_id: 'command-2',
+        command_sequence: 2,
+        idempotency_key: 'idempotency-2',
+        payload: {},
+        payload_hash: mediaControlPayloadHash({})
+      },
+      {
+        protocol_version: 'ivekit.media-control.v1',
+        action: 'reconcile',
+        command: prepare
+      },
+      {
+        protocol_version: 'ivekit.media-control.v1',
+        result_class: 'unknown',
+        command_id: 'command-1',
+        error_code: 'transport_timeout',
+        retryable: true
+      }
+    ];
+
+    for (const document of documents) {
+      assert.equal(
+        validate(document),
+        true,
+        ajv.errorsText(validate.errors)
+      );
+    }
+  });
+
+  it('rejects unversioned, malformed, oversized, and extended commands', () => {
+    const invalid = [
+      { ...prepare, protocol_version: 'v2' },
+      { ...prepare, owner_epoch: '-1' },
+      { ...prepare, command_id: 42 },
+      { ...prepare, owner_epoch: 42 },
+      { ...prepare, command_sequence: 0 },
+      { ...prepare, expires_at: 'tomorrow' },
+      { ...prepare, expires_at: '2026-07-25T00:01:00Z' },
+      {
+        ...prepare,
+        admission_reservation_id: undefined
+      },
+      { ...prepare, extra: true },
+      {
+        ...prepare,
+        payload: {
+          offer_sdp: 'x'.repeat(16_385),
+          media_profile_id: 'g711-relay-v1'
+        }
+      }
+    ];
+
+    for (const document of invalid) {
+      assert.equal(validate(document), false);
+    }
+  });
+
+  it('canonicalizes payload key order before hashing', () => {
+    const reversed: MediaControlCommand = {
+      ...prepare,
+      payload: {
+        media_profile_id: 'g711-relay-v1',
+        offer_sdp: 'v=0\r\n'
+      }
+    };
+
+    assert.equal(
+      mediaControlCommandHash(prepare),
+      mediaControlCommandHash(reversed)
+    );
+    assert.equal(
+      mediaControlIdempotencyHash(prepare),
+      mediaControlIdempotencyHash({
+        ...prepare,
+        command_id: 'retry-command-id'
+      })
+    );
+  });
+
+  it('runtime validation enforces the same protocol and bounds', () => {
+    assert.deepEqual(checkedMediaControlCommand(prepare), prepare);
+    assert.throws(
+      () => checkedMediaControlCommand({ ...prepare, command_sequence: 0 }),
+      /media_control_sequence_invalid/
+    );
+    assert.throws(
+      () => checkedMediaControlCommand({ ...prepare, payload_hash: '0'.repeat(64) }),
+      /media_control_payload_hash_invalid/
+    );
+    assert.throws(
+      () => checkedMediaControlCommand({
+        ...prepare,
+        unexpected: true
+      } as MediaControlCommand),
+      /media_control_command_invalid/
+    );
+    assert.throws(
+      () => checkedMediaControlCommand({
+        ...prepare,
+        payload: {
+          offer_sdp: 'v=0\r\n',
+          media_profile_id: 'g711-relay-v1',
+          invalid: Number.NaN
+        }
+      }),
+      /media_control_payload_invalid/
+    );
+    assert.throws(
+      () => checkedMediaControlCommand({
+        ...prepare,
+        command_id: 42
+      } as unknown as MediaControlCommand),
+      /media_control_command_id_invalid/
+    );
+    assert.deepEqual(
+      checkedMediaControlReconcileInput({
+        protocol_version: 'ivekit.media-control.v1',
+        action: 'reconcile',
+        command: prepare
+      }),
+      {
+        protocol_version: 'ivekit.media-control.v1',
+        action: 'reconcile',
+      command: prepare
+      }
+    );
+  });
+
+  it('accepts only bounded RFC 3261 token characters for SIP tags', () => {
+    const validTag = "Az09-.!%*_+`'~";
+    const validPayload = {
+      ...offerPayload,
+      from_tag: validTag,
+      to_tag: validTag
+    };
+    const validCommand: MediaControlCommand = {
+      ...prepare,
+      payload: validPayload,
+      payload_hash: mediaControlPayloadHash(validPayload)
+    };
+
+    assert.equal(validate(validCommand), true, ajv.errorsText(validate.errors));
+    assert.deepEqual(checkedMediaControlCommand(validCommand), validCommand);
+
+    for (const invalidTag of [
+      'tag with space',
+      'tag:with-colon',
+      'tag/with-slash',
+      'tag\r\nwith-control',
+      'x'.repeat(257)
+    ]) {
+      const payload = {
+        ...offerPayload,
+        from_tag: invalidTag
+      };
+      const commandWithInvalidTag: MediaControlCommand = {
+        ...prepare,
+        payload,
+        payload_hash: mediaControlPayloadHash(payload)
+      };
+      assert.equal(validate(commandWithInvalidTag), false);
+      assert.throws(
+        () => checkedMediaControlCommand(commandWithInvalidTag),
+        /media_control_from_tag_invalid/
+      );
+    }
+  });
+
+  it('binds processing codec pairs to their RTP payload types in schema and runtime', () => {
+    const processingCommand: MediaControlCommand = {
+      ...prepare,
+      payload: processingOfferPayload,
+      payload_hash: mediaControlPayloadHash(processingOfferPayload)
+    };
+    assert.equal(
+      validate(processingCommand),
+      true,
+      ajv.errorsText(validate.errors)
+    );
+    assert.deepEqual(
+      checkedMediaControlCommand(processingCommand),
+      processingCommand
+    );
+
+    const invalidPayloads = [
+      { ...processingOfferPayload, leg_a_payload_type: 8 },
+      { ...processingOfferPayload, leg_b_payload_type: 0 },
+      {
+        ...processingOfferPayload,
+        leg_a_codec: 'PCMA',
+        leg_a_payload_type: 0
+      },
+      {
+        ...processingOfferPayload,
+        leg_a_codec: 'OPUS',
+        leg_a_payload_type: 111,
+        leg_b_codec: 'OPUS'
+      },
+      {
+        ...processingOfferPayload,
+        leg_b_codec: 'PCMA',
+        leg_b_payload_type: 8
+      },
+      { ...processingOfferPayload, packetization_ms: 10 },
+      {
+        ...processingOfferPayload,
+        media_profile_id: 'processing-unknown-v1'
+      },
+      { ...offerPayload, leg_a_codec: 'PCMU' }
+    ];
+    for (const payload of invalidPayloads) {
+      const command: MediaControlCommand = {
+        ...prepare,
+        payload,
+        payload_hash: mediaControlPayloadHash(payload)
+      };
+      assert.equal(validate(command), false, JSON.stringify(payload));
+      assert.throws(
+        () => checkedMediaControlCommand(command),
+        /media_control_media_profile_invalid/
+      );
+    }
+  });
+
+  it('strictly validates processing playback and gather command payloads', () => {
+    const commands = [
+      commandWithPayload('commit_single_leg', {}),
+      commandWithPayload('play_media', {
+        prompt_id: 'welcome-v1',
+        egress_leg: 'a',
+        barge_in: true
+      }),
+      commandWithPayload('stop_media', {
+        target_command_id: 'command-play_media'
+      }),
+      commandWithPayload('start_gather', {
+        minimum_digits: 1,
+        maximum_digits: 8,
+        terminator: '#',
+        first_digit_timeout_ms: 5_000,
+        inter_digit_timeout_ms: 2_000
+      }),
+      commandWithPayload('stop_gather', {
+        target_command_id: 'command-start_gather'
+      })
+    ];
+    for (const command of commands) {
+      assert.equal(
+        validate(command),
+        true,
+        ajv.errorsText(validate.errors)
+      );
+      assert.deepEqual(checkedMediaControlCommand(command), command);
+    }
+
+    const invalid = [
+      commandWithPayload('commit_single_leg', {
+        remote_endpoint: 'fake-leg-b'
+      }),
+      commandWithPayload('play_media', {
+        prompt_id: 'welcome-v1',
+        egress_leg: 'caller',
+        barge_in: true
+      }),
+      commandWithPayload('play_media', {
+        prompt_id: 'welcome-v1',
+        egress_leg: 'a',
+        barge_in: true,
+        file: '/tmp/unsafe.wav'
+      }),
+      commandWithPayload('start_gather', {
+        minimum_digits: 1,
+        maximum_digits: 0,
+        terminator: '#',
+        first_digit_timeout_ms: 5_000,
+        inter_digit_timeout_ms: 2_000
+      }),
+      commandWithPayload('start_gather', {
+        minimum_digits: 1,
+        maximum_digits: 8,
+        terminator: '12',
+        first_digit_timeout_ms: 5_000,
+        inter_digit_timeout_ms: 2_000
+      }),
+      commandWithPayload('stop_gather', {
+        target_command_id: ''
+      })
+    ];
+    for (const command of invalid) {
+      assert.equal(validate(command), false);
+      assert.throws(
+        () => checkedMediaControlCommand(command),
+        /media_control_(?:single_leg|play|gather|target_command_id)/
+      );
+    }
+  });
+});

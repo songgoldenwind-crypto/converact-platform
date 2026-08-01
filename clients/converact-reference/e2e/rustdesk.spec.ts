@@ -93,7 +93,7 @@ test('agent completes controlled RustDesk launch control transfer audit end and 
     await agent.page.getByTitle('Refresh remote state').click();
     await expect(agent.page.getByText('4 events')).toBeVisible();
 
-    await captureLayout(agent.page, testInfo, 'ivekit-rustdesk-desktop');
+    await captureLayout(agent.page, testInfo, 'converact-rustdesk-desktop');
     await assertNoTokenPersistence(agent.page, launchToken!);
     await agent.page.getByRole('button', { name: 'End', exact: true }).click();
     await expect(agent.page.locator('.remote-state')).toHaveText('ended');
@@ -112,7 +112,7 @@ test('mobile UI suppresses a stale launch and reflects consent revocation', asyn
   const mobile = await openIdentity(browser, 'agent-1', 'token-agent', { width: 390, height: 844 });
   try {
     await configureAndStart(mobile.page);
-    await captureLayout(mobile.page, testInfo, 'ivekit-rustdesk-mobile');
+    await captureLayout(mobile.page, testInfo, 'converact-rustdesk-mobile');
     const gateway = [...controlled.state.gateways.values()].find((item) => item.status === 'active');
     expect(gateway).toBeTruthy();
     const planResponse = await request.get(`${controlled.baseUrl}/api/ivekit/rustdesk/gateway-sessions/${gateway!.externalId}/launch`, {
@@ -207,8 +207,8 @@ async function openIdentity(
   const context = await browser.newContext({ viewport });
   await context.addInitScript(({ accessToken, userIdentity }) => {
     const control = { opened: [] as string[] };
-    (window as unknown as { __IVEKIT_CONTROLLED_RUSTDESK__: typeof control }).__IVEKIT_CONTROLLED_RUSTDESK__ = control;
-    window.iveKitHost = {
+    (window as unknown as { __CONVERACT_FABRIC_CONTROLLED_RUSTDESK__: typeof control }).__CONVERACT_FABRIC_CONTROLLED_RUSTDESK__ = control;
+    window.converactFabricHost = {
       getAccessToken: () => accessToken,
       getIdentity: () => userIdentity,
       openExternal: (url) => { control.opened.push(url); }
@@ -242,8 +242,8 @@ function headers(token: string): Record<string, string> {
 
 async function openedProtocols(page: Page): Promise<string[]> {
   return page.evaluate(() => (window as unknown as {
-    __IVEKIT_CONTROLLED_RUSTDESK__: { opened: string[] }
-  }).__IVEKIT_CONTROLLED_RUSTDESK__.opened);
+    __CONVERACT_FABRIC_CONTROLLED_RUSTDESK__: { opened: string[] }
+  }).__CONVERACT_FABRIC_CONTROLLED_RUSTDESK__.opened);
 }
 
 async function assertNoTokenPersistence(page: Page, token: string): Promise<void> {

@@ -4,11 +4,11 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  createIveKitRustDeskHttpClient,
-  type IveKitRustDeskHttpClient
+  createConveractFabricRustDeskHttpClient,
+  type ConveractFabricRustDeskHttpClient
 } from '../src/agent-runtime/converact/index.js';
 
-export type RustDeskAuditExportClient = Pick<IveKitRustDeskHttpClient, 'listGatewayAuditEvents'>;
+export type RustDeskAuditExportClient = Pick<ConveractFabricRustDeskHttpClient, 'listGatewayAuditEvents'>;
 
 export interface RustDeskAuditExportConfig {
   outputFile: string;
@@ -32,24 +32,27 @@ export function createRustDeskAuditExportConfigFromEnv(env: NodeJS.ProcessEnv): 
   const externalId = requiredString(resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID'), 'CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID is required');
   const baseUrl = normalizeBaseUrl(optionalString(
     resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_BASE_URL') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BASE_URL') ||
     resolveBrandEnv(env, 'BASE_URL') ||
     resolveBrandEnv(env, 'COLLABORATION_BASE_URL')
-  ), 'CONVERACT_RUSTDESK_AUDIT_EXPORT_BASE_URL, CONVERACT_RUSTDESK_IVEKIT_BASE_URL, CONVERACT_BASE_URL, or CONVERACT_COLLABORATION_BASE_URL is required');
+  ), 'CONVERACT_RUSTDESK_AUDIT_EXPORT_BASE_URL, CONVERACT_RUSTDESK_FABRIC_BASE_URL, CONVERACT_BASE_URL, or CONVERACT_COLLABORATION_BASE_URL is required');
   const apiKey = requiredString(
     resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_API_KEY') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_API_KEY') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_API_KEY') ||
     resolveBrandEnv(env, 'COLLABORATION_API_KEY') ||
     resolveBrandEnv(env, 'API_KEY'),
-    'CONVERACT_RUSTDESK_AUDIT_EXPORT_API_KEY, CONVERACT_RUSTDESK_IVEKIT_API_KEY, CONVERACT_COLLABORATION_API_KEY, or CONVERACT_API_KEY is required'
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_API_KEY, CONVERACT_RUSTDESK_FABRIC_API_KEY, CONVERACT_COLLABORATION_API_KEY, or CONVERACT_API_KEY is required'
   );
   const tenantId = requiredString(
     resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_TENANT_ID') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_TENANT_ID') ||
     resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') ||
     resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') ||
     resolveBrandEnv(env, 'TENANT_ID'),
-    'CONVERACT_RUSTDESK_AUDIT_EXPORT_TENANT_ID, CONVERACT_RUSTDESK_IVEKIT_TENANT_ID, CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID is required'
+    'CONVERACT_RUSTDESK_AUDIT_EXPORT_TENANT_ID, CONVERACT_RUSTDESK_FABRIC_TENANT_ID, CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID is required'
   );
   const userId = optionalString(resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_USER_ID'));
   const since = optionalString(resolveBrandEnv(env, 'RUSTDESK_AUDIT_EXPORT_SINCE'));
@@ -66,7 +69,7 @@ export function createRustDeskAuditExportConfigFromEnv(env: NodeJS.ProcessEnv): 
 
 export async function writeRustDeskAuditExport(
   config: RustDeskAuditExportConfig,
-  client: RustDeskAuditExportClient = createIveKitRustDeskHttpClient({
+  client: RustDeskAuditExportClient = createConveractFabricRustDeskHttpClient({
     baseUrl: config.baseUrl,
     apiKey: config.apiKey,
     tenantId: config.tenantId,

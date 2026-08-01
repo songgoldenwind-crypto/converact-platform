@@ -1,15 +1,73 @@
-# OPC Communication Foundation
+# Converact Platform — 统一领域语言
 
-OPC 的通信底座上下文定义企业通信中的呼叫、信令、媒体和证据对象，以及它们之间的权威关系。
-本文只定义统一语言；实现与选型记录在设计文档和 ADR 中。
+Converact Platform 上下文定义跨业务 Profile 的 Engagement、通信、人工/AI 协作、证据和结果语言，
+以及通信底座中的呼叫、信令与媒体语言。本文只定义统一语言；实现、商业包装与选型记录在
+设计文档和 ADR 中。
 
 ## Language
 
+**Engagement**:
+围绕一个可描述业务目的、可以跨渠道、跨 Interaction 和跨天持续的持久容器。一个
+Engagement 绑定一个版本化 Engagement Profile，并可包含多个 EngagementItem。
+_Avoid_: Resolution（未说明 Profile）、Conversation、Call、Room、Ticket、Opportunity
+
+**EngagementItem**:
+Engagement 中能够独立资格化、执行、验证、重开和结果归因的最小业务结果单元。它不是路由
+队列中的 WorkItem，也不是 Agent 的一个 turn。
+_Avoid_: WorkItem、Task、ResolutionItem（未说明 `resolution` Profile）
+
+**Engagement Profile**:
+在不创建第二套平台 Authority 的前提下，为一种业务形态定义字段、状态、不变量、
+VerificationPolicy、指标、UI 和 Connector 映射的版本化领域语义包。
+_Avoid_: 独立平台、行业 Fork、Product Offer
+
+**Product Offer**:
+客户可购买的合同包装，明确 Profile、能力、范围、价格、区域、支持、验收与可销售状态。
+_Avoid_: Engagement Profile、Deployment Option、功能列表
+
+**Objective**:
+Engagement 希望达到并可由 Profile 解释和验证的业务目的。
+_Avoid_: Prompt、Task、模型目标
+
+**Resolution**:
+绑定 `resolution` Engagement Profile 的 Engagement，表达一个或多个需要独立验证的问题。
+它是首个垂直领域模型，不是 Converact 平台的上位对象。
+_Avoid_: Platform、Call、Ticket、Case
+
+**ResolutionItem**:
+`resolution` Profile 中、`item_type=problem` 的 EngagementItem，拥有独立 ProblemStatement、
+fingerprint、基线、VerificationPolicy、OutcomeClaim 和复发窗口。
+_Avoid_: 任意 EngagementItem、Task、Case line
+
 **Interaction**:
-跨电话、LiveKit、IM、未来 ViLTE 和人工/AI 接管保持稳定的业务联络身份。一个
-Interaction 可以包含多个 Call、Room、Agent Run 和 Task；它不等于任一协议、房间或
-模型会话 ID。
-_Avoid_: SIP Call-ID、LiveKit Room、Conversation（未说明边界）
+参与者的一次连续参与窗口；可以在不中断参与关系的情况下同时或顺序使用电话、LiveKit、
+IM、屏幕和未来 ViLTE。一个 Engagement 可以包含多个 Interaction。
+_Avoid_: Engagement、SIP Call-ID、LiveKit Room、Provider Session、跨天 Conversation
+
+**Communication Session**:
+Interaction 在一个具体通信渠道上的运行实例，例如一通电话、一次 Room 使用或一个消息
+窗口。Provider/runtime ID 只作为引用，不替代 InteractionId 或 EngagementId。
+_Avoid_: Interaction、Engagement、bare Session
+
+**Task**:
+人工或 AI 为推进某个 EngagementItem 而需要完成的工作，生命周期由 Converact Agent Runtime
+管理；Engagement Core 只保存稳定引用和结果关系。
+_Avoid_: EngagementItem、WorkItem、AgentRun
+
+**Evidence**:
+带来源、时间、授权、完整性、保留策略和 lineage 的事实材料，可被 Profile 的
+VerificationPolicy 引用。
+_Avoid_: Agent summary、无来源模型输出、普通附件
+
+**Action**:
+对外部系统、设备或受控业务状态产生副作用的意图与执行生命周期，必须具备授权、幂等、
+Receipt 和不确定结果 reconcile。
+_Avoid_: Tool call、HTTP 2xx、LLM function proposal
+
+**OutcomeClaim**:
+针对一个 EngagementItem、按版本化 VerificationPolicy 和 Evidence 提出的可争议结果
+声明；只有 Finalized claim 才能用于正式结果和相应计费。
+_Avoid_: Call ended、Case closed、模型自评、客户沉默
 
 **Call**:
 一次具有业务身份、租户归属和生命周期的通信交互，可以包含一条或多条 Leg。
@@ -154,16 +212,17 @@ side effect。
 _Avoid_: AI-native Orchestrator、Call Authority、Speech Runtime
 
 **Speech Runtime**:
-通过 OPC-owned normalized contract 执行 VAD/STT/LLM/TTS、streaming event、cancel、
+通过 Converact-owned normalized contract 执行 VAD/STT/LLM/TTS、streaming event、cancel、
 usage 和 session lifecycle 的可替换运行时。Hugging Face `speech-to-speech` 是目标主
 实现，channel-native pipeline 是迁移/A-B baseline。Speech Runtime 不拥有 Task、
 Tool、Memory、Call 或 Room。
 _Avoid_: Agent framework、AI-native Orchestrator、Provider-specific domain model
 
 **AI-native Orchestrator**:
-跨渠道 AgentRun、Task DAG、Tool、Memory、Policy、Approval、Action Ledger、Handoff
-和 Evaluation 的唯一业务 Authority。它通过 Channel Agent Runtime 与 Speech Runtime
-执行，不管理 RTP、Room 或 SIP Protocol Dialog。
+跨渠道 AgentRun、Task DAG、Context Revision、Memory Proposal、Policy、Handoff 和
+Evaluation 的唯一业务 Authority。它通过 Channel Agent Runtime 与 Speech Runtime 执行，
+只能向独立 Action Authority 提交 Action Proposal，不拥有 Action Ledger，也不管理 RTP、
+Room 或 SIP Protocol Dialog。
 _Avoid_: Speech Runtime、LiveKit Agents、Active Call、LLM
 
 **Context Revision**:
@@ -174,7 +233,7 @@ response 创建和 tool-result 回注必须匹配当前 Context Revision。
 _Avoid_: framework-local chat authority、Provider session history
 
 **Response Lease**:
-由 OPC Interaction Lease Store 通过 durable CAS 唯一签发，绑定 Interaction、AgentRun、
+由 Converact Interaction Lease Store 通过 durable CAS 唯一签发，绑定 Interaction、AgentRun、
 Channel Binding、lease/response generation、owner epoch、fence 和 expiry 的独占响应
 许可。只有当前 lease holder 可以提交 turn、播放/发布 Agent 输出、取消响应或提交本
 generation 的 tool proposal；audio/publisher/tool/transcript output gate 必须拒绝旧

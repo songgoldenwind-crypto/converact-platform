@@ -35,7 +35,7 @@ function defaultDeprecationEmitter(event: BrandEnvDeprecationEvent): void {
 
 function keysFor(scope: BrandEnvScope, suffix: string): {
   currentKey: string;
-  legacyKey: string;
+  legacyKeys: string[];
 } {
   if (!ENV_SUFFIX.test(suffix)) {
     throw new Error(`invalid branded environment variable suffix: ${suffix}`);
@@ -44,11 +44,11 @@ function keysFor(scope: BrandEnvScope, suffix: string): {
   return scope === 'fabric'
     ? {
         currentKey: `CONVERACT_FABRIC_${suffix}`,
-        legacyKey: `OPC_IVEKIT_${suffix}`,
+        legacyKeys: [`OPC_IVEKIT_${suffix}`, `IVEKIT_${suffix}`],
       }
     : {
         currentKey: `CONVERACT_${suffix}`,
-        legacyKey: `OPC_${suffix}`,
+        legacyKeys: [`OPC_${suffix}`],
       };
 }
 
@@ -58,26 +58,29 @@ function resolve(
   suffix: string,
   options: BrandEnvOptions,
 ): string | undefined {
-  const { currentKey, legacyKey } = keysFor(scope, suffix);
+  const { currentKey, legacyKeys } = keysFor(scope, suffix);
   const hasCurrent = owns(env, currentKey);
-  const hasLegacy = owns(env, legacyKey);
+  const presentKeys = [currentKey, ...legacyKeys].filter((key) => owns(env, key));
 
-  if (hasCurrent && hasLegacy && env[currentKey] !== env[legacyKey]) {
+  if (presentKeys.some((key) => env[key] !== env[presentKeys[0]])) {
     throw new Error(
-      `conflicting branded environment variables: ${currentKey} and ${legacyKey}`,
+      `conflicting branded environment variables: ${presentKeys.join(' and ')}`,
     );
   }
 
   if (hasCurrent) return env[currentKey];
-  if (!hasLegacy) return undefined;
+  if (presentKeys.length === 0) return undefined;
 
-  (options.onDeprecation ?? defaultDeprecationEmitter)({
-    event: 'converact.config.deprecated_environment_key',
-    scope,
-    current_key: currentKey,
-    legacy_key: legacyKey,
-  });
-  return env[legacyKey];
+  const emit = options.onDeprecation ?? defaultDeprecationEmitter;
+  for (const legacyKey of presentKeys) {
+    emit({
+      event: 'converact.config.deprecated_environment_key',
+      scope,
+      current_key: currentKey,
+      legacy_key: legacyKey,
+    });
+  }
+  return env[presentKeys[0]];
 }
 
 export function resolveBrandEnv(
@@ -107,6 +110,9 @@ export function resolveConveractEnv(
   if (key.startsWith('OPC_IVEKIT_')) {
     return resolveFabricEnv(env, key.slice('OPC_IVEKIT_'.length), options);
   }
+  if (key.startsWith('IVEKIT_')) {
+    return resolveFabricEnv(env, key.slice('IVEKIT_'.length), options);
+  }
   if (key.startsWith('CONVERACT_')) {
     return resolveBrandEnv(env, key.slice('CONVERACT_'.length), options);
   }
@@ -127,6 +133,9 @@ export function installBrandEnvAliases(
       aliases.set(key, { scope: 'fabric', suffix: key.slice('CONVERACT_FABRIC_'.length) });
     } else if (key.startsWith('OPC_IVEKIT_')) {
       const suffix = key.slice('OPC_IVEKIT_'.length);
+      aliases.set(`CONVERACT_FABRIC_${suffix}`, { scope: 'fabric', suffix });
+    } else if (key.startsWith('IVEKIT_')) {
+      const suffix = key.slice('IVEKIT_'.length);
       aliases.set(`CONVERACT_FABRIC_${suffix}`, { scope: 'fabric', suffix });
     } else if (key.startsWith('CONVERACT_')) {
       aliases.set(key, { scope: 'brand', suffix: key.slice('CONVERACT_'.length) });

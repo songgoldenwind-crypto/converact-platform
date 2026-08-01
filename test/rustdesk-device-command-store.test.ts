@@ -94,7 +94,7 @@ async function commandFixture(tenantId = 'tenant_rustdesk_commands') {
     },
     permissions: ['view_screen', 'control_mouse_keyboard'],
     actor_identity: 'agent-command-test',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=command-test',
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=command-test',
     metadata: {
       rustdesk_device_id: device.id,
       rustdesk_id: device.rustdesk_id

@@ -56,7 +56,7 @@ test('livekit media smoke drives the reusable media API with tenant-scoped resou
 
   const result = await runLiveKitMediaSmoke(
     {
-      baseUrl: 'http://opc.test',
+      baseUrl: 'http://converact.test',
       mediaApiToken: 'media-token',
       tenantId: 'tenant-smoke',
       roomName: 'smoke-room'
@@ -156,7 +156,7 @@ test('livekit media smoke can wait for a readable recording object and export by
 
   const result = await runLiveKitMediaSmoke(
     {
-      baseUrl: 'http://opc.test',
+      baseUrl: 'http://converact.test',
       mediaApiToken: 'media-token',
       tenantId: 'tenant-smoke',
       roomName: 'smoke-room',
@@ -213,7 +213,7 @@ test('livekit media smoke can keep the room open for a chained browser smoke', a
   };
 
   const config = createLiveKitMediaSmokeConfigFromEnv({
-    CONVERACT_BASE_URL: 'http://opc.test',
+    CONVERACT_BASE_URL: 'http://converact.test',
     CONVERACT_MEDIA_API_TOKEN: 'media-token',
     CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-smoke',
     CONVERACT_MEDIA_SMOKE_ROOM_NAME: 'smoke-room',
@@ -259,7 +259,7 @@ test('livekit media smoke rejects dev tokens when configured LiveKit is required
     () =>
       runLiveKitMediaSmoke(
         {
-          baseUrl: 'http://opc.test',
+          baseUrl: 'http://converact.test',
           mediaApiToken: 'media-token',
           tenantId: 'tenant-smoke',
           roomName: 'smoke-room',
@@ -323,7 +323,7 @@ test('livekit media smoke rejects unsigned customer join paths when invite signi
   };
 
   const config = createLiveKitMediaSmokeConfigFromEnv({
-    CONVERACT_BASE_URL: 'http://opc.test',
+    CONVERACT_BASE_URL: 'http://converact.test',
     CONVERACT_MEDIA_API_TOKEN: 'media-token',
     CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-smoke',
     CONVERACT_MEDIA_SMOKE_ROOM_NAME: 'smoke-room',

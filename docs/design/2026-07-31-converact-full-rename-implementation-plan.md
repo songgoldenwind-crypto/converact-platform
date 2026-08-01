@@ -3,7 +3,7 @@
 > **Execution:** Run inline, task-by-task, in the isolated worktree. Use TDD for executable
 > compatibility behavior and narrow commits for mechanical rename groups. Do not use subagents.
 
-**Goal:** Replace the active `OPC` and `iveKit` product/repository identity with `Converact`, preserve
+**Goal:** Replace the active `Converact Platform` and `Converact Fabric` product/repository identity with `Converact`, preserve
 explicit compatibility and historical facts, rename the GitHub repositories, and prove that no
 unclassified legacy product name remains.
 
@@ -61,7 +61,7 @@ production worktree is clean at `b6a26269ce05`.
 
 - [ ] **Step 2: Write the failing inventory test**
 
-The test creates a temporary fixture containing one active `OPC Platform` string, one allowed
+The test creates a temporary fixture containing one active legacy `OPC Platform` string, one allowed
 `OPC_*` compatibility identifier, and one historical Evidence path. It asserts exactly one violation:
 
 ```ts
@@ -89,7 +89,7 @@ The policy contains these exact identities:
 
 ```json
 {
-  "brand": { "legacy": ["OPC", "iveKit"], "current": "Converact" },
+  "brand": { "legacy": ["Converact Platform", "Converact Fabric"], "current": "Converact" },
   "repository": {
     "legacy": "songgoldenwind-crypto/opc-platform",
     "current": "songgoldenwind-crypto/converact-platform"
@@ -188,11 +188,11 @@ docs(ops): record repository rename
 - Create: `scripts/verify-converact-naming.ts`
 - Create: `test/converact-naming-policy.test.ts`
 - Modify: `package.json`
-- Modify: `.github/workflows/ivekit-component-hooks-ci.yml`
+- Modify: `.github/workflows/converact-component-hooks-ci.yml`
 
 - [ ] **Step 1: Write failing policy tests**
 
-Cover current product text, active `OPC Platform`, active `iveKit` package names, `OPC_API_KEY`
+Cover current product text, active legacy `OPC Platform`, active legacy `iveKit` package names, `OPC_API_KEY`
 classification, historical Evidence, patch provenance, old repository URLs in workflows, and unknown
 legacy dispositions.
 
@@ -232,9 +232,9 @@ test(branding): enforce Converact names
 
 - Move: `clients/ivekit-reference/` → `clients/converact-reference/`
 - Move: `sdk/ivekit/` → `sdk/converact/`
-- Move: `services/ivekit-service/` → `services/converact-service/`
-- Move: `infra/ivekit/` → `infra/converact/`
-- Move: `src/agent-runtime/ivekit/` → `src/agent-runtime/converact/`
+- Move: `services/converact-service/` → `services/converact-service/`
+- Move: `infra/converact/` → `infra/converact/`
+- Move: `src/agent-runtime/converact/` → `src/agent-runtime/converact/`
 - Move: active `src/ivekit-*.ts` → corresponding `src/converact-*.ts`
 - Modify: package metadata, lockfiles, imports, scripts, build contexts, Helm paths, and tests
 
@@ -384,8 +384,8 @@ Use semantic mappings rather than blind casing replacement:
 ```text
 Ivekit* product symbols      → ConveractFabric*
 ivekit service/entrypoint    → converact service/entrypoint
-OPC product presentation    → Converact
-OPC/iveKit aggregate brand  → Converact Fabric
+Converact Platform product presentation    → Converact
+Converact Platform/Converact Fabric aggregate brand  → Converact Fabric
 ```
 
 Do not rename third-party `LiveKit`, SIP `Call-ID`, published wire fields, or database identifiers
@@ -411,7 +411,7 @@ refactor(brand): adopt Converact product identity
 
 **Files:**
 
-- Move: `.github/workflows/ivekit-*.yml` → `.github/workflows/converact-*.yml`
+- Move: `.github/workflows/converact-*.yml` → `.github/workflows/converact-*.yml`
 - Modify: `.github/workflows/**`, `infra/**`, Compose files, Dockerfiles, and Helm charts
 - Move: `config/grafana/provisioning/dashboards/opc.yml` → `converact.yml`
 - Move: `config/ivr/opc_m1.toml` → `converact_m1.toml`

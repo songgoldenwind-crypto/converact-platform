@@ -258,17 +258,17 @@ export function verifyRustpbxWebhookKey(headers: Record<string, string | string[
   }
 }
 
-export function verifyOpcApiKey(headers: Record<string, string | string[] | undefined>): void {
+export function verifyConveractApiKey(headers: Record<string, string | string[] | undefined>): void {
   const expected = resolveBrandEnv(process.env, 'API_KEY');
   if (!expected) {
     if (process.env.NODE_ENV === 'production') {
-      throw Object.assign(new Error('opc api key is required'), { status: 401 });
+      throw Object.assign(new Error('converact api key is required'), { status: 401 });
     }
     return;
   }
   const provided = String(headers['x-api-key'] || headers['X-API-Key'] || '');
   if (provided !== expected) {
-    throw Object.assign(new Error('invalid opc api key'), { status: 401 });
+    throw Object.assign(new Error('invalid converact api key'), { status: 401 });
   }
 }
 

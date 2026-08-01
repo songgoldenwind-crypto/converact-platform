@@ -1,4 +1,4 @@
-# iveKit Capacity Runtime Phase 2 Implementation Plan
+# Converact Fabric Capacity Runtime Phase 2 Implementation Plan
 
 **Status:** Code complete; physical and production acceptance `not_run`
 **Goal:** Turn the approved Cell architecture into runtime code while every unavailable physical-environment result remains `not_run`.
@@ -23,7 +23,7 @@
 
 ### Slice C: Component capacity probes
 
-- Shared probe contract for iveKit Edge, Tinode, RustPBX, LiveKit and RustDesk.
+- Shared probe contract for Converact Fabric Edge, Tinode, RustPBX, LiveKit and RustDesk.
 - Component-specific health, capacity, drain and evidence adapters.
 - Missing endpoints return `not_run`; they never return a synthetic capacity pass.
 
@@ -52,7 +52,7 @@
 Files:
 
 ```text
-src/agent-runtime/ivekit/placement/
+src/agent-runtime/converact/placement/
   types.ts
   owner-epoch.ts
   snapshot.ts
@@ -64,10 +64,10 @@ src/agent-runtime/ivekit/placement/
 Tests:
 
 ```text
-test/ivekit-cell-owner-epoch.test.ts
-test/ivekit-cell-snapshot.test.ts
-test/ivekit-cell-admission.test.ts
-test/ivekit-cell-placement.test.ts
+test/converact-cell-owner-epoch.test.ts
+test/converact-cell-snapshot.test.ts
+test/converact-cell-admission.test.ts
+test/converact-cell-placement.test.ts
 ```
 
 Completion gates:
@@ -123,7 +123,7 @@ No Phase 2 code may create `C_hard`, `C_safe`, Cell-10K or MIX-100K values witho
 
 ### 5.1 Placement
 
-`src/agent-runtime/ivekit/placement/` implements:
+`src/agent-runtime/converact/placement/` implements:
 
 - HMAC-signed immutable placement snapshots with version, expiry and grace handling.
 - HMAC-signed minimal placement tokens.
@@ -208,7 +208,7 @@ refuses to start before migration 077 exists.
 
 `scripts/capacity/probes/` collects real health and Prometheus responses for:
 
-- iveKit Edge
+- Converact Fabric Edge
 - Tinode
 - RustPBX
 - LiveKit
@@ -237,7 +237,7 @@ lease may be renewed only by the same owner and the same topology; a changed top
 release or expiry, then receives a new lease epoch. Recovery fails closed if a durable reservation
 still names a node removed by the new topology.
 
-`scripts/ivekit-component-node-admission.ts` runs beside LiveKit, Tinode, RustDesk or RustPBX. The
+`scripts/converact-component-node-admission.ts` runs beside LiveKit, Tinode, RustDesk or RustPBX. The
 Cell sends a draining lease, replays non-terminal checkpoints, then sends a recovery-complete
 lease. A restarted agent rejects a ready heartbeat until this replay completes. One failed node is
 marked offline without draining unrelated nodes; loss of the authoritative PostgreSQL ledger
@@ -251,22 +251,22 @@ RustDesk frames and Tinode fanout never call the agent.
 `integrations/livekit-v1.13.4/` specializes the Go guard for LiveKit rooms. Signed participant
 metadata supplies interaction, reservation, node and owner epoch. The first join opens the owner;
 subsequent joins, signals and administrative mutations use the local room registry. Refresh is
-bounded to batches of 64 and isolates stale rooms. `infra/ivekit/livekit/apply-overlay.mjs` is tied
+bounded to batches of 64 and isolates stale rooms. `infra/converact/livekit/apply-overlay.mjs` is tied
 to `v1.13.4@0b3fd288e3ef3263ec475ba0d78cf3ad77459981` and fails on source drift. It
-also replaces LiveKit's generated internal node ID with `IVEKIT_COMPONENT_NODE_ID` before
-Prometheus, SignalClient and Router initialization, so Redis room routing, iveKit placement and the
+also replaces LiveKit's generated internal node ID with `CONVERACT_FABRIC_COMPONENT_NODE_ID` before
+Prometheus, SignalClient and Router initialization, so Redis room routing, Converact Fabric placement and the
 local sidecar use the same stable StatefulSet ordinal.
 
-`integrations/tinode-v0.25.3/` specializes the same guard for Tinode group topics. iveKit persists
+`integrations/tinode-v0.25.3/` specializes the same guard for Tinode group topics. Converact Fabric persists
 the Cell reservation before provider mutation, connects topic creation to the selected owner
 endpoint, and stores interaction, reservation, node and epoch under ROOT-only
 `desc.trusted.ivekit_placement`. The exact-release overlay aligns Tinode `cluster_self` with
-`IVEKIT_COMPONENT_NODE_ID`, opens the owner after topic load/create but before actor startup,
+`CONVERACT_FABRIC_COMPONENT_NODE_ID`, opens the owner after topic load/create but before actor startup,
 locally fences publish and metadata mutations, and hard-deletes a topic newly persisted by the
 same failed initialization when owner open is rejected. Refresh is bounded to batches of 64.
 Fanout, serialization and persistence loops do not call the agent.
 
-`src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts` adds a bounded per-owner broker for
+`src/agent-runtime/converact/placement/rustdesk-owner-binding.ts` adds a bounded per-owner broker for
 RustDesk's two-process server shape. The existing gateway session flow prepares one target binding
 on the selected ordinal. hbbs atomically claims that binding when it receives `RequestRelay` and
 records the client-generated relay UUID; hbbr resolves the UUID, opens the component-node owner
@@ -274,7 +274,7 @@ before pairing, and caches the lease locally. Ambiguous simultaneous pending bin
 target fail closed. Claimed bindings are checkpointed to the ordinal's persistent volume and
 expire automatically if pairing never completes.
 
-`infra/ivekit/rustdesk-server/` is pinned to
+`infra/converact/rustdesk-server/` is pinned to
 `1.1.16@73523b31cfd25d77dee862e6fc9f5e1fb5e485ef`. Its overlay leaves the opaque
 relay byte-copy branches unchanged. RustDesk's existing three-second timer performs only an
 in-process owner assertion so a stale lease terminates the exact relay without a network call.
@@ -283,9 +283,9 @@ the component-node sidecar under one stable ordinal. Public ID/relay endpoints a
 placement per ordinal; a random load-balanced Service is not treated as an owner.
 
 The pinned RustPBX patch queue now embeds the Rust guard, opens the inbound owner after exact
-admission, refreshes the short lease asynchronously, and checks every tracked RWI call ID. iveKit
+admission, refreshes the short lease asynchronously, and checks every tracked RWI call ID. Converact Fabric
 places `reservation_id`, `interaction_id` and `owner_epoch` in the internal top-level
-`ivekit_owners` envelope rather than the public command payload. Park/pickup resolves both legs and
+`converact_owners` envelope rather than the public command payload. Park/pickup resolves both legs and
 rejects cross-node bridge attempts before provider mutation. Helm and Compose wiring is opt-in and
 co-locates the sidecar on `127.0.0.1:3210`; legacy deployments remain disabled by default.
 
@@ -311,7 +311,7 @@ screen tracks, forced TURN participants, TrackEgress and RoomComposite Egress re
 The owner overlay is a separate correctness layer below that load contract. It patches room
 creation, participant signal and administrative mutation boundaries but does not add HTTP or
 database work to RTP/RTCP forwarding. It also aligns the internal Redis router node identity with
-the selected iveKit component node before server initialization. The local registry and
+the selected Converact Fabric component node before server initialization. The local registry and
 exact-anchor transformation tests pass. Application to the real upstream source, Go 1.26
 compilation, custom image digest and multi-node media acceptance remain `not_run`.
 
@@ -319,7 +319,7 @@ compilation, custom image digest and multi-node media acceptance remain `not_run
 
 The Tinode generator exercises real hello, login, topic subscribe, publish, receipt, presence,
 typing and reconnect behavior. The owner overlay is a separate correctness layer: native wire
-compatibility and ringhash routing remain intact, while iveKit-managed topic masters are bound to
+compatibility and ringhash routing remain intact, while Converact Fabric-managed topic masters are bound to
 one stable Cell owner. The three-node StatefulSet separates the headless cluster service from the
 client service and shares each ordinal identity with its local component-node sidecar.
 

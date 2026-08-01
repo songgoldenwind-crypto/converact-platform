@@ -31,7 +31,7 @@ const command: RustDeskEdgeExecutingRecord['command'] = {
 };
 
 test('RustDesk edge spool persists executing/executed state without credentials or output', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-spool-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-spool-'));
   const store = await RustDeskEdgePendingFileStore.open({ directory: dir });
   try {
     await store.writeExecuting({
@@ -91,7 +91,7 @@ test('RustDesk edge spool persists executing/executed state without credentials 
 });
 
 test('RustDesk edge spool enforces a single live process lock', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-spool-lock-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-spool-lock-'));
   const first = await RustDeskEdgePendingFileStore.open({ directory: dir });
   try {
     await assert.rejects(
@@ -104,7 +104,7 @@ test('RustDesk edge spool enforces a single live process lock', async () => {
 });
 
 test('RustDesk edge spool fails closed for symbolic links and unknown schemas', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'opc-rustdesk-spool-hardening-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-rustdesk-spool-hardening-'));
   const target = join(root, 'target');
   const linked = join(root, 'linked');
   mkdirSync(target);
@@ -134,7 +134,7 @@ test('RustDesk edge spool fails closed for symbolic links and unknown schemas', 
 });
 
 test('RustDesk edge spool keeps expired active state available for server recovery', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-spool-expired-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-spool-expired-'));
   let now = new Date('2026-07-12T00:00:00.000Z');
   const store = await RustDeskEdgePendingFileStore.open({
     directory: dir,

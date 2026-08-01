@@ -3,10 +3,10 @@ set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 CHART_DIR="$ROOT_DIR/infra/k8s"
-VALUES_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-object-storage-values.XXXXXX")
-EXTERNAL_RENDER=$(mktemp "${TMPDIR:-/tmp}/ivekit-object-storage-external.XXXXXX")
-IDENTITY_RENDER=$(mktemp "${TMPDIR:-/tmp}/ivekit-object-storage-identity.XXXXXX")
-LEGACY_RENDER=$(mktemp "${TMPDIR:-/tmp}/ivekit-object-storage-legacy.XXXXXX")
+VALUES_FILE=$(mktemp "${TMPDIR:-/tmp}/converact-object-storage-values.XXXXXX")
+EXTERNAL_RENDER=$(mktemp "${TMPDIR:-/tmp}/converact-object-storage-external.XXXXXX")
+IDENTITY_RENDER=$(mktemp "${TMPDIR:-/tmp}/converact-object-storage-identity.XXXXXX")
+LEGACY_RENDER=$(mktemp "${TMPDIR:-/tmp}/converact-object-storage-legacy.XXXXXX")
 
 cleanup() {
   rm -f "$VALUES_FILE" "$EXTERNAL_RENDER" "$IDENTITY_RENDER" "$LEGACY_RENDER"
@@ -19,22 +19,22 @@ if ! command -v helm >/dev/null 2>&1; then
 fi
 
 cat >"$VALUES_FILE" <<'EOF'
-opc:
+converact:
   image:
-    repository: registry.example.invalid/opc/platform
+    repository: registry.example.invalid/converact/platform
     digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 aiAgent:
   image:
-    repository: registry.example.invalid/opc/ai-agent
+    repository: registry.example.invalid/converact/ai-agent
     digest: sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 frontend:
   image:
-    repository: registry.example.invalid/opc/frontend
+    repository: registry.example.invalid/converact/frontend
     digest: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 postgres:
   mode: external
   external:
-    existingSecret: opc-database-runtime
+    existingSecret: converact-database-runtime
     secretKey: database-url
 redis:
   image:
@@ -62,10 +62,10 @@ media:
     mode: external
     authMode: secret
     endpoint: https://s3.example.invalid
-    bucket: ivekit-recordings
+    bucket: converact-recordings
     region: eu-west-1
     forcePathStyle: false
-    existingSecret: opc-object-storage-runtime
+    existingSecret: converact-object-storage-runtime
     accessKeyIdKey: access-key-id
     secretAccessKeyKey: secret-access-key
   minio:
@@ -73,8 +73,8 @@ media:
   egress:
     enabled: true
     image:
-      repository: ivekit/livekit-egress
-      allowedRegistries: [docker.io]
+      repository: ghcr.io/songgoldenwind-crypto/converact-livekit-egress
+      allowedRegistries: [ghcr.io]
       digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 rustdesk:
   image:
@@ -83,7 +83,7 @@ rustdesk:
 EOF
 
 render() {
-  helm template opc "$CHART_DIR" --values "$VALUES_FILE" "$@"
+  helm template converact "$CHART_DIR" --values "$VALUES_FILE" "$@"
 }
 
 expect_failure() {
@@ -98,7 +98,7 @@ expect_failure() {
 helm lint "$CHART_DIR" --values "$VALUES_FILE"
 render >"$EXTERNAL_RENDER"
 
-grep -q 'name: opc-object-storage-runtime' "$EXTERNAL_RENDER" || {
+grep -q 'name: converact-object-storage-runtime' "$EXTERNAL_RENDER" || {
   printf '%s\n' 'external S3 Secret env is missing' >&2
   exit 1
 }
@@ -125,15 +125,15 @@ render \
   --set-string media.objectStorage.mode=legacy-minio \
   --set media.minio.enabled=true \
   >"$LEGACY_RENDER"
-grep -q 'name: opc-minio' "$LEGACY_RENDER" || {
+grep -q 'name: converact-minio' "$LEGACY_RENDER" || {
   printf '%s\n' 'legacy MinIO rollback deployment is missing' >&2
   exit 1
 }
-grep -q 'value: "http://opc-minio:9000"' "$LEGACY_RENDER" || {
+grep -q 'value: "http://converact-minio:9000"' "$LEGACY_RENDER" || {
   printf '%s\n' 'legacy MinIO rollback endpoint is missing' >&2
   exit 1
 }
-grep -q 'name: opc-minio-legacy' "$LEGACY_RENDER" || {
+grep -q 'name: converact-minio-legacy' "$LEGACY_RENDER" || {
   printf '%s\n' 'legacy MinIO rollback Secret reference is missing' >&2
   exit 1
 }

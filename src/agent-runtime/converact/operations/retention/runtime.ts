@@ -1,25 +1,25 @@
 import type { PgQueryable } from '../../../../db-pg.js';
-import { PostgresIveKitRetentionStore } from './postgres-store.js';
-import type { IveKitRetentionCategoryHandler } from './ports.js';
-import { createPostgresIveKitRetentionCategoryHandlers } from './category-handlers.js';
+import { PostgresConveractFabricRetentionStore } from './postgres-store.js';
+import type { ConveractFabricRetentionCategoryHandler } from './ports.js';
+import { createPostgresConveractFabricRetentionCategoryHandlers } from './category-handlers.js';
 import {
-  IveKitRetentionWorker,
-  iveKitRetentionWorkerConfig
+  ConveractFabricRetentionWorker,
+  converactFabricRetentionWorkerConfig
 } from './worker.js';
 
-export function startPostgresIveKitRetentionWorker(input: {
+export function startPostgresConveractFabricRetentionWorker(input: {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
-  handlers?: Readonly<Record<string, IveKitRetentionCategoryHandler>>;
+  handlers?: Readonly<Record<string, ConveractFabricRetentionCategoryHandler>>;
 }): { stop(): Promise<void> } {
-  const config = iveKitRetentionWorkerConfig(input.env);
+  const config = converactFabricRetentionWorkerConfig(input.env);
   if (!config.enabled) return { stop: async () => undefined };
-  const defaultHandlers = createPostgresIveKitRetentionCategoryHandlers({
+  const defaultHandlers = createPostgresConveractFabricRetentionCategoryHandlers({
     pg: input.pg,
     env: input.env
   });
-  const worker = new IveKitRetentionWorker({
-    repository: new PostgresIveKitRetentionStore(input.pg),
+  const worker = new ConveractFabricRetentionWorker({
+    repository: new PostgresConveractFabricRetentionStore(input.pg),
     config,
     handlers: { ...defaultHandlers, ...input.handlers }
   });
@@ -29,7 +29,7 @@ export function startPostgresIveKitRetentionWorker(input: {
     if (stopped || active) return;
     active = worker.runOnce()
       .catch((error) => {
-        console.error('[ivekit-retention] worker failed', safeCode((error as Error).message));
+        console.error('[converact-retention] worker failed', safeCode((error as Error).message));
       })
       .finally(() => { active = null; });
   };

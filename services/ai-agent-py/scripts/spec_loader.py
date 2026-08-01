@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from opc_client import OPCClient
+from converact_client import ConveractClient
 from scripts.loader import Script, load_script
 
 
@@ -76,20 +76,20 @@ class VoiceAgentSpec:
 
 async def resolve_agent_spec(
     *,
-    opc: OPCClient,
+    converact: ConveractClient,
     agent_spec_id: str | None,
     script_id: str,
     language: str,
 ) -> tuple[Script, VoiceAgentSpec | None]:
     if agent_spec_id:
-        spec = await fetch_voice_agent_spec(agent_spec_id, opc=opc)
+        spec = await fetch_voice_agent_spec(agent_spec_id, converact=converact)
         if spec:
             return spec.as_script(), spec
     return load_script(script_id, language), None
 
 
-async def fetch_voice_agent_spec(spec_id: str, *, opc: OPCClient) -> VoiceAgentSpec | None:
-    data = await opc.get_voice_agent_spec(spec_id)
+async def fetch_voice_agent_spec(spec_id: str, *, converact: ConveractClient) -> VoiceAgentSpec | None:
+    data = await converact.get_voice_agent_spec(spec_id)
     if not data:
         return None
     return VoiceAgentSpec.from_dict(data)

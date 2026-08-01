@@ -1,884 +1,884 @@
 import type {
-  IveKitChatAttachmentResult,
-  IveKitChatAttachmentUploadDescriptor,
-  IveKitChatBinding,
-  IveKitChatCapabilities,
-  IveKitChatClientPlan,
-  IveKitChatClientPlanInput,
-  IveKitChatDeleteInput,
-  IveKitChatDeliveryResult,
-  IveKitChatEditInput,
-  IveKitChatMessage,
-  IveKitChatMessageInput,
-  IveKitChatMessagePageInput,
-  IveKitChatMessageState,
-  IveKitChatMutationListResult,
-  IveKitChatMutationResult,
-  IveKitChatParticipant,
-  IveKitChatParticipantInput,
-  IveKitChatPostMessageResult,
-  IveKitChatPresenceInput,
-  IveKitChatReceiptInput,
-  IveKitChatReceiptListResult,
-  IveKitChatReceiptResult,
-  IveKitChatRealtimeResult,
-  IveKitChatReactionResult,
-  IveKitChatSession,
-  IveKitChatSessionListInput,
-  IveKitChatSnapshot,
-  IveKitChatPinResult,
-  IveKitChatTypingInput,
-  IveKitCreateSecureFileInput,
-  IveKitOpenChatSessionInput,
-  IveKitCursorPage,
-  IveKitPolicyFindingListResult,
-  IveKitPolicyFindingResult,
-  IveKitPolicyFindingReviewInput,
-  IveKitQualityReviewResult,
-  IveKitSecureFile,
-  IveKitSecureFilePart,
-  IveKitTinodeDeadLetter,
-  IveKitTinodeDeadLetterReplayResult,
-  IveKitTinodeMutationDeadLetter,
-  IveKitTinodeMutationDeadLetterReplayResult,
-  IveKitTinodeOperationsSnapshot,
-  IveKitWorkerRunResult
+  ConveractFabricChatAttachmentResult,
+  ConveractFabricChatAttachmentUploadDescriptor,
+  ConveractFabricChatBinding,
+  ConveractFabricChatCapabilities,
+  ConveractFabricChatClientPlan,
+  ConveractFabricChatClientPlanInput,
+  ConveractFabricChatDeleteInput,
+  ConveractFabricChatDeliveryResult,
+  ConveractFabricChatEditInput,
+  ConveractFabricChatMessage,
+  ConveractFabricChatMessageInput,
+  ConveractFabricChatMessagePageInput,
+  ConveractFabricChatMessageState,
+  ConveractFabricChatMutationListResult,
+  ConveractFabricChatMutationResult,
+  ConveractFabricChatParticipant,
+  ConveractFabricChatParticipantInput,
+  ConveractFabricChatPostMessageResult,
+  ConveractFabricChatPresenceInput,
+  ConveractFabricChatReceiptInput,
+  ConveractFabricChatReceiptListResult,
+  ConveractFabricChatReceiptResult,
+  ConveractFabricChatRealtimeResult,
+  ConveractFabricChatReactionResult,
+  ConveractFabricChatSession,
+  ConveractFabricChatSessionListInput,
+  ConveractFabricChatSnapshot,
+  ConveractFabricChatPinResult,
+  ConveractFabricChatTypingInput,
+  ConveractFabricCreateSecureFileInput,
+  ConveractFabricOpenChatSessionInput,
+  ConveractFabricCursorPage,
+  ConveractFabricPolicyFindingListResult,
+  ConveractFabricPolicyFindingResult,
+  ConveractFabricPolicyFindingReviewInput,
+  ConveractFabricQualityReviewResult,
+  ConveractFabricSecureFile,
+  ConveractFabricSecureFilePart,
+  ConveractFabricTinodeDeadLetter,
+  ConveractFabricTinodeDeadLetterReplayResult,
+  ConveractFabricTinodeMutationDeadLetter,
+  ConveractFabricTinodeMutationDeadLetterReplayResult,
+  ConveractFabricTinodeOperationsSnapshot,
+  ConveractFabricWorkerRunResult
 } from './chat-types.js';
 import type {
-  IveKitCreateMediaCallInput,
-  IveKitCreateMediaIngressInput,
-  IveKitCreateMediaIngressResult,
-  IveKitCreateMediaRoomInput,
-  IveKitMediaConnectionEventInput,
-  IveKitMediaConnectionEventResult,
-  IveKitMediaCallActionInput,
-  IveKitMediaCallParticipantListResult,
-  IveKitMediaCallSnapshot,
-  IveKitMediaCapabilities,
-  IveKitMediaJoinInput,
-  IveKitMediaJoinPlan,
-  IveKitMediaIngress,
-  IveKitMediaModerationResult,
-  IveKitMediaModerationRecoveryResult,
-  IveKitMediaMuteInput,
-  IveKitMediaProviderParticipant,
-  IveKitMediaQualityReportResult,
-  IveKitMediaQualitySnapshotInput,
-  IveKitMediaQualitySummary,
-  IveKitMediaRecording,
-  IveKitMediaEgressJob,
-  IveKitMediaRecordingListInput,
-  IveKitMediaRecordingPage,
-  IveKitMediaRecordingObjectInspection,
-  IveKitMediaRecordingRetentionInput,
-  IveKitMediaRecordingRetentionResult,
-  IveKitRealtimeSpeechSegmentPage,
-  IveKitMediaRoom,
-  IveKitMediaRoomJoinInput,
-  IveKitStartMediaRecordingInput,
-  IveKitUpdateMediaIngressInput
+  ConveractFabricCreateMediaCallInput,
+  ConveractFabricCreateMediaIngressInput,
+  ConveractFabricCreateMediaIngressResult,
+  ConveractFabricCreateMediaRoomInput,
+  ConveractFabricMediaConnectionEventInput,
+  ConveractFabricMediaConnectionEventResult,
+  ConveractFabricMediaCallActionInput,
+  ConveractFabricMediaCallParticipantListResult,
+  ConveractFabricMediaCallSnapshot,
+  ConveractFabricMediaCapabilities,
+  ConveractFabricMediaJoinInput,
+  ConveractFabricMediaJoinPlan,
+  ConveractFabricMediaIngress,
+  ConveractFabricMediaModerationResult,
+  ConveractFabricMediaModerationRecoveryResult,
+  ConveractFabricMediaMuteInput,
+  ConveractFabricMediaProviderParticipant,
+  ConveractFabricMediaQualityReportResult,
+  ConveractFabricMediaQualitySnapshotInput,
+  ConveractFabricMediaQualitySummary,
+  ConveractFabricMediaRecording,
+  ConveractFabricMediaEgressJob,
+  ConveractFabricMediaRecordingListInput,
+  ConveractFabricMediaRecordingPage,
+  ConveractFabricMediaRecordingObjectInspection,
+  ConveractFabricMediaRecordingRetentionInput,
+  ConveractFabricMediaRecordingRetentionResult,
+  ConveractFabricRealtimeSpeechSegmentPage,
+  ConveractFabricMediaRoom,
+  ConveractFabricMediaRoomJoinInput,
+  ConveractFabricStartMediaRecordingInput,
+  ConveractFabricUpdateMediaIngressInput
 } from './media-types.js';
-import type { IveKitSdkBusinessRef } from './types.js';
-import type { IveKitBusinessContext, IveKitUnifiedTimelinePage } from './context-types.js';
+import type { ConveractFabricSdkBusinessRef } from './types.js';
+import type { ConveractFabricBusinessContext, ConveractFabricUnifiedTimelinePage } from './context-types.js';
 import type {
-  IveKitContactCenterAgent,
-  IveKitContactCenterAgentSkill,
-  IveKitContactCenterAgentSnapshot,
-  IveKitContactCenterCallback,
-  IveKitContactCenterCallbackState,
-  IveKitContactCenterCapabilities,
-  IveKitContactCenterCreateQueueInput,
-  IveKitContactCenterListInput,
-  IveKitContactCenterMembership,
-  IveKitContactCenterMonitorSnapshot,
-  IveKitContactCenterPage,
-  IveKitContactCenterPresence,
-  IveKitContactCenterQueue,
-  IveKitContactCenterQueueConfiguration,
-  IveKitContactCenterQueueEntrySnapshot,
-  IveKitContactCenterQueueEntryState,
-  IveKitContactCenterSkill,
-  IveKitContactCenterSkillRequirement,
-  IveKitContactCenterSupervisorMode,
-  IveKitContactCenterSupervisorSession
+  ConveractFabricContactCenterAgent,
+  ConveractFabricContactCenterAgentSkill,
+  ConveractFabricContactCenterAgentSnapshot,
+  ConveractFabricContactCenterCallback,
+  ConveractFabricContactCenterCallbackState,
+  ConveractFabricContactCenterCapabilities,
+  ConveractFabricContactCenterCreateQueueInput,
+  ConveractFabricContactCenterListInput,
+  ConveractFabricContactCenterMembership,
+  ConveractFabricContactCenterMonitorSnapshot,
+  ConveractFabricContactCenterPage,
+  ConveractFabricContactCenterPresence,
+  ConveractFabricContactCenterQueue,
+  ConveractFabricContactCenterQueueConfiguration,
+  ConveractFabricContactCenterQueueEntrySnapshot,
+  ConveractFabricContactCenterQueueEntryState,
+  ConveractFabricContactCenterSkill,
+  ConveractFabricContactCenterSkillRequirement,
+  ConveractFabricContactCenterSupervisorMode,
+  ConveractFabricContactCenterSupervisorSession
 } from './contact-center-types.js';
 import type {
-  IveKitEventPage,
-  IveKitEventPageInput,
-  IveKitEventReplayInput,
-  IveKitEventReplayResult,
-  IveKitIntegrationEventCatalog,
-  IveKitEventWebhookSubscription,
-  IveKitEventWebhookSubscriptionPage,
-  IveKitCreateEventWebhookSubscriptionInput,
-  IveKitUpdateEventWebhookSubscriptionInput
+  ConveractFabricEventPage,
+  ConveractFabricEventPageInput,
+  ConveractFabricEventReplayInput,
+  ConveractFabricEventReplayResult,
+  ConveractFabricIntegrationEventCatalog,
+  ConveractFabricEventWebhookSubscription,
+  ConveractFabricEventWebhookSubscriptionPage,
+  ConveractFabricCreateEventWebhookSubscriptionInput,
+  ConveractFabricUpdateEventWebhookSubscriptionInput
 } from './event-types.js';
 import type {
-  IveKitFindingQueueInput,
-  IveKitFindingQueueDetail,
-  IveKitFindingQueuePage,
-  IveKitFindingQueueReviewInput,
-  IveKitIntelligenceCapabilities,
-  IveKitIntelligencePolicy,
-  IveKitIntelligencePolicyWrite,
-  IveKitIntelligenceSourceSnapshot,
-  IveKitProviderHealthResult,
-  IveKitProviderProfileSummary,
-  IveKitProviderRuntimeSnapshot,
-  IveKitTranslationListResult,
-  IveKitTranslationRequestInput,
-  IveKitTranslationRequestResult,
-  IveKitTranslationJob
+  ConveractFabricFindingQueueInput,
+  ConveractFabricFindingQueueDetail,
+  ConveractFabricFindingQueuePage,
+  ConveractFabricFindingQueueReviewInput,
+  ConveractFabricIntelligenceCapabilities,
+  ConveractFabricIntelligencePolicy,
+  ConveractFabricIntelligencePolicyWrite,
+  ConveractFabricIntelligenceSourceSnapshot,
+  ConveractFabricProviderHealthResult,
+  ConveractFabricProviderProfileSummary,
+  ConveractFabricProviderRuntimeSnapshot,
+  ConveractFabricTranslationListResult,
+  ConveractFabricTranslationRequestInput,
+  ConveractFabricTranslationRequestResult,
+  ConveractFabricTranslationJob
 } from './intelligence-types.js';
 import type {
-  IveKitIvrAudioAsset, IveKitIvrCompilationReport, IveKitIvrCreateAudioAssetInput,
-  IveKitIvrCreateRegionGroupInput, IveKitIvrCreateRingGroupInput, IveKitIvrCreateTimeGroupInput,
-  IveKitIvrFlow, IveKitIvrFlowGraph, IveKitIvrFlowVersion, IveKitIvrRegionGroup,
-  IveKitIvrRingGroup, IveKitIvrSession, IveKitIvrSessionResult, IveKitIvrSettings,
-  IveKitIvrSimulationResult, IveKitIvrTimeGroup, IveKitIvrUpdateAudioAssetInput,
-  IveKitIvrUpdateRegionGroupInput, IveKitIvrUpdateRingGroupInput, IveKitIvrUpdateSettingsInput,
-  IveKitIvrUpdateTimeGroupInput
+  ConveractFabricIvrAudioAsset, ConveractFabricIvrCompilationReport, ConveractFabricIvrCreateAudioAssetInput,
+  ConveractFabricIvrCreateRegionGroupInput, ConveractFabricIvrCreateRingGroupInput, ConveractFabricIvrCreateTimeGroupInput,
+  ConveractFabricIvrFlow, ConveractFabricIvrFlowGraph, ConveractFabricIvrFlowVersion, ConveractFabricIvrRegionGroup,
+  ConveractFabricIvrRingGroup, ConveractFabricIvrSession, ConveractFabricIvrSessionResult, ConveractFabricIvrSettings,
+  ConveractFabricIvrSimulationResult, ConveractFabricIvrTimeGroup, ConveractFabricIvrUpdateAudioAssetInput,
+  ConveractFabricIvrUpdateRegionGroupInput, ConveractFabricIvrUpdateRingGroupInput, ConveractFabricIvrUpdateSettingsInput,
+  ConveractFabricIvrUpdateTimeGroupInput
 } from './ivr-types.js';
 import type {
-  IveKitVoiceCall,
-  IveKitVoiceCallActionInput,
-  IveKitVoiceCallCommand,
-  IveKitVoiceCallState,
-  IveKitVoiceCapabilities,
-  IveKitVoiceCapabilitySnapshot,
-  IveKitVoiceConfigurationCommand,
-  IveKitVoiceConsent,
-  IveKitVoiceCreateCallResult,
-  IveKitVoiceCreateConsentInput,
-  IveKitVoiceCreateDidInput,
-  IveKitVoiceCreateExtensionInput,
-  IveKitVoiceCreateOutboundCallInput,
-  IveKitVoiceCreateProfileInput,
-  IveKitVoiceCreateRouteInput,
-  IveKitVoiceCreateTrunkInput,
-  IveKitVoiceDeploymentProfile,
-  IveKitVoiceDid,
-  IveKitVoiceDidPatch,
-  IveKitVoiceExtension,
-  IveKitVoiceExtensionPatch,
-  IveKitVoiceExtensionSessionPlan,
-  IveKitVoiceLiveKitBridge,
-  IveKitVoicePage,
-  IveKitVoicePageInput,
-  IveKitVoiceParkingSlot,
-  IveKitVoiceParkingSlotState,
-  IveKitVoiceParticipant,
-  IveKitVoicePolicy,
-  IveKitVoicePolicyWrite,
-  IveKitVoiceProfilePatch,
-  IveKitVoiceProviderEvent,
-  IveKitVoicePublishRouteResult,
-  IveKitVoiceRecording,
-  IveKitVoiceRoute,
-  IveKitVoiceRoutePatch,
-  IveKitVoiceRouteVersion,
-  IveKitVoiceSipTrunk,
-  IveKitVoiceTrunkPatch
+  ConveractFabricVoiceCall,
+  ConveractFabricVoiceCallActionInput,
+  ConveractFabricVoiceCallCommand,
+  ConveractFabricVoiceCallState,
+  ConveractFabricVoiceCapabilities,
+  ConveractFabricVoiceCapabilitySnapshot,
+  ConveractFabricVoiceConfigurationCommand,
+  ConveractFabricVoiceConsent,
+  ConveractFabricVoiceCreateCallResult,
+  ConveractFabricVoiceCreateConsentInput,
+  ConveractFabricVoiceCreateDidInput,
+  ConveractFabricVoiceCreateExtensionInput,
+  ConveractFabricVoiceCreateOutboundCallInput,
+  ConveractFabricVoiceCreateProfileInput,
+  ConveractFabricVoiceCreateRouteInput,
+  ConveractFabricVoiceCreateTrunkInput,
+  ConveractFabricVoiceDeploymentProfile,
+  ConveractFabricVoiceDid,
+  ConveractFabricVoiceDidPatch,
+  ConveractFabricVoiceExtension,
+  ConveractFabricVoiceExtensionPatch,
+  ConveractFabricVoiceExtensionSessionPlan,
+  ConveractFabricVoiceLiveKitBridge,
+  ConveractFabricVoicePage,
+  ConveractFabricVoicePageInput,
+  ConveractFabricVoiceParkingSlot,
+  ConveractFabricVoiceParkingSlotState,
+  ConveractFabricVoiceParticipant,
+  ConveractFabricVoicePolicy,
+  ConveractFabricVoicePolicyWrite,
+  ConveractFabricVoiceProfilePatch,
+  ConveractFabricVoiceProviderEvent,
+  ConveractFabricVoicePublishRouteResult,
+  ConveractFabricVoiceRecording,
+  ConveractFabricVoiceRoute,
+  ConveractFabricVoiceRoutePatch,
+  ConveractFabricVoiceRouteVersion,
+  ConveractFabricVoiceSipTrunk,
+  ConveractFabricVoiceTrunkPatch
 } from './voice-types.js';
 import type {
-  IveKitCreateNotificationEndpointInput,
-  IveKitCreateNotificationInput,
-  IveKitNotification,
-  IveKitNotificationCapabilities,
-  IveKitNotificationCreateResult,
-  IveKitNotificationDelivery,
-  IveKitNotificationDeliveryListInput,
-  IveKitNotificationEndpoint,
-  IveKitNotificationEndpointListInput,
-  IveKitNotificationEndpointTestInput,
-  IveKitNotificationInboxAction,
-  IveKitNotificationInboxItem,
-  IveKitNotificationInboxPage,
-  IveKitNotificationPage,
-  IveKitNotificationPreference,
-  IveKitNotificationTemplate,
-  IveKitNotificationTemplateListInput,
-  IveKitNotificationTemplateSnapshot,
-  IveKitNotificationTemplateVersion,
-  IveKitNotificationTemplateVersionListInput,
-  IveKitRetryNotificationDeliveryInput
+  ConveractFabricCreateNotificationEndpointInput,
+  ConveractFabricCreateNotificationInput,
+  ConveractFabricNotification,
+  ConveractFabricNotificationCapabilities,
+  ConveractFabricNotificationCreateResult,
+  ConveractFabricNotificationDelivery,
+  ConveractFabricNotificationDeliveryListInput,
+  ConveractFabricNotificationEndpoint,
+  ConveractFabricNotificationEndpointListInput,
+  ConveractFabricNotificationEndpointTestInput,
+  ConveractFabricNotificationInboxAction,
+  ConveractFabricNotificationInboxItem,
+  ConveractFabricNotificationInboxPage,
+  ConveractFabricNotificationPage,
+  ConveractFabricNotificationPreference,
+  ConveractFabricNotificationTemplate,
+  ConveractFabricNotificationTemplateListInput,
+  ConveractFabricNotificationTemplateSnapshot,
+  ConveractFabricNotificationTemplateVersion,
+  ConveractFabricNotificationTemplateVersionListInput,
+  ConveractFabricRetryNotificationDeliveryInput
 } from './notification-types.js';
 import type {
-  IveKitAuditCapabilities,
-  IveKitAuditListInput,
-  IveKitAuditPage
+  ConveractFabricAuditCapabilities,
+  ConveractFabricAuditListInput,
+  ConveractFabricAuditPage
 } from './audit-types.js';
 import type {
-  IveKitLegalHold,
-  IveKitRetentionCapabilities,
-  IveKitRetentionCategory,
-  IveKitRetentionPolicy
+  ConveractFabricLegalHold,
+  ConveractFabricRetentionCapabilities,
+  ConveractFabricRetentionCategory,
+  ConveractFabricRetentionPolicy
 } from './retention-types.js';
 import {
-  createIveKitUploadTransport,
-  type IveKitUploadOperation,
-  type IveKitUploadProgress,
-  type IveKitUploadTransport
+  createConveractFabricUploadTransport,
+  type ConveractFabricUploadOperation,
+  type ConveractFabricUploadProgress,
+  type ConveractFabricUploadTransport
 } from './upload-transport.js';
 
-export type IveKitSdkFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
-export type IveKitSdkRequestBody = Exclude<RequestInit['body'], null | undefined>;
+export type ConveractFabricSdkFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
+export type ConveractFabricSdkRequestBody = Exclude<RequestInit['body'], null | undefined>;
 
-export interface IveKitHttpSdkInput {
+export interface ConveractFabricHttpSdkInput {
   baseUrl: string;
   tenantId: string;
   apiKey?: string;
   accessToken?: string;
   userId?: string;
   timeoutMs?: number;
-  fetch?: IveKitSdkFetch;
-  uploadTransport?: IveKitUploadTransport;
+  fetch?: ConveractFabricSdkFetch;
+  uploadTransport?: ConveractFabricUploadTransport;
 }
 
-export type { IveKitSdkBusinessRef } from './types.js';
+export type { ConveractFabricSdkBusinessRef } from './types.js';
 
-export interface IveKitSdkBinary {
+export interface ConveractFabricSdkBinary {
   bytes: Uint8Array;
   contentType: string;
   filename: string;
 }
 
-export interface IveKitMediaHttpClient {
-  getCapabilities(): Promise<IveKitMediaCapabilities>;
+export interface ConveractFabricMediaHttpClient {
+  getCapabilities(): Promise<ConveractFabricMediaCapabilities>;
   createIngress(
-    input: IveKitCreateMediaIngressInput,
+    input: ConveractFabricCreateMediaIngressInput,
     options: { idempotencyKey: string }
-  ): Promise<IveKitCreateMediaIngressResult>;
-  listIngresses(input: { room_name: string }): Promise<IveKitMediaIngress[]>;
-  getIngress(ingressId: string): Promise<IveKitMediaIngress>;
+  ): Promise<ConveractFabricCreateMediaIngressResult>;
+  listIngresses(input: { room_name: string }): Promise<ConveractFabricMediaIngress[]>;
+  getIngress(ingressId: string): Promise<ConveractFabricMediaIngress>;
   updateIngress(
     ingressId: string,
-    input: IveKitUpdateMediaIngressInput
-  ): Promise<IveKitMediaIngress>;
-  deleteIngress(ingressId: string): Promise<IveKitMediaIngress>;
-  createCall(input: IveKitCreateMediaCallInput): Promise<IveKitMediaCallSnapshot>;
-  getCall(callId: string): Promise<IveKitMediaCallSnapshot>;
+    input: ConveractFabricUpdateMediaIngressInput
+  ): Promise<ConveractFabricMediaIngress>;
+  deleteIngress(ingressId: string): Promise<ConveractFabricMediaIngress>;
+  createCall(input: ConveractFabricCreateMediaCallInput): Promise<ConveractFabricMediaCallSnapshot>;
+  getCall(callId: string): Promise<ConveractFabricMediaCallSnapshot>;
   transitionCall(
     callId: string,
-    input: IveKitMediaCallActionInput,
+    input: ConveractFabricMediaCallActionInput,
     options: { idempotencyKey: string }
-  ): Promise<IveKitMediaCallSnapshot>;
-  createCallJoinPlan(callId: string, input: IveKitMediaJoinInput): Promise<IveKitMediaJoinPlan>;
-  listCallParticipants(callId: string): Promise<IveKitMediaCallParticipantListResult>;
+  ): Promise<ConveractFabricMediaCallSnapshot>;
+  createCallJoinPlan(callId: string, input: ConveractFabricMediaJoinInput): Promise<ConveractFabricMediaJoinPlan>;
+  listCallParticipants(callId: string): Promise<ConveractFabricMediaCallParticipantListResult>;
   reportCallQuality(
     callId: string,
-    snapshots: IveKitMediaQualitySnapshotInput[]
-  ): Promise<IveKitMediaQualityReportResult>;
-  getCallQuality(callId: string, input?: { limit?: number }): Promise<IveKitMediaQualitySummary>;
+    snapshots: ConveractFabricMediaQualitySnapshotInput[]
+  ): Promise<ConveractFabricMediaQualityReportResult>;
+  getCallQuality(callId: string, input?: { limit?: number }): Promise<ConveractFabricMediaQualitySummary>;
   reportCallConnectionEvent(
     callId: string,
-    input: IveKitMediaConnectionEventInput
-  ): Promise<IveKitMediaConnectionEventResult>;
+    input: ConveractFabricMediaConnectionEventInput
+  ): Promise<ConveractFabricMediaConnectionEventResult>;
   listRealtimeSpeech(
     callId: string,
     input?: { limit?: number; cursor?: string }
-  ): Promise<IveKitRealtimeSpeechSegmentPage>;
-  createRoom(input: IveKitCreateMediaRoomInput): Promise<IveKitMediaRoom>;
-  getRoom(roomName: string): Promise<IveKitMediaRoom>;
-  closeRoom(roomName: string): Promise<IveKitMediaRoom>;
-  createJoinPlan(roomName: string, input: IveKitMediaRoomJoinInput): Promise<IveKitMediaJoinPlan>;
+  ): Promise<ConveractFabricRealtimeSpeechSegmentPage>;
+  createRoom(input: ConveractFabricCreateMediaRoomInput): Promise<ConveractFabricMediaRoom>;
+  getRoom(roomName: string): Promise<ConveractFabricMediaRoom>;
+  closeRoom(roomName: string): Promise<ConveractFabricMediaRoom>;
+  createJoinPlan(roomName: string, input: ConveractFabricMediaRoomJoinInput): Promise<ConveractFabricMediaJoinPlan>;
   listParticipants(
     roomName: string,
     input?: { include_left?: boolean; limit?: number }
-  ): Promise<IveKitMediaProviderParticipant[]>;
+  ): Promise<ConveractFabricMediaProviderParticipant[]>;
   muteParticipant(
     roomName: string,
     identity: string,
-    input: IveKitMediaMuteInput,
+    input: ConveractFabricMediaMuteInput,
     options: { idempotencyKey: string }
-  ): Promise<IveKitMediaModerationResult>;
+  ): Promise<ConveractFabricMediaModerationResult>;
   removeParticipant(
     roomName: string,
     identity: string,
     input: { reason?: string },
     options: { idempotencyKey: string }
-  ): Promise<IveKitMediaModerationResult>;
-  recoverModerationCommands(input?: { limit?: number }): Promise<IveKitMediaModerationRecoveryResult>;
-  startRecording(roomName: string, input: IveKitStartMediaRecordingInput): Promise<IveKitMediaRecording>;
-  stopRecording(recordingOrEgressId: string): Promise<IveKitMediaRecording>;
-  listRecordings(input?: Omit<IveKitMediaRecordingListInput, 'cursor'>): Promise<IveKitMediaRecording[]>;
-  listRecordingsPage(input?: IveKitMediaRecordingListInput): Promise<IveKitMediaRecordingPage>;
-  getRecording(recordingId: string): Promise<IveKitMediaRecording>;
-  listRecordingJobs(recordingId: string): Promise<IveKitMediaEgressJob[]>;
-  inspectRecordingObject(recordingId: string): Promise<IveKitMediaRecordingObjectInspection>;
-  exportRecordingObject(recordingId: string): Promise<IveKitSdkBinary>;
-  inspectRecordingJobObject(recordingId: string, jobId: string): Promise<IveKitMediaRecordingObjectInspection>;
-  exportRecordingJobObject(recordingId: string, jobId: string): Promise<IveKitSdkBinary>;
-  cleanupRecordings(input?: IveKitMediaRecordingRetentionInput): Promise<IveKitMediaRecordingRetentionResult>;
+  ): Promise<ConveractFabricMediaModerationResult>;
+  recoverModerationCommands(input?: { limit?: number }): Promise<ConveractFabricMediaModerationRecoveryResult>;
+  startRecording(roomName: string, input: ConveractFabricStartMediaRecordingInput): Promise<ConveractFabricMediaRecording>;
+  stopRecording(recordingOrEgressId: string): Promise<ConveractFabricMediaRecording>;
+  listRecordings(input?: Omit<ConveractFabricMediaRecordingListInput, 'cursor'>): Promise<ConveractFabricMediaRecording[]>;
+  listRecordingsPage(input?: ConveractFabricMediaRecordingListInput): Promise<ConveractFabricMediaRecordingPage>;
+  getRecording(recordingId: string): Promise<ConveractFabricMediaRecording>;
+  listRecordingJobs(recordingId: string): Promise<ConveractFabricMediaEgressJob[]>;
+  inspectRecordingObject(recordingId: string): Promise<ConveractFabricMediaRecordingObjectInspection>;
+  exportRecordingObject(recordingId: string): Promise<ConveractFabricSdkBinary>;
+  inspectRecordingJobObject(recordingId: string, jobId: string): Promise<ConveractFabricMediaRecordingObjectInspection>;
+  exportRecordingJobObject(recordingId: string, jobId: string): Promise<ConveractFabricSdkBinary>;
+  cleanupRecordings(input?: ConveractFabricMediaRecordingRetentionInput): Promise<ConveractFabricMediaRecordingRetentionResult>;
 }
 
-export interface IveKitAttachmentUploadInput {
+export interface ConveractFabricAttachmentUploadInput {
   kind: 'image' | 'video' | 'audio' | 'file' | 'screen_recording';
   filename: string;
   contentType: string;
-  body: IveKitSdkRequestBody;
+  body: ConveractFabricSdkRequestBody;
 }
 
-export interface IveKitAttachmentUploadOptions {
-  onProgress?: (progress: IveKitUploadProgress) => void;
+export interface ConveractFabricAttachmentUploadOptions {
+  onProgress?: (progress: ConveractFabricUploadProgress) => void;
 }
 
-export interface IveKitChatHttpClient {
-  getCapabilities(): Promise<IveKitChatCapabilities>;
-  openSession(input: IveKitOpenChatSessionInput): Promise<IveKitChatSession>;
-  closeSession(sessionId: string): Promise<IveKitChatSession>;
-  listSessions(input?: IveKitChatSessionListInput): Promise<IveKitCursorPage<IveKitChatSession>>;
+export interface ConveractFabricChatHttpClient {
+  getCapabilities(): Promise<ConveractFabricChatCapabilities>;
+  openSession(input: ConveractFabricOpenChatSessionInput): Promise<ConveractFabricChatSession>;
+  closeSession(sessionId: string): Promise<ConveractFabricChatSession>;
+  listSessions(input?: ConveractFabricChatSessionListInput): Promise<ConveractFabricCursorPage<ConveractFabricChatSession>>;
   listSessionsByBusinessRef(
-    businessRef: IveKitSdkBusinessRef,
+    businessRef: ConveractFabricSdkBusinessRef,
     input?: { limit?: number }
-  ): Promise<IveKitChatSession[]>;
-  bindSession(sessionId: string, input?: Record<string, unknown>): Promise<IveKitChatBinding>;
-  createClientPlan(sessionId: string, input: IveKitChatClientPlanInput): Promise<IveKitChatClientPlan>;
-  addParticipant(sessionId: string, input: IveKitChatParticipantInput): Promise<IveKitChatParticipant>;
-  leaveParticipant(sessionId: string, input: { identity?: string }): Promise<IveKitChatParticipant | null>;
-  listMessages(sessionId: string, input?: { limit?: number }): Promise<IveKitChatMessage[]>;
+  ): Promise<ConveractFabricChatSession[]>;
+  bindSession(sessionId: string, input?: Record<string, unknown>): Promise<ConveractFabricChatBinding>;
+  createClientPlan(sessionId: string, input: ConveractFabricChatClientPlanInput): Promise<ConveractFabricChatClientPlan>;
+  addParticipant(sessionId: string, input: ConveractFabricChatParticipantInput): Promise<ConveractFabricChatParticipant>;
+  leaveParticipant(sessionId: string, input: { identity?: string }): Promise<ConveractFabricChatParticipant | null>;
+  listMessages(sessionId: string, input?: { limit?: number }): Promise<ConveractFabricChatMessage[]>;
   listMessagesPage(
     sessionId: string,
-    input?: IveKitChatMessagePageInput
-  ): Promise<IveKitCursorPage<IveKitChatMessage>>;
+    input?: ConveractFabricChatMessagePageInput
+  ): Promise<ConveractFabricCursorPage<ConveractFabricChatMessage>>;
   postMessage(
     sessionId: string,
-    input: IveKitChatMessageInput,
+    input: ConveractFabricChatMessageInput,
     options?: { idempotencyKey?: string }
-  ): Promise<IveKitChatPostMessageResult>;
-  getSnapshot(sessionId: string, input?: { limit?: number }): Promise<IveKitChatSnapshot>;
-  getDelivery(sessionId: string, messageId: string): Promise<IveKitChatDeliveryResult>;
-  retryDelivery(sessionId: string, messageId: string): Promise<IveKitChatDeliveryResult>;
-  getTinodeOperations(): Promise<IveKitTinodeOperationsSnapshot>;
+  ): Promise<ConveractFabricChatPostMessageResult>;
+  getSnapshot(sessionId: string, input?: { limit?: number }): Promise<ConveractFabricChatSnapshot>;
+  getDelivery(sessionId: string, messageId: string): Promise<ConveractFabricChatDeliveryResult>;
+  retryDelivery(sessionId: string, messageId: string): Promise<ConveractFabricChatDeliveryResult>;
+  getTinodeOperations(): Promise<ConveractFabricTinodeOperationsSnapshot>;
   listTinodeDeadLetters(input?: {
     state?: 'open' | 'resolved' | 'all';
     limit?: number;
-  }): Promise<IveKitTinodeDeadLetter[]>;
+  }): Promise<ConveractFabricTinodeDeadLetter[]>;
   replayTinodeDeadLetter(
     deadLetterId: string,
     options: { idempotencyKey: string }
-  ): Promise<IveKitTinodeDeadLetterReplayResult>;
-  listTinodeMutationDeadLetters(input?: { limit?: number }): Promise<IveKitTinodeMutationDeadLetter[]>;
+  ): Promise<ConveractFabricTinodeDeadLetterReplayResult>;
+  listTinodeMutationDeadLetters(input?: { limit?: number }): Promise<ConveractFabricTinodeMutationDeadLetter[]>;
   replayTinodeMutationDeadLetter(
     outboxId: string,
     options: { idempotencyKey: string }
-  ): Promise<IveKitTinodeMutationDeadLetterReplayResult>;
-  listReceipts(sessionId: string, messageId: string): Promise<IveKitChatReceiptListResult>;
+  ): Promise<ConveractFabricTinodeMutationDeadLetterReplayResult>;
+  listReceipts(sessionId: string, messageId: string): Promise<ConveractFabricChatReceiptListResult>;
   markReceipt(
     sessionId: string,
     messageId: string,
-    input: IveKitChatReceiptInput
-  ): Promise<IveKitChatReceiptResult>;
-  getMessageState(sessionId: string): Promise<IveKitChatMessageState>;
-  setTyping(sessionId: string, input: IveKitChatTypingInput): Promise<IveKitChatRealtimeResult>;
-  setPresence(sessionId: string, input: IveKitChatPresenceInput): Promise<IveKitChatRealtimeResult>;
-  listRealtimeState(sessionId: string): Promise<IveKitChatRealtimeResult>;
+    input: ConveractFabricChatReceiptInput
+  ): Promise<ConveractFabricChatReceiptResult>;
+  getMessageState(sessionId: string): Promise<ConveractFabricChatMessageState>;
+  setTyping(sessionId: string, input: ConveractFabricChatTypingInput): Promise<ConveractFabricChatRealtimeResult>;
+  setPresence(sessionId: string, input: ConveractFabricChatPresenceInput): Promise<ConveractFabricChatRealtimeResult>;
+  listRealtimeState(sessionId: string): Promise<ConveractFabricChatRealtimeResult>;
   editMessage(
     sessionId: string,
     messageId: string,
-    input: IveKitChatEditInput
-  ): Promise<IveKitChatMutationResult>;
+    input: ConveractFabricChatEditInput
+  ): Promise<ConveractFabricChatMutationResult>;
   deleteMessage(
     sessionId: string,
     messageId: string,
-    input?: IveKitChatDeleteInput
-  ): Promise<IveKitChatMutationResult>;
-  listMutations(sessionId: string, messageId: string): Promise<IveKitChatMutationListResult>;
-  listReactions(sessionId: string, messageId: string): Promise<IveKitChatReactionResult>;
-  addReaction(sessionId: string, messageId: string, emoji: string): Promise<IveKitChatReactionResult>;
-  removeReaction(sessionId: string, messageId: string, emoji: string): Promise<IveKitChatReactionResult>;
-  listPins(sessionId: string): Promise<IveKitChatPinResult>;
-  pinMessage(sessionId: string, messageId: string): Promise<IveKitChatPinResult>;
-  unpinMessage(sessionId: string, messageId: string): Promise<IveKitChatPinResult>;
-  uploadAttachment(sessionId: string, input: IveKitAttachmentUploadInput): Promise<IveKitChatAttachmentUploadDescriptor>;
+    input?: ConveractFabricChatDeleteInput
+  ): Promise<ConveractFabricChatMutationResult>;
+  listMutations(sessionId: string, messageId: string): Promise<ConveractFabricChatMutationListResult>;
+  listReactions(sessionId: string, messageId: string): Promise<ConveractFabricChatReactionResult>;
+  addReaction(sessionId: string, messageId: string, emoji: string): Promise<ConveractFabricChatReactionResult>;
+  removeReaction(sessionId: string, messageId: string, emoji: string): Promise<ConveractFabricChatReactionResult>;
+  listPins(sessionId: string): Promise<ConveractFabricChatPinResult>;
+  pinMessage(sessionId: string, messageId: string): Promise<ConveractFabricChatPinResult>;
+  unpinMessage(sessionId: string, messageId: string): Promise<ConveractFabricChatPinResult>;
+  uploadAttachment(sessionId: string, input: ConveractFabricAttachmentUploadInput): Promise<ConveractFabricChatAttachmentUploadDescriptor>;
   uploadAttachmentWithProgress(
     sessionId: string,
-    input: IveKitAttachmentUploadInput,
-    options?: IveKitAttachmentUploadOptions
-  ): IveKitUploadOperation<IveKitChatAttachmentUploadDescriptor>;
-  downloadAttachment(sessionId: string, attachmentId: string): Promise<IveKitSdkBinary>;
+    input: ConveractFabricAttachmentUploadInput,
+    options?: ConveractFabricAttachmentUploadOptions
+  ): ConveractFabricUploadOperation<ConveractFabricChatAttachmentUploadDescriptor>;
+  downloadAttachment(sessionId: string, attachmentId: string): Promise<ConveractFabricSdkBinary>;
   createSecureFile(
     sessionId: string,
-    input: IveKitCreateSecureFileInput,
+    input: ConveractFabricCreateSecureFileInput,
     options: { idempotencyKey: string }
-  ): Promise<IveKitSecureFile>;
+  ): Promise<ConveractFabricSecureFile>;
   uploadSecureFileContent(
     sessionId: string,
     fileId: string,
-    body: IveKitSdkRequestBody,
+    body: ConveractFabricSdkRequestBody,
     sha256: string
-  ): Promise<IveKitSecureFile>;
+  ): Promise<ConveractFabricSecureFile>;
   uploadSecureFilePart(
     sessionId: string,
     fileId: string,
     partNumber: number,
-    body: IveKitSdkRequestBody,
+    body: ConveractFabricSdkRequestBody,
     sha256: string
-  ): Promise<IveKitSecureFilePart>;
-  listSecureFileParts(sessionId: string, fileId: string): Promise<IveKitSecureFilePart[]>;
+  ): Promise<ConveractFabricSecureFilePart>;
+  listSecureFileParts(sessionId: string, fileId: string): Promise<ConveractFabricSecureFilePart[]>;
   completeSecureFile(
     sessionId: string,
     fileId: string,
     input: { size_bytes: number; sha256: string }
-  ): Promise<IveKitSecureFile>;
-  getSecureFile(sessionId: string, fileId: string): Promise<IveKitSecureFile>;
-  abortSecureFile(sessionId: string, fileId: string): Promise<IveKitSecureFile>;
-  downloadSecureFile(sessionId: string, fileId: string): Promise<IveKitSdkBinary>;
-  getAttachment(sessionId: string, attachmentId: string): Promise<IveKitChatAttachmentResult>;
-  retryAttachment(sessionId: string, attachmentId: string): Promise<IveKitChatAttachmentResult>;
+  ): Promise<ConveractFabricSecureFile>;
+  getSecureFile(sessionId: string, fileId: string): Promise<ConveractFabricSecureFile>;
+  abortSecureFile(sessionId: string, fileId: string): Promise<ConveractFabricSecureFile>;
+  downloadSecureFile(sessionId: string, fileId: string): Promise<ConveractFabricSdkBinary>;
+  getAttachment(sessionId: string, attachmentId: string): Promise<ConveractFabricChatAttachmentResult>;
+  retryAttachment(sessionId: string, attachmentId: string): Promise<ConveractFabricChatAttachmentResult>;
   listFindings(
     sessionId: string,
     input?: { message_id?: string; source?: string; review_status?: string; limit?: number }
-  ): Promise<IveKitPolicyFindingListResult>;
-  getFinding(sessionId: string, findingId: string): Promise<IveKitPolicyFindingResult>;
+  ): Promise<ConveractFabricPolicyFindingListResult>;
+  getFinding(sessionId: string, findingId: string): Promise<ConveractFabricPolicyFindingResult>;
   reviewFinding(
     sessionId: string,
     findingId: string,
-    input: IveKitPolicyFindingReviewInput
-  ): Promise<IveKitPolicyFindingResult>;
-  getQualityReview(sessionId: string, messageId: string): Promise<IveKitQualityReviewResult>;
-  enqueueQualityReview(sessionId: string, messageId: string): Promise<IveKitQualityReviewResult>;
-  runAttachmentProcessing(input?: { limit?: number }): Promise<IveKitWorkerRunResult>;
-  runQualityReview(input?: { limit?: number }): Promise<IveKitWorkerRunResult>;
+    input: ConveractFabricPolicyFindingReviewInput
+  ): Promise<ConveractFabricPolicyFindingResult>;
+  getQualityReview(sessionId: string, messageId: string): Promise<ConveractFabricQualityReviewResult>;
+  enqueueQualityReview(sessionId: string, messageId: string): Promise<ConveractFabricQualityReviewResult>;
+  runAttachmentProcessing(input?: { limit?: number }): Promise<ConveractFabricWorkerRunResult>;
+  runQualityReview(input?: { limit?: number }): Promise<ConveractFabricWorkerRunResult>;
   listMessageTranslations(
     sessionId: string,
     messageId: string,
     input?: { target_language?: string; history?: boolean }
-  ): Promise<IveKitTranslationListResult>;
+  ): Promise<ConveractFabricTranslationListResult>;
   requestMessageTranslation(
     sessionId: string,
     messageId: string,
-    input: IveKitTranslationRequestInput,
+    input: ConveractFabricTranslationRequestInput,
     options: { idempotencyKey: string }
-  ): Promise<IveKitTranslationRequestResult>;
+  ): Promise<ConveractFabricTranslationRequestResult>;
   listAttachmentTranslations(
     sessionId: string,
     attachmentId: string,
     input?: { target_language?: string; history?: boolean }
-  ): Promise<IveKitTranslationListResult>;
+  ): Promise<ConveractFabricTranslationListResult>;
   requestAttachmentTranslation(
     sessionId: string,
     attachmentId: string,
-    input: IveKitTranslationRequestInput,
+    input: ConveractFabricTranslationRequestInput,
     options: { idempotencyKey: string }
-  ): Promise<IveKitTranslationRequestResult>;
-  retryTranslation(sessionId: string, jobId: string): Promise<{ job: IveKitTranslationJob }>;
-  runTranslation(input?: { limit?: number }): Promise<IveKitWorkerRunResult>;
+  ): Promise<ConveractFabricTranslationRequestResult>;
+  retryTranslation(sessionId: string, jobId: string): Promise<{ job: ConveractFabricTranslationJob }>;
+  runTranslation(input?: { limit?: number }): Promise<ConveractFabricWorkerRunResult>;
 }
 
-export interface IveKitIntelligenceHttpClient {
-  getCapabilities(): Promise<IveKitIntelligenceCapabilities>;
-  getPolicy(): Promise<IveKitIntelligencePolicy>;
-  updatePolicy(input: IveKitIntelligencePolicyWrite): Promise<IveKitIntelligencePolicy>;
-  listProviders(): Promise<{ items: IveKitProviderProfileSummary[] }>;
-  listProviderRuntime(): Promise<{ items: IveKitProviderRuntimeSnapshot[] }>;
-  probeProviderHealth(input?: { profile_ids?: string[] }): Promise<{ items: IveKitProviderHealthResult[] }>;
+export interface ConveractFabricIntelligenceHttpClient {
+  getCapabilities(): Promise<ConveractFabricIntelligenceCapabilities>;
+  getPolicy(): Promise<ConveractFabricIntelligencePolicy>;
+  updatePolicy(input: ConveractFabricIntelligencePolicyWrite): Promise<ConveractFabricIntelligencePolicy>;
+  listProviders(): Promise<{ items: ConveractFabricProviderProfileSummary[] }>;
+  listProviderRuntime(): Promise<{ items: ConveractFabricProviderRuntimeSnapshot[] }>;
+  probeProviderHealth(input?: { profile_ids?: string[] }): Promise<{ items: ConveractFabricProviderHealthResult[] }>;
   importSource(
     sessionId: string,
     input: { source_type: 'media_recording' | 'remote_recording'; source_ref_id: string },
     options: { idempotencyKey: string }
-  ): Promise<IveKitIntelligenceSourceSnapshot>;
-  getSource(sessionId: string, sourceId: string): Promise<IveKitIntelligenceSourceSnapshot>;
-  retrySource(sessionId: string, sourceId: string): Promise<IveKitIntelligenceSourceSnapshot>;
-  listFindings(input?: IveKitFindingQueueInput): Promise<IveKitFindingQueuePage>;
-  getFinding(findingId: string): Promise<IveKitFindingQueueDetail>;
-  reviewFinding(findingId: string, input: IveKitFindingQueueReviewInput): Promise<IveKitFindingQueueDetail>;
+  ): Promise<ConveractFabricIntelligenceSourceSnapshot>;
+  getSource(sessionId: string, sourceId: string): Promise<ConveractFabricIntelligenceSourceSnapshot>;
+  retrySource(sessionId: string, sourceId: string): Promise<ConveractFabricIntelligenceSourceSnapshot>;
+  listFindings(input?: ConveractFabricFindingQueueInput): Promise<ConveractFabricFindingQueuePage>;
+  getFinding(findingId: string): Promise<ConveractFabricFindingQueueDetail>;
+  reviewFinding(findingId: string, input: ConveractFabricFindingQueueReviewInput): Promise<ConveractFabricFindingQueueDetail>;
 }
 
-export interface IveKitContextHttpClient {
-  getByBusinessRef(businessRef: Pick<IveKitSdkBusinessRef, 'type' | 'id'>): Promise<IveKitBusinessContext>;
+export interface ConveractFabricContextHttpClient {
+  getByBusinessRef(businessRef: Pick<ConveractFabricSdkBusinessRef, 'type' | 'id'>): Promise<ConveractFabricBusinessContext>;
   listTimeline(
-    businessRef: Pick<IveKitSdkBusinessRef, 'type' | 'id'>,
+    businessRef: Pick<ConveractFabricSdkBusinessRef, 'type' | 'id'>,
     input?: { cursor?: string; limit?: number }
-  ): Promise<IveKitUnifiedTimelinePage>;
+  ): Promise<ConveractFabricUnifiedTimelinePage>;
 }
 
-export interface IveKitContactCenterHttpClient {
-  getCapabilities(): Promise<IveKitContactCenterCapabilities>;
-  getMonitorSnapshot(): Promise<IveKitContactCenterMonitorSnapshot>;
-  listSkills(input?: IveKitContactCenterListInput): Promise<IveKitContactCenterPage<IveKitContactCenterSkill>>;
+export interface ConveractFabricContactCenterHttpClient {
+  getCapabilities(): Promise<ConveractFabricContactCenterCapabilities>;
+  getMonitorSnapshot(): Promise<ConveractFabricContactCenterMonitorSnapshot>;
+  listSkills(input?: ConveractFabricContactCenterListInput): Promise<ConveractFabricContactCenterPage<ConveractFabricContactCenterSkill>>;
   createSkill(
-    input: { name: string; description?: string; status?: IveKitContactCenterSkill['status'] },
+    input: { name: string; description?: string; status?: ConveractFabricContactCenterSkill['status'] },
     options: { idempotencyKey: string }
-  ): Promise<IveKitContactCenterSkill>;
-  getSkill(skillId: string): Promise<IveKitContactCenterSkill>;
+  ): Promise<ConveractFabricContactCenterSkill>;
+  getSkill(skillId: string): Promise<ConveractFabricContactCenterSkill>;
   updateSkill(
     skillId: string,
-    input: { revision: number; patch: Partial<Pick<IveKitContactCenterSkill, 'name' | 'description' | 'status'>> }
-  ): Promise<IveKitContactCenterSkill>;
-  listAgents(input?: IveKitContactCenterListInput): Promise<IveKitContactCenterPage<IveKitContactCenterAgent>>;
+    input: { revision: number; patch: Partial<Pick<ConveractFabricContactCenterSkill, 'name' | 'description' | 'status'>> }
+  ): Promise<ConveractFabricContactCenterSkill>;
+  listAgents(input?: ConveractFabricContactCenterListInput): Promise<ConveractFabricContactCenterPage<ConveractFabricContactCenterAgent>>;
   createAgent(input: {
     identity: string; display_name?: string; voice_extension_id?: string | null;
     voice_capacity?: number; metadata?: Record<string, unknown>;
-    status?: IveKitContactCenterAgent['status'];
-  }, options: { idempotencyKey: string }): Promise<IveKitContactCenterAgentSnapshot>;
-  getAgent(agentId: string): Promise<IveKitContactCenterAgentSnapshot>;
+    status?: ConveractFabricContactCenterAgent['status'];
+  }, options: { idempotencyKey: string }): Promise<ConveractFabricContactCenterAgentSnapshot>;
+  getAgent(agentId: string): Promise<ConveractFabricContactCenterAgentSnapshot>;
   updateAgent(agentId: string, input: {
     revision: number;
-    patch: Partial<Pick<IveKitContactCenterAgent,
+    patch: Partial<Pick<ConveractFabricContactCenterAgent,
       'identity' | 'display_name' | 'voice_extension_id' | 'voice_capacity' | 'metadata' | 'status'>>;
-  }): Promise<IveKitContactCenterAgentSnapshot>;
+  }): Promise<ConveractFabricContactCenterAgentSnapshot>;
   updatePresence(
     agentId: string,
     input: { state: 'available' | 'away' | 'offline'; session_ref?: string }
-  ): Promise<IveKitContactCenterPresence>;
-  listAgentSkills(agentId: string): Promise<IveKitContactCenterAgentSkill[]>;
+  ): Promise<ConveractFabricContactCenterPresence>;
+  listAgentSkills(agentId: string): Promise<ConveractFabricContactCenterAgentSkill[]>;
   replaceAgentSkills(
     agentId: string,
-    skills: IveKitContactCenterAgentSkill[]
-  ): Promise<IveKitContactCenterAgentSkill[]>;
-  listQueues(input?: IveKitContactCenterListInput): Promise<IveKitContactCenterPage<IveKitContactCenterQueue>>;
+    skills: ConveractFabricContactCenterAgentSkill[]
+  ): Promise<ConveractFabricContactCenterAgentSkill[]>;
+  listQueues(input?: ConveractFabricContactCenterListInput): Promise<ConveractFabricContactCenterPage<ConveractFabricContactCenterQueue>>;
   createQueue(
-    input: IveKitContactCenterCreateQueueInput,
+    input: ConveractFabricContactCenterCreateQueueInput,
     options: { idempotencyKey: string }
-  ): Promise<IveKitContactCenterQueueConfiguration>;
-  getQueue(queueId: string): Promise<IveKitContactCenterQueueConfiguration>;
+  ): Promise<ConveractFabricContactCenterQueueConfiguration>;
+  getQueue(queueId: string): Promise<ConveractFabricContactCenterQueueConfiguration>;
   updateQueue(queueId: string, input: {
     revision: number;
-    patch: Partial<Omit<IveKitContactCenterCreateQueueInput, 'name'> & { name: string }>;
-  }): Promise<IveKitContactCenterQueueConfiguration>;
-  listMemberships(queueId: string): Promise<IveKitContactCenterMembership[]>;
+    patch: Partial<Omit<ConveractFabricContactCenterCreateQueueInput, 'name'> & { name: string }>;
+  }): Promise<ConveractFabricContactCenterQueueConfiguration>;
+  listMemberships(queueId: string): Promise<ConveractFabricContactCenterMembership[]>;
   upsertMembership(
     queueId: string,
     input: { agent_id: string; priority?: number; enabled?: boolean }
-  ): Promise<IveKitContactCenterMembership>;
+  ): Promise<ConveractFabricContactCenterMembership>;
   removeMembership(queueId: string, agentId: string): Promise<{ removed: boolean }>;
-  listQueueSkillRequirements(queueId: string): Promise<IveKitContactCenterSkillRequirement[]>;
+  listQueueSkillRequirements(queueId: string): Promise<ConveractFabricContactCenterSkillRequirement[]>;
   replaceQueueSkillRequirements(
     queueId: string,
-    requirements: IveKitContactCenterSkillRequirement[]
-  ): Promise<IveKitContactCenterSkillRequirement[]>;
+    requirements: ConveractFabricContactCenterSkillRequirement[]
+  ): Promise<ConveractFabricContactCenterSkillRequirement[]>;
   listQueueEntries(queueId: string, input?: {
-    state?: IveKitContactCenterQueueEntryState; cursor?: string; limit?: number;
-  }): Promise<IveKitContactCenterPage<IveKitContactCenterQueueEntrySnapshot>>;
+    state?: ConveractFabricContactCenterQueueEntryState; cursor?: string; limit?: number;
+  }): Promise<ConveractFabricContactCenterPage<ConveractFabricContactCenterQueueEntrySnapshot>>;
   listCallbacks(input?: {
-    queue_id?: string; state?: IveKitContactCenterCallbackState; cursor?: string; limit?: number;
-  }): Promise<IveKitContactCenterPage<IveKitContactCenterCallback>>;
+    queue_id?: string; state?: ConveractFabricContactCenterCallbackState; cursor?: string; limit?: number;
+  }): Promise<ConveractFabricContactCenterPage<ConveractFabricContactCenterCallback>>;
   requestCallback(input: {
     queue_entry_id: string; source_call_id: string;
     address: { kind: 'e164' | 'extension' | 'sip_uri'; value: string };
     scheduled_for?: string; max_attempts?: number;
   }, options: { idempotencyKey: string }): Promise<{
-    callback: IveKitContactCenterCallback; replayed: boolean;
+    callback: ConveractFabricContactCenterCallback; replayed: boolean;
   }>;
-  getCallback(callbackId: string): Promise<IveKitContactCenterCallback>;
-  cancelCallback(callbackId: string, input?: { reason?: string }): Promise<IveKitContactCenterCallback>;
+  getCallback(callbackId: string): Promise<ConveractFabricContactCenterCallback>;
+  cancelCallback(callbackId: string, input?: { reason?: string }): Promise<ConveractFabricContactCenterCallback>;
   offerNext(
     input: { queue_id: string; offer_ttl_seconds: number },
     options: { idempotencyKey: string }
-  ): Promise<{ entry: IveKitContactCenterQueueEntrySnapshot['entry']; assignment: IveKitContactCenterQueueEntrySnapshot['assignments'][number] } | null>;
+  ): Promise<{ entry: ConveractFabricContactCenterQueueEntrySnapshot['entry']; assignment: ConveractFabricContactCenterQueueEntrySnapshot['assignments'][number] } | null>;
   actOnAssignment(
     assignmentId: string,
     action: 'accept' | 'reject' | 'connect' | 'complete',
     input?: { agent_id?: string; reason?: string }
-  ): Promise<{ entry: IveKitContactCenterQueueEntrySnapshot['entry']; assignment: IveKitContactCenterQueueEntrySnapshot['assignments'][number] }>;
+  ): Promise<{ entry: ConveractFabricContactCenterQueueEntrySnapshot['entry']; assignment: ConveractFabricContactCenterQueueEntrySnapshot['assignments'][number] }>;
   startSupervisor(input: {
-    call_id: string; target_agent_id: string; mode: IveKitContactCenterSupervisorMode;
+    call_id: string; target_agent_id: string; mode: ConveractFabricContactCenterSupervisorMode;
     authorization_ref: string;
-  }, options: { idempotencyKey: string }): Promise<IveKitContactCenterSupervisorSession>;
+  }, options: { idempotencyKey: string }): Promise<ConveractFabricContactCenterSupervisorSession>;
   endSupervisor(
     sessionId: string,
     input?: { reason?: string }
-  ): Promise<IveKitContactCenterSupervisorSession>;
+  ): Promise<ConveractFabricContactCenterSupervisorSession>;
 }
 
-export interface IveKitEventHttpClient {
+export interface ConveractFabricEventHttpClient {
   getHeadCursor(): Promise<string>;
-  listPage<T = unknown>(input: IveKitEventPageInput): Promise<IveKitEventPage<T>>;
-  replay<T = unknown>(input: IveKitEventReplayInput): Promise<IveKitEventReplayResult<T>>;
-  getCatalog(): Promise<IveKitIntegrationEventCatalog>;
+  listPage<T = unknown>(input: ConveractFabricEventPageInput): Promise<ConveractFabricEventPage<T>>;
+  replay<T = unknown>(input: ConveractFabricEventReplayInput): Promise<ConveractFabricEventReplayResult<T>>;
+  getCatalog(): Promise<ConveractFabricIntegrationEventCatalog>;
   createWebhookSubscription(
-    input: IveKitCreateEventWebhookSubscriptionInput,
+    input: ConveractFabricCreateEventWebhookSubscriptionInput,
     options: { idempotencyKey: string }
-  ): Promise<{ created: boolean; subscription: IveKitEventWebhookSubscription }>;
+  ): Promise<{ created: boolean; subscription: ConveractFabricEventWebhookSubscription }>;
   listWebhookSubscriptions(input?: {
-    status?: IveKitEventWebhookSubscription['status'];
+    status?: ConveractFabricEventWebhookSubscription['status'];
     cursor?: string;
     limit?: number;
-  }): Promise<IveKitEventWebhookSubscriptionPage>;
-  getWebhookSubscription(subscriptionId: string): Promise<IveKitEventWebhookSubscription>;
+  }): Promise<ConveractFabricEventWebhookSubscriptionPage>;
+  getWebhookSubscription(subscriptionId: string): Promise<ConveractFabricEventWebhookSubscription>;
   updateWebhookSubscription(
     subscriptionId: string,
-    input: IveKitUpdateEventWebhookSubscriptionInput,
+    input: ConveractFabricUpdateEventWebhookSubscriptionInput,
     options: { idempotencyKey: string }
-  ): Promise<IveKitEventWebhookSubscription>;
+  ): Promise<ConveractFabricEventWebhookSubscription>;
   archiveWebhookSubscription(
     subscriptionId: string,
     input: { expected_revision: number },
     options: { idempotencyKey: string }
-  ): Promise<IveKitEventWebhookSubscription>;
+  ): Promise<ConveractFabricEventWebhookSubscription>;
 }
 
-export interface IveKitIvrHttpClient {
-  listFlows(): Promise<IveKitIvrFlow[]>;
-  createFlow(input: { name: string; graph: IveKitIvrFlowGraph; metadata?: Record<string, unknown> }): Promise<IveKitIvrFlow>;
-  getFlow(flowId: string): Promise<IveKitIvrFlow>;
-  updateFlow(flowId: string, input: { expected_revision: number; name?: string; graph?: IveKitIvrFlowGraph; metadata?: Record<string, unknown> }): Promise<IveKitIvrFlow>;
-  listVersions(flowId: string): Promise<IveKitIvrFlowVersion[]>;
-  validateFlow(flowId: string): Promise<IveKitIvrCompilationReport>;
-  publishFlow(flowId: string, expectedDraftRevision: number, options: { idempotencyKey: string }): Promise<{ flow: IveKitIvrFlow; version: IveKitIvrFlowVersion; replayed: boolean }>;
-  rollbackFlow(flowId: string, input: { expected_draft_revision: number; source_version: number }, options: { idempotencyKey: string }): Promise<{ flow: IveKitIvrFlow; version: IveKitIvrFlowVersion; replayed: boolean }>;
-  simulate(input: Record<string, unknown> & { flow_id: string }): Promise<IveKitIvrSimulationResult>;
-  listSessions(input?: { limit?: number }): Promise<IveKitIvrSession[]>;
-  startSession(input: { call_id: string; flow_id: string; flow_version?: number; variables?: Record<string, unknown>; trace_id?: string }): Promise<IveKitIvrSessionResult>;
-  getSession(sessionId: string): Promise<{ session: IveKitIvrSession; steps: Array<Record<string, unknown>> }>;
-  advanceSession(sessionId: string, input: { event_sequence: number; action_revision: number; event: Record<string, unknown> }): Promise<IveKitIvrSessionResult>;
-  listAudioAssets(): Promise<IveKitIvrAudioAsset[]>;
-  createAudioAsset(input: IveKitIvrCreateAudioAssetInput): Promise<IveKitIvrAudioAsset>;
-  getAudioAsset(id: string): Promise<IveKitIvrAudioAsset>;
-  updateAudioAsset(id: string, input: IveKitIvrUpdateAudioAssetInput): Promise<IveKitIvrAudioAsset>;
-  listTimeGroups(): Promise<IveKitIvrTimeGroup[]>;
-  createTimeGroup(input: IveKitIvrCreateTimeGroupInput): Promise<IveKitIvrTimeGroup>;
-  getTimeGroup(id: string): Promise<IveKitIvrTimeGroup>;
-  updateTimeGroup(id: string, input: IveKitIvrUpdateTimeGroupInput): Promise<IveKitIvrTimeGroup>;
-  listRegionGroups(): Promise<IveKitIvrRegionGroup[]>;
-  createRegionGroup(input: IveKitIvrCreateRegionGroupInput): Promise<IveKitIvrRegionGroup>;
-  getRegionGroup(id: string): Promise<IveKitIvrRegionGroup>;
-  updateRegionGroup(id: string, input: IveKitIvrUpdateRegionGroupInput): Promise<IveKitIvrRegionGroup>;
-  listRingGroups(): Promise<IveKitIvrRingGroup[]>;
-  createRingGroup(input: IveKitIvrCreateRingGroupInput): Promise<IveKitIvrRingGroup>;
-  getRingGroup(id: string): Promise<IveKitIvrRingGroup>;
-  updateRingGroup(id: string, input: IveKitIvrUpdateRingGroupInput): Promise<IveKitIvrRingGroup>;
-  getSettings(): Promise<IveKitIvrSettings>;
-  updateSettings(input: IveKitIvrUpdateSettingsInput): Promise<IveKitIvrSettings>;
+export interface ConveractFabricIvrHttpClient {
+  listFlows(): Promise<ConveractFabricIvrFlow[]>;
+  createFlow(input: { name: string; graph: ConveractFabricIvrFlowGraph; metadata?: Record<string, unknown> }): Promise<ConveractFabricIvrFlow>;
+  getFlow(flowId: string): Promise<ConveractFabricIvrFlow>;
+  updateFlow(flowId: string, input: { expected_revision: number; name?: string; graph?: ConveractFabricIvrFlowGraph; metadata?: Record<string, unknown> }): Promise<ConveractFabricIvrFlow>;
+  listVersions(flowId: string): Promise<ConveractFabricIvrFlowVersion[]>;
+  validateFlow(flowId: string): Promise<ConveractFabricIvrCompilationReport>;
+  publishFlow(flowId: string, expectedDraftRevision: number, options: { idempotencyKey: string }): Promise<{ flow: ConveractFabricIvrFlow; version: ConveractFabricIvrFlowVersion; replayed: boolean }>;
+  rollbackFlow(flowId: string, input: { expected_draft_revision: number; source_version: number }, options: { idempotencyKey: string }): Promise<{ flow: ConveractFabricIvrFlow; version: ConveractFabricIvrFlowVersion; replayed: boolean }>;
+  simulate(input: Record<string, unknown> & { flow_id: string }): Promise<ConveractFabricIvrSimulationResult>;
+  listSessions(input?: { limit?: number }): Promise<ConveractFabricIvrSession[]>;
+  startSession(input: { call_id: string; flow_id: string; flow_version?: number; variables?: Record<string, unknown>; trace_id?: string }): Promise<ConveractFabricIvrSessionResult>;
+  getSession(sessionId: string): Promise<{ session: ConveractFabricIvrSession; steps: Array<Record<string, unknown>> }>;
+  advanceSession(sessionId: string, input: { event_sequence: number; action_revision: number; event: Record<string, unknown> }): Promise<ConveractFabricIvrSessionResult>;
+  listAudioAssets(): Promise<ConveractFabricIvrAudioAsset[]>;
+  createAudioAsset(input: ConveractFabricIvrCreateAudioAssetInput): Promise<ConveractFabricIvrAudioAsset>;
+  getAudioAsset(id: string): Promise<ConveractFabricIvrAudioAsset>;
+  updateAudioAsset(id: string, input: ConveractFabricIvrUpdateAudioAssetInput): Promise<ConveractFabricIvrAudioAsset>;
+  listTimeGroups(): Promise<ConveractFabricIvrTimeGroup[]>;
+  createTimeGroup(input: ConveractFabricIvrCreateTimeGroupInput): Promise<ConveractFabricIvrTimeGroup>;
+  getTimeGroup(id: string): Promise<ConveractFabricIvrTimeGroup>;
+  updateTimeGroup(id: string, input: ConveractFabricIvrUpdateTimeGroupInput): Promise<ConveractFabricIvrTimeGroup>;
+  listRegionGroups(): Promise<ConveractFabricIvrRegionGroup[]>;
+  createRegionGroup(input: ConveractFabricIvrCreateRegionGroupInput): Promise<ConveractFabricIvrRegionGroup>;
+  getRegionGroup(id: string): Promise<ConveractFabricIvrRegionGroup>;
+  updateRegionGroup(id: string, input: ConveractFabricIvrUpdateRegionGroupInput): Promise<ConveractFabricIvrRegionGroup>;
+  listRingGroups(): Promise<ConveractFabricIvrRingGroup[]>;
+  createRingGroup(input: ConveractFabricIvrCreateRingGroupInput): Promise<ConveractFabricIvrRingGroup>;
+  getRingGroup(id: string): Promise<ConveractFabricIvrRingGroup>;
+  updateRingGroup(id: string, input: ConveractFabricIvrUpdateRingGroupInput): Promise<ConveractFabricIvrRingGroup>;
+  getSettings(): Promise<ConveractFabricIvrSettings>;
+  updateSettings(input: ConveractFabricIvrUpdateSettingsInput): Promise<ConveractFabricIvrSettings>;
 }
 
-export interface IveKitVoiceIdempotencyOptions {
+export interface ConveractFabricVoiceIdempotencyOptions {
   idempotencyKey: string;
 }
 
-export interface IveKitVoiceHttpClient {
-  getCapabilities(): Promise<IveKitVoiceCapabilities>;
-  listProfiles(input?: IveKitVoicePageInput): Promise<IveKitVoicePage<IveKitVoiceDeploymentProfile>>;
-  createProfile(input: IveKitVoiceCreateProfileInput): Promise<IveKitVoiceDeploymentProfile>;
-  getProfile(profileId: string): Promise<IveKitVoiceDeploymentProfile>;
+export interface ConveractFabricVoiceHttpClient {
+  getCapabilities(): Promise<ConveractFabricVoiceCapabilities>;
+  listProfiles(input?: ConveractFabricVoicePageInput): Promise<ConveractFabricVoicePage<ConveractFabricVoiceDeploymentProfile>>;
+  createProfile(input: ConveractFabricVoiceCreateProfileInput): Promise<ConveractFabricVoiceDeploymentProfile>;
+  getProfile(profileId: string): Promise<ConveractFabricVoiceDeploymentProfile>;
   updateProfile(
     profileId: string,
-    input: { revision: number; patch: IveKitVoiceProfilePatch }
-  ): Promise<IveKitVoiceDeploymentProfile>;
-  preflightProfile(profileId: string): Promise<IveKitVoiceCapabilitySnapshot>;
-  getProfileCapabilities(profileId: string): Promise<IveKitVoiceCapabilitySnapshot | null>;
+    input: { revision: number; patch: ConveractFabricVoiceProfilePatch }
+  ): Promise<ConveractFabricVoiceDeploymentProfile>;
+  preflightProfile(profileId: string): Promise<ConveractFabricVoiceCapabilitySnapshot>;
+  getProfileCapabilities(profileId: string): Promise<ConveractFabricVoiceCapabilitySnapshot | null>;
   listTrunks(
-    input?: IveKitVoicePageInput & { profile_id?: string }
-  ): Promise<IveKitVoicePage<IveKitVoiceSipTrunk>>;
-  createTrunk(input: IveKitVoiceCreateTrunkInput): Promise<IveKitVoiceSipTrunk>;
-  getTrunk(trunkId: string): Promise<IveKitVoiceSipTrunk>;
+    input?: ConveractFabricVoicePageInput & { profile_id?: string }
+  ): Promise<ConveractFabricVoicePage<ConveractFabricVoiceSipTrunk>>;
+  createTrunk(input: ConveractFabricVoiceCreateTrunkInput): Promise<ConveractFabricVoiceSipTrunk>;
+  getTrunk(trunkId: string): Promise<ConveractFabricVoiceSipTrunk>;
   updateTrunk(
     trunkId: string,
-    input: { revision: number; patch: IveKitVoiceTrunkPatch }
-  ): Promise<IveKitVoiceSipTrunk>;
-  applyTrunk(trunkId: string, options: IveKitVoiceIdempotencyOptions): Promise<IveKitVoiceConfigurationCommand>;
-  testTrunk(trunkId: string, options: IveKitVoiceIdempotencyOptions): Promise<IveKitVoiceConfigurationCommand>;
+    input: { revision: number; patch: ConveractFabricVoiceTrunkPatch }
+  ): Promise<ConveractFabricVoiceSipTrunk>;
+  applyTrunk(trunkId: string, options: ConveractFabricVoiceIdempotencyOptions): Promise<ConveractFabricVoiceConfigurationCommand>;
+  testTrunk(trunkId: string, options: ConveractFabricVoiceIdempotencyOptions): Promise<ConveractFabricVoiceConfigurationCommand>;
   listDids(
-    input?: IveKitVoicePageInput & { trunk_id?: string }
-  ): Promise<IveKitVoicePage<IveKitVoiceDid>>;
-  createDid(input: IveKitVoiceCreateDidInput): Promise<IveKitVoiceDid>;
-  getDid(didId: string): Promise<IveKitVoiceDid>;
+    input?: ConveractFabricVoicePageInput & { trunk_id?: string }
+  ): Promise<ConveractFabricVoicePage<ConveractFabricVoiceDid>>;
+  createDid(input: ConveractFabricVoiceCreateDidInput): Promise<ConveractFabricVoiceDid>;
+  getDid(didId: string): Promise<ConveractFabricVoiceDid>;
   updateDid(
     didId: string,
-    input: { revision: number; patch: IveKitVoiceDidPatch }
-  ): Promise<IveKitVoiceDid>;
-  applyDid(didId: string, options: IveKitVoiceIdempotencyOptions): Promise<IveKitVoiceConfigurationCommand>;
+    input: { revision: number; patch: ConveractFabricVoiceDidPatch }
+  ): Promise<ConveractFabricVoiceDid>;
+  applyDid(didId: string, options: ConveractFabricVoiceIdempotencyOptions): Promise<ConveractFabricVoiceConfigurationCommand>;
   listExtensions(
-    input?: IveKitVoicePageInput & { profile_id?: string }
-  ): Promise<IveKitVoicePage<IveKitVoiceExtension>>;
-  createExtension(input: IveKitVoiceCreateExtensionInput): Promise<IveKitVoiceExtension>;
-  getExtension(extensionId: string): Promise<IveKitVoiceExtension>;
+    input?: ConveractFabricVoicePageInput & { profile_id?: string }
+  ): Promise<ConveractFabricVoicePage<ConveractFabricVoiceExtension>>;
+  createExtension(input: ConveractFabricVoiceCreateExtensionInput): Promise<ConveractFabricVoiceExtension>;
+  getExtension(extensionId: string): Promise<ConveractFabricVoiceExtension>;
   updateExtension(
     extensionId: string,
-    input: { revision: number; patch: IveKitVoiceExtensionPatch }
-  ): Promise<IveKitVoiceExtension>;
+    input: { revision: number; patch: ConveractFabricVoiceExtensionPatch }
+  ): Promise<ConveractFabricVoiceExtension>;
   applyExtension(
     extensionId: string,
-    options: IveKitVoiceIdempotencyOptions
-  ): Promise<IveKitVoiceConfigurationCommand>;
+    options: ConveractFabricVoiceIdempotencyOptions
+  ): Promise<ConveractFabricVoiceConfigurationCommand>;
   createExtensionSession(
     extensionId: string,
-    options: IveKitVoiceIdempotencyOptions
-  ): Promise<IveKitVoiceExtensionSessionPlan>;
+    options: ConveractFabricVoiceIdempotencyOptions
+  ): Promise<ConveractFabricVoiceExtensionSessionPlan>;
   listRoutes(
-    input?: IveKitVoicePageInput & { profile_id?: string }
-  ): Promise<IveKitVoicePage<IveKitVoiceRoute>>;
-  createRoute(input: IveKitVoiceCreateRouteInput): Promise<IveKitVoiceRoute>;
-  getRoute(routeId: string): Promise<IveKitVoiceRoute>;
+    input?: ConveractFabricVoicePageInput & { profile_id?: string }
+  ): Promise<ConveractFabricVoicePage<ConveractFabricVoiceRoute>>;
+  createRoute(input: ConveractFabricVoiceCreateRouteInput): Promise<ConveractFabricVoiceRoute>;
+  getRoute(routeId: string): Promise<ConveractFabricVoiceRoute>;
   updateRoute(
     routeId: string,
-    input: { revision: number; patch: IveKitVoiceRoutePatch }
-  ): Promise<IveKitVoiceRoute>;
+    input: { revision: number; patch: ConveractFabricVoiceRoutePatch }
+  ): Promise<ConveractFabricVoiceRoute>;
   validateRoute(
     routeId: string,
     input?: { rules?: Record<string, unknown> }
   ): Promise<{ valid: true; payload_hash: string }>;
-  listRouteVersions(routeId: string): Promise<IveKitVoicePage<IveKitVoiceRouteVersion>>;
+  listRouteVersions(routeId: string): Promise<ConveractFabricVoicePage<ConveractFabricVoiceRouteVersion>>;
   publishRoute(
     routeId: string,
     input: { revision: number },
-    options: IveKitVoiceIdempotencyOptions
-  ): Promise<IveKitVoicePublishRouteResult>;
+    options: ConveractFabricVoiceIdempotencyOptions
+  ): Promise<ConveractFabricVoicePublishRouteResult>;
   listCalls(
-    input?: IveKitVoicePageInput & {
-      state?: IveKitVoiceCallState;
-      business_ref?: Pick<IveKitSdkBusinessRef, 'type' | 'id'>;
+    input?: ConveractFabricVoicePageInput & {
+      state?: ConveractFabricVoiceCallState;
+      business_ref?: Pick<ConveractFabricSdkBusinessRef, 'type' | 'id'>;
     }
-  ): Promise<IveKitVoicePage<IveKitVoiceCall>>;
+  ): Promise<ConveractFabricVoicePage<ConveractFabricVoiceCall>>;
   listParkingSlots(
-    input?: IveKitVoicePageInput & {
+    input?: ConveractFabricVoicePageInput & {
       profile_id?: string;
-      state?: IveKitVoiceParkingSlotState;
+      state?: ConveractFabricVoiceParkingSlotState;
     }
-  ): Promise<IveKitVoicePage<IveKitVoiceParkingSlot>>;
+  ): Promise<ConveractFabricVoicePage<ConveractFabricVoiceParkingSlot>>;
   createOutboundCall(
-    input: IveKitVoiceCreateOutboundCallInput,
-    options: IveKitVoiceIdempotencyOptions
-  ): Promise<IveKitVoiceCreateCallResult>;
-  getCall(callId: string): Promise<IveKitVoiceCall>;
+    input: ConveractFabricVoiceCreateOutboundCallInput,
+    options: ConveractFabricVoiceIdempotencyOptions
+  ): Promise<ConveractFabricVoiceCreateCallResult>;
+  getCall(callId: string): Promise<ConveractFabricVoiceCall>;
   enqueueCallAction(
     callId: string,
-    input: IveKitVoiceCallActionInput,
-    options: IveKitVoiceIdempotencyOptions
-  ): Promise<IveKitVoiceCallCommand>;
+    input: ConveractFabricVoiceCallActionInput,
+    options: ConveractFabricVoiceIdempotencyOptions
+  ): Promise<ConveractFabricVoiceCallCommand>;
   createLiveKitBridge(
     callId: string,
     input: { sip_trunk_id: string },
-    options: IveKitVoiceIdempotencyOptions
-  ): Promise<IveKitVoiceCallCommand>;
+    options: ConveractFabricVoiceIdempotencyOptions
+  ): Promise<ConveractFabricVoiceCallCommand>;
   listCallEvents(
     callId: string,
-    input?: IveKitVoicePageInput
-  ): Promise<IveKitVoicePage<IveKitVoiceProviderEvent>>;
+    input?: ConveractFabricVoicePageInput
+  ): Promise<ConveractFabricVoicePage<ConveractFabricVoiceProviderEvent>>;
   listCallRecordings(
     callId: string,
-    input?: IveKitVoicePageInput & { status?: IveKitVoiceRecording['status'] }
-  ): Promise<IveKitVoicePage<IveKitVoiceRecording>>;
-  listCallBridges(callId: string): Promise<IveKitVoicePage<IveKitVoiceLiveKitBridge>>;
-  listCallParticipants(callId: string): Promise<IveKitVoicePage<IveKitVoiceParticipant>>;
-  getPolicy(): Promise<IveKitVoicePolicy | null>;
-  updatePolicy(input: IveKitVoicePolicyWrite): Promise<IveKitVoicePolicy>;
+    input?: ConveractFabricVoicePageInput & { status?: ConveractFabricVoiceRecording['status'] }
+  ): Promise<ConveractFabricVoicePage<ConveractFabricVoiceRecording>>;
+  listCallBridges(callId: string): Promise<ConveractFabricVoicePage<ConveractFabricVoiceLiveKitBridge>>;
+  listCallParticipants(callId: string): Promise<ConveractFabricVoicePage<ConveractFabricVoiceParticipant>>;
+  getPolicy(): Promise<ConveractFabricVoicePolicy | null>;
+  updatePolicy(input: ConveractFabricVoicePolicyWrite): Promise<ConveractFabricVoicePolicy>;
   listConsents(
-    input?: IveKitVoicePageInput & { subject_ref_type?: string; subject_ref_id?: string }
-  ): Promise<IveKitVoicePage<IveKitVoiceConsent>>;
-  createConsent(input: IveKitVoiceCreateConsentInput): Promise<IveKitVoiceConsent>;
+    input?: ConveractFabricVoicePageInput & { subject_ref_type?: string; subject_ref_id?: string }
+  ): Promise<ConveractFabricVoicePage<ConveractFabricVoiceConsent>>;
+  createConsent(input: ConveractFabricVoiceCreateConsentInput): Promise<ConveractFabricVoiceConsent>;
   listRecordings(
-    input?: IveKitVoicePageInput & {
+    input?: ConveractFabricVoicePageInput & {
       call_id?: string;
-      status?: IveKitVoiceRecording['status'];
+      status?: ConveractFabricVoiceRecording['status'];
     }
-  ): Promise<IveKitVoicePage<IveKitVoiceRecording>>;
+  ): Promise<ConveractFabricVoicePage<ConveractFabricVoiceRecording>>;
 }
 
-export interface IveKitHttpSdk {
-  media: IveKitMediaHttpClient;
-  chat: IveKitChatHttpClient;
-  contactCenter: IveKitContactCenterHttpClient;
-  context: IveKitContextHttpClient;
-  events: IveKitEventHttpClient;
-  intelligence: IveKitIntelligenceHttpClient;
-  ivr: IveKitIvrHttpClient;
-  voice: IveKitVoiceHttpClient;
-  notifications: IveKitNotificationHttpClient;
-  audit: IveKitAuditHttpClient;
-  retention: IveKitRetentionHttpClient;
+export interface ConveractFabricHttpSdk {
+  media: ConveractFabricMediaHttpClient;
+  chat: ConveractFabricChatHttpClient;
+  contactCenter: ConveractFabricContactCenterHttpClient;
+  context: ConveractFabricContextHttpClient;
+  events: ConveractFabricEventHttpClient;
+  intelligence: ConveractFabricIntelligenceHttpClient;
+  ivr: ConveractFabricIvrHttpClient;
+  voice: ConveractFabricVoiceHttpClient;
+  notifications: ConveractFabricNotificationHttpClient;
+  audit: ConveractFabricAuditHttpClient;
+  retention: ConveractFabricRetentionHttpClient;
 }
 
-export interface IveKitAuditHttpClient {
-  getCapabilities(): Promise<IveKitAuditCapabilities>;
-  listEvents(input?: IveKitAuditListInput): Promise<IveKitAuditPage>;
-  exportJsonl(input?: IveKitAuditListInput & { max_events?: number }): Promise<IveKitSdkBinary>;
+export interface ConveractFabricAuditHttpClient {
+  getCapabilities(): Promise<ConveractFabricAuditCapabilities>;
+  listEvents(input?: ConveractFabricAuditListInput): Promise<ConveractFabricAuditPage>;
+  exportJsonl(input?: ConveractFabricAuditListInput & { max_events?: number }): Promise<ConveractFabricSdkBinary>;
 }
 
-export interface IveKitRetentionHttpClient {
-  getCapabilities(): Promise<IveKitRetentionCapabilities>;
-  listPolicies(): Promise<IveKitRetentionPolicy[]>;
-  putPolicy(category: IveKitRetentionCategory, input: {
+export interface ConveractFabricRetentionHttpClient {
+  getCapabilities(): Promise<ConveractFabricRetentionCapabilities>;
+  listPolicies(): Promise<ConveractFabricRetentionPolicy[]>;
+  putPolicy(category: ConveractFabricRetentionCategory, input: {
     enabled: boolean; retention_days: number; batch_size: number;
     interval_seconds: number; expected_revision: number;
-  }): Promise<IveKitRetentionPolicy>;
+  }): Promise<ConveractFabricRetentionPolicy>;
   listLegalHolds(input?: {
-    category?: IveKitRetentionCategory; status?: 'active' | 'released';
-  }): Promise<IveKitLegalHold[]>;
+    category?: ConveractFabricRetentionCategory; status?: 'active' | 'released';
+  }): Promise<ConveractFabricLegalHold[]>;
   placeLegalHold(input: {
-    category: IveKitRetentionCategory; resource_type: string;
+    category: ConveractFabricRetentionCategory; resource_type: string;
     resource_id: string; reason_code: string;
-  }, options: { idempotencyKey: string }): Promise<{ legal_hold: IveKitLegalHold; created: boolean }>;
-  releaseLegalHold(holdId: string): Promise<IveKitLegalHold>;
+  }, options: { idempotencyKey: string }): Promise<{ legal_hold: ConveractFabricLegalHold; created: boolean }>;
+  releaseLegalHold(holdId: string): Promise<ConveractFabricLegalHold>;
 }
 
-export interface IveKitNotificationHttpClient {
-  getCapabilities(): Promise<IveKitNotificationCapabilities>;
+export interface ConveractFabricNotificationHttpClient {
+  getCapabilities(): Promise<ConveractFabricNotificationCapabilities>;
   create(
-    input: IveKitCreateNotificationInput,
+    input: ConveractFabricCreateNotificationInput,
     options: { idempotencyKey: string }
-  ): Promise<IveKitNotificationCreateResult>;
-  get(notificationId: string): Promise<IveKitNotification>;
+  ): Promise<ConveractFabricNotificationCreateResult>;
+  get(notificationId: string): Promise<ConveractFabricNotification>;
   listInbox(input?: {
     user_id?: string; limit?: number; cursor?: string; include_archived?: boolean;
-  }): Promise<IveKitNotificationInboxPage>;
+  }): Promise<ConveractFabricNotificationInboxPage>;
   countUnread(input?: { user_id?: string }): Promise<number>;
   mutateInbox(
     itemId: string,
-    action: IveKitNotificationInboxAction,
+    action: ConveractFabricNotificationInboxAction,
     input?: { user_id?: string }
-  ): Promise<IveKitNotificationInboxItem>;
+  ): Promise<ConveractFabricNotificationInboxItem>;
   createEndpoint(
-    input: IveKitCreateNotificationEndpointInput,
+    input: ConveractFabricCreateNotificationEndpointInput,
     options: { idempotencyKey: string }
-  ): Promise<{ endpoint: IveKitNotificationEndpoint; created: boolean }>;
-  getEndpoint(endpointId: string): Promise<IveKitNotificationEndpoint>;
+  ): Promise<{ endpoint: ConveractFabricNotificationEndpoint; created: boolean }>;
+  getEndpoint(endpointId: string): Promise<ConveractFabricNotificationEndpoint>;
   listEndpoints(
-    input?: IveKitNotificationEndpointListInput
-  ): Promise<IveKitNotificationPage<IveKitNotificationEndpoint>>;
+    input?: ConveractFabricNotificationEndpointListInput
+  ): Promise<ConveractFabricNotificationPage<ConveractFabricNotificationEndpoint>>;
   updateEndpoint(
     endpointId: string,
     expectedRevision: number,
     patch: Record<string, unknown>
-  ): Promise<IveKitNotificationEndpoint>;
+  ): Promise<ConveractFabricNotificationEndpoint>;
   testEndpoint(
     endpointId: string,
-    input: IveKitNotificationEndpointTestInput,
+    input: ConveractFabricNotificationEndpointTestInput,
     options: { idempotencyKey: string }
-  ): Promise<IveKitNotificationCreateResult>;
-  archiveEndpoint(endpointId: string, expectedRevision: number): Promise<IveKitNotificationEndpoint>;
+  ): Promise<ConveractFabricNotificationCreateResult>;
+  archiveEndpoint(endpointId: string, expectedRevision: number): Promise<ConveractFabricNotificationEndpoint>;
   createTemplate(input: {
     template_key: string; description?: string; locale: string;
-    channels: import('./notification-types.js').IveKitNotificationChannel[];
+    channels: import('./notification-types.js').ConveractFabricNotificationChannel[];
     content: Record<string, unknown>;
-  }): Promise<IveKitNotificationTemplateSnapshot>;
-  getTemplate(templateId: string): Promise<IveKitNotificationTemplate>;
+  }): Promise<ConveractFabricNotificationTemplateSnapshot>;
+  getTemplate(templateId: string): Promise<ConveractFabricNotificationTemplate>;
   listTemplates(
-    input?: IveKitNotificationTemplateListInput
-  ): Promise<IveKitNotificationPage<IveKitNotificationTemplate>>;
+    input?: ConveractFabricNotificationTemplateListInput
+  ): Promise<ConveractFabricNotificationPage<ConveractFabricNotificationTemplate>>;
   listTemplateVersions(
     templateId: string,
-    input?: IveKitNotificationTemplateVersionListInput
-  ): Promise<IveKitNotificationPage<IveKitNotificationTemplateVersion>>;
+    input?: ConveractFabricNotificationTemplateVersionListInput
+  ): Promise<ConveractFabricNotificationPage<ConveractFabricNotificationTemplateVersion>>;
   updateTemplate(templateId: string, input: {
     expected_revision: number; description?: string; locale: string;
-    channels: import('./notification-types.js').IveKitNotificationChannel[];
+    channels: import('./notification-types.js').ConveractFabricNotificationChannel[];
     content: Record<string, unknown>;
-  }): Promise<IveKitNotificationTemplateSnapshot>;
+  }): Promise<ConveractFabricNotificationTemplateSnapshot>;
   publishTemplate(
     templateId: string,
     input: { expected_revision: number; locale: string }
-  ): Promise<IveKitNotificationTemplateSnapshot>;
-  archiveTemplate(templateId: string, expectedRevision: number): Promise<IveKitNotificationTemplate>;
-  getDelivery(deliveryId: string): Promise<IveKitNotificationDelivery>;
+  ): Promise<ConveractFabricNotificationTemplateSnapshot>;
+  archiveTemplate(templateId: string, expectedRevision: number): Promise<ConveractFabricNotificationTemplate>;
+  getDelivery(deliveryId: string): Promise<ConveractFabricNotificationDelivery>;
   listDeliveries(
-    input?: IveKitNotificationDeliveryListInput
-  ): Promise<IveKitNotificationPage<IveKitNotificationDelivery>>;
+    input?: ConveractFabricNotificationDeliveryListInput
+  ): Promise<ConveractFabricNotificationPage<ConveractFabricNotificationDelivery>>;
   retryDelivery(
     deliveryId: string,
-    input: IveKitRetryNotificationDeliveryInput
-  ): Promise<IveKitNotificationDelivery>;
-  listPreferences(input?: { user_id?: string }): Promise<IveKitNotificationPreference[]>;
+    input: ConveractFabricRetryNotificationDeliveryInput
+  ): Promise<ConveractFabricNotificationDelivery>;
+  listPreferences(input?: { user_id?: string }): Promise<ConveractFabricNotificationPreference[]>;
   putPreference(
     eventType: string,
-    channel: import('./notification-types.js').IveKitNotificationChannel,
+    channel: import('./notification-types.js').ConveractFabricNotificationChannel,
     input: { enabled: boolean; locale?: string; quiet_hours?: Record<string, unknown>; expected_revision: number },
     options?: { user_id?: string }
-  ): Promise<IveKitNotificationPreference>;
+  ): Promise<ConveractFabricNotificationPreference>;
 }
 
-export class IveKitHttpSdkError extends Error {
+export class ConveractFabricHttpSdkError extends Error {
   constructor(
     message: string,
     readonly status: number,
@@ -887,11 +887,11 @@ export class IveKitHttpSdkError extends Error {
     readonly payload: unknown
   ) {
     super(message);
-    this.name = 'IveKitHttpSdkError';
+    this.name = 'ConveractFabricHttpSdkError';
   }
 }
 
-export function createIveKitHttpSdk(input: IveKitHttpSdkInput): IveKitHttpSdk {
+export function createConveractFabricHttpSdk(input: ConveractFabricHttpSdkInput): ConveractFabricHttpSdk {
   const transport = createTransport(input);
   return {
     media: createMediaClient(transport),
@@ -908,22 +908,22 @@ export function createIveKitHttpSdk(input: IveKitHttpSdkInput): IveKitHttpSdk {
   };
 }
 
-function createRetentionClient(transport: IveKitTransport): IveKitRetentionHttpClient {
+function createRetentionClient(transport: ConveractFabricTransport): ConveractFabricRetentionHttpClient {
   const root = '/api/ivekit/retention';
   return {
     getCapabilities: () => transport.json('GET', `${root}/capabilities`),
     async listPolicies() {
-      return (await transport.json<{ policies: IveKitRetentionPolicy[] }>(
+      return (await transport.json<{ policies: ConveractFabricRetentionPolicy[] }>(
         'GET', `${root}/policies`
       )).policies;
     },
     async putPolicy(category, body) {
-      return (await transport.json<{ policy: IveKitRetentionPolicy }>(
+      return (await transport.json<{ policy: ConveractFabricRetentionPolicy }>(
         'PUT', `${root}/policies/${pathSegment(category, 'category')}`, { body }
       )).policy;
     },
     async listLegalHolds(input = {}) {
-      return (await transport.json<{ legal_holds: IveKitLegalHold[] }>(
+      return (await transport.json<{ legal_holds: ConveractFabricLegalHold[] }>(
         'GET', `${root}/legal-holds`, {
           query: { category: input.category || '', status: input.status || '' }
         }
@@ -936,16 +936,16 @@ function createRetentionClient(transport: IveKitTransport): IveKitRetentionHttpC
       }
     }),
     async releaseLegalHold(holdId) {
-      return (await transport.json<{ legal_hold: IveKitLegalHold }>(
+      return (await transport.json<{ legal_hold: ConveractFabricLegalHold }>(
         'POST', `${root}/legal-holds/${pathSegment(holdId, 'holdId')}/release`, { body: {} }
       )).legal_hold;
     }
   };
 }
 
-function createAuditClient(transport: IveKitTransport): IveKitAuditHttpClient {
+function createAuditClient(transport: ConveractFabricTransport): ConveractFabricAuditHttpClient {
   const root = '/api/ivekit/audit';
-  const query = (input: IveKitAuditListInput & { max_events?: number } = {}) => ({
+  const query = (input: ConveractFabricAuditListInput & { max_events?: number } = {}) => ({
     limit: optionalNumber(input.limit),
     cursor: input.cursor || '',
     action: input.action || '',
@@ -960,7 +960,7 @@ function createAuditClient(transport: IveKitTransport): IveKitAuditHttpClient {
   };
 }
 
-function createNotificationClient(transport: IveKitTransport): IveKitNotificationHttpClient {
+function createNotificationClient(transport: ConveractFabricTransport): ConveractFabricNotificationHttpClient {
   const root = '/api/ivekit/notifications';
   const path = (collection: string, id: string) =>
     `${root}/${collection}/${pathSegment(id, `${collection}Id`)}`;
@@ -971,7 +971,7 @@ function createNotificationClient(transport: IveKitTransport): IveKitNotificatio
       body, headers: { 'idempotency-key': requiredString(options?.idempotencyKey, 'idempotencyKey is required') }
     }),
     async get(id) {
-      return (await transport.json<{ notification: IveKitNotification }>('GET', `${root}/${pathSegment(id, 'notificationId')}`)).notification;
+      return (await transport.json<{ notification: ConveractFabricNotification }>('GET', `${root}/${pathSegment(id, 'notificationId')}`)).notification;
     },
     listInbox: (input = {}) => transport.json('GET', `${root}/inbox`, {
       query: {
@@ -991,7 +991,7 @@ function createNotificationClient(transport: IveKitTransport): IveKitNotificatio
       body, headers: { 'idempotency-key': requiredString(options?.idempotencyKey, 'idempotencyKey is required') }
     }),
     async getEndpoint(id) {
-      return (await transport.json<{ endpoint: IveKitNotificationEndpoint }>(
+      return (await transport.json<{ endpoint: ConveractFabricNotificationEndpoint }>(
         'GET', path('endpoints', id)
       )).endpoint;
     },
@@ -1002,7 +1002,7 @@ function createNotificationClient(transport: IveKitTransport): IveKitNotificatio
       }
     }),
     async updateEndpoint(id, expectedRevision, patch) {
-      return (await transport.json<{ endpoint: IveKitNotificationEndpoint }>(
+      return (await transport.json<{ endpoint: ConveractFabricNotificationEndpoint }>(
         'PUT', path('endpoints', id), { body: { expected_revision: expectedRevision, patch } }
       )).endpoint;
     },
@@ -1013,7 +1013,7 @@ function createNotificationClient(transport: IveKitTransport): IveKitNotificatio
       }
     }),
     async archiveEndpoint(id, expectedRevision) {
-      return (await transport.json<{ endpoint: IveKitNotificationEndpoint }>(
+      return (await transport.json<{ endpoint: ConveractFabricNotificationEndpoint }>(
         'POST', `${path('endpoints', id)}/archive`, {
           body: { expected_revision: expectedRevision }
         }
@@ -1021,7 +1021,7 @@ function createNotificationClient(transport: IveKitTransport): IveKitNotificatio
     },
     createTemplate: (body) => transport.json('POST', `${root}/templates`, { body }),
     async getTemplate(id) {
-      return (await transport.json<{ template: IveKitNotificationTemplate }>(
+      return (await transport.json<{ template: ConveractFabricNotificationTemplate }>(
         'GET', path('templates', id)
       )).template;
     },
@@ -1040,14 +1040,14 @@ function createNotificationClient(transport: IveKitTransport): IveKitNotificatio
     updateTemplate: (id, body) => transport.json('PUT', path('templates', id), { body }),
     publishTemplate: (id, body) => transport.json('POST', `${path('templates', id)}/publish`, { body }),
     async archiveTemplate(id, expectedRevision) {
-      return (await transport.json<{ template: IveKitNotificationTemplate }>(
+      return (await transport.json<{ template: ConveractFabricNotificationTemplate }>(
         'POST', `${path('templates', id)}/archive`, {
           body: { expected_revision: expectedRevision }
         }
       )).template;
     },
     async getDelivery(id) {
-      return (await transport.json<{ delivery: IveKitNotificationDelivery }>(
+      return (await transport.json<{ delivery: ConveractFabricNotificationDelivery }>(
         'GET', path('deliveries', id)
       )).delivery;
     },
@@ -1059,7 +1059,7 @@ function createNotificationClient(transport: IveKitTransport): IveKitNotificatio
       }
     }),
     async retryDelivery(id, input) {
-      return (await transport.json<{ delivery: IveKitNotificationDelivery }>(
+      return (await transport.json<{ delivery: ConveractFabricNotificationDelivery }>(
         'POST', `${path('deliveries', id)}/retry`, {
           body: {
             expected_state: input.expected_state,
@@ -1069,12 +1069,12 @@ function createNotificationClient(transport: IveKitTransport): IveKitNotificatio
       )).delivery;
     },
     async listPreferences(input = {}) {
-      return (await transport.json<{ preferences: IveKitNotificationPreference[] }>(
+      return (await transport.json<{ preferences: ConveractFabricNotificationPreference[] }>(
         'GET', `${root}/preferences`, { query: query(input.user_id) }
       )).preferences;
     },
     async putPreference(eventType, channel, body, options = {}) {
-      return (await transport.json<{ preference: IveKitNotificationPreference }>(
+      return (await transport.json<{ preference: ConveractFabricNotificationPreference }>(
         'PUT', `${root}/preferences/${pathSegment(eventType, 'eventType')}/${pathSegment(channel, 'channel')}`,
         { body, query: query(options.user_id) }
       )).preference;
@@ -1082,7 +1082,7 @@ function createNotificationClient(transport: IveKitTransport): IveKitNotificatio
   };
 }
 
-function createContactCenterClient(transport: IveKitTransport): IveKitContactCenterHttpClient {
+function createContactCenterClient(transport: ConveractFabricTransport): ConveractFabricContactCenterHttpClient {
   const root = '/api/ivekit/contact-center';
   const resourcePath = (collection: string, id: string, field: string) =>
     `${root}/${collection}/${pathSegment(id, field)}`;
@@ -1093,7 +1093,7 @@ function createContactCenterClient(transport: IveKitTransport): IveKitContactCen
   const idempotencyHeaders = (options: { idempotencyKey: string }) => ({
     'Idempotency-Key': requiredString(options?.idempotencyKey, 'idempotencyKey is required')
   });
-  const listQuery = (input: IveKitContactCenterListInput) => ({
+  const listQuery = (input: ConveractFabricContactCenterListInput) => ({
     status: input.status || '', cursor: input.cursor || '', limit: optionalNumber(input.limit)
   });
   return {
@@ -1113,12 +1113,12 @@ function createContactCenterClient(transport: IveKitTransport): IveKitContactCen
     updateAgent: (id, body) => transport.json('PATCH', agentPath(id), { body }),
     updatePresence: (id, body) => transport.json('POST', `${agentPath(id)}/presence`, { body }),
     async listAgentSkills(id) {
-      return (await transport.json<{ items: IveKitContactCenterAgentSkill[] }>(
+      return (await transport.json<{ items: ConveractFabricContactCenterAgentSkill[] }>(
         'GET', `${agentPath(id)}/skills`
       )).items;
     },
     async replaceAgentSkills(id, skills) {
-      return (await transport.json<{ items: IveKitContactCenterAgentSkill[] }>(
+      return (await transport.json<{ items: ConveractFabricContactCenterAgentSkill[] }>(
         'PUT', `${agentPath(id)}/skills`, { body: { skills } }
       )).items;
     },
@@ -1129,7 +1129,7 @@ function createContactCenterClient(transport: IveKitTransport): IveKitContactCen
     getQueue: (id) => transport.json('GET', queuePath(id)),
     updateQueue: (id, body) => transport.json('PATCH', queuePath(id), { body }),
     async listMemberships(id) {
-      return (await transport.json<{ items: IveKitContactCenterMembership[] }>(
+      return (await transport.json<{ items: ConveractFabricContactCenterMembership[] }>(
         'GET', `${queuePath(id)}/memberships`
       )).items;
     },
@@ -1138,12 +1138,12 @@ function createContactCenterClient(transport: IveKitTransport): IveKitContactCen
       'DELETE', `${queuePath(queueId)}/memberships/${pathSegment(agentId, 'agentId')}`
     ),
     async listQueueSkillRequirements(id) {
-      return (await transport.json<{ items: IveKitContactCenterSkillRequirement[] }>(
+      return (await transport.json<{ items: ConveractFabricContactCenterSkillRequirement[] }>(
         'GET', `${queuePath(id)}/skill-requirements`
       )).items;
     },
     async replaceQueueSkillRequirements(id, requirements) {
-      return (await transport.json<{ items: IveKitContactCenterSkillRequirement[] }>(
+      return (await transport.json<{ items: ConveractFabricContactCenterSkillRequirement[] }>(
         'PUT', `${queuePath(id)}/skill-requirements`, { body: { requirements } }
       )).items;
     },
@@ -1178,13 +1178,13 @@ function createContactCenterClient(transport: IveKitTransport): IveKitContactCen
   };
 }
 
-interface IveKitTransport {
+interface ConveractFabricTransport {
   json<T>(
     method: string,
     path: string,
     options?: {
       body?: unknown;
-      rawBody?: IveKitSdkRequestBody;
+      rawBody?: ConveractFabricSdkRequestBody;
       contentType?: string;
       headers?: Record<string, string>;
       query?: Record<string, string>;
@@ -1194,10 +1194,10 @@ interface IveKitTransport {
     method: string,
     path: string,
     options?: { query?: Record<string, string> }
-  ): Promise<IveKitSdkBinary>;
+  ): Promise<ConveractFabricSdkBinary>;
 }
 
-function createTransport(input: IveKitHttpSdkInput): IveKitTransport {
+function createTransport(input: ConveractFabricHttpSdkInput): ConveractFabricTransport {
   const baseUrl = validBaseUrl(input.baseUrl);
   const tenantId = requiredString(input.tenantId, 'tenantId is required');
   const apiKey = String(input.apiKey || '').trim();
@@ -1215,7 +1215,7 @@ function createTransport(input: IveKitHttpSdkInput): IveKitTransport {
     path: string,
     options: {
       body?: unknown;
-      rawBody?: IveKitSdkRequestBody;
+      rawBody?: ConveractFabricSdkRequestBody;
       contentType?: string;
       headers?: Record<string, string>;
       query?: Record<string, string>;
@@ -1248,7 +1248,7 @@ function createTransport(input: IveKitHttpSdkInput): IveKitTransport {
       const message = controller.signal.aborted
         ? `${method} ${path} timed out after ${timeoutMs}ms`
         : `${method} ${path} failed: ${error instanceof Error ? error.message : String(error)}`;
-      throw new IveKitHttpSdkError(message, 0, method, path, null);
+      throw new ConveractFabricHttpSdkError(message, 0, method, path, null);
     } finally {
       clearTimeout(timer);
     }
@@ -1257,7 +1257,7 @@ function createTransport(input: IveKitHttpSdkInput): IveKitTransport {
   const requireOk = async (response: Response, method: string, path: string): Promise<void> => {
     if (response.ok) return;
     const payload = await readPayload(response);
-    throw new IveKitHttpSdkError(
+    throw new ConveractFabricHttpSdkError(
       `${method} ${path} failed with ${response.status}: ${errorDetail(payload)}`,
       response.status,
       method,
@@ -1284,17 +1284,17 @@ function createTransport(input: IveKitHttpSdkInput): IveKitTransport {
   };
 }
 
-function createIvrClient(transport: IveKitTransport): IveKitIvrHttpClient {
+function createIvrClient(transport: ConveractFabricTransport): ConveractFabricIvrHttpClient {
   const flowPath = (id: string) => `/api/ivekit/ivr/flows/${pathSegment(id, 'flowId')}`;
   const sessionPath = (id: string) => `/api/ivekit/ivr/sessions/${pathSegment(id, 'sessionId')}`;
   const resourcePath = (collection: string, id: string) =>
     `/api/ivekit/ivr/${collection}/${pathSegment(id, 'resourceId')}`;
   return {
-    async listFlows() { return (await transport.json<{ items: IveKitIvrFlow[] }>('GET', '/api/ivekit/ivr/flows')).items; },
+    async listFlows() { return (await transport.json<{ items: ConveractFabricIvrFlow[] }>('GET', '/api/ivekit/ivr/flows')).items; },
     createFlow: (body) => transport.json('POST', '/api/ivekit/ivr/flows', { body }),
     getFlow: (id) => transport.json('GET', flowPath(id)),
     updateFlow: (id, body) => transport.json('PATCH', flowPath(id), { body }),
-    async listVersions(id) { return (await transport.json<{ items: IveKitIvrFlowVersion[] }>('GET', `${flowPath(id)}/versions`)).items; },
+    async listVersions(id) { return (await transport.json<{ items: ConveractFabricIvrFlowVersion[] }>('GET', `${flowPath(id)}/versions`)).items; },
     validateFlow: (id) => transport.json('POST', `${flowPath(id)}/validate`),
     publishFlow: (id, expected, options) => transport.json('POST', `${flowPath(id)}/publish`, {
       body: { expected_draft_revision: expected }, headers: { 'idempotency-key': options.idempotencyKey }
@@ -1304,26 +1304,26 @@ function createIvrClient(transport: IveKitTransport): IveKitIvrHttpClient {
     }),
     simulate: (body) => transport.json('POST', '/api/ivekit/ivr/simulations', { body }),
     async listSessions(input = {}) {
-      return (await transport.json<{ items: IveKitIvrSession[] }>('GET', '/api/ivekit/ivr/sessions', {
+      return (await transport.json<{ items: ConveractFabricIvrSession[] }>('GET', '/api/ivekit/ivr/sessions', {
         query: { limit: optionalNumber(input.limit) }
       })).items;
     },
     startSession: (body) => transport.json('POST', '/api/ivekit/ivr/sessions', { body }),
     getSession: (id) => transport.json('GET', sessionPath(id)),
     advanceSession: (id, body) => transport.json('POST', `${sessionPath(id)}/advance`, { body }),
-    async listAudioAssets() { return (await transport.json<{ items: IveKitIvrAudioAsset[] }>('GET', '/api/ivekit/ivr/audio-assets')).items; },
+    async listAudioAssets() { return (await transport.json<{ items: ConveractFabricIvrAudioAsset[] }>('GET', '/api/ivekit/ivr/audio-assets')).items; },
     createAudioAsset: (body) => transport.json('POST', '/api/ivekit/ivr/audio-assets', { body }),
     getAudioAsset: (id) => transport.json('GET', resourcePath('audio-assets', id)),
     updateAudioAsset: (id, body) => transport.json('PATCH', resourcePath('audio-assets', id), { body }),
-    async listTimeGroups() { return (await transport.json<{ items: IveKitIvrTimeGroup[] }>('GET', '/api/ivekit/ivr/time-groups')).items; },
+    async listTimeGroups() { return (await transport.json<{ items: ConveractFabricIvrTimeGroup[] }>('GET', '/api/ivekit/ivr/time-groups')).items; },
     createTimeGroup: (body) => transport.json('POST', '/api/ivekit/ivr/time-groups', { body }),
     getTimeGroup: (id) => transport.json('GET', resourcePath('time-groups', id)),
     updateTimeGroup: (id, body) => transport.json('PATCH', resourcePath('time-groups', id), { body }),
-    async listRegionGroups() { return (await transport.json<{ items: IveKitIvrRegionGroup[] }>('GET', '/api/ivekit/ivr/region-groups')).items; },
+    async listRegionGroups() { return (await transport.json<{ items: ConveractFabricIvrRegionGroup[] }>('GET', '/api/ivekit/ivr/region-groups')).items; },
     createRegionGroup: (body) => transport.json('POST', '/api/ivekit/ivr/region-groups', { body }),
     getRegionGroup: (id) => transport.json('GET', resourcePath('region-groups', id)),
     updateRegionGroup: (id, body) => transport.json('PATCH', resourcePath('region-groups', id), { body }),
-    async listRingGroups() { return (await transport.json<{ items: IveKitIvrRingGroup[] }>('GET', '/api/ivekit/ivr/ring-groups')).items; },
+    async listRingGroups() { return (await transport.json<{ items: ConveractFabricIvrRingGroup[] }>('GET', '/api/ivekit/ivr/ring-groups')).items; },
     createRingGroup: (body) => transport.json('POST', '/api/ivekit/ivr/ring-groups', { body }),
     getRingGroup: (id) => transport.json('GET', resourcePath('ring-groups', id)),
     updateRingGroup: (id, body) => transport.json('PATCH', resourcePath('ring-groups', id), { body }),
@@ -1332,7 +1332,7 @@ function createIvrClient(transport: IveKitTransport): IveKitIvrHttpClient {
   };
 }
 
-function createVoiceClient(transport: IveKitTransport): IveKitVoiceHttpClient {
+function createVoiceClient(transport: ConveractFabricTransport): ConveractFabricVoiceHttpClient {
   const resourcePath = (collection: string, id: string, field: string) =>
     `/api/ivekit/voice/${collection}/${pathSegment(id, field)}`;
   const profilePath = (id: string) => resourcePath('profiles', id, 'profileId');
@@ -1341,7 +1341,7 @@ function createVoiceClient(transport: IveKitTransport): IveKitVoiceHttpClient {
   const extensionPath = (id: string) => resourcePath('extensions', id, 'extensionId');
   const routePath = (id: string) => resourcePath('routes', id, 'routeId');
   const callPath = (id: string) => resourcePath('calls', id, 'callId');
-  const idempotencyHeaders = (options: IveKitVoiceIdempotencyOptions) => ({
+  const idempotencyHeaders = (options: ConveractFabricVoiceIdempotencyOptions) => ({
     'Idempotency-Key': requiredString(options?.idempotencyKey, 'idempotencyKey is required')
   });
 
@@ -1456,7 +1456,7 @@ function createVoiceClient(transport: IveKitTransport): IveKitVoiceHttpClient {
   };
 }
 
-function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
+function createMediaClient(transport: ConveractFabricTransport): ConveractFabricMediaHttpClient {
   const callPath = (callId: string) => `/api/ivekit/media/calls/${pathSegment(callId, 'callId')}`;
   const roomPath = (roomName: string) => `/api/ivekit/media/rooms/${pathSegment(roomName, 'roomName')}`;
   const participantPath = (roomName: string, identity: string) =>
@@ -1596,9 +1596,9 @@ function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
 }
 
 function createChatClient(
-  transport: IveKitTransport,
+  transport: ConveractFabricTransport,
   upload: ReturnType<typeof createAttachmentUploadClient>
-): IveKitChatHttpClient {
+): ConveractFabricChatHttpClient {
   const sessionPath = (sessionId: string) =>
     `/api/ivekit/chat/sessions/${pathSegment(sessionId, 'sessionId')}`;
   const messagePath = (sessionId: string, messageId: string) =>
@@ -1695,7 +1695,7 @@ function createChatClient(
       '/api/ivekit/chat/operations/tinode'
     ),
     async listTinodeDeadLetters(input = {}) {
-      return (await transport.json<{ items: IveKitTinodeDeadLetter[] }>(
+      return (await transport.json<{ items: ConveractFabricTinodeDeadLetter[] }>(
         'GET',
         '/api/ivekit/chat/operations/tinode/dead-letters',
         {
@@ -1720,7 +1720,7 @@ function createChatClient(
       }
     ),
     async listTinodeMutationDeadLetters(input = {}) {
-      return (await transport.json<{ items: IveKitTinodeMutationDeadLetter[] }>(
+      return (await transport.json<{ items: ConveractFabricTinodeMutationDeadLetter[] }>(
         'GET',
         '/api/ivekit/chat/operations/tinode/mutation-dead-letters',
         { query: { limit: optionalNumber(input.limit) } }
@@ -1800,7 +1800,7 @@ function createChatClient(
       `${attachmentPath(sessionId, attachmentId)}/download`
     ),
     async createSecureFile(sessionId, input, options) {
-      return (await transport.json<{ file: IveKitSecureFile }>(
+      return (await transport.json<{ file: ConveractFabricSecureFile }>(
         'POST', secureFilePath(sessionId), {
           body: input,
           headers: {
@@ -1813,7 +1813,7 @@ function createChatClient(
       )).file;
     },
     async uploadSecureFileContent(sessionId, fileId, body, sha256) {
-      return (await transport.json<{ file: IveKitSecureFile }>(
+      return (await transport.json<{ file: ConveractFabricSecureFile }>(
         'PUT', `${secureFilePath(sessionId, fileId)}/content`, {
           rawBody: body,
           contentType: 'application/octet-stream',
@@ -1822,7 +1822,7 @@ function createChatClient(
       )).file;
     },
     async uploadSecureFilePart(sessionId, fileId, partNumber, body, sha256) {
-      return (await transport.json<{ part: IveKitSecureFilePart }>(
+      return (await transport.json<{ part: ConveractFabricSecureFilePart }>(
         'PUT',
         `${secureFilePath(sessionId, fileId)}/parts/${positivePathInteger(partNumber, 'partNumber')}`,
         {
@@ -1833,22 +1833,22 @@ function createChatClient(
       )).part;
     },
     async listSecureFileParts(sessionId, fileId) {
-      return (await transport.json<{ parts: IveKitSecureFilePart[] }>(
+      return (await transport.json<{ parts: ConveractFabricSecureFilePart[] }>(
         'GET', `${secureFilePath(sessionId, fileId)}/parts`
       )).parts;
     },
     async completeSecureFile(sessionId, fileId, input) {
-      return (await transport.json<{ file: IveKitSecureFile }>(
+      return (await transport.json<{ file: ConveractFabricSecureFile }>(
         'POST', `${secureFilePath(sessionId, fileId)}/complete`, { body: input }
       )).file;
     },
     async getSecureFile(sessionId, fileId) {
-      return (await transport.json<{ file: IveKitSecureFile }>(
+      return (await transport.json<{ file: ConveractFabricSecureFile }>(
         'GET', secureFilePath(sessionId, fileId)
       )).file;
     },
     async abortSecureFile(sessionId, fileId) {
-      return (await transport.json<{ file: IveKitSecureFile }>(
+      return (await transport.json<{ file: ConveractFabricSecureFile }>(
         'DELETE', secureFilePath(sessionId, fileId)
       )).file;
     },
@@ -1919,7 +1919,7 @@ function createChatClient(
   };
 }
 
-function createIntelligenceClient(transport: IveKitTransport): IveKitIntelligenceHttpClient {
+function createIntelligenceClient(transport: ConveractFabricTransport): ConveractFabricIntelligenceHttpClient {
   const sourcePath = (sessionId: string, sourceId?: string) =>
     `/api/ivekit/intelligence/sessions/${pathSegment(sessionId, 'sessionId')}/sources` +
     (sourceId ? `/${pathSegment(sourceId, 'sourceId')}` : '');
@@ -1956,7 +1956,7 @@ function createIntelligenceClient(transport: IveKitTransport): IveKitIntelligenc
   };
 }
 
-function createContextClient(transport: IveKitTransport): IveKitContextHttpClient {
+function createContextClient(transport: ConveractFabricTransport): ConveractFabricContextHttpClient {
   return {
     getByBusinessRef: (businessRef) => transport.json('GET', '/api/ivekit/context/by-ref', {
       query: {
@@ -1975,24 +1975,24 @@ function createContextClient(transport: IveKitTransport): IveKitContextHttpClien
   };
 }
 
-function createEventClient(transport: IveKitTransport): IveKitEventHttpClient {
+function createEventClient(transport: ConveractFabricTransport): ConveractFabricEventHttpClient {
   const subscriptionRoot = '/api/ivekit/events/webhook-subscriptions';
   const idempotencyHeaders = (options: { idempotencyKey: string }) => ({
     'idempotency-key': requiredString(options?.idempotencyKey, 'idempotencyKey is required')
   });
   const subscriptionPath = (id: string) => `${subscriptionRoot}/${pathSegment(id, 'subscriptionId')}`;
-  const listPage = async <T = unknown>(input: IveKitEventPageInput): Promise<IveKitEventPage<T>> => {
+  const listPage = async <T = unknown>(input: ConveractFabricEventPageInput): Promise<ConveractFabricEventPage<T>> => {
     const cursor = requiredString(input.cursor, 'cursor is required');
     try {
-      return await transport.json<IveKitEventPage<T>>('GET', '/api/ivekit/events', {
+      return await transport.json<ConveractFabricEventPage<T>>('GET', '/api/ivekit/events', {
         query: { cursor, limit: optionalNumber(input.limit) }
       });
     } catch (error) {
       if (
-        error instanceof IveKitHttpSdkError &&
+        error instanceof ConveractFabricHttpSdkError &&
         error.status === 409 &&
         isEventPage(error.payload)
-      ) return error.payload as IveKitEventPage<T>;
+      ) return error.payload as ConveractFabricEventPage<T>;
       throw error;
     }
   };
@@ -2010,27 +2010,27 @@ function createEventClient(transport: IveKitTransport): IveKitEventHttpClient {
       }
     }),
     getWebhookSubscription: async (id) => (await transport.json<{
-      subscription: IveKitEventWebhookSubscription;
+      subscription: ConveractFabricEventWebhookSubscription;
     }>('GET', subscriptionPath(id))).subscription,
     updateWebhookSubscription: async (id, body, options) => (await transport.json<{
-      subscription: IveKitEventWebhookSubscription;
+      subscription: ConveractFabricEventWebhookSubscription;
     }>('PUT', subscriptionPath(id), { body, headers: idempotencyHeaders(options) })).subscription,
     archiveWebhookSubscription: async (id, body, options) => (await transport.json<{
-      subscription: IveKitEventWebhookSubscription;
+      subscription: ConveractFabricEventWebhookSubscription;
     }>('POST', `${subscriptionPath(id)}/archive`, {
       body,
       headers: idempotencyHeaders(options)
     })).subscription,
     async getHeadCursor() {
-      const page = await transport.json<IveKitEventPage>('GET', '/api/ivekit/events');
+      const page = await transport.json<ConveractFabricEventPage>('GET', '/api/ivekit/events');
       return requiredString(page.next_cursor, 'event head cursor is missing');
     },
     listPage,
-    async replay<T = unknown>(input: IveKitEventReplayInput): Promise<IveKitEventReplayResult<T>> {
+    async replay<T = unknown>(input: ConveractFabricEventReplayInput): Promise<ConveractFabricEventReplayResult<T>> {
       const maxPages = boundedInteger(input.max_pages, 20, 1, 100, 'max_pages');
-      const items: IveKitEventReplayResult<T>['items'] = [];
+      const items: ConveractFabricEventReplayResult<T>['items'] = [];
       let cursor = requiredString(input.cursor, 'cursor is required');
-      let page: IveKitEventPage<T> = {
+      let page: ConveractFabricEventPage<T> = {
         items: [], next_cursor: cursor, has_more: false, snapshot_required: false
       };
       let pages = 0;
@@ -2047,19 +2047,19 @@ function createEventClient(transport: IveKitTransport): IveKitEventHttpClient {
   };
 }
 
-function createAttachmentUploadClient(input: IveKitHttpSdkInput) {
+function createAttachmentUploadClient(input: ConveractFabricHttpSdkInput) {
   const baseUrl = validBaseUrl(input.baseUrl);
   const tenantId = requiredString(input.tenantId, 'tenantId is required');
   const apiKey = String(input.apiKey || '').trim();
   const accessToken = String(input.accessToken || '').trim();
   const userId = String(input.userId || '').trim();
   const timeoutMs = validTimeout(input.timeoutMs);
-  const uploadTransport = input.uploadTransport || createIveKitUploadTransport();
+  const uploadTransport = input.uploadTransport || createConveractFabricUploadTransport();
   return (
     path: string,
-    attachment: IveKitAttachmentUploadInput,
-    options: IveKitAttachmentUploadOptions
-  ): IveKitUploadOperation<IveKitChatAttachmentUploadDescriptor> => {
+    attachment: ConveractFabricAttachmentUploadInput,
+    options: ConveractFabricAttachmentUploadOptions
+  ): ConveractFabricUploadOperation<ConveractFabricChatAttachmentUploadDescriptor> => {
     const url = new URL(path, baseUrl);
     url.searchParams.set('kind', requiredString(attachment.kind, 'kind is required'));
     url.searchParams.set('filename', requiredString(attachment.filename, 'filename is required'));
@@ -2087,7 +2087,7 @@ function createAttachmentUploadClient(input: IveKitHttpSdkInput) {
         : undefined
     });
     return {
-      result: operation.result as Promise<IveKitChatAttachmentUploadDescriptor>,
+      result: operation.result as Promise<ConveractFabricChatAttachmentUploadDescriptor>,
       abort: operation.abort
     };
   };
@@ -2134,7 +2134,7 @@ function optionalNumber(value: number | undefined): string {
   return value === undefined ? '' : String(value);
 }
 
-function voicePageQuery(input: IveKitVoicePageInput): Record<string, string> {
+function voicePageQuery(input: ConveractFabricVoicePageInput): Record<string, string> {
   return {
     cursor: input.cursor || '',
     limit: optionalNumber(input.limit)
@@ -2165,16 +2165,16 @@ function boundedInteger(
   return resolved;
 }
 
-function isEventPage(value: unknown): value is IveKitEventPage {
+function isEventPage(value: unknown): value is ConveractFabricEventPage {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const page = value as Partial<IveKitEventPage>;
+  const page = value as Partial<ConveractFabricEventPage>;
   return Array.isArray(page.items) &&
     typeof page.next_cursor === 'string' &&
     typeof page.has_more === 'boolean' &&
     page.snapshot_required === true;
 }
 
-function recordingListQuery(input: IveKitMediaRecordingListInput): Record<string, string> {
+function recordingListQuery(input: ConveractFabricMediaRecordingListInput): Record<string, string> {
   return {
     limit: optionalNumber(input.limit),
     call_id: input.call_id || '',

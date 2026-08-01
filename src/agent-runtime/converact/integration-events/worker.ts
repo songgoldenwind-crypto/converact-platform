@@ -3,23 +3,23 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 
 import type { PgQueryable } from '../../../db-pg.js';
-import { matchesIveKitEventPattern } from './catalog.js';
-import { PostgresIveKitEventWebhookStore } from './postgres-store.js';
+import { matchesConveractFabricEventPattern } from './catalog.js';
+import { PostgresConveractFabricEventWebhookStore } from './postgres-store.js';
 import type {
-  IveKitEventWebhookSubscription,
-  IveKitIntegrationEventEnvelope,
-  IveKitStoredIntegrationEvent
+  ConveractFabricEventWebhookSubscription,
+  ConveractFabricIntegrationEventEnvelope,
+  ConveractFabricStoredIntegrationEvent
 } from './types.js';
 import { notificationDeliveryWorkerConfig } from '../notifications/runtime.js';
 import { PostgresNotificationStore } from '../notifications/postgres/store.js';
 import { configuredNotificationProtector } from '../notifications/protector.js';
 import { NotificationService } from '../notifications/service.js';
 import {
-  observeIveKitEventWebhookBatch,
-  observeIveKitEventWebhookWorkerError
+  observeConveractFabricEventWebhookBatch,
+  observeConveractFabricEventWebhookWorkerError
 } from './metrics.js';
 
-export interface IveKitEventWebhookWorkerConfig {
+export interface ConveractFabricEventWebhookWorkerConfig {
   enabled: boolean;
   interval_ms: number;
   tenant_limit: number;
@@ -29,7 +29,7 @@ export interface IveKitEventWebhookWorkerConfig {
   retry_delays_ms: number[];
 }
 
-export interface IveKitEventWebhookBatchSummary {
+export interface ConveractFabricEventWebhookBatchSummary {
   tenants: number;
   claimed: number;
   scanned: number;
@@ -40,7 +40,7 @@ export interface IveKitEventWebhookBatchSummary {
   oldest_event_age_seconds: number;
 }
 
-export interface IveKitEventWebhookWorkerRepository {
+export interface ConveractFabricEventWebhookWorkerRepository {
   listWorkerTenants(now: Date, limit: number): Promise<string[]>;
   claimDue(input: {
     tenant_id: string;
@@ -49,13 +49,13 @@ export interface IveKitEventWebhookWorkerRepository {
     now: Date;
     lease_ms: number;
     limit: number;
-  }): Promise<IveKitEventWebhookSubscription[]>;
+  }): Promise<ConveractFabricEventWebhookSubscription[]>;
   listEvents(
     tenantId: string,
     afterEventId: string,
     now: Date,
     limit: number
-  ): Promise<IveKitStoredIntegrationEvent[]>;
+  ): Promise<ConveractFabricStoredIntegrationEvent[]>;
   completeClaim(input: {
     tenant_id: string;
     subscription_id: string;
@@ -63,7 +63,7 @@ export interface IveKitEventWebhookWorkerRepository {
     lease_token_hash: string;
     last_event_id: string;
     now: Date;
-  }): Promise<IveKitEventWebhookSubscription>;
+  }): Promise<ConveractFabricEventWebhookSubscription>;
   failClaim(input: {
     tenant_id: string;
     subscription_id: string;
@@ -72,22 +72,22 @@ export interface IveKitEventWebhookWorkerRepository {
     error_code: string;
     retry_at: Date;
     now: Date;
-  }): Promise<IveKitEventWebhookSubscription>;
+  }): Promise<ConveractFabricEventWebhookSubscription>;
 }
 
-export async function runIveKitEventWebhookBatch(input: {
-  repository: IveKitEventWebhookWorkerRepository;
-  config: IveKitEventWebhookWorkerConfig;
+export async function runConveractFabricEventWebhookBatch(input: {
+  repository: ConveractFabricEventWebhookWorkerRepository;
+  config: ConveractFabricEventWebhookWorkerConfig;
   worker_id: string;
   project: (
-    subscription: IveKitEventWebhookSubscription,
-    event: IveKitStoredIntegrationEvent
+    subscription: ConveractFabricEventWebhookSubscription,
+    event: ConveractFabricStoredIntegrationEvent
   ) => Promise<void>;
   now?: Date;
-}): Promise<IveKitEventWebhookBatchSummary> {
+}): Promise<ConveractFabricEventWebhookBatchSummary> {
   const now = input.now || new Date();
   const tenants = await input.repository.listWorkerTenants(now, input.config.tenant_limit);
-  const summary: IveKitEventWebhookBatchSummary = {
+  const summary: ConveractFabricEventWebhookBatchSummary = {
     tenants: tenants.length, claimed: 0, scanned: 0, projected: 0,
     filtered: 0, failed: 0, lease_lost: 0, oldest_event_age_seconds: 0
   };
@@ -115,7 +115,7 @@ export async function runIveKitEventWebhookBatch(input: {
             eventAgeSeconds(event.occurred_at, now)
           );
           lastEventId = event.id;
-          if (!matchesIveKitEventPattern(event.event_type, claim.event_patterns)) {
+          if (!matchesConveractFabricEventPattern(event.event_type, claim.event_patterns)) {
             summary.filtered += 1;
             continue;
           }
@@ -159,9 +159,9 @@ export async function runIveKitEventWebhookBatch(input: {
   return summary;
 }
 
-export function projectIveKitIntegrationEvent(
-  event: IveKitStoredIntegrationEvent
-): IveKitIntegrationEventEnvelope {
+export function projectConveractFabricIntegrationEvent(
+  event: ConveractFabricStoredIntegrationEvent
+): ConveractFabricIntegrationEventEnvelope {
   return {
     schema_version: 1,
     event_id: event.id,
@@ -180,7 +180,7 @@ export function projectIveKitIntegrationEvent(
 
 export function integrationEventWebhookWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
-): IveKitEventWebhookWorkerConfig {
+): ConveractFabricEventWebhookWorkerConfig {
   const flag = booleanEnv(resolveFabricEnv(env, 'EVENT_WEBHOOK_WORKER_ENABLED'), false);
   if (flag && !notificationDeliveryWorkerConfig(env).enabled) {
     throw new Error('event webhook worker requires the notification delivery runtime');
@@ -196,15 +196,15 @@ export function integrationEventWebhookWorkerConfig(
   };
 }
 
-export class IveKitEventWebhookWorker {
+export class ConveractFabricEventWebhookWorker {
   private timer: ReturnType<typeof setTimeout> | null = null;
-  private active: Promise<IveKitEventWebhookBatchSummary> | null = null;
+  private active: Promise<ConveractFabricEventWebhookBatchSummary> | null = null;
   private stopped = true;
 
   constructor(private readonly input: {
-    config: IveKitEventWebhookWorkerConfig;
-    runBatch: () => Promise<IveKitEventWebhookBatchSummary>;
-    onResult?: (result: IveKitEventWebhookBatchSummary) => void;
+    config: ConveractFabricEventWebhookWorkerConfig;
+    runBatch: () => Promise<ConveractFabricEventWebhookBatchSummary>;
+    onResult?: (result: ConveractFabricEventWebhookBatchSummary) => void;
     onError?: (error: unknown) => void;
   }) {}
 
@@ -214,7 +214,7 @@ export class IveKitEventWebhookWorker {
     this.schedule(0);
   }
 
-  runOnce(): Promise<IveKitEventWebhookBatchSummary> {
+  runOnce(): Promise<ConveractFabricEventWebhookBatchSummary> {
     if (this.active) return this.active;
     const running = Promise.resolve().then(this.input.runBatch);
     const wrapped = running.finally(() => {
@@ -244,22 +244,22 @@ export class IveKitEventWebhookWorker {
   }
 }
 
-export function startIveKitEventWebhookWorker(input: {
+export function startConveractFabricEventWebhookWorker(input: {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
-}): IveKitEventWebhookWorker {
+}): ConveractFabricEventWebhookWorker {
   const env = input.env || process.env;
   const config = integrationEventWebhookWorkerConfig(env);
-  const subscriptions = new PostgresIveKitEventWebhookStore(input.pg);
+  const subscriptions = new PostgresConveractFabricEventWebhookStore(input.pg);
   const notifications = new PostgresNotificationStore(input.pg);
   const service = new NotificationService({
     repository: notifications,
     protector: configuredNotificationProtector(env)
   });
   const workerId = `${hostname()}:${process.pid}:event-webhook:${randomUUID()}`;
-  const worker = new IveKitEventWebhookWorker({
+  const worker = new ConveractFabricEventWebhookWorker({
     config,
-    runBatch: () => runIveKitEventWebhookBatch({
+    runBatch: () => runConveractFabricEventWebhookBatch({
       repository: subscriptions,
       config,
       worker_id: workerId,
@@ -271,7 +271,7 @@ export function startIveKitEventWebhookWorker(input: {
             code: 'endpoint_unavailable'
           });
         }
-        const envelope = projectIveKitIntegrationEvent(event);
+        const envelope = projectConveractFabricIntegrationEvent(event);
         await service.create({
           tenant_id: event.tenant_id,
           event_type: event.event_type,
@@ -285,7 +285,7 @@ export function startIveKitEventWebhookWorker(input: {
             subscription_id: subscription.id
           },
           business_ref: envelope.business_ref || { type: 'ivekit_event', id: event.id },
-          requested_by: 'ivekit:event-webhook-worker',
+          requested_by: 'converact:event-webhook-worker',
           correlation_id: `tenant-event:${event.id}`,
           idempotency_key: eventWebhookIdempotencyKey(subscription.id, event.id),
           policy: { integration_event_webhook: true, subscription_id: subscription.id },
@@ -294,11 +294,11 @@ export function startIveKitEventWebhookWorker(input: {
       }
     }),
     onResult: (result) => {
-      observeIveKitEventWebhookBatch(result);
+      observeConveractFabricEventWebhookBatch(result);
       if (result.claimed) console.log('[event-webhook] batch', JSON.stringify(result));
     },
     onError: (error) => {
-      observeIveKitEventWebhookWorkerError();
+      observeConveractFabricEventWebhookWorkerError();
       console.error('[event-webhook] worker failed:', safeErrorCode(error));
     }
   });

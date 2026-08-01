@@ -301,7 +301,7 @@ export async function runComponentNodeAdmission(
     if (recordingSpoolTimer) clearInterval(recordingSpoolTimer);
     stopping = closeServer(server).catch((error) => {
       console.error(
-        '[ivekit-component-node-admission] failed to close HTTP server:',
+        '[converact-component-node-admission] failed to close HTTP server:',
         error instanceof Error ? error.message : String(error)
       );
       process.exitCode = 1;
@@ -320,7 +320,7 @@ export async function runComponentNodeAdmission(
     throw error;
   }
   console.log(
-    `[ivekit-component-node-admission] listening on ${config.host}:${config.port} ` +
+    `[converact-component-node-admission] listening on ${config.host}:${config.port} ` +
     `for ${config.component} ${config.region_id}/${config.zone_id}/${config.cell_id}/` +
     `${config.node_id} state=draining`
   );
@@ -442,7 +442,7 @@ function readRequiredTextFile(
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runComponentNodeAdmission(componentNodeAdmissionRuntimeConfig()).catch((error) => {
     console.error(
-      '[ivekit-component-node-admission] FATAL:',
+      '[converact-component-node-admission] FATAL:',
       error instanceof Error ? error.message : String(error)
     );
     process.exitCode = 1;

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, afterEach, before, test } from 'node:test';
-import type { IveKitClient, IveKitTranslationListResult, IveKitTranslationRequestInput } from '@converact/sdk';
+import type { ConveractFabricClient, ConveractFabricTranslationListResult, ConveractFabricTranslationRequestInput } from '@converact/sdk';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { installTestDom } from '../test-dom.js';
@@ -14,7 +14,7 @@ afterEach(() => cleanup());
 
 test('translation panel requests the selected language and preserves surrounding source text', async () => {
   const requests: Array<{ target_language: string; idempotencyKey: string }> = [];
-  const lists: IveKitTranslationListResult[] = [
+  const lists: ConveractFabricTranslationListResult[] = [
     { items: [], jobs: [] },
     { items: [], jobs: [translationJob('pending')] }
   ];
@@ -23,7 +23,7 @@ test('translation panel requests the selected language and preserves surrounding
     requestMessageTranslation: async (
       _sessionId: string,
       _messageId: string,
-      input: IveKitTranslationRequestInput,
+      input: ConveractFabricTranslationRequestInput,
       options: { idempotencyKey: string }
     ) => {
       requests.push({ target_language: input.target_language, idempotencyKey: options.idempotencyKey });
@@ -73,8 +73,8 @@ test('translation panel shows translated text and only retryable failures expose
   await waitFor(() => assert.deepEqual(retries, ['job-timeout']));
 });
 
-function fakeClient(chat: Record<string, unknown>): IveKitClient {
-  return { chat } as unknown as IveKitClient;
+function fakeClient(chat: Record<string, unknown>): ConveractFabricClient {
+  return { chat } as unknown as ConveractFabricClient;
 }
 
 function translationJob(status: 'pending' | 'succeeded' | 'failed', overrides: Record<string, unknown> = {}) {

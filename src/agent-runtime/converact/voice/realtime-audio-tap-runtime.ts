@@ -204,7 +204,7 @@ export function createConfiguredRealtimeAudioTapRuntime(
   };
   const gateway = rustPbxGatewayEnabled ? new RustPbxRealtimeAudioTapGateway({
     socket_path: resolveFabricEnv(env, 'REALTIME_AUDIO_TAP_SOCKET_PATH')
-      || '/run/ivekit/realtime-audio-tap.sock',
+      || '/run/converact/realtime-audio-tap.sock',
     token_codec: tokenCodec,
     router,
     nonce_store: nonceStore,

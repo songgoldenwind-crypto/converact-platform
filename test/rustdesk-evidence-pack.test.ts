@@ -14,7 +14,7 @@ import {
 } from '../scripts/rustdesk-evidence-pack.js';
 
 test('RustDesk evidence pack marks a complete server and client evidence set as ready', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-evidence-complete-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-evidence-complete-'));
   const files = writeCompleteEvidenceFiles(dir);
 
   const pack = buildRustDeskEvidencePack(createRustDeskEvidencePackConfigFromEnv({
@@ -55,7 +55,7 @@ test('RustDesk evidence pack marks a complete server and client evidence set as 
 });
 
 test('RustDesk evidence pack reports missing required artifacts without claiming readiness', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-evidence-missing-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-evidence-missing-'));
   const outputFile = join(dir, 'rustdesk-evidence.md');
 
   const result = writeRustDeskEvidencePack({
@@ -89,7 +89,7 @@ test('RustDesk evidence pack reports missing required artifacts without claiming
 });
 
 test('RustDesk evidence pack fails when audit coverage report is missing or failed', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-evidence-audit-coverage-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-evidence-audit-coverage-'));
   const files = writeCompleteEvidenceFiles(dir);
 
   const missing = buildRustDeskEvidencePack(createRustDeskEvidencePackConfigFromEnv({
@@ -132,7 +132,7 @@ test('RustDesk evidence pack fails when audit coverage report is missing or fail
 });
 
 test('RustDesk evidence pack accepts npm stdout wrappers around JSON artifacts', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-evidence-json-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-evidence-json-'));
   const files = writeCompleteEvidenceFiles(dir);
   writeFileSync(files.readiness, [
     '> converact-platform@0.1.0 rustdesk:readiness',
@@ -157,7 +157,7 @@ test('RustDesk evidence pack accepts npm stdout wrappers around JSON artifacts',
 });
 
 test('RustDesk evidence pack uses standard preflight and readiness report files as fallbacks', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-evidence-fallback-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-evidence-fallback-'));
   const files = writeCompleteEvidenceFiles(dir);
 
   const config = createRustDeskEvidencePackConfigFromEnv({
@@ -180,7 +180,7 @@ test('RustDesk evidence pack uses standard preflight and readiness report files 
 });
 
 test('RustDesk evidence pack CLI writes a markdown artifact and exposes package/env wiring', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-evidence-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-evidence-cli-'));
   const files = writeCompleteEvidenceFiles(dir);
   const outputFile = join(dir, 'rustdesk-evidence-pack.md');
   const result = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/rustdesk-evidence-pack.ts'], {
@@ -244,7 +244,7 @@ function writeCompleteEvidenceFiles(dir: string): Record<string, string> {
   };
 
   writeFileSync(files.deploymentCommands, '# RustDesk Deployment Commands\n\nCheck `/rustdesk/id_ed25519.pub`.\n');
-  writeFileSync(files.envChecklist, '# RustDesk Deployment Env Checklist\n\nOPC_RUSTDESK_PUBLIC_KEY_FILE=/rustdesk/id_ed25519.pub\n');
+  writeFileSync(files.envChecklist, '# RustDesk Deployment Env Checklist\n\nCONVERACT_RUSTDESK_PUBLIC_KEY_FILE=/rustdesk/id_ed25519.pub\n');
   writeJson(files.preflight, {
     ok: true,
     checks: [
@@ -279,7 +279,7 @@ function writeCompleteEvidenceFiles(dir: string): Record<string, string> {
     ],
     remoteGateway: {
       externalId: 'rdgw_1',
-      launchUrl: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw_1'
+      launchUrl: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw_1'
     },
     physicalDisconnect: {
       externalId: 'rdgw_1',

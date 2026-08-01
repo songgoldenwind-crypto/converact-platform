@@ -21,7 +21,7 @@ def create(ctx: "ToolContext"):
             return "当前通话未关联 Campaign，结果已记录在会话中。"
 
         try:
-            await ctx.opc.post(
+            await ctx.converact.post(
                 "/api/call-center/campaigns/report-outcome",
                 json={
                     "campaign_id": campaign_id,

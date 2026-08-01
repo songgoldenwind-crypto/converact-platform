@@ -13,7 +13,7 @@ let baseUrl = '';
 let tenantId = '';
 let sessionId = '';
 let specId = '';
-const apiKey = 'dev-opc-key';
+const apiKey = 'dev-converact-key';
 
 before(async () => {
   process.env.CONVERACT_API_KEY = apiKey;
@@ -51,7 +51,7 @@ test('POST import-ivr creates spec with nodes', async () => {
     {
       tenant_id: tenantId,
       goal: '客服分流',
-      brand_name: 'OPC',
+      brand_name: 'Converact',
       publish: true,
       menus: [
         {

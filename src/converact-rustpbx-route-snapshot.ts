@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
 
+import { resolveFabricEnv } from './config/converact-env.js';
 import type { PgQueryable } from './db-pg.js';
 import { withPgTenant } from './db-pg-tenant.js';
 import { RustPbxRouterAdapter, type RustPbxRouterResponse } from './agent-runtime/converact/voice/adapters/rustpbx-routing.js';
@@ -419,27 +420,27 @@ export function rustPbxRouteSnapshotRuntimeConfig(
 ): RustPbxRouteSnapshotRuntimeConfig {
   return {
     database_url: requiredText(String(env.DATABASE_URL || ''), 'database_url'),
-    tenant_id: validIdentifier(String(env.IVEKIT_RUSTPBX_ROUTE_TENANT_ID || ''), 'tenant_id'),
-    profile_id: validIdentifier(String(env.IVEKIT_RUSTPBX_ROUTE_PROFILE_ID || ''), 'profile_id'),
+    tenant_id: validIdentifier(String(resolveFabricEnv(env, 'RUSTPBX_ROUTE_TENANT_ID') || ''), 'tenant_id'),
+    profile_id: validIdentifier(String(resolveFabricEnv(env, 'RUSTPBX_ROUTE_PROFILE_ID') || ''), 'profile_id'),
     output_path: requiredText(
-      String(env.IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE || ''),
+      String(resolveFabricEnv(env, 'RUSTPBX_ROUTE_SNAPSHOT_FILE') || ''),
       'output_path'
     ),
-    signing_key: String(env.IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY || ''),
+    signing_key: String(resolveFabricEnv(env, 'RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY') || ''),
     interval_ms: boundedInteger(
-      Number(env.IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_INTERVAL_MS || 1_000),
+      Number(resolveFabricEnv(env, 'RUSTPBX_ROUTE_SNAPSHOT_INTERVAL_MS') || 1_000),
       100,
       60_000,
       'interval_ms'
     ),
     ttl_ms: boundedInteger(
-      Number(env.IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_TTL_MS || 10_000),
+      Number(resolveFabricEnv(env, 'RUSTPBX_ROUTE_SNAPSHOT_TTL_MS') || 10_000),
       1_000,
       300_000,
       'ttl_ms'
     ),
     available_dependencies: routeDependencies(
-      String(env.IVEKIT_RUSTPBX_ROUTE_DEPENDENCIES || '')
+      String(resolveFabricEnv(env, 'RUSTPBX_ROUTE_DEPENDENCIES') || '')
     )
   };
 }
@@ -451,7 +452,7 @@ async function main(): Promise<void> {
     max: 2,
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 5_000,
-    application_name: 'ivekit-rustpbx-route-snapshot'
+    application_name: 'converact-rustpbx-route-snapshot'
   });
   const projector = createRustPbxRouteSnapshotProjector({
     repository: new PostgresRustPbxRouteSnapshotRepository(pool),

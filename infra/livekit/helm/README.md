@@ -1,13 +1,13 @@
 # LiveKit production Helm profile
 
 This directory vendors the official `livekit/livekit-helm` server chart at the
-exact commit recorded in `upstream-lock.json`. The iveKit delta is intentionally
+exact commit recorded in `upstream-lock.json`. The Converact Fabric delta is intentionally
 small:
 
-- the chart and app versions identify the iveKit fork;
+- the chart and app versions identify the Converact Fabric fork;
 - Redis password and TLS material are mounted from existing Secrets;
 - zone spreading and a PodDisruptionBudget are available;
-- the production profile pins the iveKit LiveKit image by digest and applies
+- the production profile pins the Converact Fabric LiveKit image by digest and applies
   the validated 100 ms PLI policy.
 
 The application chart under `infra/k8s` continues to treat bundled LiveKit as
@@ -27,7 +27,7 @@ contents in a values file:
 
 Resolve these environment-specific values before deployment:
 
-1. replace `REPLACE_WITH_64_HEX_DIGEST` with the released iveKit LiveKit image
+1. replace `REPLACE_WITH_64_HEX_DIGEST` with the released Converact Fabric LiveKit image
    manifest digest;
 2. replace `turn.media.example.com` with the TURN certificate domain;
 3. set the Valkey address and TLS server name;
@@ -51,7 +51,7 @@ npm run livekit:helm-profile:validate -- \
 helm lint infra/livekit/helm/livekit-server \
   -f /secure/runtime/livekit-values.yaml
 
-helm template opc-livekit infra/livekit/helm/livekit-server \
+helm template converact-livekit infra/livekit/helm/livekit-server \
   --namespace media \
   -f /secure/runtime/livekit-values.yaml
 ```
@@ -59,7 +59,7 @@ helm template opc-livekit infra/livekit/helm/livekit-server \
 Install only the rendered and reviewed profile:
 
 ```bash
-helm upgrade --install opc-livekit infra/livekit/helm/livekit-server \
+helm upgrade --install converact-livekit infra/livekit/helm/livekit-server \
   --namespace media \
   --create-namespace \
   -f /secure/runtime/livekit-values.yaml \
@@ -80,7 +80,7 @@ For an upstream chart update:
 1. verify the new Git commit and the four upstream SHA-256 values;
 2. replace the vendored chart from that exact commit;
 3. reapply only the Secret, topology and PDB delta;
-4. increment the `-ivekit.N` chart version;
+4. increment the `-converact.N` chart version;
 5. run the focused test, validator, `helm lint` and `helm template`;
 6. rerun browser QoE, native SFU capacity and multi-node failure campaigns.
 

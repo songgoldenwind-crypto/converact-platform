@@ -14,7 +14,7 @@ test('Windows disconnect adapter uses the packaged precise-session bridge only',
 
   assert.doesNotMatch(adapter, /CONVERACT_RUSTDESK_SESSION_DISCONNECT_HOOK/);
   assert.match(adapter, /CONVERACT_RUSTDESK_PRECISE_DISCONNECT_SCRIPT/);
-  assert.match(adapter, /Invoke-IveKitRustDeskSessionDisconnect\.ps1/);
+  assert.match(adapter, /Invoke-ConveractFabricRustDeskSessionDisconnect\.ps1/);
   assert.match(adapter, /-Mode'\s+\$Mode/);
   assert.match(adapter, /-ExternalId'\s+\$ExternalId/);
   assert.match(adapter, /-TargetId'\s+\$TargetId/);
@@ -25,7 +25,7 @@ test('Windows disconnect adapter uses the packaged precise-session bridge only',
 });
 
 test('Windows legacy session registry remains an ACL-protected diagnostic migration tool', () => {
-  const resolver = source('scripts/rustdesk-windows/Resolve-IveKitRustDeskSession.ps1');
+  const resolver = source('scripts/rustdesk-windows/Resolve-ConveractFabricRustDeskSession.ps1');
 
   assert.match(resolver, /ValidateSet\('register', 'unregister', 'resolve'\)/);
   assert.match(resolver, /NativeSessionId/);
@@ -40,10 +40,10 @@ test('Windows legacy session registry remains an ACL-protected diagnostic migrat
 });
 
 test('Windows precise disconnect sends an epoch-fenced v2 named-pipe request for the resolved native ID', () => {
-  const bridge = source('scripts/rustdesk-windows/Invoke-IveKitRustDeskSessionDisconnect.ps1');
+  const bridge = source('scripts/rustdesk-windows/Invoke-ConveractFabricRustDeskSessionDisconnect.ps1');
 
   assert.match(bridge, /NamedPipeClientStream/);
-  assert.doesNotMatch(bridge, /Resolve-IveKitRustDeskSession\.ps1/);
+  assert.doesNotMatch(bridge, /Resolve-ConveractFabricRustDeskSession\.ps1/);
   assert.match(bridge, /ControllerRustDeskId/);
   assert.match(bridge, /NativeSessionId/);
   assert.match(bridge, /controller_rustdesk_id/);
@@ -63,8 +63,8 @@ test('Windows precise disconnect sends an epoch-fenced v2 named-pipe request for
 });
 
 test('Windows installer packages the companion and supplies complete adapter arguments', () => {
-  const deployment = source('scripts/rustdesk-windows/Deploy-IveKitRustDesk.ps1');
-  const service = source('scripts/rustdesk-windows/IveKitRustDeskEdge.xml.template');
+  const deployment = source('scripts/rustdesk-windows/Deploy-ConveractFabricRustDesk.ps1');
+  const service = source('scripts/rustdesk-windows/ConveractFabricRustDeskEdge.xml.template');
   const packager = source('scripts/rustdesk-windows-package.ts');
 
   assert.match(deployment, /'-Mode', 'execute'/);
@@ -74,11 +74,11 @@ test('Windows installer packages the companion and supplies complete adapter arg
   assert.match(deployment, /'-InteractionId', '\{interaction_id\}'/);
   assert.match(deployment, /'-ReservationId', '\{reservation_id\}'/);
   assert.match(deployment, /'-OwnerEpoch', '\{owner_epoch\}'/);
-  assert.match(deployment, /Invoke-IveKitRustDeskSessionDisconnect\.ps1/);
-  assert.match(deployment, /Resolve-IveKitRustDeskSession\.ps1/);
+  assert.match(deployment, /Invoke-ConveractFabricRustDeskSessionDisconnect\.ps1/);
+  assert.match(deployment, /Resolve-ConveractFabricRustDeskSession\.ps1/);
   assert.match(service, /CONVERACT_RUSTDESK_PRECISE_DISCONNECT_SCRIPT/);
   assert.match(service, /CONVERACT_RUSTDESK_SESSION_REGISTRY_FILE/);
   assert.match(service, /CONVERACT_RUSTDESK_NATIVE_CONTROL_PIPE/);
-  assert.match(packager, /Invoke-IveKitRustDeskSessionDisconnect\.ps1/);
-  assert.match(packager, /Resolve-IveKitRustDeskSession\.ps1/);
+  assert.match(packager, /Invoke-ConveractFabricRustDeskSessionDisconnect\.ps1/);
+  assert.match(packager, /Resolve-ConveractFabricRustDeskSession\.ps1/);
 });

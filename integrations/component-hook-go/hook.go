@@ -18,14 +18,14 @@ const (
 )
 
 var (
-	ErrAlreadyOpen             = errors.New("ivekit component owner already open")
-	ErrNotOpen                 = errors.New("ivekit component owner is not open")
-	ErrClosed                  = errors.New("ivekit component owner is closed")
-	ErrStaleOwnerEpoch         = errors.New("ivekit component owner epoch is stale")
-	ErrOwnerEpochAhead         = errors.New("ivekit component owner epoch is ahead")
-	ErrLeaseExpired            = errors.New("ivekit component node lease expired")
-	ErrAuthorizationMismatch   = errors.New("ivekit component authorization mismatch")
-	ErrStateSequenceRegression = errors.New("ivekit component state sequence regressed")
+	ErrAlreadyOpen             = errors.New("converact component owner already open")
+	ErrNotOpen                 = errors.New("converact component owner is not open")
+	ErrClosed                  = errors.New("converact component owner is closed")
+	ErrStaleOwnerEpoch         = errors.New("converact component owner epoch is stale")
+	ErrOwnerEpochAhead         = errors.New("converact component owner epoch is ahead")
+	ErrLeaseExpired            = errors.New("converact component node lease expired")
+	ErrAuthorizationMismatch   = errors.New("converact component authorization mismatch")
+	ErrStateSequenceRegression = errors.New("converact component state sequence regressed")
 )
 
 type Request struct {

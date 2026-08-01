@@ -2,24 +2,24 @@ import { randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../../../db-pg.js';
 import { withPgTenant } from '../../../../db-pg-tenant.js';
-import { IveKitRetentionError } from './errors.js';
+import { ConveractFabricRetentionError } from './errors.js';
 import type {
-  IveKitRetentionPolicyRepository,
-  IveKitRetentionRepository
+  ConveractFabricRetentionPolicyRepository,
+  ConveractFabricRetentionRepository
 } from './ports.js';
 import type {
-  IveKitLegalHold,
-  IveKitLegalHoldCreateInput,
-  IveKitRetentionClaim,
-  IveKitRetentionDeletionSummary,
-  IveKitRetentionPolicy,
-  IveKitRetentionPolicyWrite
+  ConveractFabricLegalHold,
+  ConveractFabricLegalHoldCreateInput,
+  ConveractFabricRetentionClaim,
+  ConveractFabricRetentionDeletionSummary,
+  ConveractFabricRetentionPolicy,
+  ConveractFabricRetentionPolicyWrite
 } from './types.js';
 
 type RetentionRow = Record<string, unknown>;
 
-export class PostgresIveKitRetentionStore implements
-  IveKitRetentionRepository, IveKitRetentionPolicyRepository {
+export class PostgresConveractFabricRetentionStore implements
+  ConveractFabricRetentionRepository, ConveractFabricRetentionPolicyRepository {
   readonly #pg: PgQueryable;
   readonly #id: () => string;
 
@@ -36,7 +36,7 @@ export class PostgresIveKitRetentionStore implements
     return result.rows.map((row) => String(row.tenant_id));
   }
 
-  listPolicies(tenantId: string): Promise<IveKitRetentionPolicy[]> {
+  listPolicies(tenantId: string): Promise<ConveractFabricRetentionPolicy[]> {
     return withPgTenant(this.#pg, tenantId, async (pg) => {
       const result = await pg.query<RetentionRow>(
         `SELECT * FROM ivekit_retention_policies
@@ -47,7 +47,7 @@ export class PostgresIveKitRetentionStore implements
     });
   }
 
-  putPolicy(input: IveKitRetentionPolicyWrite): Promise<IveKitRetentionPolicy> {
+  putPolicy(input: ConveractFabricRetentionPolicyWrite): Promise<ConveractFabricRetentionPolicy> {
     return withPgTenant(this.#pg, input.tenant_id, async (pg) => {
       const result = input.expected_revision === 0
         ? await pg.query<RetentionRow>(
@@ -86,7 +86,7 @@ export class PostgresIveKitRetentionStore implements
     tenant_id: string;
     category?: string;
     status?: 'active' | 'released';
-  }): Promise<IveKitLegalHold[]> {
+  }): Promise<ConveractFabricLegalHold[]> {
     return withPgTenant(this.#pg, input.tenant_id, async (pg) => {
       const result = await pg.query<RetentionRow>(
         `SELECT * FROM ivekit_legal_holds
@@ -100,8 +100,8 @@ export class PostgresIveKitRetentionStore implements
   }
 
   placeLegalHold(
-    input: IveKitLegalHoldCreateInput
-  ): Promise<{ hold: IveKitLegalHold; created: boolean }> {
+    input: ConveractFabricLegalHoldCreateInput
+  ): Promise<{ hold: ConveractFabricLegalHold; created: boolean }> {
     return withPgTenant(this.#pg, input.tenant_id, async (pg) => {
       const replay = await pg.query<RetentionRow>(
         `SELECT * FROM ivekit_legal_holds
@@ -144,7 +144,7 @@ export class PostgresIveKitRetentionStore implements
     hold_id: string;
     actor: string;
     now: string;
-  }): Promise<IveKitLegalHold> {
+  }): Promise<ConveractFabricLegalHold> {
     return withPgTenant(this.#pg, input.tenant_id, async (pg) => {
       const result = await pg.query<RetentionRow>(
         `UPDATE ivekit_legal_holds
@@ -164,7 +164,7 @@ export class PostgresIveKitRetentionStore implements
     lease_ms: number;
     limit: number;
     now: string;
-  }): Promise<IveKitRetentionClaim[]> {
+  }): Promise<ConveractFabricRetentionClaim[]> {
     return withPgTenant(this.#pg, input.tenant_id, async (pg) => {
       const now = timestamp(input.now);
       const leaseExpiresAt = new Date(now.getTime() + boundedInteger(
@@ -178,7 +178,7 @@ export class PostgresIveKitRetentionStore implements
          LIMIT $3 FOR UPDATE SKIP LOCKED`,
         [input.tenant_id, now.toISOString(), boundedInteger(input.limit, 1, 100)]
       );
-      const claims: IveKitRetentionClaim[] = [];
+      const claims: ConveractFabricRetentionClaim[] = [];
       for (const row of due.rows) {
         const policy = decodePolicy(row);
         const leased = await pg.query<RetentionRow>(
@@ -221,7 +221,7 @@ export class PostgresIveKitRetentionStore implements
     });
   }
 
-  deleteExpired(claim: IveKitRetentionClaim): Promise<IveKitRetentionDeletionSummary> {
+  deleteExpired(claim: ConveractFabricRetentionClaim): Promise<ConveractFabricRetentionDeletionSummary> {
     return withPgTenant(this.#pg, claim.policy.tenant_id, async (pg) => {
       switch (claim.policy.category) {
         case 'notifications': return deleteNotifications(pg, claim);
@@ -236,9 +236,9 @@ export class PostgresIveKitRetentionStore implements
   }
 
   completeRun(input: {
-    claim: IveKitRetentionClaim;
+    claim: ConveractFabricRetentionClaim;
     outcome: 'completed' | 'failed';
-    summary: IveKitRetentionDeletionSummary;
+    summary: ConveractFabricRetentionDeletionSummary;
     error_code: string;
     now: string;
   }): Promise<void> {
@@ -275,8 +275,8 @@ export class PostgresIveKitRetentionStore implements
 
 async function deleteNotifications(
   pg: PgQueryable,
-  claim: IveKitRetentionClaim
-): Promise<IveKitRetentionDeletionSummary> {
+  claim: ConveractFabricRetentionClaim
+): Promise<ConveractFabricRetentionDeletionSummary> {
   const result = await pg.query<RetentionRow>(
     `WITH candidates AS MATERIALIZED (
        SELECT notification.id,
@@ -318,8 +318,8 @@ async function deleteNotifications(
 
 async function deleteAuditEvents(
   pg: PgQueryable,
-  claim: IveKitRetentionClaim
-): Promise<IveKitRetentionDeletionSummary> {
+  claim: ConveractFabricRetentionClaim
+): Promise<ConveractFabricRetentionDeletionSummary> {
   const candidates = await pg.query<RetentionRow>(
     `SELECT COUNT(*) AS scanned_count,
        COUNT(*) FILTER (WHERE held = TRUE) AS held_count
@@ -363,8 +363,8 @@ async function deleteAuditEvents(
 
 async function deleteRateLimitBuckets(
   pg: PgQueryable,
-  claim: IveKitRetentionClaim
-): Promise<IveKitRetentionDeletionSummary> {
+  claim: ConveractFabricRetentionClaim
+): Promise<ConveractFabricRetentionDeletionSummary> {
   const result = await pg.query<RetentionRow>(
     `WITH candidates AS (
        SELECT tenant_id, scope_type, scope_key_hmac, route_group, window_seconds
@@ -391,8 +391,8 @@ async function deleteRateLimitBuckets(
 
 async function deleteTenantEvents(
   pg: PgQueryable,
-  claim: IveKitRetentionClaim
-): Promise<IveKitRetentionDeletionSummary> {
+  claim: ConveractFabricRetentionClaim
+): Promise<ConveractFabricRetentionDeletionSummary> {
   const result = await pg.query<RetentionRow>(
     `WITH candidates AS MATERIALIZED (
        SELECT event.id,
@@ -432,10 +432,10 @@ async function deleteTenantEvents(
   return decodeSummary(result.rows[0]);
 }
 
-function decodePolicy(row: RetentionRow): IveKitRetentionPolicy {
+function decodePolicy(row: RetentionRow): ConveractFabricRetentionPolicy {
   return {
     tenant_id: String(row.tenant_id),
-    category: row.category as IveKitRetentionPolicy['category'],
+    category: row.category as ConveractFabricRetentionPolicy['category'],
     enabled: row.enabled === true || row.enabled === 'true',
     retention_days: rowInteger(row.retention_days),
     batch_size: rowInteger(row.batch_size),
@@ -451,16 +451,16 @@ function decodePolicy(row: RetentionRow): IveKitRetentionPolicy {
   };
 }
 
-function decodeLegalHold(row: RetentionRow): IveKitLegalHold {
+function decodeLegalHold(row: RetentionRow): ConveractFabricLegalHold {
   return {
     id: String(row.id),
     tenant_id: String(row.tenant_id),
-    category: row.category as IveKitLegalHold['category'],
+    category: row.category as ConveractFabricLegalHold['category'],
     resource_type: String(row.resource_type),
     resource_id: String(row.resource_id),
     reason_code: String(row.reason_code),
     idempotency_key: String(row.idempotency_key),
-    status: row.status as IveKitLegalHold['status'],
+    status: row.status as ConveractFabricLegalHold['status'],
     placed_by: String(row.placed_by),
     released_by: row.released_by == null ? null : String(row.released_by),
     placed_at: timestamp(row.placed_at).toISOString(),
@@ -468,7 +468,7 @@ function decodeLegalHold(row: RetentionRow): IveKitLegalHold {
   };
 }
 
-function decodeSummary(row: RetentionRow | undefined): IveKitRetentionDeletionSummary {
+function decodeSummary(row: RetentionRow | undefined): ConveractFabricRetentionDeletionSummary {
   return {
     scanned_count: rowInteger(row?.scanned_count),
     deleted_count: rowInteger(row?.deleted_count),
@@ -479,14 +479,14 @@ function decodeSummary(row: RetentionRow | undefined): IveKitRetentionDeletionSu
 function rowInteger(value: unknown): number {
   const number = Number(value || 0);
   if (!Number.isSafeInteger(number) || number < 0) {
-    throw new IveKitRetentionError('invalid_retention_result', 500);
+    throw new ConveractFabricRetentionError('invalid_retention_result', 500);
   }
   return number;
 }
 
 function boundedInteger(value: number, min: number, max: number): number {
   if (!Number.isInteger(value) || value < min || value > max) {
-    throw new IveKitRetentionError('validation_failed', 422);
+    throw new ConveractFabricRetentionError('validation_failed', 422);
   }
   return value;
 }
@@ -494,7 +494,7 @@ function boundedInteger(value: number, min: number, max: number): number {
 function timestamp(value: unknown): Date {
   const date = new Date(String(value));
   if (!Number.isFinite(date.getTime())) {
-    throw new IveKitRetentionError('validation_failed', 422);
+    throw new ConveractFabricRetentionError('validation_failed', 422);
   }
   return date;
 }
@@ -504,21 +504,21 @@ function safeCode(value: unknown): string {
 }
 
 function leaseLost(): Error {
-  return new IveKitRetentionError('retention_lease_lost', 409);
+  return new ConveractFabricRetentionError('retention_lease_lost', 409);
 }
 
 function revisionConflict(): Error {
-  return new IveKitRetentionError('revision_conflict', 409);
+  return new ConveractFabricRetentionError('revision_conflict', 409);
 }
 
 function idempotencyConflict(): Error {
-  return new IveKitRetentionError('idempotency_conflict', 409);
+  return new ConveractFabricRetentionError('idempotency_conflict', 409);
 }
 
 function conflict(): Error {
-  return new IveKitRetentionError('conflict', 409);
+  return new ConveractFabricRetentionError('conflict', 409);
 }
 
 function notFound(): Error {
-  return new IveKitRetentionError('not_found', 404);
+  return new ConveractFabricRetentionError('not_found', 404);
 }

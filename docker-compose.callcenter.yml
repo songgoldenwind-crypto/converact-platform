@@ -1,4 +1,4 @@
-# OPC Call Center stack (RustPBX + LiveKit)
+# Converact Platform Call Center stack (RustPBX + LiveKit)
 # Usage: docker compose -f docker-compose.callcenter.yml up -d
 
 services:
@@ -44,7 +44,7 @@ services:
     restart: "no"
 
   livekit:
-    image: ${LIVEKIT_SERVER_IMAGE:-ivekit/livekit-server:v1.13.4-ivekit.1-0b3fd288}
+    image: ${LIVEKIT_SERVER_IMAGE:-ghcr.io/songgoldenwind-crypto/converact-livekit-server:v1.13.4-ivekit.1-0b3fd288}
     command: --config /etc/livekit.yaml
     ports:
       - "7880:7880"
@@ -171,7 +171,7 @@ services:
       postgres:
         condition: service_healthy
 
-  opc:
+  converact:
     build: .
     ports:
       - "${CONVERACT_HOST_PORT:-3000}:3000"
@@ -210,7 +210,7 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-recordings}
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
-      CONVERACT_API_KEY: ${CONVERACT_API_KEY:-dev-opc-key}
+      CONVERACT_API_KEY: ${CONVERACT_API_KEY:-dev-converact-key}
       CONVERACT_BASE_URL: ${CONVERACT_BASE_URL:-http://localhost:3000}
       TINODE_BASE_URL: ${TINODE_BASE_URL:-http://tinode:6060}
       TINODE_WS_URL: ${TINODE_WS_URL:-ws://tinode:6060/v0/channels}
@@ -271,7 +271,7 @@ services:
       CONVERACT_QUALITY_REVIEW_CLAIM_LEASE_MS: ${CONVERACT_QUALITY_REVIEW_CLAIM_LEASE_MS:-120000}
       CONVERACT_QUALITY_REVIEW_RETRY_DELAYS_MS: ${CONVERACT_QUALITY_REVIEW_RETRY_DELAYS_MS:-5000,30000}
       CONVERACT_REMOTE_GATEWAY_PROVIDER: ${CONVERACT_REMOTE_GATEWAY_PROVIDER:-rustdesk}
-      CONVERACT_REMOTE_GATEWAY_BASE_URL: ${CONVERACT_REMOTE_GATEWAY_BASE_URL:-http://opc:3000}
+      CONVERACT_REMOTE_GATEWAY_BASE_URL: ${CONVERACT_REMOTE_GATEWAY_BASE_URL:-http://converact:3000}
       CONVERACT_REMOTE_GATEWAY_API_TOKEN: ${CONVERACT_REMOTE_GATEWAY_API_TOKEN:-dev-rustdesk-control-token}
       CONVERACT_REMOTE_GATEWAY_TENANT_ID: ${CONVERACT_REMOTE_GATEWAY_TENANT_ID:-tenant_led}
       CONVERACT_REMOTE_GATEWAY_TARGET_TYPE: ${CONVERACT_REMOTE_GATEWAY_TARGET_TYPE:-device}
@@ -280,7 +280,7 @@ services:
       CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY: ${CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY:-agent_remote_gateway_smoke}
       CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES: ${CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES:-view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard}
       CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL: ${CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL:-0}
-      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: ${CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL:-http://opc:3000}
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: ${CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL:-http://converact:3000}
       RUSTDESK_SERVER_IMAGE_TAG: ${RUSTDESK_SERVER_IMAGE_TAG:-1.1.16}
       CONVERACT_RUSTDESK_CLIENT_VERSION: ${CONVERACT_RUSTDESK_CLIENT_VERSION:-1.4.9}
       CONVERACT_RUSTDESK_ID_SERVER: ${CONVERACT_RUSTDESK_ID_SERVER:-localhost}
@@ -323,7 +323,7 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_API_BASE: ${DEEPSEEK_API_BASE:-https://api.deepseek.com/v1}
     volumes:
-      - opc_data:/data
+      - converact_data:/data
       - rustdesk_data:/rustdesk:ro
     depends_on:
       postgres:
@@ -345,8 +345,8 @@ services:
       LIVEKIT_URL: ws://livekit:7880
       LIVEKIT_API_KEY: devkey
       LIVEKIT_API_SECRET: secret
-      CONVERACT_API_URL: http://opc:3000
-      CONVERACT_API_KEY: ${CONVERACT_API_KEY:-dev-opc-key}
+      CONVERACT_API_URL: http://converact:3000
+      CONVERACT_API_KEY: ${CONVERACT_API_KEY:-dev-converact-key}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_MODEL: ${LLM_MODEL:-Qwen3.6-27B}
@@ -375,7 +375,7 @@ services:
       - "9090"
     depends_on:
       - livekit
-      - opc
+      - converact
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -388,7 +388,7 @@ services:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./config/alert-rules.yml:/etc/prometheus/alert-rules.yml
       - prometheus_data:/prometheus
-    depends_on: [opc]
+    depends_on: [converact]
 
   grafana:
     image: grafana/grafana:latest
@@ -429,7 +429,7 @@ volumes:
   rustpbx_data:
   rustpbx_recordings:
   rustdesk_data:
-  opc_data:
+  converact_data:
   postgres_data:
   tinode_botdata:
   prometheus_data:

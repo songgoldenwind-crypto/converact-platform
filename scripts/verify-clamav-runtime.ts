@@ -24,7 +24,7 @@ export async function verifyClamavRuntime(
   const clean = await scanner.scan({
     ...common,
     filename: 'clean.txt',
-    content: Buffer.from('iveKit ClamAV runtime acceptance', 'utf8')
+    content: Buffer.from('Converact Fabric ClamAV runtime acceptance', 'utf8')
   });
   if (clean.status !== 'clean') throw new Error('clean fixture was not accepted');
 

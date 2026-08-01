@@ -17,7 +17,7 @@ def create(ctx: "ToolContext"):
         if not ctx.call_session_id:
             return "无通话会话，无法生成摘要。"
         try:
-            result = await ctx.opc.post(
+            result = await ctx.converact.post(
                 "/api/qm/evaluate",
                 json={
                     "tenant_id": ctx.tenant_id,

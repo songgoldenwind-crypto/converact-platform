@@ -214,7 +214,7 @@ async function derivativeFixture(
   detectedMime: string,
   options: { recordedSha256?: string } = {}
 ) {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-derivative-service-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-derivative-service-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const pg = new MemoryPg();
   const storage = new LocalObjectStorage(root);

@@ -14,7 +14,7 @@ import {
 
 test('rustdesk readiness builds a strict RustDesk gateway check and can derive the target from the edge agent', () => {
   const config = createRustDeskReadinessConfigFromEnv({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com/',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
     CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
@@ -28,7 +28,7 @@ test('rustdesk readiness builds a strict RustDesk gateway check and can derive t
     CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: process.execPath,
     CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["-e","process.exit(0)"]',
     CONVERACT_RUSTDESK_EDGE_SPOOL_DIR: join(
-      mkdtempSync(join(tmpdir(), 'opc-rustdesk-readiness-config-')),
+      mkdtempSync(join(tmpdir(), 'converact-rustdesk-readiness-config-')),
       'spool'
     )
   });
@@ -36,7 +36,7 @@ test('rustdesk readiness builds a strict RustDesk gateway check and can derive t
   assert.equal(config.runEdgeAgent, true);
   assert.equal(config.checkPhysicalDisconnect, true);
   assert.equal(config.remoteGateway.provider, 'rustdesk');
-  assert.equal(config.remoteGateway.baseUrl, 'https://opc.example.com');
+  assert.equal(config.remoteGateway.baseUrl, 'https://converact.example.com');
   assert.equal(config.remoteGateway.apiToken, 'rustdesk-token');
   assert.equal(config.remoteGateway.target.id, '__edge_agent_device__');
   assert.equal(config.remoteGateway.rustdeskCheckDeviceOnline, true);
@@ -44,13 +44,13 @@ test('rustdesk readiness builds a strict RustDesk gateway check and can derive t
   assert.equal(config.remoteGateway.rustdeskRequireProtocolUrl, true);
   assert.equal(config.remoteGateway.rustdeskCheckServerPorts, true);
   assert.equal(config.remoteGateway.checkLaunchUrl, true);
-  assert.equal(config.edgeAgent?.baseUrl, 'https://opc.example.com');
+  assert.equal(config.edgeAgent?.baseUrl, 'https://converact.example.com');
   assert.equal(config.edgeAgent?.apiKey, 'collaboration-key');
 
   assert.throws(
     () =>
       createRustDeskReadinessConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led'
       }),
@@ -60,7 +60,7 @@ test('rustdesk readiness builds a strict RustDesk gateway check and can derive t
 
 test('rustdesk readiness keeps strict defaults even when smoke defaults are injected', () => {
   const config = createRustDeskReadinessConfigFromEnv({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com/',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
     CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
@@ -79,7 +79,7 @@ test('rustdesk readiness keeps strict defaults even when smoke defaults are inje
   assert.equal(config.remoteGateway.checkLaunchUrl, true);
 
   const relaxed = createRustDeskReadinessConfigFromEnv({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com/',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
     CONVERACT_REMOTE_GATEWAY_TARGET_ID: '123456789',
     CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE: '0',
@@ -127,7 +127,7 @@ test('rustdesk readiness from env runs deployment preflight before network check
 
 test('rustdesk readiness reuses the edge tenant for the remote gateway online check', () => {
   const config = createRustDeskReadinessConfigFromEnv({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com/',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
     CONVERACT_RUSTDESK_READINESS_RUN_EDGE_AGENT: '1',
@@ -161,7 +161,7 @@ test('rustdesk readiness runs edge heartbeat before the strict gateway smoke', a
 
   const result = await runRustDeskReadiness(
     createRustDeskReadinessConfigFromEnv({
-      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com/',
       CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
       CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
       CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
@@ -182,7 +182,7 @@ test('rustdesk readiness runs edge heartbeat before the strict gateway smoke', a
         "process.stdout.write('readiness-disconnected'); process.exit(0)"
       ]),
       CONVERACT_RUSTDESK_EDGE_SPOOL_DIR: join(
-        mkdtempSync(join(tmpdir(), 'opc-rustdesk-readiness-run-')),
+        mkdtempSync(join(tmpdir(), 'converact-rustdesk-readiness-run-')),
         'spool'
       )
     }),
@@ -253,7 +253,7 @@ test('rustdesk readiness runs edge heartbeat before the strict gateway smoke', a
       if (method === 'POST' && url.pathname === '/api/opc/rustdesk/sessions') {
         return jsonResponse(201, {
           external_id: 'rdgw_readiness_1',
-          launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw_readiness_1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+          launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw_readiness_1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
           target: { type: 'device', id: '123456789' },
           permissions: ['view_screen', 'control_mouse_keyboard', 'record_screen', 'transfer_file', 'clipboard'],
           metadata: { rustdesk_id: '123456789', target_id: 'rdesk-device-1' }
@@ -438,7 +438,7 @@ test('rustdesk readiness runs edge heartbeat before the strict gateway smoke', a
     true
   );
 
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-readiness-report-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-readiness-report-'));
   const outputFile = join(dir, 'rustdesk-readiness.json');
   const writeResult = writeRustDeskReadinessReport(outputFile, result);
   assert.equal(writeResult.outputFile, outputFile);
@@ -472,7 +472,7 @@ test('rustdesk readiness is wired into package scripts and env examples', () => 
 });
 
 test('rustdesk readiness CLI writes a preflight failure report artifact without network checks', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-readiness-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-readiness-cli-'));
   const outputFile = join(dir, 'rustdesk-readiness.json');
   const result = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/rustdesk-readiness.ts'], {
     cwd: new URL('..', import.meta.url),
@@ -507,7 +507,7 @@ function rustDeskLaunchPlanBody(
   externalId: string,
   options: { canLaunch: boolean; status: string }
 ) {
-  const launchUrl = `https://opc.example.com/remote/rustdesk/launch?session_id=${externalId}&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z`;
+  const launchUrl = `https://converact.example.com/remote/rustdesk/launch?session_id=${externalId}&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z`;
   return {
     external_id: externalId,
     status: options.status,

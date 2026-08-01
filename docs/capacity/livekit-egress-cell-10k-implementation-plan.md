@@ -16,7 +16,7 @@
 2. 将 LiveKit SFU 房间容量与 Egress 编码容量分开准入、扩容、故障隔离和观测。
 3. 一个业务录制可绑定多个 provider job，不再把多个 Egress ID 拼进单字段。
 4. 录制请求、provider job、对象产物和最终 manifest 可重放、可对账、可审计。
-5. 保留旧调用默认 `room_composite`，新调用显式选择模式，避免 LED/OPC 现有集成回归。
+5. 保留旧调用默认 `room_composite`，新调用显式选择模式，避免 LED/Converact Platform 现有集成回归。
 
 ## 2. 容量模型
 
@@ -80,7 +80,7 @@ RoomComposite 各产生一个 job。停止、Webhook 和对账按 job 幂等执�
 以 LiveKit Egress v1.13.0 的 Redis worker discovery、CPU cost 和 Prometheus 能力为基线，
 强制应用 `livekit-egress-capacity-v1` overlay。Kubernetes 将 Track 与 Composite 设为独立
 StatefulSet、PDB、反亲和和扩缩容边界；各 pool 在上游 CPU/内存准入前通过源码级 allowlist
-和并发槽硬拒绝不属于自身的 job。上游原始 `livekit/egress` 镜像不识别 iveKit 环境变量，
+和并发槽硬拒绝不属于自身的 job。上游原始 `livekit/egress` 镜像不识别 Converact Fabric 环境变量，
 不得作为双池生产镜像。
 
 生产模板必须具备：
@@ -130,8 +130,8 @@ StatefulSet、PDB、反亲和和扩缩容边界；各 pool 在上游 CPU/内存�
 - 子 job 鉴权检查/导出 API 与 SDK；公开 DTO 不返回对象存储地址。
 - 多对象 retention 删除，部分失败重试只处理未删除对象。
 - Track/Composite 独立 StatefulSet、PDB、持久 spool、资源和拓扑配置。
-- 固定 `livekit/egress` v1.13.0 提交的 iveKit overlay；worker 在上游 CPU/内存准入前
-  按 `IVEKIT_EGRESS_ALLOWED_REQUEST_TYPES` 硬拒绝跨池请求。
+- 固定 `livekit/egress` v1.13.0 提交的 Converact Fabric overlay；worker 在上游 CPU/内存准入前
+  按 `CONVERACT_FABRIC_EGRESS_ALLOWED_REQUEST_TYPES` 硬拒绝跨池请求。
 - 每个 Egress child job 与 Cell admission reservation、owner epoch 持久绑定；启动后激活，
   终态 Webhook 或 reconciliation 只释放完全匹配的容量，过期 owner 不能误关新任务。
 - 带租约的 starting/recording/stopping provider 对账；provider missing 需要两次独立观察才
@@ -143,7 +143,7 @@ StatefulSet、PDB、反亲和和扩缩容边界；各 pool 在上游 CPU/内存�
   pending 卡住、slot/spool 饱和、上传停滞、policy 拒绝告警模板。
 - external LiveKit 场景强制显式提供与 LiveKit Server 相同的 Redis address/认证/TLS 参数；
   缺失时 Helm fail-closed，避免 Egress 启动后永远收不到录制任务。
-- Egress Pod 只接受 `ivekit/livekit-egress@sha256:...` 路径的定制不可变镜像，并要求解析出的
+- Egress Pod 只接受 `converact/livekit-egress@sha256:...` 路径的定制不可变镜像，并要求解析出的
   Registry 主机位于 `media.egress.image.allowedRegistries`；默认仅批准 `docker.io`，私有 Registry
   必须在发布 values 中显式列入审核后的 allowlist。缺 digest、任一全限定上游别名、任意其他路径
   或未批准 Registry 均 Helm fail-closed。build/Chart 契约统一为 `ivekit-egress-pool-v1`；overlay、
@@ -161,13 +161,13 @@ StatefulSet、PDB、反亲和和扩缩容边界；各 pool 在上游 CPU/内存�
 
 受控代码层当前无已知 Egress Cell-10K 功能缺口。2026-07-17 使用 Helm `v3.18.4` 先后发现并
 修复 Egress 错误依赖 bundled LiveKit 开关、external 模式仍指向本地错误 Redis、双池默认使用
-不识别 iveKit 策略的上游镜像和交付包遗漏 overlay/Chart 的问题。独立复审继续发现 Docker Hub
+不识别 Converact Fabric 策略的上游镜像和交付包遗漏 overlay/Chart 的问题。独立复审继续发现 Docker Hub
 上游仓库别名可绕过精确字符串检查，现已改为定制仓库路径与 Registry allowlist 双门禁并纳入
 实际负向渲染。当前模板在缺 shared Redis、定制 image digest、使用任一上游别名/其他路径或
 未批准 Registry 时分别拒绝渲染；提供批准 Registry、定制路径、digest 和共享 Redis 后，
 `helm template` 生成 Track/Composite 两套
 StatefulSet、Service、PDB、Secret、ServiceMonitor 和 PrometheusRule，且 Secret 与外部 LiveKit
-共享同一 Redis、Pod 使用 digest-bound iveKit 镜像。目标 Kubernetes apply、双池运行与扩缩容
+共享同一 Redis、Pod 使用 digest-bound Converact Fabric 镜像。目标 Kubernetes apply、双池运行与扩缩容
 仍属于真实环境验收。
 
 本机精确源码 overlay、完整 arm64 编译和自定义候选镜像已通过。不可变 Registry digest、SBOM、

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { IveKitTranslationJob, IveKitTranslationResult } from '@converact/sdk';
+import type { ConveractFabricTranslationJob, ConveractFabricTranslationResult } from '@converact/sdk';
 import { projectTranslations } from './translation-view-model.js';
 
 test('translation projection prefers a current result over its completed job', () => {
@@ -44,7 +44,7 @@ test('translation projection never renders a stale result for a newer source has
   assert.equal(projection[0].translatedText, '');
 });
 
-function job(overrides: Partial<IveKitTranslationJob> = {}): IveKitTranslationJob {
+function job(overrides: Partial<ConveractFabricTranslationJob> = {}): ConveractFabricTranslationJob {
   return {
     id: 'job-1', tenant_id: 'tenant-1', session_id: 'session-1', message_id: 'message-1',
     source_type: 'message', source_ref_id: 'message-1', source_language: 'auto', target_language: 'zh-CN',
@@ -56,7 +56,7 @@ function job(overrides: Partial<IveKitTranslationJob> = {}): IveKitTranslationJo
   };
 }
 
-function result(overrides: Partial<IveKitTranslationResult> = {}): IveKitTranslationResult {
+function result(overrides: Partial<ConveractFabricTranslationResult> = {}): ConveractFabricTranslationResult {
   return {
     id: 'result-1', tenant_id: 'tenant-1', message_id: 'message-1', source_type: 'message',
     source_ref_id: 'message-1', source_hash: 'source-hash', source_language: 'auto', target_language: 'zh-CN',

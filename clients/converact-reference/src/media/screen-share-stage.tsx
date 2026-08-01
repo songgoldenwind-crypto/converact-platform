@@ -1,11 +1,11 @@
-import type { IveKitMediaCallParticipant } from '@converact/sdk';
+import type { ConveractFabricMediaCallParticipant } from '@converact/sdk';
 import { AttachedTrack, MediaTile } from './media-tile.js';
 import type { MediaTrackHandle } from './types.js';
 
 export function ScreenShareStage(props: {
   share: MediaTrackHandle;
   shareAudio?: MediaTrackHandle;
-  participants: readonly IveKitMediaCallParticipant[];
+  participants: readonly ConveractFabricMediaCallParticipant[];
   tracks: Readonly<Record<string, MediaTrackHandle>>;
   activeSpeakerIdentities: readonly string[];
   networkQuality: Readonly<Record<string, string>>;

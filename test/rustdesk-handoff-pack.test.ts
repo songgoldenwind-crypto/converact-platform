@@ -15,7 +15,7 @@ test('RustDesk handoff pack config maps environment without requiring network cr
     CONVERACT_RUSTDESK_HANDOFF_FILE: '/tmp/rustdesk-handoff.md',
     CONVERACT_RUSTDESK_HANDOFF_TITLE: 'LED RustDesk handoff',
     CONVERACT_RUSTDESK_HANDOFF_AUDIENCE: 'LED team',
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com/',
     CONVERACT_RUSTDESK_API_TOKEN: 'secret-token',
     CONVERACT_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
     CONVERACT_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
@@ -28,7 +28,7 @@ test('RustDesk handoff pack config maps environment without requiring network cr
   assert.equal(config.outputFile, '/tmp/rustdesk-handoff.md');
   assert.equal(config.title, 'LED RustDesk handoff');
   assert.equal(config.audience, 'LED team');
-  assert.equal(config.controlPlaneBaseUrl, 'https://opc.example.com');
+  assert.equal(config.controlPlaneBaseUrl, 'https://converact.example.com');
   assert.equal(config.tokenConfigured, true);
   assert.equal(config.idServer, 'rustdesk-id.example.com');
   assert.equal(config.relayServer, 'rustdesk-relay.example.com');
@@ -41,7 +41,7 @@ test('RustDesk handoff pack config maps environment without requiring network cr
 test('RustDesk handoff pack renders command sequence without leaking secrets', () => {
   const markdown = renderRustDeskHandoffPack(createRustDeskHandoffPackConfigFromEnv({
     CONVERACT_RUSTDESK_HANDOFF_TITLE: 'RustDesk server handoff',
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_API_TOKEN: 'secret-token',
     CONVERACT_REMOTE_GATEWAY_API_TOKEN: 'other-secret',
     CONVERACT_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
@@ -53,7 +53,7 @@ test('RustDesk handoff pack renders command sequence without leaking secrets', (
   }));
 
   assert.match(markdown, /^# RustDesk server handoff/m);
-  assert.match(markdown, /control-plane base URL: `https:\/\/opc\.example\.com`/);
+  assert.match(markdown, /control-plane base URL: `https:\/\/converact\.example\.com`/);
   assert.match(markdown, /control-plane token: `configured`/);
   assert.match(markdown, /public key: `env`/);
   assert.match(markdown, /tenant: `tenant_led`/);
@@ -80,11 +80,11 @@ test('RustDesk handoff pack renders command sequence without leaking secrets', (
 });
 
 test('RustDesk handoff pack writes markdown artifact and exposes package/env wiring', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-handoff-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-handoff-'));
   const outputFile = join(dir, 'rustdesk-handoff.md');
   const result = writeRustDeskHandoffPack(createRustDeskHandoffPackConfigFromEnv({
     CONVERACT_RUSTDESK_HANDOFF_FILE: outputFile,
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_API_TOKEN: 'secret-token'
   }));
 

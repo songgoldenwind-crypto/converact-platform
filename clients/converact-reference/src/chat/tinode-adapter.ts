@@ -1,4 +1,4 @@
-import type { IveKitChatClientPlan } from '@converact/sdk';
+import type { ConveractFabricChatClientPlan } from '@converact/sdk';
 import type { ChatConnectionState, ChatConvergenceTrigger, ChatScheduler } from './types.js';
 
 export interface TinodeDataPacket { seq?: unknown; }
@@ -25,7 +25,7 @@ export interface TinodeClientLike {
 }
 
 export interface ReceiveOnlyTinodeAdapterInput {
-  getPlan(): Promise<IveKitChatClientPlan>;
+  getPlan(): Promise<ConveractFabricChatClientPlan>;
   clientFactory?: (config: Record<string, unknown>) => TinodeClientLike | Promise<TinodeClientLike>;
   scheduler?: ChatScheduler;
   random?: () => number;
@@ -255,14 +255,14 @@ async function defaultClientFactory(config: Record<string, unknown>): Promise<Ti
   return new Tinode(config as never) as unknown as TinodeClientLike;
 }
 
-function clientConfig(plan: IveKitChatClientPlan): Record<string, unknown> {
+function clientConfig(plan: ConveractFabricChatClientPlan): Record<string, unknown> {
   if (plan.provider !== 'tinode' || !plan.provider_topic_id || !plan.ws_url || !plan.api_key) {
     throw new Error('Tinode client plan is required');
   }
   if (!plan.auth_token) throw Object.assign(new Error('Tinode auth token is required'), { status: 401 });
   const url = new URL(plan.ws_url);
   if (!['ws:', 'wss:'].includes(url.protocol)) throw new Error('Tinode websocket URL must use ws or wss');
-  return { host: url.host, secure: url.protocol === 'wss:', appName: 'iveKit Reference', apiKey: plan.api_key, transport: 'ws', persist: false };
+  return { host: url.host, secure: url.protocol === 'wss:', appName: 'Converact Fabric Reference', apiKey: plan.api_key, transport: 'ws', persist: false };
 }
 
 function validSequence(value: number): number {

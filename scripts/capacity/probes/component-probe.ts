@@ -17,7 +17,7 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._@:-]{2,255}$/;
 const METRIC = /^[A-Za-z_:][A-Za-z0-9_:]*$/;
 
 const DIMENSION_ALLOWLISTS: Record<CapacityComponent, ReadonlySet<string>> = {
-  ivekit_edge: new Set([
+  converact_edge: new Set([
     'edge.http_active_requests',
     'edge.websocket_connections',
     'edge.event_publish_rate'

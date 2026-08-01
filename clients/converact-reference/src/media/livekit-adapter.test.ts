@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { IveKitMediaJoinPlan } from '@converact/sdk';
+import type { ConveractFabricMediaJoinPlan } from '@converact/sdk';
 import {
   LiveKitClientAdapter,
   type LiveKitParticipantLike,
@@ -11,7 +11,7 @@ import {
 } from './livekit-adapter.js';
 import type { MediaAdapterEvent } from './types.js';
 
-const plan = (room: string, token = `token-${room}`): IveKitMediaJoinPlan => ({
+const plan = (room: string, token = `token-${room}`): ConveractFabricMediaJoinPlan => ({
   mode: 'webrtc',
   channel: 'webrtc',
   roomName: room,

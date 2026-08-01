@@ -12,7 +12,7 @@ async function inventory(): Promise<unknown> {
   );
 }
 
-test('Valkey inventory records only the source-proven OPC command surface', async () => {
+test('Valkey inventory records only the source-proven Converact command surface', async () => {
   const value = validateValkeyCommandInventory(await inventory());
   const commands = value.command_groups.flatMap((group) => group.commands);
 

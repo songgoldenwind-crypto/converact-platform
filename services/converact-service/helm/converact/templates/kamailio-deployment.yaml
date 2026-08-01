@@ -1,29 +1,29 @@
 {{- if and .Values.voice.enabled .Values.voice.kamailio.enabled }}
 {{- $kamailio := .Values.voice.kamailio -}}
-{{- $kamailioImage := include "ivekit.kamailioImage" . -}}
+{{- $kamailioImage := include "converact.kamailioImage" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "ivekit.kamailioFullname" . }}
+  name: {{ include "converact.kamailioFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: kamailio
 spec:
-  serviceName: {{ include "ivekit.kamailioFullname" . }}-dmq
+  serviceName: {{ include "converact.kamailioFullname" . }}-dmq
   podManagementPolicy: Parallel
   replicas: {{ .Values.voice.kamailio.replicaCount }}
   updateStrategy:
     type: RollingUpdate
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: kamailio
   template:
     metadata:
       annotations:
         checksum/kamailio-config: {{ include (print $.Template.BasePath "/kamailio-config.yaml") . | sha256sum }}
       labels:
-        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        {{- include "converact.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: kamailio
     spec:
       automountServiceAccountToken: false
@@ -34,14 +34,14 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: kamailio
         - maxSkew: 1
           topologyKey: {{ $kamailio.scheduling.hostnameTopologyKey | quote }}
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: kamailio
       affinity:
         podAntiAffinity:
@@ -49,7 +49,7 @@ spec:
             - topologyKey: {{ $kamailio.scheduling.hostnameTopologyKey | quote }}
               labelSelector:
                 matchLabels:
-                  {{- include "ivekit.selectorLabels" . | nindent 18 }}
+                  {{- include "converact.selectorLabels" . | nindent 18 }}
                   app.kubernetes.io/component: kamailio
       {{- with $kamailio.scheduling.nodeSelector }}
       nodeSelector:
@@ -72,18 +72,18 @@ spec:
       {{- end }}
       initContainers:
         - name: render-config
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-render-kamailio-config.js"]
           env:
             - name: CONVERACT_FABRIC_KAMAILIO_CONFIG_FILE
-              value: /etc/ivekit-kamailio/kamailio-runtime.json
+              value: /etc/converact-kamailio/kamailio-runtime.json
             - name: CONVERACT_FABRIC_KAMAILIO_TOPOH_KEY_FILE
-              value: /run/ivekit-kamailio-secrets/topoh-key
+              value: /run/converact-kamailio-secrets/topoh-key
             - name: CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE
-              value: /run/ivekit-kamailio-secrets/rpc-token
+              value: /run/converact-kamailio-secrets/rpc-token
             - name: CONVERACT_FABRIC_KAMAILIO_WEBPHONE_JWT_SECRET_FILE
-              value: /run/ivekit-kamailio-secrets/webphone-jwt-secret
+              value: /run/converact-kamailio-secrets/webphone-jwt-secret
             - name: CONVERACT_FABRIC_KAMAILIO_DMQ_SERVER_HOST
               valueFrom:
                 fieldRef:
@@ -96,15 +96,15 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           volumeMounts:
             - name: runtime-config
-              mountPath: /etc/ivekit-kamailio
+              mountPath: /etc/converact-kamailio
               readOnly: true
             - name: generated-config
               mountPath: /etc/kamailio
             - name: kamailio-secrets
-              mountPath: /run/ivekit-kamailio-secrets
+              mountPath: /run/converact-kamailio-secrets
               readOnly: true
         - name: bootstrap-state
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/bin/sh", "-ec", "umask 077; printf '# waiting for signed route snapshot\\n' > /var/lib/kamailio/dispatcher.list"]
           securityContext:
@@ -114,7 +114,7 @@ spec:
               mountPath: /var/lib/kamailio
       containers:
         - name: route-agent
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-kamailio-route-agent.js"]
           ports:
@@ -123,19 +123,19 @@ spec:
               protocol: TCP
           env:
             - name: CONVERACT_FABRIC_KAMAILIO_TOPOLOGY_FILE
-              value: /etc/ivekit-kamailio/kamailio-topology.json
+              value: /etc/converact-kamailio/kamailio-topology.json
             - name: CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_FILE
-              value: /run/ivekit-kamailio-secrets/route-current-key
+              value: /run/converact-kamailio-secrets/route-current-key
             - name: CONVERACT_FABRIC_KAMAILIO_CURRENT_KEY_ID
               value: {{ $kamailio.routeAgent.currentKeyId | quote }}
             {{- if $kamailio.routeAgent.previousKeyId }}
             - name: CONVERACT_FABRIC_KAMAILIO_PREVIOUS_KEY_FILE
-              value: /run/ivekit-kamailio-secrets/route-previous-key
+              value: /run/converact-kamailio-secrets/route-previous-key
             - name: CONVERACT_FABRIC_KAMAILIO_PREVIOUS_KEY_ID
               value: {{ $kamailio.routeAgent.previousKeyId | quote }}
             {{- end }}
             - name: CONVERACT_FABRIC_KAMAILIO_RPC_TOKEN_FILE
-              value: /run/ivekit-kamailio-secrets/rpc-token
+              value: /run/converact-kamailio-secrets/rpc-token
             - name: CONVERACT_FABRIC_KAMAILIO_SNAPSHOT_PATH
               value: /var/lib/kamailio/routes.snapshot
             - name: CONVERACT_FABRIC_KAMAILIO_DISPATCHER_PATH
@@ -230,12 +230,12 @@ spec:
             {{- toYaml $kamailio.routeAgentResources | nindent 12 }}
           volumeMounts:
             - name: runtime-config
-              mountPath: /etc/ivekit-kamailio
+              mountPath: /etc/converact-kamailio
               readOnly: true
             - name: route-state
               mountPath: /var/lib/kamailio
             - name: kamailio-secrets
-              mountPath: /run/ivekit-kamailio-secrets
+              mountPath: /run/converact-kamailio-secrets
               readOnly: true
         - name: kamailio
           image: {{ $kamailioImage | quote }}
@@ -296,7 +296,7 @@ spec:
               mountPath: /var/lib/kamailio
               readOnly: true
             - name: kamailio-secrets
-              mountPath: /run/ivekit-kamailio-secrets
+              mountPath: /run/converact-kamailio-secrets
               readOnly: true
             - name: run
               mountPath: /var/run/kamailio
@@ -305,7 +305,7 @@ spec:
       volumes:
         - name: runtime-config
           configMap:
-            name: {{ include "ivekit.kamailioFullname" . }}-config
+            name: {{ include "converact.kamailioFullname" . }}-config
         - name: generated-config
           emptyDir: {}
         - name: route-state
@@ -315,7 +315,7 @@ spec:
             defaultMode: 0440
             sources:
               - secret:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   items:
                     - key: {{ $kamailio.secretKeys.topohKey }}
                       path: topoh-key
@@ -345,15 +345,15 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.kamailioFullname" . }}-dmq
+  name: {{ include "converact.kamailioFullname" . }}-dmq
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: kamailio
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
   selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    {{- include "converact.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: kamailio
   ports:
     - name: dmq-udp
@@ -364,9 +364,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.kamailioFullname" . }}
+  name: {{ include "converact.kamailioFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: kamailio
   {{- with $kamailio.service.annotations }}
   annotations:
@@ -384,7 +384,7 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    {{- include "converact.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: kamailio
   ports:
     - name: sip-udp
@@ -407,14 +407,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.kamailioFullname" . }}-metrics
+  name: {{ include "converact.kamailioFullname" . }}-metrics
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: kamailio
 spec:
   type: ClusterIP
   selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    {{- include "converact.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: kamailio
   ports:
     - name: route-metrics
@@ -426,15 +426,15 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "ivekit.kamailioFullname" . }}
+  name: {{ include "converact.kamailioFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: kamailio
 spec:
   minAvailable: {{ $kamailio.podDisruptionBudget.minAvailable }}
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: kamailio
 {{- end }}
 {{- end }}

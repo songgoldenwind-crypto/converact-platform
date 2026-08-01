@@ -1,11 +1,11 @@
 {{- if and .Values.tinode.enabled (eq .Values.tinode.mode "cluster") }}
-{{- include "ivekit.tinodeValidate" . }}
+{{- include "converact.tinodeValidate" . }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "ivekit.tinodeFullname" . }}-database-bootstrap
+  name: {{ include "converact.tinodeFullname" . }}-database-bootstrap
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: tinode-database-bootstrap
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
@@ -17,7 +17,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        {{- include "converact.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: tinode-database-bootstrap
     spec:
       restartPolicy: OnFailure
@@ -30,7 +30,7 @@ spec:
       {{- end }}
       containers:
         - name: database-bootstrap
-          image: {{ include "ivekit.tinodeImage" . | quote }}
+          image: {{ include "converact.tinodeImage" . | quote }}
           imagePullPolicy: {{ .Values.tinode.image.pullPolicy }}
           env:
             # Hooks execute before ordinary ConfigMaps on first install, so the
@@ -50,22 +50,22 @@ spec:
             - name: POSTGRES_DSN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.postgresDsnKey }}
             - name: API_KEY_SALT
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.apiKeySaltKey }}
             - name: AUTH_TOKEN_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.authTokenKeyKey }}
             - name: UID_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.uidEncryptionKeyKey }}
             - name: TINODE_INIT_ONLY
               value: "1"
@@ -82,12 +82,12 @@ spec:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.accessKeyIdKey }}
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.secretAccessKeyKey }}
             - name: AWS_REGION
               value: {{ .Values.tinode.cluster.media.region | quote }}

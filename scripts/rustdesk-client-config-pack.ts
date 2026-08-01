@@ -4,8 +4,8 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  createIveKitRustDeskHttpClient,
-  type IveKitRustDeskHttpClient
+  createConveractFabricRustDeskHttpClient,
+  type ConveractFabricRustDeskHttpClient
 } from '../src/agent-runtime/converact/index.js';
 
 export interface RustDeskClientConfigPackConfig {
@@ -20,8 +20,8 @@ export interface RustDeskClientConfigPackConfig {
 }
 
 export interface RustDeskClientConfigPackClient {
-  getClientConfig: IveKitRustDeskHttpClient['getClientConfig'];
-  getGatewayLaunchPlan: IveKitRustDeskHttpClient['getGatewayLaunchPlan'];
+  getClientConfig: ConveractFabricRustDeskHttpClient['getClientConfig'];
+  getGatewayLaunchPlan: ConveractFabricRustDeskHttpClient['getGatewayLaunchPlan'];
 }
 
 export interface RustDeskClientConfigPack {
@@ -68,6 +68,7 @@ export function createRustDeskClientConfigPackConfigFromEnv(env: NodeJS.ProcessE
   const outputFile = optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_PACK_FILE'));
   const baseUrl = normalizeBaseUrl(
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_BASE_URL') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BASE_URL') ||
     resolveBrandEnv(env, 'BASE_URL') ||
     resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') ||
@@ -75,18 +76,20 @@ export function createRustDeskClientConfigPackConfigFromEnv(env: NodeJS.ProcessE
   );
   const apiKey = requiredString(
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_API_KEY') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_API_KEY') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_API_KEY') ||
     resolveBrandEnv(env, 'COLLABORATION_API_KEY') ||
     resolveBrandEnv(env, 'API_KEY'),
-    'CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY or CONVERACT_RUSTDESK_IVEKIT_API_KEY or CONVERACT_API_KEY is required'
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY or CONVERACT_RUSTDESK_FABRIC_API_KEY or CONVERACT_API_KEY is required'
   );
   const tenantId = requiredString(
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_TENANT_ID') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_TENANT_ID') ||
     resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') ||
     resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') ||
     resolveBrandEnv(env, 'TENANT_ID'),
-    'CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID or CONVERACT_RUSTDESK_IVEKIT_TENANT_ID or CONVERACT_REMOTE_GATEWAY_TENANT_ID is required'
+    'CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID or CONVERACT_RUSTDESK_FABRIC_TENANT_ID or CONVERACT_REMOTE_GATEWAY_TENANT_ID is required'
   );
 
   return {
@@ -95,8 +98,8 @@ export function createRustDeskClientConfigPackConfigFromEnv(env: NodeJS.ProcessE
     baseUrl,
     apiKey,
     tenantId,
-    ...(optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_USER_ID') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_USER_ID')) ? {
-      userId: optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_USER_ID') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_USER_ID'))
+    ...(optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_USER_ID') || resolveBrandEnv(env, 'RUSTDESK_FABRIC_USER_ID') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_USER_ID')) ? {
+      userId: optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_USER_ID') || resolveBrandEnv(env, 'RUSTDESK_FABRIC_USER_ID') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_USER_ID'))
     } : {}),
     ...(optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID') || resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_EXTERNAL_ID')) ? {
       externalId: optionalString(resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID') || resolveBrandEnv(env, 'RUSTDESK_ACCEPTANCE_EXTERNAL_ID'))
@@ -109,7 +112,7 @@ export function createRustDeskClientConfigPackConfigFromEnv(env: NodeJS.ProcessE
 
 export async function buildRustDeskClientConfigPack(
   config: RustDeskClientConfigPackConfig,
-  client: RustDeskClientConfigPackClient = createIveKitRustDeskHttpClient({
+  client: RustDeskClientConfigPackClient = createConveractFabricRustDeskHttpClient({
     baseUrl: config.baseUrl,
     apiKey: config.apiKey,
     tenantId: config.tenantId,
@@ -165,7 +168,7 @@ export function renderRustDeskClientConfigPack(pack: RustDeskClientConfigPack): 
     '',
     `Generated at: \`${pack.generated_at}\``,
     `Tenant: \`${pack.source.tenant_id}\``,
-    `OPC base URL: \`${pack.source.base_url}\``,
+    `Converact base URL: \`${pack.source.base_url}\``,
     '',
     'This pack is for installing and configuring real RustDesk clients. It does not prove real screen view, keyboard/mouse control, file transfer, clipboard sync, recording, revoke disconnect, or customer-grade audit coverage.',
     '',

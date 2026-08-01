@@ -4,9 +4,9 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  createIveKitRustDeskHttpClient,
+  createConveractFabricRustDeskHttpClient,
   projectRustDeskClientDistributionProfile,
-  type GetIveKitRustDeskClientProfileInput
+  type GetConveractFabricRustDeskClientProfileInput
 } from '../src/agent-runtime/converact/index.js';
 import type { RustDeskClientDistributionProfile } from '../sdk/converact/src/index.js';
 
@@ -30,7 +30,7 @@ export interface RustDeskClientProfilePackConfig {
 }
 
 export interface RustDeskClientProfilePackClient {
-  getClientProfile(input: GetIveKitRustDeskClientProfileInput): Promise<unknown>;
+  getClientProfile(input: GetConveractFabricRustDeskClientProfileInput): Promise<unknown>;
 }
 
 export interface RustDeskClientProfilePack {
@@ -65,6 +65,7 @@ export function createRustDeskClientProfilePackConfigFromEnv(
   const baseUrl = normalizeBaseUrl(
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_PACK_BASE_URL') ||
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_BASE_URL') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BASE_URL') ||
     resolveBrandEnv(env, 'BASE_URL') ||
     ''
@@ -72,6 +73,7 @@ export function createRustDeskClientProfilePackConfigFromEnv(
   const apiKey = requiredString(
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_PACK_API_KEY') ||
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_API_KEY') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_API_KEY') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_API_KEY') ||
     resolveBrandEnv(env, 'API_KEY'),
     'CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_API_KEY or CONVERACT_API_KEY is required'
@@ -79,6 +81,7 @@ export function createRustDeskClientProfilePackConfigFromEnv(
   const tenantId = requiredString(
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_PROFILE_PACK_TENANT_ID') ||
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_TENANT_ID') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_TENANT_ID') ||
     resolveBrandEnv(env, 'TENANT_ID'),
     'CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_TENANT_ID or CONVERACT_TENANT_ID is required'
@@ -115,7 +118,7 @@ export function createRustDeskClientProfilePackConfigFromEnv(
 
 export async function buildRustDeskClientProfilePack(
   config: RustDeskClientProfilePackConfig,
-  client: RustDeskClientProfilePackClient = createIveKitRustDeskHttpClient({
+  client: RustDeskClientProfilePackClient = createConveractFabricRustDeskHttpClient({
     baseUrl: config.baseUrl,
     apiKey: config.apiKey,
     tenantId: config.tenantId,
@@ -139,7 +142,7 @@ export async function buildRustDeskClientProfilePack(
   if (Number.isNaN(generatedAt.getTime())) throw new Error('RustDesk client profile pack clock is invalid');
   const profiles: RustDeskClientDistributionProfile[] = [];
   for (const target of TARGETS) {
-    const input: GetIveKitRustDeskClientProfileInput = {
+    const input: GetConveractFabricRustDeskClientProfileInput = {
       ...target,
       client_version: '1.4.9',
       expected_server_version: config.expectedServerVersion,

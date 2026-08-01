@@ -141,7 +141,7 @@ async function retainedImageFixture(
   tenantId: string,
   options: { now?: () => Date } = {}
 ) {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-cleanup-service-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-cleanup-service-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const pg = new MemoryPg();
   const storage = new LocalObjectStorage(root);

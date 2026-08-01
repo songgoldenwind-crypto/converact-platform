@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: ivekit-victoria-metrics
+  name: converact-victoria-metrics
   labels:
-    app.kubernetes.io/name: ivekit-victoria-metrics
+    app.kubernetes.io/name: converact-victoria-metrics
     app.kubernetes.io/component: metrics-storage
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/name: ivekit-victoria-metrics
+    app.kubernetes.io/name: converact-victoria-metrics
     app.kubernetes.io/component: metrics-storage
   ports:
     - name: http

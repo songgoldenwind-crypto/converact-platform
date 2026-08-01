@@ -1,8 +1,8 @@
 /**
- * Prometheus metrics for OPC.
+ * Prometheus metrics for Converact.
  *
  * Exposes /metrics endpoint for Prometheus scraping.
- * Metrics use opc_ prefix per metrics-design.md naming convention.
+ * Existing v1 metric series remain byte-stable across the product rename.
  */
 import { Registry, collectDefaultMetrics, Counter, Histogram, Gauge } from 'prom-client';
 

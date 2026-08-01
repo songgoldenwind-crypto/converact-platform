@@ -779,8 +779,8 @@ test('quality worker claim lease covers the longest configured provider reservat
 test('production server starts quality worker and refreshes review after attachment extraction', () => {
   const server = readFileSync('src/server.ts', 'utf8');
   const application = readFileSync('src/agent-runtime/converact/application.ts', 'utf8');
-  assert.match(server, /startIveKitApplication/);
-  assert.match(server, /await iveKitApplication\.stop\(\)/);
+  assert.match(server, /startConveractFabricApplication/);
+  assert.match(server, /await converactFabricApplication\.stop\(\)/);
   assert.match(application, /startQualityReviewWorker/);
   assert.match(application, /qualityReviewEnqueuer\.enqueueMessage/);
 });
@@ -806,7 +806,7 @@ test('quality review preflight validates PostgreSQL and provider settings withou
   assert.equal(configured.provider.mode, 'third_party');
   assert.equal(configured.worker?.enabled, true);
   const serialized = JSON.stringify(configured);
-  assert.doesNotMatch(serialized, /database-secret|quality-super-secret|postgres:\/\/opc:/);
+  assert.doesNotMatch(serialized, /database-secret|quality-super-secret|postgres:\/\/converact:/);
   assert.match(serialized, /\[configured\]/);
 });
 
@@ -817,7 +817,7 @@ test('quality review deployment surfaces expose provider, enqueue, and worker se
     readFileSync('docker-compose.callcenter.yml', 'utf8'),
     readFileSync('infra/docker-compose.production.yml', 'utf8'),
     readFileSync('infra/k8s/values.yaml', 'utf8'),
-    readFileSync('infra/k8s/templates/opc-deployment.yaml', 'utf8')
+    readFileSync('infra/k8s/templates/converact-deployment.yaml', 'utf8')
   ];
   for (const source of sources) {
     assert.match(source, /CONVERACT_QUALITY_REVIEW_BASE_URL|qualityReview:\s*\n[\s\S]*baseUrl/);

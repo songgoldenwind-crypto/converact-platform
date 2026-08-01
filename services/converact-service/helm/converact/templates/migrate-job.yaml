@@ -1,9 +1,9 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "ivekit.fullname" . }}-migrate
+  name: {{ include "converact.fullname" . }}-migrate
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: migration
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        {{- include "converact.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: migration
     spec:
       restartPolicy: Never
@@ -28,32 +28,32 @@ spec:
       {{- end }}
       initContainers:
         - name: runtime-role-init
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-init-runtime-role.js"]
           env:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.secrets.adminDatabaseUrlKey }}
             - name: CONVERACT_RUNTIME_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.secrets.runtimeDatabasePasswordKey }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
       containers:
         - name: migrate
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-migrate.js"]
           env:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.secrets.adminDatabaseUrlKey }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}

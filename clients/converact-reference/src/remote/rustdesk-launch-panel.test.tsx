@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, afterEach, before, test } from 'node:test';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import type {
-  IveKitRustDeskClient,
+  ConveractFabricRustDeskClient,
   RustDeskControlOwnership,
   RustDeskDevice,
   RustDeskGatewayLaunchPlan
@@ -146,14 +146,14 @@ function fakeClient(
   calls: string[],
   getOwnership: () => RustDeskControlOwnership,
   setOwnership: (ownership: RustDeskControlOwnership) => void
-): IveKitRustDeskClient {
+): ConveractFabricRustDeskClient {
   const device = {
     id: 'device-1', tenant_id: 'tenant-1', business_ref_type: 'service_order', business_ref_id: 'SO-100',
     rustdesk_id: '123456789', display_name: 'LED controller', status: 'active', runtime_status: 'online',
     last_seen_at: '2026-07-12T08:00:00.000Z', last_seen_actor: 'edge-1', metadata: {},
     created_at: '2026-07-12T08:00:00.000Z', updated_at: '2026-07-12T08:00:00.000Z', deactivated_at: null
   } as RustDeskDevice;
-  const client: Partial<IveKitRustDeskClient> = {
+  const client: Partial<ConveractFabricRustDeskClient> = {
     async listDevicesByBusinessRef(input) {
       calls.push(`listDevices:${input.business_ref.type}:${input.business_ref.id}`);
       return [device];
@@ -199,7 +199,7 @@ function fakeClient(
       return next;
     }
   };
-  return client as IveKitRustDeskClient;
+  return client as ConveractFabricRustDeskClient;
 }
 
 

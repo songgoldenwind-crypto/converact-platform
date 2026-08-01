@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
-import type { IveKitBusinessContext, IveKitClient } from '@converact/sdk';
+import type { ConveractFabricBusinessContext, ConveractFabricClient } from '@converact/sdk';
 
 import { installTestDom } from '../test-dom.js';
 import { useBusinessContext, type BusinessRefSelection } from './use-business-context.js';
@@ -11,14 +11,14 @@ before(() => { closeDom = installTestDom(); });
 after(() => { cleanup(); closeDom?.(); });
 
 test('business context suppresses an old response after the selected reference changes', async () => {
-  const pending = new Map<string, (value: IveKitBusinessContext) => void>();
+  const pending = new Map<string, (value: ConveractFabricBusinessContext) => void>();
   const client = {
     context: {
-      getByBusinessRef: (ref: BusinessRefSelection) => new Promise<IveKitBusinessContext>((resolve) => {
+      getByBusinessRef: (ref: BusinessRefSelection) => new Promise<ConveractFabricBusinessContext>((resolve) => {
         pending.set(ref.id, resolve);
       })
     }
-  } as IveKitClient;
+  } as ConveractFabricClient;
   const view = render(<Harness client={client} businessRef={{ type: 'service_order', id: 'SO-A' }} />);
   await waitFor(() => assert.ok(pending.has('SO-A')));
   view.rerender(<Harness client={client} businessRef={{ type: 'service_order', id: 'SO-B' }} />);
@@ -30,12 +30,12 @@ test('business context suppresses an old response after the selected reference c
   await waitFor(() => assert.equal(view.container.textContent, 'SO-B'));
 });
 
-function Harness(props: { client: IveKitClient; businessRef: BusinessRefSelection }) {
+function Harness(props: { client: ConveractFabricClient; businessRef: BusinessRefSelection }) {
   const result = useBusinessContext(props.client, props.businessRef);
   return <span>{result.context?.business_ref.id || 'none'}</span>;
 }
 
-function context(id: string): IveKitBusinessContext {
+function context(id: string): ConveractFabricBusinessContext {
   return {
     tenant_id: 'tenant-1',
     business_ref: { type: 'service_order', id },

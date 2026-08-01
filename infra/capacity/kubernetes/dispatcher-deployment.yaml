@@ -1,44 +1,44 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ivekit-capacity-dispatcher
+  name: converact-capacity-dispatcher
   labels:
-    app.kubernetes.io/name: ivekit-capacity-dispatcher
+    app.kubernetes.io/name: converact-capacity-dispatcher
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-capacity-dispatcher
+      app.kubernetes.io/name: converact-capacity-dispatcher
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: ivekit-capacity-dispatcher
+        app.kubernetes.io/name: converact-capacity-dispatcher
     spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: dispatcher
-          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
+          image: replace.example.com/converact/capacity-tools@sha256:replace-with-capacity-tools-digest
           imagePullPolicy: IfNotPresent
           env:
             - name: CONVERACT_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-capacity-runtime
+                  name: converact-capacity-runtime
                   key: database-url
             - name: NATS_URL
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-capacity-runtime
+                  name: converact-capacity-runtime
                   key: nats-url
             - name: NATS_USER
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-capacity-runtime
+                  name: converact-capacity-runtime
                   key: nats-user
             - name: NATS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-capacity-runtime
+                  name: converact-capacity-runtime
                   key: nats-password
             - name: NATS_TLS_MODE
               value: required
@@ -80,14 +80,14 @@ spec:
       volumes:
         - name: nats-tls
           secret:
-            secretName: ivekit-capacity-nats-tls
+            secretName: converact-capacity-nats-tls
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: ivekit-capacity-dispatcher
+  name: converact-capacity-dispatcher
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-capacity-dispatcher
+      app.kubernetes.io/name: converact-capacity-dispatcher

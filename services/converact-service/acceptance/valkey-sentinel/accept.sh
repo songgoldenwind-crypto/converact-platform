@@ -6,18 +6,18 @@ COMPOSE_FILE="$ROOT_DIR/services/converact-service/acceptance/valkey-sentinel/do
 EXPECTED_SERVER_IP=64.225.122.227
 VALKEY_ACCEPTANCE_IMAGE=${VALKEY_ACCEPTANCE_IMAGE:-valkey/valkey@sha256:1da6597cc08f09748b05f7a845492581c9442ea240be8e7bbfeb5f83ad1bcec8}
 VALKEY_ACCEPTANCE_NODE_IMAGE=${VALKEY_ACCEPTANCE_NODE_IMAGE:-node@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d}
-PROJECT=${VALKEY_ACCEPTANCE_PROJECT:-ivekit-valkey-sentinel-$(date +%s)-$$}
-VALKEY_ACCEPTANCE_RUNTIME_DIR=$(mktemp -d "${TMPDIR:-/tmp}/ivekit-valkey-sentinel.XXXXXX")
+PROJECT=${VALKEY_ACCEPTANCE_PROJECT:-converact-valkey-sentinel-$(date +%s)-$$}
+VALKEY_ACCEPTANCE_RUNTIME_DIR=$(mktemp -d "${TMPDIR:-/tmp}/converact-valkey-sentinel.XXXXXX")
 EVIDENCE_FILE=${VALKEY_ACCEPTANCE_EVIDENCE_FILE:-$ROOT_DIR/docs/evidence/wave2-valkey-sentinel-runtime-$(date -u +%Y%m%dT%H%M%SZ).json}
 NETWORK_NAME="${PROJECT}_valkey_acceptance"
 CLEANED=0
 
-if [ "${IVEKIT_VALIDATION_SERVER_IP:-}" != "$EXPECTED_SERVER_IP" ]; then
+if [ "${CONVERACT_FABRIC_VALIDATION_SERVER_IP:-}" != "$EXPECTED_SERVER_IP" ]; then
   printf 'Valkey failover acceptance is restricted to validation server %s\n' "$EXPECTED_SERVER_IP" >&2
   exit 1
 fi
 case "$PROJECT" in
-  ivekit-valkey-sentinel-[A-Za-z0-9-]*) ;;
+  converact-valkey-sentinel-[A-Za-z0-9-]*) ;;
   *)
     printf '%s\n' 'refusing shared or unsafe Compose project name' >&2
     exit 1
@@ -81,7 +81,7 @@ SENTINEL_PEER_PASSWORD=$(random_secret)
 
 cat >"$VALKEY_ACCEPTANCE_RUNTIME_DIR/data-users.acl" <<EOF
 user default off
-user app on >$APP_PASSWORD ~ivekit:acceptance:* &ivekit:acceptance:* +@all
+user app on >$APP_PASSWORD ~converact:acceptance:* &converact:acceptance:* +@all
 user replication on >$REPLICATION_PASSWORD ~* &* +@all
 user sentinel-control on >$SENTINEL_CONTROL_PASSWORD ~* &* +@all
 EOF
@@ -121,16 +121,16 @@ bind 0.0.0.0
 protected-mode no
 dir /tmp
 aclfile /etc/valkey/sentinel-users.acl
-sentinel monitor ivekit valkey-1 6379 2
-sentinel auth-user ivekit sentinel-control
-sentinel auth-pass ivekit $SENTINEL_CONTROL_PASSWORD
+sentinel monitor converact valkey-1 6379 2
+sentinel auth-user converact sentinel-control
+sentinel auth-pass converact $SENTINEL_CONTROL_PASSWORD
 sentinel sentinel-user sentinel-peer
 sentinel sentinel-pass $SENTINEL_PEER_PASSWORD
 sentinel resolve-hostnames yes
 sentinel announce-hostnames yes
-sentinel down-after-milliseconds ivekit 3000
-sentinel failover-timeout ivekit 15000
-sentinel parallel-syncs ivekit 1
+sentinel down-after-milliseconds converact 3000
+sentinel failover-timeout converact 15000
+sentinel parallel-syncs converact 1
 EOF
 }
 
@@ -205,9 +205,9 @@ wait_for_sentinel_topology() {
   while [ "$(date +%s)" -lt "$deadline" ]; do
     ready=0
     for sentinel in sentinel-1 sentinel-2 sentinel-3; do
-      replicas=$(sentinel_cli "$sentinel" SENTINEL replicas ivekit 2>/dev/null || true)
-      peers=$(sentinel_cli "$sentinel" SENTINEL sentinels ivekit 2>/dev/null || true)
-      quorum=$(sentinel_cli "$sentinel" SENTINEL ckquorum ivekit 2>/dev/null || true)
+      replicas=$(sentinel_cli "$sentinel" SENTINEL replicas converact 2>/dev/null || true)
+      peers=$(sentinel_cli "$sentinel" SENTINEL sentinels converact 2>/dev/null || true)
+      quorum=$(sentinel_cli "$sentinel" SENTINEL ckquorum converact 2>/dev/null || true)
       replica_count=$(sentinel_object_count "$replicas")
       healthy_replica_count=$(sentinel_healthy_replica_count "$replicas")
       peer_count=$(sentinel_object_count "$peers")
@@ -236,7 +236,7 @@ primary_service() {
 
 sentinel_endpoint() {
   service=$1
-  output=$(sentinel_cli "$service" SENTINEL get-master-addr-by-name ivekit)
+  output=$(sentinel_cli "$service" SENTINEL get-master-addr-by-name converact)
   host=$(printf '%s\n' "$output" | sed -n '1p')
   port=$(printf '%s\n' "$output" | sed -n '2p')
   [ -n "$host" ] && [ "$port" = 6379 ] || return 1
@@ -315,14 +315,14 @@ role_snapshot() {
 run_probe() {
   phase=$1
   output_file=$2
-  channel="ivekit:acceptance:pubsub:$phase"
+  channel="converact:acceptance:pubsub:$phase"
   message="message-$phase-$(date +%s)"
   timeout 30 docker run --rm \
     --network "$NETWORK_NAME" \
     -v "$ROOT_DIR:/workspace:ro" \
     -w /workspace \
     -e REDIS_TOPOLOGY=sentinel \
-    -e REDIS_SENTINEL_MASTER_NAME=ivekit \
+    -e REDIS_SENTINEL_MASTER_NAME=converact \
     -e REDIS_SENTINEL_ADDRESSES=sentinel-1:26379,sentinel-2:26379,sentinel-3:26379 \
     -e REDIS_USERNAME=app \
     -e REDIS_PASSWORD="$APP_PASSWORD" \
@@ -363,9 +363,9 @@ for service in sentinel-1 sentinel-2 sentinel-3; do wait_for_ping sentinel "$ser
 old_primary=$(primary_service)
 before_endpoint=$(sentinel_endpoint sentinel-1)
 before_roles=$(role_snapshot)
-PRE_KEY="ivekit:acceptance:pre:$PROJECT"
+PRE_KEY="converact:acceptance:pre:$PROJECT"
 PRE_VALUE="pre-$(date +%s)-$$"
-POST_KEY="ivekit:acceptance:post:$PROJECT"
+POST_KEY="converact:acceptance:post:$PROJECT"
 POST_VALUE="post-$(date +%s)-$$"
 export PRE_KEY PRE_VALUE POST_KEY POST_VALUE
 

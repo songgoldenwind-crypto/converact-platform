@@ -14,32 +14,32 @@ import {
 import type { RecordingAuditEvent } from '../livekit/media-http.js';
 import type {
   LiveKitIngressAuditEvent,
-  RouteIveKitMediaApiOptions
+  RouteConveractFabricMediaApiOptions
 } from './media-http.js';
-import { IveKitTenantEventJournal } from './tenant-event-store.js';
+import { ConveractFabricTenantEventJournal } from './tenant-event-store.js';
 import { RealtimeSpeechStore } from './voice/realtime-speech-store.js';
 
-export interface IveKitMediaHooksInput {
+export interface ConveractFabricMediaHooksInput {
   db: unknown;
   pg: PgQueryable;
 }
 
-export function createIveKitMediaHooks(input: IveKitMediaHooksInput): RouteIveKitMediaApiOptions {
+export function createConveractFabricMediaHooks(input: ConveractFabricMediaHooksInput): RouteConveractFabricMediaApiOptions {
   const retentionDays = configuredRetentionDays();
   return {
     pg: input.pg,
-    eventStore: new IveKitTenantEventJournal(input.pg),
+    eventStore: new ConveractFabricTenantEventJournal(input.pg),
     realtimeSpeechStore: new RealtimeSpeechStore(input.pg),
     onRecordingStarted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, (pg) =>
       recordMediaRecordingEvidence(pg, recording, {
         roomName: context.roomName,
-        createdBy: 'ivekit-media-core'
+        createdBy: 'converact-media-core'
       })
     ),
     onRecordingCompleted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, (pg) =>
       recordMediaRecordingEvidence(pg, recording, {
         roomName: context.roomName,
-        createdBy: 'ivekit-media-core',
+        createdBy: 'converact-media-core',
         resolveContent: resolveRecordingObjectContent
       })
     ),
@@ -62,8 +62,8 @@ export function createIveKitMediaHooks(input: IveKitMediaHooksInput): RouteIveKi
         });
       }
     }),
-    onRecordingAudit: (event) => recordIveKitMediaAudit(input.db, event),
-    onIngressAudit: (event) => recordIveKitIngressAudit(input.db, event)
+    onRecordingAudit: (event) => recordConveractFabricMediaAudit(input.db, event),
+    onIngressAudit: (event) => recordConveractFabricIngressAudit(input.db, event)
   };
 }
 
@@ -77,7 +77,7 @@ function configuredRetentionDays(): number | undefined {
   return value;
 }
 
-function recordIveKitMediaAudit(db: unknown, event: RecordingAuditEvent): void {
+function recordConveractFabricMediaAudit(db: unknown, event: RecordingAuditEvent): void {
   const {
     tenant_id: tenantId,
     actor_id: actorId,
@@ -94,7 +94,7 @@ function recordIveKitMediaAudit(db: unknown, event: RecordingAuditEvent): void {
   );
 }
 
-function recordIveKitIngressAudit(db: unknown, event: LiveKitIngressAuditEvent): void {
+function recordConveractFabricIngressAudit(db: unknown, event: LiveKitIngressAuditEvent): void {
   const {
     tenant_id: tenantId,
     actor_id: actorId,

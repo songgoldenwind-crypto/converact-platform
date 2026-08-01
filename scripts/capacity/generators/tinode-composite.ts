@@ -328,7 +328,7 @@ async function openConnection(
     );
     try {
       await session.open();
-      await session.request('hi', { ver: '0.22', ua: 'iveKit composite capacity generator' });
+      await session.request('hi', { ver: '0.22', ua: 'Converact Fabric composite capacity generator' });
       await session.request('login', {
         scheme: descriptor.auth.scheme,
         secret: descriptor.auth.secret
@@ -379,7 +379,7 @@ async function runInteraction(
     const wireIds: string[] = [];
     for (let messageIndex = 0; messageIndex < input.messages_per_interaction; messageIndex += 1) {
       const messageId = `${input.run_id}/tinode_im/${ordinal}/message/${messageIndex}`;
-      const wireId = `opc-${canonicalSha256(messageId)}`;
+      const wireId = `converact-${canonicalSha256(messageId)}`;
       const body = input.body_for_message(ordinal, messageIndex);
       if (typeof body !== 'string' || body.length === 0 || body.length > 65_536) {
         throw new Error(`message body is invalid for interaction ${ordinal}`);

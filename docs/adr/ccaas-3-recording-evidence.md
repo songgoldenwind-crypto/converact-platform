@@ -1,7 +1,7 @@
 # ADR-CCAAS-3：录制、证据与媒体后处理数据面
 
 **Status:** Proposed（2026-07-16）
-**Decision owner:** iveKit shared communication foundation
+**Decision owner:** Converact Fabric shared communication foundation
 **Related:** [`ccaas-1-cell-placement.md`](ccaas-1-cell-placement.md)、[`ccaas-2-dual-zone-quorum.md`](ccaas-2-dual-zone-quorum.md)、[`../capacity/profiles/mix-100k-v1.json`](../capacity/profiles/mix-100k-v1.json)、[`../new-feature-application-checklist.md`](../new-feature-application-checklist.md)
 
 ## 1. 背景
@@ -167,7 +167,7 @@ RTP/SRTP owner
   -> ASR/quality jobs
 ```
 
-RustPBX iveKit fork 必须：
+RustPBX Converact Fabric fork 必须：
 
 - 在 call admission 时预留 recording slot 和 spool/upload budget。
 - 以固定时长或大小切 segment，默认 60 秒或 64 MiB 先到者。
@@ -301,7 +301,7 @@ intake object
 - 原始证据不可由转码产物覆盖。
 - derivative 保存 parent recording/object ID 和 processor version。
 - OCR/ASR/AI 输出是派生证据，保留 Provider/model/prompt/version/confidence。
-- 检测到恶意内容时不向 Tinode/LED/OPC 返回可下载 URL。
+- 检测到恶意内容时不向 Tinode/LED/Converact Platform 返回可下载 URL。
 
 ## 11. OCR、ASR 与 AI
 
@@ -389,7 +389,7 @@ active local segment RPO = segment/upload interval，待实测
 
 ## 14. API 与事件
 
-iveKit 统一事件：
+Converact Fabric 统一事件：
 
 ```text
 recording.requested
@@ -417,7 +417,7 @@ recording.deleted
 - actor/processor version。
 - occurred_at/observed_at。
 
-LED/OPC 只依赖 iveKit API/SDK/事件，不直接依赖 LiveKit Egress、RustPBX recorder 或 RustDesk 文件目录。
+LED/Converact Platform 只依赖 Converact Fabric API/SDK/事件，不直接依赖 LiveKit Egress、RustPBX recorder 或 RustDesk 文件目录。
 
 ## 15. 合规
 
@@ -502,7 +502,7 @@ Reconciliation 操作幂等，并产生 audit/event。不得通过静默改数�
 | 方案 | 否决原因 |
 | --- | --- |
 | 所有视频都 RoomComposite | CPU 数量不可接受，原始 track 丢失 |
-| 媒体经过 iveKit API 上传 | API 带宽、内存和故障域被放大 |
+| 媒体经过 Converact Fabric API 上传 | API 带宽、内存和故障域被放大 |
 | 录音二进制存 PostgreSQL | OLTP、备份、复制不可控 |
 | 上传成功前删除本地 segment | 对象故障时永久丢失 |
 | 只保存 AI 结论 | 无法复核、审计和重处理 |

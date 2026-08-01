@@ -2,12 +2,12 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "ivekit-homer.fullname" . }}
+  name: {{ include "converact-homer.fullname" . }}
   labels:
-    {{- include "ivekit-homer.labels" . | nindent 4 }}
+    {{- include "converact-homer.labels" . | nindent 4 }}
 spec:
   maxUnavailable: 0
   selector:
     matchLabels:
-      {{- include "ivekit-homer.selectorLabels" . | nindent 6 }}
+      {{- include "converact-homer.selectorLabels" . | nindent 6 }}
 {{- end }}

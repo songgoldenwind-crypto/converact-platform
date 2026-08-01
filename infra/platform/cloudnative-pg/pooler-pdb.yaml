@@ -1,12 +1,12 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: opc-postgres-rw-pooler
+  name: converact-postgres-rw-pooler
   labels:
-    app.kubernetes.io/name: opc-postgres-rw-pooler
-    app.kubernetes.io/part-of: ivekit-platform
+    app.kubernetes.io/name: converact-postgres-rw-pooler
+    app.kubernetes.io/part-of: converact-platform
 spec:
   minAvailable: 2
   selector:
     matchLabels:
-      cnpg.io/poolerName: opc-postgres-rw-pooler
+      cnpg.io/poolerName: converact-postgres-rw-pooler

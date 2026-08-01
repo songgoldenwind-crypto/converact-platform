@@ -1,11 +1,11 @@
 runtimeMode: kernel
 
 nodeSelector:
-  ivekit.io/rtpengine-kernel-ready: "true"
+  converact.io/rtpengine-kernel-ready: "true"
 
 rtpengine:
   image:
-    repository: ghcr.io/example/ivekit-rtpengine-kernel
+    repository: ghcr.io/example/converact-rtpengine-kernel
     digest: ""
 
 kernel:

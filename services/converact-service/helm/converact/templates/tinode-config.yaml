@@ -1,11 +1,11 @@
 {{- if .Values.tinode.enabled }}
-{{- include "ivekit.tinodeValidate" . }}
+{{- include "converact.tinodeValidate" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "ivekit.tinodeFullname" . }}
+  name: {{ include "converact.tinodeFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: tinode
 data:
   STORE_USE_ADAPTER: postgres

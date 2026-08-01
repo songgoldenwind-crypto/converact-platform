@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiGet, apiPost } from '../api/client';
+import { readAuthStorage } from '../auth-storage';
 import { useAuth } from '../hooks/useAuth';
 import { useWebSocket } from '../hooks/useWebSocket';
 import CallRecordRow, { type CallRecord } from '../components/CallRecordRow';
@@ -71,7 +72,7 @@ export default function CallRecordsPage() {
 
   const handleDial = useCallback(
     async (phone: string) => {
-      const specId = localStorage.getItem('opc_default_spec_id') || '';
+      const specId = readAuthStorage('default_spec_id') || '';
       await apiPost('/api/call-center/outbound-tasks', {
         tenant_id: tenantId,
         phone_number: phone,

@@ -17,21 +17,21 @@ type WorkerPool = typeof POOLS[number];
 
 const backlogDepth = new Gauge({
   name: 'opc_ivekit_worker_backlog_depth',
-  help: 'Claimable asynchronous work by fixed iveKit worker pool',
+  help: 'Claimable asynchronous work by fixed Converact Fabric worker pool',
   labelNames: ['pool'],
   registers: [metricsRegistry]
 });
 
 const backlogOldestAge = new Gauge({
   name: 'opc_ivekit_worker_backlog_oldest_age_seconds',
-  help: 'Age of the oldest claimable item by fixed iveKit worker pool',
+  help: 'Age of the oldest claimable item by fixed Converact Fabric worker pool',
   labelNames: ['pool'],
   registers: [metricsRegistry]
 });
 
 const observerUp = new Gauge({
   name: 'opc_ivekit_worker_backlog_observer_up',
-  help: 'Whether the latest iveKit worker backlog observation succeeded',
+  help: 'Whether the latest Converact Fabric worker backlog observation succeeded',
   registers: [metricsRegistry]
 });
 
@@ -105,7 +105,7 @@ export function workerBacklogMetricsConfig(
   };
 }
 
-export function startIveKitWorkerBacklogMetrics(input: {
+export function startConveractFabricWorkerBacklogMetrics(input: {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
 }): WorkerBacklogMetricsObserver {

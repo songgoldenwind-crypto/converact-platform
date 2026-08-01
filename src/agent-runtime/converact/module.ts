@@ -29,12 +29,12 @@ import type {
 import type { MediaJoinPlan, ParticipantRole } from '../media-gateway/index.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import { createWebAssistJoinPath, verifyWebAssistJoinToken, webAssistExpiresAt } from './remote-assist-token.js';
-import { IveKitTenantEventJournal } from './tenant-event-store.js';
+import { ConveractFabricTenantEventJournal } from './tenant-event-store.js';
 import type {
   IveBusinessRef,
   IveEvidenceRecord,
-  IveKitModule,
-  IveKitModuleInput,
+  ConveractFabricModule,
+  ConveractFabricModuleInput,
   IveRemoteAssistEvent,
   IveMediaRoom,
   OpenIveSessionInput
@@ -204,13 +204,13 @@ function toIveRemoteAssistEvent(audit: {
   };
 }
 
-export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
+export function createConveractFabricModule(input: ConveractFabricModuleInput): ConveractFabricModule {
   const media = createLiveKitMediaModule({
     db: input.db,
     config: input.media?.livekit
   });
   const collaboration = createCollaborationModule({ pg: input.pg });
-  const tenantEvents = new IveKitTenantEventJournal(input.pg);
+  const tenantEvents = new ConveractFabricTenantEventJournal(input.pg);
   const rustdeskGatewaySessions = new RustDeskGatewaySessionStore(input.pg);
   const localRustDeskGatewayClient: RemoteGatewayClient = {
     provider: 'rustdesk',
@@ -313,7 +313,7 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
         collaboration_session_id: collab.id,
         business_ref: sessionInput.business_ref,
         mode: toRemoteMode(sessionInput.remote_assistance.mode),
-        adapter_provider: sessionInput.remote_assistance.adapter_provider || 'ivekit_web',
+        adapter_provider: sessionInput.remote_assistance.adapter_provider || 'converact_web',
         started_by: sessionInput.remote_assistance.started_by,
         metadata: {
           ...(sessionInput.metadata || {}),

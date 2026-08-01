@@ -18,7 +18,7 @@ test('observation bridge ingests atomic JSON and forwards a device-token batch e
   const tokenFile = join(root, 'edge-token');
   writeFileSync(tokenFile, `${DEVICE_TOKEN}\n`, { mode: 0o600 });
   const config = createRustDeskObservationBridgeConfigFromEnv({
-    CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+    CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://fabric.converact.example.com',
     CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
     CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: inputDirectory,
     CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: spoolDirectory,
@@ -40,7 +40,7 @@ test('observation bridge ingests atomic JSON and forwards a device-token batch e
   assert.equal(requests.length, 1);
   assert.equal(
     requests[0].url,
-    'https://ivekit.example.com/api/ivekit/rustdesk/devices/rdesk-device-1/observations'
+    'https://fabric.converact.example.com/api/ivekit/rustdesk/devices/rdesk-device-1/observations'
   );
   assert.equal((requests[0].init?.headers as Record<string, string>)['x-rustdesk-edge-token'], DEVICE_TOKEN);
   assert.equal(existsSync(join(inputDirectory, 'observation-1.json')), false);
@@ -56,7 +56,7 @@ test('observation bridge recovers transient forwarding and quarantines invalid i
   let now = new Date('2026-07-15T06:00:00.000Z');
   const config = {
     ...createRustDeskObservationBridgeConfigFromEnv({
-      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://fabric.converact.example.com',
       CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
       CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: join(root, 'inbox'),
       CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: join(root, 'spool'),
@@ -101,7 +101,7 @@ test('observation bridge binds placement-enabled operations to the current serve
   writeFileSync(tokenFile, `${DEVICE_TOKEN}\n`, { mode: 0o600 });
   const config = {
     ...createRustDeskObservationBridgeConfigFromEnv({
-      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://fabric.converact.example.com',
       CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
       CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: join(root, 'inbox'),
       CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: join(root, 'spool')

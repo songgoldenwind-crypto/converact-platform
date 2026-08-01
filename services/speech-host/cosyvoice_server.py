@@ -1,5 +1,5 @@
 """
-Minimal CosyVoice FastAPI shim for OPC ai-agent CosyVoiceTTS client.
+Minimal CosyVoice FastAPI shim for Converact ai-agent CosyVoiceTTS client.
 
 Requires CosyVoice repo + models — see README.md for setup.
 Fallback: returns 503 until CosyVoice is installed.
@@ -14,7 +14,7 @@ import os
 from fastapi import FastAPI
 from fastapi.responses import Response, JSONResponse
 
-app = FastAPI(title="OPC CosyVoice Server")
+app = FastAPI(title="Converact CosyVoice Server")
 _cosyvoice = None
 
 

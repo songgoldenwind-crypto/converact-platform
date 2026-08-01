@@ -63,7 +63,7 @@ RUN patch -p1 < /tmp/0001-dispatcher-retain-probe-state.patch \
 FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818 AS runtime
 
 ARG KAMAILIO_VERSION=6.0.7
-LABEL org.opencontainers.image.title="iveKit Kamailio SIP Edge" \
+LABEL org.opencontainers.image.title="Converact Fabric Kamailio SIP Edge" \
       org.opencontainers.image.version="${KAMAILIO_VERSION}" \
       org.opencontainers.image.source="https://github.com/kamailio/kamailio" \
       io.ivekit.upstream.ref="kamailio/kamailio@6.0.7"

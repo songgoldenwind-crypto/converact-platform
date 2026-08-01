@@ -17,7 +17,7 @@
 
 ## 1. 背景
 
-OPC 需要同时支持：
+Converact Platform 需要同时支持：
 
 - LiveKit Room 内 audio-only 与 audio+video 切换；
 - SIP/PSTN audio 与 LiveKit video room 的协作；
@@ -109,10 +109,10 @@ WHIP/Ingress 适合单向发布，不足以同时完成：
 | Edge generation/writer fence | Media Engine Facade | obey |
 | RTP/SRTP transport bundle | Media Engine Facade + selected Backend receipt | execute/report |
 | Room/participant/track | LiveKit | temporary participant executor |
-| billing key/rating | OPC Billing | usage receipt only |
-| recording intent | RustPBX Call Core | source receipt only；OPC policy 只提供 revisioned input |
+| billing key/rating | Converact Platform Billing | usage receipt only |
+| recording intent | RustPBX Call Core | source receipt only；Converact Platform policy 只提供 revisioned input |
 | root RecordingManifest | Region Recording Plane | segment receipt only |
-| Agent task/memory/tool | OPC AI-native Orchestrator | media source only |
+| Agent task/memory/tool | Converact Platform AI-native Orchestrator | media source only |
 
 Gateway 永远是 `executor_not_authority`。
 
@@ -436,7 +436,7 @@ ADR-8 break-before-make 回到 LiveKit SIP/RTPengine。每条 audio Edge 始终�
 
 - 同一 `billing_key` 贯穿 voice/video/channel switching；
 - Voice CDR、LiveKit usage、Gateway usage 是输入，不各自结算客户账单；
-- video bitrate/GPU/track 可作为计费 dimension，但只由 OPC Billing rating；
+- video bitrate/GPU/track 可作为计费 dimension，但只由 Converact Platform Billing rating；
 - recording intent 不因 mode switch 改变；
 - audio/video source segment 各有 generation、clock、hash 和 discontinuity；
 - root RecordingManifest 只有一个 writer；
@@ -449,7 +449,7 @@ timeline 的映射。
 
 usage receipt 的幂等键固定为
 `(billing_key, media_component, edge_generation, interval)`。RTPengine、LiveKit、
-Gateway 和 recorder observation 由 OPC Billing 去重，并以 terminal watermark 收敛；
+Gateway 和 recorder observation 由 Converact Platform Billing 去重，并以 terminal watermark 收敛；
 任何 executor 都不能自行 rating，也不能因重复 webhook 双计费。
 
 ## 12. 安全

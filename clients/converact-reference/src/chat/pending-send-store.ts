@@ -1,6 +1,6 @@
-import type { IveKitChatMessageInput } from '@converact/sdk';
+import type { ConveractFabricChatMessageInput } from '@converact/sdk';
 
-type PendingInput = Omit<IveKitChatMessageInput, 'sender_identity'>;
+type PendingInput = Omit<ConveractFabricChatMessageInput, 'sender_identity'>;
 
 export class PendingSendStore {
   private readonly entries = new Map<string, { idempotencyKey: string; input: PendingInput }>();

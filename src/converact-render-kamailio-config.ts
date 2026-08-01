@@ -17,7 +17,7 @@ export async function runKamailioConfigRenderer(
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runKamailioConfigRenderer().catch((error) => {
     console.error(
-      '[ivekit-render-kamailio-config] FATAL:',
+      '[converact-render-kamailio-config] FATAL:',
       error instanceof Error ? error.message : String(error)
     );
     process.exitCode = 1;

@@ -8,7 +8,7 @@ readonly URL="https://github.com/livekit/livekit-cli/releases/download/v${VERSIO
 readonly DESTINATION="${1:-$(pwd)/.cache/livekit-cli/${VERSION}}"
 
 mkdir -p "${DESTINATION}"
-archive="$(mktemp "${TMPDIR:-/tmp}/ivekit-livekit-cli.XXXXXX")"
+archive="$(mktemp "${TMPDIR:-/tmp}/converact-livekit-cli.XXXXXX")"
 trap 'rm -f "${archive}"' EXIT
 
 curl --fail --location --proto '=https' --tlsv1.2 \

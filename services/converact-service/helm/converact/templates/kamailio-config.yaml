@@ -83,9 +83,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "ivekit.kamailioFullname" . }}-config
+  name: {{ include "converact.kamailioFullname" . }}-config
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: kamailio
 data:
   kamailio-runtime.json: |
@@ -122,7 +122,7 @@ data:
       "webphone_auth": {
         "jwt_issuer": {{ .Values.voice.webphone.jwtIssuer | quote }},
         "jwt_audience": {{ .Values.voice.webphone.jwtAudience | quote }},
-        "jwt_secret_file": "/run/ivekit-kamailio-secrets/webphone-jwt-secret",
+        "jwt_secret_file": "/run/converact-kamailio-secrets/webphone-jwt-secret",
         "allowed_origins": {{ toJson .Values.voice.webphone.allowedOrigins }},
         "max_token_bytes": 4096,
         "max_registration_expires_seconds": {{ .Values.voice.webphone.registerExpiresSeconds }}
@@ -132,8 +132,8 @@ data:
         "server_host": "127.0.0.1",
         "server_port": {{ $kamailio.listeners.dmqPort }},
         "notification_addresses": [
-          {{ printf "sip:%s-0.%s-dmq:%v" (include "ivekit.kamailioFullname" .) (include "ivekit.kamailioFullname" .) $kamailio.listeners.dmqPort | quote }},
-          {{ printf "sip:%s-1.%s-dmq:%v" (include "ivekit.kamailioFullname" .) (include "ivekit.kamailioFullname" .) $kamailio.listeners.dmqPort | quote }}
+          {{ printf "sip:%s-0.%s-dmq:%v" (include "converact.kamailioFullname" .) (include "converact.kamailioFullname" .) $kamailio.listeners.dmqPort | quote }},
+          {{ printf "sip:%s-1.%s-dmq:%v" (include "converact.kamailioFullname" .) (include "converact.kamailioFullname" .) $kamailio.listeners.dmqPort | quote }}
         ],
         "num_workers": {{ $kamailio.dmq.numWorkers }},
         "ping_interval_seconds": {{ $kamailio.dmq.pingIntervalSeconds }},
@@ -157,9 +157,9 @@ data:
       "max_failovers": {{ $kamailio.limits.maxFailovers }},
       "retry_after_seconds": {{ $kamailio.limits.retryAfterSeconds }},
       "tls": {
-        "private_key_file": "/run/ivekit-kamailio-secrets/tls-key.pem",
-        "certificate_file": "/run/ivekit-kamailio-secrets/tls-cert.pem",
-        "ca_file": "/run/ivekit-kamailio-secrets/tls-ca.pem",
+        "private_key_file": "/run/converact-kamailio-secrets/tls-key.pem",
+        "certificate_file": "/run/converact-kamailio-secrets/tls-cert.pem",
+        "ca_file": "/run/converact-kamailio-secrets/tls-ca.pem",
         "require_client_certificate": {{ $kamailio.requireClientCertificate }}
       }
     }
@@ -173,10 +173,10 @@ data:
           {{- range $ordinal := until $rustpbxReplicas }}
           {{- if $ordinal }},{{ end }}
           {
-            "node_id": {{ printf "%s-rustpbx-%d" (include "ivekit.fullname" $) $ordinal | quote }},
-            "component_endpoint": {{ printf "http://%s-rustpbx-%d.%s:3210" (include "ivekit.fullname" $) $ordinal (include "ivekit.rustpbxHeadlessFullname" $) | quote }},
-            "service_token_file": "/run/ivekit-kamailio-secrets/component-node-token",
-            "sip_uri": {{ printf "sip:%s-rustpbx-%d.%s:%v;transport=udp" (include "ivekit.fullname" $) $ordinal (include "ivekit.rustpbxHeadlessFullname" $) $.Values.voice.sipPort | quote }},
+            "node_id": {{ printf "%s-rustpbx-%d" (include "converact.fullname" $) $ordinal | quote }},
+            "component_endpoint": {{ printf "http://%s-rustpbx-%d.%s:3210" (include "converact.fullname" $) $ordinal (include "converact.rustpbxHeadlessFullname" $) | quote }},
+            "service_token_file": "/run/converact-kamailio-secrets/component-node-token",
+            "sip_uri": {{ printf "sip:%s-rustpbx-%d.%s:%v;transport=udp" (include "converact.fullname" $) $ordinal (include "converact.rustpbxHeadlessFullname" $) $.Values.voice.sipPort | quote }},
             "pin_set_id": {{ add (int $kamailio.pool.pinSetBase) $ordinal }},
             "priority": {{ $kamailio.pool.priority }},
             "safe_capacity_fallback": {{ $kamailio.pool.safeCapacityFallback }}

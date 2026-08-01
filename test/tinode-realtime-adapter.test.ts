@@ -62,7 +62,7 @@ test('Tinode realtime adapter connects with client plan and exposes receive-only
   assert.deepEqual(capturedConfig, {
     host: 'chat.example.test',
     secure: true,
-    appName: 'OPC iveKit Chat',
+    appName: 'Converact Fabric Chat',
     apiKey: 'public-api-key',
     transport: 'ws',
     persist: false

@@ -69,6 +69,8 @@ test('RustDesk 1.4.9 overlay installs one fail-closed native control path idempo
   assert.doesNotMatch(native, /Command::new|powershell|cmd\.exe|service restart/i);
   assert.match(evidence, /native-evidence-roots-v1\.txt/);
   assert.match(evidence, /native-evidence\\candidates/);
+  assert.match(evidence, /join\("Converact"\)\.join\("RustDesk"\)/);
+  assert.match(evidence, /join\("iveKit"\)\.join\("RustDesk"\)/);
   assert.match(evidence, /ivekit_active_controller_ids/);
   assert.match(evidence, /file_type\(\).*is_symlink/);
   assert.match(evidence, /stable_scans/);
@@ -77,7 +79,7 @@ test('RustDesk 1.4.9 overlay installs one fail-closed native control path idempo
 });
 
 test('RustDesk overlay rejects an unpinned checkout and source layout drift', () => {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-rustdesk-overlay-drift-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-rustdesk-overlay-drift-'));
   mkdirSync(join(root, 'src'));
   writeFileSync(join(root, 'src', 'lib.rs'), 'pub mod something_else;\n', 'utf8');
   writeFileSync(join(root, 'src', 'ui_cm_interface.rs'), 'pub fn close(id: i32) {}\n', 'utf8');
@@ -92,7 +94,7 @@ test('RustDesk overlay rejects an unpinned checkout and source layout drift', ()
 });
 
 test('RustDesk Windows CI checks out the immutable upstream commit', () => {
-  const workflow = readFileSync('.github/workflows/ivekit-rustdesk-windows-ci.yml', 'utf8');
+  const workflow = readFileSync('.github/workflows/converact-rustdesk-windows-ci.yml', 'utf8');
   assert.match(workflow, /ref: 6c578292e8ebbbec708b76986ba8c4bc7c509747/);
   assert.doesNotMatch(workflow, /ref: 1\.4\.9/);
   assert.match(workflow, /integrations\/rustdesk-1\.4\.9\/apply-overlay\.mjs/);

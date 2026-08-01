@@ -1,4 +1,4 @@
-# OPC「超级联络中心平台」战略与演进报告
+# Converact Platform「超级联络中心平台」战略与演进报告
 
 > **Revision 5 通信/AI 架构覆盖说明（2026-07-31）**：本文继续作为产品战略北极星；
 > RustPBX/rvoip、RTPengine、LiveKit、Active Call、HF Speech Runtime、ViLTE 和
@@ -19,7 +19,7 @@
 > - [安全与合规设计](./security-design.md)
 > - [指标设计](./metrics-design.md)
 > - [Voice 模块抽取备忘](./voice-module-extraction-memo.md)
-> - [RustPBX × rvoip 通信底座整合设计](./rvoip-opc-communication-foundation-integration-design.md)
+> - [RustPBX × rvoip 通信底座整合设计](./rvoip-converact-communication-foundation-integration-design.md)
 
 ---
 
@@ -47,7 +47,7 @@
 
 1. [执行摘要](#1-执行摘要)  
 2. [市场与竞品分析](#2-市场与竞品分析)  
-3. [OPC 定位与差异化](#3-opc-定位与差异化)  
+3. [Converact Platform 定位与差异化](#3-converact-定位与差异化)
 4. [九大核心模块 — 目标态规格](#4-九大核心模块--目标态规格)  
 5. [目标技术架构](#5-目标技术架构)  
 6. [分阶段演进路线图](#6-分阶段演进路线图)  
@@ -113,8 +113,8 @@
 |------|------|
 | **优势** | Architect 低代码旅程编排；Predictive Engagement；350+ 集成；全球部署与 SLA |
 | **不足** | 定价高（基础 + 大量 add-on）；基础 WFM/报表偏弱；实施周期长 |
-| **OPC 借鉴** | 旅程编排思想 → IVR Flow Editor + VoiceAgentSpec 导航；API-first |
-| **OPC 不正面打** | 全球运营商认证矩阵、Genesys AppFoundry 生态规模 |
+| **Converact Platform 借鉴** | 旅程编排思想 → IVR Flow Editor + VoiceAgentSpec 导航；API-first |
+| **Converact Platform 不正面打** | 全球运营商认证矩阵、Genesys AppFoundry 生态规模 |
 
 **Genesys 关键实现方式（我们要理解的「为什么强」）**：
 
@@ -125,13 +125,13 @@
     → 统一客户档案（Profile）贯穿全渠道
 ```
 
-OPC 等价物（目标态）：`customer-journey.ts` + `omni-store` + IVR Runtime + Redis session + WS 弹屏。
+Converact Platform 等价物（目标态）：`customer-journey.ts` + `omni-store` + IVR Runtime + Redis session + WS 弹屏。
 
 ---
 
 ### 2.2 同类平台对照表
 
-| # | 平台 | 核心强项 | 实现要点 | OPC 对标模块 | 优先级 |
+| # | 平台 | 核心强项 | 实现要点 | Converact Platform 对标模块 | 优先级 |
 |---|------|----------|----------|--------------|--------|
 | 1 | **Genesys Cloud CX** | 全渠道旅程编排 + 开放架构 | Architect + Predictive Engagement + 350 集成 | §4.1 全渠道、§4.8 API | P1 |
 | 2 | **Five9** | 高强度外呼 + AI 自动化 | Predictive Dialer + Genius AI + CRM Fusion | §4.4 外呼、§4.3 Assist | P0 |
@@ -158,17 +158,17 @@ quadrantChart
     title CCaaS 竞争格局（示意）
     x-axis 低多租户 SaaS成熟度 --> 高多租户 SaaS成熟度
     y-axis 低 AI 原生 --> 高 AI 原生
-    quadrant-1 OPC 目标区
+    quadrant-1 Converact Platform 目标区
     quadrant-2 Talkdesk / Dialpad
     quadrant-3 Genesys / NICE
     quadrant-4 Amazon Connect
 ```
 
-**OPC 目标象限**：**高 AI 原生 + 高 CCaaS 产品化**（注册即用、按量/按 outcome 扩展）。与 Genesys/NICE 拼企业套件与全球交付；与 Amazon Connect 拼视频数字人与垂直 outcome；**不**以「可私有化」作为主卖点（客户问及时：平台级隔离 + 合规认证，而非单独装一套）。
+**Converact Platform 目标象限**：**高 AI 原生 + 高 CCaaS 产品化**（注册即用、按量/按 outcome 扩展）。与 Genesys/NICE 拼企业套件与全球交付；与 Amazon Connect 拼视频数字人与垂直 outcome；**不**以「可私有化」作为主卖点（客户问及时：平台级隔离 + 合规认证，而非单独装一套）。
 
 ---
 
-## 3. OPC 定位与差异化
+## 3. Converact Platform 定位与差异化
 
 ### 3.1 一句话定位
 
@@ -178,7 +178,7 @@ quadrantChart
 
 | 维度 | CCaaS（我们做） | 私有化（不做） |
 |------|-----------------|----------------|
-| **运维主体** | OPC 平台团队统一运维 | 客户 IT 或我方驻场实施 |
+| **运维主体** | Converact Platform 平台团队统一运维 | 客户 IT 或我方驻场实施 |
 | **上线时间** | 注册 → 配置 → **数小时** | 环境、网络、证书、联调 → **数周~数月** |
 | **版本升级** | 全租户滚动发布 | 每客户单独升级 |
 | **隔离方式** | `tenant_id` + PG RLS + 逻辑分区 | 物理独立集群 |
@@ -188,7 +188,7 @@ quadrantChart
 
 **企业大客户仍可在 CCaaS 内升级**（非私有化）：
 
-- 专属子域（`tenant.opc.example.com`）
+- 专属子域（`tenant.converact.example.com`）
 - 更高 SLA / 数据驻留区域（Phase 4：亚太区域节点）
 - 合规附件（DPA、录音保留策略、审计导出）
 - **可选**：单租户 **VPC 托管**（Phase 4+ 再评估，仅超大合同；非默认产品线）
@@ -205,7 +205,7 @@ quadrantChart
 
 ### 3.4 五大差异化支柱
 
-| # | 支柱 | 竞品弱点 | OPC 做法 | 可验证指标 |
+| # | 支柱 | 竞品弱点 | Converact Platform 做法 | 可验证指标 |
 |---|------|----------|----------|------------|
 | D1 | **AI 视频数字人外呼** | Genesys/Five9 视频需额外集成 | 平台托管 LiveKit + MuseTalk + CosyVoice | 外呼接听率、视频链接打开率 |
 | D2 | **Outcome 计费** | 座席数订阅 | 按有效预约/成交线索（效果版）+ 按量（基础版） | 客户 CAC、平台 take rate |
@@ -226,7 +226,7 @@ quadrantChart
 
 ## 4. 九大核心模块 — 目标态规格
 
-以下九个模块整合自 Genesys/Five9/NICE/Talkdesk/Amazon 等平台的强项，构成「超级平台」目标态。每项包含：**能力描述、对标来源、OPC 实现路径、数据模型要点、验收标准、难度、阶段**。
+以下九个模块整合自 Genesys/Five9/NICE/Talkdesk/Amazon 等平台的强项，构成「超级平台」目标态。每项包含：**能力描述、对标来源、Converact Platform 实现路径、数据模型要点、验收标准、难度、阶段**。
 
 ---
 
@@ -244,7 +244,7 @@ quadrantChart
 | 渠道无缝升级 | Chat → 点击链接进视频房间；语音 → 短信发资料 | Zoom CC |
 | 统一路由 | 全渠道进入同一 ACD 技能模型 | Genesys ACD |
 
-#### 4.1.2 OPC 实现路径
+#### 4.1.2 Converact Platform 实现路径
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -485,7 +485,7 @@ Customer Audio ──► STT ──► transcript stream ──► Redis PubSub
 
 #### 4.5.1 能力清单
 
-| 能力 | 说明 | OPC 路径 |
+| 能力 | 说明 | Converact Platform 路径 |
 |------|------|----------|
 | 100% 自动打分 | 每通电话 LLM 按评分卡打分 | `qm-evaluator.ts` ✅ |
 | 评分卡配置 | 租户自定义维度与权重 | `qm-policy.ts` ✅ |
@@ -526,7 +526,7 @@ Customer Audio ──► STT ──► transcript stream ──► Redis PubSub
 
 #### 4.6.1 集成策略
 
-**原则**：OPC 不是 CRM — 做**零延迟双向同步**的连接器 + 弹屏，重 CRM 逻辑交给 Salesforce/HubSpot。
+**原则**：Converact Platform 不是 CRM — 做**零延迟双向同步**的连接器 + 弹屏，重 CRM 逻辑交给 Salesforce/HubSpot。
 
 | 优先级 | 系统 | 方向 | 方式 |
 |--------|------|------|------|
@@ -538,12 +538,12 @@ Customer Audio ──► STT ──► transcript stream ──► Redis PubSub
 
 #### 4.6.2 同步事件
 
-| OPC 事件 | CRM 动作 |
+| Converact Platform 事件 | CRM 动作 |
 |----------|----------|
 | `call.completed` | 创建/更新 Activity + 附加录音链接 |
 | `intent.high` | 提升 Lead Score + 创建 Task |
 | `appointment.booked` | 创建 Meeting + 日历邀请 |
-| CRM `contact.updated` | 刷新 OPC 弹屏客户卡片 |
+| CRM `contact.updated` | 刷新 Converact Platform 弹屏客户卡片 |
 
 #### 4.6.3 验收标准
 
@@ -574,7 +574,7 @@ Customer Audio ──► STT ──► transcript stream ──► Redis PubSub
 
 | 要求 | 实现 |
 |------|------|
-| 水平扩展 | OPC 无状态 + Redis PubSub + PG | CCaaS 标配 |
+| 水平扩展 | Converact Platform 无状态 + Redis PubSub + PG | CCaaS 标配 |
 | 多区域 | Phase 4：亚太区域节点（租户数据驻留选项） | 非 per-customer 私有化 |
 | 可观测 | Prometheus + Grafana（见 metrics-design.md） | 平台统一监控 |
 | IaC | 一套生产栈 · Helm · **租户不接触基础设施** | 开发用 compose 仅内部 |
@@ -585,7 +585,7 @@ Customer Audio ──► STT ──► transcript stream ──► Redis PubSub
 |----|------|
 | BILL-1 | Stripe 订阅 + 用量上报闭环 |
 | BILL-2 | 效果版：有效预约人工审核后触发计费事件 |
-| SCALE-1 | 2 实例 OPC + Redis 下 WS 通知不丢 |
+| SCALE-1 | 2 实例 Converact Platform + Redis 下 WS 通知不丢 |
 
 ---
 
@@ -664,7 +664,7 @@ flowchart TB
     Mobile["移动 App<br/>(Phase 4)"]
   end
 
-  subgraph Gateway["接入层 Gateway · OPC :3000"]
+  subgraph Gateway["接入层 Gateway · Converact Platform :3000"]
     HTTP["HTTP Router<br/>REST / OpenAPI"]
     WS["WebSocket<br/>实时通知"]
     Auth["Auth MW<br/>JWT / API Key"]
@@ -727,13 +727,13 @@ flowchart TB
 |------|----------|--------|
 | **信令路径** | 外呼任务创建、转人工、IVR 步进 | Client → Gateway → Domain → PG/Redis |
 | **媒体路径** | 双向语音/视频、录音 | Client ↔ LiveKit ↔ RustPBX ↔ PSTN |
-| **AI 路径** | 实时对话、质检、摘要 | LiveKit Room → ai-agent-py → LLM/STT/TTS → OPC callback |
+| **AI 路径** | 实时对话、质检、摘要 | LiveKit Room → ai-agent-py → LLM/STT/TTS → Converact Platform callback |
 
 ---
 
 ### 5.2 逻辑分层详图（图 5-2）
 
-下图细化**业务层内部**的 Store 边界与「禁止绕过 Store 写 SQL」原则（见 OPC 编码规范）。
+下图细化**业务层内部**的 Store 边界与「禁止绕过 Store 写 SQL」原则（见 Converact Platform 编码规范）。
 
 ```mermaid
 flowchart LR
@@ -802,7 +802,7 @@ flowchart TD
   XFER --> SEAT["seat-store"]
   XFER --> LK_DISP
 
-  AGENT_PY["ai-agent-py"] -->|tool HTTP| OPC_API["OPC REST"]
+  AGENT_PY["ai-agent-py"] -->|tool HTTP| CONVERACT_API["Converact Platform REST"]
   AGENT_PY -->|session read| REDIS["redis session cache"]
 
   QM_EV["qm-evaluator"] --> KB["knowledge-retriever"]
@@ -837,16 +837,16 @@ flowchart TD
 | 组件 | 决定 | 理由 |
 |------|------|------|
 | Chatwoot | 延后 | 太重；用 ChannelAdapter 自建 |
-| Kong | 延后 | OPC 中间件够用 |
+| Kong | 延后 | Converact Platform 中间件够用 |
 | Keycloak | 替换为轻量 JWT | MVP 减重 |
 | Kamailio | 已启用（Cell/MIX-100K 生产架构） | 早期 1000 路以内 RustPBX 可直入；大规模生产使用独立 SIP Edge 完成容量分发、dialog pin、drain 和安全边界 |
 | ClickHouse | 延后 | PG 物化视图够用前期 |
 
 ---
 
-### 5.6 生产部署拓扑（图 5-4）— OPC 托管 CCaaS
+### 5.6 生产部署拓扑（图 5-4）— Converact Platform 托管 CCaaS
 
-目标态：**单一 OPC 运营的多租户 CCaaS 生产栈**。所有租户共享应用与媒体集群，通过 `tenant_id`、PG RLS、LiveKit room 命名空间、API Key 隔离。**不为单个租户维护独立 compose / K8s 集群**（开发联调用的 compose 见 §5.7，不对外交付）。
+目标态：**单一 Converact Platform 运营的多租户 CCaaS 生产栈**。所有租户共享应用与媒体集群，通过 `tenant_id`、PG RLS、LiveKit room 命名空间、API Key 隔离。**不为单个租户维护独立 compose / K8s 集群**（开发联调用的 compose 见 §5.7，不对外交付）。
 
 ```mermaid
 flowchart TB
@@ -861,13 +861,13 @@ flowchart TB
     CUST["终端客户"]
   end
 
-  subgraph Edge["OPC 平台边缘"]
-    LB["Global LB / CDN<br/>app.opc.cloud"]
+  subgraph Edge["Converact Platform 平台边缘"]
+    LB["Global LB / CDN<br/>app.converact.cloud"]
     TLS["TLS + WAF"]
   end
 
   subgraph AppTier["共享应用层 — 水平扩展"]
-    OPC1["OPC Core ×N<br/>多租户 API"]
+    OPC1["Converact Platform Core ×N<br/>多租户 API"]
     FE["SPA + 租户白标"]
     AGT_POOL["ai-agent-py ×M<br/>按全平台并发扩缩"]
   end
@@ -914,7 +914,7 @@ flowchart TB
 | 组件 | 扩容触发 | 策略 |
 |------|----------|------|
 | `ai-agent-py` | 并发通话数 / GPU 利用率 | HPA on queue depth |
-| `OPC Core` | HTTP p95 / WS 连接数 | 无状态水平扩展 + Redis PubSub |
+| `Converact Platform Core` | HTTP p95 / WS 连接数 | 无状态水平扩展 + Redis PubSub |
 | `LiveKit` | 参与者数 / 带宽 | 按房间 shard 或区域 SFU |
 | `RustPBX` | CPS / 并发 SIP | 双机 + 线路分流 |
 | `PostgreSQL` | 连接数 / IOPS | 读副本 + PgBouncer |
@@ -923,7 +923,7 @@ flowchart TB
 
 ### 5.7 开发环境 Compose 拓扑（图 5-5）
 
-> **仅用于工程师本地/云机联调**，模拟生产组件；**不是**交付给租户的部署包。CCaaS 租户永远只访问 `app.opc.cloud`（或白标域名 CNAME 到平台）。
+> **仅用于工程师本地/云机联调**，模拟生产组件；**不是**交付给租户的部署包。CCaaS 租户永远只访问 `app.converact.cloud`（或白标域名 CNAME 到平台）。
 
 ```mermaid
 flowchart LR
@@ -936,15 +936,15 @@ flowchart LR
     SIP_D["livekit-sip"]
     EGR_D["livekit-egress"]
     RPBX_D["rustpbx"]
-    OPC_D["opc :3000"]
+    CONVERACT_D["converact :3000"]
     AGT_D["ai-agent-py"]
   end
   DEV["npm run dev<br/>frontend :5173"]
   end
 
-  DEV -->|API proxy| OPC_D
-  OPC_D --> PG_D & RD_D & RPBX_D & LK_D
-  AGT_D --> OPC_D & RD_D & LK_D
+  DEV -->|API proxy| CONVERACT_D
+  CONVERACT_D --> PG_D & RD_D & RPBX_D & LK_D
+  AGT_D --> CONVERACT_D & RD_D & LK_D
   RPBX_D --> SIP_D --> LK_D
   LK_D --> EGR_D --> MINIO_D
 ```
@@ -959,7 +959,7 @@ Phase 1 核心演示链路：Campaign → AI 外呼 → 意向 → 转人工 →
 sequenceDiagram
   autonumber
   participant Admin as 租户管理员
-  participant OPC as OPC Core
+  participant Converact Platform as Converact Platform Core
   participant Dialer as outbound-dialer
   participant Comp as compliance-gate
   participant RPBX as RustPBX
@@ -968,27 +968,27 @@ sequenceDiagram
   participant Cust as 客户手机
   participant Seat as 人工坐席
 
-  Admin->>OPC: POST 创建 Campaign + 名单
+  Admin->>Converact Platform: POST 创建 Campaign + 名单
   Dialer->>Comp: check(phone, timeWindow, DNC)
   Comp-->>Dialer: allow / deny
   Dialer->>RPBX: RWI originate / SIP INVITE
   RPBX->>Cust: 振铃
   Cust->>RPBX: 接听
-  RPBX->>OPC: webhook call.answered
-  OPC->>LK: Create Room + Dispatch Agent
+  RPBX->>Converact Platform: webhook call.answered
+  Converact Platform->>LK: Create Room + Dispatch Agent
   LK->>Agent: Job assigned
   Agent->>Cust: 播放 AI 披露 (TTS)
   Agent->>Cust: 视频数字人对话 (STT→LLM→TTS)
-  Agent->>OPC: report_turn + intent score
-  Agent->>OPC: transfer_to_human (intent_high)
-  OPC->>Seat: WS call.incoming + 摘要弹屏
+  Agent->>Converact Platform: report_turn + intent score
+  Agent->>Converact Platform: transfer_to_human (intent_high)
+  Converact Platform->>Seat: WS call.incoming + 摘要弹屏
   Seat->>LK: Join Room (WebRTC 视频)
   Seat->>Cust: 人工深度沟通
-  Seat->>OPC: POST disposition
-  OPC->>LK: Stop Egress
-  LK->>OPC: recording.ready
-  OPC->>OPC: qm-evaluator 自动评分
-  OPC->>Seat: WS qm.scored
+  Seat->>Converact Platform: POST disposition
+  Converact Platform->>LK: Stop Egress
+  LK->>Converact Platform: recording.ready
+  Converact Platform->>Converact Platform: qm-evaluator 自动评分
+  Converact Platform->>Seat: WS qm.scored
 ```
 
 ---
@@ -1002,7 +1002,7 @@ sequenceDiagram
   autonumber
   participant Cust as 客户
   participant RPBX as RustPBX
-  participant OPC as OPC Core
+  participant Converact Platform as Converact Platform Core
   participant IVR as ivr-runtime
   participant ACD as acd-engine
   participant Q as call-queue
@@ -1010,25 +1010,25 @@ sequenceDiagram
   participant Agent as ai-agent-py
 
   Cust->>RPBX: SIP INVITE (DID)
-  RPBX->>OPC: POST /api/call-router (inbound)
-  OPC->>OPC: DID → tenant + 路由规则
+  RPBX->>Converact Platform: POST /api/call-router (inbound)
+  Converact Platform->>Converact Platform: DID → tenant + 路由规则
   alt IVR 流程
-    OPC->>IVR: startIvrSession + advanceStep
+    Converact Platform->>IVR: startIvrSession + advanceStep
     IVR->>RPBX: Step IVR play/gather/queue
     RPBX->>Cust: 播放菜单 / 收集 DTMF
     Cust->>RPBX: DTMF / 语音结果
-    RPBX->>OPC: POST /ivr/step (session_start/dtmf/...)
-    OPC->>IVR: advanceIvrStep
+    RPBX->>Converact Platform: POST /ivr/step (session_start/dtmf/...)
+    Converact Platform->>IVR: advanceIvrStep
   end
   alt 路由到队列
     IVR->>ACD: enqueue(queueId, skills)
     ACD->>Q: 排队 + 位置播报
     ACD->>Seat: 分配坐席 (longest_idle)
-    Seat->>OPC: accept call
-    OPC->>RPBX: bridge to agent
+    Seat->>Converact Platform: accept call
+    Converact Platform->>RPBX: bridge to agent
   else 路由到 AI
-    IVR->>OPC: dispatch AI Agent
-    OPC->>Agent: LiveKit job
+    IVR->>Converact Platform: dispatch AI Agent
+    Converact Platform->>Agent: LiveKit job
     Agent->>Cust: AI 接听对话
   end
 ```
@@ -1059,13 +1059,13 @@ flowchart LR
   subgraph SideEffects["副作用"]
     FEED["audio_feed.py<br/>session_key 路由"]
     MT["MuseTalkRunner<br/>feed_audio → 口型"]
-    OPC_CB["OPC HTTP callback<br/>turn / navigate / transfer"]
+    CONVERACT_CB["Converact Platform HTTP callback<br/>turn / navigate / transfer"]
     REDIS_W["Redis session<br/>热状态读写"]
   end
 
   MIC --> VAD --> STT_P --> LLM_P
   LLM_P --> TOOLS
-  TOOLS --> OPC_CB & REDIS_W
+  TOOLS --> CONVERACT_CB & REDIS_W
   LLM_P --> TTS_P --> AGT_A
   TTS_P --> FEED --> MT --> AGT_V
 ```
@@ -1085,7 +1085,7 @@ flowchart LR
 
 ### 5.11 IVR 双通路架构（图 5-9）
 
-OPC 同时支持 **RWI v1 信封**（RustPBX 原生）与 **Step IVR HTTP**（ADR-5 生产回退），由能力探测自动选择。
+Converact Platform 同时支持 **RWI v1 信封**（RustPBX 原生）与 **Step IVR HTTP**（ADR-5 生产回退），由能力探测自动选择。
 
 ```mermaid
 flowchart TD
@@ -1145,7 +1145,7 @@ flowchart TB
     A_VO["call-router<br/>(语音即渠道)"]
   end
 
-  subgraph Core["OPC 全渠道核心"]
+  subgraph Core["Converact Platform 全渠道核心"]
     THREAD["conversation-thread<br/>统一线程 ID"]
     OMNI_ST["omni-store"]
     JOURNEY["customer-journey<br/>事件时间线"]
@@ -1236,7 +1236,7 @@ flowchart TB
   end
 
   subgraph AppZone["应用信任区"]
-    OPC_Z["OPC Core<br/>tenant_id 强制"]
+    CONVERACT_Z["Converact Platform Core<br/>tenant_id 强制"]
     AGT_Z["ai-agent-py<br/>room metadata 校验"]
   end
 
@@ -1251,12 +1251,12 @@ flowchart TB
     AUDIT_Z[("审计日志<br/>append-only")]
   end
 
-  USER --> TLS --> JWT_V --> OPC_Z
+  USER --> TLS --> JWT_V --> CONVERACT_Z
   TRUNK --> SIP_A --> RPBX_Z
-  EXT_WH --> HMAC --> OPC_Z
-  OPC_Z --> PG_Z & MINIO_Z & AUDIT_Z
+  EXT_WH --> HMAC --> CONVERACT_Z
+  CONVERACT_Z --> PG_Z & MINIO_Z & AUDIT_Z
   AGT_Z --> LK_Z
-  OPC_Z <--> AGT_Z & RPBX_Z & LK_Z
+  CONVERACT_Z <--> AGT_Z & RPBX_Z & LK_Z
 ```
 
 ---
@@ -1343,7 +1343,7 @@ flowchart TB
 
 ```mermaid
 gantt
-    title OPC 超级联络中心演进
+    title Converact Platform 超级联络中心演进
     dateFormat YYYY-MM
     section Phase0
     电信底座+IVR+Agent骨架     :done, p0, 2026-03, 2026-06
@@ -1586,9 +1586,9 @@ class ComplianceSupervisor(Agent):
     tools = [check_disclosure, check_dnc, check_time_window]
 ```
 
-### 8.2 Tool 与 OPC API 映射
+### 8.2 Tool 与 Converact Platform API 映射
 
-| Tool | OPC API | 延迟要求 |
+| Tool | Converact Platform API | 延迟要求 |
 |------|---------|----------|
 | `transfer_to_human` | `POST /api/call-center/calls/:id/transfer` | < 500ms |
 | `navigate_flow` | `POST /api/call-center/calls/:id/navigate` | < 100ms (Redis) |
@@ -1658,7 +1658,7 @@ Transition:
 
 | 角色 | 人数 | 职责 |
 |------|------|------|
-| 全栈/后端 | 2 | OPC Core、IVR、ACD |
+| 全栈/后端 | 2 | Converact Platform Core、IVR、ACD |
 | 实时音视频 | 1 | LiveKit、RustPBX、SIP |
 | AI Agent 工程师 | 1–2 | Python Agent、RAG、质检 |
 | 前端 | 1 | 坐席面板、IVR 编辑器 |
@@ -1705,7 +1705,7 @@ Transition:
 
 ### 12.1 区域合规要点
 
-| 区域 | 关键法规 | OPC 对策 |
+| 区域 | 关键法规 | Converact Platform 对策 |
 |------|----------|----------|
 | 日本 | 特定電子メール法、個人情報保護法 | 同意追踪 + オプトアウト |
 | 中国 | 外呼管理规定、个人信息保护法 | 时间窗 + 频率 + 同意 |
@@ -1814,11 +1814,11 @@ Transition:
 | 版本 | 日期 | 作者 | 变更 |
 |------|------|------|------|
 | 1.4 | 2026-07-29 | Codex | 对齐唯一通信底座生产基线：`voice-media-rs` 不再只是 token/录音 helper，而是 Unified RustPBX 进程内解码媒体 Backend；普通 RTP 仍由外部 RTPengine 默认承载。 |
-| 1.3 | 2026-06-29 | OPC Team | 按 `docs/design/README.md` 准绳：头部 `<关联文档>` block 补 README / voice-memo 互链；日期对齐到 2026-06-29。未改 §1-§13 正文与禁用词延后表（§5.5 L831-835 本即为 README §3 表的裁决源之一）。 |
-| 1.2 | 2026-06-25 | OPC Team | **战略锁定 CCaaS**：全文去除「私有化优先」；§3.2 交付模型对比；§5.6 改为多租户托管拓扑 + MT 隔离清单 |
-| 1.1 | 2026-06-25 | OPC Team | §5 扩充 14 张技术架构图（分层/部署/时序/IVR/全渠道/事件/安全/数据矩阵/多代理） |
-| 1.0 | 2026-06-25 | OPC Team | 初版：九大模块 + 四 Phase 路线图 + 现状校准 |
+| 1.3 | 2026-06-29 | Converact Platform Team | 按 `docs/design/README.md` 准绳：头部 `<关联文档>` block 补 README / voice-memo 互链；日期对齐到 2026-06-29。未改 §1-§13 正文与禁用词延后表（§5.5 L831-835 本即为 README §3 表的裁决源之一）。 |
+| 1.2 | 2026-06-25 | Converact Platform Team | **战略锁定 CCaaS**：全文去除「私有化优先」；§3.2 交付模型对比；§5.6 改为多租户托管拓扑 + MT 隔离清单 |
+| 1.1 | 2026-06-25 | Converact Platform Team | §5 扩充 14 张技术架构图（分层/部署/时序/IVR/全渠道/事件/安全/数据矩阵/多代理） |
+| 1.0 | 2026-06-25 | Converact Platform Team | 初版：九大模块 + 四 Phase 路线图 + 现状校准 |
 
 ---
 
-*本报告整合 Genesys/Five9/NICE/Talkdesk/Amazon Connect 等竞品分析及 OPC 现有架构文档，作为「超级联络中心平台」的长期演进北极星。具体 Sprint 任务拆解仍以 `revised-master-plan.md` 为准；实现规格以 `architecture-v3.md` 为准。*
+*本报告整合 Genesys/Five9/NICE/Talkdesk/Amazon Connect 等竞品分析及 Converact Platform 现有架构文档，作为「超级联络中心平台」的长期演进北极星。具体 Sprint 任务拆解仍以 `revised-master-plan.md` 为准；实现规格以 `architecture-v3.md` 为准。*

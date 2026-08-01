@@ -398,9 +398,9 @@ function assertArtifactIdentity(
   }
   const expectedFilename = `rustdesk-${RUSTDESK_CLIENT_VERSION}-${architecture}${extension}`;
   const customWindowsFilename = platform === 'windows' && architecture === 'x86_64' &&
-    /^rustdesk-1\.4\.9-ivekit[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename);
+    /^rustdesk-1\.4\.9-(?:converact|ivekit)[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename);
   if (filename !== expectedFilename && !customWindowsFilename) {
-    throw profileError(`RustDesk client artifact filename must equal ${expectedFilename} or a pinned iveKit Windows variant`, 500);
+    throw profileError(`RustDesk client artifact filename must equal ${expectedFilename} or a pinned Converact Fabric Windows variant`, 500);
   }
 }
 

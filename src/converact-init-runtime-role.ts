@@ -1,7 +1,7 @@
 import { resolveBrandEnv } from './config/converact-env.js';
 import { Pool } from 'pg';
 
-import { initializeIveKitRuntimeRole } from './converact-runtime-role.js';
+import { initializeConveractFabricRuntimeRole } from './converact-runtime-role.js';
 
 async function main(): Promise<void> {
   const password = String(resolveBrandEnv(process.env, 'RUNTIME_DB_PASSWORD') || '');
@@ -9,8 +9,8 @@ async function main(): Promise<void> {
 
   const pool = new Pool({ max: 1 });
   try {
-    await initializeIveKitRuntimeRole(pool, password);
-    console.log('iveKit PostgreSQL runtime role initialized');
+    await initializeConveractFabricRuntimeRole(pool, password);
+    console.log('Converact Fabric PostgreSQL runtime role initialized');
   } finally {
     await pool.end();
   }

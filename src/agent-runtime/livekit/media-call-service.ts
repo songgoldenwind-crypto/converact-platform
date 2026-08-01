@@ -4,10 +4,10 @@ import { MemoryPg, pgId, type PgQueryable } from '../../db-pg.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import { MediaCallStore } from './media-call-store.js';
 import type {
-  IveKitMediaCall,
-  IveKitMediaCallAction,
-  IveKitMediaCallParticipant,
-  IveKitMediaCallSnapshot,
+  ConveractFabricMediaCall,
+  ConveractFabricMediaCallAction,
+  ConveractFabricMediaCallParticipant,
+  ConveractFabricMediaCallSnapshot,
   MediaBusinessRef
 } from './types.js';
 import type { LiveKitPlacementContext } from './token-service.js';
@@ -22,12 +22,12 @@ export const ALLOWED_MEDIA_CALL_ACTIONS = {
   timed_out: [],
   ended: [],
   failed: []
-} as const satisfies Record<IveKitMediaCall['status'], readonly IveKitMediaCallAction[]>;
+} as const satisfies Record<ConveractFabricMediaCall['status'], readonly ConveractFabricMediaCallAction[]>;
 
 const memoryCallLockTails = new WeakMap<MemoryPg, Map<string, Promise<void>>>();
 
 export interface MediaCallTransitionResult {
-  snapshot: IveKitMediaCallSnapshot;
+  snapshot: ConveractFabricMediaCallSnapshot;
   replayed: boolean;
   placement_reconcile?: {
     tenant_id: string;
@@ -90,16 +90,16 @@ export interface MediaCallPlacementPort {
 
 export interface MediaCallServiceOptions {
   now?: () => Date;
-  onTimedOut?: (snapshot: IveKitMediaCallSnapshot) => void | Promise<void>;
+  onTimedOut?: (snapshot: ConveractFabricMediaCallSnapshot) => void | Promise<void>;
   beforeTerminalTransition?: (
-    snapshot: IveKitMediaCallSnapshot,
-    context: { action: IveKitMediaCallAction; actor_identity: string; reason: string }
+    snapshot: ConveractFabricMediaCallSnapshot,
+    context: { action: ConveractFabricMediaCallAction; actor_identity: string; reason: string }
   ) => Promise<void>;
   placement?: MediaCallPlacementPort;
   placementWorkerId?: string;
 }
 
-const TERMINAL_MEDIA_CALL_ACTIONS = new Set<IveKitMediaCallAction>([
+const TERMINAL_MEDIA_CALL_ACTIONS = new Set<ConveractFabricMediaCallAction>([
   'reject',
   'cancel',
   'timeout',
@@ -125,7 +125,7 @@ export class MediaCallService {
     idempotency_key?: string;
     call_id?: string;
     placement_reservation?: MediaCallPlacementReservation;
-  }): Promise<IveKitMediaCallSnapshot> {
+  }): Promise<ConveractFabricMediaCallSnapshot> {
     const actor = requiredIdentity(input.initiated_by, 'initiated_by');
     const businessRef = validatedBusinessRef(input.tenant_id, input.business_ref);
     if (input.media !== 'voice' && input.media !== 'video') throw badRequest('media must be voice or video');
@@ -218,7 +218,7 @@ export class MediaCallService {
     const participantIdentity = requiredIdentity(input.participant_identity, 'participant_identity');
     const idempotencyKey = requiredIdentity(input.idempotency_key, 'idempotency_key');
     const businessRef = validatedBusinessRef(tenantId, input.business_ref);
-    const roomName = `ivekit-pstn-${createHash('sha256')
+    const roomName = `converact-pstn-${createHash('sha256')
       .update(`${tenantId}\u0000${idempotencyKey}`)
       .digest('hex')
       .slice(0, 32)}`;
@@ -389,11 +389,11 @@ export class MediaCallService {
     }
   }
 
-  getCall(tenantId: string, callId: string): Promise<IveKitMediaCallSnapshot | null> {
+  getCall(tenantId: string, callId: string): Promise<ConveractFabricMediaCallSnapshot | null> {
     return this.store.snapshot(tenantId, callId);
   }
 
-  listParticipants(tenantId: string, callId: string): Promise<IveKitMediaCallParticipant[]> {
+  listParticipants(tenantId: string, callId: string): Promise<ConveractFabricMediaCallParticipant[]> {
     return this.store.listParticipants(tenantId, callId);
   }
 
@@ -440,8 +440,8 @@ export class MediaCallService {
     callId: string,
     identity: string,
     fn: (
-      snapshot: IveKitMediaCallSnapshot,
-      participant: IveKitMediaCallParticipant
+      snapshot: ConveractFabricMediaCallSnapshot,
+      participant: ConveractFabricMediaCallParticipant
     ) => Promise<T>
   ): Promise<T> {
     return this.withCallLock(tenantId, callId, () =>
@@ -470,7 +470,7 @@ export class MediaCallService {
       actor_is_system?: boolean;
       room_name: string;
     },
-    fn: (snapshot: IveKitMediaCallSnapshot) => Promise<T>
+    fn: (snapshot: ConveractFabricMediaCallSnapshot) => Promise<T>
   ): Promise<T> {
     const actor = requiredIdentity(input.actor_identity, 'actor_identity');
     return this.withCallLock(tenantId, callId, () =>
@@ -495,7 +495,7 @@ export class MediaCallService {
   async transition(input: {
     tenant_id: string;
     call_id: string;
-    action: IveKitMediaCallAction;
+    action: ConveractFabricMediaCallAction;
     actor_identity: string;
     actor_is_system?: boolean;
     idempotency_key: string;
@@ -640,18 +640,18 @@ export class MediaCallService {
 }
 
 function placementDesiredState(
-  action: IveKitMediaCallAction
+  action: ConveractFabricMediaCallAction
 ): 'active' | 'closed' | null {
   if (action === 'activate') return 'active';
   return TERMINAL_MEDIA_CALL_ACTIONS.has(action) ? 'closed' : null;
 }
 
 function transitionCall(
-  call: IveKitMediaCall,
-  action: IveKitMediaCallAction,
+  call: ConveractFabricMediaCall,
+  action: ConveractFabricMediaCallAction,
   reason: string,
   now: Date
-): IveKitMediaCall {
+): ConveractFabricMediaCall {
   const iso = now.toISOString();
   const next = { ...call };
   switch (action) {
@@ -699,11 +699,11 @@ function transitionCall(
 }
 
 function transitionParticipant(
-  participant: IveKitMediaCallParticipant,
-  action: IveKitMediaCallAction,
+  participant: ConveractFabricMediaCallParticipant,
+  action: ConveractFabricMediaCallAction,
   actor: string,
   now: Date
-): IveKitMediaCallParticipant {
+): ConveractFabricMediaCallParticipant {
   const iso = now.toISOString();
   const next = { ...participant };
   if (action === 'ring' && participant.role !== 'host' && participant.status === 'invited') {
@@ -732,10 +732,10 @@ function transitionParticipant(
 }
 
 function assertActionAuthorized(
-  action: IveKitMediaCallAction,
+  action: ConveractFabricMediaCallAction,
   actor: string,
   system: boolean,
-  participants: IveKitMediaCallParticipant[]
+  participants: ConveractFabricMediaCallParticipant[]
 ): void {
   const participant = participants.find((item) => item.identity === actor);
   if (action === 'accept' || action === 'reject') {
@@ -767,7 +767,7 @@ function validatedBusinessRef(tenantId: string, ref: MediaBusinessRef): MediaBus
 }
 
 function assertVoiceBridgeReplay(
-  call: IveKitMediaCall,
+  call: ConveractFabricMediaCall,
   voiceCallId: string,
   businessRef: MediaBusinessRef
 ): void {

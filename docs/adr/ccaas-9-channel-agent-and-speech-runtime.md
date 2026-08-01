@@ -18,7 +18,7 @@
 
 ## 1. 背景
 
-OPC 当前有三类重叠但不相同的能力：
+Converact Platform 当前有三类重叠但不相同的能力：
 
 1. 现有 `ai-agent-py`/LiveKit Agents 链负责 Room voice Agent，并通过 Provider plugin
    拼装 STT、LLM、TTS；
@@ -58,10 +58,10 @@ Communication / Channel
 Channel Agent Runtime
   Telephony Agent | Room Agent
         |
-OPC SpeechRuntime
+Converact Platform SpeechRuntime
   HF primary target | native baseline adapters
         |
-OPC AI-native Orchestrator
+Converact Platform AI-native Orchestrator
   Task | Tool | Memory | Policy | Approval | Action Ledger | Evaluation
 ```
 
@@ -77,7 +77,7 @@ OPC AI-native Orchestrator
 - DTMF 只消费 RustPBX canonical event；REFER/MESSAGE/hangup/mute/bridge/transfer
   只生成 typed proposal，由 RustPBX 在当前 fence 下执行；
 - Playbook scene/goto/local variable/prompt 属于 pure-local allowlist；HTTP/tool/posthook
-  交 OPC Tool Broker，生产禁止任意 URL/direct effect executor；
+  交 Converact Platform Tool Broker，生产禁止任意 URL/direct effect executor；
 - 可运行于独立受监管 worker，以免 OOM/native crash 影响 Call Core。
 
 **Room Agent Runtime**
@@ -89,7 +89,7 @@ OPC AI-native Orchestrator
 
 ### 2.2 Speech Runtime
 
-建立 OPC-owned `SpeechRuntime` contract。HF `speech-to-speech` 是目标主实现，native
+建立 Converact Platform-owned `SpeechRuntime` contract。HF `speech-to-speech` 是目标主实现，native
 Active/LiveKit/current provider chain 是迁移和 A/B baseline。
 
 HF 只替换：
@@ -107,13 +107,13 @@ HF 不替换：
 - LiveKit Room、track、participant、video/text/vision；
 - LiveKit AgentSession、task/workflow/handoff/job server；
 - channel interruption policy；
-- OPC Task、Tool、Memory、Policy、Approval、Action Ledger、Evaluation；
+- Converact Platform Task、Tool、Memory、Policy、Approval、Action Ledger、Evaluation；
 - Provider governance、consent、captions projection；
 - recording、CDR、billing。
 
 ### 2.3 AI-native Authority
 
-OPC AI-native Orchestrator 是以下事实的唯一 Authority：
+Converact Platform AI-native Orchestrator 是以下事实的唯一 Authority：
 
 - durable AgentRun；
 - Task DAG 和 completion；
@@ -135,7 +135,7 @@ LLM、Active Playbook 或 LiveKit workflow 的 tool/communication action 只是 
 | 全部使用 LiveKit Agents | Room 强，但电话 AI 被迫绕 Room，RustPBX 产生第二 channel state | 拒绝全渠道唯一 |
 | 全部使用 HF | HF 是 speech pipeline，不是完整 channel/Agent/AI-native framework | 拒绝整体替换 |
 | 三套并列自治 | VAD、turn、tool、memory、TTS 多 Authority | 拒绝 |
-| Channel-native runtime + shared SpeechRuntime + OPC Orchestrator | 保留非重叠能力并统一 durable state | **采用** |
+| Channel-native runtime + shared SpeechRuntime + Converact Platform Orchestrator | 保留非重叠能力并统一 durable state | **采用** |
 
 ## 4. `SpeechRuntime` 合同
 
@@ -187,7 +187,7 @@ SpeechControlFence；output-affecting mutation 同时校验 ResponseFence。范�
 prepare、commit、audio write、turn commit、response create、tool-result injection、
 lease renew/revoke、cancel、close 和 reconcile；旧 owner 不能靠延迟命令恢复。
 
-`create_response` 只接受 OPC Orchestrator 签署的 `ResponsePlan`，至少绑定：
+`create_response` 只接受 Converact Platform Orchestrator 签署的 `ResponsePlan`，至少绑定：
 
 - ContextRevision/context digest/memory revision；
 - policy、tool catalog 与 capability revisions；
@@ -227,7 +227,7 @@ session.degraded / failed / closed
 旧 ResponseLease/generation 的 audio、text、tool call 一律丢弃并计数。
 
 Active/LiveKit/HF/Provider 的 framework-local chat/history 只是可丢弃 projection/cache；
-canonical conversation state 是 OPC Orchestrator 的 `ContextRevision`。Handoff 或 context
+canonical conversation state 是 Converact Platform Orchestrator 的 `ContextRevision`。Handoff 或 context
 commit 后 revision 单调递增，旧 revision 不得创建新 response。
 
 ## 5. VAD、Turn 和 interruption
@@ -267,7 +267,7 @@ ResponseLease {
 }
 ```
 
-唯一签发 Authority 是 `OPC Interaction Lease Store`。issue/renew/revoke/handoff 都用
+唯一签发 Authority 是 `Converact Platform Interaction Lease Store`。issue/renew/revoke/handoff 都用
 `interaction_id` 做 durable CAS，并递增不可回退的 fence。wall clock 表达可持久化 expiry；
 executor 从 receipt 派生本机 monotonic deadline，不跨主机比较 monotonic time。
 
@@ -305,7 +305,7 @@ SIP↔LiveKit 切换：
 
 - 一个明确的开源 speech pipeline 主干；
 - 可替换、本地/自托管/兼容 Provider backend；
-- 可受控 fork 并针对 OPC 语料优化；
+- 可受控 fork 并针对 Converact Platform 语料优化；
 - Telephony 和 LiveKit 可共享 normalized contract；
 - 更容易统一 latency、cancel、trace、model identity 和 A/B。
 
@@ -320,7 +320,7 @@ HF VAD > Active/LiveKit VAD
 HF quality >= current providers
 ```
 
-全部保持 `not_run`。HF 的“low-latency”定位是候选输入，不是 OPC production evidence。
+全部保持 `not_run`。HF 的“low-latency”定位是候选输入，不是 Converact Platform production evidence。
 
 ### 7.3 A/B 门禁
 
@@ -407,8 +407,8 @@ LiveKit native vs LiveKit + HF
 ## 9. 安全和供应链
 
 - HF、Active Call、LiveKit Agents、模型和 native libs 全部 exact-source；
-- OpenAI-compatible 只是 adapter 兼容，不是 OPC 业务领域协议；
-- HF Realtime endpoint 前必须有 OPC auth、tenant、quota 和 rate limit；
+- OpenAI-compatible 只是 adapter 兼容，不是 Converact Platform 业务领域协议；
+- HF Realtime endpoint 前必须有 Converact Platform auth、tenant、quota 和 rate limit；
 - Provider secret 不发给 channel client；
 - tool schema 和 policy digest 绑定 session；
 - model/tool/audio metadata 不泄露 PII、raw prompt、PCM 或 token；
@@ -428,7 +428,7 @@ LiveKit native vs LiveKit + HF
 
 成本：
 
-- 需要 OPC-owned adapter、lease、event 和 Action Ledger；
+- 需要 Converact Platform-owned adapter、lease、event 和 Action Ledger；
 - 需要维护 HF controlled fork 的可能性；
 - 两个 channel runtime 仍需分别回归；
 - 进程隔离增加一次本地 media hop，必须测量复制与排队成本；
@@ -437,7 +437,7 @@ LiveKit native vs LiveKit + HF
 ## 11. 最终裁决
 
 Active Call 与 LiveKit Agents 都保留为 channel-native Agent Runtime；HF
-`speech-to-speech` 成为功能重叠 speech pipeline 的目标主干；OPC AI-native
+`speech-to-speech` 成为功能重叠 speech pipeline 的目标主干；Converact Platform AI-native
 Orchestrator 拥有跨渠道 durable 业务状态。三者不能互相越权。
 
 文档 Accepted 不代表 HF 已更快、VAD 已更好或生产已启用。所有性能、质量、故障和长稳

@@ -60,7 +60,7 @@ async function probeHttp(
 
   const headers: Record<string, string> = {
     accept: 'application/json',
-    'user-agent': 'ivekit-notification-health/1'
+    'user-agent': 'converact-notification-health/1'
   };
   if (endpoint.provider_kind === 'email_http' || endpoint.provider_kind === 'sms_http') {
     const credential = await options.secrets.resolve(endpoint.secret_ref, 'provider_credential');

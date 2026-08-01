@@ -1,11 +1,11 @@
 {{- if .Values.notificationWorker.enabled }}
-{{- include "ivekit.notificationWorkerValidate" . }}
+{{- include "converact.notificationWorkerValidate" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ivekit.notificationWorkerFullname" . }}
+  name: {{ include "converact.notificationWorkerFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: notification-worker
 spec:
   {{- if not .Values.notificationWorker.autoscaling.enabled }}
@@ -18,12 +18,12 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: notification-worker
   template:
     metadata:
       labels:
-        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        {{- include "converact.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: notification-worker
     spec:
       automountServiceAccountToken: false
@@ -35,7 +35,7 @@ spec:
           whenUnsatisfiable: {{ .Values.topologySpreadConstraints.whenUnsatisfiable }}
           labelSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: notification-worker
       {{- end }}
       securityContext:
@@ -46,7 +46,7 @@ spec:
       {{- end }}
       containers:
         - name: notification-worker
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/bin/sh", "-ec"]
           args:
@@ -66,14 +66,14 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.secrets.runtimeDatabaseUrlKey }}
             - name: CONVERACT_SCHEMA_MANAGED_BY_MIGRATIONS
               value: "1"
             - name: CONVERACT_OTEL_ENABLED
               value: {{ ternary "1" "0" .Values.telemetry.enabled | quote }}
             - name: CONVERACT_OTEL_SERVICE_NAME
-              value: ivekit-notification-worker
+              value: converact-notification-worker
             - name: CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.telemetry.collectorEndpoint | quote }}
             - name: CONVERACT_OTEL_TRACE_SAMPLE_RATIO
@@ -153,12 +153,12 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "ivekit.notificationWorkerFullname" . }}
+  name: {{ include "converact.notificationWorkerFullname" . }}
 spec:
   minAvailable: {{ .Values.notificationWorker.podDisruptionBudget.minAvailable }}
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: notification-worker
 {{- end }}
 {{- if .Values.notificationWorker.autoscaling.enabled }}
@@ -166,12 +166,12 @@ spec:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: {{ include "ivekit.notificationWorkerFullname" . }}
+  name: {{ include "converact.notificationWorkerFullname" . }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "ivekit.notificationWorkerFullname" . }}
+    name: {{ include "converact.notificationWorkerFullname" . }}
   pollingInterval: {{ .Values.notificationWorker.autoscaling.pollingInterval }}
   cooldownPeriod: {{ .Values.notificationWorker.autoscaling.cooldownPeriod }}
   minReplicaCount: {{ .Values.notificationWorker.autoscaling.minReplicas }}

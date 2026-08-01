@@ -2040,7 +2040,7 @@ impl ProcessingEventPump {
         let stop = Arc::new(AtomicBool::new(false));
         let thread_stop = stop.clone();
         let join = thread::Builder::new()
-            .name("ivekit-processing-events".to_owned())
+            .name("converact-processing-events".to_owned())
             .spawn(move || {
                 let mut pending = None;
                 let mut retry_delay = Duration::from_millis(10);
@@ -2286,7 +2286,7 @@ impl ServerConfiguration {
             codec_pair_capacity,
             event_outbox: crate::event_outbox::ProcessingEventOutboxConfig {
                 path: PathBuf::from(env::var("VOICE_MEDIA_EVENT_WAL_PATH").unwrap_or_else(|_| {
-                    "/var/lib/ivekit/voice-media/processing-events.wal".to_owned()
+                    "/var/lib/converact/voice-media/processing-events.wal".to_owned()
                 })),
                 max_pending_events: env_value("VOICE_MEDIA_EVENT_MAX_PENDING")?
                     .unwrap_or(max_sessions.saturating_mul(2)),

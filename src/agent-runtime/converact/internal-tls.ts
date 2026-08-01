@@ -3,16 +3,16 @@ import { readFileSync, statSync } from 'node:fs';
 import type { ServerOptions as HttpsServerOptions } from 'node:https';
 import { isAbsolute } from 'node:path';
 
-export interface IveKitInternalTlsConfig {
+export interface ConveractFabricInternalTlsConfig {
   port: number;
   tls: HttpsServerOptions;
 }
 
 const MAX_TLS_FILE_BYTES = 65_536;
 
-export function loadIveKitInternalTlsConfig(
+export function loadConveractFabricInternalTlsConfig(
   env: NodeJS.ProcessEnv = process.env
-): IveKitInternalTlsConfig | null {
+): ConveractFabricInternalTlsConfig | null {
   const fields = {
     port: String(resolveFabricEnv(env, 'INTERNAL_TLS_PORT') || '').trim(),
     key: String(resolveFabricEnv(env, 'INTERNAL_TLS_KEY_FILE') || '').trim(),
@@ -22,7 +22,7 @@ export function loadIveKitInternalTlsConfig(
   const configured = Object.values(fields).filter(Boolean).length;
   if (configured === 0) return null;
   if (configured !== Object.keys(fields).length) {
-    throw new Error('iveKit internal TLS fields must be configured together');
+    throw new Error('Converact Fabric internal TLS fields must be configured together');
   }
   const port = Number(fields.port);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {

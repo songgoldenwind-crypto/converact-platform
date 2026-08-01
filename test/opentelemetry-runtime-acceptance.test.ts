@@ -18,7 +18,7 @@ test('OpenTelemetry acceptance is isolated, bounded and server-only', () => {
   assert.match(collector, /memory_limiter:/);
   assert.match(collector, /batch:/);
   assert.match(collector, /otlp_http\/traces:/);
-  assert.match(script, /IVEKIT_VALIDATION_SERVER_IP/);
+  assert.match(script, /CONVERACT_FABRIC_VALIDATION_SERVER_IP/);
   assert.match(script, /64\.225\.122\.227/);
   assert.match(script, /docker compose[\s\S]*stop collector/);
   assert.match(script, /--mode fail-open/);

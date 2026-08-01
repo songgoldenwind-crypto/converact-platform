@@ -186,7 +186,7 @@ export async function routeOmniApi(
       throw Object.assign(new Error('customer video join path unavailable'), { status: 500 });
     }
     const joinUrl = publicJoinUrl(customerPlan.joinPath);
-    const smsBody = buildVideoInviteSms({ url: joinUrl, company: 'OPC' });
+    const smsBody = buildVideoInviteSms({ url: joinUrl, company: 'Converact' });
     const sms = createSMSSender();
     await sms.send({ to: phone, body: smsBody, tenant_id: ctx.tenantId! });
 

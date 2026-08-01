@@ -212,7 +212,7 @@ async function dispatchRwi(
   try {
     if (envelope.command === 'hangup') rwi.hangup(rustpbxCallId);
     else rwi.sendLegacyCommand(envelope.command, params);
-    console.info('[ivr-rwi] sent', envelope.command, 'rustpbx_call=', rustpbxCallId, 'opc_session=', callSessionId);
+    console.info('[ivr-rwi] sent', envelope.command, 'rustpbx_call=', rustpbxCallId, 'converact_session=', callSessionId);
     return true;
   } catch (error) {
     console.warn('[ivr-rwi] command failed:', error instanceof Error ? error.message : error);

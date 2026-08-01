@@ -6,9 +6,9 @@
 
 ## 1. Scope and Authority
 
-This runbook migrates OPC/iveKit coordination clients and LiveKit Server, Egress,
+This runbook migrates Converact Platform/Converact Fabric coordination clients and LiveKit Server, Egress,
 Ingress and SIP from a frozen Redis 7 deployment to Valkey 9.1.x with Sentinel.
-It does not change the public OPC or LED APIs.
+It does not change the public Converact Platform or LED APIs.
 
 PostgreSQL remains the only transactional authority. Valkey may contain bounded
 cache, routing, presence, idempotency and at-most-once Pub/Sub state. A failed or
@@ -60,7 +60,7 @@ Direct mode is the rollback default:
 ```dotenv
 REDIS_TOPOLOGY=direct
 REDIS_URL=redis://redis-primary.internal:6379
-REDIS_USERNAME=ivekit-data
+REDIS_USERNAME=converact-data
 REDIS_PASSWORD=<secret-ref>
 REDIS_TLS_MODE=disabled
 REDIS_CONNECT_TIMEOUT_MS=5000
@@ -73,11 +73,11 @@ Sentinel mode must not set `REDIS_URL`:
 ```dotenv
 REDIS_TOPOLOGY=sentinel
 REDIS_URL=
-REDIS_SENTINEL_MASTER_NAME=ivekit
+REDIS_SENTINEL_MASTER_NAME=converact
 REDIS_SENTINEL_ADDRESSES=sentinel-0.internal:26379,sentinel-1.internal:26379,sentinel-2.internal:26379
-REDIS_USERNAME=ivekit-data
+REDIS_USERNAME=converact-data
 REDIS_PASSWORD=<data-secret-ref>
-REDIS_SENTINEL_USERNAME=ivekit-sentinel-client
+REDIS_SENTINEL_USERNAME=converact-sentinel-client
 REDIS_SENTINEL_PASSWORD=<sentinel-secret-ref>
 REDIS_TLS_MODE=required
 REDIS_TLS_SERVER_NAME=valkey.internal
@@ -95,7 +95,7 @@ incomplete ACL pairs, unverified TLS and incomplete mTLS pairs.
 
 ## 5. LiveKit Contract
 
-`infra/k8s/values.yaml` exposes one `livekit.redis` block shared by OPC and
+`infra/k8s/values.yaml` exposes one `livekit.redis` block shared by Converact Platform and
 LiveKit Server, both Egress pools, Ingress and SIP. In Sentinel mode configure:
 
 ```yaml
@@ -103,7 +103,7 @@ livekit:
   redis:
     mode: sentinel
     address: ""
-    sentinelMasterName: ivekit
+    sentinelMasterName: converact
     sentinelAddresses:
       - sentinel-0.internal:26379
       - sentinel-1.internal:26379
@@ -145,7 +145,7 @@ each Sentinel instance. Rotate data and Sentinel credentials independently.
 3. Verify TLS, ACLs, persistent volumes, backups, replica offsets, three-voter
    discovery and quorum in the target environment.
 4. Run command compatibility and the controlled failover suite.
-5. Cut over one non-critical OPC/iveKit canary by Secret/config revision.
+5. Cut over one non-critical Converact Platform/Converact Fabric canary by Secret/config revision.
 6. Verify error rate, reconnects, cache rebuild, Pub/Sub recovery and tail latency.
 7. Cut over LiveKit components only after real media failover evidence passes.
 8. Expand by Cell and keep Redis intact through the rollback observation window.
@@ -156,7 +156,7 @@ each Sentinel instance. Rotate data and Sentinel credentials independently.
 Rollback is a configuration revision, not a data merge:
 
 1. stop new admission for the affected Cell while established media continues;
-2. switch OPC/iveKit and all LiveKit components back to the frozen Redis endpoint;
+2. switch Converact Platform/Converact Fabric and all LiveKit components back to the frozen Redis endpoint;
 3. roll or reload clients so no process retains the Valkey Sentinel seed list;
 4. verify direct-mode health, user-visible replay and media continuity;
 5. preserve Valkey volumes and logs for diagnosis; do not copy ephemeral keys back;

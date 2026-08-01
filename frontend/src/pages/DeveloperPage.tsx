@@ -69,7 +69,7 @@ export default function DeveloperPage() {
         <h2 className="font-medium">Webhook 订阅</h2>
         <input
           className="w-full border rounded px-3 py-2 text-sm"
-          placeholder="https://your-server.com/hooks/opc"
+          placeholder="https://your-server.com/hooks/converact"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />
@@ -111,8 +111,8 @@ export default function DeveloperPage() {
       </section>
 
       <section className="bg-white border rounded-lg p-4 text-sm text-gray-600">
-        <p>Python SDK: <code>sdk/python/opc_client/client.py</code></p>
-        <p>n8n 清单: <code>integrations/n8n/opc-manifest.json</code></p>
+        <p>Python SDK: <code>sdk/python/converact_client/client.py</code></p>
+        <p>n8n 清单: <code>integrations/n8n/converact-manifest.json</code></p>
       </section>
     </div>
   );

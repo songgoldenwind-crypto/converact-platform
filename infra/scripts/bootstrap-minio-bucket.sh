@@ -36,7 +36,7 @@ esac
 [ "${#bucket}" -ge 3 ] && [ "${#bucket}" -le 63 ] || fail 'MINIO_BUCKET length must be 3..63'
 
 attempt=1
-while ! mc alias set opc "$endpoint" "$root_access_key" "$root_secret_key" >/dev/null 2>&1; do
+while ! mc alias set converact "$endpoint" "$root_access_key" "$root_secret_key" >/dev/null 2>&1; do
   if [ "$attempt" -ge "$max_attempts" ]; then
     fail "endpoint not ready after $max_attempts attempts"
   fi
@@ -45,11 +45,11 @@ while ! mc alias set opc "$endpoint" "$root_access_key" "$root_secret_key" >/dev
   sleep "$retry_seconds"
 done
 
-mc mb --ignore-existing "opc/$bucket" >/dev/null
-mc anonymous set none "opc/$bucket" >/dev/null
+mc mb --ignore-existing "converact/$bucket" >/dev/null
+mc anonymous set none "converact/$bucket" >/dev/null
 
 if [ "$access_key" != "$root_access_key" ]; then
-  policy_file=/tmp/opc-recordings-policy.json
+  policy_file=/tmp/converact-recordings-policy.json
   cat >"$policy_file" <<EOF
 {
   "Version": "2012-10-17",
@@ -67,17 +67,17 @@ if [ "$access_key" != "$root_access_key" ]; then
   ]
 }
 EOF
-  mc admin user add opc "$access_key" "$secret_key" >/dev/null
-  mc admin policy create opc opc-recordings "$policy_file" >/dev/null
-  mc admin policy attach opc opc-recordings --user "$access_key" >/dev/null
+  mc admin user add converact "$access_key" "$secret_key" >/dev/null
+  mc admin policy create converact converact-recordings "$policy_file" >/dev/null
+  mc admin policy attach converact converact-recordings --user "$access_key" >/dev/null
   rm -f "$policy_file"
-  mc admin user info opc "$access_key" >/dev/null || fail 'service account verification failed'
+  mc admin user info converact "$access_key" >/dev/null || fail 'service account verification failed'
 fi
 
-privacy=$(mc anonymous get "opc/$bucket")
+privacy=$(mc anonymous get "converact/$bucket")
 case "$privacy" in
   *private*) ;;
   *) fail "bucket privacy verification failed: $bucket" ;;
 esac
-mc stat "opc/$bucket" >/dev/null || fail "bucket verification failed: $bucket"
+mc stat "converact/$bucket" >/dev/null || fail "bucket verification failed: $bucket"
 printf 'minio bootstrap: %s ready and private\n' "$bucket"

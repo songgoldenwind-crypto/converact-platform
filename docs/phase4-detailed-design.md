@@ -13,8 +13,8 @@
 | 2 | 通话指标实时更新 | 发起通话后观察 | 延迟 < 5s 出现 |
 | 3 | 报警规则触发 | 模拟错误率 > 5% | 收到通知 |
 | 4 | 录音合规审计 | 导出录音列表 | 所有通话有录音 |
-| 5 | OPC 双实例部署 | docker compose scale opc=2 | 无冲突正常运行 |
-| 6 | OPC 实例宕机恢复 | kill 一个实例 | 另一个接管，通话不中断 |
+| 5 | Converact Platform 双实例部署 | docker compose scale converact=2 | 无冲突正常运行 |
+| 6 | Converact Platform 实例宕机恢复 | kill 一个实例 | 另一个接管，通话不中断 |
 | 7 | 50 并发通话 | 负载测试脚本 | P95 延迟 < 500ms |
 | 8 | DB 备份/恢复 | 执行备份 → 恢复 | 数据完整 |
 | 9 | 安全审计通过 | checklist 验证 | 全部 pass |
@@ -26,7 +26,7 @@
 
 ### 1.1 指标体系
 
-#### 1.1.1 业务指标 (OPC 暴露)
+#### 1.1.1 业务指标 (Converact Platform 暴露)
 
 ```typescript
 // src/agent-runtime/call-center/metrics.ts
@@ -55,9 +55,9 @@ interface CallCenterMetrics {
 
 | 来源 | 指标 | 说明 |
 |---|---|---|
-| OPC Node.js | `process_cpu_seconds_total` | CPU |
-| OPC Node.js | `process_resident_memory_bytes` | 内存 |
-| OPC Node.js | `http_request_duration_seconds` | HTTP 延迟 |
+| Converact Platform Node.js | `process_cpu_seconds_total` | CPU |
+| Converact Platform Node.js | `process_resident_memory_bytes` | 内存 |
+| Converact Platform Node.js | `http_request_duration_seconds` | HTTP 延迟 |
 | RustPBX | `/metrics` | SIP 并发/重传/延迟 |
 | LiveKit | `/metrics` | Room数/参与者/带宽 |
 | Redis | redis_exporter | 命中率/内存/连接 |
@@ -66,7 +66,7 @@ interface CallCenterMetrics {
 ### 1.2 指标暴露端点
 
 ```typescript
-// OPC Prometheus endpoint
+// Converact Platform Prometheus endpoint
 // GET /metrics → Prometheus text format
 
 import { Registry, Counter, Histogram, Gauge, collectDefaultMetrics } from 'prom-client';
@@ -261,7 +261,7 @@ interface ComplianceRecordingExport {
 
 ### 3.1 无状态化改造
 
-OPC 当前状态：
+Converact Platform 当前状态：
 - SQLite → 单实例限制
 - 内存中的 SSE 连接 → 单实例
 - Dialer 定时器 → 可能重复执行
@@ -336,7 +336,7 @@ class DistributedSSEManager {
               ┌─────────────┼─────────────┐
               ▼             ▼             ▼
         ┌──────────┐ ┌──────────┐ ┌──────────┐
-        │  OPC #1  │ │  OPC #2  │ │  OPC #3  │
+        │  Converact Platform #1  │ │  Converact Platform #2  │ │  Converact Platform #3  │
         └────┬─────┘ └────┬─────┘ └────┬─────┘
              │             │             │
              └─────────────┼─────────────┘
@@ -373,7 +373,7 @@ interface HealthResponse {
 
 | 故障 | 检测 | 自动恢复 | 手动恢复 |
 |---|---|---|---|
-| OPC 实例宕机 | health check 失败 | LB 剔除, 其他实例接管 | 重启 |
+| Converact Platform 实例宕机 | health check 失败 | LB 剔除, 其他实例接管 | 重启 |
 | Redis 宕机 | 连接错误 | 回退到 SQLite 锁 | 重启 Redis |
 | LiveKit 宕机 | webhook 超时 | 所有通话标记中断 | 重启 LiveKit |
 | RustPBX 宕机 | RWI 断连 | 暂停外呼, 重连 | 重启 RustPBX |
@@ -495,7 +495,7 @@ export const options = {
 };
 
 export default function () {
-  const res = http.post(`${__ENV.OPC_URL}/api/call-center/tasks`, JSON.stringify({
+  const res = http.post(`${__ENV.CONVERACT_URL}/api/call-center/tasks`, JSON.stringify({
     phone_number: `+8190${Math.floor(Math.random() * 90000000 + 10000000)}`,
     channel: 'pstn_voice',
     strategy: { script_id: 'load-test', language: 'ja' },
@@ -521,7 +521,7 @@ export default function () {
 | AI 首字延迟 | < 1.5s | > 3s |
 | 转接等待 (有坐席时) | < 5s | > 15s |
 | 系统支持并发通话 | 50 | - |
-| 单 OPC 实例并发连接 | 200 | > 500 |
+| 单 Converact Platform 实例并发连接 | 200 | > 500 |
 
 ### 5.4 瓶颈定位
 
@@ -620,17 +620,17 @@ function maskPhone(phone: string): string {
 ### 7.2 恢复流程
 
 ```bash
-# 1. 停止 OPC
-docker compose stop opc
+# 1. 停止 Converact Platform
+docker compose stop converact
 
 # 2. 恢复备份
-docker exec -i postgres psql -U opc opc < /backups/daily/opc-2026-06-15.sql
+docker exec -i postgres psql -U converact converact < /backups/daily/converact-2026-06-15.sql
 
 # 3. 验证
-docker exec postgres psql -U opc opc -c "SELECT count(*) FROM voice_call_sessions;"
+docker exec postgres psql -U converact converact -c "SELECT count(*) FROM voice_call_sessions;"
 
-# 4. 重启 OPC
-docker compose start opc
+# 4. 重启 Converact Platform
+docker compose start converact
 ```
 
 ---
@@ -647,13 +647,13 @@ docker compose start opc
 - [ ] 备份成功
 
 ## 故障排查
-- OPC 500 错误 → 查 /var/log/opc/error.log → 定位模块
+- Converact Platform 500 错误 → 查 /var/log/converact/error.log → 定位模块
 - 通话无声 → 检查 RustPBX 媒体端口 → LiveKit Room 状态
 - 坐席掉线 → 检查心跳日志 → 网络状况
 - AI 不说话 → 检查 AI Agent 容器日志 → STT/TTS API 状态
 
 ## 扩容
-- 通话量增加 → scale OPC instances
+- 通话量增加 → scale Converact Platform instances
 - 录音存储不足 → 扩展 MinIO 节点
 - AI 并发不足 → 增加 AI Agent worker 数
 ```
@@ -678,24 +678,24 @@ docker compose start opc
 ```yaml
 # docker-compose.production.yml (示意，实际用 K8s 或 ECS)
 services:
-  opc-1:
-    image: opc:${VERSION}
+  converact-1:
+    image: converact:${VERSION}
     environment:
       - DATABASE_URL=postgresql://opc:${PG_PASSWORD}@postgres:5432/opc
       - REDIS_URL=redis://redis:6379
-      - INSTANCE_ID=opc-1
+      - INSTANCE_ID=converact-1
     deploy:
       resources:
         limits:
           cpus: '2'
           memory: 2G
 
-  opc-2:
-    image: opc:${VERSION}
+  converact-2:
+    image: converact:${VERSION}
     environment:
       - DATABASE_URL=postgresql://opc:${PG_PASSWORD}@postgres:5432/opc
       - REDIS_URL=redis://redis:6379
-      - INSTANCE_ID=opc-2
+      - INSTANCE_ID=converact-2
     deploy:
       resources:
         limits:
@@ -743,7 +743,7 @@ Phase 4 交付后，系统具备：
 
 1. **可观测**：所有关键指标有采集、有大盘、有报警
 2. **可审计**：通话全量录音、对话文本保留、导出合规
-3. **可扩展**：PostgreSQL + Redis → 水平扩展到 3+ OPC 实例
+3. **可扩展**：PostgreSQL + Redis → 水平扩展到 3+ Converact Platform 实例
 4. **可恢复**：任一组件宕机有明确恢复流程
 5. **可压测**：K6 + SIPp 工具齐备，基准数据已记录
 6. **可运维**：手册齐全，发布流程标准化

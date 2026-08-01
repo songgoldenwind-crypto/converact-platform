@@ -18,17 +18,17 @@ receivers:
   - name: default-slack
     slack_configs:
       - api_url: 'https://hooks.slack.com/services/REPLACE_ME'
-        channel: '#opc-alerts'
+        channel: '#converact-alerts'
         send_resolved: true
   - name: slack-ops
     slack_configs:
       - api_url: 'https://hooks.slack.com/services/REPLACE_ME'
-        channel: '#opc-ops'
+        channel: '#converact-ops'
         send_resolved: true
         title: '{{ .CommonLabels.alertname }}'
         text: '{{ .CommonAnnotations.summary }}'
   - name: slack-info
     slack_configs:
       - api_url: 'https://hooks.slack.com/services/REPLACE_ME'
-        channel: '#opc-info'
+        channel: '#converact-info'
         send_resolved: true

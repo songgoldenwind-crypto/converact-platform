@@ -1,12 +1,12 @@
 # ADR-CCAAS-1：Cell Placement、Interaction Owner 与 Fencing
 
 **Status:** Proposed（2026-07-16）
-**Decision owner:** iveKit shared communication foundation
+**Decision owner:** Converact Fabric shared communication foundation
 **Related:** [`../MIX-100K双Zone与Cell架构评审.md`](../MIX-100K双Zone与Cell架构评审.md)、[`../capacity/README.md`](../capacity/README.md)、[`../capacity/schemas/capacity-vector.schema.json`](../capacity/schemas/capacity-vector.schema.json)
 
 ## 1. 背景
 
-iveKit 要作为一套统一平台承载 100,000 个混合 active interaction。把租户固定到一个 Cell 可以简化路由，但会让大租户受单 Cell 上限约束，也会让 Cell drain 等价于迁移整个租户。
+Converact Fabric 要作为一套统一平台承载 100,000 个混合 active interaction。把租户固定到一个 Cell 可以简化路由，但会让大租户受单 Cell 上限约束，也会让 Cell drain 等价于迁移整个租户。
 
 另一方面，把每次 SIP INVITE、LiveKit join、Tinode message 或 RustDesk frame 都交给全局控制面查询 PostgreSQL，会把实时能力绑定到数据库和跨 Zone 网络尾延迟。
 
@@ -51,7 +51,7 @@ tenant_id
 | Tinode IM | topic bucket 或 customer-service queue | 避免一个大租户所有 topic 落同 Cell |
 | LiveKit | room affinity group | 同类 room 局部化，但单 room 只属于一个 Cell |
 | RustDesk | support team/device group | 授权、relay 和 companion 状态保持局部性 |
-| iveKit event WS | tenant/user gateway shard | 事件只发到拥有目标连接的 gateway |
+| Converact Fabric event WS | tenant/user gateway shard | 事件只发到拥有目标连接的 gateway |
 
 小租户可以只有一个 partition；大租户按容量和组织边界增加 partition。partition 不能按每条消息随机变化。
 
@@ -215,7 +215,7 @@ interface PlacementDecision {
 }
 ```
 
-`signed_placement_token` 只包含路由所需最小字段、过期时间和 profile ID。它不是用户授权 token；业务授权仍由 iveKit JWT/tenant policy 决定。
+`signed_placement_token` 只包含路由所需最小字段、过期时间和 profile ID。它不是用户授权 token；业务授权仍由 Converact Fabric JWT/tenant policy 决定。
 
 ## 6. Reservation 协议
 
@@ -342,7 +342,7 @@ RustPBX CDR、LiveKit webhook、Tinode event、RustDesk evidence callback 都必
 
 ### 10.1 RustPBX
 
-RustPBX iveKit fork 增加：
+RustPBX Converact Fabric fork 增加：
 
 - `node_id/cell_id/cell_lease_epoch`。
 - owner-aware AMI/RWI command。
@@ -354,7 +354,7 @@ Kamailio SIP Edge 保存 dialog route，确保同 dialog 回到 owner RustPBX。
 
 ### 10.2 LiveKit
 
-LiveKit iveKit fork/node selector 增加：
+LiveKit Converact Fabric fork/node selector 增加：
 
 - room create metadata 中的 Cell、partition、profile 和 epoch。
 - zone/cell-aware node filtering。
@@ -365,7 +365,7 @@ LiveKit iveKit fork/node selector 增加：
 
 ### 10.3 Tinode
 
-Tinode iveKit fork 增加：
+Tinode Converact Fabric fork 增加：
 
 - topic owner Cell/node/epoch。
 - partition-aware shard selection。

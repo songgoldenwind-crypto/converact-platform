@@ -18,13 +18,13 @@ import {
   type DialogOwnerTakeoverCoordinator
 } from './dialog-owner-takeover.js';
 
-const COMMIT_PATH = '/internal/ivekit/v1/dialog-shadow/commit';
-const COMMIT_PAIR_PATH = '/internal/ivekit/v1/dialog-shadow/commit-pair';
-const ADMISSION_PATH = '/internal/ivekit/v1/dialog-shadow/admission';
-const TAKEOVER_CLAIM_PATH = '/internal/ivekit/v1/dialog-owner/claim';
-const TAKEOVER_CONSUME_PATH = '/internal/ivekit/v1/dialog-owner/consume';
-const TAKEOVER_AUTHORITY_PATH = '/internal/ivekit/v1/dialog-owner/authority';
-const TAKEOVER_HEARTBEAT_PATH = '/internal/ivekit/v1/dialog-owner/heartbeat';
+const COMMIT_PATH = '/internal/converact/v1/dialog-shadow/commit';
+const COMMIT_PAIR_PATH = '/internal/converact/v1/dialog-shadow/commit-pair';
+const ADMISSION_PATH = '/internal/converact/v1/dialog-shadow/admission';
+const TAKEOVER_CLAIM_PATH = '/internal/converact/v1/dialog-owner/claim';
+const TAKEOVER_CONSUME_PATH = '/internal/converact/v1/dialog-owner/consume';
+const TAKEOVER_AUTHORITY_PATH = '/internal/converact/v1/dialog-owner/authority';
+const TAKEOVER_HEARTBEAT_PATH = '/internal/converact/v1/dialog-owner/heartbeat';
 const TAKEOVER_PATHS = new Set([
   TAKEOVER_CLAIM_PATH,
   TAKEOVER_CONSUME_PATH,

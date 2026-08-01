@@ -3,10 +3,10 @@ global:
   scrape_timeout: 500ms
   evaluation_interval: 1s
   external_labels:
-    environment: ivekit-controlled-acceptance
+    environment: converact-controlled-acceptance
 
 remote_write:
-  - name: ivekit-victoria-metrics
+  - name: converact-victoria-metrics
     url: http://victoria-metrics:8428/api/v1/write
     remote_timeout: 2s
     queue_config:
@@ -19,6 +19,6 @@ remote_write:
       max_backoff: 1s
 
 scrape_configs:
-  - job_name: ivekit-victoria-metrics-acceptance
+  - job_name: converact-victoria-metrics-acceptance
     static_configs:
       - targets: [source:9100]

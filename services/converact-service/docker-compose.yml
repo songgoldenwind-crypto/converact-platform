@@ -1,11 +1,11 @@
-x-ivekit-image: &ivekit-image
-  image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+x-converact-image: &converact-fabric-image
+  image: ${CONVERACT_FABRIC_IMAGE:-converact-fabric:local}
   build:
     context: .
 
 services:
   postgres:
-    image: ${IVEKIT_POSTGRES_IMAGE:?IVEKIT_POSTGRES_IMAGE immutable digest reference is required}
+    image: ${CONVERACT_POSTGRES_IMAGE:?CONVERACT_POSTGRES_IMAGE immutable digest reference is required}
     restart: unless-stopped
     environment:
       POSTGRES_USER: opc_admin
@@ -20,7 +20,7 @@ services:
       retries: 30
 
   runtime-role-init:
-    <<: *ivekit-image
+    <<: *converact-fabric-image
     entrypoint: ["node", "dist/converact-init-runtime-role.js"]
     restart: "no"
     environment:
@@ -35,7 +35,7 @@ services:
         condition: service_healthy
 
   migrate:
-    <<: *ivekit-image
+    <<: *converact-fabric-image
     entrypoint: ["node", "dist/converact-migrate.js"]
     restart: "no"
     environment:
@@ -77,12 +77,12 @@ services:
           memory: 4G
 
   placement-projector:
-    <<: *ivekit-image
+    <<: *converact-fabric-image
     profiles: ["capacity"]
     entrypoint: ["node", "dist/converact-placement-snapshot-projector.js"]
     restart: unless-stopped
     environment:
-      CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE: /run/ivekit-placement/placement.json
+      CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE: /run/converact-placement/placement.json
       CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON: ${CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON:-}
       CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_KEY_ID: ${CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_KEY_ID:-}
       CONVERACT_FABRIC_PLACEMENT_PROFILE_ID: ${CONVERACT_FABRIC_PLACEMENT_PROFILE_ID:-}
@@ -92,14 +92,14 @@ services:
       CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_TTL_MS: ${CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_TTL_MS:-10000}
       CONVERACT_FABRIC_PLACEMENT_PROJECTOR_TIMEOUT_MS: ${CONVERACT_FABRIC_PLACEMENT_PROJECTOR_TIMEOUT_MS:-2000}
     volumes:
-      - placement_snapshot:/run/ivekit-placement
+      - placement_snapshot:/run/converact-placement
 
-  ivekit:
-    <<: *ivekit-image
+  converact:
+    <<: *converact-fabric-image
     init: true
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${IVEKIT_HTTP_PORT:-8300}:3000"
+      - "127.0.0.1:${CONVERACT_FABRIC_HTTP_PORT:-8300}:3000"
     expose:
       - "3010"
     env_file:
@@ -146,7 +146,7 @@ services:
       CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET: ${CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET:-}
       CONVERACT_FABRIC_ALLOWED_ORIGINS: ${CONVERACT_FABRIC_ALLOWED_ORIGINS:-}
       CONVERACT_FABRIC_PLACEMENT_ENABLED: ${CONVERACT_FABRIC_PLACEMENT_ENABLED:-0}
-      CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE: /run/ivekit-placement/placement.json
+      CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE: /run/converact-placement/placement.json
       CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON: ${CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON:-}
       CONVERACT_FABRIC_PLACEMENT_TOKEN_HMAC_KEYS_JSON: ${CONVERACT_FABRIC_PLACEMENT_TOKEN_HMAC_KEYS_JSON:-}
       CONVERACT_FABRIC_PLACEMENT_TOKEN_KEY_ID: ${CONVERACT_FABRIC_PLACEMENT_TOKEN_KEY_ID:-}
@@ -292,11 +292,11 @@ services:
       CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED: ${CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED:-0}
       CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64: ${CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:-}
       CONVERACT_FABRIC_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS: ${CONVERACT_FABRIC_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS:-60}
-      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/ivekit/realtime-audio-tap.sock
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/converact/realtime-audio-tap.sock
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_HOST: 0.0.0.0
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_PORT: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_PORT:-3010}
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PATH: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PATH:-/api/ivekit/realtime-audio-tap/livekit}
-      CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL:-ws://ivekit:3010/api/ivekit/realtime-audio-tap/livekit}
+      CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL:-ws://converact:3010/api/ivekit/realtime-audio-tap/livekit}
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS:-4096}
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS:-1000}
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES:-262144}
@@ -345,8 +345,8 @@ services:
       CONVERACT_FABRIC_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS: ${CONVERACT_FABRIC_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS:-30000}
       CONVERACT_FABRIC_CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS: ${CONVERACT_FABRIC_CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS:-30000}
     volumes:
-      - placement_snapshot:/run/ivekit-placement:ro
-      - realtime_audio_tap:/run/ivekit
+      - placement_snapshot:/run/converact-placement:ro
+      - realtime_audio_tap:/run/converact
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -357,7 +357,7 @@ services:
       retries: 30
 
   backup:
-    <<: *ivekit-image
+    <<: *converact-fabric-image
     profiles: ["operations"]
     entrypoint: ["node", "dist/converact-backup.js"]
     restart: "no"
@@ -374,8 +374,8 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-}
-      IVEKIT_RESTORE_CONFIRM: ${IVEKIT_RESTORE_CONFIRM:-}
-      IVEKIT_RESTORE_TARGET_EMPTY: ${IVEKIT_RESTORE_TARGET_EMPTY:-0}
+      CONVERACT_FABRIC_RESTORE_CONFIRM: ${CONVERACT_FABRIC_RESTORE_CONFIRM:-}
+      CONVERACT_FABRIC_RESTORE_TARGET_EMPTY: ${CONVERACT_FABRIC_RESTORE_TARGET_EMPTY:-0}
     volumes:
       - ${CONVERACT_FABRIC_BACKUP_HOST_DIR:-./backups}:/backups
     depends_on:

@@ -7,16 +7,16 @@ import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collab
 import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
 import type { RemoteGatewayClient } from '../src/agent-runtime/collaboration/remote-gateway-client.js';
 import { MemoryPg } from '../src/db-pg.js';
-import { createIveKitModule } from '../src/agent-runtime/converact/module.js';
+import { createConveractFabricModule } from '../src/agent-runtime/converact/module.js';
 import {
-  createIveKitRustDeskHttpClient,
+  createConveractFabricRustDeskHttpClient,
   projectRustDeskAuthorizationCode
 } from '../sdk/converact/src/rustdesk-http-client.js';
 
 const API_KEY = 'rustdesk-authorization-integration-api-key';
 const AUTHORIZATION_SECRET = 'rustdesk-authorization-integration-secret-at-least-32-bytes';
 
-test('iveKit authorization-code API binds an active engineer and strict attended launch consumes once', async () => {
+test('Converact Fabric authorization-code API binds an active engineer and strict attended launch consumes once', async () => {
   const previous = configureEnvironment();
   try {
     const pg = new MemoryPg();
@@ -136,7 +136,7 @@ test('strict attended activation does not consume a verified code when authoriza
         return {
           provider: 'rustdesk',
           external_id: 'rdgw-authorization-rollback',
-          launch_url: 'https://opc.example.test/remote/rustdesk/launch',
+          launch_url: 'https://converact.example.test/remote/rustdesk/launch',
           target: input.target,
           permissions: [...input.permissions],
           metadata: input.metadata
@@ -201,7 +201,7 @@ test('strict attended launch claims once before concurrent upstream creation', a
         return {
           provider: 'rustdesk',
           external_id: `rdgw-concurrent-${createCalls}`,
-          launch_url: 'https://opc.example.test/remote/rustdesk/launch',
+          launch_url: 'https://converact.example.test/remote/rustdesk/launch',
           target: input.target,
           permissions: [...input.permissions],
           metadata: input.metadata
@@ -231,11 +231,11 @@ test('strict attended launch claims once before concurrent upstream creation', a
   }
 });
 
-test('iveKit RustDesk SDK exposes sanitized authorization-code create, get, and verify contracts', async () => {
+test('Converact Fabric RustDesk SDK exposes sanitized authorization-code create, get, and verify contracts', async () => {
   const calls: Array<{ method: string; path: string; headers: Headers; body: unknown }> = [];
   const authorization = authorizationDto('sdk');
-  const client = createIveKitRustDeskHttpClient({
-    baseUrl: 'https://ivekit.example.test',
+  const client = createConveractFabricRustDeskHttpClient({
+    baseUrl: 'https://converact.example.test',
     tenantId: authorization.tenant_id,
     apiKey: 'sdk-authorization-key',
     userId: 'engineer-sdk',
@@ -290,7 +290,7 @@ test('iveKit RustDesk SDK exposes sanitized authorization-code create, get, and 
   );
 });
 
-test('in-process iveKit facade exposes the same authorization exchange and atomic gateway consumption', async () => {
+test('in-process Converact Fabric facade exposes the same authorization exchange and atomic gateway consumption', async () => {
   const previous = configureEnvironment();
   try {
     const pg = new MemoryPg();
@@ -301,7 +301,7 @@ test('in-process iveKit facade exposes the same authorization exchange and atomi
         return {
           provider: 'rustdesk',
           external_id: 'rdgw-authorization-facade',
-          launch_url: 'https://opc.example.test/remote/rustdesk/launch',
+          launch_url: 'https://converact.example.test/remote/rustdesk/launch',
           target: input.target,
           permissions: [...input.permissions],
           metadata: input.metadata
@@ -310,8 +310,8 @@ test('in-process iveKit facade exposes the same authorization exchange and atomi
       async endSession() {},
       async listAuditEvents() { return []; }
     };
-    const ivekit = createIveKitModule({ db: null, pg, remoteGateway: gateway });
-    const requested = await ivekit.rustdesk.requestAuthorizationCode({
+    const converact = createConveractFabricModule({ db: null, pg, remoteGateway: gateway });
+    const requested = await converact.rustdesk.requestAuthorizationCode({
       tenant_id: fixture.tenantId,
       remote_session_id: fixture.remoteId,
       device_id: fixture.deviceId,
@@ -319,14 +319,14 @@ test('in-process iveKit facade exposes the same authorization exchange and atomi
       requested_by: 'customer-facade',
       idempotency_key: 'authorization-facade-1'
     });
-    const verified = await ivekit.rustdesk.verifyAuthorizationCode({
+    const verified = await converact.rustdesk.verifyAuthorizationCode({
       tenant_id: fixture.tenantId,
       authorization_id: requested.authorization.id,
       code: requested.code!,
       verified_by: 'engineer-facade'
     });
     assert.equal(verified.status, 'verified');
-    const tool = await ivekit.rustdesk.startGatewaySession({
+    const tool = await converact.rustdesk.startGatewaySession({
       tenant_id: fixture.tenantId,
       remote_session_id: fixture.remoteId,
       actor_identity: 'engineer-facade',
@@ -336,7 +336,7 @@ test('in-process iveKit facade exposes the same authorization exchange and atomi
       authorization_id: requested.authorization.id
     });
     assert.equal(tool.external_id, 'rdgw-authorization-facade');
-    assert.equal((await ivekit.rustdesk.getAuthorizationCode({
+    assert.equal((await converact.rustdesk.getAuthorizationCode({
       tenant_id: fixture.tenantId,
       authorization_id: requested.authorization.id
     }))?.status, 'consumed');
@@ -352,7 +352,7 @@ test('RustDesk authorization-code deployment contract uses external secrets and 
   const productionCompose = readFileSync('infra/docker-compose.production.yml', 'utf8');
   const standaloneCompose = readFileSync('infra/converact/docker-compose.yml', 'utf8');
   const serviceCompose = readFileSync('services/converact-service/docker-compose.yml', 'utf8');
-  const helmDeployment = readFileSync('infra/k8s/templates/opc-deployment.yaml', 'utf8');
+  const helmDeployment = readFileSync('infra/k8s/templates/converact-deployment.yaml', 'utf8');
   const helmSecrets = readFileSync('infra/k8s/templates/secrets.yaml', 'utf8');
 
   for (const env of [rootEnv, productionEnv]) {
@@ -453,7 +453,7 @@ function configureEnvironment(): Record<string, string | undefined> {
   ];
   const previous = Object.fromEntries(keys.map((key) => [key, resolveConveractEnv(process.env, key)]));
   process.env.CONVERACT_API_KEY = API_KEY;
-  process.env.CONVERACT_BASE_URL = 'https://opc.example.test';
+  process.env.CONVERACT_BASE_URL = 'https://converact.example.test';
   process.env.CONVERACT_RUSTDESK_AUTHORIZATION_CODE_SECRET = AUTHORIZATION_SECRET;
   process.env.CONVERACT_RUSTDESK_REQUIRE_AUTHORIZATION_CODE = '1';
   process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-authorization-launch-secret';

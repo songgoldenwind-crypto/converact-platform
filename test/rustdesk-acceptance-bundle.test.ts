@@ -11,7 +11,7 @@ import {
 } from '../scripts/rustdesk-acceptance-bundle.js';
 
 test('RustDesk acceptance bundle writes the server handoff artifact set', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-acceptance-bundle-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-acceptance-bundle-'));
   const config = createRustDeskAcceptanceBundleConfigFromEnv({
     CONVERACT_RUSTDESK_ACCEPTANCE_BUNDLE_DIR: dir,
     CONVERACT_RUSTDESK_ACCEPTANCE_BUNDLE_TITLE: 'RustDesk customer delivery',
@@ -61,7 +61,7 @@ test('RustDesk acceptance bundle writes the server handoff artifact set', () => 
   assert.match(serverRunbook, /npm run rustdesk:server-evidence/);
   assert.match(serverRunbook, /npm run rustdesk:readiness/);
   assert.match(serverRunbook, /npm run rustdesk:client-config-pack/);
-  assert.match(serverRunbook, /npm run rustdesk:ivekit-smoke/);
+  assert.match(serverRunbook, /npm run rustdesk:converact-smoke/);
   assert.match(serverRunbook, /npm run rustdesk:client-acceptance/);
   assert.match(serverRunbook, /CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE=.*audit-export\.jsonl/);
   assert.match(serverRunbook, /CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE=.*audit-export\.jsonl/);
@@ -77,7 +77,7 @@ test('RustDesk acceptance bundle writes the server handoff artifact set', () => 
   assert.match(serverRunbook, /npm run rustdesk:evidence-pack/);
   const ledQuickstart = readFileSync(join(dir, 'led-integration-quickstart.md'), 'utf8');
   assert.match(ledQuickstart, /^# RustDesk LED Integration Quickstart/m);
-  assert.match(ledQuickstart, /createIveKitRustDeskLedSdk/);
+  assert.match(ledQuickstart, /createConveractFabricRustDeskLedSdk/);
   assert.match(ledQuickstart, /npm run rustdesk:led-example/);
   assert.match(ledQuickstart, /CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID/);
   assert.match(ledQuickstart, /\/api\/ivekit\/rustdesk\/client-config/);
@@ -91,7 +91,7 @@ test('RustDesk acceptance bundle writes the server handoff artifact set', () => 
   assert.match(ledQuickstart, /permission: 'control_mouse_keyboard'/);
   assert.match(ledQuickstart, /does not prove real RustDesk client control/);
   const ledSdkExample = readFileSync(join(dir, 'led-sdk-minimal-example.ts'), 'utf8');
-  assert.match(ledSdkExample, /createIveKitRustDeskLedSdk/);
+  assert.match(ledSdkExample, /createConveractFabricRustDeskLedSdk/);
   assert.match(ledSdkExample, /sdk\.startSession/);
   assert.match(ledSdkExample, /session\.launch\.openUrl/);
   assert.match(ledSdkExample, /sdk\.recordControlAction/);
@@ -127,7 +127,7 @@ test('RustDesk acceptance bundle writes the server handoff artifact set', () => 
 });
 
 test('RustDesk acceptance bundle CLI writes a bundle directory and exposes package/env wiring', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-acceptance-bundle-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-acceptance-bundle-cli-'));
   const result = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/rustdesk-acceptance-bundle.ts'], {
     cwd: new URL('..', import.meta.url),
     encoding: 'utf8',
@@ -165,9 +165,9 @@ test('RustDesk acceptance bundle CLI writes a bundle directory and exposes packa
 
 function bundleEnv(): NodeJS.ProcessEnv {
   return {
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
-    CONVERACT_BASE_URL: 'https://opc.example.com',
+    CONVERACT_BASE_URL: 'https://converact.example.com',
     CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-secret',
     CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rdesk_1',

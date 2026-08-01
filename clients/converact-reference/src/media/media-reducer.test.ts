@@ -2,16 +2,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type {
-  IveKitMediaCall,
-  IveKitMediaCallParticipant,
-  IveKitMediaCallSnapshot,
-  IveKitMediaCallStatus
+  ConveractFabricMediaCall,
+  ConveractFabricMediaCallParticipant,
+  ConveractFabricMediaCallSnapshot,
+  ConveractFabricMediaCallStatus
 } from '@converact/sdk';
 import { initialMediaCallState, mediaCallReducer } from './media-reducer.js';
 import type { MediaTrackHandle } from './types.js';
 
 test('HTTP lifecycle snapshots cover ring, accept, reject, cancel, timeout, active, and end', () => {
-  for (const status of ['ringing', 'accepted', 'rejected', 'cancelled', 'timed_out', 'active', 'ended'] as IveKitMediaCallStatus[]) {
+  for (const status of ['ringing', 'accepted', 'rejected', 'cancelled', 'timed_out', 'active', 'ended'] as ConveractFabricMediaCallStatus[]) {
     let state = mediaCallReducer(initialMediaCallState(), { type: 'call_selected', requestId: 1, callId: 'call-1' });
     state = mediaCallReducer(state, { type: 'snapshot_loaded', requestId: 1, snapshot: snapshot(status) });
     assert.equal(state.call?.status, status);
@@ -118,11 +118,11 @@ test('command pending, failure, retry, and success states stay isolated by comma
   assert.equal(state.autoplayBlocked, false);
 });
 
-function snapshot(status: IveKitMediaCallStatus, id = 'call-1'): IveKitMediaCallSnapshot {
+function snapshot(status: ConveractFabricMediaCallStatus, id = 'call-1'): ConveractFabricMediaCallSnapshot {
   return { call: call(status, id), participants: [participant(id, 'agent-1', 'host'), participant(id, 'customer-1', 'participant')] };
 }
 
-function call(status: IveKitMediaCallStatus, id: string): IveKitMediaCall {
+function call(status: ConveractFabricMediaCallStatus, id: string): ConveractFabricMediaCall {
   return {
     id,
     tenant_id: 'tenant-1',
@@ -144,7 +144,7 @@ function call(status: IveKitMediaCallStatus, id: string): IveKitMediaCall {
   };
 }
 
-function participant(callId: string, identity: string, role: 'host' | 'participant'): IveKitMediaCallParticipant {
+function participant(callId: string, identity: string, role: 'host' | 'participant'): ConveractFabricMediaCallParticipant {
   return {
     id: `${callId}-${identity}`,
     tenant_id: 'tenant-1',
@@ -174,6 +174,6 @@ function track(id: string): MediaTrackHandle {
   });
 }
 
-function terminal(status: IveKitMediaCallStatus): boolean {
+function terminal(status: ConveractFabricMediaCallStatus): boolean {
   return ['rejected', 'cancelled', 'timed_out', 'ended', 'failed'].includes(status);
 }

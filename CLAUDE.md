@@ -88,7 +88,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 10. `docs/design/metrics-design.md` — 指标与可观测性设计
 11. `docs/design/security-design.md` — 安全与合规设计
 
-历史获客 Agent / Phase D 重构 / 小红书方向文档已归档（移出本仓库，存于 `~/Desktop/opc-archive/`），**不要**按归档文档继续开发，**不要**从归档代码引入依赖。
+历史获客 Agent / Phase D 重构 / 小红书方向文档已归档（移出本仓库，存于 `~/Desktop/converact-archive/`），**不要**按归档文档继续开发，**不要**从归档代码引入依赖。
 
 ### 验证
 

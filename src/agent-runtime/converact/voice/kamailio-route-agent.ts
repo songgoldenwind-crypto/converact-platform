@@ -925,10 +925,10 @@ export async function startKamailioRouteAgent(
   try {
     const existing = await readFile(config.snapshot_path, 'utf8');
     const restored = agent.restore(existing, now());
-    log(`[ivekit-kamailio-route-agent] restored sequence=${restored.sequence} fresh=${restored.fresh}`);
+    log(`[converact-kamailio-route-agent] restored sequence=${restored.sequence} fresh=${restored.fresh}`);
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
-      log('[ivekit-kamailio-route-agent] existing snapshot rejected; rebuilding from component state');
+      log('[converact-kamailio-route-agent] existing snapshot rejected; rebuilding from component state');
     }
   }
   const server = createKamailioRouteAgentHttpServer({
@@ -948,7 +948,7 @@ export async function startKamailioRouteAgent(
     try {
       return await agent.runOnce(now());
     } catch (error) {
-      log(`[ivekit-kamailio-route-agent] update failed: ${safeLogMessage(error)}`);
+      log(`[converact-kamailio-route-agent] update failed: ${safeLogMessage(error)}`);
       throw error;
     }
   };
@@ -957,7 +957,7 @@ export async function startKamailioRouteAgent(
         try {
           return await hepController.runOnce(now());
         } catch (error) {
-          log(`[ivekit-kamailio-route-agent] HEP control update failed: ${safeLogMessage(error)}`);
+          log(`[converact-kamailio-route-agent] HEP control update failed: ${safeLogMessage(error)}`);
           throw error;
         }
       }
@@ -999,7 +999,7 @@ export async function runKamailioRouteAgent(
     ? `${address.address}:${address.port}`
     : String(address || 'unknown');
   console.log(
-    `[ivekit-kamailio-route-agent] listening on ${endpoint} for ` +
+    `[converact-kamailio-route-agent] listening on ${endpoint} for ` +
     `${config.region_id}/${config.zone_id}/${config.cell_id}`
   );
   await new Promise<void>((resolve) => {

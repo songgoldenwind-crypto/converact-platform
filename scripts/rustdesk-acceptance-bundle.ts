@@ -163,7 +163,7 @@ export function writeRustDeskAcceptanceBundle(
         { label: item.label, path: item.path }
       ])),
       readiness_report: {
-        label: 'Server readiness JSON report generated after real hbbs/hbbr and OPC deployment checks',
+        label: 'Server readiness JSON report generated after real hbbs/hbbr and Converact deployment checks',
         expected_path: paths.readinessReport,
         command: 'CONVERACT_RUSTDESK_READINESS_REPORT_FILE=<bundle>/readiness.json npm run rustdesk:readiness'
       }
@@ -175,12 +175,12 @@ export function writeRustDeskAcceptanceBundle(
         command: 'CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE=<bundle>/server-evidence.json npm run rustdesk:server-evidence'
       },
       readiness_report: {
-        label: 'Server readiness JSON report generated after real hbbs/hbbr and OPC deployment checks',
+        label: 'Server readiness JSON report generated after real hbbs/hbbr and Converact deployment checks',
         expected_path: paths.readinessReport,
         command: 'CONVERACT_RUSTDESK_READINESS_REPORT_FILE=<bundle>/readiness.json npm run rustdesk:readiness'
       },
       client_config_pack: {
-        label: 'RustDesk client install/config handoff pack generated from iveKit client-config and optional launch plan',
+        label: 'RustDesk client install/config handoff pack generated from Converact Fabric client-config and optional launch plan',
         expected_path: paths.clientConfigPack,
         command: 'CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE=<bundle>/client-config-pack.md CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID=<external_id> CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID=<rustdesk_id> npm run rustdesk:client-config-pack'
       },
@@ -266,7 +266,7 @@ function renderRustDeskServerReadinessRunbook(
     `Bundle: \`${config.outputDir}\``,
     `Title: ${config.title}`,
     '',
-    'Run these commands inside the deployed OPC container, after hbbs/hbbr are started and RustDesk env/key mounts are present. This runbook records evidence paths; it does not prove the real environment passed until every command and client operation succeeds.',
+    'Run these commands inside the deployed Converact container, after hbbs/hbbr are started and RustDesk env/key mounts are present. This runbook records evidence paths; it does not prove the real environment passed until every command and client operation succeeds.',
     '',
     '## 1. Write Local Artifacts',
     '',
@@ -307,10 +307,10 @@ function renderRustDeskServerReadinessRunbook(
     '',
     'Expected result: `client-config-pack.md` contains the ID server, relay server, optional API server, public key, fingerprint, and current launch/protocol URL fields needed by the real RustDesk clients. This is setup guidance only, not remote-control proof.',
     '',
-    '## 5. Run LED/iveKit Facade Smoke',
+    '## 5. Run LED/Converact Fabric Facade Smoke',
     '',
     '```bash',
-    'npm run rustdesk:ivekit-smoke',
+    'npm run rustdesk:converact-smoke',
     '```',
     '',
     'Expected result: LED-facing facade can create/launch/end RustDesk sessions and write representative audit events.',
@@ -339,7 +339,7 @@ function renderRustDeskServerReadinessRunbook(
     '',
     '## 8. Validate Audit Coverage',
     '',
-    `Export the real RustDesk operation audit for the same \`external_id\` to \`${paths.auditExport}\`. The export command reuses \`CONVERACT_RUSTDESK_IVEKIT_BASE_URL\`, \`CONVERACT_BASE_URL\`, \`CONVERACT_COLLABORATION_API_KEY\`, and tenant fallbacks when focused audit-export env is not set.`,
+    `Export the real RustDesk operation audit for the same \`external_id\` to \`${paths.auditExport}\`. The export command reuses \`CONVERACT_RUSTDESK_FABRIC_BASE_URL\`, \`CONVERACT_BASE_URL\`, \`CONVERACT_COLLABORATION_API_KEY\`, and tenant fallbacks when focused audit-export env is not set.`,
     '',
     '```bash',
     `CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE=${paths.auditExport} \\`,
@@ -472,13 +472,13 @@ function renderRustDeskLedIntegrationQuickstart(config: RustDeskAcceptanceBundle
     `Bundle: \`${config.outputDir}\``,
     `Title: ${config.title}`,
     '',
-    'This file is for LED or another consuming service that wants to reuse the iveKit RustDesk capability. It documents the supported SDK and HTTP sequence. It does not prove real RustDesk client control; the customer environment still needs the server readiness runbook and real client acceptance evidence.',
+    'This file is for LED or another consuming service that wants to reuse the Converact Fabric RustDesk capability. It documents the supported SDK and HTTP sequence. It does not prove real RustDesk client control; the customer environment still needs the server readiness runbook and real client acceptance evidence.',
     '',
     '## Preconditions',
     '',
-    '- `rustdesk:deployment-preflight`, `rustdesk:readiness`, and `rustdesk:ivekit-smoke` should pass in the OPC server environment.',
+    '- `rustdesk:deployment-preflight`, `rustdesk:readiness`, and `rustdesk:converact-smoke` should pass in the Converact server environment.',
     '- The RustDesk target device must be registered or registerable through a RustDesk runtime ID.',
-    '- The consuming service must have an OPC/iveKit base URL, API key, tenant ID, remote business session ID, actor identity, and requested remote permissions.',
+    '- The consuming service must have a Converact Platform/Converact Fabric base URL, API key, tenant ID, remote business session ID, actor identity, and requested remote permissions.',
     '- The agent UI should open `launch.openUrl`; native clients can prefer `launch.protocolUrl` when the RustDesk protocol handler is installed.',
     '',
     '## Recommended SDK Path',
@@ -486,9 +486,9 @@ function renderRustDeskLedIntegrationQuickstart(config: RustDeskAcceptanceBundle
     'A standalone copyable example is generated as `led-sdk-minimal-example.ts` in this bundle.',
     '',
     '```typescript',
-    "import { createIveKitRustDeskLedSdk } from './src/agent-runtime/converact/index.js';",
+    "import { createConveractFabricRustDeskLedSdk } from './src/agent-runtime/converact/index.js';",
     '',
-    'const sdk = createIveKitRustDeskLedSdk({',
+    'const sdk = createConveractFabricRustDeskLedSdk({',
     '  baseUrl: process.env.CONVERACT_BASE_URL,',
     '  apiKey: process.env.CONVERACT_COLLABORATION_API_KEY,',
     '  tenantId: process.env.CONVERACT_REMOTE_GATEWAY_TENANT_ID,',
@@ -567,7 +567,7 @@ function renderRustDeskLedIntegrationQuickstart(config: RustDeskAcceptanceBundle
     '## Runnable Example',
     '',
     '```bash',
-    'CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL=https://opc.example.com \\',
+    'CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL=https://converact.example.com \\',
     'CONVERACT_RUSTDESK_LED_EXAMPLE_API_KEY=<api-key> \\',
     'CONVERACT_RUSTDESK_LED_EXAMPLE_TENANT_ID=tenant_led \\',
     'CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID=<led-session-id> \\',
@@ -592,8 +592,8 @@ function renderRustDeskLedIntegrationQuickstart(config: RustDeskAcceptanceBundle
 
 function renderRustDeskLedSdkMinimalExample(): string {
   return [
-    "// Adjust this import to the extracted iveKit package path used by your service.",
-    "import { createIveKitRustDeskLedSdk } from './src/agent-runtime/converact/index.js';",
+    "// Adjust this import to the extracted Converact Fabric package path used by your service.",
+    "import { createConveractFabricRustDeskLedSdk } from './src/agent-runtime/converact/index.js';",
     '',
     'function requiredEnv(name: string): string {',
     '  const value = process.env[name]?.trim();',
@@ -603,7 +603,7 @@ function renderRustDeskLedSdkMinimalExample(): string {
     '',
     'const actorIdentity = process.env.CONVERACT_RUSTDESK_LED_EXAMPLE_ACTOR_IDENTITY || "led-service";',
     '',
-    'const sdk = createIveKitRustDeskLedSdk({',
+    'const sdk = createConveractFabricRustDeskLedSdk({',
     '  baseUrl: requiredEnv("CONVERACT_BASE_URL"),',
     '  apiKey: requiredEnv("CONVERACT_COLLABORATION_API_KEY"),',
     '  tenantId: requiredEnv("CONVERACT_REMOTE_GATEWAY_TENANT_ID"),',

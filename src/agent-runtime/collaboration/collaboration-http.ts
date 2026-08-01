@@ -12,8 +12,8 @@ import type {
   ComponentPlacementReservation
 } from '../converact/placement/component-placement.js';
 import { verifyWebAssistJoinToken } from '../converact/remote-assist-token.js';
-import { IveKitTenantEventJournal } from '../converact/tenant-event-store.js';
-import { IveKitUnifiedTimelineStore } from '../converact/unified-timeline-store.js';
+import { ConveractFabricTenantEventJournal } from '../converact/tenant-event-store.js';
+import { ConveractFabricUnifiedTimelineStore } from '../converact/unified-timeline-store.js';
 import { createLiveKitMediaModule } from '../livekit/index.js';
 import { MediaCallStore } from '../livekit/media-call-store.js';
 import { recordMediaRecordingEvidence } from '../media-recording-evidence.js';
@@ -186,7 +186,7 @@ export interface PreparedRustDeskSessionPlacement {
   persisted: boolean;
 }
 
-export async function prepareIveKitRustDeskPlacement(
+export async function prepareConveractFabricRustDeskPlacement(
   method: string,
   path: string,
   body: unknown,
@@ -1189,7 +1189,7 @@ function collaborationStorageUrl(uploaded: { storage_url: string; key: string })
   return uploaded.storage_url;
 }
 
-function iveKitChatStorageUrl(key: string): string {
+function converactFabricChatStorageUrl(key: string): string {
   return `/api/ivekit/chat/objects/${encodeURIComponent(key)}`;
 }
 
@@ -1350,7 +1350,7 @@ async function recordRustDeskAuthorizationEvent(input: {
     actor_identity: input.actorIdentity,
     ...input.metadata
   };
-  await new IveKitTenantEventJournal(input.pg).append({
+  await new ConveractFabricTenantEventJournal(input.pg).append({
     tenant_id: input.tenantId,
     type: input.eventType,
     data,
@@ -1395,7 +1395,7 @@ async function routeRustDeskControlPlane(
       if (accessMode === 'unattended') {
         return {
           status: 403,
-          data: { error: 'unattended RustDesk creation requires the policy-aware iveKit route' }
+          data: { error: 'unattended RustDesk creation requires the policy-aware Converact Fabric route' }
         };
       }
       const requestedPermissions = stringArray(input.permissions || input.scopes);
@@ -1444,7 +1444,7 @@ async function routeRustDeskControlPlane(
     if (accessMode === 'unattended') {
       return {
         status: 403,
-        data: { error: 'unattended RustDesk creation requires the policy-aware iveKit route' }
+        data: { error: 'unattended RustDesk creation requires the policy-aware Converact Fabric route' }
       };
     }
     const requestedPermissions = stringArray(input.permissions || input.scopes);
@@ -1645,11 +1645,11 @@ export async function routeCollaborationApi(
 ): Promise<unknown | undefined> {
   const routePath = path.split('?')[0];
   const isCollaborationRoute = routePath.startsWith('/api/collaboration/');
-  const isIveKitRustDeskRoute = routePath.startsWith('/api/ivekit/rustdesk/');
-  const isIveKitContextRoute = routePath.startsWith('/api/ivekit/context/');
+  const isConveractFabricRustDeskRoute = routePath.startsWith('/api/ivekit/rustdesk/');
+  const isConveractFabricContextRoute = routePath.startsWith('/api/ivekit/context/');
   const isRustDeskControlPlaneRoute = routePath.startsWith('/api/opc/rustdesk/');
   const isRustDeskLaunchRoute = routePath === '/remote/rustdesk/launch';
-  if (!isCollaborationRoute && !isIveKitRustDeskRoute && !isIveKitContextRoute &&
+  if (!isCollaborationRoute && !isConveractFabricRustDeskRoute && !isConveractFabricContextRoute &&
       !isRustDeskControlPlaneRoute && !isRustDeskLaunchRoute) {
     return undefined;
   }
@@ -2071,8 +2071,8 @@ export async function routeCollaborationApi(
     return { contentType: 'application/octet-stream', data: buffer };
   }
 
-  if (routePath.startsWith('/api/collaboration/ivekit-objects/') && method === 'GET') {
-    const key = decodeURIComponent(routePath.slice('/api/collaboration/ivekit-objects/'.length));
+  if (routePath.startsWith('/api/collaboration/converact-objects/') && method === 'GET') {
+    const key = decodeURIComponent(routePath.slice('/api/collaboration/converact-objects/'.length));
     if (!key.startsWith(`${ctx.tenantId}/`) || !decodeStorageKey(key)) {
       return { status: 404, data: { error: 'not found' } };
     }
@@ -2112,7 +2112,7 @@ export async function routeCollaborationApi(
       limit: 50
     })).filter((session) => system || visibleChatIds.has(session.collaboration_session_id));
     return {
-      data: await new IveKitUnifiedTimelineStore(requirePg(pg)).list({
+      data: await new ConveractFabricUnifiedTimelineStore(requirePg(pg)).list({
         tenant_id: ctx.tenantId,
         business_ref: businessRef,
         chat_session_ids: chatSessions.map((session) => session.id),
@@ -2502,7 +2502,7 @@ export async function routeCollaborationApi(
     );
   }
 
-  if (isIveKitRustDeskRoute) {
+  if (isConveractFabricRustDeskRoute) {
     if (routePath === '/api/ivekit/rustdesk/authorization-codes' && method === 'POST') {
       return withPgTenant(requirePg(pg), ctx.tenantId, async (scopedPg) => {
         const scopedModule = createCollaborationModule({ pg: scopedPg });
@@ -2856,10 +2856,10 @@ export async function routeCollaborationApi(
       });
     }
 
-    const iveKitDeviceMatch = routePath.match(/^\/api\/ivekit\/rustdesk\/devices\/([^/]+)(?:\/([^/]+))?$/);
-    if (iveKitDeviceMatch) {
-      const deviceId = decodeURIComponent(iveKitDeviceMatch[1]);
-      const action = iveKitDeviceMatch[2] || '';
+    const converactFabricDeviceMatch = routePath.match(/^\/api\/ivekit\/rustdesk\/devices\/([^/]+)(?:\/([^/]+))?$/);
+    if (converactFabricDeviceMatch) {
+      const deviceId = decodeURIComponent(converactFabricDeviceMatch[1]);
+      const action = converactFabricDeviceMatch[2] || '';
       if (!action && method === 'GET') {
         const device = await module.rustdeskDevices.getDevice({
           tenant_id: ctx.tenantId,
@@ -2990,7 +2990,7 @@ export async function routeCollaborationApi(
         }
       });
       if (authorizationId) {
-        await new IveKitTenantEventJournal(scopedPg).append({
+        await new ConveractFabricTenantEventJournal(scopedPg).append({
           tenant_id: ctx.tenantId,
           type: 'remote.rustdesk.authorization_code.consumed',
           data: {
@@ -3020,10 +3020,10 @@ export async function routeCollaborationApi(
       });
     }
 
-    const iveKitGatewayMatch = routePath.match(/^\/api\/ivekit\/rustdesk\/gateway-sessions\/([^/]+)(?:\/([^/]+))?$/);
-    if (iveKitGatewayMatch) {
-      const externalId = decodeURIComponent(iveKitGatewayMatch[1]);
-      const action = iveKitGatewayMatch[2] || '';
+    const converactFabricGatewayMatch = routePath.match(/^\/api\/ivekit\/rustdesk\/gateway-sessions\/([^/]+)(?:\/([^/]+))?$/);
+    if (converactFabricGatewayMatch) {
+      const externalId = decodeURIComponent(converactFabricGatewayMatch[1]);
+      const action = converactFabricGatewayMatch[2] || '';
       const store = new RustDeskGatewaySessionStore(requirePg(pg));
       const session = await store.getSession(externalId);
       if (!session || session.tenant_id !== ctx.tenantId) {
@@ -3827,7 +3827,7 @@ export async function routeCollaborationApi(
         status: 201,
         data: {
           kind,
-          storage_url: iveKitChatStorageUrl(uploaded.key),
+          storage_url: converactFabricChatStorageUrl(uploaded.key),
           filename,
           content_type: contentType,
           size_bytes: content.length,
@@ -4515,7 +4515,7 @@ export async function routeCollaborationApi(
       metadata: gatewayRequest.metadata
     });
     if (authorizationId) {
-      await new IveKitTenantEventJournal(scopedPg).append({
+      await new ConveractFabricTenantEventJournal(scopedPg).append({
         tenant_id: ctx.tenantId,
         type: 'remote.rustdesk.authorization_code.consumed',
         data: {

@@ -1,6 +1,6 @@
 import type {
-  IveKitHttpSdk,
-  IveKitContactCenterMonitorSnapshot
+  ConveractFabricHttpSdk,
+  ConveractFabricContactCenterMonitorSnapshot
 } from '@converact/sdk';
 import {
   AlertTriangle,
@@ -15,14 +15,14 @@ import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type QueueStatusFilter = 'all' | 'active' | 'disabled';
-type MonitorQueue = IveKitContactCenterMonitorSnapshot['queues'][number];
-type MonitorAlert = IveKitContactCenterMonitorSnapshot['alerts'][number];
+type MonitorQueue = ConveractFabricContactCenterMonitorSnapshot['queues'][number];
+type MonitorAlert = ConveractFabricContactCenterMonitorSnapshot['alerts'][number];
 
 export function QueueMonitorWorkspace(props: {
-  client: IveKitHttpSdk | null;
+  client: ConveractFabricHttpSdk | null;
   pollIntervalMs?: number;
 }) {
-  const [snapshot, setSnapshot] = useState<IveKitContactCenterMonitorSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<ConveractFabricContactCenterMonitorSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -30,8 +30,8 @@ export function QueueMonitorWorkspace(props: {
   const [alertsOnly, setAlertsOnly] = useState(false);
   const request = useRef(0);
   const inFlight = useRef<{
-    client: IveKitHttpSdk;
-    promise: Promise<IveKitContactCenterMonitorSnapshot>;
+    client: ConveractFabricHttpSdk;
+    promise: Promise<ConveractFabricContactCenterMonitorSnapshot>;
   } | null>(null);
   const pollIntervalMs = Math.max(1_000, props.pollIntervalMs ?? 10_000);
 
@@ -214,7 +214,7 @@ function QueueRow(props: { queue: MonitorQueue; alerted: boolean }) {
   </tr>;
 }
 
-function queueTotals(snapshot: IveKitContactCenterMonitorSnapshot) {
+function queueTotals(snapshot: ConveractFabricContactCenterMonitorSnapshot) {
   return {
     waiting: snapshot.queues.reduce((total, queue) => total + queue.waiting_count, 0),
     capacity: Math.max(0, snapshot.agents.voice_capacity - snapshot.agents.active_voice_count),

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 export interface CollaborationSmokeConfig {
   baseUrl: string;
-  opcApiKey: string;
+  converactApiKey: string;
   tenantId: string;
   userId: string;
   businessRefType: string;
@@ -49,11 +49,11 @@ type JsonRecord = Record<string, unknown>;
 
 export function createCollaborationSmokeConfigFromEnv(env: NodeJS.ProcessEnv): CollaborationSmokeConfig {
   const baseUrl = resolveBrandEnv(env, 'BASE_URL') || '';
-  const opcApiKey = resolveBrandEnv(env, 'COLLAB_SMOKE_API_KEY') || resolveBrandEnv(env, 'API_KEY') || '';
+  const converactApiKey = resolveBrandEnv(env, 'COLLAB_SMOKE_API_KEY') || resolveBrandEnv(env, 'API_KEY') || '';
   const tenantId = resolveBrandEnv(env, 'COLLAB_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID') || '';
 
   if (!baseUrl) throw new Error('CONVERACT_BASE_URL is required');
-  if (!opcApiKey) throw new Error('CONVERACT_COLLAB_SMOKE_API_KEY or CONVERACT_API_KEY is required');
+  if (!converactApiKey) throw new Error('CONVERACT_COLLAB_SMOKE_API_KEY or CONVERACT_API_KEY is required');
   if (!tenantId) throw new Error('CONVERACT_COLLAB_SMOKE_TENANT_ID or CONVERACT_TENANT_ID is required');
 
   const businessRefId =
@@ -66,7 +66,7 @@ export function createCollaborationSmokeConfigFromEnv(env: NodeJS.ProcessEnv): C
 
   return {
     baseUrl,
-    opcApiKey,
+    converactApiKey,
     tenantId,
     userId: resolveBrandEnv(env, 'COLLAB_SMOKE_USER_ID') || 'agent_collaboration_smoke',
     businessRefType: resolveBrandEnv(env, 'COLLAB_SMOKE_BUSINESS_REF_TYPE') || 'service_order',
@@ -88,7 +88,7 @@ export function createCollaborationSmokeConfigFromEnv(env: NodeJS.ProcessEnv): C
     consentScopes: splitScopes(resolveBrandEnv(env, 'COLLAB_SMOKE_CONSENT_SCOPES')),
     consentExpiresAt: resolveBrandEnv(env, 'COLLAB_SMOKE_CONSENT_EXPIRES_AT'),
     evidenceFilename: resolveBrandEnv(env, 'COLLAB_SMOKE_EVIDENCE_FILENAME') || 'remote-session.webm',
-    evidenceBody: resolveBrandEnv(env, 'COLLAB_SMOKE_EVIDENCE_BODY') || 'opc-collaboration-smoke-screen-recording',
+    evidenceBody: resolveBrandEnv(env, 'COLLAB_SMOKE_EVIDENCE_BODY') || 'converact-collaboration-smoke-screen-recording',
     retentionUntil: resolveBrandEnv(env, 'COLLAB_SMOKE_RETENTION_UNTIL')
   };
 }
@@ -313,7 +313,7 @@ export async function runCollaborationSmoke(
 
 function authHeaders(config: CollaborationSmokeConfig): Record<string, string> {
   return {
-    'x-api-key': config.opcApiKey,
+    'x-api-key': config.converactApiKey,
     'x-tenant-id': config.tenantId,
     'x-user-id': config.userId,
     'content-type': 'application/json'

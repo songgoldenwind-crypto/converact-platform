@@ -66,8 +66,8 @@ test('collaboration smoke drives consent gated remote assistance and evidence AP
 
   const result = await runCollaborationSmoke(
     {
-      baseUrl: 'http://opc.local',
-      opcApiKey: 'smoke-opc-key',
+      baseUrl: 'http://converact.local',
+      converactApiKey: 'smoke-converact-key',
       tenantId: 'tenant_smoke',
       userId: 'agent_smoke',
       businessRefType: 'service_order',
@@ -182,7 +182,7 @@ test('collaboration smoke drives consent gated remote assistance and evidence AP
 
   for (const call of calls) {
     const headers = call.init?.headers as Record<string, string>;
-    assert.equal(headers['x-api-key'], 'smoke-opc-key');
+    assert.equal(headers['x-api-key'], 'smoke-converact-key');
     assert.equal(headers['x-tenant-id'], 'tenant_smoke');
     assert.equal(headers['x-user-id'], 'agent_smoke');
   }
@@ -194,8 +194,8 @@ test('collaboration smoke can drive the configured remote gateway tool endpoint'
 
   const result = await runCollaborationSmoke(
     {
-      baseUrl: 'http://opc.local',
-      opcApiKey: 'smoke-opc-key',
+      baseUrl: 'http://converact.local',
+      converactApiKey: 'smoke-converact-key',
       tenantId: 'tenant_gateway_smoke',
       userId: 'agent_gateway_smoke',
       businessRefType: 'service_order',

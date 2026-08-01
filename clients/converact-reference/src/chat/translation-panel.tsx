@@ -1,4 +1,4 @@
-import type { IveKitHttpSdk, IveKitTranslationListResult } from '@converact/sdk';
+import type { ConveractFabricHttpSdk, ConveractFabricTranslationListResult } from '@converact/sdk';
 import { Languages, RotateCcw } from 'lucide-react';
 import React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -15,7 +15,7 @@ const TARGET_LANGUAGES = [
 ] as const;
 
 export function TranslationPanel(props: {
-  client: IveKitHttpSdk;
+  client: ConveractFabricHttpSdk;
   sessionId: string;
   sourceType: 'message' | 'attachment';
   sourceRefId: string;
@@ -23,7 +23,7 @@ export function TranslationPanel(props: {
 }) {
   const [open, setOpen] = useState(false);
   const [targetLanguage, setTargetLanguage] = useState('en-US');
-  const [snapshot, setSnapshot] = useState<IveKitTranslationListResult>({ items: [], jobs: [] });
+  const [snapshot, setSnapshot] = useState<ConveractFabricTranslationListResult>({ items: [], jobs: [] });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const translations = useMemo(() => projectTranslations(snapshot), [snapshot]);

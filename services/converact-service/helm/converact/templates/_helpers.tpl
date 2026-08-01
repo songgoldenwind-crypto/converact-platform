@@ -1,24 +1,24 @@
-{{- define "ivekit.name" -}}
-ivekit
+{{- define "converact.name" -}}
+converact
 {{- end }}
 
-{{- define "ivekit.fullname" -}}
-{{- printf "%s-ivekit" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- define "converact.fullname" -}}
+{{- printf "%s-converact" .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "ivekit.labels" -}}
-{{- include "ivekit.profileValidate" . -}}
-app.kubernetes.io/name: {{ include "ivekit.name" . }}
+{{- define "converact.labels" -}}
+{{- include "converact.profileValidate" . -}}
+app.kubernetes.io/name: {{ include "converact.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
-ivekit.opc.io/profile-core: {{ .Values.deploymentProfiles.core | quote }}
-ivekit.opc.io/profile-ai: {{ .Values.deploymentProfiles.ai | quote }}
-ivekit.opc.io/profile-observability: {{ .Values.deploymentProfiles.observability | quote }}
-ivekit.opc.io/profile-benchmark: {{ .Values.deploymentProfiles.benchmark | quote }}
+converact.io/profile-core: {{ .Values.deploymentProfiles.core | quote }}
+converact.io/profile-ai: {{ .Values.deploymentProfiles.ai | quote }}
+converact.io/profile-observability: {{ .Values.deploymentProfiles.observability | quote }}
+converact.io/profile-benchmark: {{ .Values.deploymentProfiles.benchmark | quote }}
 {{- end }}
 
-{{- define "ivekit.profileValidate" -}}
+{{- define "converact.profileValidate" -}}
 {{- if not .Values.deploymentProfiles.core -}}
 {{- fail "deploymentProfiles.core is mandatory" -}}
 {{- end -}}
@@ -44,11 +44,11 @@ ivekit.opc.io/profile-benchmark: {{ .Values.deploymentProfiles.benchmark | quote
 {{- fail "monitoring and SIP tracing require deploymentProfiles.observability=true" -}}
 {{- end -}}
 {{- if .Values.telemetry.enabled -}}
-{{- include "ivekit.telemetryValidate" . -}}
+{{- include "converact.telemetryValidate" . -}}
 {{- end -}}
 {{- end }}
 
-{{- define "ivekit.telemetryValidate" -}}
+{{- define "converact.telemetryValidate" -}}
 {{- $endpoint := required "telemetry.collectorEndpoint is required when telemetry is enabled" .Values.telemetry.collectorEndpoint -}}
 {{- if not (regexMatch "^https?://[^/@[:space:]]+(:[0-9]+)?(/[^@[:space:]]*)?/v1/traces$" $endpoint) -}}
 {{- fail "telemetry.collectorEndpoint must be a credential-free HTTP URL ending in /v1/traces" -}}
@@ -67,16 +67,16 @@ ivekit.opc.io/profile-benchmark: {{ .Values.deploymentProfiles.benchmark | quote
 {{- end -}}
 {{- end }}
 
-{{- define "ivekit.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "ivekit.name" . }}
+{{- define "converact.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "converact.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{- define "ivekit.secretName" -}}
+{{- define "converact.secretName" -}}
 {{- required "secrets.existingSecret is required" .Values.secrets.existingSecret -}}
 {{- end }}
 
-{{- define "ivekit.image" -}}
+{{- define "converact.image" -}}
 {{- $repository := required "image.repository is required" .Values.image.repository -}}
 {{- $digest := required "image.digest is required" .Values.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -85,10 +85,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "ivekit.rustpbxImage" -}}
+{{- define "converact.rustpbxImage" -}}
 {{- $repository := required "voice.image.repository is required when voice is enabled" .Values.voice.image.repository -}}
 {{- if regexMatch "(^|/)restsend/rustpbx$" $repository -}}
-{{- fail "voice.image.repository must reference the iveKit-patched RustPBX image, not the unpatched upstream image" -}}
+{{- fail "voice.image.repository must reference the Converact Fabric-patched RustPBX image, not the unpatched upstream image" -}}
 {{- end -}}
 {{- $digest := required "voice.image.digest is required when voice is enabled" .Values.voice.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -97,7 +97,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "ivekit.kamailioImage" -}}
+{{- define "converact.kamailioImage" -}}
 {{- $repository := required "voice.kamailio.image.repository is required when Kamailio is enabled" .Values.voice.kamailio.image.repository -}}
 {{- $digest := required "voice.kamailio.image.digest is required when Kamailio is enabled" .Values.voice.kamailio.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -106,19 +106,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "ivekit.rustpbxHeadlessFullname" -}}
-{{- printf "%s-rustpbx-headless" (include "ivekit.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "converact.rustpbxHeadlessFullname" -}}
+{{- printf "%s-rustpbx-headless" (include "converact.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "ivekit.kamailioFullname" -}}
-{{- printf "%s-kamailio" (include "ivekit.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "converact.kamailioFullname" -}}
+{{- printf "%s-kamailio" (include "converact.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "ivekit.sipExporterFullname" -}}
-{{- printf "%s-sip-exporter" (include "ivekit.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "converact.sipExporterFullname" -}}
+{{- printf "%s-sip-exporter" (include "converact.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "ivekit.sipExporterImage" -}}
+{{- define "converact.sipExporterImage" -}}
 {{- $repository := required "monitoring.sipExporter.image.repository is required when SIP exporter is enabled" .Values.monitoring.sipExporter.image.repository -}}
 {{- $digest := required "monitoring.sipExporter.image.digest is required when SIP exporter is enabled" .Values.monitoring.sipExporter.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -127,15 +127,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "ivekit.clamavFullname" -}}
-{{- printf "%s-clamav" (include "ivekit.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "converact.clamavFullname" -}}
+{{- printf "%s-clamav" (include "converact.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "ivekit.clamavHeadlessFullname" -}}
-{{- printf "%s-headless" (include "ivekit.clamavFullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "converact.clamavHeadlessFullname" -}}
+{{- printf "%s-headless" (include "converact.clamavFullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "ivekit.clamavImage" -}}
+{{- define "converact.clamavImage" -}}
 {{- $repository := required "clamav.image.repository is required when ClamAV is enabled" .Values.clamav.image.repository -}}
 {{- $digest := required "clamav.image.digest is required when ClamAV is enabled" .Values.clamav.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -144,15 +144,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "ivekit.tinodeFullname" -}}
-{{- printf "%s-tinode" (include "ivekit.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "converact.tinodeFullname" -}}
+{{- printf "%s-tinode" (include "converact.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "ivekit.tinodeHeadlessFullname" -}}
-{{- printf "%s-headless" (include "ivekit.tinodeFullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "converact.tinodeHeadlessFullname" -}}
+{{- printf "%s-headless" (include "converact.tinodeFullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "ivekit.tinodeImage" -}}
+{{- define "converact.tinodeImage" -}}
 {{- $repository := required "tinode.image.repository is required when bundled Tinode is enabled" .Values.tinode.image.repository -}}
 {{- $digest := required "tinode.image.digest is required when bundled Tinode is enabled" .Values.tinode.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -161,7 +161,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "ivekit.tinodeValidate" -}}
+{{- define "converact.tinodeValidate" -}}
 {{- $mode := default "compact" .Values.tinode.mode -}}
 {{- if not (or (eq $mode "compact") (eq $mode "cluster")) -}}
 {{- fail "tinode.mode must be compact or cluster" -}}
@@ -178,7 +178,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- fail "tinode.cluster.replicaCount must be exactly 3" -}}
 {{- end -}}
 {{- if not (has .Values.tinode.image.repository .Values.tinode.image.allowedRepositories) -}}
-{{- fail "tinode cluster mode requires the maintained iveKit image repository" -}}
+{{- fail "tinode cluster mode requires the maintained Converact Fabric image repository" -}}
 {{- end -}}
 {{- if ne .Values.tinode.cluster.media.handler "s3" -}}
 {{- fail "tinode cluster mode requires the s3 media handler" -}}
@@ -199,11 +199,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end }}
 
-{{- define "ivekit.notificationWorkerFullname" -}}
-{{- printf "%s-notification-worker" (include "ivekit.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "converact.notificationWorkerFullname" -}}
+{{- printf "%s-notification-worker" (include "converact.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "ivekit.notificationWorkerValidate" -}}
+{{- define "converact.notificationWorkerValidate" -}}
 {{- $replicas := int .Values.notificationWorker.replicaCount -}}
 {{- if or (lt $replicas 1) (gt $replicas 256) -}}
 {{- fail "notificationWorker.replicaCount must be between 1 and 256" -}}
@@ -222,7 +222,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end }}
 
-{{- define "ivekit.workerPoolsValidate" -}}
+{{- define "converact.workerPoolsValidate" -}}
 {{- $allowed := list "eventWebhook" "attachment" "quality" "translation" "fileSecurity" -}}
 {{- range $name, $pool := .Values.workerPools.pools -}}
 {{- if not (has $name $allowed) -}}

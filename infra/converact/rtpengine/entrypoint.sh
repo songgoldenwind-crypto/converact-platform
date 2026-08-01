@@ -1,13 +1,44 @@
 #!/bin/sh
 set -eu
 
-runtime_dir="${IVEKIT_RTPENGINE_RUNTIME_DIR:-/run/ivekit-rtpengine}"
-config_template="${IVEKIT_RTPENGINE_CONFIG_TEMPLATE:-/etc/ivekit/rtpengine.conf.template}"
-config_path="${IVEKIT_RTPENGINE_CONFIG_PATH:-${runtime_dir}/rtpengine.conf}"
-requested_mode="${IVEKIT_RTPENGINE_RUNTIME_MODE:-auto}"
-IVEKIT_RTPENGINE_OWNER_GUARD="${IVEKIT_RTPENGINE_OWNER_GUARD:-true}"
+entrypoint_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+compat_helper=/usr/local/lib/converact-env-compat.sh
+if [ ! -r "$compat_helper" ]; then
+  compat_helper="$entrypoint_dir/converact-env-compat.sh"
+fi
+if [ ! -r "$compat_helper" ]; then
+  compat_helper="$entrypoint_dir/../../../scripts/converact-env-compat.sh"
+fi
+if [ ! -r "$compat_helper" ]; then
+  echo "Converact environment compatibility helper is required" >&2
+  exit 66
+fi
+# shellcheck disable=SC1090
+. "$compat_helper"
+for suffix in \
+  RTPENGINE_RUNTIME_DIR \
+  RTPENGINE_CONFIG_TEMPLATE \
+  RTPENGINE_CONFIG_PATH \
+  RTPENGINE_RUNTIME_MODE \
+  RTPENGINE_OWNER_GUARD \
+  RTPENGINE_INTERFACE \
+  RTPENGINE_LISTEN_NG \
+  RTPENGINE_LISTEN_TCP_NG \
+  RTPENGINE_LISTEN_HTTP \
+  RTPENGINE_PORT_MIN \
+  RTPENGINE_PORT_MAX \
+  RTPENGINE_RECORDING_DIR \
+  RTPENGINE_KERNEL_TABLE; do
+  converact_env_resolve_fabric "$suffix"
+done
+
+runtime_dir="${CONVERACT_FABRIC_RTPENGINE_RUNTIME_DIR:-/run/converact-rtpengine}"
+config_template="${CONVERACT_FABRIC_RTPENGINE_CONFIG_TEMPLATE:-/etc/converact/rtpengine.conf.template}"
+config_path="${CONVERACT_FABRIC_RTPENGINE_CONFIG_PATH:-${runtime_dir}/rtpengine.conf}"
+requested_mode="${CONVERACT_FABRIC_RTPENGINE_RUNTIME_MODE:-auto}"
+IVEKIT_RTPENGINE_OWNER_GUARD="${CONVERACT_FABRIC_RTPENGINE_OWNER_GUARD:-true}"
 kernel_srcversion_path="/sys/module/nft_rtpengine/srcversion"
-expected_kernel_srcversion_path="/usr/share/ivekit-rtpengine/kernel/module-srcversion"
+expected_kernel_srcversion_path="/usr/share/converact-rtpengine/kernel/module-srcversion"
 expected_kernel_srcversion=""
 if [ -r "${expected_kernel_srcversion_path}" ]; then
   expected_kernel_srcversion="$(
@@ -24,7 +55,7 @@ fi
 case "${requested_mode}" in
   userspace|kernel|auto) ;;
   *)
-    echo "invalid IVEKIT_RTPENGINE_RUNTIME_MODE: expected userspace, kernel, or auto" >&2
+    echo "invalid CONVERACT_FABRIC_RTPENGINE_RUNTIME_MODE: expected userspace, kernel, or auto" >&2
     exit 64
     ;;
 esac
@@ -75,16 +106,16 @@ if [ ! -r "${config_template}" ]; then
   exit 66
 fi
 
-interface="${IVEKIT_RTPENGINE_INTERFACE:-public/127.0.0.1}"
-listen_ng="${IVEKIT_RTPENGINE_LISTEN_NG:-0.0.0.0:22222}"
-listen_tcp_ng="${IVEKIT_RTPENGINE_LISTEN_TCP_NG:-0.0.0.0:22222}"
-listen_http="${IVEKIT_RTPENGINE_LISTEN_HTTP:-0.0.0.0:8080}"
-port_min="${IVEKIT_RTPENGINE_PORT_MIN:-23000}"
-port_max="${IVEKIT_RTPENGINE_PORT_MAX:-32768}"
-recording_dir="${IVEKIT_RTPENGINE_RECORDING_DIR:-/rec}"
+interface="${CONVERACT_FABRIC_RTPENGINE_INTERFACE:-public/127.0.0.1}"
+listen_ng="${CONVERACT_FABRIC_RTPENGINE_LISTEN_NG:-0.0.0.0:22222}"
+listen_tcp_ng="${CONVERACT_FABRIC_RTPENGINE_LISTEN_TCP_NG:-0.0.0.0:22222}"
+listen_http="${CONVERACT_FABRIC_RTPENGINE_LISTEN_HTTP:-0.0.0.0:8080}"
+port_min="${CONVERACT_FABRIC_RTPENGINE_PORT_MIN:-23000}"
+port_max="${CONVERACT_FABRIC_RTPENGINE_PORT_MAX:-32768}"
+recording_dir="${CONVERACT_FABRIC_RTPENGINE_RECORDING_DIR:-/rec}"
 table=-1
 if [ "${resolved_mode}" = kernel ]; then
-  table="${IVEKIT_RTPENGINE_KERNEL_TABLE:-0}"
+  table="${CONVERACT_FABRIC_RTPENGINE_KERNEL_TABLE:-0}"
 fi
 
 safe_config_value() {
@@ -122,10 +153,10 @@ mv "${config_tmp}" "${config_path}"
 trap - EXIT HUP INT TERM
 
 cat > "${runtime_dir}/runtime.prom" <<EOF
-ivekit_rtpengine_userspace_fallback{reason="kernel_identity_unavailable"} $(
+converact_rtpengine_userspace_fallback{reason="kernel_identity_unavailable"} $(
   [ "${IVEKIT_RTPENGINE_USERSPACE_FALLBACK}" = true ] && printf 1 || printf 0
 )
-ivekit_rtpengine_runtime_identity{runtime_mode="${resolved_mode}"} 1
+converact_rtpengine_runtime_identity{runtime_mode="${resolved_mode}"} 1
 EOF
 printf '%s\n' \
   "runtime_mode=${resolved_mode}" \

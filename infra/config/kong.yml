@@ -1,10 +1,10 @@
 _format_version: "3.0"
 
 services:
-  - name: opc-api
-    url: http://opc:3000
+  - name: converact-api
+    url: http://converact:3000
     routes:
-      - name: opc-api-route
+      - name: converact-api-route
         paths:
           - /api
         strip_path: false

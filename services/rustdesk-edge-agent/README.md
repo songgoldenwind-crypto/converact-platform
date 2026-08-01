@@ -1,6 +1,6 @@
-# iveKit RustDesk Edge Agent
+# Converact Fabric RustDesk Edge Agent
 
-Device-local command agent for the reusable iveKit RustDesk control plane.
+Device-local command agent for the reusable Converact Fabric RustDesk control plane.
 
 Install dependencies, configure the variables documented in the delivery bundle, then run:
 

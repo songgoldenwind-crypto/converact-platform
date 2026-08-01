@@ -20,7 +20,7 @@ $ErrorActionPreference = 'Stop'
 Install-ConveractEnvironmentAliases
 $bridge = [string]$env:CONVERACT_RUSTDESK_PRECISE_DISCONNECT_SCRIPT
 if (-not $bridge) {
-  $bridge = Join-Path (Split-Path $PSScriptRoot -Parent) 'windows\Invoke-IveKitRustDeskSessionDisconnect.ps1'
+  $bridge = Join-Path (Split-Path $PSScriptRoot -Parent) 'windows\Invoke-ConveractFabricRustDeskSessionDisconnect.ps1'
 }
 $available = $false
 if ($bridge -and [System.IO.Path]::IsPathRooted($bridge) -and (Test-Path -LiteralPath $bridge -PathType Leaf)) {
@@ -31,7 +31,7 @@ if ($Mode -eq 'validate') {
   exit 0
 }
 if (-not $available) {
-  [Console]::Error.WriteLine('iveKit precise disconnect bridge is not installed')
+  [Console]::Error.WriteLine('Converact Fabric precise disconnect bridge is not installed')
   exit 20
 }
 & $bridge '-Mode' $Mode '-Protocol' $Protocol '-CommandId' $CommandId `

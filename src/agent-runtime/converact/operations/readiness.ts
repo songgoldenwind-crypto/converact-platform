@@ -1,8 +1,8 @@
 import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import type { PgQueryable } from '../../../db-pg.js';
-import { iveKitRuntimeHeartbeatConfig } from './runtime-heartbeat.js';
+import { converactFabricRuntimeHeartbeatConfig } from './runtime-heartbeat.js';
 
-export interface IveKitPlacementReadinessProbe {
+export interface ConveractFabricPlacementReadinessProbe {
   probe(): Promise<{
     snapshot_version: number;
     generated_at: string;
@@ -10,7 +10,7 @@ export interface IveKitPlacementReadinessProbe {
   }>;
 }
 
-export interface IveKitReadinessResult {
+export interface ConveractFabricReadinessResult {
   status: 'ready' | 'not_ready';
   checks: {
     database: { status: 'ok' | 'failed' };
@@ -34,25 +34,25 @@ export interface IveKitReadinessResult {
   };
 }
 
-export interface IveKitReadinessProbe {
-  probe(): Promise<IveKitReadinessResult>;
+export interface ConveractFabricReadinessProbe {
+  probe(): Promise<ConveractFabricReadinessResult>;
 }
 
-export function createIveKitReadinessProbe(input: {
+export function createConveractFabricReadinessProbe(input: {
   pg: PgQueryable | null;
   env?: NodeJS.ProcessEnv;
   requiredMigrations?: readonly string[];
   instanceId?: string;
-  placementProbe?: IveKitPlacementReadinessProbe;
-}): IveKitReadinessProbe {
+  placementProbe?: ConveractFabricPlacementReadinessProbe;
+}): ConveractFabricReadinessProbe {
   const env = input.env || process.env;
   const requiredMigrations = [...(input.requiredMigrations || REQUIRED_MIGRATIONS)];
-  const heartbeatConfig = iveKitRuntimeHeartbeatConfig(env);
+  const heartbeatConfig = converactFabricRuntimeHeartbeatConfig(env);
   const placementEnabled = booleanEnv(resolveFabricEnv(env, 'PLACEMENT_ENABLED'), false);
   const instanceId = String(input.instanceId || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || '');
   return {
     async probe() {
-      const result: IveKitReadinessResult = {
+      const result: ConveractFabricReadinessResult = {
         status: 'not_ready',
         checks: {
           database: { status: 'failed' },
@@ -198,7 +198,7 @@ export const REQUIRED_MIGRATIONS = [
   '106_tinode_open_session_mutation_queue'
 ] as const;
 
-function configurationCheck(env: NodeJS.ProcessEnv): IveKitReadinessResult['checks']['configuration'] {
+function configurationCheck(env: NodeJS.ProcessEnv): ConveractFabricReadinessResult['checks']['configuration'] {
   const invalid: string[] = [];
   for (const key of [
     'CONVERACT_FABRIC_AUDIT_IP_HMAC_KEY',

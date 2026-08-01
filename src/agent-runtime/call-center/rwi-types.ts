@@ -95,7 +95,7 @@ export interface RWIFlushPlayQueueParams {
   }>;
 }
 
-/** Speech gather — Phase B (3-G0); requires IVR_SPEECH_PRODUCTION=1 in OPC. */
+/** Speech gather — Phase B (3-G0); requires IVR_SPEECH_PRODUCTION=1 in Converact. */
 export interface RWIGatherSpeechParams {
   call_id: string;
   prompt?: string;
@@ -107,7 +107,7 @@ export interface RWIGatherSpeechParams {
   max_retries?: number;
 }
 
-/** Voicemail beep + record — VM-1; requires IVR_VOICEMAIL_RECORD_AUDIO=1 in OPC. */
+/** Voicemail beep + record — VM-1; requires IVR_VOICEMAIL_RECORD_AUDIO=1 in Converact. */
 export interface RWIRecordAudioParams {
   call_id: string;
   max_duration_sec: number;

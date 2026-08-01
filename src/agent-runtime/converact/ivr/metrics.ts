@@ -4,14 +4,14 @@ import { metricsRegistry } from '../../../metrics.js';
 
 const pendingActionTotal = new Counter({
   name: 'opc_ivekit_ivr_pending_actions_total',
-  help: 'Total iveKit IVR pending action outcomes',
+  help: 'Total Converact Fabric IVR pending action outcomes',
   labelNames: ['kind', 'result', 'error_code'],
   registers: [metricsRegistry]
 });
 
 const pendingActionDuration = new Histogram({
   name: 'opc_ivekit_ivr_pending_action_duration_seconds',
-  help: 'iveKit IVR pending action execution duration',
+  help: 'Converact Fabric IVR pending action execution duration',
   labelNames: ['kind', 'result'],
   buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 120],
   registers: [metricsRegistry]
@@ -19,14 +19,14 @@ const pendingActionDuration = new Histogram({
 
 const reconciliationTotal = new Counter({
   name: 'opc_ivekit_ivr_reconciliations_total',
-  help: 'Total iveKit IVR pending action reconciliation outcomes',
+  help: 'Total Converact Fabric IVR pending action reconciliation outcomes',
   labelNames: ['kind', 'result'],
   registers: [metricsRegistry]
 });
 
 const sessionEventTotal = new Counter({
   name: 'opc_ivekit_ivr_session_events_total',
-  help: 'Total committed iveKit IVR session transition events',
+  help: 'Total committed Converact Fabric IVR session transition events',
   labelNames: ['event_type', 'state'],
   registers: [metricsRegistry]
 });

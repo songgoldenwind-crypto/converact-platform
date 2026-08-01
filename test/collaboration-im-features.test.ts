@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { CollaborationMessageStateStore } from '../src/agent-runtime/collaboration/message-state-store.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
+import { routeConveractFabricChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 const API_KEY = 'test-im-features-key';
@@ -25,7 +25,7 @@ async function route(
   body: unknown = null,
   userId = 'agent-rich'
 ) {
-  return routeIveKitChatApi(
+  return routeConveractFabricChatApi(
     pg,
     method,
     path,
@@ -51,7 +51,7 @@ test('IM feature migration adds relation columns and forced tenant RLS', () => {
   ]) assert.match(migration, new RegExp(marker));
 });
 
-test('iveKit chat supports replies, forwards, mentions, reactions, and pins', async () => {
+test('Converact Fabric chat supports replies, forwards, mentions, reactions, and pins', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);

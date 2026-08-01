@@ -1,8 +1,8 @@
 import type {
-  IveKitRateLimitDecision,
-  IveKitRateLimitReservationInput
+  ConveractFabricRateLimitDecision,
+  ConveractFabricRateLimitReservationInput
 } from './types.js';
 
-export interface IveKitRateLimitRepository {
-  reserve(input: IveKitRateLimitReservationInput): Promise<IveKitRateLimitDecision>;
+export interface ConveractFabricRateLimitRepository {
+  reserve(input: ConveractFabricRateLimitReservationInput): Promise<ConveractFabricRateLimitDecision>;
 }

@@ -3,25 +3,39 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-BENCHMARK_ROOT="${IVEKIT_CAPACITY_ROOT:-/opt/ivekit-capacity-benchmark}"
-RUNTIME_DIR="${IVEKIT_RUSTPBX_RUNTIME_DIR:-$BENCHMARK_ROOT/runtime/rustpbx-baseline}"
-RESULT_ROOT="${IVEKIT_CAPACITY_RESULT_ROOT:-$BENCHMARK_ROOT/results}"
-SIPP_BINARY="${IVEKIT_SIPP_BINARY:-$BENCHMARK_ROOT/bin/sipp-3.7.7}"
-NODE_COMMAND="${IVEKIT_NODE_COMMAND:-node}"
-OPENSSL_COMMAND="${IVEKIT_OPENSSL_COMMAND:-openssl}"
+# shellcheck source=scripts/converact-env-compat.sh
+source "$REPOSITORY_ROOT/scripts/converact-env-compat.sh"
+for suffix in \
+  CAPACITY_ROOT \
+  RUSTPBX_RUNTIME_DIR \
+  CAPACITY_RESULT_ROOT \
+  SIPP_BINARY \
+  NODE_COMMAND \
+  OPENSSL_COMMAND \
+  CAPACITY_INCLUDE_KAMAILIO \
+  SIP_TARGET_IP \
+  CAPACITY_RUN_ID; do
+  converact_env_resolve_fabric "$suffix"
+done
+BENCHMARK_ROOT="${CONVERACT_FABRIC_CAPACITY_ROOT:-/opt/converact-capacity-benchmark}"
+RUNTIME_DIR="${CONVERACT_FABRIC_RUSTPBX_RUNTIME_DIR:-$BENCHMARK_ROOT/runtime/rustpbx-baseline}"
+RESULT_ROOT="${CONVERACT_FABRIC_CAPACITY_RESULT_ROOT:-$BENCHMARK_ROOT/results}"
+SIPP_BINARY="${CONVERACT_FABRIC_SIPP_BINARY:-$BENCHMARK_ROOT/bin/sipp-3.7.7}"
+NODE_COMMAND="${CONVERACT_FABRIC_NODE_COMMAND:-node}"
+OPENSSL_COMMAND="${CONVERACT_FABRIC_OPENSSL_COMMAND:-openssl}"
 ALPINE_IMAGE="alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 SCENARIO_FILE="$REPOSITORY_ROOT/services/converact-service/acceptance/sipp/inbound-reject-486-uac.xml"
-INCLUDE_KAMAILIO="${IVEKIT_CAPACITY_INCLUDE_KAMAILIO:-1}"
+INCLUDE_KAMAILIO="${CONVERACT_FABRIC_CAPACITY_INCLUDE_KAMAILIO:-1}"
 case "$INCLUDE_KAMAILIO" in
   0) DEFAULT_SIP_TARGET_IP="172.30.44.10" ;;
   1) DEFAULT_SIP_TARGET_IP="172.30.44.9" ;;
   *)
-    echo "IVEKIT_CAPACITY_INCLUDE_KAMAILIO must be 0 or 1" >&2
+    echo "CONVERACT_FABRIC_CAPACITY_INCLUDE_KAMAILIO must be 0 or 1" >&2
     exit 64
     ;;
 esac
-SIP_TARGET_IP="${IVEKIT_SIP_TARGET_IP:-$DEFAULT_SIP_TARGET_IP}"
+SIP_TARGET_IP="${CONVERACT_FABRIC_SIP_TARGET_IP:-$DEFAULT_SIP_TARGET_IP}"
 
 RATE="${1:-}"
 DURATION_SECONDS="${2:-30}"
@@ -43,17 +57,17 @@ CDR_DRAIN_SECONDS="${CDR_DRAIN_SECONDS:-30}"
 MAX_SIP_ROUTE_P95_MS="${MAX_SIP_ROUTE_P95_MS:-150}"
 MAX_SIP_ROUTE_P99_MS="${MAX_SIP_ROUTE_P99_MS:-250}"
 RATE_TOLERANCE_RATIO="${RATE_TOLERANCE_RATIO:-0.03}"
-RUN_ID="${IVEKIT_CAPACITY_RUN_ID:-rustpbx-q${RATE}-$(date -u +%Y%m%dT%H%M%SZ)}"
+RUN_ID="${CONVERACT_FABRIC_CAPACITY_RUN_ID:-rustpbx-q${RATE}-$(date -u +%Y%m%dT%H%M%SZ)}"
 if [[ ! "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$ ]]; then
-  echo "IVEKIT_CAPACITY_RUN_ID is invalid" >&2
+  echo "CONVERACT_FABRIC_CAPACITY_RUN_ID is invalid" >&2
   exit 64
 fi
 RESULT_DIR="$RESULT_ROOT/$RUN_ID"
-SIPP_CONTAINER="ivekit-sipp-${RUN_ID}"
-ROUTER_CONTAINER="ivekit-rustpbx-baseline-router-1"
-RUSTPBX_CONTAINER="ivekit-rustpbx-baseline-rustpbx-1"
-POSTGRES_CONTAINER="ivekit-rustpbx-baseline-postgres-1"
-KAMAILIO_CONTAINER="ivekit-rustpbx-baseline-kamailio-1"
+SIPP_CONTAINER="converact-sipp-${RUN_ID}"
+ROUTER_CONTAINER="converact-rustpbx-baseline-router-1"
+RUSTPBX_CONTAINER="converact-rustpbx-baseline-rustpbx-1"
+POSTGRES_CONTAINER="converact-rustpbx-baseline-postgres-1"
+KAMAILIO_CONTAINER="converact-rustpbx-baseline-kamailio-1"
 
 for path in "$RUNTIME_DIR/.env" "$SIPP_BINARY" "$SCENARIO_FILE"; do
   [[ -f "$path" ]] || { echo "required file is missing: $path" >&2; exit 66; }
@@ -119,13 +133,13 @@ kamailio_metrics() {
 
 wait_for_sip_route() {
   [[ "$INCLUDE_KAMAILIO" == 1 ]] || return 0
-  local preflight_name="ivekit-sipp-preflight-$RUN_ID"
+  local preflight_name="converact-sipp-preflight-$RUN_ID"
   local accepted=0
   local attempt
   for attempt in $(seq 1 30); do
     if docker run --rm \
       --name "$preflight_name" \
-      --network ivekit-rustpbx-baseline \
+      --network converact-rustpbx-baseline \
       --ip 172.30.44.20 \
       --ulimit nofile=65536:65536 \
       -v "$SIPP_BINARY:/usr/local/bin/sipp:ro" \
@@ -169,7 +183,7 @@ wait_for_sip_route() {
   return 1
 }
 
-old_containers="$(docker ps -aq --filter label=io.ivekit.capacity.baseline=true)"
+old_containers="$(docker ps -aq --filter label=io.converact.capacity.baseline=true)"
 if [[ -n "$old_containers" ]]; then
   docker rm -f $old_containers >/dev/null
 fi
@@ -198,8 +212,8 @@ if [[ "$INCLUDE_KAMAILIO" == 1 ]]; then
 fi
 
 docker create --name "$SIPP_CONTAINER" \
-  --label io.ivekit.capacity.baseline=true \
-  --network ivekit-rustpbx-baseline --ip 172.30.44.20 \
+  --label io.converact.capacity.baseline=true \
+  --network converact-rustpbx-baseline --ip 172.30.44.20 \
   --ulimit nofile=65536:65536 \
   -v "$SIPP_BINARY:/usr/local/bin/sipp:ro" \
   -v "$SCENARIO_FILE:/scenario.xml:ro" \

@@ -1,6 +1,6 @@
 import type { PgQueryable } from '../../db-pg.js';
 
-export interface IveKitUnifiedTimelineEvent {
+export interface ConveractFabricUnifiedTimelineEvent {
   id: string;
   source: 'chat' | 'media' | 'remote' | 'evidence' | 'quality';
   event_type: string;
@@ -17,8 +17,8 @@ export interface IveKitUnifiedTimelineEvent {
   } | null;
 }
 
-export interface IveKitUnifiedTimelinePage {
-  items: IveKitUnifiedTimelineEvent[];
+export interface ConveractFabricUnifiedTimelinePage {
+  items: ConveractFabricUnifiedTimelineEvent[];
   has_more: boolean;
   next_cursor: string | null;
 }
@@ -31,7 +31,7 @@ interface TimelineCursor {
   id: string;
 }
 
-export class IveKitUnifiedTimelineStore {
+export class ConveractFabricUnifiedTimelineStore {
   constructor(private readonly pg: PgQueryable) {}
 
   async list(input: {
@@ -43,7 +43,7 @@ export class IveKitUnifiedTimelineStore {
     system: boolean;
     cursor?: string;
     limit?: number;
-  }): Promise<IveKitUnifiedTimelinePage> {
+  }): Promise<ConveractFabricUnifiedTimelinePage> {
     const limit = boundedLimit(input.limit);
     const cursor = decodeCursor(input.cursor, input.business_ref);
     const result = await this.pg.query(
@@ -127,17 +127,17 @@ export class IveKitUnifiedTimelineStore {
   }
 }
 
-function decodeEvent(row: Record<string, unknown>): IveKitUnifiedTimelineEvent {
+function decodeEvent(row: Record<string, unknown>): ConveractFabricUnifiedTimelineEvent {
   return {
     id: String(row.id),
-    source: String(row.source) as IveKitUnifiedTimelineEvent['source'],
+    source: String(row.source) as ConveractFabricUnifiedTimelineEvent['source'],
     event_type: String(row.event_type),
-    resource_type: String(row.resource_type) as IveKitUnifiedTimelineEvent['resource_type'],
+    resource_type: String(row.resource_type) as ConveractFabricUnifiedTimelineEvent['resource_type'],
     resource_id: String(row.resource_id || ''),
     actor_identity: String(row.actor_identity || ''),
     occurred_at: new Date(String(row.occurred_at)).toISOString(),
     attributes: jsonObject(row.attributes),
-    evidence_ref: row.evidence_ref ? jsonObject(row.evidence_ref) as IveKitUnifiedTimelineEvent['evidence_ref'] : null
+    evidence_ref: row.evidence_ref ? jsonObject(row.evidence_ref) as ConveractFabricUnifiedTimelineEvent['evidence_ref'] : null
   };
 }
 
@@ -149,7 +149,7 @@ function boundedLimit(value: number | undefined): number {
   return limit;
 }
 
-function encodeCursor(ref: { type: string; id: string }, event: IveKitUnifiedTimelineEvent): string {
+function encodeCursor(ref: { type: string; id: string }, event: ConveractFabricUnifiedTimelineEvent): string {
   return Buffer.from(JSON.stringify({
     v: 1,
     business_ref_type: ref.type,

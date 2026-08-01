@@ -58,16 +58,16 @@ import type {
 } from '../livekit/types.js';
 import type { LiveKitEgressPlacementPort } from './placement/livekit-egress-placement.js';
 import type {
-  IveKitMediaConnectionEventInput,
-  IveKitMediaConnectionEventResult,
-  IveKitMediaCallAction,
-  IveKitMediaQualitySnapshotInput,
-  IveKitMediaQualityTransition,
-  IveKitMediaCallSnapshot,
-  IveKitMediaTrackSource
+  ConveractFabricMediaConnectionEventInput,
+  ConveractFabricMediaConnectionEventResult,
+  ConveractFabricMediaCallAction,
+  ConveractFabricMediaQualitySnapshotInput,
+  ConveractFabricMediaQualityTransition,
+  ConveractFabricMediaCallSnapshot,
+  ConveractFabricMediaTrackSource
 } from '../livekit/types.js';
 import type { MediaChannel } from '../media-gateway/index.js';
-import { IveKitTenantEventJournal } from './tenant-event-store.js';
+import { ConveractFabricTenantEventJournal } from './tenant-event-store.js';
 import type {
   MediaCallPlacementPort,
   MediaCallPlacementReservation
@@ -80,7 +80,7 @@ import type {
   RealtimeAudioTapGrantService
 } from './voice/realtime-audio-tap-grant.js';
 
-export interface RouteIveKitMediaApiOptions {
+export interface RouteConveractFabricMediaApiOptions {
   pg?: PgQueryable;
   commandPg?: PgQueryable;
   mediaQualityService?: Pick<
@@ -88,7 +88,7 @@ export interface RouteIveKitMediaApiOptions {
     'reportQuality' | 'reportConnectionEvent' | 'getSummary' | 'prune'
   >;
   realtimeSpeechStore?: Pick<RealtimeSpeechStorePort, 'list' | 'deleteByInteraction'>;
-  eventStore?: Pick<IveKitTenantEventJournal, 'append'>;
+  eventStore?: Pick<ConveractFabricTenantEventJournal, 'append'>;
   moderationProvider?: LiveKitModerationProvider;
   onRecordingStarted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
   onRecordingCompleted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
@@ -133,12 +133,12 @@ export interface PreparedMediaCallPlacement {
   reservation: MediaCallPlacementReservation;
 }
 
-export async function prepareIveKitMediaCallPlacement(
+export async function prepareConveractFabricMediaCallPlacement(
   method: string,
   routePath: string,
   body: unknown,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitMediaApiOptions
+  options: RouteConveractFabricMediaApiOptions
 ): Promise<PreparedMediaCallPlacement | null> {
   if (!options.placement ||
       method !== 'POST' ||
@@ -172,7 +172,7 @@ export async function prepareIveKitMediaCallPlacement(
 }
 
 function requireMediaCallPg(pg: PgQueryable | undefined): PgQueryable {
-  if (!pg) throw Object.assign(new Error('postgres is required for iveKit media calls'), { status: 503 });
+  if (!pg) throw Object.assign(new Error('postgres is required for Converact Fabric media calls'), { status: 503 });
   return pg;
 }
 
@@ -397,7 +397,7 @@ function publicEgressJob(job: LiveKitEgressJob): Record<string, unknown> {
 async function closeTerminalEgressPlacement(
   media: ReturnType<typeof createLiveKitMediaModule>,
   result: LiveKitWebhookResult,
-  options: RouteIveKitMediaApiOptions
+  options: RouteConveractFabricMediaApiOptions
 ): Promise<void> {
   if (!result.recording || !result.egress_job_id || !options.egressPlacement || !options.pg) return;
   const job = media.recordings.getEgressJob(result.recording.id, result.egress_job_id);
@@ -470,7 +470,7 @@ function capabilities(
   };
 }
 
-export async function routeIveKitMediaApi(
+export async function routeConveractFabricMediaApi(
   db: unknown,
   method: string,
   path: string,
@@ -478,7 +478,7 @@ export async function routeIveKitMediaApi(
   body: unknown,
   rawBody: string | Buffer = '',
   headers: Record<string, string | string[] | undefined> = {},
-  options: RouteIveKitMediaApiOptions = {}
+  options: RouteConveractFabricMediaApiOptions = {}
 ): Promise<unknown | undefined> {
   const routePath = path.split('?')[0];
   if (!routePath.startsWith('/api/ivekit/media')) return undefined;
@@ -583,7 +583,7 @@ export async function routeIveKitMediaApi(
   );
   const durableEventStore = options.eventStore || (() => {
     const eventPg = getPostgresOrNull();
-    return eventPg ? new IveKitTenantEventJournal(eventPg) : undefined;
+    return eventPg ? new ConveractFabricTenantEventJournal(eventPg) : undefined;
   })();
   const requireRecordingCallAccess = async (
     callId: string | undefined,
@@ -818,7 +818,7 @@ export async function routeIveKitMediaApi(
       if (!snapshot) throw notFound('media call not found');
       requireMediaCallReadAccess(ctx, headers, snapshot);
       const snapshots = Array.isArray(input.snapshots)
-        ? input.snapshots as IveKitMediaQualitySnapshotInput[]
+        ? input.snapshots as ConveractFabricMediaQualitySnapshotInput[]
         : [];
       if (ctx.role !== 'system') {
         const actorIdentity = mediaActorIdentity(ctx, headers);
@@ -850,7 +850,7 @@ export async function routeIveKitMediaApi(
     }
 
     if (action === 'connection-events' && method === 'POST') {
-      const input = bodyRecord(body) as unknown as IveKitMediaConnectionEventInput;
+      const input = bodyRecord(body) as unknown as ConveractFabricMediaConnectionEventInput;
       const snapshot = await calls.getCall(ctx.tenantId, callId);
       if (!snapshot) throw notFound('media call not found');
       requireMediaCallReadAccess(ctx, headers, snapshot);
@@ -1151,7 +1151,7 @@ export async function routeIveKitMediaApi(
         actor_is_system: ctx.role === 'system',
         idempotency_key: idempotencyKey,
         track_sid: String(input.track_sid || ''),
-        source: String(input.source || '') as IveKitMediaTrackSource,
+        source: String(input.source || '') as ConveractFabricMediaTrackSource,
         muted: input.muted as true,
         metadata: bodyRecord(input.metadata)
       })
@@ -1457,7 +1457,7 @@ export async function routeIveKitMediaApi(
   return undefined;
 }
 
-function ingressProvider(options: RouteIveKitMediaApiOptions): LiveKitIngressProvider {
+function ingressProvider(options: RouteConveractFabricMediaApiOptions): LiveKitIngressProvider {
   if (options.ingressProvider !== undefined) {
     if (options.ingressProvider) return options.ingressProvider;
     throw Object.assign(new Error('LiveKit Ingress is not configured'), { status: 503 });
@@ -1681,7 +1681,7 @@ function mediaPlacementWorkerId(): string {
 async function revokeTerminalCallRevival(
   rawBody: string,
   verifiedResult: { event?: unknown; room_name?: unknown },
-  options: RouteIveKitMediaApiOptions
+  options: RouteConveractFabricMediaApiOptions
 ): Promise<void> {
   if (!options.pg || verifiedResult.event !== 'participant_joined') return;
   const event = parseLiveKitWebhookBody(rawBody);
@@ -1707,7 +1707,7 @@ async function revokeTerminalCallRevival(
 }
 
 function liveKitModerationProviderSource(
-  options: RouteIveKitMediaApiOptions
+  options: RouteConveractFabricMediaApiOptions
 ): LiveKitModerationProvider | LiveKitModerationProviderResolver | null {
   if (options.moderationProvider) return options.moderationProvider;
   if (!options.placement || !options.pg) {
@@ -1755,12 +1755,12 @@ function parseWebhookMetadata(value: unknown): Record<string, unknown> {
   }
 }
 
-function mediaCallAction(value: unknown): IveKitMediaCallAction {
+function mediaCallAction(value: unknown): ConveractFabricMediaCallAction {
   const action = String(value || '').trim();
   if (!['ring', 'accept', 'reject', 'cancel', 'timeout', 'activate', 'end', 'fail'].includes(action)) {
     throw badRequest('unsupported media call action');
   }
-  return action as IveKitMediaCallAction;
+  return action as ConveractFabricMediaCallAction;
 }
 
 function mediaActorIdentity(
@@ -1787,7 +1787,7 @@ function mediaModerationActorIdentity(
 function requireMediaCallReadAccess(
   ctx: ReturnType<typeof requireAuth>,
   headers: Record<string, string | string[] | undefined>,
-  snapshot: IveKitMediaCallSnapshot
+  snapshot: ConveractFabricMediaCallSnapshot
 ): void {
   if (ctx.role === 'system') return;
   const identity = mediaActorIdentity(ctx, headers);
@@ -1799,7 +1799,7 @@ function requireMediaCallReadAccess(
 function requireMediaCallAudioTapControlAccess(
   ctx: ReturnType<typeof requireAuth>,
   headers: Record<string, string | string[] | undefined>,
-  snapshot: IveKitMediaCallSnapshot
+  snapshot: ConveractFabricMediaCallSnapshot
 ): void {
   if (ctx.role === 'system' || ctx.role === 'owner' || ctx.role === 'admin') return;
   if (ctx.role !== 'operator') {
@@ -1814,20 +1814,20 @@ function requireMediaCallAudioTapControlAccess(
   }
 }
 
-function requireNonTerminalMediaCall(snapshot: IveKitMediaCallSnapshot): void {
+function requireNonTerminalMediaCall(snapshot: ConveractFabricMediaCallSnapshot): void {
   if (['rejected', 'cancelled', 'timed_out', 'ended', 'failed'].includes(snapshot.call.status)) {
     throw Object.assign(new Error('media call no longer accepts audio tap grants'), { status: 409 });
   }
 }
 
-function requireStreamableMediaCall(snapshot: IveKitMediaCallSnapshot): void {
+function requireStreamableMediaCall(snapshot: ConveractFabricMediaCallSnapshot): void {
   if (snapshot.call.status !== 'accepted' && snapshot.call.status !== 'active') {
     throw Object.assign(new Error('media call is not active for realtime audio'), { status: 409 });
   }
 }
 
 function requireGrantTrackParticipants(
-  snapshot: IveKitMediaCallSnapshot,
+  snapshot: ConveractFabricMediaCallSnapshot,
   tracks: readonly LiveKitRealtimeAudioTapGrantTrack[]
 ): void {
   const streamable = new Set(
@@ -1844,7 +1844,7 @@ function requireGrantTrackParticipants(
 }
 
 function requireStreamableParticipant(
-  snapshot: IveKitMediaCallSnapshot,
+  snapshot: ConveractFabricMediaCallSnapshot,
   participantId: string
 ): void {
   const participant = snapshot.participants.find((item) => item.identity === participantId);
@@ -1868,7 +1868,7 @@ function liveKitAudioTapGatewayUrl(value: string | undefined): string {
   return url.toString();
 }
 
-async function broadcastMediaCallTransition(tenantId: string, snapshot: IveKitMediaCallSnapshot): Promise<void> {
+async function broadcastMediaCallTransition(tenantId: string, snapshot: ConveractFabricMediaCallSnapshot): Promise<void> {
   const recipients = snapshot.participants.map((participant) => participant.identity);
   await broadcastMediaCall(tenantId, 'ivekit.media.call.updated', snapshot);
   await Promise.all(snapshot.participants.map((participant) =>
@@ -1887,7 +1887,7 @@ async function broadcastMediaCallTransition(tenantId: string, snapshot: IveKitMe
 function broadcastMediaCall(
   tenantId: string,
   event: 'ivekit.media.call.created' | 'ivekit.media.call.updated' | 'ivekit.media.call.ended',
-  snapshot: IveKitMediaCallSnapshot
+  snapshot: ConveractFabricMediaCallSnapshot
 ): Promise<void> {
   return wsBroadcastToUsers(tenantId, snapshot.participants.map((participant) => participant.identity), event, {
     call_id: snapshot.call.id,
@@ -1898,9 +1898,9 @@ function broadcastMediaCall(
 
 async function publishMediaQualityTransitions(
   tenantId: string,
-  snapshot: IveKitMediaCallSnapshot,
-  transitions: IveKitMediaQualityTransition[],
-  eventStore?: Pick<IveKitTenantEventJournal, 'append'>
+  snapshot: ConveractFabricMediaCallSnapshot,
+  transitions: ConveractFabricMediaQualityTransition[],
+  eventStore?: Pick<ConveractFabricTenantEventJournal, 'append'>
 ): Promise<void> {
   const recipients = snapshot.participants
     .filter((participant) => participant.status !== 'removed')
@@ -1937,9 +1937,9 @@ async function publishMediaQualityTransitions(
 
 async function publishMediaConnectionEvent(
   tenantId: string,
-  snapshot: IveKitMediaCallSnapshot,
-  result: IveKitMediaConnectionEventResult,
-  eventStore?: Pick<IveKitTenantEventJournal, 'append'>
+  snapshot: ConveractFabricMediaCallSnapshot,
+  result: ConveractFabricMediaConnectionEventResult,
+  eventStore?: Pick<ConveractFabricTenantEventJournal, 'append'>
 ): Promise<void> {
   const recipients = snapshot.participants
     .filter((participant) => participant.status !== 'removed')
@@ -1980,7 +1980,7 @@ async function journalLiveKitLifecycleEvent(
   media: ReturnType<typeof createLiveKitMediaModule>,
   result: LiveKitWebhookResult,
   rawBody: string,
-  eventStore?: Pick<IveKitTenantEventJournal, 'append'>
+  eventStore?: Pick<ConveractFabricTenantEventJournal, 'append'>
 ): Promise<void> {
   if (!eventStore || !result.event || !result.room_name) return;
   const providerEvent = bodyRecord(JSON.parse(rawBody || '{}'));

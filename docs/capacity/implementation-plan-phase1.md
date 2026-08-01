@@ -1,4 +1,4 @@
-# iveKit Capacity Harness Phase 1 Implementation Plan
+# Converact Fabric Capacity Harness Phase 1 Implementation Plan
 
 **Status:** Controlled implementation complete; real capacity execution not run
 **Goal:** Establish a deterministic, auditable load-control and evidence toolchain before claiming any single-node or 100K result.
@@ -17,7 +17,7 @@ Included:
 5. Qualify generator fleets before accepting system-under-test evidence.
 6. Validate client, server and independent-observer totals.
 7. Calculate single-node hard/safe capacity and 1/2/4/8 scaling efficiency.
-8. Add controlled iveKit event WebSocket, Tinode and SIP generator adapters without placing packet or message traffic through the orchestrator.
+8. Add controlled Converact Fabric event WebSocket, Tinode and SIP generator adapters without placing packet or message traffic through the orchestrator.
 9. Preserve `not_run` for real media, PSTN, Windows, TURN, Egress and Provider validation until the required environment exists.
 
 Excluded from this phase:
@@ -25,7 +25,7 @@ Excluded from this phase:
 - Declaring MIX-100K passed.
 - Replacing real RTP/WebRTC/RustDesk traffic with mocks.
 - Running 10K or 100K traffic from one unqualified laptop process.
-- Adding capacity coordination to iveKit request hot paths.
+- Adding capacity coordination to Converact Fabric request hot paths.
 
 ## 1.1 Implementation Record
 
@@ -34,7 +34,7 @@ Completed on 2026-07-16:
 - deterministic profile compiler and immutable manifest SHA binding;
 - interaction/connection shard coverage, required-protocol validation and runtime lease fencing;
 - generator qualification and three-plane evidence validation;
-- iveKit Event WebSocket and Tinode controlled real-socket generators;
+- Converact Fabric Event WebSocket and Tinode controlled real-socket generators;
 - SIPp capacity process planner, runner, statistics parser and watchdog classification;
 - single-unit ramp/binary-search frontier and measured 1/2/4/8 curve runner;
 - manifest compile/validate CLI and intentionally non-runnable config template;
@@ -44,7 +44,7 @@ Still `not_run`:
 
 - SIPp real process on this workstation because no SIPp binary is installed;
 - RustPBX SIP/RTP/recording single-node frontier;
-- Tinode and iveKit Edge calibrated single-node frontier against deployed services;
+- Tinode and Converact Fabric Edge calibrated single-node frontier against deployed services;
 - LiveKit multi-room, TURN and Egress generator/runtime frontier;
 - RustDesk synthetic hbbs/hbbr fleet and real Windows correctness lane;
 - component 1/2/4/8, Cell-10K and MIX-100K physical multi-node execution.
@@ -73,7 +73,7 @@ Each adapter receives a manifest shard and connects directly to the target endpo
 
 | Adapter | Initial coverage |
 | --- | --- |
-| iveKit event WS | Connect, authorize, consume, slow-consumer class, resume cursor, reconnect and sequence journal. |
+| Converact Fabric event WS | Connect, authorize, consume, slow-consumer class, resume cursor, reconnect and sequence journal. |
 | Tinode | Connect, login, subscribe, publish, receipt, typing/presence, reconnect and deterministic message journal. |
 | SIP | SIPp scenario assignment, CPS/concurrency limits, process watchdog telemetry and result parsing. |
 
@@ -143,7 +143,7 @@ Tests first:
 Verification:
 
 ```bash
-node --import tsx --test test/ivekit-capacity-profile-compiler.test.ts
+node --import tsx --test test/converact-capacity-profile-compiler.test.ts
 ```
 
 ### Task 2: Lease fencing
@@ -159,7 +159,7 @@ Tests first:
 Verification:
 
 ```bash
-node --import tsx --test test/ivekit-capacity-shard-lease.test.ts
+node --import tsx --test test/converact-capacity-shard-lease.test.ts
 ```
 
 ### Task 3: Qualification and evidence
@@ -175,7 +175,7 @@ Tests first:
 Verification:
 
 ```bash
-node --import tsx --test test/ivekit-capacity-evidence.test.ts
+node --import tsx --test test/converact-capacity-evidence.test.ts
 ```
 
 ### Task 4: Density and scaling calculations
@@ -191,7 +191,7 @@ Tests first:
 Verification:
 
 ```bash
-node --import tsx --test test/ivekit-capacity-scaling.test.ts
+node --import tsx --test test/converact-capacity-scaling.test.ts
 ```
 
 ### Task 5: Controlled protocol adapters
@@ -201,7 +201,7 @@ Tests use local controlled protocol servers and parser fixtures. They prove adap
 Verification:
 
 ```bash
-node --import tsx --test test/ivekit-capacity-event-ws-generator.test.ts test/ivekit-capacity-tinode-generator.test.ts test/ivekit-capacity-sip-generator.test.ts
+node --import tsx --test test/converact-capacity-event-ws-generator.test.ts test/converact-capacity-tinode-generator.test.ts test/converact-capacity-sip-generator.test.ts
 ```
 
 ## 5. Completion Gates
@@ -221,7 +221,7 @@ Phase 1 is complete when:
 
 After Phase 1:
 
-1. Calibrate generator workers and run iveKit event WS/Tinode/SIP single-node frontiers.
+1. Calibrate generator workers and run Converact Fabric event WS/Tinode/SIP single-node frontiers.
 2. Add RTP media twin and RustPBX packet/recording evidence.
 3. Add LiveKit multi-room/TURN/Egress fleet, forking upstream load tools where necessary.
 4. Add RustDesk rendezvous/relay synthetic fleet and Windows correctness lane.

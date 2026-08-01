@@ -11,14 +11,14 @@ metadata:
   name: {{ .Release.Name }}-livekit-ingress-config
 type: Opaque
 stringData:
-  api-key: {{ include "opc.livekitApiKey" . | quote }}
-  api-secret: {{ include "opc.livekitApiSecret" . | quote }}
+  api-key: {{ include "converact.livekitApiKey" . | quote }}
+  api-secret: {{ include "converact.livekitApiSecret" . | quote }}
   ingress.yaml: |
     logging:
       level: info
       json: true
     redis:
-      {{- include "opc.livekitRedisConfig" . | nindent 6 }}
+      {{- include "converact.livekitRedisConfig" . | nindent 6 }}
     health_port: {{ .Values.media.ingress.healthPort }}
     prometheus_port: {{ .Values.media.ingress.prometheusPort }}
     rtmp_port: {{ .Values.media.ingress.rtmpPort }}
@@ -146,7 +146,7 @@ spec:
                   name: {{ .Release.Name }}-livekit-ingress-config
                   key: api-secret
             - name: LIVEKIT_WS_URL
-              value: {{ include "opc.livekitInternalUrl" . | quote }}
+              value: {{ include "converact.livekitInternalUrl" . | quote }}
           ports:
             - name: rtmp
               containerPort: {{ .Values.media.ingress.rtmpPort }}
@@ -191,7 +191,7 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
-            {{- include "opc.livekitRedisTLSVolumeMount" . | nindent 12 }}
+            {{- include "converact.livekitRedisTLSVolumeMount" . | nindent 12 }}
           resources:
             {{- toYaml .Values.media.ingress.resources | nindent 12 }}
           securityContext:
@@ -209,7 +209,7 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 2Gi
-        {{- include "opc.livekitRedisTLSVolume" . | nindent 8 }}
+        {{- include "converact.livekitRedisTLSVolume" . | nindent 8 }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

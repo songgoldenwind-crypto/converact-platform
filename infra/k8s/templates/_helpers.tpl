@@ -1,13 +1,13 @@
-{{- define "opc.opcImage" -}}
-{{- $repository := required "opc.image.repository is required" .Values.opc.image.repository -}}
-{{- $digest := required "opc.image.digest is required" .Values.opc.image.digest -}}
+{{- define "converact.platformImage" -}}
+{{- $repository := required "converact.image.repository is required" .Values.converact.image.repository -}}
+{{- $digest := required "converact.image.digest is required" .Values.converact.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
-{{- fail "opc.image.digest must be an immutable sha256 digest" -}}
+{{- fail "converact.image.digest must be an immutable sha256 digest" -}}
 {{- end -}}
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "opc.aiAgentImage" -}}
+{{- define "converact.aiAgentImage" -}}
 {{- $repository := required "aiAgent.image.repository is required" .Values.aiAgent.image.repository -}}
 {{- $digest := required "aiAgent.image.digest is required" .Values.aiAgent.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -16,7 +16,7 @@
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "opc.frontendImage" -}}
+{{- define "converact.frontendImage" -}}
 {{- $repository := required "frontend.image.repository is required" .Values.frontend.image.repository -}}
 {{- $digest := required "frontend.image.digest is required" .Values.frontend.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -25,7 +25,7 @@
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "opc.postgresImage" -}}
+{{- define "converact.postgresImage" -}}
 {{- $repository := required "postgres.image.repository is required" .Values.postgres.image.repository -}}
 {{- $digest := required "postgres.image.digest is required" .Values.postgres.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -34,7 +34,7 @@
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "opc.postgresMode" -}}
+{{- define "converact.postgresMode" -}}
 {{- $mode := .Values.postgres.mode | default "external" -}}
 {{- if not (has $mode (list "external" "bundled-dev")) -}}
 {{- fail "postgres.mode must be external or bundled-dev" -}}
@@ -42,23 +42,23 @@
 {{- $mode -}}
 {{- end }}
 
-{{- define "opc.databaseUrlSecretName" -}}
-{{- if eq (include "opc.postgresMode" .) "external" -}}
+{{- define "converact.databaseUrlSecretName" -}}
+{{- if eq (include "converact.postgresMode" .) "external" -}}
 {{- required "postgres.external.existingSecret is required in external mode" .Values.postgres.external.existingSecret -}}
 {{- else -}}
 {{- printf "%s-secrets" .Release.Name -}}
 {{- end -}}
 {{- end }}
 
-{{- define "opc.databaseUrlSecretKey" -}}
-{{- if eq (include "opc.postgresMode" .) "external" -}}
+{{- define "converact.databaseUrlSecretKey" -}}
+{{- if eq (include "converact.postgresMode" .) "external" -}}
 {{- required "postgres.external.secretKey is required in external mode" .Values.postgres.external.secretKey -}}
 {{- else -}}
 database-url
 {{- end -}}
 {{- end }}
 
-{{- define "opc.objectStorageMode" -}}
+{{- define "converact.objectStorageMode" -}}
 {{- $storage := .Values.media.objectStorage -}}
 {{- $mode := $storage.mode | default "external" -}}
 {{- if not (has $mode (list "external" "legacy-minio")) -}}
@@ -87,87 +87,87 @@ database-url
 {{- $mode -}}
 {{- end }}
 
-{{- define "opc.objectStorageEndpoint" -}}
-{{- if eq (include "opc.objectStorageMode" .) "external" -}}
+{{- define "converact.objectStorageEndpoint" -}}
+{{- if eq (include "converact.objectStorageMode" .) "external" -}}
 {{- .Values.media.objectStorage.endpoint | default "" -}}
 {{- else -}}
 {{- .Values.media.minio.endpoint | default (printf "http://%s-minio:9000" .Release.Name) -}}
 {{- end -}}
 {{- end }}
 
-{{- define "opc.objectStorageBucket" -}}
-{{- if eq (include "opc.objectStorageMode" .) "external" -}}
+{{- define "converact.objectStorageBucket" -}}
+{{- if eq (include "converact.objectStorageMode" .) "external" -}}
 {{- .Values.media.objectStorage.bucket -}}
 {{- else -}}
 {{- .Values.media.minio.bucket | default "recordings" -}}
 {{- end -}}
 {{- end }}
 
-{{- define "opc.objectStorageRegion" -}}
-{{- if eq (include "opc.objectStorageMode" .) "external" -}}
+{{- define "converact.objectStorageRegion" -}}
+{{- if eq (include "converact.objectStorageMode" .) "external" -}}
 {{- .Values.media.objectStorage.region -}}
 {{- else -}}
 us-east-1
 {{- end -}}
 {{- end }}
 
-{{- define "opc.objectStorageForcePathStyle" -}}
-{{- if eq (include "opc.objectStorageMode" .) "external" -}}
+{{- define "converact.objectStorageForcePathStyle" -}}
+{{- if eq (include "converact.objectStorageMode" .) "external" -}}
 {{- .Values.media.objectStorage.forcePathStyle -}}
 {{- else -}}
 true
 {{- end -}}
 {{- end }}
 
-{{- define "opc.objectStorageSecretName" -}}
-{{- if eq (include "opc.objectStorageMode" .) "external" -}}
+{{- define "converact.objectStorageSecretName" -}}
+{{- if eq (include "converact.objectStorageMode" .) "external" -}}
 {{- required "media.objectStorage.existingSecret is required with secret authentication" .Values.media.objectStorage.existingSecret -}}
 {{- else -}}
 {{- required "media.minio.existingSecret is required in legacy-minio mode" .Values.media.minio.existingSecret -}}
 {{- end -}}
 {{- end }}
 
-{{- define "opc.objectStorageAccessKeyIdKey" -}}
-{{- if eq (include "opc.objectStorageMode" .) "external" -}}
+{{- define "converact.objectStorageAccessKeyIdKey" -}}
+{{- if eq (include "converact.objectStorageMode" .) "external" -}}
 {{- .Values.media.objectStorage.accessKeyIdKey -}}
 {{- else -}}
 {{- .Values.media.minio.accessKeyIdKey -}}
 {{- end -}}
 {{- end }}
 
-{{- define "opc.objectStorageSecretAccessKeyKey" -}}
-{{- if eq (include "opc.objectStorageMode" .) "external" -}}
+{{- define "converact.objectStorageSecretAccessKeyKey" -}}
+{{- if eq (include "converact.objectStorageMode" .) "external" -}}
 {{- .Values.media.objectStorage.secretAccessKeyKey -}}
 {{- else -}}
 {{- .Values.media.minio.secretAccessKeyKey -}}
 {{- end -}}
 {{- end }}
 
-{{- define "opc.objectStorageEnv" -}}
-{{- $mode := include "opc.objectStorageMode" . -}}
+{{- define "converact.objectStorageEnv" -}}
+{{- $mode := include "converact.objectStorageMode" . -}}
 - name: S3_ENDPOINT
-  value: {{ include "opc.objectStorageEndpoint" . | quote }}
+  value: {{ include "converact.objectStorageEndpoint" . | quote }}
 - name: S3_BUCKET
-  value: {{ include "opc.objectStorageBucket" . | quote }}
+  value: {{ include "converact.objectStorageBucket" . | quote }}
 - name: S3_REGION
-  value: {{ include "opc.objectStorageRegion" . | quote }}
+  value: {{ include "converact.objectStorageRegion" . | quote }}
 - name: S3_FORCE_PATH_STYLE
-  value: {{ include "opc.objectStorageForcePathStyle" . | quote }}
+  value: {{ include "converact.objectStorageForcePathStyle" . | quote }}
 {{- if or (eq $mode "legacy-minio") (eq (.Values.media.objectStorage.authMode | default "secret") "secret") }}
 - name: AWS_ACCESS_KEY_ID
   valueFrom:
     secretKeyRef:
-      name: {{ include "opc.objectStorageSecretName" . }}
-      key: {{ include "opc.objectStorageAccessKeyIdKey" . }}
+      name: {{ include "converact.objectStorageSecretName" . }}
+      key: {{ include "converact.objectStorageAccessKeyIdKey" . }}
 - name: AWS_SECRET_ACCESS_KEY
   valueFrom:
     secretKeyRef:
-      name: {{ include "opc.objectStorageSecretName" . }}
-      key: {{ include "opc.objectStorageSecretAccessKeyKey" . }}
+      name: {{ include "converact.objectStorageSecretName" . }}
+      key: {{ include "converact.objectStorageSecretAccessKeyKey" . }}
 {{- end }}
 {{- end }}
 
-{{- define "opc.redisImage" -}}
+{{- define "converact.redisImage" -}}
 {{- $repository := required "redis.image.repository is required" .Values.redis.image.repository -}}
 {{- $digest := required "redis.image.digest is required" .Values.redis.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -176,7 +176,7 @@ true
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "opc.natsImage" -}}
+{{- define "converact.natsImage" -}}
 {{- $repository := required "nats.image.repository is required" .Values.nats.image.repository -}}
 {{- $digest := required "nats.image.digest is required" .Values.nats.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -185,7 +185,7 @@ true
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "opc.livekitImage" -}}
+{{- define "converact.livekitImage" -}}
 {{- $repository := required "livekit.image.repository is required when bundled LiveKit is enabled" .Values.livekit.image.repository -}}
 {{- $digest := required "livekit.image.digest is required when bundled LiveKit is enabled" .Values.livekit.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -194,7 +194,7 @@ true
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "opc.livekitSipImage" -}}
+{{- define "converact.livekitSipImage" -}}
 {{- $repository := required "media.sip.image.repository is required when LiveKit SIP is enabled" .Values.media.sip.image.repository -}}
 {{- $digest := required "media.sip.image.digest is required when LiveKit SIP is enabled" .Values.media.sip.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -203,7 +203,7 @@ true
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "opc.rustdeskImage" -}}
+{{- define "converact.rustdeskImage" -}}
 {{- $repository := required "rustdesk.image.repository is required when RustDesk is enabled" .Values.rustdesk.image.repository -}}
 {{- $digest := required "rustdesk.image.digest is required when RustDesk is enabled" .Values.rustdesk.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
@@ -212,7 +212,7 @@ true
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{- define "opc.livekitInternalUrl" -}}
+{{- define "converact.livekitInternalUrl" -}}
 {{- if .Values.livekit.url -}}
 {{- .Values.livekit.url -}}
 {{- else if .Values.livekit.enabled -}}
@@ -222,7 +222,7 @@ true
 {{- end -}}
 {{- end }}
 
-{{- define "opc.livekitRedisAddress" -}}
+{{- define "converact.livekitRedisAddress" -}}
 {{- if .Values.livekit.redis.address -}}
 {{- .Values.livekit.redis.address -}}
 {{- else if and .Values.livekit.enabled .Values.redis.enabled -}}
@@ -232,7 +232,7 @@ true
 {{- end -}}
 {{- end }}
 
-{{- define "opc.livekitRedisConfig" -}}
+{{- define "converact.livekitRedisConfig" -}}
 {{- $redis := .Values.livekit.redis -}}
 {{- $mode := $redis.mode | default "direct" -}}
 {{- if not (has $mode (list "direct" "sentinel")) -}}
@@ -248,7 +248,7 @@ true
 {{- if or $redis.sentinelMasterName (gt (len $redis.sentinelAddresses) 0) $redis.sentinelUsername $redis.sentinelPassword -}}
 {{- fail "livekit.redis.sentinel fields must be empty in direct mode" -}}
 {{- end }}
-address: {{ include "opc.livekitRedisAddress" . | quote }}
+address: {{ include "converact.livekitRedisAddress" . | quote }}
 {{- else -}}
 {{- if $redis.address -}}
 {{- fail "livekit.redis.address must be empty in sentinel mode" -}}
@@ -309,14 +309,14 @@ tls:
 {{- end -}}
 {{- end }}
 
-{{- define "opc.redisClientEnv" -}}
+{{- define "converact.redisClientEnv" -}}
 {{- $redis := .Values.livekit.redis -}}
 {{- $mode := $redis.mode | default "direct" -}}
 - name: REDIS_TOPOLOGY
   value: {{ $mode | quote }}
 {{- if eq $mode "direct" }}
 - name: REDIS_URL
-  value: {{ printf "%s://%s" (ternary "rediss" "redis" $redis.tls.enabled) (include "opc.livekitRedisAddress" .) | quote }}
+  value: {{ printf "%s://%s" (ternary "rediss" "redis" $redis.tls.enabled) (include "converact.livekitRedisAddress" .) | quote }}
 {{- else }}
 - name: REDIS_SENTINEL_MASTER_NAME
   value: {{ $redis.sentinelMasterName | quote }}
@@ -365,7 +365,7 @@ tls:
   value: {{ $redis.maxReconnectAttempts | default -1 | quote }}
 {{- end -}}
 
-{{- define "opc.livekitRedisTLSVolumeMount" -}}
+{{- define "converact.livekitRedisTLSVolumeMount" -}}
 {{- if .Values.livekit.redis.tls.enabled }}
 - name: livekit-redis-tls
   mountPath: /etc/livekit-redis-tls
@@ -373,7 +373,7 @@ tls:
 {{- end -}}
 {{- end }}
 
-{{- define "opc.livekitRedisTLSVolume" -}}
+{{- define "converact.livekitRedisTLSVolume" -}}
 {{- $tls := .Values.livekit.redis.tls -}}
 {{- if $tls.enabled }}
 - name: livekit-redis-tls
@@ -391,7 +391,7 @@ tls:
 {{- end -}}
 {{- end }}
 
-{{- define "opc.livekitPublicUrl" -}}
+{{- define "converact.livekitPublicUrl" -}}
 {{- $url := required "livekit.publicUrl is required for browser joins" .Values.livekit.publicUrl -}}
 {{- $mode := .Values.livekit.deploymentMode | default "external" -}}
 {{- if and (ne $mode "bundled-dev") (not (regexMatch "^wss://" $url)) -}}
@@ -400,7 +400,7 @@ tls:
 {{- $url -}}
 {{- end }}
 
-{{- define "opc.livekitApiKey" -}}
+{{- define "converact.livekitApiKey" -}}
 {{- $key := required "livekit.apiKey is required" .Values.livekit.apiKey -}}
 {{- if and (ne (.Values.livekit.deploymentMode | default "external") "bundled-dev") (eq $key "devkey") -}}
 {{- fail "livekit.apiKey must not use the bundled development value" -}}
@@ -408,7 +408,7 @@ tls:
 {{- $key -}}
 {{- end }}
 
-{{- define "opc.livekitApiSecret" -}}
+{{- define "converact.livekitApiSecret" -}}
 {{- $secret := required "livekit.apiSecret is required" .Values.livekit.apiSecret -}}
 {{- if and (ne (.Values.livekit.deploymentMode | default "external") "bundled-dev") (eq $secret "secret") -}}
 {{- fail "livekit.apiSecret must not use the bundled development value" -}}

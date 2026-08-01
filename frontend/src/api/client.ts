@@ -1,3 +1,9 @@
+import {
+  readAuthStorage,
+  removeAuthStorage,
+  writeAuthStorage
+} from '../auth-storage';
+
 const API_BASE = '';
 
 export interface AuthSession {
@@ -8,9 +14,9 @@ export interface AuthSession {
 }
 
 function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('opc_token');
+  const token = readAuthStorage('token');
   if (token) return { Authorization: `Bearer ${token}` };
-  const apiKey = localStorage.getItem('opc_api_key');
+  const apiKey = readAuthStorage('api_key');
   if (apiKey) return { 'X-API-Key': apiKey };
   return {};
 }
@@ -61,40 +67,41 @@ export async function apiDelete<T>(path: string): Promise<T> {
 }
 
 export function saveAuthSession(session: AuthSession): void {
-  localStorage.setItem('opc_token', session.token);
-  localStorage.setItem('opc_user_id', session.user.id);
-  localStorage.setItem('opc_tenant_id', session.tenant.id);
-  localStorage.setItem('opc_tenant_name', session.tenant.name);
-  localStorage.setItem('opc_user_email', session.user.email);
+  writeAuthStorage('token', session.token);
+  writeAuthStorage('user_id', session.user.id);
+  writeAuthStorage('tenant_id', session.tenant.id);
+  writeAuthStorage('tenant_name', session.tenant.name);
+  writeAuthStorage('user_email', session.user.email);
   if (session.onboarding?.default_spec_id) {
-    localStorage.setItem('opc_default_spec_id', session.onboarding.default_spec_id);
+    writeAuthStorage('default_spec_id', session.onboarding.default_spec_id);
   }
   if (session.onboarding?.seat_id) {
-    localStorage.setItem('opc_seat_id', session.onboarding.seat_id);
+    writeAuthStorage('seat_id', session.onboarding.seat_id);
   }
   window.dispatchEvent(new Event('auth-change'));
 }
 
 export function clearAuthSession(): void {
-  localStorage.removeItem('opc_token');
-  localStorage.removeItem('opc_user_id');
-  localStorage.removeItem('opc_tenant_id');
-  localStorage.removeItem('opc_tenant_name');
-  localStorage.removeItem('opc_user_email');
-  localStorage.removeItem('opc_default_spec_id');
+  removeAuthStorage('token');
+  removeAuthStorage('user_id');
+  removeAuthStorage('tenant_id');
+  removeAuthStorage('tenant_name');
+  removeAuthStorage('user_email');
+  removeAuthStorage('default_spec_id');
+  removeAuthStorage('seat_id');
   window.dispatchEvent(new Event('auth-change'));
 }
 
 export function getTenantId(): string {
-  return localStorage.getItem('opc_tenant_id') || 'default';
+  return readAuthStorage('tenant_id') || 'default';
 }
 
 export function getUserId(): string {
-  return localStorage.getItem('opc_user_id') || '';
+  return readAuthStorage('user_id') || '';
 }
 
 export function getWsUrl(): string {
-  const token = localStorage.getItem('opc_token');
+  const token = readAuthStorage('token');
   if (!token) return '';
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;

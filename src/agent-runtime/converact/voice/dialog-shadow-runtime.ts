@@ -72,16 +72,16 @@ export function loadDialogShadowAgentConfig(
 ): DialogShadowAgentConfig {
   const production = booleanEnv(
     env,
-    'IVEKIT_DIALOG_SHADOW_PRODUCTION',
+    'CONVERACT_FABRIC_DIALOG_SHADOW_PRODUCTION',
     true
   );
   const tokenFile = optionalAbsolutePath(
-    env.IVEKIT_DIALOG_SHADOW_SERVICE_TOKEN_FILE,
-    'IVEKIT_DIALOG_SHADOW_SERVICE_TOKEN_FILE'
+    resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_SERVICE_TOKEN_FILE'),
+    'CONVERACT_FABRIC_DIALOG_SHADOW_SERVICE_TOKEN_FILE'
   );
   const inlineToken = optionalString(
-    env.IVEKIT_DIALOG_SHADOW_SERVICE_TOKEN,
-    'IVEKIT_DIALOG_SHADOW_SERVICE_TOKEN',
+    resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_SERVICE_TOKEN'),
+    'CONVERACT_FABRIC_DIALOG_SHADOW_SERVICE_TOKEN',
     512
   );
   if (production && inlineToken) {
@@ -96,16 +96,16 @@ export function loadDialogShadowAgentConfig(
   );
 
   const tlsKeyFile = optionalAbsolutePath(
-    env.IVEKIT_DIALOG_SHADOW_TLS_KEY_FILE,
-    'IVEKIT_DIALOG_SHADOW_TLS_KEY_FILE'
+    resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_TLS_KEY_FILE'),
+    'CONVERACT_FABRIC_DIALOG_SHADOW_TLS_KEY_FILE'
   );
   const tlsCertFile = optionalAbsolutePath(
-    env.IVEKIT_DIALOG_SHADOW_TLS_CERT_FILE,
-    'IVEKIT_DIALOG_SHADOW_TLS_CERT_FILE'
+    resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_TLS_CERT_FILE'),
+    'CONVERACT_FABRIC_DIALOG_SHADOW_TLS_CERT_FILE'
   );
   const tlsCaFile = optionalAbsolutePath(
-    env.IVEKIT_DIALOG_SHADOW_TLS_CA_FILE,
-    'IVEKIT_DIALOG_SHADOW_TLS_CA_FILE'
+    resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_TLS_CA_FILE'),
+    'CONVERACT_FABRIC_DIALOG_SHADOW_TLS_CA_FILE'
   );
   const tlsCount = [tlsKeyFile, tlsCertFile, tlsCaFile].filter(Boolean).length;
   if (tlsCount !== 0 && tlsCount !== 3) {
@@ -117,8 +117,8 @@ export function loadDialogShadowAgentConfig(
 
   const connectionOptions = resolveNatsConnectionOptions(env, {
     defaultName: `dialog-shadow-${requiredIdentifier(
-      env.IVEKIT_DIALOG_SHADOW_NODE_ID,
-      'IVEKIT_DIALOG_SHADOW_NODE_ID'
+      resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_NODE_ID'),
+      'CONVERACT_FABRIC_DIALOG_SHADOW_NODE_ID'
     )}`
   });
   if (!connectionOptions) throw new Error('dialog shadow NATS is required');
@@ -129,8 +129,8 @@ export function loadDialogShadowAgentConfig(
   const recoveryDatabaseUrl = secretFileOrInline({
     env,
     readFile,
-    file_name: 'IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE',
-    inline_name: 'IVEKIT_DIALOG_RECOVERY_DATABASE_URL',
+    file_name: 'CONVERACT_FABRIC_DIALOG_RECOVERY_DATABASE_URL_FILE',
+    inline_name: 'CONVERACT_FABRIC_DIALOG_RECOVERY_DATABASE_URL',
     production,
     production_inline_error:
       'dialog shadow production inline recovery database URL is forbidden',
@@ -139,18 +139,18 @@ export function loadDialogShadowAgentConfig(
   const currentRecoveryKey = recoveryKey({
     env,
     readFile,
-    id_name: 'IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_ID',
-    file_name: 'IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_FILE',
-    inline_name: 'IVEKIT_DIALOG_RECOVERY_CURRENT_KEY',
+    id_name: 'CONVERACT_FABRIC_DIALOG_RECOVERY_CURRENT_KEY_ID',
+    file_name: 'CONVERACT_FABRIC_DIALOG_RECOVERY_CURRENT_KEY_FILE',
+    inline_name: 'CONVERACT_FABRIC_DIALOG_RECOVERY_CURRENT_KEY',
     production,
     required: true
   });
   const previousRecoveryKey = recoveryKey({
     env,
     readFile,
-    id_name: 'IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_ID',
-    file_name: 'IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_FILE',
-    inline_name: 'IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY',
+    id_name: 'CONVERACT_FABRIC_DIALOG_RECOVERY_PREVIOUS_KEY_ID',
+    file_name: 'CONVERACT_FABRIC_DIALOG_RECOVERY_PREVIOUS_KEY_FILE',
+    inline_name: 'CONVERACT_FABRIC_DIALOG_RECOVERY_PREVIOUS_KEY',
     production,
     required: false
   });
@@ -159,12 +159,12 @@ export function loadDialogShadowAgentConfig(
   }
 
   const faultDomainFile = optionalAbsolutePath(
-    env.IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE,
-    'IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE'
+    resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE'),
+    'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE'
   );
   const inlineFaultDomains = optionalString(
-    env.IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS,
-    'IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS',
+    resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS'),
+    'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS',
     16 * 1024
   );
   if (production && inlineFaultDomains) {
@@ -179,69 +179,69 @@ export function loadDialogShadowAgentConfig(
   const serverFaultDomains = parseFaultDomains(faultDomainsSource);
   const streamReplicas = integerEnv(
     env,
-    'IVEKIT_DIALOG_SHADOW_NATS_STREAM_REPLICAS',
+    'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_STREAM_REPLICAS',
     3,
     3,
     5
   );
   if (streamReplicas !== 3 && streamReplicas !== 5) {
-    throw new Error('IVEKIT_DIALOG_SHADOW_NATS_STREAM_REPLICAS must be 3 or 5');
+    throw new Error('CONVERACT_FABRIC_DIALOG_SHADOW_NATS_STREAM_REPLICAS must be 3 or 5');
   }
 
   return {
     production,
-    host: host(env.IVEKIT_DIALOG_SHADOW_HOST || '127.0.0.1'),
+    host: host(resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_HOST') || '127.0.0.1'),
     port: integerEnv(
       env,
-      'IVEKIT_DIALOG_SHADOW_PORT',
+      'CONVERACT_FABRIC_DIALOG_SHADOW_PORT',
       3_212,
       1,
       65_535
     ),
     identity: {
       cell_id: requiredIdentifier(
-        env.IVEKIT_DIALOG_SHADOW_CELL_ID,
-        'IVEKIT_DIALOG_SHADOW_CELL_ID'
+        resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_CELL_ID'),
+        'CONVERACT_FABRIC_DIALOG_SHADOW_CELL_ID'
       ),
       node_id: requiredIdentifier(
-        env.IVEKIT_DIALOG_SHADOW_NODE_ID,
-        'IVEKIT_DIALOG_SHADOW_NODE_ID'
+        resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_NODE_ID'),
+        'CONVERACT_FABRIC_DIALOG_SHADOW_NODE_ID'
       ),
       fault_domain: requiredIdentifier(
-        env.IVEKIT_DIALOG_SHADOW_FAULT_DOMAIN,
-        'IVEKIT_DIALOG_SHADOW_FAULT_DOMAIN'
+        resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_FAULT_DOMAIN'),
+        'CONVERACT_FABRIC_DIALOG_SHADOW_FAULT_DOMAIN'
       )
     },
     service_token: serviceToken,
     journal: {
       path: requiredAbsolutePath(
-        env.IVEKIT_DIALOG_SHADOW_JOURNAL_PATH,
-        'IVEKIT_DIALOG_SHADOW_JOURNAL_PATH'
+        resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_PATH'),
+        'CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_PATH'
       ),
       max_records: integerEnv(
         env,
-        'IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORDS',
+        'CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORDS',
         1_000_000,
         1,
         10_000_000
       ),
       max_bytes: integerEnv(
         env,
-        'IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_BYTES',
+        'CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_BYTES',
         256 * 1024 * 1024,
         512,
         16 * 1024 * 1024 * 1024
       ),
       max_record_bytes: integerEnv(
         env,
-        'IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES',
+        'CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES',
         32 * 1024,
         256,
         1024 * 1024
       ),
       compact_interval_ms: integerEnv(
         env,
-        'IVEKIT_DIALOG_SHADOW_COMPACT_INTERVAL_MS',
+        'CONVERACT_FABRIC_DIALOG_SHADOW_COMPACT_INTERVAL_MS',
         60_000,
         1_000,
         86_400_000
@@ -250,13 +250,13 @@ export function loadDialogShadowAgentConfig(
     server: {
       max_body_bytes: integerEnv(
         env,
-        'IVEKIT_DIALOG_SHADOW_MAX_BODY_BYTES',
+        'CONVERACT_FABRIC_DIALOG_SHADOW_MAX_BODY_BYTES',
         128 * 1024,
         1024,
         1024 * 1024
       ),
       spiffe_trust_domain: trustDomain(
-        env.IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN
+        resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN')
       ),
       tls: tlsCount === 3 ? {
         key_file: tlsKeyFile!,
@@ -270,42 +270,42 @@ export function loadDialogShadowAgentConfig(
       previous_key: previousRecoveryKey,
       token_ttl_ms: integerEnv(
         env,
-        'IVEKIT_DIALOG_RECOVERY_TOKEN_TTL_MS',
+        'CONVERACT_FABRIC_DIALOG_RECOVERY_TOKEN_TTL_MS',
         5_000,
         500,
         30_000
       ),
       node_lease_ttl_ms: integerEnv(
         env,
-        'IVEKIT_DIALOG_RECOVERY_NODE_LEASE_TTL_MS',
+        'CONVERACT_FABRIC_DIALOG_RECOVERY_NODE_LEASE_TTL_MS',
         3_000,
         1_000,
         30_000
       ),
       terminal_repair_interval_ms: integerEnv(
         env,
-        'IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS',
+        'CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_INTERVAL_MS',
         1_000,
         100,
         60_000
       ),
       terminal_repair_lease_ttl_ms: integerEnv(
         env,
-        'IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS',
+        'CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS',
         10_000,
         500,
         60_000
       ),
       terminal_repair_tenant_batch_size: integerEnv(
         env,
-        'IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE',
+        'CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE',
         32,
         1,
         256
       ),
       postgres_pool_max: integerEnv(
         env,
-        'IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX',
+        'CONVERACT_FABRIC_DIALOG_RECOVERY_POSTGRES_POOL_MAX',
         8,
         1,
         64
@@ -315,52 +315,53 @@ export function loadDialogShadowAgentConfig(
       connection_options: connectionOptions,
       server_fault_domains: serverFaultDomains,
       stream_name: streamName(
-        env.IVEKIT_DIALOG_SHADOW_NATS_STREAM || 'IVEKIT_DIALOG_SHADOW'
+        resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_STREAM') ||
+          'IVEKIT_DIALOG_SHADOW'
       ),
       subject_prefix: subjectPrefix(
-        env.IVEKIT_DIALOG_SHADOW_NATS_SUBJECT_PREFIX ||
+        resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_SUBJECT_PREFIX') ||
           'ivekit.dialog_shadow'
       ),
       stream_replicas: streamReplicas,
       max_age_ms: integerEnv(
         env,
-        'IVEKIT_DIALOG_SHADOW_NATS_MAX_AGE_MS',
+        'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_MAX_AGE_MS',
         15 * 60 * 1000,
         60_000,
         86_400_000
       ),
       placement_cluster: requiredIdentifier(
-        env.IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER,
-        'IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER'
+        resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER'),
+        'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER'
       ),
       placement_tags: list(
-        env.IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_TAGS,
-        'IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_TAGS'
+        resolveConveractEnv(env, 'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_TAGS'),
+        'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_TAGS'
       ),
       ack_wait_ms: integerEnv(
         env,
-        'IVEKIT_DIALOG_SHADOW_NATS_ACK_WAIT_MS',
+        'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_ACK_WAIT_MS',
         2_000,
         250,
         60_000
       ),
       max_ack_pending: integerEnv(
         env,
-        'IVEKIT_DIALOG_SHADOW_NATS_MAX_ACK_PENDING',
+        'CONVERACT_FABRIC_DIALOG_SHADOW_NATS_MAX_ACK_PENDING',
         256,
         1,
         10_000
       ),
       quorum_timeout_ms: integerEnv(
         env,
-        'IVEKIT_DIALOG_SHADOW_QUORUM_TIMEOUT_MS',
+        'CONVERACT_FABRIC_DIALOG_SHADOW_QUORUM_TIMEOUT_MS',
         500,
         50,
         10_000
       ),
       required_fault_domains: integerEnv(
         env,
-        'IVEKIT_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS',
+        'CONVERACT_FABRIC_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS',
         2,
         2,
         5
@@ -542,7 +543,7 @@ function booleanEnv(
 function host(value: string): string {
   const result = value.trim();
   if (!/^(?:[A-Za-z0-9][A-Za-z0-9.-]{0,252}|::1)$/.test(result)) {
-    throw new Error('IVEKIT_DIALOG_SHADOW_HOST is invalid');
+    throw new Error('CONVERACT_FABRIC_DIALOG_SHADOW_HOST is invalid');
   }
   return result;
 }
@@ -551,21 +552,21 @@ function trustDomain(value: unknown): string {
   const result = String(value || '').trim();
   if (!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/.test(result) ||
       result.includes('..')) {
-    throw new Error('IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN is invalid');
+    throw new Error('CONVERACT_FABRIC_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN is invalid');
   }
   return result;
 }
 
 function streamName(value: string): string {
   if (!/^[A-Z][A-Z0-9_]{2,63}$/.test(value)) {
-    throw new Error('IVEKIT_DIALOG_SHADOW_NATS_STREAM is invalid');
+    throw new Error('CONVERACT_FABRIC_DIALOG_SHADOW_NATS_STREAM is invalid');
   }
   return value;
 }
 
 function subjectPrefix(value: string): string {
   if (!/^[a-z0-9_-]+(?:\.[a-z0-9_-]+)+$/.test(value)) {
-    throw new Error('IVEKIT_DIALOG_SHADOW_NATS_SUBJECT_PREFIX is invalid');
+    throw new Error('CONVERACT_FABRIC_DIALOG_SHADOW_NATS_SUBJECT_PREFIX is invalid');
   }
   return value;
 }

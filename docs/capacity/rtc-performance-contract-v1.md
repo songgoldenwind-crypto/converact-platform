@@ -73,9 +73,9 @@ rtc:
 ```
 
 The renderer accepts
-`OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_{LOW,MID,HIGH}_MS`, bounds each value to
+`CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_{LOW,MID,HIGH}_MS`, bounds each value to
 `50..5000`, and records the result in the standalone deployment summary.
-The `100/100/100 ms` iveKit profile is intentionally more aggressive than the
+The `100/100/100 ms` Converact Fabric profile is intentionally more aggressive than the
 LiveKit sample configuration (`500/1000/1000 ms`). It must be evaluated with
 keyframe traffic, egress bitrate, PLI/NACK counters, freeze ratio and
 glass-to-glass tails; lowering the values is not independently considered an
@@ -137,7 +137,7 @@ A shard may still report its legacy `slo_passed` field for compatibility, but `t
 
 ### Weak-network execution
 
-`scripts/ivekit-capacity-network-impairment.ts` is a loopback-only sidecar. It applies the contracted profile bidirectionally with Linux `tc/netem`: the load-generator interface shapes upload and an IFB interface shapes download. RTT and jitter are split across both directions; loss and bandwidth are applied independently to each direction. The main capacity worker remains non-root with all capabilities dropped; only this sidecar receives `NET_ADMIN`.
+`scripts/converact-capacity-network-impairment.ts` is a loopback-only sidecar. It applies the contracted profile bidirectionally with Linux `tc/netem`: the load-generator interface shapes upload and an IFB interface shapes download. RTT and jitter are split across both directions; loss and bandwidth are applied independently to each direction. The main capacity worker remains non-root with all capabilities dropped; only this sidecar receives `NET_ADMIN`.
 
 The generator must call `POST /v1/apply` with its fenced run/shard/worker/lease identity, establish active sessions, then call `POST /v1/blackout` for a profile with `blackout_ms > 0`. Calling blackout before the measured sessions are established is invalid evidence. It must call `POST /v1/release` during cleanup. The sidecar rejects stale lease operations and rolls back partial qdisc changes.
 

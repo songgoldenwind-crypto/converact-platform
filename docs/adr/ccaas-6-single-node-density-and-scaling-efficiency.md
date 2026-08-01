@@ -1,12 +1,12 @@
 # ADR-CCAAS-6：单节点密度优先与近恒定边际扩展
 
 **Status:** Proposed（2026-07-16）
-**Decision owner:** iveKit shared communication foundation
+**Decision owner:** Converact Fabric shared communication foundation
 **Related:** [`../capacity/schemas/scaling-efficiency.schema.json`](../capacity/schemas/scaling-efficiency.schema.json)、[`../capacity/targets/mix-100k-efficiency-v1.json`](../capacity/targets/mix-100k-efficiency-v1.json)、[`../capacity/profiles/cell-10k-v1.json`](../capacity/profiles/cell-10k-v1.json)、[`ccaas-1-cell-placement.md`](ccaas-1-cell-placement.md)、[`ccaas-5-distributed-load-generation.md`](ccaas-5-distributed-load-generation.md)
 
 ## 1. 背景修正
 
-100,000 并发是 iveKit 的架构上限验证，不是现实中每套平台的默认常态负载，也不是要求客户从第一天预购完整 100K 服务器。
+100,000 并发是 Converact Fabric 的架构上限验证，不是现实中每套平台的默认常态负载，也不是要求客户从第一天预购完整 100K 服务器。
 
 本项目真正优先优化：
 
@@ -52,7 +52,7 @@ maximize single-node safe density
 - 增长时按 CapacityVector dominant resource 扩容。
 - Egress、RoomComposite、OCR/ASR/AI 和离线 worker 可独立弹性扩缩。
 - 双 Zone 商业 HA 仍保留 Zone failure reserve；低等级非 HA 环境可以缩小拓扑，但不能宣称同一可用性等级。
-- 所有部署形态保持同一 iveKit public API/SDK/event/webhook，不为小部署维护阉割版业务合同。
+- 所有部署形态保持同一 Converact Fabric public API/SDK/event/webhook，不为小部署维护阉割版业务合同。
 
 ## 3. 为什么总并发不是首要优化指标
 
@@ -120,7 +120,7 @@ hard capacity 用于看源码和硬件极限，不用于生产 admission。
 - LiveKit SFU/TURN。
 - LiveKit Egress。
 - Tinode IM。
-- iveKit realtime API/WS/event edge。
+- Converact Fabric realtime API/WS/event edge。
 - RustDesk hbbs/hbbr。
 - recording/evidence worker。
 - shared PostgreSQL/Redis/NATS/object-ingest service。
@@ -484,7 +484,7 @@ L(n) and M(a,b)
 
 ## 17. 结论
 
-iveKit 的竞争力不来自“理论上能加服务器”，而来自每台服务器够强、每增加一台都继续有效。
+Converact Fabric 的竞争力不来自“理论上能加服务器”，而来自每台服务器够强、每增加一台都继续有效。
 
 100K 的作用是把这两项能力推到足够远，暴露小规模看不到的全局瓶颈。现实部署则根据实际峰值启用需要的 Cell 和 worker，不承担空闲 100K 资源成本。
 

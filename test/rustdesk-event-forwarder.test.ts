@@ -12,7 +12,7 @@ import {
 
 test('rustdesk event forwarder config validates control-plane inputs', () => {
   const config = createRustDeskEventForwarderConfigFromEnv({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com/',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
     CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
     CONVERACT_RUSTDESK_EVENT_TYPE: 'remote.rustdesk.control_action.performed',
@@ -20,16 +20,16 @@ test('rustdesk event forwarder config validates control-plane inputs', () => {
     CONVERACT_RUSTDESK_EVENT_TARGET: '123456789',
     CONVERACT_RUSTDESK_EVENT_IDEMPOTENCY_KEY: 'control-action-1',
     CONVERACT_RUSTDESK_EVENT_METADATA_JSON: '{"operation_id":"operation-1","action":"mouse_click","permission":"control_mouse_keyboard","button":"left"}',
-    CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE: '/var/tmp/opc-rustdesk-failed.jsonl',
-    CONVERACT_RUSTDESK_EVENT_REPLAY_REMAINING_FILE: '/var/tmp/opc-rustdesk-remaining.jsonl'
+    CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE: '/var/tmp/converact-rustdesk-failed.jsonl',
+    CONVERACT_RUSTDESK_EVENT_REPLAY_REMAINING_FILE: '/var/tmp/converact-rustdesk-remaining.jsonl'
   });
 
-  assert.equal(config.baseUrl, 'https://opc.example.com');
+  assert.equal(config.baseUrl, 'https://converact.example.com');
   assert.equal(config.apiToken, 'rustdesk-token');
   assert.equal(config.defaultExternalId, 'rdgw_123');
   assert.equal(config.defaultActorIdentity, 'rustdesk-edge-agent');
-  assert.equal(config.replayDeadLetterFile, '/var/tmp/opc-rustdesk-failed.jsonl');
-  assert.equal(config.replayRemainingFile, '/var/tmp/opc-rustdesk-remaining.jsonl');
+  assert.equal(config.replayDeadLetterFile, '/var/tmp/converact-rustdesk-failed.jsonl');
+  assert.equal(config.replayRemainingFile, '/var/tmp/converact-rustdesk-remaining.jsonl');
   assert.deepEqual(config.inlineEvent, {
     external_id: 'rdgw_123',
     event_type: 'remote.rustdesk.control_action.performed',
@@ -51,7 +51,7 @@ test('rustdesk event forwarder config validates control-plane inputs', () => {
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_RUSTDESK_EVENT_TYPE: 'remote.rustdesk.recording.started'
       }),
@@ -60,7 +60,7 @@ test('rustdesk event forwarder config validates control-plane inputs', () => {
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
         CONVERACT_RUSTDESK_EVENT_TYPE: 'remote.rustdesk.custom',
@@ -71,7 +71,7 @@ test('rustdesk event forwarder config validates control-plane inputs', () => {
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
         CONVERACT_RUSTDESK_EVENT_RETRY_ATTEMPTS: 'many'
@@ -81,7 +81,7 @@ test('rustdesk event forwarder config validates control-plane inputs', () => {
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123',
         CONVERACT_RUSTDESK_EVENT_RETRY_DELAY_MS: '-1'
@@ -91,7 +91,7 @@ test('rustdesk event forwarder config validates control-plane inputs', () => {
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'ftp://opc.example.com',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'ftp://converact.example.com',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123'
       }),
@@ -100,7 +100,7 @@ test('rustdesk event forwarder config validates control-plane inputs', () => {
   assert.throws(
     () =>
       createRustDeskEventForwarderConfigFromEnv({
-        CONVERACT_REMOTE_GATEWAY_BASE_URL: 'rustdesk://opc.example.com',
+        CONVERACT_REMOTE_GATEWAY_BASE_URL: 'rustdesk://converact.example.com',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_RUSTDESK_EVENT_EXTERNAL_ID: 'rdgw_123'
       }),
@@ -110,39 +110,39 @@ test('rustdesk event forwarder config validates control-plane inputs', () => {
 
 test('rustdesk event forwarder replay config does not require a default external id', () => {
   const config = createRustDeskEventForwarderConfigFromEnv({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com/',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
-    CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE: '/var/tmp/opc-rustdesk-failed.jsonl',
-    CONVERACT_RUSTDESK_EVENT_REPLAY_REMAINING_FILE: '/var/tmp/opc-rustdesk-remaining.jsonl'
+    CONVERACT_RUSTDESK_EVENT_REPLAY_DEAD_LETTER_FILE: '/var/tmp/converact-rustdesk-failed.jsonl',
+    CONVERACT_RUSTDESK_EVENT_REPLAY_REMAINING_FILE: '/var/tmp/converact-rustdesk-remaining.jsonl'
   });
 
-  assert.equal(config.baseUrl, 'https://opc.example.com');
+  assert.equal(config.baseUrl, 'https://converact.example.com');
   assert.equal(config.apiToken, 'rustdesk-token');
   assert.equal(config.defaultExternalId, '');
-  assert.equal(config.replayDeadLetterFile, '/var/tmp/opc-rustdesk-failed.jsonl');
-  assert.equal(config.replayRemainingFile, '/var/tmp/opc-rustdesk-remaining.jsonl');
+  assert.equal(config.replayDeadLetterFile, '/var/tmp/converact-rustdesk-failed.jsonl');
+  assert.equal(config.replayRemainingFile, '/var/tmp/converact-rustdesk-remaining.jsonl');
   assert.equal(config.inlineEvent, undefined);
 });
 
 test('rustdesk event forwarder validate-only config does not require network credentials', () => {
   const config = createRustDeskEventForwarderConfigFromEnv({
     CONVERACT_RUSTDESK_EVENT_VALIDATE_ONLY: '1',
-    CONVERACT_RUSTDESK_EVENT_FILE: '/var/tmp/opc-rustdesk-events.jsonl'
+    CONVERACT_RUSTDESK_EVENT_FILE: '/var/tmp/converact-rustdesk-events.jsonl'
   });
 
   assert.equal(config.validateOnly, true);
   assert.equal(config.baseUrl, '');
   assert.equal(config.apiToken, '');
   assert.equal(config.defaultExternalId, '');
-  assert.equal(config.eventFile, '/var/tmp/opc-rustdesk-events.jsonl');
+  assert.equal(config.eventFile, '/var/tmp/converact-rustdesk-events.jsonl');
 });
 
 test('rustdesk event forwarder template config does not require network credentials', () => {
   const config = createRustDeskEventForwarderConfigFromEnv({
-    CONVERACT_RUSTDESK_EVENT_TEMPLATE_FILE: '/var/tmp/opc-rustdesk-events-template.jsonl'
+    CONVERACT_RUSTDESK_EVENT_TEMPLATE_FILE: '/var/tmp/converact-rustdesk-events-template.jsonl'
   });
 
-  assert.equal(config.templateFile, '/var/tmp/opc-rustdesk-events-template.jsonl');
+  assert.equal(config.templateFile, '/var/tmp/converact-rustdesk-events-template.jsonl');
   assert.equal(config.baseUrl, '');
   assert.equal(config.apiToken, '');
 });
@@ -151,7 +151,7 @@ test('rustdesk event forwarder posts an inline operation event', async () => {
   const calls: Array<{ method: string; path: string; body: Record<string, unknown>; authorization: string }> = [];
   const result = await forwardRustDeskEvents(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       apiToken: 'rustdesk-token',
       defaultExternalId: 'rdgw_inline_1',
       defaultActorIdentity: 'rustdesk-edge-agent',
@@ -208,7 +208,7 @@ test('rustdesk event forwarder retries transient failures before posting succeed
   const delays: number[] = [];
   const result = await forwardRustDeskEvents(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       apiToken: 'rustdesk-token',
       defaultExternalId: 'rdgw_retry_1',
       defaultActorIdentity: 'rustdesk-edge-agent',
@@ -244,7 +244,7 @@ test('rustdesk event forwarder does not retry non-transient control-plane failur
     () =>
       forwardRustDeskEvents(
         {
-          baseUrl: 'https://opc.example.com',
+          baseUrl: 'https://converact.example.com',
           apiToken: 'rustdesk-token',
           defaultExternalId: 'rdgw_auth_1',
           defaultActorIdentity: 'rustdesk-edge-agent',
@@ -266,7 +266,7 @@ test('rustdesk event forwarder does not retry non-transient control-plane failur
 });
 
 test('rustdesk event forwarder writes failed events to a dead letter file', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-dead-letter-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-dead-letter-'));
   const deadLetterFile = join(dir, 'failed-events.jsonl');
   let attempts = 0;
 
@@ -274,7 +274,7 @@ test('rustdesk event forwarder writes failed events to a dead letter file', asyn
     () =>
       forwardRustDeskEvents(
         {
-          baseUrl: 'https://opc.example.com',
+          baseUrl: 'https://converact.example.com',
           apiToken: 'rustdesk-token',
           defaultExternalId: 'rdgw_dead_letter_1',
           defaultActorIdentity: 'rustdesk-edge-agent',
@@ -318,7 +318,7 @@ test('rustdesk event forwarder writes failed events to a dead letter file', asyn
 });
 
 test('rustdesk event forwarder replays dead letter events and writes remaining failures', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-dead-letter-replay-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-dead-letter-replay-'));
   const replayFile = join(dir, 'failed-events.jsonl');
   const remainingFile = join(dir, 'remaining-events.jsonl');
   writeFileSync(replayFile, [
@@ -354,7 +354,7 @@ test('rustdesk event forwarder replays dead letter events and writes remaining f
     () =>
       forwardRustDeskEvents(
         {
-          baseUrl: 'https://opc.example.com',
+          baseUrl: 'https://converact.example.com',
           apiToken: 'rustdesk-token',
           defaultExternalId: 'unused-default',
           defaultActorIdentity: 'rustdesk-event-forwarder',
@@ -399,7 +399,7 @@ test('rustdesk event forwarder replays dead letter events and writes remaining f
 });
 
 test('rustdesk event forwarder counts local validation failures as replay attempts', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-dead-letter-invalid-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-dead-letter-invalid-'));
   const replayFile = join(dir, 'failed-events.jsonl');
   const remainingFile = join(dir, 'remaining-events.jsonl');
   writeFileSync(replayFile, JSON.stringify({
@@ -420,7 +420,7 @@ test('rustdesk event forwarder counts local validation failures as replay attemp
     () =>
       forwardRustDeskEvents(
         {
-          baseUrl: 'https://opc.example.com',
+          baseUrl: 'https://converact.example.com',
           apiToken: 'rustdesk-token',
           defaultExternalId: 'unused-default',
           defaultActorIdentity: 'rustdesk-event-forwarder',
@@ -459,7 +459,7 @@ test('rustdesk event forwarder rejects known operation events with incomplete me
     () =>
       forwardRustDeskEvents(
         {
-          baseUrl: 'https://opc.example.com',
+          baseUrl: 'https://converact.example.com',
           apiToken: 'rustdesk-token',
           defaultExternalId: 'rdgw_inline_1',
           defaultActorIdentity: 'rustdesk-edge-agent',
@@ -482,7 +482,7 @@ test('rustdesk event forwarder rejects known operation events with incomplete me
 });
 
 test('rustdesk event forwarder rejects non-object event metadata before posting', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-events-invalid-metadata-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-events-invalid-metadata-'));
   const filePath = join(dir, 'events.jsonl');
   writeFileSync(filePath, JSON.stringify({
     event_type: 'remote.rustdesk.custom',
@@ -494,7 +494,7 @@ test('rustdesk event forwarder rejects non-object event metadata before posting'
     () =>
       forwardRustDeskEvents(
         {
-          baseUrl: 'https://opc.example.com',
+          baseUrl: 'https://converact.example.com',
           apiToken: 'rustdesk-token',
           defaultExternalId: 'rdgw_invalid_metadata',
           defaultActorIdentity: 'rustdesk-edge-agent',
@@ -511,7 +511,7 @@ test('rustdesk event forwarder rejects non-object event metadata before posting'
 });
 
 test('rustdesk event forwarder reports malformed event jsonl line numbers', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-events-malformed-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-events-malformed-'));
   const filePath = join(dir, 'events.jsonl');
   writeFileSync(filePath, [
     JSON.stringify({
@@ -524,7 +524,7 @@ test('rustdesk event forwarder reports malformed event jsonl line numbers', asyn
   await assert.rejects(
     () =>
       forwardRustDeskEvents({
-        baseUrl: 'https://opc.example.com',
+        baseUrl: 'https://converact.example.com',
         apiToken: 'rustdesk-token',
         defaultExternalId: 'rdgw_malformed',
         defaultActorIdentity: 'rustdesk-edge-agent',
@@ -535,7 +535,7 @@ test('rustdesk event forwarder reports malformed event jsonl line numbers', asyn
 });
 
 test('rustdesk event forwarder reports malformed replay jsonl line numbers', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-replay-malformed-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-replay-malformed-'));
   const replayFile = join(dir, 'failed-events.jsonl');
   writeFileSync(replayFile, [
     JSON.stringify({
@@ -552,7 +552,7 @@ test('rustdesk event forwarder reports malformed replay jsonl line numbers', asy
   await assert.rejects(
     () =>
       forwardRustDeskEvents({
-        baseUrl: 'https://opc.example.com',
+        baseUrl: 'https://converact.example.com',
         apiToken: 'rustdesk-token',
         defaultExternalId: '',
         defaultActorIdentity: 'rustdesk-edge-agent',
@@ -563,7 +563,7 @@ test('rustdesk event forwarder reports malformed replay jsonl line numbers', asy
 });
 
 test('rustdesk event forwarder reports invalid replay attempts line numbers', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-replay-attempts-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-replay-attempts-'));
   const replayFile = join(dir, 'failed-events.jsonl');
   writeFileSync(replayFile, JSON.stringify({
     attempts: 'many',
@@ -577,7 +577,7 @@ test('rustdesk event forwarder reports invalid replay attempts line numbers', as
   await assert.rejects(
     () =>
       forwardRustDeskEvents({
-        baseUrl: 'https://opc.example.com',
+        baseUrl: 'https://converact.example.com',
         apiToken: 'rustdesk-token',
         defaultExternalId: '',
         defaultActorIdentity: 'rustdesk-edge-agent',
@@ -588,7 +588,7 @@ test('rustdesk event forwarder reports invalid replay attempts line numbers', as
 });
 
 test('rustdesk event forwarder derives idempotency keys for known operation events', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-events-derived-keys-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-events-derived-keys-'));
   const filePath = join(dir, 'events.jsonl');
   writeFileSync(filePath, [
     JSON.stringify({
@@ -624,7 +624,7 @@ test('rustdesk event forwarder derives idempotency keys for known operation even
 
   await forwardRustDeskEvents(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       apiToken: 'rustdesk-token',
       defaultExternalId: 'rdgw_derived_keys',
       defaultActorIdentity: 'rustdesk-edge-agent',
@@ -647,7 +647,7 @@ test('rustdesk event forwarder derives idempotency keys for known operation even
 });
 
 test('rustdesk event forwarder validate-only validates jsonl events without posting', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-events-validate-only-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-events-validate-only-'));
   const filePath = join(dir, 'events.jsonl');
   writeFileSync(filePath, [
     JSON.stringify({
@@ -695,7 +695,7 @@ test('rustdesk event forwarder validate-only validates jsonl events without post
 });
 
 test('rustdesk event forwarder validate-only rejects invalid replay events before posting', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-replay-validate-only-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-replay-validate-only-'));
   const replayFile = join(dir, 'failed-events.jsonl');
   writeFileSync(replayFile, JSON.stringify({
     attempts: 2,
@@ -729,7 +729,7 @@ test('rustdesk event forwarder validate-only rejects invalid replay events befor
 });
 
 test('rustdesk event forwarder writes a reusable operation event jsonl template', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-event-template-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-event-template-'));
   const templateFile = join(dir, 'events-template.jsonl');
 
   const result = writeRustDeskEventTemplate({
@@ -785,7 +785,7 @@ test('rustdesk event forwarder writes a reusable operation event jsonl template'
 });
 
 test('rustdesk event forwarder posts every event from a jsonl file', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-events-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-events-'));
   const filePath = join(dir, 'events.jsonl');
   writeFileSync(filePath, [
     JSON.stringify({
@@ -811,7 +811,7 @@ test('rustdesk event forwarder posts every event from a jsonl file', async () =>
 
   const result = await forwardRustDeskEvents(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       apiToken: 'rustdesk-token',
       defaultExternalId: 'rdgw_jsonl_1',
       defaultActorIdentity: 'rustdesk-edge-agent',

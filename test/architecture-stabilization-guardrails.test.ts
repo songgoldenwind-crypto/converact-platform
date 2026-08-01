@@ -42,7 +42,7 @@ test('architecture stabilization schema includes traceable context and feedback 
 });
 
 test('database migration removes legacy feedback action lifecycle uniqueness and adds lifecycle columns', () => {
-  const tempDir = mkdtempSync(join(tmpdir(), 'opc-feedback-migration-'));
+  const tempDir = mkdtempSync(join(tmpdir(), 'converact-feedback-migration-'));
   const dbPath = join(tempDir, 'legacy.sqlite');
   const legacyDb = new DatabaseSync(dbPath);
   legacyDb.exec(`
@@ -81,7 +81,7 @@ test('database migration removes legacy feedback action lifecycle uniqueness and
 });
 
 test('database migration creates lead run particle snapshot table for existing databases', () => {
-  const tempDir = mkdtempSync(join(tmpdir(), 'opc-particle-migration-'));
+  const tempDir = mkdtempSync(join(tmpdir(), 'converact-particle-migration-'));
   const dbPath = join(tempDir, 'legacy.sqlite');
   const legacyDb = new DatabaseSync(dbPath);
   legacyDb.exec(`
@@ -112,7 +112,7 @@ test('database migration creates lead run particle snapshot table for existing d
 });
 
 test('database migration adds particle snapshot write order for existing tables', () => {
-  const tempDir = mkdtempSync(join(tmpdir(), 'opc-particle-order-migration-'));
+  const tempDir = mkdtempSync(join(tmpdir(), 'converact-particle-order-migration-'));
   const dbPath = join(tempDir, 'legacy.sqlite');
   const legacyDb = new DatabaseSync(dbPath);
   legacyDb.exec(`
@@ -153,7 +153,7 @@ test('database migration adds particle snapshot write order for existing tables'
 });
 
 test('database migration preserves existing particle snapshot recency when backfilling write order', () => {
-  const tempDir = mkdtempSync(join(tmpdir(), 'opc-particle-recency-migration-'));
+  const tempDir = mkdtempSync(join(tmpdir(), 'converact-particle-recency-migration-'));
   const dbPath = join(tempDir, 'legacy.sqlite');
   const legacyDb = new DatabaseSync(dbPath);
   legacyDb.exec(`

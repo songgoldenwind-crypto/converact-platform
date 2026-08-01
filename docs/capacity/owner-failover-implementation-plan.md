@@ -1,4 +1,4 @@
-# iveKit Owner Failover Implementation Plan
+# Converact Fabric Owner Failover Implementation Plan
 
 ## Scope
 

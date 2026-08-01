@@ -26,7 +26,7 @@ export async function routeIntegrationsApi(
   }
 
   if (path === '/api/integrations/stable-stack' && method === 'GET') {
-    return harness.integrationCatalog.stableStackForOPC();
+    return harness.integrationCatalog.stableStackForConveract();
   }
 
   if (path === '/api/integrations/configs' && method === 'GET') {

@@ -64,7 +64,7 @@ export function TestPanel({ graph, activeNodeId }: Props) {
           变量 (key=val,key2=val2)
           <input
             className="ml-1 text-sm border border-gray-300 rounded px-2 py-1 w-48"
-            placeholder="vip=yes,公司名=OPC"
+            placeholder="vip=yes,公司名=Converact"
             value={varsInput}
             onChange={(e) => setVarsInput(e.target.value)}
           />

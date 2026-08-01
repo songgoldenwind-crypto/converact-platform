@@ -12,7 +12,7 @@ g729 = []
 [lib]
 path = "src/lib.rs"
 
-[package.metadata.ivekit]
+[package.metadata.converact]
 upstream_repository = "https://github.com/eisenzopf/rvoip"
 upstream_commit = "4ced02b7f6e73041c848f1765dc2bcf7588796f0"
 upstream_tree = "74dabd314841d99e1a87dbdaca6050fc4e8ed923"

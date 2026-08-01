@@ -1,4 +1,4 @@
-{{- include "ivekit.workerPoolsValidate" . }}
+{{- include "converact.workerPoolsValidate" . }}
 {{- $root := . -}}
 {{- $pools := dict
   "event-webhook" .Values.workerPools.pools.eventWebhook
@@ -12,9 +12,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ printf "%s-%s-worker" (include "ivekit.fullname" $root) $poolName | trunc 63 | trimSuffix "-" }}
+  name: {{ printf "%s-%s-worker" (include "converact.fullname" $root) $poolName | trunc 63 | trimSuffix "-" }}
   labels:
-    {{- include "ivekit.labels" $root | nindent 4 }}
+    {{- include "converact.labels" $root | nindent 4 }}
     app.kubernetes.io/component: {{ printf "%s-worker" $poolName }}
 spec:
   {{- if not $pool.autoscaling.enabled }}
@@ -27,12 +27,12 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" $root | nindent 6 }}
+      {{- include "converact.selectorLabels" $root | nindent 6 }}
       app.kubernetes.io/component: {{ printf "%s-worker" $poolName }}
   template:
     metadata:
       labels:
-        {{- include "ivekit.selectorLabels" $root | nindent 8 }}
+        {{- include "converact.selectorLabels" $root | nindent 8 }}
         app.kubernetes.io/component: {{ printf "%s-worker" $poolName }}
     spec:
       automountServiceAccountToken: false
@@ -44,7 +44,7 @@ spec:
           whenUnsatisfiable: {{ $root.Values.topologySpreadConstraints.whenUnsatisfiable }}
           labelSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" $root | nindent 14 }}
+              {{- include "converact.selectorLabels" $root | nindent 14 }}
               app.kubernetes.io/component: {{ printf "%s-worker" $poolName }}
       {{- end }}
       securityContext:
@@ -55,7 +55,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ printf "%s-worker" $poolName }}
-          image: {{ include "ivekit.image" $root | quote }}
+          image: {{ include "converact.image" $root | quote }}
           imagePullPolicy: {{ $root.Values.image.pullPolicy }}
           {{- if $root.Values.telemetry.enabled }}
           command: ["node", "--import", "dist/telemetry.js", "dist/converact-worker.js"]
@@ -73,14 +73,14 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" $root }}
+                  name: {{ include "converact.secretName" $root }}
                   key: {{ $root.Values.secrets.runtimeDatabaseUrlKey }}
             - name: CONVERACT_SCHEMA_MANAGED_BY_MIGRATIONS
               value: "1"
             - name: CONVERACT_OTEL_ENABLED
               value: {{ ternary "1" "0" $root.Values.telemetry.enabled | quote }}
             - name: CONVERACT_OTEL_SERVICE_NAME
-              value: {{ printf "ivekit-%s-worker" $poolName | quote }}
+              value: {{ printf "converact-%s-worker" $poolName | quote }}
             - name: CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ $root.Values.telemetry.collectorEndpoint | quote }}
             - name: CONVERACT_OTEL_TRACE_SAMPLE_RATIO
@@ -138,7 +138,7 @@ spec:
             - name: CONVERACT_FILE_SECURITY_ALLOW_CONTROLLED
               value: "0"
             - name: CONVERACT_FILE_SECURITY_CLAMD_HOST
-              value: {{ ternary (include "ivekit.clamavFullname" $root) $root.Values.fileSecurity.clamdHost $root.Values.clamav.enabled | quote }}
+              value: {{ ternary (include "converact.clamavFullname" $root) $root.Values.fileSecurity.clamdHost $root.Values.clamav.enabled | quote }}
             - name: CONVERACT_FILE_SECURITY_CLAMD_PORT
               value: {{ $root.Values.fileSecurity.clamdPort | quote }}
             - name: CONVERACT_FILE_DERIVATIVE_PROVIDER_MODE
@@ -180,12 +180,12 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ printf "%s-%s-worker" (include "ivekit.fullname" $root) $poolName | trunc 63 | trimSuffix "-" }}
+  name: {{ printf "%s-%s-worker" (include "converact.fullname" $root) $poolName | trunc 63 | trimSuffix "-" }}
 spec:
   minAvailable: {{ $root.Values.workerPools.podDisruptionBudget.minAvailable }}
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" $root | nindent 6 }}
+      {{- include "converact.selectorLabels" $root | nindent 6 }}
       app.kubernetes.io/component: {{ printf "%s-worker" $poolName }}
 {{- end }}
 {{- if $pool.autoscaling.enabled }}
@@ -193,12 +193,12 @@ spec:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: {{ printf "%s-%s-worker" (include "ivekit.fullname" $root) $poolName | trunc 63 | trimSuffix "-" }}
+  name: {{ printf "%s-%s-worker" (include "converact.fullname" $root) $poolName | trunc 63 | trimSuffix "-" }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ printf "%s-%s-worker" (include "ivekit.fullname" $root) $poolName | trunc 63 | trimSuffix "-" }}
+    name: {{ printf "%s-%s-worker" (include "converact.fullname" $root) $poolName | trunc 63 | trimSuffix "-" }}
   pollingInterval: {{ $root.Values.workerPools.pollingInterval }}
   cooldownPeriod: {{ $root.Values.workerPools.cooldownPeriod }}
   minReplicaCount: {{ $pool.autoscaling.minReplicas }}
@@ -229,14 +229,14 @@ spec:
     - type: prometheus
       metadata:
         serverAddress: {{ $root.Values.workerPools.prometheusAddress | quote }}
-        metricName: {{ printf "ivekit_%s_backlog_depth" $poolName | replace "-" "_" }}
+        metricName: {{ printf "converact_%s_backlog_depth" $poolName | replace "-" "_" }}
         query: {{ printf "sum(opc_ivekit_worker_backlog_depth{pool=\"%s\"})" $poolName | quote }}
         threshold: {{ $pool.autoscaling.depthPerReplica | quote }}
         activationThreshold: "1"
     - type: prometheus
       metadata:
         serverAddress: {{ $root.Values.workerPools.prometheusAddress | quote }}
-        metricName: {{ printf "ivekit_%s_backlog_oldest_age" $poolName | replace "-" "_" }}
+        metricName: {{ printf "converact_%s_backlog_oldest_age" $poolName | replace "-" "_" }}
         query: {{ printf "max(opc_ivekit_worker_backlog_oldest_age_seconds{pool=\"%s\"})" $poolName | quote }}
         threshold: {{ $pool.autoscaling.oldestAgeThresholdSeconds | quote }}
         activationThreshold: {{ $pool.autoscaling.oldestAgeActivationSeconds | quote }}

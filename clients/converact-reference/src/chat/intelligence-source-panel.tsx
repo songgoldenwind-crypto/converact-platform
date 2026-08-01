@@ -1,17 +1,17 @@
-import type { IveKitHttpSdk, IveKitIntelligenceSourceSnapshot } from '@converact/sdk';
+import type { ConveractFabricHttpSdk, ConveractFabricIntelligenceSourceSnapshot } from '@converact/sdk';
 import { Import, RefreshCw, RotateCcw } from 'lucide-react';
 import React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export function IntelligenceSourcePanel(props: {
-  client: IveKitHttpSdk;
+  client: ConveractFabricHttpSdk;
   initialSessionId?: string;
   refreshVersion?: number;
 }) {
   const sessionId = useRef<HTMLInputElement>(null);
   const sourceType = useRef<HTMLSelectElement>(null);
   const sourceRefId = useRef<HTMLInputElement>(null);
-  const [snapshot, setSnapshot] = useState<IveKitIntelligenceSourceSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<ConveractFabricIntelligenceSourceSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [denied, setDenied] = useState(false);
   const [error, setError] = useState('');

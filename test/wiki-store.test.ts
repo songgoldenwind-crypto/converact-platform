@@ -21,7 +21,7 @@ test('ingestSource creates a knowledge source with content hash', () => {
   const source = store.ingestSource({
     tenant_id: tenantId,
     title: 'Product FAQ',
-    content_text: 'What is OPC? It is an AI communication platform.'
+    content_text: 'What is Converact? It is an AI communication platform.'
   });
   assert.ok(source.id);
   assert.equal(source.title, 'Product FAQ');
@@ -66,7 +66,7 @@ test('upsertPage creates a new wiki page', () => {
   const page = store.upsertPage({
     tenant_id: tenantId,
     title: 'Getting Started',
-    content_markdown: '# Getting Started\nWelcome to OPC.'
+    content_markdown: '# Getting Started\nWelcome to Converact.'
   });
   assert.ok(page.id);
   assert.equal(page.title, 'Getting Started');

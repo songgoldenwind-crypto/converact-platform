@@ -80,7 +80,7 @@ export interface SippRtpStaircasePointEvidence {
 
 export interface SippRtpStaircaseEvidence {
   schema_version: '1.0.0';
-  suite: 'iveKit RustPBX PCMU RTP staircase';
+  suite: 'Converact Fabric RustPBX PCMU RTP staircase';
   status: 'controlled_pass' | 'controlled_failed';
   error_code: string;
   capacity_claim: 'none';
@@ -165,16 +165,16 @@ export function sippRtpStaircaseConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): SippRtpStaircaseConfig {
   const points = normalizeSippRtpStaircasePoints(
-    env.IVEKIT_RTP_STAIRCASE_POINTS || '1,5,10,25,50'
+    env.CONVERACT_FABRIC_RTP_STAIRCASE_POINTS || '1,5,10,25,50'
   );
   const maximumCallsPerSecond = integer(
-    env.IVEKIT_RTP_STAIRCASE_MAXIMUM_CPS || '1250',
+    env.CONVERACT_FABRIC_RTP_STAIRCASE_MAXIMUM_CPS || '1250',
     1,
     100_000,
     'maximum call rate'
   );
   const mediaDurationMs = integer(
-    env.IVEKIT_RTP_STAIRCASE_MEDIA_DURATION_MS || '10000',
+    env.CONVERACT_FABRIC_RTP_STAIRCASE_MEDIA_DURATION_MS || '10000',
     1_000,
     300_000,
     'media duration'
@@ -183,22 +183,22 @@ export function sippRtpStaircaseConfigFromEnv(
     throw new Error('SIPp RTP staircase media duration must use whole seconds');
   }
   const outputDirectory = resolve(
-    env.IVEKIT_RTP_STAIRCASE_OUTPUT_DIR ||
-    `.tmp/ivekit-sipp-rtp-staircase-${Date.now()}`
+    env.CONVERACT_FABRIC_RTP_STAIRCASE_OUTPUT_DIR ||
+    `.tmp/converact-sipp-rtp-staircase-${Date.now()}`
   );
   const runId = safeId(
-    env.IVEKIT_RTP_STAIRCASE_RUN_ID ||
+    env.CONVERACT_FABRIC_RTP_STAIRCASE_RUN_ID ||
     `pcmu-staircase-${Date.now()}`
   );
   const firstPoint = points[0]!;
   const firstRate = Math.min(firstPoint, maximumCallsPerSecond);
   const campaign = sippRtpCheckCampaignOptionsFromEnv({
     ...env,
-    IVEKIT_RTP_CHECK_CALLS: String(firstPoint),
-    IVEKIT_RTP_CHECK_CPS: String(firstRate),
-    IVEKIT_RTP_CHECK_MEDIA_DURATION_MS: String(mediaDurationMs),
-    IVEKIT_RTP_CHECK_RESULT_DIR: join(outputDirectory, 'base'),
-    IVEKIT_RTP_CHECK_RUN_ID: `${runId}-base`
+    CONVERACT_FABRIC_RTP_CHECK_CALLS: String(firstPoint),
+    CONVERACT_FABRIC_RTP_CHECK_CPS: String(firstRate),
+    CONVERACT_FABRIC_RTP_CHECK_MEDIA_DURATION_MS: String(mediaDurationMs),
+    CONVERACT_FABRIC_RTP_CHECK_RESULT_DIR: join(outputDirectory, 'base'),
+    CONVERACT_FABRIC_RTP_CHECK_RUN_ID: `${runId}-base`
   });
   return {
     output_dir: outputDirectory,
@@ -206,13 +206,13 @@ export function sippRtpStaircaseConfigFromEnv(
     points,
     maximum_calls_per_second: maximumCallsPerSecond,
     sample_interval_ms: integer(
-      env.IVEKIT_RTP_STAIRCASE_SAMPLE_INTERVAL_MS || '1000',
+      env.CONVERACT_FABRIC_RTP_STAIRCASE_SAMPLE_INTERVAL_MS || '1000',
       250,
       30_000,
       'sample interval'
     ),
     settle_ms: integer(
-      env.IVEKIT_RTP_STAIRCASE_SETTLE_MS || '2000',
+      env.CONVERACT_FABRIC_RTP_STAIRCASE_SETTLE_MS || '2000',
       0,
       60_000,
       'settle interval'
@@ -220,20 +220,20 @@ export function sippRtpStaircaseConfigFromEnv(
     campaign,
     containers: {
       rustpbx: safeContainer(
-        env.IVEKIT_RTP_STAIRCASE_RUSTPBX_CONTAINER ||
-        'ivekit-rustpbx-baseline-rustpbx-1'
+        env.CONVERACT_FABRIC_RTP_STAIRCASE_RUSTPBX_CONTAINER ||
+        'converact-rustpbx-baseline-rustpbx-1'
       ),
       kamailio: safeContainer(
-        env.IVEKIT_RTP_STAIRCASE_KAMAILIO_CONTAINER ||
-        'ivekit-rustpbx-baseline-kamailio-1'
+        env.CONVERACT_FABRIC_RTP_STAIRCASE_KAMAILIO_CONTAINER ||
+        'converact-rustpbx-baseline-kamailio-1'
       ),
       router: safeContainer(
-        env.IVEKIT_RTP_STAIRCASE_ROUTER_CONTAINER ||
-        'ivekit-rustpbx-baseline-router-1'
+        env.CONVERACT_FABRIC_RTP_STAIRCASE_ROUTER_CONTAINER ||
+        'converact-rustpbx-baseline-router-1'
       ),
       postgres: safeContainer(
-        env.IVEKIT_RTP_STAIRCASE_POSTGRES_CONTAINER ||
-        'ivekit-rustpbx-baseline-postgres-1'
+        env.CONVERACT_FABRIC_RTP_STAIRCASE_POSTGRES_CONTAINER ||
+        'converact-rustpbx-baseline-postgres-1'
       )
     }
   };
@@ -324,7 +324,7 @@ function writeEvidence(
   const failed = points.find((point) => point.status !== 'controlled_pass');
   const evidence: SippRtpStaircaseEvidence = {
     schema_version: '1.0.0',
-    suite: 'iveKit RustPBX PCMU RTP staircase',
+    suite: 'Converact Fabric RustPBX PCMU RTP staircase',
     status: failed ? 'controlled_failed' : 'controlled_pass',
     error_code: failed?.error_code || 'none',
     capacity_claim: 'none',
@@ -454,8 +454,8 @@ function containerTargets(
     { role: 'kamailio', name: config.containers.kamailio, required_while_running: true },
     { role: 'router', name: config.containers.router, required_while_running: true },
     { role: 'postgres', name: config.containers.postgres, required_while_running: true },
-    { role: 'uac', name: `ivekit-rtp-uac-${pointRunId}`, required_while_running: false },
-    { role: 'uas', name: `ivekit-rtp-uas-${pointRunId}`, required_while_running: false }
+    { role: 'uac', name: `converact-rtp-uac-${pointRunId}`, required_while_running: false },
+    { role: 'uas', name: `converact-rtp-uas-${pointRunId}`, required_while_running: false }
   ];
 }
 

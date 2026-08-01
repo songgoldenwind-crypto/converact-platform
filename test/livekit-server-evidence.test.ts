@@ -219,7 +219,7 @@ test('LiveKit server evidence config derives domains and rejects invalid topolog
 });
 
 test('LiveKit server evidence writer creates a credential-free artifact', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-server-evidence-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-server-evidence-'));
   const outputFile = join(dir, 'server-evidence.json');
   try {
     const write = await writeLiveKitServerEvidence(config(outputFile), passingProbes());

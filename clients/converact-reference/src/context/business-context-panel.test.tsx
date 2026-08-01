@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import type { IveKitBusinessContext } from '@converact/sdk';
+import type { ConveractFabricBusinessContext } from '@converact/sdk';
 
 import { installTestDom } from '../test-dom.js';
 import { BusinessContextPanel } from './business-context-panel.js';
@@ -44,7 +44,7 @@ test('business context panel projects authorization and paged redacted activity'
   assert.equal(closed, true);
 });
 
-function context(): IveKitBusinessContext {
+function context(): ConveractFabricBusinessContext {
   return {
     tenant_id: 'tenant-1', business_ref: { type: 'service_order', id: 'SO-1' },
     viewer: { identity: 'agent-1', system: false },

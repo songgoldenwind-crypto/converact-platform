@@ -1,5 +1,5 @@
 export type CapacityComponent =
-  | 'ivekit_edge'
+  | 'converact_edge'
   | 'tinode'
   | 'rustpbx'
   | 'livekit'

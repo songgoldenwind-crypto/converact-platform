@@ -29,8 +29,8 @@ import {
   type IvrSessionEventPublisher
 } from './events.js';
 import {
-  IveKitTenantEventStore,
-  iveKitEventReplayEnabled
+  ConveractFabricTenantEventStore,
+  converactFabricEventReplayEnabled
 } from '../tenant-event-store.js';
 import { IvrSimulationService } from './simulation.js';
 import type { IvrFlowGraph } from './graph-types.js';
@@ -48,7 +48,7 @@ export interface RustPbxStepIvrHttpService {
   handle(input: RustPbxStepIvrHandleInput): Promise<RustPbxStepIvrHandleResult>;
 }
 
-export interface RouteIveKitIvrApiOptions {
+export interface RouteConveractFabricIvrApiOptions {
   step_service?: RustPbxStepIvrHttpService;
   create_step_service?: (pg: PgQueryable, tenantId: string) => RustPbxStepIvrHttpService;
   webhook_authenticator?: Pick<VoiceWebhookAuthenticator, 'authenticate'>;
@@ -56,7 +56,7 @@ export interface RouteIveKitIvrApiOptions {
   worker_poll_interval_ms?: number;
   module?: IvrHttpModule;
   create_module?: (pg: PgQueryable, tenantId: string) => IvrHttpModule | Promise<IvrHttpModule>;
-  event_store?: Pick<IveKitTenantEventStore, 'append'>;
+  event_store?: Pick<ConveractFabricTenantEventStore, 'append'>;
   publish?: IvrSessionEventPublisher;
 }
 
@@ -70,7 +70,7 @@ export interface IvrHttpModule {
   resources: IvrResourceService;
 }
 
-export async function routeIveKitIvrApi(
+export async function routeConveractFabricIvrApi(
   pg: PgQueryable | null,
   method: string,
   path: string,
@@ -78,7 +78,7 @@ export async function routeIveKitIvrApi(
   body: unknown,
   rawBody: string | Buffer = '',
   headers: Headers = {},
-  options: RouteIveKitIvrApiOptions = {}
+  options: RouteConveractFabricIvrApiOptions = {}
 ): Promise<unknown | undefined> {
   if (!path.startsWith('/api/ivekit/ivr/')) return undefined;
   const match = path.match(
@@ -206,7 +206,7 @@ async function routeStepWebhook(
   body: unknown,
   rawBody: string | Buffer,
   headers: Headers,
-  options: RouteIveKitIvrApiOptions
+  options: RouteConveractFabricIvrApiOptions
 ): Promise<unknown> {
   const required = requiredPg(pg);
   const profileId = decodeSegment(profileSegment);
@@ -251,7 +251,7 @@ async function routeStepWebhook(
 
 function sessionResponse(
   pg: PgQueryable,
-  options: RouteIveKitIvrApiOptions,
+  options: RouteConveractFabricIvrApiOptions,
   status: number,
   data: unknown,
   events: IvrSessionEvent[]
@@ -265,11 +265,11 @@ function sessionResponse(
 
 async function publishSessionEvents(
   pg: PgQueryable,
-  options: RouteIveKitIvrApiOptions,
+  options: RouteConveractFabricIvrApiOptions,
   events: readonly IvrSessionEvent[]
 ): Promise<void> {
   const store = options.event_store ?? (
-    iveKitEventReplayEnabled() ? new IveKitTenantEventStore(pg) : null
+    converactFabricEventReplayEnabled() ? new ConveractFabricTenantEventStore(pg) : null
   );
   const publish = options.publish ?? wsBroadcast;
   await emitIvrSessionEvents(events, async (tenantId, type, data) => {

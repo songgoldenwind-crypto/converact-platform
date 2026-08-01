@@ -2,59 +2,59 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../../../db-pg.js';
 import { resolveAuthContext, type AuthContext } from '../../../../middleware/auth.js';
-import { iveKitCapabilityAllowed } from '../../authorization.js';
+import { converactFabricCapabilityAllowed } from '../../authorization.js';
 import {
-  createPostgresIveKitAuditService,
-  type IveKitAuditService
+  createPostgresConveractFabricAuditService,
+  type ConveractFabricAuditService
 } from '../audit/index.js';
-import { IveKitRetentionAdministrationService } from './administration-service.js';
-import { IveKitRetentionError } from './errors.js';
-import { PostgresIveKitRetentionStore } from './postgres-store.js';
+import { ConveractFabricRetentionAdministrationService } from './administration-service.js';
+import { ConveractFabricRetentionError } from './errors.js';
+import { PostgresConveractFabricRetentionStore } from './postgres-store.js';
 import type {
-  IveKitLegalHold,
-  IveKitRetentionCategory,
-  IveKitRetentionPolicy
+  ConveractFabricLegalHold,
+  ConveractFabricRetentionCategory,
+  ConveractFabricRetentionPolicy
 } from './types.js';
 
-export interface IveKitRetentionHttpModule {
-  listPolicies(tenantId: string): Promise<IveKitRetentionPolicy[]>;
+export interface ConveractFabricRetentionHttpModule {
+  listPolicies(tenantId: string): Promise<ConveractFabricRetentionPolicy[]>;
   putPolicy(input: {
-    tenant_id: string; category: IveKitRetentionCategory; enabled: boolean;
+    tenant_id: string; category: ConveractFabricRetentionCategory; enabled: boolean;
     retention_days: number; batch_size: number; interval_seconds: number;
     expected_revision: number; actor: string;
-  }): Promise<IveKitRetentionPolicy>;
+  }): Promise<ConveractFabricRetentionPolicy>;
   listLegalHolds(input: {
     tenant_id: string; category?: string; status?: 'active' | 'released';
-  }): Promise<IveKitLegalHold[]>;
+  }): Promise<ConveractFabricLegalHold[]>;
   placeLegalHold(input: {
-    tenant_id: string; category: IveKitRetentionCategory; resource_type: string;
+    tenant_id: string; category: ConveractFabricRetentionCategory; resource_type: string;
     resource_id: string; reason_code: string; idempotency_key: string; actor: string;
-  }): Promise<{ hold: IveKitLegalHold; created: boolean }>;
+  }): Promise<{ hold: ConveractFabricLegalHold; created: boolean }>;
   releaseLegalHold(input: {
     tenant_id: string; hold_id: string; actor: string;
-  }): Promise<IveKitLegalHold>;
+  }): Promise<ConveractFabricLegalHold>;
 }
 
-export interface RouteIveKitRetentionApiOptions {
-  module?: IveKitRetentionHttpModule;
-  audit?: Pick<IveKitAuditService, 'append'> | null;
+export interface RouteConveractFabricRetentionApiOptions {
+  module?: ConveractFabricRetentionHttpModule;
+  audit?: Pick<ConveractFabricAuditService, 'append'> | null;
   env?: NodeJS.ProcessEnv;
 }
 
-export async function routeIveKitRetentionApi(
+export async function routeConveractFabricRetentionApi(
   pg: PgQueryable | null,
   method: string,
   path: string,
   url: URL,
   body: unknown,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitRetentionApiOptions = {}
+  options: RouteConveractFabricRetentionApiOptions = {}
 ): Promise<Record<string, unknown> | undefined> {
   const routePath = path.split('?')[0];
   if (!routePath.startsWith('/api/ivekit/retention')) return undefined;
   const auth = retentionAuth(headers);
-  if (!iveKitCapabilityAllowed(auth, 'retention.read')) throw denied(403);
-  const module = options.module || createPostgresIveKitRetentionHttpModule(requiredPg(pg));
+  if (!converactFabricCapabilityAllowed(auth, 'retention.read')) throw denied(403);
+  const module = options.module || createPostgresConveractFabricRetentionHttpModule(requiredPg(pg));
 
   if (routePath === '/api/ivekit/retention/capabilities' && method === 'GET') {
     return {
@@ -169,11 +169,11 @@ export async function routeIveKitRetentionApi(
   return undefined;
 }
 
-export function createPostgresIveKitRetentionHttpModule(
+export function createPostgresConveractFabricRetentionHttpModule(
   pg: PgQueryable
-): IveKitRetentionHttpModule {
-  const service = new IveKitRetentionAdministrationService(
-    new PostgresIveKitRetentionStore(pg)
+): ConveractFabricRetentionHttpModule {
+  const service = new ConveractFabricRetentionAdministrationService(
+    new PostgresConveractFabricRetentionStore(pg)
   );
   return {
     listPolicies: (tenantId) => service.listPolicies(tenantId),
@@ -187,7 +187,7 @@ export function createPostgresIveKitRetentionHttpModule(
 async function appendRetentionAudit(
   pg: PgQueryable | null,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitRetentionApiOptions,
+  options: RouteConveractFabricRetentionApiOptions,
   auth: AuthContext,
   input: {
     action: string; resource_type: string; resource_id: string;
@@ -195,7 +195,7 @@ async function appendRetentionAudit(
   }
 ): Promise<void> {
   const audit = options.audit === undefined
-    ? (pg ? createPostgresIveKitAuditService(pg, options.env) : null)
+    ? (pg ? createPostgresConveractFabricAuditService(pg, options.env) : null)
     : options.audit;
   if (!audit) return;
   const requestId = requestIdFrom(headers);
@@ -212,7 +212,7 @@ async function appendRetentionAudit(
   });
 }
 
-function projectPolicy(policy: IveKitRetentionPolicy): Record<string, unknown> {
+function projectPolicy(policy: ConveractFabricRetentionPolicy): Record<string, unknown> {
   return {
     tenant_id: policy.tenant_id, category: policy.category, enabled: policy.enabled,
     retention_days: policy.retention_days, batch_size: policy.batch_size,
@@ -223,7 +223,7 @@ function projectPolicy(policy: IveKitRetentionPolicy): Record<string, unknown> {
   };
 }
 
-function projectLegalHold(hold: IveKitLegalHold): Record<string, unknown> {
+function projectLegalHold(hold: ConveractFabricLegalHold): Record<string, unknown> {
   return {
     id: hold.id, tenant_id: hold.tenant_id, category: hold.category,
     resource_type: hold.resource_type, resource_id: hold.resource_id,
@@ -245,7 +245,7 @@ function retentionAuth(headers: Record<string, string | string[] | undefined>): 
 }
 
 function requireManage(auth: AuthContext): void {
-  if (!iveKitCapabilityAllowed(auth, 'retention.manage')) throw denied(403);
+  if (!converactFabricCapabilityAllowed(auth, 'retention.manage')) throw denied(403);
 }
 
 const CATEGORIES = new Set([
@@ -253,9 +253,9 @@ const CATEGORIES = new Set([
   'media_recordings', 'tenant_events'
 ]);
 
-function retentionCategory(value: string): IveKitRetentionCategory {
+function retentionCategory(value: string): ConveractFabricRetentionCategory {
   if (!CATEGORIES.has(value)) throw validationError();
-  return value as IveKitRetentionCategory;
+  return value as ConveractFabricRetentionCategory;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -305,14 +305,14 @@ function decodeSegment(value: string | undefined): string {
 }
 
 function requiredPg(pg: PgQueryable | null): PgQueryable {
-  if (!pg) throw new IveKitRetentionError('retention_handler_unavailable', 503);
+  if (!pg) throw new ConveractFabricRetentionError('retention_handler_unavailable', 503);
   return pg;
 }
 
-function validationError(): IveKitRetentionError {
-  return new IveKitRetentionError('validation_failed', 422);
+function validationError(): ConveractFabricRetentionError {
+  return new ConveractFabricRetentionError('validation_failed', 422);
 }
 
-function denied(status: number): IveKitRetentionError {
-  return new IveKitRetentionError('compliance_denied', status);
+function denied(status: number): ConveractFabricRetentionError {
+  return new ConveractFabricRetentionError('compliance_denied', status);
 }

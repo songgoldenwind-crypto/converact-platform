@@ -19,7 +19,7 @@ let startupPromise: Promise<TelemetrySdk | null> | null = null;
 
 export function resolveTelemetryConfig(
   env: NodeJS.ProcessEnv = process.env,
-  defaultServiceName = 'ivekit'
+  defaultServiceName = 'converact'
 ): TelemetryConfig {
   const flag = String(resolveBrandEnv(env, 'OTEL_ENABLED') || '0').trim();
   if (flag !== '0' && flag !== '1') {
@@ -76,7 +76,7 @@ export function resolveTelemetryConfig(
 
 export function initializeOpenTelemetry(
   env: NodeJS.ProcessEnv = process.env,
-  defaultServiceName = 'ivekit'
+  defaultServiceName = 'converact'
 ): Promise<TelemetrySdk | null> {
   if (startupPromise) return startupPromise;
   startupPromise = initialize(resolveTelemetryConfig(env, defaultServiceName), env)
@@ -129,7 +129,7 @@ async function initialize(
   });
   const resource = defaultResource().merge(resourceFromAttributes({
     'service.name': config.service_name,
-    'service.namespace': 'ivekit',
+    'service.namespace': 'converact',
     'deployment.environment.name': String(env.NODE_ENV || 'production'),
     'ivekit.region': boundedResourceValue(resolveFabricEnv(env, 'REGION_ID')),
     'ivekit.zone': boundedResourceValue(resolveFabricEnv(env, 'ZONE_ID')),
@@ -207,5 +207,5 @@ function boundedResourceValue(value: string | undefined): string {
 }
 
 if (process.env.NODE_ENV !== 'test') {
-  await initializeOpenTelemetry(process.env, resolveBrandEnv(process.env, 'OTEL_SERVICE_NAME') || 'ivekit');
+  await initializeOpenTelemetry(process.env, resolveBrandEnv(process.env, 'OTEL_SERVICE_NAME') || 'converact');
 }

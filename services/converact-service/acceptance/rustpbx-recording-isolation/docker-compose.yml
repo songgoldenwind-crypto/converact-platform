@@ -78,9 +78,9 @@ services:
     command: ["node", "/acceptance/owner-admission.mjs"]
     environment:
       RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
-      IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN: ${RUSTPBX_COMPONENT_TOKEN:?RUSTPBX_COMPONENT_TOKEN is required}
-      IVEKIT_RUSTPBX_OWNER_NODE_ID: rustpbx-isolation-1
-      IVEKIT_RUSTPBX_OWNER_FIXTURE_PORT: "3210"
+      CONVERACT_FABRIC_RUSTPBX_COMPONENT_NODE_TOKEN: ${RUSTPBX_COMPONENT_TOKEN:?RUSTPBX_COMPONENT_TOKEN is required}
+      CONVERACT_FABRIC_RUSTPBX_OWNER_NODE_ID: rustpbx-isolation-1
+      CONVERACT_FABRIC_RUSTPBX_OWNER_FIXTURE_PORT: "3210"
     network_mode: service:rustpbx
     depends_on:
       rustpbx:
@@ -143,7 +143,7 @@ volumes:
 
 networks:
   isolation:
-    name: ${IVEKIT_RUSTPBX_RECORDING_ISOLATION_NETWORK:-ivekit-rustpbx-recording-isolation}
+    name: ${CONVERACT_FABRIC_RUSTPBX_RECORDING_ISOLATION_NETWORK:-converact-rustpbx-recording-isolation}
     ipam:
       config:
         - subnet: 172.30.45.0/24

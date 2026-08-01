@@ -38,7 +38,7 @@ test('desktop Queue Monitor renders live operations and refreshes in place', asy
     expect(layout.metrics?.bottom).toBeLessThanOrEqual(layout.body?.top || 0);
     expect(layout.alerts?.right).toBeLessThanOrEqual(layout.table?.left || 0);
     expect(layout.body?.bottom).toBeLessThanOrEqual(layout.height);
-    await capture(monitor.page, testInfo, 'ivekit-queue-monitor-desktop.png');
+    await capture(monitor.page, testInfo, 'converact-queue-monitor-desktop.png');
   } finally {
     await monitor.context.close();
   }
@@ -71,7 +71,7 @@ test('mobile Queue Monitor contains page overflow and keeps table scrolling loca
     expect(layout.controls?.right).toBeLessThanOrEqual(layout.width);
     expect(layout.refresh?.right).toBeLessThanOrEqual(layout.width);
     expect(layout.tableScrollWidth).toBeGreaterThan(layout.tableClientWidth);
-    await capture(monitor.page, testInfo, 'ivekit-queue-monitor-mobile.png');
+    await capture(monitor.page, testInfo, 'converact-queue-monitor-mobile.png');
   } finally {
     await monitor.context.close();
   }
@@ -83,8 +83,8 @@ async function openMonitor(
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ viewport });
   await context.addInitScript(() => {
-    window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'operations-token';
-    window.__IVEKIT_DEV_IDENTITY__ = 'operations-viewer';
+    window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'operations-token';
+    window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'operations-viewer';
   });
   const page = await context.newPage();
   let monitorRequests = 0;

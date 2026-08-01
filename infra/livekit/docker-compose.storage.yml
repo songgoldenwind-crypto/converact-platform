@@ -1,4 +1,4 @@
-# Optional private object storage for a standalone iveKit Media Core VM.
+# Optional private object storage for a standalone Converact Fabric Media Core VM.
 # Apply together with docker-compose.yml when external S3 is not available.
 services:
   minio:

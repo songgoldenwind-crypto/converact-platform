@@ -1,9 +1,9 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: ivekit-victoria-metrics-backup
+  name: converact-victoria-metrics-backup
   labels:
-    app.kubernetes.io/name: ivekit-victoria-metrics
+    app.kubernetes.io/name: converact-victoria-metrics
     app.kubernetes.io/component: backup
 spec:
   schedule: "17 2 * * *"
@@ -21,9 +21,9 @@ spec:
       template:
         metadata:
           labels:
-            app.kubernetes.io/name: ivekit-victoria-metrics
+            app.kubernetes.io/name: converact-victoria-metrics
             app.kubernetes.io/component: backup
-            opc.ivekit.io/victoria-metrics-role: backup
+            converact.io/victoria-metrics-role: backup
         spec:
           restartPolicy: OnFailure
           automountServiceAccountToken: false
@@ -42,7 +42,7 @@ spec:
                 - -envflag.enable
                 - -envflag.prefix=VM_
                 - -storageDataPath=/storage
-                - -snapshot.createURL=http://ivekit-victoria-metrics:8428/snapshot/create
+                - -snapshot.createURL=http://converact-victoria-metrics:8428/snapshot/create
                 - -concurrency=2
                 - -maxBytesPerSecond=104857600
                 - -loggerFormat=json
@@ -50,34 +50,34 @@ spec:
                 - name: VM_dst
                   valueFrom:
                     secretKeyRef:
-                      name: ivekit-victoria-metrics-backup
+                      name: converact-victoria-metrics-backup
                       key: destination
                 - name: VM_customS3Endpoint
                   valueFrom:
                     secretKeyRef:
-                      name: ivekit-victoria-metrics-backup
+                      name: converact-victoria-metrics-backup
                       key: endpoint
                       optional: true
                 - name: AWS_ACCESS_KEY_ID
                   valueFrom:
                     secretKeyRef:
-                      name: ivekit-victoria-metrics-backup
+                      name: converact-victoria-metrics-backup
                       key: accessKeyId
                 - name: AWS_SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: ivekit-victoria-metrics-backup
+                      name: converact-victoria-metrics-backup
                       key: secretAccessKey
                 - name: AWS_SESSION_TOKEN
                   valueFrom:
                     secretKeyRef:
-                      name: ivekit-victoria-metrics-backup
+                      name: converact-victoria-metrics-backup
                       key: sessionToken
                       optional: true
                 - name: AWS_REGION
                   valueFrom:
                     secretKeyRef:
-                      name: ivekit-victoria-metrics-backup
+                      name: converact-victoria-metrics-backup
                       key: region
                       optional: true
               securityContext:
@@ -101,7 +101,7 @@ spec:
           volumes:
             - name: data
               persistentVolumeClaim:
-                claimName: ivekit-victoria-metrics-data
+                claimName: converact-victoria-metrics-data
             - name: tmp
               emptyDir:
                 sizeLimit: 128Mi

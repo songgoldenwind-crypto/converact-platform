@@ -45,7 +45,7 @@ LiveKit 的 30% A/V overlay screen 和 SIP 第三方监听/咨询是派生媒体
 | 维度 | Cell-10K target |
 | --- | ---: |
 | Tinode WebSocket | 9,000 |
-| iveKit event WebSocket | 5,000 |
+| Converact Fabric event WebSocket | 5,000 |
 | SIP registrations | 2,500 |
 | SIP over WSS | 1,000 |
 | LiveKit participants | 2,600 |
@@ -397,7 +397,7 @@ scanner、object ingest 和 derivative worker 必须以 bytes/s、objects/s 和 
 | Class | 起始规格 | 适用 |
 | --- | --- | --- |
 | `RT-32` | 32 physical cores、128GiB、25GbE、local NVMe、no overcommit | RustPBX、LiveKit SFU/TURN |
-| `NET-16` | 16 physical cores、64GiB、25GbE、local NVMe | SIP Edge、Tinode、iveKit WS、hbbs/hbbr |
+| `NET-16` | 16 physical cores、64GiB、25GbE、local NVMe | SIP Edge、Tinode、Converact Fabric WS、hbbs/hbbr |
 | `WORKER-32` | 32 physical cores、128GiB、25GbE、>=1.92TB NVMe | TrackEgress、RoomComposite、recording/file workers |
 | `DATA-32` | 32 physical cores、256GiB、25GbE、enterprise NVMe | shared PostgreSQL/NATS/Redis benchmark nodes |
 
@@ -454,7 +454,7 @@ N_ha(r) = min n where C_safe_r(n after one node loss) >= D_r
 可以共用通用 node pool：
 
 - SIP Edge。
-- iveKit API/WS/event gateway。
+- Converact Fabric API/WS/event gateway。
 - Tinode signaling（在 benchmark 证明无 noisy-neighbor 后）。
 - hbbs。
 - 轻量 projector/worker。
@@ -484,7 +484,7 @@ N_ha(r) = min n where C_safe_r(n after one node loss) >= D_r
 
 ### B2：单节点 fork candidate
 
-使用相同 hardware/profile 比较 upstream 与 iveKit fork。每个源码改动有 flamegraph 和前后结果。
+使用相同 hardware/profile 比较 upstream 与 Converact Fabric fork。每个源码改动有 flamegraph 和前后结果。
 
 ### B3：垂直 class
 

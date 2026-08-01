@@ -148,8 +148,8 @@ export function buildSippRtpCheckDockerPlan(
     uac_rtp_debug: 'uac/debugafile',
     uas_rtp_debug: 'uas/debugafile'
   };
-  const uacContainer = `ivekit-rtp-uac-${input.run_id}`;
-  const uasContainer = `ivekit-rtp-uas-${input.run_id}`;
+  const uacContainer = `converact-rtp-uac-${input.run_id}`;
+  const uasContainer = `converact-rtp-uas-${input.run_id}`;
   const dockerPrefix = (
     role: 'uac' | 'uas',
     container: string,
@@ -662,13 +662,13 @@ export function renderSippRtpCheckScenarios(input: {
 function renderUacScenario(mediaDurationMs: number): string {
   return `<?xml version="1.0" encoding="ISO-8859-1" ?>
 <!DOCTYPE scenario SYSTEM "sipp.dtd">
-<scenario name="iveKit RustPBX PCMU RTP-check UAC">
+<scenario name="Converact Fabric RustPBX PCMU RTP-check UAC">
   <send retrans="500">
     <![CDATA[
       INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
       Via: SIP/2.0/UDP [local_ip]:[local_port];branch=[branch]
-      From: iveKit RTP UAC <sip:rtp-uac@[local_ip]:[local_port]>;tag=[call_number]
-      To: iveKit RTP Route <sip:[service]@[remote_ip]:[remote_port]>
+      From: Converact Fabric RTP UAC <sip:rtp-uac@[local_ip]:[local_port]>;tag=[call_number]
+      To: Converact Fabric RTP Route <sip:[service]@[remote_ip]:[remote_port]>
       Call-ID: [call_id]
       CSeq: 1 INVITE
       Contact: <sip:rtp-uac@[local_ip]:[local_port]>
@@ -678,7 +678,7 @@ function renderUacScenario(mediaDurationMs: number): string {
 
       v=0
       o=sipp 1 1 IN IP[local_ip_type] [local_ip]
-      s=iveKit RustPBX RTP check
+      s=Converact Fabric RustPBX RTP check
       c=IN IP[media_ip_type] [media_ip]
       t=0 0
       m=audio [rtpstream_audio_port] RTP/AVP 0
@@ -740,7 +740,7 @@ function renderUacScenario(mediaDurationMs: number): string {
 function renderUasScenario(): string {
   return `<?xml version="1.0" encoding="ISO-8859-1" ?>
 <!DOCTYPE scenario SYSTEM "sipp.dtd">
-<scenario name="iveKit RustPBX PCMU RTP peer UAS">
+<scenario name="Converact Fabric RustPBX PCMU RTP peer UAS">
   <recv request="INVITE" />
   <send>
     <![CDATA[
@@ -781,7 +781,7 @@ function renderUasScenario(): string {
 
       v=0
       o=sipp 2 2 IN IP[local_ip_type] [local_ip]
-      s=iveKit RustPBX RTP peer
+      s=Converact Fabric RustPBX RTP peer
       c=IN IP[media_ip_type] [media_ip]
       t=0 0
       m=audio [rtpstream_audio_port] RTP/AVP 0

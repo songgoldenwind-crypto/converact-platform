@@ -27,7 +27,7 @@ import type {
 } from '../collaboration/types.js';
 import type { LiveKitConfig } from '../livekit/config.js';
 
-export interface IveKitFindingQueueItem {
+export interface ConveractFabricFindingQueueItem {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -49,8 +49,8 @@ export interface IveKitFindingQueueItem {
   resolved_at: string | null;
 }
 
-export interface IveKitFindingQueuePage {
-  items: IveKitFindingQueueItem[];
+export interface ConveractFabricFindingQueuePage {
+  items: ConveractFabricFindingQueueItem[];
   next_cursor: string;
 }
 
@@ -208,7 +208,7 @@ export interface OpenIveSessionInput {
   metadata?: Record<string, unknown>;
 }
 
-export interface IveKitModuleInput {
+export interface ConveractFabricModuleInput {
   db: unknown;
   pg: PgQueryable;
   media?: {
@@ -221,7 +221,7 @@ export interface IveKitModuleInput {
   };
 }
 
-export interface IveKitModule {
+export interface ConveractFabricModule {
   sessions: {
     open(input: OpenIveSessionInput): Promise<IveSessionBundle>;
     getByBusinessRef(input: {

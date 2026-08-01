@@ -1,5 +1,5 @@
 import {
-  createIveKitRealtimeSpeechProjection
+  createConveractFabricRealtimeSpeechProjection
 } from './agent-runtime/converact/application.js';
 import {
   createConfiguredRealtimeAudioTapRuntime
@@ -12,7 +12,7 @@ validateEnvOrExit();
 
 if (process.env.NODE_ENV !== 'test') {
   process.on('unhandledRejection', (reason) => {
-    console.error('[ivekit-realtime-audio-tap] unhandled rejection', reason);
+    console.error('[converact-fabric-realtime-audio-tap] unhandled rejection', reason);
   });
 }
 
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
     void shutdown().then(
       () => process.exit(0),
       (error) => {
-        console.error('[ivekit-realtime-audio-tap-shutdown] FATAL:', error);
+        console.error('[converact-fabric-realtime-audio-tap-shutdown] FATAL:', error);
         process.exit(1);
       }
     );
@@ -60,7 +60,7 @@ async function main(): Promise<void> {
   try {
     runtime = createConfiguredRealtimeAudioTapRuntime({
       pg,
-      projection: createIveKitRealtimeSpeechProjection(pg)
+      projection: createConveractFabricRealtimeSpeechProjection(pg)
     });
     if (!runtime.enabled) {
       throw new Error(
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
       );
     }
     await runtime.start();
-    console.log('iveKit realtime audio tap worker started');
+    console.log('Converact Fabric realtime audio tap worker started');
   } catch (error) {
     await shutdown().catch((shutdownError) => {
       throw new AggregateError(
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
 
 void main().catch((error) => {
   console.error(
-    '[ivekit-realtime-audio-tap-startup] FATAL:',
+    '[converact-fabric-realtime-audio-tap-startup] FATAL:',
     error instanceof Error ? error.message : String(error)
   );
   process.exit(1);

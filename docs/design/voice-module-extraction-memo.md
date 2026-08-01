@@ -75,8 +75,8 @@ src/agent-runtime/
 
 ## 抽取策略
 
-**目标形态**：自包含 npm 包（`@opc/voice`），不是独立微服务。
-别的项目 `import { createVoiceModule } from '@opc/voice'` 即可用，需要时再独立部署成服务。
+**目标形态**：自包含 npm 包（`@converact/voice`），不是独立微服务。
+别的项目 `import { createVoiceModule } from '@converact/voice'` 即可用，需要时再独立部署成服务。
 
 **理由**：呼叫中心是实时系统，跨进程调用是延迟杀手。库化优先于服务化，只有当独立扩缩容/部署需求真出现时才升级成独立服务。
 
@@ -96,21 +96,21 @@ src/agent-runtime/
 3. db 访问改依赖注入：voice 模块接收 `db` 参数，不直接 `import '../db.ts'`
 4. 导出 public API：`createVoiceModule(db, config) => { tools, store, livekit, dispatch }`
 
-### 阶段 2：OPC 接入包
+### 阶段 2：Converact Platform 接入包
 
-1. OPC 的 `createHarness` 改为 `import { createVoiceModule } from '@opc/voice'`
+1. Converact Platform 的 `createHarness` 改为 `import { createVoiceModule } from '@converact/voice'`
 2. `registerVoiceTools` 改为调包的注册函数
 3. schema 里 14 张 voice 表的 migration 跟着包走
 
 ### 阶段 3：别的项目复用
 
-1. 新项目 `npm i @opc/voice`（或 git submodule）
+1. 新项目 `npm i @converact/voice`（或 git submodule）
 2. 提供自己的 db + config
 3. 按需用 voice.tools / livekit.token / dispatch
 
 ## 现在不用做，但开发时注意
 
-> **原则：别让 voice/livekit 往 OPC 核心里长新依赖。**
+> **原则：别让 voice/livekit 往 Converact Platform 核心里长新依赖。**
 
 新功能碰 voice 时：
 - ✅ 让 call-center 依赖 voice 的接口（单向）
@@ -127,4 +127,4 @@ src/agent-runtime/
 | 日期 | 作者 | 变更内容 |
 |------|------|---------|
 | 2026-06-24 | - | 初始备忘（12 张 voice 表、`.js` 依赖名） |
-| 2026-06-29 | OPC Team | 按 `docs/design/README.md` §4 准绳：(1) voice DB 表 12→14（新增 `voice_webrtc_sessions` / `voice_webrtc_signals`，对齐 `src/schema.sql` 实测与 `product-direction-2026-06.md` §3.1）；(2) 依赖文件名 `.js`→`.ts`（5 处）；(3) 头部加 `<关联文档>` block 与重扫校准段。未实施状态不变。 |
+| 2026-06-29 | Converact Platform Team | 按 `docs/design/README.md` §4 准绳：(1) voice DB 表 12→14（新增 `voice_webrtc_sessions` / `voice_webrtc_signals`，对齐 `src/schema.sql` 实测与 `product-direction-2026-06.md` §3.1）；(2) 依赖文件名 `.js`→`.ts`（5 处）；(3) 头部加 `<关联文档>` block 与重扫校准段。未实施状态不变。 |

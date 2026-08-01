@@ -23,7 +23,7 @@
       "architecture": "x86_64",
       "install_source": {
         "state": "configured",
-        "url": "https://github.com/acme/ivekit-rustdesk/releases/download/1.4.9/rustdesk-1.4.9-ivekit1-x86_64.exe",
+        "url": "https://github.com/acme/converact-rustdesk/releases/download/1.4.9/rustdesk-1.4.9-ivekit1-x86_64.exe",
         "filename": "rustdesk-1.4.9-ivekit1-x86_64.exe",
         "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         "native_control_protocol": "ivekit-rustdesk-native-control-v2",

@@ -191,7 +191,7 @@ export function startLiveKitEgressReconciliationWorker(input: {
 }): LiveKitEgressReconciliationScheduler {
   const env = input.env || process.env;
   const config = liveKitEgressReconciliationConfig(env);
-  const workerId = String(input.worker_id || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || `ivekit-${process.pid}`);
+  const workerId = String(input.worker_id || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || `converact-${process.pid}`);
   const scheduler = new LiveKitEgressReconciliationScheduler({
     config,
     runBatch: () => runLiveKitEgressReconciliationBatch({

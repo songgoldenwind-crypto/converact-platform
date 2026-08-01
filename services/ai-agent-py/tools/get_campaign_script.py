@@ -22,7 +22,7 @@ def create(ctx: "ToolContext", campaign_id: str | None = None):
             return f"未关联 Campaign，使用默认话术 {spec_id or 'default'}。"
 
         try:
-            result = await ctx.opc.get(f"/api/call-center/campaigns/{cid}")
+            result = await ctx.converact.get(f"/api/call-center/campaigns/{cid}")
             campaign = result.get("campaign") or result.get("data", {}).get("campaign") or {}
             spec_a = campaign.get("agent_spec_id_a", "")
             spec_b = campaign.get("agent_spec_id_b", "")

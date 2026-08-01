@@ -358,7 +358,7 @@ function renderSourcePage(source: JsonRecord, summary = ''): string {
 
 function renderSynthesisPrompt({ input, sources, existingPage }: JsonRecord): string {
   return [
-    'Synthesize a reviewed wiki page draft for an OPC one-person-company operating system.',
+    'Synthesize a reviewed wiki page draft for a Converact one-person-company operating system.',
     `Title: ${input.title}`,
     `Category: ${input.category || existingPage?.category || 'concept'}`,
     existingPage ? `Existing page:\n${existingPage.content_markdown}` : 'Existing page: none',
@@ -381,7 +381,7 @@ function renderDiffPrompt({ page, change_request }: JsonRecord): string {
 
 function renderContradictionPrompt({ pages, focus }: JsonRecord): string {
   return [
-    'Review these OPC wiki pages for contradictions, stale claims, or conflicting SOPs. Do not edit pages.',
+    'Review these Converact wiki pages for contradictions, stale claims, or conflicting SOPs. Do not edit pages.',
     focus ? `Focus: ${focus}` : 'Focus: general operational consistency',
     ...pages.map((page) => [
       `Page: ${page.title} (${page.slug}) v${page.version}`,

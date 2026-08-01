@@ -4,7 +4,7 @@ from livekit.agents import function_tool
 
 
 async def run_check_compliance(
-    opc_client,
+    converact_client,
     *,
     tenant_id: str,
     phone_number: str,
@@ -15,7 +15,7 @@ async def run_check_compliance(
     if not phone_number:
         return {"allowed": False, "reason": "phone_number_missing"}
 
-    result = await opc_client.check_compliance(
+    result = await converact_client.check_compliance(
         tenant_id=tenant_id,
         phone_number=phone_number,
         timezone=timezone,
@@ -28,7 +28,7 @@ async def run_check_compliance(
     }
 
 
-def create(opc_client, tenant_id: str, phone_number: str, timezone: str = "Asia/Shanghai"):
+def create(converact_client, tenant_id: str, phone_number: str, timezone: str = "Asia/Shanghai"):
     @function_tool(
         name="check_compliance",
         description=(
@@ -38,7 +38,7 @@ def create(opc_client, tenant_id: str, phone_number: str, timezone: str = "Asia/
     )
     async def check_compliance_tool() -> dict:
         return await run_check_compliance(
-            opc_client,
+            converact_client,
             tenant_id=tenant_id,
             phone_number=phone_number,
             timezone=timezone,

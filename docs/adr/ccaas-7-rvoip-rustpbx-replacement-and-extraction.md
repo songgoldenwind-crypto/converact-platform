@@ -13,10 +13,10 @@ supersede Revision 3 中“多个生产 Profile”“按 Call/媒体方向选择
 路线整体替换 RustPBX”三项表述。唯一生产基线为 `CARRIER-CELL-V1`；Rust-native 只能
 作为同一架构下的 directed Media Edge Backend 候选。
 
-适用范围：iveKit/OPC 通信底座 Goal 4-11
+适用范围：Converact Fabric/Converact Platform 通信底座 Goal 4-11
 
 规范性详细方案：
-[`rvoip-opc-communication-foundation-integration-design.md`](../design/rvoip-opc-communication-foundation-integration-design.md)
+[`rvoip-converact-communication-foundation-integration-design.md`](../design/rvoip-converact-communication-foundation-integration-design.md)
 
 ## 1. 决策摘要
 
@@ -28,7 +28,7 @@ supersede Revision 3 中“多个生产 Profile”“按 Call/媒体方向选择
 Kamailio SIP Edge
         |
         v
-iveKit RustPBX fork          LiveKit                 Tinode
+Converact Fabric RustPBX fork          LiveKit                 Tinode
 Call/Leg/Business Dialog     WebRTC/SFU              IM
         |
         +-- SipFoundation Seam
@@ -80,7 +80,7 @@ Path 只有在功能、PPS、CPU/packet、P99、loss、session density、故障�
 本 ADR 将这些能力分为：
 
 1. **协议底座分阶段采用**：SIP Message Codec、Transaction、Protocol Dialog、
-   Transport/DNS 和 REGISTER/auth primitives 通过 OPC-owned `SipFoundation`
+   Transport/DNS 和 REGISTER/auth primitives 通过 Converact Platform-owned `SipFoundation`
    Seam 逐模块进入 RustPBX；
 2. **Revision 4 D0 后优先或独立切片吸收**：有界 RTP 方法、G.729
    （G729A/G729AB internal modes）、Provider semantics、vCon、
@@ -411,7 +411,7 @@ pending-command/unreconciled-receipt 为 `0/0`；每个被替代 generation 显�
 | Builder | Rust `1.94` exact image digest |
 | 构建方式 | exact source + lockfile + ordered patch queue |
 
-因此，本次比较对象不是“rvoip 对原版 RustPBX 0.4.11”，而是“rvoip 对 iveKit
+因此，本次比较对象不是“rvoip 对原版 RustPBX 0.4.11”，而是“rvoip 对 Converact Fabric
 已经深度改造的 RustPBX + rsipstack + rustrtc + RTPengine 架构”。
 
 ## 3. rvoip 的真实成熟度
@@ -426,7 +426,7 @@ rvoip 的 README 展示了一个很有吸引力的统一 Rust 通信愿景，但
 - PCMU、PCMA、RFC 4733 DTMF；
 - 部分 SDES-SRTP；
 - RTP/RTCP parser、session、jitter、SRTP 和媒体处理组件；
-- 纯 Rust G.729 Annex A，及上游可选 Annex B VAD/DTX/CNG；OPC 的 G729AB internal
+- 纯 Rust G.729 Annex A，及上游可选 Annex B VAD/DTX/CNG；Converact Platform 的 G729AB internal
   processing mode 仍是强制项，对外 wire identity 仍只有 `G729/8000`；
 - SIP Digest、AKA、registrar identity provider；
 - ASR、TTS、Dialog、Recording 的抽象 trait；
@@ -452,18 +452,18 @@ rvoip 的 README 展示了一个很有吸引力的统一 Rust 通信愿景，但
 - IPv6 没有完成发布级审计；
 - 一小时 soak 有证据，但没有 24 小时稳定性声明。
 
-这并不否定源码价值，但说明它目前不能直接承担 iveKit 已定义的运营级交付承诺。
+这并不否定源码价值，但说明它目前不能直接承担 Converact Fabric 已定义的运营级交付承诺。
 
 ## 4. 能力对比
 
-| 维度 | iveKit RustPBX 架构 | rvoip 当前 main | 决策 |
+| 维度 | Converact Fabric RustPBX 架构 | rvoip 当前 main | 决策 |
 | --- | --- | --- | --- |
 | SIP Edge | Kamailio 多节点路由、健康、限流、Cell placement | 推荐拓扑仍未把 Kamailio/RTPengine列为支持形态 | 保留现状 |
-| Call/Business Dialog 权威 | RustPBX + owner epoch + durable shadow | 通用 Session/Conversation；无 iveKit owner 合同 | 保留现状 |
+| Call/Business Dialog 权威 | RustPBX + owner epoch + durable shadow | 通用 Session/Conversation；无 Converact Fabric owner 合同 | 保留现状 |
 | SIP Protocol Transaction/Dialog | 当前 rsipstack | transaction/dialog 分层较完整 | 通过 `SipFoundation` 分阶段采用 |
 | 普通 RTP | RTPengine fast path，与业务/存储隔离 | rtp-core/media-core 用户态路径 | RTPengine 长期正式；Rust Native 只按门禁竞争 |
 | 必须解码媒体 | Unified RustPBX 内嵌 `voice-media-rs` library/worker shards | media-core 组件较多，但完整 release path 未闭环 | 选择性提取，不部署第二服务 |
-| 断点恢复 | reciprocal dual-leg capsule、takeover、epoch fencing | 无等价的 iveKit 双腿恢复合同 | RustPBX 胜 |
+| 断点恢复 | reciprocal dual-leg capsule、takeover、epoch fencing | 无等价的 Converact Fabric 双腿恢复合同 | RustPBX 胜 |
 | 路由热路径 | 签名 route snapshot + Cell admission | 通用 SIP 路由/API | RustPBX 胜 |
 | CDR | owner-fenced dual-leg durable spool/quorum receipt | 无等价 Region durability 合同 | RustPBX 胜 |
 | 录音隔离 | 有界 capture、独立 lifecycle、local spool、上传故障隔离 | RecordingSink 抽象和媒体能力尚未达到同等故障语义 | RustPBX 胜 |
@@ -473,7 +473,7 @@ rvoip 的 README 展示了一个很有吸引力的统一 Rust 通信愿景，但
 | IM | Tinode | 不属于 rvoip 核心目标 | 保留 Tinode |
 | RFC 证据 | 已有容量合同，但完整 SIP RFC matrix 仍需增强 | RFC/compat/security matrix 很成熟 | 吸收方法 |
 | 性能证据 | 绑定 patch/image/profile；已有 4 vCPU 受控回归 | 2K target 三次 clean pass，报告和证据组织优秀 | 吸收方法 |
-| 集成面积 | 当前已改造并进入 OPC 协议 | 约 95 万行、46 crates、pre-1.0 | 不整体引入 |
+| 集成面积 | 当前已改造并进入 Converact Platform 协议 | 约 95 万行、46 crates、pre-1.0 | 不整体引入 |
 
 ## 5. 性能结论
 
@@ -498,7 +498,7 @@ rvoip 的 canonical 2K profile 在三轮 2,000 target CPS 测试中记录了约
 
 ### 5.2 与当前证据不能横向排名
 
-iveKit RustPBX 在共享 4 vCPU 服务器已有 `1,400 CPS` 受控基线和 42,000 call
+Converact Fabric RustPBX 在共享 4 vCPU 服务器已有 `1,400 CPS` 受控基线和 42,000 call
 回归，也有 1,000 CPS Kamailio 全链路回归。rvoip 的硬件、拓扑、媒体 workload、
 呼叫时长和证据口径不同。
 
@@ -527,11 +527,11 @@ let mut buffer = vec![0u8; recv_buffer_size];
 ```
 
 RTCP 路径还执行 `Bytes::copy_from_slice`。另一个通用 `BufferPool` 使用异步 Mutex、
-Semaphore，并在 `Drop` 中 spawn 任务归还 buffer；它不适合作为 iveKit 200K PPS
+Semaphore，并在 `Drop` 中 spawn 任务归还 buffer；它不适合作为 Converact Fabric 200K PPS
 热路径的直接依赖。`try_get_buffer` 的 permit 生命周期也必须重新证明，不能仅凭命名
 认定“有界”。
 
-因此，iveKit 应采用 rvoip 的**设计意图和测试输入**，在 `voice-media-rs` 内实现：
+因此，Converact Fabric 应采用 rvoip 的**设计意图和测试输入**，在 `voice-media-rs` 内实现：
 
 - `ArrayQueue<Vec<u8>>`；
 - 原子 hard allocation ceiling；
@@ -557,8 +557,8 @@ SIP 底座不再限定为“只作测试输入”。详细 Interface、状态映
 | Protocol Dialog Runtime | `rvoip-sip-dialog` | 映射而非替换 Business Dialog | early/confirmed/terminated 与 recovery 等价 |
 | Transport Runtime | `rvoip-sip-transport` | UDP→TCP→TLS 分阶段 | backpressure、connection budget、drain |
 | RFC 3263 DNS | `rvoip-sip-transport` resolver | bounded cache/lookup Adapter | NAPTR/SRV/A/AAAA、TTL、negative cache |
-| REGISTER/auth | registrar、Digest、AKA | 最小 credential port | 公网入站 responder/location 归 Kamailio；outbound trunk/Standalone Protocol Transaction 归选定 SipFoundation；identity/credential/placement 归 OPC |
-| OPC Protocol Session façade | OPC-owned anti-corruption layer | `SipFoundation` 自己定义；rvoip 高层 API 仅作测试参考 | 不依赖 Endpoint/SessionHandle/Orchestrator，不持久化 rvoip 业务模型 |
+| REGISTER/auth | registrar、Digest、AKA | 最小 credential port | 公网入站 responder/location 归 Kamailio；outbound trunk/Standalone Protocol Transaction 归选定 SipFoundation；identity/credential/placement 归 Converact Platform |
+| Converact Platform Protocol Session façade | Converact Platform-owned anti-corruption layer | `SipFoundation` 自己定义；rvoip 高层 API 仅作测试参考 | 不依赖 Endpoint/SessionHandle/Orchestrator，不持久化 rvoip 业务模型 |
 | Snapshot/restore | transaction/dialog snapshot 语义 | 映射到既有 durable shadow | owner epoch/sequence fencing |
 | Source slice | 固定 commit 的最小 crate 闭包 | vendored/fork manifest | license、hash、SBOM、reproducible build |
 | Process/build topology | RustPBX + rvoip SIP source slice | one binary、one control runtime、no RPC | lockfile、feature closure、binary identity |
@@ -599,7 +599,7 @@ authenticate/count/drop，禁止 forward、DTMF、recording 或 AI 副作用。�
 
 ### 7.2 P0：Revision 4 D0 后优先进入当前 Goal 4
 
-| rvoip 强项 | iveKit 落点 | 接入方式 | 验收 |
+| rvoip 强项 | Converact Fabric 落点 | 接入方式 | 验收 |
 | --- | --- | --- | --- |
 | owned Bytes RTP parse | `voice-media-rs/rtp.rs` | 保留 exact rustrtc parser，输入改为 pooled owner | packet path 无 payload copy |
 | lock-free bounded pool | `datagram_pool.rs` | 根据语义重写，不复制通用 async pool | exhaustion 不分配、不阻塞 |
@@ -609,7 +609,7 @@ authenticate/count/drop，禁止 forward、DTMF、recording 或 AI 副作用。�
 
 ### 7.3 P1：Goal 6/9 的工程方法
 
-| rvoip 强项 | iveKit 落点 | 要求 |
+| rvoip 强项 | Converact Fabric 落点 | 要求 |
 | --- | --- | --- |
 | RFC compliance matrix | Goal 6 SIP matrix | 每一能力绑定 RFC、范围、测试 ID、明确 non-claim |
 | compatibility matrix | Kamailio/RustPBX/RTPengine interop | 每个 peer/transport/codec 有版本和 evidence |
@@ -657,7 +657,7 @@ implementation blocker。
 ### 7.5 P1：Provider trait
 
 rvoip 的 `AsrProvider/AsrStream`、`TtsProvider/TtsPlayback`、
-`DialogManager`、`RecordingSink` 说明了正确的依赖反转方向。iveKit 不直接复用这些
+`DialogManager`、`RecordingSink` 说明了正确的依赖反转方向。Converact Fabric 不直接复用这些
 类型，而把以下语义补入已有 Provider 层：
 
 - streaming open/push/next/close；
@@ -670,16 +670,16 @@ rvoip 的 `AsrProvider/AsrStream`、`TtsProvider/TtsPlayback`、
 - owner/session/sequence fencing；
 - realtime 与 offline quality inspection 分离。
 
-原因是 rvoip trait 很轻，直接使用会丢失 iveKit 已有的租户、同意、配额、降级、审计
+原因是 rvoip trait 很轻，直接使用会丢失 Converact Fabric 已有的租户、同意、配额、降级、审计
 和实时背压语义。
 
 ### 7.6 P2：vCon 与身份能力
 
-- vCon 作为统一会话的**导出/交换格式**，不能替代 iveKit durable session、
+- vCon 作为统一会话的**导出/交换格式**，不能替代 Converact Fabric durable session、
   RecordingManifest 或审计事实；
 - STIR/SHAKEN 作为 Goal 6 的可插拔签名/验证 adapter；
 - registrar identity/credential provider 用于增强 SIP 身份插件边界；
-- SCIM 能力进入 OPC 企业身份路线，不进入 RTP/SIP 热路径。
+- SCIM 能力进入 Converact Platform 企业身份路线，不进入 RTP/SIP 热路径。
 
 ### 7.7 暂不吸收
 
@@ -706,7 +706,7 @@ rvoip 的 `AsrProvider/AsrStream`、`TtsProvider/TtsPlayback`、
 4. **最小源码面**：按独立 crate/模块提取，禁止把 46-crate workspace 加为顶层依赖；
 5. **带来源清单**：exact commit、文件 hash、改动说明、测试证据进入 fork manifest；
 6. **同一性能合同**：任何提取代码必须接受 Goal 4/6/10/11 的 profile/finalizer，
-   不能用上游自己的“通过”替代 iveKit 验收。
+   不能用上游自己的“通过”替代 Converact Fabric 验收。
 7. **单进程 Rust 核心、外部 ordinary data plane**：RustPBX↔rvoip SIP 与首期
    RustPBX↔`voice-media-rs` 调用必须进程内；RTPengine 保持外部专用数据面。
 8. **类型隔离**：业务 Interface 不暴露 rsipstack、rvoip、rustrtc 或 audio-codec 类型。
@@ -838,7 +838,7 @@ generation、必要时完成 re-INVITE/新 media session，并按 old zero-outpu
 
 rvoip 是一个值得长期跟踪并按门禁逐模块采用的 Rust 通信技术库，尤其适合提供 SIP
 Message Codec、Transaction、Protocol Dialog、Transport/DNS、codec、协议测试、
-Provider interface、身份扩展和性能证据方法。它不是当前 iveKit RustPBX 的即插即用
+Provider interface、身份扩展和性能证据方法。它不是当前 Converact Fabric RustPBX 的即插即用
 整体替代品。
 
 当前最优解不是在二者之间二选一，而是：

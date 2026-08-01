@@ -42,16 +42,16 @@ import { NotificationService } from './service.js';
 import { PostgresNotificationStore } from './postgres/store.js';
 import { publishNotificationTenantEvent } from './realtime.js';
 import { configuredNotificationSecretResolver } from './secret-resolver.js';
-import { iveKitCapabilityAllowed, type IveKitCapability } from '../authorization.js';
+import { converactFabricCapabilityAllowed, type ConveractFabricCapability } from '../authorization.js';
 import {
-  createPostgresIveKitAuditService,
-  type IveKitAuditRequest,
-  type IveKitAuditService
+  createPostgresConveractFabricAuditService,
+  type ConveractFabricAuditRequest,
+  type ConveractFabricAuditService
 } from '../operations/audit/index.js';
 import {
-  configuredIveKitRateLimiter,
-  iveKitRateLimitConfiguration,
-  type IveKitRateLimiter
+  configuredConveractFabricRateLimiter,
+  converactFabricRateLimitConfiguration,
+  type ConveractFabricRateLimiter
 } from '../operations/rate-limit/index.js';
 
 export interface NotificationHttpModule {
@@ -92,21 +92,21 @@ export interface NotificationHttpModule {
   receiveReceipt(input: ReceiveNotificationReceiptInput): Promise<NotificationReceiptResult>;
 }
 
-export interface RouteIveKitNotificationApiOptions {
+export interface RouteConveractFabricNotificationApiOptions {
   module?: NotificationHttpModule;
   env?: NodeJS.ProcessEnv;
-  audit?: Pick<IveKitAuditService, 'append'> | null;
-  rateLimiter?: Pick<IveKitRateLimiter, 'check'> | null;
+  audit?: Pick<ConveractFabricAuditService, 'append'> | null;
+  rateLimiter?: Pick<ConveractFabricRateLimiter, 'check'> | null;
 }
 
-export async function routeIveKitNotificationApi(
+export async function routeConveractFabricNotificationApi(
   pg: PgQueryable | null,
   method: string,
   path: string,
   url: URL,
   body: unknown,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitNotificationApiOptions = {}
+  options: RouteConveractFabricNotificationApiOptions = {}
 ): Promise<Record<string, unknown> | undefined> {
   const routePath = path.split('?')[0];
   if (!routePath.startsWith('/api/ivekit/notifications')) return undefined;
@@ -651,15 +651,15 @@ export async function routeIveKitNotificationApi(
 async function checkNotificationCreateRateLimit(
   pg: PgQueryable | null,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitNotificationApiOptions,
+  options: RouteConveractFabricNotificationApiOptions,
   auth: AuthContext,
   recipientRef: string,
   targetRecipients: string[]
 ): Promise<void> {
-  const configured = iveKitRateLimitConfiguration(options.env);
+  const configured = converactFabricRateLimitConfiguration(options.env);
   if (!configured.enabled || options.rateLimiter === null) return;
   const limiter = options.rateLimiter || (pg
-    ? configuredIveKitRateLimiter(pg, options.env)
+    ? configuredConveractFabricRateLimiter(pg, options.env)
     : null);
   if (!limiter) return;
   const recipients = [...new Set([recipientRef, ...targetRecipients])];
@@ -692,14 +692,14 @@ async function checkNotificationCreateRateLimit(
 async function checkProviderReceiptRateLimit(
   pg: PgQueryable | null,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitNotificationApiOptions,
+  options: RouteConveractFabricNotificationApiOptions,
   tenantId: string,
   endpointId: string
 ): Promise<void> {
-  const configured = iveKitRateLimitConfiguration(options.env);
+  const configured = converactFabricRateLimitConfiguration(options.env);
   if (!configured.enabled || options.rateLimiter === null) return;
   const limiter = options.rateLimiter || (pg
-    ? configuredIveKitRateLimiter(pg, options.env)
+    ? configuredConveractFabricRateLimiter(pg, options.env)
     : null);
   if (!limiter) return;
   await limiter.check({
@@ -732,7 +732,7 @@ function internalSourceIp(
 }
 
 type NotificationAuditInput = Omit<
-  IveKitAuditRequest,
+  ConveractFabricAuditRequest,
   'tenant_id' | 'actor_id' | 'actor_role' | 'request_id' | 'idempotency_key'
   | 'result' | 'policy_decision' | 'source_ip'
 > & ({ auth: AuthContext } | {
@@ -744,11 +744,11 @@ type NotificationAuditInput = Omit<
 async function appendNotificationAudit(
   pg: PgQueryable | null,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitNotificationApiOptions,
+  options: RouteConveractFabricNotificationApiOptions,
   input: NotificationAuditInput
 ): Promise<void> {
   const audit = options.audit === undefined
-    ? (pg ? createPostgresIveKitAuditService(pg, options.env) : null)
+    ? (pg ? createPostgresConveractFabricAuditService(pg, options.env) : null)
     : options.audit;
   if (!audit) return;
   const actor = 'auth' in input
@@ -781,7 +781,7 @@ async function appendNotificationAudit(
 function appendTemplateAudit(
   pg: PgQueryable | null,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitNotificationApiOptions,
+  options: RouteConveractFabricNotificationApiOptions,
   auth: AuthContext,
   operation: 'create' | 'update' | 'publish',
   snapshot: NotificationTemplateSnapshot
@@ -888,14 +888,14 @@ function requireAdmin(auth: AuthContext): void {
   requireCapability(auth, 'notifications.manage');
 }
 
-function requireCapability(auth: AuthContext, capability: IveKitCapability): void {
-  if (!iveKitCapabilityAllowed(auth, capability)) {
+function requireCapability(auth: AuthContext, capability: ConveractFabricCapability): void {
+  if (!converactFabricCapabilityAllowed(auth, capability)) {
     throw new NotificationError({ code: 'compliance_denied', status: 403 });
   }
 }
 
 function inboxUser(auth: AuthContext, url: URL): string {
-  if (iveKitCapabilityAllowed(auth, 'notifications.inbox.other')) {
+  if (converactFabricCapabilityAllowed(auth, 'notifications.inbox.other')) {
     return url.searchParams.get('user_id')?.trim() || auth.userId;
   }
   return auth.userId;

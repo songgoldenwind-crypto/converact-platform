@@ -1,6 +1,6 @@
-const persistedCommander = JSON.parse(localStorage.getItem('opc.commander') || 'null') || {};
+const persistedCommander = JSON.parse(localStorage.getItem('converact.commander') || 'null') || {};
 const state = {
-  tenant: JSON.parse(localStorage.getItem('opc.tenant') || 'null'),
+  tenant: JSON.parse(localStorage.getItem('converact.tenant') || 'null'),
   channel: null,
   sourceTag: null,
   page: null,
@@ -135,8 +135,8 @@ const PAGE_CONFIG = {
   }
 };
 const CURRENT_PAGE = resolveCurrentPage(window.location.pathname);
-const PENDING_COMMANDER_INTENT_KEY = 'opc.pendingCommanderIntent';
-const HOME_PANEL_KEY = 'opc.homePanel';
+const PENDING_COMMANDER_INTENT_KEY = 'converact.pendingCommanderIntent';
+const HOME_PANEL_KEY = 'converact.homePanel';
 
 const COMMANDER_TEMPLATES = {
   lead_acquisition: {
@@ -214,7 +214,7 @@ const COMMANDER_TEMPLATES = {
     ]
   },
   integration_stack: {
-    goal: '帮我推荐适合 OPC 的开源工具组合',
+    goal: '帮我推荐适合 Converact Platform 的开源工具组合',
     fields: []
   }
 };
@@ -519,7 +519,7 @@ renderDefaultRecipes();
 if (state.tenant) {
   renderTenantStatus();
   restoreCampaignSnapshot()
-    .catch((error) => console.warn('[opc] failed to restore campaign snapshot', error))
+    .catch((error) => console.warn('[converact] failed to restore campaign snapshot', error))
     .finally(() => refresh().catch(showError));
 } else {
   renderEmptyState();
@@ -531,7 +531,7 @@ async function createWorkspaceIfNeeded(preferredName = '默认工作区') {
     method: 'POST',
     body: { name: preferredName }
   });
-  localStorage.setItem('opc.tenant', JSON.stringify(state.tenant));
+  localStorage.setItem('converact.tenant', JSON.stringify(state.tenant));
   renderTenantStatus();
   return state.tenant;
 }
@@ -1593,7 +1593,7 @@ function applyCommanderPrefill(prefillJson) {
       }
     });
   } catch (error) {
-    console.warn('[opc] invalid prefill payload', error);
+    console.warn('[converact] invalid prefill payload', error);
   }
 }
 
@@ -1613,7 +1613,7 @@ function resolveCurrentPage(pathname) {
 
 function applyPageShell() {
   const page = PAGE_CONFIG[CURRENT_PAGE] || PAGE_CONFIG.commander;
-  document.title = `OPC Commander · ${page.title}`;
+  document.title = `Converact Platform Commander · ${page.title}`;
   document.body.dataset.page = CURRENT_PAGE;
   $('#workspace-eyebrow').textContent = page.eyebrow;
   $('#workspace-title').textContent = page.title;
@@ -1670,7 +1670,7 @@ function applyHomePanel() {
 
 function persistCommanderState() {
   localStorage.setItem(
-    'opc.commander',
+    'converact.commander',
     JSON.stringify({
       templateKey: state.commander.templateKey,
       activeRecipe: state.commander.activeRecipe,
@@ -1709,7 +1709,7 @@ function consumePendingCommanderIntent() {
     const payload = JSON.parse(raw);
     openCommanderIntent(payload.command, payload.templateKey, payload.prefillJson || '');
   } catch (error) {
-    console.warn('[opc] invalid pending commander intent', error);
+    console.warn('[converact] invalid pending commander intent', error);
   }
 }
 
@@ -2045,7 +2045,7 @@ async function prefetchProspectOutreachSummaryForActiveRun() {
     renderUserWorkbench();
     renderCommanderHome();
   } catch (error) {
-    console.warn('[opc] prospect outreach summary prefetch failed', error);
+    console.warn('[converact] prospect outreach summary prefetch failed', error);
   }
 }
 
@@ -2442,7 +2442,7 @@ async function refresh() {
     try {
       data.activeLeadRun = await api(`/api/lead-acquisition-runs/${encodeURIComponent(activeLeadRunId)}?tenant_id=${tenantId}&workspace_id=default`);
     } catch (error) {
-      console.warn('[opc] failed to load active lead acquisition run', error);
+      console.warn('[converact] failed to load active lead acquisition run', error);
       data.activeLeadRun = null;
     }
   }
@@ -2528,7 +2528,7 @@ function renderCommanderHome() {
       ? `当前还缺少 ${missingInputs.length} 个关键字段，补完即可执行。`
       : '系统已完成路由和风险识别，现在可以直接执行。';
   } else {
-    $('#commander-title').textContent = '说一句目标，OPC 帮你排出今天先联系谁';
+    $('#commander-title').textContent = '说一句目标，Converact Platform 帮你排出今天先联系谁';
     $('#commander-copy').textContent = `当前已有 ${state.data.leads.length} 条线索、${state.data.tasks.length} 个待办、${state.data.inquiries.length} 条咨询，可直接接入下一轮获客跟进。`;
   }
 
@@ -3248,7 +3248,7 @@ function handleResultAction(action) {
   if (action === 'abandon') {
     const reason = window.prompt('放弃原因（可选）：', '暂不执行，稍后再看');
     if (reason === null) return;
-    localStorage.setItem('opc.lastAbandonReason', reason.trim() || '未填写原因');
+    localStorage.setItem('converact.lastAbandonReason', reason.trim() || '未填写原因');
     toast('已记录放弃原因');
   }
 }
@@ -12971,13 +12971,13 @@ function renderProviderMatrix(provider) {
 
 function renderCrmMappingPanel(crm) {
   const rows = (crm.field_mapping_template || []).map((field) => [
-    field.opc_field,
+    field.converact_field,
     asArray(field.source_columns).join(', '),
     field.required ? renderStatusChip('required') : renderStatusChip('optional'),
     field.required ? '必须映射后才能稳定同步' : '可按业务成熟度补充'
   ]);
   $('#crm-mapping-table').innerHTML = rows.length
-    ? renderMiniTable(['OPC Field', 'Source Columns', 'Required', 'Rule'], rows, true)
+    ? renderMiniTable(['Converact Platform Field', 'Source Columns', 'Required', 'Rule'], rows, true)
     : renderEmpty('还没有 CRM mapping template。');
 }
 
@@ -13435,7 +13435,7 @@ function renderSuggestedCommands(templateKey) {
     crm_followup: [
       '给这个线索安排一次外呼跟进',
       '帮我生成本周复盘',
-      '帮我推荐适合 OPC 的工具组合'
+      '帮我推荐适合 Converact Platform 的工具组合'
     ],
     voice_followup: [
       '帮我创建一个跟进任务',
@@ -13532,7 +13532,7 @@ async function settle(requests) {
       try {
         return [key, await promise];
       } catch (error) {
-        console.warn(`[opc] ${key} request failed`, error);
+        console.warn(`[converact] ${key} request failed`, error);
         return [key, null];
       }
     })
@@ -13919,7 +13919,7 @@ function readPath(target, path) {
 }
 
 function campaignStorageKey() {
-  return state.tenant ? `opc.campaign.${state.tenant.id}` : null;
+  return state.tenant ? `converact.campaign.${state.tenant.id}` : null;
 }
 
 function persistCampaignSnapshot(snapshot) {
@@ -13950,7 +13950,7 @@ function loadCampaignSnapshot() {
     state.campaign.snapshot = JSON.parse(raw);
     return state.campaign.snapshot;
   } catch (error) {
-    console.warn('[opc] failed to load campaign snapshot', error);
+    console.warn('[converact] failed to load campaign snapshot', error);
     return null;
   }
 }
@@ -13968,7 +13968,7 @@ async function postCampaignArtifact(snapshot) {
     state.campaign.snapshot = result.artifact?.payload || state.campaign.snapshot;
     return result;
   } catch (error) {
-    console.warn('[opc] failed to persist campaign artifact', error);
+    console.warn('[converact] failed to persist campaign artifact', error);
     return null;
   }
 }
@@ -13980,7 +13980,7 @@ async function fetchCampaignArtifact() {
     state.campaign.snapshot = result.artifact?.payload || state.campaign.snapshot;
     return result.artifact?.payload || null;
   } catch (error) {
-    console.warn('[opc] failed to load campaign artifact', error);
+    console.warn('[converact] failed to load campaign artifact', error);
     return null;
   }
 }
@@ -14329,7 +14329,7 @@ function renderWorkbenchFocusQueue(items) {
       <header class="workbench-assets-brand">
         <div class="workbench-assets-brand-row">
           <span class="brand-dot" aria-hidden="true"></span>
-          <strong>OPC 一人公司</strong>
+          <strong>Converact Platform 一人公司</strong>
           <button class="workbench-assets-refresh" type="button" data-agent-workbench-action="refresh" title="刷新" aria-label="刷新">↻</button>
         </div>
         <p class="workbench-assets-tenant">${escapeHtml(tenantLabel)}</p>

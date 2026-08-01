@@ -2,18 +2,18 @@ import { resolveConveractEnv } from '../../config/converact-env.js';
 import { createHash } from 'node:crypto';
 
 import type {
-  IveKitMediaConnectionEvent,
-  IveKitMediaConnectionEventInput,
-  IveKitMediaConnectionEventResult,
-  IveKitMediaConnectionState,
-  IveKitMediaQualityLevel,
-  IveKitMediaQualityParticipantState,
-  IveKitMediaQualityReportResult,
-  IveKitMediaQualitySnapshot,
-  IveKitMediaQualitySnapshotInput,
-  IveKitMediaQualityState,
-  IveKitMediaQualitySummary,
-  IveKitMediaQualityTransition
+  ConveractFabricMediaConnectionEvent,
+  ConveractFabricMediaConnectionEventInput,
+  ConveractFabricMediaConnectionEventResult,
+  ConveractFabricMediaConnectionState,
+  ConveractFabricMediaQualityLevel,
+  ConveractFabricMediaQualityParticipantState,
+  ConveractFabricMediaQualityReportResult,
+  ConveractFabricMediaQualitySnapshot,
+  ConveractFabricMediaQualitySnapshotInput,
+  ConveractFabricMediaQualityState,
+  ConveractFabricMediaQualitySummary,
+  ConveractFabricMediaQualityTransition
 } from './types.js';
 
 const QUALITY_SNAPSHOT_KEYS = new Set([
@@ -59,54 +59,54 @@ export interface MediaQualityStorePort {
     tenant_id: string;
     call_id: string;
     identity: string;
-  }): Promise<IveKitMediaQualityParticipantState | null>;
-  insertQualitySnapshot(input: IveKitMediaQualitySnapshotInput & {
+  }): Promise<ConveractFabricMediaQualityParticipantState | null>;
+  insertQualitySnapshot(input: ConveractFabricMediaQualitySnapshotInput & {
     tenant_id: string;
     call_id: string;
     payload_hash: string;
     retention_until: string;
-  }): Promise<{ snapshot: IveKitMediaQualitySnapshot; replayed: boolean }>;
+  }): Promise<{ snapshot: ConveractFabricMediaQualitySnapshot; replayed: boolean }>;
   updateParticipantQuality(input: {
     tenant_id: string;
     call_id: string;
     identity: string;
     connection_revision: number;
-    quality_state: IveKitMediaQualityState;
+    quality_state: ConveractFabricMediaQualityState;
     quality_degraded_streak: number;
     quality_recovered_streak: number;
-    last_quality_level: IveKitMediaQualityLevel;
+    last_quality_level: ConveractFabricMediaQualityLevel;
     last_quality_sample_id: string;
     last_qos_at: string;
-  }): Promise<IveKitMediaQualityParticipantState>;
+  }): Promise<ConveractFabricMediaQualityParticipantState>;
   getConnectionEvent(input: {
     tenant_id: string;
     call_id: string;
     participant_identity: string;
     event_id: string;
-  }): Promise<{ value: IveKitMediaConnectionEvent; payloadHash: string } | null>;
-  insertConnectionEvent(input: IveKitMediaConnectionEventInput & {
+  }): Promise<{ value: ConveractFabricMediaConnectionEvent; payloadHash: string } | null>;
+  insertConnectionEvent(input: ConveractFabricMediaConnectionEventInput & {
     tenant_id: string;
     call_id: string;
     reason_code: string;
-    connection_state: IveKitMediaConnectionState;
+    connection_state: ConveractFabricMediaConnectionState;
     payload_hash: string;
-  }): Promise<IveKitMediaConnectionEvent>;
+  }): Promise<ConveractFabricMediaConnectionEvent>;
   updateParticipantConnection(input: {
     tenant_id: string;
     call_id: string;
     identity: string;
     connection_revision: number;
-    connection_state: IveKitMediaConnectionState;
+    connection_state: ConveractFabricMediaConnectionState;
     connection_updated_at: string;
     last_disconnected_at: string | null;
     last_rejoined_at: string | null;
-  }): Promise<IveKitMediaQualityParticipantState>;
+  }): Promise<ConveractFabricMediaQualityParticipantState>;
   getQualitySummary(input: {
     tenant_id: string;
     call_id: string;
     limit: number;
     generated_at: string;
-  }): Promise<IveKitMediaQualitySummary | null>;
+  }): Promise<ConveractFabricMediaQualitySummary | null>;
   pruneQualitySnapshots(input: {
     tenant_id: string;
     before: string;
@@ -126,8 +126,8 @@ export interface MediaQualityServiceOptions {
   max_sample_age_ms?: number;
   max_event_age_ms?: number;
   max_future_skew_ms?: number;
-  onQualityTransition?: (transition: IveKitMediaQualityTransition) => void | Promise<void>;
-  onConnectionEvent?: (result: IveKitMediaConnectionEventResult) => void | Promise<void>;
+  onQualityTransition?: (transition: ConveractFabricMediaQualityTransition) => void | Promise<void>;
+  onConnectionEvent?: (result: ConveractFabricMediaConnectionEventResult) => void | Promise<void>;
 }
 
 export function mediaQualityServiceOptionsFromEnv(
@@ -147,7 +147,7 @@ export function mediaQualityServiceOptionsFromEnv(
   });
 }
 
-interface NormalizedQualitySnapshot extends IveKitMediaQualitySnapshotInput {
+interface NormalizedQualitySnapshot extends ConveractFabricMediaQualitySnapshotInput {
   rtt_ms: number | null;
   jitter_ms: number | null;
   packet_loss_ratio: number | null;
@@ -198,8 +198,8 @@ export class MediaQualityService {
   async reportQuality(input: {
     tenant_id: string;
     call_id: string;
-    snapshots: IveKitMediaQualitySnapshotInput[];
-  }): Promise<IveKitMediaQualityReportResult> {
+    snapshots: ConveractFabricMediaQualitySnapshotInput[];
+  }): Promise<ConveractFabricMediaQualityReportResult> {
     const tenantId = requiredText(input.tenant_id, 'tenant_id', 255);
     const callId = requiredText(input.call_id, 'call_id', 255);
     if (!Array.isArray(input.snapshots) || input.snapshots.length < 1 || input.snapshots.length > 100) {
@@ -216,8 +216,8 @@ export class MediaQualityService {
     const result = await this.store.transaction(tenantId, async (store) => {
       let accepted = 0;
       let replayed = 0;
-      const transitions: IveKitMediaQualityTransition[] = [];
-      const participantStates = new Map<string, IveKitMediaQualityParticipantState>();
+      const transitions: ConveractFabricMediaQualityTransition[] = [];
+      const participantStates = new Map<string, ConveractFabricMediaQualityParticipantState>();
 
       for (const group of groups) {
         let participant = await store.getParticipantForUpdate({
@@ -298,8 +298,8 @@ export class MediaQualityService {
   async reportConnectionEvent(input: {
     tenant_id: string;
     call_id: string;
-    event: IveKitMediaConnectionEventInput;
-  }): Promise<IveKitMediaConnectionEventResult> {
+    event: ConveractFabricMediaConnectionEventInput;
+  }): Promise<ConveractFabricMediaConnectionEventResult> {
     const tenantId = requiredText(input.tenant_id, 'tenant_id', 255);
     const callId = requiredText(input.call_id, 'call_id', 255);
     const event = normalizeConnectionEvent(
@@ -369,7 +369,7 @@ export class MediaQualityService {
     tenant_id: string;
     call_id: string;
     limit?: number;
-  }): Promise<IveKitMediaQualitySummary | null> {
+  }): Promise<ConveractFabricMediaQualitySummary | null> {
     const tenantId = requiredText(input.tenant_id, 'tenant_id', 255);
     const callId = requiredText(input.call_id, 'call_id', 255);
     const generatedAt = this.now().toISOString();
@@ -410,7 +410,7 @@ export class MediaQualityService {
 }
 
 function normalizeSnapshot(
-  value: IveKitMediaQualitySnapshotInput,
+  value: ConveractFabricMediaQualitySnapshotInput,
   now: Date,
   maxAgeMs: number,
   maxFutureSkewMs: number
@@ -426,7 +426,7 @@ function normalizeSnapshot(
     connection_revision: boundedInteger(record.connection_revision, 1, Number.MAX_SAFE_INTEGER, 'connection_revision'),
     sample_id: requiredText(record.sample_id, 'sample_id', 128),
     track_source: trackSource as NormalizedQualitySnapshot['track_source'],
-    quality_level: qualityLevel as IveKitMediaQualityLevel,
+    quality_level: qualityLevel as ConveractFabricMediaQualityLevel,
     rtt_ms: optionalBoundedNumber(record.rtt_ms, 0, 60_000, 'rtt_ms'),
     jitter_ms: optionalBoundedNumber(record.jitter_ms, 0, 10_000, 'jitter_ms'),
     packet_loss_ratio: optionalBoundedNumber(record.packet_loss_ratio, 0, 1, 'packet_loss_ratio'),
@@ -437,11 +437,11 @@ function normalizeSnapshot(
 }
 
 function normalizeConnectionEvent(
-  value: IveKitMediaConnectionEventInput,
+  value: ConveractFabricMediaConnectionEventInput,
   now: Date,
   maxAgeMs: number,
   maxFutureSkewMs: number
-): IveKitMediaConnectionEventInput & { reason_code: string } {
+): ConveractFabricMediaConnectionEventInput & { reason_code: string } {
   const record = objectRecord(value, 'event');
   assertAllowedKeys(record, CONNECTION_EVENT_KEYS, 'event');
   const eventType = requiredText(record.event_type, 'event_type', 32);
@@ -454,7 +454,7 @@ function normalizeConnectionEvent(
     participant_identity: requiredText(record.participant_identity, 'participant_identity', 255),
     event_id: requiredText(record.event_id, 'event_id', 128),
     connection_revision: boundedInteger(record.connection_revision, 1, Number.MAX_SAFE_INTEGER, 'connection_revision'),
-    event_type: eventType as IveKitMediaConnectionEventInput['event_type'],
+    event_type: eventType as ConveractFabricMediaConnectionEventInput['event_type'],
     reason_code: reasonCode,
     occurred_at: boundedTimestamp(record.occurred_at, now, maxAgeMs, maxFutureSkewMs, 'occurred_at')
   };
@@ -480,12 +480,12 @@ function groupSnapshots(snapshots: NormalizedQualitySnapshot[]): NormalizedQuali
 }
 
 function nextQualityState(
-  participant: IveKitMediaQualityParticipantState,
+  participant: ConveractFabricMediaQualityParticipantState,
   degraded: boolean,
   degradedSamples: number,
   recoverySamples: number
 ): {
-  state: IveKitMediaQualityState;
+  state: ConveractFabricMediaQualityState;
   degradedStreak: number;
   recoveredStreak: number;
   eventType: 'degraded' | 'recovered' | null;
@@ -515,8 +515,8 @@ function nextQualityState(
 }
 
 function resetQualityForRevision(
-  participant: IveKitMediaQualityParticipantState
-): IveKitMediaQualityParticipantState {
+  participant: ConveractFabricMediaQualityParticipantState
+): ConveractFabricMediaQualityParticipantState {
   return {
     ...participant,
     quality_state: 'unknown',
@@ -529,8 +529,8 @@ function resetQualityForRevision(
 }
 
 function requireActiveParticipant(
-  participant: IveKitMediaQualityParticipantState | null
-): asserts participant is IveKitMediaQualityParticipantState {
+  participant: ConveractFabricMediaQualityParticipantState | null
+): asserts participant is ConveractFabricMediaQualityParticipantState {
   if (!participant) {
     throw Object.assign(new Error('active media call participant not found'), { status: 404 });
   }
@@ -540,8 +540,8 @@ function requireActiveParticipant(
 }
 
 function connectionStateForEvent(
-  eventType: IveKitMediaConnectionEventInput['event_type']
-): IveKitMediaConnectionState {
+  eventType: ConveractFabricMediaConnectionEventInput['event_type']
+): ConveractFabricMediaConnectionState {
   if (eventType === 'connected' || eventType === 'reconnected' || eventType === 'rejoined') {
     return 'connected';
   }
@@ -551,8 +551,8 @@ function connectionStateForEvent(
   return 'disconnected';
 }
 
-function worstQualityLevel(levels: IveKitMediaQualityLevel[]): IveKitMediaQualityLevel {
-  const order: Record<IveKitMediaQualityLevel, number> = {
+function worstQualityLevel(levels: ConveractFabricMediaQualityLevel[]): ConveractFabricMediaQualityLevel {
+  const order: Record<ConveractFabricMediaQualityLevel, number> = {
     lost: 0,
     poor: 1,
     unknown: 2,
@@ -566,7 +566,7 @@ function qualityPayloadHash(snapshot: NormalizedQualitySnapshot): string {
   return sha256(JSON.stringify(snapshot));
 }
 
-function connectionPayloadHash(event: IveKitMediaConnectionEventInput): string {
+function connectionPayloadHash(event: ConveractFabricMediaConnectionEventInput): string {
   return sha256(JSON.stringify(event));
 }
 

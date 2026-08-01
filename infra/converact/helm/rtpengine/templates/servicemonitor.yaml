@@ -2,13 +2,13 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: ivekit-rtpengine
+  name: converact-rtpengine
   labels:
-    app.kubernetes.io/name: ivekit-rtpengine
+    app.kubernetes.io/name: converact-rtpengine
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-rtpengine
+      app.kubernetes.io/name: converact-rtpengine
   endpoints:
     - port: metrics
       path: /metrics

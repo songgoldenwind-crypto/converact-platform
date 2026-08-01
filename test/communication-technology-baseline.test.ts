@@ -125,7 +125,7 @@ test('reset Wave 3 production defaults use dormant external providers, not self-
     readFile('infra/env.example', 'utf8'),
     readFile('infra/docker-compose.production.yml', 'utf8'),
     readFile('infra/k8s/values.yaml', 'utf8'),
-    readFile('infra/k8s/templates/opc-deployment.yaml', 'utf8')
+    readFile('infra/k8s/templates/converact-deployment.yaml', 'utf8')
   ]);
 
   for (const env of [rootEnv, productionEnv]) {

@@ -1,0 +1,532 @@
+openapi: 3.1.0
+info:
+  title: Converact Fabric Internal Voice Media Control API
+  version: 1.0.0
+  description: >
+    Cell-local RustPBX to media-node control protocol. A successful response
+    is authoritative; a client timeout or invalid response is an unknown
+    outcome that must be reconciled with the same command_id.
+x-ivekit-limits:
+  payload_bytes: 131072
+  sdp_bytes: 16384
+  json_depth: 16
+  json_nodes: 4096
+  object_properties: 64
+  array_items: 1024
+servers:
+  - url: https://media-control.internal
+security:
+  - mutualTLS: []
+    bearerAuth: []
+paths:
+  /livez:
+    get:
+      operationId: mediaControlLive
+      security:
+        - mutualTLS: []
+      responses:
+        "200":
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /readyz:
+    get:
+      operationId: mediaControlReady
+      security:
+        - mutualTLS: []
+      responses:
+        "200":
+          description: Agent is ready for control traffic.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "503":
+          description: Agent is alive but not ready for control traffic.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /metrics:
+    get:
+      operationId: mediaControlMetrics
+      responses:
+        "200":
+          description: Low-cardinality Prometheus metrics.
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Error"
+  /v1/commands:
+    post:
+      operationId: executeMediaControlCommand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Command"
+      responses:
+        "200":
+          description: Determinate or explicitly unknown command result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResultEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "413":
+          $ref: "#/components/responses/Error"
+        "415":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+  /v1/reconcile:
+    post:
+      operationId: reconcileMediaControlCommand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Reconcile"
+      responses:
+        "200":
+          description: Current outcome of the exact prior command.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResultEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+  /v1/sessions/{media_reservation_id}:
+    get:
+      operationId: getMediaControlSession
+      parameters:
+        - name: media_reservation_id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Identifier"
+      responses:
+        "200":
+          description: Current media session snapshot.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    mutualTLS:
+      type: mutualTLS
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-service-token
+  responses:
+    Error:
+      description: Stable typed error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    Identifier:
+      type: string
+      minLength: 1
+      maxLength: 256
+      pattern: "^[A-Za-z0-9._:@/-]+$"
+    OwnerEpoch:
+      type: string
+      pattern: "^(0|[1-9][0-9]{0,19})$"
+    ProtocolVersion:
+      type: string
+      const: ivekit.media-control.v1
+    ErrorCode:
+      type: string
+      minLength: 2
+      maxLength: 128
+      pattern: "^[a-z][a-z0-9_]+$"
+      examples:
+        - media_control_timeout
+        - media_control_unavailable
+        - stale_owner_epoch
+    CanonicalDateTime:
+      type: string
+      format: date-time
+      pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    MediaCodec:
+      type: string
+      enum: [PCMU, PCMA, OPUS]
+    FastPathOfferPayload:
+      type: object
+      additionalProperties: false
+      required: [offer_sdp, media_profile_id]
+      properties:
+        offer_sdp:
+          type: string
+          maxLength: 16384
+        media_profile_id:
+          const: g711-relay-v1
+        from_tag:
+          type: string
+          minLength: 1
+          maxLength: 256
+          pattern: "^[A-Za-z0-9.!%*_+`'~-]+$"
+        to_tag:
+          type: string
+          minLength: 1
+          maxLength: 256
+          pattern: "^[A-Za-z0-9.!%*_+`'~-]+$"
+    ProcessingOfferPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - offer_sdp
+        - media_profile_id
+        - leg_a_codec
+        - leg_b_codec
+        - leg_a_payload_type
+        - leg_b_payload_type
+        - packetization_ms
+      properties:
+        offer_sdp:
+          type: string
+          maxLength: 16384
+        media_profile_id:
+          const: VOICE-IVR-G711-OPUS-V1
+        from_tag:
+          type: string
+          minLength: 1
+          maxLength: 256
+          pattern: "^[A-Za-z0-9.!%*_+`'~-]+$"
+        to_tag:
+          type: string
+          minLength: 1
+          maxLength: 256
+          pattern: "^[A-Za-z0-9.!%*_+`'~-]+$"
+        leg_a_codec:
+          $ref: "#/components/schemas/MediaCodec"
+        leg_b_codec:
+          $ref: "#/components/schemas/MediaCodec"
+        leg_a_payload_type:
+          type: integer
+          minimum: 0
+          maximum: 127
+        leg_b_payload_type:
+          type: integer
+          minimum: 0
+          maximum: 127
+        packetization_ms:
+          const: 20
+      allOf:
+        - if:
+            properties:
+              leg_a_codec:
+                const: PCMU
+            required: [leg_a_codec]
+          then:
+            properties:
+              leg_a_payload_type:
+                const: 0
+        - if:
+            properties:
+              leg_a_codec:
+                const: PCMA
+            required: [leg_a_codec]
+          then:
+            properties:
+              leg_a_payload_type:
+                const: 8
+        - if:
+            properties:
+              leg_a_codec:
+                const: OPUS
+            required: [leg_a_codec]
+          then:
+            properties:
+              leg_a_payload_type:
+                minimum: 96
+                maximum: 127
+        - if:
+            properties:
+              leg_b_codec:
+                const: PCMU
+            required: [leg_b_codec]
+          then:
+            properties:
+              leg_b_payload_type:
+                const: 0
+        - if:
+            properties:
+              leg_b_codec:
+                const: PCMA
+            required: [leg_b_codec]
+          then:
+            properties:
+              leg_b_payload_type:
+                const: 8
+        - if:
+            properties:
+              leg_b_codec:
+                const: OPUS
+            required: [leg_b_codec]
+          then:
+            properties:
+              leg_b_payload_type:
+                minimum: 96
+                maximum: 127
+        - oneOf:
+            - properties:
+                leg_a_codec:
+                  enum: [PCMU, PCMA]
+                leg_b_codec:
+                  const: OPUS
+            - properties:
+                leg_a_codec:
+                  const: OPUS
+                leg_b_codec:
+                  enum: [PCMU, PCMA]
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          enum: [alive, ready, not_ready]
+    Command:
+      type: object
+      additionalProperties: false
+      required:
+        - protocol_version
+        - action
+        - command_id
+        - tenant_id
+        - call_id
+        - leg_id
+        - cell_id
+        - owner_node_id
+        - owner_epoch
+        - admission_reservation_id
+        - media_reservation_id
+        - command_sequence
+        - idempotency_key
+        - expires_at
+        - payload
+        - payload_hash
+      properties:
+        protocol_version:
+          $ref: "#/components/schemas/ProtocolVersion"
+        action:
+          enum:
+            - offer
+            - answer
+            - update
+            - delete
+            - query
+            - block_media
+            - unblock_media
+            - start_forward
+            - stop_forward
+            - start_recording_fork
+            - stop_recording_fork
+            - play_media
+            - stop_media
+            - inject_dtmf
+            - subscribe_quality
+            - drain_node
+        command_id:
+          $ref: "#/components/schemas/Identifier"
+        tenant_id:
+          $ref: "#/components/schemas/Identifier"
+        call_id:
+          $ref: "#/components/schemas/Identifier"
+        leg_id:
+          $ref: "#/components/schemas/Identifier"
+        cell_id:
+          $ref: "#/components/schemas/Identifier"
+        owner_node_id:
+          $ref: "#/components/schemas/Identifier"
+        owner_epoch:
+          $ref: "#/components/schemas/OwnerEpoch"
+        admission_reservation_id:
+          $ref: "#/components/schemas/Identifier"
+        media_reservation_id:
+          $ref: "#/components/schemas/Identifier"
+        command_sequence:
+          type: integer
+          minimum: 1
+          maximum: 4294967295
+        expires_at:
+          $ref: "#/components/schemas/CanonicalDateTime"
+        idempotency_key:
+          $ref: "#/components/schemas/Identifier"
+        payload:
+          type: object
+          maxProperties: 64
+        payload_hash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+      allOf:
+        - if:
+            properties:
+              action:
+                const: offer
+            required: [action]
+          then:
+            properties:
+              payload:
+                type: object
+                required: [offer_sdp, media_profile_id]
+                properties:
+                  offer_sdp:
+                    type: string
+                    maxLength: 16384
+                  media_profile_id:
+                    $ref: "#/components/schemas/Identifier"
+                oneOf:
+                  - $ref: "#/components/schemas/FastPathOfferPayload"
+                  - $ref: "#/components/schemas/ProcessingOfferPayload"
+    Reconcile:
+      type: object
+      additionalProperties: false
+      required:
+        - protocol_version
+        - action
+        - command
+      properties:
+        protocol_version:
+          $ref: "#/components/schemas/ProtocolVersion"
+        action:
+          type: string
+          const: reconcile
+        command:
+          $ref: "#/components/schemas/Command"
+    Session:
+      type: object
+      additionalProperties: false
+      required:
+        - media_reservation_id
+        - call_id
+        - owner_epoch
+        - last_sequence
+        - state
+        - transport_session_id
+        - effective_sdp
+        - expires_at
+        - updated_at
+      properties:
+        media_reservation_id:
+          $ref: "#/components/schemas/Identifier"
+        call_id:
+          $ref: "#/components/schemas/Identifier"
+        owner_epoch:
+          $ref: "#/components/schemas/OwnerEpoch"
+        last_sequence:
+          type: integer
+          minimum: 1
+          maximum: 4294967295
+        state:
+          enum: [prepared, committed, cancelled, closed, expired]
+        transport_session_id:
+          $ref: "#/components/schemas/Identifier"
+        effective_sdp:
+          type: string
+          maxLength: 16384
+        expires_at:
+          $ref: "#/components/schemas/CanonicalDateTime"
+        updated_at:
+          $ref: "#/components/schemas/CanonicalDateTime"
+    Result:
+      type: object
+      additionalProperties: false
+      required: [protocol_version, result_class, command_id]
+      properties:
+        protocol_version:
+          $ref: "#/components/schemas/ProtocolVersion"
+        result_class:
+          enum:
+            - committed
+            - replayed
+            - rejected_capacity
+            - rejected_epoch
+            - terminal_error
+            - unknown
+        command_id:
+          $ref: "#/components/schemas/Identifier"
+        error_code:
+          $ref: "#/components/schemas/ErrorCode"
+        retryable:
+          type: boolean
+        session:
+          $ref: "#/components/schemas/Session"
+      oneOf:
+        - properties:
+            result_class:
+              enum: [committed, replayed]
+          required: [session]
+          not:
+            anyOf:
+              - required: [error_code]
+              - required: [retryable]
+        - properties:
+            result_class:
+              enum:
+                - rejected_capacity
+                - rejected_epoch
+                - terminal_error
+          required: [error_code, retryable]
+        - properties:
+            result_class:
+              const: unknown
+            retryable:
+              const: true
+          required: [error_code, retryable]
+    ResultEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Result"
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, retryable]
+      properties:
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+        retryable:
+          type: boolean
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/Error"

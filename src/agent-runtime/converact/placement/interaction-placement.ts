@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
 import { withPgTenant } from '../../../db-pg-tenant.js';
-import { IveKitTenantEventJournal } from '../tenant-event-store.js';
+import { ConveractFabricTenantEventJournal } from '../tenant-event-store.js';
 import { HttpCellAdmissionClient } from './admission-http.js';
 import { splitOwnerEpoch } from './owner-epoch.js';
 import {
@@ -309,7 +309,7 @@ export class InteractionPlacementCoordinator {
         timeout_ms: input.admission_timeout_ms
       }));
     this.#appendEvent = input.append_event || ((pg, event) =>
-      new IveKitTenantEventJournal(pg).append({
+      new ConveractFabricTenantEventJournal(pg).append({
         tenant_id: event.tenant_id,
         type: event.type,
         data: event.data,

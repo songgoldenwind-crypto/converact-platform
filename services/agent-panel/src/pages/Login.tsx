@@ -27,7 +27,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <form onSubmit={(e) => void onSubmit(e)} className="w-full max-w-sm bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-4">
-        <h1 className="text-xl font-semibold text-white">OPC 坐席面板</h1>
+        <h1 className="text-xl font-semibold text-white">Converact Engage</h1>
         {error && <p className="text-sm text-red-400">{error}</p>}
         <input
           className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white"

@@ -36,9 +36,9 @@ const EDGE_SOURCE_NAMES = [
 const EDGE_ASSET_NAMES = [
   'adapters/windows-disconnect.ps1',
   'adapters/windows-restart.ps1',
-  'windows/Invoke-IveKitRustDeskSessionDisconnect.ps1',
-  'windows/Publish-IveKitRustDeskEvidence.ps1',
-  'windows/Resolve-IveKitRustDeskSession.ps1'
+  'windows/Invoke-ConveractFabricRustDeskSessionDisconnect.ps1',
+  'windows/Publish-ConveractFabricRustDeskEvidence.ps1',
+  'windows/Resolve-ConveractFabricRustDeskSession.ps1'
 ] as const;
 
 export interface RustDeskWindowsPackageConfig {
@@ -75,7 +75,7 @@ interface PackageFileRecord {
 
 export interface RustDeskWindowsPackageManifest {
   schema_version: 1;
-  package_type: 'ivekit-rustdesk-windows-x86_64';
+  package_type: 'converact-rustdesk-windows-x86_64';
   source_commit: string;
   generated_at: string;
   secret_free: true;
@@ -196,7 +196,7 @@ export function createRustDeskWindowsPackageConfigFromEnv(
   if (!/^sha256:[a-f0-9]{16}$/.test(expectedServerKeyFingerprint)) {
     throw new Error('RustDesk Windows package expected server key fingerprint is invalid');
   }
-  const serviceName = String(resolveBrandEnv(env, 'RUSTDESK_WINDOWS_SERVICE_NAME') || 'IveKitRustDeskEdge').trim();
+  const serviceName = String(resolveBrandEnv(env, 'RUSTDESK_WINDOWS_SERVICE_NAME') || 'ConveractFabricRustDeskEdge').trim();
   if (!/^[A-Za-z][A-Za-z0-9._-]{2,63}$/.test(serviceName)) {
     throw new Error('RustDesk Windows package service name is invalid');
   }
@@ -258,7 +258,7 @@ export function buildRustDeskWindowsPackage(
   const files = new Map<string, string>();
   const policy = `${JSON.stringify(createRustDeskWindowsCapabilityPolicy(), null, 2)}\n`;
   const normalizedNetworkConfig = `${networkConfig}\n`;
-  files.set('Deploy-IveKitRustDesk.ps1', normalizeText(inputs.deploymentScript));
+  files.set('Deploy-ConveractFabricRustDesk.ps1', normalizeText(inputs.deploymentScript));
   files.set(`${config.serviceName}.xml.template`, normalizeText(inputs.serviceTemplate));
   files.set('rustdesk-network-config.txt', normalizedNetworkConfig);
   files.set('effective-capability-policy.json', policy);
@@ -289,7 +289,7 @@ export function buildRustDeskWindowsPackage(
     .sort((left, right) => compareAscii(left.path, right.path));
   const manifest: RustDeskWindowsPackageManifest = {
     schema_version: 1,
-    package_type: 'ivekit-rustdesk-windows-x86_64',
+    package_type: 'converact-rustdesk-windows-x86_64',
     source_commit: config.sourceCommit,
     generated_at: generatedAt.toISOString(),
     secret_free: true,
@@ -412,16 +412,16 @@ function resolveBuildInputs(
       join(SCRIPT_DIR, 'rustdesk-edge-adapters', 'windows-restart.ps1'),
       'utf8'
     )],
-    ['windows/Invoke-IveKitRustDeskSessionDisconnect.ps1', readFileSync(
-      join(SCRIPT_DIR, 'rustdesk-windows', 'Invoke-IveKitRustDeskSessionDisconnect.ps1'),
+    ['windows/Invoke-ConveractFabricRustDeskSessionDisconnect.ps1', readFileSync(
+      join(SCRIPT_DIR, 'rustdesk-windows', 'Invoke-ConveractFabricRustDeskSessionDisconnect.ps1'),
       'utf8'
     )],
-    ['windows/Publish-IveKitRustDeskEvidence.ps1', readFileSync(
-      join(SCRIPT_DIR, 'rustdesk-windows', 'Publish-IveKitRustDeskEvidence.ps1'),
+    ['windows/Publish-ConveractFabricRustDeskEvidence.ps1', readFileSync(
+      join(SCRIPT_DIR, 'rustdesk-windows', 'Publish-ConveractFabricRustDeskEvidence.ps1'),
       'utf8'
     )],
-    ['windows/Resolve-IveKitRustDeskSession.ps1', readFileSync(
-      join(SCRIPT_DIR, 'rustdesk-windows', 'Resolve-IveKitRustDeskSession.ps1'),
+    ['windows/Resolve-ConveractFabricRustDeskSession.ps1', readFileSync(
+      join(SCRIPT_DIR, 'rustdesk-windows', 'Resolve-ConveractFabricRustDeskSession.ps1'),
       'utf8'
     )]
   ]);
@@ -429,11 +429,11 @@ function resolveBuildInputs(
     profile: provided.profile ?? JSON.parse(readFileSync(config.profileFile, 'utf8')),
     networkConfig: provided.networkConfig ?? readFileSync(config.networkConfigFile, 'utf8'),
     deploymentScript: provided.deploymentScript ?? readFileSync(
-      join(SCRIPT_DIR, 'rustdesk-windows', 'Deploy-IveKitRustDesk.ps1'),
+      join(SCRIPT_DIR, 'rustdesk-windows', 'Deploy-ConveractFabricRustDesk.ps1'),
       'utf8'
     ),
     serviceTemplate: provided.serviceTemplate ?? readFileSync(
-      join(SCRIPT_DIR, 'rustdesk-windows', 'IveKitRustDeskEdge.xml.template'),
+      join(SCRIPT_DIR, 'rustdesk-windows', 'ConveractFabricRustDeskEdge.xml.template'),
       'utf8'
     ),
     edgeSources,
@@ -480,7 +480,7 @@ function windowsProfile(
     source.native_control_protocol !== 'ivekit-rustdesk-native-control-v1' &&
     source.native_control_protocol !== 'ivekit-rustdesk-native-control-v2'
   ) {
-    throw new Error('RustDesk Windows installer must include an ivekit native control protocol');
+    throw new Error('RustDesk Windows installer must include a supported native control protocol');
   }
   if (
     placementEnabled &&
@@ -549,13 +549,13 @@ function transpileEdgeSource(source: string, sourceName: string): string {
 
 function renderReadme(config: RustDeskWindowsPackageConfig, installerFilename: string): string {
   return [
-    '# iveKit RustDesk Windows x86_64 Package',
+    '# Converact Fabric RustDesk Windows x86_64 Package',
     '',
     `Source commit: \`${config.sourceCommit}\``,
     `RustDesk installer: \`${installerFilename}\``,
     `Companion service: \`${config.serviceName}\``,
     '',
-    'Run `Deploy-IveKitRustDesk.ps1 -Mode validate` first. Validation is read-only and verifies the manifest, package hashes, fixed versions, capability policy, architecture, and local prerequisites.',
+    'Run `Deploy-ConveractFabricRustDesk.ps1 -Mode validate` first. Validation is read-only and verifies the manifest, package hashes, fixed versions, capability policy, architecture, and local prerequisites.',
     '',
     'For install or repair, provide `-BaseUrl`, `-TenantId`, `-BusinessRefType`, `-BusinessRefId`, and `-DeviceTokenFile`. The token file must already exist and is copied with inheritance removed so only LocalSystem and Administrators can read it. No token is placed in argv, registry, manifest, rollback state, or logs.',
     '',
@@ -563,7 +563,7 @@ function renderReadme(config: RustDeskWindowsPackageConfig, installerFilename: s
     '',
     `Precise disconnect uses the packaged \`${config.placementEnabled ? 'ivekit-rustdesk-native-control-v2' : 'ivekit-rustdesk-native-control-v1'}\` named-pipe contract. Placement-enabled packages persist the greatest accepted owner epoch before native execution. The adapter cannot execute an operator-supplied hook. Service restart is available only after a separate server-side emergency authorization.`,
     '',
-    'Native file-transfer and recording completion evidence uses the custom RustDesk allowlist scanner, device-token context correlator, and `rustdesk-native-evidence-v1` event contract. Existing files are baselined, new files must become stable, and the controller ID, operation grant, expected filename, time window, and device identity must resolve to exactly one server-side authorization. `Publish-IveKitRustDeskEvidence.ps1` remains a fixed recovery tool, not the normal producer. The producer and companion reject path escapes, links, invalid or ambiguous binding, mutation during copy, duplicate conflicts, clipboard payloads, keystrokes, and raw screen frames. Accepted copies always enter the iveKit secure-file MIME, threat-scan, quarantine, derivative, OCR, ASR, and AI-quality pipeline.',
+    'Native file-transfer and recording completion evidence uses the custom RustDesk allowlist scanner, device-token context correlator, and `rustdesk-native-evidence-v1` event contract. Existing files are baselined, new files must become stable, and the controller ID, operation grant, expected filename, time window, and device identity must resolve to exactly one server-side authorization. `Publish-ConveractFabricRustDeskEvidence.ps1` remains a fixed recovery tool, not the normal producer. The producer and companion reject path escapes, links, invalid or ambiguous binding, mutation during copy, duplicate conflicts, clipboard payloads, keystrokes, and raw screen frames. Accepted copies always enter the Converact Fabric secure-file MIME, threat-scan, quarantine, derivative, OCR, ASR, and AI-quality pipeline.',
     '',
     '`uninstall` removes the companion and restores the pre-install option/service state. A failed install or repair invokes the same rollback automatically.',
     '',

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import type { PgQueryable } from '../../../../db-pg.js';
 import { withPgTenant } from '../../../../db-pg-tenant.js';
-import { IveKitTenantEventJournal } from '../../tenant-event-store.js';
+import { ConveractFabricTenantEventJournal } from '../../tenant-event-store.js';
 import { NotificationError } from '../errors.js';
 import type {
   NotificationDeliveryRepository,
@@ -1189,7 +1189,7 @@ async function appendNotificationEvent(
   pg: PgQueryable,
   event: NotificationTenantEvent
 ): Promise<void> {
-  await new IveKitTenantEventJournal(pg).append(event);
+  await new ConveractFabricTenantEventJournal(pg).append(event);
 }
 
 function notificationCreatedEvent(

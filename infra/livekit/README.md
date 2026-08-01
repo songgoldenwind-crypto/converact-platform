@@ -1,4 +1,4 @@
-# Standalone iveKit Media Core
+# Standalone Converact Fabric Media Core
 
 This package deploys the reusable LiveKit media plane on one Linux VM. It follows the LiveKit production generator topology:
 
@@ -6,15 +6,15 @@ This package deploys the reusable LiveKit media plane on one Linux VM. It follow
 - LiveKit runs with host networking, direct ICE/TCP, ICE/UDP, and embedded TURN.
 - Redis is bound to loopback and shared by LiveKit and Egress.
 - Egress writes to external S3-compatible object storage.
-- OPC and LED consume the same public WSS endpoint and API credentials.
+- Converact Platform and LED consume the same public WSS endpoint and API credentials.
 
-It does not contain OPC source code and can be deployed as an independent service.
+It does not contain Converact Platform source code and can be deployed as an independent service.
 
 For Kubernetes production, use the vendored official chart and fail-closed
 performance profile in [`helm/README.md`](helm/README.md). The application
 chart's bundled LiveKit remains a development-only option.
 
-When external S3 is unavailable, apply `docker-compose.storage.yml` as an optional overlay. It runs a pinned MinIO release, exposes its API and console on loopback only, initializes a private bucket and bucket-scoped service account, and prevents Egress from starting until that initialization succeeds. `MINIO_ROOT_*` is bootstrap-only; OPC and Egress receive only `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`.
+When external S3 is unavailable, apply `docker-compose.storage.yml` as an optional overlay. It runs a pinned MinIO release, exposes its API and console on loopback only, initializes a private bucket and bucket-scoped service account, and prevents Egress from starting until that initialization succeeds. `MINIO_ROOT_*` is bootstrap-only; Converact Platform and Egress receive only `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`.
 
 ## Storage failure isolation
 
@@ -23,7 +23,7 @@ state, never on Egress, MinIO or S3. Egress is a downstream consumer of LiveKit;
 the optional storage overlay adds a dependency only to Egress. If Egress or
 object storage is unavailable, rooms, published tracks, subscriptions and screen
 sharing must continue. Automatic recording start is fail-open for an already
-accepted call: iveKit broadcasts `call.answered`, returns `call_status=active`
+accepted call: Converact Fabric broadcasts `call.answered`, returns `call_status=active`
 and the room/token with `recording_status=scheduled`, then resolves recording
 consent and starts Egress in the background. A later failure is reduced to an
 allowlisted code and emitted as `call.recording_failed`; provider text is never
@@ -32,7 +32,7 @@ bounded `LIVEKIT_EGRESS_REQUEST_TIMEOUT_SECONDS` value (default 3 seconds), but
 that timeout runs outside the accept path. The recording may be absent or
 incomplete, but the live media session must not be terminated.
 
-The same Caddy L4 edge can optionally terminate TLS for the application plane. Set `IVEKIT_API_DOMAIN` and/or `TINODE_PUBLIC_DOMAIN`; their upstreams default to loopback ports `8300` and `6060`. Leave both blank for a Media-Core-only deployment.
+The same Caddy L4 edge can optionally terminate TLS for the application plane. Set `CONVERACT_FABRIC_API_DOMAIN` and/or `TINODE_PUBLIC_DOMAIN`; their upstreams default to loopback ports `8300` and `6060`. Leave both blank for a Media-Core-only deployment.
 
 ## Requirements
 
@@ -40,7 +40,7 @@ The same Caddy L4 edge can optionally terminate TLS for the application plane. S
 - `livekit.example.com` and `turn.example.com` DNS records pointing to that IP.
 - Public inbound access for `80/tcp`, `443/tcp`, `7881/tcp`, `3478/udp`, and the configured RTC UDP range.
 - S3-compatible storage reachable from the media host.
-- OPC LiveKit webhook URL reachable from the media host.
+- Converact Platform LiveKit webhook URL reachable from the media host.
 
 ## Render
 
@@ -66,7 +66,7 @@ CONVERACT_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS=100
 ```
 
 Each value is bounded to `50..5000 ms` and is also recorded in
-`deployment-summary.json`. The `100/100/100 ms` profile is the tested iveKit
+`deployment-summary.json`. The `100/100/100 ms` profile is the tested Converact Fabric
 weak-network recovery profile. It intentionally requests replacement keyframes
 more quickly than LiveKit's upstream sample defaults. A lower throttle can
 reduce a receiver's black-screen recovery time, but it can also increase
@@ -102,7 +102,7 @@ docker compose \
 
 This command validates the standalone Compose structure only. It does not prove DNS, TLS, firewall, ICE, TURN, Egress, or object storage connectivity.
 
-`npm run livekit:deployment-preflight` is the full OPC/LED integration preflight. Run it from the application deployment environment after loading both the standalone Media Core values and the OPC smoke/auth/storage values; the edge `.env` alone intentionally does not contain application API tokens or smoke identities.
+`npm run livekit:deployment-preflight` is the full Converact Platform/LED integration preflight. Run it from the application deployment environment after loading both the standalone Media Core values and the Converact Platform smoke/auth/storage values; the edge `.env` alone intentionally does not contain application API tokens or smoke identities.
 
 ## Start on Linux
 
@@ -115,7 +115,7 @@ docker compose \
 
 Add `-f infra/livekit/docker-compose.storage.yml` before `up -d` when using the private MinIO overlay. In that mode set `MINIO_ENDPOINT=http://127.0.0.1:9000`; do not expose ports `9000` or `9001` publicly.
 
-The OPC runtime then uses separate addresses:
+The Converact Platform runtime then uses separate addresses:
 
 ```text
 LIVEKIT_URL=ws://<private-media-ip>:7880
@@ -140,7 +140,7 @@ The deployment is not production-accepted until all of the following have captur
 From the application repository, initialize one deterministic, secret-safe evidence directory:
 
 ```bash
-CONVERACT_LIVEKIT_ACCEPTANCE_BUNDLE_DIR=/var/lib/opc-evidence/livekit/<release> \
+CONVERACT_LIVEKIT_ACCEPTANCE_BUNDLE_DIR=/var/lib/converact-evidence/livekit/<release> \
   npm run livekit:acceptance-bundle
 ```
 

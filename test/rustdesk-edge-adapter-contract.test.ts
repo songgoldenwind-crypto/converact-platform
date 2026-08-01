@@ -52,7 +52,7 @@ test('linux targeted disconnect validates safely and reports unavailable without
 });
 
 test('linux targeted disconnect passes identifiers as fixed argv and is idempotent', () => {
-  const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-adapter-'));
+  const dataDir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-adapter-'));
   const capture = join(dataDir, 'args.txt');
   const hook = join(dataDir, 'hook.sh');
   writeFileSync(hook, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(capture)}\nexit 0\n`);
@@ -100,7 +100,7 @@ test('linux restart validate mode never invokes the service manager', () => {
     '--rustdesk-id', '123456789', '--reason', 'gateway_ended'
   ], {
     encoding: 'utf8',
-    env: { ...cleanAdapterEnv(), CONVERACT_RUSTDESK_SERVICE_NAME: 'opc-definitely-missing-rustdesk.service' }
+    env: { ...cleanAdapterEnv(), CONVERACT_RUSTDESK_SERVICE_NAME: 'converact-definitely-missing-rustdesk.service' }
   });
   assert.equal(execution.status, 21);
   assert.match(execution.stderr, /systemd service is unavailable/);

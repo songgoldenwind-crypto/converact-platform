@@ -1,22 +1,22 @@
-{{- include "ivekit-homer.validate" . -}}
+{{- include "converact-homer.validate" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "ivekit-homer.fullname" . }}
+  name: {{ include "converact-homer.fullname" . }}
   labels:
-    {{- include "ivekit-homer.labels" . | nindent 4 }}
+    {{- include "converact-homer.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "ivekit-homer.fullname" . }}
+  serviceName: {{ include "converact-homer.fullname" . }}
   replicas: {{ .Values.replicaCount }}
   updateStrategy:
     type: RollingUpdate
   selector:
     matchLabels:
-      {{- include "ivekit-homer.selectorLabels" . | nindent 6 }}
+      {{- include "converact-homer.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "ivekit-homer.selectorLabels" . | nindent 8 }}
+        {{- include "converact-homer.selectorLabels" . | nindent 8 }}
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
@@ -28,7 +28,7 @@ spec:
       {{- end }}
       containers:
         - name: homer
-          image: {{ include "ivekit-homer.image" . | quote }}
+          image: {{ include "converact-homer.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args: ["--config-path", "/etc/homer", "--pid-file", "/tmp/homer-core.pid"]
           ports:

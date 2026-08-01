@@ -17,18 +17,18 @@ test('knowledge agent ingests immutable sources and maintains wiki index', async
     user_id: 'user_test',
     playbook_id: 'knowledge_agent.ingest_source.v1',
     goal: '把产品定位资料入知识库',
-    title: 'OPC 产品定位',
-    content: 'OPC 是一人公司的增长操作系统。核心包括获客、CRM、知识库和自动化。',
+    title: 'Converact 产品定位',
+    content: 'Converact 是一人公司的增长操作系统。核心包括获客、CRM、知识库和自动化。',
     source_type: 'note',
     category: 'product',
-    tags: ['opc', 'positioning'],
-    summary: 'OPC 是一人公司的增长操作系统。'
+    tags: ['converact', 'positioning'],
+    summary: 'Converact 是一人公司的增长操作系统。'
   });
 
   assert.equal(result.agent_run.status, 'completed');
   assert.equal(result.artifacts[0].type, 'knowledge_ingest_result');
   assert.equal(result.step_outputs.ingest_source.page.category, 'product');
-  assert.match(result.step_outputs.build_index.content_markdown, /OPC 产品定位/);
+  assert.match(result.step_outputs.build_index.content_markdown, /Converact 产品定位/);
 
   const query = await harness.toolExecutor.execute(
     {
@@ -48,7 +48,7 @@ test('knowledge agent ingests immutable sources and maintains wiki index', async
     }
   );
 
-  assert.equal(query.output.results[0].title, 'OPC 产品定位');
+  assert.equal(query.output.results[0].title, 'Converact 产品定位');
 });
 
 test('wiki lint reports missing source pages without mutating content', async () => {

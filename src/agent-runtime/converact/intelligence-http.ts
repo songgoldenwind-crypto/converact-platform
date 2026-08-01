@@ -27,7 +27,7 @@ import { PolicyFindingStore } from '../collaboration/policy-finding-store.js';
 import { CollaborationStore } from '../collaboration/collaboration-store.js';
 import type { CollaborationPolicyFinding, PolicyEvidenceRef } from '../collaboration/types.js';
 
-export interface RouteIveKitIntelligenceApiOptions {
+export interface RouteConveractFabricIntelligenceApiOptions {
   registry?: IntelligenceProviderRegistry;
   health?: { probe(input: { profile_ids?: string[] }): Promise<IntelligenceProviderHealthResult[]> };
   governance?: { listRuntime(tenantId: string): Promise<IntelligenceProviderRuntimeSnapshot[]> };
@@ -68,14 +68,14 @@ const POLICY_FIELDS = new Set([
   'min_asr_confidence'
 ]);
 
-export async function routeIveKitIntelligenceApi(
+export async function routeConveractFabricIntelligenceApi(
   pg: PgQueryable | null,
   method: string,
   path: string,
   url: URL,
   body: unknown,
   headers: Record<string, string | string[] | undefined> = {},
-  options: RouteIveKitIntelligenceApiOptions = {}
+  options: RouteConveractFabricIntelligenceApiOptions = {}
 ): Promise<unknown | undefined> {
   const routePath = path.split('?')[0];
   if (!routePath.startsWith('/api/ivekit/intelligence')) return undefined;
@@ -472,7 +472,7 @@ function projectEvidenceRef(ref: PolicyEvidenceRef): Record<string, unknown> {
 function intelligenceSourceService(
   pg: PgQueryable,
   registry: IntelligenceProviderRegistry,
-  options: RouteIveKitIntelligenceApiOptions
+  options: RouteConveractFabricIntelligenceApiOptions
 ): Pick<IntelligenceSourceService, 'importSource' | 'getSource' | 'retrySource'> {
   if (options.source) return options.source;
   const media = options.db ? createLiveKitMediaModule({ db: options.db }) : null;

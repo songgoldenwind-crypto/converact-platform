@@ -1,4 +1,4 @@
-# iveKit Capacity Campaign Finalization Runbook
+# Converact Fabric Capacity Campaign Finalization Runbook
 
 > Status: code complete; physical execution `not_run`
 > Contract: `targets/mix-100k-efficiency-v1.json`
@@ -29,7 +29,7 @@ Apply these forward-only migrations in order:
 ```
 
 The finalizer identities need `SELECT/INSERT/UPDATE/DELETE` on these capacity tables and S3 access
-limited to the configured evidence prefix. They do not need OPC or LED business-domain tables.
+limited to the configured evidence prefix. They do not need Converact Platform or LED business-domain tables.
 
 ## 3. Immutable Run Context
 
@@ -106,14 +106,14 @@ and rejects a missing, reordered, invented, duplicated, or unused probe.
 Run the CLI directly or use `kubernetes/scaling-finalizer-job.yaml`:
 
 ```bash
-OPC_DATABASE_URL='postgresql://...' \
-OPC_IVEKIT_CAPACITY_SCALING_FINALIZER_ID='scaling-finalizer-role-run' \
-OPC_IVEKIT_CAPACITY_SCALING_CONTRACT_PATH='/run/ivekit-capacity/scaling-contract.json' \
-OPC_IVEKIT_CAPACITY_SCALING_SUBMISSION_PATH='/run/ivekit-capacity/scaling-submission.json' \
-OPC_IVEKIT_CAPACITY_SCALING_EVIDENCE_PREFIX='capacity/scaling' \
-OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET='capacity-evidence' \
-OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION='ap-southeast-1' \
-  npm run ivekit:capacity:scaling-finalizer
+CONVERACT_DATABASE_URL='postgresql://...' \
+CONVERACT_FABRIC_CAPACITY_SCALING_FINALIZER_ID='scaling-finalizer-role-run' \
+CONVERACT_FABRIC_CAPACITY_SCALING_CONTRACT_PATH='/run/converact-capacity/scaling-contract.json' \
+CONVERACT_FABRIC_CAPACITY_SCALING_SUBMISSION_PATH='/run/converact-capacity/scaling-submission.json' \
+CONVERACT_FABRIC_CAPACITY_SCALING_EVIDENCE_PREFIX='capacity/scaling' \
+CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET='capacity-evidence' \
+CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION='ap-southeast-1' \
+  npm run converact:capacity:scaling-finalizer
 ```
 
 The result includes full frontier inputs, derived safe capacities, aggregate linearity, segment
@@ -155,14 +155,14 @@ eleven unique references or validation fails before any claim is considered.
 Run the CLI directly or use `kubernetes/platform-finalizer-job.yaml`:
 
 ```bash
-OPC_DATABASE_URL='postgresql://...' \
-OPC_IVEKIT_CAPACITY_PLATFORM_FINALIZER_ID='platform-finalizer-run' \
-OPC_IVEKIT_CAPACITY_PLATFORM_CONTRACT_PATH='/run/ivekit-capacity/platform-contract.json' \
-OPC_IVEKIT_CAPACITY_PLATFORM_SUBMISSION_PATH='/run/ivekit-capacity/platform-submission.json' \
-OPC_IVEKIT_CAPACITY_PLATFORM_EVIDENCE_PREFIX='capacity/platform' \
-OPC_IVEKIT_CAPACITY_EVIDENCE_S3_BUCKET='capacity-evidence' \
-OPC_IVEKIT_CAPACITY_EVIDENCE_S3_REGION='ap-southeast-1' \
-  npm run ivekit:capacity:platform-finalizer
+CONVERACT_DATABASE_URL='postgresql://...' \
+CONVERACT_FABRIC_CAPACITY_PLATFORM_FINALIZER_ID='platform-finalizer-run' \
+CONVERACT_FABRIC_CAPACITY_PLATFORM_CONTRACT_PATH='/run/converact-capacity/platform-contract.json' \
+CONVERACT_FABRIC_CAPACITY_PLATFORM_SUBMISSION_PATH='/run/converact-capacity/platform-submission.json' \
+CONVERACT_FABRIC_CAPACITY_PLATFORM_EVIDENCE_PREFIX='capacity/platform' \
+CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET='capacity-evidence' \
+CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION='ap-southeast-1' \
+  npm run converact:capacity:platform-finalizer
 ```
 
 The platform finalizer:

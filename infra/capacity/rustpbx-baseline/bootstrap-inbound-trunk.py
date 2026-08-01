@@ -10,7 +10,7 @@ BASE_URL = os.environ["RUSTPBX_BASE_URL"].rstrip("/")
 TOKEN = os.environ["RUSTPBX_MANAGEMENT_TOKEN"]
 TRUNK_CREDENTIAL = os.environ["RUSTPBX_TRUNK_CREDENTIAL"]
 UAC_IP = os.environ["RUSTPBX_ACCEPTANCE_UAC_IP"]
-TRUNK_NAME = "ivekit-capacity-sipp"
+TRUNK_NAME = "converact-capacity-sipp"
 
 
 def request(path: str, method: str, payload=None):
@@ -50,7 +50,7 @@ if trunk is None:
         "PUT",
         {
             "name": TRUNK_NAME,
-            "display_name": "iveKit capacity SIPp",
+            "display_name": "Converact Fabric capacity SIPp",
             "status": "healthy",
             "direction": "inbound",
             "sip_transport": "udp",

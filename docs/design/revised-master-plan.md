@@ -1,4 +1,4 @@
-# OPC AI 通信平台 — 修订版总体规划
+# Converact Platform AI 通信平台 — 修订版总体规划
 
 > **历史规划声明（2026-07-31）**：本文的功能清单与 Sprint 轨道继续保留；通信底座、
 > HF/Agent、LiveKit/ViLTE 音视频和 AI-native 的最新架构及实施顺序以
@@ -78,7 +78,7 @@
 
 ## AI Agent (Python) 逐 Sprint 能力对齐
 
-> AI Agent 是 OPC 的核心差异化。**每个 Sprint 新增的平台能力，必须同步在 AI Agent 侧有对应的 Tool / Skill / Pipeline 更新。**
+> AI Agent 是 Converact Platform 的核心差异化。**每个 Sprint 新增的平台能力，必须同步在 AI Agent 侧有对应的 Tool / Skill / Pipeline 更新。**
 
 ### 基础架构
 
@@ -196,7 +196,7 @@ class FunASRSTT(stt.STT):
 
 **不能直接用 VICIdial**（AGPLv2 + Perl + Asterisk 深度耦合），但其核心算法值得参考：
 
-| VICIdial 算法要素 | OPC 自建实现 |
+| VICIdial 算法要素 | Converact Platform 自建实现 |
 |------------------|-------------|
 | 自适应拨号比 (adaptive dial level) | 根据坐席空闲率 + 接通率实时调整并发拨号数 |
 | 弃呼率控制 (abandon rate target) | 弃呼率 > 3% 自动降速 |
@@ -222,7 +222,7 @@ class FunASRSTT(stt.STT):
 
 **参考 CCC (twm711/ccc)**：Go 实现的技能路由 + 优先级队列
 
-| CCC 特性 | OPC 对照 |
+| CCC 特性 | Converact Platform 对照 |
 |----------|---------|
 | Skill group routing with priority | 【规划中】`acd-engine.ts` 技能匹配 + VIP 优先 |
 | Real-time agent presence (Ready/Busy/ACW) | 坐席状态 6 种 + WebSocket 广播 |
@@ -289,7 +289,7 @@ Audio features → emotion CNN → anger/calm/frustration
 | 自定义 CRM | n8n HTTP/Webhook node |
 | 数据映射 | n8n Transform node |
 
-OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 connector 维护成本。
+Converact Platform 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 connector 维护成本。
 
 #### 8. 可视化报表
 
@@ -304,11 +304,11 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 
 ## 功能完备性逐项对标（vs Genesys/Avaya/Zoom 全量功能）
 
-> 以下列出三大厂商的**全部核心功能**，逐项标注 OPC 覆盖状态和规划 Sprint。
+> 以下列出三大厂商的**全部核心功能**，逐项标注 Converact Platform 覆盖状态和规划 Sprint。
 
 ### A. 呼入功能 (Inbound)
 
-| # | 功能 | Genesys | Avaya | Zoom | OPC 状态 | 规划 Sprint |
+| # | 功能 | Genesys | Avaya | Zoom | Converact Platform 状态 | 规划 Sprint |
 |---|------|---------|-------|------|----------|-------------|
 | A1 | ACD 智能路由（技能/优先级/最长空闲） | ✓ | ✓ | ✓ | ❌ | **S4** |
 | A2 | 呼入队列（排队音乐/位置播报/预估等待） | ✓ | ✓ | ✓ | ❌ | **S4** |
@@ -323,7 +323,7 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 
 ### B. 呼出功能 (Outbound)
 
-| # | 功能 | Genesys | Avaya | Zoom | OPC 状态 | 规划 Sprint |
+| # | 功能 | Genesys | Avaya | Zoom | Converact Platform 状态 | 规划 Sprint |
 |---|------|---------|-------|------|----------|-------------|
 | B1 | 预览拨号 (Preview) | ✓ | ✓ | ✓ | ❌ | **S8** |
 | B2 | 渐进拨号 (Progressive) | ✓ | ✓ | ✓ | ❌ | **S8** |
@@ -338,7 +338,7 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 
 ### C. 坐席工具 (Agent Desktop)
 
-| # | 功能 | Genesys | Avaya | Zoom | OPC 状态 | 规划 Sprint |
+| # | 功能 | Genesys | Avaya | Zoom | Converact Platform 状态 | 规划 Sprint |
 |---|------|---------|-------|------|----------|-------------|
 | C1 | 通话保持/恢复 (Hold) | ✓ | ✓ | ✓ | ❌ | **S5** |
 | C2 | 盲转 (Blind Transfer) | ✓ | ✓ | ✓ | ❌ | **S5** |
@@ -357,7 +357,7 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 
 ### D. 主管工具 (Supervisor)
 
-| # | 功能 | Genesys | Avaya | Zoom | OPC 状态 | 规划 Sprint |
+| # | 功能 | Genesys | Avaya | Zoom | Converact Platform 状态 | 规划 Sprint |
 |---|------|---------|-------|------|----------|-------------|
 | D1 | 实时监听 (Silent Monitor) | ✓ | ✓ | ✓ | ❌ | **S5** |
 | D2 | 强插 (Barge-in) | ✓ | ✓ | ✓ | ❌ | **S5** |
@@ -370,7 +370,7 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 
 ### E. 录音与质检 (Recording & QM)
 
-| # | 功能 | Genesys | Avaya | Zoom | OPC 状态 | 规划 Sprint |
+| # | 功能 | Genesys | Avaya | Zoom | Converact Platform 状态 | 规划 Sprint |
 |---|------|---------|-------|------|----------|-------------|
 | E1 | 全量自动录音 | ✓ | ✓ | ✓ | ⚠️ Egress | **S3** |
 | E2 | 选择性录音（按规则启停） | ✓ | ✓ | ✓ | ❌ | **S3** |
@@ -385,7 +385,7 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 
 ### F. AI 能力
 
-| # | 功能 | Genesys | Avaya | Zoom | OPC 状态 | 规划 Sprint |
+| # | 功能 | Genesys | Avaya | Zoom | Converact Platform 状态 | 规划 Sprint |
 |---|------|---------|-------|------|----------|-------------|
 | F1 | AI 虚拟坐席（语音） | ✓(加价) | ✓(加价) | ✓(加价) | ✅ 已有 | — |
 | F2 | 意向检测 / 话题识别 | ✓ | ✓ | ✓ | ✅ 已有 | — |
@@ -400,7 +400,7 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 
 ### G. 全渠道 (Omnichannel)
 
-| # | 功能 | Genesys | Avaya | Zoom | OPC 状态 | 规划 Sprint |
+| # | 功能 | Genesys | Avaya | Zoom | Converact Platform 状态 | 规划 Sprint |
 |---|------|---------|-------|------|----------|-------------|
 | G1 | 语音 (PSTN/WebRTC) | ✓ | ✓ | ✓ | ✅ 已有 | — |
 | G2 | Web Chat | ✓ | ✓ | ✓ | ❌ | **S9** |
@@ -417,7 +417,7 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 
 ### H. 报表与分析 (Reporting & Analytics)
 
-| # | 功能 | Genesys | Avaya | Zoom | OPC 状态 | 规划 Sprint |
+| # | 功能 | Genesys | Avaya | Zoom | Converact Platform 状态 | 规划 Sprint |
 |---|------|---------|-------|------|----------|-------------|
 | H1 | 实时仪表盘 | ✓ | ✓ | ✓ | ⚠️ 基础 | **S5** 完善 |
 | H2 | 历史报表（日/周/月） | ✓ | ✓ | ✓ | ❌ | **S7** |
@@ -432,7 +432,7 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 
 ### I. 集成与开放 (Integration & Platform)
 
-| # | 功能 | Genesys | Avaya | Zoom | OPC 状态 | 规划 Sprint |
+| # | 功能 | Genesys | Avaya | Zoom | Converact Platform 状态 | 规划 Sprint |
 |---|------|---------|-------|------|----------|-------------|
 | I1 | REST API | ✓ | ✓ | ✓ | ✅ 已有 | — |
 | I2 | Webhook 事件订阅 | ✓ | ✓ | ✓ | ✅ 已有 | — |
@@ -447,7 +447,7 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 
 ### J. 管理与合规 (Administration & Compliance)
 
-| # | 功能 | Genesys | Avaya | Zoom | OPC 状态 | 规划 Sprint |
+| # | 功能 | Genesys | Avaya | Zoom | Converact Platform 状态 | 规划 Sprint |
 |---|------|---------|-------|------|----------|-------------|
 | J1 | 多租户隔离 | ✓ | ✓ | ✓ | ✅ 已有 | — |
 | J2 | RBAC 角色权限 | ✓ | ✓ | ✓ | ⚠️ 基础 | **S1** 完善 |
@@ -462,7 +462,7 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 
 ### K. WFM (Workforce Management)
 
-| # | 功能 | Genesys | Avaya | Zoom | OPC 状态 | 规划 Sprint |
+| # | 功能 | Genesys | Avaya | Zoom | Converact Platform 状态 | 规划 Sprint |
 |---|------|---------|-------|------|----------|-------------|
 | K1 | 话务量预测 | ✓ | ✓ | — | ✅ 已有(SES) | — |
 | K2 | 自动排班 | ✓ | ✓ | — | ✅ 已有(贪心) | — |
@@ -673,7 +673,7 @@ OPC 只需暴露 Webhook event → n8n 处理 → 写入 CRM。减少自建 conn
 | Python SDK | I4 | pip 包 + 完整类型标注 | Python 开发者可用 |
 | Zapier/n8n Connector | I7 | 标准 trigger/action 集成 | 低代码自动化 |
 | SSO (SAML/OIDC) | I8 | 企业客户 SSO 登录 | Okta/Azure AD 可接 |
-| 白标完善 | I9 | 自定义域名 + 邮件模板 | 完全无 OPC 品牌 |
+| 白标完善 | I9 | 自定义域名 + 邮件模板 | 完全无 Converact Platform 品牌 |
 | 实时情感分析 | F6 | 通话中检测情绪→主管预警 | 愤怒检测 > 80% |
 | 视频呼叫 | G8 | LiveKit 视频 + 屏幕共享 | 一键发起视频 |
 | 客户旅程时间线 | G11 | 所有渠道交互时间轴 | 坐席看到完整历史 |
@@ -721,7 +721,7 @@ graph TB
     end
 
     subgraph Gateway["接入层"]
-        OPC["OPC Core<br/>Node.js :3000<br/>HTTP + WebSocket"]
+        Converact Platform["Converact Platform Core<br/>Node.js :3000<br/>HTTP + WebSocket"]
     end
 
     subgraph AI["AI 层"]
@@ -742,18 +742,18 @@ graph TB
         MinIO["MinIO<br/>录音/文档存储"]
     end
 
-    Browser -->|HTTP + WS| OPC
+    Browser -->|HTTP + WS| Converact Platform
     Phone -->|SIP/RTP| RustPBX
-    Widget -->|HTTP + WS| OPC
+    Widget -->|HTTP + WS| Converact Platform
 
-    OPC -->|API| PG
-    OPC -->|Session Cache| Redis
-    OPC -->|WebSocket Events| Browser
+    Converact Platform -->|API| PG
+    Converact Platform -->|Session Cache| Redis
+    Converact Platform -->|WebSocket Events| Browser
 
     AIAgent -->|Redis| Redis
     AIAgent -->|LLM| DeepSeek
     AIAgent -->|LiveKit SDK| LiveKit
-    AIAgent -->|Tool Calls| OPC
+    AIAgent -->|Tool Calls| Converact Platform
 
     LiveKitSIP --> LiveKit
     RustPBX -->|SIP| LiveKitSIP
@@ -783,7 +783,7 @@ Total tool_call latency: ~5-20ms
 关键变化：
 - AI Agent 启动时从 Redis 加载 session state
 - Tool call 先操作 Redis（同步返回），再异步持久化到 Postgres
-- OPC 在 session 创建/更新时同步写 Redis + Postgres
+- Converact Platform 在 session 创建/更新时同步写 Redis + Postgres
 
 ---
 
@@ -831,7 +831,7 @@ flowchart TD
 | 实时通知 | 无 | WebSocket (ws 库) + Redis PubSub | 呼叫中心核心需求 |
 | AI Agent 状态 | 每次 HTTP 查 DB | Redis 缓存 + 异步持久化 | 延迟从 200ms 降到 5ms |
 | 全渠道 | Chatwoot (重) | ChannelAdapter 接口 + 自建轻量收件箱 | 可控、轻量、可扩展 |
-| API 网关 | Kong | OPC 自带中间件 | 初期无需额外运维 |
+| API 网关 | Kong | Converact Platform 自带中间件 | 初期无需额外运维 |
 | SIP 边缘 | 早期规划曾使用 Kamailio | Kamailio Edge + RustPBX pool；仅本地签名路由快照进入 INVITE 热路径 | Cell 横向扩展、容量分发、dialog affinity、drain 和安全边界 |
 | 事件总线 | NATS (Day 1) | 延后到 Sprint 9 引入实验、Sprint 11 生产化 | 初期同步调用足够 |
 
@@ -841,7 +841,7 @@ flowchart TD
 
 ```mermaid
 gantt
-    title OPC 平台开发时间线（12 Sprint）
+    title Converact Platform 平台开发时间线（12 Sprint）
     dateFormat YYYY-MM-DD
     axisFormat %m/%d
 
@@ -982,7 +982,7 @@ gantt
 
 ### 关键竞争定位
 
-| 对比维度 | Genesys Cloud | Avaya OneCloud | Zoom CC | **OPC** |
+| 对比维度 | Genesys Cloud | Avaya OneCloud | Zoom CC | **Converact Platform** |
 |----------|--------------|----------------|---------|---------|
 | AI 能力 | 加价插件(60%) | 加价(40%) | 内置(70%) | **内置(100%)** |
 | 部署 | 纯 SaaS | 混合 | 纯 SaaS | **SaaS + 自托管** |
@@ -1005,4 +1005,4 @@ gantt
 | 版本 | 日期 | 作者 | 变更内容 |
 |------|------|------|---------|
 | v3.0 | 2026-06-21 | - | 110 功能逐项对标 + Sprint 1-12 规划 |
-| v3.1 | 2026-06-29 | OPC Team | 按 `docs/design/README.md` §3/§4/§5 准绳修内部矛盾：(1) §选型保留表 LLM 由单一 DeepSeek 改为多 provider pool；(2) §Sprint 11 交付物移除 Kamailio（与 §移除表一致），§技术选型对比表 SIP 边缘/事件总线行改为延后标注；(3) 覆盖率三处口径统一为「功能覆盖率 94% @S11 → 100% @S12」+「规划覆盖 100% @S12」双口径声明；(4) §outbound-dialer.ts 行号 116 → 111，路径补 `src/agent-runtime/call-center/`；(5) Sprint 4 交付物 `inbound-router.ts`/`acd-engine.ts`/`call-queue.ts`/`did-store.ts` 加【规划中】前缀；(6) 头部加 `<关联文档>` block 与校准段。未改 A-K 功能对标的项数与统计。 |
+| v3.1 | 2026-06-29 | Converact Platform Team | 按 `docs/design/README.md` §3/§4/§5 准绳修内部矛盾：(1) §选型保留表 LLM 由单一 DeepSeek 改为多 provider pool；(2) §Sprint 11 交付物移除 Kamailio（与 §移除表一致），§技术选型对比表 SIP 边缘/事件总线行改为延后标注；(3) 覆盖率三处口径统一为「功能覆盖率 94% @S11 → 100% @S12」+「规划覆盖 100% @S12」双口径声明；(4) §outbound-dialer.ts 行号 116 → 111，路径补 `src/agent-runtime/call-center/`；(5) Sprint 4 交付物 `inbound-router.ts`/`acd-engine.ts`/`call-queue.ts`/`did-store.ts` 加【规划中】前缀；(6) 头部加 `<关联文档>` block 与校准段。未改 A-K 功能对标的项数与统计。 |

@@ -414,7 +414,7 @@ impl RtpWorkerPool {
             let worker_events = event_tx.clone();
             let worker_counters = counters.clone();
             let join = thread::Builder::new()
-                .name(format!("ivekit-rtp-{worker_index}"))
+                .name(format!("converact-rtp-{worker_index}"))
                 .spawn(move || {
                     WorkerRuntime::new(WorkerRuntimeLaunch {
                         worker_index,

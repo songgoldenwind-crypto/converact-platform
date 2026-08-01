@@ -3,8 +3,8 @@ import type { Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { WebSocketServer, WebSocket } from 'ws';
-import type { IveKitTenantEvent } from './agent-runtime/converact/tenant-event-store.js';
-import { IveKitTenantEventStore } from './agent-runtime/converact/tenant-event-store.js';
+import type { ConveractFabricTenantEvent } from './agent-runtime/converact/tenant-event-store.js';
+import { ConveractFabricTenantEventStore } from './agent-runtime/converact/tenant-event-store.js';
 import { verifyAccessToken, type AuthRole } from './middleware/auth.js';
 import { getRedisPubSub } from './redis-pubsub.js';
 
@@ -16,7 +16,7 @@ export interface WsClient {
   expiresAt?: number;
   expiryTimer?: NodeJS.Timeout;
   replaying?: boolean;
-  pendingEvents?: IveKitTenantEvent[];
+  pendingEvents?: ConveractFabricTenantEvent[];
   deliveredEventIds?: Set<string>;
 }
 
@@ -29,7 +29,7 @@ interface WsEnvelope {
 }
 
 export interface InitWebSocketOptions {
-  eventStore?: IveKitTenantEventStore;
+  eventStore?: ConveractFabricTenantEventStore;
 }
 
 interface BufferedBroadcast {
@@ -49,7 +49,7 @@ const broadcastBuffer = new AsyncLocalStorage<BufferedBroadcast[]>();
 let wss: WebSocketServer | null = null;
 let heartbeatTimer: NodeJS.Timeout | null = null;
 let pubSubStarted = false;
-let tenantEventStore: IveKitTenantEventStore | null = null;
+let tenantEventStore: ConveractFabricTenantEventStore | null = null;
 
 const WS_BROADCAST_CHANNEL = 'ws:broadcast';
 const WS_INSTANCE_ID = randomUUID();
@@ -126,14 +126,14 @@ export function initWebSocket(server: HttpServer, options: InitWebSocketOptions 
 
 export async function wsBroadcast(tenantId: string, event: string, data: unknown): Promise<void> {
   const buffered = broadcastBuffer.getStore();
-  if (buffered && isDurableIveKitEvent(event)) {
+  if (buffered && isDurableConveractFabricEvent(event)) {
     buffered.push({ tenantId, event, data, recipients: [] });
     return;
   }
   await publishBroadcast(tenantId, event, data);
 }
 
-export async function wsBroadcastPersisted(event: IveKitTenantEvent): Promise<void> {
+export async function wsBroadcastPersisted(event: ConveractFabricTenantEvent): Promise<void> {
   if (tenantEventStore) {
     await broadcastDurableLocal(event);
     await publishRedis({ origin: WS_INSTANCE_ID, durableEvent: event });
@@ -158,7 +158,7 @@ export async function wsBroadcastToUsers(
   const recipients = [...new Set(userIds.map((userId) => String(userId || '').trim()).filter(Boolean))];
   if (recipients.length === 0) return;
   const buffered = broadcastBuffer.getStore();
-  if (buffered && isDurableIveKitEvent(event)) {
+  if (buffered && isDurableConveractFabricEvent(event)) {
     buffered.push({ tenantId, event, data, recipients, idempotencyKey: options.idempotency_key });
     return;
   }
@@ -251,7 +251,7 @@ function broadcastLegacyLocal(
   }
 }
 
-async function broadcastDurableLocal(event: IveKitTenantEvent): Promise<void> {
+async function broadcastDurableLocal(event: ConveractFabricTenantEvent): Promise<void> {
   const set = clientsByTenant.get(event.tenant_id);
   if (!set || !tenantEventStore) return;
   const ready: WsClient[] = [];
@@ -272,7 +272,7 @@ async function broadcastDurableLocal(event: IveKitTenantEvent): Promise<void> {
   }
 }
 
-function sendDurableEvent(client: WsClient, event: IveKitTenantEvent): void {
+function sendDurableEvent(client: WsClient, event: ConveractFabricTenantEvent): void {
   sendToClient(client, {
     type: event.type,
     data: event.data,
@@ -310,7 +310,7 @@ async function startPubSubListener(): Promise<void> {
           userIds?: string[];
           event?: string;
           data?: unknown;
-          durableEvent?: IveKitTenantEvent;
+          durableEvent?: ConveractFabricTenantEvent;
         };
         if (parsed.origin === WS_INSTANCE_ID) return;
         if (parsed.durableEvent) {
@@ -348,7 +348,7 @@ async function publishBroadcast(
   recipients: string[] = [],
   idempotencyKey?: string
 ): Promise<void> {
-  if (tenantEventStore && isDurableIveKitEvent(event)) {
+  if (tenantEventStore && isDurableConveractFabricEvent(event)) {
     try {
       const durableEvent = await tenantEventStore.append({
         tenant_id: tenantId,
@@ -405,9 +405,9 @@ async function initializeDurableClient(client: WsClient, resumeCursor: string): 
       return;
     }
 
-    const replayed: IveKitTenantEvent[] = [];
+    const replayed: ConveractFabricTenantEvent[] = [];
     let cursor = resumeCursor;
-    let recovery: Awaited<ReturnType<IveKitTenantEventStore['list']>> | null = null;
+    let recovery: Awaited<ReturnType<ConveractFabricTenantEventStore['list']>> | null = null;
     do {
       recovery = await tenantEventStore.list({
         tenant_id: client.tenantId,
@@ -486,6 +486,9 @@ function wsReplayLimit(): number {
   return Number.isInteger(value) && value >= 1 && value <= 10_000 ? value : 500;
 }
 
-function isDurableIveKitEvent(event: string): boolean {
-  return /^(?:collaboration|ivekit|notification|remote)\./.test(event);
+function isDurableConveractFabricEvent(event: string): boolean {
+  // `ivekit.*` event types are stable wire identifiers, not product labels.
+  // Accept them alongside current Converact events throughout the documented
+  // compatibility window so replay and transactional buffering stay lossless.
+  return /^(?:collaboration|converact|ivekit|notification|remote)\./.test(event);
 }

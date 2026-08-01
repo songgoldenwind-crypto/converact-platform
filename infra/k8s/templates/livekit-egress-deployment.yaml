@@ -2,8 +2,8 @@
 {{- $root := . }}
 {{- $egressImageRepository := required "media.egress.image.repository is required when LiveKit Egress is enabled" .Values.media.egress.image.repository }}
 {{- $egressImageRepositoryNormalized := lower $egressImageRepository }}
-{{- if not (regexMatch "(^|/)ivekit/livekit-egress$" $egressImageRepositoryNormalized) }}
-{{- fail "media.egress.image.repository must identify an iveKit custom image ending with ivekit/livekit-egress" }}
+{{- if not (regexMatch "(^|/)converact-livekit-egress$" $egressImageRepositoryNormalized) }}
+{{- fail "media.egress.image.repository must identify the Converact Fabric image ending with converact-livekit-egress" }}
 {{- end }}
 {{- $egressImageRepositoryParts := splitList "/" $egressImageRepositoryNormalized }}
 {{- $egressImageRegistry := "docker.io" }}
@@ -27,7 +27,7 @@
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $egressImageDigest) }}
 {{- fail "media.egress.image.digest must be an immutable sha256 digest" }}
 {{- end }}
-{{- $livekitInternalUrl := include "opc.livekitInternalUrl" . }}
+{{- $livekitInternalUrl := include "converact.livekitInternalUrl" . }}
 {{- range $poolName, $pool := .Values.media.egress.pools }}
 {{- if $pool.enabled }}
 apiVersion: v1
@@ -40,12 +40,12 @@ stringData:
     logging:
       level: info
       json: true
-    api_key: {{ include "opc.livekitApiKey" $root | quote }}
-    api_secret: {{ include "opc.livekitApiSecret" $root | quote }}
+    api_key: {{ include "converact.livekitApiKey" $root | quote }}
+    api_secret: {{ include "converact.livekitApiSecret" $root | quote }}
     ws_url: {{ $livekitInternalUrl | quote }}
     insecure: {{ hasPrefix "ws://" $livekitInternalUrl }}
     redis:
-      {{- include "opc.livekitRedisConfig" $root | nindent 6 }}
+      {{- include "converact.livekitRedisConfig" $root | nindent 6 }}
     health_port: {{ $root.Values.media.egress.healthPort | default 8091 }}
     prometheus_port: {{ $root.Values.media.egress.prometheusPort | default 9090 }}
     backup_storage: /var/lib/livekit-egress/backup
@@ -66,10 +66,10 @@ stringData:
       s3:
         access_key: ""
         secret: ""
-        region: {{ include "opc.objectStorageRegion" $root | quote }}
-        endpoint: {{ include "opc.objectStorageEndpoint" $root | quote }}
-        bucket: {{ include "opc.objectStorageBucket" $root | quote }}
-        force_path_style: {{ include "opc.objectStorageForcePathStyle" $root }}
+        region: {{ include "converact.objectStorageRegion" $root | quote }}
+        endpoint: {{ include "converact.objectStorageEndpoint" $root | quote }}
+        bucket: {{ include "converact.objectStorageBucket" $root | quote }}
+        force_path_style: {{ include "converact.objectStorageForcePathStyle" $root }}
         max_retries: {{ $root.Values.media.egress.storage.maxRetries | default 10 }}
         min_retry_delay: {{ $root.Values.media.egress.storage.minRetryDelay | default "500ms" | quote }}
         max_retry_delay: {{ $root.Values.media.egress.storage.maxRetryDelay | default "30s" | quote }}
@@ -80,13 +80,13 @@ metadata:
   name: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}
   labels:
     app.kubernetes.io/name: livekit-egress
-    ivekit.io/egress-pool: {{ $poolName }}
+    converact.io/egress-pool: {{ $poolName }}
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
   selector:
     app.kubernetes.io/name: livekit-egress
-    ivekit.io/egress-pool: {{ $poolName }}
+    converact.io/egress-pool: {{ $poolName }}
   ports:
     - name: health
       port: {{ $root.Values.media.egress.healthPort | default 8091 }}
@@ -101,7 +101,7 @@ metadata:
   name: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}
   labels:
     app.kubernetes.io/name: livekit-egress
-    ivekit.io/egress-pool: {{ $poolName }}
+    converact.io/egress-pool: {{ $poolName }}
 spec:
   serviceName: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}
   podManagementPolicy: Parallel
@@ -109,17 +109,17 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: livekit-egress
-      ivekit.io/egress-pool: {{ $poolName }}
+      converact.io/egress-pool: {{ $poolName }}
   template:
     metadata:
       labels:
         app.kubernetes.io/name: livekit-egress
-        ivekit.io/egress-pool: {{ $poolName }}
+        converact.io/egress-pool: {{ $poolName }}
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: {{ $root.Values.media.egress.prometheusPort | default 9090 | quote }}
         prometheus.io/path: /metrics
-        ivekit.io/egress-image-contract: {{ $root.Values.media.egress.image.contract | quote }}
+        converact.io/egress-image-contract: {{ $root.Values.media.egress.image.contract | quote }}
     spec:
       terminationGracePeriodSeconds: {{ $root.Values.media.egress.terminationGracePeriodSeconds | default 300 }}
       topologySpreadConstraints:
@@ -129,7 +129,7 @@ spec:
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: livekit-egress
-              ivekit.io/egress-pool: {{ $poolName }}
+              converact.io/egress-pool: {{ $poolName }}
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -139,7 +139,7 @@ spec:
                 labelSelector:
                   matchLabels:
                     app.kubernetes.io/name: livekit-egress
-                    ivekit.io/egress-pool: {{ $poolName }}
+                    converact.io/egress-pool: {{ $poolName }}
       {{- with $pool.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -162,10 +162,10 @@ spec:
             - name: IVEKIT_EGRESS_MAX_CONCURRENT_REQUESTS
               value: {{ $pool.maxConcurrentRequests | quote }}
             - name: IVEKIT_EGRESS_DRAIN_FILE
-              value: /var/run/ivekit-egress/draining
+              value: /var/run/converact-egress/draining
             - name: IVEKIT_EGRESS_SPOOL_PATH
               value: /var/lib/livekit-egress/backup
-            {{ include "opc.objectStorageEnv" $root | nindent 12 }}
+            {{ include "converact.objectStorageEnv" $root | nindent 12 }}
           ports:
             - name: health
               containerPort: {{ $root.Values.media.egress.healthPort | default 8091 }}
@@ -195,7 +195,7 @@ spec:
           lifecycle:
             preStop:
               exec:
-                command: ["/bin/sh", "-c", "touch /var/run/ivekit-egress/draining"]
+                command: ["/bin/sh", "-c", "touch /var/run/converact-egress/draining"]
           volumeMounts:
             - name: egress-config
               mountPath: /etc/livekit-egress/egress.yaml
@@ -204,8 +204,8 @@ spec:
             - name: backup-spool
               mountPath: /var/lib/livekit-egress/backup
             - name: runtime-state
-              mountPath: /var/run/ivekit-egress
-            {{- include "opc.livekitRedisTLSVolumeMount" $root | nindent 12 }}
+              mountPath: /var/run/converact-egress
+            {{- include "converact.livekitRedisTLSVolumeMount" $root | nindent 12 }}
           resources:
             {{- toYaml $pool.resources | nindent 12 }}
       volumes:
@@ -214,7 +214,7 @@ spec:
             secretName: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}-config
         - name: runtime-state
           emptyDir: {}
-        {{- include "opc.livekitRedisTLSVolume" $root | nindent 8 }}
+        {{- include "converact.livekitRedisTLSVolume" $root | nindent 8 }}
       {{- if not $pool.persistence.enabled }}
         - name: backup-spool
           emptyDir:
@@ -243,7 +243,7 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: livekit-egress
-      ivekit.io/egress-pool: {{ $poolName }}
+      converact.io/egress-pool: {{ $poolName }}
 ---
 {{- if and $pool.autoscaling.enabled (eq $pool.autoscaling.provider "keda") }}
 apiVersion: keda.sh/v1alpha1
@@ -384,44 +384,44 @@ metadata:
   name: {{ .Release.Name }}-livekit-egress
 spec:
   groups:
-    - name: ivekit-livekit-egress
+    - name: converact-livekit-egress
       rules:
-        - alert: IveKitLiveKitEgressPendingStuck
+        - alert: ConveractFabricLiveKitEgressPendingStuck
           expr: max by (pool) (ivekit_livekit_egress_oldest_pending_age_seconds) > {{ .Values.media.egress.monitoring.prometheusRule.pendingAgeWarningSeconds }}
           for: 2m
           labels:
             severity: warning
           annotations:
             summary: LiveKit Egress pending work is not draining
-        - alert: IveKitLiveKitEgressPoolSaturated
+        - alert: ConveractFabricLiveKitEgressPoolSaturated
           expr: (100 * sum by (pool) (ivekit_livekit_egress_active_requests) / clamp_min(sum by (pool) (ivekit_livekit_egress_max_concurrent_requests), 1)) >= {{ .Values.media.egress.monitoring.prometheusRule.saturationPercent }} and on(pool) ivekit_livekit_egress_pending_jobs > 0
           for: 2m
           labels:
             severity: warning
           annotations:
             summary: LiveKit Egress pool is saturated with pending work
-        - alert: IveKitLiveKitEgressSpoolHigh
+        - alert: ConveractFabricLiveKitEgressSpoolHigh
           expr: (100 * sum by (pool) (ivekit_livekit_egress_spool_used_bytes) / clamp_min(sum by (pool) (ivekit_livekit_egress_spool_capacity_bytes), 1)) >= {{ .Values.media.egress.monitoring.prometheusRule.spoolWarningPercent }}
           for: 5m
           labels:
             severity: warning
           annotations:
             summary: LiveKit Egress backup spool is above the warning watermark
-        - alert: IveKitLiveKitEgressSpoolCritical
+        - alert: ConveractFabricLiveKitEgressSpoolCritical
           expr: (100 * sum by (pool) (ivekit_livekit_egress_spool_used_bytes) / clamp_min(sum by (pool) (ivekit_livekit_egress_spool_capacity_bytes), 1)) >= {{ .Values.media.egress.monitoring.prometheusRule.spoolCriticalPercent }}
           for: 2m
           labels:
             severity: critical
           annotations:
             summary: LiveKit Egress backup spool is near exhaustion
-        - alert: IveKitLiveKitEgressUploadStalled
+        - alert: ConveractFabricLiveKitEgressUploadStalled
           expr: sum by (pool) (ivekit_livekit_egress_spool_used_bytes) > 0 and on(pool) sum by (pool) (rate(ivekit_livekit_egress_network_transmit_bytes_total[5m])) == 0
           for: 5m
           labels:
             severity: critical
           annotations:
             summary: LiveKit Egress has backup spool data but no outbound transfer
-        - alert: IveKitLiveKitEgressPolicyRejecting
+        - alert: ConveractFabricLiveKitEgressPolicyRejecting
           expr: sum by (pool, reason) (increase(ivekit_livekit_egress_policy_rejections_total[5m])) > 0
           labels:
             severity: warning

@@ -1,11 +1,11 @@
 import type {
-  IveKitAuditAppendInput,
-  IveKitAuditAppendResult,
-  IveKitAuditListInput,
-  IveKitAuditPage
+  ConveractFabricAuditAppendInput,
+  ConveractFabricAuditAppendResult,
+  ConveractFabricAuditListInput,
+  ConveractFabricAuditPage
 } from './types.js';
 
-export interface IveKitAuditRepository {
-  append(input: IveKitAuditAppendInput): Promise<IveKitAuditAppendResult>;
-  list(input: IveKitAuditListInput): Promise<IveKitAuditPage>;
+export interface ConveractFabricAuditRepository {
+  append(input: ConveractFabricAuditAppendInput): Promise<ConveractFabricAuditAppendResult>;
+  list(input: ConveractFabricAuditListInput): Promise<ConveractFabricAuditPage>;
 }

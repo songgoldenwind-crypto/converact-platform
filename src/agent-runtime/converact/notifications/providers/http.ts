@@ -107,7 +107,7 @@ export class HttpNotificationProvider implements NotificationDeliveryProvider {
         headers: {
           authorization: `Bearer ${this.#token}`,
           'content-type': 'application/json',
-          'user-agent': 'ivekit-notifications/1',
+          'user-agent': 'converact-notifications/1',
           'x-ivekit-delivery': input.delivery.id,
           'x-ivekit-idempotency-key': input.delivery.provider_idempotency_key
         },

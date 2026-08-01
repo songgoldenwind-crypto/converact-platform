@@ -152,7 +152,7 @@ def _load_screenshot_bytes(screenshot_ref: dict[str, Any] | None) -> bytes:
     ).strip()
     if remote_url.startswith(("http://", "https://")):
         try:
-            request = Request(remote_url, headers={"User-Agent": "OPC AI Worker/1.0"})
+            request = Request(remote_url, headers={"User-Agent": "Converact AI Worker/1.0"})
             with urlopen(request, timeout=5) as response:
                 return response.read()
         except Exception:

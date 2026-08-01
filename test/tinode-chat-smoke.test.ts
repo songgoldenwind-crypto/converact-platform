@@ -116,6 +116,7 @@ test('Tinode chat smoke creates a topic and publishes one message', async () => 
 
 test('Tinode participant usernames leave room for the Basic auth namespace without collisions', () => {
   const short = tinodeBasicUsernameForIdentity('tenant_a', 'customer_a');
+  // This is a durable provider login namespace, not a display brand.
   assert.ok(short.startsWith('opc_'));
   assert.ok(short.length <= 26);
   assert.notEqual(

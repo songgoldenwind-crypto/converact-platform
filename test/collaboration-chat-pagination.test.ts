@@ -11,7 +11,7 @@ import {
 } from '../src/agent-runtime/collaboration/chat-gateway.js';
 import { TinodeProviderUserStore } from '../src/agent-runtime/collaboration/tinode-provider-user-store.js';
 import { withCollaborationSessionLock } from '../src/agent-runtime/collaboration/collaboration-lock.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
+import { routeConveractFabricChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 const API_KEY = 'test-chat-pagination-key';
@@ -37,7 +37,7 @@ function headers(tenantId: string, userId = 'agent-page'): Record<string, string
 }
 
 async function route(pg: MemoryPg, method: string, path: string, tenantId: string, userId = 'agent-page') {
-  return routeIveKitChatApi(
+  return routeConveractFabricChatApi(
     pg,
     method,
     path,
@@ -48,7 +48,7 @@ async function route(pg: MemoryPg, method: string, path: string, tenantId: strin
   );
 }
 
-test('iveKit chat lists tenant sessions with filters and opaque stable cursors', async () => {
+test('Converact Fabric chat lists tenant sessions with filters and opaque stable cursors', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
@@ -104,7 +104,7 @@ test('iveKit chat lists tenant sessions with filters and opaque stable cursors',
   assert.deepEqual(closedPage.data.items.map((item) => item.id), [closed.id]);
 });
 
-test('iveKit session list includes viewer unread, latest message, and online participant summary', async () => {
+test('Converact Fabric session list includes viewer unread, latest message, and online participant summary', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
@@ -167,7 +167,7 @@ test('iveKit session list includes viewer unread, latest message, and online par
   });
 });
 
-test('iveKit closes a session only after revoking every active provider participant', async () => {
+test('Converact Fabric closes a session only after revoking every active provider participant', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
@@ -186,7 +186,7 @@ test('iveKit closes a session only after revoking every active provider particip
     provider_topic_id: 'local-topic'
   });
   const gateway = new TrackingLocalGateway();
-  const response = await routeIveKitChatApi(
+  const response = await routeConveractFabricChatApi(
     pg,
     'POST',
     `/api/ivekit/chat/sessions/${session.id}/close`,
@@ -203,7 +203,7 @@ test('iveKit closes a session only after revoking every active provider particip
   assert.equal((await store.getSession(session.id))?.status, 'closed');
 });
 
-test('iveKit close fails fast while a shared session operation is in flight', async () => {
+test('Converact Fabric close fails fast while a shared session operation is in flight', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
@@ -244,7 +244,7 @@ test('iveKit close fails fast while a shared session operation is in flight', as
   await entered;
 
   await assert.rejects(
-    () => routeIveKitChatApi(
+    () => routeConveractFabricChatApi(
       pg,
       'POST',
       `/api/ivekit/chat/sessions/${session.id}/close`,
@@ -261,7 +261,7 @@ test('iveKit close fails fast while a shared session operation is in flight', as
 
   releaseShared();
   await holder;
-  const response = await routeIveKitChatApi(
+  const response = await routeConveractFabricChatApi(
     pg,
     'POST',
     `/api/ivekit/chat/sessions/${session.id}/close`,
@@ -321,7 +321,7 @@ test('direct CollaborationStore message writes cannot bypass an exclusive sessio
   }), []);
 });
 
-test('iveKit closes a Tinode session with mapped provider user ids and revokes the mappings', async () => {
+test('Converact Fabric closes a Tinode session with mapped provider user ids and revokes the mappings', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
@@ -356,7 +356,7 @@ test('iveKit closes a Tinode session with mapped provider user ids and revokes t
   });
 
   const gateway = new TrackingTinodeGateway();
-  const response = await routeIveKitChatApi(
+  const response = await routeConveractFabricChatApi(
     pg,
     'POST',
     `/api/ivekit/chat/sessions/${session.id}/close`,
@@ -387,7 +387,7 @@ test('iveKit closes a Tinode session with mapped provider user ids and revokes t
   }))?.status, 'revoked');
 });
 
-test('iveKit reconciles active Tinode mappings left by a legacy closed session', async () => {
+test('Converact Fabric reconciles active Tinode mappings left by a legacy closed session', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
@@ -419,7 +419,7 @@ test('iveKit reconciles active Tinode mappings left by a legacy closed session',
   await store.closeSession(session.id);
 
   const gateway = new TrackingTinodeGateway();
-  const response = await routeIveKitChatApi(
+  const response = await routeConveractFabricChatApi(
     pg,
     'POST',
     `/api/ivekit/chat/sessions/${session.id}/close`,
@@ -441,7 +441,7 @@ test('iveKit reconciles active Tinode mappings left by a legacy closed session',
   }))?.status, 'revoked');
 });
 
-test('iveKit rejects adding a participant after the session is closed', async () => {
+test('Converact Fabric rejects adding a participant after the session is closed', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
@@ -458,7 +458,7 @@ test('iveKit rejects adding a participant after the session is closed', async ()
   });
   await store.closeSession(session.id);
 
-  const response = await routeIveKitChatApi(
+  const response = await routeConveractFabricChatApi(
     pg,
     'POST',
     `/api/ivekit/chat/sessions/${session.id}/participants`,
@@ -477,7 +477,7 @@ test('iveKit rejects adding a participant after the session is closed', async ()
   })).some((participant) => participant.identity === 'customer-late'), false);
 });
 
-test('iveKit rejects binding Tinode after the session is closed', async () => {
+test('Converact Fabric rejects binding Tinode after the session is closed', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
@@ -489,7 +489,7 @@ test('iveKit rejects binding Tinode after the session is closed', async () => {
   await store.closeSession(session.id);
 
   const gateway = new TrackingTinodeGateway();
-  const response = await routeIveKitChatApi(
+  const response = await routeConveractFabricChatApi(
     pg,
     'POST',
     `/api/ivekit/chat/sessions/${session.id}/bind`,
@@ -508,7 +508,7 @@ test('iveKit rejects binding Tinode after the session is closed', async () => {
   }), null);
 });
 
-test('iveKit rejects creating a message after the session is closed', async () => {
+test('Converact Fabric rejects creating a message after the session is closed', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
@@ -519,7 +519,7 @@ test('iveKit rejects creating a message after the session is closed', async () =
   });
   await store.closeSession(session.id);
 
-  const response = await routeIveKitChatApi(
+  const response = await routeConveractFabricChatApi(
     pg,
     'POST',
     `/api/ivekit/chat/sessions/${session.id}/messages`,
@@ -538,7 +538,7 @@ test('iveKit rejects creating a message after the session is closed', async () =
   }), []);
 });
 
-test('iveKit closes an unbound session even when Tinode is the configured provider', async () => {
+test('Converact Fabric closes an unbound session even when Tinode is the configured provider', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
@@ -554,7 +554,7 @@ test('iveKit closes an unbound session even when Tinode is the configured provid
     role: 'agent'
   });
 
-  const response = await routeIveKitChatApi(
+  const response = await routeConveractFabricChatApi(
     pg,
     'POST',
     `/api/ivekit/chat/sessions/${session.id}/close`,
@@ -570,7 +570,7 @@ test('iveKit closes an unbound session even when Tinode is the configured provid
   assert.equal((await store.getSession(session.id))?.status, 'closed');
 });
 
-test('iveKit leaves inbound active when Tinode close is missing a provider user mapping', async () => {
+test('Converact Fabric leaves inbound active when Tinode close is missing a provider user mapping', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new RecordingMemoryPg();
   const store = new CollaborationStore(pg);
@@ -597,7 +597,7 @@ test('iveKit leaves inbound active when Tinode close is missing a provider user 
   });
   pg.statements.length = 0;
 
-  const response = await routeIveKitChatApi(
+  const response = await routeConveractFabricChatApi(
     pg,
     'POST',
     `/api/ivekit/chat/sessions/${session.id}/close`,
@@ -617,7 +617,7 @@ test('iveKit leaves inbound active when Tinode close is missing a provider user 
   assert.equal((await store.getSession(session.id))?.status, 'open');
 });
 
-test('iveKit chat pages message history in both directions and searches before limiting', async () => {
+test('Converact Fabric chat pages message history in both directions and searches before limiting', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
@@ -733,7 +733,7 @@ class TrackingTinodeGateway extends TinodeChatGateway {
   }
 }
 
-test('iveKit chat rejects malformed, wrong-direction, and cross-tenant pagination', async () => {
+test('Converact Fabric chat rejects malformed, wrong-direction, and cross-tenant pagination', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);

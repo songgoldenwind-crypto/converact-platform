@@ -24,10 +24,10 @@ spec:
             capabilities:
               drop: ["ALL"]
         - name: node-admission
-          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
+          image: replace.example.com/converact/capacity-tools@sha256:replace-with-capacity-tools-digest
           imagePullPolicy: IfNotPresent
           command:
-            ["node", "--import", "tsx", "scripts/ivekit-component-node-admission.ts"]
+            ["node", "--import", "tsx", "scripts/converact-component-node-admission.ts"]
           ports:
             - name: node-admission
               containerPort: 3210
@@ -39,27 +39,27 @@ spec:
             - name: CONVERACT_FABRIC_COMPONENT_NODE_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-component-node
+                  name: converact-component-node
                   key: service-token
             - name: CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-component-node
+                  name: converact-component-node
                   key: component
             - name: CONVERACT_FABRIC_COMPONENT_NODE_REGION_ID
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-component-node
+                  name: converact-component-node
                   key: region-id
             - name: CONVERACT_FABRIC_COMPONENT_NODE_ZONE_ID
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-component-node
+                  name: converact-component-node
                   key: zone-id
             - name: CONVERACT_FABRIC_COMPONENT_NODE_CELL_ID
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-component-node
+                  name: converact-component-node
                   key: cell-id
             - name: CONVERACT_FABRIC_COMPONENT_NODE_ID
               valueFrom:
@@ -68,17 +68,17 @@ spec:
             - name: CONVERACT_FABRIC_COMPONENT_NODE_PROFILE_IDS
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-component-node
+                  name: converact-component-node
                   key: profile-ids
             - name: CONVERACT_FABRIC_COMPONENT_NODE_INTERACTION_KINDS
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-component-node
+                  name: converact-component-node
                   key: interaction-kinds
             - name: CONVERACT_FABRIC_COMPONENT_NODE_DIMENSIONS_JSON
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-component-node
+                  name: converact-component-node
                   key: dimensions-json
           readinessProbe:
             httpGet:

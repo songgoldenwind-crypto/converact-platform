@@ -89,6 +89,52 @@ test('shell installer maps Fabric aliases and emits only key metadata', () => {
   assert.doesNotMatch(result.stderr, /legacy-instance/);
 });
 
+test('shell installer maps the direct legacy Fabric alias', () => {
+  const result = spawnSync(
+    '/bin/bash',
+    [
+      '-c',
+      'source "$1"; converact_env_install_aliases; printf %s "$CONVERACT_FABRIC_INSTANCE_ID"',
+      'bash',
+      helper,
+    ],
+    {
+      cwd: root,
+      env: {
+        PATH: process.env.PATH ?? '/usr/bin:/bin',
+        IVEKIT_INSTANCE_ID: 'direct-legacy-instance',
+      },
+      encoding: 'utf8',
+    },
+  );
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, 'direct-legacy-instance');
+  assert.match(result.stderr, /converact\.config\.deprecated_environment_key/);
+  assert.match(result.stderr, /IVEKIT_INSTANCE_ID/);
+  assert.doesNotMatch(result.stderr, /direct-legacy-instance/);
+});
+
+test('shell Fabric resolver rejects conflicts across both legacy aliases', () => {
+  const result = spawnSync(
+    '/bin/bash',
+    ['-c', 'source "$1"; converact_env_resolve_fabric API_KEY', 'bash', helper],
+    {
+      cwd: root,
+      env: {
+        PATH: process.env.PATH ?? '/usr/bin:/bin',
+        OPC_IVEKIT_API_KEY: 'first-secret',
+        IVEKIT_API_KEY: 'second-secret',
+      },
+      encoding: 'utf8',
+    },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /conflicting branded environment variables/);
+  assert.match(result.stderr, /CONVERACT_FABRIC_API_KEY/);
+  assert.match(result.stderr, /IVEKIT_API_KEY/);
+  assert.doesNotMatch(result.stderr, /first-secret|second-secret/);
+});
+
 test('shell compatibility helper also runs under POSIX sh', () => {
   const output = execFileSync(
     '/bin/sh',

@@ -13,31 +13,31 @@ import type {
   RustDeskOperationObserver
 } from './types.js';
 import {
-  createIveKitRustDeskHttpClient,
-  type IveKitRustDeskBusinessRefInput,
-  type IveKitRustDeskFetch,
-  type IveKitRustDeskHttpClient,
-  type RecordIveKitRustDeskGatewayEventInput,
-  type ListIveKitRustDeskGatewayAuditEventsInput,
-  type EndIveKitRustDeskGatewaySessionInput
+  createConveractFabricRustDeskHttpClient,
+  type ConveractFabricRustDeskBusinessRefInput,
+  type ConveractFabricRustDeskFetch,
+  type ConveractFabricRustDeskHttpClient,
+  type RecordConveractFabricRustDeskGatewayEventInput,
+  type ListConveractFabricRustDeskGatewayAuditEventsInput,
+  type EndConveractFabricRustDeskGatewaySessionInput
 } from './rustdesk-http-client.js';
 
-export interface IveKitRustDeskLedSdkInput {
+export interface ConveractFabricRustDeskLedSdkInput {
   tenantId: string;
   baseUrl?: string;
   apiKey?: string;
   accessToken?: string;
   userId?: string;
   timeoutMs?: number;
-  fetch?: IveKitRustDeskFetch;
-  client?: IveKitRustDeskHttpClient;
+  fetch?: ConveractFabricRustDeskFetch;
+  client?: ConveractFabricRustDeskHttpClient;
   source?: string;
 }
 
-export interface EnsureIveKitRustDeskLedDeviceInput {
+export interface EnsureConveractFabricRustDeskLedDeviceInput {
   deviceId?: string;
   rustdeskId?: string;
-  businessRef: IveKitRustDeskBusinessRefInput;
+  businessRef: ConveractFabricRustDeskBusinessRefInput;
   deviceDisplayName: string;
   actorIdentity: string;
   deviceMetadata?: Record<string, unknown>;
@@ -45,14 +45,14 @@ export interface EnsureIveKitRustDeskLedDeviceInput {
   listLimit?: number;
 }
 
-export interface StartIveKitRustDeskLedSessionInput extends EnsureIveKitRustDeskLedDeviceInput {
+export interface StartConveractFabricRustDeskLedSessionInput extends EnsureConveractFabricRustDeskLedDeviceInput {
   remoteSessionId: string;
   permissions: RemoteConsentScope[];
   authorizationId?: string;
   metadata?: Record<string, unknown>;
 }
 
-export interface IveKitRustDeskLedSessionResult {
+export interface ConveractFabricRustDeskLedSessionResult {
   clientConfig: RustDeskClientConfig;
   device: RustDeskDevice;
   gatewaySession: RemoteToolSession;
@@ -64,7 +64,7 @@ export interface IveKitRustDeskLedSessionResult {
   };
 }
 
-interface IveKitRustDeskLedAuditBaseInput {
+interface ConveractFabricRustDeskLedAuditBaseInput {
   actorIdentity: string;
   target?: string;
   idempotencyKey?: string;
@@ -72,13 +72,13 @@ interface IveKitRustDeskLedAuditBaseInput {
   metadata?: Record<string, unknown>;
 }
 
-export interface RecordIveKitRustDeskControlActionInput extends IveKitRustDeskLedAuditBaseInput {
+export interface RecordConveractFabricRustDeskControlActionInput extends ConveractFabricRustDeskLedAuditBaseInput {
   operationId: string;
   action: string;
   permission: RemoteConsentScope;
 }
 
-export interface RecordIveKitRustDeskFileTransferInput extends IveKitRustDeskLedAuditBaseInput {
+export interface RecordConveractFabricRustDeskFileTransferInput extends ConveractFabricRustDeskLedAuditBaseInput {
   transferId: string;
   status: 'started' | 'completed' | 'failed';
   direction: 'upload' | 'download';
@@ -87,7 +87,7 @@ export interface RecordIveKitRustDeskFileTransferInput extends IveKitRustDeskLed
   failureReason?: string;
 }
 
-export interface RecordIveKitRustDeskScreenRecordingInput extends IveKitRustDeskLedAuditBaseInput {
+export interface RecordConveractFabricRustDeskScreenRecordingInput extends ConveractFabricRustDeskLedAuditBaseInput {
   recordingId: string;
   status: 'started' | 'stopped' | 'failed';
   storageUrl?: string;
@@ -95,13 +95,13 @@ export interface RecordIveKitRustDeskScreenRecordingInput extends IveKitRustDesk
   failureReason?: string;
 }
 
-export interface RecordIveKitRustDeskClipboardSyncInput extends IveKitRustDeskLedAuditBaseInput {
+export interface RecordConveractFabricRustDeskClipboardSyncInput extends ConveractFabricRustDeskLedAuditBaseInput {
   clipboardId: string;
   direction: 'agent_to_device' | 'device_to_agent';
   contentKind?: string;
 }
 
-export interface RecordIveKitRustDeskOperationObservationInput extends IveKitRustDeskLedAuditBaseInput {
+export interface RecordConveractFabricRustDeskOperationObservationInput extends ConveractFabricRustDeskLedAuditBaseInput {
   operationId: string;
   operation: RustDeskObservedOperation;
   status: 'not_observed' | 'observed_succeeded' | 'observed_failed';
@@ -121,27 +121,27 @@ export interface RecordIveKitRustDeskOperationObservationInput extends IveKitRus
   controlVersion?: number;
 }
 
-export interface IveKitRustDeskLedSdk {
-  ensureDevice(input: EnsureIveKitRustDeskLedDeviceInput): Promise<RustDeskDevice>;
-  startSession(input: StartIveKitRustDeskLedSessionInput): Promise<IveKitRustDeskLedSessionResult>;
-  recordGatewayEvent(externalId: string, input: RecordIveKitRustDeskGatewayEventInput): Promise<RemoteGatewayAuditEvent>;
-  recordControlAction(externalId: string, input: RecordIveKitRustDeskControlActionInput): Promise<RemoteGatewayAuditEvent>;
-  recordFileTransfer(externalId: string, input: RecordIveKitRustDeskFileTransferInput): Promise<RemoteGatewayAuditEvent>;
-  recordScreenRecording(externalId: string, input: RecordIveKitRustDeskScreenRecordingInput): Promise<RemoteGatewayAuditEvent>;
-  recordClipboardSync(externalId: string, input: RecordIveKitRustDeskClipboardSyncInput): Promise<RemoteGatewayAuditEvent>;
-  recordOperationObservation(externalId: string, input: RecordIveKitRustDeskOperationObservationInput): Promise<RemoteGatewayAuditEvent>;
+export interface ConveractFabricRustDeskLedSdk {
+  ensureDevice(input: EnsureConveractFabricRustDeskLedDeviceInput): Promise<RustDeskDevice>;
+  startSession(input: StartConveractFabricRustDeskLedSessionInput): Promise<ConveractFabricRustDeskLedSessionResult>;
+  recordGatewayEvent(externalId: string, input: RecordConveractFabricRustDeskGatewayEventInput): Promise<RemoteGatewayAuditEvent>;
+  recordControlAction(externalId: string, input: RecordConveractFabricRustDeskControlActionInput): Promise<RemoteGatewayAuditEvent>;
+  recordFileTransfer(externalId: string, input: RecordConveractFabricRustDeskFileTransferInput): Promise<RemoteGatewayAuditEvent>;
+  recordScreenRecording(externalId: string, input: RecordConveractFabricRustDeskScreenRecordingInput): Promise<RemoteGatewayAuditEvent>;
+  recordClipboardSync(externalId: string, input: RecordConveractFabricRustDeskClipboardSyncInput): Promise<RemoteGatewayAuditEvent>;
+  recordOperationObservation(externalId: string, input: RecordConveractFabricRustDeskOperationObservationInput): Promise<RemoteGatewayAuditEvent>;
   listGatewayAuditEvents(
     externalId: string,
-    input?: ListIveKitRustDeskGatewayAuditEventsInput
+    input?: ListConveractFabricRustDeskGatewayAuditEventsInput
   ): Promise<RemoteGatewayAuditEvent[]>;
-  endGatewaySession(externalId: string, input: EndIveKitRustDeskGatewaySessionInput): Promise<void>;
+  endGatewaySession(externalId: string, input: EndConveractFabricRustDeskGatewaySessionInput): Promise<void>;
   getGatewayDisconnectState(externalId: string): Promise<RustDeskDisconnectState>;
 }
 
-export function createIveKitRustDeskLedSdk(input: IveKitRustDeskLedSdkInput): IveKitRustDeskLedSdk {
+export function createConveractFabricRustDeskLedSdk(input: ConveractFabricRustDeskLedSdkInput): ConveractFabricRustDeskLedSdk {
   const tenantId = requiredString(input.tenantId, 'tenantId is required');
-  const source = String(input.source || 'ivekit-rustdesk-led-sdk').trim() || 'ivekit-rustdesk-led-sdk';
-  const client = input.client || createIveKitRustDeskHttpClient({
+  const source = String(input.source || 'converact-rustdesk-led-sdk').trim() || 'converact-rustdesk-led-sdk';
+  const client = input.client || createConveractFabricRustDeskHttpClient({
     baseUrl: requiredString(input.baseUrl, 'baseUrl is required when client is not provided'),
     apiKey: input.apiKey,
     accessToken: input.accessToken,
@@ -151,7 +151,7 @@ export function createIveKitRustDeskLedSdk(input: IveKitRustDeskLedSdkInput): Iv
     fetch: input.fetch
   });
 
-  const ensureDevice = async (deviceInput: EnsureIveKitRustDeskLedDeviceInput): Promise<RustDeskDevice> => {
+  const ensureDevice = async (deviceInput: EnsureConveractFabricRustDeskLedDeviceInput): Promise<RustDeskDevice> => {
     const actorIdentity = requiredString(deviceInput.actorIdentity, 'actorIdentity is required');
     let device = await resolveDevice(client, tenantId, source, deviceInput);
     if (deviceInput.rustdeskId && device.rustdesk_id !== deviceInput.rustdeskId) {
@@ -315,10 +315,10 @@ export function createIveKitRustDeskLedSdk(input: IveKitRustDeskLedSdkInput): Iv
 }
 
 async function resolveDevice(
-  client: IveKitRustDeskHttpClient,
+  client: ConveractFabricRustDeskHttpClient,
   tenantId: string,
   source: string,
-  input: EnsureIveKitRustDeskLedDeviceInput
+  input: EnsureConveractFabricRustDeskLedDeviceInput
 ): Promise<RustDeskDevice> {
   const deviceId = String(input.deviceId || '').trim();
   if (deviceId) return client.getDevice(deviceId);
@@ -356,7 +356,7 @@ function assertClientConfigReady(config: RustDeskClientConfig): void {
   requiredString(config.manual_fields?.key, 'RustDesk client config manual key is required');
 }
 
-function launchSummary(gatewaySession: RemoteToolSession, launchPlan: RustDeskGatewayLaunchPlan): IveKitRustDeskLedSessionResult['launch'] {
+function launchSummary(gatewaySession: RemoteToolSession, launchPlan: RustDeskGatewayLaunchPlan): ConveractFabricRustDeskLedSessionResult['launch'] {
   if (launchPlan.actions?.can_launch === false) {
     throw new Error('RustDesk launch plan is not launchable');
   }
@@ -388,22 +388,22 @@ function compactRecord(input: Record<string, unknown>): Record<string, unknown> 
   return result;
 }
 
-function requiredFileTransferStatus(value: unknown): RecordIveKitRustDeskFileTransferInput['status'] {
+function requiredFileTransferStatus(value: unknown): RecordConveractFabricRustDeskFileTransferInput['status'] {
   if (value === 'started' || value === 'completed' || value === 'failed') return value;
   throw new Error('file transfer status must be one of started, completed, failed');
 }
 
-function requiredFileTransferDirection(value: unknown): RecordIveKitRustDeskFileTransferInput['direction'] {
+function requiredFileTransferDirection(value: unknown): RecordConveractFabricRustDeskFileTransferInput['direction'] {
   if (value === 'upload' || value === 'download') return value;
   throw new Error('file transfer direction must be one of upload, download');
 }
 
-function requiredScreenRecordingStatus(value: unknown): RecordIveKitRustDeskScreenRecordingInput['status'] {
+function requiredScreenRecordingStatus(value: unknown): RecordConveractFabricRustDeskScreenRecordingInput['status'] {
   if (value === 'started' || value === 'stopped' || value === 'failed') return value;
   throw new Error('screen recording status must be one of started, stopped, failed');
 }
 
-function requiredClipboardDirection(value: unknown): RecordIveKitRustDeskClipboardSyncInput['direction'] {
+function requiredClipboardDirection(value: unknown): RecordConveractFabricRustDeskClipboardSyncInput['direction'] {
   if (value === 'agent_to_device' || value === 'device_to_agent') return value;
   throw new Error('clipboard direction must be one of agent_to_device, device_to_agent');
 }

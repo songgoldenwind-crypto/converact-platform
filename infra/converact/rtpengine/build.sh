@@ -5,6 +5,28 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCK_PATH="$SCRIPT_DIR/toolchain-lock.json"
 ACTION="${1:-all}"
 
+ENV_COMPAT_HELPER="$SCRIPT_DIR/../../../scripts/converact-env-compat.sh"
+if [[ ! -r "$ENV_COMPAT_HELPER" ]]; then
+  ENV_COMPAT_HELPER="$SCRIPT_DIR/converact-env-compat.sh"
+fi
+if [[ ! -r "$ENV_COMPAT_HELPER" ]]; then
+  echo "Converact environment compatibility helper is required" >&2
+  exit 66
+fi
+# shellcheck disable=SC1090
+source "$ENV_COMPAT_HELPER"
+for suffix in \
+  RTPENGINE_SUPPLY_CHAIN_EVIDENCE_OUTPUT \
+  RTPENGINE_TOOLCHAIN_IMAGE \
+  RTPENGINE_ARCHIVE_FILE \
+  RTPENGINE_BUILD_JOBS \
+  RTPENGINE_IMAGE_PREFIX \
+  RTPENGINE_IMAGE_VERSION \
+  RTPENGINE_KERNEL_HEADERS_DIR \
+  RTPENGINE_KERNEL_RELEASE; do
+  converact_env_resolve_fabric "$suffix"
+done
+
 case "$(uname -m)" in
   x86_64) NATIVE_ARCH=amd64 ;;
   arm64|aarch64) NATIVE_ARCH=arm64 ;;
@@ -33,10 +55,10 @@ if [[ "$ACTION" == supply-chain ]]; then
     echo "node is required for supply-chain evidence" >&2
     exit 1
   }
-  : "${IVEKIT_RTPENGINE_SUPPLY_CHAIN_EVIDENCE_OUTPUT:?supply-chain evidence output is required}"
+  : "${CONVERACT_FABRIC_RTPENGINE_SUPPLY_CHAIN_EVIDENCE_OUTPUT:?supply-chain evidence output is required}"
   REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
   exec node --import tsx \
-    "$REPOSITORY_ROOT/scripts/ivekit-rtpengine-supply-chain.ts"
+    "$REPOSITORY_ROOT/scripts/converact-rtpengine-supply-chain.ts"
 fi
 
 command -v docker >/dev/null || {
@@ -75,8 +97,8 @@ if [[ "$ACTION" == toolchain ]]; then
   exit 0
 fi
 
-TOOLCHAIN_REF="${IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE:-$LOCKED_TOOLCHAIN_ID}"
-if [[ -z "${IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE:-}" ]] \
+TOOLCHAIN_REF="${CONVERACT_FABRIC_RTPENGINE_TOOLCHAIN_IMAGE:-$LOCKED_TOOLCHAIN_ID}"
+if [[ -z "${CONVERACT_FABRIC_RTPENGINE_TOOLCHAIN_IMAGE:-}" ]] \
     && { [[ ! "$LOCKED_TOOLCHAIN_ID" =~ ^sha256:[a-f0-9]{64}$ ]] \
       || [[ "$LOCKED_TOOLCHAIN_ID" == sha256:0000000000000000000000000000000000000000000000000000000000000000 ]]; }; then
   echo "toolchain image ID must be pinned as sha256: in toolchain-lock.json" >&2
@@ -114,7 +136,7 @@ if [[ "$ACTUAL_SNAPSHOT" != "$DEBIAN_SNAPSHOT" ]]; then
   exit 78
 fi
 
-BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ivekit-rtpengine-build.XXXXXX")"
+BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/converact-rtpengine-build.XXXXXX")"
 cleanup() {
   rm -rf "$BUILD_ROOT"
 }
@@ -125,22 +147,24 @@ SOURCE_DIR="$CONTEXT_DIR/source"
 mkdir -p "$SOURCE_DIR" "$CONTEXT_DIR/kernel-headers"
 cp "$SCRIPT_DIR/entrypoint.sh" "$CONTEXT_DIR/entrypoint.sh"
 cp "$SCRIPT_DIR/rtpengine.conf.template" "$CONTEXT_DIR/rtpengine.conf.template"
-chmod 0755 "$CONTEXT_DIR/entrypoint.sh"
+cp "$ENV_COMPAT_HELPER" "$CONTEXT_DIR/converact-env-compat.sh"
+chmod 0755 "$CONTEXT_DIR/entrypoint.sh" "$CONTEXT_DIR/converact-env-compat.sh"
 
 SOURCE_RUN_ARGS=(
   --rm
   --user 0:0
   -v "$BUILD_ROOT:/build"
   -v "$SCRIPT_DIR:/overlay:ro"
+  -v "$ENV_COMPAT_HELPER:/converact-env-compat.sh:ro"
 )
-if [[ -n "${IVEKIT_RTPENGINE_ARCHIVE_FILE:-}" ]]; then
+if [[ -n "${CONVERACT_FABRIC_RTPENGINE_ARCHIVE_FILE:-}" ]]; then
   SOURCE_RUN_ARGS+=(
     --network=none
   )
-  ARCHIVE_FILE="$(cd "$(dirname "$IVEKIT_RTPENGINE_ARCHIVE_FILE")" && pwd)/$(basename "$IVEKIT_RTPENGINE_ARCHIVE_FILE")"
+  ARCHIVE_FILE="$(cd "$(dirname "$CONVERACT_FABRIC_RTPENGINE_ARCHIVE_FILE")" && pwd)/$(basename "$CONVERACT_FABRIC_RTPENGINE_ARCHIVE_FILE")"
   SOURCE_RUN_ARGS+=(
     -v "$ARCHIVE_FILE:/input/rtpengine.tar.gz:ro"
-    -e IVEKIT_RTPENGINE_ARCHIVE_FILE=/input/rtpengine.tar.gz
+    -e CONVERACT_FABRIC_RTPENGINE_ARCHIVE_FILE=/input/rtpengine.tar.gz
   )
 fi
 
@@ -151,15 +175,15 @@ docker run "${SOURCE_RUN_ARGS[@]}" "$ACTUAL_TOOLCHAIN_ID" bash -lc '
   node -e "
     const fs = require(\"fs\");
     const source = JSON.parse(fs.readFileSync(
-      \"/build/context/source/ivekit-source-identity.json\", \"utf8\"
+      \"/build/context/source/converact-source-identity.json\", \"utf8\"
     ));
     const patch = JSON.parse(fs.readFileSync(
-      \"/build/context/source/ivekit-patch-set-identity.json\", \"utf8\"
+      \"/build/context/source/converact-patch-set-identity.json\", \"utf8\"
     ));
     for (const [key, value] of Object.entries({
-      IVEKIT_RTPENGINE_SOURCE_COMMIT: source.commit,
-      IVEKIT_RTPENGINE_ARCHIVE_SHA256: source.archive_sha256,
-      IVEKIT_RTPENGINE_PATCH_SET_SHA256: patch.patch_set_sha256
+      CONVERACT_FABRIC_RTPENGINE_SOURCE_COMMIT: source.commit,
+      CONVERACT_FABRIC_RTPENGINE_ARCHIVE_SHA256: source.archive_sha256,
+      CONVERACT_FABRIC_RTPENGINE_PATCH_SET_SHA256: patch.patch_set_sha256
     })) {
       if (!/^[a-f0-9]{40,64}$/.test(String(value))) process.exit(65);
       process.stdout.write(key + \"=\" + value + \"\\n\");
@@ -170,24 +194,24 @@ docker run "${SOURCE_RUN_ARGS[@]}" "$ACTUAL_TOOLCHAIN_ID" bash -lc '
 # shellcheck disable=SC1091
 source "$CONTEXT_DIR/identity.env"
 
-BUILD_JOBS="${IVEKIT_RTPENGINE_BUILD_JOBS:-$(getconf _NPROCESSORS_ONLN)}"
+BUILD_JOBS="${CONVERACT_FABRIC_RTPENGINE_BUILD_JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 if [[ ! "$BUILD_JOBS" =~ ^[1-9][0-9]*$ ]]; then
-  echo "IVEKIT_RTPENGINE_BUILD_JOBS must be a positive integer" >&2
+  echo "CONVERACT_FABRIC_RTPENGINE_BUILD_JOBS must be a positive integer" >&2
   exit 64
 fi
 
-IMAGE_PREFIX="${IVEKIT_RTPENGINE_IMAGE_PREFIX:-ivekit/rtpengine}"
-IMAGE_VERSION="${IVEKIT_RTPENGINE_IMAGE_VERSION:-mr26.0.1.13-ivekit.2}"
+IMAGE_PREFIX="${CONVERACT_FABRIC_RTPENGINE_IMAGE_PREFIX:-converact/rtpengine}"
+IMAGE_VERSION="${CONVERACT_FABRIC_RTPENGINE_IMAGE_VERSION:-mr26.0.1.13-ivekit.2}"
 COMMON_BUILD_ARGS=(
   --network=none
   --pull=false
   -f "$SCRIPT_DIR/Dockerfile.runtime"
-  --build-arg "IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE=$ACTUAL_TOOLCHAIN_ID"
-  --build-arg "IVEKIT_RTPENGINE_TOOLCHAIN_IMAGE_ID=$ACTUAL_TOOLCHAIN_ID"
-  --build-arg "IVEKIT_RTPENGINE_SOURCE_COMMIT=$IVEKIT_RTPENGINE_SOURCE_COMMIT"
-  --build-arg "IVEKIT_RTPENGINE_ARCHIVE_SHA256=$IVEKIT_RTPENGINE_ARCHIVE_SHA256"
-  --build-arg "IVEKIT_RTPENGINE_PATCH_SET_SHA256=$IVEKIT_RTPENGINE_PATCH_SET_SHA256"
-  --build-arg "IVEKIT_BUILD_JOBS=$BUILD_JOBS"
+  --build-arg "CONVERACT_FABRIC_RTPENGINE_TOOLCHAIN_IMAGE=$ACTUAL_TOOLCHAIN_ID"
+  --build-arg "CONVERACT_FABRIC_RTPENGINE_TOOLCHAIN_IMAGE_ID=$ACTUAL_TOOLCHAIN_ID"
+  --build-arg "CONVERACT_FABRIC_RTPENGINE_SOURCE_COMMIT=$CONVERACT_FABRIC_RTPENGINE_SOURCE_COMMIT"
+  --build-arg "CONVERACT_FABRIC_RTPENGINE_ARCHIVE_SHA256=$CONVERACT_FABRIC_RTPENGINE_ARCHIVE_SHA256"
+  --build-arg "CONVERACT_FABRIC_RTPENGINE_PATCH_SET_SHA256=$CONVERACT_FABRIC_RTPENGINE_PATCH_SET_SHA256"
+  --build-arg "CONVERACT_FABRIC_RTPENGINE_BUILD_JOBS=$BUILD_JOBS"
   --build-arg "TARGETARCH=$TARGETARCH"
 )
 
@@ -208,21 +232,21 @@ fi
 KERNEL_STATUS=not_run
 KERNEL_REASON=kernel_headers_not_provided
 if [[ "$ACTION" == kernel || "$ACTION" == all ]]; then
-  if [[ -n "${IVEKIT_RTPENGINE_KERNEL_HEADERS_DIR:-}" ]]; then
+  if [[ -n "${CONVERACT_FABRIC_RTPENGINE_KERNEL_HEADERS_DIR:-}" ]]; then
     KERNEL_HEADERS_DIR="$(
-      cd "$IVEKIT_RTPENGINE_KERNEL_HEADERS_DIR" && pwd
+      cd "$CONVERACT_FABRIC_RTPENGINE_KERNEL_HEADERS_DIR" && pwd
     )"
     if [[ ! -f "$KERNEL_HEADERS_DIR/Makefile" ]]; then
-      echo "IVEKIT_RTPENGINE_KERNEL_HEADERS_DIR has no kernel Makefile" >&2
+      echo "CONVERACT_FABRIC_RTPENGINE_KERNEL_HEADERS_DIR has no kernel Makefile" >&2
       exit 66
     fi
     cp -a "$KERNEL_HEADERS_DIR/." "$CONTEXT_DIR/kernel-headers/"
-    KERNEL_RELEASE="${IVEKIT_RTPENGINE_KERNEL_RELEASE:-$(uname -r)}"
+    KERNEL_RELEASE="${CONVERACT_FABRIC_RTPENGINE_KERNEL_RELEASE:-$(uname -r)}"
     KERNEL_ARTIFACT_IMAGE="${IMAGE_PREFIX}:${IMAGE_VERSION}-${TARGETARCH}-kernel-${KERNEL_RELEASE}-artifact"
     KERNEL_RUNTIME_IMAGE="${IMAGE_PREFIX}:${IMAGE_VERSION}-${TARGETARCH}-kernel-${KERNEL_RELEASE}-runtime"
     docker build "${COMMON_BUILD_ARGS[@]}" \
       --target kernel-artifact \
-      --build-arg "IVEKIT_KERNEL_RELEASE=$KERNEL_RELEASE" \
+      --build-arg "CONVERACT_FABRIC_RTPENGINE_KERNEL_RELEASE=$KERNEL_RELEASE" \
       -t "$KERNEL_ARTIFACT_IMAGE" \
       "$CONTEXT_DIR"
     KERNEL_CONTAINER="$(docker create "$KERNEL_ARTIFACT_IMAGE")"
@@ -238,14 +262,14 @@ if [[ "$ACTION" == kernel || "$ACTION" == all ]]; then
     fi
     docker build "${COMMON_BUILD_ARGS[@]}" \
       --target kernel-runtime \
-      --build-arg "IVEKIT_KERNEL_RELEASE=$KERNEL_RELEASE" \
-      --build-arg "IVEKIT_KERNEL_SRCVERSION=$KERNEL_SRCVERSION" \
+      --build-arg "CONVERACT_FABRIC_RTPENGINE_KERNEL_RELEASE=$KERNEL_RELEASE" \
+      --build-arg "CONVERACT_FABRIC_RTPENGINE_KERNEL_SRCVERSION=$KERNEL_SRCVERSION" \
       -t "$KERNEL_RUNTIME_IMAGE" \
       "$CONTEXT_DIR"
     KERNEL_STATUS=pass
     KERNEL_REASON=
   elif [[ "$ACTION" == kernel ]]; then
-    echo "IVEKIT_RTPENGINE_KERNEL_HEADERS_DIR is required for kernel builds" >&2
+    echo "CONVERACT_FABRIC_RTPENGINE_KERNEL_HEADERS_DIR is required for kernel builds" >&2
     exit 66
   fi
 fi

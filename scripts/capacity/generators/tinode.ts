@@ -378,7 +378,7 @@ async function runOfflineRecoveryProbe(
         'x-opc-message-id': markerWireId,
         'x-opc-idempotency-key': markerWireId
       },
-      content: 'iveKit offline recovery marker'
+      content: 'Converact Fabric offline recovery marker'
     });
     const markerSequence = positiveSequence(markerCtrl, 'offline marker');
     const markerDelivery = await subscriber.waitForData(markerWireId);
@@ -404,7 +404,7 @@ async function runOfflineRecoveryProbe(
           'x-opc-message-id': wireId,
           'x-opc-idempotency-key': wireId
         },
-        content: `iveKit offline recovery ${index}`
+        content: `Converact Fabric offline recovery ${index}`
       });
       const sequence = positiveSequence(ctrl, `offline recovery ${index}`);
       expected.push({ wireId, messageId, sequence });
@@ -423,7 +423,7 @@ async function runOfflineRecoveryProbe(
     await recoverySubscriber.open();
     await recoverySubscriber.request('hi', {
       ver: '0.22',
-      ua: 'iveKit capacity generator'
+      ua: 'Converact Fabric capacity generator'
     });
     await recoverySubscriber.request('login', auth);
     await recoverySubscriber.request('sub', {
@@ -477,7 +477,7 @@ async function connectTinodeSession(
   topic: string
 ): Promise<void> {
   await session.open();
-  await session.request('hi', { ver: '0.22', ua: 'iveKit capacity generator' });
+  await session.request('hi', { ver: '0.22', ua: 'Converact Fabric capacity generator' });
   await session.request('login', auth);
   await session.request('sub', { topic });
 }
@@ -622,7 +622,7 @@ async function openConnection(
     );
     try {
       await session.open();
-      await session.request('hi', { ver: '0.22', ua: 'iveKit capacity generator' });
+      await session.request('hi', { ver: '0.22', ua: 'Converact Fabric capacity generator' });
       await session.request('login', auth);
       await session.request('sub', { topic });
       result.session = session;
@@ -687,7 +687,7 @@ async function runInteraction(
       await session.open();
       active = true;
       becameActive();
-      await session.request('hi', { ver: '0.22', ua: 'iveKit capacity generator' });
+      await session.request('hi', { ver: '0.22', ua: 'Converact Fabric capacity generator' });
       await session.request('login', auth);
       await session.request('sub', { topic });
       result.accepted = true;
@@ -999,7 +999,7 @@ function positiveSequence(ctrl: Record<string, any>, label: string): number {
 }
 
 function wireMessageId(messageId: string): string {
-  return `opc-${canonicalSha256(messageId)}`;
+  return `converact-${canonicalSha256(messageId)}`;
 }
 
 function validateInput(input: TinodeShardInput): void {

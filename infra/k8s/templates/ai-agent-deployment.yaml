@@ -23,7 +23,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: ai-agent
-          image: {{ include "opc.aiAgentImage" . | quote }}
+          image: {{ include "converact.aiAgentImage" . | quote }}
           imagePullPolicy: {{ .Values.aiAgent.image.pullPolicy }}
           ports:
             - name: metrics
@@ -31,7 +31,7 @@ spec:
               protocol: TCP
           env:
             - name: LIVEKIT_URL
-              value: {{ include "opc.livekitInternalUrl" . | quote }}
+              value: {{ include "converact.livekitInternalUrl" . | quote }}
             - name: LIVEKIT_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -43,12 +43,12 @@ spec:
                   name: {{ .Release.Name }}-secrets
                   key: livekit-api-secret
             - name: CONVERACT_API_URL
-              value: http://{{ .Release.Name }}-opc:3000
+              value: http://{{ .Release.Name }}-converact:3000
             - name: CONVERACT_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
-                  key: opc-api-key
+                  key: converact-api-key
             - name: LLM_BASE_URL
               value: {{ .Values.aiAgent.providers.llmBaseUrl | quote }}
             - name: LLM_MODEL
@@ -220,7 +220,7 @@ metadata:
   name: {{ .Release.Name }}-ai-agent-voice-latency
 spec:
   groups:
-    - name: opc-ai-agent-voice-latency
+    - name: converact-agent-runtime-voice-latency
       rules:
       {{- range $stage, $budget := .Values.aiAgent.metrics.latencyBudgetsSeconds }}
         - alert: OpcAIAgentVoiceStageLatencyHigh

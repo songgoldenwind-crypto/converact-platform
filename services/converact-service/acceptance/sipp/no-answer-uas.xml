@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="ISO-8859-1" ?>
 <!DOCTYPE scenario SYSTEM "sipp.dtd">
 
-<scenario name="iveKit downstream no-answer UAS">
+<scenario name="Converact Fabric downstream no-answer UAS">
   <recv request="INVITE">
     <action>
       <ereg regexp="[0-9]+" search_in="hdr" header="CSeq:" check_it="true" assign_to="1" />

@@ -1,7 +1,7 @@
 import {
-  createIveKitHttpSdk,
-  type IveKitChatMessage,
-  type IveKitChatSession
+  createConveractFabricHttpSdk,
+  type ConveractFabricChatMessage,
+  type ConveractFabricChatSession
 } from '@converact/sdk';
 import { BriefcaseBusiness, CircleStop, Headset, List, MessageSquare, MonitorCog, Phone, RefreshCw, ScanSearch, ShieldCheck, Workflow } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -15,10 +15,10 @@ import { useChatSession } from './chat/use-chat-session.js';
 import { useBusinessContext, type BusinessRefSelection } from './context/use-business-context.js';
 import { BusinessContextPanel } from './context/business-context-panel.js';
 import {
-  readIveKitLocation,
+  readConveractFabricLocation,
   sessionLocationPatch,
-  updateIveKitLocation,
-  type IveKitLocationPatch,
+  updateConveractFabricLocation,
+  type ConveractFabricLocationPatch,
   type WorkspaceMode
 } from './navigation.js';
 import {
@@ -27,7 +27,7 @@ import {
   startAccessTokenRefreshLoop,
   requestAccessToken,
   requestIdentity,
-  type IveKitRuntimeConfig
+  type ConveractFabricRuntimeConfig
 } from './runtime-config.js';
 import { EventReplayController, eventWorkspace, type EventWorkspace } from './realtime/event-replay.js';
 
@@ -66,19 +66,19 @@ const IvrDesignerWorkspace = lazy(async () => {
 });
 
 export function App() {
-  const initialLocation = useRef(currentIveKitLocation()).current;
-  const [config, setConfig] = useState<IveKitRuntimeConfig | null>(null);
+  const initialLocation = useRef(currentConveractFabricLocation()).current;
+  const [config, setConfig] = useState<ConveractFabricRuntimeConfig | null>(null);
   const [token, setToken] = useState('');
   const [identity, setIdentity] = useState('');
-  const [sessions, setSessions] = useState<IveKitChatSession[]>([]);
+  const [sessions, setSessions] = useState<ConveractFabricChatSession[]>([]);
   const [selectedId, setSelectedId] = useState(initialLocation.sessionId);
   const [query, setQuery] = useState('');
   const [sessionHasMore, setSessionHasMore] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [bootstrapError, setBootstrapError] = useState('');
   const [commandError, setCommandError] = useState('');
-  const [replyTo, setReplyTo] = useState<IveKitChatMessage | null>(null);
-  const [forwardFrom, setForwardFrom] = useState<IveKitChatMessage | null>(null);
+  const [replyTo, setReplyTo] = useState<ConveractFabricChatMessage | null>(null);
+  const [forwardFrom, setForwardFrom] = useState<ConveractFabricChatMessage | null>(null);
   const [mobileView, setMobileView] = useState<'sessions' | 'chat'>('sessions');
   const [selectedFindingId, setSelectedFindingId] = useState('');
   const [mediaCallId, setMediaCallId] = useState(initialLocation.callId);
@@ -97,7 +97,7 @@ export function App() {
   const sessionCursor = useRef<string | null>(null);
   const seededContext = useRef('');
 
-  const client = useMemo(() => config && token ? createIveKitHttpSdk({
+  const client = useMemo(() => config && token ? createConveractFabricHttpSdk({
     baseUrl: config.baseUrl,
     tenantId: config.tenantId,
     accessToken: token
@@ -172,7 +172,7 @@ export function App() {
   }, []);
   useEffect(() => {
     const onPopState = () => {
-      const next = currentIveKitLocation();
+      const next = currentConveractFabricLocation();
       setWorkspaceMode(next.workspace);
       setBusinessRef(next.businessRef);
       setSelectedId(next.sessionId);
@@ -206,7 +206,7 @@ export function App() {
       setFlowId('');
       seededContext.current = '';
     }
-    navigateIveKitLocation(locationPatch);
+    navigateConveractFabricLocation(locationPatch);
   }, [businessRef?.id, businessRef?.type, selected]);
   useEffect(() => {
     if (!businessContext.context || !businessRef) return;
@@ -223,7 +223,7 @@ export function App() {
       const nextRemoteSessionId = businessContext.context.remote_assistance.sessions[0]?.id || '';
       if (nextRemoteSessionId) {
         setRemoteSessionId(nextRemoteSessionId);
-        navigateIveKitLocation({ remoteSessionId: nextRemoteSessionId });
+        navigateConveractFabricLocation({ remoteSessionId: nextRemoteSessionId });
       }
     }
   }, [businessContext.context, businessRef, mediaCallId, remoteSessionId]);
@@ -315,8 +315,8 @@ export function App() {
   const reportCommandError = useCallback((cause: unknown) => setCommandError(errorMessage(cause)), []);
   const openExternal = useCallback((url: string) => {
     try {
-      if (window.iveKitHost?.openExternal) {
-        void Promise.resolve(window.iveKitHost.openExternal(url)).catch(reportCommandError);
+      if (window.converactFabricHost?.openExternal) {
+        void Promise.resolve(window.converactFabricHost.openExternal(url)).catch(reportCommandError);
         return;
       }
       window.location.assign(url);
@@ -340,11 +340,11 @@ export function App() {
   }, []);
   const selectVoiceCall = useCallback((callId: string) => {
     setVoiceCallId(callId);
-    navigateIveKitLocation({ voiceCallId: callId }, callId ? 'push' : 'replace');
+    navigateConveractFabricLocation({ voiceCallId: callId }, callId ? 'push' : 'replace');
   }, []);
   const selectWorkspace = useCallback((mode: WorkspaceMode) => {
     setWorkspaceMode(mode);
-    navigateIveKitLocation({ workspace: mode }, 'push');
+    navigateConveractFabricLocation({ workspace: mode }, 'push');
   }, []);
   const loadBusinessTimeline = useCallback((input?: { cursor?: string; limit?: number }) => {
     if (!client || !businessRef) return Promise.reject(new Error('business context unavailable'));
@@ -354,7 +354,7 @@ export function App() {
   return (
     <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : workspaceMode === 'voice' ? 'workspace-voice' : workspaceMode === 'remote' ? 'workspace-remote' : workspaceMode === 'quality' ? 'workspace-quality' : workspaceMode === 'operations' ? 'workspace-operations' : workspaceMode === 'ivr' ? 'workspace-ivr' : ''}`} data-mobile-view={mobileView}>
       <header className="topbar">
-        <div className="brand"><MessageSquare size={18} /> <strong>iveKit</strong></div>
+        <div className="brand"><MessageSquare size={18} /> <strong>Converact Fabric</strong></div>
         {businessRef && <div className="business-context" title={`${businessRef.type}: ${businessRef.id}`}>
           <BriefcaseBusiness size={15} />
           <strong>{businessRef.id}</strong>
@@ -391,7 +391,7 @@ export function App() {
         onSelect={(id) => {
           const nextSession = sessions.find((session) => session.id === id);
           setSelectedId(id); setSelectedFindingId(''); setReplyTo(null); setForwardFrom(null); setMobileView('chat');
-          navigateIveKitLocation({
+          navigateConveractFabricLocation({
             sessionId: id,
             businessRef: nextSession ? { type: nextSession.business_ref.type, id: nextSession.business_ref.id } : undefined
           }, 'push');
@@ -449,12 +449,12 @@ export function App() {
         : workspaceMode === 'voice'
           ? <Suspense fallback={<div className="media-workspace-loading">Loading voice workspace</div>}><VoiceWorkspace client={client} callId={voiceCallId} onCallIdChange={selectVoiceCall} refreshVersion={voiceReplayVersion} businessRef={businessRef || undefined} /></Suspense>
           : workspaceMode === 'remote'
-            ? <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskWorkspace key={`remote-replay-${remoteReplayVersion}`} baseUrl={config?.baseUrl || ''} tenantId={config?.tenantId || ''} accessToken={token} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={remoteSessionId} onRemoteSessionIdChange={(value) => { setRemoteSessionId(value); navigateIveKitLocation({ remoteSessionId: value }); }} /></Suspense>
+            ? <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskWorkspace key={`remote-replay-${remoteReplayVersion}`} baseUrl={config?.baseUrl || ''} tenantId={config?.tenantId || ''} accessToken={token} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={remoteSessionId} onRemoteSessionIdChange={(value) => { setRemoteSessionId(value); navigateConveractFabricLocation({ remoteSessionId: value }); }} /></Suspense>
             : workspaceMode === 'quality'
               ? client && <Suspense fallback={<div className="media-workspace-loading">Loading quality workspace</div>}><QualityWorkspace client={client} selectedSessionId={selectedId} refreshVersion={chatReplayVersion} /></Suspense>
               : workspaceMode === 'operations'
                 ? <Suspense fallback={<div className="media-workspace-loading">Loading operations workspace</div>}><QueueMonitorWorkspace client={client} /></Suspense>
-                : <Suspense fallback={<div className="media-workspace-loading">Loading IVR Designer</div>}><IvrDesignerWorkspace client={client} flowId={flowId} refreshVersion={ivrReplayVersion} onFlowIdChange={(value) => { setFlowId(value); navigateIveKitLocation({ flowId: value }); }} /></Suspense>}
+                : <Suspense fallback={<div className="media-workspace-loading">Loading IVR Designer</div>}><IvrDesignerWorkspace client={client} flowId={flowId} refreshVersion={ivrReplayVersion} onFlowIdChange={(value) => { setFlowId(value); navigateConveractFabricLocation({ flowId: value }); }} /></Suspense>}
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );
@@ -467,7 +467,7 @@ function attachmentKind(file: File): 'image' | 'video' | 'audio' | 'file' {
   return 'file';
 }
 
-function dedupeSessions(sessions: IveKitChatSession[]): IveKitChatSession[] {
+function dedupeSessions(sessions: ConveractFabricChatSession[]): ConveractFabricChatSession[] {
   return [...new Map(sessions.map((session) => [session.id, session])).values()];
 }
 
@@ -475,8 +475,8 @@ function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-function currentIveKitLocation() {
-  return readIveKitLocation(typeof window === 'undefined' ? 'http://ivekit.local/' : window.location.href);
+function currentConveractFabricLocation() {
+  return readConveractFabricLocation(typeof window === 'undefined' ? 'http://converact.local/' : window.location.href);
 }
 
 function selectMediaCallValue(
@@ -485,11 +485,11 @@ function selectMediaCallValue(
   history: 'push' | 'replace'
 ): void {
   setCallId(callId);
-  navigateIveKitLocation({ callId }, history);
+  navigateConveractFabricLocation({ callId }, history);
 }
 
-function navigateIveKitLocation(patch: IveKitLocationPatch, history: 'push' | 'replace' = 'replace'): void {
-  const url = updateIveKitLocation(window.location.href, patch);
+function navigateConveractFabricLocation(patch: ConveractFabricLocationPatch, history: 'push' | 'replace' = 'replace'): void {
+  const url = updateConveractFabricLocation(window.location.href, patch);
   if (url.toString() === window.location.href) return;
   window.history[history === 'push' ? 'pushState' : 'replaceState']({}, '', url);
 }

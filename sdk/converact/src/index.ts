@@ -1,49 +1,49 @@
 import {
-  createIveKitHttpSdk,
-  type IveKitChatHttpClient,
-  type IveKitContactCenterHttpClient,
-  type IveKitContextHttpClient,
-  type IveKitEventHttpClient,
-  type IveKitHttpSdkInput,
-  type IveKitIntelligenceHttpClient,
-  type IveKitIvrHttpClient,
-  type IveKitMediaHttpClient,
-  type IveKitNotificationHttpClient,
-  type IveKitAuditHttpClient,
-  type IveKitRetentionHttpClient,
-  type IveKitVoiceHttpClient
+  createConveractFabricHttpSdk,
+  type ConveractFabricChatHttpClient,
+  type ConveractFabricContactCenterHttpClient,
+  type ConveractFabricContextHttpClient,
+  type ConveractFabricEventHttpClient,
+  type ConveractFabricHttpSdkInput,
+  type ConveractFabricIntelligenceHttpClient,
+  type ConveractFabricIvrHttpClient,
+  type ConveractFabricMediaHttpClient,
+  type ConveractFabricNotificationHttpClient,
+  type ConveractFabricAuditHttpClient,
+  type ConveractFabricRetentionHttpClient,
+  type ConveractFabricVoiceHttpClient
 } from './http-sdk.js';
 import {
-  createIveKitRustDeskHttpClient,
-  type IveKitRustDeskControlHttpClient
+  createConveractFabricRustDeskHttpClient,
+  type ConveractFabricRustDeskControlHttpClient
 } from './rustdesk-http-client.js';
 import {
-  createIveKitRustDeskLedSdk,
-  type IveKitRustDeskLedSdk
+  createConveractFabricRustDeskLedSdk,
+  type ConveractFabricRustDeskLedSdk
 } from './rustdesk-led-sdk.js';
 
-export type IveKitRustDeskClient = IveKitRustDeskControlHttpClient & IveKitRustDeskLedSdk;
+export type ConveractFabricRustDeskClient = ConveractFabricRustDeskControlHttpClient & ConveractFabricRustDeskLedSdk;
 
-export interface IveKitClient {
-  media: IveKitMediaHttpClient;
-  chat: IveKitChatHttpClient;
-  contactCenter: IveKitContactCenterHttpClient;
-  context: IveKitContextHttpClient;
-  events: IveKitEventHttpClient;
-  intelligence: IveKitIntelligenceHttpClient;
-  ivr: IveKitIvrHttpClient;
-  voice: IveKitVoiceHttpClient;
-  notifications: IveKitNotificationHttpClient;
-  audit: IveKitAuditHttpClient;
-  retention: IveKitRetentionHttpClient;
-  rustdesk: IveKitRustDeskClient;
+export interface ConveractFabricClient {
+  media: ConveractFabricMediaHttpClient;
+  chat: ConveractFabricChatHttpClient;
+  contactCenter: ConveractFabricContactCenterHttpClient;
+  context: ConveractFabricContextHttpClient;
+  events: ConveractFabricEventHttpClient;
+  intelligence: ConveractFabricIntelligenceHttpClient;
+  ivr: ConveractFabricIvrHttpClient;
+  voice: ConveractFabricVoiceHttpClient;
+  notifications: ConveractFabricNotificationHttpClient;
+  audit: ConveractFabricAuditHttpClient;
+  retention: ConveractFabricRetentionHttpClient;
+  rustdesk: ConveractFabricRustDeskClient;
 }
 
-export type IveKitClientInput = IveKitHttpSdkInput;
+export type ConveractFabricClientInput = ConveractFabricHttpSdkInput;
 
-export function createIveKitClient(input: IveKitClientInput): IveKitClient {
-  const http = createIveKitHttpSdk(input);
-  const rustdeskHttp = createIveKitRustDeskHttpClient({
+export function createConveractFabricClient(input: ConveractFabricClientInput): ConveractFabricClient {
+  const http = createConveractFabricHttpSdk(input);
+  const rustdeskHttp = createConveractFabricRustDeskHttpClient({
     baseUrl: input.baseUrl,
     tenantId: input.tenantId,
     apiKey: input.apiKey,
@@ -52,7 +52,7 @@ export function createIveKitClient(input: IveKitClientInput): IveKitClient {
     timeoutMs: input.timeoutMs,
     fetch: input.fetch
   });
-  const rustdeskWorkflow = createIveKitRustDeskLedSdk({
+  const rustdeskWorkflow = createConveractFabricRustDeskLedSdk({
     tenantId: input.tenantId,
     client: rustdeskHttp
   });
@@ -83,3 +83,4 @@ export * from './webhook.js';
 export * from './rustdesk-http-client.js';
 export * from './rustdesk-led-sdk.js';
 export type * from './types.js';
+export * from './legacy-fabric-v1-aliases.js';

@@ -44,7 +44,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
   }> {
     return withPgTenant(this.pg, input.tenant_id, async (pg) => {
       await pg.query(
-        `/* ivekit-dialog-owner-takeover:seed */
+        `/* converact-dialog-owner-takeover:seed */
          INSERT INTO ivekit_voice_dialog_ownership
           (tenant_id, cell_id, call_session_ref, profile,
            owner_node_id, owner_fault_domain, owner_epoch,
@@ -136,7 +136,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
       }
 
       const inserted = await pg.query(
-        `/* ivekit-dialog-owner-takeover:insert-attempt */
+        `/* converact-dialog-owner-takeover:insert-attempt */
          INSERT INTO ivekit_voice_dialog_takeovers
           (id, tenant_id, cell_id, call_session_ref, idempotency_key,
            request_hash, previous_owner_node_id, previous_owner_fault_domain,
@@ -180,7 +180,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
       }
 
       const updated = await pg.query(
-        `/* ivekit-dialog-owner-takeover:publish-pending */
+        `/* converact-dialog-owner-takeover:publish-pending */
          UPDATE ivekit_voice_dialog_ownership
          SET owner_epoch_high_watermark = $4,
              shadow_pair_hash = $5,
@@ -266,7 +266,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
         );
       }
       const consumed = await pg.query(
-        `/* ivekit-dialog-owner-takeover:consume-attempt */
+        `/* converact-dialog-owner-takeover:consume-attempt */
          UPDATE ivekit_voice_dialog_takeovers
          SET state = 'consumed',
              prepared_pair_hash = $8,
@@ -304,7 +304,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
       }
 
       const activated = await pg.query(
-        `/* ivekit-dialog-owner-takeover:activate-owner */
+        `/* converact-dialog-owner-takeover:activate-owner */
          UPDATE ivekit_voice_dialog_ownership
          SET owner_node_id = pending_owner_node_id,
              owner_fault_domain = pending_owner_fault_domain,
@@ -357,7 +357,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
       input.heartbeat_at.getTime() + input.lease_ttl_ms
     ).toISOString();
     const result = await this.pg.query(
-      `/* ivekit-dialog-owner-takeover:heartbeat-node */
+      `/* converact-dialog-owner-takeover:heartbeat-node */
        INSERT INTO ivekit_voice_dialog_node_leases
         (cell_id, node_id, fault_domain, spiffe_id, heartbeat_at,
          lease_expires_at, revision)
@@ -394,7 +394,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     observed_at: Date;
   }): Promise<DialogNodeLeaseRecord> {
     const result = await this.pg.query(
-      `/* ivekit-dialog-owner-takeover:assert-node-lease */
+      `/* converact-dialog-owner-takeover:assert-node-lease */
        SELECT cell_id, node_id, fault_domain, spiffe_id, heartbeat_at,
          lease_expires_at, revision
        FROM ivekit_voice_dialog_node_leases
@@ -430,7 +430,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     if (!callSessionRef) unavailable();
     return withPgTenant(this.pg, first.tenant_id, async (pg) => {
       await pg.query(
-        `/* ivekit-dialog-owner-takeover:observe-seed */
+        `/* converact-dialog-owner-takeover:observe-seed */
          INSERT INTO ivekit_voice_dialog_ownership
           (tenant_id, cell_id, call_session_ref, profile,
            owner_node_id, owner_fault_domain, owner_epoch,
@@ -468,7 +468,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
         authority.pending_owner_epoch === first.owner_epoch;
       if (pendingMatch) {
         const prepared = await pg.query(
-          `/* ivekit-dialog-owner-takeover:observe-prepared-pair */
+          `/* converact-dialog-owner-takeover:observe-prepared-pair */
            UPDATE ivekit_voice_dialog_takeovers
            SET state = 'shadow_prepared',
                prepared_pair_hash = $5,
@@ -502,7 +502,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
         );
       }
       const updated = await pg.query(
-        `/* ivekit-dialog-owner-takeover:observe-active-pair */
+        `/* converact-dialog-owner-takeover:observe-active-pair */
          UPDATE ivekit_voice_dialog_ownership
          SET shadow_pair_hash = $4,
              terminal = $5,
@@ -541,7 +541,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     const cellId = identifier(input.cell_id);
     const limit = integer(input.limit, 1, 256);
     const result = await this.pg.query(
-      `/* ivekit-dialog-terminal-repair:pending-tenants */
+      `/* converact-dialog-terminal-repair:pending-tenants */
        SELECT tenant_id
        FROM opc_ivekit_terminal_shadow_repair_tenant_ids($1, $2)`,
       [cellId, limit]
@@ -566,7 +566,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
       Date.parse(heartbeatAt) + leaseTtlMs
     ).toISOString();
     const result = await this.pg.query(
-      `/* ivekit-dialog-terminal-repair:heartbeat-worker */
+      `/* converact-dialog-terminal-repair:heartbeat-worker */
        INSERT INTO ivekit_voice_terminal_repair_worker_leases
         (cell_id, worker_id, fault_domain, spiffe_id, heartbeat_at,
          lease_expires_at, revision)
@@ -620,7 +620,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     ).toISOString();
     return withPgTenant(this.pg, tenantId, async (pg) => {
       const lease = await pg.query(
-        `/* ivekit-dialog-terminal-repair:assert-worker-lease */
+        `/* converact-dialog-terminal-repair:assert-worker-lease */
          SELECT worker_id
          FROM ivekit_voice_terminal_repair_worker_leases
          WHERE cell_id = $1
@@ -644,7 +644,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
         );
       }
       const authorityResult = await pg.query(
-        `/* ivekit-dialog-terminal-repair:lock-authority */
+        `/* converact-dialog-terminal-repair:lock-authority */
          SELECT ${AUTHORITY_COLUMNS_OWNERSHIP}
          FROM ivekit_voice_dialog_ownership ownership
          JOIN ivekit_voice_cdr_receipts receipt
@@ -686,7 +686,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
       if (!authorityResult.rows[0]) return null;
       const authority = decodeAuthority(authorityResult.rows[0]);
       const existingResult = await pg.query(
-        `/* ivekit-dialog-terminal-repair:find-claim */
+        `/* converact-dialog-terminal-repair:find-claim */
          SELECT id, tenant_id, cell_id, call_session_ref,
            source_owner_node_id, source_owner_fault_domain,
            source_owner_epoch, source_pair_hash,
@@ -715,7 +715,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
             return null;
           }
           await pg.query(
-            `/* ivekit-dialog-terminal-repair:expire-foreign-claim */
+            `/* converact-dialog-terminal-repair:expire-foreign-claim */
              UPDATE ivekit_voice_dialog_terminal_repairs
              SET state = 'expired',
                  updated_at = $5::timestamptz
@@ -737,7 +737,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
         }
         if (Date.parse(existing.expires_at) <= Date.parse(claimedAt)) {
           const renewed = await pg.query(
-            `/* ivekit-dialog-terminal-repair:renew-local-claim */
+            `/* converact-dialog-terminal-repair:renew-local-claim */
              UPDATE ivekit_voice_dialog_terminal_repairs
              SET expires_at = $5::timestamptz,
                  updated_at = $6::timestamptz
@@ -779,7 +779,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
         unavailable();
       }
       const reserved = await pg.query(
-        `/* ivekit-dialog-terminal-repair:reserve-epoch */
+        `/* converact-dialog-terminal-repair:reserve-epoch */
          UPDATE ivekit_voice_dialog_ownership
          SET owner_epoch_high_watermark = $4,
              revision = revision + 1,
@@ -814,7 +814,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
       );
       if (!reserved.rows[0]) unavailable();
       const inserted = await pg.query(
-        `/* ivekit-dialog-terminal-repair:insert-claim */
+        `/* converact-dialog-terminal-repair:insert-claim */
          INSERT INTO ivekit_voice_dialog_terminal_repairs
           (id, tenant_id, cell_id, call_session_ref,
            source_owner_node_id, source_owner_fault_domain,
@@ -897,7 +897,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     }
     return withPgTenant(this.pg, claim.tenant_id, async (pg) => {
       const result = await pg.query(
-        `/* ivekit-dialog-terminal-repair:complete */
+        `/* converact-dialog-terminal-repair:complete */
          WITH bound_receipt AS (
            SELECT receipt.receipt_id
            FROM ivekit_voice_cdr_receipts receipt
@@ -1017,7 +1017,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
   }): Promise<DialogOwnerAuthorityRecord | null> {
     return withPgTenant(this.pg, input.tenant_id, async (pg) => {
       const result = await pg.query(
-        `/* ivekit-dialog-owner-takeover:get */
+        `/* converact-dialog-owner-takeover:get */
          SELECT ${AUTHORITY_COLUMNS}
          FROM ivekit_voice_dialog_ownership
          WHERE tenant_id = $1
@@ -1034,7 +1034,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     input: DialogOwnerTakeoverClaimWrite
   ): Promise<void> {
     const result = await pg.query(
-      `/* ivekit-dialog-owner-takeover:assert-candidate-lease */
+      `/* converact-dialog-owner-takeover:assert-candidate-lease */
        SELECT node_id
        FROM ivekit_voice_dialog_node_leases
        WHERE cell_id = $1
@@ -1064,7 +1064,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     input: DialogOwnerTakeoverClaimWrite
   ): Promise<void> {
     const result = await pg.query(
-      `/* ivekit-dialog-owner-takeover:assert-previous-offline */
+      `/* converact-dialog-owner-takeover:assert-previous-offline */
        SELECT node_id, fault_domain, lease_expires_at
        FROM ivekit_voice_dialog_node_leases
        WHERE cell_id = $1
@@ -1091,7 +1091,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     callSessionRef: string
   ): Promise<DialogOwnerAuthorityRecord> {
     const result = await pg.query(
-      `/* ivekit-dialog-owner-takeover:lock */
+      `/* converact-dialog-owner-takeover:lock */
        SELECT ${AUTHORITY_COLUMNS}
        FROM ivekit_voice_dialog_ownership
        WHERE tenant_id = $1
@@ -1109,7 +1109,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     input: DialogOwnerTakeoverClaimWrite
   ): Promise<TakeoverReplayRow | null> {
     const result = await pg.query(
-      `/* ivekit-dialog-owner-takeover:replay */
+      `/* converact-dialog-owner-takeover:replay */
        SELECT id, owner_epoch, expires_at, request_hash, token_key_id,
          prepared_pair_hash, state
        FROM ivekit_voice_dialog_takeovers
@@ -1132,7 +1132,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     input: DialogOwnerTakeoverConsumeWrite
   ): Promise<TakeoverReplayRow | null> {
     const result = await pg.query(
-      `/* ivekit-dialog-owner-takeover:attempt-by-id */
+      `/* converact-dialog-owner-takeover:attempt-by-id */
        SELECT id, owner_epoch, expires_at, request_hash, token_key_id,
          prepared_pair_hash, state
        FROM ivekit_voice_dialog_takeovers
@@ -1160,7 +1160,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     now: Date
   ): Promise<DialogOwnerAuthorityRecord> {
     const expired = await pg.query(
-      `/* ivekit-dialog-owner-takeover:expire-attempt */
+      `/* converact-dialog-owner-takeover:expire-attempt */
        UPDATE ivekit_voice_dialog_takeovers
        SET state = 'expired',
            updated_at = $5::timestamptz
@@ -1181,7 +1181,7 @@ implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
     );
     if (!expired.rows[0]) return authority;
     const cleared = await pg.query(
-      `/* ivekit-dialog-owner-takeover:clear-expired */
+      `/* converact-dialog-owner-takeover:clear-expired */
        UPDATE ivekit_voice_dialog_ownership
        SET pending_takeover_id = NULL,
            pending_owner_node_id = NULL,

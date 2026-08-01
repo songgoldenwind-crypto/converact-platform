@@ -9,7 +9,7 @@ let controlled: ControlledMediaServer;
 test.beforeAll(async () => { controlled = await startControlledMediaServer(); });
 test.afterAll(async () => { await controlled.close(); });
 
-test('two identities complete the controlled iveKit media workflow', async ({ browser }, testInfo) => {
+test('two identities complete the controlled Converact Fabric media workflow', async ({ browser }, testInfo) => {
   const host = await openIdentity(browser, 'host-1', 'token-host', 'call-main');
   const participant = await openIdentity(browser, 'participant-1', 'token-participant', 'call-main');
   try {
@@ -88,10 +88,10 @@ test('two identities complete the controlled iveKit media workflow', async ({ br
     await expect(host.page.getByText('Media offline')).toBeVisible();
     await host.context.setOffline(false);
     await expect(host.page.getByText('Reconnecting media')).toBeVisible();
-    await host.page.evaluate(() => (window as unknown as { __IVEKIT_CONTROLLED_MEDIA__: { reconnect(): void } }).__IVEKIT_CONTROLLED_MEDIA__.reconnect());
+    await host.page.evaluate(() => (window as unknown as { __CONVERACT_FABRIC_CONTROLLED_MEDIA__: { reconnect(): void } }).__CONVERACT_FABRIC_CONTROLLED_MEDIA__.reconnect());
     await expect(host.page.getByText('Reconnecting media')).toBeHidden();
 
-    await host.page.evaluate(() => (window as unknown as { __IVEKIT_CONTROLLED_MEDIA__: { terminalDisconnect(): void } }).__IVEKIT_CONTROLLED_MEDIA__.terminalDisconnect());
+    await host.page.evaluate(() => (window as unknown as { __CONVERACT_FABRIC_CONTROLLED_MEDIA__: { terminalDisconnect(): void } }).__CONVERACT_FABRIC_CONTROLLED_MEDIA__.terminalDisconnect());
     await expect(host.page.getByText('Reconnecting media')).toBeVisible();
     await expect(host.page.getByText('Screen sharing stopped during reconnect')).toBeVisible();
     await expect(host.page.getByTitle('Turn off microphone')).toBeVisible();
@@ -170,10 +170,10 @@ test('mobile media layout keeps the stage rail and primary controls visible', as
     expect(layout.stage?.height).toBeGreaterThan(200);
     expect(layout.rail?.bottom).toBeLessThanOrEqual(layout.toolbar?.top || 0);
     expect(layout.hangup?.bottom).toBeLessThanOrEqual(layout.height);
-    const path = testInfo.outputPath('ivekit-media-mobile.png');
+    const path = testInfo.outputPath('converact-media-mobile.png');
     mkdirSync(testInfo.outputDir, { recursive: true });
     await mobile.page.screenshot({ path, fullPage: true });
-    await testInfo.attach('ivekit-media-mobile', { path, contentType: 'image/png' });
+    await testInfo.attach('converact-media-mobile', { path, contentType: 'image/png' });
   } finally {
     await mobile.context.close();
   }
@@ -189,8 +189,8 @@ async function openIdentity(
   const context = await browser.newContext({ viewport });
   await context.addInitScript(controlledBrowserInit);
   await context.addInitScript(({ accessToken, userIdentity }) => {
-    window.__IVEKIT_DEV_ACCESS_TOKEN__ = accessToken;
-    window.__IVEKIT_DEV_IDENTITY__ = userIdentity;
+    window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = accessToken;
+    window.__CONVERACT_FABRIC_DEV_IDENTITY__ = userIdentity;
   }, { accessToken: token, userIdentity: identity });
   const page = await context.newPage();
   await page.route('**/converact-config.json', (route) => route.fulfill({
@@ -217,7 +217,7 @@ function controlledBrowserInit() {
       this.rooms.at(-1)?.emit('disconnected', 9);
     }
   };
-  (window as unknown as { __IVEKIT_CONTROLLED_MEDIA__: typeof control }).__IVEKIT_CONTROLLED_MEDIA__ = control;
+  (window as unknown as { __CONVERACT_FABRIC_CONTROLLED_MEDIA__: typeof control }).__CONVERACT_FABRIC_CONTROLLED_MEDIA__ = control;
 
   const mediaDeviceListeners = new Set<() => void>();
   const fakeMediaDevices = {
@@ -244,7 +244,7 @@ function controlledBrowserInit() {
     value: async function setSinkId(deviceId: string) { (this as HTMLMediaElement & { sinkId?: string }).sinkId = deviceId; }
   });
 
-  (window as unknown as { __IVEKIT_DEV_LIVEKIT_ROOM_FACTORY__: () => unknown }).__IVEKIT_DEV_LIVEKIT_ROOM_FACTORY__ = () => {
+  (window as unknown as { __CONVERACT_FABRIC_DEV_LIVEKIT_ROOM_FACTORY__: () => unknown }).__CONVERACT_FABRIC_DEV_LIVEKIT_ROOM_FACTORY__ = () => {
     const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
     let identity = '';
     const emit = (event: string, ...args: unknown[]) => {
@@ -320,7 +320,7 @@ async function rect(page: Page, selector: string) {
 
 async function controlledBrowserState(page: Page, key: 'switchedDevices') {
   return page.evaluate((field) => {
-    const state = (window as unknown as { __IVEKIT_CONTROLLED_MEDIA__: Record<string, unknown> }).__IVEKIT_CONTROLLED_MEDIA__;
+    const state = (window as unknown as { __CONVERACT_FABRIC_CONTROLLED_MEDIA__: Record<string, unknown> }).__CONVERACT_FABRIC_CONTROLLED_MEDIA__;
     return state[field];
   }, key);
 }
@@ -350,8 +350,8 @@ async function captureMediaDesktop(page: Page, testInfo: TestInfo) {
   expect(layout.stageText).toBeGreaterThan(40);
   expect(layout.toolbarBottom).toBeLessThanOrEqual(layout.height);
   expect(layout.tileCount).toBeGreaterThanOrEqual(2);
-  const path = testInfo.outputPath('ivekit-media-desktop.png');
+  const path = testInfo.outputPath('converact-media-desktop.png');
   mkdirSync(testInfo.outputDir, { recursive: true });
   await page.screenshot({ path, fullPage: true });
-  await testInfo.attach('ivekit-media-desktop', { path, contentType: 'image/png' });
+  await testInfo.attach('converact-media-desktop', { path, contentType: 'image/png' });
 }

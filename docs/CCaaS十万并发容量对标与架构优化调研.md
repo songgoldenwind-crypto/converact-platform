@@ -1,10 +1,10 @@
-# CCaaS 十万并发容量对标与 iveKit 架构优化调研
+# CCaaS 十万并发容量对标与 Converact Fabric 架构优化调研
 
 > 日期：2026-07-16
 > 状态：架构评审有条件通过，实施前设计合同已补齐；所有容量仍为 target/not_run
 > 目标：优先榨取单节点 safe capacity、保持新增节点/Cell 的边际容量近似恒定，并证明一套统一平台可横向扩展到 100,000 并发通信
-> 范围：iveKit 共用通信底座，包括 RustPBX/SIP/IVR、LiveKit 音视频与屏幕共享、Tinode IM、RustDesk 远程协助、iveKit API/事件/数据/异步 Provider 任务
-> 不在本文范围：LED 业务领域、OPC 上层业务、移动端功能、具体商业授权、尚未选定的 OCR/ASR/翻译供应商效果
+> 范围：Converact Fabric 共用通信底座，包括 RustPBX/SIP/IVR、LiveKit 音视频与屏幕共享、Tinode IM、RustDesk 远程协助、Converact Fabric API/事件/数据/异步 Provider 任务
+> 不在本文范围：LED 业务领域、Converact Platform 上层业务、移动端功能、具体商业授权、尚未选定的 OCR/ASR/翻译供应商效果
 
 > 评审更新：本方案已经完成架构评审并获得“有条件通过”。`MIX-100K` 互斥计数、第三仲裁故障域、Cell/data-shard 解耦、录制策略、开源 fork 权限、单节点密度与边际扩展合同以 `docs/MIX-100K双Zone与Cell架构评审.md` 和 `docs/capacity/` 为准。
 
@@ -18,8 +18,8 @@
 2. **Genesys Cloud、Five9、Zoom Contact Center 没有公开可验证的单媒体节点容量。** 它们公开的是自动扩缩容机制、区域/可用区架构、租户案例或整个平台规模。把这些数字直接写成“单 Cell”或“单节点”容量属于推测。
 3. **当前可核实的企业级单节点参考主要来自 Avaya 和开源项目自身基准。** Avaya Aura Media Server 的硬上限为 4,000 media sessions；Avaya 高容量 SBC 可到 20,000 encrypted sessions，但转码仅 1,000 sessions，而且各项最大值不能叠加使用。RustPBX 当前官方 README 的 2026-04 基准在 16 核、本机回环、G.711 条件下实测到 800 个 RTP 代理呼叫，峰值 CPU 约 155%；README 另行估算 5,000 个 RTP 呼叫约消耗 958% CPU，但这只是模型外推，不是 5,000 实测，更不是生产网络、SRTP、完整录音和故障场景的证明。
 4. **“单节点强”和“横向边际不显著衰减”优先于 100K 总数。** 同时记录 hard capacity 与保留 headroom/故障余量后的 safe capacity；每新增一个同构节点或 Cell，都必须贡献接近首节点/首 Cell 的容量。100K 是扩展曲线的端点验证，不是现实部署的默认预分配规模。Zoom 官方架构明确说明每个 SIP Zone 正常运行时力求不超过 50% 容量，用另一 Zone 吸收故障流量。
-5. **当前 iveKit 功能底座具备横向扩展的必要前提，但还不是 10 万并发架构。** 无状态 API、PostgreSQL durable job、lease/fencing、幂等事件、Redis 多实例广播、外置 Provider 和独立 SDK 都可以保留。当前 bundled PostgreSQL/Redis/NATS/LiveKit/Tinode 单副本、RustPBX 普通 Kubernetes Service 暴露 SIP/RTP、同步 HTTP Router 热路径和较小 RTP 端口范围必须调整。
-6. **推荐采用“统一平台 + Region + Cell”的架构。** 全局/区域控制面只负责租户、配置、目录和调度；每个 Cell 独立承载实时热路径。租户或会话稳定归属一个 Cell，新的 Cell 可以在线加入。Cell 内分别扩展 SIP Edge、RustPBX、LiveKit、Tinode、RustDesk Relay、iveKit API/WS 和 worker。
+5. **当前 Converact Fabric 功能底座具备横向扩展的必要前提，但还不是 10 万并发架构。** 无状态 API、PostgreSQL durable job、lease/fencing、幂等事件、Redis 多实例广播、外置 Provider 和独立 SDK 都可以保留。当前 bundled PostgreSQL/Redis/NATS/LiveKit/Tinode 单副本、RustPBX 普通 Kubernetes Service 暴露 SIP/RTP、同步 HTTP Router 热路径和较小 RTP 端口范围必须调整。
+6. **推荐采用“统一平台 + Region + Cell”的架构。** 全局/区域控制面只负责租户、配置、目录和调度；每个 Cell 独立承载实时热路径。租户或会话稳定归属一个 Cell，新的 Cell 可以在线加入。Cell 内分别扩展 SIP Edge、RustPBX、LiveKit、Tinode、RustDesk Relay、Converact Fabric API/WS 和 worker。
 7. **不建议现在直接投入 DPDK 或自研内核旁路。** 先验证 RustPBX 原生 RTP 数据面。建议把 Kamailio 作为 SIP Edge 引入，但继续让 RustPBX负责 B2BUA、IVR、ACD 和媒体；如果完整生产负载下 RustPBX 达不到单节点目标，再对比引入 rtpengine 的收益。这样能避免为了理论密度提前增加一套复杂媒体栈。
 8. **100,000 纯语音呼叫和 100,000 混合通信是两个完全不同的工程目标。** 本文同时定义 `VOICE-100K` 极限场景和 `MIX-100K` 产品场景。第一版商业级验收建议以 `MIX-100K` 为平台目标，同时对每个数据面做独立压力测试，防止总数达标但某一通道先失效。
 
@@ -67,7 +67,7 @@
 
 以下方式不算一套平台：
 
-- 部署十套互不相通的 iveKit，每套承载 10,000。
+- 部署十套互不相通的 Converact Fabric，每套承载 10,000。
 - 每个客户单独部署完整 PostgreSQL、Redis、Tinode、LiveKit 和 RustPBX 后汇总宣传。
 - 只统计空闲 WebSocket，不统计消息、媒体、数据库和故障余量。
 - 在 95% CPU 下短时达到 100,000，节点故障后立即过载。
@@ -500,7 +500,7 @@ OCR、ASR、翻译和 AI 质检不进入实时媒体 Capacity Unit，而使用�
 配套长连接和注册负载不重复计入上述 100,000 个通信 session，但必须在同一轮测试中同时存在：
 
 - 90,000 条 Tinode WebSocket 连接，来自 IM 用户的多设备登录。
-- 50,000 条 iveKit 事件 WebSocket 连接，订阅会话、审计、通知和状态事件。
+- 50,000 条 Converact Fabric 事件 WebSocket 连接，订阅会话、审计、通知和状态事件。
 - 25,000 个 WebPhone/SIP 注册 contact，其中至少 10,000 个使用 SIP over WebSocket。
 - 连接保活、presence、typing、delivery/read receipt 和断线重连均开启；不能只维持空闲 TCP 连接。
 
@@ -586,7 +586,7 @@ V0 不能用于宣传语音媒体容量；V1 不能替代 V2/V3。
 
 | 类型 | 建议规格 | 用途 |
 | --- | --- | --- |
-| S16 | 16 dedicated vCPU、32 GB、10/25GbE | Kamailio、Tinode、iveKit API/WS |
+| S16 | 16 dedicated vCPU、32 GB、10/25GbE | Kamailio、Tinode、Converact Fabric API/WS |
 | M32 | 32 dedicated high-clock vCPU、64 GB、25GbE | RustPBX、LiveKit、rtpengine 候选 |
 | D32 | 32 vCPU、128 GB、NVMe、25GbE | PostgreSQL、消息/事件数据节点 |
 | Gx | 按模型选择 GPU、足够 VRAM、25GbE | 自建 ASR/OCR/AI，不计入实时媒体节点 |
@@ -605,7 +605,7 @@ V0 不能用于宣传语音媒体容量；V1 不能替代 V2/V3。
 | LiveKit M32 A/V | 500 个 1:1 720p calls | 1,000；Stretch 2,000 | 多房间、simulcast、真实 NIC/TURN 子集 |
 | LiveKit M32 screen | 250 screen rooms | 500；Stretch 1,000 | 指定帧率、分辨率和变动率 |
 | RustDesk hbbr | 6 Gbps relay | 12.5 Gbps | 加密、双向吞吐、连接公平性 |
-| iveKit API S16 | 2,500 read RPS、500 mutation RPS | 5,000 / 1,000 RPS | RLS、审计、outbox、P99 和 DB pool wait |
+| Converact Fabric API S16 | 2,500 read RPS、500 mutation RPS | 5,000 / 1,000 RPS | RLS、审计、outbox、P99 和 DB pool wait |
 
 如果单节点未达到最低目标，先 profiling 和修复，不进入 100k 集群堆节点阶段。
 
@@ -695,36 +695,36 @@ NodesPerSurvivingZone = ceil(RequiredRelayGbps / SafeGbpsPerNode)
 | LiveKit A/V + screen | 20-32，取决于多房间基准和屏幕共享权重 |
 | Tinode | 4-8，取决于 25k/50k WS 基准 |
 | RustDesk hbbs/hbbr | 4-6，取决于 relay ratio 和高动态比例 |
-| iveKit API/WS + workers | 6-10，可在通用节点池分角色运行 |
+| Converact Fabric API/WS + workers | 6-10，可在通用节点池分角色运行 |
 | PostgreSQL/Redis/NATS/对象存储 | 6-12 个有状态节点或等价托管服务 |
 
-Pod 数不等于物理服务器数。SIP Edge、iveKit API、轻量 worker、hbbs 和低负载 Tinode 可以在有资源隔离的通用节点上装箱；RustPBX、LiveKit、重负载 hbbr 和数据库应使用独立或严格隔离的节点池。
+Pod 数不等于物理服务器数。SIP Edge、Converact Fabric API、轻量 worker、hbbs 和低负载 Tinode 可以在有资源隔离的通用节点上装箱；RustPBX、LiveKit、重负载 hbbr 和数据库应使用独立或严格隔离的节点池。
 
 本文不把该包络写成采购清单。真实采购量必须使用首轮单节点基准替换假设后重新计算。
 
 ---
 
-## 11. 当前 iveKit 架构审核
+## 11. 当前 Converact Fabric 架构审核
 
 ### 11.1 可以保留的能力
 
 | 能力 | 价值 |
 | --- | --- |
-| iveKit API 无本地业务状态 | API pod 可以横向扩展 |
+| Converact Fabric API 无本地业务状态 | API pod 可以横向扩展 |
 | PostgreSQL authoritative state | 可以做事务、RLS、分区、分片和重放 |
 | durable job + lease/fencing | worker 可多副本争抢并在崩溃后恢复 |
 | 幂等命令、event journal、Webhook replay | 支持至少一次投递和故障恢复 |
 | Redis 多实例 WS broadcast | 已具备基本跨 API 实例实时广播 |
-| LiveKit、Tinode、RustPBX、RustDesk adapter 边界 | 可以独立替换部署拓扑而不改 LED/OPC API |
+| LiveKit、Tinode、RustPBX、RustDesk adapter 边界 | 可以独立替换部署拓扑而不改 LED/Converact Platform API |
 | Provider route/quota/circuit breaker | OCR/ASR/翻译/AI 可以独立扩容和降级 |
 | HPA/PDB/topology 基础模板 | 可扩展为生产自定义指标调度 |
 | 独立 SDK/OpenAPI/事件/Webhook | 多项目共用边界已成立 |
 
 ### 11.2 当前阻塞 10 万目标的问题
 
-#### P0：RustPBX INVITE 热路径同步访问 iveKit 和 PostgreSQL（代码改造完成，真实基准 `not_run`）
+#### P0：RustPBX INVITE 热路径同步访问 Converact Fabric 和 PostgreSQL（代码改造完成，真实基准 `not_run`）
 
-上游 RustPBX `proxy.http_router` 对每个 INVITE 调用 iveKit；iveKit webhook 路径执行认证、tenant transaction、profile 查询和 route decision。3,000 CPS 时，这会把实时信令能力绑定到 Node API、PostgreSQL、连接池和网络尾延迟。
+上游 RustPBX `proxy.http_router` 对每个 INVITE 调用 Converact Fabric；Converact Fabric webhook 路径执行认证、tenant transaction、profile 查询和 route decision。3,000 CPS 时，这会把实时信令能力绑定到 Node API、PostgreSQL、连接池和网络尾延迟。
 
 当前候选实现已经改为：
 
@@ -733,7 +733,7 @@ Pod 数不等于物理服务器数。SIP Edge、iveKit API、轻量 worker、hbb
 - snapshot 使用独立 HMAC 签名、tenant/profile 身份、单调 sequence、source revision 和短 TTL，并通过原子 rename 发布。
 - RustPBX patch 在加载时校验签名与身份并原子换表；INVITE 热路径只做 E.164 解析、一次租户派生 HMAC 和内存 HashMap 查询，不同步访问 HTTP、Redis 或 PostgreSQL。
 - snapshot 只携带现有 `e164_hmac`，不含明文或密文号码；缺失、篡改或过期一律 fail closed。
-- 配置、审计和 CDR 仍异步写 iveKit。
+- 配置、审计和 CDR 仍异步写 Converact Fabric。
 - 动态业务决策使用有严格超时和静态 fallback 的独立 policy service，不成为所有呼叫默认路径。
 
 当前证据仅证明 TypeScript 契约、Compose/Kubernetes 接线、Rust patch apply 和静态检查。Rust 镜像编译、真实 PostgreSQL trigger、SIPp CPS 对比、Cell 故障和单机密度仍必须保持 `not_run`。
@@ -788,18 +788,18 @@ Pod 数不等于物理服务器数。SIP Edge、iveKit API、轻量 worker、hbb
 
 #### P1：API 和多类 worker 在同一 Deployment
 
-当前 iveKit chart 的 HPA 主要按 CPU，maxReplicas 默认 6；多个 durable worker 通过环境变量在同一应用进程中启用。高 OCR/ASR、附件、Webhook 或 retention backlog 可能与 API/WS 抢 CPU、连接池和事件循环。
+当前 Converact Fabric chart 的 HPA 主要按 CPU，maxReplicas 默认 6；多个 durable worker 通过环境变量在同一应用进程中启用。高 OCR/ASR、附件、Webhook 或 retention backlog 可能与 API/WS 抢 CPU、连接池和事件循环。
 
 应拆成独立 Deployment：
 
-- `ivekit-api`。
-- `ivekit-ws-gateway`。
-- `ivekit-realtime-projector`。
-- `ivekit-chat-worker`。
-- `ivekit-media-worker`。
-- `ivekit-provider-worker`。
-- `ivekit-notification-webhook-worker`。
-- `ivekit-retention-maintenance-worker`。
+- `converact-api`。
+- `converact-ws-gateway`。
+- `converact-realtime-projector`。
+- `converact-chat-worker`。
+- `converact-media-worker`。
+- `converact-provider-worker`。
+- `converact-notification-webhook-worker`。
+- `converact-retention-maintenance-worker`。
 
 每类 worker 按 queue age、claim rate 和 provider concurrency 扩容，不按 API CPU 扩容。
 
@@ -809,7 +809,7 @@ Pod 数不等于物理服务器数。SIP Edge、iveKit API、轻量 worker、hbb
 
 必须：
 
-- Tinode 数据库与 iveKit authority 数据库物理分离。
+- Tinode 数据库与 Converact Fabric authority 数据库物理分离。
 - RustPBX CDR/运行状态与配置 authority 分离写路径。
 - 高频表按 tenant hash + 时间 range 分区。
 - 使用 PgBouncer，限制每个进程池大小。
@@ -839,7 +839,7 @@ Pod 数不等于物理服务器数。SIP Edge、iveKit API、轻量 worker、hbb
 
 - `docs/design/revised-master-plan.md` 中“1000+ concurrent SIP 才考虑 Kamailio”的旧判断。
 - `docs/design/metrics-design.md` 中约 100 calls/node 的旧目标。
-- `docs/design/architecture-v3.md` 中简单 `RustPBX ×2`、`OPC ×3` 的非容量化拓扑。
+- `docs/design/architecture-v3.md` 中简单 `RustPBX ×2`、`Converact Platform ×3` 的非容量化拓扑。
 - 当前 Helm 的低资源 limit、CPU-only HPA 和 bundled 单点默认值。
 
 本节判断的主要本地证据位置：
@@ -848,10 +848,10 @@ Pod 数不等于物理服务器数。SIP Edge、iveKit API、轻量 worker、hbb
 | --- | --- |
 | bundled PostgreSQL/Redis/NATS/LiveKit/RustPBX 参数与 RTP 范围 | `infra/k8s/values.yaml` |
 | RustPBX Deployment、SIP/RTP Service 和 HTTP Router 配置 | `infra/k8s/templates/rustpbx-deployment.yaml` |
-| iveKit replica、HPA、worker 与 bundled Tinode 参数 | `services/ivekit-service/helm/ivekit/values.yaml` |
-| RustPBX route webhook 的认证、租户事务和 profile 查询 | `src/agent-runtime/ivekit/voice/http.ts` |
+| Converact Fabric replica、HPA、worker 与 bundled Tinode 参数 | `services/converact-service/helm/converact/values.yaml` |
+| RustPBX route webhook 的认证、租户事务和 profile 查询 | `src/agent-runtime/converact/voice/http.ts` |
 | 全局 Redis `ws:broadcast` 跨实例广播 | `src/ws.ts` |
-| API、WS、worker 的运行时装配 | `src/agent-runtime/ivekit/application.ts` |
+| API、WS、worker 的运行时装配 | `src/agent-runtime/converact/application.ts` |
 | 需要淘汰的旧容量结论 | `docs/design/revised-master-plan.md`、`docs/design/metrics-design.md`、`docs/design/architecture-v3.md` |
 
 ---
@@ -863,7 +863,7 @@ Pod 数不等于物理服务器数。SIP Edge、iveKit API、轻量 worker、hbb
 做法：
 
 - 保持 RustPBX 直接暴露 SIP/RTP。
-- 增加 RustPBX、OPC、LiveKit、Tinode replica。
+- 增加 RustPBX、Converact Platform、LiveKit、Tinode replica。
 - 继续使用一个区域 PostgreSQL 和 Redis。
 
 优点：改动最少。
@@ -871,7 +871,7 @@ Pod 数不等于物理服务器数。SIP Edge、iveKit API、轻量 worker、hbb
 缺点：
 
 - SIP/RTP affinity 不完整。
-- 未采用 iveKit patch queue 的上游 RustPBX 仍会把 HTTP Router/数据库放在热路径。
+- 未采用 Converact Fabric patch queue 的上游 RustPBX 仍会把 HTTP Router/数据库放在热路径。
 - 共享 PostgreSQL、Redis 广播和 API 会形成全局瓶颈。
 - 故障域过大，无法安全扩到 100k。
 
@@ -884,7 +884,7 @@ Pod 数不等于物理服务器数。SIP Edge、iveKit API、轻量 worker、hbb
 - 统一平台下建立 Region/Cell。
 - Kamailio 负责 SIP Edge、registrar、DoS、dialog affinity 和 RustPBX 分发。
 - RustPBX 保留 B2BUA、IVR、ACD、RWI 和原生媒体。
-- LiveKit、Tinode、RustDesk、iveKit API/WS 分别按自己的容量向量扩容。
+- LiveKit、Tinode、RustDesk、Converact Fabric API/WS 分别按自己的容量向量扩容。
 - Cell 内有局部 Redis/NATS subject 和 session directory。
 - PostgreSQL 按领域和 tenant/cell 分片，控制面不在实时媒体热路径。
 - 完成 benchmark 后再决定 RustPBX 原生 media 或 rtpengine。
@@ -923,7 +923,7 @@ Pod 数不等于物理服务器数。SIP Edge、iveKit API、轻量 worker、hbb
 
 ```mermaid
 flowchart TB
-  Client[LED / OPC / Third-party Clients]
+  Client[LED / Converact Platform / Third-party Clients]
   Global[Unified Platform Control Plane<br/>Tenant, Auth, Config, Directory, Billing Metadata]
   Geo[Geo DNS / Global Traffic Manager]
 
@@ -940,10 +940,10 @@ flowchart TB
       LkA[LiveKit SFU Pool]
       ImA[Tinode Shards]
       RdA[RustDesk hbbs/hbbr Pool]
-      ApiA[iveKit API + WS Shards]
+      ApiA[Converact Fabric API + WS Shards]
       WorkerA[Dedicated Worker Pools]
       BusA[Cell Redis + NATS Subjects]
-      DbA[iveKit PG Shard + Tinode PG Shard]
+      DbA[Converact Fabric PG Shard + Tinode PG Shard]
     end
 
     subgraph CellB[Cell B]
@@ -952,10 +952,10 @@ flowchart TB
       LkB[LiveKit SFU Pool]
       ImB[Tinode Shards]
       RdB[RustDesk hbbs/hbbr Pool]
-      ApiB[iveKit API + WS Shards]
+      ApiB[Converact Fabric API + WS Shards]
       WorkerB[Dedicated Worker Pools]
       BusB[Cell Redis + NATS Subjects]
-      DbB[iveKit PG Shard + Tinode PG Shard]
+      DbB[Converact Fabric PG Shard + Tinode PG Shard]
     end
   end
 
@@ -1017,9 +1017,9 @@ RustPBX 负责：
 
 - Tinode external cluster。
 - WebSocket ingress 按 user/topic shard 路由。
-- Tinode PG 与 iveKit PG 分离。
+- Tinode PG 与 Converact Fabric PG 分离。
 - 附件直接上传对象存储，Tinode 只传 metadata。
-- iveKit mirror/审计通过 durable event/outbox 异步收敛，不阻塞 Tinode server ACK。
+- Converact Fabric mirror/审计通过 durable event/outbox 异步收敛，不阻塞 Tinode server ACK。
 - 热 topic 单独测 fanout，并设置 topic-level rate/admission。
 
 ### 13.5 实时事件平面
@@ -1042,7 +1042,7 @@ Redis 用于 presence、短期路由、rate limit 和 LiveKit 协调；NATS 用�
 
 - PostgreSQL HA。
 - PgBouncer transaction pooling。
-- Tinode 和 iveKit 分库。
+- Tinode 和 Converact Fabric 分库。
 - 高频表时间分区。
 
 10 万阶段：
@@ -1086,7 +1086,7 @@ Redis 用于 presence、短期路由、rate limit 和 LiveKit 协调；NATS 用�
 | RustPBX | active calls、RTP PPS、NIC、SRTP CPU、transcode slots、recording slots |
 | LiveKit | rooms、participants、published/subscribed tracks、PPS、ingress/egress、sysload |
 | Tinode | WS connections、msg/s、fanout/s、heap、GC、DB commit latency |
-| iveKit API | RPS、event-loop lag、P99、DB pool wait、WS connections |
+| Converact Fabric API | RPS、event-loop lag、P99、DB pool wait、WS connections |
 | workers | oldest job age、ready jobs、claim rate、provider concurrency、failure rate |
 | RustDesk hbbr | active relay streams、ingress/egress Gbps、per-session fairness |
 
@@ -1118,7 +1118,7 @@ Redis 用于 presence、短期路由、rate limit 和 LiveKit 协调；NATS 用�
 | RustPBX RTP | 上游 sipbot/bench 扩展 + 跨主机 RTP generator |
 | LiveKit | 官方 `lk load-test` + 多房间 orchestrator |
 | Tinode | 官方 Tsung/Gatling loadtest 扩展 + 自建多设备/群组模型 |
-| iveKit API/WS | k6/自建 Node WS generator，绑定真实 JWT/RLS/outbox |
+| Converact Fabric API/WS | k6/自建 Node WS generator，绑定真实 JWT/RLS/outbox |
 | RustDesk | Windows/Linux synthetic clients + forced relay + 真实画面素材 |
 | 故障 | Kubernetes node drain、pod kill、网络延迟/丢包、Redis/PG failover |
 | 数据 | PostgreSQL `pg_stat_statements`、WAL、lock、replication lag、pool wait |
@@ -1204,7 +1204,7 @@ multi-Cell: 25k -> 50k -> 100k mixed
 - LiveKit SFU/TURN/Egress 多小房间与 track density。
 - Tinode WS/topic/fanout/persistence density。
 - RustDesk rendezvous/relay/direct/forced-relay density。
-- iveKit Edge/WS/event 与 shared data service density。
+- Converact Fabric Edge/WS/event 与 shared data service density。
 - 16/32/64-core vertical efficiency 和 1/2/4/8 node curve。
 
 完成标准：所有容量关键角色有 `C_hard/C_safe`、单位资源密度、component marginal >=90%，无未解释的 dominant software bottleneck。
@@ -1222,7 +1222,7 @@ multi-Cell: 25k -> 50k -> 100k mixed
 ### Goal 4：数据与事件生产化
 
 - external HA PostgreSQL、Redis、NATS、对象存储。
-- Tinode/iveKit 分库。
+- Tinode/Converact Fabric 分库。
 - outbox -> NATS -> projector/WS/Webhook。
 - tenant/time partition 和 shard routing。
 - 消除全局 Pub/Sub 广播放大。
@@ -1259,7 +1259,7 @@ multi-Cell: 25k -> 50k -> 100k mixed
 - PostgreSQL：继续作为业务 authority，但必须分库、分区和分片。
 - Redis：继续做实时协调、presence、cache 和 rate limit。
 - NATS JetStream：建议正式承担跨服务事件分发，不替代 PostgreSQL authority。
-- iveKit：继续作为对 LED/OPC 暴露统一 API/SDK/事件的控制与治理层。
+- Converact Fabric：继续作为对 LED/Converact Platform 暴露统一 API/SDK/事件的控制与治理层。
 
 需要重构的是**部署和热路径**，不是重写所有功能。
 
@@ -1273,7 +1273,7 @@ multi-Cell: 25k -> 50k -> 100k mixed
 
 第一阶段可表述为：
 
-> iveKit 建设一套统一、多租户、Cell 化的通信平台，目标在标准化 `MIX-100K` 负载下支持 100,000 并发通信，并在节点故障、可用区故障和 24 小时长稳条件下保持约定 SLO；单节点容量、集群线性度和每 1,000 并发成本均由可重复证据验证。
+> Converact Fabric 建设一套统一、多租户、Cell 化的通信平台，目标在标准化 `MIX-100K` 负载下支持 100,000 并发通信，并在节点故障、可用区故障和 24 小时长稳条件下保持约定 SLO；单节点容量、集群线性度和每 1,000 并发成本均由可重复证据验证。
 
 不能在完成真实 benchmark 前表述为：
 

@@ -1,26 +1,26 @@
 import { Circle, Download, Play, Search, Square } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
-  IveKitHttpSdk,
-  IveKitMediaCall,
-  IveKitMediaCallRole,
-  IveKitMediaRecording,
-  IveKitMediaRecordingObjectInspection
+  ConveractFabricHttpSdk,
+  ConveractFabricMediaCall,
+  ConveractFabricMediaCallRole,
+  ConveractFabricMediaRecording,
+  ConveractFabricMediaRecordingObjectInspection
 } from '@converact/sdk';
 import { isTerminalStatus } from './media-reducer.js';
 
-const activeStatuses = new Set<IveKitMediaRecording['status']>(['starting', 'pending', 'recording', 'stopping']);
+const activeStatuses = new Set<ConveractFabricMediaRecording['status']>(['starting', 'pending', 'recording', 'stopping']);
 
 export function RecordingPanel(props: {
-  client: IveKitHttpSdk;
-  call: IveKitMediaCall;
-  role: IveKitMediaCallRole;
+  client: ConveractFabricHttpSdk;
+  call: ConveractFabricMediaCall;
+  role: ConveractFabricMediaCallRole;
   pollMs?: number;
   invalidationKey?: number;
 }) {
-  const [recordings, setRecordings] = useState<IveKitMediaRecording[]>([]);
+  const [recordings, setRecordings] = useState<ConveractFabricMediaRecording[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [inspections, setInspections] = useState<Record<string, IveKitMediaRecordingObjectInspection>>({});
+  const [inspections, setInspections] = useState<Record<string, ConveractFabricMediaRecordingObjectInspection>>({});
   const [playback, setPlayback] = useState<{ url: string; contentType: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [authorized, setAuthorized] = useState(true);
@@ -88,14 +88,14 @@ export function RecordingPanel(props: {
     business_ref: props.call.business_ref,
     has_video: props.call.media === 'video'
   }));
-  const stop = (recording: IveKitMediaRecording) => run(() => props.client.media.stopRecording(recording.egress_id));
-  const inspect = async (recording: IveKitMediaRecording) => {
+  const stop = (recording: ConveractFabricMediaRecording) => run(() => props.client.media.stopRecording(recording.egress_id));
+  const inspect = async (recording: ConveractFabricMediaRecording) => {
     try {
       const result = await props.client.media.inspectRecordingObject(recording.id);
       setInspections((current) => ({ ...current, [recording.id]: result }));
     } catch (cause) { setError(errorMessage(cause)); }
   };
-  const fetchObject = async (recording: IveKitMediaRecording, play: boolean) => {
+  const fetchObject = async (recording: ConveractFabricMediaRecording, play: boolean) => {
     try {
       const file = await props.client.media.exportRecordingObject(recording.id);
       if (play && !canPlayMedia(file.contentType)) {
@@ -140,11 +140,11 @@ export function RecordingPanel(props: {
   </section>;
 }
 
-function dedupe(items: IveKitMediaRecording[]): IveKitMediaRecording[] {
+function dedupe(items: ConveractFabricMediaRecording[]): ConveractFabricMediaRecording[] {
   return [...new Map(items.map((item) => [item.id, item])).values()];
 }
 function statusLabel(status: string): string { return status.replace(/^./, (value) => value.toUpperCase()); }
-function durationLabel(recording: IveKitMediaRecording, now: number): string {
+function durationLabel(recording: ConveractFabricMediaRecording, now: number): string {
   if (recording.duration_ms != null) return formatDuration(recording.duration_ms);
   if (!activeStatuses.has(recording.status)) return 'Duration unavailable';
   const startedAt = Date.parse(recording.created_at);

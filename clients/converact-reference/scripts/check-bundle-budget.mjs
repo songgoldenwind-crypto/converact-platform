@@ -38,4 +38,4 @@ if (/livekit-vendor|tinode\.|media-workspace|voice-workspace|sip-phone-panel|wif
   throw new Error('initial HTML must not preload provider or non-default workspace chunks');
 }
 
-process.stdout.write(`iveKit bundle budget passed (${files.length} JavaScript chunks)\n`);
+process.stdout.write(`Converact Fabric bundle budget passed (${files.length} JavaScript chunks)\n`);

@@ -1,180 +1,91 @@
-# OPC 设计文档区 — 导航与治理
+# Converact 设计文档导航与权威顺序
 
-> 本文件是 `docs/design/` 的导航与治理入口。新增/修改本目录任意 `.md` 前，先读本文件。
-> **快照日期**：2026-07-31（Revision 5 统一通信、HF Speech Runtime、AI-native 与 ViLTE AV Gateway 已冻结为目标架构）
+> 快照日期：2026-07-31。本文只导航当前 Converact 仓库中已经迁入并裁决的 canonical
+> 评审资产；来源路径和逐文件 SHA-256 见架构来源账本。
 
----
+当前产品层次固定为 `Converact Platform → Converact Fabric / Converact Engage /
+Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓库的 canonical
+文件；旧桌面目录只作为来源账本中的历史快照，不再是第二份文档权威。
 
-## 1. 文档清单与角色
+## 1. Canonical authority
 
-| 文档 | 行数 | 版本 | 日期 | 角色 | 状态 |
-|------|------|------|------|------|------|
-| [super-contact-center-platform-vision.md](./super-contact-center-platform-vision.md) | ~1817 | 1.4 | 2026-07-29 | 战略北极星 + 四 Phase 路线图 + 九大模块 + §5 架构图 | 活跃 |
-| [architecture-v3.md](./architecture-v3.md) | ~1451 | v3.1 | 2026-06-29 | 实现级架构规格（Sprint 1-12）；正文已标 `【现状】`/`【目标态】` | 活跃 |
-| [product-design.md](./product-design.md) | ~1146 | v2.2 | 2026-06-29 | 产品设计：角色/矩阵/用户故事/MVP/定价（CCaaS） | 活跃 |
-| [revised-master-plan.md](./revised-master-plan.md) | ~990 | v3.1 | 2026-06-29 | 110 功能对标 + Sprint 1-12；禁用词已标注 | 活跃 |
-| [security-design.md](./security-design.md) | ~830 | 1.2 | 2026-06-29 | 威胁模型/隔离/认证/合规；Kong/Keycloak 已标 `【已废】` | 活跃 |
-| [metrics-design.md](./metrics-design.md) | ~520 | 1.1 | 2026-06-29 | KPI/SLI/SLO/告警；ClickHouse 已标延后 | 活跃 |
-| [gap-analysis.md](./gap-analysis.md) | ~280 | — | 2026-06-29 | 代码 vs 计划 gap + 2026-06-29 校准段 | 活跃 |
-| [voice-module-extraction-memo.md](./voice-module-extraction-memo.md) | ~120 | — | 2026-06-29 | `@opc/voice` 抽包备忘（14 表） | 未实施 |
-| [ivr-video-datachannel-protocol.md](./ivr-video-datachannel-protocol.md) | 76 | VC-3 | 2026-06-25 | IVR 视频 / DataChannel 事件协议 | Draft（明确标注待确认项） |
-| [communication-foundation-production-completion.md](./communication-foundation-production-completion.md) | — | 执行基线 | 2026-07-21 | IM/SIP/视频集群完备性与后续 Goals | 活跃、覆盖早期 MVP 裁决 |
-| [kamailio-sip-edge-design.md](./kamailio-sip-edge-design.md) | — | 执行设计 | 2026-07-21 | Kamailio/RustPBX Cell/Zone 路由与故障语义 | 活跃 |
-| [quic-video-transport-assessment.md](./quic-video-transport-assessment.md) | — | 技术裁决 | 2026-07-21 | QUIC/RoQ、LiveKit 与传输竞争治理 | 活跃、RoQ 仅实验 |
-| [unified-communication-foundation-r5.md](./unified-communication-foundation-r5.md) | — | Revision 5 | 2026-07-31 | 当前统一入口：R4 通信底座 + fault domains + HF/Agent + LiveKit/ViLTE AV + AI-native | Accepted target；runtime/production `not_run` |
-| [2026-07-31-unified-communication-foundation-r5-implementation-plan.md](./2026-07-31-unified-communication-foundation-r5-implementation-plan.md) | — | v1 | 2026-07-31 | R5 TDD、故障域、Speech/Agent、AV Gateway 与 mixed-cell 实施计划 | R4 已进入实现；R5 delta 暂停待确认 |
-| [communication-foundation-vos5000-parity-performance-plan.md](./communication-foundation-vos5000-parity-performance-plan.md) | — | Revision 4 | 2026-07-30 | R4 VOS5000 对标、历史 Goal 0-11、100K 性能与通信底座详细入口 | Accepted；由 R5 完整继承 |
-| [rvoip-opc-communication-foundation-integration-design.md](./rvoip-opc-communication-foundation-integration-design.md) | — | Revision 4 | 2026-07-30 | R4 RustPBX 产品主干、rvoip 低层吸收、Media Edge/Binding Group/Wire Bundle 与 Backend 资格设计 | Accepted；由 R5 完整继承 |
-| [2026-07-28-ivekit-media-processing-goal4-implementation-plan.md](./2026-07-28-ivekit-media-processing-goal4-implementation-plan.md) | — | Revision 3 | 2026-07-29 | Goal 4 codec/IVR/G.729、进程内 `voice-media-rs` 与 co-resident 验收计划 | 活跃、真实容量 `not_run` |
+| 顺序 | 文档 | 决定什么 | 当前状态 |
+| --- | --- | --- | --- |
+| 1 | [平台范围 R2](./2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md) | Converact 平台类别、Engagement/Profile/Offer/Option、跨产品 Gate | `accepted_scope_direction`；实现/市场/生产未因此通过 |
+| 2 | [ADR-CCAAS-11](../adr/ccaas-11-engagement-platform-and-resolution-profile.md) | Engagement 为平台核心、Resolution 为首个 Profile | `accepted` |
+| 3 | [统一通信底座 R5](./unified-communication-foundation-r5.md) | SIP、Call、媒体、LiveKit、Speech channel、ViLTE 接口和性能资格 | `accepted architecture / target`；未证明项 `not_run` |
+| 4 | [R5 TDD 实施计划](./2026-07-31-unified-communication-foundation-r5-implementation-plan.md) | R5 通信实现顺序、测试、故障和 Evidence | `planned` |
+| 5 | [Resolve Assist Profile R1](./2026-07-31-ai-native-multimodal-resolution-platform-r1.md) | 首个 `resolution` Profile、Offer、Pilot、B1、ROI 和 Stop Gate | `retained_vertical_profile / proposed_for_profile_review` |
 
-**上级文档**（不在本目录）：[../product-direction-2026-06.md](../product-direction-2026-06.md) — 产品方向总纲 v1.1（2026-06-29 CCaaS 校准）。
+权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
 
-### 1.1 历史兼容实施资产
+- 平台/产品上位语义：R2 + ADR-CCAAS-11；
+- 通信、媒体和性能：R5；
+- Resolve 售后垂直细节：R1，但必须使用 R2 的 Engagement 映射；
+- 实际执行顺序和状态：[Goal manifest](../../goals/manifest.json) 与单个 Goal；
+- 旧代码和旧设计事实：只能在 G00 追踪后吸收，不能恢复为平行 Authority。
 
-以下文档仍用于核对现有代码、精确上游身份和既有证据，但其中独立
-`media-control` agent/HTTP 拓扑已被
-`rvoip-rustpbx-unified-authority-r2` 取代，不能作为生产授权。Goal 2/3 文档新增的
-未勾选 Revision 3 target-delta 任务仍是现行实施输入，但历史已勾选证据不能替代它：
+## 2. 通信 R4 保留资产
 
-| 文档 | 可继续复用/现行目标增量 | 被 supersede 的生产语义 |
-| --- | --- | --- |
-| [2026-07-25-ivekit-voice-media-control-goal1-implementation-plan.md](./2026-07-25-ivekit-voice-media-control-goal1-implementation-plan.md) | 协议、防重、WAL、故障注入和诊断 harness | 独立 agent、HTTP 边界、call/leg 级写者权威 |
-| [2026-07-26-ivekit-rtpengine-goal2-implementation-plan.md](./2026-07-26-ivekit-rtpengine-goal2-implementation-plan.md) | RTPengine 精确源码、fork、构建、数据面和证据方法；Task 12 group lifecycle delta | 独立 media-control sidecar 是生产调用权威 |
-| [2026-07-26-ivekit-rustpbx-rtpengine-goal3-implementation-plan.md](./2026-07-26-ivekit-rustpbx-rtpengine-goal3-implementation-plan.md) | RustPBX/上游事实、SIP 场景；Task 13 Unified Facade/group cutover delta | `RustPBX -> HTTP agent -> RTPengine` 是生产拓扑 |
+R5 完整继承而未删除以下 R4 设计细节：
 
----
+- [RustPBX × rvoip 选择性融合设计](./rvoip-converact-communication-foundation-integration-design.md)
+- [VOS5000 对标与 100K 性能计划](./communication-foundation-vos5000-parity-performance-plan.md)
+- [ADR-CCAAS-5：Media Authority 与 RTPengine](../adr/ccaas-5-media-authority-and-rtpengine.md)
+- [ADR-CCAAS-7：RustPBX 与 rvoip 能力吸收](../adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md)
+- [ADR-CCAAS-8：Voice/SIP 与 LiveKit Handoff](../adr/ccaas-8-voice-livekit-bridge-handoff.md)
+- [R4 TDD 计划](../plans/2026-07-29-unified-voice-foundation-r4.md)
 
-## 2. 文档关系图（实测）
+R4 的 canonical 计划已经迁入 [docs/plans](../plans/2026-07-29-unified-voice-foundation-r4.md)；
+`docs/superpowers/` 仅作为历史来源目录存在，不再是当前工作流或权威入口。R2 迁移计划同样
+位于 [docs/plans](../plans/2026-07-31-platform-scope-engagement-domain-r2.md)，且不依赖任何
+特定 Agent 框架。
 
-当前通信与 AI 架构的 canonical 链：
+## 3. R5 新增边界资产
+
+- [ADR-CCAAS-9：Channel Agent 与 Speech Runtime](../adr/ccaas-9-channel-agent-and-speech-runtime.md)
+- [ADR-CCAAS-10：ViLTE 与 LiveKit AV Gateway](../adr/ccaas-10-vilte-livekit-av-participant-gateway.md)
+- [统一领域语言](../../CONTEXT.md)
+- [R5 machine contract](../capacity/contracts/unified-communication-foundation-r5-v1.json)
+- [R5 machine contract schema](../capacity/schemas/unified-communication-foundation-r5.schema.json)
+- [R5 traceability](../capacity/contracts/unified-communication-foundation-r5-traceability-v1.json)
+- [R5 traceability schema](../capacity/schemas/unified-communication-foundation-r5-traceability.schema.json)
+
+## 4. 文档关系
 
 ```mermaid
 flowchart TD
-  R5["Unified Communication Foundation R5"]
-  R5C["R5 machine contract + trace"]
-  R5P["R5 TDD plan"]
-  ADR9["ADR-9 Channel Agent + HF SpeechRuntime"]
-  ADR10["ADR-10 ViLTE AV Gateway"]
-  R4["R4 RustPBX × rvoip design"]
-  VOS["R4 VOS-EQ / 100K plan"]
-  ADR578["ADR-5 / ADR-7 / ADR-8"]
-  CTX["CONTEXT.md"]
-
-  R5 --> R5C
-  R5 --> R5P
-  R5 --> ADR9
-  R5 --> ADR10
-  R5 --> R4
-  R5 --> VOS
-  R4 --> ADR578
+  R2["Platform R2"] --> ADR11["ADR-11 Engagement + Resolution Profile"]
+  R2 --> R1["Resolve Assist Profile R1"]
+  R2 --> R5["Communication Foundation R5"]
+  R2 --> GOALS["G00-G17 + manifest"]
+  R5 --> R5C["R5 contracts + traceability"]
+  R5 --> R5P["R5 TDD plan"]
+  R5 --> ADR9["ADR-9 Speech/Channel Agent"]
+  R5 --> ADR10["ADR-10 ViLTE AV Gateway"]
+  R5 --> R4["R4 integration + VOS plans"]
+  R2 --> CTX["CONTEXT.md"]
   R5 --> CTX
 ```
 
-下方是产品/CCaaS 文档的历史互链审计。它继续用于旧产品路线，不覆盖上面的 R5 权威链：
+## 5. 状态与证据规则
 
-```mermaid
-flowchart LR
-  VISION["super-contact-center-platform-vision"]
-  ARCH["architecture-v3"]
-  PD["product-design"]
-  RMP["revised-master-plan"]
-  SEC["security-design"]
-  MET["metrics-design"]
-  GAP["gap-analysis"]
-  VMM["voice-module-extraction-memo"]
-  IVP["ivr-video-datachannel-protocol"]
-  PDIR["../product-direction-2026-06<br/>(上级)"]
+- `target/planned` 不是 `production_eligible`。
+- 厂商公开数据、mock、loopback 和 microbenchmark 不构成 Converact 生产 Evidence。
+- Platform、Profile、Capability 和 Deployment Option 各自签署 Gate；一种失败不改写另一种。
+- Overlay、Native、Bridge、Speech、ViLTE、普通媒体和解码媒体不能继承彼此容量结果。
+- 新增或修改文档必须更新本导航、Goal trace 和 manifest SHA-256；未证明项保持 `not_run`。
 
-  VISION <-->|互链| PDIR
-  SEC -->|唯一确切链| RMP
-  ARCH -->|Sprint 6-12 参考| RMP
-  GAP -.->|对照 v3| RMP
-  PDIR -->|§3.2/§5| VISION
+## 6. 历史文档边界
 
-  %% 以下虚线为审计建议补链（当前不存在）
-  PD -.->|应链| ARCH
-  MET -.->|应链| SEC
-  MET -.->|应链| ARCH
-  GAP -.->|应链| ARCH
-  VMM -.->|应链| PDIR
-  IVP -.->|应链| PDIR
-```
+项目根仓库中的旧 CCaaS vision、architecture-v3、product design、master plan、旧 AI-native
+和早期媒体计划没有复制到这个自包含包。它们是 G00 的 `superseded_reference`/现状审计
+输入，不是本目录的可点击 canonical 入口，也不得覆盖 R2/R5/R1 的权威分层。
 
-**实线** = 当前存在；**虚线** = 建议补链（同目录文档间孤岛是最大问题）。
-**建议**：每份文档头部加 `<关联文档>` block，与本文件 §1 清单互链。
+## 7. 变更记录
 
----
-
-## 3. 已移除/延后组件 — 全局禁用词汇表
-
-> 下列 5 个组件在各份文档中常被当作"在线控制项"写入正文，导致跨文档自相矛盾（详见审计报告矛盾 A）。
-> **强制规则**：在本目录任意文档中出现以下词时，**必须**按本表标注前缀；不得在未标注情况下出现在"现状/控制项"语境中。
-
-| 词 | 决策 | 当前形态 | 出现时必须标注 |
-|----|------|----------|----------------|
-| **Chatwoot** | 移除（architecture-v3 §附录 L1432：ChannelAdapter 自建替代） | 全渠道改 `omnichannel/` 自建 adapters | `【已废】` 前缀；除"历史/迁移说明"外不得列为交付物 |
-| **Kong** | 延后/替换（vision §5.5、security-design L20、gap-analysis L209） | OPC 自带 `src/middleware/auth.ts` | `【已废·目标态无】` 前缀；不得作为限流/WAF 控制项写入"现状" |
-| **Keycloak** | 替换（architecture-v3 L1428、security-design L21） | 自签 JWT + bcrypt（`src/middleware/auth.ts`） | `【已废·替换为自签 JWT】` 前缀；不得把 Token/密码存储写入"Keycloak DB" |
-| **Kamailio** | **已重新启用**（2026-07-21 MIX-100K/Cell 生产裁决） | Kamailio SIP Edge + RustPBX B2BUA 节点池；本地签名快照、容量加权、dialog pin、drain/failover | 现行生产设计无需“延后”前缀；旧文档中的 `【延后·v2.0+】` 只可保留为 1000 路以内 MVP 历史记录 |
-| **ClickHouse** | 延后（vision L835「PG 物化视图够用前期」） | PostgreSQL 物化视图 | `【延后·Phase 4+ 评估】` 前缀；不得作为当前 Dashboard/追踪数据源 |
-
-**2026-06-29 文档治理批次**的历史修改仍保留。2026-07-21 起，Kamailio 的生产权威以
-`communication-foundation-production-completion.md` 和 `kamailio-sip-edge-design.md` 为准；
-其余组件继续按上表前缀治理。若再发现把 Kamailio 当作当前“延后”的文字，必须标明那是早期
-MVP 历史裁决，不得覆盖现行 Cell 架构。
-
----
-
-## 4. 现状 vs 目标态标记规范
-
-为消除"一份文档把目标态写成现状"的普遍问题：
-
-1. **现状断言**（`✅/已完成/存在/缺失/有` 等）必须附 `核查日期=YYYY-MM-DD`，并以实际 `ls`/`grep`/`git log` 为据。
-   例：`src/ws.ts 已存在（核查日期=2026-06-29）`
-2. **目标态**项必须前缀 `【目标态】`，禁止与现状断言混排。
-3. **移除/延后**项必须按 §3 表前缀标注，禁止裸出现。
-4. **快照**：任何"现状校准"章节必须显式标注快照日期；隐式日期（藏在表头）不算。
-
----
-
-## 5. 时间轴双轨（Sprint vs Phase）
-
-当前两条不可通约的时间箱并存，需在引用时显式注明轨道：
-
-| 轨道 | 来源 | 起点 | 单位 | 适用 |
-|------|------|------|------|------|
-| **Sprint** | `revised-master-plan.md` §11 | 2026-06-22 | 12 个 sprint | 实施级功能排期 |
-| **Phase** | `vision.md` §6 / `product-direction` §8 | Phase 0=2026-03 | Phase 0–4 / 0–6 | 战略级阶段目标 |
-
-引用任一时间点时注明轨道，例：`「Phase 1 可演示」/「Sprint 4 呼入 ACD」`。`revised-master-plan` 与 `product-direction` 之间应建对照表（待补，不在本次范围）。
-
----
-
-## 6. 文档演进检查清单
-
-每次改 `docs/design/` 任意 `.md`，机械跑以下 5 项：
-
-- [ ] 头部是否含 `<关联文档>` block 并与本文件 §1 互链
-- [ ] §3 禁用词未裸出现（含 `【已废】`/`【目标态】`/`【延后】` 标注）
-- [ ] 现状断言附 `核查日期=YYYY-MM-DD`
-- [ ] 时间点注明轨道（Sprint / Phase）
-- [ ] 文档末尾变更日志登记本次改动（version / date / author / 变更）
-
-`vision.md` §附录 D 已有类似清单，本文件将其标准化到全目录。
-
----
-
-## 7. 本次审计核心结论（速查）
-
-- **跨文档互链**：§2 已新增 Revision 5 canonical 实线链；下方产品/CCaaS 历史图的虚线仍作为旧文档治理 backlog。
-- **已废组件**：§3 五词已在正文中标注；勿回退为裸词。
-- **时间轴双轨**：见 §5；Sprint↔Phase 对照表仍待补。
-- **与代码对照**：以各文档「现状校准（核查日期=2026-06-29）」为准；SQLite 主库、SSE 等 gap 仍 open。
-
----
-
-## 8. 变更记录
-
-| 日期 | Revision | 作者 | 变更 |
-| --- | --- | --- | --- |
-| 2026-07-31 | R5 navigation | OPC/Codex | 新增统一通信 R5、Agent/HF、ViLTE AV、机器合同与实施计划入口；修正 R4 主设计版本登记 |
+| 日期 | Revision | 变更 |
+| --- | --- | --- |
+| 2026-07-31 | R5 navigation | 增加通信 R5、Agent/HF、ViLTE 和 R4 继承入口 |
+| 2026-07-31 | R2 navigation | 将 Converact 上位范围改为 Communications & Execution Platform；Resolve 保留为首个 Profile |
+| 2026-07-31 | R2.1 navigation | 删除本自包含包中不存在的旧文档假链接；明确新计划不使用历史 Agent 框架路径 |

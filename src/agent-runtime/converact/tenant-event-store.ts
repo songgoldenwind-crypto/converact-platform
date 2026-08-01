@@ -5,9 +5,9 @@ import type { PgQueryable } from '../../db-pg.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import type { AuthRole } from '../../middleware/auth.js';
 
-export type IveKitEventVisibilityScope = 'tenant' | 'chat_session' | 'media_call' | 'remote_session';
+export type ConveractFabricEventVisibilityScope = 'tenant' | 'chat_session' | 'media_call' | 'remote_session';
 
-export interface IveKitTenantEvent {
+export interface ConveractFabricTenantEvent {
   event_id: string;
   cursor: string;
   tenant_id: string;
@@ -15,20 +15,20 @@ export interface IveKitTenantEvent {
   data: unknown;
   timestamp: string;
   expires_at: string;
-  visibility_scope: IveKitEventVisibilityScope;
+  visibility_scope: ConveractFabricEventVisibilityScope;
   visibility_ref_id: string;
   audience_user_ids: string[];
 }
 
-export interface IveKitTenantEventPage {
-  items: IveKitTenantEvent[];
+export interface ConveractFabricTenantEventPage {
+  items: ConveractFabricTenantEvent[];
   next_cursor: string;
   has_more: boolean;
   snapshot_required: boolean;
   reason?: 'invalid_cursor' | 'cursor_tenant_mismatch' | 'cursor_expired';
 }
 
-export interface IveKitTenantEventStoreOptions {
+export interface ConveractFabricTenantEventStoreOptions {
   cursor_secret?: string;
   retention_ms?: number;
   max_payload_bytes?: number;
@@ -36,12 +36,12 @@ export interface IveKitTenantEventStoreOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-export interface IveKitTenantEventRetentionSummary {
+export interface ConveractFabricTenantEventRetentionSummary {
   tenants: number;
   deleted: number;
 }
 
-export interface IveKitTenantEventAppendInput {
+export interface ConveractFabricTenantEventAppendInput {
   tenant_id: string;
   type: string;
   data: unknown;
@@ -60,7 +60,7 @@ interface EventRow extends Record<string, unknown> {
   id: string | number | bigint;
   tenant_id: string;
   event_type: string;
-  visibility_scope: IveKitEventVisibilityScope;
+  visibility_scope: ConveractFabricEventVisibilityScope;
   visibility_ref_id: string;
   audience_user_ids: string[];
   payload: unknown;
@@ -74,14 +74,14 @@ const DEFAULT_MAX_PAYLOAD_BYTES = 64 * 1_024;
 const MAX_AUDIENCE_USERS = 200;
 const MAX_SCAN_EVENTS = 2_000;
 
-export class IveKitTenantEventJournal {
+export class ConveractFabricTenantEventJournal {
   private readonly retentionMs: number;
   private readonly maxPayloadBytes: number;
   private readonly now: () => Date;
 
   constructor(
     private readonly pg: PgQueryable,
-    options: Omit<IveKitTenantEventStoreOptions, 'cursor_secret'> = {}
+    options: Omit<ConveractFabricTenantEventStoreOptions, 'cursor_secret'> = {}
   ) {
     const env = options.env || process.env;
     this.retentionMs = positiveInteger(
@@ -101,7 +101,7 @@ export class IveKitTenantEventJournal {
     this.now = options.now || (() => new Date());
   }
 
-  async append(input: IveKitTenantEventAppendInput): Promise<void> {
+  async append(input: ConveractFabricTenantEventAppendInput): Promise<void> {
     await insertTenantEvent(this.pg, input, {
       retentionMs: this.retentionMs,
       maxPayloadBytes: this.maxPayloadBytes,
@@ -110,7 +110,7 @@ export class IveKitTenantEventJournal {
   }
 }
 
-export class IveKitTenantEventStore {
+export class ConveractFabricTenantEventStore {
   private readonly cursorSecret: string;
   private readonly retentionMs: number;
   private readonly maxPayloadBytes: number;
@@ -118,13 +118,13 @@ export class IveKitTenantEventStore {
 
   constructor(
     private readonly pg: PgQueryable,
-    options: IveKitTenantEventStoreOptions = {}
+    options: ConveractFabricTenantEventStoreOptions = {}
   ) {
     const env = options.env || process.env;
     this.cursorSecret = String(
       options.cursor_secret || resolveFabricEnv(env, 'EVENT_CURSOR_SECRET') || resolveBrandEnv(env, 'JWT_SECRET') || ''
     );
-    if (!this.cursorSecret) throw new Error('iveKit event cursor secret is required');
+    if (!this.cursorSecret) throw new Error('Converact Fabric event cursor secret is required');
     this.retentionMs = positiveInteger(
       options.retention_ms ?? envNumber(env, 'CONVERACT_FABRIC_EVENT_RETENTION_MS', DEFAULT_RETENTION_MS),
       DEFAULT_RETENTION_MS,
@@ -142,7 +142,7 @@ export class IveKitTenantEventStore {
     this.now = options.now || (() => new Date());
   }
 
-  async append(input: IveKitTenantEventAppendInput): Promise<IveKitTenantEvent> {
+  async append(input: ConveractFabricTenantEventAppendInput): Promise<ConveractFabricTenantEvent> {
     return this.decodeEvent(await insertTenantEvent(this.pg, input, {
       retentionMs: this.retentionMs,
       maxPayloadBytes: this.maxPayloadBytes,
@@ -167,7 +167,7 @@ export class IveKitTenantEventStore {
     role: AuthRole;
     cursor: string;
     limit?: number;
-  }): Promise<IveKitTenantEventPage> {
+  }): Promise<ConveractFabricTenantEventPage> {
     const tenantId = requiredText(input.tenant_id, 'tenant_id');
     const userId = requiredText(input.user_id, 'user_id');
     const cursor = this.decodeCursor(input.cursor, tenantId);
@@ -185,7 +185,7 @@ export class IveKitTenantEventStore {
       const limit = boundedInteger(input.limit, 50, 1, 200);
       const privileged = input.role === 'owner' || input.role === 'admin' || input.role === 'system';
       const now = this.now().toISOString();
-      const items: IveKitTenantEvent[] = [];
+      const items: ConveractFabricTenantEvent[] = [];
       let scannedId = cursor.event_id;
       let scanned = 0;
       let hasMore = false;
@@ -230,14 +230,14 @@ export class IveKitTenantEventStore {
   }
 
   async canView(
-    event: IveKitTenantEvent,
+    event: ConveractFabricTenantEvent,
     viewer: { user_id: string; role: AuthRole }
   ): Promise<boolean> {
     return (await this.canViewMany(event, [viewer]))[0] ?? false;
   }
 
   async canViewMany(
-    event: IveKitTenantEvent,
+    event: ConveractFabricTenantEvent,
     viewers: ReadonlyArray<{ user_id: string; role: AuthRole }>
   ): Promise<boolean[]> {
     if (viewers.length === 0) return [];
@@ -265,7 +265,7 @@ export class IveKitTenantEventStore {
     now?: Date;
     tenant_limit: number;
     batch_size: number;
-  }): Promise<IveKitTenantEventRetentionSummary> {
+  }): Promise<ConveractFabricTenantEventRetentionSummary> {
     const now = input.now || this.now();
     const tenantLimit = boundedInteger(input.tenant_limit, 100, 1, 1_000);
     const batchSize = boundedInteger(input.batch_size, 1_000, 1, 10_000);
@@ -313,7 +313,7 @@ export class IveKitTenantEventStore {
     return { tenants: tenants.rows.length, deleted };
   }
 
-  private decodeEvent(row: EventRow): IveKitTenantEvent {
+  private decodeEvent(row: EventRow): ConveractFabricTenantEvent {
     const eventId = String(row.id);
     return {
       event_id: eventId,
@@ -344,7 +344,7 @@ export class IveKitTenantEventStore {
   private decodeCursor(
     value: string,
     tenantId: string
-  ): EventCursorPayload | { reason: IveKitTenantEventPage['reason'] } {
+  ): EventCursorPayload | { reason: ConveractFabricTenantEventPage['reason'] } {
     const [body, signature, extra] = String(value || '').split('.');
     if (!body || !signature || extra) return { reason: 'invalid_cursor' };
     const expected = createHmac('sha256', this.cursorSecret).update(body).digest();
@@ -374,7 +374,7 @@ export class IveKitTenantEventStore {
   }
 }
 
-export function iveKitEventReplayEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+export function converactFabricEventReplayEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   const configured = String(resolveFabricEnv(env, 'EVENT_REPLAY_ENABLED') || '').trim();
   if (configured && configured !== '0' && configured !== '1') {
     throw new Error('CONVERACT_FABRIC_EVENT_REPLAY_ENABLED must be 0 or 1');
@@ -388,8 +388,8 @@ export function iveKitEventReplayEnabled(env: NodeJS.ProcessEnv = process.env): 
   return configured === '1' || (!configured && hasSecret);
 }
 
-export function inferIveKitEventVisibility(data: unknown): {
-  scope: IveKitEventVisibilityScope;
+export function inferConveractFabricEventVisibility(data: unknown): {
+  scope: ConveractFabricEventVisibilityScope;
   ref_id: string;
 } {
   const record = objectValue(data);
@@ -452,7 +452,7 @@ function visibleEventQuery(): string {
   LIMIT $6`;
 }
 
-function visibilityMembersQuery(scope: Exclude<IveKitEventVisibilityScope, 'tenant'>): string {
+function visibilityMembersQuery(scope: Exclude<ConveractFabricEventVisibilityScope, 'tenant'>): string {
   if (scope === 'chat_session') {
     return `SELECT DISTINCT participant.identity AS user_id
       FROM collaboration_participants participant
@@ -476,7 +476,7 @@ function visibilityMembersQuery(scope: Exclude<IveKitEventVisibilityScope, 'tena
 
 async function insertTenantEvent(
   pg: PgQueryable,
-  input: IveKitTenantEventAppendInput,
+  input: ConveractFabricTenantEventAppendInput,
   config: { retentionMs: number; maxPayloadBytes: number; now: () => Date }
 ): Promise<EventRow> {
   const tenantId = requiredText(input.tenant_id, 'tenant_id');
@@ -488,7 +488,7 @@ async function insertTenantEvent(
     throw Object.assign(new Error('tenant event payload exceeds configured size limit'), { status: 413 });
   }
   const audience = uniqueTexts(input.audience_user_ids || [], MAX_AUDIENCE_USERS);
-  const visibility = inferIveKitEventVisibility(data);
+  const visibility = inferConveractFabricEventVisibility(data);
   const occurredAt = config.now();
   const expiresAt = new Date(occurredAt.getTime() + config.retentionMs);
   const result = await withPgTenant(pg, tenantId, (tenantPg) => tenantPg.query<EventRow>(

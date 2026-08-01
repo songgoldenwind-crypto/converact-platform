@@ -1,9 +1,9 @@
-# OPC AI 通信平台 — 安全与合规设计文档
+# Converact Platform AI 通信平台 — 安全与合规设计文档
 
 > **版本**: 1.2（按 `docs/design/README.md` 准绳标注目标态/已废词）
 > **更新日期**: 2026-07-21
 > **文档状态**: 初稿 + 架构决策校准
-> **适用范围**: OPC 多租户 SaaS AI 语音/视频呼叫中心平台
+> **适用范围**: Converact Platform 多租户 SaaS AI 语音/视频呼叫中心平台
 > **保密级别**: 内部
 >
 > **关联文档**（见 `docs/design/README.md`）：[架构规格](./architecture-v3.md) · [总体规划](./revised-master-plan.md) · [产品设计](./product-design.md) · [指标设计](./metrics-design.md) · [战略北极星](./super-contact-center-platform-vision.md) · [上级: 产品方向](../product-direction-2026-06.md) · [本目录导航与治理](./README.md)
@@ -20,17 +20,17 @@
 
 | 组件 | 目标态（本文档正文） | 现状（代码实现） | 差距 |
 |---|---|---|---|
-| **Kong API Gateway** | 生产 API 网关：JWT 验证、rate-limiting、WAF | ❌ 延后到 v2.0+。当前由 OPC 自带中间件（`src/middleware/auth.ts`）承担鉴权，无 rate-limiting/WAF | P1：rate-limiting 需补 |
+| **Kong API Gateway** | 生产 API 网关：JWT 验证、rate-limiting、WAF | ❌ 延后到 v2.0+。当前由 Converact Platform 自带中间件（`src/middleware/auth.ts`）承担鉴权，无 rate-limiting/WAF | P1：rate-limiting 需补 |
 | **Keycloak IAM** | JWT 签发、Refresh Token、坐席密码存储 | ❌ 替换为轻量自签 JWT。当前 auth 中间件在 `src/middleware/auth.ts`，无 Refresh Token / 外部 IdP | P1：生产需接真实 IdP |
 | **Kamailio SIP Edge** | SIP 边缘代理、TLS/WSS、Topology Hiding、限流和 RustPBX 分发 | ✅ 代码/配置/Compose/Helm/指标和受控合同已实现；真实双 Zone/PSTN/物理容量 `not_run` | 环境验收：不可变镜像、目标证书/ACL、真实 SIPp 与容量 |
 
 **对正文的影响**：
-- §2（数据分类）中 Refresh Token / 坐席密码写入 Keycloak DB 项为**目标态参考**；当前实现是 OPC 自签 JWT + bcrypt（密码存 OPC DB），无 Refresh Token
-- §3（多租户隔离验证）中的 RLS 检查清单仍然有效，但实现方式从 Kong consumer group → OPC 中间件 per-tenant 限流；§3.3 中 Kong per-tenant rate limiting 为**目标态**
+- §2（数据分类）中 Refresh Token / 坐席密码写入 Keycloak DB 项为**目标态参考**；当前实现是 Converact Platform 自签 JWT + bcrypt（密码存 Converact Platform DB），无 Refresh Token
+- §3（多租户隔离验证）中的 RLS 检查清单仍然有效，但实现方式从 Kong consumer group → Converact Platform 中间件 per-tenant 限流；§3.3 中 Kong per-tenant rate limiting 为**目标态**
 - §4（认证与授权）中涉及 Keycloak 的流程描述为**目标态参考**，当前实现是自签 JWT（`src/middleware/auth.ts`），无 Refresh Token / 外部 IdP
 - §5（通信加密）中涉及 Kong TLS 终结 / mTLS 的拓扑为**目标态参考**，当前由 RustPBX ACME 自动证书
-- §7（API 安全）中涉及 Kong rate-limiting / request-size-limiting / WAF plugin 为**目标态参考**，当前由 OPC 中间件承担部分（per-IP 限流、请求体限制），网关级聚合限流与 WAF 未实现
-- §8（事件响应）§8.3 隔离动作中 Keycloak 管理 API / Kong consumer 禁用 / Kong IP restriction 为**目标态参考**；现状分别为轮换自签 JWT 密钥 / OPC 中间件禁用 API Key / OPC 中间件 IP 封禁
+- §7（API 安全）中涉及 Kong rate-limiting / request-size-limiting / WAF plugin 为**目标态参考**，当前由 Converact Platform 中间件承担部分（per-IP 限流、请求体限制），网关级聚合限流与 WAF 未实现
+- §8（事件响应）§8.3 隔离动作中 Keycloak 管理 API / Kong consumer 禁用 / Kong IP restriction 为**目标态参考**；现状分别为轮换自签 JWT 密钥 / Converact Platform 中间件禁用 API Key / Converact Platform 中间件 IP 封禁
 - §10（SDLC）§10.2 工具链中 Kong WAF plugin 为**目标态参考**，当前无 WAF
 
 > 本节为正文 Kong / Keycloak / Kamailio 出现处的**当前裁决表**。正文中 Kamailio 的旧
@@ -55,14 +55,14 @@
 
 ## 1. 威胁模型 (Threat Model)
 
-基于 STRIDE 方法论，针对 OPC 平台各模块进行系统性威胁分析。
+基于 STRIDE 方法论，针对 Converact Platform 平台各模块进行系统性威胁分析。
 
 ### 1.1 STRIDE 威胁矩阵
 
 | # | 威胁类型 | 攻击场景 | 受影响模块 | 影响 | 缓解措施 | 优先级 |
 |---|---------|---------|-----------|------|---------|--------|
 | T01 | Spoofing | 伪造 JWT token 访问其他租户数据 | 认证网关 | 跨租户数据泄露 | JWKS 验证 + `tenant_id` claim 强校验 | **P0** |
-| T02 | Spoofing | 伪造 Webhook 回调冒充 OPC 平台 | Webhook 模块 | 租户系统被恶意操控 | HMAC-SHA256 签名 + timestamp 验证（±5min） | **P1** |
+| T02 | Spoofing | 伪造 Webhook 回调冒充 Converact Platform 平台 | Webhook 模块 | 租户系统被恶意操控 | HMAC-SHA256 签名 + timestamp 验证（±5min） | **P1** |
 | T03 | Spoofing | SIP 注册劫持（伪造 REGISTER） | Kamailio SIP Edge + RustPBX | 通话被窃听/拦截 | SIP Digest Auth + TLS/WSS + trunk/source ACL + 外部 owner header 清洗 | **P1** |
 | T04 | Tampering | 篡改 QM 质检评分数据 | 质检模块 | 质检失效，绩效数据不可信 | 评分记录不可变（append-only）+ 审计日志 | **P1** |
 | T05 | Tampering | 篡改转写文本掩盖坐席失误 | 转写存储 | 合规记录失真 | 转写生成后 SHA-256 签名，修改触发审计事件 | **P1** |
@@ -74,7 +74,7 @@
 | T11 | Info Disclosure | 日志中暴露 PII（电话号码、姓名） | 日志系统 | 隐私合规违规 | 日志写入前自动脱敏（mask/hash） | **P1** |
 | T12 | Info Disclosure | API 错误响应泄露内部堆栈信息 | API 网关 | 攻击者获取系统拓扑 | 生产环境统一错误格式，禁止暴露 stack trace | **P2** |
 | T13 | DoS | 恶意租户耗尽 LLM API quota | AI Agent | 平台全局不可用 | 每租户 rate limiting + 独立 quota pool + 熔断 | **P0** |
-| T14 | DoS | 高频 WebSocket 连接耗尽服务器资源 | 实时通信 | 正常用户无法接入 | per-IP 连接数限制 + 【目标态·Kong 已废】Kong rate limiting（现状：OPC 中间件 per-IP 限流，无网关层聚合限流） | **P1** |
+| T14 | DoS | 高频 WebSocket 连接耗尽服务器资源 | 实时通信 | 正常用户无法接入 | per-IP 连接数限制 + 【目标态·Kong 已废】Kong rate limiting（现状：Converact Platform 中间件 per-IP 限流，无网关层聚合限流） | **P1** |
 | T15 | DoS | 大文件上传耗尽存储/带宽 | 知识库/录音 | 存储溢出 | 请求体 10MB 限制 + per-tenant 存储配额 | **P2** |
 | T16 | Elevation | 普通坐席获取管理员权限 | 权限系统 | 未授权管理操作 | RBAC + JWT `role` claim + API 层权限校验 | **P0** |
 | T17 | Elevation | 通过 API 参数篡改提升角色 | 用户管理 | 权限绕过 | 角色变更仅允许 `admin+`，JWT 不信任客户端 role | **P0** |
@@ -82,7 +82,7 @@
 
 ### 1.2 攻击面分析
 
-> 下图为**目标态拓扑**；现状无 Kong / Kamailio / Keycloak（见文首「架构决策变更声明」）。当前实际入口为：OPC 自带中间件作鉴权入口、RustPBX 直接暴露 SIP、OPC 自签 JWT 签发与校验。
+> 下图为**目标态拓扑**；现状无 Kong / Kamailio / Keycloak（见文首「架构决策变更声明」）。当前实际入口为：Converact Platform 自带中间件作鉴权入口、RustPBX 直接暴露 SIP、Converact Platform 自签 JWT 签发与校验。
 
 ```mermaid
 graph TD
@@ -94,7 +94,7 @@ graph TD
     end
 
     subgraph 内部攻击面
-        B --> I[OPC API Server]
+        B --> I[Converact Platform API Server]
         I --> J[PostgreSQL]
         I --> K[MinIO]
         I --> L[LiveKit]
@@ -142,7 +142,7 @@ graph TD
 | API Keys | **凭证** | 环境变量/K8s Secrets | 不入库、不入日志 | 手动吊销前有效 | system only | 仅显示前 4 位 |
 | JWT Tokens | **凭证** | 内存（httpOnly cookie） | 短生命周期 15min | 自动过期 | per-user | 不可查看 |
 | Refresh Tokens | **凭证** | 【目标态】Keycloak DB（现状：无 Refresh Token，自签 JWT 单次签发，见 §0） | 加密存储 | 7天 | per-user | 不可查看 |
-| 坐席密码 | **凭证** | 【目标态】Keycloak（现状：bcrypt 存 OPC DB，见 §0） | bcrypt (cost=12) | N/A | 不可读取 | N/A |
+| 坐席密码 | **凭证** | 【目标态】Keycloak（现状：bcrypt 存 Converact Platform DB，见 §0） | bcrypt (cost=12) | N/A | 不可读取 | N/A |
 | 计费信息 | **商业敏感** | PostgreSQL + Stripe | Stripe PCI 合规托管 | 7年（财务法规） | admin+ | 仅显示最后 4 位卡号 |
 | Webhook Secrets | **凭证** | PostgreSQL (encrypted) | AES-256 加密存储 | 创建时生成 | admin+（不可查看明文） | `wh_****xxxx` |
 | 系统日志 | 内部 | Elasticsearch | PII 自动脱敏 | 30天 | platform admin | 电话/姓名 mask |
@@ -181,7 +181,7 @@ flowchart LR
 |---------|------|---------|---------|
 | 主密钥 (KEK) | 加密数据密钥 | 年度 | K8s Secrets / Vault |
 | 数据密钥 (DEK) | 加密录音文件 | 每文件独立 | 随密文存储（信封加密） |
-| JWT 签名密钥 | Token 签发 | 90天 | 【目标态】Keycloak JWKS（现状：OPC 自签 RS256，`src/middleware/auth.ts`） |
+| JWT 签名密钥 | Token 签发 | 90天 | 【目标态】Keycloak JWKS（现状：Converact Platform 自签 RS256，`src/middleware/auth.ts`） |
 | TLS 证书 | 传输加密 | 90天（自动续期） | cert-manager |
 | Webhook HMAC Key | 签名验证 | 创建时生成 | PostgreSQL 加密字段 |
 
@@ -209,7 +209,7 @@ CREATE POLICY tenant_isolation ON call_records
 
 ### 3.2 应用层隔离
 
-- [ ] JWT 中包含 `tenant_id` claim（【目标态】由 Keycloak 注入；现状由 OPC 自签 JWT 签发时注入）
+- [ ] JWT 中包含 `tenant_id` claim（【目标态】由 Keycloak 注入；现状由 Converact Platform 自签 JWT 签发时注入）
 - [ ] 中间件在请求入口解析 JWT 并注入 tenant context
 - [ ] Store 层方法第一个参数为 `tenantId`（TypeScript 类型强制）
 - [ ] 文件存储按 tenant 分桶（MinIO prefix: `{tenant_id}/recordings/`）
@@ -228,9 +228,9 @@ interface CallRecordStore {
 
 ### 3.3 网络层隔离
 
-- [ ] 【目标态·Kong 已废】per-tenant rate limiting（现状目标：OPC 中间件实现 per-tenant 限流；Kong consumer group 方案已废）
+- [ ] 【目标态·Kong 已废】per-tenant rate limiting（现状目标：Converact Platform 中间件实现 per-tenant 限流；Kong consumer group 方案已废）
 - [ ] LiveKit room 名称包含 tenant 前缀（`{tenant_id}_{room_id}`）
-- [ ] NATS subject 包含 tenant 前缀（`opc.{tenant_id}.events.*`）
+- [ ] NATS subject 包含 tenant 前缀（`converact.{tenant_id}.events.*`）
 - [ ] WebSocket 连接验证 tenant 归属（握手时校验 token）
 - [ ] SIP trunk 按 tenant 配置独立凭证
 - [ ] Webhook 出站请求不携带其他租户数据
@@ -273,7 +273,7 @@ interface CallRecordStore {
 
 ### 4.1 认证流程
 
-> 下方时序图为**目标态**（Keycloak OIDC + Kong 转发）；现状为自签 JWT 签发与校验无 Refresh Token，鉴权在 OPC 中间件完成（见 §0）。现状下不存在 `KC` / `Kong` 两方，HTTP 请求直入 OPC API Server。
+> 下方时序图为**目标态**（Keycloak OIDC + Kong 转发）；现状为自签 JWT 签发与校验无 Refresh Token，鉴权在 Converact Platform 中间件完成（见 §0）。现状下不存在 `KC` / `Kong` 两方，HTTP 请求直入 Converact Platform API Server。
 
 ```mermaid
 sequenceDiagram
@@ -281,7 +281,7 @@ sequenceDiagram
     participant SPA as 前端 SPA
     participant KC as Keycloak
     participant Kong as Kong Gateway
-    participant OPC as OPC API Server
+    participant Converact Platform as Converact Platform API Server
 
     User->>SPA: 访问应用
     SPA->>KC: OIDC Authorization Code Flow (PKCE)
@@ -297,9 +297,9 @@ sequenceDiagram
     SPA->>Kong: API 请求 + Authorization: Bearer {token}
     Kong->>Kong: JWT 验证 (JWKS endpoint)
     Kong->>Kong: Rate limit 检查
-    Kong->>OPC: 转发请求 + X-Tenant-Id + X-User-Role
-    OPC->>OPC: 解析 tenant context + RBAC 校验
-    OPC-->>Kong: 响应数据
+    Kong->>Converact Platform: 转发请求 + X-Tenant-Id + X-User-Role
+    Converact Platform->>Converact Platform: 解析 tenant context + RBAC 校验
+    Converact Platform-->>Kong: 响应数据
     Kong-->>SPA: 响应数据
     
     Note over SPA: Token 即将过期时
@@ -309,19 +309,19 @@ sequenceDiagram
 
 ### 4.2 API Key 认证流程（服务间/Webhook）
 
-> 目标态时序图；现状无 Kong，API Key 校验在 OPC 中间件完成。
+> 目标态时序图；现状无 Kong，API Key 校验在 Converact Platform 中间件完成。
 
 ```mermaid
 sequenceDiagram
     participant Client as 外部系统
     participant Kong as Kong Gateway
-    participant OPC as OPC API Server
+    participant Converact Platform as Converact Platform API Server
 
     Client->>Kong: API 请求 + X-API-Key: {key}
     Kong->>Kong: 查找 API Key → 关联 tenant + 权限
-    Kong->>OPC: 转发 + X-Tenant-Id + X-API-Key-Scope
-    OPC->>OPC: 验证 scope 是否允许此操作
-    OPC-->>Client: 响应
+    Kong->>Converact Platform: 转发 + X-Tenant-Id + X-API-Key-Scope
+    Converact Platform->>Converact Platform: 验证 scope 是否允许此操作
+    Converact Platform-->>Client: 响应
 ```
 
 ### 4.3 RBAC 权限矩阵
@@ -359,13 +359,13 @@ sequenceDiagram
 
 ### 4.5 JWT Payload 结构
 
-> 目标态 `iss` 指向 Keycloak realm；现状 `iss` 为 OPC 自签（如 `opc-auth`）。`exp`/`iat` 为样例，对应 2026-06。
+> 目标态 `iss` 指向 Keycloak realm；现状 `iss` 为 Converact Platform 自签（如 `converact-auth`）。`exp`/`iat` 为样例，对应 2026-06。
 
 ```json
 {
-  "iss": "opc-jwt-self-signed",
+  "iss": "converact-jwt-self-signed",
   "sub": "user-uuid-here",
-  "aud": "opc-api",
+  "aud": "converact-api",
   "exp": 1751212800,
   "iat": 1751211900,
   "tenant_id": "tenant-uuid-here",
@@ -383,17 +383,17 @@ sequenceDiagram
 
 | 链路 | 协议 | 最低版本 | 证书管理 | 备注 |
 |------|------|---------|---------|------|
-| 浏览器 → 【目标态·Kong 已废】Kong | TLS 1.3 | TLS 1.2 | Let's Encrypt / 自有 CA | HSTS 强制；现状浏览器直连 OPC 中间件 |
-| 【目标态·Kong 已废】Kong → OPC API | mTLS（生产）/ HTTP（开发） | TLS 1.2 | 内部 CA (cert-manager) | 内网可降级；现状此链路不存在 |
-| OPC → PostgreSQL | TLS | TLS 1.2 | PG server cert | `sslmode=verify-full` |
-| OPC → MinIO | TLS | TLS 1.2 | 内部 CA | 同集群可 HTTP |
-| OPC → LiveKit | WSS | TLS 1.2 | LiveKit API secret | WebSocket Secure |
+| 浏览器 → 【目标态·Kong 已废】Kong | TLS 1.3 | TLS 1.2 | Let's Encrypt / 自有 CA | HSTS 强制；现状浏览器直连 Converact Platform 中间件 |
+| 【目标态·Kong 已废】Kong → Converact Platform API | mTLS（生产）/ HTTP（开发） | TLS 1.2 | 内部 CA (cert-manager) | 内网可降级；现状此链路不存在 |
+| Converact Platform → PostgreSQL | TLS | TLS 1.2 | PG server cert | `sslmode=verify-full` |
+| Converact Platform → MinIO | TLS | TLS 1.2 | 内部 CA | 同集群可 HTTP |
+| Converact Platform → LiveKit | WSS | TLS 1.2 | LiveKit API secret | WebSocket Secure |
 | LiveKit → 客户端 | DTLS-SRTP | DTLS 1.2 | 自动协商 (ICE) | 媒体流加密 |
 | SIP 信令（Kamailio Edge） | TLS | TLS 1.2+ | SIP trunk/Edge 证书 | topology hiding、源 ACL、RPC loopback；RTP 仍由 RustPBX 处理 |
 | SIP 媒体 | SRTP（可选） | - | 密钥协商 (SDES/DTLS) | 依赖 trunk 支持 |
 | NATS 集群内部 | TLS | TLS 1.2 | NATS server cert | 节点间加密 |
-| OPC → 【目标态·替换为自签 JWT】Keycloak | HTTPS | TLS 1.2 | Keycloak server cert | OIDC/JWKS 端点；现状此链路不存在 |
-| AI Agent → OPC | HTTPS + API Key | TLS 1.2 | 公共 CA | Agent 认证 |
+| Converact Platform → 【目标态·替换为自签 JWT】Keycloak | HTTPS | TLS 1.2 | Keycloak server cert | OIDC/JWKS 端点；现状此链路不存在 |
+| AI Agent → Converact Platform | HTTPS + API Key | TLS 1.2 | 公共 CA | Agent 认证 |
 | AI Agent → DeepSeek | HTTPS | TLS 1.2 | 公共 CA | API Key 认证 |
 | CI/CD → 集群 | mTLS | TLS 1.2 | K8s CA | kubeconfig |
 
@@ -411,11 +411,11 @@ graph TB
     end
 
     subgraph 内网传输 mTLS
-        Kong ---|mTLS| OPC[OPC API]
-        OPC ---|TLS| PG[(PostgreSQL)]
-        OPC ---|TLS| MinIO[(MinIO)]
-        OPC ---|TLS| NATS[NATS]
-        OPC ---|HTTPS| KC[Keycloak]
+        Kong ---|mTLS| Converact Platform[Converact Platform API]
+        Converact Platform ---|TLS| PG[(PostgreSQL)]
+        Converact Platform ---|TLS| MinIO[(MinIO)]
+        Converact Platform ---|TLS| NATS[NATS]
+        Converact Platform ---|HTTPS| KC[Keycloak]
     end
 
     subgraph 静态加密
@@ -555,8 +555,8 @@ flowchart TD
 |---|--------|---------|------|
 | 1 | **输入验证** | Zod schema 验证所有输入参数（类型 + 长度 + 格式） | 应用层 |
 | 2 | **输出编码** | JSON 序列化自动转义，响应 `Content-Type: application/json` | 应用层 |
-| 3 | **Rate Limiting** | 【目标态·Kong 已废】Kong rate-limiting 插件：per-tenant 1000 req/min + per-IP 100 req/min（现状：OPC 中间件 per-IP 限流；网关级聚合 per-tenant 限流未实现） | 网关层 |
-| 4 | **Request Size** | 【目标态·Kong 已废】Kong `request-size-limiting`: 10MB（现状：OPC 中间件请求体限制） | 网关层 |
+| 3 | **Rate Limiting** | 【目标态·Kong 已废】Kong rate-limiting 插件：per-tenant 1000 req/min + per-IP 100 req/min（现状：Converact Platform 中间件 per-IP 限流；网关级聚合 per-tenant 限流未实现） | 网关层 |
+| 4 | **Request Size** | 【目标态·Kong 已废】Kong `request-size-limiting`: 10MB（现状：Converact Platform 中间件请求体限制） | 网关层 |
 | 5 | **CORS** | 白名单域名（生产环境禁止 `*`），预检缓存 1h | 网关层 |
 | 6 | **CSRF** | SameSite=Strict cookie + Origin header 校验 | 应用层 |
 | 7 | **SQL Injection** | 参数化查询（禁止字符串拼接），ORM 约束 | 数据层 |
@@ -604,18 +604,18 @@ Cache-Control: no-store
 
 ```mermaid
 sequenceDiagram
-    participant OPC as OPC 平台
+    participant Converact Platform as Converact Platform 平台
     participant Target as 租户 Webhook 端点
 
-    OPC->>OPC: 生成 payload
-    OPC->>OPC: 计算 HMAC-SHA256(payload, webhook_secret)
-    OPC->>OPC: 添加 timestamp
-    OPC->>Target: POST + X-OPC-Signature + X-OPC-Timestamp
+    Converact Platform->>Converact Platform: 生成 payload
+    Converact Platform->>Converact Platform: 计算 HMAC-SHA256(payload, webhook_secret)
+    Converact Platform->>Converact Platform: 添加 timestamp
+    Converact Platform->>Target: POST + X-OPC-Signature + X-OPC-Timestamp
     Target->>Target: 验证 timestamp 在 ±5min 内
     Target->>Target: 验证 HMAC 签名
-    Target-->>OPC: 200 OK
+    Target-->>Converact Platform: 200 OK
     
-    Note over OPC: 失败重试: 3次，指数退避 (1min, 5min, 30min)
+    Note over Converact Platform: 失败重试: 3次，指数退避 (1min, 5min, 30min)
 ```
 
 ---
@@ -666,11 +666,11 @@ flowchart TD
 
 | 场景 | 隔离动作 | 执行方式 |
 |------|---------|---------|
-| JWT 密钥泄露 | 轮换签名密钥 + 全量 token 失效 | 【目标态】Keycloak 管理 API（现状：轮换 OPC 自签 JWT 签名密钥 + 重启服务使旧 token 失效） |
-| 单租户数据泄露 | 禁用该租户 API Key + 暂停服务 | 【目标态·Kong 已废】Kong consumer 禁用（现状：OPC 中间件禁用该 tenant 的 API Key + 标记 tenant 暂停） |
+| JWT 密钥泄露 | 轮换签名密钥 + 全量 token 失效 | 【目标态】Keycloak 管理 API（现状：轮换 Converact Platform 自签 JWT 签名密钥 + 重启服务使旧 token 失效） |
+| 单租户数据泄露 | 禁用该租户 API Key + 暂停服务 | 【目标态·Kong 已废】Kong consumer 禁用（现状：Converact Platform 中间件禁用该 tenant 的 API Key + 标记 tenant 暂停） |
 | DB 未授权访问 | 更换 DB 密码 + 断开可疑连接 | pg_terminate_backend |
-| API 被滥用 | IP/tenant 封禁 | 【目标态·Kong 已废】Kong IP restriction（现状：OPC 中间件 IP/tenant 封禁） |
-| 恶意内部人员 | 撤销所有访问 + 审计操作历史 | 【目标态】Keycloak + 审计日志（现状：OPC 中间件撤销该用户 token + 写审计日志） |
+| API 被滥用 | IP/tenant 封禁 | 【目标态·Kong 已废】Kong IP restriction（现状：Converact Platform 中间件 IP/tenant 封禁） |
+| 恶意内部人员 | 撤销所有访问 + 审计操作历史 | 【目标态】Keycloak + 审计日志（现状：Converact Platform 中间件撤销该用户 token + 写审计日志） |
 
 ### 8.4 监控与告警
 
@@ -837,7 +837,7 @@ flowchart LR
 | 旧版整体架构 | `docs/architecture-video-voice-callcenter.md` | 历史背景（已被 architecture-v3 替代） |
 | 产品方向 | `docs/product-direction-2026-06.md` | 业务背景 |
 | 新功能清单 | `docs/new-feature-application-checklist.md` | 开发约束 |
-| OPC 编码规范 | `.cursor/rules/opc-coding-standards.mdc` | 安全编码实践 |
+| Converact Platform 编码规范 | `.cursor/rules/converact-coding-standards.mdc` | 安全编码实践 |
 
 ### C. 文档变更记录
 
@@ -845,4 +845,4 @@ flowchart LR
 |------|------|------|---------|
 | 1.0 | 2026-06-21 | - | 初始版本：完整安全与合规设计 |
 | 1.1 | 2026-06-22 | - | 架构决策校准：§0 声明 Kong / Keycloak / Kamailio 移除或延后 |
-| 1.2 | 2026-06-29 | OPC Team | 按 `docs/design/README.md` §3/§4 准绳：正文 Kong / Keycloak / Kamailio 项统一加 `【目标态】`/`【已废】`/`【延后】` 行内标注（共 14 处）；头部加 `<关联文档>` block；附录 B 扩充同目录互链；JWT 样例时间戳更新到 2026；§0 影响段扩展覆盖 §2/§3/§7/§8/§10。未改正文结构。 |
+| 1.2 | 2026-06-29 | Converact Platform Team | 按 `docs/design/README.md` §3/§4 准绳：正文 Kong / Keycloak / Kamailio 项统一加 `【目标态】`/`【已废】`/`【延后】` 行内标注（共 14 处）；头部加 `<关联文档>` block；附录 B 扩充同目录互链；JWT 样例时间戳更新到 2026；§0 影响段扩展覆盖 §2/§3/§7/§8/§10。未改正文结构。 |

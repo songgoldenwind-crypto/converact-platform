@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="ISO-8859-1" ?>
 <!DOCTYPE scenario SYSTEM "sipp.dtd">
 
-<scenario name="iveKit RustPBX trunk OPTIONS responder">
+<scenario name="Converact Fabric RustPBX trunk OPTIONS responder">
   <recv request="OPTIONS" />
 
   <send>

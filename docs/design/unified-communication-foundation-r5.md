@@ -1,4 +1,4 @@
-# OPC 统一通信底座与 AI-native 架构 Revision 5
+# Converact Fabric — 统一通信底座与 AI-native 接口 Revision 5.1
 
 > <关联文档>
 >
@@ -6,19 +6,21 @@
 > - [Revision 5 机器合同](../capacity/contracts/unified-communication-foundation-r5-v1.json)
 > - [Revision 5 追踪合同](../capacity/contracts/unified-communication-foundation-r5-traceability-v1.json)
 > - [Revision 5 实施计划](./2026-07-31-unified-communication-foundation-r5-implementation-plan.md)
-> - [Revision 4 RustPBX × rvoip 整合设计](./rvoip-opc-communication-foundation-integration-design.md)
+> - [AI-native 多模态通信与业务执行平台 R2](./2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md)
+> - [Revision 4 RustPBX × rvoip 整合设计](./rvoip-converact-communication-foundation-integration-design.md)
 > - [Revision 4 VOS5000 对标与 100K 计划](./communication-foundation-vos5000-parity-performance-plan.md)
 > - [ADR-CCAAS-5：Media Authority 与 RTPengine](../adr/ccaas-5-media-authority-and-rtpengine.md)
 > - [ADR-CCAAS-7：RustPBX 与 rvoip 能力吸收](../adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md)
 > - [ADR-CCAAS-8：Voice/SIP 与 LiveKit 音频桥接](../adr/ccaas-8-voice-livekit-bridge-handoff.md)
 > - [ADR-CCAAS-9：Channel Agent 与 Speech Runtime](../adr/ccaas-9-channel-agent-and-speech-runtime.md)
 > - [ADR-CCAAS-10：ViLTE 与 LiveKit AV Gateway](../adr/ccaas-10-vilte-livekit-av-participant-gateway.md)
+> - [ADR-CCAAS-11：Engagement 与 Resolution Profile](../adr/ccaas-11-engagement-platform-and-resolution-profile.md)
 > - [统一领域语言](../../CONTEXT.md)
 >
 > </关联文档>
 
 - 文档状态：**Accepted architecture; implementation and production eligibility remain gated**
-- Revision：5
+- Revision：5.1（只增加 R2 领域映射；R5 machine contract v1 不变）
 - 决策日期：2026-07-31
 - 现状核查日期：2026-07-31
 - 决策 ID：`unified-communication-foundation-r5`
@@ -49,6 +51,9 @@ R4 合同改成历史废纸。它按以下方式继承：
    inventory；其中 LiveKit Agents 为 AI primary、`voice-media-rs` 永远进程内或 AI
    overlay 已 production-eligible 等旧语义不再是 R5 Authority/资格结论。R5 机器合同是
    新架构权威；v1 inventory 的代码/schema 迁移属于后续 TDD，不在本次文档任务中偷改。
+8. R2 决定 Converact 的平台/产品范围和 `Engagement → Interaction → CommunicationSession`
+   上位关系；R5 继续决定通信、媒体和 Channel Agent 合同。R2 不修改 R5 machine contract
+   中已有 `interaction_id` 的切换/fence 语义，也不把 Resolve Profile 设为通信底座前置。
 
 裁决优先级固定为：
 
@@ -61,13 +66,16 @@ R5 binding objective
     > 旧 AI、语音、产品和实施参考文档
 ```
 
+该优先级只适用于通信/媒体领域。平台类别、Engagement、Profile、Offer 和跨产品 Gate 以
+R2/ADR-CCAAS-11 为准；Resolve 的垂直业务细节以其 R1 Profile 为准。
+
 “优先”只解决冲突，不删除旧要求。任何未被 R5 明确替换的 R4 要求继续有效。
 
 ## 2. 最终架构裁决
 
 最终生产方向锁定为：
 
-> **一个 OPC 业务与通信权威体系，多个按职责隔离、可替换、无业务 Authority 的执行器。**
+> **一个 Converact 业务与通信权威体系，多个按职责隔离、可替换、无业务 Authority 的执行器。**
 
 不可变的核心决定：
 
@@ -100,7 +108,7 @@ R5 binding objective
 11. **Hugging Face `speech-to-speech` 是目标 Speech Runtime 主干。** 只替换 Active
     Call、LiveKit Agents 和现有 Python 链中功能相同的 VAD/STT/LLM/TTS 执行部分；
     所有不同功能继续保留。
-12. **OPC AI-native Orchestrator 是跨渠道 AI 业务 Authority。** Task、Tool、
+12. **Converact Agent Runtime 是跨渠道 AI 业务 Authority。** Task、Tool、
     Memory、Policy、Approval、Handoff、Action Ledger 和 Evaluation 不归 HF、
     Active Call、LiveKit Agents 或模型 Provider。
 13. **一个 Authority 不等于一个地址空间。** 通话热路径、AI、录音上传、原生 FFI、
@@ -147,7 +155,7 @@ R5 binding objective
 以下推断一律无效：
 
 ```text
-upstream claim != OPC evidence
+upstream claim != Converact evidence
 source exists != runtime works
 unit test passed != real media passed
 microbenchmark passed != end-to-end capacity passed
@@ -167,8 +175,8 @@ mock/loopback passed != production eligible
 | 实时 Provider 路由 | 仓库已有 normalized realtime speech/translation session、route、failover 和 final projection | 真实外部 Speech Runtime 仍需资格化 |
 | 现有 Python AI 链 | `ai-agent-py` 仍按配置拼装 STT/LLM/TTS Provider；LiveKit Agents 仍承载现有 Room Agent 流程 | 是迁移基线，不是 R5 终态 |
 | Voice↔LiveKit | 已有 create/reconcile 起点和 LiveKit SIP participant 路径 | R4 active handoff、packet gate 和桥容量仍 `not_run` |
-| HF Speech Runtime | 上游项目存在且声明模块化 VAD→STT→LLM→TTS 与 OpenAI Realtime-compatible API | OPC 集成、质量和 E2E A/B 均 `not_run` |
-| Active Call | 上游是 Rust SIP/WebRTC voice-agent framework，含 Playbook、电话动作和媒体能力 | OPC 未授权其成为 PBX；集成状态 `not_run` |
+| HF Speech Runtime | 上游项目存在且声明模块化 VAD→STT→LLM→TTS 与 OpenAI Realtime-compatible API | Converact 集成、质量和 E2E A/B 均 `not_run` |
+| Active Call | 上游是 Rust SIP/WebRTC voice-agent framework，含 Playbook、电话动作和媒体能力 | Converact 未授权其成为 PBX；集成状态 `not_run` |
 | ViLTE AV Gateway | 无生产实现 | 全部为 `target/not_run` |
 | R5 服务器状态 | 当前生产服务器容器按用户要求冻结 | 文档和 Git 代码变化不得自动改变服务器 |
 
@@ -177,7 +185,7 @@ mock/loopback passed != production eligible
 - HF 官方仓库把当前项目描述为模块化、低延迟的
   `VAD → STT → LLM → TTS` 流水线，并提供 OpenAI Realtime-compatible WebSocket
   API；当前 `pyproject.toml` 版本为 `0.2.11`、分类为 Alpha。它提供多种本地和外部
-  backend，但未提供可与 OPC 当前 Active Call/LiveKit 链直接比较的同硬件端到端数据。
+  backend，但未提供可与 Converact 当前 Active Call/LiveKit 链直接比较的同硬件端到端数据。
   参见 [HF speech-to-speech](https://github.com/huggingface/speech-to-speech)。
 - LiveKit Agents 官方定位是实时 voice/video/physical AI framework，包含
   AgentSession、任务/工作流、tool、handoff、multimodality、agent server、dispatch、
@@ -195,8 +203,17 @@ mock/loopback passed != production eligible
 ### 5.1 稳定业务对象
 
 ```text
+Engagement
+├── EngagementId                  跨多个 Interaction/跨天的业务目的
+├── ProfileBinding                resolution / service / agent / ...
+├── EngagementItems[]             独立资格化和验证的结果单元
+├── InteractionRefs[]
+├── Task/Evidence/Action refs[]
+└── OutcomeClaimRefs[]
+
 Interaction
-├── InteractionId                 跨渠道稳定业务身份
+├── InteractionId                 一次连续参与窗口内跨渠道稳定身份
+├── EngagementId                  可选上位业务关联；不进入逐包热路径
 ├── active_channels[]             SIP / LiveKit / IM / future ViLTE
 ├── Calls[]                       只有电话或 ViLTE 才有
 ├── Rooms[]                       只有 LiveKit 才有
@@ -230,9 +247,14 @@ AgentInteraction
 
 严格约束：
 
-- `InteractionId` 跨 SIP、LiveKit、IM、ViLTE 保持稳定；
+- `EngagementId` 跨多个 Interaction 和跨天业务过程保持稳定；它不是 R5 packet/bridge
+  hot-path key，通信执行只携带可选 correlation reference；
+- `InteractionId` 在一次连续参与窗口内跨 SIP、LiveKit、IM、ViLTE 保持稳定；电话增加
+  视频或 active handoff 不创建新 Interaction；客户离开、重新排队或跨天重联可创建新的
+  Interaction，但仍引用同一 Engagement；
 - SIP `Call-ID` 不是 `CallId`，LiveKit Room ID 也不是 `InteractionId`；
-- 一个 Interaction 可有多个 Call、Room、Task 和 Agent Run；
+- 一个 Engagement 可有多个 Interaction；一个 Interaction 可有多个 Call、Room、Task
+  reference 和 Agent Run；
 - Call 切到 LiveKit 不创建第二个“业务 Call”；
 - Voice-only 切到 video 不创建新 Interaction，只生成新的 media component/Edge
   generation；
@@ -273,6 +295,8 @@ media_component =
 
 | 事实域 | 唯一 Authority | 执行器/Adapter | 明确不拥有该事实 |
 | --- | --- | --- | --- |
+| Engagement/EngagementItem/ProfileBinding/OutcomeClaim | Converact Engage | versioned Profile validators | Call、Room、Agent framework、外部 Provider |
+| Interaction/CommunicationSession/BridgeIntent | Converact Fabric Coordination | channel adapters | Call-ID、Room、Profile validator |
 | SIP 公网接入策略 | Kamailio Edge policy | Kamailio workers | rvoip、LiveKit、Agent |
 | Call/Leg/Business Dialog/路由 | Unified RustPBX Call Core | selected `SipFoundation` | Kamailio、rvoip high-level、LiveKit SIP、Active Call |
 | SIP Protocol Transaction/Dialog | RustPBX 选择的一套 `SipFoundation` | rsipstack current；rvoip slice target | 两套同时主写 |
@@ -281,22 +305,22 @@ media_component =
 | ordinary RTP/RTCP/SRTP 执行 | 无业务 Authority | RTPengine default | RTPengine 不决定路由/计费 |
 | decode/transcode/mix/PCM | 无业务 Authority | `voice-media-rs` worker cells | worker 不决定 Call |
 | Room/participant/track/WebRTC | LiveKit | LiveKit server/SFU/TURN | RustPBX、AV Gateway、LiveKit Agents |
-| Voice↔LiveKit 音频 bridge | OPC Bridge Coordinator | LiveKit SIP audio executor | LiveKit SIP 不拥有 Call/CDR |
-| ViLTE↔LiveKit 音视频 bridge | OPC Bridge Coordinator | AV Participant Gateway | Gateway 不拥有 Call/Room |
-| recording intent | RustPBX Call Core | versioned OPC policy input；recorder adapters | policy store/recorder 不提交 intent |
+| Voice↔LiveKit 音频 bridge | Converact Fabric Bridge Coordinator | LiveKit SIP audio executor | LiveKit SIP 不拥有 Call/CDR |
+| ViLTE↔LiveKit 音视频 bridge | Converact Fabric Bridge Coordinator | AV Participant Gateway | Gateway 不拥有 Call/Room |
+| recording intent | RustPBX Call Core | versioned Converact policy input；recorder adapters | policy store/recorder 不提交 intent |
 | RecordingManifest/evidence | Region Recording Plane | capture/upload workers | LiveKit Egress/worker 不各写 root manifest |
 | immutable Voice CDR | RustPBX | CDR transport | LiveKit usage 不改 Voice CDR |
-| 计费/费率 | OPC Billing | usage adapters | channel runtimes |
+| 计费/费率 | Converact Billing | usage adapters | channel runtimes |
 | channel-local Agent turn | 当前激活的 Channel Agent Runtime | Active adapter 或 LiveKit Agents adapter | HF、模型 Provider |
-| speech execution session | OPC `SpeechRuntime` contract | HF primary target；native baseline adapters | Speech Runtime 不拥有 Task/Tool |
-| Task/Tool/Memory/Policy/Approval | OPC AI-native Orchestrator | channel adapters/model/tool executors | Active、LiveKit Agents、HF、LLM |
-| tool side effects | OPC Action Ledger + owning business service | Tool Broker/connector | LLM 直接写业务系统 |
-| AI quality/evaluation | OPC Evaluation Plane | offline/online evaluators | Provider 自报分数 |
+| speech execution session | Converact `SpeechRuntime` contract | HF primary target；native baseline adapters | Speech Runtime 不拥有 Task/Tool |
+| Task/Tool/Memory/Policy/Approval | Converact Agent Runtime | channel adapters/model/tool executors | Active、LiveKit Agents、HF、LLM |
+| tool side effects | Converact Action Ledger + owning business service | Tool Broker/connector | LLM 直接写业务系统 |
+| AI quality/evaluation | Converact Evaluation Plane | offline/online evaluators | Provider 自报分数 |
 
 所有 Authority 均要求 `writer_count=1`。多副本通过 owner epoch、lease、CAS、fence 和
 durable decision 协调，不通过“双主最终一致”回避冲突。
 
-OPC Policy 只提供带 revision/digest 的输入；RustPBX Call Core 是
+Converact Policy 只提供带 revision/digest 的输入；RustPBX Call Core 是
 `recording_intent` 的唯一 commit writer。Policy service、LiveKit Egress、Gateway、
 capture worker 和 upload worker 都不能自行开启、关闭或改写该 intent。
 
@@ -317,8 +341,8 @@ flowchart TB
   REC["Recording capture/upload workers"]
   TAI["Telephony Agent Runtime<br/>Active Call capability adapter"]
   LAI["Room Agent Runtime<br/>LiveKit Agents adapter"]
-  SR["OPC SpeechRuntime<br/>HF primary target + native baseline"]
-  ORCH["OPC AI-native Orchestrator<br/>Task / Tool / Memory / Policy / Approval"]
+  SR["Converact SpeechRuntime<br/>HF primary target + native baseline"]
+  ORCH["Converact Agent Runtime<br/>Task / Tool / Memory / Policy / Approval"]
 
   PSTN --> KAM --> PBX --> MEF
   MEF --> RTP
@@ -421,7 +445,7 @@ RustPBX 与 rvoip 都用 Rust，并不意味着把两个仓库源码拼在一起
 - rvoip 面向可组合 SIP/RTP/WebRTC/媒体协议 crate 与多种示例/runtime；
 - 两边的领域模型、故障语义、feature graph、发布节奏和兼容承诺并不相同。
 
-OPC 有机会超过任一上游的条件不是“代码更多”，而是：
+Converact 有机会超过任一上游的条件不是“代码更多”，而是：
 
 1. 只吸收证明有价值的低层 slice；
 2. 保持一个 Call 与媒体业务 Authority；
@@ -436,7 +460,7 @@ OPC 有机会超过任一上游的条件不是“代码更多”，而是：
 | --- | --- |
 | exact source | repository、commit、tree、archive hash、逐文件 hash 是否固定 |
 | 功能 | 支持哪些 RFC、方法、状态、计时器、错误和 interop |
-| 语义 | 与 OPC `SipFoundation`/Media contracts 是否可无损映射 |
+| 语义 | 与 Converact `SipFoundation`/Media contracts 是否可无损映射 |
 | 性能 | 同硬件 p50/p95/p99、CPU、alloc、PPS、session density 是否不劣 |
 | 复杂度 | 是否引入热路径 scan、全局锁、无界队列或 per-packet task |
 | 安全 | parser limit、fuzz、unsafe、FFI、密钥和供应链风险 |
@@ -496,7 +520,7 @@ selected `SipFoundation` 可产生协议副作用。
 - G.729 exact-source implementation；
 - codec/format registry 方法；
 - fuzz、interop、benchmark 和 simulation assets；
-- vCon、STIR/SHAKEN、SCIM 等与 OPC 领域边界相容的 primitives。
+- vCon、STIR/SHAKEN、SCIM 等与 Converact 领域边界相容的 primitives。
 
 不整体引入：
 
@@ -529,7 +553,7 @@ Backend selection 由 `MediaDemand` 和 closed `BackendCapabilitySet` 决定。�
 ### 10.2 RTPengine 的长期定位
 
 RTPengine 是现成、独立的数据面服务，负责高 PPS ordinary media。Rust-native Fast
-Path 是 OPC 内部候选实现，不是假定存在且等价的现成服务。两者能力不能只按名称比较：
+Path 是 Converact 内部候选实现，不是假定存在且等价的现成服务。两者能力不能只按名称比较：
 
 - RTPengine 有成熟的 RTP/RTCP/SRTP、NAT、ICE/DTLS、kernel/userspace 和 NG control；
 - Rust-native 候选只有实现并通过相同合同后才具备可比性；
@@ -590,7 +614,7 @@ Voice recorder、Gateway capture 或 LiveKit Egress 时，先冻结 root timelin
 break-before-make 移交 capture generation；segment receipt 必须带 source clock 到
 Interaction timeline 的映射。计量输入用
 `(billing_key, media_component, edge_generation, interval)` 幂等去重；RTPengine、
-LiveKit、Gateway 和 recorder usage 只提交 observation，OPC Billing 以 terminal
+LiveKit、Gateway 和 recorder usage 只提交 observation，Converact Billing 以 terminal
 watermark 收敛，不能双计费。
 
 ## 11. Voice、LiveKit 与媒体模式切换
@@ -661,7 +685,7 @@ room.video    -> carrier.video
 | `LK_AUDIO_TO_SIP_AUDIO` | LiveKit audio | SIP/PSTN | LiveKit SIP audio bridge |
 | `SIP_AUDIO_TO_LK_VIDEO` | SIP audio | LiveKit room with local/remote video | audio bridge + Room video state |
 | `VILTE_INBOUND_NEW_AV` | carrier 发起 audio+video | LiveKit room audio+video | combined AV Gateway |
-| `VILTE_OUTBOUND_NEW_AV` | LiveKit/OPC 发起 | carrier audio+video | combined AV Gateway |
+| `VILTE_OUTBOUND_NEW_AV` | LiveKit/Converact 发起 | carrier audio+video | combined AV Gateway |
 | `VILTE_VOICE_TO_VIDEO` | carrier audio-only | carrier audio+video | SIP re-INVITE + AV generation |
 | `VILTE_VIDEO_TO_VOICE` | carrier audio+video | carrier audio-only | revoke video + audio fallback |
 | `VILTE_REPEATED_TOGGLE` | active call | 多次 voice/video 往返 | SIP + Bridge generations |
@@ -692,7 +716,7 @@ ResponseLease {
 }
 ```
 
-`OPC Interaction Lease Store` 是唯一签发 Authority。签发、续租、撤销和换主都以
+`Converact Interaction Lease Store` 是唯一签发 Authority。签发、续租、撤销和换主都以
 `interaction_id` 为 key 做 durable CAS，成功时递增不可回退的 fence；wall clock 只用于
 跨进程持久化到期事实，每个 executor 从 receipt 派生本机 monotonic deadline，绝不跨主机
 比较 monotonic timestamp。
@@ -983,8 +1007,8 @@ rollback/compensation。machine contract 冻结 allowed transition rules 与终�
 | Agent 组织 | Playbook、scene、variables、HTTP/tool、posthook | AgentSession、tasks/groups、workflows、tools、handoff |
 | 运行治理 | 单/多电话会话 runtime | agent server、job dispatch、load balance、drain |
 | 多模态 | 以 voice 为主 | audio/video/text/vision |
-| 跨渠道 durable state | 不作为 OPC Authority | 不作为 OPC Authority |
-| OPC 定位 | Telephony Channel Agent Runtime | LiveKit Room Agent Runtime |
+| 跨渠道 durable state | 不作为 Converact Authority | 不作为 Converact Authority |
+| Converact 定位 | Telephony Channel Agent Runtime | LiveKit Room Agent Runtime |
 
 因此采用：
 
@@ -998,8 +1022,8 @@ LiveKit Room tracks
        LiveKit Agents unique room/multimodal/workflow/job capabilities
 
 both
-  -> OPC SpeechRuntime
-  -> OPC AI-native Orchestrator
+  -> Converact SpeechRuntime
+  -> Converact Agent Runtime
 ```
 
 ### 13.2 Active Call 的接入限制
@@ -1019,7 +1043,7 @@ Active Call 的 SIP、RTP、REGISTER、Dialog、REFER executor 不进入生产�
 - REFER、MESSAGE、hangup、mute、bridge、transfer 等电话动作只生成 typed proposal，
   由当前 fence 下的 RustPBX Call Core 决定并执行；reservation key 至少绑定
   `interaction_id + agent_run_id + action_type + intent_digest + response_generation`；
-- 外部 HTTP、tool 和 posthook 只生成 OPC Tool Broker proposal，禁止直接携带 secret
+- 外部 HTTP、tool 和 posthook 只生成 Converact Tool Broker proposal，禁止直接携带 secret
   调任意 URL；
 - tool result 必须带 Interaction、AgentRun、ContextRevision、response generation 和
   fence 回注同一活跃 generation，旧 generation 只能落审计，不得恢复执行。
@@ -1030,7 +1054,7 @@ Playbook tag 分三类并 fail closed：
 | --- | --- |
 | pure local | scene/goto、局部变量、prompt 模板、无副作用条件判断 |
 | communication proposal | REFER/MESSAGE/hangup/mute/bridge/transfer，交 RustPBX |
-| business/tool proposal | HTTP/tool/posthook，交 OPC Tool Broker；生产禁用 direct executor |
+| business/tool proposal | HTTP/tool/posthook，交 Converact Tool Broker；生产禁用 direct executor |
 
 若吸收 Active Call 源码而不是运行独立 worker，也必须遵循 exact-source、接口隔离和
 fault-domain gate；“Rust 写的”不自动授权嵌入 Call Core。
@@ -1044,10 +1068,10 @@ LiveKit Agents：
   job dispatch、drain、testing 和 observability；
 - Room 内本地短期 turn/chat state 可以保留；
 - 跨 SIP/LiveKit/IM/ViLTE 的 durable Task、Memory、Policy、Approval 和 Action
-  Ledger 必须读写 OPC Orchestrator；
+  Ledger 必须读写 Converact Agent Runtime；
 - 不成为 RustPBX 电话 AI 的必经路径；
 - 不让 LiveKit participant/Room ID 取代 InteractionId；
-- 不让 framework tool call 直接绕过 OPC Tool Broker。
+- 不让 framework tool call 直接绕过 Converact Tool Broker。
 
 ## 14. Hugging Face Speech Runtime
 
@@ -1055,7 +1079,7 @@ LiveKit Agents：
 
 R5 对 HF 的决定不是“用 HF 替换所有 Agent”，而是：
 
-> **把 HF `speech-to-speech` 作为 OPC `SpeechRuntime` 的目标主实现，只替换三处中
+> **把 HF `speech-to-speech` 作为 Converact `SpeechRuntime` 的目标主实现，只替换三处中
 > 功能相同的 VAD/STT/LLM/TTS 执行链；不同功能全部保留。**
 
 三处是：
@@ -1072,18 +1096,18 @@ R5 对 HF 的决定不是“用 HF 替换所有 Agent”，而是：
 | STT streaming/final | 是，目标主路径 | HF adapter |
 | LLM streaming | 是，目标主路径；Orchestrator 决定请求 | HF/local/compatible backend |
 | TTS streaming | 是，目标主路径 | HF adapter |
-| OpenAI Realtime-compatible events | 作为 adapter 兼容面使用 | OPC normalized events 在外层 |
+| OpenAI Realtime-compatible events | 作为 adapter 兼容面使用 | Converact normalized events 在外层 |
 | LiveKit AgentSession | 否 | LiveKit Agents |
 | LiveKit Room/track/participant | 否 | LiveKit |
-| LiveKit task/workflow/handoff/job | 否 | LiveKit channel runtime + OPC durable state |
+| LiveKit task/workflow/handoff/job | 否 | LiveKit channel runtime + Converact durable state |
 | LiveKit audio turn detector | 否，作为可选高层 turn signal | Room Agent Runtime |
 | Active Call SIP/RTP executor | 不接入；主 SIP/RTP 只由 RustPBX | RustPBX |
 | Active Call DTMF/REFER 语义 | 保留语义；DTMF 消费 canonical event，REFER 变 proposal | Telephony adapter + RustPBX |
 | Active Call Playbook/scene | 否 | Telephony channel runtime |
 | interruption/barge-in policy | 否 | Channel Agent Runtime |
-| Tool/Memory/Policy/Approval | 否 | OPC AI-native Orchestrator |
-| Provider governance/consent/quota | 否 | OPC Provider Registry/Policy |
-| captions/final projection | 否 | OPC projections |
+| Tool/Memory/Policy/Approval | 否 | Converact Agent Runtime |
+| Provider governance/consent/quota | 否 | Converact Provider Registry/Policy |
+| captions/final projection | 否 | Converact projections |
 | recording/CDR/billing | 否 | 通信与 Region authorities |
 
 ### 14.3 为什么采用 HF，但不提前声称更快
@@ -1117,7 +1141,7 @@ HF production eligibility: false
 如果上游原样无法通过门禁，优先在 exact-source controlled fork 中优化或补齐 adapter；
 在新路径通过前保留 native baseline。不得仅为“用了 HF”强加一次远程 hairpin。
 
-### 14.4 OPC-owned `SpeechRuntime` 合同
+### 14.4 Converact-owned `SpeechRuntime` 合同
 
 业务代码、Active Call adapter 和 LiveKit Agents adapter 不直接依赖 HF 内部类型。
 规范接口：
@@ -1255,7 +1279,7 @@ observed snapshot/receipt digest。
 - current ResponseLease receipt、response generation；
 - prompt/instruction projection 与 data-handling labels。
 
-Response 创建 Authority 是 OPC Orchestrator：Channel Runtime 只能提交 Orchestrator
+Response 创建 Authority 是 Converact Agent Runtime：Channel Runtime 只能提交 Orchestrator
 签署的 ResponsePlan，HF/模型不能自行选取 canonical history 或扩大 tool capability。
 
 normalized events：
@@ -1284,7 +1308,7 @@ session.closed
 
 - session ID、generation、monotonic sequence；
 - InteractionId、AgentRunId、channel binding；
-- producer timestamp 与 OPC receive timestamp；
+- producer timestamp 与 Converact receive timestamp；
 - clock domain；
 - provider/model/source identity；
 - terminal/partial 标志；
@@ -1340,7 +1364,7 @@ HF、Active Playbook、LiveKit workflow 或任一 LLM 产生的 tool call 都只
 
 ```text
 model tool proposal
-  -> OPC schema validation
+  -> Converact schema validation
   -> Policy/permission/risk
   -> optional human approval
   -> idempotent Action Ledger reservation
@@ -1366,7 +1390,7 @@ Channel Plane
 Channel Agent Runtimes
   Telephony Agent / Room Agent / IM Agent
         |
-OPC Interaction Adapter
+Converact Interaction Adapter
         |
 AI-native Orchestrator
   Task / Plan / Tool / Memory / Policy / Approval / Handoff
@@ -1378,9 +1402,9 @@ Governance & Evaluation
   Action Ledger / Audit / Eval / Quality / Cost / Safety
 ```
 
-### 15.2 OPC Orchestrator 的唯一事实
+### 15.2 Converact Agent Runtime 的唯一事实
 
-OPC Orchestrator 拥有：
+Converact Agent Runtime 拥有：
 
 - Interaction-level durable Agent Run；
 - Task DAG、依赖、状态与 completion criteria；
@@ -1522,7 +1546,7 @@ Class B — production frontier
 延迟收益，HF 才能成为对应 profile 的默认生产路径。未通过时保留 native baseline，
 优化 controlled fork 后重测；不能为了路线偏好降低已冻结门槛。
 
-官方或上游数字只能作为候选选择输入，不能填入 OPC passed evidence。
+官方或上游数字只能作为候选选择输入，不能填入 Converact passed evidence。
 
 ### 16.3 算法与资源约束
 
@@ -1858,7 +1882,7 @@ R5 不降低或重排 R4 必须门禁；只允许独立工作并行。
 
 ## 25. 最终判断
 
-OPC 的正确终态不是把所有优秀项目揉成一个巨型进程，也不是选择一个框架包办通信、
+Converact 的正确终态不是把所有优秀项目揉成一个巨型进程，也不是选择一个框架包办通信、
 媒体、Agent 和 AI。正确终态是：
 
 ```text
@@ -1871,7 +1895,7 @@ AV Gateway maps future ViLTE to LiveKit without becoming a PBX
 Active Call serves the telephony Agent channel
 LiveKit Agents serves the Room Agent channel
 HF serves the shared speech execution path
-OPC AI-native Orchestrator owns cross-channel tasks and actions
+Converact Agent Runtime owns cross-channel tasks and actions
 ```
 
 这条路线允许利用现成代码，同时通过 Authority、exact-source、故障域、A/B 和删除旧实现
@@ -1882,4 +1906,5 @@ OPC AI-native Orchestrator owns cross-channel tasks and actions
 
 | Revision | 日期 | 作者 | 变更 |
 | --- | --- | --- | --- |
-| 5 | 2026-07-31 | OPC/Codex | 在 R4 上冻结 Channel Agent、HF SpeechRuntime、ViLTE AV Gateway、AI-native、故障域、独立性能 profile 和服务器冻结边界 |
+| 5 | 2026-07-31 | Converact/Codex | 在 R4 上冻结 Channel Agent、HF SpeechRuntime、ViLTE AV Gateway、AI-native、故障域、独立性能 profile 和服务器冻结边界 |
+| 5.1 | 2026-07-31 | Converact/Codex | 增加 R2 的 Engagement→Interaction→CommunicationSession 上位映射；不改变 R5 machine contract、通信 Authority 或生产状态 |

@@ -3,14 +3,14 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "ivekit.kamailioFullname" . }}
+  name: {{ include "converact.kamailioFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: kamailio
 spec:
   podSelector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: kamailio
   policyTypes:
     - Ingress
@@ -42,7 +42,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: kamailio
       ports:
         - port: {{ $kamailio.listeners.dmqPort }}
@@ -63,7 +63,7 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: rustpbx
         # hostNetwork Pods may be represented as node IPs rather than selected
         # Pod IPs by the CNI, so both identities are intentionally allowed.
@@ -81,7 +81,7 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: kamailio
       ports:
         - port: {{ $kamailio.listeners.dmqPort }}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, afterEach, before, test } from 'node:test';
-import type { IveKitClient, IveKitPolicyFinding } from '@converact/sdk';
+import type { ConveractFabricClient, ConveractFabricPolicyFinding } from '@converact/sdk';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { installTestDom } from '../test-dom.js';
@@ -68,11 +68,11 @@ test('review queue reports reviewer authorization denial without exposing raw pa
   assert.equal(view.queryByText('internal response body'), null);
 });
 
-function fakeClient(value: Record<string, unknown>): IveKitClient {
-  return value as unknown as IveKitClient;
+function fakeClient(value: Record<string, unknown>): ConveractFabricClient {
+  return value as unknown as ConveractFabricClient;
 }
 
-function finding(overrides: Partial<IveKitPolicyFinding> = {}): IveKitPolicyFinding {
+function finding(overrides: Partial<ConveractFabricPolicyFinding> = {}): ConveractFabricPolicyFinding {
   return {
     id: 'finding-1', tenant_id: 'tenant-1', session_id: 'session-1', message_id: 'message-1',
     source: 'text', source_ref_id: 'message-1', policy_type: 'Contact exchange', severity: 'medium',

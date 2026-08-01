@@ -66,7 +66,7 @@ function buildCacheKey(index: number): string {
 }
 
 function createTempDbPath(): { dbPath: string; tempDir: string } {
-  const tempDir = mkdtempSync(join(tmpdir(), 'opc-phase5d-loadtest-'));
+  const tempDir = mkdtempSync(join(tmpdir(), 'converact-phase5d-loadtest-'));
   return {
     dbPath: join(tempDir, 'cache-load-test.sqlite'),
     tempDir

@@ -4,10 +4,10 @@ import { memo } from 'react';
 import {
   IVR_NODE_DEFINITIONS,
   ivrNodeOutputHandles,
-  type IveKitIvrCanvasNode
+  type ConveractFabricIvrCanvasNode
 } from './ivr-designer-model.js';
 
-export type IvrFlowCanvasNode = Node<IveKitIvrCanvasNode['data'], 'ivr'>;
+export type IvrFlowCanvasNode = Node<ConveractFabricIvrCanvasNode['data'], 'ivr'>;
 
 const definitions = new Map(IVR_NODE_DEFINITIONS.map((definition) => [definition.type, definition]));
 

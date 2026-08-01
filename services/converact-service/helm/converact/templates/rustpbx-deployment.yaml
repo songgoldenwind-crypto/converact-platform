@@ -1,5 +1,5 @@
 {{- if .Values.voice.enabled }}
-{{- $rustpbxImage := include "ivekit.rustpbxImage" . -}}
+{{- $rustpbxImage := include "converact.rustpbxImage" . -}}
 {{- $profileId := required "voice.profileId is required when voice is enabled" .Values.voice.profileId -}}
 {{- $tenantId := required "voice.tenantId is required when voice is enabled" .Values.voice.tenantId -}}
 {{- $cellId := required "voice.cellId is required when voice is enabled" .Values.voice.cellId -}}
@@ -203,19 +203,19 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "ivekit.fullname" . }}-rustpbx
+  name: {{ include "converact.fullname" . }}-rustpbx
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: rustpbx
 spec:
-  serviceName: {{ include "ivekit.rustpbxHeadlessFullname" . }}
+  serviceName: {{ include "converact.rustpbxHeadlessFullname" . }}
   replicas: {{ .Values.voice.replicaCount }}
   podManagementPolicy: Parallel
   updateStrategy:
     type: RollingUpdate
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: rustpbx
   template:
     metadata:
@@ -224,10 +224,10 @@ spec:
         prometheus.io/port: "8080"
         prometheus.io/path: /metrics
       labels:
-        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        {{- include "converact.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: rustpbx
         {{- if .Values.voice.dialogShadow.enabled }}
-        ivekit.io/t1-shadow-fault-domain: {{ .Values.voice.dialogShadow.faultDomain | quote }}
+        converact.io/t1-shadow-fault-domain: {{ .Values.voice.dialogShadow.faultDomain | quote }}
         {{- end }}
     spec:
       automountServiceAccountToken: false
@@ -240,14 +240,14 @@ spec:
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: rustpbx
         - maxSkew: 1
           topologyKey: {{ .Values.voice.scheduling.zoneTopologyKey | quote }}
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: rustpbx
       affinity:
         podAntiAffinity:
@@ -255,7 +255,7 @@ spec:
             - topologyKey: {{ .Values.voice.scheduling.hostnameTopologyKey | quote }}
               labelSelector:
                 matchLabels:
-                  {{- include "ivekit.selectorLabels" . | nindent 18 }}
+                  {{- include "converact.selectorLabels" . | nindent 18 }}
                   app.kubernetes.io/component: rustpbx
       {{- with .Values.voice.scheduling.nodeSelector }}
       nodeSelector:
@@ -278,7 +278,7 @@ spec:
       {{- end }}
       initContainers:
         - name: render-config
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-render-rustpbx-config.js"]
           env:
@@ -291,27 +291,27 @@ spec:
             - name: RUSTPBX_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.databaseUrlKey }}
             - name: RUSTPBX_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.databasePasswordKey }}
             - name: RUSTPBX_MANAGEMENT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.managementTokenKey }}
             - name: RUSTPBX_RWI_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.rwiTokenKey }}
             - name: RUSTPBX_WEBHOOK_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.webhookTokenKey }}
             {{- if .Values.voice.webphone.enabled }}
             - name: CONVERACT_FABRIC_WEBPHONE_ENABLED
@@ -319,7 +319,7 @@ spec:
             - name: CONVERACT_FABRIC_WEBPHONE_JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.webphone.jwtSecretKey }}
             - name: CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER
               value: {{ .Values.voice.webphone.jwtIssuer | quote }}
@@ -330,7 +330,7 @@ spec:
               value: "0"
             {{- end }}
             - name: RUSTPBX_ROUTER_URL
-              value: {{ printf "http://%s:%v/api/ivekit/voice/providers/%s/router" (include "ivekit.fullname" .) .Values.service.port $profileId | quote }}
+              value: {{ printf "http://%s:%v/api/ivekit/voice/providers/%s/router" (include "converact.fullname" .) .Values.service.port $profileId | quote }}
             - name: RUSTPBX_EXTERNAL_IP
               {{- if .Values.voice.externalIp }}
               value: {{ .Values.voice.externalIp | quote }}
@@ -364,7 +364,7 @@ spec:
             - name: RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY
               value: {{ .Values.voice.mediaCapacity.recordingWorkerQueueCapacity | quote }}
             - name: RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH
-              value: /run/ivekit/realtime-audio-tap.sock
+              value: /run/converact/realtime-audio-tap.sock
             - name: RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY
               value: {{ .Values.realtimeAudioTap.rustPbxChannelCapacity | quote }}
             - name: RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS
@@ -382,14 +382,14 @@ spec:
               mountPath: /app/config
       containers:
         - name: route-snapshot-projector
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-rustpbx-route-snapshot.js"]
           env:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.secrets.runtimeDatabaseUrlKey }}
             - name: IVEKIT_RUSTPBX_ROUTE_TENANT_ID
               value: {{ $tenantId | quote }}
@@ -400,7 +400,7 @@ spec:
             - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.routeSnapshot.hmacKeyKey }}
             - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_INTERVAL_MS
               value: {{ .Values.voice.routeSnapshot.intervalMs | quote }}
@@ -417,12 +417,12 @@ spec:
               mountPath: /app/route-snapshot
         {{- if .Values.voice.recordingSpool.enabled }}
         - name: recording-spool-uploader
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-rustpbx-recording-spool.js"]
           env:
             - name: CONVERACT_FABRIC_RECORDING_BASE_URL
-              value: {{ printf "http://%s:%v" (include "ivekit.fullname" .) .Values.service.port | quote }}
+              value: {{ printf "http://%s:%v" (include "converact.fullname" .) .Values.service.port | quote }}
             - name: CONVERACT_FABRIC_RECORDING_PROFILE_ID
               value: {{ $profileId | quote }}
             - name: CONVERACT_FABRIC_RECORDING_WORKER_ID
@@ -434,9 +434,9 @@ spec:
             - name: CONVERACT_FABRIC_RECORDING_STATE_DIR
               value: /app/recording-state
             - name: CONVERACT_FABRIC_RECORDING_SERVICE_KEY_FILE
-              value: /run/ivekit-recording-secrets/rustpbx-recording-service-key
+              value: /run/converact-recording-secrets/rustpbx-recording-service-key
             - name: CONVERACT_FABRIC_RECORDING_LEASE_SECRET_FILE
-              value: /run/ivekit-recording-secrets/rustpbx-recording-lease-secret
+              value: /run/converact-recording-secrets/rustpbx-recording-lease-secret
             - name: CONVERACT_FABRIC_RECORDING_PART_SIZE_BYTES
               value: {{ .Values.voice.recordingSpool.partSizeBytes | quote }}
             - name: CONVERACT_FABRIC_RECORDING_LEASE_MS
@@ -455,12 +455,12 @@ spec:
             - name: storage
               mountPath: /app/recording-state
             - name: recording-secrets
-              mountPath: /run/ivekit-recording-secrets
+              mountPath: /run/converact-recording-secrets
               readOnly: true
         {{- end }}
         {{- if .Values.voice.componentNode.enabled }}
         - name: component-node-admission
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-component-node-admission.js"]
           ports:
@@ -475,7 +475,7 @@ spec:
             - name: CONVERACT_FABRIC_COMPONENT_NODE_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.componentNode.tokenKey }}
             - name: CONVERACT_FABRIC_COMPONENT_NODE_COMPONENT
               value: rustpbx
@@ -576,7 +576,7 @@ spec:
         {{- end }}
         {{- if .Values.realtimeAudioTap.enabled }}
         - name: realtime-audio-tap-gateway
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-realtime-audio-tap-worker.js"]
           {{- with .Values.secrets.runtimeEnvironmentSecret }}
@@ -590,7 +590,7 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.secrets.runtimeDatabaseUrlKey }}
             - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED
               value: "1"
@@ -601,12 +601,12 @@ spec:
             - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.secrets.realtimeAudioTapHmacSecretKey }}
             - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
               value: {{ .Values.realtimeAudioTap.tokenTtlSeconds | quote }}
             - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_SOCKET_PATH
-              value: /run/ivekit/realtime-audio-tap.sock
+              value: /run/converact/realtime-audio-tap.sock
             - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_MAX_CONNECTIONS
               value: {{ .Values.realtimeAudioTap.maxConnections | quote }}
             - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_PRESTART_BUFFER_MS
@@ -623,7 +623,7 @@ spec:
               value: {{ .Values.realtimeAudioTap.retentionDays | quote }}
           readinessProbe:
             exec:
-              command: ["sh", "-ec", "test -S /run/ivekit/realtime-audio-tap.sock"]
+              command: ["sh", "-ec", "test -S /run/converact/realtime-audio-tap.sock"]
             periodSeconds: 3
             timeoutSeconds: 1
           securityContext:
@@ -632,91 +632,91 @@ spec:
             {{- toYaml .Values.realtimeAudioTap.rustPbxGateway.resources | nindent 12 }}
           volumeMounts:
             - name: realtime-audio-tap
-              mountPath: /run/ivekit
+              mountPath: /run/converact
         {{- end }}
         {{- if .Values.voice.dialogShadow.enabled }}
         - name: dialog-shadow-agent
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-dialog-shadow-agent.js"]
           env:
-            - name: IVEKIT_DIALOG_SHADOW_PRODUCTION
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_PRODUCTION
               value: "true"
-            - name: IVEKIT_DIALOG_SHADOW_HOST
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_HOST
               value: "127.0.0.1"
-            - name: IVEKIT_DIALOG_SHADOW_PORT
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_PORT
               value: "3212"
-            - name: IVEKIT_DIALOG_SHADOW_CELL_ID
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_CELL_ID
               value: {{ $cellId | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_NODE_ID
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_NODE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: IVEKIT_DIALOG_SHADOW_FAULT_DOMAIN
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_FAULT_DOMAIN
               value: {{ .Values.voice.dialogShadow.faultDomain | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_PATH
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_PATH
               value: /app/dialog-shadow/dialog-shadow.wal
-            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORDS
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORDS
               value: {{ .Values.voice.dialogShadow.journal.maxRecords | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_BYTES
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_BYTES
               value: {{ .Values.voice.dialogShadow.journal.maxBytes | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES
               value: {{ .Values.voice.dialogShadow.journal.maxRecordBytes | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_COMPACT_INTERVAL_MS
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_COMPACT_INTERVAL_MS
               value: {{ .Values.voice.dialogShadow.journal.compactIntervalMs | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_SERVICE_TOKEN_FILE
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_SERVICE_TOKEN_FILE
               value: /run/dialog-shadow-secrets/service-token
-            - name: IVEKIT_DIALOG_SHADOW_TLS_KEY_FILE
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_TLS_KEY_FILE
               value: /run/dialog-shadow-server-tls/server.key
-            - name: IVEKIT_DIALOG_SHADOW_TLS_CERT_FILE
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_TLS_CERT_FILE
               value: /run/dialog-shadow-server-tls/server.crt
-            - name: IVEKIT_DIALOG_SHADOW_TLS_CA_FILE
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_TLS_CA_FILE
               value: /run/dialog-shadow-server-tls/client-ca.crt
-            - name: IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN
               value: {{ .Values.voice.dialogShadow.spiffeTrustDomain | quote }}
-            - name: IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE
+            - name: CONVERACT_FABRIC_DIALOG_RECOVERY_DATABASE_URL_FILE
               value: /run/dialog-shadow-agent-secrets/database-url
-            - name: IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_ID
+            - name: CONVERACT_FABRIC_DIALOG_RECOVERY_CURRENT_KEY_ID
               value: {{ .Values.voice.dialogShadow.currentRecoveryKeyId | quote }}
-            - name: IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_FILE
+            - name: CONVERACT_FABRIC_DIALOG_RECOVERY_CURRENT_KEY_FILE
               value: /run/dialog-shadow-secrets/recovery-current-key
-            - name: IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_ID
+            - name: CONVERACT_FABRIC_DIALOG_RECOVERY_PREVIOUS_KEY_ID
               value: {{ .Values.voice.dialogShadow.previousRecoveryKeyId | quote }}
-            - name: IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_FILE
+            - name: CONVERACT_FABRIC_DIALOG_RECOVERY_PREVIOUS_KEY_FILE
               value: /run/dialog-shadow-secrets/recovery-previous-key
-            - name: IVEKIT_DIALOG_RECOVERY_TOKEN_TTL_MS
+            - name: CONVERACT_FABRIC_DIALOG_RECOVERY_TOKEN_TTL_MS
               value: {{ .Values.voice.dialogShadow.recovery.tokenTtlMs | quote }}
-            - name: IVEKIT_DIALOG_RECOVERY_NODE_LEASE_TTL_MS
+            - name: CONVERACT_FABRIC_DIALOG_RECOVERY_NODE_LEASE_TTL_MS
               value: {{ .Values.voice.dialogShadow.recovery.nodeLeaseTtlMs | quote }}
-            - name: IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX
+            - name: CONVERACT_FABRIC_DIALOG_RECOVERY_POSTGRES_POOL_MAX
               value: {{ .Values.voice.dialogShadow.recovery.postgresPoolMax | quote }}
-            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS
+            - name: CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_INTERVAL_MS
               value: {{ .Values.voice.dialogShadow.recovery.terminalRepairIntervalMs | quote }}
-            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS
+            - name: CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS
               value: {{ .Values.voice.dialogShadow.recovery.terminalRepairLeaseTtlMs | quote }}
-            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE
+            - name: CONVERACT_FABRIC_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE
               value: {{ .Values.voice.dialogShadow.recovery.terminalRepairTenantBatchSize | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE
               value: /run/dialog-shadow-nats-fault-domains/fault-domains.json
-            - name: IVEKIT_DIALOG_SHADOW_NATS_STREAM
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_NATS_STREAM
               value: {{ .Values.voice.dialogShadow.nats.streamName | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_NATS_SUBJECT_PREFIX
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_NATS_SUBJECT_PREFIX
               value: {{ .Values.voice.dialogShadow.nats.subjectPrefix | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER
               value: {{ .Values.voice.dialogShadow.nats.placementCluster | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_TAGS
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_NATS_PLACEMENT_TAGS
               value: {{ join "," .Values.voice.dialogShadow.nats.placementTags | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_NATS_STREAM_REPLICAS
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_NATS_STREAM_REPLICAS
               value: {{ .Values.voice.dialogShadow.nats.streamReplicas | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS
               value: {{ .Values.voice.dialogShadow.nats.requiredFaultDomains | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_NATS_MAX_AGE_MS
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_NATS_MAX_AGE_MS
               value: {{ .Values.voice.dialogShadow.nats.maxAgeMs | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_NATS_ACK_WAIT_MS
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_NATS_ACK_WAIT_MS
               value: {{ .Values.voice.dialogShadow.nats.ackWaitMs | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_NATS_MAX_ACK_PENDING
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_NATS_MAX_ACK_PENDING
               value: {{ .Values.voice.dialogShadow.nats.maxAckPending | quote }}
-            - name: IVEKIT_DIALOG_SHADOW_QUORUM_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_DIALOG_SHADOW_QUORUM_TIMEOUT_MS
               value: {{ .Values.voice.dialogShadow.nats.quorumTimeoutMs | quote }}
             - name: NATS_URL
               value: {{ join "," .Values.voice.dialogShadow.nats.urls | quote }}
@@ -777,12 +777,12 @@ spec:
             - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.routeSnapshot.hmacKeyKey }}
             - name: IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.addressHmacKeyKey }}
             - name: IVEKIT_RUSTPBX_ROUTE_TENANT_ID
               value: {{ $tenantId | quote }}
@@ -791,11 +791,11 @@ spec:
             - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS
               value: {{ .Values.voice.routeSnapshot.refreshMs | quote }}
             - name: IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL
-              value: {{ printf "http://%s:%v/api/ivekit/voice/providers/%s/inbound-admission" (include "ivekit.fullname" .) .Values.service.port $profileId | quote }}
+              value: {{ printf "http://%s:%v/api/ivekit/voice/providers/%s/inbound-admission" (include "converact.fullname" .) .Values.service.port $profileId | quote }}
             - name: IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.webhookTokenKey }}
             - name: IVEKIT_RUSTPBX_CELL_ID
               value: {{ $cellId | quote }}
@@ -897,7 +897,7 @@ spec:
             - name: IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.componentNode.tokenKey }}
             - name: IVEKIT_RUSTPBX_COMPONENT_NODE_TIMEOUT_MS
               value: {{ .Values.voice.componentNode.timeoutMs | quote }}
@@ -1003,7 +1003,7 @@ spec:
             {{- end }}
             {{- if .Values.realtimeAudioTap.enabled }}
             - name: realtime-audio-tap
-              mountPath: /run/ivekit
+              mountPath: /run/converact
             {{- end }}
             {{- if .Values.voice.dialogShadow.enabled }}
             - name: dialog-shadow-shared-secrets
@@ -1027,7 +1027,7 @@ spec:
             defaultMode: 0440
             sources:
               - secret:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   items:
                     - key: {{ .Values.voice.webhookTokenKey }}
                       path: service-key
@@ -1044,7 +1044,7 @@ spec:
             defaultMode: 0440
             sources:
               - secret:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   items:
                     - key: {{ .Values.voice.mediaControl.serviceTokenKey }}
                       path: service-token
@@ -1053,7 +1053,7 @@ spec:
             defaultMode: 0440
             sources:
               - secret:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   items:
                     - key: {{ .Values.voice.routeSnapshot.hmacKeyKey }}
                       path: hmac-key
@@ -1072,7 +1072,7 @@ spec:
             defaultMode: 0440
             sources:
               - secret:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   items:
                     - key: {{ .Values.voice.webhookTokenKey }}
                       path: rustpbx-recording-service-key
@@ -1085,7 +1085,7 @@ spec:
             defaultMode: 0440
             sources:
               - secret:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   items:
                     - key: {{ .Values.voice.dialogShadow.serviceTokenKey }}
                       path: service-token
@@ -1098,7 +1098,7 @@ spec:
             defaultMode: 0440
             sources:
               - secret:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   items:
                     - key: {{ .Values.voice.dialogShadow.recoveryDatabaseUrlKey }}
                       path: database-url
@@ -1157,7 +1157,7 @@ spec:
     - metadata:
         name: storage
         labels:
-          {{- include "ivekit.labels" . | nindent 10 }}
+          {{- include "converact.labels" . | nindent 10 }}
           app.kubernetes.io/component: rustpbx
       spec:
         accessModes: ["ReadWriteOnce"]
@@ -1172,16 +1172,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.rustpbxHeadlessFullname" . }}
+  name: {{ include "converact.rustpbxHeadlessFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: rustpbx
 spec:
   clusterIP: None
   # Cell admission must reach a draining Pod before its readiness lease exists.
   publishNotReadyAddresses: true
   selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    {{- include "converact.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: rustpbx
   ports:
     - name: management
@@ -1207,13 +1207,13 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "ivekit.fullname" . }}-rustpbx
+  name: {{ include "converact.fullname" . }}-rustpbx
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: rustpbx
   minAvailable: {{ .Values.voice.podDisruptionBudget.minAvailable }}
 {{- end }}

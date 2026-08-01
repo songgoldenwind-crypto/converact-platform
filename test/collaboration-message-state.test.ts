@@ -7,7 +7,7 @@ import { signAccessToken } from '../src/middleware/auth.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { closeCollaborationSession } from '../src/agent-runtime/collaboration/collaboration-session-lifecycle.js';
 import { CollaborationMessageStateStore } from '../src/agent-runtime/collaboration/message-state-store.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
+import { routeConveractFabricChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import { PolicyFindingStore } from '../src/agent-runtime/collaboration/policy-finding-store.js';
 import type { QualityReviewProvider } from '../src/agent-runtime/collaboration/quality-review.js';
 
@@ -434,14 +434,14 @@ test('message mutation window is exposed across deployment surfaces', () => {
     readFileSync('docker-compose.callcenter.yml', 'utf8'),
     readFileSync('infra/docker-compose.production.yml', 'utf8'),
     readFileSync('infra/k8s/values.yaml', 'utf8'),
-    readFileSync('infra/k8s/templates/opc-deployment.yaml', 'utf8')
+    readFileSync('infra/k8s/templates/converact-deployment.yaml', 'utf8')
   ];
   for (const source of sources) {
     assert.match(source, /CONVERACT_CHAT_MESSAGE_MUTATION_WINDOW_MS|messageMutationWindowMs/);
   }
 });
 
-test('iveKit receipt API marks the authenticated participant read and returns unread state', async () => {
+test('Converact Fabric receipt API marks the authenticated participant read and returns unread state', async () => {
   const previousApiKey = process.env.CONVERACT_API_KEY;
   process.env.CONVERACT_API_KEY = API_KEY;
   const pg = new MemoryPg();
@@ -458,7 +458,7 @@ test('iveKit receipt API marks the authenticated participant read and returns un
     path: string,
     body: unknown,
     headers: Record<string, string>
-  ) => routeIveKitChatApi(
+  ) => routeConveractFabricChatApi(
     pg,
     method,
     path,
@@ -626,7 +626,7 @@ test('JWT chat users cannot request credentials or post messages as another iden
   const token = signAccessToken({ sub: 'agent-jwt', tid: tenantId, role: 'operator' });
   const jwtHeaders = { authorization: `Bearer ${token}` };
   const route = (method: string, path: string, body: unknown, headers: Record<string, string>) =>
-    routeIveKitChatApi(
+    routeConveractFabricChatApi(
       pg,
       method,
       path,

@@ -32,7 +32,7 @@ old_ifs=$IFS
 IFS=,
 for database in $databases; do
   case "$database" in
-    opc|keycloak|tinode|chatwoot|rustpbx) ;;
+    converact|keycloak|tinode|chatwoot|rustpbx) ;;
     *) fail "unsupported database: $database" ;;
   esac
 done

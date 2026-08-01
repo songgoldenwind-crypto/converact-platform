@@ -24,8 +24,8 @@ import {
   type IvrFlowGraph,
   type GlobalShortcut,
 } from './types';
-import { validateFlowGraphDetailed } from '@opc/shared/ivr/validate-flow-graph';
-import { saveBlockingIssues } from '@opc/shared/ivr/validation-policy';
+import { validateFlowGraphDetailed } from '@converact/shared/ivr/validate-flow-graph';
+import { saveBlockingIssues } from '@converact/shared/ivr/validation-policy';
 import { runSimulation } from './simulate-flow';
 
 const nodeTypes = { ivr: IvrNodeComponent };

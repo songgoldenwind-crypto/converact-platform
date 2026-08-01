@@ -1,4 +1,4 @@
-import type { IveKitChatAttachmentUploadDescriptor, IveKitChatMessage, IveKitChatParticipant } from '@converact/sdk';
+import type { ConveractFabricChatAttachmentUploadDescriptor, ConveractFabricChatMessage, ConveractFabricChatParticipant } from '@converact/sdk';
 import { AtSign, FilePlus2, RotateCcw, Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -8,19 +8,19 @@ type UploadItem = {
   preview: string;
   progress: number;
   state: 'uploading' | 'ready' | 'failed';
-  descriptor?: IveKitChatAttachmentUploadDescriptor;
+  descriptor?: ConveractFabricChatAttachmentUploadDescriptor;
   abort?: () => void;
   error?: string;
 };
 
 export function MessageComposer(props: {
   disabled: boolean;
-  participants: IveKitChatParticipant[];
-  replyTo: IveKitChatMessage | null;
-  forwardFrom: IveKitChatMessage | null;
+  participants: ConveractFabricChatParticipant[];
+  replyTo: ConveractFabricChatMessage | null;
+  forwardFrom: ConveractFabricChatMessage | null;
   onClearRelation(): void;
-  onUpload(file: File, onProgress: (percent: number) => void): { result: Promise<IveKitChatAttachmentUploadDescriptor>; abort(): void };
-  onSend(input: { body: string; attachments: IveKitChatAttachmentUploadDescriptor[]; reply_to_message_id?: string; forwarded_from_message_id?: string; mentions?: string[] }): Promise<unknown>;
+  onUpload(file: File, onProgress: (percent: number) => void): { result: Promise<ConveractFabricChatAttachmentUploadDescriptor>; abort(): void };
+  onSend(input: { body: string; attachments: ConveractFabricChatAttachmentUploadDescriptor[]; reply_to_message_id?: string; forwarded_from_message_id?: string; mentions?: string[] }): Promise<unknown>;
   onTyping(typing: boolean): Promise<void>;
 }) {
   const [body, setBody] = useState('');

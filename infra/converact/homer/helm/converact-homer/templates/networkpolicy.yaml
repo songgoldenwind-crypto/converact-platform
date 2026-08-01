@@ -2,13 +2,13 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "ivekit-homer.fullname" . }}
+  name: {{ include "converact-homer.fullname" . }}
   labels:
-    {{- include "ivekit-homer.labels" . | nindent 4 }}
+    {{- include "converact-homer.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "ivekit-homer.selectorLabels" . | nindent 6 }}
+      {{- include "converact-homer.selectorLabels" . | nindent 6 }}
   policyTypes: [Ingress, Egress]
   ingress:
     - from:

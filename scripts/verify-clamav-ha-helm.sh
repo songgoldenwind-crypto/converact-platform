@@ -13,18 +13,18 @@ APP_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 CLAMAV_DIGEST=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 
 "$HELM_BIN" lint "$CHART_DIR" \
-  --set-string image.repository=registry.example.invalid/ivekit/service \
+  --set-string image.repository=registry.example.invalid/converact/service \
   --set-string image.digest="$APP_DIGEST" \
-  --set-string secrets.existingSecret=ivekit-runtime \
+  --set-string secrets.existingSecret=converact-runtime \
   --set clamav.enabled=true \
   --set-string clamav.image.repository=clamav/clamav:1.5.2_base \
   --set-string clamav.image.digest="$CLAMAV_DIGEST"
 
-"$HELM_BIN" template ivekit-clamav "$CHART_DIR" \
-  --namespace ivekit \
-  --set-string image.repository=registry.example.invalid/ivekit/service \
+"$HELM_BIN" template converact-clamav "$CHART_DIR" \
+  --namespace converact \
+  --set-string image.repository=registry.example.invalid/converact/service \
   --set-string image.digest="$APP_DIGEST" \
-  --set-string secrets.existingSecret=ivekit-runtime \
+  --set-string secrets.existingSecret=converact-runtime \
   --set clamav.enabled=true \
   --set-string clamav.image.repository=clamav/clamav:1.5.2_base \
   --set-string clamav.image.digest="$CLAMAV_DIGEST" \
@@ -48,10 +48,10 @@ do
   fi
 done
 
-if "$HELM_BIN" template ivekit-clamav-invalid "$CHART_DIR" \
-  --set-string image.repository=registry.example.invalid/ivekit/service \
+if "$HELM_BIN" template converact-clamav-invalid "$CHART_DIR" \
+  --set-string image.repository=registry.example.invalid/converact/service \
   --set-string image.digest="$APP_DIGEST" \
-  --set-string secrets.existingSecret=ivekit-runtime \
+  --set-string secrets.existingSecret=converact-runtime \
   --set clamav.enabled=true \
   --set clamav.replicaCount=1 \
   --set-string clamav.image.repository=clamav/clamav:1.5.2_base \

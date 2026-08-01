@@ -11,7 +11,7 @@ test('Redis direct topology accepts one credential-free endpoint and bounded rec
     resolveRedisConnectionOptions({
       REDIS_TOPOLOGY: 'direct',
       REDIS_URL: 'redis://valkey-primary.internal:6379',
-      REDIS_USERNAME: 'ivekit',
+      REDIS_USERNAME: 'converact',
       REDIS_PASSWORD: 'secret-ref-value',
       REDIS_CONNECT_TIMEOUT_MS: '3500',
       REDIS_RECONNECT_WAIT_MS: '750',
@@ -20,7 +20,7 @@ test('Redis direct topology accepts one credential-free endpoint and bounded rec
     {
       topology: 'direct',
       url: 'redis://valkey-primary.internal:6379',
-      username: 'ivekit',
+      username: 'converact',
       password: 'secret-ref-value',
       connectTimeoutMs: 3500,
       reconnectWaitMs: 750,
@@ -34,25 +34,25 @@ test('Redis Sentinel topology accepts three voters and independent data and Sent
   assert.deepEqual(
     resolveRedisConnectionOptions({
       REDIS_TOPOLOGY: 'sentinel',
-      REDIS_SENTINEL_MASTER_NAME: 'ivekit-coordination',
+      REDIS_SENTINEL_MASTER_NAME: 'converact-coordination',
       REDIS_SENTINEL_ADDRESSES:
         'valkey-0.internal:26379,valkey-1.internal:26379,valkey-2.internal:26379',
-      REDIS_USERNAME: 'ivekit-data',
+      REDIS_USERNAME: 'converact-data',
       REDIS_PASSWORD: 'data-secret',
-      REDIS_SENTINEL_USERNAME: 'ivekit-sentinel',
+      REDIS_SENTINEL_USERNAME: 'converact-sentinel',
       REDIS_SENTINEL_PASSWORD: 'sentinel-secret'
     }),
     {
       topology: 'sentinel',
-      masterName: 'ivekit-coordination',
+      masterName: 'converact-coordination',
       sentinels: [
         { host: 'valkey-0.internal', port: 26379 },
         { host: 'valkey-1.internal', port: 26379 },
         { host: 'valkey-2.internal', port: 26379 }
       ],
-      username: 'ivekit-data',
+      username: 'converact-data',
       password: 'data-secret',
-      sentinelUsername: 'ivekit-sentinel',
+      sentinelUsername: 'converact-sentinel',
       sentinelPassword: 'sentinel-secret',
       connectTimeoutMs: 5000,
       reconnectWaitMs: 1000,
@@ -66,7 +66,7 @@ test('Redis TLS requires verification and preserves only file references in reso
   assert.deepEqual(
     resolveRedisConnectionOptions({
       REDIS_TOPOLOGY: 'sentinel',
-      REDIS_SENTINEL_MASTER_NAME: 'ivekit-coordination',
+      REDIS_SENTINEL_MASTER_NAME: 'converact-coordination',
       REDIS_SENTINEL_ADDRESSES:
         'valkey-0.internal:26379,valkey-1.internal:26379,valkey-2.internal:26379',
       REDIS_TLS_MODE: 'required',
@@ -98,7 +98,7 @@ test('Redis connection contract rejects mixed direct and Sentinel topology', () 
       resolveRedisConnectionOptions({
         REDIS_TOPOLOGY: 'sentinel',
         REDIS_URL: 'redis://valkey:6379',
-        REDIS_SENTINEL_MASTER_NAME: 'ivekit-coordination',
+        REDIS_SENTINEL_MASTER_NAME: 'converact-coordination',
         REDIS_SENTINEL_ADDRESSES:
           'valkey-0:26379,valkey-1:26379,valkey-2:26379'
       }),
@@ -117,7 +117,7 @@ test('Redis Sentinel topology requires exactly three unique bounded addresses', 
       () =>
         resolveRedisConnectionOptions({
           REDIS_TOPOLOGY: 'sentinel',
-          REDIS_SENTINEL_MASTER_NAME: 'ivekit-coordination',
+          REDIS_SENTINEL_MASTER_NAME: 'converact-coordination',
           REDIS_SENTINEL_ADDRESSES: addresses
         }),
       /three unique host:port entries/
@@ -127,14 +127,14 @@ test('Redis Sentinel topology requires exactly three unique bounded addresses', 
 
 test('Redis ACL and TLS pairs fail closed when incomplete or contradictory', () => {
   assert.throws(
-    () => resolveRedisConnectionOptions({ REDIS_USERNAME: 'ivekit' }),
+    () => resolveRedisConnectionOptions({ REDIS_USERNAME: 'converact' }),
     /REDIS_USERNAME and REDIS_PASSWORD must be configured together/
   );
   assert.throws(
     () =>
       resolveRedisConnectionOptions({
         REDIS_TOPOLOGY: 'sentinel',
-        REDIS_SENTINEL_MASTER_NAME: 'ivekit-coordination',
+        REDIS_SENTINEL_MASTER_NAME: 'converact-coordination',
         REDIS_SENTINEL_ADDRESSES:
           'valkey-0:26379,valkey-1:26379,valkey-2:26379',
         REDIS_SENTINEL_USERNAME: 'sentinel'
@@ -178,7 +178,7 @@ test('Redis direct config maps to URL plus bounded ioredis options', () => {
   const args = buildIoRedisConstructorArgs(
     resolveRedisConnectionOptions({
       REDIS_URL: 'redis://valkey.internal:6379',
-      REDIS_USERNAME: 'ivekit',
+      REDIS_USERNAME: 'converact',
       REDIS_PASSWORD: 'data-secret',
       REDIS_RECONNECT_WAIT_MS: '750',
       REDIS_MAX_RECONNECT_ATTEMPTS: '2'
@@ -192,7 +192,7 @@ test('Redis direct config maps to URL plus bounded ioredis options', () => {
   assert.equal(options.lazyConnect, true);
   assert.equal(options.maxRetriesPerRequest, 1);
   assert.equal(options.connectTimeout, 5000);
-  assert.equal(options.username, 'ivekit');
+  assert.equal(options.username, 'converact');
   assert.equal(options.password, 'data-secret');
   assert.equal(options.retryStrategy?.(1), 750);
   assert.equal(options.retryStrategy?.(2), 750);
@@ -203,12 +203,12 @@ test('Redis Sentinel config maps to one ioredis options object with independent 
   const args = buildIoRedisConstructorArgs(
     resolveRedisConnectionOptions({
       REDIS_TOPOLOGY: 'sentinel',
-      REDIS_SENTINEL_MASTER_NAME: 'ivekit-coordination',
+      REDIS_SENTINEL_MASTER_NAME: 'converact-coordination',
       REDIS_SENTINEL_ADDRESSES:
         'valkey-0.internal:26379,valkey-1.internal:26379,valkey-2.internal:26379',
-      REDIS_USERNAME: 'ivekit-data',
+      REDIS_USERNAME: 'converact-data',
       REDIS_PASSWORD: 'data-secret',
-      REDIS_SENTINEL_USERNAME: 'ivekit-sentinel',
+      REDIS_SENTINEL_USERNAME: 'converact-sentinel',
       REDIS_SENTINEL_PASSWORD: 'sentinel-secret'
     })
   );
@@ -221,10 +221,10 @@ test('Redis Sentinel config maps to one ioredis options object with independent 
     { host: 'valkey-1.internal', port: 26379 },
     { host: 'valkey-2.internal', port: 26379 }
   ]);
-  assert.equal(options.name, 'ivekit-coordination');
-  assert.equal(options.username, 'ivekit-data');
+  assert.equal(options.name, 'converact-coordination');
+  assert.equal(options.username, 'converact-data');
   assert.equal(options.password, 'data-secret');
-  assert.equal(options.sentinelUsername, 'ivekit-sentinel');
+  assert.equal(options.sentinelUsername, 'converact-sentinel');
   assert.equal(options.sentinelPassword, 'sentinel-secret');
   assert.equal(options.role, 'master');
   assert.equal(options.enableReadyCheck, true);
@@ -236,7 +236,7 @@ test('Redis ioredis mapping reads TLS material only through the injected file bo
   const args = buildIoRedisConstructorArgs(
     resolveRedisConnectionOptions({
       REDIS_TOPOLOGY: 'sentinel',
-      REDIS_SENTINEL_MASTER_NAME: 'ivekit-coordination',
+      REDIS_SENTINEL_MASTER_NAME: 'converact-coordination',
       REDIS_SENTINEL_ADDRESSES:
         'valkey-0.internal:26379,valkey-1.internal:26379,valkey-2.internal:26379',
       REDIS_TLS_MODE: 'required',

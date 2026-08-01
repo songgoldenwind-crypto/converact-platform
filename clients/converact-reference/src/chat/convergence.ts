@@ -1,14 +1,14 @@
-import type { IveKitChatMessage, IveKitCursorPage } from '@converact/sdk';
+import type { ConveractFabricChatMessage, ConveractFabricCursorPage } from '@converact/sdk';
 import type { ChatConvergenceProjection, ChatConvergenceTrigger } from './types.js';
 
 export interface ChatConvergenceInput {
-  fetchAfter(cursor: string | null): Promise<IveKitCursorPage<IveKitChatMessage>>;
+  fetchAfter(cursor: string | null): Promise<ConveractFabricCursorPage<ConveractFabricChatMessage>>;
   onProjection?: (projection: ChatConvergenceProjection) => void;
   onFatalAuth?: (status: 401 | 403) => void;
 }
 
 export class ChatConvergence {
-  private messages = new Map<string, IveKitChatMessage>();
+  private messages = new Map<string, ConveractFabricChatMessage>();
   private cursor: string | null = null;
   private generation = 0;
   private running: Promise<void> | null = null;
@@ -30,7 +30,7 @@ export class ChatConvergence {
     return running;
   }
 
-  reset(messages: IveKitChatMessage[], cursor: string | null): void {
+  reset(messages: ConveractFabricChatMessage[], cursor: string | null): void {
     this.generation += 1;
     this.messages = new Map(messages.map((message) => [message.id, message]));
     this.cursor = cursor;
@@ -75,7 +75,7 @@ export class ChatConvergence {
     } while (this.queued && !this.closed);
   }
 
-  private emit(changed: IveKitChatMessage[]): void {
+  private emit(changed: ConveractFabricChatMessage[]): void {
     const messages = [...this.messages.values()].sort((left, right) =>
       left.created_at.localeCompare(right.created_at) || left.id.localeCompare(right.id)
     );

@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-test('Tinode inbound worker is configurable in OPC and standalone deployment surfaces', () => {
+test('Tinode inbound worker is configurable in Converact and standalone deployment surfaces', () => {
   const sources = [
     '.env.example',
     'infra/env.example',
     'docker-compose.callcenter.yml',
     'infra/docker-compose.production.yml',
-    'infra/k8s/templates/opc-deployment.yaml',
+    'infra/k8s/templates/converact-deployment.yaml',
     'services/converact-service/env.example',
     'services/converact-service/docker-compose.yml'
   ].map((path) => ({ path, content: readFileSync(path, 'utf8') }));

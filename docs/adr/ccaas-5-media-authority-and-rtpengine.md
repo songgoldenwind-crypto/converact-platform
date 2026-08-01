@@ -5,11 +5,11 @@
 - Amended: 2026-07-30, Revision 4
 - Decision ID: `rvoip-rustpbx-unified-authority-r2`
 - Revision 4 amendment: `unified-voice-foundation-r4`
-- Scope: iveKit voice media plane, Cell placement, recording and capacity evidence
+- Scope: Converact Fabric voice media plane, Cell placement, recording and capacity evidence
 - Supersedes: the recording executor statement in ADR-CCAAS-3
 - Runtime verification: Not run
 - Normative model:
-  [`rvoip-opc-communication-foundation-integration-design.md`](../design/rvoip-opc-communication-foundation-integration-design.md)
+  [`rvoip-converact-communication-foundation-integration-design.md`](../design/rvoip-converact-communication-foundation-integration-design.md)
 - Normative Revision 4 contract:
   [`unified-voice-foundation-r4-v1.json`](../capacity/contracts/unified-voice-foundation-r4-v1.json)
 

@@ -211,9 +211,9 @@ export function useLiveKitRoom(token: string, serverUrl: string) {
 }
 ```
 
-### 2.5 Token 生成 (OPC 侧)
+### 2.5 Token 生成 (Converact Platform 侧)
 
-H5 URL 由 OPC Dialer 通过 `LiveKitMediaModule.joins.prepareJoin` 生成；浏览器链接里不放 LiveKit token：
+H5 URL 由 Converact Platform Dialer 通过 `LiveKitMediaModule.joins.prepareJoin` 生成；浏览器链接里不放 LiveKit token：
 
 ```typescript
 const customerPlan = await media.joins.prepareJoin('webrtc', {
@@ -311,7 +311,7 @@ Dialer → executeTask (video_link_sms):
 | 通话结束 (Room 关闭) | Egress 自动结束 → 文件保存到 MinIO |
 | 语音外呼 | 仅 Track Composite (audio only) |
 
-### 4.2 启动录制 (OPC 侧)
+### 4.2 启动录制 (Converact Platform 侧)
 
 ```typescript
 // src/agent-runtime/livekit/egress-controller.ts
@@ -425,7 +425,7 @@ Phase 2 room metadata 增加视频相关字段：
 
 ---
 
-## 6. Phase 2 新增 OPC API
+## 6. Phase 2 新增 Converact Platform API
 
 | Method | Path | 说明 |
 |---|---|---|

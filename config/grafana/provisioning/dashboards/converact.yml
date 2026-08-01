@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: 'Converact Dashboards'
+    orgId: 1
+    folder: 'Converact'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

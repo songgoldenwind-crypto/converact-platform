@@ -9,10 +9,10 @@ import { RustDeskDeviceStore } from '../src/agent-runtime/collaboration/rustdesk
 import { RustDeskGatewaySessionStore } from '../src/agent-runtime/collaboration/rustdesk-gateway-session-store.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
-import { createIveKitRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
+import { createConveractFabricRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
 
-test('iveKit API docs keep the legacy control plane attended-only', () => {
-  const docs = readFileSync(new URL('../docs/ivekit-openapi.md', import.meta.url), 'utf8');
+test('Converact Fabric API docs keep the legacy control plane attended-only', () => {
+  const docs = readFileSync(new URL('../docs/converact-openapi.md', import.meta.url), 'utf8');
   assert.match(docs, /\/api\/opc\/rustdesk\/sessions[^\n]*attended-only/i);
   assert.match(docs, /unattended[^\n]*\/api\/ivekit\/rustdesk\/gateway-sessions/i);
 });
@@ -31,7 +31,7 @@ test('shared RustDesk creator rejects unattended launch before the upstream call
     permissions: ['view_screen'] as const,
     access_mode: 'unattended' as const,
     device_id: fixture.device.id,
-    metadata: { source: 'ivekit' }
+    metadata: { source: 'converact' }
   };
 
   await assert.rejects(
@@ -95,7 +95,7 @@ test('public RustDesk gateway tool start is attended-only and enforces consent s
   const gateway = {
     provider: 'rustdesk' as const,
     external_id: 'rdgw-direct-gateway-tool',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-direct-gateway-tool',
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-direct-gateway-tool',
     target: { type: 'device', id: fixture.device.rustdesk_id },
     permissions: ['view_screen'] as const,
     metadata: { source: 'direct-test' }
@@ -239,7 +239,7 @@ test('RustDesk control plane rejects unattended and nested metadata aliases befo
     }, '', { authorization: 'Bearer rustdesk-control-token' });
     assert.deepEqual(unattended, {
       status: 403,
-      data: { error: 'unattended RustDesk creation requires the policy-aware iveKit route' }
+      data: { error: 'unattended RustDesk creation requires the policy-aware Converact Fabric route' }
     });
 
     const alias = await routeCollaborationApi(pg, 'POST', path, new URL(`http://localhost${path}`), {
@@ -328,7 +328,7 @@ test('RustDesk control plane rejects explicit unattended even with valid policy 
     }, '', { authorization: 'Bearer rustdesk-control-token' });
     assert.deepEqual(response, {
       status: 403,
-      data: { error: 'unattended RustDesk creation requires the policy-aware iveKit route' }
+      data: { error: 'unattended RustDesk creation requires the policy-aware Converact Fabric route' }
     });
     assert.equal((await new RustDeskGatewaySessionStore(pg).listSessions({
       tenant_id: fixture.tenantId,
@@ -339,23 +339,23 @@ test('RustDesk control plane rejects explicit unattended even with valid policy 
   }
 });
 
-test('iveKit RustDesk ingress rejects metadata mode aliases and nested secrets before store writes', async () => {
+test('Converact Fabric RustDesk ingress rejects metadata mode aliases and nested secrets before store writes', async () => {
   const previous = gatewayEnv();
   process.env.CONVERACT_API_KEY = 'rustdesk-security-api-key';
   process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
   process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
   const pg = new MemoryPg();
-  const fixture = await remoteFixture(pg, 'ivekit-ingress');
+  const fixture = await remoteFixture(pg, 'converact-ingress');
   const path = '/api/ivekit/rustdesk/gateway-sessions';
   const headers = {
     'x-api-key': 'rustdesk-security-api-key',
     'x-tenant-id': fixture.tenantId,
-    'x-user-id': 'operator-ivekit-ingress'
+    'x-user-id': 'operator-converact-ingress'
   };
   const base = {
     remote_session_id: fixture.remoteId,
     device_id: fixture.device.id,
-    actor_identity: 'operator-ivekit-ingress',
+    actor_identity: 'operator-converact-ingress',
     permissions: ['view_screen']
   };
 
@@ -395,7 +395,7 @@ test('generic direct RustDesk tool persistence is rejected even with safe metada
       actor_identity: 'operator-generic-tool',
       provider: 'rustdesk',
       external_id: 'rdgw-generic-tool',
-      launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-generic-tool',
+      launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-generic-tool',
       metadata: { source: 'generic-tool-reviewer-probe' }
     }),
     /use the dedicated RustDesk gateway path/
@@ -416,7 +416,7 @@ test('generic HTTP RustDesk tool creation is rejected before persistence', async
         actor_identity: 'operator-generic-http',
         provider: 'rustdesk',
         external_id: 'rdgw-generic-http',
-        launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-generic-http',
+        launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-generic-http',
         metadata: { access_mode: 'attended' }
       }, '', {
         'x-api-key': 'rustdesk-security-api-key',
@@ -549,7 +549,7 @@ test('JWT collaboration routes reject body actor spoofing before audit or gatewa
   }
 });
 
-test('iveKit SDK allowlists RustDesk session and launch metadata', async () => {
+test('Converact Fabric SDK allowlists RustDesk session and launch metadata', async () => {
   const responses: unknown[] = [
     {
       id: 'tool-security-sdk',
@@ -557,7 +557,7 @@ test('iveKit SDK allowlists RustDesk session and launch metadata', async () => {
       remote_session_id: 'remote-security-sdk',
       provider: 'rustdesk',
       external_id: 'rdgw-security-sdk',
-      launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-security-sdk',
+      launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-security-sdk',
       status: 'active',
       started_by: 'operator-security-sdk',
       started_at: '2026-07-12T00:00:00.000Z',
@@ -565,7 +565,7 @@ test('iveKit SDK allowlists RustDesk session and launch metadata', async () => {
       internal_column: 'drop-top-level',
       unattended_password: 'do-not-return-top-level',
       metadata: {
-        source: 'ivekit',
+        source: 'converact',
         rustdesk_device_id: 'rdesk-security-sdk',
         internal_trace: 'drop-me',
         nested: { token: 'do-not-return' }
@@ -574,12 +574,12 @@ test('iveKit SDK allowlists RustDesk session and launch metadata', async () => {
     {
       external_id: 'rdgw-security-sdk',
       status: 'active',
-      launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-security-sdk',
+      launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-security-sdk',
       target: { type: 'device', id: '123456789' },
       permissions: ['view_screen'],
       runtime: { rustdesk_id: '123456789' },
       client_config: {},
-      actions: { can_launch: true, open_url: 'https://opc.example.com/remote/rustdesk/launch', protocol_url: '' },
+      actions: { can_launch: true, open_url: 'https://converact.example.com/remote/rustdesk/launch', protocol_url: '' },
       metadata: {
         site: 'showroom-7',
         access_mode: 'attended',
@@ -592,8 +592,8 @@ test('iveKit SDK allowlists RustDesk session and launch metadata', async () => {
       credential_ref: 'do-not-return-top-level-plan'
     }
   ];
-  const client = createIveKitRustDeskHttpClient({
-    baseUrl: 'https://opc.example.com',
+  const client = createConveractFabricRustDeskHttpClient({
+    baseUrl: 'https://converact.example.com',
     accessToken: 'sdk-token',
     tenantId: 'tenant-security-sdk',
     fetch: async () => Response.json(responses.shift())
@@ -608,7 +608,7 @@ test('iveKit SDK allowlists RustDesk session and launch metadata', async () => {
   const plan = await client.getGatewayLaunchPlan('rdgw-security-sdk');
 
   assert.deepEqual(session.metadata, {
-    source: 'ivekit',
+    source: 'converact',
     rustdesk_device_id: 'rdesk-security-sdk'
   });
   assert.deepEqual(plan.metadata, { site: 'showroom-7', access_mode: 'attended' });
@@ -659,7 +659,7 @@ function recordingRustDeskClient(onCreate: () => void): RemoteGatewayClient {
       return {
         provider: 'rustdesk',
         external_id: 'rdgw-shared-security',
-        launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-shared-security',
+        launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-shared-security',
         target: input.target,
         permissions: [...input.permissions],
         metadata: input.metadata
@@ -674,7 +674,7 @@ function directGateway(rustdeskId: string, metadata: Record<string, unknown>) {
   return {
     provider: 'rustdesk' as const,
     external_id: `rdgw-${rustdeskId}`,
-    launch_url: `https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-${rustdeskId}`,
+    launch_url: `https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-${rustdeskId}`,
     target: { type: 'device', id: rustdeskId },
     permissions: ['view_screen'] as const,
     metadata

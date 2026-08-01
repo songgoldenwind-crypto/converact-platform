@@ -68,7 +68,7 @@ async function fixture(owner?: {
       'record_screen'
     ],
     actor_identity: 'agent-observer-owner',
-    launch_url: 'https://ivekit.example.com/rustdesk/observation-session',
+    launch_url: 'https://fabric.converact.example.com/rustdesk/observation-session',
     metadata: {
       rustdesk_device_id: device.id,
       rustdesk_id: device.rustdesk_id,

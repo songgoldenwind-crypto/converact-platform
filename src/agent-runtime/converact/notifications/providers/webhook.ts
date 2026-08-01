@@ -111,7 +111,7 @@ export class WebhookNotificationProvider implements NotificationDeliveryProvider
         redirect: 'manual',
         headers: {
           'content-type': 'application/json',
-          'user-agent': 'ivekit-notifications/1',
+          'user-agent': 'converact-notifications/1',
           'x-ivekit-delivery': input.delivery.id,
           'x-ivekit-event': input.notification.event_type,
           ...(integrationEventId ? { 'x-ivekit-event-id': integrationEventId } : {}),

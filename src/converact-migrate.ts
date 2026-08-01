@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Pool } from 'pg';
 
-import { applyIveKitMigrations } from './converact-migrations.js';
+import { applyConveractFabricMigrations } from './converact-migrations.js';
 
 async function main(): Promise<void> {
   const migrationsDirectory = resolve(
@@ -14,11 +14,11 @@ async function main(): Promise<void> {
   const pool = new Pool({ max: 1 });
   try {
     await pool.query('SELECT 1');
-    await applyIveKitMigrations(pool, {
+    await applyConveractFabricMigrations(pool, {
       directory: migrationsDirectory,
       advisoryLockName: 'ivekit_schema_migrations'
     });
-    console.log('iveKit PostgreSQL migrations applied');
+    console.log('Converact Fabric PostgreSQL migrations applied');
   } finally {
     await pool.end();
   }

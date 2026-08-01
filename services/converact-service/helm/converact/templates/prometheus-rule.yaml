@@ -2,9 +2,9 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{ include "ivekit.fullname" . }}
+  name: {{ include "converact.fullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     {{- with .Values.monitoring.prometheusRule.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

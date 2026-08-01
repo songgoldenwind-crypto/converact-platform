@@ -16,7 +16,7 @@ import { IvrSessionService } from './session-service.js';
 import { IvrPendingActionWorker } from './workers/pending-action-worker.js';
 import { IvrPendingActionReconciliationWorker } from './workers/reconciliation-worker.js';
 
-export interface IveKitIvrWorkerConfig {
+export interface ConveractFabricIvrWorkerConfig {
   enabled: boolean;
   action_interval_ms: number;
   action_batch_size: number;
@@ -30,7 +30,7 @@ export interface IveKitIvrWorkerConfig {
   tenant_limit: number;
 }
 
-export interface IveKitIvrRuntimeInput {
+export interface ConveractFabricIvrRuntimeInput {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
   executor?: IvrPendingActionExecutor;
@@ -38,13 +38,13 @@ export interface IveKitIvrRuntimeInput {
   publish?: IvrSessionEventPublisher;
 }
 
-export interface IveKitIvrWorkerHandle {
+export interface ConveractFabricIvrWorkerHandle {
   stop(): Promise<void>;
 }
 
-export function iveKitIvrWorkerConfig(
+export function converactFabricIvrWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
-): IveKitIvrWorkerConfig {
+): ConveractFabricIvrWorkerConfig {
   const retryBaseMs = boundedInteger(
     resolveFabricEnv(env, 'IVR_ACTION_RETRY_BASE_MS'), 1_000, 100, 300_000,
     'CONVERACT_FABRIC_IVR_ACTION_RETRY_BASE_MS'
@@ -97,13 +97,13 @@ export function iveKitIvrWorkerConfig(
   };
 }
 
-export function startIveKitIvrPendingActionWorker(
-  input: IveKitIvrRuntimeInput
-): IveKitIvrWorkerHandle {
-  const config = iveKitIvrWorkerConfig(input.env);
+export function startConveractFabricIvrPendingActionWorker(
+  input: ConveractFabricIvrRuntimeInput
+): ConveractFabricIvrWorkerHandle {
+  const config = converactFabricIvrWorkerConfig(input.env);
   if (!config.enabled) return stoppedHandle();
   if (!input.executor) {
-    throw new Error('enabled iveKit IVR pending-action executor must be injected');
+    throw new Error('enabled Converact Fabric IVR pending-action executor must be injected');
   }
   const actions = new PostgresIvrPendingActionStore(input.pg);
   const completion = createSessionCompletion(input);
@@ -125,13 +125,13 @@ export function startIveKitIvrPendingActionWorker(
   });
 }
 
-export function startIveKitIvrReconciliationWorker(
-  input: IveKitIvrRuntimeInput
-): IveKitIvrWorkerHandle {
-  const config = iveKitIvrWorkerConfig(input.env);
+export function startConveractFabricIvrReconciliationWorker(
+  input: ConveractFabricIvrRuntimeInput
+): ConveractFabricIvrWorkerHandle {
+  const config = converactFabricIvrWorkerConfig(input.env);
   if (!config.enabled) return stoppedHandle();
   if (!input.reconciler) {
-    throw new Error('enabled iveKit IVR pending-action reconciler must be injected');
+    throw new Error('enabled Converact Fabric IVR pending-action reconciler must be injected');
   }
   const actions = new PostgresIvrPendingActionStore(input.pg);
   const completion = createSessionCompletion(input);
@@ -169,7 +169,7 @@ export async function listIvrWorkerTenants(
   return [...new Set(result.rows.map((row) => String(row.tenant_id || '')).filter(Boolean))];
 }
 
-function createSessionCompletion(input: IveKitIvrRuntimeInput): IvrSessionActionCompletion {
+function createSessionCompletion(input: ConveractFabricIvrRuntimeInput): IvrSessionActionCompletion {
   return new IvrSessionActionCompletion(new IvrSessionService({
     unit_of_work: new PostgresIvrSessionUnitOfWork(input.pg)
   }), input.publish ? {
@@ -184,7 +184,7 @@ function startTenantLoop(input: {
   list_tenants: () => Promise<string[]>;
   run_tenant: (tenantId: string) => Promise<unknown>;
   label: string;
-}): IveKitIvrWorkerHandle {
+}): ConveractFabricIvrWorkerHandle {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let active: Promise<void> | null = null;
   let stopped = false;
@@ -232,7 +232,7 @@ async function runTenantBatch(input: {
   }
 }
 
-function stoppedHandle(): IveKitIvrWorkerHandle {
+function stoppedHandle(): ConveractFabricIvrWorkerHandle {
   return { async stop() {} };
 }
 

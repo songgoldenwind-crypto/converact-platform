@@ -17,7 +17,7 @@ import {
 
 test('rustdesk edge agent config validates required deployment inputs', () => {
   const config = createRustDeskEdgeAgentConfigFromEnv({
-    CONVERACT_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_BASE_URL: 'https://converact.example.com/',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
     CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
     CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -34,14 +34,14 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
     CONVERACT_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS: '2500',
     CONVERACT_RUSTDESK_EDGE_COMMAND_LEASE_MS: '40000',
     CONVERACT_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS: '15000',
-    CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/opc/bin/disconnect-rustdesk-session',
+    CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/converact/bin/disconnect-rustdesk-session',
     CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["--mode","session","--controller","{controller_rustdesk_id}"]',
-    CONVERACT_RUSTDESK_EDGE_RESTART_EXECUTABLE: '/opt/opc/bin/restart-rustdesk-service',
+    CONVERACT_RUSTDESK_EDGE_RESTART_EXECUTABLE: '/opt/converact/bin/restart-rustdesk-service',
     CONVERACT_RUSTDESK_EDGE_RESTART_ARGS_JSON: '["--service","rustdesk"]',
-    CONVERACT_RUSTDESK_EDGE_SPOOL_DIR: '/var/lib/opc/rustdesk-edge-spool'
+    CONVERACT_RUSTDESK_EDGE_SPOOL_DIR: '/var/lib/converact/rustdesk-edge-spool'
   });
 
-  assert.equal(config.baseUrl, 'https://opc.example.com');
+  assert.equal(config.baseUrl, 'https://converact.example.com');
   assert.equal(config.apiKey, 'collaboration-key');
   assert.equal(config.tenantId, 'tenant_led');
   assert.equal(config.businessRef.type, 'service_order');
@@ -56,15 +56,15 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   assert.equal(config.commandLeaseMs, 40_000);
   assert.equal(config.commandTimeoutMs, 15_000);
   assert.deepEqual(config.disconnectAdapter, {
-    executable: '/opt/opc/bin/disconnect-rustdesk-session',
+    executable: '/opt/converact/bin/disconnect-rustdesk-session',
     args: ['--mode', 'session', '--controller', '{controller_rustdesk_id}']
   });
   assert.deepEqual(config.restartAdapter, {
-    executable: '/opt/opc/bin/restart-rustdesk-service',
+    executable: '/opt/converact/bin/restart-rustdesk-service',
     args: ['--service', 'rustdesk']
   });
   assert.equal(config.disconnectCommandCapable, true);
-  assert.equal(config.spoolDir, '/var/lib/opc/rustdesk-edge-spool');
+  assert.equal(config.spoolDir, '/var/lib/converact/rustdesk-edge-spool');
   assert.equal(config.metadata.client_version, '1.3.0');
   assert.equal(config.metadata.os, 'windows');
   assert.equal(config.metadata.site_id, 'shenzhen-store-7');
@@ -77,7 +77,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   assert.throws(
     () =>
       createRustDeskEdgeAgentConfigFromEnv({
-        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_BASE_URL: 'https://converact.example.com',
         CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
         CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
         CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -88,7 +88,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   assert.throws(
     () =>
       createRustDeskEdgeAgentConfigFromEnv({
-        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_BASE_URL: 'https://converact.example.com',
         CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
         CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
         CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -101,19 +101,19 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   assert.throws(
     () =>
       createRustDeskEdgeAgentConfigFromEnv({
-        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_BASE_URL: 'https://converact.example.com',
         CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
         CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
         CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
         CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
-        CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID_FILE: '/tmp/opc-missing-rustdesk-id'
+        CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID_FILE: '/tmp/converact-missing-rustdesk-id'
       }),
-    /CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID_FILE cannot be read: \/tmp\/opc-missing-rustdesk-id/
+    /CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID_FILE cannot be read: \/tmp\/converact-missing-rustdesk-id/
   );
   assert.throws(
     () =>
       createRustDeskEdgeAgentConfigFromEnv({
-        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_BASE_URL: 'https://converact.example.com',
         CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
         CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
         CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -126,7 +126,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   assert.throws(
     () =>
       createRustDeskEdgeAgentConfigFromEnv({
-        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_BASE_URL: 'https://converact.example.com',
         CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
         CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
         CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -139,7 +139,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   assert.throws(
     () =>
       createRustDeskEdgeAgentConfigFromEnv({
-        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_BASE_URL: 'https://converact.example.com',
         CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
         CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
         CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -152,7 +152,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   assert.throws(
     () =>
       createRustDeskEdgeAgentConfigFromEnv({
-        CONVERACT_RUSTDESK_EDGE_BASE_URL: 'ftp://opc.example.com',
+        CONVERACT_RUSTDESK_EDGE_BASE_URL: 'ftp://converact.example.com',
         CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
         CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
         CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -164,7 +164,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   assert.throws(
     () =>
       createRustDeskEdgeAgentConfigFromEnv({
-        CONVERACT_BASE_URL: 'rustdesk://opc.example.com',
+        CONVERACT_BASE_URL: 'rustdesk://converact.example.com',
         CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
         CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
         CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -175,20 +175,20 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   );
   assert.throws(
     () => createRustDeskEdgeAgentConfigFromEnv({
-      CONVERACT_BASE_URL: 'https://opc.example.com',
+      CONVERACT_BASE_URL: 'https://converact.example.com',
       CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
       CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
       CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
       CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
       CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
-      CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/opc/bin/disconnect',
+      CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/converact/bin/disconnect',
       CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '{"mode":"session"}'
     }),
     /CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON must be a JSON string array/
   );
   assert.throws(
     () => createRustDeskEdgeAgentConfigFromEnv({
-      CONVERACT_BASE_URL: 'https://opc.example.com',
+      CONVERACT_BASE_URL: 'https://converact.example.com',
       CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
       CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
       CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -200,7 +200,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   );
   assert.throws(
     () => createRustDeskEdgeAgentConfigFromEnv({
-      CONVERACT_BASE_URL: 'https://opc.example.com',
+      CONVERACT_BASE_URL: 'https://converact.example.com',
       CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
       CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
       CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -213,7 +213,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   );
   assert.throws(
     () => createRustDeskEdgeAgentConfigFromEnv({
-      CONVERACT_BASE_URL: 'https://opc.example.com',
+      CONVERACT_BASE_URL: 'https://converact.example.com',
       CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
       CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
       CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -226,7 +226,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   );
   assert.throws(
     () => createRustDeskEdgeAgentConfigFromEnv({
-      CONVERACT_BASE_URL: 'https://opc.example.com',
+      CONVERACT_BASE_URL: 'https://converact.example.com',
       CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
       CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
       CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -239,14 +239,14 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   );
   assert.throws(
     () => createRustDeskEdgeAgentConfigFromEnv({
-      CONVERACT_BASE_URL: 'https://opc.example.com',
+      CONVERACT_BASE_URL: 'https://converact.example.com',
       CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
       CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
       CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
       CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
       CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
       CONVERACT_RUSTDESK_EDGE_COMMAND_TOKEN: 'signed-edge-command-token',
-      CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/opc/bin/disconnect',
+      CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/converact/bin/disconnect',
       CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["--value={server_command}"]'
     }),
     /contains unsupported RustDesk adapter placeholder: \{server_command\}/
@@ -260,7 +260,7 @@ test('rustdesk edge agent can use one device-bound token file for every edge rou
   writeFileSync(tokenFile, `${token}\n`, { mode: 0o600 });
 
   const config = createRustDeskEdgeAgentConfigFromEnv({
-    CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+    CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://fabric.converact.example.com',
     CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
     CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
     CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -268,21 +268,21 @@ test('rustdesk edge agent can use one device-bound token file for every edge rou
     CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
     CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
     CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '[]',
-    CONVERACT_RUSTDESK_EDGE_SPOOL_DIR: 'C:\\ProgramData\\iveKit\\RustDesk\\spool',
-    CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: 'C:\\ProgramData\\iveKit\\RustDesk\\observations\\inbox',
-    CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: 'C:\\ProgramData\\iveKit\\RustDesk\\observations\\spool',
+    CONVERACT_RUSTDESK_EDGE_SPOOL_DIR: 'C:\\ProgramData\\Converact\\RustDesk\\spool',
+    CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: 'C:\\ProgramData\\Converact\\RustDesk\\observations\\inbox',
+    CONVERACT_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: 'C:\\ProgramData\\Converact\\RustDesk\\observations\\spool',
     CONVERACT_RUSTDESK_EDGE_OBSERVATION_POLL_INTERVAL_MS: '1500'
   });
 
   assert.equal(config.apiKey, token);
   assert.equal(config.commandToken, token);
   assert.equal(config.deviceTokenFile, tokenFile);
-  assert.equal(config.observationInputDir, 'C:\\ProgramData\\iveKit\\RustDesk\\observations\\inbox');
-  assert.equal(config.observationSpoolDir, 'C:\\ProgramData\\iveKit\\RustDesk\\observations\\spool');
+  assert.equal(config.observationInputDir, 'C:\\ProgramData\\Converact\\RustDesk\\observations\\inbox');
+  assert.equal(config.observationSpoolDir, 'C:\\ProgramData\\Converact\\RustDesk\\observations\\spool');
   assert.equal(config.observationPollIntervalMs, 1_500);
   assert.throws(
     () => createRustDeskEdgeAgentConfigFromEnv({
-      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://fabric.converact.example.com',
       CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
       CONVERACT_RUSTDESK_EDGE_API_KEY: 'platform-key-must-not-be-combined',
       CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
@@ -294,13 +294,13 @@ test('rustdesk edge agent can use one device-bound token file for every edge rou
   );
   assert.throws(
     () => createRustDeskEdgeAgentConfigFromEnv({
-      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://fabric.converact.example.com',
       CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
       CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
       CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
       CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
       CONVERACT_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
-      CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: 'C:\\ProgramData\\iveKit\\RustDesk\\observations\\inbox'
+      CONVERACT_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: 'C:\\ProgramData\\Converact\\RustDesk\\observations\\inbox'
     }),
     /observation input and spool directories must be configured together/
   );
@@ -311,7 +311,7 @@ test('rustdesk edge agent device token mode uses the dedicated heartbeat without
   const tokenFile = join(dir, 'edge-token');
   writeFileSync(tokenFile, 'device-bound-edge-token-material-abcdefghijklmno\n', { mode: 0o600 });
   const config = createRustDeskEdgeAgentConfigFromEnv({
-    CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+    CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://fabric.converact.example.com',
     CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
     CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
     CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'led_device',
@@ -346,7 +346,7 @@ test('rustdesk edge agent device token mode uses the dedicated heartbeat without
   assert.equal(result.deviceId, 'rdesk-device-1');
   assert.equal(result.registered, false);
   assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, 'https://ivekit.example.com/api/ivekit/rustdesk/edge/heartbeat');
+  assert.equal(requests[0].url, 'https://fabric.converact.example.com/api/ivekit/rustdesk/edge/heartbeat');
   assert.equal((requests[0].init?.headers as Record<string, string>)['x-rustdesk-edge-token'], config.commandToken);
   const body = JSON.parse(String(requests[0].init?.body));
   assert.equal(body.metadata.observation_capable, true);
@@ -380,7 +380,7 @@ test('rustdesk edge agent fetches device-bound context before correlating a nati
     controller_rustdesk_ids: ['135792468']
   })}\n`);
   const config = createRustDeskEdgeAgentConfigFromEnv({
-    CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+    CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://fabric.converact.example.com',
     CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
     CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
     CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'led_device',
@@ -423,20 +423,20 @@ test('rustdesk edge agent fetches device-bound context before correlating a nati
   });
 
   assert.deepEqual(result, { correlated: 1, waiting: 0, quarantined: 0 });
-  assert.equal(request?.url, 'https://ivekit.example.com/api/ivekit/rustdesk/devices/rddev-edge-1/evidence-context');
+  assert.equal(request?.url, 'https://fabric.converact.example.com/api/ivekit/rustdesk/devices/rddev-edge-1/evidence-context');
   assert.equal(request?.headers['x-rustdesk-edge-token'], config.commandToken);
   assert.equal(readdirSync(eventDir).filter((name) => name.endsWith('.json')).length, 1);
 });
 
 test('rustdesk edge agent rejects blank RustDesk ID files', () => {
-  const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-id-'));
+  const dataDir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-edge-id-'));
   const rustdeskIdFile = join(dataDir, 'rustdesk-id.txt');
   writeFileSync(rustdeskIdFile, '\n  \n');
 
   assert.throws(
     () =>
       createRustDeskEdgeAgentConfigFromEnv({
-        CONVERACT_BASE_URL: 'https://opc.example.com',
+        CONVERACT_BASE_URL: 'https://converact.example.com',
         CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
         CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
         CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
@@ -451,7 +451,7 @@ test('rustdesk edge agent posts an offline heartbeat for an existing device', as
   const calls: Array<{ method: string; path: string; body: Record<string, unknown> | null }> = [];
   const result = await runRustDeskEdgeAgentOffline(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       apiKey: 'collaboration-key',
       tenantId: 'tenant_led',
       businessRef: { type: 'service_order', id: 'SO-10001' },
@@ -531,7 +531,7 @@ test('rustdesk edge agent reuses an existing registered device and posts heartbe
   }> = [];
   const result = await runRustDeskEdgeAgentOnce(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       apiKey: 'collaboration-key',
       tenantId: 'tenant_led',
       businessRef: { type: 'service_order', id: 'SO-10001' },
@@ -613,12 +613,12 @@ test('rustdesk edge agent reuses an existing registered device and posts heartbe
   });
 });
 
-test('rustdesk edge agent includes OPC error details when heartbeat is rejected', async () => {
+test('rustdesk edge agent includes Converact error details when heartbeat is rejected', async () => {
   await assert.rejects(
     () =>
       runRustDeskEdgeAgentOnce(
         {
-          baseUrl: 'https://opc.example.com',
+          baseUrl: 'https://converact.example.com',
           apiKey: 'collaboration-key',
           tenantId: 'tenant_led',
           businessRef: { type: 'service_order', id: 'SO-10001' },
@@ -654,7 +654,7 @@ test('rustdesk edge agent registers a missing device before heartbeat', async ()
   const calls: Array<{ method: string; path: string; body: Record<string, unknown> | null }> = [];
   const result = await runRustDeskEdgeAgentOnce(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       apiKey: 'collaboration-key',
       tenantId: 'tenant_led',
       businessRef: { type: 'service_order', id: 'SO-10002' },
@@ -720,7 +720,7 @@ test('rustdesk edge agent registers a missing device before heartbeat', async ()
 test('rustdesk edge agent command once advertises capability and executes claimed work', async () => {
   const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
   const config: RustDeskEdgeAgentConfig = {
-    baseUrl: 'https://opc.example.com',
+    baseUrl: 'https://converact.example.com',
     apiKey: 'edge-agent-api-key',
     tenantId: 'tenant_edge_command_once',
     businessRef: { type: 'service_order', id: 'SO-EDGE-COMMAND-ONCE' },
@@ -783,7 +783,7 @@ test('rustdesk edge agent interoperates with the collaboration device API', asyn
   process.env.CONVERACT_API_KEY = 'edge-agent-api-key';
   const pg = new MemoryPg();
   const config: RustDeskEdgeAgentConfig = {
-    baseUrl: 'http://opc.local',
+    baseUrl: 'http://converact.local',
     apiKey: 'edge-agent-api-key',
     tenantId: 'tenant_edge_agent_api',
     businessRef: { type: 'service_order', id: 'SO-EDGE-1' },

@@ -20,13 +20,13 @@ stringData:
         mid_quality: {{ .Values.livekit.pliThrottle.midQuality | quote }}
         high_quality: {{ .Values.livekit.pliThrottle.highQuality | quote }}
     redis:
-      {{- include "opc.livekitRedisConfig" . | nindent 6 }}
+      {{- include "converact.livekitRedisConfig" . | nindent 6 }}
     keys:
-      {{ include "opc.livekitApiKey" . | quote }}: {{ include "opc.livekitApiSecret" . | quote }}
+      {{ include "converact.livekitApiKey" . | quote }}: {{ include "converact.livekitApiSecret" . | quote }}
     webhook:
-      api_key: {{ include "opc.livekitApiKey" . | quote }}
+      api_key: {{ include "converact.livekitApiKey" . | quote }}
       urls:
-        - http://{{ .Release.Name }}-opc:3000/api/media/webhooks/livekit
+        - http://{{ .Release.Name }}-converact:3000/api/media/webhooks/livekit
     room:
       empty_timeout: {{ .Values.livekit.emptyTimeout | default 300 }}
       max_participants: {{ .Values.livekit.maxParticipants | default 10 }}
@@ -51,7 +51,7 @@ spec:
     spec:
       containers:
         - name: livekit
-          image: {{ include "opc.livekitImage" . | quote }}
+          image: {{ include "converact.livekitImage" . | quote }}
           imagePullPolicy: {{ .Values.livekit.image.pullPolicy | default "IfNotPresent" }}
           args: ["--config", "/etc/livekit.yaml"]
           ports:
@@ -67,14 +67,14 @@ spec:
             - name: livekit-config
               mountPath: /etc/livekit.yaml
               subPath: livekit.yaml
-            {{- include "opc.livekitRedisTLSVolumeMount" . | nindent 12 }}
+            {{- include "converact.livekitRedisTLSVolumeMount" . | nindent 12 }}
           resources:
             {{- toYaml .Values.livekit.resources | nindent 12 }}
       volumes:
         - name: livekit-config
           secret:
             secretName: {{ .Release.Name }}-livekit-config
-        {{- include "opc.livekitRedisTLSVolume" . | nindent 8 }}
+        {{- include "converact.livekitRedisTLSVolume" . | nindent 8 }}
 ---
 apiVersion: v1
 kind: Service

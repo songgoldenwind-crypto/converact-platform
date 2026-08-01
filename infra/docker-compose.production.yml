@@ -1,4 +1,4 @@
-# OPC Production Stack
+# Converact Platform Production Stack
 # Usage: docker compose -f infra/docker-compose.production.yml up -d
 
 services:
@@ -62,9 +62,9 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
-      DB_USER: opc
+      DB_USER: converact
       DB_PASSWORD: ${POSTGRES_PASSWORD}
-      DB_NAME: opc
+      DB_NAME: converact
       AUTH_TYPE: scram-sha-256
       POOL_MODE: transaction
       MAX_CLIENT_CONN: "200"
@@ -150,7 +150,7 @@ services:
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: opc
+      KC_DB_USERNAME: converact
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
@@ -164,7 +164,7 @@ services:
 
   # --- Media Layer ---
   livekit:
-    image: ${LIVEKIT_SERVER_IMAGE:?LIVEKIT_SERVER_IMAGE immutable iveKit fork reference is required}
+    image: ${LIVEKIT_SERVER_IMAGE:?LIVEKIT_SERVER_IMAGE immutable Converact Fabric fork reference is required}
     profiles: ["media-bundled"]
     command: --config /etc/livekit.yaml
     ports:
@@ -237,7 +237,7 @@ services:
       RUSTPBX_MANAGEMENT_TOKEN: ${RUSTPBX_MANAGEMENT_TOKEN:?RUSTPBX_MANAGEMENT_TOKEN is required}
       RUSTPBX_RWI_TOKEN: ${RUSTPBX_RWI_TOKEN:?RUSTPBX_RWI_TOKEN is required}
       RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
-      RUSTPBX_ROUTER_URL: http://opc:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/router
+      RUSTPBX_ROUTER_URL: http://converact:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/router
       RUSTPBX_EXTERNAL_IP: ${RUSTPBX_EXTERNAL_IP:-}
       RUSTPBX_SIP_PORT: "5060"
       RUSTPBX_RTP_START_PORT: "20000"
@@ -251,7 +251,7 @@ services:
       RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY:-256}
       RUSTPBX_MEDIA_RECORDING_WORKER_THREADS: ${RUSTPBX_MEDIA_RECORDING_WORKER_THREADS:-4}
       RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY:-4096}
-      RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/ivekit/realtime-audio-tap.sock
+      RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/converact/realtime-audio-tap.sock
       RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY: ${RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY:-256}
       RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS: ${RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS:-10}
       RUSTPBX_CALL_RECORD_MAX_CONCURRENT: ${RUSTPBX_CALL_RECORD_MAX_CONCURRENT:-64}
@@ -272,13 +272,13 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://opc:${POSTGRES_PASSWORD}@pgbouncer:6432/opc
-      IVEKIT_RUSTPBX_ROUTE_TENANT_ID: ${RUSTPBX_TENANT_ID:?RUSTPBX_TENANT_ID is required}
-      IVEKIT_RUSTPBX_ROUTE_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
-      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE: /app/route-snapshot/routes.json
-      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY: ${RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY:?RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY is required}
-      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_INTERVAL_MS: ${RUSTPBX_ROUTE_SNAPSHOT_INTERVAL_MS:-1000}
-      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_TTL_MS: ${RUSTPBX_ROUTE_SNAPSHOT_TTL_MS:-10000}
-      IVEKIT_RUSTPBX_ROUTE_DEPENDENCIES: ${RUSTPBX_ROUTE_DEPENDENCIES:-}
+      CONVERACT_FABRIC_RUSTPBX_ROUTE_TENANT_ID: ${RUSTPBX_TENANT_ID:?RUSTPBX_TENANT_ID is required}
+      CONVERACT_FABRIC_RUSTPBX_ROUTE_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
+      CONVERACT_FABRIC_RUSTPBX_ROUTE_SNAPSHOT_FILE: /app/route-snapshot/routes.json
+      CONVERACT_FABRIC_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY: ${RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY:?RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY is required}
+      CONVERACT_FABRIC_RUSTPBX_ROUTE_SNAPSHOT_INTERVAL_MS: ${RUSTPBX_ROUTE_SNAPSHOT_INTERVAL_MS:-1000}
+      CONVERACT_FABRIC_RUSTPBX_ROUTE_SNAPSHOT_TTL_MS: ${RUSTPBX_ROUTE_SNAPSHOT_TTL_MS:-10000}
+      CONVERACT_FABRIC_RUSTPBX_ROUTE_DEPENDENCIES: ${RUSTPBX_ROUTE_DEPENDENCIES:-}
     volumes:
       - rustpbx-route-snapshot:/app/route-snapshot
     depends_on:
@@ -303,7 +303,7 @@ services:
       IVEKIT_RUSTPBX_ROUTE_TENANT_ID: ${RUSTPBX_TENANT_ID:?RUSTPBX_TENANT_ID is required}
       IVEKIT_RUSTPBX_ROUTE_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
       IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS: ${RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS:-500}
-      IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL: http://opc:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/inbound-admission
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL: http://converact:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/inbound-admission
       IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
       IVEKIT_RUSTPBX_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
       IVEKIT_RUSTPBX_OWNER_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:?RUSTPBX_OWNER_NODE_ID is required}
@@ -332,7 +332,7 @@ services:
       - rustpbx-generated-config:/app/generated
       - rustpbx-route-snapshot:/app/route-snapshot:ro
       - rustpbx-storage:/app/storage
-      - realtime_audio_tap:/run/ivekit
+      - realtime_audio_tap:/run/converact
     secrets:
       - rustpbx-cdr-service-key
       - source: rustpbx-cdr-client-identity
@@ -358,7 +358,7 @@ services:
   rustpbx-component-node:
     build: ..
     profiles: ["voice-capacity"]
-    command: ["node", "--import", "tsx", "scripts/ivekit-component-node-admission.ts"]
+    command: ["node", "--import", "tsx", "scripts/converact-component-node-admission.ts"]
     init: true
     restart: unless-stopped
     network_mode: service:rustpbx
@@ -394,7 +394,7 @@ services:
   rustpbx-runtime-recovery:
     build: ..
     profiles: ["voice", "voice-capacity"]
-    command: ["node", "--import", "tsx", "scripts/ivekit-rustpbx-recovery.ts"]
+    command: ["node", "--import", "tsx", "scripts/converact-rustpbx-recovery.ts"]
     restart: "no"
     network_mode: service:rustpbx
     depends_on:
@@ -441,7 +441,7 @@ services:
     volumes:
       - ./config/kong.yml:/etc/kong/kong.yml:ro
 
-  opc:
+  converact:
     env_file:
       - path: ${CONVERACT_FABRIC_VOICE_RUNTIME_ENV_FILE:-./voice-runtime.env}
         required: false
@@ -578,11 +578,11 @@ services:
       CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED: ${CONVERACT_FABRIC_REALTIME_AUDIO_TAP_ENABLED:-0}
       CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64: ${CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:-}
       CONVERACT_FABRIC_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS: ${CONVERACT_FABRIC_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS:-60}
-      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/ivekit/realtime-audio-tap.sock
+      CONVERACT_FABRIC_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/converact/realtime-audio-tap.sock
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_HOST: 0.0.0.0
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_PORT: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_LISTEN_PORT:-3010}
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PATH: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PATH:-/api/ivekit/realtime-audio-tap/livekit}
-      CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL:-ws://opc:3010/api/ivekit/realtime-audio-tap/livekit}
+      CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL:-ws://converact:3010/api/ivekit/realtime-audio-tap/livekit}
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS:-4096}
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS:-1000}
       CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES: ${CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES:-262144}
@@ -643,7 +643,7 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       CONVERACT_REMOTE_GATEWAY_PROVIDER: ${CONVERACT_REMOTE_GATEWAY_PROVIDER:-rustdesk}
-      CONVERACT_REMOTE_GATEWAY_BASE_URL: ${CONVERACT_REMOTE_GATEWAY_BASE_URL:-http://opc:3000}
+      CONVERACT_REMOTE_GATEWAY_BASE_URL: ${CONVERACT_REMOTE_GATEWAY_BASE_URL:-http://converact:3000}
       CONVERACT_REMOTE_GATEWAY_API_TOKEN: ${CONVERACT_REMOTE_GATEWAY_API_TOKEN}
       CONVERACT_REMOTE_GATEWAY_TENANT_ID: ${CONVERACT_REMOTE_GATEWAY_TENANT_ID:-tenant_led}
       CONVERACT_REMOTE_GATEWAY_TARGET_TYPE: ${CONVERACT_REMOTE_GATEWAY_TARGET_TYPE:-device}
@@ -652,7 +652,7 @@ services:
       CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY: ${CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY:-agent_remote_gateway_smoke}
       CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES: ${CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES:-view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard}
       CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL: ${CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL:-0}
-      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: ${CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL:-http://opc:3000}
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: ${CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL:-http://converact:3000}
       RUSTDESK_SERVER_IMAGE_TAG: ${RUSTDESK_SERVER_IMAGE_TAG:-1.1.16}
       CONVERACT_RUSTDESK_CLIENT_VERSION: ${CONVERACT_RUSTDESK_CLIENT_VERSION:-1.4.9}
       CONVERACT_RUSTDESK_ID_SERVER: ${CONVERACT_RUSTDESK_ID_SERVER}
@@ -711,7 +711,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - rustdesk_data:/rustdesk:ro
-      - realtime_audio_tap:/run/ivekit
+      - realtime_audio_tap:/run/converact
 
   ai-agent:
     build: ../services/ai-agent-py
@@ -719,7 +719,7 @@ services:
       LIVEKIT_URL: ${LIVEKIT_URL:?LIVEKIT_URL is required}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}
-      CONVERACT_API_URL: http://opc:3000
+      CONVERACT_API_URL: http://converact:3000
       CONVERACT_API_KEY: ${CONVERACT_API_KEY}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
@@ -753,7 +753,7 @@ services:
     expose:
       - "9090"
     depends_on:
-      opc:
+      converact:
         condition: service_started
       nats:
         condition: service_healthy
@@ -781,7 +781,7 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - opc
+      - converact
       - kong
 
 volumes:

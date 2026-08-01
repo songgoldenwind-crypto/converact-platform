@@ -1,12 +1,12 @@
 # ADR-CCAAS-5：分布式通信负载生成与证据可信性
 
 **Status:** Proposed（2026-07-16）
-**Decision owner:** iveKit shared communication foundation
+**Decision owner:** Converact Fabric shared communication foundation
 **Related:** [`../capacity/README.md`](../capacity/README.md)、[`../capacity/profiles/cell-10k-v1.json`](../capacity/profiles/cell-10k-v1.json)、[`../capacity/profiles/mix-100k-v1.json`](../capacity/profiles/mix-100k-v1.json)、[`ccaas-1-cell-placement.md`](ccaas-1-cell-placement.md)、[`ccaas-4-open-source-fork-governance.md`](ccaas-4-open-source-fork-governance.md)
 
 ## 1. 背景
 
-MIX-100K 同时包含 SIP/RTP、Tinode IM、iveKit event WebSocket、LiveKit A/V/屏幕/TURN/Egress、RustDesk rendezvous/relay/文件和录制，以及 OCR/ASR/翻译/AI 异步负载。单个压测进程无法真实产生这些流量，也很容易比被测平台更早耗尽 CPU、网卡、文件句柄或调度器。
+MIX-100K 同时包含 SIP/RTP、Tinode IM、Converact Fabric event WebSocket、LiveKit A/V/屏幕/TURN/Egress、RustDesk rendezvous/relay/文件和录制，以及 OCR/ASR/翻译/AI 异步负载。单个压测进程无法真实产生这些流量，也很容易比被测平台更早耗尽 CPU、网卡、文件句柄或调度器。
 
 如果 generator 已饱和，会出现危险的假象：
 
@@ -23,21 +23,21 @@ MIX-100K 同时包含 SIP/RTP、Tinode IM、iveKit event WebSocket、LiveKit A/V
 
 ### 2.1 LiveKit
 
-LiveKit 官方 `lk load-test` 可以通过 Go SDK 模拟 publisher/subscriber，发送循环 720p 视频和目标码率音频，并支持多台 generator。官方同时提醒 generator 必须有足够 CPU、带宽和文件句柄。官方示例主要针对一个大 room，不等价于 iveKit 的大量 1:1 小 room、独立 screen room、overlay screen、TURN 和 Egress 混合负载。
+LiveKit 官方 `lk load-test` 可以通过 Go SDK 模拟 publisher/subscriber，发送循环 720p 视频和目标码率音频，并支持多台 generator。官方同时提醒 generator 必须有足够 CPU、带宽和文件句柄。官方示例主要针对一个大 room，不等价于 Converact Fabric 的大量 1:1 小 room、独立 screen room、overlay screen、TURN 和 Egress 混合负载。
 
-裁决：复用其媒体生成和协议实现，但增加 iveKit 多 room 编排、profile shard、屏幕素材、强制 TURN、Egress correlation 和 generator telemetry；上游 CLI 结构不满足时允许 fork。
+裁决：复用其媒体生成和协议实现，但增加 Converact Fabric 多 room 编排、profile shard、屏幕素材、强制 TURN、Egress correlation 和 generator telemetry；上游 CLI 结构不满足时允许 fork。
 
 ### 2.2 SIPp
 
 SIPp 适合 SIP 性能场景、CPS、并发 call 和 RTD 统计，但官方说明它采用单线程 event loop，timer resolution、recv/scheduler loops 和 watchdog 都会影响高负载结果，并建议负载过大时使用多台机器。
 
-裁决：SIPp 负责可重复 SIP scenario 和一部分 RTP replay；每个进程有明确 safe generation capacity，跨多个 worker 分片。真实双向 RTP、SRTP、录制和媒体质量另由 iveKit media twin 补齐，不能只测 INVITE/200/BYE。
+裁决：SIPp 负责可重复 SIP scenario 和一部分 RTP replay；每个进程有明确 safe generation capacity，跨多个 worker 分片。真实双向 RTP、SRTP、录制和媒体质量另由 Converact Fabric media twin 补齐，不能只测 INVITE/200/BYE。
 
 ### 2.3 Tinode
 
-Tinode 官方目录提供 Tsung/Gatling 的 rudimentary load tests，可测连接、订阅、发布和单 hot topic。它不是 iveKit 的完整 IM profile，缺少完整 receipts、presence、typing、attachment、native mutation、投影、断线恢复和统一 interaction ID 证据。
+Tinode 官方目录提供 Tsung/Gatling 的 rudimentary load tests，可测连接、订阅、发布和单 hot topic。它不是 Converact Fabric 的完整 IM profile，缺少完整 receipts、presence、typing、attachment、native mutation、投影、断线恢复和统一 interaction ID 证据。
 
-裁决：保留官方场景作 baseline；生产容量使用 iveKit Tinode generator。优先复用 native protocol/SDK，必要时 fork 官方 loadtest 或实现 Go generator。
+裁决：保留官方场景作 baseline；生产容量使用 Converact Fabric Tinode generator。优先复用 native protocol/SDK，必要时 fork 官方 loadtest 或实现 Go generator。
 
 ### 2.4 RustDesk
 
@@ -66,7 +66,7 @@ Profile + Fork Manifest + Fault Plan
    |            |             |             |
    +------------+-------------+-------------+
                 |
-           iveKit SUT
+           Converact Fabric SUT
                 |
      independent observation plane
                 |
@@ -235,7 +235,7 @@ SIPp 内置媒体不足时允许修改 SIPp 或使用独立 Rust/Go media twin�
 
 worker 保存每个消息的 deterministic ID 和 expected recipient set，但不把全部高基数状态写入 Prometheus。最终通过 compact journal/hash 核对 accepted、durable、projected、delivered 和 mutated state。
 
-### 6.4 iveKit event WebSocket fleet
+### 6.4 Converact Fabric event WebSocket fleet
 
 独立于 Tinode WS，验证：
 
@@ -488,14 +488,14 @@ summary 必须明确：
 建议代码结构：
 
 ```text
-tools/ivekit-loadgen/
+tools/converact-loadgen/
   compiler/
   orchestrator/
   common/
   sip/
   rtp/
   tinode/
-  ivekit-ws/
+  converact-ws/
   livekit/
   rustdesk/
   provider/
@@ -537,9 +537,9 @@ ADR 实现完成需证明：
 
 ## 17. 结论
 
-iveKit 的 100K 证据不是“一条命令跑出 100000”这么简单。真正可信的压测平台必须把每个 interaction 编译成互斥 shard，让多类 generator 以真实协议产生足量负载，并持续证明 generator 自己没有饱和。
+Converact Fabric 的 100K 证据不是“一条命令跑出 100000”这么简单。真正可信的压测平台必须把每个 interaction 编译成互斥 shard，让多类 generator 以真实协议产生足量负载，并持续证明 generator 自己没有饱和。
 
-官方工具可以复用，但不能限制目标：LiveKit CLI、Tinode loadtest、SIPp 或 RustDesk 缺少的多 Cell、真实媒体、录制、epoch、故障和证据能力，直接在 iveKit 工具或对应 fork 中补齐。
+官方工具可以复用，但不能限制目标：LiveKit CLI、Tinode loadtest、SIPp 或 RustDesk 缺少的多 Cell、真实媒体、录制、epoch、故障和证据能力，直接在 Converact Fabric 工具或对应 fork 中补齐。
 
 ## 18. 官方依据
 

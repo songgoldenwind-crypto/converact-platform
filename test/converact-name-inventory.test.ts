@@ -22,7 +22,7 @@ const policy: ConveractNamingPolicy = {
   },
   environment: {
     currentPrefixes: ['CONVERACT_', 'CONVERACT_FABRIC_'],
-    legacyPrefixes: ['OPC_', 'OPC_IVEKIT_'],
+    legacyPrefixes: ['OPC_', 'OPC_IVEKIT_', 'IVEKIT_'],
   },
   classifications: {
     compatibility: [
@@ -30,6 +30,10 @@ const policy: ConveractNamingPolicy = {
         id: 'legacy_environment_alias',
         path_globs: ['config/compatibility/**'],
         tokens: ['OPC_'],
+        reason: 'Fixture environment compatibility boundary.',
+        owner: 'platform-foundation',
+        removal_condition: 'Remove after the fixture compatibility window.',
+        evidence: 'config/compatibility/env.txt',
       },
     ],
     external: [],
@@ -38,6 +42,10 @@ const policy: ConveractNamingPolicy = {
         id: 'historical_evidence',
         path_globs: ['docs/evidence/**'],
         tokens: ['OPC', 'iveKit'],
+        reason: 'Fixture evidence remains immutable.',
+        owner: 'platform-assurance',
+        removal_condition: 'Never rewrite the fixture evidence.',
+        evidence: 'docs/evidence/release.md',
       },
     ],
   },
@@ -124,6 +132,24 @@ test('derives every legacy matcher from the supplied policy', () => {
     assert.deepEqual(
       scanLegacyNames(root, alternatePolicy, ['product.txt']).map((finding) => finding.token),
       ['OLD', 'LegacyKit', 'LEGACY_API_KEY', 'owner/old-platform'],
+    );
+  } finally {
+    rmSync(root, { force: true, recursive: true });
+  }
+});
+
+test('does not detect IVEKIT inside LIVEKIT or current LiveKit keys', () => {
+  const root = mkdtempSync(join(tmpdir(), 'converact-name-livekit-boundary-'));
+
+  try {
+    writeFileSync(
+      join(root, 'environment.txt'),
+      'LIVEKIT_API_KEY\nCONVERACT_LIVEKIT_API_KEY\nIVEKIT_API_KEY\n',
+    );
+
+    assert.deepEqual(
+      scanLegacyNames(root, policy, ['environment.txt']).map((finding) => finding.token),
+      ['IVEKIT_API_KEY'],
     );
   } finally {
     rmSync(root, { force: true, recursive: true });

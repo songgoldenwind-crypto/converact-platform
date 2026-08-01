@@ -20,7 +20,7 @@ Required controls:
 - required host anti-affinity and zone topology spread;
 - PDB with at least one available scanner;
 - clamd available only on private port 3310;
-- NetworkPolicy ingress only from iveKit API/worker Pods;
+- NetworkPolicy ingress only from Converact Fabric API/worker Pods;
 - DNS plus TCP 80/443 egress only for signature updates;
 - independent 4 GiB memory ceiling per scanner for database reloads;
 - signature files retained when the StatefulSet is scaled or deleted.

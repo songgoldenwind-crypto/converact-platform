@@ -54,7 +54,7 @@ export class TinodeInboundWireSource implements TinodeInboundSource {
     const session = new TinodeInboundWireSession(this.config, limit * 2 + 10);
     try {
       await session.connect();
-      await session.request('hi', { ver: '0.22', ua: 'OPC iveKit TinodeInbound' });
+      await session.request('hi', { ver: '0.22', ua: 'Converact Fabric TinodeInbound' });
       await session.request('login', loginPayload(this.config));
       session.capture = true;
       await session.request('sub', {
@@ -127,7 +127,7 @@ class TinodeInboundWireSession {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       return Promise.reject(new Error('Tinode inbound websocket is not open'));
     }
-    const id = `opc-inbound-${this.nextId++}`;
+    const id = `converact-inbound-${this.nextId++}`;
     const promise = new Promise<Record<string, unknown>>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);

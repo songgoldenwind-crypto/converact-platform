@@ -1,6 +1,6 @@
 # @converact/javascript-sdk
 
-JavaScript/TypeScript SDK for the OPC AI Communication Platform.
+JavaScript/TypeScript SDK for the Converact AI Communication Platform.
 
 ## Installation
 
@@ -11,9 +11,9 @@ npm install @converact/javascript-sdk
 ## Quick Start
 
 ```typescript
-import { OPCClient } from '@converact/javascript-sdk';
+import { ConveractClient } from '@converact/javascript-sdk';
 
-const client = new OPCClient({
+const client = new ConveractClient({
   baseUrl: 'https://api.yourplatform.com',
   apiKey: 'your-api-key'
 });

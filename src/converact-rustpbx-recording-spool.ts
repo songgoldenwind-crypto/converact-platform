@@ -27,7 +27,7 @@ async function main(): Promise<void> {
         await worker.pollOnce();
       } catch (error) {
         console.error(
-          '[ivekit-recording-spool] poll failed:',
+          '[converact-recording-spool] poll failed:',
           error instanceof Error ? error.message : String(error)
         );
       }
@@ -58,7 +58,7 @@ function delay(ms: number): Promise<void> {
 
 void main().catch((error) => {
   console.error(
-    '[ivekit-recording-spool] fatal:',
+    '[converact-recording-spool] fatal:',
     error instanceof Error ? error.message : String(error)
   );
   process.exitCode = 1;

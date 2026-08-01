@@ -32,7 +32,7 @@ async function physicalDisconnectFixture(tenantId = 'tenant_rustdesk_physical_di
     },
     permissions: ['view_screen', 'control_mouse_keyboard'],
     actor_identity: 'agent-physical-disconnect',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=physical-disconnect',
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=physical-disconnect',
     metadata: {
       rustdesk_target_mode: 'registered_device',
       rustdesk_device_id: device.id,
@@ -86,7 +86,7 @@ test('RustDeskPhysicalDisconnectService records unavailable for raw-id sessions'
     target: { type: 'device', id: '998877665' },
     permissions: ['view_screen'],
     actor_identity: 'agent-physical-raw',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=physical-raw',
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=physical-raw',
     metadata: {
       rustdesk_target_mode: 'raw_id',
       rustdesk_id: '998877665'
@@ -226,7 +226,7 @@ test('strict RustDesk physical disconnect requires a fresh capability heartbeat'
 test('RustDesk gateway HTTP client forwards the typed disconnect reason', async () => {
   let requestBody: Record<string, unknown> | null = null;
   const client = createRustDeskGatewayClient({
-    base_url: 'https://opc.example.com',
+    base_url: 'https://converact.example.com',
     api_token: 'rustdesk-control-plane-token',
     fetch: async (_input, init = {}) => {
       requestBody = init.body ? JSON.parse(String(init.body)) as Record<string, unknown> : null;

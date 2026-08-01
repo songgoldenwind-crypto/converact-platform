@@ -1,6 +1,6 @@
 # @converact/sdk
 
-TypeScript client for the reusable iveKit Media, IM, RustDesk, Voice, IVR, and Contact Center HTTP facades.
+TypeScript client for the reusable Converact Fabric Media, IM, RustDesk, Voice, IVR, and Contact Center HTTP facades.
 
 ```bash
 npm install @converact/sdk
@@ -8,37 +8,37 @@ npm install @converact/sdk
 
 ```typescript
 import {
-  createIveKitClient,
-  createIveKitVoiceController,
-  type IveKitChatMessage,
-  type IveKitChatSnapshot,
-  type IveKitMediaCallSnapshot
+  createConveractFabricClient,
+  createConveractFabricVoiceController,
+  type ConveractFabricChatMessage,
+  type ConveractFabricChatSnapshot,
+  type ConveractFabricMediaCallSnapshot
 } from '@converact/sdk';
 
-const ivekit = createIveKitClient({
-  baseUrl: 'https://ivekit.example.com',
+const converact = createConveractFabricClient({
+  baseUrl: 'https://fabric.converact.example.com',
   tenantId: 'tenant-led',
   accessToken: '<short-lived-user-token>',
   userId: 'engineer-1'
 });
 
 const orderRef = { type: 'service_order', id: 'order-1001' };
-const context = await ivekit.context.getByBusinessRef(orderRef);
-const chat = await ivekit.chat.openSession({ business_ref: orderRef });
-const snapshot: IveKitChatSnapshot = await ivekit.chat.getSnapshot(chat.id);
-const posted = await ivekit.chat.postMessage(
+const context = await converact.context.getByBusinessRef(orderRef);
+const chat = await converact.chat.openSession({ business_ref: orderRef });
+const snapshot: ConveractFabricChatSnapshot = await converact.chat.getSnapshot(chat.id);
+const posted = await converact.chat.postMessage(
   chat.id,
   { sender_identity: 'engineer-1', body: 'Connected to the LED terminal.' },
   { idempotencyKey: crypto.randomUUID() }
 );
-const message: IveKitChatMessage = posted.message;
+const message: ConveractFabricChatMessage = posted.message;
 // Closing revokes every active provider participant before persisting closed state.
-await ivekit.chat.closeSession(chat.id);
-const room = await ivekit.media.createRoom({
+await converact.chat.closeSession(chat.id);
+const room = await converact.media.createRoom({
   purpose: 'video_service',
   business_ref: orderRef
 });
-const ingress = await ivekit.media.createIngress({
+const ingress = await converact.media.createIngress({
   input_type: 'whip',
   room_name: room.room_name,
   participant_identity: 'encoder-1001',
@@ -46,21 +46,21 @@ const ingress = await ivekit.media.createIngress({
   enable_transcoding: false
 }, { idempotencyKey: crypto.randomUUID() });
 // Treat ingress.stream_key and ingress.url as ephemeral publisher secrets.
-await ivekit.media.updateIngress(ingress.ingress_id, {
+await converact.media.updateIngress(ingress.ingress_id, {
   participant_name: 'LED field camera A'
 });
-const call: IveKitMediaCallSnapshot = await ivekit.media.createCall({
+const call: ConveractFabricMediaCallSnapshot = await converact.media.createCall({
   media: 'video',
   participant_identities: ['customer-1001'],
   business_ref: orderRef
 });
-const device = await ivekit.rustdesk.ensureDevice({
+const device = await converact.rustdesk.ensureDevice({
   businessRef: orderRef,
   rustdeskId: '123456789',
   deviceDisplayName: 'LED service terminal',
   actorIdentity: 'engineer-1'
 });
-const distribution = await ivekit.rustdesk.getClientProfile({
+const distribution = await converact.rustdesk.getClientProfile({
   platform: 'windows',
   architecture: 'x86_64',
   client_version: '1.4.7',
@@ -68,57 +68,57 @@ const distribution = await ivekit.rustdesk.getClientProfile({
   expected_server_key_fingerprint: '<fingerprint-from-trusted-deployment-record>'
 });
 
-const outbound = await ivekit.voice.createOutboundCall({
+const outbound = await converact.voice.createOutboundCall({
   profile_id: 'rustpbx-primary',
   from: { kind: 'extension', value: '1001' },
   to: { kind: 'e164', value: '+8613800138000' },
   business_ref: orderRef,
   metadata: { source: 'led-webphone' }
 }, { idempotencyKey: crypto.randomUUID() });
-await ivekit.voice.enqueueCallAction(outbound.call.id, {
+await converact.voice.enqueueCallAction(outbound.call.id, {
   action: 'dtmf',
   payload: { digits: '123#' }
 }, { idempotencyKey: crypto.randomUUID() });
 
-const webPhone = createIveKitVoiceController({ client: ivekit.voice });
+const webPhone = createConveractFabricVoiceController({ client: ivekit.voice });
 webPhone.subscribe((state) => renderWebPhone(state));
 await webPhone.selectCall(outbound.call.id);
 await webPhone.hold();
 await webPhone.resume();
 
-const extensionPlan = await ivekit.voice.createExtensionSession('extension-1001', {
+const extensionPlan = await converact.voice.createExtensionSession('extension-1001', {
   idempotencyKey: crypto.randomUUID()
 });
-const { createIveKitSipWebPhone } = await import('@converact/sdk/sip-webphone');
-const sipPhone = createIveKitSipWebPhone({ plan: extensionPlan });
+const { createConveractFabricSipWebPhone } = await import('@converact/sdk/sip-webphone');
+const sipPhone = createConveractFabricSipWebPhone({ plan: extensionPlan });
 sipPhone.attachRemoteAudio(document.querySelector('#remote-audio')!);
 await sipPhone.connect();
 await sipPhone.dial('1002');
 
-const prompt = await ivekit.ivr.createAudioAsset({
+const prompt = await converact.ivr.createAudioAsset({
   name: 'LED support welcome',
   source_kind: 'tts',
   tts_text: 'Welcome to LED support.',
   tts_profile_id: 'tts-main'
 });
-const settings = await ivekit.ivr.getSettings();
-await ivekit.ivr.updateSettings({
+const settings = await converact.ivr.getSettings();
+await converact.ivr.updateSettings({
   expected_revision: settings.revision,
   max_steps: 700,
   allowed_webhook_refs: ['service-order-status']
 });
 
-const contactCenter = await ivekit.contactCenter.getMonitorSnapshot();
+const contactCenter = await converact.contactCenter.getMonitorSnapshot();
 for (const queue of contactCenter.queues) {
   renderQueue(queue);
 }
 
-const endpoints = await ivekit.notifications.listEndpoints({ status: 'active' });
-const deliveries = await ivekit.notifications.listDeliveries({
+const endpoints = await converact.notifications.listEndpoints({ status: 'active' });
+const deliveries = await converact.notifications.listDeliveries({
   state: 'failed', limit: 50
 });
 if (deliveries.items[0]) {
-  await ivekit.notifications.retryDelivery(deliveries.items[0].id, {
+  await converact.notifications.retryDelivery(deliveries.items[0].id, {
     expected_state: 'failed'
   });
 }
@@ -150,7 +150,7 @@ the versioned `action_capabilities` matrix. Missing snapshots, unknown schema ve
 and commands marked false are unavailable. `voice.preflightProfile(profileId)` refreshes
 that matrix and is an administrative operation; a normal browser should only read it.
 
-`createIveKitVoiceController()` is a framework-neutral WebPhone control-plane
+`createConveractFabricVoiceController()` is a framework-neutral WebPhone control-plane
 controller. It publishes immutable top-level snapshots, exposes dial/answer/hangup,
 DTMF, hold/resume, blind/warm transfer, conference create/add/remove/destroy,
 park/pickup, recording and
@@ -186,7 +186,7 @@ The reference client includes a lazy-loaded IVR Designer at
 onto a React Flow canvas and uses only this typed IVR client for optimistic draft
 saves, server validation, idempotent publishing, immutable rollback, and deterministic
 simulation. Product applications may embed the workspace or build their own UI while
-keeping the same `IveKitIvrFlowGraph` and HTTP contracts.
+keeping the same `ConveractFabricIvrFlowGraph` and HTTP contracts.
 
 The Contact Center client covers Agent, Skill, Presence, Queue, Membership and
 skill-requirement configuration; queue-entry and assignment lifecycles; encrypted
@@ -200,17 +200,17 @@ phone numbers or provider credentials.
 The chat client exports browser-safe JSON DTOs for sessions, participants, messages,
 attachments and processing jobs, provider delivery, receipts, realtime state,
 mutations, policy findings and reviews, reactions, pins, and cursor pages. These
-types are structural and do not import OPC server modules.
+types are structural and do not import Converact server modules.
 
 For Tinode-backed messages, edit and soft delete responses include
-`provider_mutation.status`; iveKit remains the UI authority while the durable native
+`provider_mutation.status`; Converact Fabric remains the UI authority while the durable native
 replacement/delete operation converges. Administrators use
 `listTinodeMutationDeadLetters()` and `replayTinodeMutationDeadLetter()` for explicit
 reconciliation. A `provider_outcome_uncertain` edit means either its publish
 acknowledgement was lost or an expired processing lease was recovered after a possible
 publish. Clients and workers must not retry it automatically; recovered deletes remain
 safe to retry.
-If a verifiable Tinode echo arrives later, iveKit corrects the durable status to
+If a verifiable Tinode echo arrives later, Converact Fabric corrects the durable status to
 `delivered` and writes `collaboration.message.provider_mutation_updated` to the durable
 tenant event journal in the same transaction, with `reconciled_from_status`. Realtime
 publication uses the same idempotency key, so replay/Webhook recovery survives a broadcast
@@ -231,7 +231,7 @@ never contain message bodies, provider metadata, storage URLs, or captured conte
 The event client provides durable reconnect convergence without provider credentials:
 
 ```typescript
-const cursor = await ivekit.events.getHeadCursor();
+const cursor = await converact.events.getHeadCursor();
 const replay = await ivekit.events.replay({ cursor, limit: 100, max_pages: 20 });
 if (replay.snapshot_required) {
   // Refresh Chat, Media, Remote, and Notification inbox snapshots, then request a new head cursor.
@@ -247,18 +247,18 @@ Notification clients can consume `notification.created`, `notification.delivery.
 `notification.inbox.created`, and `notification.inbox.updated`; all four are durable,
 producer-idempotent, and restricted to the target user audience.
 
-Backend integrations can ask iveKit to push selected journal events through the same
+Backend integrations can ask Converact Fabric to push selected journal events through the same
 durable notification Webhook delivery path:
 
 ```typescript
-const catalog = await ivekit.events.getCatalog();
-const created = await ivekit.events.createWebhookSubscription({
+const catalog = await converact.events.getCatalog();
+const created = await converact.events.createWebhookSubscription({
   endpoint_id: endpoint.id,
   name: 'LED communication events',
   event_patterns: ['collaboration.message.*', 'ivekit.media.*', 'ivekit.voice.*']
 }, { idempotencyKey: crypto.randomUUID() });
 
-await ivekit.events.updateWebhookSubscription(created.subscription.id, {
+await converact.events.updateWebhookSubscription(created.subscription.id, {
   expected_revision: created.subscription.revision,
   status: 'paused'
 }, { idempotencyKey: crypto.randomUUID() });
@@ -269,10 +269,10 @@ notification endpoint must be an active Webhook endpoint and its event allowlist
 still enforced. Subscription cursors, leases and retries are PostgreSQL-owned; do not
 advance them from LED code.
 
-Use `verifyIveKitWebhook()` against the exact raw body before JSON processing. It uses
+Use `verifyConveractFabricWebhook()` against the exact raw body before JSON processing. It uses
 Web Crypto HMAC-SHA256, validates the outer and inner tenant/event identities, enforces
 a 1 MiB body limit, a 32-byte minimum secret and a bounded timestamp window. Its
-`IveKitWebhookReplayStore.claim()` receives the verified envelope, body SHA-256,
+`ConveractFabricWebhookReplayStore.claim()` receives the verified envelope, body SHA-256,
 delivery/event IDs and a replay expiry. The claim implementation must atomically write
 a durable PostgreSQL/Redis inbox and return false for an existing delivery. The default
 replay retention is seven days and is independent from the five-minute signature window.
@@ -295,8 +295,8 @@ API-key system credentials; browser JWTs are not authorized for this operation.
 online participant count, and the latest-message preview. `chat.closeSession()`
 closes the session only after provider access has been revoked.
 
-Chat writes always go through the iveKit HTTP facade. A Tinode client may subscribe
-for receive-only acceleration, but it must converge messages from iveKit HTTP and
+Chat writes always go through the Converact Fabric HTTP facade. A Tinode client may subscribe
+for receive-only acceleration, but it must converge messages from Converact Fabric HTTP and
 must not publish directly.
 
 For browser file transfers use `chat.uploadAttachmentWithProgress()`. It returns
@@ -305,7 +305,7 @@ After the descriptor is attached to a message, use `chat.downloadAttachment()` f
 an authenticated binary response; object-store credentials and internal media paths
 are never returned to the client.
 
-`ivekit.rustdesk.startSession()` adds consent-scoped launch planning, while the same client retains lower-level methods such as `startGatewaySession()` for advanced integrations. Control-enabled clients use `issueControlConfirmation()`, `acquireControl()`, `heartbeatControl()`, `transferControl()`, and `releaseControl()`. Before a keyboard/mouse, file, or clipboard action, call `confirmOperation()` and place its returned `id` in audit metadata as `operation_grant_id` together with the current `control_version`. The grant is short-lived and can be linked to only one audit event.
+`converact.rustdesk.startSession()` adds consent-scoped launch planning, while the same client retains lower-level methods such as `startGatewaySession()` for advanced integrations. Control-enabled clients use `issueControlConfirmation()`, `acquireControl()`, `heartbeatControl()`, `transferControl()`, and `releaseControl()`. Before a keyboard/mouse, file, or clipboard action, call `confirmOperation()` and place its returned `id` in audit metadata as `operation_grant_id` together with the current `control_version`. The grant is short-lived and can be linked to only one audit event.
 
 Native integrations use `recordOperationObservation()` for view, control, multi-display, file, clipboard, recording, and disconnect evidence. Missing telemetry is sent as `not_observed`; observed success/failure requires a timestamp and SHA-256-bound evidence reference. File and recording observations use the bounded `evidenceSecurity` label: `ivekit_secure_file`, `native_unscanned`, or `local_only`. The SDK sends metadata and hashes only, never screen pixels, keystrokes, clipboard/file contents, recording bytes, passwords, or tokens. Sensitive control/file/clipboard observations must carry the current `controlVersion` and actor identity.
 
@@ -315,8 +315,8 @@ RustDesk native file and recording bytes are not uploaded by this browser SDK. T
 
 `getClientProfile()` returns a separately typed, pinned desktop distribution profile. Both expected server pins are mandatory. The SDK validates the requested platform/architecture, exact client and server versions, canonical 32-byte RustDesk public key, a Web Crypto-derived server-key fingerprint, canonical timestamps, expiry, a 60-second to one-hour lifetime, and exact release/platform/architecture installer identity. Official filenames use `rustdesk-1.4.9-<architecture>.<platform-extension>` without a platform token. Installer filenames are bounded canonical ASCII and URL basenames may not use whitespace, controls, Unicode, or percent escapes. A missing deployment artifact is returned as `install_source.state = 'not_configured'`; the SDK never downloads or executes it. Unattended access additionally requires an active access policy, active consent, and a fresh `unattended_launch` confirmation before `getGatewayLaunchPlan()` returns a usable plan.
 
-The controlled placement-enabled Windows package accepts only an iveKit 1.4.7 artifact that declares both `ivekit-rustdesk-native-control-v2` and `rustdesk-native-evidence-v1`. The SDK preserves v1 and v2 in the typed client profile, but v1 is valid only for a rolling package with Cell placement disabled. Official unmodified binaries remain valid general client-profile artifacts, but they cannot be used to claim owner-fenced precise disconnect or automatic native-evidence capabilities.
+The controlled placement-enabled Windows package accepts only a Converact Fabric 1.4.7 artifact that declares both `ivekit-rustdesk-native-control-v2` and `rustdesk-native-evidence-v1`. The SDK preserves v1 and v2 in the typed client profile, but v1 is valid only for a rolling package with Cell placement disabled. Official unmodified binaries remain valid general client-profile artifacts, but they cannot be used to claim owner-fenced precise disconnect or automatic native-evidence capabilities.
 
 Browser and desktop webview clients must use a short-lived `accessToken`. Backend integrations may use `apiKey` instead. Exactly one authentication mode is required, and an API key must never be embedded in a browser or desktop webview bundle.
 
-The package also exports the lower-level `createIveKitHttpSdk()`, `createIveKitRustDeskHttpClient()`, and `createIveKitRustDeskLedSdk()` factories for integrations that need separate lifecycles.
+The package also exports the lower-level `createConveractFabricHttpSdk()`, `createConveractFabricRustDeskHttpClient()`, and `createConveractFabricRustDeskLedSdk()` factories for integrations that need separate lifecycles.

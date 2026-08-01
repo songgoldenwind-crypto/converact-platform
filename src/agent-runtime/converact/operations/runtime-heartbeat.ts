@@ -1,13 +1,13 @@
 import { resolveConveractEnv, resolveFabricEnv } from '../../../config/converact-env.js';
 import type { PgQueryable } from '../../../db-pg.js';
 
-export interface IveKitRuntimeHeartbeatConfig {
+export interface ConveractFabricRuntimeHeartbeatConfig {
   enabled: boolean;
   interval_ms: number;
   stale_after_ms: number;
 }
 
-export function startIveKitRuntimeHeartbeat(input: {
+export function startConveractFabricRuntimeHeartbeat(input: {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
   instance_id: string;
@@ -15,7 +15,7 @@ export function startIveKitRuntimeHeartbeat(input: {
   now?: () => Date;
 }): { stop(): Promise<void>; ready: Promise<void> } {
   const env = input.env || process.env;
-  const config = iveKitRuntimeHeartbeatConfig(env);
+  const config = converactFabricRuntimeHeartbeatConfig(env);
   if (!config.enabled) return { stop: async () => undefined, ready: Promise.resolve() };
   const instanceId = safeText(input.instance_id, 255);
   const components = [...new Set(input.components.map((value) => safeComponent(value)))].sort();
@@ -51,7 +51,7 @@ export function startIveKitRuntimeHeartbeat(input: {
   const ready = write('starting').then(() => write('running'));
   const timer = setInterval(() => {
     if (!stopped) void write('running').catch((error) => {
-      console.error('[ivekit-runtime-heartbeat] update failed', safeErrorCode(error));
+      console.error('[converact-runtime-heartbeat] update failed', safeErrorCode(error));
     });
   }, config.interval_ms);
   timer.unref?.();
@@ -67,9 +67,9 @@ export function startIveKitRuntimeHeartbeat(input: {
   };
 }
 
-export function iveKitRuntimeHeartbeatConfig(
+export function converactFabricRuntimeHeartbeatConfig(
   env: NodeJS.ProcessEnv = process.env
-): IveKitRuntimeHeartbeatConfig {
+): ConveractFabricRuntimeHeartbeatConfig {
   return {
     enabled: booleanEnv(resolveFabricEnv(env, 'RUNTIME_HEARTBEAT_ENABLED'), false),
     interval_ms: integerEnv(resolveFabricEnv(env, 'RUNTIME_HEARTBEAT_INTERVAL_MS'), 10_000, 1_000, 300_000),
@@ -77,7 +77,7 @@ export function iveKitRuntimeHeartbeatConfig(
   };
 }
 
-export function iveKitRuntimeComponents(env: NodeJS.ProcessEnv = process.env): string[] {
+export function converactFabricRuntimeComponents(env: NodeJS.ProcessEnv = process.env): string[] {
   const components = ['api'];
   const flags: Array<[string, string]> = [
     ['notification_worker', 'CONVERACT_FABRIC_NOTIFICATION_WORKER_ENABLED'],

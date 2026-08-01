@@ -1,24 +1,24 @@
-export type IveKitAuditActorRole =
+export type ConveractFabricAuditActorRole =
   | 'owner' | 'admin' | 'operator' | 'viewer' | 'system' | 'provider';
-export type IveKitAuditResult = 'succeeded' | 'failed' | 'denied' | 'accepted';
-export type IveKitAuditPolicyDecision = 'allow' | 'deny' | 'not_applicable';
+export type ConveractFabricAuditResult = 'succeeded' | 'failed' | 'denied' | 'accepted';
+export type ConveractFabricAuditPolicyDecision = 'allow' | 'deny' | 'not_applicable';
 
-export interface IveKitAuditBusinessRef {
+export interface ConveractFabricAuditBusinessRef {
   type: string;
   id: string;
 }
 
-export interface IveKitAuditRequest {
+export interface ConveractFabricAuditRequest {
   tenant_id: string;
   actor_id: string;
-  actor_role: IveKitAuditActorRole;
+  actor_role: ConveractFabricAuditActorRole;
   action: string;
   resource_type: string;
   resource_id: string;
-  business_ref: IveKitAuditBusinessRef;
+  business_ref: ConveractFabricAuditBusinessRef;
   request_id: string;
-  result: IveKitAuditResult;
-  policy_decision: IveKitAuditPolicyDecision;
+  result: ConveractFabricAuditResult;
+  policy_decision: ConveractFabricAuditPolicyDecision;
   source_ip?: string;
   metadata?: Readonly<Record<string, unknown>>;
   idempotency_key: string;
@@ -27,10 +27,10 @@ export interface IveKitAuditRequest {
   legal_hold?: boolean;
 }
 
-export interface IveKitAuditAppendInput {
+export interface ConveractFabricAuditAppendInput {
   tenant_id: string;
   actor_id: string;
-  actor_role: IveKitAuditActorRole;
+  actor_role: ConveractFabricAuditActorRole;
   action: string;
   resource_type: string;
   resource_id: string;
@@ -38,8 +38,8 @@ export interface IveKitAuditAppendInput {
   business_ref_id: string;
   request_id: string;
   idempotency_key: string;
-  result: IveKitAuditResult;
-  policy_decision: IveKitAuditPolicyDecision;
+  result: ConveractFabricAuditResult;
+  policy_decision: ConveractFabricAuditPolicyDecision;
   source_ip_hmac: string;
   metadata: Readonly<Record<string, unknown>>;
   occurred_at: string;
@@ -47,19 +47,19 @@ export interface IveKitAuditAppendInput {
   legal_hold: boolean;
 }
 
-export interface IveKitAuditEvent extends IveKitAuditAppendInput {
+export interface ConveractFabricAuditEvent extends ConveractFabricAuditAppendInput {
   id: string;
   previous_hash: string;
   event_hash: string;
   created_at: string;
 }
 
-export interface IveKitAuditAppendResult {
-  event: IveKitAuditEvent;
+export interface ConveractFabricAuditAppendResult {
+  event: ConveractFabricAuditEvent;
   created: boolean;
 }
 
-export interface IveKitAuditListInput {
+export interface ConveractFabricAuditListInput {
   tenant_id: string;
   limit?: number;
   cursor?: string;
@@ -68,7 +68,7 @@ export interface IveKitAuditListInput {
   resource_id?: string;
 }
 
-export interface IveKitAuditPage {
-  items: IveKitAuditEvent[];
+export interface ConveractFabricAuditPage {
+  items: ConveractFabricAuditEvent[];
   next_cursor: string | null;
 }

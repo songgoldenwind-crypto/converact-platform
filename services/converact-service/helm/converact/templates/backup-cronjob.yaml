@@ -2,9 +2,9 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "ivekit.fullname" . }}-backup
+  name: {{ include "converact.fullname" . }}-backup
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: backup
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
@@ -18,7 +18,7 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "ivekit.selectorLabels" . | nindent 12 }}
+            {{- include "converact.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: backup
         spec:
           automountServiceAccountToken: false
@@ -31,7 +31,7 @@ spec:
           {{- end }}
           containers:
             - name: backup
-              image: {{ include "ivekit.image" . | quote }}
+              image: {{ include "converact.image" . | quote }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               command: ["node", "dist/converact-backup.js"]
               {{- with .Values.secrets.runtimeEnvironmentSecret }}
@@ -43,7 +43,7 @@ spec:
                 - name: CONVERACT_FABRIC_ADMIN_DATABASE_URL
                   valueFrom:
                     secretKeyRef:
-                      name: {{ include "ivekit.secretName" . }}
+                      name: {{ include "converact.secretName" . }}
                       key: {{ .Values.secrets.adminDatabaseUrlKey }}
                 - name: CONVERACT_FABRIC_BACKUP_ROOT
                   value: {{ .Values.backup.backupRoot | quote }}

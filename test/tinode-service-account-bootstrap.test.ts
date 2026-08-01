@@ -37,7 +37,7 @@ test('Tinode bootstrap creates, promotes, and verifies the root service account'
     const result = await bootstrapTinodeServiceAccount({
       wsUrl: `ws://127.0.0.1:${(address as { port: number }).port}/v0/channels`,
       apiKey: 'root-api-key',
-      username: 'opc_service',
+      username: 'converact_service',
       password: 'strong-service-password',
       timeoutMs: 2_000
     }, WebSocket, async (username) => {
@@ -47,10 +47,10 @@ test('Tinode bootstrap creates, promotes, and verifies the root service account'
 
     assert.equal(result.status, 'created');
     assert.equal(result.authLevel, 'root');
-    assert.deepEqual(promotions, ['opc_service']);
+    assert.deepEqual(promotions, ['converact_service']);
     assert.equal(packets.length, 4);
     assert.equal(packets[1].acc.scheme, 'basic');
-    assert.equal(Buffer.from(packets[1].acc.secret, 'base64').toString(), 'opc_service:strong-service-password');
+    assert.equal(Buffer.from(packets[1].acc.secret, 'base64').toString(), 'converact_service:strong-service-password');
     assert.equal(JSON.stringify(packets).includes('root-api-key'), false);
     assert.ok(packets[3].login);
   } finally {
@@ -84,7 +84,7 @@ test('Tinode bootstrap promotes and verifies existing service account credential
     const result = await bootstrapTinodeServiceAccount({
       wsUrl: `ws://127.0.0.1:${address.port}/v0/channels`,
       apiKey: 'root-api-key',
-      username: 'opc_service',
+      username: 'converact_service',
       password: 'strong-service-password',
       timeoutMs: 2_000
     }, WebSocket, async () => {
@@ -125,7 +125,7 @@ test('Tinode bootstrap treats an unchanged-account 304 as existing and verifies 
     const result = await bootstrapTinodeServiceAccount({
       wsUrl: `ws://127.0.0.1:${address.port}/v0/channels`,
       apiKey: 'root-api-key',
-      username: 'opc_service',
+      username: 'converact_service',
       password: 'strong-service-password',
       timeoutMs: 2_000
     }, WebSocket, async () => {
@@ -162,7 +162,7 @@ test('Tinode bootstrap rejects a promotion which does not produce a root login',
     await assert.rejects(() => bootstrapTinodeServiceAccount({
       wsUrl: `ws://127.0.0.1:${address.port}/v0/channels`,
       apiKey: 'root-api-key',
-      username: 'opc_service',
+      username: 'converact_service',
       password: 'strong-service-password',
       timeoutMs: 2_000
     }, WebSocket, async () => undefined), /must authenticate at root level/);
@@ -206,7 +206,7 @@ test('Tinode root promotion fails closed when no credential is updated', async (
     }
   } as unknown as PgQueryable;
   await assert.rejects(
-    () => promoteTinodeBasicAccountToRoot(pg, 'opc_service'),
+    () => promoteTinodeBasicAccountToRoot(pg, 'converact_service'),
     /expected exactly one basic credential/
   );
 });
@@ -217,21 +217,21 @@ test('Tinode bootstrap env parser rejects missing or weak service credentials', 
     TINODE_WS_URL: 'ws://tinode:6060/v0/channels',
     TINODE_API_KEY: 'api-key',
     TINODE_ROOT_API_KEY: 'root-api-key',
-    TINODE_BASIC_USER: 'opc_service',
+    TINODE_BASIC_USER: 'converact_service',
     TINODE_BASIC_PASSWORD: 'password',
     TINODE_POSTGRES_DSN: 'postgresql://tinode@postgres:5432/tinode'
   }), /TINODE_BASIC_PASSWORD must not use a weak value/);
   assert.throws(() => tinodeServiceAccountBootstrapConfigFromEnv({
     TINODE_WS_URL: 'ws://tinode:6060/v0/channels',
     TINODE_API_KEY: 'public-browser-key',
-    TINODE_BASIC_USER: 'opc_service',
+    TINODE_BASIC_USER: 'converact_service',
     TINODE_BASIC_PASSWORD: 'strong-service-password',
     TINODE_POSTGRES_DSN: 'postgresql://tinode@postgres:5432/tinode'
   }), /TINODE_ROOT_API_KEY is required/);
   assert.throws(() => tinodeServiceAccountBootstrapConfigFromEnv({
     TINODE_WS_URL: 'ws://tinode:6060/v0/channels',
     TINODE_ROOT_API_KEY: 'root-api-key',
-    TINODE_BASIC_USER: 'opc_service',
+    TINODE_BASIC_USER: 'converact_service',
     TINODE_BASIC_PASSWORD: 'strong-service-password'
   }), /TINODE_POSTGRES_DSN is required/);
 });
@@ -241,7 +241,7 @@ test('Tinode bootstrap env parser prefers the server root API key over the brows
     TINODE_WS_URL: 'ws://tinode:6060/v0/channels',
     TINODE_API_KEY: 'public-browser-key',
     TINODE_ROOT_API_KEY: 'root-server-key',
-    TINODE_BASIC_USER: 'opc_service',
+    TINODE_BASIC_USER: 'converact_service',
     TINODE_BASIC_PASSWORD: 'strong-service-password',
     TINODE_POSTGRES_DSN: 'postgresql://tinode@postgres:5432/tinode'
   });

@@ -1,0 +1,113 @@
+name: Converact Fabric RustDesk Server image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'codex/**'
+    paths:
+      - '.github/workflows/converact-rustdesk-server-image.yml'
+      - '.github/workflows/converact-oci-release-gate.yml'
+      - 'infra/converact/rustdesk-server/**'
+      - 'integrations/component-hook-rs/**'
+      - 'test/converact-rustdesk-server-owner-patch.test.ts'
+      - 'test/converact-image-supply-chain.test.ts'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: converact-rustdesk-server-image-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/songgoldenwind-crypto/converact-rustdesk-server
+  VERSION: 1.1.16-ivekit.1-73523b31
+  RUSTDESK_SERVER_UPSTREAM_REPOSITORY: https://github.com/rustdesk/rustdesk-server.git
+  RUSTDESK_SERVER_UPSTREAM_TAG: 1.1.16
+  RUSTDESK_SERVER_UPSTREAM_COMMIT: 73523b31cfd25d77dee862e6fc9f5e1fb5e485ef
+  RUSTDESK_SERVER_HBB_COMMON_COMMIT: 83419b6549636ee39dacef7776c473f5802e08d6
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      DOCKER_CONFIG: /tmp/converact-docker-config
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - name: Check out Converact Fabric overlay
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Fetch exact RustDesk Server source
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir="${RUNNER_TEMP}/rustdesk-server-source"
+          git init "${source_dir}"
+          git -C "${source_dir}" remote add origin "${RUSTDESK_SERVER_UPSTREAM_REPOSITORY}"
+          git -C "${source_dir}" fetch --depth=1 origin "refs/tags/${RUSTDESK_SERVER_UPSTREAM_TAG}:refs/tags/${RUSTDESK_SERVER_UPSTREAM_TAG}"
+          git -C "${source_dir}" checkout --detach "${RUSTDESK_SERVER_UPSTREAM_TAG}"
+          test "$(git -C "${source_dir}" rev-parse HEAD)" = "${RUSTDESK_SERVER_UPSTREAM_COMMIT}"
+          git -C "${source_dir}" submodule update --init --recursive
+          submodule_identity="$(git -C "${source_dir}" submodule status --recursive | awk 'NR == 1 { sub(/^[ +-]/, "", $1); print $1 }')"
+          test "${submodule_identity}" = "${RUSTDESK_SERVER_HBB_COMMON_COMMIT}"
+          test "$(git -C "${source_dir}" submodule status --recursive | wc -l | tr -d ' ')" = "1"
+          printf 'source_dir=%s\n' "${source_dir}" >> "${GITHUB_OUTPUT}"
+
+      - name: Authenticate to GHCR
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 0700 "${DOCKER_CONFIG}"
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" |
+            docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+
+      - name: Build and test exact RustDesk Server fork
+        shell: bash
+        env:
+          RUSTDESK_SERVER_SOURCE_DIR: ${{ steps.source.outputs.source_dir }}
+          RUSTDESK_SERVER_IMAGE: ${{ env.IMAGE }}:${{ env.VERSION }}
+        run: sh infra/converact/rustdesk-server/build.sh
+
+      - name: Smoke test fork marker and binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect "${IMAGE}:${VERSION}" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "${RUSTDESK_SERVER_UPSTREAM_COMMIT}"
+          test "$(docker image inspect "${IMAGE}:${VERSION}" --format '{{ index .Config.Labels "io.ivekit.owner-contract" }}')" = "component-node-v1"
+          docker run --rm --entrypoint hbbs "${IMAGE}:${VERSION}" --version
+          docker run --rm --entrypoint hbbr "${IMAGE}:${VERSION}" --version
+
+      - name: Push image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker push "${IMAGE}:${VERSION}"
+
+      - name: Resolve immutable manifest digest
+        id: digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --format '{{json .Manifest}}')"
+          digest="$(jq -er '.digest | select(test("^sha256:[a-f0-9]{64}$"))' <<<"${manifest}")"
+          printf 'digest=%s\n' "${digest}" >> "${GITHUB_OUTPUT}"
+          docker buildx imagetools inspect "${IMAGE}@${digest}"
+
+  release:
+    needs: publish
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: ./.github/workflows/converact-oci-release-gate.yml
+    with:
+      image: ghcr.io/songgoldenwind-crypto/converact-rustdesk-server
+      digest: ${{ needs.publish.outputs.digest }}

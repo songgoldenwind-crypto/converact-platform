@@ -1,11 +1,11 @@
 import { fileURLToPath } from 'node:url';
 
-import { inspectIveKitVoice } from './agent-runtime/converact/voice/preflight.js';
+import { inspectConveractFabricVoice } from './agent-runtime/converact/voice/preflight.js';
 import { closePostgres, initPostgres } from './db-pg.js';
 
-export { inspectIveKitVoice };
+export { inspectConveractFabricVoice };
 
-export async function runIveKitVoicePreflight(
+export async function runConveractFabricVoicePreflight(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<void> {
   let pg = null;
@@ -15,7 +15,7 @@ export async function runIveKitVoicePreflight(
     pg = null;
   }
   try {
-    const report = await inspectIveKitVoice({ pg, env });
+    const report = await inspectConveractFabricVoice({ pg, env });
     console.log(JSON.stringify(report, null, 2));
     if (!report.ready) process.exitCode = 1;
   } finally {
@@ -24,5 +24,5 @@ export async function runIveKitVoicePreflight(
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  void runIveKitVoicePreflight().catch(() => { process.exitCode = 1; });
+  void runConveractFabricVoicePreflight().catch(() => { process.exitCode = 1; });
 }

@@ -1,5 +1,5 @@
 /**
- * Provider-neutral IVR graph contract shared by the iveKit runtime and designers.
+ * Provider-neutral IVR graph contract shared by the Converact Fabric runtime and designers.
  */
 
 export type IvrNodeType =

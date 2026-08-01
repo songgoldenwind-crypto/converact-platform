@@ -18,8 +18,8 @@ test('NATS runtime uses the modular Node transport and no removed nats package',
 test('NATS connection options parse multiple servers, bounded reconnect, auth, and TLS files', () => {
   const options = resolveNatsConnectionOptions({
     NATS_URL: 'tls://nats-0.internal:4222, tls://nats-1.internal:4222',
-    NATS_CONNECTION_NAME: 'opc-events-a',
-    NATS_USER: 'opc-events',
+    NATS_CONNECTION_NAME: 'converact-events-a',
+    NATS_USER: 'converact-events',
     NATS_PASSWORD: 'secret-ref-value',
     NATS_TLS_MODE: 'required',
     NATS_TLS_CA_FILE: '/run/secrets/nats/ca.crt',
@@ -32,8 +32,8 @@ test('NATS connection options parse multiple servers, bounded reconnect, auth, a
 
   assert.deepEqual(options, {
     servers: ['tls://nats-0.internal:4222', 'tls://nats-1.internal:4222'],
-    name: 'opc-events-a',
-    user: 'opc-events',
+    name: 'converact-events-a',
+    user: 'converact-events',
     pass: 'secret-ref-value',
     timeout: 3500,
     maxReconnectAttempts: -1,
@@ -57,7 +57,7 @@ test('NATS connection options reject secret-bearing URLs and contradictory auth 
   assert.throws(
     () => resolveNatsConnectionOptions({
       NATS_URL: 'nats://nats:4222',
-      NATS_USER: 'opc',
+      NATS_USER: 'converact',
       NATS_PASSWORD: 'password',
       NATS_TOKEN: 'token'
     }),
@@ -66,7 +66,7 @@ test('NATS connection options reject secret-bearing URLs and contradictory auth 
   assert.throws(
     () => resolveNatsConnectionOptions({
       NATS_URL: 'nats://nats:4222',
-      NATS_USER: 'opc'
+      NATS_USER: 'converact'
     }),
     /must be configured together/
   );
@@ -138,7 +138,7 @@ test('NATS publisher failure is bounded and logs no URL or credential', async ()
   const publisher = new NatsPublisher({
     env: {
       NATS_URL: 'nats://nats-a.internal:4222',
-      NATS_USER: 'opc',
+      NATS_USER: 'converact',
       NATS_PASSWORD: 'do-not-log'
     },
     connect: async () => {

@@ -1,5 +1,5 @@
 import type {
-  IveKitRustDeskClient,
+  ConveractFabricRustDeskClient,
   RemoteConsentScope,
   RustDeskControlOwnership,
   RustDeskDevice,
@@ -20,7 +20,7 @@ const CONTROL_SCOPES: Array<{ value: RemoteConsentScope; label: string }> = [
 ];
 
 interface RustDeskLaunchPanelProps {
-  client: IveKitRustDeskClient | null;
+  client: ConveractFabricRustDeskClient | null;
   identity: string;
   onError?(error: unknown): void;
   openProtocol?(url: string): void;
@@ -115,7 +115,7 @@ export function RustDeskLaunchPanel({
       actor_identity: identity,
       permissions: scopes,
       access_mode: accessMode,
-      metadata: { source: 'ivekit-reference-client' }
+      metadata: { source: 'converact-reference-client' }
     }));
     if (!tool) return;
     setExternalId(tool.external_id);

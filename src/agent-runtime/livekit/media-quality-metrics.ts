@@ -2,15 +2,15 @@ import { Counter, Histogram } from 'prom-client';
 
 import { metricsRegistry } from '../../metrics.js';
 import type {
-  IveKitMediaConnectionEventResult,
-  IveKitMediaQualityReportResult,
-  IveKitMediaQualitySnapshotInput,
-  IveKitMediaQualityTransition
+  ConveractFabricMediaConnectionEventResult,
+  ConveractFabricMediaQualityReportResult,
+  ConveractFabricMediaQualitySnapshotInput,
+  ConveractFabricMediaQualityTransition
 } from './types.js';
 
 const qosSamples = new Counter({
   name: 'opc_ivekit_media_qos_samples_total',
-  help: 'Accepted and idempotently replayed iveKit media QoS samples',
+  help: 'Accepted and idempotently replayed Converact Fabric media QoS samples',
   labelNames: ['result'],
   registers: [metricsRegistry]
 });
@@ -54,8 +54,8 @@ export const mediaQualityMetricDefinitions = [
 ];
 
 export function observeMediaQualityReport(
-  snapshots: IveKitMediaQualitySnapshotInput[],
-  result: IveKitMediaQualityReportResult
+  snapshots: ConveractFabricMediaQualitySnapshotInput[],
+  result: ConveractFabricMediaQualityReportResult
 ): void {
   qosSamples.labels('accepted').inc(result.accepted);
   qosSamples.labels('replayed').inc(result.replayed);
@@ -68,10 +68,10 @@ export function observeMediaQualityReport(
   }
 }
 
-export function observeMediaQualityTransition(transition: IveKitMediaQualityTransition): void {
+export function observeMediaQualityTransition(transition: ConveractFabricMediaQualityTransition): void {
   qosTransitions.labels(transition.event_type).inc();
 }
 
-export function observeMediaConnectionEvent(result: IveKitMediaConnectionEventResult): void {
+export function observeMediaConnectionEvent(result: ConveractFabricMediaConnectionEventResult): void {
   connectionEvents.labels(result.event.event_type, result.replayed ? 'replayed' : 'accepted').inc();
 }

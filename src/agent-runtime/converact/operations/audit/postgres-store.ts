@@ -3,19 +3,19 @@ import { createHash, randomUUID } from 'node:crypto';
 import { withPgTenant } from '../../../../db-pg-tenant.js';
 import type { PgQueryable } from '../../../../db-pg.js';
 import { canonicalNotificationJson } from '../../notifications/canonical.js';
-import { IveKitOperationsError } from './errors.js';
-import type { IveKitAuditRepository } from './ports.js';
+import { ConveractFabricOperationsError } from './errors.js';
+import type { ConveractFabricAuditRepository } from './ports.js';
 import type {
-  IveKitAuditAppendInput,
-  IveKitAuditAppendResult,
-  IveKitAuditEvent,
-  IveKitAuditListInput,
-  IveKitAuditPage
+  ConveractFabricAuditAppendInput,
+  ConveractFabricAuditAppendResult,
+  ConveractFabricAuditEvent,
+  ConveractFabricAuditListInput,
+  ConveractFabricAuditPage
 } from './types.js';
 
 type AuditRow = Record<string, unknown>;
 
-export class PostgresIveKitAuditStore implements IveKitAuditRepository {
+export class PostgresConveractFabricAuditStore implements ConveractFabricAuditRepository {
   readonly #pg: PgQueryable;
   readonly #id: () => string;
 
@@ -24,7 +24,7 @@ export class PostgresIveKitAuditStore implements IveKitAuditRepository {
     this.#id = options.id || randomUUID;
   }
 
-  append(input: IveKitAuditAppendInput): Promise<IveKitAuditAppendResult> {
+  append(input: ConveractFabricAuditAppendInput): Promise<ConveractFabricAuditAppendResult> {
     return withPgTenant(this.#pg, input.tenant_id, async (pg) => {
       await pg.query(
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 947113))',
@@ -70,7 +70,7 @@ export class PostgresIveKitAuditStore implements IveKitAuditRepository {
     });
   }
 
-  list(input: IveKitAuditListInput): Promise<IveKitAuditPage> {
+  list(input: ConveractFabricAuditListInput): Promise<ConveractFabricAuditPage> {
     const limit = boundedLimit(input.limit);
     const scope = cursorScope(input);
     const cursor = decodeCursor(input.cursor, scope);
@@ -96,16 +96,16 @@ export class PostgresIveKitAuditStore implements IveKitAuditRepository {
 
 const ZERO_HASH = '0'.repeat(64);
 
-function replayResult(row: AuditRow, input: IveKitAuditAppendInput): IveKitAuditAppendResult {
+function replayResult(row: AuditRow, input: ConveractFabricAuditAppendInput): ConveractFabricAuditAppendResult {
   const event = decodeAuditEvent(row);
   const candidate = hashEvent({ ...input, occurred_at: event.occurred_at }, event.previous_hash);
   if (candidate !== event.event_hash) {
-    throw new IveKitOperationsError('idempotency_conflict', 409);
+    throw new ConveractFabricOperationsError('idempotency_conflict', 409);
   }
   return { event, created: false };
 }
 
-function hashEvent(input: IveKitAuditAppendInput, previousHash: string): string {
+function hashEvent(input: ConveractFabricAuditAppendInput, previousHash: string): string {
   return createHash('sha256').update(canonicalNotificationJson({
     tenant_id: input.tenant_id,
     actor_id: input.actor_id,
@@ -128,12 +128,12 @@ function hashEvent(input: IveKitAuditAppendInput, previousHash: string): string 
   })).digest('hex');
 }
 
-function decodeAuditEvent(row: AuditRow): IveKitAuditEvent {
+function decodeAuditEvent(row: AuditRow): ConveractFabricAuditEvent {
   return {
     id: String(row.id),
     tenant_id: String(row.tenant_id),
     actor_id: String(row.actor_id),
-    actor_role: row.actor_role as IveKitAuditEvent['actor_role'],
+    actor_role: row.actor_role as ConveractFabricAuditEvent['actor_role'],
     action: String(row.action),
     resource_type: String(row.resource_type),
     resource_id: String(row.resource_id),
@@ -141,8 +141,8 @@ function decodeAuditEvent(row: AuditRow): IveKitAuditEvent {
     business_ref_id: String(row.business_ref_id),
     request_id: String(row.request_id),
     idempotency_key: String(row.idempotency_key),
-    result: row.result as IveKitAuditEvent['result'],
-    policy_decision: row.policy_decision as IveKitAuditEvent['policy_decision'],
+    result: row.result as ConveractFabricAuditEvent['result'],
+    policy_decision: row.policy_decision as ConveractFabricAuditEvent['policy_decision'],
     source_ip_hmac: String(row.source_ip_hmac || ''),
     metadata: jsonRecord(row.metadata),
     occurred_at: timestamp(row.occurred_at),
@@ -154,7 +154,7 @@ function decodeAuditEvent(row: AuditRow): IveKitAuditEvent {
   };
 }
 
-function cursorScope(input: IveKitAuditListInput): string {
+function cursorScope(input: ConveractFabricAuditListInput): string {
   return createHash('sha256').update(canonicalNotificationJson({
     tenant_id: input.tenant_id,
     action: input.action || '',
@@ -174,11 +174,11 @@ function decodeCursor(
       || typeof parsed.id !== 'string') throw new Error('invalid cursor');
     return { occurred_at: timestamp(parsed.occurred_at), id: parsed.id };
   } catch {
-    throw new IveKitOperationsError('validation_failed', 400);
+    throw new ConveractFabricOperationsError('validation_failed', 400);
   }
 }
 
-function page(rows: IveKitAuditEvent[], limit: number, scope: string): IveKitAuditPage {
+function page(rows: ConveractFabricAuditEvent[], limit: number, scope: string): ConveractFabricAuditPage {
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
   const last = items.at(-1);
@@ -193,14 +193,14 @@ function page(rows: IveKitAuditEvent[], limit: number, scope: string): IveKitAud
 function boundedLimit(value: number | undefined): number {
   if (value === undefined) return 100;
   if (!Number.isInteger(value) || value < 1 || value > 500) {
-    throw new IveKitOperationsError('validation_failed', 422);
+    throw new ConveractFabricOperationsError('validation_failed', 422);
   }
   return value;
 }
 
 function timestamp(value: unknown): string {
   const date = new Date(String(value));
-  if (!Number.isFinite(date.getTime())) throw new IveKitOperationsError('invalid_stored_event', 500);
+  if (!Number.isFinite(date.getTime())) throw new ConveractFabricOperationsError('invalid_stored_event', 500);
   return date.toISOString();
 }
 
@@ -218,10 +218,10 @@ function jsonRecord(value: unknown): Readonly<Record<string, unknown>> {
       // Invalid database rows are reported consistently below.
     }
   }
-  throw new IveKitOperationsError('invalid_stored_event', 500);
+  throw new ConveractFabricOperationsError('invalid_stored_event', 500);
 }
 
 function requiredRow(row: AuditRow | undefined): AuditRow {
-  if (!row) throw new IveKitOperationsError('audit_append_failed', 500);
+  if (!row) throw new ConveractFabricOperationsError('audit_append_failed', 500);
   return row;
 }

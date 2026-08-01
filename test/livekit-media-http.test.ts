@@ -447,9 +447,9 @@ test('media HTTP webhook fails closed in production when LiveKit webhook credent
   const previousLiveKitUrl = process.env.LIVEKIT_URL;
   const previousLiveKitKey = process.env.LIVEKIT_API_KEY;
   const previousLiveKitSecret = process.env.LIVEKIT_API_SECRET;
-  const previousOpcLiveKitUrl = process.env.CONVERACT_LIVEKIT_URL;
-  const previousOpcLiveKitKey = process.env.CONVERACT_LIVEKIT_API_KEY;
-  const previousOpcLiveKitSecret = process.env.CONVERACT_LIVEKIT_API_SECRET;
+  const previousConveractLiveKitUrl = process.env.CONVERACT_LIVEKIT_URL;
+  const previousConveractLiveKitKey = process.env.CONVERACT_LIVEKIT_API_KEY;
+  const previousConveractLiveKitSecret = process.env.CONVERACT_LIVEKIT_API_SECRET;
   process.env.NODE_ENV = 'production';
   delete process.env.LIVEKIT_URL;
   delete process.env.LIVEKIT_API_KEY;
@@ -488,12 +488,12 @@ test('media HTTP webhook fails closed in production when LiveKit webhook credent
     else process.env.LIVEKIT_API_KEY = previousLiveKitKey;
     if (previousLiveKitSecret == null) delete process.env.LIVEKIT_API_SECRET;
     else process.env.LIVEKIT_API_SECRET = previousLiveKitSecret;
-    if (previousOpcLiveKitUrl == null) delete process.env.CONVERACT_LIVEKIT_URL;
-    else process.env.CONVERACT_LIVEKIT_URL = previousOpcLiveKitUrl;
-    if (previousOpcLiveKitKey == null) delete process.env.CONVERACT_LIVEKIT_API_KEY;
-    else process.env.CONVERACT_LIVEKIT_API_KEY = previousOpcLiveKitKey;
-    if (previousOpcLiveKitSecret == null) delete process.env.CONVERACT_LIVEKIT_API_SECRET;
-    else process.env.CONVERACT_LIVEKIT_API_SECRET = previousOpcLiveKitSecret;
+    if (previousConveractLiveKitUrl == null) delete process.env.CONVERACT_LIVEKIT_URL;
+    else process.env.CONVERACT_LIVEKIT_URL = previousConveractLiveKitUrl;
+    if (previousConveractLiveKitKey == null) delete process.env.CONVERACT_LIVEKIT_API_KEY;
+    else process.env.CONVERACT_LIVEKIT_API_KEY = previousConveractLiveKitKey;
+    if (previousConveractLiveKitSecret == null) delete process.env.CONVERACT_LIVEKIT_API_SECRET;
+    else process.env.CONVERACT_LIVEKIT_API_SECRET = previousConveractLiveKitSecret;
     db.close();
   }
 });

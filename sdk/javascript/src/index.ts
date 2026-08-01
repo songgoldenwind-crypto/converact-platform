@@ -1,14 +1,14 @@
-export interface OPCClientConfig {
+export interface ConveractClientConfig {
   baseUrl: string;
   apiKey?: string;
   token?: string;
 }
 
-export class OPCClient {
+export class ConveractClient {
   private readonly baseUrl: string;
   private readonly headers: Record<string, string>;
 
-  constructor(config: OPCClientConfig) {
+  constructor(config: ConveractClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
     this.headers = { 'Content-Type': 'application/json' };
     if (config.apiKey) this.headers['X-API-Key'] = config.apiKey;
@@ -73,7 +73,7 @@ export class OPCClient {
 
   private async get(path: string): Promise<unknown> {
     const res = await fetch(`${this.baseUrl}${path}`, { headers: this.headers });
-    if (!res.ok) throw new Error(`OPC API error: ${res.status} ${res.statusText}`);
+    if (!res.ok) throw new Error(`Converact API error: ${res.status} ${res.statusText}`);
     return res.json();
   }
 
@@ -83,7 +83,7 @@ export class OPCClient {
       headers: this.headers,
       body: JSON.stringify(body)
     });
-    if (!res.ok) throw new Error(`OPC API error: ${res.status} ${res.statusText}`);
+    if (!res.ok) throw new Error(`Converact API error: ${res.status} ${res.statusText}`);
     return res.json();
   }
 
@@ -93,7 +93,13 @@ export class OPCClient {
       headers: this.headers,
       body: JSON.stringify(body)
     });
-    if (!res.ok) throw new Error(`OPC API error: ${res.status} ${res.statusText}`);
+    if (!res.ok) throw new Error(`Converact API error: ${res.status} ${res.statusText}`);
     return res.json();
   }
 }
+
+/** @deprecated Use ConveractClientConfig. Scheduled removal: @converact/javascript-sdk 1.0.0. */
+export type OPCClientConfig = ConveractClientConfig;
+
+/** @deprecated Use ConveractClient. Scheduled removal: @converact/javascript-sdk 1.0.0. */
+export { ConveractClient as OPCClient };

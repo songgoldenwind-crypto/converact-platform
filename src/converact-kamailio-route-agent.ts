@@ -12,7 +12,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     .then(runKamailioRouteAgent)
     .catch((error) => {
       console.error(
-        '[ivekit-kamailio-route-agent] FATAL:',
+        '[converact-kamailio-route-agent] FATAL:',
         error instanceof Error ? error.message : String(error)
       );
       process.exitCode = 1;

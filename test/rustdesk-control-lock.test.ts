@@ -8,7 +8,7 @@ import { createCollaborationModule } from '../src/agent-runtime/collaboration/in
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
-import { createIveKitRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
+import { createConveractFabricRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
 
 test('RustDesk control ownership migration defines leases confirmations and immutable events', () => {
   const migrationUrl = new URL('../src/migrations/040_rustdesk_control_ownership.sql', import.meta.url);
@@ -53,7 +53,7 @@ async function fixture(name: string, metadata: Record<string, unknown> = {}) {
     target: { type: 'device', id: `device-${name}` },
     permissions: ['view_screen', 'control_mouse_keyboard', 'transfer_file', 'clipboard'],
     actor_identity: 'agent-a',
-    launch_url: `https://opc.example.test/rustdesk/${name}`,
+    launch_url: `https://converact.example.test/rustdesk/${name}`,
     metadata
   });
   return { pg, sessions, session, tenantId, locks: new RustDeskControlLockStore(pg) };
@@ -288,7 +288,7 @@ test('RustDesk control HTTP requires active participants and binds actor to JWT 
     const gateway = await new RustDeskGatewaySessionStore(pg).createSession({
       tenant_id: tenantId, target: { type: 'device', id: 'http-device' },
       permissions: ['view_screen', 'control_mouse_keyboard'], actor_identity: 'agent-a',
-      launch_url: 'https://opc.example.test/rustdesk/control-http'
+      launch_url: 'https://converact.example.test/rustdesk/control-http'
     });
     await module.remote.startGatewayToolSession({
       tenant_id: tenantId, remote_session_id: remote.id, actor_identity: 'agent-a', gateway: {
@@ -315,7 +315,7 @@ test('RustDesk control HTTP requires active participants and binds actor to JWT 
     const unattendedGateway = await new RustDeskGatewaySessionStore(pg).createSession({
       tenant_id: tenantId, target: { type: 'device', id: 'unattended-device' },
       permissions: ['view_screen'], actor_identity: 'agent-a',
-      launch_url: 'https://opc.example.test/rustdesk/unattended', metadata: { access_mode: 'unattended' }
+      launch_url: 'https://converact.example.test/rustdesk/unattended', metadata: { access_mode: 'unattended' }
     });
     await pg.query(
       `INSERT INTO remote_tool_sessions
@@ -352,7 +352,7 @@ test('RustDesk control HTTP requires active participants and binds actor to JWT 
   }
 });
 
-test('iveKit RustDesk SDK maps the complete control ownership lifecycle', async () => {
+test('Converact Fabric RustDesk SDK maps the complete control ownership lifecycle', async () => {
   const calls: string[] = [];
   const response = (value: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(value), {
     status, headers: { 'content-type': 'application/json' }
@@ -361,8 +361,8 @@ test('iveKit RustDesk SDK maps the complete control ownership lifecycle', async 
     status: 'owned', owner_identity: 'agent-a', lease_expires_at: '2026-07-12T05:01:00.000Z',
     version: 1, updated_at: '2026-07-12T05:00:00.000Z'
   };
-  const client = createIveKitRustDeskHttpClient({
-    baseUrl: 'https://ivekit.example.test', tenantId: 'tenant-sdk-control', apiKey: 'sdk-key',
+  const client = createConveractFabricRustDeskHttpClient({
+    baseUrl: 'https://converact.example.test', tenantId: 'tenant-sdk-control', apiKey: 'sdk-key',
     fetch: async (url, init) => {
       const path = new URL(String(url)).pathname;
       calls.push(`${init?.method} ${path}`);

@@ -1,11 +1,11 @@
-import type { IveKitChatMessage, IveKitChatRealtimeState, IveKitChatSession } from '@converact/sdk';
+import type { ConveractFabricChatMessage, ConveractFabricChatRealtimeState, ConveractFabricChatSession } from '@converact/sdk';
 
 export function projectSessionSummary(
-  session: IveKitChatSession,
-  messages: IveKitChatMessage[],
-  realtime: IveKitChatRealtimeState[],
+  session: ConveractFabricChatSession,
+  messages: ConveractFabricChatMessage[],
+  realtime: ConveractFabricChatRealtimeState[],
   unreadCount: number
-): IveKitChatSession {
+): ConveractFabricChatSession {
   const latest = messages.at(-1);
   return {
     ...session,

@@ -1,37 +1,37 @@
-export type IveKitRateLimitScope =
+export type ConveractFabricRateLimitScope =
   | 'tenant' | 'actor' | 'source_ip' | 'recipient' | 'provider';
 
-export interface IveKitRateLimitDimension {
-  scope_type: IveKitRateLimitScope;
+export interface ConveractFabricRateLimitDimension {
+  scope_type: ConveractFabricRateLimitScope;
   key: string;
   limit: number;
   window_seconds: number;
   cost?: number;
 }
 
-export interface IveKitRateLimitCheckInput {
+export interface ConveractFabricRateLimitCheckInput {
   tenant_id: string;
   route_group: string;
-  dimensions: IveKitRateLimitDimension[];
+  dimensions: ConveractFabricRateLimitDimension[];
 }
 
-export interface IveKitRateLimitReservationDimension {
-  scope_type: IveKitRateLimitScope;
+export interface ConveractFabricRateLimitReservationDimension {
+  scope_type: ConveractFabricRateLimitScope;
   scope_key_hmac: string;
   limit: number;
   window_seconds: number;
   cost: number;
 }
 
-export interface IveKitRateLimitReservationInput {
+export interface ConveractFabricRateLimitReservationInput {
   tenant_id: string;
   route_group: string;
-  dimensions: IveKitRateLimitReservationDimension[];
+  dimensions: ConveractFabricRateLimitReservationDimension[];
   now: string;
 }
 
-export interface IveKitRateLimitDecision {
+export interface ConveractFabricRateLimitDecision {
   allowed: boolean;
   retry_after_seconds: number;
-  denied_scope: IveKitRateLimitScope | null;
+  denied_scope: ConveractFabricRateLimitScope | null;
 }

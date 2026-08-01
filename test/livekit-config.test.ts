@@ -24,7 +24,7 @@ test('LiveKit config separates internal and public URLs', () => {
   assert.equal(isLiveKitBrowserJoinConfigured(config, 'production'), true);
 });
 
-test('LiveKit config supports OPC-prefixed URL aliases', () => {
+test('LiveKit config supports Converact-prefixed URL aliases', () => {
   const config = readLiveKitConfig({
     NODE_ENV: 'production',
     CONVERACT_LIVEKIT_URL: 'ws://livekit-internal:7880',

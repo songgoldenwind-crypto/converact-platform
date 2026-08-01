@@ -1,13 +1,13 @@
 import type {
-  IveKitRetentionClaim,
-  IveKitRetentionDeletionSummary,
-  IveKitRetentionPolicy,
-  IveKitRetentionPolicyWrite,
-  IveKitLegalHold,
-  IveKitLegalHoldCreateInput
+  ConveractFabricRetentionClaim,
+  ConveractFabricRetentionDeletionSummary,
+  ConveractFabricRetentionPolicy,
+  ConveractFabricRetentionPolicyWrite,
+  ConveractFabricLegalHold,
+  ConveractFabricLegalHoldCreateInput
 } from './types.js';
 
-export interface IveKitRetentionRepository {
+export interface ConveractFabricRetentionRepository {
   listDueTenantIds(limit: number): Promise<string[]>;
   claimDue(input: {
     tenant_id: string;
@@ -15,34 +15,34 @@ export interface IveKitRetentionRepository {
     lease_ms: number;
     limit: number;
     now: string;
-  }): Promise<IveKitRetentionClaim[]>;
-  deleteExpired(claim: IveKitRetentionClaim): Promise<IveKitRetentionDeletionSummary>;
+  }): Promise<ConveractFabricRetentionClaim[]>;
+  deleteExpired(claim: ConveractFabricRetentionClaim): Promise<ConveractFabricRetentionDeletionSummary>;
   completeRun(input: {
-    claim: IveKitRetentionClaim;
+    claim: ConveractFabricRetentionClaim;
     outcome: 'completed' | 'failed';
-    summary: IveKitRetentionDeletionSummary;
+    summary: ConveractFabricRetentionDeletionSummary;
     error_code: string;
     now: string;
   }): Promise<void>;
 }
 
-export interface IveKitRetentionCategoryHandler {
-  deleteExpired(claim: IveKitRetentionClaim): Promise<IveKitRetentionDeletionSummary>;
+export interface ConveractFabricRetentionCategoryHandler {
+  deleteExpired(claim: ConveractFabricRetentionClaim): Promise<ConveractFabricRetentionDeletionSummary>;
 }
 
-export interface IveKitRetentionPolicyRepository {
-  listPolicies(tenantId: string): Promise<IveKitRetentionPolicy[]>;
-  putPolicy(input: IveKitRetentionPolicyWrite): Promise<IveKitRetentionPolicy>;
+export interface ConveractFabricRetentionPolicyRepository {
+  listPolicies(tenantId: string): Promise<ConveractFabricRetentionPolicy[]>;
+  putPolicy(input: ConveractFabricRetentionPolicyWrite): Promise<ConveractFabricRetentionPolicy>;
   listLegalHolds(input: {
     tenant_id: string;
     category?: string;
     status?: 'active' | 'released';
-  }): Promise<IveKitLegalHold[]>;
-  placeLegalHold(input: IveKitLegalHoldCreateInput): Promise<{ hold: IveKitLegalHold; created: boolean }>;
+  }): Promise<ConveractFabricLegalHold[]>;
+  placeLegalHold(input: ConveractFabricLegalHoldCreateInput): Promise<{ hold: ConveractFabricLegalHold; created: boolean }>;
   releaseLegalHold(input: {
     tenant_id: string;
     hold_id: string;
     actor: string;
     now: string;
-  }): Promise<IveKitLegalHold>;
+  }): Promise<ConveractFabricLegalHold>;
 }

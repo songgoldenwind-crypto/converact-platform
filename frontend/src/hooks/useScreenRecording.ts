@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { getTenantId } from '../api/client';
+import { readAuthStorage } from '../auth-storage';
 
 export type ScreenRecordingStatus = 'idle' | 'recording' | 'uploading';
 
@@ -22,8 +23,8 @@ export function useScreenRecording() {
     if (contextRef.current.callSessionId) params.set('call_session_id', contextRef.current.callSessionId);
     if (contextRef.current.seatId) params.set('seat_id', contextRef.current.seatId);
     params.set('duration_sec', String(durationSec));
-    const token = localStorage.getItem('opc_token');
-    const apiKey = localStorage.getItem('opc_api_key');
+    const token = readAuthStorage('token');
+    const apiKey = readAuthStorage('api_key');
     const headers: Record<string, string> = {
       'Content-Type': 'video/webm',
       'X-Filename': `screen-${Date.now()}.webm`

@@ -14,7 +14,7 @@ let baseUrl = '';
 let tenantId = '';
 let sessionId = '';
 let specId = '';
-const apiKey = 'dev-opc-key';
+const apiKey = 'dev-converact-key';
 
 before(async () => {
   process.env.CONVERACT_API_KEY = apiKey;

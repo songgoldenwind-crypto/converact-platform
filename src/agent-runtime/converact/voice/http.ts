@@ -58,7 +58,7 @@ import {
 import { VoiceProviderEventService, VoiceRouterDecisionService } from './provider-event-service.js';
 import { VoiceProviderRegistry } from './provider-registry.js';
 import type { RealtimeAudioTapGrantService } from './realtime-audio-tap-grant.js';
-import { createIveKitVoiceProviderRegistry } from './runtime.js';
+import { createConveractFabricVoiceProviderRegistry } from './runtime.js';
 import { EnvVoiceSecretResolver } from './secret-resolver.js';
 import type {
   VoiceAdapter,
@@ -115,7 +115,7 @@ export interface VoiceHttpModule {
   extension_sessions?: VoiceExtensionSessionPort;
 }
 
-export interface RouteIveKitVoiceApiOptions {
+export interface RouteConveractFabricVoiceApiOptions {
   module?: VoiceHttpModule;
   create_module?: (pg: PgQueryable, tenantId: string) => VoiceHttpModule | Promise<VoiceHttpModule>;
   cdr_region_id?: string;
@@ -152,12 +152,12 @@ export interface PreparedVoiceCallPlacement {
 
 type Headers = Record<string, string | string[] | undefined>;
 
-export async function prepareIveKitVoiceCallPlacement(
+export async function prepareConveractFabricVoiceCallPlacement(
   method: string,
   routePath: string,
   body: unknown,
   headers: Headers,
-  options: RouteIveKitVoiceApiOptions,
+  options: RouteConveractFabricVoiceApiOptions,
   pg: PgQueryable | null = null,
   rawBody: string | Buffer = ''
 ): Promise<PreparedVoiceCallPlacement | null> {
@@ -257,7 +257,7 @@ export async function prepareIveKitVoiceCallPlacement(
   };
 }
 
-export async function routeIveKitVoiceApi(
+export async function routeConveractFabricVoiceApi(
   pg: PgQueryable | null,
   method: string,
   path: string,
@@ -265,7 +265,7 @@ export async function routeIveKitVoiceApi(
   body: unknown,
   rawBody: string | Buffer = '',
   headers: Headers = {},
-  options: RouteIveKitVoiceApiOptions = {}
+  options: RouteConveractFabricVoiceApiOptions = {}
 ): Promise<unknown | undefined> {
   const routePath = path.split('?')[0];
   if (!routePath.startsWith('/api/ivekit/voice/')) return undefined;
@@ -809,13 +809,13 @@ export async function routeIveKitVoiceApi(
 
 export function createPostgresVoiceHttpModule(
   pg: PgQueryable,
-  options: RouteIveKitVoiceApiOptions = {}
+  options: RouteConveractFabricVoiceApiOptions = {}
 ): VoiceHttpModule {
   const configurationRepository = new PostgresVoiceConfigurationStore(pg);
   const callRepository = new PostgresVoiceCallStore(pg);
   const providerEventRepository = new PostgresVoiceProviderEventStore(pg);
   const recordings = new PostgresVoiceRecordingStore(pg);
-  const registry = options.provider_registry ?? createIveKitVoiceProviderRegistry();
+  const registry = options.provider_registry ?? createConveractFabricVoiceProviderRegistry();
   const addressProtector = options.address_protector ?? configuredVoiceAddressProtector();
   const eventPort = options.event_port ?? { publish: () => undefined };
   const configuration = new VoiceConfigurationService({
@@ -855,7 +855,7 @@ export function createPostgresVoiceHttpModule(
 }
 
 function configuredCdrRegionId(
-  options: RouteIveKitVoiceApiOptions,
+  options: RouteConveractFabricVoiceApiOptions,
   env: NodeJS.ProcessEnv = process.env
 ): string | undefined {
   return options.cdr_region_id?.trim() ||
@@ -878,7 +878,7 @@ async function routeProviderRecordingSpool(input: {
   body: unknown;
   raw_body: string | Buffer;
   headers: Headers;
-  options: RouteIveKitVoiceApiOptions;
+  options: RouteConveractFabricVoiceApiOptions;
 }): Promise<unknown> {
   const pg = requiredPg(input.pg);
   const authenticator = input.options.webhook_authenticator ??
@@ -953,7 +953,7 @@ async function routeProviderWebhook(input: {
   body: unknown;
   raw_body: string | Buffer;
   headers: Headers;
-  options: RouteIveKitVoiceApiOptions;
+  options: RouteConveractFabricVoiceApiOptions;
 }): Promise<unknown> {
   const pg = requiredPg(input.pg);
   const prepared = input.options.prepared_call_placement;
@@ -1186,7 +1186,7 @@ function authenticationContextReference(
 function createRecordingSpoolIntake(
   pg: PgQueryable,
   module: VoiceHttpModule,
-  options: RouteIveKitVoiceApiOptions
+  options: RouteConveractFabricVoiceApiOptions
 ): RecordingSpoolIntakeService {
   const store = new PostgresRecordingManifestStore(pg);
   return new RecordingSpoolIntakeService({
@@ -1305,7 +1305,7 @@ async function assertRouteSnapshotRevision(
 }
 
 async function authorizeRealtimeAudioTap(
-  options: RouteIveKitVoiceApiOptions,
+  options: RouteConveractFabricVoiceApiOptions,
   input: RealtimeAudioTapRouteAuthorizationInput
 ): Promise<string> {
   if (!options.realtime_audio_tap_authorizer) return '';
@@ -1358,7 +1358,7 @@ function providerInboundAddress(
 async function resolveModule(
   pg: PgQueryable | null,
   tenantId: string,
-  options: RouteIveKitVoiceApiOptions
+  options: RouteConveractFabricVoiceApiOptions
 ): Promise<VoiceHttpModule> {
   if (options.module) return options.module;
   const required = requiredPg(pg);
@@ -1368,7 +1368,7 @@ async function resolveModule(
 
 function createWebhookAuthenticator(
   pg: PgQueryable,
-  options: RouteIveKitVoiceApiOptions,
+  options: RouteConveractFabricVoiceApiOptions,
   maxBodyBytes?: number
 ): VoiceWebhookAuthenticator {
   return new VoiceWebhookAuthenticator({

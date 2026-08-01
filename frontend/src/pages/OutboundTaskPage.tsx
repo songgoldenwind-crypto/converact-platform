@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiGet, apiPost } from '../api/client';
+import { readAuthStorage } from '../auth-storage';
 import { useAuth } from '../hooks/useAuth';
 import { useWebSocket } from '../hooks/useWebSocket';
 
@@ -21,7 +22,7 @@ export default function OutboundTaskPage() {
   const { tenantId } = useAuth();
   const [phones, setPhones] = useState('');
   const [specs, setSpecs] = useState<VoiceAgentSpec[]>([]);
-  const [specId, setSpecId] = useState(localStorage.getItem('opc_default_spec_id') || '');
+  const [specId, setSpecId] = useState(readAuthStorage('default_spec_id') || '');
   const [selectedLanguage] = useState<'zh' | 'en' | 'ja' | 'vi'>('zh');
   const [tasks, setTasks] = useState<OutboundTask[]>([]);
   const [message, setMessage] = useState('');

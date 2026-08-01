@@ -2,40 +2,40 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import type { NotificationEndpointRepository } from '../notifications/ports.js';
 import { canonicalNotificationJson } from '../notifications/canonical.js';
-import { normalizeIveKitEventPatterns } from './catalog.js';
+import { normalizeConveractFabricEventPatterns } from './catalog.js';
 import type {
-  CreateIveKitEventWebhookSubscriptionInput,
-  IveKitEventWebhookSubscription,
-  IveKitEventWebhookSubscriptionCreateResult,
-  IveKitEventWebhookSubscriptionPage,
-  UpdateIveKitEventWebhookSubscriptionInput
+  CreateConveractFabricEventWebhookSubscriptionInput,
+  ConveractFabricEventWebhookSubscription,
+  ConveractFabricEventWebhookSubscriptionCreateResult,
+  ConveractFabricEventWebhookSubscriptionPage,
+  UpdateConveractFabricEventWebhookSubscriptionInput
 } from './types.js';
 
-export interface IveKitEventWebhookSubscriptionRepository {
+export interface ConveractFabricEventWebhookSubscriptionRepository {
   insert(
-    subscription: IveKitEventWebhookSubscription
-  ): Promise<IveKitEventWebhookSubscriptionCreateResult>;
-  get(tenantId: string, subscriptionId: string): Promise<IveKitEventWebhookSubscription | null>;
+    subscription: ConveractFabricEventWebhookSubscription
+  ): Promise<ConveractFabricEventWebhookSubscriptionCreateResult>;
+  get(tenantId: string, subscriptionId: string): Promise<ConveractFabricEventWebhookSubscription | null>;
   list(input: {
     tenant_id: string;
-    status?: IveKitEventWebhookSubscription['status'];
+    status?: ConveractFabricEventWebhookSubscription['status'];
     limit?: number;
     cursor?: string;
-  }): Promise<IveKitEventWebhookSubscriptionPage>;
+  }): Promise<ConveractFabricEventWebhookSubscriptionPage>;
   update(
-    subscription: IveKitEventWebhookSubscription,
+    subscription: ConveractFabricEventWebhookSubscription,
     expectedRevision: number
-  ): Promise<IveKitEventWebhookSubscription>;
+  ): Promise<ConveractFabricEventWebhookSubscription>;
 }
 
-export class IveKitEventWebhookSubscriptionService {
-  readonly #repository: IveKitEventWebhookSubscriptionRepository;
+export class ConveractFabricEventWebhookSubscriptionService {
+  readonly #repository: ConveractFabricEventWebhookSubscriptionRepository;
   readonly #endpoints: Pick<NotificationEndpointRepository, 'getEndpoint'>;
   readonly #id: () => string;
   readonly #now: () => Date;
 
   constructor(input: {
-    repository: IveKitEventWebhookSubscriptionRepository;
+    repository: ConveractFabricEventWebhookSubscriptionRepository;
     endpoints: Pick<NotificationEndpointRepository, 'getEndpoint'>;
     id?: () => string;
     now?: () => Date;
@@ -47,14 +47,14 @@ export class IveKitEventWebhookSubscriptionService {
   }
 
   async create(
-    input: CreateIveKitEventWebhookSubscriptionInput
-  ): Promise<IveKitEventWebhookSubscriptionCreateResult> {
+    input: CreateConveractFabricEventWebhookSubscriptionInput
+  ): Promise<ConveractFabricEventWebhookSubscriptionCreateResult> {
     const tenantId = required(input.tenant_id, 255, 'tenant_id');
     const actor = required(input.actor, 255, 'actor');
     const endpointId = required(input.endpoint_id, 255, 'endpoint_id');
     const name = required(input.name, 255, 'name');
     const idempotencyKey = required(input.idempotency_key, 128, 'idempotency_key');
-    const patterns = normalizeIveKitEventPatterns(input.event_patterns);
+    const patterns = normalizeConveractFabricEventPatterns(input.event_patterns);
     await this.#assertEndpoint(tenantId, endpointId, patterns);
     const now = this.#now().toISOString();
     const payloadHash = sha256(canonicalNotificationJson({
@@ -72,7 +72,7 @@ export class IveKitEventWebhookSubscriptionService {
     });
   }
 
-  get(tenantId: string, subscriptionId: string): Promise<IveKitEventWebhookSubscription | null> {
+  get(tenantId: string, subscriptionId: string): Promise<ConveractFabricEventWebhookSubscription | null> {
     return this.#repository.get(
       required(tenantId, 255, 'tenant_id'),
       required(subscriptionId, 255, 'subscription_id')
@@ -81,15 +81,15 @@ export class IveKitEventWebhookSubscriptionService {
 
   list(input: {
     tenant_id: string;
-    status?: IveKitEventWebhookSubscription['status'];
+    status?: ConveractFabricEventWebhookSubscription['status'];
     limit?: number;
     cursor?: string;
-  }): Promise<IveKitEventWebhookSubscriptionPage> {
+  }): Promise<ConveractFabricEventWebhookSubscriptionPage> {
     required(input.tenant_id, 255, 'tenant_id');
     return this.#repository.list(input);
   }
 
-  async update(input: UpdateIveKitEventWebhookSubscriptionInput): Promise<IveKitEventWebhookSubscription> {
+  async update(input: UpdateConveractFabricEventWebhookSubscriptionInput): Promise<ConveractFabricEventWebhookSubscription> {
     const tenantId = required(input.tenant_id, 255, 'tenant_id');
     const actor = required(input.actor, 255, 'actor');
     const subscriptionId = required(input.subscription_id, 255, 'subscription_id');
@@ -102,7 +102,7 @@ export class IveKitEventWebhookSubscriptionService {
     const name = input.patch.name === undefined
       ? current.name : required(input.patch.name, 255, 'name');
     const patterns = input.patch.event_patterns === undefined
-      ? current.event_patterns : normalizeIveKitEventPatterns(input.patch.event_patterns);
+      ? current.event_patterns : normalizeConveractFabricEventPatterns(input.patch.event_patterns);
     const status = input.patch.status || current.status;
     await this.#assertEndpoint(tenantId, current.endpoint_id, patterns);
     const updatedAt = this.#now().toISOString();
@@ -126,7 +126,7 @@ export class IveKitEventWebhookSubscriptionService {
     actor: string;
     subscription_id: string;
     expected_revision: number;
-  }): Promise<IveKitEventWebhookSubscription> {
+  }): Promise<ConveractFabricEventWebhookSubscription> {
     const current = await this.get(input.tenant_id, input.subscription_id);
     if (!current) throw httpError(404, 'event webhook subscription not found');
     if (current.status === 'archived') return current;

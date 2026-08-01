@@ -1,4 +1,4 @@
-# iveKit LiveKit Ingress exact-source image
+# Converact Fabric LiveKit Ingress exact-source image
 
 This build contract targets only `livekit/ingress` `v1.5.0` at commit
 `363f6090d572db8eef5b60c273c0970826fb7ca6`.
@@ -12,7 +12,7 @@ architecture, source revision, component label and Ingress version are checked
 before the script succeeds.
 
 This overlay changes only the image construction contract. It does not fork
-LiveKit Ingress scheduling, media processing or protocol behavior. iveKit owns
+LiveKit Ingress scheduling, media processing or protocol behavior. Converact Fabric owns
 tenant authorization, idempotency and URL pull policy in its HTTP facade, while
 LiveKit Ingress remains the runtime authority for RTMP, WHIP and URL input jobs.
 
@@ -20,15 +20,16 @@ LiveKit Ingress remains the runtime authority for RTMP, WHIP and URL input jobs.
 
 ```bash
 LIVEKIT_INGRESS_SOURCE_DIR=/path/to/livekit-ingress-v1.5.0 \
-IVEKIT_LIVEKIT_INGRESS_IMAGE=ivekit/livekit-ingress:v1.5.0-ivekit.1-363f6090-amd64 \
-IVEKIT_LIVEKIT_INGRESS_BUILDER_IMAGE=docker.io/livekit/gstreamer:1.26.7-dev@sha256:<digest> \
-IVEKIT_LIVEKIT_INGRESS_RUNTIME_IMAGE=docker.io/livekit/gstreamer:1.26.7-prod@sha256:<digest> \
-IVEKIT_LIVEKIT_INGRESS_TARGETARCH=amd64 \
-bash infra/converact/livekit-ingress/build.sh
+CONVERACT_FABRIC_LIVEKIT_INGRESS_IMAGE=converact/livekit-ingress:v1.5.0-ivekit.1-363f6090-amd64 \
+CONVERACT_FABRIC_LIVEKIT_INGRESS_BUILDER_IMAGE=docker.io/livekit/gstreamer:1.26.7-dev@sha256:<digest> \
+CONVERACT_FABRIC_LIVEKIT_INGRESS_RUNTIME_IMAGE=docker.io/livekit/gstreamer:1.26.7-prod@sha256:<digest> \
+CONVERACT_FABRIC_LIVEKIT_INGRESS_TARGETARCH=amd64 \
+bash infra/converact/livekit-ingress/build-converact.sh
 ```
 
 Supported targets are `linux/amd64` and `linux/arm64`. The matching Go module
-checksums are embedded in `build.sh`; a different toolchain archive, source
+checksums are embedded in the pinned `build.sh`; `build-converact.sh` maps the
+public Converact environment contract into that immutable source ABI. A different toolchain archive, source
 commit, base-image format, runtime identity or version fails closed.
 
 ## Deployment
@@ -59,7 +60,7 @@ use an egress proxy or equivalent destination enforcement.
 On 2026-07-23 the isolated Linux amd64 validation server applied the overlay
 twice, built the final image offline and verified runtime identity. The
 candidate image is
-`ivekit/livekit-ingress:v1.5.0-ivekit.1-363f6090-amd64`, image ID
+`converact/livekit-ingress:v1.5.0-ivekit.1-363f6090-amd64`, image ID
 `sha256:639b1689dfae305b6495467c71ed7e2ce42f2c43161a512d91bfb38310ec3bf9`,
 size `260,631,118` bytes. This is controlled server evidence, not a published,
 signed production artifact or real-media capacity result. See

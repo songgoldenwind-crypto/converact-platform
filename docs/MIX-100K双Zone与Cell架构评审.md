@@ -12,7 +12,7 @@
 
 ### 1.1 总体裁决
 
-`MIX-100K + 双 Zone + Cell` 的总体方向正确，适合 iveKit 作为 OPC 和 LED 共用通信底座继续建设，不需要推倒当前功能层，也不需要为了 100,000 并发改成十套彼此独立的平台。
+`MIX-100K + 双 Zone + Cell` 的总体方向正确，适合 Converact Fabric 作为 Converact Platform 和 LED 共用通信底座继续建设，不需要推倒当前功能层，也不需要为了 100,000 并发改成十套彼此独立的平台。
 
 但当前提案不能原样进入实现，必须先接受以下修订：
 
@@ -168,7 +168,7 @@ tenant_id
 
 ### 2.6 P0：Cell 与永久数据分片耦合过深
 
-原图在每个 Cell 内放置独立 iveKit PG shard 和 Tinode PG shard。这样隔离性强，但会导致：
+原图在每个 Cell 内放置独立 Converact Fabric PG shard 和 Tinode PG shard。这样隔离性强，但会导致：
 
 - 每增加一个 Cell 就增加一套 PostgreSQL HA 成本。
 - 空闲 Cell 的数据库副本仍占用服务器。
@@ -223,7 +223,7 @@ LiveKit 官方分布式模式可以把不同 room 分配到不同节点，但一
 | 负载 | 数量 |
 | --- | ---: |
 | Tinode WebSocket | 90,000 |
-| iveKit event WebSocket | 50,000 |
+| Converact Fabric event WebSocket | 50,000 |
 | WebPhone/SIP registered contacts | 25,000 |
 | 其中 SIP over WSS | 10,000 |
 | LiveKit participants | 26,000 基线，不含 overlay 子测试额外 track |
@@ -235,7 +235,7 @@ LiveKit 官方分布式模式可以把不同 room 分配到不同节点，但一
 | --- | ---: | ---: |
 | Tinode business messages | 5,000 msg/s | 20,000 msg/s，60 秒 |
 | receipt/presence/typing | 单独报告 fanout/s | 断开 20% 后分批重连 |
-| iveKit realtime events | 10,000 event/s 目标 | 30,000 event/s，60 秒 |
+| Converact Fabric realtime events | 10,000 event/s 目标 | 30,000 event/s，60 秒 |
 | SIP setup | 139 CPS | 1,000 CPS，60 秒 |
 | Provider jobs | 按 profile 固定产生率 | Provider 限流时允许 backlog，不阻塞实时 ACK |
 
@@ -298,7 +298,7 @@ LiveKit 官方分布式模式可以把不同 room 分配到不同节点，但一
 | Screen evidence | 20% screen rooms | track recording，合成离线完成 |
 | RustDesk recording | 按策略子集 | 终端本地或边缘上传，统一 secure-file/evidence 流程 |
 
-录制数据不得穿过 iveKit API 进程或 PostgreSQL；数据库只保存 metadata、checksum、状态和 retention policy。
+录制数据不得穿过 Converact Fabric API 进程或 PostgreSQL；数据库只保存 metadata、checksum、状态和 retention policy。
 
 ---
 
@@ -308,8 +308,8 @@ LiveKit 官方分布式模式可以把不同 room 分配到不同节点，但一
 
 ```mermaid
 flowchart TB
-  Client[LED / OPC / External Clients]
-  Global[Unified iveKit Control Plane]
+  Client[LED / Converact Platform / External Clients]
+  Global[Unified Converact Fabric Control Plane]
   Edge[Regional Anycast / DNS / L4 Ingress]
   Directory[Region Directory + Capacity Registry]
 
@@ -492,12 +492,12 @@ Prometheus labels禁止使用 `interaction_id`、`message_id` 等无限高基数
 2. 先修复配置/拓扑和同步 I/O 等确定性瓶颈。
 3. 需要时修改内部调度、协议实现和数据结构。
 4. 每个 fork 保留上游 commit、补丁/分支、镜像 digest 和回归基准。
-5. 对外 API/SDK 由 iveKit 稳定，不把 fork 内部协议泄漏给 LED/OPC。
+5. 对外 API/SDK 由 Converact Fabric 稳定，不把 fork 内部协议泄漏给 LED/Converact Platform。
 
 仓库已经具备该模式的基础：
 
-- `infra/ivekit/rustpbx/build.sh` 固定上游 commit 并应用 RustPBX/rsipstack 补丁。
-- `infra/ivekit/rustpbx/patches/` 保存 RustPBX patch queue。
+- `infra/converact/rustpbx/build.sh` 固定上游 commit 并应用 RustPBX/rsipstack 补丁。
+- `infra/converact/rustpbx/patches/` 保存 RustPBX patch queue。
 - `integrations/rustdesk-1.4.9/` 已存在 RustDesk 客户端 overlay。
 - LiveKit、Tinode 与 RustDesk server 已具备 pinned overlay/build contract。
 
@@ -539,7 +539,7 @@ SBOM、签名、来源证明与回滚链；在真实 profile 出现前不伪造�
 - 增加 routing partition 与 Cell 感知的 gateway/topic 分配。
 - 热 topic 拆分、fanout batching、receipt/presence 合并和 backpressure。
 - PostgreSQL 批量写、prepared statement、连接池和索引优化。
-- 将 iveKit mirror/审计改为原生 outbox/event hook，替代高频轮询。
+- 将 Converact Fabric mirror/审计改为原生 outbox/event hook，替代高频轮询。
 - 暴露 WS、topic、fanout、mailbox、DB latency、GC 和 shard skew 指标。
 
 Tinode 官方只声明 sharded clustering with failover，并没有 50k/100k WS 单节点证据，因此 fork 的性能门槛完全由我们的 benchmark 决定。
@@ -560,7 +560,7 @@ Tinode 官方只声明 sharded clustering with failover，并没有 50k/100k WS 
 每个 fork 必须有：
 
 - 上游仓库与 commit。
-- iveKit patch/fork version。
+- Converact Fabric patch/fork version。
 - 可重现构建和 SBOM。
 - 协议兼容测试。
 - 单节点和集群 benchmark diff。
@@ -619,7 +619,7 @@ WeightedVoiceLoad =
 可以在通用 Kubernetes node pool 装箱：
 
 - Kamailio/SIP Edge。
-- iveKit API。
+- Converact Fabric API。
 - WS gateway。
 - hbbs。
 - 轻量 projector/worker。
@@ -657,7 +657,7 @@ single node profile
 ### 8.2 必须同时通过
 
 - 100,000 active interaction ID，互斥计数。
-- 90k Tinode WS、50k iveKit WS、25k SIP registrations 同轮存在。
+- 90k Tinode WS、50k Converact Fabric WS、25k SIP registrations 同轮存在。
 - 规定消息率、媒体码率、TURN ratio、录制和 ASR 比例。
 - 2 小时 steady、24 小时 70% endurance。
 - component pool 4 节点 aggregate linearity >=93%，8 节点 >=91%，每区段 marginal efficiency >=90%。
@@ -715,7 +715,7 @@ single node profile
 
 ### 9.1 最终批准语句
 
-> 架构委员会有条件批准 iveKit 采用 `MIX-100K-v1 + 双 Active Data Zone + 第三仲裁故障域 + Cell 化实时计算 + 独立数据分片` 的目标架构。100K 仅作为扩展端点，不要求现实部署预分配该容量；优先提高单节点 safe density，并保持 component pool 每区段边际效率不低于 90%、Cell/shared-data 不低于 95%。允许为达成容量、故障恢复和审计合同修改 RustPBX、LiveKit、Tinode、RustDesk 核心源码。只有在密度、边际曲线、互斥 interaction、完整媒体/录制/连接 profile、双 Zone 故障、数据仲裁和 24 小时证据全部通过后，才可宣称单套平台支持 100,000 并发通信。
+> 架构委员会有条件批准 Converact Fabric 采用 `MIX-100K-v1 + 双 Active Data Zone + 第三仲裁故障域 + Cell 化实时计算 + 独立数据分片` 的目标架构。100K 仅作为扩展端点，不要求现实部署预分配该容量；优先提高单节点 safe density，并保持 component pool 每区段边际效率不低于 90%、Cell/shared-data 不低于 95%。允许为达成容量、故障恢复和审计合同修改 RustPBX、LiveKit、Tinode、RustDesk 核心源码。只有在密度、边际曲线、互斥 interaction、完整媒体/录制/连接 profile、双 Zone 故障、数据仲裁和 24 小时证据全部通过后，才可宣称单套平台支持 100,000 并发通信。
 
 ---
 

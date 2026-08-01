@@ -7,8 +7,8 @@ PROBE="$ROOT_DIR/services/converact-service/acceptance/seaweedfs-s3/probe.ts"
 NODE_BIN=${NODE_BIN:-node}
 SEAWEEDFS_IMAGE=${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.40@sha256:52194fba4fecd0083c842158b3a902ba6e04a63619b2b0efcd08007bdb6a4602}
 SEAWEEDFS_S3_HOST_PORT=${SEAWEEDFS_S3_HOST_PORT:-18333}
-PROJECT="ivekit-seaweedfs-$(date -u +%Y%m%d%H%M%S)-$$"
-WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/ivekit-seaweedfs.XXXXXX")
+PROJECT="converact-seaweedfs-$(date -u +%Y%m%d%H%M%S)-$$"
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/converact-seaweedfs.XXXXXX")
 STATE_FILE="$WORK_DIR/state.json"
 MATRIX_FILE="$WORK_DIR/matrix.json"
 OUTAGE_FILE="$WORK_DIR/outage.json"
@@ -16,7 +16,7 @@ RECOVERY_FILE="$WORK_DIR/recovery.json"
 EVIDENCE_FILE=${SEAWEEDFS_EVIDENCE_FILE:-"$ROOT_DIR/.runtime/seaweedfs-s3-evidence.json"}
 SEAWEEDFS_ACCESS_KEY=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
 SEAWEEDFS_SECRET_KEY=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
-S3_BUCKET="ivekit-seaweedfs-$(date -u +%Y%m%d)-$$"
+S3_BUCKET="converact-seaweedfs-$(date -u +%Y%m%d)-$$"
 export SEAWEEDFS_IMAGE SEAWEEDFS_S3_HOST_PORT SEAWEEDFS_ACCESS_KEY SEAWEEDFS_SECRET_KEY
 export S3_ENDPOINT="http://127.0.0.1:$SEAWEEDFS_S3_HOST_PORT"
 export S3_BUCKET S3_REGION=us-east-1 S3_FORCE_PATH_STYLE=true

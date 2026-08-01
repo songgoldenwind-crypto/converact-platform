@@ -41,7 +41,7 @@ test('LiveKit acceptance template includes incomplete reference-client checks', 
 });
 
 test('LiveKit client acceptance passes a complete real-environment report', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-client-acceptance-pass-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-client-acceptance-pass-'));
   const reportFile = join(dir, 'report.json');
   const outputFile = join(dir, 'result.json');
   try {
@@ -61,7 +61,7 @@ test('LiveKit client acceptance passes a complete real-environment report', () =
 });
 
 test('LiveKit client acceptance rejects missing failed empty placeholder and secret evidence', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-client-acceptance-evidence-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-client-acceptance-evidence-'));
   const reportFile = join(dir, 'report.json');
   try {
     const report = completeReport(dir) as any;
@@ -92,7 +92,7 @@ test('LiveKit client acceptance rejects missing failed empty placeholder and sec
 });
 
 test('LiveKit client acceptance rejects non-real sources invalid identity and unmet performance targets', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-client-acceptance-invalid-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-client-acceptance-invalid-'));
   const reportFile = join(dir, 'report.json');
   try {
     const report = completeReport(dir) as any;
@@ -131,7 +131,7 @@ test('LiveKit client acceptance rejects non-real sources invalid identity and un
 });
 
 test('controlled browser output cannot satisfy reference-client real-environment evidence', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-reference-client-source-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-reference-client-source-'));
   const reportFile = join(dir, 'report.json');
   try {
     const report = completeReport(dir) as any;
@@ -153,7 +153,7 @@ test('controlled browser output cannot satisfy reference-client real-environment
 });
 
 test('LiveKit client acceptance rejects generic prose and recursively scans report secrets', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-client-acceptance-forgery-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-client-acceptance-forgery-'));
   const reportFile = join(dir, 'report.json');
   try {
     const report = completeReport(dir) as any;
@@ -174,7 +174,7 @@ test('LiveKit client acceptance rejects generic prose and recursively scans repo
 });
 
 test('LiveKit client acceptance rejects invalid evidence hashes and zero join latency targets', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-client-acceptance-hash-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-client-acceptance-hash-'));
   const reportFile = join(dir, 'report.json');
   try {
     const report = completeReport(dir) as any;
@@ -193,7 +193,7 @@ test('LiveKit client acceptance rejects invalid evidence hashes and zero join la
 });
 
 test('LiveKit client acceptance rejects invalid QA signatures and secrets inside JSON evidence', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-client-acceptance-signature-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-client-acceptance-signature-'));
   const reportFile = join(dir, 'report.json');
   try {
     const report = completeReport(dir) as any;
@@ -220,7 +220,7 @@ test('LiveKit client acceptance rejects invalid QA signatures and secrets inside
 });
 
 test('LiveKit client acceptance rejects generic details duplicate artifacts and untrusted QA keys', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-client-acceptance-details-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-client-acceptance-details-'));
   const reportFile = join(dir, 'report.json');
   try {
     const report = completeReport(dir) as any;
@@ -279,7 +279,7 @@ test('LiveKit client acceptance template is intentionally incomplete and covers 
 });
 
 test('LiveKit client acceptance writes its template and runbook documents every evidence group', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-client-acceptance-template-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-client-acceptance-template-'));
   const templateFile = join(dir, 'template.json');
   try {
     const write = writeLiveKitClientAcceptanceTemplate({

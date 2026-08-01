@@ -121,7 +121,8 @@
         "tokens",
         "reason",
         "owner",
-        "removal_condition"
+        "removal_condition",
+        "evidence"
       ],
       "properties": {
         "id": {
@@ -137,6 +138,15 @@
             "minLength": 1
           }
         },
+        "exclude_path_globs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "tokens": {
           "type": "array",
           "minItems": 1,
@@ -144,6 +154,16 @@
           "items": {
             "type": "string",
             "minLength": 1
+          }
+        },
+        "match_patterns": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "format": "regex"
           }
         },
         "reason": {

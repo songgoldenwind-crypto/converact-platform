@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.fullname" . }}
+  name: {{ include "converact.fullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
   type: {{ .Values.service.type }}
   selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    {{- include "converact.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: api
   ports:
     - name: http
@@ -32,14 +32,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.fullname" . }}-audio-tap
+  name: {{ include "converact.fullname" . }}-audio-tap
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
   clusterIP: None
   selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    {{- include "converact.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: api
   ports:
     - name: audio-tap

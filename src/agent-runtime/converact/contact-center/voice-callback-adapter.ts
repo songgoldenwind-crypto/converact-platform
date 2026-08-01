@@ -2,7 +2,7 @@ import { VoiceCallService } from '../voice/call-service.js';
 import type { VoiceAddressProtector, VoiceCallRepository } from '../voice/ports.js';
 import type { ContactCenterCallbackVoicePort } from './ports.js';
 
-export class IveKitVoiceCallbackAdapter implements ContactCenterCallbackVoicePort {
+export class ConveractFabricVoiceCallbackAdapter implements ContactCenterCallbackVoicePort {
   constructor(private readonly options: {
     calls: VoiceCallRepository;
     service: VoiceCallService;
@@ -42,7 +42,7 @@ export class IveKitVoiceCallbackAdapter implements ContactCenterCallbackVoicePor
       from: { kind: protectedFrom.kind, value: clearFrom },
       to: { kind: callback.address_kind, value: input.clear_target },
       business_ref: { type: callback.business_ref_type, id: callback.business_ref_id },
-      actor: 'ivekit-contact-center-callback',
+      actor: 'converact-contact-center-callback',
       idempotency_key: `cc-callback:${callback.id}:attempt:${input.attempt}`,
       metadata: {
         callback_id: callback.id,

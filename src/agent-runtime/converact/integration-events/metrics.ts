@@ -1,11 +1,11 @@
 import { Counter, Gauge } from 'prom-client';
 
 import { metricsRegistry } from '../../../metrics.js';
-import type { IveKitEventWebhookBatchSummary } from './worker.js';
+import type { ConveractFabricEventWebhookBatchSummary } from './worker.js';
 
 const operations = new Counter({
   name: 'opc_ivekit_event_webhook_operations_total',
-  help: 'Total iveKit integration event webhook worker operations',
+  help: 'Total Converact Fabric integration event webhook worker operations',
   labelNames: ['result'],
   registers: [metricsRegistry]
 });
@@ -21,7 +21,7 @@ export const integrationEventMetricDefinitions = [
   { name: 'opc_ivekit_event_webhook_oldest_event_age_seconds', labels: [] }
 ] as const;
 
-export function observeIveKitEventWebhookBatch(result: IveKitEventWebhookBatchSummary): void {
+export function observeConveractFabricEventWebhookBatch(result: ConveractFabricEventWebhookBatchSummary): void {
   increment('claimed', result.claimed);
   increment('scanned', result.scanned);
   increment('projected', result.projected);
@@ -31,7 +31,7 @@ export function observeIveKitEventWebhookBatch(result: IveKitEventWebhookBatchSu
   oldestEventAge.set(nonNegative(result.oldest_event_age_seconds));
 }
 
-export function observeIveKitEventWebhookWorkerError(): void {
+export function observeConveractFabricEventWebhookWorkerError(): void {
   operations.labels('worker_error').inc();
 }
 

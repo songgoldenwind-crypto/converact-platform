@@ -79,7 +79,7 @@ export function resolveNatsConnectionOptions(
   return {
     servers,
     name: optionalBounded(env.NATS_CONNECTION_NAME, 'NATS_CONNECTION_NAME', 256) ||
-      defaultName || 'opc-events',
+      defaultName || 'converact-events',
     ...(user && password ? { user, pass: password } : {}),
     ...(token ? { token } : {}),
     timeout: boundedInteger(

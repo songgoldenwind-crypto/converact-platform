@@ -189,7 +189,7 @@ function renderLandingPage(page: any, sourceTagId: string) {
 </head>
 <body class="landing">
   <main class="landing-card">
-    <p class="eyebrow">OPC Growth Platform</p>
+    <p class="eyebrow">Converact Growth Platform</p>
     <h1>${safe(page.headline)}</h1>
     <p>${safe(page.subheadline || '留下你的问题，系统会自动进入咨询池、评分并生成跟进任务。')}</p>
     <form id="landing-form">

@@ -25,23 +25,23 @@ import { routeMemoryApi } from './http-api/memory-http.js';
 import { routeVoiceApi } from './http-api/voice-http.js';
 import { routeMediaApi } from './agent-runtime/livekit/media-http.js';
 import {
-  prepareIveKitRustDeskPlacement,
+  prepareConveractFabricRustDeskPlacement,
   routeCollaborationApi,
   type PreparedRustDeskSessionPlacement,
   type PreparedTinodeSessionPlacement,
   type RouteCollaborationApiOptions
 } from './agent-runtime/collaboration/collaboration-http.js';
 import {
-  prepareIveKitChatPlacement,
-  routeIveKitChatApi,
-  type RouteIveKitChatApiOptions
+  prepareConveractFabricChatPlacement,
+  routeConveractFabricChatApi,
+  type RouteConveractFabricChatApiOptions
 } from './agent-runtime/converact/chat-http.js';
-import { routeIveKitEventApi } from './agent-runtime/converact/event-http.js';
+import { routeConveractFabricEventApi } from './agent-runtime/converact/event-http.js';
 import {
-  prepareIveKitMediaCallPlacement,
-  routeIveKitMediaApi,
+  prepareConveractFabricMediaCallPlacement,
+  routeConveractFabricMediaApi,
   type PreparedMediaCallPlacement,
-  type RouteIveKitMediaApiOptions
+  type RouteConveractFabricMediaApiOptions
 } from './agent-runtime/converact/media-http.js';
 import { runWithWsBroadcastBuffer } from './ws.js';
 import {
@@ -86,16 +86,16 @@ const contentTypes = {
   '.svg': 'image/svg+xml'
 };
 
-export interface OpcHttpServerOptions {
-  ivekitMedia?: RouteIveKitMediaApiOptions;
-  ivekitChat?: RouteIveKitChatApiOptions;
+export interface ConveractHttpServerOptions {
+  converactFabricMedia?: RouteConveractFabricMediaApiOptions;
+  converactFabricChat?: RouteConveractFabricChatApiOptions;
   collaboration?: RouteCollaborationApiOptions;
 }
 
 export function createServer(
   db,
   pg: PgQueryable | null = null,
-  options: OpcHttpServerOptions = {}
+  options: ConveractHttpServerOptions = {}
 ) {
   const harness = createHarness(db);
   return createHttpServer(async (req, res) => {
@@ -150,21 +150,21 @@ export function createServer(
         ...req.headers,
         'x-opc-source-ip': req.socket.remoteAddress || ''
       };
-      preparedMediaCallPlacement = await prepareIveKitMediaCallPlacement(
+      preparedMediaCallPlacement = await prepareConveractFabricMediaCallPlacement(
         req.method || 'GET',
         path,
         body,
         headers,
-        options.ivekitMedia || {}
+        options.converactFabricMedia || {}
       );
-      preparedTinodePlacement = await prepareIveKitChatPlacement(
+      preparedTinodePlacement = await prepareConveractFabricChatPlacement(
         req.method || 'GET',
         path,
         headers,
-        options.ivekitChat || {},
+        options.converactFabricChat || {},
         pg
       );
-      preparedRustDeskPlacement = await prepareIveKitRustDeskPlacement(
+      preparedRustDeskPlacement = await prepareConveractFabricRustDeskPlacement(
         req.method || 'GET',
         path,
         body,
@@ -194,7 +194,7 @@ export function createServer(
       const result = buffered.result;
 
       if (preparedTinodePlacement?.reservation && !preparedTinodePlacement.persisted) {
-        await releaseMainTinodePlacement(options.ivekitChat, preparedTinodePlacement);
+        await releaseMainTinodePlacement(options.converactFabricChat, preparedTinodePlacement);
         preparedTinodePlacement = null;
       }
       if (preparedRustDeskPlacement?.reservation && !preparedRustDeskPlacement.persisted) {
@@ -242,13 +242,13 @@ export function createServer(
       );
     } catch (error) {
       if (preparedMediaCallPlacement && !preparedMediaCallPlacementCommitted) {
-        await releaseMainMediaPlacement(options.ivekitMedia, preparedMediaCallPlacement)
+        await releaseMainMediaPlacement(options.converactFabricMedia, preparedMediaCallPlacement)
           .catch((releaseError) => {
             console.error('[http] failed to release media placement:', releaseError);
           });
       }
       if (preparedTinodePlacement && !preparedTinodePlacementCommitted) {
-        await releaseMainTinodePlacement(options.ivekitChat, preparedTinodePlacement)
+        await releaseMainTinodePlacement(options.converactFabricChat, preparedTinodePlacement)
           .catch((releaseError) => {
             console.error('[http] failed to release Tinode placement:', releaseError);
           });
@@ -290,7 +290,7 @@ export function createServer(
 }
 
 async function releaseMainMediaPlacement(
-  options: RouteIveKitMediaApiOptions | undefined,
+  options: RouteConveractFabricMediaApiOptions | undefined,
   prepared: PreparedMediaCallPlacement
 ): Promise<void> {
   if (!options?.placement) return;
@@ -298,7 +298,7 @@ async function releaseMainMediaPlacement(
 }
 
 async function releaseMainTinodePlacement(
-  options: RouteIveKitChatApiOptions | undefined,
+  options: RouteConveractFabricChatApiOptions | undefined,
   prepared: PreparedTinodeSessionPlacement
 ): Promise<void> {
   if (!options?.tinodePlacement || !prepared.reservation || prepared.persisted) return;
@@ -333,7 +333,7 @@ async function route(
   body,
   rawBody: string | Buffer = '',
   headers = {},
-  options: OpcHttpServerOptions = {},
+  options: ConveractHttpServerOptions = {},
   preparedMediaCallPlacement: PreparedMediaCallPlacement | null = null,
   preparedTinodePlacement: PreparedTinodeSessionPlacement | null = null,
   preparedRustDeskPlacement: PreparedRustDeskSessionPlacement | null = null
@@ -344,8 +344,8 @@ async function route(
   if (method === 'GET' && path.startsWith('/assets/')) return { staticPath: join(publicDir, normalize(path)) };
   if (method === 'GET' && path === '/livekit-test.html') return { staticPath: join(publicDir, 'livekit-test.html') };
   if (method === 'GET' && path === '/livekit-test') return { staticPath: join(publicDir, 'livekit-test.html') };
-  if (method === 'GET' && path === '/widget/opc-chat.js') {
-    return { staticPath: join(publicDir, 'widget/opc-chat-widget.js') };
+  if (method === 'GET' && path === '/widget/converact-chat.js') {
+    return { staticPath: join(publicDir, 'widget/converact-chat-widget.js') };
   }
   if (method === 'GET' && path === '/openapi/call-center-v1.json') {
     return { staticPath: join(publicDir, 'openapi/call-center-v1.json') };
@@ -369,8 +369,8 @@ async function route(
   const callCenterResult = await routeCallCenterApi(db, harness, method, path, url, body, rawBody, headers);
   if (callCenterResult !== undefined) return callCenterResult;
 
-  const iveKitMediaResult = await routeIveKitMediaApi(db, method, path, url, body, rawBody, headers, {
-    ...options.ivekitMedia,
+  const converactFabricMediaResult = await routeConveractFabricMediaApi(db, method, path, url, body, rawBody, headers, {
+    ...options.converactFabricMedia,
     pg: pg || undefined,
     ...(preparedMediaCallPlacement ? { preparedMediaCallPlacement } : {}),
     onRecordingStarted: pg
@@ -386,9 +386,9 @@ async function route(
         })
       : undefined
   });
-  if (iveKitMediaResult !== undefined) return iveKitMediaResult;
+  if (converactFabricMediaResult !== undefined) return converactFabricMediaResult;
 
-  const iveKitChatResult = await routeIveKitChatApi(
+  const converactFabricChatResult = await routeConveractFabricChatApi(
     pg,
     method,
     path,
@@ -398,14 +398,14 @@ async function route(
     headers,
     {
       db,
-      ...options.ivekitChat,
+      ...options.converactFabricChat,
       ...(preparedTinodePlacement ? { preparedTinodePlacement } : {})
     }
   );
-  if (iveKitChatResult !== undefined) return iveKitChatResult;
+  if (converactFabricChatResult !== undefined) return converactFabricChatResult;
 
-  const iveKitEventResult = await routeIveKitEventApi(pg, method, path, url, headers, body);
-  if (iveKitEventResult !== undefined) return iveKitEventResult;
+  const converactFabricEventResult = await routeConveractFabricEventApi(pg, method, path, url, headers, body);
+  if (converactFabricEventResult !== undefined) return converactFabricEventResult;
 
   const mediaResult = await routeMediaApi(db, method, path, url, body, rawBody, headers, {
     onRecordingStarted: pg

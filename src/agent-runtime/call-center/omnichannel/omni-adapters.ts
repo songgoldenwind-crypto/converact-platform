@@ -26,11 +26,11 @@ export interface OmniInboundPayload {
 let registrySingleton: ChannelAdapterRegistry | null = null;
 let facebookAdapterRegistered = false;
 
-function registerOpcNativeOmniAdapters(registry: ChannelAdapterRegistry): void {
+function registerConveractNativeOmniAdapters(registry: ChannelAdapterRegistry): void {
   registry.register(
     {
       channel: 'web_chat',
-      provider: 'opc-widget',
+      provider: 'converact-widget',
       status: 'native',
       supports_inbound: true,
       supports_outbound: true,
@@ -57,7 +57,7 @@ function registerOpcNativeOmniAdapters(registry: ChannelAdapterRegistry): void {
   registry.register(
     {
       channel: 'sms',
-      provider: 'opc-sms',
+      provider: 'converact-sms',
       status: 'native',
       supports_inbound: true,
       supports_outbound: true,
@@ -90,7 +90,7 @@ function registerOpcNativeOmniAdapters(registry: ChannelAdapterRegistry): void {
   registry.register(
     {
       channel: 'whatsapp',
-      provider: 'opc-whatsapp',
+      provider: 'converact-whatsapp',
       status: 'planned',
       supports_inbound: true,
       supports_outbound: true,
@@ -163,7 +163,7 @@ export function getOmniChannelRegistry(db?: unknown): ChannelAdapterRegistry {
   if (!registrySingleton) {
     registrySingleton = new ChannelAdapterRegistry();
     registerDefaultChannelAdapters(registrySingleton);
-    registerOpcNativeOmniAdapters(registrySingleton);
+    registerConveractNativeOmniAdapters(registrySingleton);
   }
   if (db) registerFacebookMessengerAdapter(registrySingleton, db);
   return registrySingleton;

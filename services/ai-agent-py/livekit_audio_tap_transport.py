@@ -1,4 +1,4 @@
-"""Bounded LiveKit audio-tap transport to the internal OPC PCM gateway."""
+"""Bounded LiveKit audio-tap transport to the internal Converact PCM gateway."""
 from __future__ import annotations
 
 import asyncio
@@ -16,7 +16,7 @@ from livekit_audio_tap import (
     LiveKitAudioTapTrackContext,
     livekit_audio_tap_context_from_metadata,
 )
-from opc_client import OPCClient
+from converact_client import ConveractClient
 
 
 LIVEKIT_AUDIO_TAP_PROTOCOL = "ivekit.livekit-audio-tap.v1"
@@ -38,7 +38,7 @@ async def start_configured_livekit_audio_tap(
     *,
     room: Any,
     metadata: Any,
-    opc: OPCClient,
+    converact: ConveractClient,
     on_event: Callable[[dict[str, Any]], Any] | None = None,
     tap_factory: Callable[..., LiveKitAudioTap] = LiveKitAudioTap,
 ) -> LiveKitAudioTap | None:
@@ -63,7 +63,7 @@ async def start_configured_livekit_audio_tap(
     tap = tap_factory(
         room=room,
         context=context,
-        sink_factory=create_livekit_audio_tap_sink_factory(opc),
+        sink_factory=create_livekit_audio_tap_sink_factory(converact),
         max_buffered_audio_ms=max_buffered_audio_ms,
         frame_size_ms=frame_size_ms,
         shutdown_timeout_seconds=1.0,
@@ -83,7 +83,7 @@ async def start_configured_livekit_audio_tap(
 
 
 def create_livekit_audio_tap_sink_factory(
-    opc: OPCClient,
+    converact: ConveractClient,
     *,
     connect: WebSocketConnect | None = None,
     open_timeout_seconds: float = 5.0,
@@ -92,7 +92,7 @@ def create_livekit_audio_tap_sink_factory(
     reconnect_delays_seconds: tuple[float, ...] = (0.05, 0.2, 0.5, 1.0, 2.0),
 ) -> LiveKitAudioTapSinkFactory:
     if (
-        opc is None
+        converact is None
         or not 0.1 <= open_timeout_seconds <= 30
         or not 0.05 <= close_timeout_seconds <= 10
         or not isinstance(max_reconnect_attempts, int)
@@ -107,7 +107,7 @@ def create_livekit_audio_tap_sink_factory(
         context: LiveKitAudioTapTrackContext,
     ) -> LiveKitAudioTapSink:
         sink = _GatewayAudioTapSink(
-            opc=opc,
+            converact=converact,
             context=context,
             connect=connector,
             open_timeout_seconds=open_timeout_seconds,
@@ -150,7 +150,7 @@ class _GatewayAudioTapSink:
     def __init__(
         self,
         *,
-        opc: OPCClient,
+        converact: ConveractClient,
         context: LiveKitAudioTapTrackContext,
         connect: WebSocketConnect,
         open_timeout_seconds: float,
@@ -158,7 +158,7 @@ class _GatewayAudioTapSink:
         max_reconnect_attempts: int,
         reconnect_delays_seconds: tuple[float, ...],
     ) -> None:
-        self._opc = opc
+        self._converact = converact
         self._context = context
         self._connect = connect
         self._open_timeout_seconds = open_timeout_seconds
@@ -250,7 +250,7 @@ class _GatewayAudioTapSink:
 
     async def _connect_new(self) -> _WebSocket:
         authorization = _validate_authorization(
-            await self._opc.authorize_livekit_audio_tap(
+            await self._converact.authorize_livekit_audio_tap(
                 tenant_id=self._context.tenant_id,
                 call_id=self._context.interaction_id,
                 participant_id=self._context.participant_id,

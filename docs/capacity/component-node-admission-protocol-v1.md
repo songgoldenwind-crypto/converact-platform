@@ -1,8 +1,8 @@
-# iveKit Component Node Admission Protocol v1
+# Converact Fabric Component Node Admission Protocol v1
 
 Status: implementation contract  
 Scope: LiveKit Server, Tinode Server, RustDesk Server, RustPBX and future Cell-owned data-plane nodes  
-Public API: no; this is an iveKit-internal fork protocol
+Public API: no; this is a Converact Fabric-internal fork protocol
 
 ## 1. Decision
 

@@ -372,7 +372,7 @@ test('edge command processor returns idle when the authenticated claim API has n
   const calls: Array<{ method: string; path: string; edgeToken: string; authorization: string }> = [];
   const processor = new RustDeskEdgeCommandProcessor(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       commandToken: 'edge-command-token-idle',
       edgeInstanceId: 'edge-processor-idle',
       commandLeaseMs: 30_000,
@@ -410,11 +410,11 @@ test('edge command processor returns idle when the authenticated claim API has n
 });
 
 test('edge command processor rejects a command above its server-bound owner before native execution', async () => {
-  const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-owner-mismatch-'));
+  const dataDir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-edge-owner-mismatch-'));
   const executionFile = join(dataDir, 'executions.txt');
   const processor = new RustDeskEdgeCommandProcessor(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       commandToken: 'edge-command-token-owner-mismatch',
       edgeInstanceId: 'edge-processor-owner-mismatch',
       commandLeaseMs: 30_000,
@@ -464,7 +464,7 @@ test('edge command processor rejects a command above its server-bound owner befo
 });
 
 test('edge command processor reports a persisted stale epoch without executing native control', async () => {
-  const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-owner-stale-'));
+  const dataDir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-edge-owner-stale-'));
   const spoolDir = join(dataDir, 'spool');
   const executionFile = join(dataDir, 'executions.txt');
   const fence = await RustDeskOwnerEpochFence.open({ directory: spoolDir });
@@ -479,7 +479,7 @@ test('edge command processor reports a persisted stale epoch without executing n
   const results: Array<Record<string, unknown>> = [];
   const processor = new RustDeskEdgeCommandProcessor(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       commandToken: 'edge-command-token-owner-stale',
       edgeInstanceId: 'edge-processor-owner-stale',
       commandLeaseMs: 30_000,
@@ -535,13 +535,13 @@ test('edge command processor reports a persisted stale epoch without executing n
 });
 
 test('edge command processor retains and retries a failed result report without re-executing', async () => {
-  const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-command-'));
+  const dataDir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-edge-command-'));
   const executionFile = join(dataDir, 'executions.txt');
   const calls: string[] = [];
   let resultAttempts = 0;
   const processor = new RustDeskEdgeCommandProcessor(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       commandToken: 'edge-command-token-retry',
       edgeInstanceId: 'edge-processor-retry',
       commandLeaseMs: 30_000,
@@ -590,7 +590,7 @@ test('edge command processor retains and retries a failed result report without 
 });
 
 test('edge command processor recovers an executed spool and reports without re-executing', async () => {
-  const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-recovery-'));
+  const dataDir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-edge-recovery-'));
   const spoolDir = join(dataDir, 'spool');
   const executionFile = join(dataDir, 'executions.txt');
   const calls: string[] = [];
@@ -621,7 +621,7 @@ test('edge command processor recovers an executed spool and reports without re-e
     return jsonResponse(500, { error: 'unexpected request' });
   };
   const config = {
-    baseUrl: 'https://opc.example.com',
+    baseUrl: 'https://converact.example.com',
     commandToken: 'edge-command-token-recovery',
     edgeInstanceId: 'edge-processor-recovery',
     commandLeaseMs: 30_000,
@@ -653,7 +653,7 @@ test('edge command processor recovers an executed spool and reports without re-e
 });
 
 test('edge command processor quarantines uncertain executing state without running an adapter', async () => {
-  const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-uncertain-'));
+  const dataDir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-edge-uncertain-'));
   const spoolDir = join(dataDir, 'spool');
   const executionFile = join(dataDir, 'executions.txt');
   const { RustDeskEdgePendingFileStore } = await import('../scripts/rustdesk-edge-pending-store.js');
@@ -668,7 +668,7 @@ test('edge command processor quarantines uncertain executing state without runni
 
   const processor = new RustDeskEdgeCommandProcessor(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       commandToken: 'edge-command-token-uncertain',
       edgeInstanceId: 'edge-processor-uncertain',
       commandLeaseMs: 30_000,
@@ -706,7 +706,7 @@ test('edge command processor reports fallback progress and completion', async ()
   const bodies: Array<{ path: string; body: Record<string, unknown> }> = [];
   const processor = new RustDeskEdgeCommandProcessor(
     {
-      baseUrl: 'https://opc.example.com',
+      baseUrl: 'https://converact.example.com',
       commandToken: 'edge-command-token-fallback',
       edgeInstanceId: 'edge-processor-fallback',
       commandLeaseMs: 30_000,

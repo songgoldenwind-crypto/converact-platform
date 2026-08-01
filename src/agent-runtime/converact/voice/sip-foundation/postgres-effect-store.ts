@@ -205,7 +205,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
     const checkedEffect = validatePreparedRecord(effect);
     return this.#tenant(checkedEffect.tenant_id, async (pg) => {
       const inserted = await pg.query<EffectRow>(
-        `/* ivekit-sip-effect-oracle:prepare-insert */
+        `/* converact-sip-effect-oracle:prepare-insert */
          INSERT INTO ivekit_sip_protocol_effects
           (protocol_effect_id, tenant_id, protocol_session_id,
            protocol_session_generation, decision_id, idempotency_key,
@@ -273,7 +273,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
       }
 
       const conflicts = await pg.query<EffectRow>(
-        `/* ivekit-sip-effect-oracle:prepare-conflict-read */
+        `/* converact-sip-effect-oracle:prepare-conflict-read */
          SELECT ${EFFECT_COLUMNS}
          FROM ivekit_sip_protocol_effects
          WHERE tenant_id = $1
@@ -302,7 +302,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
     const checked = validateTransition(input);
     return this.#tenant(checked.identity.tenant_id, async (pg) => {
       const currentResult = await pg.query<EffectRow>(
-        `/* ivekit-sip-effect-oracle:transition-lock */
+        `/* converact-sip-effect-oracle:transition-lock */
          SELECT ${EFFECT_COLUMNS}
          FROM ivekit_sip_protocol_effects
          WHERE tenant_id = $1 AND protocol_effect_id = $2
@@ -319,7 +319,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
       assertSameProtocolEffectIdentity(current, checked.identity);
 
       const replay = await pg.query<EffectRow>(
-         `/* ivekit-sip-effect-oracle:receipt-replay */
+         `/* converact-sip-effect-oracle:receipt-replay */
          SELECT protocol_effect_id, effect_identity_hash, receipt_hash, level,
            schema_id, schema_version, schema_hash, writer_identity
          FROM ivekit_sip_effect_receipts
@@ -359,7 +359,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
       if (terminal !== checked.terminal) transitionConflict();
 
       const insertedReceipt = await pg.query<EffectRow>(
-        `/* ivekit-sip-effect-oracle:receipt-insert */
+        `/* converact-sip-effect-oracle:receipt-insert */
          INSERT INTO ivekit_sip_effect_receipts
           (receipt_id, tenant_id, protocol_effect_id, decision_id,
            idempotency_key, request_hash, command_id, wire_bytes_hash,
@@ -402,7 +402,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
       );
       if (!insertedReceiptRows[0]) {
         const conflictingReceipt = await pg.query<EffectRow>(
-          `/* ivekit-sip-effect-oracle:receipt-conflict-read */
+          `/* converact-sip-effect-oracle:receipt-conflict-read */
            SELECT protocol_effect_id, receipt_hash, level,
              effect_identity_hash,
              schema_id, schema_version, schema_hash, writer_identity
@@ -436,7 +436,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
       }
       const fence = checked.repair_fence;
       const updated = await pg.query<EffectRow>(
-        `/* ivekit-sip-effect-oracle:transition-update */
+        `/* converact-sip-effect-oracle:transition-update */
          UPDATE ivekit_sip_protocol_effects AS effect
          SET state = $10,
              revision = revision + 1,
@@ -523,7 +523,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
     const checked = validateProtocolEffectIdentity(identity);
     return this.#tenant(checked.tenant_id, async (pg) => {
       const result = await pg.query<EffectRow>(
-        `/* ivekit-sip-effect-oracle:query */
+        `/* converact-sip-effect-oracle:query */
          SELECT ${EFFECT_COLUMNS}
          FROM ivekit_sip_protocol_effects
          WHERE tenant_id = $1 AND protocol_effect_id = $2`,
@@ -541,7 +541,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
     const checked = validateEffectRepairClaim(input);
     return this.#tenant(checked.tenant_id, async (pg) => {
       const dueResult = await pg.query<EffectRow>(
-        `/* ivekit-sip-effect-oracle:claim-repair */
+        `/* converact-sip-effect-oracle:claim-repair */
          SELECT ${EFFECT_COLUMNS}
          FROM ivekit_sip_protocol_effects
          WHERE tenant_id = $1
@@ -607,7 +607,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
     const checked = validateEffectRepairReleaseRequest(input);
     return this.#tenant(checked.identity.tenant_id, async (pg) => {
       const result = await pg.query(
-        `/* ivekit-sip-effect-oracle:release-repair */
+        `/* converact-sip-effect-oracle:release-repair */
          UPDATE ivekit_sip_protocol_effects
          SET repair_owner_id = NULL,
              repair_owner_epoch = NULL,
@@ -664,7 +664,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
     const checked = validateEffectRepairCompactRequest(input);
     return this.#tenant(checked.tenant_id, async (pg) => {
       const result = await pg.query<EffectRow>(
-        `/* ivekit-sip-effect-oracle:compact-exhausted */
+        `/* converact-sip-effect-oracle:compact-exhausted */
          WITH eligible AS (
            SELECT tenant_id, protocol_effect_id
            FROM ivekit_sip_protocol_effects
@@ -704,7 +704,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
     const checked = validateEffectRetentionRequest(input);
     return this.#tenant(checked.tenant_id, async (pg) => {
       const result = await pg.query<EffectRow>(
-        `/* ivekit-sip-effect-oracle:prune-terminal */
+        `/* converact-sip-effect-oracle:prune-terminal */
          WITH eligible AS (
            SELECT tenant_id, protocol_effect_id
            FROM ivekit_sip_protocol_effects
@@ -821,7 +821,7 @@ async function updateClaimedRepairs(
     input.lease_until.getTime() - input.claimed_at.getTime()
   );
   const result = await pg.query<EffectRow>(
-    `/* ivekit-sip-effect-oracle:claim-repair-update */
+    `/* converact-sip-effect-oracle:claim-repair-update */
      UPDATE ivekit_sip_protocol_effects AS effect
      SET repair_owner_id = $${base + 2},
          repair_owner_epoch = candidate.owner_epoch,
@@ -885,7 +885,7 @@ async function updateExhaustedRepairs(
     input.repair_owner_epoch
   );
   const result = await pg.query<EffectRow>(
-    `/* ivekit-sip-effect-oracle:exhaust-repair-update */
+    `/* converact-sip-effect-oracle:exhaust-repair-update */
      UPDATE ivekit_sip_protocol_effects AS effect
      SET repair_owner_id = NULL,
          repair_owner_epoch = NULL,

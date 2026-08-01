@@ -277,8 +277,8 @@ export async function verifyComponentGovernance(
       readFile(resolve(repositoryRoot, CHART_ROOT, 'values.yaml'), 'utf8'),
       readFile(resolve(repositoryRoot, CHART_ROOT, 'templates/_helpers.tpl'), 'utf8'),
       readFile(resolve(repositoryRoot, 'package.json'), 'utf8'),
-      readFile(resolve(repositoryRoot, '.github/workflows/ivekit-stage2-ci.yml'), 'utf8'),
-      import('../ivekit-delivery-bundle.js'),
+      readFile(resolve(repositoryRoot, '.github/workflows/converact-stage2-ci.yml'), 'utf8'),
+      import('../converact-delivery-bundle.js'),
       ...PROFILE_IDS.map((id) =>
         readFile(resolve(repositoryRoot, CHART_ROOT, 'profiles', `${id}.values.yaml`), 'utf8')
       )
@@ -442,11 +442,11 @@ function verifyChartProfileDefaults(values: string): void {
 
 function verifyProfileGuards(helpers: string): void {
   for (const contract of [
-    'define "ivekit.profileValidate"',
+    'define "converact.profileValidate"',
     'deploymentProfiles.core is mandatory',
     'AI workers require deploymentProfiles.ai=true',
     'monitoring and SIP tracing require deploymentProfiles.observability=true',
-    'include "ivekit.profileValidate"'
+    'include "converact.profileValidate"'
   ]) {
     if (!helpers.includes(contract)) throw new Error(`Helm profile guard is missing ${contract}`);
   }
@@ -539,14 +539,17 @@ async function verifyImmutableImages(
     ]);
     const chartSource = chartSources.map((entry) => entry.source).join('\n');
     const approvedHelpers = new Set(
-      components.map((component) => component.image_contract!.helper)
+      components.map((component) => currentImageHelper(component.image_contract!.helper))
     );
     for (const component of components) {
       const contract = component.image_contract!;
       if (!yamlDeclaresPath(values, contract.values_path)) {
         throw new Error(`unlocked image contract for ${component.id}: missing values digest path`);
       }
-      const helperName = contract.helper.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const helperName = currentImageHelper(contract.helper).replace(
+        /[.*+?^${}()|[\]\\]/g,
+        '\\$&'
+      );
       const start = helpers.search(new RegExp(`define "${helperName}"`));
       if (start < 0) {
         throw new Error(`unlocked image contract for ${component.id}: helper missing`);
@@ -561,6 +564,24 @@ async function verifyImmutableImages(
     }
     verifyNoMutableChartImages(chartSources, approvedHelpers);
   }
+}
+
+/**
+ * The versioned governance matrix is immutable and therefore keeps its
+ * pre-rename Helm helper identifiers. Resolve only those exact identifiers to
+ * the current chart ABI; arbitrary legacy-looking names remain invalid.
+ */
+function currentImageHelper(contractHelper: string): string {
+  const aliases: Readonly<Record<string, string>> = {
+    'ivekit.image': 'converact.image',
+    'ivekit.kamailioImage': 'converact.kamailioImage',
+    'ivekit.rustpbxImage': 'converact.rustpbxImage',
+    'ivekit.sipExporterImage': 'converact.sipExporterImage',
+    'ivekit.tinodeImage': 'converact.tinodeImage',
+    'ivekit.clamavImage': 'converact.clamavImage',
+    'ivekit-homer.image': 'converact-homer.image'
+  };
+  return aliases[contractHelper] ?? contractHelper;
 }
 
 function verifyNoMutableChartImages(
@@ -594,7 +615,7 @@ function verifyDeliveryIsolation(
   for (const requiredPath of [
     MATRIX_PATH,
     'docs/architecture/communication-technology-baseline-v1.json',
-    'docs/ivekit-component-governance.md',
+    'docs/converact-component-governance.md',
     `${CHART_ROOT}/profiles/core.values.yaml`,
     `${CHART_ROOT}/profiles/ai.values.yaml`,
     `${CHART_ROOT}/profiles/observability.values.yaml`,

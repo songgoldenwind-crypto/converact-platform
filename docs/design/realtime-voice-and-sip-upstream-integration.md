@@ -12,9 +12,9 @@
 
 本设计解决两个问题：一是降低电话、视频机器人从用户停顿到首段语音响应的延迟；二是在不侵入 SIP/RTP 热路径的前提下补足信令、媒体质量和报表观测。
 
-最终裁决不是把四个项目整套拼入 iveKit，而是按 authority 和性能边界吸收：
+最终裁决不是把四个项目整套拼入 Converact Fabric，而是按 authority 和性能边界吸收：
 
-| 上游项目 | 裁决 | iveKit 用法 | 当前状态 |
+| 上游项目 | 裁决 | Converact Fabric 用法 | 当前状态 |
 | --- | --- | --- | --- |
 | AVA AI Voice Agent for Asterisk | 吸收流水线机制，不引入 Asterisk/ARI 控制面 | VAD、barge-in、提前生成、流式 LLM/TTS、陈旧输出取消、最终可听文本 | 已在 LiveKit Agents 运行时落地第一版 |
 | SIPhon | 同机同口径 POC，不替换现有组件 | 评估 Rust SIP 信令密度；借鉴 Python policy、HEP、RTPengine、SIPREC 和热加载机制 | 仅进入基准候选 |
@@ -22,11 +22,11 @@
 | CCS-CallReport | 不引入代码 | 仅参考报表字段 | 已拒绝直接集成 |
 | Pipecat | 吸收 frame、interruption 和 latency 机制 | 作为 LiveKit Agents 的设计对照，不建立第二机器人运行时 | 参考项 |
 
-LiveKit Agents 继续是机器人会话、媒体参与人、turn、tool、interruption 和 transcript 的唯一运行时。RustPBX 继续拥有电话 B2BUA、IVR 和 RTP；Kamailio 继续拥有 SIP Edge、dispatcher、dialog affinity 和 WSS；OPC/iveKit 继续拥有租户、会话、审计、Provider 和业务 API。
+LiveKit Agents 继续是机器人会话、媒体参与人、turn、tool、interruption 和 transcript 的唯一运行时。RustPBX 继续拥有电话 B2BUA、IVR 和 RTP；Kamailio 继续拥有 SIP Edge、dispatcher、dialog affinity 和 WSS；Converact Platform/Converact Fabric 继续拥有租户、会话、审计、Provider 和业务 API。
 
 ## 2. 为什么不整套搬入 AVA 或 Pipecat
 
-AVA 的 Asterisk AudioSocket/ExternalMedia 和 ARI 会话控制适合 Asterisk 项目，但 iveKit 已有 RustPBX、LiveKit SIP 和 LiveKit Agents。整套引入会造成两份：
+AVA 的 Asterisk AudioSocket/ExternalMedia 和 ARI 会话控制适合 Asterisk 项目，但 Converact Fabric 已有 RustPBX、LiveKit SIP 和 LiveKit Agents。整套引入会造成两份：
 
 - call/session 生命周期；
 - VAD 和 turn 判断；
@@ -55,7 +55,7 @@ Kamailio -> RustPBX / LiveKit SIP -> LiveKit room
                                       |
                          LiveKit audio output + heard text
                                       |
-                    OPC transcript / latency / audit projection
+                    Converact Platform transcript / latency / audit projection
 
 Off path:
 Kamailio HEP -> HOMER                 host interface -> sip-exporter -> Prometheus
@@ -76,7 +76,7 @@ recording/evidence -> batch ASR/OCR/translation/quality workers -> PostgreSQL/Cl
 4. 默认开启 preemptive LLM generation，preemptive TTS 仅显式开启，防止为仍在变化的输入浪费合成；
 5. 使用 LiveKit Agents 1.6.6 的 `conversation_item_added` 和 `agent_state_changed`；
 6. assistant 被打断后写入 LiveKit 已裁剪的实际可听文本，不把未播放内容冒充成已告知用户；
-7. 客户 STT confidence、end-of-turn latency 和 assistant speech-to-speech latency进入 OPC turn projection；
+7. 客户 STT confidence、end-of-turn latency 和 assistant speech-to-speech latency进入 Converact Platform turn projection；
 8. 直接依赖和 80 个传递依赖均由 exact requirements 与 `requirements.lock` 固定。
 
 ### 4.2 延迟预算
@@ -173,7 +173,7 @@ Helm profile 已实现以下默认值：
 
 ## 7. SIPhon 的定位
 
-SIPhon 当前不进入正式拓扑。它提供值得借鉴的 Rust proxy/B2BUA、Python policy、Registrar、HEP、RTPengine、SIPREC、Redis 和 policy hot reload，但这些能力已经分别由 Kamailio、RustPBX 和 iveKit 控制面拥有。
+SIPhon 当前不进入正式拓扑。它提供值得借鉴的 Rust proxy/B2BUA、Python policy、Registrar、HEP、RTPengine、SIPREC、Redis 和 policy hot reload，但这些能力已经分别由 Kamailio、RustPBX 和 Converact Fabric 控制面拥有。
 
 只有以下同机测试通过后才讨论更深集成：
 
@@ -182,11 +182,11 @@ SIPhon 当前不进入正式拓扑。它提供值得借鉴的 Rust proxy/B2BUA�
 3. 测节点重启、Redis/DB/RTPEngine/HEP 故障和优雅 drain；
 4. 计算迁移现有 dispatcher、WebPhone JWT、DMQ、Cell owner 和审计补丁的长期成本。
 
-上游公开的 10k CPS 数据只能作为线索，不能作为 iveKit 容量证据。
+上游公开的 10k CPS 数据只能作为线索，不能作为 Converact Fabric 容量证据。
 
 ## 8. CCS-CallReport 的处理
 
-不引入其 PHP/MySQL 代码，原因是无明确许可证、PHP 5.3/mysql_* 和 CentOS 6 技术栈过旧，并且会形成第二份报表数据权威。可吸收的字段包括 disposition、duration、billable duration、queue/agent/trunk、hangup cause、carrier 和时间维度；这些字段进入 iveKit PostgreSQL 权威投影，并在量级达到门槛后异步复制到 ClickHouse。
+不引入其 PHP/MySQL 代码，原因是无明确许可证、PHP 5.3/mysql_* 和 CentOS 6 技术栈过旧，并且会形成第二份报表数据权威。可吸收的字段包括 disposition、duration、billable duration、queue/agent/trunk、hangup cause、carrier 和时间维度；这些字段进入 Converact Fabric PostgreSQL 权威投影，并在量级达到门槛后异步复制到 ClickHouse。
 
 ## 9. 验收矩阵
 

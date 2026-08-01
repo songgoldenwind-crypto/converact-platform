@@ -1,4 +1,4 @@
-export interface IveKitSdkBusinessRef {
+export interface ConveractFabricSdkBusinessRef {
   tenant_id?: string;
   type: string;
   id: string;
@@ -24,7 +24,7 @@ export interface RustDeskAccessPolicyEvent {
   event_type: RustDeskAccessPolicyEventType;
   mode: RustDeskAccessPolicyMode;
   allowed_scopes: RemoteConsentScope[];
-  business_ref: Pick<IveKitSdkBusinessRef, 'type' | 'id'>;
+  business_ref: Pick<ConveractFabricSdkBusinessRef, 'type' | 'id'>;
   approved_by: string;
   reason: string;
   expires_at: string | null;

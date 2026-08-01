@@ -354,7 +354,7 @@ export class MemoryPg implements PgQueryable {
         String(candidate.tenant_id) === String(params[1]) &&
         String(candidate.idempotency_key) === String(params[3])
       );
-      if (duplicate) throw new Error('duplicate ivekit media call action idempotency key');
+      if (duplicate) throw new Error('duplicate converact media call action idempotency key');
       const row: TableRow = {
         id: params[0],
         tenant_id: params[1],
@@ -379,7 +379,7 @@ export class MemoryPg implements PgQueryable {
         String(candidate.tenant_id) === String(params[1]) &&
         String(candidate.idempotency_key) === String(params[7])
       );
-      if (duplicate) throw new Error('duplicate ivekit media moderation idempotency key');
+      if (duplicate) throw new Error('duplicate converact media moderation idempotency key');
       const row: TableRow = {
         id: params[0],
         tenant_id: params[1],

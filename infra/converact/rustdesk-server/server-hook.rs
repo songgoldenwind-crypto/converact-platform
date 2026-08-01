@@ -5,7 +5,7 @@ use hbb_common::{
         time::{interval, Duration},
     },
 };
-use ivekit_component_hook::{
+use converact_component_hook::{
     Authorization, AuthorizationRequest, Authorizer, Guard, Operation, Request,
 };
 use serde_json::{json, Value};
@@ -139,7 +139,7 @@ pub fn start_relay_owner_refresh() -> Result<(), String> {
             if let Ok(lost) = tokio::task::spawn_blocking(move || current.refresh()).await {
                 for relay_uuid in lost {
                     log::warn!(
-                        "ivekit RustDesk relay owner lost: relay_uuid={}",
+                        "Converact RustDesk relay owner lost: relay_uuid={}",
                         relay_uuid
                     );
                 }
@@ -157,7 +157,7 @@ fn registry() -> Result<Arc<RelayOwnerRegistry>, String> {
     let _ = REGISTRY.set(registry);
     Ok(REGISTRY
         .get()
-        .expect("ivekit RustDesk owner registry")
+        .expect("Converact RustDesk owner registry")
         .clone())
 }
 
@@ -178,7 +178,7 @@ impl RelayOwnerRegistry {
         ];
         let enabled = required || configuration.iter().any(|value| !value.is_empty());
         if enabled && configuration.iter().any(|value| value.is_empty()) {
-            return Err("ivekit RustDesk owner guard configuration is incomplete".to_owned());
+            return Err("Converact RustDesk owner guard configuration is incomplete".to_owned());
         }
         let timeout_ms = integer_env("IVEKIT_OWNER_REFRESH_TIMEOUT_MS", 1_000, 100, 30_000)?;
         let refresh_ms = integer_env("IVEKIT_OWNER_REFRESH_INTERVAL_MS", 3_000, 100, 60_000)?;
@@ -457,6 +457,6 @@ fn integer_env(name: &str, default: u64, minimum: u64, maximum: u64) -> Result<u
     Ok(parsed)
 }
 
-fn owner_error(error: ivekit_component_hook::GuardError) -> OwnerError {
+fn owner_error(error: converact_component_hook::GuardError) -> OwnerError {
     OwnerError(error.to_string())
 }

@@ -1,4 +1,4 @@
-export interface IveKitChatBusinessRef {
+export interface ConveractFabricChatBusinessRef {
   tenant_id?: string;
   type: string;
   id: string;
@@ -6,35 +6,35 @@ export interface IveKitChatBusinessRef {
   metadata?: Record<string, unknown>;
 }
 
-export interface IveKitChatSession {
+export interface ConveractFabricChatSession {
   id: string;
   tenant_id: string;
   business_ref_type: string;
   business_ref_id: string;
-  business_ref: IveKitChatBusinessRef;
+  business_ref: ConveractFabricChatBusinessRef;
   title: string;
   status: 'open' | 'closed';
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   closed_at: string | null;
-  summary?: IveKitChatSessionSummary;
+  summary?: ConveractFabricChatSessionSummary;
 }
 
-export interface IveKitChatSessionSummary {
+export interface ConveractFabricChatSessionSummary {
   unread_count: number;
   online_participant_count: number;
   last_message: {
     id: string;
     body: string;
     sender_identity: string;
-    message_type: IveKitChatMessage['message_type'];
+    message_type: ConveractFabricChatMessage['message_type'];
     created_at: string;
     deleted: boolean;
   } | null;
 }
 
-export interface IveKitChatBinding {
+export interface ConveractFabricChatBinding {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -46,7 +46,7 @@ export interface IveKitChatBinding {
   updated_at: string;
 }
 
-export interface IveKitChatParticipant {
+export interface ConveractFabricChatParticipant {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -59,17 +59,17 @@ export interface IveKitChatParticipant {
   left_at: string | null;
 }
 
-export type IveKitChatAttachmentKind = 'image' | 'video' | 'audio' | 'file' | 'screen_recording';
-export type IveKitChatAttachmentStatus = 'pending' | 'ready' | 'failed';
-export type IveKitChatAttachmentProcessor = 'ocr' | 'asr' | 'video_frame_ocr';
-export type IveKitChatAttachmentJobStatus =
+export type ConveractFabricChatAttachmentKind = 'image' | 'video' | 'audio' | 'file' | 'screen_recording';
+export type ConveractFabricChatAttachmentStatus = 'pending' | 'ready' | 'failed';
+export type ConveractFabricChatAttachmentProcessor = 'ocr' | 'asr' | 'video_frame_ocr';
+export type ConveractFabricChatAttachmentJobStatus =
   | 'pending'
   | 'processing'
   | 'retry_wait'
   | 'succeeded'
   | 'failed'
   | 'cancelled';
-export type IveKitAttachmentTransferPhase =
+export type ConveractFabricAttachmentTransferPhase =
   | 'uploading'
   | 'uploaded'
   | 'attached'
@@ -81,19 +81,19 @@ export type IveKitAttachmentTransferPhase =
   | 'provider_unconfigured'
   | 'cancelled';
 
-export interface IveKitChatAttachment {
+export interface ConveractFabricChatAttachment {
   id: string;
   tenant_id: string;
   session_id: string;
   message_id: string;
   secure_file_id?: string;
-  kind: IveKitChatAttachmentKind;
+  kind: ConveractFabricChatAttachmentKind;
   storage_url: string;
   filename: string;
   content_type: string;
   size_bytes: number;
   checksum: string;
-  processing_status: IveKitChatAttachmentStatus;
+  processing_status: ConveractFabricChatAttachmentStatus;
   ocr_text: string;
   asr_text: string;
   extracted_text: string;
@@ -104,7 +104,7 @@ export interface IveKitChatAttachment {
   updated_at: string;
 }
 
-export type IveKitChatDeliveryStatus =
+export type ConveractFabricChatDeliveryStatus =
   | 'not_required'
   | 'pending'
   | 'blocked_by_file_security'
@@ -114,11 +114,11 @@ export type IveKitChatDeliveryStatus =
   | 'delivered'
   | 'failed';
 
-export interface IveKitChatDelivery {
+export interface ConveractFabricChatDelivery {
   provider: string;
   provider_topic_id: string;
   provider_message_id: string;
-  status: IveKitChatDeliveryStatus;
+  status: ConveractFabricChatDeliveryStatus;
   attempt_count: number;
   next_attempt_at: string | null;
   lease_until: string | null;
@@ -129,7 +129,7 @@ export interface IveKitChatDelivery {
   metadata: Record<string, unknown>;
 }
 
-export interface IveKitTinodeOperationsSnapshot {
+export interface ConveractFabricTinodeOperationsSnapshot {
   tenant_id: string;
   generated_at: string;
   delivery: {
@@ -159,7 +159,7 @@ export interface IveKitTinodeOperationsSnapshot {
   };
 }
 
-export interface IveKitTinodeDeadLetter {
+export interface ConveractFabricTinodeDeadLetter {
   id: string;
   binding_id: string;
   event_id: string;
@@ -177,13 +177,13 @@ export interface IveKitTinodeDeadLetter {
   updated_at: string;
 }
 
-export interface IveKitTinodeDeadLetterReplayResult {
-  dead_letter: IveKitTinodeDeadLetter;
+export interface ConveractFabricTinodeDeadLetterReplayResult {
+  dead_letter: ConveractFabricTinodeDeadLetter;
   replay_id: string;
   replayed: boolean;
 }
 
-export interface IveKitTinodeMutationDeadLetter {
+export interface ConveractFabricTinodeMutationDeadLetter {
   id: string;
   session_id: string;
   message_id: string;
@@ -198,13 +198,13 @@ export interface IveKitTinodeMutationDeadLetter {
   updated_at: string;
 }
 
-export interface IveKitTinodeMutationDeadLetterReplayResult {
-  dead_letter: IveKitTinodeMutationDeadLetter;
+export interface ConveractFabricTinodeMutationDeadLetterReplayResult {
+  dead_letter: ConveractFabricTinodeMutationDeadLetter;
   replay_id: string;
   replayed: boolean;
 }
 
-export interface IveKitChatProviderMutation {
+export interface ConveractFabricChatProviderMutation {
   provider?: string;
   id?: string;
   mutation_id?: string;
@@ -221,7 +221,7 @@ export interface IveKitChatProviderMutation {
   updated_at?: string;
 }
 
-export interface IveKitChatMessage {
+export interface ConveractFabricChatMessage {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -230,9 +230,9 @@ export interface IveKitChatMessage {
   body: string;
   original_language: string;
   metadata: Record<string, unknown>;
-  attachments: IveKitChatAttachment[];
+  attachments: ConveractFabricChatAttachment[];
   idempotency_key: string;
-  provider_delivery: IveKitChatDelivery;
+  provider_delivery: ConveractFabricChatDelivery;
   edit_version: number;
   edited_at: string | null;
   deleted_at: string | null;
@@ -241,11 +241,11 @@ export interface IveKitChatMessage {
   reply_to_message_id: string | null;
   forwarded_from_message_id: string | null;
   mentions: string[];
-  reactions?: IveKitChatReaction[];
+  reactions?: ConveractFabricChatReaction[];
   pinned?: boolean;
 }
 
-export interface IveKitChatReceipt {
+export interface ConveractFabricChatReceipt {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -260,7 +260,7 @@ export interface IveKitChatReceipt {
   updated_at: string;
 }
 
-export interface IveKitChatRealtimeState {
+export interface ConveractFabricChatRealtimeState {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -275,7 +275,7 @@ export interface IveKitChatRealtimeState {
   updated_at: string;
 }
 
-export interface IveKitChatMutation {
+export interface ConveractFabricChatMutation {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -289,7 +289,7 @@ export interface IveKitChatMutation {
   created_at: string;
 }
 
-export interface IveKitPolicyEvent {
+export interface ConveractFabricPolicyEvent {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -309,7 +309,7 @@ export interface IveKitPolicyEvent {
   created_at: string;
 }
 
-export interface IveKitPolicyFinding {
+export interface ConveractFabricPolicyFinding {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -338,12 +338,12 @@ export interface IveKitPolicyFinding {
   resolved_at: string | null;
 }
 
-export interface IveKitPolicyFindingReview {
+export interface ConveractFabricPolicyFindingReview {
   id: string;
   tenant_id: string;
   finding_id: string;
-  from_status: IveKitPolicyFinding['review_status'];
-  to_status: IveKitPolicyFinding['review_status'];
+  from_status: ConveractFabricPolicyFinding['review_status'];
+  to_status: ConveractFabricPolicyFinding['review_status'];
   reviewed_by: string;
   note: string;
   note_hash: string;
@@ -351,7 +351,7 @@ export interface IveKitPolicyFindingReview {
   created_at: string;
 }
 
-export interface IveKitChatReaction {
+export interface ConveractFabricChatReaction {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -361,7 +361,7 @@ export interface IveKitChatReaction {
   created_at: string;
 }
 
-export interface IveKitChatPin {
+export interface ConveractFabricChatPin {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -370,26 +370,26 @@ export interface IveKitChatPin {
   created_at: string;
 }
 
-export interface IveKitChatReactionResult {
+export interface ConveractFabricChatReactionResult {
   session_id: string;
   message_id: string;
-  reactions: IveKitChatReaction[];
+  reactions: ConveractFabricChatReaction[];
   counts: Record<string, number>;
 }
 
-export interface IveKitChatPinResult {
+export interface ConveractFabricChatPinResult {
   session_id: string;
   message_id?: string;
-  pins: IveKitChatPin[];
+  pins: ConveractFabricChatPin[];
 }
 
-export interface IveKitCursorPage<T = unknown> {
+export interface ConveractFabricCursorPage<T = unknown> {
   items: T[];
   next_cursor: string | null;
   has_more: boolean;
 }
 
-export interface IveKitChatSessionListInput {
+export interface ConveractFabricChatSessionListInput {
   status?: 'open' | 'closed';
   business_ref_type?: string;
   business_ref_id?: string;
@@ -398,33 +398,33 @@ export interface IveKitChatSessionListInput {
   limit?: number;
 }
 
-export interface IveKitChatMessagePageInput {
+export interface ConveractFabricChatMessagePageInput {
   direction?: 'before' | 'after';
   query?: string;
   cursor?: string;
   limit?: number;
 }
 
-export interface IveKitChatClientPlan {
+export interface ConveractFabricChatClientPlan {
   provider: 'tinode' | 'local' | string;
   provider_topic_id: string;
   provider_user_id: string;
   auth_token: string;
   ws_url: string;
   api_key: string;
-  participant: IveKitChatParticipant;
+  participant: ConveractFabricChatParticipant;
 }
 
-export interface IveKitChatSnapshot {
-  session: IveKitChatSession;
-  binding: IveKitChatBinding | null;
-  participants: IveKitChatParticipant[];
-  messages: IveKitChatMessage[];
-  policy_events: IveKitPolicyEvent[];
-  policy_findings: IveKitPolicyFinding[];
+export interface ConveractFabricChatSnapshot {
+  session: ConveractFabricChatSession;
+  binding: ConveractFabricChatBinding | null;
+  participants: ConveractFabricChatParticipant[];
+  messages: ConveractFabricChatMessage[];
+  policy_events: ConveractFabricPolicyEvent[];
+  policy_findings: ConveractFabricPolicyFinding[];
 }
 
-export interface IveKitChatCapabilities {
+export interface ConveractFabricChatCapabilities {
   provider: string;
   tenant_id: string;
   capabilities: Record<string, boolean>;
@@ -432,14 +432,14 @@ export interface IveKitChatCapabilities {
   delivery_policy: Record<string, unknown>;
 }
 
-export interface IveKitChatDeliveryResult {
+export interface ConveractFabricChatDeliveryResult {
   session_id: string;
   message_id: string;
-  delivery: IveKitChatDelivery;
-  attempts: IveKitChatDeliveryAttempt[];
+  delivery: ConveractFabricChatDelivery;
+  attempts: ConveractFabricChatDeliveryAttempt[];
 }
 
-export interface IveKitChatDeliveryAttempt {
+export interface ConveractFabricChatDeliveryAttempt {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -455,71 +455,71 @@ export interface IveKitChatDeliveryAttempt {
   metadata: Record<string, unknown>;
 }
 
-export interface IveKitChatPostMessageResult {
+export interface ConveractFabricChatPostMessageResult {
   session_id?: string;
-  message: IveKitChatMessage;
-  policy?: { matched: boolean; events: IveKitPolicyEvent[]; findings?: IveKitPolicyFinding[] };
-  delivery?: IveKitChatDelivery;
-  quality_review_job?: IveKitQualityReviewJob | null;
+  message: ConveractFabricChatMessage;
+  policy?: { matched: boolean; events: ConveractFabricPolicyEvent[]; findings?: ConveractFabricPolicyFinding[] };
+  delivery?: ConveractFabricChatDelivery;
+  quality_review_job?: ConveractFabricQualityReviewJob | null;
 }
 
-export interface IveKitChatMessageState {
+export interface ConveractFabricChatMessageState {
   session_id: string;
   identity: string;
   unread_count: number;
-  receipts: IveKitChatReceipt[];
+  receipts: ConveractFabricChatReceipt[];
 }
 
-export interface IveKitChatReceiptResult {
+export interface ConveractFabricChatReceiptResult {
   session_id: string;
   message_id: string;
   identity: string;
-  receipts: IveKitChatReceipt[];
+  receipts: ConveractFabricChatReceipt[];
   unread_count: number;
 }
 
-export interface IveKitChatReceiptListResult {
+export interface ConveractFabricChatReceiptListResult {
   session_id: string;
   message_id: string;
-  receipts: IveKitChatReceipt[];
+  receipts: ConveractFabricChatReceipt[];
 }
 
-export interface IveKitChatRealtimeResult {
+export interface ConveractFabricChatRealtimeResult {
   session_id: string;
   identity?: string;
-  state?: IveKitChatRealtimeState;
-  states?: IveKitChatRealtimeState[];
+  state?: ConveractFabricChatRealtimeState;
+  states?: ConveractFabricChatRealtimeState[];
 }
 
-export interface IveKitChatMutationResult {
+export interface ConveractFabricChatMutationResult {
   session_id: string;
-  message: IveKitChatMessage;
-  mutation: IveKitChatMutation | null;
-  provider_mutation: IveKitChatProviderMutation;
-  quality_review_job: IveKitQualityReviewJob | null;
+  message: ConveractFabricChatMessage;
+  mutation: ConveractFabricChatMutation | null;
+  provider_mutation: ConveractFabricChatProviderMutation;
+  quality_review_job: ConveractFabricQualityReviewJob | null;
 }
 
-export interface IveKitChatMutationListResult {
+export interface ConveractFabricChatMutationListResult {
   session_id: string;
   message_id: string;
-  mutations: IveKitChatMutation[];
+  mutations: ConveractFabricChatMutation[];
 }
 
-export interface IveKitChatAttachmentUploadDescriptor {
+export interface ConveractFabricChatAttachmentUploadDescriptor {
   secure_file_id?: string;
-  kind: IveKitChatAttachmentKind;
+  kind: ConveractFabricChatAttachmentKind;
   storage_url: string;
   filename: string;
   content_type: string;
   size_bytes: number;
   checksum: string;
-  processing_status: IveKitChatAttachmentStatus;
+  processing_status: ConveractFabricChatAttachmentStatus;
   metadata: Record<string, unknown>;
 }
 
-export type IveKitSecureFileKind = IveKitChatAttachmentKind;
-export type IveKitSecureFileUploadMode = 'single' | 'multipart';
-export type IveKitSecureFileStatus =
+export type ConveractFabricSecureFileKind = ConveractFabricChatAttachmentKind;
+export type ConveractFabricSecureFileUploadMode = 'single' | 'multipart';
+export type ConveractFabricSecureFileStatus =
   | 'initiated'
   | 'uploading'
   | 'scanning'
@@ -528,9 +528,9 @@ export type IveKitSecureFileStatus =
   | 'quarantined'
   | 'failed'
   | 'expired';
-export type IveKitSecureFileThreatStatus = 'pending' | 'scanning' | 'clean' | 'infected' | 'error';
+export type ConveractFabricSecureFileThreatStatus = 'pending' | 'scanning' | 'clean' | 'infected' | 'error';
 
-export interface IveKitSecureFileDerivative {
+export interface ConveractFabricSecureFileDerivative {
   kind: 'image_thumbnail' | 'video_thumbnail' | 'video_transcode' | 'audio_transcode';
   status: 'pending' | 'processing' | 'retry_wait' | 'ready' | 'failed' | 'expired';
   mime: string;
@@ -542,20 +542,20 @@ export interface IveKitSecureFileDerivative {
   completed_at: string | null;
 }
 
-export interface IveKitSecureFile {
+export interface ConveractFabricSecureFile {
   file_id: string;
   session_id: string;
   created_by: string;
-  kind: IveKitSecureFileKind;
+  kind: ConveractFabricSecureFileKind;
   filename: string;
   extension: string;
   declared_mime: string;
   detected_mime: string;
   mime_conflict: boolean;
-  status: IveKitSecureFileStatus;
-  threat_status: IveKitSecureFileThreatStatus;
+  status: ConveractFabricSecureFileStatus;
+  threat_status: ConveractFabricSecureFileThreatStatus;
   failure_code: string;
-  upload_mode: IveKitSecureFileUploadMode;
+  upload_mode: ConveractFabricSecureFileUploadMode;
   expected_size_bytes: number;
   received_size_bytes: number;
   part_size_bytes: number;
@@ -567,14 +567,14 @@ export interface IveKitSecureFile {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
-  derivatives: IveKitSecureFileDerivative[];
+  derivatives: ConveractFabricSecureFileDerivative[];
 }
 
-export interface IveKitCreateSecureFileInput {
-  kind: IveKitSecureFileKind;
+export interface ConveractFabricCreateSecureFileInput {
+  kind: ConveractFabricSecureFileKind;
   filename: string;
   declared_mime?: string;
-  upload_mode: IveKitSecureFileUploadMode;
+  upload_mode: ConveractFabricSecureFileUploadMode;
   expected_size_bytes: number;
   part_size_bytes?: number;
   retention_until?: string | null;
@@ -582,7 +582,7 @@ export interface IveKitCreateSecureFileInput {
   metadata?: Record<string, unknown>;
 }
 
-export interface IveKitSecureFilePart {
+export interface ConveractFabricSecureFilePart {
   part_number: number;
   size_bytes: number;
   sha256: string;
@@ -591,14 +591,14 @@ export interface IveKitSecureFilePart {
   updated_at: string;
 }
 
-export interface IveKitChatAttachmentJob {
+export interface ConveractFabricChatAttachmentJob {
   id: string;
   tenant_id: string;
   session_id: string;
   message_id: string;
   attachment_id: string;
-  processor: IveKitChatAttachmentProcessor;
-  status: IveKitChatAttachmentJobStatus;
+  processor: ConveractFabricChatAttachmentProcessor;
+  status: ConveractFabricChatAttachmentJobStatus;
   attempt_count: number;
   max_attempts: number;
   next_attempt_at: string | null;
@@ -615,15 +615,15 @@ export interface IveKitChatAttachmentJob {
   completed_at: string | null;
 }
 
-export interface IveKitChatAttachmentResult {
-  attachment?: IveKitChatAttachment;
+export interface ConveractFabricChatAttachmentResult {
+  attachment?: ConveractFabricChatAttachment;
   attachment_id?: string;
-  job: IveKitChatAttachmentJob | null;
-  jobs?: IveKitChatAttachmentJob[];
-  observations?: IveKitVisualObservation[];
+  job: ConveractFabricChatAttachmentJob | null;
+  jobs?: ConveractFabricChatAttachmentJob[];
+  observations?: ConveractFabricVisualObservation[];
 }
 
-export interface IveKitVisualObservation {
+export interface ConveractFabricVisualObservation {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -641,19 +641,19 @@ export interface IveKitVisualObservation {
   created_at: string;
 }
 
-export interface IveKitPolicyFindingResult {
+export interface ConveractFabricPolicyFindingResult {
   session_id: string;
-  finding: IveKitPolicyFinding;
-  reviews?: IveKitPolicyFindingReview[];
-  review?: IveKitPolicyFindingReview | null;
+  finding: ConveractFabricPolicyFinding;
+  reviews?: ConveractFabricPolicyFindingReview[];
+  review?: ConveractFabricPolicyFindingReview | null;
 }
 
-export interface IveKitPolicyFindingListResult {
+export interface ConveractFabricPolicyFindingListResult {
   session_id: string;
-  findings: IveKitPolicyFinding[];
+  findings: ConveractFabricPolicyFinding[];
 }
 
-export interface IveKitQualityReviewJob {
+export interface ConveractFabricQualityReviewJob {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -675,13 +675,13 @@ export interface IveKitQualityReviewJob {
   completed_at: string | null;
 }
 
-export interface IveKitQualityReviewResult {
+export interface ConveractFabricQualityReviewResult {
   session_id: string;
   message_id: string;
-  job: IveKitQualityReviewJob | null;
+  job: ConveractFabricQualityReviewJob | null;
 }
 
-export interface IveKitWorkerRunResult {
+export interface ConveractFabricWorkerRunResult {
   candidates?: number;
   claimed: number;
   succeeded?: number;
@@ -690,34 +690,34 @@ export interface IveKitWorkerRunResult {
   [key: string]: unknown;
 }
 
-export interface IveKitOpenChatSessionInput {
-  business_ref: IveKitChatBusinessRef;
+export interface ConveractFabricOpenChatSessionInput {
+  business_ref: ConveractFabricChatBusinessRef;
   title?: string;
   metadata?: Record<string, unknown>;
 }
 
-export interface IveKitChatParticipantInput {
+export interface ConveractFabricChatParticipantInput {
   identity: string;
   role: string;
   display_name?: string;
-  user_ref?: IveKitChatBusinessRef;
+  user_ref?: ConveractFabricChatBusinessRef;
 }
 
-export interface IveKitChatMessageInput {
+export interface ConveractFabricChatMessageInput {
   sender_identity: string;
   message_type?: string;
   body?: string;
   original_language?: string;
   metadata?: Record<string, unknown>;
-  attachments?: IveKitChatAttachmentUploadDescriptor[];
+  attachments?: ConveractFabricChatAttachmentUploadDescriptor[];
   reply_to_message_id?: string;
   forwarded_from_message_id?: string;
   mentions?: string[];
 }
 
-export interface IveKitChatClientPlanInput extends IveKitChatParticipantInput {}
+export interface ConveractFabricChatClientPlanInput extends ConveractFabricChatParticipantInput {}
 
-export interface IveKitChatReceiptInput {
+export interface ConveractFabricChatReceiptInput {
   identity?: string;
   status: 'delivered' | 'read';
   source?: 'ivekit' | 'tinode' | 'system';
@@ -725,28 +725,28 @@ export interface IveKitChatReceiptInput {
   metadata?: Record<string, unknown>;
 }
 
-export interface IveKitChatTypingInput {
+export interface ConveractFabricChatTypingInput {
   identity?: string;
   typing: boolean;
   ttl_ms?: number;
 }
 
-export interface IveKitChatPresenceInput {
+export interface ConveractFabricChatPresenceInput {
   identity?: string;
   status: 'online' | 'away' | 'offline';
   ttl_ms?: number;
 }
 
-export interface IveKitChatEditInput {
+export interface ConveractFabricChatEditInput {
   body: string;
   reason?: string;
 }
 
-export interface IveKitChatDeleteInput {
+export interface ConveractFabricChatDeleteInput {
   reason?: string;
 }
 
-export interface IveKitPolicyFindingReviewInput {
+export interface ConveractFabricPolicyFindingReviewInput {
   review_status: 'confirmed' | 'false_positive' | 'resolved' | 'escalated';
   note?: string;
   metadata?: Record<string, unknown>;

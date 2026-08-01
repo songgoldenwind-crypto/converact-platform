@@ -1,81 +1,81 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: ivekit-capacity-platform-finalizer
+  name: converact-capacity-platform-finalizer
   labels:
-    app.kubernetes.io/name: ivekit-capacity-platform-finalizer
+    app.kubernetes.io/name: converact-capacity-platform-finalizer
 spec:
   backoffLimit: 10
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: ivekit-capacity-platform-finalizer
+        app.kubernetes.io/name: converact-capacity-platform-finalizer
     spec:
       restartPolicy: OnFailure
       terminationGracePeriodSeconds: 30
       containers:
         - name: platform-finalizer
-          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
+          image: replace.example.com/converact/capacity-tools@sha256:replace-with-capacity-tools-digest
           imagePullPolicy: IfNotPresent
-          command: ["node", "--import", "tsx", "scripts/ivekit-capacity-platform-finalizer.ts"]
+          command: ["node", "--import", "tsx", "scripts/converact-capacity-platform-finalizer.ts"]
           env:
             - name: CONVERACT_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-capacity-runtime
+                  name: converact-capacity-runtime
                   key: database-url
             - name: CONVERACT_FABRIC_CAPACITY_PLATFORM_FINALIZER_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
             - name: CONVERACT_FABRIC_CAPACITY_PLATFORM_CONTRACT_PATH
-              value: /run/ivekit-capacity/platform-contract.json
+              value: /run/converact-capacity/platform-contract.json
             - name: CONVERACT_FABRIC_CAPACITY_PLATFORM_SUBMISSION_PATH
-              value: /run/ivekit-capacity/platform-submission.json
+              value: /run/converact-capacity/platform-submission.json
             - name: CONVERACT_FABRIC_CAPACITY_PLATFORM_FINALIZER_LEASE_MS
               value: "15000"
             - name: CONVERACT_FABRIC_CAPACITY_PLATFORM_EVIDENCE_PREFIX
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-capacity-platform-finalizer
+                  name: converact-capacity-platform-finalizer
                   key: platform-evidence-prefix
             - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-capacity-finalizer
+                  name: converact-capacity-finalizer
                   key: evidence-s3-bucket
             - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-capacity-finalizer
+                  name: converact-capacity-finalizer
                   key: evidence-s3-region
             - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_ENDPOINT
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-capacity-finalizer
+                  name: converact-capacity-finalizer
                   key: evidence-s3-endpoint
                   optional: true
             - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_FORCE_PATH_STYLE
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-capacity-finalizer
+                  name: converact-capacity-finalizer
                   key: evidence-s3-force-path-style
                   optional: true
             - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-capacity-evidence
+                  name: converact-capacity-evidence
                   key: evidence-s3-access-key-id
                   optional: true
             - name: CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-capacity-evidence
+                  name: converact-capacity-evidence
                   key: evidence-s3-secret-access-key
                   optional: true
           volumeMounts:
             - name: campaign-inputs
-              mountPath: /run/ivekit-capacity
+              mountPath: /run/converact-capacity
               readOnly: true
           resources:
             requests:
@@ -93,4 +93,4 @@ spec:
       volumes:
         - name: campaign-inputs
           persistentVolumeClaim:
-            claimName: ivekit-capacity-manifests
+            claimName: converact-capacity-manifests

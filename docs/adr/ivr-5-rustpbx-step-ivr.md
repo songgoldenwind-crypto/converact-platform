@@ -5,7 +5,7 @@
 
 ## 背景
 
-M1 原计划用 OPC↔RustPBX **RWI** 下发 `gather_digits.params.prompt_queue`（ADR-4 扩展契约）。联调 `ghcr.io/restsend/rustpbx:latest`（0.4.7-community）时发现：
+M1 原计划用 Converact Platform↔RustPBX **RWI** 下发 `gather_digits.params.prompt_queue`（ADR-4 扩展契约）。联调 `ghcr.io/restsend/rustpbx:latest`（0.4.7-community）时发现：
 
 | 项 | 结论 |
 |----|------|
@@ -20,17 +20,17 @@ GitHub [restsend/rustpbx#219](https://github.com/restsend/rustpbx/issues/219) �
 ### D1 — M1 SIP 媒体走 Step IVR
 
 ```
-SIP → RustPBX HTTP Router → OPC not_handled（建 voice + ivr session）
+SIP → RustPBX HTTP Router → Converact Platform not_handled（建 voice + ivr session）
     → 静态路由 application = ivr:opc-m1
     → RustPBX Step IVR → POST /api/ivr/rustpbx/step
-    → OPC 映射 IvrAction → ActionNode（prompt 链 + dtmf_menu）
+    → Converact Platform 映射 IvrAction → ActionNode（prompt 链 + dtmf_menu）
 ```
 
-### D2 — ADR-4 RWI 契约保留为 OPC 内部/RWI 就绪后的目标态
+### D2 — ADR-4 RWI 契约保留为 Converact Platform 内部/RWI 就绪后的目标态
 
 - `ivr-rwi-bridge.ts` 与 `gather_digits.prompt_queue` **不删除**
 - 生产 SIP 在 RWI 可用前，**Step IVR 为唯一媒体路径**
-- `OPC_DISABLE_IVR_RWI=1` 在 callcenter compose 默认关闭 RWI runtime
+- `CONVERACT_DISABLE_IVR_RWI=1` 在 callcenter compose 默认关闭 RWI runtime
 
 ### D3 — Action 映射（M1 最小集）
 
@@ -45,7 +45,7 @@ SIP → RustPBX HTTP Router → OPC not_handled（建 voice + ivr session）
 
 ### D4 — 事件映射
 
-| Step `event.type` | OPC `advanceIvrStep` 输入 |
+| Step `event.type` | Converact Platform `advanceIvrStep` 输入 |
 |-------------------|---------------------------|
 | `session_start` | 不 advance，walk 至首个可播 action |
 | `dtmf` | `{ dtmf }` |
@@ -54,7 +54,7 @@ SIP → RustPBX HTTP Router → OPC not_handled（建 voice + ivr session）
 
 ## 配置
 
-- `config/ivr/opc_m1.toml` — Step IVR 定义，`provider.url = http://opc:3000/api/ivr/rustpbx/step`
+- `config/ivr/converact_m1.toml` — Step IVR 定义，`provider.url = http://converact:3000/api/ivr/rustpbx/step`
 - `config/rustpbx-routes/m1-ivr.toml` — `application = "ivr:opc-m1"`
 - 认证：`X-PBX-Key`（与 call-router 相同）
 

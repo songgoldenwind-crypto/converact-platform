@@ -27,7 +27,7 @@ const BUILTIN_COMPONENTS: Array<Omit<IvrMarketplaceComponent, 'id' | 'created_at
   {
     name: '标准欢迎菜单',
     version: '1.0.0',
-    author: 'OPC',
+    author: 'Converact',
     description: '销售/客服/语音信箱三分支',
     status: 'published',
     manifest: getIvrMenu('default')
@@ -35,7 +35,7 @@ const BUILTIN_COMPONENTS: Array<Omit<IvrMarketplaceComponent, 'id' | 'created_at
   {
     name: '售后优先菜单',
     version: '1.0.0',
-    author: 'OPC',
+    author: 'Converact',
     description: '按 1 直达客服队列',
     status: 'published',
     manifest: {

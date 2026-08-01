@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, afterEach, before, test } from 'node:test';
-import type { IveKitClient, IveKitIntelligenceSourceSnapshot } from '@converact/sdk';
+import type { ConveractFabricClient, ConveractFabricIntelligenceSourceSnapshot } from '@converact/sdk';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { installTestDom } from '../test-dom.js';
@@ -59,11 +59,11 @@ test('failed recording source exposes an explicit manual retry', async () => {
   await waitFor(() => assert.deepEqual(retries, ['source-1']));
 });
 
-function fakeClient(intelligence: Record<string, unknown>): IveKitClient {
-  return { intelligence } as unknown as IveKitClient;
+function fakeClient(intelligence: Record<string, unknown>): ConveractFabricClient {
+  return { intelligence } as unknown as ConveractFabricClient;
 }
 
-function snapshot(status: 'pending' | 'succeeded' | 'failed', errorCode = ''): IveKitIntelligenceSourceSnapshot {
+function snapshot(status: 'pending' | 'succeeded' | 'failed', errorCode = ''): ConveractFabricIntelligenceSourceSnapshot {
   return {
     source: { id: 'source-1', session_id: 'session-1', status, error_code: errorCode },
     message_id: 'message-1', replayed: false,

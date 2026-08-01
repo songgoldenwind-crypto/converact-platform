@@ -128,7 +128,7 @@ interface PointEvidence {
 
 export interface SipKamailioStaircaseEvidence {
   schema_version: '1.0.0';
-  suite: 'iveKit SIPp -> Kamailio -> RustPBX strict staircase';
+  suite: 'Converact Fabric SIPp -> Kamailio -> RustPBX strict staircase';
   run_id: string;
   status: 'controlled_pass' | 'controlled_failed';
   capacity_claim: 'none';
@@ -364,13 +364,13 @@ export async function runSipKamailioStaircase(
           String(config.duration_seconds)
         ], {
           ...process.env,
-          IVEKIT_RUSTPBX_RUNTIME_DIR: runtimeDirectory,
-          IVEKIT_CAPACITY_RESULT_ROOT: resultDirectory,
-          IVEKIT_CAPACITY_RUN_ID: pointRunId,
-          IVEKIT_NODE_COMMAND: config.node_command,
-          IVEKIT_SIPP_BINARY: config.sipp_binary,
-          IVEKIT_CAPACITY_INCLUDE_KAMAILIO: '1',
-          IVEKIT_SIP_TARGET_IP: '172.30.44.9',
+          CONVERACT_FABRIC_RUSTPBX_RUNTIME_DIR: runtimeDirectory,
+          CONVERACT_FABRIC_CAPACITY_RESULT_ROOT: resultDirectory,
+          CONVERACT_FABRIC_CAPACITY_RUN_ID: pointRunId,
+          CONVERACT_FABRIC_NODE_COMMAND: config.node_command,
+          CONVERACT_FABRIC_SIPP_BINARY: config.sipp_binary,
+          CONVERACT_FABRIC_CAPACITY_INCLUDE_KAMAILIO: '1',
+          CONVERACT_FABRIC_SIP_TARGET_IP: '172.30.44.9',
           RATE_TOLERANCE_RATIO: String(config.rate_tolerance_ratio),
           MAX_SIP_ROUTE_P95_MS: String(config.maximum_route_p95_ms),
           MAX_SIP_ROUTE_P99_MS: String(config.maximum_route_p99_ms),
@@ -416,7 +416,7 @@ export async function runSipKamailioStaircase(
   if (!cleanupPassed) errors.push('capacity_resources_not_cleaned');
   const evidence: SipKamailioStaircaseEvidence = {
     schema_version: '1.0.0',
-    suite: 'iveKit SIPp -> Kamailio -> RustPBX strict staircase',
+    suite: 'Converact Fabric SIPp -> Kamailio -> RustPBX strict staircase',
     run_id: runId,
     status: allPointsPassed && cleanupPassed && preserved && errors.length === 0
       ? 'controlled_pass'
@@ -534,7 +534,7 @@ async function sourceIdentity(): Promise<SipKamailioStaircaseEvidence['source']>
     'services/converact-service/acceptance/sipp/inbound-reject-486-uac.xml',
     'src/agent-runtime/converact/voice/kamailio-config.ts',
     'scripts/capacity/sip-kamailio-staircase.ts',
-    'scripts/ivekit-capacity-sip-kamailio-staircase.ts'
+    'scripts/converact-capacity-sip-kamailio-staircase.ts'
   ];
   let gitCommit: string | null = null;
   let dirty = true;
@@ -640,7 +640,7 @@ async function preservedContainers(): Promise<PreservedContainer[]> {
 
 async function baselineContainers(): Promise<string[]> {
   return (await command('docker', [
-    'ps', '-aq', '--filter', 'name=ivekit-rustpbx-baseline'
+    'ps', '-aq', '--filter', 'name=converact-rustpbx-baseline'
   ], process.env, 10_000)).trim().split(/\r?\n/).filter(Boolean).sort();
 }
 

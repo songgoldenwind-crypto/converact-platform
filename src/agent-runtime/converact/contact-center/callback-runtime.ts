@@ -7,7 +7,7 @@ import { PostgresVoiceCallStore } from '../voice/postgres/call-store.js';
 import { PostgresVoiceCallUnitOfWork } from '../voice/postgres/unit-of-work.js';
 import { ContactCenterCallbackService } from './callback-service.js';
 import { PostgresContactCenterUnitOfWork } from './postgres/unit-of-work.js';
-import { IveKitVoiceCallbackAdapter } from './voice-callback-adapter.js';
+import { ConveractFabricVoiceCallbackAdapter } from './voice-callback-adapter.js';
 
 export function createPostgresContactCenterCallbackService(
   pg: PgQueryable,
@@ -28,7 +28,7 @@ export function createPostgresContactCenterCallbackService(
   return new ContactCenterCallbackService({
     unit_of_work: new PostgresContactCenterUnitOfWork(pg),
     address_protector: addressProtector,
-    voice: new IveKitVoiceCallbackAdapter({
+    voice: new ConveractFabricVoiceCallbackAdapter({
       calls: new PostgresVoiceCallStore(pg),
       service: voiceCalls,
       address_protector: addressProtector

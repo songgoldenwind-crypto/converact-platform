@@ -225,8 +225,8 @@
     }
   ],
   "open_gaps": [
-    "No iveKit owner epoch fencing exists in the pinned upstream source.",
-    "No iveKit role-specific capacity reservation contract exists.",
+    "No Converact Fabric owner epoch fencing exists in the pinned upstream source.",
+    "No Converact Fabric role-specific capacity reservation contract exists.",
     "No reproducible offline builder, immutable runtime artifact, SBOM, signature or provenance exists.",
     "No RustPBX NG client, idempotency layer or unknown-result reconciliation exists.",
     "No target-kernel userspace/kernel fallback benchmark has run.",

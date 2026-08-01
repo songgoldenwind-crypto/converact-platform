@@ -29,7 +29,7 @@ export interface RealtimeAudioTapTokenClaims {
 
 export interface VerifiedRealtimeAudioTapTokenClaims
   extends RealtimeAudioTapTokenClaims {
-  issuer: 'ivekit';
+  issuer: 'converact';
   audience: 'rustpbx-audio-tap';
   version: 1;
   issued_at: number;
@@ -106,7 +106,7 @@ export function createRealtimeAudioTapTokenCodec(
           );
       const payload = normalizeClaims({
         ...input,
-        issuer: 'ivekit',
+        issuer: 'converact',
         audience: 'rustpbx-audio-tap',
         version: 1,
         issued_at: issuedAt,
@@ -159,7 +159,7 @@ export function createRealtimeAudioTapTokenCodec(
 function normalizeClaims(input: unknown): VerifiedRealtimeAudioTapTokenClaims {
   if (!isRecord(input)) throw tokenError('token_claim_invalid');
   assertExactKeys(input, TOKEN_PAYLOAD_KEYS);
-  if (input.issuer !== 'ivekit' || input.audience !== 'rustpbx-audio-tap' || input.version !== 1) {
+  if (input.issuer !== 'converact' || input.audience !== 'rustpbx-audio-tap' || input.version !== 1) {
     throw tokenError('token_claim_invalid');
   }
   const purpose = input.purpose;
@@ -196,7 +196,7 @@ function normalizeClaims(input: unknown): VerifiedRealtimeAudioTapTokenClaims {
     };
   });
   return {
-    issuer: 'ivekit',
+    issuer: 'converact',
     audience: 'rustpbx-audio-tap',
     version: 1,
     tenant_id: boundedText(input.tenant_id, 1, 128),

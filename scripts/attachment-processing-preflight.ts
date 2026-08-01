@@ -1,4 +1,4 @@
-import { resolveBrandEnv, resolveConveractEnv } from '../src/config/converact-env.js';
+import { resolveBrandEnv } from '../src/config/converact-env.js';
 import { fileURLToPath } from 'node:url';
 
 import { attachmentProcessingWorkerConfig } from '../src/agent-runtime/collaboration/attachment-processing-worker.js';
@@ -104,16 +104,16 @@ export function inspectAttachmentProcessingEnv(
 }
 
 function providerSummary(env: NodeJS.ProcessEnv, prefix: 'OCR' | 'ASR', configured: boolean): ProviderSummary {
-  const mode = String(resolveConveractEnv(env, `OPC_${prefix}_PROVIDER_MODE`) || 'self_hosted').trim();
-  const baseUrl = String(resolveConveractEnv(env, `OPC_${prefix}_BASE_URL`) || '').trim();
-  const endpoint = String(resolveConveractEnv(env, `OPC_${prefix}_ENDPOINT`) || `/v1/${prefix.toLowerCase()}`).trim();
-  const timeout = String(resolveConveractEnv(env, `OPC_${prefix}_TIMEOUT_MS`) || '').trim();
+  const mode = String(resolveBrandEnv(env, `${prefix}_PROVIDER_MODE`) || 'self_hosted').trim();
+  const baseUrl = String(resolveBrandEnv(env, `${prefix}_BASE_URL`) || '').trim();
+  const endpoint = String(resolveBrandEnv(env, `${prefix}_ENDPOINT`) || `/v1/${prefix.toLowerCase()}`).trim();
+  const timeout = String(resolveBrandEnv(env, `${prefix}_TIMEOUT_MS`) || '').trim();
   return {
     configured,
     mode,
     base_url: baseUrl,
     endpoint,
-    token: secretMarker(resolveConveractEnv(env, `OPC_${prefix}_TOKEN`)),
+    token: secretMarker(resolveBrandEnv(env, `${prefix}_TOKEN`)),
     timeout_ms: timeout ? Number(timeout) : 30_000
   };
 }

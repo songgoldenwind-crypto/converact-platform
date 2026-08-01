@@ -1,13 +1,13 @@
 import { resolveFabricEnv } from './config/converact-env.js';
-import { startIveKitApplication } from './agent-runtime/converact/application.js';
+import { startConveractFabricApplication } from './agent-runtime/converact/application.js';
 import {
-  createIveKitHttpServer,
-  type IveKitHttpServerInput
+  createConveractFabricHttpServer,
+  type ConveractFabricHttpServerInput
 } from './agent-runtime/converact/http-server.js';
 import {
-  loadIveKitInternalTlsConfig
+  loadConveractFabricInternalTlsConfig
 } from './agent-runtime/converact/internal-tls.js';
-import { createIveKitMediaHooks } from './agent-runtime/converact/media-hooks.js';
+import { createConveractFabricMediaHooks } from './agent-runtime/converact/media-hooks.js';
 import { createConfiguredPlacementFoundation } from './agent-runtime/converact/placement/index.js';
 import {
   rustDeskOwnerBindingPrepareClientFromEnv
@@ -19,8 +19,8 @@ import {
   createConfiguredWebPhoneExtensionSessionService
 } from './agent-runtime/converact/voice/webphone-session-service.js';
 import {
-  IveKitTenantEventStore,
-  iveKitEventReplayEnabled
+  ConveractFabricTenantEventStore,
+  converactFabricEventReplayEnabled
 } from './agent-runtime/converact/tenant-event-store.js';
 import { closePostgres, initPostgres } from './db-pg.js';
 import { PgSyncDatabase } from './db-pg-sync.js';
@@ -33,7 +33,7 @@ validateEnvOrExit();
 
 if (process.env.NODE_ENV !== 'test') {
   process.on('unhandledRejection', (reason) => {
-    console.error('[ivekit] unhandled rejection', reason);
+    console.error('[converact-fabric] unhandled rejection', reason);
   });
 }
 
@@ -41,19 +41,19 @@ async function main(): Promise<void> {
   if (!process.env.DATABASE_URL && !process.env.PGHOST) {
     throw new Error('DATABASE_URL or PGHOST/PGDATABASE/PGUSER is required');
   }
-  const internalTls = loadIveKitInternalTlsConfig();
+  const internalTls = loadConveractFabricInternalTlsConfig();
   createObjectStorage();
   const pg = await initPostgres();
   if (!pg) throw new Error('cannot connect to Postgres');
 
-  const instanceId = resolveFabricEnv(process.env, 'INSTANCE_ID') || process.env.HOSTNAME || `ivekit-${process.pid}`;
+  const instanceId = resolveFabricEnv(process.env, 'INSTANCE_ID') || process.env.HOSTNAME || `converact-fabric-${process.pid}`;
   process.env.CONVERACT_FABRIC_INSTANCE_ID = instanceId;
   const db = new PgSyncDatabase();
-  let application: ReturnType<typeof startIveKitApplication> | null = null;
+  let application: ReturnType<typeof startConveractFabricApplication> | null = null;
   let realtimeAudioTap:
     ReturnType<typeof createConfiguredRealtimeAudioTapRuntime> | null = null;
-  let server: ReturnType<typeof createIveKitHttpServer> | null = null;
-  let internalServer: ReturnType<typeof createIveKitHttpServer> | null = null;
+  let server: ReturnType<typeof createConveractFabricHttpServer> | null = null;
+  let internalServer: ReturnType<typeof createConveractFabricHttpServer> | null = null;
   let shutdownPromise: Promise<void> | null = null;
 
   const shutdown = (): Promise<void> => {
@@ -103,7 +103,7 @@ async function main(): Promise<void> {
         } catch (error) {
           errors.push(error);
         }
-        if (errors.length) throw new AggregateError(errors, 'iveKit shutdown failed');
+        if (errors.length) throw new AggregateError(errors, 'Converact Fabric shutdown failed');
       })();
     }
     return shutdownPromise;
@@ -113,7 +113,7 @@ async function main(): Promise<void> {
     void shutdown().then(
       () => process.exit(0),
       (error) => {
-        console.error('[ivekit-shutdown] FATAL:', error);
+        console.error('[converact-fabric-shutdown] FATAL:', error);
         process.exit(1);
       }
     );
@@ -128,7 +128,7 @@ async function main(): Promise<void> {
     });
     const rustdeskOwnerBindings = rustDeskOwnerBindingPrepareClientFromEnv();
     const webphoneSessions = createConfiguredWebPhoneExtensionSessionService(pg);
-    application = startIveKitApplication({
+    application = startConveractFabricApplication({
       pg,
       instanceId,
       placement: placement || undefined
@@ -138,11 +138,11 @@ async function main(): Promise<void> {
       projection: application.realtimeSpeechProjection
     });
     await realtimeAudioTap.start();
-    const serverInput: IveKitHttpServerInput = {
+    const serverInput: ConveractFabricHttpServerInput = {
       db,
       pg,
       mediaOptions: {
-        ...createIveKitMediaHooks({ db, pg }),
+        ...createConveractFabricMediaHooks({ db, pg }),
         placement: placement?.media,
         egressPlacement: placement?.egress,
         placementWorkerId: placement?.worker_id,
@@ -173,31 +173,31 @@ async function main(): Promise<void> {
       },
       placementReadinessProbe: placement?.runtime
     };
-    server = createIveKitHttpServer(serverInput);
-    initWebSocket(server, iveKitEventReplayEnabled()
-      ? { eventStore: new IveKitTenantEventStore(pg) }
+    server = createConveractFabricHttpServer(serverInput);
+    initWebSocket(server, converactFabricEventReplayEnabled()
+      ? { eventStore: new ConveractFabricTenantEventStore(pg) }
       : {});
     const port = Number(process.env.PORT || 3000);
     if (internalTls?.port === port) {
       throw new Error('CONVERACT_FABRIC_INTERNAL_TLS_PORT must differ from PORT');
     }
     await listenHttpServer(server, port);
-    console.log(`iveKit communication platform running at http://localhost:${port}`);
+    console.log(`Converact Fabric communication runtime running at http://localhost:${port}`);
     if (internalTls) {
-      internalServer = createIveKitHttpServer({
+      internalServer = createConveractFabricHttpServer({
         ...serverInput,
         tls: internalTls.tls
       });
       await listenHttpServer(internalServer, internalTls.port);
       console.log(
-        `iveKit internal mTLS endpoint running at https://localhost:${internalTls.port}`
+        `Converact Fabric internal mTLS endpoint running at https://localhost:${internalTls.port}`
       );
     }
   } catch (error) {
     await shutdown().catch((shutdownError) => {
       throw new AggregateError(
         [error, shutdownError],
-        'iveKit startup and cleanup failed'
+        'Converact Fabric startup and cleanup failed'
       );
     });
     throw error;
@@ -205,7 +205,7 @@ async function main(): Promise<void> {
 }
 
 function listenHttpServer(
-  server: ReturnType<typeof createIveKitHttpServer>,
+  server: ReturnType<typeof createConveractFabricHttpServer>,
   port: number
 ): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -224,7 +224,7 @@ function listenHttpServer(
 }
 
 function closeHttpServer(
-  server: ReturnType<typeof createIveKitHttpServer>
+  server: ReturnType<typeof createConveractFabricHttpServer>
 ): Promise<void> {
   if (!server.listening) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -233,6 +233,6 @@ function closeHttpServer(
 }
 
 void main().catch((error) => {
-  console.error('[ivekit-startup] FATAL:', error instanceof Error ? error.message : String(error));
+  console.error('[converact-fabric-startup] FATAL:', error instanceof Error ? error.message : String(error));
   process.exit(1);
 });

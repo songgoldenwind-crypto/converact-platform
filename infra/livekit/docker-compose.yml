@@ -1,4 +1,4 @@
-# Linux-only standalone iveKit Media Core.
+# Linux-only standalone Converact Fabric Media Core.
 # Render runtime configs with `npm run render:livekit-edge` before starting.
 services:
   caddy:

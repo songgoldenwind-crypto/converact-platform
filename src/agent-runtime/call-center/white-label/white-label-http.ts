@@ -65,7 +65,7 @@ export function routeWhiteLabelApi(
     const template = templateStore.get(tenantId, templateKey);
     const wl = store.getConfig(tenantId);
     const variables = {
-      brand_name: wl?.brand_name || 'OPC',
+      brand_name: wl?.brand_name || 'Converact',
       ...(body as Record<string, string>)
     };
     return { data: renderEmailTemplate(template, variables) };

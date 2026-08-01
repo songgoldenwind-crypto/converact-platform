@@ -75,7 +75,7 @@ class ConcurrentIndexPg implements MigrationQueryable {
 }
 
 test('migration executor records checksums, skips exact replay, and rejects drift', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'ivekit-migrations-'));
+  const directory = mkdtempSync(join(tmpdir(), 'converact-migrations-'));
   const file = join(directory, '100_example.sql');
   writeFileSync(file, 'CREATE TABLE example (id TEXT PRIMARY KEY);\n');
   const pg = new MigrationPg();
@@ -103,7 +103,7 @@ test('migration executor records checksums, skips exact replay, and rejects drif
 });
 
 test('migration executor backfills a legacy blank checksum without rerunning SQL', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'ivekit-migrations-legacy-'));
+  const directory = mkdtempSync(join(tmpdir(), 'converact-migrations-legacy-'));
   writeFileSync(join(directory, '101_legacy.sql'), 'CREATE TABLE legacy (id TEXT PRIMARY KEY);\n');
   const pg = new MigrationPg();
   pg.versions.set('101_legacy', '');
@@ -118,7 +118,7 @@ test('migration executor backfills a legacy blank checksum without rerunning SQL
 });
 
 test('failed migration rolls back without a ledger entry and succeeds on forward retry', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'ivekit-migrations-recovery-'));
+  const directory = mkdtempSync(join(tmpdir(), 'converact-migrations-recovery-'));
   writeFileSync(join(directory, '102_recoverable.sql'), 'CREATE TABLE recoverable (id TEXT PRIMARY KEY);\n');
   const pg = new FailOnceMigrationPg();
   try {

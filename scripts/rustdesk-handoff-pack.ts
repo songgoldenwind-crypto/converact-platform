@@ -46,7 +46,7 @@ export function createRustDeskHandoffPackConfigFromEnv(env: NodeJS.ProcessEnv): 
   return {
     outputFile: optionalString(resolveBrandEnv(env, 'RUSTDESK_HANDOFF_FILE')),
     title: optionalString(resolveBrandEnv(env, 'RUSTDESK_HANDOFF_TITLE')) || 'RustDesk Integration Handoff',
-    audience: optionalString(resolveBrandEnv(env, 'RUSTDESK_HANDOFF_AUDIENCE')) || 'OPC, LED, deployment, and QA teams',
+    audience: optionalString(resolveBrandEnv(env, 'RUSTDESK_HANDOFF_AUDIENCE')) || 'Converact, LED, deployment, and QA teams',
     controlPlaneBaseUrl,
     tokenConfigured: Boolean(String(resolveBrandEnv(env, 'RUSTDESK_API_TOKEN') || resolveBrandEnv(env, 'REMOTE_GATEWAY_API_TOKEN') || '').trim()),
     idServer: optionalString(resolveBrandEnv(env, 'RUSTDESK_ID_SERVER')) || '',
@@ -64,7 +64,7 @@ export function createRustDeskHandoffPackConfigFromEnv(env: NodeJS.ProcessEnv): 
     ledBaseUrl: stripTrailingSlash(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_BASE_URL') || resolveBrandEnv(env, 'BASE_URL') || controlPlaneBaseUrl),
     ledTenantId: optionalString(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_TENANT_ID') || resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID')) || '',
     ledRemoteSessionId: optionalString(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID')) || '',
-    ledRustDeskId: optionalString(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_RUSTDESK_ID') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_RUSTDESK_ID')) || ''
+    ledRustDeskId: optionalString(resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_RUSTDESK_ID') || resolveBrandEnv(env, 'RUSTDESK_FABRIC_RUSTDESK_ID') || resolveBrandEnv(env, 'RUSTDESK_IVEKIT_RUSTDESK_ID')) || ''
   };
 }
 
@@ -90,7 +90,7 @@ export function renderRustDeskHandoffPack(config: RustDeskHandoffPackConfig): st
     '',
     '## Server Validation',
     '',
-    'Run these inside the deployed OPC container after env and RustDesk key files are mounted:',
+    'Run these inside the deployed Converact container after env and RustDesk key files are mounted:',
     '',
     '```bash',
     'npm run rustdesk:deployment-preflight',
@@ -102,7 +102,7 @@ export function renderRustDeskHandoffPack(config: RustDeskHandoffPackConfig): st
     '',
     '## Event Audit',
     '',
-    'Generate a local JSONL template for the sidecar or helper process, then validate the edited file before sending it to OPC:',
+    'Generate a local JSONL template for the sidecar or helper process, then validate the edited file before sending it to Converact:',
     '',
     '```bash',
     'CONVERACT_RUSTDESK_EVENT_TEMPLATE_FILE=/tmp/rustdesk-events-template.jsonl npm run rustdesk:event-forwarder',
@@ -139,7 +139,7 @@ export function renderRustDeskHandoffPack(config: RustDeskHandoffPackConfig): st
     '',
     '## LED Integration',
     '',
-    'Use the minimal LED handoff script after OPC has a remote_session_id and a target RustDesk device:',
+    'Use the minimal LED handoff script after Converact has a remote_session_id and a target RustDesk device:',
     '',
     '```bash',
     'npm run rustdesk:led-example',

@@ -1,6 +1,6 @@
 # IVR 视频 / DataChannel 事件协议（VC-3）
 
-**Status:** Draft（OPC Phase C 模拟器 + advance API 已落地；LiveKit DataChannel 待联调）  
+**Status:** Draft（Converact Platform Phase C 模拟器 + advance API 已落地；LiveKit DataChannel 待联调）
 **Date:** 2026-06-25
 
 ## 适用范围
@@ -19,7 +19,7 @@
 
 ## visual_menu（VMN-1）
 
-### 下行（OPC → 客户端）
+### 下行（Converact Platform → 客户端）
 
 RWI `gather_digits` 的 `metadata.visual_payload`：
 
@@ -33,7 +33,7 @@ RWI `gather_digits` 的 `metadata.visual_payload`：
 }
 ```
 
-### 上行（客户端 → OPC）
+### 上行（客户端 → Converact Platform）
 
 `POST /api/ivr/sessions/:id/advance`：
 
@@ -71,6 +71,6 @@ RWI `gather_digits` 的 `metadata.visual_payload`：
 
 ## 待 RustPBX / LiveKit 确认
 
-- [ ] DataChannel topic 命名（建议 `opc.ivr`）
+- [ ] DataChannel topic 命名（建议 `converact.ivr`）
 - [ ] `visual_selection` 事件是否替代 HTTP advance
 - [ ] `record_audio` RWI（VM-1）与 VoicemailStore 回调 URL

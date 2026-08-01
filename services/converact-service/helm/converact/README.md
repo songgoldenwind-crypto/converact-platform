@@ -1,10 +1,10 @@
-# iveKit Standalone Helm Chart
+# Converact Fabric Standalone Helm Chart
 
-This Chart deploys the standalone iveKit API, optional RustPBX workload, and optional bundled Tinode server. PostgreSQL remains an external dependency so the same application image can be embedded in OPC, LED, or another product without importing the OPC monolith.
+This Chart deploys the standalone Converact Fabric API, optional RustPBX workload, and optional bundled Tinode server. PostgreSQL remains an external dependency so the same application image can be embedded in Converact, LED, or another product without importing the Converact monolith.
 
 ## Deployment profiles
 
-`values.yaml` is the minimal `core` profile. It starts the iveKit API but does not silently start bundled voice, IM, file-security, AI, observability, or benchmark workloads. The authoritative profile overlays are under `profiles/`:
+`values.yaml` is the minimal `core` profile. It starts the Converact Fabric API but does not silently start bundled voice, IM, file-security, AI, observability, or benchmark workloads. The authoritative profile overlays are under `profiles/`:
 
 - `core.values.yaml` is the mandatory production base.
 - `ai.values.yaml` enables bounded OCR, ASR, translation and quality-processing loops; provider endpoints and credentials still come from the runtime Secret.
@@ -41,7 +41,7 @@ gateway remains in each API Pod and has
 `CONVERACT_FABRIC_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED=0`. Every enabled RustPBX Pod
 co-locates a dedicated `realtime-audio-tap-gateway` sidecar with
 `CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED=0`; both containers share the
-same memory-backed `/run/ivekit/realtime-audio-tap.sock`. RustPBX never sends
+same memory-backed `/run/converact/realtime-audio-tap.sock`. RustPBX never sends
 decoded PCM across a cluster Service before the bounded gateway. Tune
 `realtimeAudioTap.rustPbxChannelCapacity` and `rustPbxSendTimeoutMs` only
 within their validated bounds; a full queue or failed sidecar drops the
@@ -54,11 +54,11 @@ to LiveKit. Persistent drops must be fixed by scaling or repairing the
 Provider/gateway, not by making the buffer unbounded. Monitor
 `opc_ivekit_voice_audio_tap_events_total`,
 `opc_ivekit_voice_audio_tap_dropped_seconds_total`, and the three
-`IveKitRealtimeAudioTap*` alerts.
+`ConveractFabricRealtimeAudioTap*` alerts.
 
 ## Tinode deployment modes
 
-`tinode.enabled=false` keeps Tinode external. When enabled, the maintained iveKit Tinode image and an immutable digest are mandatory. `tinode.publicWsUrl` must be the production `wss://.../v0/channels` endpoint.
+`tinode.enabled=false` keeps Tinode external. When enabled, the maintained Converact Fabric Tinode image and an immutable digest are mandatory. `tinode.publicWsUrl` must be the production `wss://.../v0/channels` endpoint.
 
 `tinode.mode=compact` is the small-footprint option. Compact mode supports exactly one replica, uses `Recreate`, persists `/botdata`, stores local media under `/botdata/uploads`, and mounts generated configuration, static files, logs, and temporary files on writable volumes while retaining a read-only root filesystem.
 
@@ -66,13 +66,13 @@ Provider/gateway, not by making the buffer unbounded. Monitor
 
 The existing Secret must provide `tinode-postgres-dsn`, `tinode-api-key-salt`, `tinode-api-key`, `tinode-root-api-key`, `tinode-auth-token-key`, `tinode-uid-encryption-key`, `tinode-basic-user`, `tinode-basic-password`, and `tinode-user-password-secret`. `tinode-api-key` is the non-root key returned in browser client plans; `tinode-root-api-key` is server-only and authorizes trusted placement metadata. Cluster mode additionally reads `tinode-s3-access-key-id` and `tinode-s3-secret-access-key`; values may rename keys but never contain secret values. Set `tinode.cluster.media.region`, `bucket`, optional S3-compatible `endpoint`, and CORS origins as non-secret values. Set `forcePathStyle=true` for MinIO or SeaweedFS deployments which do not provide virtual-host bucket DNS; leave it `false` for AWS S3.
 
-Every iveKit API Pod runs an idempotent Tinode service account bootstrap init container. It creates the configured basic account or proves the existing credentials can log in, promotes that credential to a Root-level service account with a parameterized PostgreSQL update, then reconnects and requires Tinode to report `authlvl=root` before the API process starts. The update is equivalent to Tinode's `tinode-db --make_root` operation, is constrained to the configured `basic:<username>` credential, and must affect exactly one row. The Tinode PostgreSQL role referenced by `tinode-postgres-dsn` must own or be allowed to update Tinode's `auth` table. A Tinode outage, invalid API key, credential drift, failed promotion, or failed root verification keeps the Pod in init failure instead of starting a partially configured chat runtime. Bundled mode explicitly enables inbound and delivery workers; leases and outboxes in PostgreSQL allow all API replicas to share those workers without fixed worker IDs. Set either worker value to `"0"` only for a deliberate maintenance window.
+Every Converact Fabric API Pod runs an idempotent Tinode service account bootstrap init container. It creates the configured basic account or proves the existing credentials can log in, promotes that credential to a Root-level service account with a parameterized PostgreSQL update, then reconnects and requires Tinode to report `authlvl=root` before the API process starts. The update is equivalent to Tinode's `tinode-db --make_root` operation, is constrained to the configured `basic:<username>` credential, and must affect exactly one row. The Tinode PostgreSQL role referenced by `tinode-postgres-dsn` must own or be allowed to update Tinode's `auth` table. A Tinode outage, invalid API key, credential drift, failed promotion, or failed root verification keeps the Pod in init failure instead of starting a partially configured chat runtime. Bundled mode explicitly enables inbound and delivery workers; leases and outboxes in PostgreSQL allow all API replicas to share those workers without fixed worker IDs. Set either worker value to `"0"` only for a deliberate maintenance window.
 
 The Tinode database bootstrap supports both an absent target database and a precreated empty target database. Grant the bootstrap role `CREATEDB` only when it must create the target database; a precreated database can be initialized without recreating it. Install and upgrade values must never enable `RESET_DB` or `TINODE_RESET_DB`; schema changes run through the single blocking hook before cluster Pods start.
 
-When network policy is enabled, iveKit API pods are allowed automatically. In cluster mode, port 12000 accepts traffic only from Tinode Pods. Add the ingress controller selector to `tinode.networkPolicy.additionalIngressFrom` before exposing browser WebSocket traffic. The browser-facing URL is rendered from `tinode.publicWsUrl`; credentials remain Secret references.
+When network policy is enabled, Converact Fabric API pods are allowed automatically. In cluster mode, port 12000 accepts traffic only from Tinode Pods. Add the ingress controller selector to `tinode.networkPolicy.additionalIngressFrom` before exposing browser WebSocket traffic. The browser-facing URL is rendered from `tinode.publicWsUrl`; credentials remain Secret references.
 
-Both `image.repository` and `image.digest` are required. When `clamav.enabled=true`, `clamav.image.repository` and an immutable `clamav.image.digest` are also required. The migration hook runs `ivekit-init-runtime-role` and the advisory-locked forward migration before each install or upgrade. The application Deployment is not changed when that hook fails.
+Both `image.repository` and `image.digest` are required. When `clamav.enabled=true`, `clamav.image.repository` and an immutable `clamav.image.digest` are also required. The migration hook runs `converact-init-runtime-role` and the advisory-locked forward migration before each install or upgrade. The application Deployment is not changed when that hook fails.
 
 The secure-file scan and FFmpeg derivative workers remain configured, but both workers and bundled ClamAV are disabled in the minimal core profile. Enable them explicitly when file processing belongs to this release. Bundled ClamAV is a minimum two-replica StatefulSet: each Pod owns an independent RWO signature volume, stale signatures remove only that Pod from the client Service, a PDB and required host anti-affinity preserve the scanner pool, and the clamd port is private behind NetworkPolicy. It uses the official `/init-unprivileged` entrypoint and has a 4 GiB memory limit to tolerate signature reloads. Multiple API replicas safely share file jobs through PostgreSQL claim leases and `FOR UPDATE SKIP LOCKED`; do not set fixed worker IDs across replicas.
 
@@ -112,10 +112,10 @@ monitoring:
     hostLabels: false
     telemetry: false
     nodeSelector:
-      ivekit.io/voice-node: "true"
+      converact.io/voice-node: "true"
 ```
 
-Voice is disabled by default. Enabling it additionally requires the iveKit-patched immutable RustPBX digest, the source-built immutable Kamailio digest, one exact Region/Zone/Cell identity, a tenant ID, a profile ID, and the configured RustPBX database URL/password, management API token, RWI token, webhook token, voice address HMAC root, route snapshot signing key, Kamailio route/topoh/RPC keys and TLS keypair/CA in the existing Secret. The management and RWI tokens must be distinct. The route signing key must be a distinct canonical-base64 32-byte secret; the address HMAC key must be the same root used by the iveKit API. The route projector sidecar polls one revision row, loads the bounded route set only after an authoritative routing change, renews the HMAC-only snapshot near expiry by atomic rename, and shares it with RustPBX through pod-local `emptyDir`. RustPBX fails new inbound routing closed when the snapshot is missing, invalid, or stale. The API runtime Secret must expose the same management token as `RUSTPBX_MANAGEMENT_TOKEN` and the RWI token as `RUSTPBX_RWI_TOKEN`. Set `voice.amiAllows` and `voice.kamailio.trustedSourceCidrs` to explicit networks; wildcard trust is forbidden. The RustPBX database and role must be provisioned before deployment.
+Voice is disabled by default. Enabling it additionally requires the Converact Fabric-patched immutable RustPBX digest, the source-built immutable Kamailio digest, one exact Region/Zone/Cell identity, a tenant ID, a profile ID, and the configured RustPBX database URL/password, management API token, RWI token, webhook token, voice address HMAC root, route snapshot signing key, Kamailio route/topoh/RPC keys and TLS keypair/CA in the existing Secret. The management and RWI tokens must be distinct. The route signing key must be a distinct canonical-base64 32-byte secret; the address HMAC key must be the same root used by the Converact Fabric API. The route projector sidecar polls one revision row, loads the bounded route set only after an authoritative routing change, renews the HMAC-only snapshot near expiry by atomic rename, and shares it with RustPBX through pod-local `emptyDir`. RustPBX fails new inbound routing closed when the snapshot is missing, invalid, or stale. The API runtime Secret must expose the same management token as `RUSTPBX_MANAGEMENT_TOKEN` and the RWI token as `RUSTPBX_RWI_TOKEN`. Set `voice.amiAllows` and `voice.kamailio.trustedSourceCidrs` to explicit networks; wildcard trust is forbidden. The RustPBX database and role must be provisioned before deployment.
 
 One Chart release is one Cell in one Zone. The default production topology uses a two-replica Kamailio StatefulSet behind a source-preserving L4 Service and a host-networked RustPBX StatefulSet with stable ordinal owners and a headless management Service. Configure exact `voice.webphone.allowedOrigins`, project the WebPhone JWT secret named by `voice.webphone.jwtSecretKey`, and restrict `voice.kamailio.rustpbxSourceCidrs` and `voice.kamailio.dmqSourceCidrs` to real internal networks. Authenticated WebPhone locations replicate over the Kamailio headless Service on UDP 5066; that port is intentionally absent from the public SIP Service. SIP/TLS/WSS are exposed only by Kamailio; RTP remains direct to RustPBX node addresses. Deploy Zone B as a separate release with its own identity and lease epoch. Because hostNetwork NetworkPolicy behavior is CNI-specific, enforce RustPBX management/SIP and RTP ranges with node firewall/security-group rules as well. Route-agent proxies bounded loopback Kamailio metrics through the internal metrics Service; JSON-RPC and the raw xhttp endpoint never receive a Service.
 
@@ -128,13 +128,13 @@ enabled, its background gate reads `metrics.json` from the state volume and
 rejects only new reservations requiring `data.local_spool_bytes` after stale or
 90-percent evidence; no per-INVITE disk or network call is added to RustPBX.
 The uploader also persists finalization retries for the owner-bound
-`recording-completed.json` marker. iveKit advances the parent manifest only
+`recording-completed.json` marker. Converact Fabric advances the parent manifest only
 after all expected `1..N` segments are uploaded; a missing segment leaves the
 manifest in `uploading` and returns a retryable conflict.
 
 The default Voice Secret key names are `rustpbx-database-url`,
 `rustpbx-database-password`, `rustpbx-management-token`, `rustpbx-rwi-token`,
-`rustpbx-webhook-token`, `ivekit-voice-address-hmac-key`, and
+`rustpbx-webhook-token`, `converact-voice-address-hmac-key`, and
 `rustpbx-route-snapshot-hmac-key`. Values may rename these keys through
 `voice.*Key` fields, but the secret values themselves must not enter
 `values.yaml`.

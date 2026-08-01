@@ -35,7 +35,7 @@ test('VictoriaMetrics is a pinned, single-node, bounded metrics store', () => {
   assert.match(service, /type: ClusterIP/);
   assert.match(service, /port: 8428/);
   assert.match(pdb, /minAvailable: 1/);
-  assert.match(network, /opc\.ivekit\.io\/victoria-metrics-role/);
+  assert.match(network, /converact\.io\/victoria-metrics-role/);
   assert.doesNotMatch(storageNetwork, /ingress:\s*\[\]/);
 });
 
@@ -45,9 +45,9 @@ test('VictoriaMetrics backup and restore use pinned community tools and external
 
   assert.match(backup, /concurrencyPolicy: Forbid/);
   assert.match(backup, /vmbackup@sha256:1d01f330d98d/);
-  assert.match(backup, /-snapshot\.createURL=http:\/\/ivekit-victoria-metrics:8428\/snapshot\/create/);
+  assert.match(backup, /-snapshot\.createURL=http:\/\/converact-victoria-metrics:8428\/snapshot\/create/);
   assert.match(backup, /-envflag\.enable/);
-  assert.match(backup, /name: ivekit-victoria-metrics-backup/);
+  assert.match(backup, /name: converact-victoria-metrics-backup/);
   assert.match(backup, /readOnly: true/);
   assert.doesNotMatch(backup, /AWS_SECRET_ACCESS_KEY:\s*[^\n]+/);
   assert.match(restore, /suspend: true/);

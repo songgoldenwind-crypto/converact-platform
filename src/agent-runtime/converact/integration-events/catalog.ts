@@ -1,19 +1,19 @@
-export interface IveKitIntegrationEventFamily {
+export interface ConveractFabricIntegrationEventFamily {
   id: 'chat' | 'file' | 'intelligence' | 'media' | 'notification' | 'provider' | 'remote' | 'voice';
   patterns: readonly string[];
 }
 
-export interface IveKitIntegrationEventCatalog {
+export interface ConveractFabricIntegrationEventCatalog {
   schema_version: 1;
   envelope_schema_version: 1;
   webhook_signature_version: 'v1';
   pattern_syntax: 'exact_or_trailing_wildcard';
   compatibility: 'additive';
   max_payload_bytes: number;
-  families: readonly IveKitIntegrationEventFamily[];
+  families: readonly ConveractFabricIntegrationEventFamily[];
 }
 
-export const IVEKIT_INTEGRATION_EVENT_CATALOG: IveKitIntegrationEventCatalog = {
+export const CONVERACT_FABRIC_INTEGRATION_EVENT_CATALOG: ConveractFabricIntegrationEventCatalog = {
   schema_version: 1,
   envelope_schema_version: 1,
   webhook_signature_version: 'v1',
@@ -35,7 +35,7 @@ export const IVEKIT_INTEGRATION_EVENT_CATALOG: IveKitIntegrationEventCatalog = {
 const EVENT_NAME = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/;
 const EVENT_FAMILY = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*\.\*$/;
 
-export function normalizeIveKitEventPatterns(input: readonly string[]): string[] {
+export function normalizeConveractFabricEventPatterns(input: readonly string[]): string[] {
   if (!Array.isArray(input) || input.length < 1 || input.length > 64) {
     throw new Error('event patterns must contain between 1 and 64 entries');
   }
@@ -46,7 +46,7 @@ export function normalizeIveKitEventPatterns(input: readonly string[]): string[]
   return [...new Set(patterns)].sort();
 }
 
-export function matchesIveKitEventPattern(eventType: string, patterns: readonly string[]): boolean {
+export function matchesConveractFabricEventPattern(eventType: string, patterns: readonly string[]): boolean {
   return patterns.some((pattern) => pattern.endsWith('.*')
     ? eventType.startsWith(pattern.slice(0, -1))
     : eventType === pattern);

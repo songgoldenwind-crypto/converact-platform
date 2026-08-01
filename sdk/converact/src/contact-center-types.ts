@@ -1,24 +1,24 @@
-export type IveKitContactCenterAgentStatus = 'active' | 'disabled' | 'archived';
-export type IveKitContactCenterPresenceState = 'offline' | 'available' | 'busy' | 'after_call' | 'away';
-export type IveKitContactCenterQueueStatus = 'active' | 'disabled' | 'archived';
-export type IveKitContactCenterRoutingStrategy =
+export type ConveractFabricContactCenterAgentStatus = 'active' | 'disabled' | 'archived';
+export type ConveractFabricContactCenterPresenceState = 'offline' | 'available' | 'busy' | 'after_call' | 'away';
+export type ConveractFabricContactCenterQueueStatus = 'active' | 'disabled' | 'archived';
+export type ConveractFabricContactCenterRoutingStrategy =
   'longest_idle' | 'least_calls' | 'round_robin' | 'skill_priority';
-export type IveKitContactCenterQueueEntryState =
+export type ConveractFabricContactCenterQueueEntryState =
   'waiting' | 'offered' | 'assigned' | 'answered' | 'completed' | 'abandoned' |
   'timed_out' | 'cancelled' | 'overflowed' | 'callback_requested';
-export type IveKitContactCenterAssignmentState =
+export type ConveractFabricContactCenterAssignmentState =
   'offered' | 'accepted' | 'connected' | 'rejected' | 'expired' | 'revoked' |
   'completed' | 'failed';
-export type IveKitContactCenterCallbackState =
+export type ConveractFabricContactCenterCallbackState =
   'requested' | 'scheduled' | 'dialing' | 'connected' | 'completed' | 'cancelled' | 'failed';
-export type IveKitContactCenterSupervisorMode = 'monitor' | 'whisper' | 'barge';
+export type ConveractFabricContactCenterSupervisorMode = 'monitor' | 'whisper' | 'barge';
 
-export interface IveKitContactCenterPage<T> {
+export interface ConveractFabricContactCenterPage<T> {
   items: T[];
   next_cursor: string | null;
 }
 
-export interface IveKitContactCenterCapabilities {
+export interface ConveractFabricContactCenterCapabilities {
   api_version: 'v1';
   tenant_id: string;
   capabilities: {
@@ -37,12 +37,12 @@ export interface IveKitContactCenterCapabilities {
   };
 }
 
-export interface IveKitContactCenterSkill {
+export interface ConveractFabricContactCenterSkill {
   id: string;
   tenant_id: string;
   name: string;
   description: string;
-  status: IveKitContactCenterAgentStatus;
+  status: ConveractFabricContactCenterAgentStatus;
   revision: number;
   created_by: string;
   updated_by: string;
@@ -50,13 +50,13 @@ export interface IveKitContactCenterSkill {
   updated_at: string;
 }
 
-export interface IveKitContactCenterAgent {
+export interface ConveractFabricContactCenterAgent {
   id: string;
   tenant_id: string;
   identity: string;
   display_name: string;
   voice_extension_id: string | null;
-  status: IveKitContactCenterAgentStatus;
+  status: ConveractFabricContactCenterAgentStatus;
   voice_capacity: number;
   metadata: Record<string, unknown>;
   revision: number;
@@ -66,10 +66,10 @@ export interface IveKitContactCenterAgent {
   updated_at: string;
 }
 
-export interface IveKitContactCenterPresence {
+export interface ConveractFabricContactCenterPresence {
   tenant_id: string;
   agent_id: string;
-  state: IveKitContactCenterPresenceState;
+  state: ConveractFabricContactCenterPresenceState;
   active_voice_count: number;
   voice_capacity: number;
   current_call_id: string | null;
@@ -80,22 +80,22 @@ export interface IveKitContactCenterPresence {
   updated_at: string;
 }
 
-export interface IveKitContactCenterAgentSkill {
+export interface ConveractFabricContactCenterAgentSkill {
   skill_id: string;
   proficiency: number;
 }
 
-export interface IveKitContactCenterAgentSnapshot {
-  agent: IveKitContactCenterAgent;
-  presence: IveKitContactCenterPresence;
-  skills: IveKitContactCenterAgentSkill[];
+export interface ConveractFabricContactCenterAgentSnapshot {
+  agent: ConveractFabricContactCenterAgent;
+  presence: ConveractFabricContactCenterPresence;
+  skills: ConveractFabricContactCenterAgentSkill[];
 }
 
-export interface IveKitContactCenterQueue {
+export interface ConveractFabricContactCenterQueue {
   id: string;
   tenant_id: string;
   name: string;
-  routing_strategy: IveKitContactCenterRoutingStrategy;
+  routing_strategy: ConveractFabricContactCenterRoutingStrategy;
   max_wait_seconds: number;
   max_size: number;
   callback_after_seconds: number;
@@ -103,7 +103,7 @@ export interface IveKitContactCenterQueue {
   overflow_queue_id: string | null;
   overflow_target: string;
   service_level_seconds: number;
-  status: IveKitContactCenterQueueStatus;
+  status: ConveractFabricContactCenterQueueStatus;
   metadata: Record<string, unknown>;
   revision: number;
   created_by: string;
@@ -112,7 +112,7 @@ export interface IveKitContactCenterQueue {
   updated_at: string;
 }
 
-export interface IveKitContactCenterMembership {
+export interface ConveractFabricContactCenterMembership {
   queue_id: string;
   agent_id: string;
   priority: number;
@@ -121,23 +121,23 @@ export interface IveKitContactCenterMembership {
   updated_at: string;
 }
 
-export interface IveKitContactCenterSkillRequirement {
+export interface ConveractFabricContactCenterSkillRequirement {
   skill_id: string;
   minimum_proficiency: number;
 }
 
-export interface IveKitContactCenterQueueConfiguration {
-  queue: IveKitContactCenterQueue;
-  memberships: IveKitContactCenterMembership[];
-  skill_requirements: IveKitContactCenterSkillRequirement[];
+export interface ConveractFabricContactCenterQueueConfiguration {
+  queue: ConveractFabricContactCenterQueue;
+  memberships: ConveractFabricContactCenterMembership[];
+  skill_requirements: ConveractFabricContactCenterSkillRequirement[];
 }
 
-export interface IveKitContactCenterQueueEntry {
+export interface ConveractFabricContactCenterQueueEntry {
   id: string;
   tenant_id: string;
   queue_id: string;
   call_id: string;
-  state: IveKitContactCenterQueueEntryState;
+  state: ConveractFabricContactCenterQueueEntryState;
   priority: number;
   idempotency_key: string;
   payload_hash: string;
@@ -154,13 +154,13 @@ export interface IveKitContactCenterQueueEntry {
   updated_at: string;
 }
 
-export interface IveKitContactCenterAssignment {
+export interface ConveractFabricContactCenterAssignment {
   id: string;
   tenant_id: string;
   queue_entry_id: string;
   agent_id: string;
   capacity_slot: number;
-  state: IveKitContactCenterAssignmentState;
+  state: ConveractFabricContactCenterAssignmentState;
   attempt: number;
   idempotency_key: string;
   offer_expires_at: string;
@@ -173,12 +173,12 @@ export interface IveKitContactCenterAssignment {
   updated_at: string;
 }
 
-export interface IveKitContactCenterQueueEntrySnapshot {
-  entry: IveKitContactCenterQueueEntry;
-  assignments: IveKitContactCenterAssignment[];
+export interface ConveractFabricContactCenterQueueEntrySnapshot {
+  entry: ConveractFabricContactCenterQueueEntry;
+  assignments: ConveractFabricContactCenterAssignment[];
 }
 
-export interface IveKitContactCenterCallback {
+export interface ConveractFabricContactCenterCallback {
   id: string;
   tenant_id: string;
   queue_id: string;
@@ -187,7 +187,7 @@ export interface IveKitContactCenterCallback {
   outbound_call_id: string | null;
   business_ref: { type: string; id: string };
   address: { kind: 'e164' | 'extension' | 'sip_uri'; redacted: string };
-  state: IveKitContactCenterCallbackState;
+  state: ConveractFabricContactCenterCallbackState;
   scheduled_for: string | null;
   attempt_count: number;
   max_attempts: number;
@@ -200,13 +200,13 @@ export interface IveKitContactCenterCallback {
   completed_at: string | null;
 }
 
-export interface IveKitContactCenterSupervisorSession {
+export interface ConveractFabricContactCenterSupervisorSession {
   id: string;
   tenant_id: string;
   call_id: string;
   target_agent_id: string;
   supervisor_identity: string;
-  mode: IveKitContactCenterSupervisorMode;
+  mode: ConveractFabricContactCenterSupervisorMode;
   state: 'requested' | 'active' | 'denied' | 'ended' | 'failed';
   authorization_ref: string;
   idempotency_key: string;
@@ -220,7 +220,7 @@ export interface IveKitContactCenterSupervisorSession {
   updated_at: string;
 }
 
-export interface IveKitContactCenterMonitorSnapshot {
+export interface ConveractFabricContactCenterMonitorSnapshot {
   generated_at: string;
   agents: {
     configured: number; active: number; offline: number; available: number;
@@ -234,8 +234,8 @@ export interface IveKitContactCenterMonitorSnapshot {
     supervisor_requested: number; supervisor_active: number;
   };
   queues: Array<{
-    queue_id: string; queue_name: string; status: IveKitContactCenterQueueStatus;
-    routing_strategy: IveKitContactCenterRoutingStrategy;
+    queue_id: string; queue_name: string; status: ConveractFabricContactCenterQueueStatus;
+    routing_strategy: ConveractFabricContactCenterRoutingStrategy;
     max_wait_seconds: number; service_level_seconds: number;
     waiting_count: number; offered_count: number; assigned_count: number;
     answered_count: number; available_agents: number; available_capacity: number;
@@ -256,22 +256,22 @@ export interface IveKitContactCenterMonitorSnapshot {
   }>;
 }
 
-export interface IveKitContactCenterListInput {
+export interface ConveractFabricContactCenterListInput {
   status?: string;
   cursor?: string;
   limit?: number;
 }
 
-export interface IveKitContactCenterCreateQueueInput {
+export interface ConveractFabricContactCenterCreateQueueInput {
   name: string;
-  routing_strategy?: IveKitContactCenterRoutingStrategy;
+  routing_strategy?: ConveractFabricContactCenterRoutingStrategy;
   max_wait_seconds?: number;
   max_size?: number;
   callback_after_seconds?: number;
-  overflow_action?: IveKitContactCenterQueue['overflow_action'];
+  overflow_action?: ConveractFabricContactCenterQueue['overflow_action'];
   overflow_queue_id?: string | null;
   overflow_target?: string;
   service_level_seconds?: number;
   metadata?: Record<string, unknown>;
-  status?: IveKitContactCenterQueueStatus;
+  status?: ConveractFabricContactCenterQueueStatus;
 }

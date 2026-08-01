@@ -228,25 +228,25 @@ test('RustDesk client profile pack rejects drift, expiry, and unsafe fake-client
 test('RustDesk client profile pack config validates trusted origin and expected drift values', () => {
   const config = createRustDeskClientProfilePackConfigFromEnv({
     CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_FILE: '/tmp/rustdesk-client-profile-pack.json',
-    CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_BASE_URL: 'https://converact.example.com/',
     CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_API_KEY: 'profile-pack-api-secret',
     CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_TENANT_ID: 'tenant_led',
     CONVERACT_RUSTDESK_CLIENT_PROFILE_EXPECTED_SERVER_VERSION: '1.1.16',
     CONVERACT_RUSTDESK_CLIENT_PROFILE_EXPECTED_FINGERPRINT: FINGERPRINT
   });
   assert.equal(config.outputFile, '/tmp/rustdesk-client-profile-pack.json');
-  assert.equal(config.baseUrl, 'https://opc.example.com');
+  assert.equal(config.baseUrl, 'https://converact.example.com');
   assert.equal(config.apiKey, 'profile-pack-api-secret');
   assert.equal(config.tenantId, 'tenant_led');
   assert.equal(config.expectedServerVersion, '1.1.16');
   assert.equal(config.expectedServerKeyFingerprint, FINGERPRINT);
 
   for (const baseUrl of [
-    'file:///tmp/opc',
-    'https://user:password@opc.example.com',
-    'https://opc.example.com/path',
-    'https://opc.example.com?token=secret',
-    'https://opc.example.com#secret'
+    'file:///tmp/converact',
+    'https://user:password@converact.example.com',
+    'https://converact.example.com/path',
+    'https://converact.example.com?token=secret',
+    'https://converact.example.com#secret'
   ]) {
     assert.throws(
       () => createRustDeskClientProfilePackConfigFromEnv({
@@ -262,7 +262,7 @@ test('RustDesk client profile pack config validates trusted origin and expected 
 
   assert.throws(
     () => createRustDeskClientProfilePackConfigFromEnv({
-      CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_BASE_URL: 'https://opc.example.com',
+      CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_BASE_URL: 'https://converact.example.com',
       CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_API_KEY: 'profile-pack-api-secret',
       CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_TENANT_ID: 'tenant_led',
       CONVERACT_RUSTDESK_CLIENT_PROFILE_EXPECTED_SERVER_VERSION: 'latest',
@@ -273,7 +273,7 @@ test('RustDesk client profile pack config validates trusted origin and expected 
 
   assert.throws(
     () => createRustDeskClientProfilePackConfigFromEnv({
-      CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_BASE_URL: 'https://opc.example.com',
+      CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_BASE_URL: 'https://converact.example.com',
       CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_API_KEY: 'profile-pack-api-secret',
       CONVERACT_RUSTDESK_CLIENT_PROFILE_PACK_TENANT_ID: 'tenant_led',
       CONVERACT_RUSTDESK_CLIENT_PROFILE_EXPECTED_SERVER_VERSION: '1.1.16',
@@ -339,7 +339,7 @@ test('RustDesk client profile pack writes a secret-free JSON artifact and expose
 function packConfig() {
   return {
     title: 'RustDesk desktop client distribution',
-    baseUrl: 'https://opc.example.com',
+    baseUrl: 'https://converact.example.com',
     apiKey: 'profile-pack-api-secret',
     tenantId: 'tenant_led',
     expectedServerVersion: '1.1.16' as const,

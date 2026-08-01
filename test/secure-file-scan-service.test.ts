@@ -179,7 +179,7 @@ test('scan claims are exclusive and an expired lease can be recovered', async (t
 });
 
 function scanHarness(t: test.TestContext) {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-secure-file-scan-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-secure-file-scan-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   let clock = new Date('2026-07-15T04:00:00.000Z');
   const pg = new MemoryPg();

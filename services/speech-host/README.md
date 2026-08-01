@@ -1,6 +1,6 @@
 # Mac 中文语音服务（方案 B）
 
-在 **宿主机** 运行 FunASR + CosyVoice，Docker 里的 `ai-agent` / `opc` 通过 `host.docker.internal` 访问。
+在 **宿主机** 运行 FunASR + CosyVoice，Docker 里的 `ai-agent` / `converact` 通过 `host.docker.internal` 访问。
 
 ## 1. FunASR（ASR）
 

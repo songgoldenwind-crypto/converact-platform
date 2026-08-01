@@ -7,7 +7,7 @@ const composeConfig = readFileSync('infra/config/nats.conf', 'utf8');
 const statefulSet = readFileSync('infra/k8s/templates/nats-statefulset.yaml', 'utf8');
 const networkPolicy = readFileSync('infra/k8s/templates/nats-network-policy.yaml', 'utf8');
 const values = readFileSync('infra/k8s/values.yaml', 'utf8');
-const opcDeployment = readFileSync('infra/k8s/templates/opc-deployment.yaml', 'utf8');
+const converactDeployment = readFileSync('infra/k8s/templates/converact-deployment.yaml', 'utf8');
 
 test('production Compose pins and authenticates NATS without publishing client or monitor ports', () => {
   const nats = serviceBlock(compose, 'nats');
@@ -26,10 +26,10 @@ test('production Compose pins and authenticates NATS without publishing client o
   assert.match(composeConfig, /max_memory_store:\s*256MB/);
   assert.match(composeConfig, /max_file_store:\s*1GB/);
 
-  const opc = serviceBlock(compose, 'opc');
-  assert.match(opc, /NATS_USER: \$\{NATS_USER:\?NATS_USER is required\}/);
-  assert.match(opc, /NATS_PASSWORD: \$\{NATS_PASSWORD:\?NATS_PASSWORD is required\}/);
-  assert.match(opc, /NATS_TLS_MODE: disabled/);
+  const converact = serviceBlock(compose, 'converact');
+  assert.match(converact, /NATS_USER: \$\{NATS_USER:\?NATS_USER is required\}/);
+  assert.match(converact, /NATS_PASSWORD: \$\{NATS_PASSWORD:\?NATS_PASSWORD is required\}/);
+  assert.match(converact, /NATS_TLS_MODE: disabled/);
 });
 
 test('Kubernetes NATS is a three-node authenticated TLS JetStream quorum', () => {
@@ -75,10 +75,10 @@ test('Kubernetes application clients receive secret auth and verified TLS settin
     'NATS_PASSWORD',
     'NATS_TLS_MODE',
     'NATS_TLS_CA_FILE'
-  ]) assert.match(opcDeployment, new RegExp(`- name: ${name}`));
-  assert.match(opcDeployment, /value: tls:\/\/\{\{ \.Release\.Name \}\}-nats:4222/);
-  assert.match(opcDeployment, /mountPath: \/etc\/nats\/tls/);
-  assert.match(opcDeployment, /readOnly: true/);
+  ]) assert.match(converactDeployment, new RegExp(`- name: ${name}`));
+  assert.match(converactDeployment, /value: tls:\/\/\{\{ \.Release\.Name \}\}-nats:4222/);
+  assert.match(converactDeployment, /mountPath: \/etc\/nats\/tls/);
+  assert.match(converactDeployment, /readOnly: true/);
 });
 
 function serviceBlock(source: string, name: string): string {

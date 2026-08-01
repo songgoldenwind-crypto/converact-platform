@@ -13,9 +13,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ivekit.fullname" . }}
+  name: {{ include "converact.fullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
   {{- if not .Values.autoscaling.enabled }}
@@ -28,12 +28,12 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: api
   template:
     metadata:
       labels:
-        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        {{- include "converact.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: api
     spec:
       automountServiceAccountToken: false
@@ -45,7 +45,7 @@ spec:
           whenUnsatisfiable: {{ .Values.topologySpreadConstraints.whenUnsatisfiable }}
           labelSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: api
       {{- end }}
       securityContext:
@@ -57,31 +57,31 @@ spec:
       {{- if .Values.tinode.enabled }}
       initContainers:
         - name: tinode-service-account-bootstrap
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-tinode-bootstrap.js"]
           env:
             - name: TINODE_WS_URL
-              value: {{ printf "ws://%s:%v/v0/channels" (include "ivekit.tinodeFullname" .) .Values.tinode.service.port | quote }}
+              value: {{ printf "ws://%s:%v/v0/channels" (include "converact.tinodeFullname" .) .Values.tinode.service.port | quote }}
             - name: TINODE_ROOT_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.rootApiKeyKey }}
             - name: TINODE_POSTGRES_DSN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.postgresDsnKey }}
             - name: TINODE_BASIC_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.basicUserKey }}
             - name: TINODE_BASIC_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.basicPasswordKey }}
             - name: TINODE_BOOTSTRAP_TIMEOUT_MS
               value: {{ .Values.tinode.config.bootstrapTimeoutMs | quote }}
@@ -98,16 +98,16 @@ spec:
       containers:
         {{- if .Values.placement.enabled }}
         - name: placement-snapshot-projector
-          image: {{ include "ivekit.image" . | quote }}
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "dist/converact-placement-snapshot-projector.js"]
           env:
             - name: CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE
-              value: /run/ivekit-placement/placement.json
+              value: /run/converact-placement/placement.json
             - name: CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.placement.secrets.snapshotHmacKeysKey }}
             - name: CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_KEY_ID
               value: {{ .Values.placement.snapshotKeyId | quote }}
@@ -118,7 +118,7 @@ spec:
             - name: CONVERACT_FABRIC_CELL_ADMISSION_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.placement.secrets.admissionTokenKey }}
             - name: CONVERACT_FABRIC_PLACEMENT_PROJECTOR_INTERVAL_MS
               value: {{ .Values.placement.projectorIntervalMs | quote }}
@@ -132,10 +132,10 @@ spec:
             {{- toYaml .Values.placement.resources | nindent 12 }}
           volumeMounts:
             - name: placement-snapshot
-              mountPath: /run/ivekit-placement
+              mountPath: /run/converact-placement
         {{- end }}
-        - name: ivekit
-          image: {{ include "ivekit.image" . | quote }}
+        - name: converact
+          image: {{ include "converact.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- if .Values.telemetry.enabled }}
           command: ["node", "--import", "dist/telemetry.js", "dist/converact-server.js"]
@@ -170,23 +170,23 @@ spec:
             - name: CONVERACT_FABRIC_INTERNAL_TLS_PORT
               value: "3443"
             - name: CONVERACT_FABRIC_INTERNAL_TLS_KEY_FILE
-              value: /run/ivekit-cdr-tls/server.key
+              value: /run/converact-cdr-tls/server.key
             - name: CONVERACT_FABRIC_INTERNAL_TLS_CERT_FILE
-              value: /run/ivekit-cdr-tls/server.crt
+              value: /run/converact-cdr-tls/server.crt
             - name: CONVERACT_FABRIC_INTERNAL_TLS_CLIENT_CA_FILE
-              value: /run/ivekit-cdr-tls/ca.crt
+              value: /run/converact-cdr-tls/ca.crt
             {{- end }}
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.secrets.runtimeDatabaseUrlKey }}
             - name: CONVERACT_SCHEMA_MANAGED_BY_MIGRATIONS
               value: "1"
             - name: CONVERACT_OTEL_ENABLED
               value: {{ ternary "1" "0" .Values.telemetry.enabled | quote }}
             - name: CONVERACT_OTEL_SERVICE_NAME
-              value: ivekit-api
+              value: converact-api
             - name: CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.telemetry.collectorEndpoint | quote }}
             - name: CONVERACT_OTEL_TRACE_SAMPLE_RATIO
@@ -204,12 +204,12 @@ spec:
             - name: CONVERACT_FABRIC_AUDIT_IP_HMAC_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.secrets.auditIpHmacKeyKey }}
             - name: CONVERACT_FABRIC_RATE_LIMIT_HMAC_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.secrets.rateLimitHmacKeyKey }}
             - name: CONVERACT_FABRIC_ALLOWED_ORIGINS
               value: {{ .Values.config.allowedOrigins | quote }}
@@ -231,7 +231,7 @@ spec:
             - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.secrets.realtimeAudioTapHmacSecretKey }}
             - name: CONVERACT_FABRIC_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
               value: {{ .Values.realtimeAudioTap.tokenTtlSeconds | quote }}
@@ -246,7 +246,7 @@ spec:
             - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PATH
               value: {{ .Values.realtimeAudioTap.path | quote }}
             - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_GATEWAY_URL
-              value: {{ printf "ws://$(POD_NAME).%s-audio-tap.%s.svc:%v%s" (include "ivekit.fullname" .) .Release.Namespace .Values.realtimeAudioTap.listenPort .Values.realtimeAudioTap.path | quote }}
+              value: {{ printf "ws://$(POD_NAME).%s-audio-tap.%s.svc:%v%s" (include "converact.fullname" .) .Release.Namespace .Values.realtimeAudioTap.listenPort .Values.realtimeAudioTap.path | quote }}
             - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS
               value: {{ .Values.realtimeAudioTap.maxConnections | quote }}
             - name: CONVERACT_FABRIC_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS
@@ -270,23 +270,23 @@ spec:
             - name: CONVERACT_FABRIC_PLACEMENT_ENABLED
               value: "1"
             - name: CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE
-              value: /run/ivekit-placement/placement.json
+              value: /run/converact-placement/placement.json
             - name: CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.placement.secrets.snapshotHmacKeysKey }}
             - name: CONVERACT_FABRIC_PLACEMENT_TOKEN_HMAC_KEYS_JSON
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.placement.secrets.tokenHmacKeysKey }}
             - name: CONVERACT_FABRIC_PLACEMENT_TOKEN_KEY_ID
               value: {{ .Values.placement.tokenKeyId | quote }}
             - name: CONVERACT_FABRIC_CELL_ADMISSION_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.placement.secrets.admissionTokenKey }}
             - name: CONVERACT_FABRIC_PLACEMENT_HOME_REGION_ID
               value: {{ .Values.placement.homeRegionId | quote }}
@@ -327,7 +327,7 @@ spec:
             - name: CONVERACT_FABRIC_WEBPHONE_JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.voice.webphone.jwtSecretKey }}
             - name: CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER
               value: {{ .Values.voice.webphone.jwtIssuer | quote }}
@@ -365,7 +365,7 @@ spec:
             - name: CONVERACT_FILE_SECURITY_ALLOW_CONTROLLED
               value: "0"
             - name: CONVERACT_FILE_SECURITY_CLAMD_HOST
-              value: {{ ternary (include "ivekit.clamavFullname" .) .Values.fileSecurity.clamdHost .Values.clamav.enabled | quote }}
+              value: {{ ternary (include "converact.clamavFullname" .) .Values.fileSecurity.clamdHost .Values.clamav.enabled | quote }}
             - name: CONVERACT_FILE_SECURITY_CLAMD_PORT
               value: {{ .Values.fileSecurity.clamdPort | quote }}
             - name: CONVERACT_FILE_DERIVATIVE_PROVIDER_MODE
@@ -394,9 +394,9 @@ spec:
             - name: TINODE_DEPLOYMENT_MODE
               value: self_hosted
             - name: TINODE_BASE_URL
-              value: {{ printf "http://%s:%v" (include "ivekit.tinodeFullname" .) .Values.tinode.service.port | quote }}
+              value: {{ printf "http://%s:%v" (include "converact.tinodeFullname" .) .Values.tinode.service.port | quote }}
             - name: TINODE_WS_URL
-              value: {{ printf "ws://%s:%v/v0/channels" (include "ivekit.tinodeFullname" .) .Values.tinode.service.port | quote }}
+              value: {{ printf "ws://%s:%v/v0/channels" (include "converact.tinodeFullname" .) .Values.tinode.service.port | quote }}
             - name: TINODE_PUBLIC_BASE_URL
               value: {{ .Values.tinode.publicBaseUrl | quote }}
             - name: TINODE_PUBLIC_WS_URL
@@ -404,27 +404,27 @@ spec:
             - name: TINODE_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.apiKeyKey }}
             - name: TINODE_ROOT_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.rootApiKeyKey }}
             - name: TINODE_BASIC_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.basicUserKey }}
             - name: TINODE_BASIC_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.basicPasswordKey }}
             - name: TINODE_USER_PASSWORD_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.userPasswordSecretKey }}
             - name: CONVERACT_TINODE_DELIVERY_WORKER_ENABLED
               value: {{ .Values.tinode.config.deliveryWorkerEnabled | quote }}
@@ -459,20 +459,20 @@ spec:
             - name: tmp
               mountPath: /tmp
             {{- if .Values.voice.enabled }}
-            - name: ivekit-cdr-tls
-              mountPath: /run/ivekit-cdr-tls
+            - name: converact-cdr-tls
+              mountPath: /run/converact-cdr-tls
               readOnly: true
             {{- end }}
             {{- if .Values.placement.enabled }}
             - name: placement-snapshot
-              mountPath: /run/ivekit-placement
+              mountPath: /run/converact-placement
               readOnly: true
             {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
         {{- if .Values.voice.enabled }}
-        - name: ivekit-cdr-tls
+        - name: converact-cdr-tls
           secret:
             secretName: {{ required "voice.cdr.tls.secretName is required when voice is enabled" .Values.voice.cdr.tls.secretName }}
             defaultMode: 0400

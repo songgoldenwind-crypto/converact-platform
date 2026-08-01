@@ -1,4 +1,4 @@
-import type { IveKitChatMessage } from '@converact/sdk';
+import type { ConveractFabricChatMessage } from '@converact/sdk';
 
 export type ChatConnectionState =
   | 'idle'
@@ -17,8 +17,8 @@ export type ChatConvergenceTrigger =
   | 'visibility';
 
 export interface ChatConvergenceProjection {
-  messages: IveKitChatMessage[];
-  changedMessages: IveKitChatMessage[];
+  messages: ConveractFabricChatMessage[];
+  changedMessages: ConveractFabricChatMessage[];
   cursor: string | null;
   generation: number;
 }

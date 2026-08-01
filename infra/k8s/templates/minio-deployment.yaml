@@ -40,13 +40,13 @@ spec:
             - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "opc.objectStorageSecretName" . }}
-                  key: {{ include "opc.objectStorageAccessKeyIdKey" . }}
+                  name: {{ include "converact.objectStorageSecretName" . }}
+                  key: {{ include "converact.objectStorageAccessKeyIdKey" . }}
             - name: MINIO_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "opc.objectStorageSecretName" . }}
-                  key: {{ include "opc.objectStorageSecretAccessKeyKey" . }}
+                  name: {{ include "converact.objectStorageSecretName" . }}
+                  key: {{ include "converact.objectStorageSecretAccessKeyKey" . }}
           ports:
             - name: api
               containerPort: 9000

@@ -1,7 +1,7 @@
-# Reusable iveKit application plane. Pair with the standalone Media Core in infra/livekit.
+# Reusable Converact Fabric application plane. Pair with the standalone Media Core in infra/livekit.
 services:
   postgres:
-    image: ${IVEKIT_POSTGRES_IMAGE:?IVEKIT_POSTGRES_IMAGE immutable digest reference is required}
+    image: ${CONVERACT_POSTGRES_IMAGE:?CONVERACT_POSTGRES_IMAGE immutable digest reference is required}
     restart: unless-stopped
     environment:
       POSTGRES_USER: opc_admin
@@ -16,7 +16,7 @@ services:
       retries: 30
 
   postgres-runtime-role:
-    image: ${IVEKIT_POSTGRES_IMAGE:?IVEKIT_POSTGRES_IMAGE immutable digest reference is required}
+    image: ${CONVERACT_POSTGRES_IMAGE:?CONVERACT_POSTGRES_IMAGE immutable digest reference is required}
     entrypoint: ["sh", "/bootstrap/init-postgres-runtime-role.sh"]
     restart: "no"
     environment:
@@ -34,7 +34,7 @@ services:
         condition: service_healthy
 
   redis:
-    image: ${IVEKIT_REDIS_IMAGE:?IVEKIT_REDIS_IMAGE immutable digest reference is required}
+    image: ${CONVERACT_REDIS_IMAGE:?CONVERACT_REDIS_IMAGE immutable digest reference is required}
     command: redis-server --appendonly yes --protected-mode yes
     restart: unless-stopped
     volumes:
@@ -46,7 +46,7 @@ services:
       retries: 30
 
   postgres-migrate:
-    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    image: ${CONVERACT_PLATFORM_IMAGE:-converact-platform:local}
     entrypoint: ["node", "--import", "tsx", "scripts/run-postgres-migrations.ts"]
     restart: "no"
     environment:
@@ -95,7 +95,7 @@ services:
       start_period: 10s
 
   tinode-bootstrap:
-    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    image: ${CONVERACT_PLATFORM_IMAGE:-converact-platform:local}
     entrypoint: ["node", "--import", "tsx", "scripts/bootstrap-tinode-service-account.ts"]
     restart: "no"
     environment:
@@ -110,15 +110,15 @@ services:
       tinode:
         condition: service_healthy
 
-  opc:
+  converact:
     env_file:
       - path: ${CONVERACT_FABRIC_VOICE_RUNTIME_ENV_FILE:-./voice-runtime.env}
         required: false
     build:
       context: ../..
       dockerfile: Dockerfile
-    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    command: ["npm", "run", "start:ivekit"]
+    image: ${CONVERACT_PLATFORM_IMAGE:-converact-platform:local}
+    command: ["npm", "run", "start:converact"]
     init: true
     restart: unless-stopped
     ports:
@@ -276,9 +276,9 @@ services:
       CONVERACT_TINODE_DELIVERY_WORKER_ENABLED: "1"
       CONVERACT_SCHEMA_MANAGED_BY_MIGRATIONS: "1"
       CONVERACT_REMOTE_GATEWAY_PROVIDER: rustdesk
-      CONVERACT_REMOTE_GATEWAY_BASE_URL: http://ivekit-api:3000
+      CONVERACT_REMOTE_GATEWAY_BASE_URL: http://converact-api:3000
       CONVERACT_REMOTE_GATEWAY_API_TOKEN: ${CONVERACT_REMOTE_GATEWAY_API_TOKEN:?CONVERACT_REMOTE_GATEWAY_API_TOKEN is required}
-      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: http://ivekit-api:3000
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: http://converact-api:3000
       RUSTDESK_SERVER_IMAGE_TAG: ${RUSTDESK_SERVER_IMAGE_TAG:?RUSTDESK_SERVER_IMAGE_TAG is required}
       CONVERACT_RUSTDESK_CLIENT_VERSION: ${CONVERACT_RUSTDESK_CLIENT_VERSION:-1.4.9}
       CONVERACT_RUSTDESK_ID_SERVER: ${CONVERACT_RUSTDESK_ID_SERVER:?CONVERACT_RUSTDESK_ID_SERVER is required}
@@ -304,8 +304,8 @@ services:
     networks:
       default:
         aliases:
-          - ivekit-api
-      ivekit_media: {}
+          - converact-api
+      converact_media: {}
     depends_on:
       postgres:
         condition: service_healthy
@@ -319,9 +319,9 @@ services:
         condition: service_completed_successfully
 
   controlled-intelligence-provider:
-    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    image: ${CONVERACT_PLATFORM_IMAGE:-converact-platform:local}
     profiles: ["acceptance"]
-    command: ["npm", "run", "ivekit:controlled-provider"]
+    command: ["npm", "run", "converact:controlled-provider"]
     init: true
     restart: unless-stopped
     environment:
@@ -359,9 +359,9 @@ services:
       - rustdesk_data:/data
 
 networks:
-  ivekit_media:
+  converact_media:
     external: true
-    name: ${CONVERACT_MEDIA_DOCKER_NETWORK:-ivekit-media_default}
+    name: ${CONVERACT_MEDIA_DOCKER_NETWORK:-converact-media_default}
 
 volumes:
   postgres_data:

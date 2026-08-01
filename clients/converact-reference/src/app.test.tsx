@@ -15,12 +15,12 @@ afterEach(() => {
 
 test('session cursor updates do not refetch the first page', async () => {
   let sessionRequests = 0;
-  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
-  window.__IVEKIT_DEV_IDENTITY__ = 'agent-1';
+  window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'agent-1';
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === '/converact-config.json') {
-      return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+      return Response.json({ baseUrl: 'http://fabric.converact.test', tenantId: 'tenant-1' });
     }
     if (url.includes('/api/ivekit/chat/sessions')) {
       sessionRequests += 1;
@@ -36,8 +36,8 @@ test('session cursor updates do not refetch the first page', async () => {
 });
 
 test('mobile workspace switches between session and message views', () => {
-  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
-  window.__IVEKIT_DEV_IDENTITY__ = 'agent-1';
+  window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'agent-1';
   globalThis.fetch = (() => new Promise(() => undefined)) as typeof fetch;
   const view = render(<App />);
   const workspace = view.container.querySelector('main') as HTMLElement;
@@ -50,12 +50,12 @@ test('mobile workspace switches between session and message views', () => {
 
 test('call_id opens the media workspace and loads the durable call snapshot', async () => {
   window.history.replaceState({}, '', '/?call_id=call-1');
-  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
-  window.__IVEKIT_DEV_IDENTITY__ = 'customer-1';
+  window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'customer-1';
   let chatRequests = 0;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url === '/converact-config.json') return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    if (url === '/converact-config.json') return Response.json({ baseUrl: 'http://fabric.converact.test', tenantId: 'tenant-1' });
     if (url.includes('/api/ivekit/media/calls/call-1')) return Response.json({
       call: {
         id: 'call-1', tenant_id: 'tenant-1', room_name: 'room-call-1', media: 'video', status: 'ringing',
@@ -86,12 +86,12 @@ test('call_id opens the media workspace and loads the durable call snapshot', as
 
 test('voice_call_id opens the Voice workspace and loads the durable voice snapshot', async () => {
   window.history.replaceState({}, '', '/?voice_call_id=voice-call-1');
-  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
-  window.__IVEKIT_DEV_IDENTITY__ = 'agent-voice';
+  window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'agent-voice';
   let chatRequests = 0;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url === '/converact-config.json') return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    if (url === '/converact-config.json') return Response.json({ baseUrl: 'http://fabric.converact.test', tenantId: 'tenant-1' });
     if (url.includes('/api/ivekit/voice/profiles/profile-1/capabilities')) {
       return Response.json(voiceProfileCapabilities());
     }
@@ -143,11 +143,11 @@ function voiceProfileCapabilities() {
 }
 
 test('remote tab opens the RustDesk workspace without starting a session', async () => {
-  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
-  window.__IVEKIT_DEV_IDENTITY__ = 'agent-remote';
+  window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'agent-remote';
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url === '/converact-config.json') return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    if (url === '/converact-config.json') return Response.json({ baseUrl: 'http://fabric.converact.test', tenantId: 'tenant-1' });
     if (url.includes('/api/ivekit/chat/sessions')) return Response.json({ items: [], next_cursor: null, has_more: false });
     throw new Error(`unexpected request: ${url}`);
   }) as typeof fetch;
@@ -160,13 +160,13 @@ test('remote tab opens the RustDesk workspace without starting a session', async
 });
 
 test('quality tab opens the tenant review queue and recording source workspace', async () => {
-  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
-  window.__IVEKIT_DEV_IDENTITY__ = 'quality-operator';
+  window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'quality-operator';
   const requests: string[] = [];
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
     requests.push(url);
-    if (url === '/converact-config.json') return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    if (url === '/converact-config.json') return Response.json({ baseUrl: 'http://fabric.converact.test', tenantId: 'tenant-1' });
     if (url.includes('/api/ivekit/chat/sessions')) return Response.json({ items: [], next_cursor: null, has_more: false });
     if (url.includes('/api/ivekit/intelligence/findings')) return Response.json({ items: [], next_cursor: '' });
     throw new Error(`unexpected request: ${url}`);
@@ -183,13 +183,13 @@ test('quality tab opens the tenant review queue and recording source workspace',
 
 test('operations deep link opens the tenant Queue Monitor without loading chat', async () => {
   window.history.replaceState({}, '', '/?workspace=operations');
-  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
-  window.__IVEKIT_DEV_IDENTITY__ = 'operations-viewer';
+  window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'operations-viewer';
   let chatRequests = 0;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === '/converact-config.json') {
-      return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+      return Response.json({ baseUrl: 'http://fabric.converact.test', tenantId: 'tenant-1' });
     }
     if (url.includes('/api/ivekit/contact-center/monitor')) return Response.json({
       generated_at: '2026-07-13T09:30:00.000Z',
@@ -232,8 +232,8 @@ test('operations deep link opens the tenant Queue Monitor without loading chat',
 
 test('IVR deep link loads the selected flow without loading chat', async () => {
   window.history.replaceState({}, '', '/?workspace=ivr&flow_id=flow-a');
-  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
-  window.__IVEKIT_DEV_IDENTITY__ = 'ivr-designer';
+  window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'ivr-designer';
   let chatRequests = 0;
   const graph = {
     version: 1,
@@ -254,7 +254,7 @@ test('IVR deep link loads the selected flow without loading chat', async () => {
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === '/converact-config.json') {
-      return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+      return Response.json({ baseUrl: 'http://fabric.converact.test', tenantId: 'tenant-1' });
     }
     if (url.endsWith('/api/ivekit/ivr/flows')) return Response.json({ items: [flow] });
     if (url.endsWith('/api/ivekit/ivr/flows/flow-a')) return Response.json(flow);
@@ -276,13 +276,13 @@ test('IVR deep link loads the selected flow without loading chat', async () => {
 
 test('business reference deep link drives context, chat filtering, and remote defaults', async () => {
   window.history.replaceState({}, '', '/?business_ref_type=service_order&business_ref_id=SO-200');
-  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
-  window.__IVEKIT_DEV_IDENTITY__ = 'agent-context';
+  window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'agent-context';
   const requests: string[] = [];
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
     requests.push(url);
-    if (url === '/converact-config.json') return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    if (url === '/converact-config.json') return Response.json({ baseUrl: 'http://fabric.converact.test', tenantId: 'tenant-1' });
     if (url.includes('/api/ivekit/context/by-ref')) return Response.json({
       tenant_id: 'tenant-1',
       business_ref: { type: 'service_order', id: 'SO-200' },
@@ -308,7 +308,7 @@ test('business reference deep link drives context, chat filtering, and remote de
   await waitFor(() => assert.ok(view.getByTitle('service_order: SO-200')));
   await waitFor(() => assert.ok(view.getByText('No sessions')));
   assert.ok(requests.some((request) => {
-    const url = new URL(request, 'http://ivekit.test');
+    const url = new URL(request, 'http://fabric.converact.test');
     return url.pathname === '/api/ivekit/chat/sessions' &&
       url.searchParams.get('business_ref_type') === 'service_order' &&
       url.searchParams.get('business_ref_id') === 'SO-200';
@@ -325,8 +325,8 @@ test('business reference deep link drives context, chat filtering, and remote de
 });
 
 test('popstate restores workspace and resource deep-link state', async () => {
-  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
-  window.__IVEKIT_DEV_IDENTITY__ = 'agent-history';
+  window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'agent-history';
   globalThis.fetch = (() => new Promise(() => undefined)) as typeof fetch;
   const view = render(<App />);
 

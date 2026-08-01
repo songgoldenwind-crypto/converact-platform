@@ -1,6 +1,6 @@
-# iveKit RustPBX image
+# Converact Fabric RustPBX image
 
-This directory builds the RustPBX image used by iveKit Voice Foundation.
+This directory builds the RustPBX image used by Converact Fabric Voice Foundation.
 
 ## Why it exists
 
@@ -64,22 +64,22 @@ library tests plus two targeted RustPBX owner-retention tests. Docker verificati
 the full RustPBX suite, release image, SIPp wire tests, and load/capacity gates
 remain `not_run`.
 
-RustPBX `0.4.11` returns AMI dialogs without identifiers. The iveKit AMI patch
+RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the
 client. The endpoint remains protected by the existing AMI authentication and
 network allowlist.
 
 The upstream RWI originate command handler only cancelled its task after
-`call.hangup`; it did not terminate the established SIP dialog. The iveKit RWI
+`call.hangup`; it did not terminate the established SIP dialog. The Converact Fabric RWI
 hangup patch sends CANCEL before answer and BYE after answer, so a successful
 hangup command also clears the downstream SIP leg.
 
-The iveKit route snapshot patch removes the per-INVITE control-plane HTTP and
+The Converact Fabric route snapshot patch removes the per-INVITE control-plane HTTP and
 PostgreSQL lookup from the configured RustPBX data path. A sidecar publishes a
 signed, short-lived snapshot by atomic rename. RustPBX verifies the signature,
 tenant/profile identity, sequence and expiry, derives the same tenant-scoped
-voice-address lookup key as iveKit, and performs one HMAC plus an in-memory map
+voice-address lookup key as Converact Fabric, and performs one HMAC plus an in-memory map
 lookup. Snapshot files contain only the existing `e164_hmac` values, never clear
 or encrypted phone numbers. Missing, invalid or stale snapshots fail closed with
 SIP 503; unknown numbers return 404.
@@ -95,7 +95,7 @@ Route snapshots deliberately remove dynamic routing from the INVITE hot path,
 but every accepted inbound call must still acquire an authoritative Cell owner.
 The inbound-admission patch sends one bounded authenticated request to the
 profile `/inbound-admission` endpoint before the local route snapshot lookup.
-The request declares the receiving RustPBX Cell and node. iveKit
+The request declares the receiving RustPBX Cell and node. Converact Fabric
 reserves that exact owner, persists the call and placement atomically, and rejects
 stale, draining, unavailable or mismatched nodes. Admission timeout, malformed
 responses and non-success responses fail closed with SIP 503; RustPBX never falls
@@ -115,7 +115,7 @@ the pool retains up to 64 idle connections per host. The concurrency limit still
 comes from the bounded call-record runtime; the larger pool avoids serial
 connection churn but does not create unbounded HTTP work.
 
-iveKit sends owner contracts in the RWI envelope's internal `ivekit_owners`
+Converact Fabric sends owner contracts in the RWI envelope's internal `converact_owners`
 field, outside the public voice command payload. Parking pickup resolves both
 call owners and fails before RWI execution when the legs are assigned to
 different RustPBX nodes.
@@ -162,18 +162,18 @@ Compose uses the additional `voice-capacity` profile. Helm uses
 `voice.componentNode.enabled`. The agent starts draining and does not become
 ready until the Cell sends a current lease and completes checkpoint replay.
 
-The lookup root must equal iveKit's `CONVERACT_FABRIC_VOICE_ADDRESS_HMAC_KEY`. The
+The lookup root must equal Converact Fabric's `CONVERACT_FABRIC_VOICE_ADDRESS_HMAC_KEY`. The
 snapshot signing key must be a distinct random 32-byte canonical base64 secret.
 
 ## Recording spool
 
-iveKit recording mode is enabled with
+Converact Fabric recording mode is enabled with
 `IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED=true`. RustPBX writes bounded local
 segments under `IVEKIT_RUSTPBX_RECORDING_SPOOL_DIR`; it never uploads from the
 RTP or recorder sample path. Region, Zone, Cell and owner-node identity are
 required and become part of every immutable segment manifest.
 
-The separate `ivekit-rustpbx-recording-spool` process validates stable regular
+The separate `converact-rustpbx-recording-spool` process validates stable regular
 files and SHA-256, registers the exact owner epoch, resumes persisted multipart
 parts, and removes local files only after server completion. Its service key and
 lease secret are mounted as read-only files. The component-node process reads
@@ -217,7 +217,7 @@ uploads the evidence, but manifest finalization sums all owner-fenced
 every segment reached object storage. The shared drop counter is registered
 idempotently when the asynchronous recorder becomes available, so samples seen
 before recorder creation cannot disappear from the final integrity decision.
-retries that marker until iveKit confirms that sequences `1..N` all exist and
+retries that marker until Converact Fabric confirms that sequences `1..N` all exist and
 are uploaded, then removes the local indexes and marker. A missing segment can
 therefore delay finalization but cannot be silently skipped.
 
@@ -354,16 +354,16 @@ capacity harness.
 
 RustPBX exports current usage, configured limits, timer task count, queue depth,
 finished-cache drops, and rejection counters under the `rustpbx_sip_*` metric
-prefix. Compose, the OPC Helm chart, and the standalone iveKit Helm chart carry
+prefix. Compose, the Converact Platform Helm chart, and the standalone Converact Fabric Helm chart carry
 the same defaults. Both charts expose `/metrics`; optional ServiceMonitor and
 PrometheusRule resources alert before a hard limit and on any overload
 rejection. Metrics contain no tenant, call, interaction, or phone-number labels.
 
 ## Call-record persistence isolation
 
-iveKit sends CDRs to its authenticated HTTP endpoint and disables RustPBX's
+Converact Fabric sends CDRs to its authenticated HTTP endpoint and disables RustPBX's
 second direct database write with `persist_to_database = false`. The upstream
-default remains `true`, so deployments that do not use iveKit keep their
+default remains `true`, so deployments that do not use Converact Fabric keep their
 original persistence behavior. HTTP saver execution remains asynchronous and
 does not block SIP or RTP processing.
 
@@ -451,7 +451,7 @@ kernel-drop throughput staircase at the claimed point.
 
 ## Recording media hot path
 
-The iveKit media patch removes recorder codec conversion, mixing, flushing and
+The Converact Fabric media patch removes recorder codec conversion, mixing, flushing and
 disk writes from BridgePeer RTP forwarding loops. BridgePeer and
 ForwardingTrack now publish recording copies with non-blocking `try_send` into
 bounded queues backed by a fixed-size Crossbeam worker pool. A capture is
@@ -541,7 +541,7 @@ and physical capacity remain `not_run`.
 
 ## Session teardown isolation
 
-The iveKit cleanup patch removes the last session-destruction waits from the
+The Converact Fabric cleanup patch removes the last session-destruction waits from the
 single MediaEngine command loop. Destroy and stale-session reap first remove the
 session from active state, atomically pause recording, and submit the deduplicated
 recording finalizer. Playback-track stop, MCU switch-back, and bridge release then
@@ -574,7 +574,7 @@ new registration also scans the full vector and removes entries older than five
 minutes, including live long-running WebPhone connections. That makes lookup
 O(n), creates one global lock hot spot and can revoke an active connection.
 
-The iveKit WebPhone registry patch replaces that vector with an O(1) keyed
+The Converact Fabric WebPhone registry patch replaces that vector with an O(1) keyed
 `RwLock<HashMap<SipAddr, _>>`. Registration returns a connection-lifetime guard;
 normal completion, cancellation and panic drop the guard and remove only its
 generation. A stale guard cannot delete a newer connection that reused the same
@@ -682,7 +682,7 @@ projected-Secret rotation, and deletes a spool file only after a matching
 resumes the existing spool before the node accepts a new owner-authorized call.
 CDR API, PostgreSQL and object-storage failures never enter the RTP packet path.
 
-iveKit accepts a new durable receipt only from the active
+Converact Fabric accepts a new durable receipt only from the active
 `CONVERACT_FABRIC_CDR_REGION_ID` contract. RustPBX independently requires
 `IVEKIT_RUSTPBX_CDR_REGION_ID` and rejects a successful response whose receipt
 names any other Region. The contract must represent synchronous
@@ -720,10 +720,10 @@ RustPBX to production and requires an explicit HTTPS CDR endpoint. On a non-empt
 repairs the composite unique index concurrently before the transactional
 migration revalidates and attaches it as a constraint. Contract activation,
 quorum-loss handling, quarantine recovery, monitoring and rollback are defined in
-`docs/ivekit-voice-cdr-durability-runbook.md`.
+`docs/converact-fabric-voice-cdr-durability-runbook.md`.
 
 The exact ivekit.28 queue contains 29 patches. Locked Rust compilation, 64
-iveKit-focused Rust tests, the independent missing-callee test, 20 dialog
+Converact Fabric-focused Rust tests, the independent missing-callee test, 20 dialog
 shadow/recovery contract tests and the TypeScript regressions are reproducibility
 evidence only.
 Physical cross-Zone PostgreSQL quorum, process restart, sustained spool replay,
@@ -758,14 +758,14 @@ ordinary mode must not be described as providing it.
 Run on a native amd64 or arm64 Docker host:
 
 ```bash
-npm run ivekit:rustpbx-build
+npm run converact:rustpbx-build
 ```
 
 Run the same exact-source patch application plus fmt, check, clippy and focused
 behavior gates without publishing an image:
 
 ```bash
-IVEKIT_RUSTPBX_VERIFY_ONLY=1 bash infra/converact/rustpbx/build.sh
+CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY=1 bash infra/converact/rustpbx/build.sh
 ```
 
 The RustPBX image workflow runs this verification before either architecture
@@ -774,8 +774,8 @@ build and also runs it for pull requests without GHCR publication.
 Override the output image with `IVEKIT_RUSTPBX_IMAGE`. Cross compilation is
 rejected so an image cannot be mislabeled with binaries from another architecture.
 
-Constrained builders may set `IVEKIT_RUSTPBX_BUILD_CPUS`,
-`IVEKIT_RUSTPBX_BUILD_MEMORY`, and `IVEKIT_RUSTPBX_BUILD_JOBS`. Set
+Constrained builders may set `CONVERACT_FABRIC_RUSTPBX_BUILD_CPUS`,
+`CONVERACT_FABRIC_RUSTPBX_BUILD_MEMORY`, and `CONVERACT_FABRIC_RUSTPBX_BUILD_JOBS`. Set
 `IVEKIT_RUSTPBX_CARGO_HOME` to a host directory to retain the Cargo registry
 between clean source builds. These controls only bound the build container;
 they do not change the release profile or runtime image.
@@ -785,9 +785,9 @@ they do not change the release profile or runtime image.
 The delivery bundle exposes three separate engineering checks:
 
 ```bash
-npm run ivekit:rustpbx-management-acceptance
-npm run ivekit:rustpbx-rwi-acceptance
-npm run ivekit:rustpbx-sipp-acceptance
+npm run converact:rustpbx-management-acceptance
+npm run converact:rustpbx-rwi-acceptance
+npm run converact:rustpbx-sipp-acceptance
 ```
 
 The RWI check authenticates with the production client, runs `session.list_calls`,
@@ -796,7 +796,7 @@ the same call. Acceptance must also observe the downstream SIPp UAS receiving
 BYE; the RWI command result alone is not sufficient evidence. This proves
 signaling and reconciliation, not RTP media quality.
 
-`npm run ivekit:rustpbx-sipp-acceptance` includes `answer-tcp` followed by
+`npm run converact:rustpbx-sipp-acceptance` includes `answer-tcp` followed by
 `answer-tcp-reconnect`. The downstream SIPp UAS is destroyed between the two
 calls while RustPBX remains running. Both scenarios must pass with Router and CDR
 evidence.

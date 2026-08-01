@@ -1,4 +1,4 @@
-# iveKit LiveKit Egress overlay
+# Converact Fabric LiveKit Egress overlay
 
 This overlay targets only LiveKit Egress `v1.13.0` at commit
 `7d3572a0bf1959cbbc452f5ba390b6a90b7dc249`.
@@ -10,7 +10,7 @@ admission. Set:
 IVEKIT_EGRESS_POOL_NAME=track
 IVEKIT_EGRESS_ALLOWED_REQUEST_TYPES=track
 IVEKIT_EGRESS_MAX_CONCURRENT_REQUESTS=64
-IVEKIT_EGRESS_DRAIN_FILE=/var/run/ivekit-egress/draining
+IVEKIT_EGRESS_DRAIN_FILE=/var/run/converact-egress/draining
 ```
 
 or:
@@ -19,7 +19,7 @@ or:
 IVEKIT_EGRESS_POOL_NAME=composite
 IVEKIT_EGRESS_ALLOWED_REQUEST_TYPES=room_composite,track_composite
 IVEKIT_EGRESS_MAX_CONCURRENT_REQUESTS=4
-IVEKIT_EGRESS_DRAIN_FILE=/var/run/ivekit-egress/draining
+IVEKIT_EGRESS_DRAIN_FILE=/var/run/converact-egress/draining
 ```
 
 An empty allow-list and concurrency setting preserve upstream behavior. A configured policy with no
@@ -29,7 +29,7 @@ termination grace period. These checks execute only on Egress request admission,
 processing.
 
 The Track/Composite Kubernetes pools must run the image produced by `build.sh`. The deployment
-requires the `ivekit/livekit-egress` repository path, an immutable `media.egress.image.digest`, and
+requires the `converact-livekit-egress` repository suffix, an immutable `media.egress.image.digest`, and
 an image registry listed in `media.egress.image.allowedRegistries`. The default allow-list contains
 only `docker.io`; a release using a private registry must add that reviewed host explicitly. Fully
 qualified upstream aliases, unapproved registries, and arbitrary repository paths fail closed. The
@@ -59,18 +59,18 @@ verified toolchain, vendors all Go dependencies and runs the final image build
 with `--network=none`. Three digest-bound inputs define the complete build:
 Egress templates, the GStreamer development builder and the official matching
 Egress runtime. Reusing the official runtime preserves its Chrome, GStreamer
-and Tini contract without apt or remote downloads in the iveKit Dockerfile.
+and Tini contract without apt or remote downloads in the pinned-fork Dockerfile.
 The script validates architecture, non-root user, source revision, component
-and pool-contract labels, Egress version and iveKit binary markers.
+and pool-contract labels, Egress version and pinned-fork binary markers.
 
 ```bash
 LIVEKIT_EGRESS_SOURCE_DIR=/path/to/livekit-egress-v1.13.0 \
-IVEKIT_LIVEKIT_EGRESS_IMAGE=ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0 \
-IVEKIT_LIVEKIT_EGRESS_TEMPLATE_IMAGE=docker.io/livekit/egress-templates:sha-594b3b1@sha256:<digest> \
-IVEKIT_LIVEKIT_EGRESS_BUILDER_IMAGE=docker.io/livekit/gstreamer:1.24.12-dev@sha256:<digest> \
-IVEKIT_LIVEKIT_EGRESS_RUNTIME_IMAGE=docker.io/livekit/egress:v1.13.0@sha256:<digest> \
-IVEKIT_LIVEKIT_EGRESS_TARGETARCH=amd64 \
-bash infra/converact/livekit-egress/build.sh
+CONVERACT_FABRIC_LIVEKIT_EGRESS_IMAGE=ghcr.io/songgoldenwind-crypto/converact-livekit-egress:v1.13.0-ivekit.1-7d3572a0 \
+CONVERACT_FABRIC_LIVEKIT_EGRESS_TEMPLATE_IMAGE=docker.io/livekit/egress-templates:sha-594b3b1@sha256:<digest> \
+CONVERACT_FABRIC_LIVEKIT_EGRESS_BUILDER_IMAGE=docker.io/livekit/gstreamer:1.24.12-dev@sha256:<digest> \
+CONVERACT_FABRIC_LIVEKIT_EGRESS_RUNTIME_IMAGE=docker.io/livekit/egress:v1.13.0@sha256:<digest> \
+CONVERACT_FABRIC_LIVEKIT_EGRESS_TARGETARCH=amd64 \
+bash infra/converact/livekit-egress/build-converact.sh
 ```
 
 On 2026-07-22 the overlay applied repeatedly to the exact `v1.13.0` source on
@@ -78,7 +78,7 @@ the isolated Linux amd64 validation server. The offline full CGO build produced
 `ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0-amd64`, image ID
 `sha256:e266932c428610111a417d6b38cbec7096680816eae09b23495575035456d3fe`,
 size `1,413,726,105` bytes. Runtime user, source revision, pool-contract labels,
-version and iveKit binary markers passed inspection. This is a controlled
+version and pinned-fork binary markers passed inspection. This is a controlled
 source-built candidate, not an immutable registry digest or production
 artifact. The earlier local arm64 build remains historical evidence; execution
 of the new multi-architecture GHCR workflow remains `not_run`.

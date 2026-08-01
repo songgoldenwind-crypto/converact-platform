@@ -227,7 +227,7 @@ const SOURCE_FILES = [
   'scripts/capacity/generators/tinode-composite-provisioner.ts',
   'scripts/capacity/generators/tinode-composite-runner.ts',
   'scripts/capacity/tinode-staircase.ts',
-  'scripts/ivekit-capacity-tinode-staircase.ts'
+  'scripts/converact-capacity-tinode-staircase.ts'
 ];
 
 export function generateTinodeApiCredential(input: {
@@ -595,7 +595,7 @@ async function runPoint(input: {
     await waitForTinode(config.tinode_port, secrets.api.api_key);
 
     const endpoint = `ws://127.0.0.1:${config.tinode_port}/v0/channels`;
-    const namespace = `ivekit-tcs-${connections}-${randomBytes(3).toString('hex')}`;
+    const namespace = `converact-tcs-${connections}-${randomBytes(3).toString('hex')}`;
     const provisionResult = await provisionTinodeCompositeBundle({
       endpoint,
       api_key: secrets.api.api_key,
@@ -1000,7 +1000,7 @@ async function countTestResources(runToken: string): Promise<number> {
     'ps',
     '--all',
     '--filter',
-    `name=ivekit-tcs-${token}`,
+    `name=converact-tcs-${token}`,
     '--format',
     '{{.Names}}'
   ])).trim().split(/\r?\n/).filter(Boolean);
@@ -1008,7 +1008,7 @@ async function countTestResources(runToken: string): Promise<number> {
     'network',
     'ls',
     '--filter',
-    `name=ivekit-tcs-${token}`,
+    `name=converact-tcs-${token}`,
     '--format',
     '{{.Name}}'
   ])).trim().split(/\r?\n/).filter(Boolean);
@@ -1108,7 +1108,7 @@ function pointSecrets(): PointSecrets {
 
 function pointNames(runToken: string, connections: number): PointNames {
   const shortToken = testResourceToken(runToken);
-  const prefix = `ivekit-tcs-${shortToken}-${connections}`;
+  const prefix = `converact-tcs-${shortToken}-${connections}`;
   return {
     prefix,
     network: `${prefix}-net`,

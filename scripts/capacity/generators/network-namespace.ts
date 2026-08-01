@@ -60,7 +60,7 @@ export function buildLiveKitNetworkNamespacePlan(input: {
     '-p', 'tcp',
     '--dport', String(input.livekit_port),
     '-m', 'comment',
-    '--comment', `ivekit-netns-${suffix}`,
+    '--comment', `converact-netns-${suffix}`,
     '-j', 'ACCEPT'
   ];
   const setup: LiveKitNetworkNamespaceCommand[] = [

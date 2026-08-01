@@ -11,7 +11,7 @@ import type { RustDeskGatewaySession } from '../src/agent-runtime/collaboration/
 
 test('RustDesk launch URL rejects base URLs without HTTP protocols', () => {
   const previousBaseUrl = process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL;
-  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'ftp://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'ftp://converact.example.com';
 
   try {
     assert.throws(
@@ -31,7 +31,7 @@ test('RustDesk launch URL rejects missing signing secrets', () => {
     remoteGatewayToken: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN,
     serverKey: process.env.CONVERACT_RUSTDESK_SERVER_KEY
   };
-  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://converact.example.com';
   delete process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET;
   delete process.env.CONVERACT_RUSTDESK_API_TOKEN;
   delete process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN;
@@ -55,7 +55,7 @@ test('RustDesk launch URL accepts HTTP base URLs and keeps the signed launch pag
   const previousBaseUrl = process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL;
   const previousSecret = process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET;
   const previousTtl = process.env.CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS;
-  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com///';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://converact.example.com///';
   process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
   process.env.CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS = '60000';
 
@@ -66,7 +66,7 @@ test('RustDesk launch URL accepts HTTP base URLs and keeps the signed launch pag
     const expiresAt = launchUrl.searchParams.get('expires_at') || '';
 
     assert.equal(launchUrl.protocol, 'https:');
-    assert.equal(launchUrl.origin, 'https://opc.example.com');
+    assert.equal(launchUrl.origin, 'https://converact.example.com');
     assert.equal(launchUrl.pathname, '/remote/rustdesk/launch');
     assert.equal(launchUrl.searchParams.get('session_id'), externalId);
     assert.match(token, /^[a-f0-9]{64}$/);
@@ -85,7 +85,7 @@ test('RustDesk launch URL rejects invalid token TTL configuration', () => {
   const previousBaseUrl = process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL;
   const previousSecret = process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET;
   const previousTtl = process.env.CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS;
-  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://converact.example.com';
   process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
   process.env.CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS = '0';
 
@@ -103,7 +103,7 @@ test('RustDesk launch URL rejects invalid token TTL configuration', () => {
 
 test('RustDesk launch plan rejects protocol URL templates without the rustdesk scheme', () => {
   const previousTemplate = process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE;
-  process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'https://opc.example.com/connect/{rustdesk_id}';
+  process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'https://converact.example.com/connect/{rustdesk_id}';
 
   try {
     assert.throws(
@@ -172,7 +172,7 @@ test('RustDesk launch plan rejects secret-bearing metadata and preserves safe me
     () => rustDeskLaunchPlan({
       ...rustDeskSession(),
       metadata: {
-        source: 'ivekit',
+        source: 'converact',
         nested: [{ credential_ref: 'secret://rustdesk/launch' }]
       }
     }),
@@ -181,9 +181,9 @@ test('RustDesk launch plan rejects secret-bearing metadata and preserves safe me
 
   const plan = rustDeskLaunchPlan({
     ...rustDeskSession(),
-    metadata: { source: 'ivekit', site: 'showroom-7', rustdesk_id: '123456789' }
+    metadata: { source: 'converact', site: 'showroom-7', rustdesk_id: '123456789' }
   });
-  assert.equal(plan.metadata.source, 'ivekit');
+  assert.equal(plan.metadata.source, 'converact');
   assert.equal(plan.metadata.site, 'showroom-7');
 });
 
@@ -222,7 +222,7 @@ function rustDeskSession(): RustDeskGatewaySession {
     target: { type: 'device', id: '123456789' },
     permissions: ['view_screen'],
     actor_identity: 'engineer_42',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-session-protocol-contract-1&token=launch-token',
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-session-protocol-contract-1&token=launch-token',
     status: 'active',
     metadata: { rustdesk_id: '123456789' },
     created_at: '2026-07-04T00:00:00.000Z',

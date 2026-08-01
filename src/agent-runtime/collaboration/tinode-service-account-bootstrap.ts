@@ -125,11 +125,11 @@ async function ensureServiceAccount(
         scheme: 'basic',
         secret,
         login: true,
-        tags: ['opc:service-account'],
+        tags: ['converact:service-account'],
         desc: {
           defacs: { auth: 'JRWS', anon: 'N' },
-          public: { fn: 'OPC iveKit service' },
-          private: { source: 'opc-ivekit-bootstrap' }
+          public: { fn: 'Converact Fabric service' },
+          private: { source: 'converact-fabric-bootstrap' }
         }
       }, config.timeoutMs);
       return { status: 'created', authLevel: responseAuthLevel(response) };
@@ -175,7 +175,7 @@ async function withTinodeSocket<T>(
     await request(socket, 'hi', {
       id: 'bootstrap-hi',
       ver: '0.22',
-      ua: 'OPC iveKit Tinode bootstrap'
+      ua: 'Converact Fabric Tinode bootstrap'
     }, config.timeoutMs);
     return await operation(socket);
   } finally {
@@ -197,7 +197,7 @@ function configuredRootAccountPromoter(
       max: 1,
       connectionTimeoutMillis: config.timeoutMs,
       query_timeout: config.timeoutMs,
-      application_name: 'opc-ivekit-tinode-bootstrap'
+      application_name: 'converact-tinode-bootstrap'
     });
     try {
       await promoteTinodeBasicAccountToRoot(pool, username);

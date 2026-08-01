@@ -1,7 +1,7 @@
 # 通信底座生产完备性总设计
 
 > 日期：2026-07-21  
-> 范围：iveKit/OPC/LED 共用的 IM、语音、视频通信底座  
+> 范围：Converact Fabric/Converact Platform/LED 共用的 IM、语音、视频通信底座
 > 状态：执行基线；物理容量和真实公网媒体验收不在本轮目标内
 
 ## 1. 设计裁决
@@ -26,7 +26,7 @@ Kubernetes 已通过。物理压测在本设计全部落地后单独立项。
 ### 2.1 控制面与数据面
 
 - SIP INVITE、RTP 包、LiveKit track 转发和 Tinode 消息 fanout 的热路径不得同步访问
-  PostgreSQL、对象存储或远程 iveKit HTTP API。
+  PostgreSQL、对象存储或远程 Converact Fabric HTTP API。
 - PostgreSQL 是业务和配置 authority；Cell 本地签名快照是实时路由输入。
 - Redis/NATS 用于协调和异步事件，不得成为每个 RTP 包或每个订阅者 fanout 的同步跳点。
 - 录音、Egress、附件、OCR/ASR 和对象上传失败不得反压已建立的通话、房间或 IM 会话。
@@ -78,7 +78,7 @@ Cell A/Zone B 部署相同角色。一个 Zone 故障时，控制面只在获得
 | IM | Tinode 完整业务接入、三节点容量模板、topic owner/fencing、fanout 热路径补丁、持久同步 worker | 正式 Chart 仍为单副本 Recreate；稳定集群发现、连接 drain、重连恢复、数据面指标和告警未统一 | 部分完成 |
 | 视频 | LiveKit owner hook、SFU 小房间优化、Egress 独立池和伸缩、媒体 QoS | 正式 LiveKit SFU 集群、Redis HA、独立 TURN、SIP 池、node drain/reconnect、数据面监控未形成完整交付 | 部分完成 |
 | 共享调度 | Cell placement、capacity vector、lease、component-node sidecar、owner fencing | 三个通信入口尚未全部消费相同状态；缺统一发布/drain 顺序 | 部分完成 |
-| 监控 | iveKit API、业务队列、RustPBX 热路径、Kamailio route-agent/core proxy 和 Egress 告警 | Tinode server、LiveKit server、TURN、LiveKit SIP 的数据面指标和 SLO 不完整 | 部分完成 |
+| 监控 | Converact Fabric API、业务队列、RustPBX 热路径、Kamailio route-agent/core proxy 和 Egress 告警 | Tinode server、LiveKit server、TURN、LiveKit SIP 的数据面指标和 SLO 不完整 | 部分完成 |
 
 容量目录中的 StatefulSet 是设计和受控测试材料，不能替代正式交付 Chart。正式 Chart、默认
 values、交付包和监控规则必须使用同一拓扑和同一镜像身份。
@@ -157,9 +157,9 @@ LiveKit 官方说明信令/API 节点是同质的，任意客户端可连接任�
 
 - 正式部署使用至少三副本 StatefulSet、headless cluster Service 和独立 client Service。
 - WebSocket 一旦建立自然固定在接入 Pod；新连接由 L4 Service 分配。
-- group topic 使用 iveKit owner registry；publish、metadata mutation 和 timer 只在 owner 执行。
-- P2P/channel 保持 Tinode 原生语义，不用 iveKit mirror 代替 Tinode cluster 协议。
-- 附件直接进入对象存储，Tinode 只承载 metadata；iveKit 审计和内容处理走 durable outbox。
+- group topic 使用 Converact Fabric owner registry；publish、metadata mutation 和 timer 只在 owner 执行。
+- P2P/channel 保持 Tinode 原生语义，不用 Converact Fabric mirror 代替 Tinode cluster 协议。
+- 附件直接进入对象存储，Tinode 只承载 metadata；Converact Fabric 审计和内容处理走 durable outbox。
 
 ### 6.2 故障与扩缩容
 
@@ -207,7 +207,7 @@ LiveKit 官方说明信令/API 节点是同质的，任意客户端可连接任�
 ### 7.4 QUIC/RoQ 技术裁决
 
 `quic优化视频传输.pdf` 证明了 RTP 媒体与大 DataChannel 共用瓶颈时，统一 QUIC 拥塞控制和
-媒体优先调度可以减少媒体延迟与抖动。但当前 iveKit 附件使用独立 HTTP/multipart，LiveKit
+媒体优先调度可以减少媒体延迟与抖动。但当前 Converact Fabric 附件使用独立 HTTP/multipart，LiveKit
 参考 adapter 没有承载文件 DataChannel；当前固定 LiveKit Server 和上游 master 也没有 RoQ
 数据面。浏览器 `RTCDataChannel` 仍使用 SCTP/DTLS，只把文件换成 WebTransport 不能统一媒体与
 数据的拥塞控制。
@@ -221,7 +221,7 @@ transport capability 灰度。完整评审、测试矩阵和进入生产门槛�
 ## 8. 数据与共享依赖
 
 - 生产 values 禁止内置单副本 PostgreSQL、Redis、NATS 和对象存储作为 HA 声明。
-- Tinode PostgreSQL 与 iveKit PostgreSQL 可共享运维集群，但必须使用独立数据库、角色、连接池
+- Tinode PostgreSQL 与 Converact Fabric PostgreSQL 可共享运维集群，但必须使用独立数据库、角色、连接池
   和容量预算。
 - LiveKit Redis 与通用缓存逻辑隔离 keyspace 和资源预算；Region 故障时按 LiveKit 支持的恢复
   语义处理，不假设 Redis 数据自动跨 Region 一致。
@@ -306,10 +306,10 @@ Redis HA 外部合同、drain/reconnect、指标、告警和受控故障测试�
 - LiveKit 生产部署和端口模型：`https://docs.livekit.io/transport/self-hosting/deployment/`、
   `https://docs.livekit.io/transport/self-hosting/ports-firewall/`。
 - LiveKit 官方能力用于 signal/API 同质路由、Redis 协调、ICE/TCP/UDP 和 embedded TURN；
-  iveKit fork 只增强稳定 node identity、owner fencing、容量门和小房间热路径，不改写 WebRTC
+  Converact Fabric fork 只增强稳定 node identity、owner fencing、容量门和小房间热路径，不改写 WebRTC
   的故障本质。
 - Tinode cluster、topic actor 和 store 语义以固定源码
-  `v0.25.3@22a7c18e9cd695e9a061bf1b8c84175196ef5a15` 为准；iveKit owner registry 是附加
+  `v0.25.3@22a7c18e9cd695e9a061bf1b8c84175196ef5a15` 为准；Converact Fabric owner registry 是附加
   fencing，不是用 PostgreSQL mirror 代替原生 cluster。
 - Prometheus 告警必须提供持续时间、严重级别和 runbook；告警投递、静默和抑制由
   Alertmanager 承担，不能把 PrometheusRule 本身当作通知闭环。

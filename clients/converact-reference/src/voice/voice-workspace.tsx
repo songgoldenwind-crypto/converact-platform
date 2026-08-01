@@ -1,12 +1,12 @@
 import {
-  createIveKitVoiceController,
-  type IveKitHttpSdk,
-  type IveKitVoiceAddressKind,
-  type IveKitVoiceCallState,
-  type IveKitVoiceCapabilitySnapshot,
-  type IveKitVoiceCommandKind,
-  type IveKitVoiceController,
-  type IveKitVoiceControllerState
+  createConveractFabricVoiceController,
+  type ConveractFabricHttpSdk,
+  type ConveractFabricVoiceAddressKind,
+  type ConveractFabricVoiceCallState,
+  type ConveractFabricVoiceCapabilitySnapshot,
+  type ConveractFabricVoiceCommandKind,
+  type ConveractFabricVoiceController,
+  type ConveractFabricVoiceControllerState
 } from '@converact/sdk';
 import {
   CircleParking,
@@ -33,9 +33,9 @@ const SipPhonePanel = lazy(async () => {
 });
 
 type VoicePanel = 'keypad' | 'transfer' | 'more' | null;
-type VoiceAction = Exclude<IveKitVoiceCommandKind, 'originate'>;
+type VoiceAction = Exclude<ConveractFabricVoiceCommandKind, 'originate'>;
 
-const EMPTY_STATE: IveKitVoiceControllerState = {
+const EMPTY_STATE: ConveractFabricVoiceControllerState = {
   phase: 'idle',
   call: null,
   command: null,
@@ -46,36 +46,36 @@ const EMPTY_STATE: IveKitVoiceControllerState = {
 };
 
 export function VoiceWorkspace(props: {
-  client: IveKitHttpSdk | null;
+  client: ConveractFabricHttpSdk | null;
   callId: string;
   onCallIdChange(callId: string): void;
   refreshVersion: number;
   businessRef?: { type: string; id: string };
 }) {
-  const [state, setState] = useState<IveKitVoiceControllerState>(EMPTY_STATE);
+  const [state, setState] = useState<ConveractFabricVoiceControllerState>(EMPTY_STATE);
   const [mode, setMode] = useState<'dial' | 'open'>('dial');
   const [draftCallId, setDraftCallId] = useState(props.callId);
   const [profileId, setProfileId] = useState('');
-  const [fromKind, setFromKind] = useState<IveKitVoiceAddressKind>('extension');
+  const [fromKind, setFromKind] = useState<ConveractFabricVoiceAddressKind>('extension');
   const [from, setFrom] = useState('');
-  const [toKind, setToKind] = useState<IveKitVoiceAddressKind>('e164');
+  const [toKind, setToKind] = useState<ConveractFabricVoiceAddressKind>('e164');
   const [to, setTo] = useState('');
   const [businessType, setBusinessType] = useState(props.businessRef?.type || 'service_order');
   const [businessId, setBusinessId] = useState(props.businessRef?.id || '');
   const [extensionId, setExtensionId] = useState('');
   const [panel, setPanel] = useState<VoicePanel>(null);
   const [transferKind, setTransferKind] = useState<'blind' | 'warm'>('blind');
-  const [transferAddressKind, setTransferAddressKind] = useState<IveKitVoiceAddressKind>('extension');
+  const [transferAddressKind, setTransferAddressKind] = useState<ConveractFabricVoiceAddressKind>('extension');
   const [transferTarget, setTransferTarget] = useState('');
   const [conferenceId, setConferenceId] = useState('');
   const [parkSlot, setParkSlot] = useState('');
   const [sipTrunkId, setSipTrunkId] = useState('');
-  const [profileCapabilities, setProfileCapabilities] = useState<IveKitVoiceCapabilitySnapshot | null>(null);
+  const [profileCapabilities, setProfileCapabilities] = useState<ConveractFabricVoiceCapabilitySnapshot | null>(null);
   const [localError, setLocalError] = useState('');
-  const selectedRequest = useRef<{ controller: IveKitVoiceController | null; key: string }>({ controller: null, key: '' });
+  const selectedRequest = useRef<{ controller: ConveractFabricVoiceController | null; key: string }>({ controller: null, key: '' });
 
   const controller = useMemo(() => props.client
-    ? createIveKitVoiceController({ client: props.client.voice })
+    ? createConveractFabricVoiceController({ client: props.client.voice })
     : null, [props.callId, props.client]);
 
   useEffect(() => setDraftCallId(props.callId), [props.callId]);
@@ -89,7 +89,7 @@ export function VoiceWorkspace(props: {
       setState(EMPTY_STATE);
       return;
     }
-    const unsubscribe = controller.subscribe((snapshot) => setState(snapshot as IveKitVoiceControllerState));
+    const unsubscribe = controller.subscribe((snapshot) => setState(snapshot as ConveractFabricVoiceControllerState));
     return () => {
       unsubscribe();
       controller.dispose();
@@ -124,7 +124,7 @@ export function VoiceWorkspace(props: {
     return () => { cancelled = true; };
   }, [props.client, state.call?.provider_profile_id]);
 
-  const run = async (command: (controller: IveKitVoiceController) => Promise<unknown>) => {
+  const run = async (command: (controller: ConveractFabricVoiceController) => Promise<unknown>) => {
     if (!controller) return;
     setLocalError('');
     try {
@@ -159,7 +159,7 @@ export function VoiceWorkspace(props: {
         from: { kind: fromKind, value: from.trim() },
         to: { kind: toKind, value: to.trim() },
         business_ref: { type: businessType.trim(), id: businessId.trim() },
-        metadata: { source: 'ivekit-reference-webphone' }
+        metadata: { source: 'converact-reference-webphone' }
       });
       props.onCallIdChange(result.call.id);
     });
@@ -187,11 +187,11 @@ export function VoiceWorkspace(props: {
         {mode === 'dial' ? <form className="voice-form" onSubmit={dial}>
           <label><span>Profile</span><input aria-label="Profile" value={profileId} onChange={(event) => setProfileId(event.target.value)} /></label>
           <div className="voice-address-row">
-            <label><span>From type</span><select aria-label="From type" value={fromKind} onChange={(event) => setFromKind(event.target.value as IveKitVoiceAddressKind)}>{addressOptions()}</select></label>
+            <label><span>From type</span><select aria-label="From type" value={fromKind} onChange={(event) => setFromKind(event.target.value as ConveractFabricVoiceAddressKind)}>{addressOptions()}</select></label>
             <label><span>From</span><input aria-label="From" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
           </div>
           <div className="voice-address-row">
-            <label><span>To type</span><select aria-label="To type" value={toKind} onChange={(event) => setToKind(event.target.value as IveKitVoiceAddressKind)}>{addressOptions()}</select></label>
+            <label><span>To type</span><select aria-label="To type" value={toKind} onChange={(event) => setToKind(event.target.value as ConveractFabricVoiceAddressKind)}>{addressOptions()}</select></label>
             <label><span>To</span><input aria-label="To" value={to} onChange={(event) => setTo(event.target.value)} /></label>
           </div>
           <div className="voice-business-row">
@@ -237,7 +237,7 @@ export function VoiceWorkspace(props: {
           </div>}
           {panel === 'transfer' && <div className="voice-action-panel voice-transfer-panel">
             <div className="voice-mode" role="group" aria-label="Transfer mode"><button aria-pressed={transferKind === 'blind'} onClick={() => setTransferKind('blind')}>Blind</button><button aria-pressed={transferKind === 'warm'} onClick={() => setTransferKind('warm')}>Warm</button></div>
-            <select aria-label="Transfer address type" value={transferAddressKind} onChange={(event) => setTransferAddressKind(event.target.value as IveKitVoiceAddressKind)}>{addressOptions()}</select>
+            <select aria-label="Transfer address type" value={transferAddressKind} onChange={(event) => setTransferAddressKind(event.target.value as ConveractFabricVoiceAddressKind)}>{addressOptions()}</select>
             <input aria-label="Transfer target" value={transferTarget} onChange={(event) => setTransferTarget(event.target.value)} />
             <button title="Transfer call" disabled={!allowed(transferKind === 'blind' ? 'blind_transfer' : 'warm_transfer') || !transferTarget.trim()} onClick={() => void run((voice) => transferKind === 'blind' ? voice.blindTransfer({ kind: transferAddressKind, value: transferTarget }) : voice.warmTransfer({ kind: transferAddressKind, value: transferTarget }))}><PhoneForwarded size={16} /></button>
           </div>}
@@ -264,7 +264,7 @@ export function VoiceWorkspace(props: {
   </section>;
 }
 
-const ACTION_STATES: Record<VoiceAction, readonly IveKitVoiceCallState[]> = {
+const ACTION_STATES: Record<VoiceAction, readonly ConveractFabricVoiceCallState[]> = {
   answer: ['dialing', 'ringing'],
   hangup: ['planned', 'queued', 'dialing', 'ringing', 'active', 'held', 'transferring'],
   dtmf: ['active'],

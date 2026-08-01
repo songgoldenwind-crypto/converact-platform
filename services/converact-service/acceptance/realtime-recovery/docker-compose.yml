@@ -20,8 +20,8 @@ services:
 
 networks:
   recovery:
-    name: ${COMPOSE_PROJECT_NAME:-ivekit-realtime-recovery}-network
+    name: ${COMPOSE_PROJECT_NAME:-converact-realtime-recovery}-network
 
 volumes:
   postgres-data:
-    name: ${COMPOSE_PROJECT_NAME:-ivekit-realtime-recovery}-data
+    name: ${COMPOSE_PROJECT_NAME:-converact-realtime-recovery}-data

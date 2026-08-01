@@ -484,7 +484,7 @@ test('Tinode chat gateway revokes topic access when removing participants', asyn
   }
 });
 
-test('Tinode chat gateway creates basic accounts for OPC identities', async () => {
+test('Tinode chat gateway creates basic accounts for Converact identities', async () => {
   const { url, packets, close } = await startFakeTinodeServer();
   try {
     const gateway = new TinodeChatGateway({

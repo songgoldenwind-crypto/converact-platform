@@ -1,21 +1,21 @@
-export { IveKitRateLimitError } from './errors.js';
-export { IveKitRateLimiter, requiredRateLimitHmacKey } from './service.js';
-export { PostgresIveKitRateLimitStore } from './postgres-store.js';
+export { ConveractFabricRateLimitError } from './errors.js';
+export { ConveractFabricRateLimiter, requiredRateLimitHmacKey } from './service.js';
+export { PostgresConveractFabricRateLimitStore } from './postgres-store.js';
 export {
-  configuredIveKitRateLimiter,
-  iveKitRateLimitConfiguration
+  configuredConveractFabricRateLimiter,
+  converactFabricRateLimitConfiguration
 } from './config.js';
-export type { IveKitRateLimitConfiguration } from './config.js';
+export type { ConveractFabricRateLimitConfiguration } from './config.js';
 export {
-  iveKitRateLimitMetricDefinitions,
-  observeIveKitRateLimit
+  converactFabricRateLimitMetricDefinitions,
+  observeConveractFabricRateLimit
 } from './metrics.js';
-export type { IveKitRateLimitRepository } from './ports.js';
+export type { ConveractFabricRateLimitRepository } from './ports.js';
 export type {
-  IveKitRateLimitScope,
-  IveKitRateLimitDimension,
-  IveKitRateLimitCheckInput,
-  IveKitRateLimitReservationDimension,
-  IveKitRateLimitReservationInput,
-  IveKitRateLimitDecision
+  ConveractFabricRateLimitScope,
+  ConveractFabricRateLimitDimension,
+  ConveractFabricRateLimitCheckInput,
+  ConveractFabricRateLimitReservationDimension,
+  ConveractFabricRateLimitReservationInput,
+  ConveractFabricRateLimitDecision
 } from './types.js';

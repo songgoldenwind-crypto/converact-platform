@@ -9,7 +9,7 @@ import {
 } from '../scripts/render-media-configs.js';
 
 test('media config renderer writes LiveKit and Egress configs from production env', () => {
-  const outputDir = mkdtempSync(join(tmpdir(), 'opc-media-config-'));
+  const outputDir = mkdtempSync(join(tmpdir(), 'converact-media-config-'));
   try {
     const input = createMediaConfigRenderInputFromEnv({
       CONVERACT_MEDIA_CONFIG_DIR: outputDir,
@@ -33,7 +33,7 @@ test('media config renderer writes LiveKit and Egress configs from production en
 
     assert.match(livekit, /"prod-livekit-key": "prod-livekit-secret"/);
     assert.match(livekit, /api_key: "prod-livekit-key"/);
-    assert.match(livekit, /http:\/\/opc:3000\/api\/media\/webhooks\/livekit/);
+    assert.match(livekit, /http:\/\/converact:3000\/api\/media\/webhooks\/livekit/);
     assert.match(livekit, /tcp_port: 7881/);
     assert.match(livekit, /udp_port: 7882-7892/);
     assert.match(livekit, /use_external_ip: true/);
@@ -62,7 +62,7 @@ test('media config renderer writes LiveKit and Egress configs from production en
 });
 
 test('media config renderer supports generic S3 addressing and workload identity', () => {
-  const outputDir = mkdtempSync(join(tmpdir(), 'opc-media-config-s3-'));
+  const outputDir = mkdtempSync(join(tmpdir(), 'converact-media-config-s3-'));
   try {
     const staticInput = createMediaConfigRenderInputFromEnv({
       CONVERACT_MEDIA_CONFIG_DIR: outputDir,
@@ -142,7 +142,7 @@ test('media config renderer bounds LiveKit PLI throttle durations', () => {
 });
 
 test('media config renderer writes one Sentinel and verified TLS contract for LiveKit and Egress', () => {
-  const outputDir = mkdtempSync(join(tmpdir(), 'opc-media-config-sentinel-'));
+  const outputDir = mkdtempSync(join(tmpdir(), 'converact-media-config-sentinel-'));
   const caFile = join(outputDir, 'source-ca.pem');
   const certFile = join(outputDir, 'source-client.pem');
   const keyFile = join(outputDir, 'source-client-key.pem');

@@ -51,9 +51,9 @@ async def main() -> None:
     retry_marker = state_dir / "gateway-retry-observed"
     output_file = state_dir / "gateway-result.json"
 
-    opc = AuthorizationClient(authorization_url, retry_marker)
+    converact = AuthorizationClient(authorization_url, retry_marker)
     sink_factory = create_livekit_audio_tap_sink_factory(
-        opc,
+        converact,
         open_timeout_seconds=1,
         close_timeout_seconds=0.5,
     )
@@ -72,7 +72,7 @@ async def main() -> None:
             "gateway_process_restarted": first["pid"] != second["pid"],
             "first_gateway_pid": first["pid"],
             "second_gateway_pid": second["pid"],
-            "authorization_attempts": opc.attempts,
+            "authorization_attempts": converact.attempts,
             "delivered_sequences": [first["sequence"], second["sequence"]],
             "transport_module_path": transport_module_path,
             "transport_source_sha256": transport_source_sha256,

@@ -1,0 +1,146 @@
+name: Converact Fabric RustDesk Windows CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'codex/**'
+    paths:
+      - '.github/workflows/converact-rustdesk-windows-ci.yml'
+      - 'scripts/rustdesk-edge-agent.ts'
+      - 'scripts/rustdesk-edge-command.ts'
+      - 'scripts/rustdesk-edge-pending-store.ts'
+      - 'scripts/rustdesk-edge-adapters/windows-*.ps1'
+      - 'scripts/converact-env-compat.ps1'
+      - 'scripts/test-converact-env-compat.ps1'
+      - 'scripts/rustdesk-windows/**'
+      - 'scripts/rustdesk-windows-capability-policy.ts'
+      - 'scripts/rustdesk-windows-package.ts'
+      - 'integrations/rustdesk-1.4.9/**'
+      - 'test/fixtures/rustdesk-windows/**'
+      - 'test/rustdesk-edge-agent.test.ts'
+      - 'test/rustdesk-windows-package.test.ts'
+      - 'package.json'
+      - 'package-lock.json'
+  pull_request:
+    paths:
+      - '.github/workflows/converact-rustdesk-windows-ci.yml'
+      - 'scripts/rustdesk-edge-agent.ts'
+      - 'scripts/rustdesk-edge-command.ts'
+      - 'scripts/rustdesk-edge-pending-store.ts'
+      - 'scripts/rustdesk-edge-adapters/windows-*.ps1'
+      - 'scripts/converact-env-compat.ps1'
+      - 'scripts/test-converact-env-compat.ps1'
+      - 'scripts/rustdesk-windows/**'
+      - 'scripts/rustdesk-windows-capability-policy.ts'
+      - 'scripts/rustdesk-windows-package.ts'
+      - 'integrations/rustdesk-1.4.9/**'
+      - 'test/fixtures/rustdesk-windows/**'
+      - 'test/rustdesk-edge-agent.test.ts'
+      - 'test/rustdesk-windows-package.test.ts'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+jobs:
+  native-overlay-check:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Checkout pinned RustDesk source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: rustdesk/rustdesk
+          ref: 6c578292e8ebbbec708b76986ba8c4bc7c509747
+          path: .tmp/rustdesk-1.4.9
+          submodules: recursive
+          fetch-depth: 1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+
+      - name: Verify Converact environment compatibility
+        shell: pwsh
+        run: ./scripts/test-converact-env-compat.ps1
+
+      - name: Apply Converact Fabric native overlay
+        run: node integrations/rustdesk-1.4.9/apply-overlay.mjs .tmp/rustdesk-1.4.9
+
+      - name: Prepare upstream vcpkg dependencies
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2
+        with:
+          vcpkgDirectory: C:\vcpkg
+          runVcpkgInstall: true
+          vcpkgJsonGlob: .tmp/rustdesk-1.4.9/vcpkg.json
+
+      - name: Compile-check patched RustDesk library
+        shell: pwsh
+        env:
+          VCPKG_ROOT: C:\vcpkg
+          VCPKG_DEFAULT_TRIPLET: x64-windows-static
+        run: cargo check --manifest-path .tmp/rustdesk-1.4.9/Cargo.toml --lib --no-default-features --features inline
+
+  windows-package-contract:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify Node package contracts
+        run: node --import tsx --test test/rustdesk-windows-package.test.ts test/rustdesk-edge-agent.test.ts
+
+      - name: Parse packaged PowerShell ASTs
+        shell: powershell
+        run: |
+          Get-ChildItem 'scripts/rustdesk-windows/*.ps1' | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | Format-List | Out-String | Write-Error
+              exit 1
+            }
+          }
+
+      - name: Generate controlled fixed-version package
+        run: npm run rustdesk:windows-package
+        env:
+          CONVERACT_RUSTDESK_WINDOWS_PACKAGE_DIR: artifacts/rustdesk-windows-controlled
+          CONVERACT_RUSTDESK_WINDOWS_PROFILE_FILE: test/fixtures/rustdesk-windows/client-profile.json
+          CONVERACT_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE: test/fixtures/rustdesk-windows/network-config.txt
+          CONVERACT_RUSTDESK_WINDOWS_SOURCE_COMMIT: ${{ github.sha }}
+          CONVERACT_RUSTDESK_WINDOWS_EXPECTED_FINGERPRINT: sha256:1234567890abcdef
+          CONVERACT_RUSTDESK_WINDOWS_WINSW_VERSION: 2.12.0
+          CONVERACT_RUSTDESK_WINDOWS_WINSW_URL: https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe
+          CONVERACT_RUSTDESK_WINDOWS_WINSW_SHA256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+      - name: Run read-only controlled validation
+        shell: powershell
+        run: |
+          $installRoot = Join-Path $env:RUNNER_TEMP 'converact-rustdesk-must-not-be-created'
+          if (Test-Path -LiteralPath $installRoot) { throw 'controlled install root already exists' }
+          & 'artifacts/rustdesk-windows-controlled/Deploy-IveKitRustDesk.ps1' `
+            -Mode validate `
+            -InstallRoot $installRoot
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Test-Path -LiteralPath $installRoot) {
+            throw 'validate mode wrote to the install root'
+          }

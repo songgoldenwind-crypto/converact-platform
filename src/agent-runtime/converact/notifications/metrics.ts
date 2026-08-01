@@ -10,42 +10,42 @@ import type {
 
 const createdTotal = new Counter({
   name: 'opc_ivekit_notifications_created_total',
-  help: 'Total iveKit logical notifications created by channel',
+  help: 'Total Converact Fabric logical notifications created by channel',
   labelNames: ['channel'], registers: [metricsRegistry]
 });
 const deliveryAttempts = new Counter({
   name: 'opc_ivekit_notification_delivery_attempts_total',
-  help: 'Total iveKit notification delivery attempt outcomes',
+  help: 'Total Converact Fabric notification delivery attempt outcomes',
   labelNames: ['channel', 'provider', 'result', 'error_code'], registers: [metricsRegistry]
 });
 const providerReservations = new Counter({
   name: 'opc_ivekit_notification_provider_reservations_total',
-  help: 'Total iveKit notification provider quota and circuit reservations',
+  help: 'Total Converact Fabric notification provider quota and circuit reservations',
   labelNames: ['channel', 'result', 'reason'], registers: [metricsRegistry]
 });
 const providerResults = new Counter({
   name: 'opc_ivekit_notification_provider_results_total',
-  help: 'Total iveKit notification provider health observations',
+  help: 'Total Converact Fabric notification provider health observations',
   labelNames: ['channel', 'provider', 'outcome'], registers: [metricsRegistry]
 });
 const receiptReconciliations = new Counter({
   name: 'opc_ivekit_notification_receipt_reconciliations_total',
-  help: 'Total iveKit notification receipt reconciliation outcomes',
+  help: 'Total Converact Fabric notification receipt reconciliation outcomes',
   labelNames: ['result'], registers: [metricsRegistry]
 });
 const queueDepth = new Gauge({
   name: 'opc_ivekit_notification_queue_depth',
-  help: 'Current iveKit notification delivery queue depth',
+  help: 'Current Converact Fabric notification delivery queue depth',
   labelNames: ['state'], registers: [metricsRegistry]
 });
 const queueOldestAge = new Gauge({
   name: 'opc_ivekit_notification_queue_oldest_age_seconds',
-  help: 'Age of the oldest iveKit notification delivery by state',
+  help: 'Age of the oldest Converact Fabric notification delivery by state',
   labelNames: ['state'], registers: [metricsRegistry]
 });
 const leaseLost = new Counter({
   name: 'opc_ivekit_notification_lease_lost_total',
-  help: 'Total iveKit notification worker lease fencing losses',
+  help: 'Total Converact Fabric notification worker lease fencing losses',
   labelNames: ['channel'], registers: [metricsRegistry]
 });
 const healthProbes = new Counter({

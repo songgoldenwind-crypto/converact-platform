@@ -3,7 +3,7 @@ import type { IntegrationCatalogEntry } from './provider-runtime-types.js';
 export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
   {
     id: 'opc-native-crm',
-    name: 'OPC Native CRM',
+    name: 'Converact Native CRM',
     category: 'crm',
     source_type: 'internal',
     license: 'internal',
@@ -19,7 +19,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
   },
   {
     id: 'opc-native-wiki',
-    name: 'OPC Native Wiki',
+    name: 'Converact Native Wiki',
     category: 'knowledge_base',
     source_type: 'internal',
     license: 'internal',
@@ -44,7 +44,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     default_risk_level: 'R2',
     deployment_modes: ['self_hosted', 'docker'],
     capabilities: ['contacts', 'companies', 'opportunities', 'tasks', 'custom_objects'],
-    recommended_use: 'Modern lightweight CRM reference and optional self-hosted CRM backend for OPC.',
+    recommended_use: 'Modern lightweight CRM reference and optional self-hosted CRM backend for Converact.',
     caution_notes: 'AGPL license requires careful commercial compliance review before embedding.',
     adapter_status: 'voice_adapter',
     adoption_tier: 'optional'
@@ -61,7 +61,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     deployment_modes: ['self_hosted', 'docker', 'php'],
     capabilities: ['contacts', 'accounts', 'opportunities', 'activities', 'workflows'],
     recommended_use: 'Stable open-source CRM adapter candidate when mature CRM semantics are needed.',
-    caution_notes: 'Heavier than OPC-native CRM; use as adapter, not as primary UX.',
+    caution_notes: 'Heavier than Converact-native CRM; use as adapter, not as primary UX.',
     adapter_status: 'http_adapter',
     adoption_tier: 'optional'
   },
@@ -92,7 +92,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     default_risk_level: 'R2',
     deployment_modes: ['self_hosted', 'docker', 'python'],
     capabilities: ['crm', 'sales', 'invoicing', 'inventory', 'automation'],
-    recommended_use: 'Reference or optional adapter for OPCs that need CRM plus operations.',
+    recommended_use: 'Reference or optional adapter for organizations that need CRM plus operations.',
     caution_notes: 'Large surface area; avoid making it a hard dependency.',
     adapter_status: 'manual_reference',
     adoption_tier: 'reference'
@@ -108,14 +108,14 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     default_risk_level: 'R3',
     deployment_modes: ['self_hosted', 'rust'],
     capabilities: ['pbx', 'sip', 'call_routing', 'lightweight_voice', 'call_session_webhooks'],
-    recommended_use: 'Default lightweight PBX direction for OPC voice module, kept behind a RustPBX adapter boundary with approval-gated outbound calls.',
+    recommended_use: 'Default lightweight PBX direction for Converact voice module, kept behind a RustPBX adapter boundary with approval-gated outbound calls.',
     caution_notes: 'Review license and production readiness before managed hosting; all outbound calls remain approval-gated.',
     adapter_status: 'http_adapter',
     adoption_tier: 'core'
   },
   {
     id: 'opc-native-webrtc',
-    name: 'OPC Native WebRTC Boundary',
+    name: 'Converact Native WebRTC Boundary',
     category: 'voice',
     source_type: 'internal',
     license: 'internal',
@@ -131,7 +131,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
   },
   {
     id: 'opc-native-smtp',
-    name: 'OPC Native SMTP Email',
+    name: 'Converact Native SMTP Email',
     category: 'email',
     source_type: 'internal',
     license: 'internal',
@@ -147,7 +147,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
   },
   {
     id: 'opc-native-wecom',
-    name: 'OPC Native WeCom Application Message',
+    name: 'Converact Native WeCom Application Message',
     category: 'customer_messaging',
     source_type: 'internal',
     license: 'internal',
@@ -163,7 +163,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
   },
   {
     id: 'opc-ai-worker',
-    name: 'OPC Python AI Worker',
+    name: 'Converact Python AI Worker',
     category: 'ai_pipeline',
     source_type: 'internal',
     license: 'internal',
@@ -189,7 +189,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     deployment_modes: ['self_hosted', 'linux'],
     capabilities: ['pbx', 'sip', 'ivr', 'recording', 'dialplan'],
     recommended_use: 'Heavy fallback PBX candidate when RustPBX is insufficient for production requirements.',
-    caution_notes: 'Operationally heavy for OPC defaults; telephony compliance, consent, recording policy, and abuse prevention required.',
+    caution_notes: 'Operationally heavy for Converact defaults; telephony compliance, consent, recording policy, and abuse prevention required.',
     adapter_status: 'planned',
     adoption_tier: 'fallback'
   },
@@ -205,7 +205,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     deployment_modes: ['self_hosted', 'linux'],
     capabilities: ['pbx', 'sip', 'webrtc', 'ivr', 'conference'],
     recommended_use: 'Heavy fallback for high-scale voice/WebRTC routing.',
-    caution_notes: 'Too heavy for default OPC deployment; keep behind voice adapter boundary.',
+    caution_notes: 'Too heavy for default Converact deployment; keep behind voice adapter boundary.',
     adapter_status: 'planned',
     adoption_tier: 'fallback'
   },
@@ -317,7 +317,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     deployment_modes: ['cloud', 'self_hosted', 'docker'],
     capabilities: ['workflow_automation', 'connectors', 'webhooks', 'scheduling'],
     recommended_use: 'Backend automation engine reference/optional worker for advanced workflows.',
-    caution_notes: 'Do not expose raw n8n complexity to OPC users by default.',
+    caution_notes: 'Do not expose raw n8n complexity to Converact users by default.',
     adapter_status: 'planned',
     adoption_tier: 'optional'
   },
@@ -381,7 +381,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     deployment_modes: ['self_hosted', 'docker'],
     capabilities: ['ai_search', 'citations', 'research', 'domain_search', 'competitive_intel', 'market_discovery'],
     recommended_use: 'Tenant-scoped AI search provider candidate for clue discovery, market research, and citation-backed follow-up investigation.',
-    caution_notes: 'Use for discovery and evidence gathering, not as the final source of truth; route outputs back into OPC artifacts/wiki for review.',
+    caution_notes: 'Use for discovery and evidence gathering, not as the final source of truth; route outputs back into Converact artifacts/wiki for review.',
     adapter_status: 'http_adapter',
     adoption_tier: 'optional'
   },
@@ -397,7 +397,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     deployment_modes: ['self_hosted', 'docker', 'api'],
     capabilities: ['notebook_workspace', 'multi_modal_notebook', 'citation_chat', 'podcast_generation', 'research_notes', 'rest_api'],
     recommended_use: 'Optional tenant notebook workspace provider for cited notebook Q&A, multimodal source grouping, and audio overview generation.',
-    caution_notes: 'Do not replace the tenant-scoped OPC wiki/memory source of truth; use as a notebook layer on top of existing sources and artifacts.',
+    caution_notes: 'Do not replace the tenant-scoped Converact wiki/memory source of truth; use as a notebook layer on top of existing sources and artifacts.',
     adapter_status: 'http_adapter',
     adoption_tier: 'optional'
   },
@@ -444,8 +444,8 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     default_risk_level: 'R1',
     deployment_modes: ['desktop', 'self_hosted', 'markdown_repo'],
     capabilities: ['llm_wiki', 'knowledge_base', 'markdown_pages', 'graph_view', 'index_log', 'wiki_lint'],
-    recommended_use: 'Reference pattern for OPC native wiki: raw immutable sources, LLM-maintained markdown pages, index.md/log.md, query and lint loops.',
-    caution_notes: 'Use as architecture inspiration/reference; review license before embedding code. OPC should keep its own tenant-scoped wiki runtime.',
+    recommended_use: 'Reference pattern for Converact native wiki: raw immutable sources, LLM-maintained markdown pages, index.md/log.md, query and lint loops.',
+    caution_notes: 'Use as architecture inspiration/reference; review license before embedding code. Converact should keep its own tenant-scoped wiki runtime.',
     adapter_status: 'manual_reference',
     adoption_tier: 'reference'
   },
@@ -477,7 +477,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     deployment_modes: ['api', 'self_hosted_gateway'],
     capabilities: ['chat_completion', 'model_gateway', 'byok', 'fallback_model', 'structured_output'],
     recommended_use: 'Generic live model-provider adapter for OpenAI-compatible APIs, including tenant BYOK setups and self-hosted gateways.',
-    caution_notes: 'Tenant must configure endpoint and secret refs; model output still goes through OPC trace, quota, artifacts, and review layers.',
+    caution_notes: 'Tenant must configure endpoint and secret refs; model output still goes through Converact trace, quota, artifacts, and review layers.',
     adapter_status: 'http_adapter',
     adoption_tier: 'core'
   },
@@ -493,7 +493,7 @@ export const defaultIntegrationCatalog: IntegrationCatalogEntry[] = [
     deployment_modes: ['self_hosted', 'docker'],
     capabilities: ['llm_ui', 'model_gateway', 'tools'],
     recommended_use: 'Reference for model gateway and admin/operator LLM UX.',
-    caution_notes: 'OPC should not outsource core runtime state to a chat UI.',
+    caution_notes: 'Converact should not outsource core runtime state to a chat UI.',
     adapter_status: 'manual_reference',
     adoption_tier: 'reference'
   },

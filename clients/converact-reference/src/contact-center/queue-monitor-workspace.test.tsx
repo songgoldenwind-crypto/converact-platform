@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { after, afterEach, test } from 'node:test';
 import React, { StrictMode } from 'react';
 import type {
-  IveKitClient,
-  IveKitContactCenterMonitorSnapshot
+  ConveractFabricClient,
+  ConveractFabricContactCenterMonitorSnapshot
 } from '@converact/sdk';
 
 import { installTestDom } from '../test-dom.js';
@@ -56,8 +56,8 @@ test('Queue Monitor preserves a useful error state and retries on demand', async
 });
 
 test('Queue Monitor ignores a late snapshot after the authenticated client changes', async () => {
-  let resolveOld!: (value: IveKitContactCenterMonitorSnapshot) => void;
-  const oldSnapshot = new Promise<IveKitContactCenterMonitorSnapshot>((resolve) => {
+  let resolveOld!: (value: ConveractFabricContactCenterMonitorSnapshot) => void;
+  const oldSnapshot = new Promise<ConveractFabricContactCenterMonitorSnapshot>((resolve) => {
     resolveOld = resolve;
   });
   const view = render(<QueueMonitorWorkspace
@@ -92,14 +92,14 @@ test('Queue Monitor coalesces the React StrictMode remount request without losin
 });
 
 function fakeClient(
-  load: () => Promise<IveKitContactCenterMonitorSnapshot>
-): IveKitClient {
+  load: () => Promise<ConveractFabricContactCenterMonitorSnapshot>
+): ConveractFabricClient {
   return {
     contactCenter: { getMonitorSnapshot: load }
-  } as unknown as IveKitClient;
+  } as unknown as ConveractFabricClient;
 }
 
-function snapshot(revision: number): IveKitContactCenterMonitorSnapshot {
+function snapshot(revision: number): ConveractFabricContactCenterMonitorSnapshot {
   return {
     generated_at: `2026-07-13T09:30:0${revision}.000Z`,
     agents: {

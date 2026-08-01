@@ -9,7 +9,7 @@ let controlled: ControlledChatServer;
 test.beforeAll(async () => { controlled = await startControlledChatServer(); });
 test.afterAll(async () => { await controlled.close(); });
 
-test('two identities complete the iveKit IM workflow', async ({ browser }, testInfo) => {
+test('two identities complete the Converact Fabric IM workflow', async ({ browser }, testInfo) => {
   const agent = await openIdentity(browser, 'agent-1', 'token-agent');
   const customer = await openIdentity(browser, 'customer-1', 'token-customer');
   try {
@@ -30,12 +30,12 @@ test('two identities complete the iveKit IM workflow', async ({ browser }, testI
     await expect(customer.page.getByText('Hello from the agent', { exact: true })).toBeVisible();
     await expect(agent.page.getByText('Read by 1')).toBeVisible();
 
-    const messageEventCount = controlled.state.ivekitMessageCreatedEvents;
+    const messageEventCount = controlled.state.converactFabricMessageCreatedEvents;
     const tinodePacketCount = controlled.state.tinodeDataPacketsSent;
     controlled.injectTinodeOnlyMessage('Tinode-only convergence');
     await expect(agent.page.getByText('Tinode-only convergence', { exact: true })).toBeVisible();
     await expect(customer.page.getByText('Tinode-only convergence', { exact: true })).toBeVisible();
-    expect(controlled.state.ivekitMessageCreatedEvents).toBe(messageEventCount);
+    expect(controlled.state.converactFabricMessageCreatedEvents).toBe(messageEventCount);
     expect(controlled.state.tinodeDataPacketsSent).toBeGreaterThan(tinodePacketCount);
 
     const agentMessageOnCustomer = customer.page.locator('article').filter({ hasText: 'Hello from the agent' });
@@ -119,8 +119,8 @@ async function openIdentity(
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ viewport });
   await context.addInitScript(({ accessToken, userIdentity }) => {
-    window.__IVEKIT_DEV_ACCESS_TOKEN__ = accessToken;
-    window.__IVEKIT_DEV_IDENTITY__ = userIdentity;
+    window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = accessToken;
+    window.__CONVERACT_FABRIC_DEV_IDENTITY__ = userIdentity;
   }, { accessToken: token, userIdentity: identity });
   const page = await context.newPage();
   await page.route('**/converact-config.json', (route) => route.fulfill({
@@ -165,10 +165,10 @@ async function captureDesktop(page: Page, testInfo: TestInfo) {
   expect(layout.composer.left).toBe(layout.timeline.left);
   expect(Math.abs(layout.composer.right - layout.timeline.right)).toBeLessThanOrEqual(1);
   expect(layout.detail.left).toBeGreaterThanOrEqual(layout.timeline.right);
-  const path = testInfo.outputPath('ivekit-im-desktop.png');
+  const path = testInfo.outputPath('converact-im-desktop.png');
   mkdirSync(testInfo.outputDir, { recursive: true });
   await page.screenshot({ path, fullPage: true });
-  await testInfo.attach('ivekit-im-desktop', { path, contentType: 'image/png' });
+  await testInfo.attach('converact-im-desktop', { path, contentType: 'image/png' });
 }
 
 async function verifyMobile(browser: Browser, server: ControlledChatServer, testInfo: TestInfo) {
@@ -196,9 +196,9 @@ async function verifyMobile(browser: Browser, server: ControlledChatServer, test
     expect(dimensions.drawer.bottom).toBe(dimensions.height);
     expect(dimensions.textLength).toBeGreaterThan(50);
     expect(server.state.findings.length).toBe(1);
-    const path = testInfo.outputPath('ivekit-im-mobile.png');
+    const path = testInfo.outputPath('converact-im-mobile.png');
     await mobile.page.screenshot({ path, fullPage: true });
-    await testInfo.attach('ivekit-im-mobile', { path, contentType: 'image/png' });
+    await testInfo.attach('converact-im-mobile', { path, contentType: 'image/png' });
   } finally {
     await mobile.context.close();
   }

@@ -134,7 +134,7 @@ export async function routeComplianceApi(
   const disclosureMatch = path.match(/^\/api\/compliance\/calls\/([^/]+)\/disclosure-complete$/);
   if (disclosureMatch && method === 'POST') {
     const pool = requirePostgres(pg);
-    verifyOpcOrAuth(headers);
+    verifyConveractOrAuth(headers);
     const callSessionId = disclosureMatch[1];
     const input = body as { tenant_id?: string };
     const state = completeDisclosure(callSessionId);
@@ -222,7 +222,7 @@ export async function routeComplianceApi(
   return undefined;
 }
 
-function verifyOpcOrAuth(headers: Record<string, string | string[] | undefined>): void {
+function verifyConveractOrAuth(headers: Record<string, string | string[] | undefined>): void {
   const apiKey = String(headers['X-API-Key'] || headers['x-api-key'] || '');
   const expectedKey = resolveBrandEnv(process.env, 'API_KEY');
   if (apiKey && expectedKey && apiKey === expectedKey) return;

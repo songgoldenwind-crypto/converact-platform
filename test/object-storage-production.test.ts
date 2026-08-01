@@ -12,7 +12,7 @@ import {
 } from '../src/storage/object-storage.js';
 
 test('object storage factory honors the supplied environment without mutating process env', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-object-storage-env-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-object-storage-env-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const local = createObjectStorage({ CONVERACT_UPLOAD_DIR: root });
   const s3 = createObjectStorage({
@@ -34,12 +34,12 @@ test('object storage factory rejects local fallback when shared storage is requi
   );
   assert.doesNotThrow(() => createObjectStorage({
     CONVERACT_OBJECT_STORAGE_REQUIRED: '1',
-    S3_BUCKET: 'ivekit-production'
+    S3_BUCKET: 'converact-production'
   }));
 });
 
 test('local object storage gives same-name files unique opaque keys', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-object-storage-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-object-storage-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const storage = new LocalObjectStorage(root);
 
@@ -65,7 +65,7 @@ test('local object storage gives same-name files unique opaque keys', async (t) 
 });
 
 test('local object storage rejects a duplicate explicit resource without overwriting', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-object-storage-resource-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-object-storage-resource-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const storage = new LocalObjectStorage(root);
   const input = {
@@ -82,7 +82,7 @@ test('local object storage rejects a duplicate explicit resource without overwri
 });
 
 test('local multipart upload is resumable, checks parts, and completes idempotently', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-object-storage-multipart-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-object-storage-multipart-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const storage = new LocalObjectStorage(root);
   const initiated = await storage.initiateMultipart({
@@ -128,7 +128,7 @@ test('local multipart upload is resumable, checks parts, and completes idempoten
 });
 
 test('local multipart completion rejects wrong totals and abort removes temporary parts', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-object-storage-abort-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-object-storage-abort-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const storage = new LocalObjectStorage(root);
   const initiated = await storage.initiateMultipart({
@@ -158,7 +158,7 @@ test('local multipart completion rejects wrong totals and abort removes temporar
 });
 
 test('local object delete is bounded and idempotent', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-object-storage-delete-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-object-storage-delete-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const storage = new LocalObjectStorage(root);
   const uploaded = await storage.upload({

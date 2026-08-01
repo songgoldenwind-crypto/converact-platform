@@ -60,7 +60,7 @@ services:
 
 networks:
   seaweedfs:
-    name: ${COMPOSE_PROJECT_NAME:-ivekit-seaweedfs}-network
+    name: ${COMPOSE_PROJECT_NAME:-converact-seaweedfs}-network
 
 volumes:
   master-data:

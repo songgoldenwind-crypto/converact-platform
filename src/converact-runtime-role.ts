@@ -1,19 +1,19 @@
-export interface IveKitRuntimeRoleQueryable {
+export interface ConveractFabricRuntimeRoleQueryable {
   query(
     text: string,
     params?: unknown[]
   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
 }
 
-export async function initializeIveKitRuntimeRole(
-  pg: IveKitRuntimeRoleQueryable,
+export async function initializeConveractFabricRuntimeRole(
+  pg: ConveractFabricRuntimeRoleQueryable,
   password: string
 ): Promise<void> {
   if (!password) throw new Error('CONVERACT_RUNTIME_DB_PASSWORD is required');
 
   const identity = await pg.query('SELECT current_user AS current_user');
   if (String(identity.rows[0]?.current_user || '') !== 'opc_admin') {
-    throw new Error('iveKit runtime-role initialization must run as opc_admin');
+    throw new Error('Converact Fabric runtime-role initialization must run as opc_admin');
   }
 
   await pg.query('BEGIN');

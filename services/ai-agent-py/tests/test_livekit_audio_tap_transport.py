@@ -14,7 +14,7 @@ from livekit_audio_tap_transport import (
     encode_livekit_audio_tap_frame,
     start_configured_livekit_audio_tap,
 )
-from opc_client import OPCClient
+from converact_client import ConveractClient
 
 
 def track_context() -> LiveKitAudioTapTrackContext:
@@ -48,8 +48,8 @@ def audio_frame(sequence: int = 7) -> LiveKitAudioTapFrame:
 
 
 @pytest.mark.asyncio
-async def test_opc_client_requests_one_track_authorization_with_tenant_scope() -> None:
-    client = OPCClient.__new__(OPCClient)
+async def test_converact_client_requests_one_track_authorization_with_tenant_scope() -> None:
+    client = ConveractClient.__new__(ConveractClient)
     requests: list[dict] = []
 
     async def request(method, path, *, json_body=None, extra_headers=None):
@@ -61,7 +61,7 @@ async def test_opc_client_requests_one_track_authorization_with_tenant_scope() -
         })
         return {
             "token": "track-token",
-            "gateway_url": "ws://ivekit:3010/api/ivekit/realtime-audio-tap/livekit",
+            "gateway_url": "ws://converact:3010/api/ivekit/realtime-audio-tap/livekit",
             "protocol": LIVEKIT_AUDIO_TAP_PROTOCOL,
             "audio": {
                 "encoding": "pcm_s16le",
@@ -111,7 +111,7 @@ def test_pcm_frame_encoding_matches_livekit_gateway_wire_format() -> None:
 
 @pytest.mark.asyncio
 async def test_transport_reauthorizes_and_retries_current_frame_after_disconnect() -> None:
-    opc = FakeOPCClient()
+    converact = FakeConveractClient()
     first = FakeWebSocket(fail_first_binary=True)
     second = FakeWebSocket()
     sockets = [first, second]
@@ -122,7 +122,7 @@ async def test_transport_reauthorizes_and_retries_current_frame_after_disconnect
         return sockets.pop(0)
 
     factory = create_livekit_audio_tap_sink_factory(
-        opc,
+        converact,
         connect=connect,
         max_reconnect_attempts=1,
         reconnect_delays_seconds=(0,),
@@ -132,7 +132,7 @@ async def test_transport_reauthorizes_and_retries_current_frame_after_disconnect
     await sink.write(frame)
     await sink.close("track_unsubscribed")
 
-    assert len(opc.authorization_calls) == 2
+    assert len(converact.authorization_calls) == 2
     assert [call["subprotocols"] for call in connect_calls] == [
         [LIVEKIT_AUDIO_TAP_PROTOCOL],
         [LIVEKIT_AUDIO_TAP_PROTOCOL],
@@ -158,7 +158,7 @@ async def test_transport_reauthorizes_and_retries_current_frame_after_disconnect
 
 @pytest.mark.asyncio
 async def test_transport_resets_reconnect_budget_after_a_successful_recovery() -> None:
-    opc = FakeOPCClient()
+    converact = FakeConveractClient()
     first = FakeWebSocket(fail_first_binary=True)
     second = FakeWebSocket()
     third = FakeWebSocket()
@@ -168,7 +168,7 @@ async def test_transport_resets_reconnect_budget_after_a_successful_recovery() -
         return sockets.pop(0)
 
     factory = create_livekit_audio_tap_sink_factory(
-        opc,
+        converact,
         connect=connect,
         max_reconnect_attempts=1,
         reconnect_delays_seconds=(0,),
@@ -180,7 +180,7 @@ async def test_transport_resets_reconnect_budget_after_a_successful_recovery() -
     await sink.write(audio_frame(8))
     await sink.close("track_unsubscribed")
 
-    assert len(opc.authorization_calls) == 3
+    assert len(converact.authorization_calls) == 3
     assert second.sent[-1] == encode_livekit_audio_tap_frame(audio_frame(8))
     assert third.sent[1] == encode_livekit_audio_tap_frame(audio_frame(8))
     assert all(socket.closed for socket in (first, second, third))
@@ -188,7 +188,7 @@ async def test_transport_resets_reconnect_budget_after_a_successful_recovery() -
 
 @pytest.mark.asyncio
 async def test_transport_waits_for_a_bounded_gateway_restart_during_start() -> None:
-    opc = FakeOPCClient()
+    converact = FakeConveractClient()
     recovered = FakeWebSocket()
     attempts = 0
 
@@ -200,7 +200,7 @@ async def test_transport_waits_for_a_bounded_gateway_restart_during_start() -> N
         return recovered
 
     factory = create_livekit_audio_tap_sink_factory(
-        opc,
+        converact,
         connect=connect,
         max_reconnect_attempts=2,
         reconnect_delays_seconds=(0,),
@@ -210,13 +210,13 @@ async def test_transport_waits_for_a_bounded_gateway_restart_during_start() -> N
     await sink.close("track_unsubscribed")
 
     assert attempts == 3
-    assert len(opc.authorization_calls) == 3
+    assert len(converact.authorization_calls) == 3
     assert recovered.sent[1] == encode_livekit_audio_tap_frame(audio_frame())
 
 
 @pytest.mark.asyncio
 async def test_default_restart_budget_covers_eight_bounded_reconnect_attempts() -> None:
-    opc = FakeOPCClient()
+    converact = FakeConveractClient()
     recovered = FakeWebSocket()
     attempts = 0
 
@@ -228,7 +228,7 @@ async def test_default_restart_budget_covers_eight_bounded_reconnect_attempts() 
         return recovered
 
     factory = create_livekit_audio_tap_sink_factory(
-        opc,
+        converact,
         connect=connect,
         reconnect_delays_seconds=(0,),
     )
@@ -236,7 +236,7 @@ async def test_default_restart_budget_covers_eight_bounded_reconnect_attempts() 
     await sink.close("track_unsubscribed")
 
     assert attempts == 9
-    assert len(opc.authorization_calls) == 9
+    assert len(converact.authorization_calls) == 9
 
 
 @pytest.mark.asyncio
@@ -265,9 +265,9 @@ async def test_transport_recovers_after_a_loopback_gateway_listener_restart() ->
         subprotocols=[LIVEKIT_AUDIO_TAP_PROTOCOL],
     )
     port = first_server.sockets[0].getsockname()[1]
-    opc = FakeOPCClient(gateway_url=f"ws://127.0.0.1:{port}/audio-tap")
+    converact = FakeConveractClient(gateway_url=f"ws://127.0.0.1:{port}/audio-tap")
     factory = create_livekit_audio_tap_sink_factory(
-        opc,
+        converact,
         max_reconnect_attempts=8,
         reconnect_delays_seconds=(0.01,),
     )
@@ -298,7 +298,7 @@ async def test_transport_recovers_after_a_loopback_gateway_listener_restart() ->
 
     assert first_messages[1] == encode_livekit_audio_tap_frame(audio_frame(7))
     assert second_messages[1] == encode_livekit_audio_tap_frame(audio_frame(8))
-    assert len(opc.authorization_calls) >= 2
+    assert len(converact.authorization_calls) >= 2
 
 
 @pytest.mark.asyncio
@@ -314,7 +314,7 @@ async def test_configured_tap_starts_only_when_room_metadata_explicitly_enables_
     disabled = await start_configured_livekit_audio_tap(
         room=room,
         metadata={"tenant_id": "tenant-1", "media_call_id": "call-1"},
-        opc=FakeOPCClient(),
+        converact=FakeConveractClient(),
         tap_factory=tap_factory,
     )
     assert disabled is None
@@ -332,7 +332,7 @@ async def test_configured_tap_starts_only_when_room_metadata_explicitly_enables_
                 "consent_ref": "consent-1",
             },
         },
-        opc=FakeOPCClient(),
+        converact=FakeConveractClient(),
         on_event=lambda _event: None,
         tap_factory=tap_factory,
     )
@@ -343,12 +343,12 @@ async def test_configured_tap_starts_only_when_room_metadata_explicitly_enables_
     assert callable(enabled.options["sink_factory"])
 
 
-class FakeOPCClient:
+class FakeConveractClient:
     def __init__(
         self,
         *,
         gateway_url: str = (
-            "ws://ivekit:3010/api/ivekit/realtime-audio-tap/livekit"
+            "ws://converact:3010/api/ivekit/realtime-audio-tap/livekit"
         ),
     ) -> None:
         self.authorization_calls: list[dict] = []

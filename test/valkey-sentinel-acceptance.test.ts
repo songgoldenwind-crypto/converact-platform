@@ -30,7 +30,7 @@ test('Valkey acceptance runner bounds failover, protects LED and cleans all proj
 
   assert.match(script, /^#!\/bin\/sh/);
   assert.match(script, /64\.225\.122\.227/);
-  assert.match(script, /ivekit-valkey-sentinel-/);
+  assert.match(script, /converact-valkey-sentinel-/);
   assert.match(script, /refusing shared or unsafe Compose project name/);
   assert.match(script, /trap on_exit EXIT/);
   assert.match(script, /docker compose[\s\S]*down --volumes --remove-orphans/);

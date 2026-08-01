@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 
 import type {
-  IveKitHttpSdk,
-  IveKitMediaCallAction,
-  IveKitMediaCallSnapshot,
-  IveKitMediaConnectionEventType,
-  IveKitMediaJoinInput,
-  IveKitMediaJoinPlan,
-  IveKitMediaModerationResult
+  ConveractFabricHttpSdk,
+  ConveractFabricMediaCallAction,
+  ConveractFabricMediaCallSnapshot,
+  ConveractFabricMediaConnectionEventType,
+  ConveractFabricMediaJoinInput,
+  ConveractFabricMediaJoinPlan,
+  ConveractFabricMediaModerationResult
 } from '@converact/sdk';
 import { LiveKitClientAdapter } from './livekit-adapter.js';
 import { MediaRejoinController, type MediaRejoinScheduler } from './media-rejoin-controller.js';
@@ -25,7 +25,7 @@ import { openAuthenticatedWebSocket } from '../websocket-auth.js';
 export type MediaAdapterFactory = (onEvent: (event: MediaAdapterEvent) => void) => LiveKitRoomAdapter;
 
 export interface UseMediaCallInput {
-  client: IveKitHttpSdk | null;
+  client: ConveractFabricHttpSdk | null;
   callId: string;
   identity: string;
   displayName?: string;
@@ -40,22 +40,22 @@ export interface UseMediaCallInput {
 export interface MediaCallCommands {
   state: MediaCallState;
   refresh(): Promise<void>;
-  transition(action: IveKitMediaCallAction, reason?: string): Promise<IveKitMediaCallSnapshot>;
-  retry(command: IveKitMediaCallAction): Promise<IveKitMediaCallSnapshot>;
+  transition(action: ConveractFabricMediaCallAction, reason?: string): Promise<ConveractFabricMediaCallSnapshot>;
+  retry(command: ConveractFabricMediaCallAction): Promise<ConveractFabricMediaCallSnapshot>;
   setMicrophone(enabled: boolean): Promise<void>;
   setCamera(enabled: boolean): Promise<void>;
   setScreenShare(enabled: boolean, options?: { audio?: boolean }): Promise<void>;
   switchDevice(kind: 'audioinput' | 'videoinput' | 'audiooutput', deviceId: string): Promise<void>;
   startAudio(): Promise<void>;
-  muteParticipant(identity: string, track: import('./types.js').MediaTrackHandle): Promise<IveKitMediaModerationResult>;
-  removeParticipant(identity: string, reason?: string): Promise<IveKitMediaModerationResult>;
+  muteParticipant(identity: string, track: import('./types.js').MediaTrackHandle): Promise<ConveractFabricMediaModerationResult>;
+  removeParticipant(identity: string, reason?: string): Promise<ConveractFabricMediaModerationResult>;
   setLayout(layout: MediaLayout): void;
   dismissScreenShareRecovery(): void;
 }
 
 interface PendingLifecycleCommand {
   readonly callId: string;
-  readonly action: IveKitMediaCallAction;
+  readonly action: ConveractFabricMediaCallAction;
   readonly reason?: string;
   readonly idempotencyKey: string;
 }
@@ -69,14 +69,14 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
   const [state, dispatch] = useReducer(mediaCallReducer, undefined, initialMediaCallState);
   const requestId = useRef(0);
   const adapter = useRef<LiveKitRoomAdapter | null>(null);
-  const snapshot = useRef<IveKitMediaCallSnapshot | null>(null);
+  const snapshot = useRef<ConveractFabricMediaCallSnapshot | null>(null);
   const pending = useRef(new Map<string, PendingLifecycleCommand>());
-  const inFlight = useRef(new Map<string, Promise<IveKitMediaCallSnapshot>>());
+  const inFlight = useRef(new Map<string, Promise<ConveractFabricMediaCallSnapshot>>());
   const moderationKeys = useRef(new Map<string, string>());
-  const moderationInFlight = useRef(new Map<string, Promise<IveKitMediaModerationResult>>());
+  const moderationInFlight = useRef(new Map<string, Promise<ConveractFabricMediaModerationResult>>());
   const joinOperation = useRef<JoinOperation | null>(null);
   const joinedRequest = useRef(0);
-  const lastPlacement = useRef<IveKitMediaJoinInput['recovery'] | null>(null);
+  const lastPlacement = useRef<ConveractFabricMediaJoinInput['recovery'] | null>(null);
   const rejoinController = useRef<MediaRejoinController | null>(null);
   const desiredLocal = useRef<MediaLocalState>({ microphone: false, camera: false, screen: false, screenAudio: false });
   const disposedAdapters = useRef(new WeakSet<object>());
@@ -84,9 +84,9 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
   const randomId = useRef(input.randomId || defaultRandomId);
   const rejoinDelaysMs = useRef(input.rejoinDelaysMs);
   const rejoinScheduler = useRef(input.rejoinScheduler);
-  const connectSnapshot = useRef<(value: IveKitMediaCallSnapshot, operationId: number, room: LiveKitRoomAdapter) => Promise<void>>(async () => undefined);
+  const connectSnapshot = useRef<(value: ConveractFabricMediaCallSnapshot, operationId: number, room: LiveKitRoomAdapter) => Promise<void>>(async () => undefined);
   const connectionEstablished = useRef<(operationId: number, room: LiveKitRoomAdapter) => void>(() => undefined);
-  const transitionCurrent = useRef<(action: IveKitMediaCallAction, reason?: string) => Promise<IveKitMediaCallSnapshot>>(async () => { throw new Error('Media call is not ready'); });
+  const transitionCurrent = useRef<(action: ConveractFabricMediaCallAction, reason?: string) => Promise<ConveractFabricMediaCallSnapshot>>(async () => { throw new Error('Media call is not ready'); });
   adapterFactory.current = input.adapterFactory || defaultAdapterFactory;
   randomId.current = input.randomId || defaultRandomId;
   rejoinDelaysMs.current = input.rejoinDelaysMs;
@@ -112,7 +112,7 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
   }, [disposeAdapter]);
 
   const connect = useCallback(async (
-    value: IveKitMediaCallSnapshot,
+    value: ConveractFabricMediaCallSnapshot,
     operationId: number,
     room: LiveKitRoomAdapter
   ): Promise<void> => {
@@ -150,9 +150,9 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
   connectSnapshot.current = connect;
 
   const transition = useCallback((
-    action: IveKitMediaCallAction,
+    action: ConveractFabricMediaCallAction,
     reason?: string
-  ): Promise<IveKitMediaCallSnapshot> => {
+  ): Promise<ConveractFabricMediaCallSnapshot> => {
     if (!input.client || !input.callId) return Promise.reject(new Error('Media call is not selected'));
     const operationId = requestId.current;
     const commandKey = `${input.callId}:${action}`;
@@ -169,7 +169,7 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
       pending.current.set(commandKey, command);
     }
     dispatch({ type: 'command_started', command: action });
-    let operation!: Promise<IveKitMediaCallSnapshot>;
+    let operation!: Promise<ConveractFabricMediaCallSnapshot>;
     operation = (async () => {
       try {
         const result = await input.client!.media.transitionCall(
@@ -252,7 +252,7 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     let controller!: MediaRejoinController;
 
     const reportConnection = (
-      eventType: IveKitMediaConnectionEventType,
+      eventType: ConveractFabricMediaConnectionEventType,
       revision: number,
       reasonCode = ''
     ): void => {
@@ -277,7 +277,7 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
         .catch(() => undefined);
     };
 
-    const syncConnectionRevision = (value: IveKitMediaCallSnapshot): void => {
+    const syncConnectionRevision = (value: ConveractFabricMediaCallSnapshot): void => {
       const participant = value.participants.find((item) => item.identity === input.identity);
       const stored = Number(participant?.connection_revision || 1);
       if (Number.isSafeInteger(stored) && stored > connectionRevision) connectionRevision = stored;
@@ -476,7 +476,7 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     return () => socket.close();
   }, [input.websocketUrl, input.accessToken, input.callId, refresh]);
 
-  const retry = useCallback((command: IveKitMediaCallAction) => {
+  const retry = useCallback((command: ConveractFabricMediaCallAction) => {
     const saved = pending.current.get(`${input.callId}:${command}`);
     if (!saved) return Promise.reject(new Error(`Media command ${command} has no retryable attempt`));
     return transition(saved.action, saved.reason);
@@ -512,7 +512,7 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     identity: string,
     track?: import('./types.js').MediaTrackHandle,
     reason?: string
-  ): Promise<IveKitMediaModerationResult> => {
+  ): Promise<ConveractFabricMediaModerationResult> => {
     const call = snapshot.current?.call;
     if (!input.client || !call || call.id !== input.callId) return Promise.reject(new Error('Media call is not ready'));
     const me = snapshot.current?.participants.find((participant) => participant.identity === input.identity);
@@ -526,7 +526,7 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     moderationKeys.current.set(operationKey, key);
     const operationId = requestId.current;
     dispatch({ type: 'command_started', command });
-    let operation!: Promise<IveKitMediaModerationResult>;
+    let operation!: Promise<ConveractFabricMediaModerationResult>;
     operation = (async () => {
       try {
         const result = action === 'mute'
@@ -582,8 +582,8 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
 }
 
 function placementRecoveryIdentity(
-  plan: IveKitMediaJoinPlan
-): IveKitMediaJoinInput['recovery'] | null {
+  plan: ConveractFabricMediaJoinPlan
+): ConveractFabricMediaJoinInput['recovery'] | null {
   if (plan.mode !== 'webrtc') return null;
   const placement = plan.token.placement;
   if (!placement ||
@@ -605,7 +605,7 @@ function defaultRandomId(): string {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   if (globalThis.crypto?.getRandomValues) {
     const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
-    return `ivekit-${[...bytes].map((value) => value.toString(16).padStart(2, '0')).join('')}`;
+    return `converact-${[...bytes].map((value) => value.toString(16).padStart(2, '0')).join('')}`;
   }
   throw new Error('Web Crypto is required for media command idempotency');
 }

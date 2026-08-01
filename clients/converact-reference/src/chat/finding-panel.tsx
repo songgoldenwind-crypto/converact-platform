@@ -1,7 +1,7 @@
 import type {
-  IveKitPolicyFinding,
-  IveKitPolicyFindingResult,
-  IveKitPolicyFindingReviewInput
+  ConveractFabricPolicyFinding,
+  ConveractFabricPolicyFindingResult,
+  ConveractFabricPolicyFindingReviewInput
 } from '@converact/sdk';
 import { AlertTriangle, Check, CircleCheck, SearchCheck, X } from 'lucide-react';
 import React from 'react';
@@ -15,13 +15,13 @@ import {
 } from './finding-view-model.js';
 
 export function FindingPanel(props: {
-  findings: IveKitPolicyFinding[];
+  findings: ConveractFabricPolicyFinding[];
   selectedId: string;
-  detail: IveKitPolicyFindingResult | null;
+  detail: ConveractFabricPolicyFindingResult | null;
   canReview: boolean;
   onSelect(id: string): void;
-  onLoadDetail(id: string): Promise<IveKitPolicyFindingResult>;
-  onReview(id: string, input: IveKitPolicyFindingReviewInput): Promise<IveKitPolicyFindingResult>;
+  onLoadDetail(id: string): Promise<ConveractFabricPolicyFindingResult>;
+  onReview(id: string, input: ConveractFabricPolicyFindingReviewInput): Promise<ConveractFabricPolicyFindingResult>;
 }) {
   const projected = useMemo(() => projectFindings(props.findings), [props.findings]);
   const [detail, setDetail] = useState(props.detail);

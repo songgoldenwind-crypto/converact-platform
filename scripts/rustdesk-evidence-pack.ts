@@ -276,7 +276,7 @@ export function renderRustDeskEvidencePack(pack: RustDeskEvidencePack): string {
   }
 
   lines.push('## Remaining Real-World Gate', '');
-  lines.push('This pack is ready only when the included evidence was produced from a real RustDesk server and client session: hbbs/hbbr running, TCP/UDP/DNS/TLS/Ingress reachable, `id_ed25519.pub` readable by OPC, RustDesk client configured, screen view/control/file/clipboard/recording verified, revoke disconnect verified, old launch URL rejected, and operation audit events reviewed for customer-grade granularity.');
+  lines.push('This pack is ready only when the included evidence was produced from a real RustDesk server and client session: hbbs/hbbr running, TCP/UDP/DNS/TLS/Ingress reachable, `id_ed25519.pub` readable by Converact, RustDesk client configured, screen view/control/file/clipboard/recording verified, revoke disconnect verified, old launch URL rejected, and operation audit events reviewed for customer-grade granularity.');
   lines.push('');
   return lines.join('\n');
 }

@@ -137,7 +137,7 @@ test('browser deep links and stale home tab state still land on three-zone workb
   assert.match(appJs, /function applyHomePanel\(\) \{[\s\S]*?section\.id === 'active-lead-run'/);
 });
 
-test('left zone renders OPC brand status header and asset history tabs', () => {
+test('left zone renders Converact brand status header and asset history tabs', () => {
   assert.match(appJs, /key:\s*'runs'/);
   assert.match(appJs, /key:\s*'leads'/);
   assert.match(appJs, /key:\s*'calls'/);

@@ -1,9 +1,9 @@
-import type { IveKitMediaCallStatus } from './media-types.js';
-import type { IveKitSdkBusinessRef } from './types.js';
+import type { ConveractFabricMediaCallStatus } from './media-types.js';
+import type { ConveractFabricSdkBusinessRef } from './types.js';
 
-export interface IveKitBusinessContext {
+export interface ConveractFabricBusinessContext {
   tenant_id: string;
-  business_ref: Pick<IveKitSdkBusinessRef, 'type' | 'id'>;
+  business_ref: Pick<ConveractFabricSdkBusinessRef, 'type' | 'id'>;
   viewer: {
     identity: string;
     system: boolean;
@@ -15,25 +15,25 @@ export interface IveKitBusinessContext {
   };
   chat: {
     count: number;
-    sessions: IveKitBusinessContextChatSession[];
+    sessions: ConveractFabricBusinessContextChatSession[];
   };
   media: {
     count: number;
-    calls: IveKitBusinessContextMediaCall[];
+    calls: ConveractFabricBusinessContextMediaCall[];
   };
   remote_assistance: {
     count: number;
-    sessions: IveKitBusinessContextRemoteSession[];
-    devices: IveKitBusinessContextDevice[];
+    sessions: ConveractFabricBusinessContextRemoteSession[];
+    devices: ConveractFabricBusinessContextDevice[];
   };
   authorization: {
-    chat: IveKitBusinessContextChatAuthorization[];
-    media: IveKitBusinessContextMediaAuthorization[];
-    remote_assistance: IveKitBusinessContextRemoteAuthorization[];
+    chat: ConveractFabricBusinessContextChatAuthorization[];
+    media: ConveractFabricBusinessContextMediaAuthorization[];
+    remote_assistance: ConveractFabricBusinessContextRemoteAuthorization[];
   };
 }
 
-export interface IveKitBusinessContextChatSession {
+export interface ConveractFabricBusinessContextChatSession {
   id: string;
   title: string;
   status: 'open' | 'closed';
@@ -42,18 +42,18 @@ export interface IveKitBusinessContextChatSession {
   closed_at: string | null;
 }
 
-export interface IveKitBusinessContextMediaCall {
+export interface ConveractFabricBusinessContextMediaCall {
   id: string;
   title: string;
   media: 'voice' | 'video';
-  status: IveKitMediaCallStatus;
+  status: ConveractFabricMediaCallStatus;
   room_name: string;
   created_at: string;
   updated_at: string;
   ended_at: string | null;
 }
 
-export interface IveKitBusinessContextRemoteSession {
+export interface ConveractFabricBusinessContextRemoteSession {
   id: string;
   collaboration_session_id: string;
   status: 'created' | 'active' | 'ended';
@@ -64,7 +64,7 @@ export interface IveKitBusinessContextRemoteSession {
   ended_at: string | null;
 }
 
-export interface IveKitBusinessContextDevice {
+export interface ConveractFabricBusinessContextDevice {
   id: string;
   display_name: string;
   status: 'active' | 'inactive';
@@ -72,7 +72,7 @@ export interface IveKitBusinessContextDevice {
   last_seen_at: string | null;
 }
 
-export interface IveKitBusinessContextChatAuthorization {
+export interface ConveractFabricBusinessContextChatAuthorization {
   session_id: string;
   viewer_role: string | null;
   participants: Array<{
@@ -83,7 +83,7 @@ export interface IveKitBusinessContextChatAuthorization {
   }>;
 }
 
-export interface IveKitBusinessContextMediaAuthorization {
+export interface ConveractFabricBusinessContextMediaAuthorization {
   call_id: string;
   viewer_role: string | null;
   viewer_status: string | null;
@@ -95,7 +95,7 @@ export interface IveKitBusinessContextMediaAuthorization {
   }>;
 }
 
-export interface IveKitBusinessContextRemoteAuthorization {
+export interface ConveractFabricBusinessContextRemoteAuthorization {
   remote_session_id: string;
   viewer_role: string | null;
   consent: {
@@ -116,7 +116,7 @@ export interface IveKitBusinessContextRemoteAuthorization {
   } | null;
 }
 
-export interface IveKitUnifiedTimelineEvent {
+export interface ConveractFabricUnifiedTimelineEvent {
   id: string;
   source: 'chat' | 'media' | 'remote' | 'evidence' | 'quality';
   event_type: string;
@@ -133,8 +133,8 @@ export interface IveKitUnifiedTimelineEvent {
   } | null;
 }
 
-export interface IveKitUnifiedTimelinePage {
-  items: IveKitUnifiedTimelineEvent[];
+export interface ConveractFabricUnifiedTimelinePage {
+  items: ConveractFabricUnifiedTimelineEvent[];
   has_more: boolean;
   next_cursor: string | null;
 }

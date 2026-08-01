@@ -1,29 +1,29 @@
 import { Counter } from 'prom-client';
 
 import { metricsRegistry } from '../../../../metrics.js';
-import type { IveKitRetentionCategory } from './types.js';
+import type { ConveractFabricRetentionCategory } from './types.js';
 
 const runs = new Counter({
   name: 'opc_ivekit_retention_runs_total',
-  help: 'Total iveKit retention run outcomes',
+  help: 'Total Converact Fabric retention run outcomes',
   labelNames: ['category', 'result'],
   registers: [metricsRegistry]
 });
 
 const records = new Counter({
   name: 'opc_ivekit_retention_records_total',
-  help: 'Total iveKit retention record outcomes',
+  help: 'Total Converact Fabric retention record outcomes',
   labelNames: ['category', 'result'],
   registers: [metricsRegistry]
 });
 
-export const iveKitRetentionMetricDefinitions = [
+export const converactFabricRetentionMetricDefinitions = [
   { name: 'opc_ivekit_retention_runs_total', labels: ['category', 'result'] },
   { name: 'opc_ivekit_retention_records_total', labels: ['category', 'result'] }
 ] as const;
 
-export function observeIveKitRetentionRun(input: {
-  category: IveKitRetentionCategory;
+export function observeConveractFabricRetentionRun(input: {
+  category: ConveractFabricRetentionCategory;
   outcome: 'completed' | 'failed';
   summary: { deleted_count: number; held_count: number };
 }): void {

@@ -15,7 +15,7 @@ secure_cookie = false
 [[console.api_tokens]]
 token = "__RUSTPBX_MANAGEMENT_TOKEN_REQUIRED__"
 scopes = ["extensions.write", "trunks.write", "routing.write"]
-description = "iveKit management adapter"
+description = "Converact Fabric management adapter"
 
 [ami]
 allows = ["127.0.0.1"]

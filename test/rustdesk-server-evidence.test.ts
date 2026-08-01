@@ -17,7 +17,7 @@ test('RustDesk server evidence config maps production runtime env', () => {
     CONVERACT_RUSTDESK_PUBLIC_KEY_FILE: '/rustdesk/id_ed25519.pub',
     CONVERACT_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
     CONVERACT_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
-    CONVERACT_RUSTDESK_LAUNCH_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_LAUNCH_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_SERVER_EVIDENCE_HBBS_TCP_PORTS: '21115,21116,21118',
     CONVERACT_RUSTDESK_SERVER_EVIDENCE_HBBR_TCP_PORTS: '21117,21119',
     CONVERACT_RUSTDESK_SERVER_EVIDENCE_UDP_PORTS: '21116',
@@ -28,7 +28,7 @@ test('RustDesk server evidence config maps production runtime env', () => {
   assert.equal(config.publicKeyFile, '/rustdesk/id_ed25519.pub');
   assert.equal(config.idServer, 'rustdesk-id.example.com');
   assert.equal(config.relayServer, 'rustdesk-relay.example.com');
-  assert.equal(config.launchBaseUrl, 'https://opc.example.com');
+  assert.equal(config.launchBaseUrl, 'https://converact.example.com');
   assert.deepEqual(config.hbbsTcpPorts, [21115, 21116, 21118]);
   assert.deepEqual(config.hbbrTcpPorts, [21117, 21119]);
   assert.deepEqual(config.udpPorts, [21116]);
@@ -39,7 +39,7 @@ test('RustDesk server evidence probes host names when client endpoints include p
   const config = createRustDeskServerEvidenceConfigFromEnv({
     CONVERACT_RUSTDESK_ID_SERVER: '64.225.122.227:21116',
     CONVERACT_RUSTDESK_RELAY_SERVER: '64.225.122.227:21117',
-    CONVERACT_RUSTDESK_LAUNCH_BASE_URL: 'https://opc.example.com'
+    CONVERACT_RUSTDESK_LAUNCH_BASE_URL: 'https://converact.example.com'
   });
 
   assert.equal(config.idServer, '64.225.122.227');
@@ -122,7 +122,7 @@ function validConfig() {
     publicKeyFile: '/rustdesk/id_ed25519.pub',
     idServer: 'rustdesk-id.example.com',
     relayServer: 'rustdesk-relay.example.com',
-    launchBaseUrl: 'https://opc.example.com',
+    launchBaseUrl: 'https://converact.example.com',
     hbbsTcpPorts: [21115, 21116, 21118],
     hbbrTcpPorts: [21117, 21119],
     udpPorts: [21116],
@@ -141,7 +141,7 @@ function passingProbes(overrides: Partial<RustDeskServerEvidenceProbes> = {}): R
       authorized: true,
       valid_to: '2027-07-08T00:00:00.000Z',
       issuer: 'Example CA',
-      subject: 'opc.example.com'
+      subject: 'converact.example.com'
     }),
     ingress: async () => ({ ok: true, status: 200 }),
     ...overrides

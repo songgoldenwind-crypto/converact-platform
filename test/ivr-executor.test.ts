@@ -25,7 +25,7 @@ const baseSampleGraph: IvrFlowGraph = {
     { id: 'e3', source: 'menu1', target: 'transfer_sales', sourceHandle: 'digit_1' },
     { id: 'e4', source: 'menu1', target: 'transfer_support', sourceHandle: 'digit_2' },
   ],
-  variables: [{ name: '公司名', defaultValue: 'OPC' }],
+  variables: [{ name: '公司名', defaultValue: 'Converact' }],
 };
 
 const sampleGraph = withCompleteMenuEdges(baseSampleGraph, 'menu1');
@@ -53,7 +53,7 @@ test('validateFlowGraph catches missing terminal', async () => {
 test('simulate: DTMF "1" → transfers to sales', async () => {
   const result = await simulateIvrFlow(sampleGraph, {
     dtmfSequence: ['1'],
-    variables: { 公司名: 'OPC' },
+    variables: { 公司名: 'Converact' },
   });
   assert.equal(result.terminated, true);
   assert.equal(result.finalNodeId, 'transfer_sales');

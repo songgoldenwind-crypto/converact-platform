@@ -670,7 +670,7 @@ impl TestDirectory {
     fn new() -> Self {
         let sequence = NEXT_EVENT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!(
-            "ivekit-processing-http-events-{}-{sequence}",
+            "converact-processing-http-events-{}-{sequence}",
             std::process::id()
         ));
         fs::create_dir(&path).expect("create event test directory");

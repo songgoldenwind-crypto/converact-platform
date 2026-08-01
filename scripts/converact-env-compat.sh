@@ -40,7 +40,8 @@ converact_env_resolve_brand() {
 }
 
 converact_env_resolve_fabric() {
-  _converact_env_resolve fabric CONVERACT_FABRIC_ OPC_IVEKIT_ "$1"
+  _converact_env_resolve fabric CONVERACT_FABRIC_ OPC_IVEKIT_ "$1" || return
+  _converact_env_resolve fabric CONVERACT_FABRIC_ IVEKIT_ "$1"
 }
 
 converact_env_install_aliases() {
@@ -52,6 +53,10 @@ converact_env_install_aliases() {
         ;;
       OPC_IVEKIT_*)
         converact_env_suffix=${converact_env_key#OPC_IVEKIT_}
+        converact_env_resolve_fabric "$converact_env_suffix" || return
+        ;;
+      IVEKIT_*)
+        converact_env_suffix=${converact_env_key#IVEKIT_}
         converact_env_resolve_fabric "$converact_env_suffix" || return
         ;;
       CONVERACT_*)

@@ -197,7 +197,7 @@ test('LiveKit evidence pack rejects missing fixed preflight targets and secrets 
 });
 
 test('LiveKit evidence pack writer always writes an incomplete artifact for missing evidence', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-evidence-incomplete-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-evidence-incomplete-'));
   const outputFile = join(dir, 'evidence-pack.md');
   try {
     const result = writeLiveKitEvidencePack({
@@ -230,7 +230,7 @@ function createCompleteFixture(): {
   acceptance: Record<string, string>;
   cleanup: () => void;
 } {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-evidence-complete-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-livekit-evidence-complete-'));
   const files = {
     envChecklist: join(dir, 'env-checklist.md'),
     preflight: join(dir, 'preflight.json'),
@@ -255,7 +255,7 @@ function createCompleteFixture(): {
     'livekit_internal_url', 'livekit_public_url', 'livekit_public_wss', 'livekit_deployment_mode',
     'livekit_signal_domain', 'livekit_turn_domain', 'livekit_acme_email', 'livekit_server_image_tag',
     'livekit_egress_image_tag', 'livekit_sip_image_tag', 'livekit_caddyl4_image_tag', 'livekit_redis_image_tag',
-    'livekit_api_key', 'livekit_api_secret', 'opc_base_url', 'media_api_token', 'media_invite_secret',
+    'livekit_api_key', 'livekit_api_secret', 'converact_base_url', 'media_api_token', 'media_invite_secret',
     'media_smoke_tenant', 'minio_access_key', 'minio_secret_key', 'media_recording_retention_days',
     'media_recording_http_timeout', 'media_recording_object_timeout', 'media_recording_object_poll_interval',
     'agent_browser_frontend_url', 'agent_browser_agent_a_token', 'agent_browser_agent_a_user_id',

@@ -1,5 +1,7 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
+import { resolveFabricEnv } from '../../config/converact-env.js';
+
 export interface WebAssistJoinTokenInput {
   tenant_id: string;
   remote_session_id: string;
@@ -66,7 +68,10 @@ export function webAssistExpiresAt(expiresInMs = 5 * 60 * 1000, now = new Date()
 }
 
 function signPayload(payload: string, secret?: string): string {
-  return createHmac('sha256', secret || process.env.IVEKIT_WEB_ASSIST_SECRET || 'ivekit-local-web-assist')
+  return createHmac(
+    'sha256',
+    secret || resolveFabricEnv(process.env, 'WEB_ASSIST_SECRET') || 'converact-local-web-assist'
+  )
     .update(payload)
     .digest('base64url');
 }

@@ -1040,7 +1040,7 @@ function sendUdpProbe(host: string, port: number, timeoutMs: number): Promise<vo
     };
     timer = setTimeout(() => done(new Error(`RustDesk UDP port probe timed out: ${host}:${port}`)), timeoutMs);
     socket.once('error', (error) => done(new Error(`RustDesk UDP port probe failed: ${host}:${port} ${error.message}`)));
-    socket.send(Buffer.from('opc-rustdesk-smoke'), port, host, (error) => done(error || undefined));
+    socket.send(Buffer.from('converact-rustdesk-smoke'), port, host, (error) => done(error || undefined));
   });
 }
 

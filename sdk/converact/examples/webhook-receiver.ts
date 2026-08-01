@@ -1,12 +1,12 @@
 import {
-  verifyIveKitWebhook,
-  type IveKitWebhookReplayClaim,
-  type IveKitWebhookReplayStore
+  verifyConveractFabricWebhook,
+  type ConveractFabricWebhookReplayClaim,
+  type ConveractFabricWebhookReplayStore
 } from '@converact/sdk';
 
-export interface IveKitWebhookReceiverDependencies {
+export interface ConveractFabricWebhookReceiverDependencies {
   resolveSigningSecret(): Promise<string | Uint8Array>;
-  inbox: IveKitWebhookReplayStore;
+  inbox: ConveractFabricWebhookReplayStore;
   toleranceSeconds?: number;
   replayRetentionSeconds?: number;
 }
@@ -15,9 +15,9 @@ export interface IveKitWebhookReceiverDependencies {
  * Framework-neutral LED backend example. The inbox claim must atomically persist
  * the verified envelope for a separate business worker before returning true.
  */
-export async function receiveIveKitWebhook(
+export async function receiveConveractFabricWebhook(
   request: Request,
-  dependencies: IveKitWebhookReceiverDependencies
+  dependencies: ConveractFabricWebhookReceiverDependencies
 ): Promise<Response> {
   if (request.method !== 'POST') return response(405, { error: 'method_not_allowed' });
   if (!String(request.headers.get('content-type') || '').toLowerCase().startsWith('application/json')) {
@@ -34,8 +34,8 @@ export async function receiveIveKitWebhook(
   }
 
   let storageFailure: unknown = null;
-  const inbox: IveKitWebhookReplayStore = {
-    async claim(claim: IveKitWebhookReplayClaim): Promise<boolean> {
+  const inbox: ConveractFabricWebhookReplayStore = {
+    async claim(claim: ConveractFabricWebhookReplayClaim): Promise<boolean> {
       try {
         return await dependencies.inbox.claim(claim);
       } catch (error) {
@@ -53,7 +53,7 @@ export async function receiveIveKitWebhook(
   }
 
   try {
-    const result = await verifyIveKitWebhook({
+    const result = await verifyConveractFabricWebhook({
       rawBody,
       timestamp,
       signature,

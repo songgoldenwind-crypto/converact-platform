@@ -3,7 +3,7 @@ import { after, afterEach, before, test } from 'node:test';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { installTestDom } from '../test-dom.js';
-import type { IveKitClient, IveKitPolicyFinding } from '@converact/sdk';
+import type { ConveractFabricClient, ConveractFabricPolicyFinding } from '@converact/sdk';
 import type { ChatClientMessage } from './chat-reducer.js';
 import { MessageTimeline } from './message-timeline.js';
 
@@ -146,7 +146,7 @@ test('timeline keeps original content and only translates ready text sources', (
   };
   const view = render(<MessageTimeline
     messages={[{ ...message(), body: 'Original source', attachments: [ready, waiting] } as ChatClientMessage]}
-    client={{ chat: {} } as unknown as IveKitClient}
+    client={{ chat: {} } as unknown as ConveractFabricClient}
     sessionId="session-1"
     identity="agent-1"
     canLoadOlder={false}
@@ -190,10 +190,10 @@ function message(): ChatClientMessage {
   } as unknown as ChatClientMessage;
 }
 
-function finding(): IveKitPolicyFinding {
+function finding(): ConveractFabricPolicyFinding {
   return {
     id: 'finding-1', message_id: 'message-1', severity: 'high', review_status: 'pending',
     fingerprint: 'finding-fingerprint', policy_type: 'contact_exchange', source: 'text',
     updated_at: '2026-07-11T09:00:00.000Z'
-  } as IveKitPolicyFinding;
+  } as ConveractFabricPolicyFinding;
 }

@@ -1,37 +1,37 @@
 import { resolveFabricEnv } from '../../../../config/converact-env.js';
 import type { PgQueryable } from '../../../../db-pg.js';
 import { resolveAuthContext, type AuthContext } from '../../../../middleware/auth.js';
-import { iveKitCapabilityAllowed } from '../../authorization.js';
-import { IveKitOperationsError } from './errors.js';
-import { PostgresIveKitAuditStore } from './postgres-store.js';
-import { IveKitAuditService } from './service.js';
-import type { IveKitAuditListInput, IveKitAuditPage } from './types.js';
+import { converactFabricCapabilityAllowed } from '../../authorization.js';
+import { ConveractFabricOperationsError } from './errors.js';
+import { PostgresConveractFabricAuditStore } from './postgres-store.js';
+import { ConveractFabricAuditService } from './service.js';
+import type { ConveractFabricAuditListInput, ConveractFabricAuditPage } from './types.js';
 
-export interface IveKitAuditHttpModule {
-  list(input: IveKitAuditListInput): Promise<IveKitAuditPage>;
-  exportJsonl(input: IveKitAuditListInput & { max_events?: number }): Promise<string>;
+export interface ConveractFabricAuditHttpModule {
+  list(input: ConveractFabricAuditListInput): Promise<ConveractFabricAuditPage>;
+  exportJsonl(input: ConveractFabricAuditListInput & { max_events?: number }): Promise<string>;
 }
 
-export interface RouteIveKitAuditApiOptions {
-  module?: IveKitAuditHttpModule;
+export interface RouteConveractFabricAuditApiOptions {
+  module?: ConveractFabricAuditHttpModule;
   env?: NodeJS.ProcessEnv;
 }
 
-export async function routeIveKitAuditApi(
+export async function routeConveractFabricAuditApi(
   pg: PgQueryable | null,
   method: string,
   path: string,
   url: URL,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitAuditApiOptions = {}
+  options: RouteConveractFabricAuditApiOptions = {}
 ): Promise<Record<string, unknown> | undefined> {
   const routePath = path.split('?')[0];
   if (!routePath.startsWith('/api/ivekit/audit')) return undefined;
   const auth = auditAuth(headers);
-  if (!iveKitCapabilityAllowed(auth, 'audit.read')) {
-    throw new IveKitOperationsError('compliance_denied', 403);
+  if (!converactFabricCapabilityAllowed(auth, 'audit.read')) {
+    throw new ConveractFabricOperationsError('compliance_denied', 403);
   }
-  const module = options.module || createPostgresIveKitAuditHttpModule(requiredPg(pg), options.env);
+  const module = options.module || createPostgresConveractFabricAuditHttpModule(requiredPg(pg), options.env);
 
   if (routePath === '/api/ivekit/audit/capabilities' && method === 'GET') {
     return {
@@ -51,8 +51,8 @@ export async function routeIveKitAuditApi(
   }
 
   if (routePath === '/api/ivekit/audit/export' && method === 'GET') {
-    if (!iveKitCapabilityAllowed(auth, 'audit.export')) {
-      throw new IveKitOperationsError('compliance_denied', 403);
+    if (!converactFabricCapabilityAllowed(auth, 'audit.export')) {
+      throw new ConveractFabricOperationsError('compliance_denied', 403);
     }
     return {
       data: await module.exportJsonl({
@@ -66,23 +66,23 @@ export async function routeIveKitAuditApi(
   return undefined;
 }
 
-export function createPostgresIveKitAuditHttpModule(
+export function createPostgresConveractFabricAuditHttpModule(
   pg: PgQueryable,
   env: NodeJS.ProcessEnv = process.env
-): IveKitAuditHttpModule {
-  const service = createPostgresIveKitAuditService(pg, env);
+): ConveractFabricAuditHttpModule {
+  const service = createPostgresConveractFabricAuditService(pg, env);
   return {
     list: (input) => service.list(input),
     exportJsonl: (input) => service.exportJsonl(input)
   };
 }
 
-export function createPostgresIveKitAuditService(
+export function createPostgresConveractFabricAuditService(
   pg: PgQueryable,
   env: NodeJS.ProcessEnv = process.env
-): IveKitAuditService {
-  return new IveKitAuditService({
-    repository: new PostgresIveKitAuditStore(pg),
+): ConveractFabricAuditService {
+  return new ConveractFabricAuditService({
+    repository: new PostgresConveractFabricAuditStore(pg),
     ip_hmac_key: requiredAuditIpHmacKey(env)
   });
 }
@@ -92,14 +92,14 @@ export function requiredAuditIpHmacKey(env: NodeJS.ProcessEnv = process.env): st
   const decoded = Buffer.from(value, 'base64');
   if (decoded.length !== 32 || decoded.toString('base64').replace(/=+$/, '')
     !== value.replace(/=+$/, '')) {
-    throw new IveKitOperationsError('validation_failed', 500, {
+    throw new ConveractFabricOperationsError('validation_failed', 500, {
       configuration: 'CONVERACT_FABRIC_AUDIT_IP_HMAC_KEY'
     });
   }
   return value;
 }
 
-function listInput(tenantId: string, url: URL): IveKitAuditListInput {
+function listInput(tenantId: string, url: URL): ConveractFabricAuditListInput {
   return {
     tenant_id: tenantId,
     limit: queryInteger(url, 'limit'),
@@ -118,7 +118,7 @@ function auditAuth(headers: Record<string, string | string[] | undefined>): Auth
     }
     return auth;
   } catch {
-    throw new IveKitOperationsError('compliance_denied', 401);
+    throw new ConveractFabricOperationsError('compliance_denied', 401);
   }
 }
 
@@ -138,10 +138,10 @@ function queryInteger(url: URL, key: string): number | undefined {
 }
 
 function requiredPg(pg: PgQueryable | null): PgQueryable {
-  if (!pg) throw new IveKitOperationsError('audit_append_failed', 503);
+  if (!pg) throw new ConveractFabricOperationsError('audit_append_failed', 503);
   return pg;
 }
 
-function validationError(): IveKitOperationsError {
-  return new IveKitOperationsError('validation_failed', 422);
+function validationError(): ConveractFabricOperationsError {
+  return new ConveractFabricOperationsError('validation_failed', 422);
 }

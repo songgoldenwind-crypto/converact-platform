@@ -1,8 +1,8 @@
 import type {
-  IveKitMediaCall,
-  IveKitMediaCallParticipant,
-  IveKitMediaCallSnapshot,
-  IveKitMediaCallStatus
+  ConveractFabricMediaCall,
+  ConveractFabricMediaCallParticipant,
+  ConveractFabricMediaCallSnapshot,
+  ConveractFabricMediaCallStatus
 } from '@converact/sdk';
 import type {
   MediaAdapterConnectionState,
@@ -38,8 +38,8 @@ export interface MediaCallState {
   readonly requestId: number;
   readonly selectedCallId: string;
   readonly adapterGeneration: number;
-  readonly call: IveKitMediaCall | null;
-  readonly participants: readonly IveKitMediaCallParticipant[];
+  readonly call: ConveractFabricMediaCall | null;
+  readonly participants: readonly ConveractFabricMediaCallParticipant[];
   readonly tracks: Readonly<Record<string, MediaTrackHandle>>;
   readonly presentIdentities: readonly string[];
   readonly activeSpeakerIdentities: readonly string[];
@@ -58,8 +58,8 @@ export interface MediaCallState {
 
 export type MediaAction =
   | { type: 'call_selected'; requestId: number; callId: string }
-  | { type: 'snapshot_loaded'; requestId: number; snapshot: IveKitMediaCallSnapshot }
-  | { type: 'call_updated'; requestId: number; call: IveKitMediaCall }
+  | { type: 'snapshot_loaded'; requestId: number; snapshot: ConveractFabricMediaCallSnapshot }
+  | { type: 'call_updated'; requestId: number; call: ConveractFabricMediaCall }
   | { type: 'adapter_event'; generation: number; event: MediaAdapterEvent }
   | { type: 'command_started'; command: string }
   | { type: 'command_failed'; command: string; error: string }
@@ -189,11 +189,11 @@ export function mediaCallReducer(state: MediaCallState, action: MediaAction): Me
   }
 }
 
-function applySnapshot(state: MediaCallState, snapshot: IveKitMediaCallSnapshot): MediaCallState {
+function applySnapshot(state: MediaCallState, snapshot: ConveractFabricMediaCallSnapshot): MediaCallState {
   return applyCall({ ...state, participants: Object.freeze([...snapshot.participants]) }, snapshot.call);
 }
 
-function applyCall(state: MediaCallState, call: IveKitMediaCall): MediaCallState {
+function applyCall(state: MediaCallState, call: ConveractFabricMediaCall): MediaCallState {
   if (isTerminalStatus(call.status)) {
     return {
       ...clearProviderProjection(state),
@@ -330,7 +330,7 @@ function recordWithoutKey(record: Readonly<Record<string, string>>, key: string)
 
 function connectionFromAdapter(
   adapter: MediaAdapterConnectionState,
-  callStatus: IveKitMediaCallStatus | undefined
+  callStatus: ConveractFabricMediaCallStatus | undefined
 ): MediaConnectionState {
   if (callStatus && isTerminalStatus(callStatus)) return 'ended';
   switch (adapter) {
@@ -344,7 +344,7 @@ function connectionFromAdapter(
   }
 }
 
-export function isTerminalStatus(status: IveKitMediaCallStatus): boolean {
+export function isTerminalStatus(status: ConveractFabricMediaCallStatus): boolean {
   return ['rejected', 'cancelled', 'timed_out', 'ended', 'failed'].includes(status);
 }
 

@@ -1,4 +1,4 @@
-# iveKit VictoriaMetrics single-node profile
+# Converact Fabric VictoriaMetrics single-node profile
 
 This profile adds Prometheus-compatible long-term metrics storage without
 changing the metrics authority. Prometheus still owns discovery, scraping,
@@ -8,13 +8,13 @@ SIP, RTP, LiveKit, Tinode, RustDesk, API-readiness, or worker-lease dependency.
 
 ## Apply prerequisites
 
-1. Choose a `StorageClass` for `ivekit-victoria-metrics-data` and size it from
+1. Choose a `StorageClass` for `converact-victoria-metrics-data` and size it from
    measured ingest, retention, and restore-time requirements. The checked-in
    request is 200 GiB with 30-day retention, not a MIX-100K capacity claim.
 2. Label same-namespace Prometheus/Grafana Pods with
-   `opc.ivekit.io/victoria-metrics-role=writer` or `reader`. For clients in
+   `converact.io/victoria-metrics-role=writer` or `reader`. For clients in
    another namespace, also label that namespace
-   `opc.ivekit.io/victoria-metrics-access=true`.
+   `converact.io/victoria-metrics-access=true`.
 3. Merge `prometheus-remote-write.example.yaml` into the authoritative
    Prometheus configuration. Do not deploy a second scraper or vmagent for the
    same targets.
@@ -31,7 +31,7 @@ platform-specific storage validation remain release gates.
 ## Backup
 
 The backup CronJob is fail-closed with `suspend: true`. Create Secret
-`ivekit-victoria-metrics-backup` before enabling it. Required keys are
+`converact-victoria-metrics-backup` before enabling it. Required keys are
 `destination`, `accessKeyId`, and `secretAccessKey`; optional keys are
 `endpoint`, `region`, and `sessionToken`. `destination` uses `s3://bucket/path`
 or another vmbackup-supported URL. For a restore, add `restoreSource`.

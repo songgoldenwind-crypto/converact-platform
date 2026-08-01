@@ -17,7 +17,7 @@
   PostgreSQL、NATS 或对象存储。
 - 对象存储不可用时保留本地 segment 并退避重试；只有 spool admission
   耗尽时才拒绝新的必须录音呼叫。
-- 所有 segment 最终归并到 iveKit `RecordingManifest`，或者进入可审计的
+- 所有 segment 最终归并到 Converact Fabric `RecordingManifest`，或者进入可审计的
   durable terminal error，不能静默丢失。
 
 ## 1.1 代码阶段结果
@@ -26,7 +26,7 @@
 
 - 固定 RustPBX patch 在 recorder 消费端轮换分片，媒体路径不访问 API、
   PostgreSQL、NATS 或对象存储。
-- iveKit Provider API 以 profile service key 鉴权，并将 tenant、call、
+- Converact Fabric Provider API 以 profile service key 鉴权，并将 tenant、call、
   reservation、owner epoch、Region、Zone、Cell 和 recorder node 做精确绑定。
 - 独立 sidecar 使用稳定文件检查、整文件 SHA-256、确定性 lease、持久化
   multipart part 和指数退避实现跨重启续传。
@@ -95,7 +95,7 @@
 
 新增固定补丁 `rustpbx-ivekit-recording-spool.patch`：
 
-1. 扩展录音配置，显式启用 iveKit segment spool。
+1. 扩展录音配置，显式启用 Converact Fabric segment spool。
 2. 在现有 recorder channel 消费端按时长或大小轮换文件。
 3. 每个关闭 segment 计算 SHA-256，写 manifest 临时文件并原子 rename。
 4. CDR 附带 recording、interaction、reservation、owner epoch 和 segment 摘要。
@@ -114,7 +114,7 @@ socket、codec、路由或公开 RWI payload 中增加网络调用。
 
 - 扫描已原子发布且稳定的 manifest。
 - 拒绝越界路径、符号链接、大小或 checksum 不匹配的 segment。
-- 先向 iveKit 注册/重放 manifest 和 segment。
+- 先向 Converact Fabric 注册/重放 manifest 和 segment。
 - 使用现有 secure-file/object intake 分片协议流式上传。
 - complete 后回写对象引用，进入 MIME、病毒扫描、ASR 和质检队列。
 - completion marker 仅在本地 segment 均已确认清理后提交；服务端锁定 manifest，
@@ -164,13 +164,13 @@ socket、codec、路由或公开 RWI payload 中增加网络调用。
 
 当前自动化证据入口：
 
-- `test/ivekit-rustpbx-recording-spool-patch.test.ts`
-- `test/ivekit-rustpbx-recording-spool-worker.test.ts`
-- `test/ivekit-rustpbx-recording-spool-capacity.test.ts`
-- `test/ivekit-recording-spool-intake.test.ts`
-- `test/ivekit-recording-segment-upload.test.ts`
-- `test/ivekit-recording-manifest-postgres.test.ts`
-- `test/ivekit-voice-deployment.test.ts`
+- `test/converact-rustpbx-recording-spool-patch.test.ts`
+- `test/converact-rustpbx-recording-spool-worker.test.ts`
+- `test/converact-rustpbx-recording-spool-capacity.test.ts`
+- `test/converact-recording-spool-intake.test.ts`
+- `test/converact-recording-segment-upload.test.ts`
+- `test/converact-recording-manifest-postgres.test.ts`
+- `test/converact-voice-deployment.test.ts`
 
 以下项目必须保持 `not_run`：
 

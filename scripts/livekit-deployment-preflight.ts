@@ -26,7 +26,7 @@ export interface LiveKitDeploymentPreflightReport {
     livekitInternalUrlConfigured: boolean;
     livekitPublicUrlConfigured: boolean;
     deploymentMode: LiveKitDeploymentMode;
-    opcBaseUrlConfigured: boolean;
+    converactBaseUrlConfigured: boolean;
     frontendUrlConfigured: boolean;
     mediaTokenConfigured: boolean;
     inviteSecretConfigured: boolean;
@@ -106,7 +106,7 @@ export function createLiveKitDeploymentPreflightReport(
   const livekitInternalUrl = String(env.LIVEKIT_URL || resolveBrandEnv(env, 'LIVEKIT_URL') || '').trim();
   const livekitPublicUrl = String(env.LIVEKIT_PUBLIC_URL || resolveBrandEnv(env, 'LIVEKIT_PUBLIC_URL') || '').trim();
   const deploymentMode = parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE'));
-  const opcBaseUrl = stripTrailingSlash(resolveBrandEnv(env, 'BASE_URL'));
+  const converactBaseUrl = stripTrailingSlash(resolveBrandEnv(env, 'BASE_URL'));
   const frontendUrl = stripTrailingSlash(resolveBrandEnv(env, 'FRONTEND_URL'));
   const mediaToken = String(resolveBrandEnv(env, 'MEDIA_API_TOKEN') || env.LIVEKIT_MEDIA_API_TOKEN || '').trim();
   const inviteSecret = String(resolveBrandEnv(env, 'MEDIA_INVITE_SECRET') || env.LIVEKIT_MEDIA_INVITE_SECRET || '').trim();
@@ -185,7 +185,7 @@ export function createLiveKitDeploymentPreflightReport(
       checks,
       'livekit_server_image',
       env.LIVEKIT_SERVER_IMAGE,
-      'ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server'
+      'ghcr.io/songgoldenwind-crypto/converact-livekit-server'
     );
     addImmutableImageCheck(checks, 'livekit_egress_image', env.LIVEKIT_EGRESS_IMAGE);
     addImmutableImageCheck(checks, 'livekit_sip_image', env.LIVEKIT_SIP_IMAGE);
@@ -206,7 +206,7 @@ export function createLiveKitDeploymentPreflightReport(
     'LIVEKIT_API_SECRET or CONVERACT_LIVEKIT_API_SECRET is required',
     !sipSelected || !sipVolte.missingOrInvalid.includes('LIVEKIT_API_SECRET')
   );
-  addHttpUrlCheck(checks, 'opc_base_url', opcBaseUrl, 'CONVERACT_BASE_URL is configured');
+  addHttpUrlCheck(checks, 'converact_base_url', converactBaseUrl, 'CONVERACT_BASE_URL is configured');
   addRequiredSecret(checks, 'media_api_token', mediaToken, 'CONVERACT_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN is required');
   addRequiredSecret(checks, 'media_invite_secret', inviteSecret, 'CONVERACT_MEDIA_INVITE_SECRET or LIVEKIT_MEDIA_INVITE_SECRET is required');
   addRequiredValue(checks, 'media_smoke_tenant', mediaTenant, 'CONVERACT_MEDIA_SMOKE_TENANT_ID or CONVERACT_TENANT_ID is required');
@@ -384,7 +384,7 @@ export function createLiveKitDeploymentPreflightReport(
       livekitInternalUrlConfigured: Boolean(livekitInternalUrl),
       livekitPublicUrlConfigured: Boolean(livekitPublicUrl),
       deploymentMode: deploymentMode || 'bundled-dev',
-      opcBaseUrlConfigured: Boolean(opcBaseUrl),
+      converactBaseUrlConfigured: Boolean(converactBaseUrl),
       frontendUrlConfigured: Boolean(frontendUrl),
       mediaTokenConfigured: Boolean(mediaToken),
       inviteSecretConfigured: Boolean(inviteSecret),
@@ -463,7 +463,7 @@ function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDepl
   const production = env.NODE_ENV === 'production';
 
   return [
-    item('LiveKit Server', 'LIVEKIT_URL', true, 'Internal LiveKit WebSocket URL used by OPC and service workloads. Can fall back to CONVERACT_LIVEKIT_URL.', env.LIVEKIT_URL || resolveBrandEnv(env, 'LIVEKIT_URL')),
+    item('LiveKit Server', 'LIVEKIT_URL', true, 'Internal LiveKit WebSocket URL used by Converact and service workloads. Can fall back to CONVERACT_LIVEKIT_URL.', env.LIVEKIT_URL || resolveBrandEnv(env, 'LIVEKIT_URL')),
     item('LiveKit Server', 'LIVEKIT_PUBLIC_URL', browserRequired, 'Public wss:// URL returned to browser clients. Can fall back to CONVERACT_LIVEKIT_PUBLIC_URL.', env.LIVEKIT_PUBLIC_URL || resolveBrandEnv(env, 'LIVEKIT_PUBLIC_URL')),
     item('LiveKit Server', 'CONVERACT_LIVEKIT_DEPLOYMENT_MODE', true, 'external, standalone-vm, or bundled-dev.', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) || ''),
     item('LiveKit Server', 'LIVEKIT_SIGNAL_DOMAIN', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Signal domain for standalone VM WSS.', env.LIVEKIT_SIGNAL_DOMAIN),
@@ -476,7 +476,7 @@ function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDepl
     item('LiveKit Server', 'LIVEKIT_REDIS_IMAGE_TAG', false, 'Pinned Redis image tag for standalone Media Core.', env.LIVEKIT_REDIS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.redis),
     item('LiveKit Server', 'LIVEKIT_SERVER_IMAGE', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Immutable LiveKit Server tag@sha256 reference.', env.LIVEKIT_SERVER_IMAGE),
     item('LiveKit Server', 'LIVEKIT_EGRESS_IMAGE', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Immutable LiveKit Egress tag@sha256 reference.', env.LIVEKIT_EGRESS_IMAGE),
-    item('LiveKit Server', 'LIVEKIT_SIP_IMAGE', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Immutable iveKit LiveKit SIP image@sha256 reference.', env.LIVEKIT_SIP_IMAGE),
+    item('LiveKit Server', 'LIVEKIT_SIP_IMAGE', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Immutable Converact Fabric LiveKit SIP image@sha256 reference.', env.LIVEKIT_SIP_IMAGE),
     item('LiveKit Server', 'LIVEKIT_CADDYL4_IMAGE', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Immutable Caddy L4 tag@sha256 reference.', env.LIVEKIT_CADDYL4_IMAGE),
     item('LiveKit Server', 'LIVEKIT_REDIS_IMAGE', parseDeploymentMode(resolveBrandEnv(env, 'LIVEKIT_DEPLOYMENT_MODE')) === 'standalone-vm', 'Immutable Redis tag@sha256 reference.', env.LIVEKIT_REDIS_IMAGE),
     item('LiveKit Server', 'LIVEKIT_API_KEY', true, 'LiveKit API key. Can fall back to CONVERACT_LIVEKIT_API_KEY.', env.LIVEKIT_API_KEY || resolveBrandEnv(env, 'LIVEKIT_API_KEY'), true),
@@ -486,13 +486,13 @@ function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDepl
     item('LiveKit Server', 'CONVERACT_LIVEKIT_EDGE_TURN_UDP_PORT', production, 'TURN/UDP listener port.', resolveBrandEnv(env, 'LIVEKIT_EDGE_TURN_UDP_PORT')),
     item('LiveKit Server', 'CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_START', production, 'First UDP port in the LiveKit RTC range.', resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_START')),
     item('LiveKit Server', 'CONVERACT_LIVEKIT_EDGE_RTC_PORT_RANGE_END', production, 'Last UDP port in the LiveKit RTC range.', resolveBrandEnv(env, 'LIVEKIT_EDGE_RTC_PORT_RANGE_END')),
-    item('LiveKit Server', 'CONVERACT_BASE_URL', true, 'Public or internal OPC backend base URL used by smoke scripts.', resolveBrandEnv(env, 'BASE_URL')),
+    item('LiveKit Server', 'CONVERACT_BASE_URL', true, 'Public or internal Converact backend base URL used by smoke scripts.', resolveBrandEnv(env, 'BASE_URL')),
     item('LiveKit Server', 'CONVERACT_FRONTEND_URL', browserRequired, 'Frontend URL required by browser readiness targets.', resolveBrandEnv(env, 'FRONTEND_URL')),
     item('Media API', 'CONVERACT_MEDIA_API_TOKEN', true, 'Bearer token for /api/media/livekit management APIs. Can fall back to LIVEKIT_MEDIA_API_TOKEN.', resolveBrandEnv(env, 'MEDIA_API_TOKEN') || env.LIVEKIT_MEDIA_API_TOKEN, true),
     item('Media API', 'CONVERACT_MEDIA_INVITE_SECRET', true, 'HMAC secret for signed customer video invite links. Can fall back to LIVEKIT_MEDIA_INVITE_SECRET.', resolveBrandEnv(env, 'MEDIA_INVITE_SECRET') || env.LIVEKIT_MEDIA_INVITE_SECRET, true),
     item('Media API', 'CONVERACT_MEDIA_INVITE_TTL_MS', false, 'Customer invite TTL in milliseconds.', resolveBrandEnv(env, 'MEDIA_INVITE_TTL_MS') || '86400000'),
     item('Media API', 'CONVERACT_MEDIA_SMOKE_TENANT_ID', true, 'Tenant used by media smoke. Can fall back to CONVERACT_TENANT_ID.', resolveBrandEnv(env, 'MEDIA_SMOKE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID')),
-    item('Media API', 'CONVERACT_MEDIA_SMOKE_ROOM_NAME', false, 'Room name used by media smoke.', resolveBrandEnv(env, 'MEDIA_SMOKE_ROOM_NAME') || 'opc-media-smoke'),
+    item('Media API', 'CONVERACT_MEDIA_SMOKE_ROOM_NAME', false, 'Room name used by media smoke.', resolveBrandEnv(env, 'MEDIA_SMOKE_ROOM_NAME') || 'converact-media-smoke'),
     item('Media API', 'CONVERACT_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT', false, 'Set to 1 to reject dev-token fallback during smoke.', resolveBrandEnv(env, 'MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT') || '0'),
     item('Media API', 'CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT', false, 'Set to 1 to poll object readability and download the recording during server smoke.', resolveBrandEnv(env, 'MEDIA_SMOKE_VERIFY_RECORDING_OBJECT') || '0'),
     item('Media API', 'CONVERACT_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS', false, 'Maximum wait for an Egress object to become readable.', resolveBrandEnv(env, 'MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS') || '60000'),

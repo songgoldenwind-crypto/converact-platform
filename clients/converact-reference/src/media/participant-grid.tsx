@@ -1,11 +1,11 @@
-import type { IveKitMediaCallParticipant } from '@converact/sdk';
+import type { ConveractFabricMediaCallParticipant } from '@converact/sdk';
 import type { MediaLayout } from './media-reducer.js';
 import { MediaTile } from './media-tile.js';
 import { ScreenShareStage } from './screen-share-stage.js';
 import type { MediaTrackHandle } from './types.js';
 
 export function ParticipantGrid(props: {
-  participants: readonly IveKitMediaCallParticipant[];
+  participants: readonly ConveractFabricMediaCallParticipant[];
   tracks: Readonly<Record<string, MediaTrackHandle>>;
   activeSpeakerIdentities: readonly string[];
   networkQuality: Readonly<Record<string, string>>;
@@ -43,7 +43,7 @@ export function ParticipantGrid(props: {
 }
 
 function tile(
-  participant: IveKitMediaCallParticipant,
+  participant: ConveractFabricMediaCallParticipant,
   props: Parameters<typeof ParticipantGrid>[0],
   compact: boolean
 ) {
@@ -60,9 +60,9 @@ function tile(
 }
 
 function orderParticipants(
-  participants: readonly IveKitMediaCallParticipant[],
+  participants: readonly ConveractFabricMediaCallParticipant[],
   activeSpeakers: readonly string[]
-): IveKitMediaCallParticipant[] {
+): ConveractFabricMediaCallParticipant[] {
   const rank = new Map(activeSpeakers.map((identity, index) => [identity, index]));
   return participants.map((participant, index) => ({ participant, index }))
     .sort((left, right) => (rank.get(left.participant.identity) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right.participant.identity) ?? Number.MAX_SAFE_INTEGER) || left.index - right.index)

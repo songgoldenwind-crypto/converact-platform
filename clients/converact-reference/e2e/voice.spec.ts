@@ -54,7 +54,7 @@ test('controlled browser WebPhone lazy-loads and completes the single-call workf
     expect(layout.scrollWidth).toBe(layout.width);
     expect(layout.phone?.left).toBeGreaterThanOrEqual(layout.pane?.left || 0);
     expect(layout.phone?.right).toBeLessThanOrEqual(layout.pane?.right || layout.width);
-    await capture(voice.page, testInfo, 'ivekit-sip-webphone-desktop.png');
+    await capture(voice.page, testInfo, 'converact-sip-webphone-desktop.png');
   } finally {
     await voice.context.close();
   }
@@ -82,7 +82,7 @@ test('mobile WebPhone keeps controls inside the viewport', async ({ browser }, t
     expect(layout.phone?.left).toBeGreaterThanOrEqual(0);
     expect(layout.phone?.right).toBeLessThanOrEqual(layout.width);
     expect(layout.actions?.right).toBeLessThanOrEqual(layout.width);
-    await capture(voice.page, testInfo, 'ivekit-sip-webphone-mobile.png');
+    await capture(voice.page, testInfo, 'converact-sip-webphone-mobile.png');
   } finally {
     await voice.context.close();
   }
@@ -95,8 +95,8 @@ async function openVoice(
   const context = await browser.newContext({ viewport });
   await context.addInitScript(controlledSipInit);
   await context.addInitScript(() => {
-    window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'voice-token';
-    window.__IVEKIT_DEV_IDENTITY__ = 'agent-a';
+    window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'voice-token';
+    window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'agent-a';
   });
   const page = await context.newPage();
   await page.route('**/converact-config.json', (route) => route.fulfill({
@@ -162,8 +162,8 @@ function controlledSipInit() {
   control.emit = (patch) => {
     for (const emit of emitters) emit(patch);
   };
-  (window as unknown as { __IVEKIT_CONTROLLED_SIP__: typeof control }).__IVEKIT_CONTROLLED_SIP__ = control;
-  window.__IVEKIT_DEV_SIP_WEBPHONE_FACTORY__ = () => {
+  (window as unknown as { __CONVERACT_FABRIC_CONTROLLED_SIP__: typeof control }).__CONVERACT_FABRIC_CONTROLLED_SIP__ = control;
+  window.__CONVERACT_FABRIC_DEV_SIP_WEBPHONE_FACTORY__ = () => {
     let state: PhoneState = {
       registration: 'idle', call: 'idle', remote_identity: '', muted: false,
       input_device_id: '', output_device_id: '', error: null
@@ -207,15 +207,15 @@ function controlledSipInit() {
 function emitCall(page: Page, call: string, remoteIdentity: string): Promise<void> {
   return page.evaluate(({ nextCall, identity }) => {
     (window as unknown as {
-      __IVEKIT_CONTROLLED_SIP__: { emit(patch: Record<string, unknown>): void };
-    }).__IVEKIT_CONTROLLED_SIP__.emit({ call: nextCall, remote_identity: identity });
+      __CONVERACT_FABRIC_CONTROLLED_SIP__: { emit(patch: Record<string, unknown>): void };
+    }).__CONVERACT_FABRIC_CONTROLLED_SIP__.emit({ call: nextCall, remote_identity: identity });
   }, { nextCall: call, identity: remoteIdentity });
 }
 
 function controlledActions(page: Page): Promise<string[]> {
   return page.evaluate(() => [
-    ...(window as unknown as { __IVEKIT_CONTROLLED_SIP__: { actions: string[] } })
-      .__IVEKIT_CONTROLLED_SIP__.actions
+    ...(window as unknown as { __CONVERACT_FABRIC_CONTROLLED_SIP__: { actions: string[] } })
+      .__CONVERACT_FABRIC_CONTROLLED_SIP__.actions
   ]);
 }
 

@@ -23,7 +23,7 @@ test('VictoriaMetrics acceptance covers WAL recovery and backup restore on the s
   assert.doesNotMatch(compose, /network_mode:\s*host/);
   assert.match(prometheus, /remote_write:/);
   assert.match(prometheus, /victoria-metrics:8428\/api\/v1\/write/);
-  assert.match(script, /IVEKIT_VALIDATION_SERVER_IP/);
+  assert.match(script, /CONVERACT_FABRIC_VALIDATION_SERVER_IP/);
   assert.match(script, /docker compose[\s\S]*stop victoria-metrics/);
   assert.match(script, /run --rm --no-deps backup/);
   assert.match(script, /run --rm --no-deps restore/);

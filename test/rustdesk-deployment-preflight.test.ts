@@ -35,14 +35,14 @@ test('RustDesk deployment preflight reports missing server readiness inputs with
 });
 
 test('RustDesk deployment preflight passes a strict configured target deployment', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-preflight-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-preflight-'));
   const publicKeyFile = join(dir, 'id_ed25519.pub');
   writeFileSync(publicKeyFile, 'rustdesk-public-key\n');
 
   const report = createRustDeskDeploymentPreflightReport({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com/',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com/',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
-    CONVERACT_BASE_URL: 'https://opc.example.com',
+    CONVERACT_BASE_URL: 'https://converact.example.com',
     CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-secret',
     CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rdesk_1',
@@ -57,7 +57,7 @@ test('RustDesk deployment preflight passes a strict configured target deployment
   });
 
   assert.equal(report.ok, true);
-  assert.equal(report.summary.controlPlaneBaseUrl, 'https://opc.example.com');
+  assert.equal(report.summary.controlPlaneBaseUrl, 'https://converact.example.com');
   assert.equal(report.summary.publicKeySource, 'file');
   assert.equal(report.summary.targetMode, 'configured');
   assert.equal(report.summary.portCheckHost, 'rustdesk-id.example.com');
@@ -67,9 +67,9 @@ test('RustDesk deployment preflight passes a strict configured target deployment
 
 test('RustDesk deployment preflight accepts edge-agent derived targets only when edge inputs are ready', () => {
   const report = createRustDeskDeploymentPreflightReport({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
-    CONVERACT_BASE_URL: 'https://opc.example.com',
+    CONVERACT_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-secret',
     CONVERACT_RUSTDESK_READINESS_RUN_EDGE_AGENT: '1',
@@ -87,9 +87,9 @@ test('RustDesk deployment preflight accepts edge-agent derived targets only when
   assert.equal(report.summary.publicKeySource, 'env');
 
   const broken = createRustDeskDeploymentPreflightReport({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
-    CONVERACT_BASE_URL: 'https://opc.example.com',
+    CONVERACT_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_READINESS_RUN_EDGE_AGENT: '1',
     CONVERACT_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
     CONVERACT_RUSTDESK_PUBLIC_KEY: 'rustdesk-public-key',
@@ -190,13 +190,13 @@ test('RustDesk deployment preflight gates strict physical disconnect and sanitiz
   assert.equal(ready.summary.commandTimeoutMs, 15000);
   assert.equal(JSON.stringify(ready).includes('edge-secret'), false);
   assert.equal(JSON.stringify(ready).includes('super-secret-adapter-argument'), false);
-  assert.equal(JSON.stringify(ready).includes('/opt/opc/bin/disconnect-rustdesk-session'), false);
+  assert.equal(JSON.stringify(ready).includes('/opt/converact/bin/disconnect-rustdesk-session'), false);
 });
 
 test('RustDesk deployment preflight can require HTTPS launch URLs for production ingress', () => {
   const report = createRustDeskDeploymentPreflightReport({
     ...validPreflightEnv(),
-    CONVERACT_BASE_URL: 'http://opc.example.com',
+    CONVERACT_BASE_URL: 'http://converact.example.com',
     CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL: '1'
   });
 
@@ -206,7 +206,7 @@ test('RustDesk deployment preflight can require HTTPS launch URLs for production
 
   const httpsReport = createRustDeskDeploymentPreflightReport({
     ...validPreflightEnv(),
-    CONVERACT_BASE_URL: 'https://opc.example.com',
+    CONVERACT_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL: '1'
   });
 
@@ -221,23 +221,23 @@ test('RustDesk deployment preflight script is wired into package scripts', async
 
 test('RustDesk deployment env checklist renders required variables without leaking secrets', () => {
   const markdown = renderRustDeskDeploymentEnvChecklist({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
     CONVERACT_RUSTDESK_PUBLIC_KEY_FILE: '/rustdesk/id_ed25519.pub',
     CONVERACT_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
     CONVERACT_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
-    CONVERACT_RUSTDESK_LAUNCH_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_LAUNCH_BASE_URL: 'https://converact.example.com',
     CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
     CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device_123',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-secret',
     CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE: 'rustdesk://connect/{rustdesk_id}',
-    CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID: 'ras_123'
   });
 
   assert.match(markdown, /^# RustDesk Deployment Env Checklist/m);
   assert.match(markdown, /## Server Readiness/);
-  assert.match(markdown, /\| CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL \| required \| `https:\/\/opc\.example\.com` \|/);
+  assert.match(markdown, /\| CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL \| required \| `https:\/\/converact\.example\.com` \|/);
   assert.match(markdown, /\| CONVERACT_RUSTDESK_API_TOKEN \| required \| `configured` \|/);
   assert.match(markdown, /\| CONVERACT_COLLABORATION_API_KEY \| required \| `configured` \|/);
   assert.match(markdown, /## Event Audit/);
@@ -264,7 +264,7 @@ test('RustDesk deployment env checklist honors public-key and edge-agent alterna
   });
   assert.match(edgeTarget, /\| CONVERACT_REMOTE_GATEWAY_TARGET_ID \| optional \| `missing` \|/);
 
-  const result = writeRustDeskDeploymentEnvChecklist('/private/tmp/opc-rustdesk-env-alternatives.md', {
+  const result = writeRustDeskDeploymentEnvChecklist('/private/tmp/converact-rustdesk-env-alternatives.md', {
     CONVERACT_RUSTDESK_PUBLIC_KEY: 'rustdesk-public-key',
     CONVERACT_RUSTDESK_READINESS_RUN_EDGE_AGENT: '1'
   });
@@ -274,7 +274,7 @@ test('RustDesk deployment env checklist honors public-key and edge-agent alterna
 
 test('RustDesk deployment env checklist honors preflight URL, API key, and strict-check fallbacks', () => {
   const markdown = renderRustDeskDeploymentEnvChecklist({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
     CONVERACT_REMOTE_GATEWAY_BASE_URL: 'https://remote.example.com',
     CONVERACT_RUSTDESK_EDGE_API_KEY: 'edge-secret',
     CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS: '0',
@@ -288,8 +288,8 @@ test('RustDesk deployment env checklist honors preflight URL, API key, and stric
   assert.match(markdown, /CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL/);
   assert.equal(markdown.includes('edge-secret'), false);
 
-  const result = writeRustDeskDeploymentEnvChecklist('/private/tmp/opc-rustdesk-env-fallbacks.md', {
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+  const result = writeRustDeskDeploymentEnvChecklist('/private/tmp/converact-rustdesk-env-fallbacks.md', {
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
     CONVERACT_REMOTE_GATEWAY_BASE_URL: 'https://remote.example.com',
     CONVERACT_RUSTDESK_EDGE_API_KEY: 'edge-secret',
     CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS: '0',
@@ -303,9 +303,9 @@ test('RustDesk deployment env checklist honors preflight URL, API key, and stric
 
 test('RustDesk deployment env checklist covers client config pack handoff inputs', () => {
   const markdown = renderRustDeskDeploymentEnvChecklist({
-    CONVERACT_RUSTDESK_IVEKIT_BASE_URL: 'https://opc.example.com',
-    CONVERACT_RUSTDESK_IVEKIT_API_KEY: 'ivekit-secret',
-    CONVERACT_RUSTDESK_IVEKIT_TENANT_ID: 'tenant_led',
+    CONVERACT_RUSTDESK_FABRIC_BASE_URL: 'https://converact.example.com',
+    CONVERACT_RUSTDESK_FABRIC_API_KEY: 'converact-secret',
+    CONVERACT_RUSTDESK_FABRIC_TENANT_ID: 'tenant_led',
     CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE: '/tmp/rustdesk-client-config-pack.md',
     CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_TITLE: 'LED RustDesk client config',
     CONVERACT_RUSTDESK_CLIENT_CONFIG_USER_ID: 'agent_1',
@@ -316,20 +316,20 @@ test('RustDesk deployment env checklist covers client config pack handoff inputs
 
   assert.match(markdown, /## Client Config Pack/);
   assert.match(markdown, /\| CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE \| optional \| `\/tmp\/rustdesk-client-config-pack\.md` \|/);
-  assert.match(markdown, /\| CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL \| optional \| `https:\/\/opc\.example\.com` \|/);
+  assert.match(markdown, /\| CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL \| optional \| `https:\/\/converact\.example\.com` \|/);
   assert.match(markdown, /\| CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY \| optional \| `configured` \|/);
   assert.match(markdown, /\| CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID \| optional \| `tenant_led` \|/);
   assert.match(markdown, /CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID/);
   assert.match(markdown, /CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID/);
   assert.match(markdown, /CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE/);
-  assert.equal(markdown.includes('ivekit-secret'), false);
+  assert.equal(markdown.includes('converact-secret'), false);
 });
 
 test('RustDesk deployment env checklist writes an artifact and is exposed in env examples', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-env-checklist-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-env-checklist-'));
   const outputFile = join(dir, 'rustdesk-env-checklist.md');
   const result = writeRustDeskDeploymentEnvChecklist(outputFile, {
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-secret-token'
   });
 
@@ -347,12 +347,12 @@ test('RustDesk deployment env checklist writes an artifact and is exposed in env
 });
 
 test('RustDesk deployment preflight writes a sanitized JSON report artifact', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-preflight-report-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-preflight-report-'));
   const outputFile = join(dir, 'rustdesk-preflight.json');
   const result = writeRustDeskDeploymentPreflightReport(outputFile, {
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
-    CONVERACT_BASE_URL: 'https://opc.example.com',
+    CONVERACT_BASE_URL: 'https://converact.example.com',
     CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-secret',
     CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rdesk_1',
@@ -379,7 +379,7 @@ test('RustDesk deployment preflight writes a sanitized JSON report artifact', ()
 });
 
 test('RustDesk deployment preflight CLI can emit env checklist and JSON report artifacts', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-preflight-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-preflight-cli-'));
   const checklistFile = join(dir, 'rustdesk-env-checklist.md');
   const reportFile = join(dir, 'rustdesk-preflight.json');
   const result = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/rustdesk-deployment-preflight.ts'], {
@@ -389,9 +389,9 @@ test('RustDesk deployment preflight CLI can emit env checklist and JSON report a
       ...process.env,
       CONVERACT_RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE: checklistFile,
       CONVERACT_RUSTDESK_PREFLIGHT_REPORT_FILE: reportFile,
-      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
       CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
-      CONVERACT_BASE_URL: 'https://opc.example.com',
+      CONVERACT_BASE_URL: 'https://converact.example.com',
       CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
       CONVERACT_COLLABORATION_API_KEY: 'collaboration-secret',
       CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rdesk_1',
@@ -422,9 +422,9 @@ function failedCheckIds(report: ReturnType<typeof createRustDeskDeploymentPrefli
 
 function validPreflightEnv(): NodeJS.ProcessEnv {
   return {
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc.example.com',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact.example.com',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-secret-token',
-    CONVERACT_BASE_URL: 'https://opc.example.com',
+    CONVERACT_BASE_URL: 'https://converact.example.com',
     CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-secret',
     CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rdesk_1',
@@ -452,8 +452,8 @@ function physicalDisconnectPreflightEnv(): NodeJS.ProcessEnv {
     CONVERACT_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS: '2000',
     CONVERACT_RUSTDESK_EDGE_COMMAND_LEASE_MS: '40000',
     CONVERACT_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS: '15000',
-    CONVERACT_RUSTDESK_EDGE_SPOOL_DIR: '/var/lib/opc/rustdesk-edge-spool',
-    CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/opc/bin/disconnect-rustdesk-session',
+    CONVERACT_RUSTDESK_EDGE_SPOOL_DIR: '/var/lib/converact/rustdesk-edge-spool',
+    CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/converact/bin/disconnect-rustdesk-session',
     CONVERACT_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["super-secret-adapter-argument"]'
   };
 }

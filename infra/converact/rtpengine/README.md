@@ -1,7 +1,7 @@
-# iveKit RTPengine Fork
+# Converact Fabric RTPengine Fork
 
 This directory turns the locked RTPengine source archive and the ordered
-iveKit patch set into three separate artifacts:
+Converact Fabric patch set into three separate artifacts:
 
 - an unprivileged userspace relay image;
 - an unprivileged recording-daemon image;
@@ -51,8 +51,8 @@ different `TARGETARCH` is rejected rather than silently emulated.
 The userspace image runs as UID/GID `10001`, contains no compiler or package
 manager, and expects writable mounts or tmpfs paths at:
 
-- `/run/ivekit-rtpengine`
-- `/var/lib/ivekit-rtpengine`
+- `/run/converact-rtpengine`
+- `/var/lib/converact-rtpengine`
 - `/rec`
 
 The rest of the root filesystem may be read-only.
@@ -73,8 +73,8 @@ host-kernel-specific artifact plus a kernel runtime image with the generated
 module identity embedded at build time.
 
 Auto fallback is visible in the daemon metric
-`ivekit_userspace_fallback{reason="kernel_identity_unavailable"}` and in
-`/run/ivekit-rtpengine/runtime.prom`.
+`converact_userspace_fallback{reason="kernel_identity_unavailable"}` and in
+`/run/converact-rtpengine/runtime.prom`.
 
 The production runtime enables `IVEKIT_RTPENGINE_OWNER_GUARD` by default so
 stable-command replay, owner fencing, draining, and capacity admission remain

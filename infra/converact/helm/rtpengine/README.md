@@ -1,4 +1,4 @@
-# iveKit RTPengine media node
+# Converact Fabric RTPengine media node
 
 This chart deploys one RTPengine and media-control pair per labelled media
 node. RTPengine keeps forwarding media if the media-control container restarts;
@@ -25,7 +25,7 @@ Userspace nodes use `values-userspace.yaml`. Kernel nodes must use
 `values-kernel.yaml`, carry the exact readiness label, and have the matching
 `nft_rtpengine` module already loaded. The chart never loads host modules.
 
-Before a pod terminates, media-control sends `ivekit drain`; RTPengine waits
+Before a pod terminates, media-control sends `converact drain`; RTPengine waits
 inside its pre-stop hook so existing sessions can finish while placement stops
 new admissions.
 

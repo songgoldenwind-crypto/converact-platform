@@ -5,28 +5,28 @@ import { basename, resolve, sep } from 'node:path';
 
 import { REQUIRED_MIGRATIONS } from './readiness.js';
 
-export interface IveKitBackupArtifact {
+export interface ConveractFabricBackupArtifact {
   file: string;
   sha256: string;
   size_bytes: number;
 }
 
-export interface IveKitBackupManifest {
+export interface ConveractFabricBackupManifest {
   schema_version: 1;
   backup_id: string;
   status: 'complete';
   created_at: string;
   source_commit: string;
-  database: IveKitBackupArtifact & { name: 'ivekit'; format: 'postgres_custom' };
-  dependent_databases: Array<IveKitBackupArtifact & {
+  database: ConveractFabricBackupArtifact & { name: 'ivekit'; format: 'postgres_custom' };
+  dependent_databases: Array<ConveractFabricBackupArtifact & {
     name: string;
     format: 'postgres_custom';
   }>;
-  objects: IveKitBackupArtifact & { object_count: number };
+  objects: ConveractFabricBackupArtifact & { object_count: number };
   required_migrations: string[];
 }
 
-export interface IveKitObjectBackupEntry {
+export interface ConveractFabricObjectBackupEntry {
   key: string;
   backup_file: string;
   sha256: string;
@@ -34,7 +34,7 @@ export interface IveKitObjectBackupEntry {
   etag: string;
 }
 
-export async function createIveKitBackupManifest(input: {
+export async function createConveractFabricBackupManifest(input: {
   directory: string;
   backup_id: string;
   created_at: string;
@@ -43,7 +43,7 @@ export async function createIveKitBackupManifest(input: {
   object_manifest_file: string;
   object_count: number;
   dependent_database_files?: Array<{ name: string; file: string }>;
-}): Promise<IveKitBackupManifest> {
+}): Promise<ConveractFabricBackupManifest> {
   const directory = resolve(input.directory);
   const database = await artifact(directory, input.database_file);
   const objects = await artifact(directory, input.object_manifest_file);
@@ -73,11 +73,11 @@ export async function createIveKitBackupManifest(input: {
   };
 }
 
-export async function validateIveKitBackupSet(input: {
+export async function validateConveractFabricBackupSet(input: {
   directory: string;
   manifest_file?: string;
   manifest_sha256_file?: string;
-}): Promise<IveKitBackupManifest> {
+}): Promise<ConveractFabricBackupManifest> {
   const directory = resolve(input.directory);
   const manifestPath = containedPath(directory, input.manifest_file || 'manifest.json');
   const manifestHashPath = containedPath(
@@ -106,10 +106,10 @@ export async function validateIveKitBackupSet(input: {
   return manifest;
 }
 
-export async function readIveKitObjectBackupEntries(
+export async function readConveractFabricObjectBackupEntries(
   directory: string,
   file: string
-): Promise<IveKitObjectBackupEntry[]> {
+): Promise<ConveractFabricObjectBackupEntry[]> {
   const bytes = await readFile(containedPath(resolve(directory), file), 'utf8');
   if (Buffer.byteLength(bytes) > 268_435_456) throw backupError('object_manifest_too_large');
   const lines = bytes.split('\n').filter(Boolean);
@@ -183,14 +183,14 @@ export function sha256(value: Buffer | string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-async function artifact(directory: string, file: string): Promise<IveKitBackupArtifact> {
+async function artifact(directory: string, file: string): Promise<ConveractFabricBackupArtifact> {
   const path = containedPath(directory, file);
   const [bytes, metadata] = await Promise.all([readFile(path), stat(path)]);
   if (!metadata.isFile()) throw backupError('artifact_invalid');
   return { file: basename(path), sha256: sha256(bytes), size_bytes: metadata.size };
 }
 
-async function verifyArtifact(directory: string, artifactInput: IveKitBackupArtifact): Promise<void> {
+async function verifyArtifact(directory: string, artifactInput: ConveractFabricBackupArtifact): Promise<void> {
   const path = containedPath(directory, artifactInput.file);
   const [bytes, metadata] = await Promise.all([readFile(path), stat(path)]);
   if (!metadata.isFile() || metadata.size !== artifactInput.size_bytes
@@ -202,7 +202,7 @@ async function verifyObjectArtifacts(
   manifestFile: string,
   expectedCount: number
 ): Promise<void> {
-  const entries = await readIveKitObjectBackupEntries(directory, manifestFile);
+  const entries = await readConveractFabricObjectBackupEntries(directory, manifestFile);
   if (entries.length !== expectedCount) throw backupError('object_count_mismatch');
   const seenKeys = new Set<string>();
   const seenFiles = new Set<string>();
@@ -219,7 +219,7 @@ async function verifyObjectArtifacts(
   }
 }
 
-function parseManifest(value: unknown): IveKitBackupManifest {
+function parseManifest(value: unknown): ConveractFabricBackupManifest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw backupError('manifest_invalid');
   const input = value as Record<string, any>;
   if (input.schema_version !== 1 || input.status !== 'complete'
@@ -244,7 +244,7 @@ function parseManifest(value: unknown): IveKitBackupManifest {
   };
 }
 
-function parseDependentDatabases(value: unknown): IveKitBackupManifest['dependent_databases'] {
+function parseDependentDatabases(value: unknown): ConveractFabricBackupManifest['dependent_databases'] {
   if (value === undefined) return [];
   if (!Array.isArray(value) || value.length > 20) throw backupError('manifest_invalid');
   const databases = value.map((item) => {
@@ -261,7 +261,7 @@ function parseDependentDatabases(value: unknown): IveKitBackupManifest['dependen
   return databases;
 }
 
-function parseArtifact(value: unknown, format?: string): IveKitBackupArtifact & { format?: string } {
+function parseArtifact(value: unknown, format?: string): ConveractFabricBackupArtifact & { format?: string } {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw backupError('manifest_invalid');
   const input = value as Record<string, unknown>;
   if (format && input.format !== format) throw backupError('manifest_invalid');

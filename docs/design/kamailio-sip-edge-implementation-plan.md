@@ -23,13 +23,13 @@ daemon 当前无法响应 `_ping`，因此 Kamailio `-c` 镜像检查和 Docker 
 
 **Files:**
 
-- Create: `src/agent-runtime/ivekit/voice/kamailio-route-snapshot.ts`
-- Create: `test/ivekit-kamailio-route-snapshot.test.ts`
-- Modify: `src/agent-runtime/ivekit/voice/index.ts`
+- Create: `src/agent-runtime/converact/voice/kamailio-route-snapshot.ts`
+- Create: `test/converact-kamailio-route-snapshot.test.ts`
+- Modify: `src/agent-runtime/converact/voice/index.ts`
 
 - [x] Write tests for canonical HMAC envelopes, current/previous key verification, identity and epoch
   checks, strict sequence monotonicity, TTL, 4 MiB/1,024-node bounds, URI validation and unknown fields.
-- [x] Run `node --import tsx --test test/ivekit-kamailio-route-snapshot.test.ts`; verify the missing
+- [x] Run `node --import tsx --test test/converact-kamailio-route-snapshot.test.ts`; verify the missing
   module failure.
 - [x] Implement `encodeKamailioRouteSnapshot`, `verifyKamailioRouteSnapshot` and strict public types.
 - [x] Run the focused test and `npm run typecheck`; expect zero failures.
@@ -39,10 +39,10 @@ daemon 当前无法响应 `_ping`，因此 Kamailio `-c` 镜像检查和 Docker 
 
 **Files:**
 
-- Modify: `src/agent-runtime/ivekit/placement/component-node-admission-http.ts`
-- Create: `src/agent-runtime/ivekit/voice/kamailio-route-compiler.ts`
-- Create: `test/ivekit-kamailio-route-compiler.test.ts`
-- Modify: `test/ivekit-component-node-admission-http.test.ts`
+- Modify: `src/agent-runtime/converact/placement/component-node-admission-http.ts`
+- Create: `src/agent-runtime/converact/voice/kamailio-route-compiler.ts`
+- Create: `test/converact-kamailio-route-compiler.test.ts`
+- Modify: `test/converact-component-node-admission-http.test.ts`
 
 - [x] Add failing tests for authenticated `GET /v1/state` client parsing and bounded response handling.
 - [x] Add failing compiler tests for accepting/degraded/draining/offline nodes, normalized `rweight`,
@@ -57,13 +57,13 @@ daemon 当前无法响应 `_ping`，因此 Kamailio `-c` 镜像检查和 Docker 
 
 **Files:**
 
-- Create: `src/agent-runtime/ivekit/voice/kamailio-route-agent.ts`
-- Create: `scripts/ivekit-kamailio-route-agent.ts`
-- Create: `test/ivekit-kamailio-route-agent.test.ts`
+- Create: `src/agent-runtime/converact/voice/kamailio-route-agent.ts`
+- Create: `scripts/converact-kamailio-route-agent.ts`
+- Create: `test/converact-kamailio-route-agent.test.ts`
 - Modify: `package.json`
 - Modify: `infra/env.example`
-- Modify: `infra/ivekit/env.example`
-- Modify: `services/ivekit-service/env.example`
+- Modify: `infra/converact/env.example`
+- Modify: `services/converact-service/env.example`
 
 - [x] Write failing tests for bounded parallel polling, last-known-good retention, stale fail-closed,
   monotonic snapshots, atomic file replacement, key rotation, JSON-RPC authentication and retry bounds.
@@ -81,9 +81,9 @@ daemon 当前无法响应 `_ping`，因此 Kamailio `-c` 镜像检查和 Docker 
 **Files:**
 
 - Replace: `infra/config/kamailio.cfg`
-- Create: `src/agent-runtime/ivekit/voice/kamailio-config.ts`
+- Create: `src/agent-runtime/converact/voice/kamailio-config.ts`
 - Create: `scripts/render-kamailio-config.ts`
-- Create: `test/ivekit-kamailio-config.test.ts`
+- Create: `test/converact-kamailio-config.test.ts`
 - Modify: `package.json`
 
 - [x] Write failing structural tests for required modules and routes: REQINIT, AUTH, NEW_INVITE,
@@ -106,10 +106,10 @@ daemon 当前无法响应 `_ping`，因此 Kamailio `-c` 镜像检查和 Docker 
 
 **Files:**
 
-- Modify: `services/ivekit-service/docker-compose.voice.yml`
-- Create: `src/ivekit-kamailio-compose-config.ts`
-- Modify: `services/ivekit-service/env.example`
-- Create: `test/ivekit-kamailio-compose.test.ts`
+- Modify: `services/converact-service/docker-compose.voice.yml`
+- Create: `src/converact-kamailio-compose-config.ts`
+- Modify: `services/converact-service/env.example`
+- Create: `test/converact-kamailio-compose.test.ts`
 
 - [x] Write failing tests that require two RustPBX nodes, stable component-node identities, one Edge,
   private RPC, local dispatcher volume, health checks, no SQLite and no host exposure for management.
@@ -123,14 +123,14 @@ daemon 当前无法响应 `_ping`，因此 Kamailio `-c` 镜像检查和 Docker 
 
 **Files:**
 
-- Create: `services/ivekit-service/helm/ivekit/templates/kamailio-config.yaml`
-- Create: `services/ivekit-service/helm/ivekit/templates/kamailio-deployment.yaml`
-- Service is rendered with: `services/ivekit-service/helm/ivekit/templates/kamailio-deployment.yaml`
-- Create: `services/ivekit-service/helm/ivekit/templates/kamailio-network-policy.yaml`
-- Replace voice workload in: `services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml`
-- Modify: `services/ivekit-service/helm/ivekit/values.yaml`
-- Modify: `services/ivekit-service/helm/ivekit/templates/_helpers.tpl`
-- Create: `test/ivekit-kamailio-deployment.test.ts`
+- Create: `services/converact-service/helm/converact/templates/kamailio-config.yaml`
+- Create: `services/converact-service/helm/converact/templates/kamailio-deployment.yaml`
+- Service is rendered with: `services/converact-service/helm/converact/templates/kamailio-deployment.yaml`
+- Create: `services/converact-service/helm/converact/templates/kamailio-network-policy.yaml`
+- Replace voice workload in: `services/converact-service/helm/converact/templates/rustpbx-deployment.yaml`
+- Modify: `services/converact-service/helm/converact/values.yaml`
+- Modify: `services/converact-service/helm/converact/templates/_helpers.tpl`
+- Create: `test/converact-kamailio-deployment.test.ts`
 
 - [x] Write failing render-contract tests for two Edge replicas, hostname/zone spread, PDB, RustPBX
   StatefulSet/headless Service, stable ordinal identity, route-agent sidecar, loopback RPC, SIP/TLS/WSS
@@ -146,10 +146,10 @@ daemon 当前无法响应 `_ping`，因此 Kamailio `-c` 镜像检查和 Docker 
 
 **Files:**
 
-- Modify: `services/ivekit-service/helm/ivekit/files/prometheus-rules.yaml`
-- Modify: `services/ivekit-service/helm/ivekit/files/grafana-dashboard.json`
-- Modify: `docs/ivekit-monitoring-runbook.md`
-- Modify: `test/ivekit-monitoring-deployment.test.ts`
+- Modify: `services/converact-service/helm/converact/files/prometheus-rules.yaml`
+- Modify: `services/converact-service/helm/converact/files/grafana-dashboard.json`
+- Modify: `docs/converact-monitoring-runbook.md`
+- Modify: `test/converact-monitoring-deployment.test.ts`
 
 - [x] Add failing tests for snapshot age, no destination, majority down, failover exhaustion, pin failure,
   5xx/retransmission, rate-limit and Edge availability alerts.
@@ -164,10 +164,10 @@ daemon 当前无法响应 `_ping`，因此 Kamailio `-c` 镜像检查和 Docker 
 
 **Files:**
 
-- Create: `scripts/ivekit-kamailio-acceptance.ts`
-- Create: `test/ivekit-kamailio-acceptance.test.ts`
-- Create: `services/ivekit-service/acceptance/kamailio-sip-edge/README.md`
-- Add SIPp scenarios under: `services/ivekit-service/acceptance/kamailio-sip-edge/scenarios/`
+- Create: `scripts/converact-kamailio-acceptance.ts`
+- Create: `test/converact-kamailio-acceptance.test.ts`
+- Create: `services/converact-service/acceptance/kamailio-sip-edge/README.md`
+- Add SIPp scenarios under: `services/converact-service/acceptance/kamailio-sip-edge/scenarios/`
 
 - [x] Define 12 deterministic scenarios for weighted distribution, re-INVITE/BYE affinity,
   transport/503 retry, 486 no-retry, node drain, node down/up, stale snapshot, forged internal headers,
@@ -188,10 +188,10 @@ daemon 当前无法响应 `_ping`，因此 Kamailio `-c` 镜像检查和 Docker 
 
 **Files:**
 
-- Modify: `scripts/ivekit-delivery-bundle.ts`
-- Modify: `test/ivekit-delivery-bundle.test.ts`
+- Modify: `scripts/converact-delivery-bundle.ts`
+- Modify: `test/converact-delivery-bundle.test.ts`
 - Modify: `docs/capacity/forks/ivekit-forks-v1.json`
-- Modify: `docs/ivekit-v3-completion-audit.md`
+- Modify: `docs/converact-fabric-v3-completion-audit.md`
 - Modify: `docs/design/revised-master-plan.md`
 - Modify: `docs/design/gap-analysis.md`
 

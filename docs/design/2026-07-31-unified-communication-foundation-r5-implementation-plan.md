@@ -6,7 +6,7 @@
 > - [Revision 5 绑定目标](../capacity/contracts/unified-communication-foundation-r5-objective.md)
 > - [ADR-CCAAS-9](../adr/ccaas-9-channel-agent-and-speech-runtime.md)
 > - [ADR-CCAAS-10](../adr/ccaas-10-vilte-livekit-av-participant-gateway.md)
-> - [Revision 4 实施计划](../superpowers/plans/2026-07-29-unified-voice-foundation-r4.md)
+> - [Revision 4 实施计划](../plans/2026-07-29-unified-voice-foundation-r4.md)
 >
 > </关联文档>
 
@@ -197,7 +197,7 @@ prepare / commit / try_write / revoke / close / query / reconcile
 - unsupported audio format fail closed；
 - secret/raw PCM 无法序列化到 metadata event。
 
-实现 OPC-owned：
+实现 Converact Platform-owned：
 
 - `SpeechSessionId`、`SpeechGeneration`、`SpeechFence`；
 - `PrepareSpeechSession`；
@@ -684,4 +684,4 @@ source identity、安全、合规、长稳、drain、rollback 和 production app
 
 | Revision | 日期 | 作者 | 变更 |
 | --- | --- | --- | --- |
-| 1 | 2026-07-31 | OPC/Codex | 新增 fault-domain、HF/Agent、AI-native、ViLTE AV 和 mixed-cell TDD 路线；保持服务器冻结 |
+| 1 | 2026-07-31 | Converact Platform/Codex | 新增 fault-domain、HF/Agent、AI-native、ViLTE AV 和 mixed-cell TDD 路线；保持服务器冻结 |

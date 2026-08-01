@@ -1,20 +1,20 @@
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
 metadata:
-  name: opc-postgres-backup
+  name: converact-postgres-backup
   labels:
-    app.kubernetes.io/name: opc-postgres-backup
-    app.kubernetes.io/part-of: ivekit-platform
+    app.kubernetes.io/name: converact-postgres-backup
+    app.kubernetes.io/part-of: converact-platform
 spec:
   configuration:
-    destinationPath: s3://opc-postgres-backups/cluster
-    serverName: opc-postgres
+    destinationPath: s3://converact-postgres-backups/cluster
+    serverName: converact-postgres
     s3Credentials:
       accessKeyId:
-        name: opc-postgres-backup-credentials
+        name: converact-postgres-backup-credentials
         key: ACCESS_KEY_ID
       secretAccessKey:
-        name: opc-postgres-backup-credentials
+        name: converact-postgres-backup-credentials
         key: ACCESS_SECRET_KEY
     wal:
       compression: snappy

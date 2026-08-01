@@ -1,6 +1,6 @@
 """Provider-neutral realtime voice pipeline policy for LiveKit Agents.
 
-The media transport and conversation authority stay in LiveKit/OPC. ASR, LLM,
+The media transport and conversation authority stay in LiveKit/Converact. ASR, LLM,
 and TTS implementations can change without changing turn or audit semantics.
 """
 from __future__ import annotations
@@ -135,14 +135,14 @@ def aec_warmup_seconds(room_meta: dict[str, Any] | None = None) -> float:
 
 
 def extract_conversation_turn(event: Any) -> dict[str, Any] | None:
-    """Normalize a committed LiveKit conversation item for OPC persistence."""
+    """Normalize a committed LiveKit conversation item for Converact persistence."""
     item = _field(event, "item")
     if _field(item, "type") != "message":
         return None
 
     role = _field(item, "role")
-    opc_role = "customer" if role == "user" else "ai" if role == "assistant" else None
-    if opc_role is None:
+    converact_role = "customer" if role == "user" else "ai" if role == "assistant" else None
+    if converact_role is None:
         return None
 
     content = _field(item, "text_content")
@@ -150,17 +150,17 @@ def extract_conversation_turn(event: Any) -> dict[str, Any] | None:
         return None
 
     result: dict[str, Any] = {
-        "role": opc_role,
+        "role": converact_role,
         "content": content.strip(),
         "interrupted": _field(item, "interrupted") is True,
     }
     confidence = _finite_number(_field(item, "transcript_confidence"))
-    if opc_role == "customer" and confidence is not None and 0 <= confidence <= 1:
+    if converact_role == "customer" and confidence is not None and 0 <= confidence <= 1:
         result["stt_confidence"] = confidence
 
     metrics = _field(item, "metrics")
     if isinstance(metrics, dict):
-        latency_key = "end_of_turn_delay" if opc_role == "customer" else "e2e_latency"
+        latency_key = "end_of_turn_delay" if converact_role == "customer" else "e2e_latency"
         latency_seconds = _finite_number(metrics.get(latency_key))
         if latency_seconds is not None and 0 <= latency_seconds <= 3_600:
             result["latency_ms"] = round(latency_seconds * 1_000)

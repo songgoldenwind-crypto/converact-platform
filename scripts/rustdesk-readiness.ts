@@ -20,7 +20,7 @@ import {
   createRustDeskDeploymentPreflightReport,
   type RustDeskDeploymentPreflightReport
 } from './rustdesk-deployment-preflight.js';
-import { createIveKitRustDeskHttpClient } from '../src/agent-runtime/converact/rustdesk-http-client.js';
+import { createConveractFabricRustDeskHttpClient } from '../src/agent-runtime/converact/rustdesk-http-client.js';
 import type { RustDeskDisconnectExecutionMethod } from '../src/agent-runtime/collaboration/rustdesk-device-command-store.js';
 
 export interface RustDeskReadinessConfig {
@@ -237,7 +237,7 @@ async function runPhysicalDisconnectReadiness(
   }
 
   const edgeInstanceId = String(edgeConfig.edgeInstanceId || '').trim();
-  const client = createIveKitRustDeskHttpClient({
+  const client = createConveractFabricRustDeskHttpClient({
     baseUrl: edgeConfig.baseUrl,
     apiKey: edgeConfig.apiKey,
     tenantId: edgeConfig.tenantId,

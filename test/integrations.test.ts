@@ -11,7 +11,7 @@ test('catalog recommends stable open-source building blocks across CRM voice MCP
   const db = createDatabase(':memory:');
   const harness = createHarness(db);
 
-  const stableStack = harness.integrationCatalog.stableStackForOPC();
+  const stableStack = harness.integrationCatalog.stableStackForConveract();
 
   assert.equal(stableStack.profile, 'lean_opc_default');
   assert.equal(stableStack.crm[0].id, 'opc-native-crm');
@@ -178,7 +178,7 @@ test('integration recommendation playbook commits integration stack plan artifac
 
   const result = await harness.commander.run({
     tenant_id: tenant.id,
-    goal: '帮我推荐 OPC 可以融合的开源工具、CRM、呼叫、MCP 和 skills'
+    goal: '帮我推荐 Converact 可以融合的开源工具、CRM、呼叫、MCP 和 skills'
   });
 
   assert.equal(result.status, 'completed');

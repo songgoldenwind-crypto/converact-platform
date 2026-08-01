@@ -9,7 +9,7 @@ if (operation === 'source') {
   process.stdout.write(`${Math.floor(value)}\n`);
 } else if (operation === 'query') {
   const url = new URL('/api/v1/query', endpoint);
-  url.searchParams.set('query', 'opc_vm_acceptance_counter');
+  url.searchParams.set('query', 'converact_vm_acceptance_counter');
   const response = await fetch(url);
   if (!response.ok) throw new Error(`query returned ${response.status}`);
   const body = await response.json();

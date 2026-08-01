@@ -29,7 +29,7 @@ services:
       postgres-bootstrap:
         condition: service_completed_successfully
 
-  opc:
+  converact:
     environment:
       TINODE_BASE_URL: ${TINODE_BASE_URL:-http://tinode:6060}
       TINODE_WS_URL: ${TINODE_WS_URL:-ws://tinode:6060/v0/channels}

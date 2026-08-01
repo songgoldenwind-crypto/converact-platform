@@ -2,14 +2,14 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "ivekit.tinodeFullname" . }}
+  name: {{ include "converact.tinodeFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: tinode
 spec:
   podSelector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: tinode
   policyTypes:
     - Ingress
@@ -17,7 +17,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: api
         {{- with .Values.tinode.networkPolicy.additionalIngressFrom }}
         {{- toYaml . | nindent 8 }}
@@ -29,7 +29,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: tinode
       ports:
         - port: {{ .Values.tinode.cluster.clusterPort }}

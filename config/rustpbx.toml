@@ -9,7 +9,7 @@ url = "sqlite:///app/db/rustpbx.db"
 bind_addr = "0.0.0.0:5060"
 transports = ["udp", "tcp"]
 
-# RustPBX — use config/rustpbx.docker.toml when OPC runs inside docker compose
+# RustPBX — use config/rustpbx.docker.toml when Converact Platform runs inside docker compose
 [proxy.http_router]
 url = "http://host.docker.internal:3000/api/call-router"
 timeout_ms = 3000

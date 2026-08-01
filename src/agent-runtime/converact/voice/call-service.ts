@@ -1299,8 +1299,8 @@ function parseVoiceProviderRuntimeBinding(
     config,
     secret_refs: secretRefs,
     revision: Number(record.profile_revision),
-    created_by: 'ivekit-runtime-binding',
-    updated_by: 'ivekit-runtime-binding',
+    created_by: 'converact-runtime-binding',
+    updated_by: 'converact-runtime-binding',
     created_at: '1970-01-01T00:00:00.000Z',
     updated_at: '1970-01-01T00:00:00.000Z'
   };

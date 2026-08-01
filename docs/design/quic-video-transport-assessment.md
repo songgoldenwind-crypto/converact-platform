@@ -2,7 +2,7 @@
 
 > 日期：2026-07-21
 > 输入：`quic优化视频传输.pdf`，论文 *QUIC as Multiplexing Layer in WebRTC*
-> 范围：iveKit/OPC/LED 共用的 LiveKit 音视频、屏幕共享、实时控制与文件传输底座
+> 范围：Converact Fabric/Converact Platform/LED 共用的 LiveKit 音视频、屏幕共享、实时控制与文件传输底座
 > 裁决：有明确价值，但当前只进入传输竞争治理和隔离实验，不替换生产 LiveKit WebRTC
 
 ## 1. 结论
@@ -12,12 +12,12 @@
 抖动。论文把 RTP 与数据流复用到同一条 QUIC 连接，以一个拥塞控制器、一个 pacer 和显式优先级
 统一分配带宽，实验显示并发数据传输时媒体更稳定，应用也能决定媒体与文件各占多少带宽。
 
-它对 iveKit 有帮助，但不能直接作为 LiveKit 的生产补丁，原因有四个：
+它对 Converact Fabric 有帮助，但不能直接作为 LiveKit 的生产补丁，原因有四个：
 
-1. iveKit 当前附件走独立 HTTP/分片上传，参考客户端的 LiveKit adapter 只承载音频、视频和屏幕
+1. Converact Fabric 当前附件走独立 HTTP/分片上传，参考客户端的 LiveKit adapter 只承载音频、视频和屏幕
    共享，并没有把文件放进 LiveKit DataChannel。论文中的 SCTP 竞争不会原样出现，但同一用户出口
    上的 HTTP 上传仍会与媒体竞争。
-2. 当前固定的 iveKit LiveKit Server `v1.13.4-ivekit.1` 和 2026-07-21 检查的上游 master 都使用 WebRTC
+2. 当前固定的 Converact Fabric LiveKit Server `v1.13.4-ivekit.1` 和 2026-07-21 检查的上游 master 都使用 WebRTC
    SRTP/DTLS/SCTP，没有 RoQ 或 WebTransport 媒体实现。只改 Server 不够，浏览器和所有客户端也
    必须支持同一传输协商、拥塞反馈和恢复语义。
 3. 浏览器标准 `RTCDataChannel` 仍以 SCTP/DTLS 为传输。WebTransport 虽然使用 QUIC，但把文件
@@ -30,7 +30,7 @@
 
 - **生产立即落地**：基于现有 LiveKit RTCStats/QoS，给 HTTP 附件、录制上传和其他后台数据流增加
   会话感知的带宽治理，先解决真实用户体验问题。
-- **协议隔离实验**：建立 RoQ/Pion/quic-go lab，复现论文并加入 iveKit 的屏幕共享、控制消息、文件
+- **协议隔离实验**：建立 RoQ/Pion/quic-go lab，复现论文并加入 Converact Fabric 的屏幕共享、控制消息、文件
   和弱网矩阵，不进入生产端口或默认 SDK。
 - **长期可插拔演进**：只有标准、浏览器/原生客户端、LiveKit fork 和真实收益同时达到门槛，才把
   `roq_quic` 作为可协商 transport capability；WebRTC 始终保留回退。
@@ -66,14 +66,14 @@
 - 没有证明单机吞吐、CPU/内存效率或十万并发优势；
 - 没有形成可以直接替换 WebRTC 的成熟标准和多端实现。
 
-## 3. 与当前 iveKit 的实际映射
+## 3. 与当前 Converact Fabric 的实际映射
 
-| iveKit 流量 | 当前数据面 | 是否命中论文问题 | 当前动作 |
+| Converact Fabric 流量 | 当前数据面 | 是否命中论文问题 | 当前动作 |
 | --- | --- | --- | --- |
 | 麦克风、摄像头、屏幕共享 | LiveKit WebRTC/SRTP | 媒体本身由 WebRTC GCC 管理 | 保持生产链路 |
 | LiveKit 控制/实时数据 | 当前参考 adapter 未向产品暴露 DataChannel | 暂无大数据竞争 | 后续控制消息只允许小包、有界频率 |
 | IM 文本 | Tinode WebSocket | 与媒体共享接入链路但不是 SCTP | 保持独立 authority，不塞入媒体协议 |
-| IM 附件/安全文件 | iveKit HTTP 单次或 multipart upload | 会争抢用户上行带宽 | 增加媒体感知节流、暂停和恢复 |
+| IM 附件/安全文件 | Converact Fabric HTTP 单次或 multipart upload | 会争抢用户上行带宽 | 增加媒体感知节流、暂停和恢复 |
 | 录音/录像上传 | Egress 或节点 spool 异步上传 | 服务端出口可能与媒体竞争 | 保持独立池/NIC/队列，不进入 SFU 热路径 |
 | RustDesk 控制与文件 | RustDesk 独立数据面 | 远控画面、输入和文件存在同类优先级问题 | 在 RustDesk 层做控制优先和文件限速 |
 | SIP/PSTN RTP | RustPBX RTP，经 Kamailio 只走信令 | 运营商暂不支持 RoQ | 不改；RoQ 仅可做受控 SIP/SDP 实验 |

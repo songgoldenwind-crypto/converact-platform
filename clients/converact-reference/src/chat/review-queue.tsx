@@ -1,10 +1,10 @@
 import type {
-  IveKitHttpSdk,
-  IveKitFindingQueueInput,
-  IveKitFindingQueueItem,
-  IveKitPolicyFinding,
-  IveKitPolicyFindingResult,
-  IveKitPolicyFindingReviewInput
+  ConveractFabricHttpSdk,
+  ConveractFabricFindingQueueInput,
+  ConveractFabricFindingQueueItem,
+  ConveractFabricPolicyFinding,
+  ConveractFabricPolicyFindingResult,
+  ConveractFabricPolicyFindingReviewInput
 } from '@converact/sdk';
 import { Filter, RefreshCw } from 'lucide-react';
 import React from 'react';
@@ -21,17 +21,17 @@ interface QueueFilters {
 }
 
 export function ReviewQueue(props: {
-  client: IveKitHttpSdk;
+  client: ConveractFabricHttpSdk;
   initialSessionId?: string;
   refreshVersion?: number;
 }) {
   const initialFilters = filtersFor(props.initialSessionId);
   const [draft, setDraft] = useState(initialFilters);
   const [filters, setFilters] = useState(initialFilters);
-  const [items, setItems] = useState<IveKitPolicyFinding[]>([]);
+  const [items, setItems] = useState<ConveractFabricPolicyFinding[]>([]);
   const [cursor, setCursor] = useState('');
   const [selectedId, setSelectedId] = useState('');
-  const [detail, setDetail] = useState<IveKitPolicyFindingResult | null>(null);
+  const [detail, setDetail] = useState<ConveractFabricPolicyFindingResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [denied, setDenied] = useState(false);
   const [error, setError] = useState('');
@@ -63,7 +63,7 @@ export function ReviewQueue(props: {
     return normalized;
   }, [items, props.client]);
 
-  const review = useCallback(async (id: string, input: IveKitPolicyFindingReviewInput) => {
+  const review = useCallback(async (id: string, input: ConveractFabricPolicyFindingReviewInput) => {
     if (!items.some((item) => item.id === id)) throw new Error('Finding is no longer available');
     const result = await props.client.intelligence.reviewFinding(id, input);
     const normalized = { ...result, finding: queueFinding(result.finding) };
@@ -109,7 +109,7 @@ function filtersFor(sessionId = ''): QueueFilters {
   return { sessionId, source: '', severity: '', reviewStatus: 'pending', createdFrom: '', createdTo: '' };
 }
 
-function queueInput(filters: QueueFilters, cursor: string): IveKitFindingQueueInput {
+function queueInput(filters: QueueFilters, cursor: string): ConveractFabricFindingQueueInput {
   return {
     ...(filters.sessionId.trim() ? { session_id: filters.sessionId.trim() } : {}),
     ...(filters.source ? { source: filters.source } : {}),
@@ -122,7 +122,7 @@ function queueInput(filters: QueueFilters, cursor: string): IveKitFindingQueueIn
   };
 }
 
-function queueFinding(value: IveKitFindingQueueItem): IveKitPolicyFinding {
+function queueFinding(value: ConveractFabricFindingQueueItem): ConveractFabricPolicyFinding {
   return {
     id: value.id,
     tenant_id: text(value.tenant_id),
@@ -153,7 +153,7 @@ function queueFinding(value: IveKitFindingQueueItem): IveKitPolicyFinding {
   };
 }
 
-function dedupeFindings(items: IveKitPolicyFinding[]): IveKitPolicyFinding[] {
+function dedupeFindings(items: ConveractFabricPolicyFinding[]): ConveractFabricPolicyFinding[] {
   return [...new Map(items.map((item) => [item.id, item])).values()];
 }
 

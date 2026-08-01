@@ -5,7 +5,7 @@ import type {
   RustDeskOperationObservedEvidence
 } from '../../sdk/converact/src/types.js';
 import type {
-  IveKitRustDeskGatewayDisconnectState
+  ConveractFabricRustDeskGatewayDisconnectState
 } from '../../sdk/converact/src/rustdesk-http-client.js';
 
 const reference = {
@@ -172,7 +172,7 @@ const notObservedDisconnect: RustDeskDisconnectState = {
   observed: disconnectNotObserved
 };
 
-interface ExtendedDisconnectState extends IveKitRustDeskGatewayDisconnectState {
+interface ExtendedDisconnectState extends ConveractFabricRustDeskGatewayDisconnectState {
   consumer_label: string;
 }
 
@@ -183,7 +183,7 @@ const extendedDisconnectState: ExtendedDisconnectState = {
   consumer_label: 'consumer-compatible'
 };
 
-const strictDisconnectAsLegacy: IveKitRustDeskGatewayDisconnectState = observedDisconnect;
+const strictDisconnectAsLegacy: ConveractFabricRustDeskGatewayDisconnectState = observedDisconnect;
 
 // @ts-expect-error unavailable disconnect state cannot carry a command
 const invalidUnavailableCommand: RustDeskDisconnectState = {

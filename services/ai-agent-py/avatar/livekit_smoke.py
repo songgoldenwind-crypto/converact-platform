@@ -24,8 +24,8 @@ class AvatarLiveKitSmokeConfig:
     livekit_url: str
     livekit_api_key: str
     livekit_api_secret: str
-    room_name: str = "opc-avatar-smoke"
-    identity: str = "opc-avatar-smoke-bot"
+    room_name: str = "converact-avatar-smoke"
+    identity: str = "converact-avatar-smoke-bot"
     sample_chunks: int = 3
     settle_seconds: float = 0.5
 

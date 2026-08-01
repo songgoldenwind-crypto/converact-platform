@@ -1,4 +1,4 @@
-# iveKit HOMER 11 PostgreSQL Catalog Fork
+# Converact Fabric HOMER 11 PostgreSQL Catalog Fork
 
 This build targets exactly HOMER `11.0.297` at commit
 `ac4e1ae7f63660a655a5ef42e6607ab4cefc1c6b`. The overlay adds DuckLake's
@@ -6,7 +6,7 @@ PostgreSQL catalog backend to the writer and reader paths, escapes ATTACH
 values, loads the `postgres` DuckDB extension, and prevents a PostgreSQL DSN
 from being rewritten as a local multi-shard filename.
 
-iveKit deployments are PostgreSQL-only. They do not deploy an SQLite catalog,
+Converact Fabric deployments are PostgreSQL-only. They do not deploy an SQLite catalog,
 do not install the SQLite CLI or bundle `sqlite_scanner`, and never run
 SQLite-only WAL, repair, GC or file-lock operations against the catalog DSN.
 The coordinator settings store remains a local DuckDB file on the persistent
@@ -16,7 +16,7 @@ The image build requires immutable Go, Node and runtime base image references:
 
 ```bash
 HOMER_SOURCE_DIR=/path/to/homer-11.0.297 \
-IVEKIT_HOMER_IMAGE=registry.example.com/ivekit/homer:11.0.297-ivekit.2 \
+CONVERACT_FABRIC_HOMER_IMAGE=registry.example.com/converact/homer:11.0.297-ivekit.2 \
 HOMER_BUILDER_IMAGE=golang:<version>@sha256:<digest> \
 HOMER_NODE_IMAGE=node:22-bookworm-slim@sha256:<digest> \
 HOMER_RUNTIME_IMAGE=debian:bookworm-slim@sha256:<digest> \
@@ -35,12 +35,12 @@ directory settings. Its fallback spill resolver rejects PostgreSQL DSNs, so a
 connection string can never be interpreted or logged as a filesystem path.
 The container uses a read-only root filesystem and writes its PID only to
 `/tmp/homer-core.pid`; the Chart provides a bounded memory-backed `/tmp`.
-The HOMER image workflow delegates its published digest to the shared iveKit OCI
+The HOMER image workflow delegates its published digest to the shared Converact Fabric OCI
 release gate for an SPDX SBOM, vulnerability gate, Cosign signature and GitHub
 provenance/SBOM attestations. That workflow is implemented but has not run in
 the current evidence set, so no immutable production artifact is claimed.
 
-The Chart under `helm/ivekit-homer` deploys one release per Cell. One Pod owns
+The Chart under `helm/converact-homer` deploys one release per Cell. One Pod owns
 one PostgreSQL DuckLake catalog and its Parquet root. Capacity is increased by
 deploying independent Cell collectors and catalogs, not by making two writers
 share one catalog or by setting `replicaCount` above one. The PostgreSQL DSN,

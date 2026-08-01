@@ -1,18 +1,18 @@
 import { resolveFabricEnv } from '../../../../config/converact-env.js';
 import { randomUUID } from 'node:crypto';
 
-import { observeIveKitRetentionRun } from './metrics.js';
+import { observeConveractFabricRetentionRun } from './metrics.js';
 import type {
-  IveKitRetentionCategoryHandler,
-  IveKitRetentionRepository
+  ConveractFabricRetentionCategoryHandler,
+  ConveractFabricRetentionRepository
 } from './ports.js';
 import type {
-  IveKitRetentionBatchSummary,
-  IveKitRetentionClaim,
-  IveKitRetentionDeletionSummary
+  ConveractFabricRetentionBatchSummary,
+  ConveractFabricRetentionClaim,
+  ConveractFabricRetentionDeletionSummary
 } from './types.js';
 
-export interface IveKitRetentionWorkerConfig {
+export interface ConveractFabricRetentionWorkerConfig {
   enabled: boolean;
   interval_ms: number;
   tenant_limit: number;
@@ -20,19 +20,19 @@ export interface IveKitRetentionWorkerConfig {
   lease_ms: number;
 }
 
-export class IveKitRetentionWorker {
-  readonly #repository: IveKitRetentionRepository;
+export class ConveractFabricRetentionWorker {
+  readonly #repository: ConveractFabricRetentionRepository;
   readonly #workerId: string;
-  readonly #config: IveKitRetentionWorkerConfig;
-  readonly #handlers: Readonly<Record<string, IveKitRetentionCategoryHandler>>;
+  readonly #config: ConveractFabricRetentionWorkerConfig;
+  readonly #handlers: Readonly<Record<string, ConveractFabricRetentionCategoryHandler>>;
   readonly #now: () => Date;
-  #active: Promise<IveKitRetentionBatchSummary> | null = null;
+  #active: Promise<ConveractFabricRetentionBatchSummary> | null = null;
 
   constructor(input: {
-    repository: IveKitRetentionRepository;
+    repository: ConveractFabricRetentionRepository;
     worker_id?: string;
-    config: IveKitRetentionWorkerConfig;
-    handlers?: Readonly<Record<string, IveKitRetentionCategoryHandler>>;
+    config: ConveractFabricRetentionWorkerConfig;
+    handlers?: Readonly<Record<string, ConveractFabricRetentionCategoryHandler>>;
     now?: () => Date;
   }) {
     this.#repository = input.repository;
@@ -42,13 +42,13 @@ export class IveKitRetentionWorker {
     this.#now = input.now || (() => new Date());
   }
 
-  runOnce(): Promise<IveKitRetentionBatchSummary> {
+  runOnce(): Promise<ConveractFabricRetentionBatchSummary> {
     if (this.#active) return this.#active;
     this.#active = this.#run().finally(() => { this.#active = null; });
     return this.#active;
   }
 
-  async #run(): Promise<IveKitRetentionBatchSummary> {
+  async #run(): Promise<ConveractFabricRetentionBatchSummary> {
     const summary = emptySummary();
     const tenants = await this.#repository.listDueTenantIds(this.#config.tenant_limit);
     summary.tenants = tenants.length;
@@ -70,9 +70,9 @@ export class IveKitRetentionWorker {
     return summary;
   }
 
-  async #process(claim: IveKitRetentionClaim, batch: IveKitRetentionBatchSummary): Promise<void> {
+  async #process(claim: ConveractFabricRetentionClaim, batch: ConveractFabricRetentionBatchSummary): Promise<void> {
     let outcome: 'completed' | 'failed' = 'completed';
-    let result: IveKitRetentionDeletionSummary = { scanned_count: 0, deleted_count: 0, held_count: 0 };
+    let result: ConveractFabricRetentionDeletionSummary = { scanned_count: 0, deleted_count: 0, held_count: 0 };
     let errorCode = '';
     try {
       const handler = this.#handlers[claim.policy.category];
@@ -95,13 +95,13 @@ export class IveKitRetentionWorker {
       error_code: errorCode,
       now: this.#now().toISOString()
     });
-    observeIveKitRetentionRun({ category: claim.policy.category, outcome, summary: result });
+    observeConveractFabricRetentionRun({ category: claim.policy.category, outcome, summary: result });
   }
 }
 
-export function iveKitRetentionWorkerConfig(
+export function converactFabricRetentionWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
-): IveKitRetentionWorkerConfig {
+): ConveractFabricRetentionWorkerConfig {
   return {
     enabled: booleanEnv(resolveFabricEnv(env, 'RETENTION_WORKER_ENABLED'), false),
     interval_ms: integerEnv(resolveFabricEnv(env, 'RETENTION_INTERVAL_MS'), 60_000, 1_000, 86_400_000),
@@ -111,20 +111,20 @@ export function iveKitRetentionWorkerConfig(
   };
 }
 
-export function startIveKitRetentionWorker(input: {
-  repository: IveKitRetentionRepository;
+export function startConveractFabricRetentionWorker(input: {
+  repository: ConveractFabricRetentionRepository;
   env?: NodeJS.ProcessEnv;
-  handlers?: Readonly<Record<string, IveKitRetentionCategoryHandler>>;
-}): { stop(): void; runOnce(): Promise<IveKitRetentionBatchSummary> } | null {
-  const config = iveKitRetentionWorkerConfig(input.env);
+  handlers?: Readonly<Record<string, ConveractFabricRetentionCategoryHandler>>;
+}): { stop(): void; runOnce(): Promise<ConveractFabricRetentionBatchSummary> } | null {
+  const config = converactFabricRetentionWorkerConfig(input.env);
   if (!config.enabled) return null;
-  const worker = new IveKitRetentionWorker({
+  const worker = new ConveractFabricRetentionWorker({
     repository: input.repository,
     config,
     handlers: input.handlers
   });
   const run = () => worker.runOnce().catch((error) => {
-    console.error('[ivekit-retention] worker failed', safeCode((error as Error).message));
+    console.error('[converact-retention] worker failed', safeCode((error as Error).message));
   });
   void run();
   const timer = setInterval(run, config.interval_ms);
@@ -132,7 +132,7 @@ export function startIveKitRetentionWorker(input: {
   return { stop: () => clearInterval(timer), runOnce: () => worker.runOnce() };
 }
 
-function emptySummary(): IveKitRetentionBatchSummary {
+function emptySummary(): ConveractFabricRetentionBatchSummary {
   return { tenants: 0, claimed: 0, completed: 0, failed: 0, scanned: 0, deleted: 0, held: 0 };
 }
 

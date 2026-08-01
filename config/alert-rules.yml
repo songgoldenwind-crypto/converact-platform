@@ -1,5 +1,5 @@
 groups:
-  - name: opc-alerts
+  - name: converact-alerts
     rules:
       - alert: HighErrorRate
         expr: |

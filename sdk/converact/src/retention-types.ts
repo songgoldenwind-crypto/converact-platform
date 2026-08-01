@@ -1,18 +1,18 @@
-export type IveKitRetentionCategory =
+export type ConveractFabricRetentionCategory =
   | 'notifications' | 'audit' | 'rate_limit_buckets' | 'secure_files'
   | 'media_recordings' | 'tenant_events';
 
-export interface IveKitRetentionCapabilities {
+export interface ConveractFabricRetentionCapabilities {
   schema_version: number;
-  policy_categories: IveKitRetentionCategory[];
+  policy_categories: ConveractFabricRetentionCategory[];
   legal_holds: boolean;
   distributed_worker: boolean;
   dry_run: boolean;
 }
 
-export interface IveKitRetentionPolicy {
+export interface ConveractFabricRetentionPolicy {
   tenant_id: string;
-  category: IveKitRetentionCategory;
+  category: ConveractFabricRetentionCategory;
   enabled: boolean;
   retention_days: number;
   batch_size: number;
@@ -27,10 +27,10 @@ export interface IveKitRetentionPolicy {
   updated_at: string;
 }
 
-export interface IveKitLegalHold {
+export interface ConveractFabricLegalHold {
   id: string;
   tenant_id: string;
-  category: IveKitRetentionCategory;
+  category: ConveractFabricRetentionCategory;
   resource_type: string;
   resource_id: string;
   reason_code: string;

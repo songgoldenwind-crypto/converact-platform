@@ -30,7 +30,7 @@ export function registerIntegrationTools(
       audit_event_name: 'tool.integration_recommend_stack'
     }),
     (input) => {
-      if (input?.stable_stack) return integrationCatalog.stableStackForOPC();
+      if (input?.stable_stack) return integrationCatalog.stableStackForConveract();
       return integrationCatalog.recommend(input || {});
     }
   );

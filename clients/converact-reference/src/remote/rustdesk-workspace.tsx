@@ -1,7 +1,7 @@
 import {
-  createIveKitRustDeskHttpClient,
-  createIveKitRustDeskLedSdk,
-  type IveKitRustDeskClient
+  createConveractFabricRustDeskHttpClient,
+  createConveractFabricRustDeskLedSdk,
+  type ConveractFabricRustDeskClient
 } from '@converact/sdk';
 import { useMemo, type ComponentProps } from 'react';
 
@@ -22,16 +22,16 @@ export function RustDeskWorkspace({
   accessToken,
   ...panelProps
 }: RustDeskWorkspaceProps) {
-  const client = useMemo<IveKitRustDeskClient | null>(() => {
+  const client = useMemo<ConveractFabricRustDeskClient | null>(() => {
     if (!baseUrl || !tenantId || !accessToken) return null;
-    const http = createIveKitRustDeskHttpClient({
+    const http = createConveractFabricRustDeskHttpClient({
       baseUrl,
       tenantId,
       accessToken
     });
     return {
       ...http,
-      ...createIveKitRustDeskLedSdk({ tenantId, client: http })
+      ...createConveractFabricRustDeskLedSdk({ tenantId, client: http })
     };
   }, [accessToken, baseUrl, tenantId]);
 

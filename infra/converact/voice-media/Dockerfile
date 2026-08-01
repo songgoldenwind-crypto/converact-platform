@@ -11,13 +11,13 @@ FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bb
 
 ARG CONVERACT_SOURCE_COMMIT=unknown
 LABEL org.opencontainers.image.revision="${CONVERACT_SOURCE_COMMIT}"
-LABEL org.opencontainers.image.description="iveKit bounded RTP processing pool"
+LABEL org.opencontainers.image.description="Converact Fabric bounded RTP processing pool"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --gid 10001 ivekit \
-    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin ivekit
+    && groupadd --gid 10001 converact \
+    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin converact
 
 COPY --from=builder /src/target/release/voice-media-rs /usr/local/bin/voice-media-rs
 

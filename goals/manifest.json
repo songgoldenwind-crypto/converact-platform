@@ -1,0 +1,764 @@
+{
+  "program_id": "converact-architecture-foundation-goals",
+  "manifest_version": "2.0.0",
+  "generated_date": "2026-07-31",
+  "program_status": "not_started",
+  "active_goal": null,
+  "hash_algorithm": "SHA-256",
+  "execution_baseline": {
+    "decision_goal": "G00",
+    "canonical_execution_root": "/Users/songjinfeng/Projects/converact-worktrees/platform"
+  },
+  "global_rules": {
+    "path": "goals/PROGRAM-RULES.md",
+    "sha256": "97a1ab64f1deae1cb82072a6a4535e6a4bfbc4a13205c10253c58a399ce4a247"
+  },
+  "source_artifacts": [
+    {
+      "path": "CONTEXT.md",
+      "sha256": "2c32d0aff9ce367a9221418cd2ce7d87d637f5c804889aa76f5a8ac22422779c",
+      "kind": "context"
+    },
+    {
+      "path": "docs/design/README.md",
+      "sha256": "130115f7962c2a898e5ca38d19ceccb23b707e795be1ff602d35f4a1358955db",
+      "kind": "context"
+    },
+    {
+      "path": "docs/design/2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md",
+      "sha256": "3bc87d2b62e366ba8ea687ee0ca69a51b652248715b0154558b12ed862560fed",
+      "kind": "design"
+    },
+    {
+      "path": "docs/adr/ccaas-11-engagement-platform-and-resolution-profile.md",
+      "sha256": "1507c3dd02cc2a4f149693e4cc304e4bb6827f8098a6be1ef1ee324c6bd8be9e",
+      "kind": "adr"
+    },
+    {
+      "path": "docs/adr/ccaas-5-media-authority-and-rtpengine.md",
+      "sha256": "4250fb06729e5f75c3617ee64a6df14fd1fb37c3b11ab8fc360260adea5e995c",
+      "kind": "adr"
+    },
+    {
+      "path": "docs/adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md",
+      "sha256": "4a99015665c72ee77ec248349d0826044283dc5ca976aff325a4e518812fc438",
+      "kind": "adr"
+    },
+    {
+      "path": "docs/adr/ccaas-8-voice-livekit-bridge-handoff.md",
+      "sha256": "f068354fb8b4799b46b5b03497e3c35da460b4e2d2d763d223a31bc844204ae9",
+      "kind": "adr"
+    },
+    {
+      "path": "docs/adr/ccaas-9-channel-agent-and-speech-runtime.md",
+      "sha256": "83d46c6bfbb0f4b51425d6886a11eaf44921d6800cf0337a88ce715f3f636b56",
+      "kind": "adr"
+    },
+    {
+      "path": "docs/adr/ccaas-10-vilte-livekit-av-participant-gateway.md",
+      "sha256": "42cf7647d4fb004c902ef652106932d018aa566eaa4bc60c4cabd7efeebac931",
+      "kind": "adr"
+    },
+    {
+      "path": "docs/capacity/contracts/unified-communication-foundation-r5-objective.md",
+      "sha256": "86ec798d2aafeb9e7b7f4f413d8a8b2a61d48e9ae8328f7bbc79cc391436469f",
+      "kind": "objective"
+    },
+    {
+      "path": "docs/capacity/contracts/unified-communication-foundation-r5-traceability-v1.json",
+      "sha256": "9d3eeed14f04d6fb4b9541a2fcf4af529b7c7a92626cc6e98c50e9404e2e8abf",
+      "kind": "traceability"
+    },
+    {
+      "path": "docs/capacity/contracts/unified-communication-foundation-r5-v1.json",
+      "sha256": "00790bb78abdd0b2a78c70c0193479421cc6998ec2be629d1cdffa288fa7b544",
+      "kind": "contract"
+    },
+    {
+      "path": "docs/capacity/contracts/unified-voice-foundation-r4-objective.md",
+      "sha256": "9435c3e28f46f43906d325bb325253da2ecb448d257533547740073d9132bc54",
+      "kind": "objective"
+    },
+    {
+      "path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "sha256": "2111e3464cb4d827e1428eade9247e8e1f75579a0c74a11a2c9ae00ec62d0a11",
+      "kind": "traceability"
+    },
+    {
+      "path": "docs/capacity/contracts/unified-voice-foundation-r4-v1.json",
+      "sha256": "0079307be54fcc99bd030cfbbdfc8f63ee97f1fa1861df5f15bda4026d58b79d",
+      "kind": "contract"
+    },
+    {
+      "path": "docs/capacity/schemas/unified-communication-foundation-r5-traceability.schema.json",
+      "sha256": "644d335dacd58ccc3a3849d8ddaa4849faca60a9f06ca2cd0a3f274e7071a6da",
+      "kind": "schema"
+    },
+    {
+      "path": "docs/capacity/schemas/unified-communication-foundation-r5.schema.json",
+      "sha256": "8f7087c6b7f9a2b93b186630df86c6d534c507819684223a197ca584369ac0ce",
+      "kind": "schema"
+    },
+    {
+      "path": "docs/capacity/schemas/unified-voice-foundation-r4-traceability.schema.json",
+      "sha256": "9108e0996d5821a9b03b1a0d24a2895f391913dc3e40de7538dfeea634d70982",
+      "kind": "schema"
+    },
+    {
+      "path": "docs/capacity/schemas/unified-voice-foundation-r4.schema.json",
+      "sha256": "ce71f4d37644efc5575fe3b8abb52e555905f7e2b99f1471815c836368c81d37",
+      "kind": "schema"
+    },
+    {
+      "path": "docs/design/2026-07-31-ai-native-multimodal-resolution-platform-r1.md",
+      "sha256": "904a66fd22edd4605daac153c2afb40edf2f28864c9903e2a84f62f5287f71ad",
+      "kind": "design"
+    },
+    {
+      "path": "docs/design/2026-07-31-unified-communication-foundation-r5-implementation-plan.md",
+      "sha256": "a22c3b9c13e5aa5465426fbc8ac8381e45301cd9bafac9b7d95a288fdadb7ba5",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/design/communication-foundation-vos5000-parity-performance-plan.md",
+      "sha256": "2aabe43fe4476b40f7654ba56496736e3605cf3652aadfc96d3bc5434a40f8ae",
+      "kind": "design"
+    },
+    {
+      "path": "docs/design/rvoip-converact-communication-foundation-integration-design.md",
+      "sha256": "b166a9223a5eb16d98c99e2dcd255b50c96fb7ca31fe4502d063d2a1bdc2b13f",
+      "kind": "design"
+    },
+    {
+      "path": "docs/design/unified-communication-foundation-r5.md",
+      "sha256": "05afc3f50ad28625049a5caf4e1ff1ea2c5d0a18930e85453137f5b972d84343",
+      "kind": "design"
+    },
+    {
+      "path": "docs/plans/2026-07-31-platform-scope-engagement-domain-r2.md",
+      "sha256": "aa1a2e9a431d194a7619ba66d4c007064f6d96b0bd66dfb3e503ca5e00416de4",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/plans/2026-07-29-unified-voice-foundation-r4.md",
+      "sha256": "bf140cf18dbdfb7154253f4b7cc32c552a5988888f39a2e156930072f23d0d05",
+      "kind": "plan"
+    }
+  ],
+  "goals": [
+    {
+      "id": "G00",
+      "order": 0,
+      "title": "执行基线与全量追踪",
+      "path": "goals/goal-00-execution-baseline-and-traceability.md",
+      "sha256": "5f2eb42220067f8c0fe3d454351ace6000b5c3186d2607528bce4ada2c390fbf",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [],
+      "external_conditions": [],
+      "unlocks": [
+        "G01"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "rejected"
+      ],
+      "entry_gate": "No prerequisite; read-only reconciliation before feature work."
+    },
+    {
+      "id": "G01",
+      "order": 1,
+      "title": "平台、Profile 领域与首发商业 Gate",
+      "path": "goals/goal-01-product-domain-commercial-gates.md",
+      "sha256": "736225a0d4c0d8abe2d951b95bf502e81f4dfbbcefce8a8defb81e330b7c5af1",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G00",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [
+        "Real buyer interviews, paid commitments and contracts are required for the market gate."
+      ],
+      "unlocks": [
+        "G02",
+        "G09",
+        "G11",
+        "G16"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "G00 completed; contract gate may complete before external market evidence."
+    },
+    {
+      "id": "G02",
+      "order": 2,
+      "title": "平台、安全与可观测基础",
+      "path": "goals/goal-02-platform-foundation-security-observability.md",
+      "sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G00",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G01",
+          "gate": "platform_contract_gate_completed"
+        }
+      ],
+      "external_conditions": [],
+      "unlocks": [
+        "G03",
+        "G05",
+        "G09"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Execution baseline and product/domain contracts are frozen."
+    },
+    {
+      "id": "G03",
+      "order": 3,
+      "title": "SIP 与 Durable Call Foundation",
+      "path": "goals/goal-03-sip-call-durable-foundation.md",
+      "sha256": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G00",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G02",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [],
+      "unlocks": [
+        "G04",
+        "G05",
+        "G06",
+        "G07"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Platform identity, durability, event, audit and failure boundaries exist."
+    },
+    {
+      "id": "G04",
+      "order": 4,
+      "title": "强制 G.729 Exact-source Codec",
+      "path": "goals/goal-04-g729-exact-source-codec.md",
+      "sha256": "afff3278bd19259d91c10896cbb553326fcc297cc19910adfbd2f2641ca08e82",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G03",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [
+        "Legal distribution and commercial enablement decisions remain independent from engineering."
+      ],
+      "unlocks": [
+        "G05",
+        "G07",
+        "G08"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "The unified codec and media contracts are stable."
+    },
+    {
+      "id": "G05",
+      "order": 5,
+      "title": "RTPengine 与统一媒体 Authority",
+      "path": "goals/goal-05-rtpengine-media-authority.md",
+      "sha256": "1900ac97f6f41fbf695630ee99a7d7625f13e22487f744e15a7d2c54b6ab8912",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G02",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G03",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G04",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [],
+      "unlocks": [
+        "G06",
+        "G07",
+        "G08"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Call foundation and mandatory codec engineering are complete."
+    },
+    {
+      "id": "G06",
+      "order": 6,
+      "title": "rvoip 选择性吸收与重复实现收敛",
+      "path": "goals/goal-06-rvoip-selective-absorption.md",
+      "sha256": "23c08a8c3106a256d854b8345364147111d65e5037b120335d37daea20d05bef",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G03",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G05",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [],
+      "unlocks": [
+        "G08"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Stable SIP and media facades exist before low-level absorption."
+    },
+    {
+      "id": "G07",
+      "order": 7,
+      "title": "Voice/SIP/PSTN ↔ LiveKit 双向切换",
+      "path": "goals/goal-07-voice-livekit-bidirectional-handoff.md",
+      "sha256": "22ab72466b7e2ad68fc527432c7fe5a2bbc9ec42c5260d9a9e93cf3490556450",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G03",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G04",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G05",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [
+        "Authorized real LiveKit, SIP/RTP peers and browser test infrastructure are required for production evidence."
+      ],
+      "unlocks": [
+        "G08"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Durable Call, codec and atomic media lifecycle are complete."
+    },
+    {
+      "id": "G08",
+      "order": 8,
+      "title": "通信 VOS-EQ 与 100K 生产资格",
+      "path": "goals/goal-08-communication-vos-eq-100k-qualification.md",
+      "sha256": "ccf6ecd7c5842a4204363081ce4ddc333424f2bfac9ea083ea7bf2510a98d4f3",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G03",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G04",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G05",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G06",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G07",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [
+        "Exact target hardware and an independent qualified load fleet are required for signed capacity."
+      ],
+      "unlocks": [
+        "G12",
+        "G17"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "All communication functional slices have evidence-ready implementations."
+    },
+    {
+      "id": "G09",
+      "order": 9,
+      "title": "Engagement、Evidence、Outcome Core 与 Resolution Profile",
+      "path": "goals/goal-09-resolution-evidence-outcome-core.md",
+      "sha256": "9324512237428e13df2a399d0a4130d96d9b2a9cba69e32c136d2e7f254ec97e",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G01",
+          "gate": "platform_contract_gate_completed"
+        },
+        {
+          "goal_id": "G02",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [],
+      "unlocks": [
+        "G10",
+        "G11",
+        "G12",
+        "G13",
+        "G14"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Product semantics and platform safety/durability are frozen."
+    },
+    {
+      "id": "G10",
+      "order": 10,
+      "title": "人工/AI 协作、Workspace 与 Overlay 主链",
+      "path": "goals/goal-10-human-ai-collaboration-overlay.md",
+      "sha256": "e7ca4d7e5cd48ae9bef8bfe2824cc5c185b8c2107e94942b5913992d77959dde",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G09",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [],
+      "unlocks": [
+        "G11",
+        "G12",
+        "G13"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Engagement Core is complete; G07 is required only for the RustPBX-to-LiveKit audio bridge qualification."
+    },
+    {
+      "id": "G11",
+      "order": 11,
+      "title": "最小 Connector Effect 与 Tracer Pilot A",
+      "path": "goals/goal-11-minimal-connector-pilot-a.md",
+      "sha256": "18276efab968540b8eddc6131d6e65786ac6840762db170bc41188b5fdd787ee",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G01",
+          "gate": "resolve_market_gate_completed"
+        },
+        {
+          "goal_id": "G02",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G09",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G10",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [
+        "Real design-partner selection, provider and CRM/FSM access are required."
+      ],
+      "unlocks": [
+        "G12",
+        "G16"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "The market gate selects one real provider and one real CRM/FSM."
+    },
+    {
+      "id": "G12",
+      "order": 12,
+      "title": "HF SpeechRuntime Core、VAD 资格与 Resolve B1 翻译",
+      "path": "goals/goal-12-speech-runtime-hf-translation.md",
+      "sha256": "b813b031b36a452ace4e054e5fa1cc3c224250a56172e312846b4bce5a66bbf9",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G09",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G10",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [
+        "Exact-source models, qualified GPU capacity and the selected provider media fork are required for production evidence."
+      ],
+      "unlocks": [
+        "G13",
+        "G15",
+        "G16"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Engagement and Collaboration are complete for the horizontal core; Resolve B1 separately requires G11 and Native or Bridge adapters separately require G08."
+    },
+    {
+      "id": "G13",
+      "order": 13,
+      "title": "AI-native Orchestrator 与跨渠道接管",
+      "path": "goals/goal-13-agent-orchestrator-cross-channel-handoff.md",
+      "sha256": "54e194f092ff7c17e1995280e9742264162e789fe2ded39749aa0d37c749bb40",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G09",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G10",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G12",
+          "gate": "speech_runtime_core_completed"
+        }
+      ],
+      "external_conditions": [],
+      "unlocks": [
+        "G14",
+        "G15"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Durable Engagement/Collaboration and the normalized SpeechRuntime core exist."
+    },
+    {
+      "id": "G14",
+      "order": 14,
+      "title": "Action、Tool Broker 与 Durable Workflow",
+      "path": "goals/goal-14-action-durable-workflow.md",
+      "sha256": "b5020125b6eb1ef646a2f6f5f03196a336aeb0cfe2935d40b4573c8787261926",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G02",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G09",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G13",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [
+        "Real customer demand and authorization are required before enabling external actions."
+      ],
+      "unlocks": [
+        "G15"
+      ],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Platform and Engagement foundations plus a proposal-only Agent Orchestrator exist; real actions additionally require the owning Profile gate."
+    },
+    {
+      "id": "G15",
+      "order": 15,
+      "title": "Context、Knowledge、Playbook、Eval 与治理",
+      "path": "goals/goal-15-context-knowledge-studio-governance.md",
+      "sha256": "560810993a5363ba8e9d3fb5d61f73313ca788bf3357e2366e289ccfd3aa4cc8",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G12",
+          "gate": "speech_runtime_core_completed"
+        },
+        {
+          "goal_id": "G13",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G14",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [
+        "B2 Copilot and B3 OCR require separate purchase and qualification gates."
+      ],
+      "unlocks": [],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Speech, Orchestrator and Action truth are stable."
+    },
+    {
+      "id": "G16",
+      "order": 16,
+      "title": "Resolve Assist V1、商业化与 Profile 生产闭环",
+      "path": "goals/goal-16-v1-pilot-commercial-production.md",
+      "sha256": "c20f8b775f90009f767761077f6f278ea489eaadd7dfda621a41e57ad601a6c7",
+      "status": "not_run",
+      "conditional": false,
+      "dependencies": [
+        {
+          "goal_id": "G01",
+          "gate": "resolve_market_gate_completed"
+        },
+        {
+          "goal_id": "G02",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G09",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G10",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G11",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G12",
+          "gate": "resolve_b1_completed"
+        },
+        {
+          "goal_id": "G13",
+          "gate": "included_capability_completed_or_excluded_by_offer_contract"
+        },
+        {
+          "goal_id": "G14",
+          "gate": "included_capability_completed_or_excluded_by_offer_contract"
+        },
+        {
+          "goal_id": "G15",
+          "gate": "included_capability_completed_or_excluded_by_offer_contract"
+        }
+      ],
+      "external_conditions": [
+        "Three real paid pilots, two annual conversions and explicit authorization for any independent rollout are required."
+      ],
+      "unlocks": [],
+      "allowed_terminal_statuses": [
+        "completed",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Resolve market, platform, Engagement, Collaboration, Pilot A and Resolve B1 gates are complete; optional AI, Action, Knowledge and Deployment capabilities are completed or explicitly excluded by the Offer contract."
+    },
+    {
+      "id": "G17",
+      "order": 17,
+      "title": "条件式 ViLTE 与未来电信视频",
+      "path": "goals/goal-17-vilte-future-telecom-conditional.md",
+      "sha256": "d323667615cd60696a409e9e42b32063c9947ab9a7c609125496eaa6804959a3",
+      "status": "conditional",
+      "conditional": true,
+      "dependencies": [
+        {
+          "goal_id": "G02",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G07",
+          "gate": "completed"
+        },
+        {
+          "goal_id": "G08",
+          "gate": "completed"
+        }
+      ],
+      "external_conditions": [
+        "Signed operator or major device customer",
+        "Frozen ViLTE Product Offer and Deployment Option gate",
+        "Frozen 3GPP release and operator or GSMA profile",
+        "Real IMS network, SIM or number, certificates, terminal matrix and interoperability lab",
+        "Legal codec distribution decisions and authorized test window"
+      ],
+      "unlocks": [],
+      "allowed_terminal_statuses": [
+        "completed",
+        "completed_design_only",
+        "blocked_external",
+        "rejected"
+      ],
+      "entry_gate": "Runtime work is forbidden until G02/G07/G08 and every independent ViLTE external gate are complete; G16 is required only when bundled with Resolve Assist."
+    }
+  ]
+}

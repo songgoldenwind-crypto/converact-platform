@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useAgentStore } from '../store/agent-store';
+import { readAgentAuthStorage } from '../lib/auth-storage';
 
 export function useSSE(seatId: string | null) {
   const setQueue = useAgentStore((s) => s.setQueue);
@@ -9,7 +10,7 @@ export function useSSE(seatId: string | null) {
 
   useEffect(() => {
     if (!seatId) return;
-    const token = localStorage.getItem('opc_token') || '';
+    const token = readAgentAuthStorage('token') || '';
     const source = new EventSource(
       `/api/call-center/seats/${seatId}/events?token=${encodeURIComponent(token)}`
     );

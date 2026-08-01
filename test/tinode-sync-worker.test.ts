@@ -114,12 +114,12 @@ test('Tinode sync worker is wired into server shutdown and deployment env exampl
   const productionEnv = readFileSync('infra/env.example', 'utf8');
   const compose = readFileSync('docker-compose.callcenter.yml', 'utf8');
   const productionCompose = readFileSync('infra/docker-compose.production.yml', 'utf8');
-  const deployment = readFileSync('infra/k8s/templates/opc-deployment.yaml', 'utf8');
+  const deployment = readFileSync('infra/k8s/templates/converact-deployment.yaml', 'utf8');
   const secrets = readFileSync('infra/k8s/templates/secrets.yaml', 'utf8');
   const values = readFileSync('infra/k8s/values.yaml', 'utf8');
 
-  assert.match(server, /startIveKitApplication/);
-  assert.match(server, /iveKitApplication\.stop/);
+  assert.match(server, /startConveractFabricApplication/);
+  assert.match(server, /converactFabricApplication\.stop/);
   assert.match(application, /startTinodeSyncWorker/);
   assert.match(application, /collaboration\.message\.delivery_updated/);
   for (const source of [rootEnv, productionEnv]) {

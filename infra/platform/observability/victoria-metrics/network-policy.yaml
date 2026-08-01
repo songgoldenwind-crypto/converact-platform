@@ -1,26 +1,26 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: ivekit-victoria-metrics
+  name: converact-victoria-metrics
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-victoria-metrics
+      app.kubernetes.io/name: converact-victoria-metrics
       app.kubernetes.io/component: metrics-storage
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
         - podSelector:
             matchExpressions:
-              - key: opc.ivekit.io/victoria-metrics-role
+              - key: converact.io/victoria-metrics-role
                 operator: In
                 values: [writer, reader, backup]
         - namespaceSelector:
             matchLabels:
-              opc.ivekit.io/victoria-metrics-access: "true"
+              converact.io/victoria-metrics-access: "true"
           podSelector:
             matchExpressions:
-              - key: opc.ivekit.io/victoria-metrics-role
+              - key: converact.io/victoria-metrics-role
                 operator: In
                 values: [writer, reader, backup]
       ports:
@@ -30,11 +30,11 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: ivekit-victoria-metrics-backup
+  name: converact-victoria-metrics-backup
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-victoria-metrics
+      app.kubernetes.io/name: converact-victoria-metrics
       app.kubernetes.io/component: backup
   policyTypes: [Ingress, Egress]
   ingress: []
@@ -42,7 +42,7 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: ivekit-victoria-metrics
+              app.kubernetes.io/name: converact-victoria-metrics
               app.kubernetes.io/component: metrics-storage
       ports:
         - {protocol: TCP, port: 8428}

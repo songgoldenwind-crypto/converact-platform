@@ -311,7 +311,7 @@ function uploaderFixture(overrides: {
   writeFileSync(tokenFile, `${DEVICE_TOKEN}\n`, { mode: 0o600 });
   const config = {
     ...createRustDeskEvidenceUploaderConfigFromEnv({
-      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+      CONVERACT_RUSTDESK_EDGE_BASE_URL: 'https://fabric.converact.example.com',
       CONVERACT_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
       CONVERACT_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR: inputDirectory,
       CONVERACT_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR: spoolDirectory,

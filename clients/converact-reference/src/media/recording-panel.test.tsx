@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, afterEach, before, test } from 'node:test';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import type { IveKitClient, IveKitMediaCall, IveKitMediaRecording } from '@converact/sdk';
+import type { ConveractFabricClient, ConveractFabricMediaCall, ConveractFabricMediaRecording } from '@converact/sdk';
 import { installTestDom } from '../test-dom.js';
 import { RecordingPanel } from './recording-panel.js';
 
@@ -21,7 +21,7 @@ test('recording panel is host-only for writes and shows evidence and retention s
 });
 
 test('recording panel renders active and terminal lifecycle states', async () => {
-  const statuses: IveKitMediaRecording['status'][] = ['pending', 'recording', 'completed', 'failed', 'deleted'];
+  const statuses: ConveractFabricMediaRecording['status'][] = ['pending', 'recording', 'completed', 'failed', 'deleted'];
   const recordings = statuses.map((status, index) => ({
     ...item(status),
     id: `recording-${index}`,
@@ -38,7 +38,7 @@ test('recording panel renders active and terminal lifecycle states', async () =>
 
 test('host starts and stops by egress id, then refreshes the call recording list', async () => {
   const calls: string[] = [];
-  let recordings: IveKitMediaRecording[] = [];
+  let recordings: ConveractFabricMediaRecording[] = [];
   const active = item('recording');
   const client = fakeClient({
     listRecordingsPage: async (input) => { calls.push(`list:${input?.call_id}`); return { items: recordings, next_cursor: null, has_more: false }; },
@@ -120,11 +120,11 @@ test('authorization loss stops active recording polling', async () => {
   assert.equal(loads, stoppedAt);
 });
 
-function fakeClient(overrides: Partial<IveKitClient['media']>): IveKitClient {
-  return { media: { ...overrides } } as IveKitClient;
+function fakeClient(overrides: Partial<ConveractFabricClient['media']>): ConveractFabricClient {
+  return { media: { ...overrides } } as ConveractFabricClient;
 }
 
-function call(): IveKitMediaCall {
+function call(): ConveractFabricMediaCall {
   return {
     id: 'call-1', tenant_id: 'tenant-1', room_name: 'room-1', media: 'video', status: 'active', initiated_by: 'host-1',
     business_ref: { type: 'order', id: 'order-1', metadata: {} }, title: 'Support', metadata: {}, ring_timeout_seconds: 30,
@@ -133,7 +133,7 @@ function call(): IveKitMediaCall {
   };
 }
 
-function item(status: IveKitMediaRecording['status']): IveKitMediaRecording {
+function item(status: ConveractFabricMediaRecording['status']): ConveractFabricMediaRecording {
   return {
     id: 'recording-1', tenant_id: 'tenant-1', call_session_id: '', media_call_id: 'call-1', room_name: 'room-1',
     business_ref_type: 'order', business_ref_id: 'order-1', business_ref: { type: 'order', id: 'order-1', metadata: {} },

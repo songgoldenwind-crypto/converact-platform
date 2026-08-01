@@ -13,7 +13,7 @@ import {
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { createHttpOcrProvider } from '../src/agent-runtime/collaboration/ocr-provider.js';
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
+import { routeConveractFabricChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import {
   AttachmentProcessingWorker,
   attachmentProcessingWorkerConfig
@@ -31,7 +31,7 @@ test('image OCR processing persists extracted text and rescans policy', async ()
   const { message, attachment } = await createAttachmentMessage(pg, {
     kind: 'image',
     contentType: 'image/png',
-    storageUrl: 's3://opc-chat/contact.png'
+    storageUrl: 's3://converact-chat/contact.png'
   });
   const providerInputs: Buffer[] = [];
   const ocr: AttachmentTextProvider = {
@@ -90,7 +90,7 @@ test('audio ASR jobs retry transient failures and become terminal at max attempt
   const { message, attachment } = await createAttachmentMessage(pg, {
     kind: 'audio',
     contentType: 'audio/ogg',
-    storageUrl: 's3://opc-chat/contact.ogg'
+    storageUrl: 's3://converact-chat/contact.ogg'
   });
   let now = new Date('2026-07-10T00:00:00.000Z');
   const asr: AttachmentTextProvider = {
@@ -135,7 +135,7 @@ test('unconfigured processor leaves durable jobs pending for later provider conf
   const { message, attachment } = await createAttachmentMessage(pg, {
     kind: 'image',
     contentType: 'image/jpeg',
-    storageUrl: 's3://opc-chat/later.jpg'
+    storageUrl: 's3://converact-chat/later.jpg'
   });
   const service = new AttachmentProcessingService({ pg, providers: {} });
   await service.enqueueMessage(message);
@@ -151,7 +151,7 @@ test('unconfigured processor leaves durable jobs pending for later provider conf
 test('route reservation denial reschedules attachment work without consuming an attempt', async () => {
   const pg = new MemoryPg();
   const { message, attachment } = await createAttachmentMessage(pg, {
-    kind: 'image', contentType: 'image/png', storageUrl: 's3://opc-chat/quota.png'
+    kind: 'image', contentType: 'image/png', storageUrl: 's3://converact-chat/quota.png'
   });
   const retryAt = '2026-07-10T00:01:00.000Z';
   const service = new AttachmentProcessingService({
@@ -188,7 +188,7 @@ test('post-processing notification failures do not corrupt a committed extractio
   const { message, attachment } = await createAttachmentMessage(pg, {
     kind: 'image',
     contentType: 'image/png',
-    storageUrl: 's3://opc-chat/notification.png'
+    storageUrl: 's3://converact-chat/notification.png'
   });
   const service = new AttachmentProcessingService({
     pg,
@@ -236,7 +236,7 @@ test('unconfigured ASR jobs cannot starve configured OCR work at the batch limit
     body: '',
     attachments: [{
       kind: 'audio',
-      storage_url: 's3://opc-chat/oldest.ogg',
+      storage_url: 's3://converact-chat/oldest.ogg',
       processing_status: 'pending'
     }]
   });
@@ -248,7 +248,7 @@ test('unconfigured ASR jobs cannot starve configured OCR work at the batch limit
     body: '',
     attachments: [{
       kind: 'image',
-      storage_url: 's3://opc-chat/newer.png',
+      storage_url: 's3://converact-chat/newer.png',
       processing_status: 'pending'
     }]
   });
@@ -355,7 +355,7 @@ test('screen recording attachments select ASR processing', async () => {
   const { message, attachment } = await createAttachmentMessage(pg, {
     kind: 'screen_recording',
     contentType: 'video/webm',
-    storageUrl: 's3://opc-chat/screen.webm'
+    storageUrl: 's3://converact-chat/screen.webm'
   });
   const service = new AttachmentProcessingService({
     pg,
@@ -423,13 +423,13 @@ test('tenant policy selects and audits attachment provider profiles', async () =
   const first = await createAttachmentMessage(pg, {
     kind: 'image',
     contentType: 'image/png',
-    storageUrl: 's3://opc-chat/a.png',
+    storageUrl: 's3://converact-chat/a.png',
     tenantId: 'tenant-profile-a'
   });
   const second = await createAttachmentMessage(pg, {
     kind: 'image',
     contentType: 'image/png',
-    storageUrl: 's3://opc-chat/b.png',
+    storageUrl: 's3://converact-chat/b.png',
     tenantId: 'tenant-profile-b'
   });
   await policyStore.updatePolicy({
@@ -494,13 +494,13 @@ test('disabled and non-automatic attachment policy records explicit retryable ca
   const disabled = await createAttachmentMessage(pg, {
     kind: 'image',
     contentType: 'image/png',
-    storageUrl: 's3://opc-chat/disabled.png',
+    storageUrl: 's3://converact-chat/disabled.png',
     tenantId: 'tenant-policy-disabled'
   });
   const manual = await createAttachmentMessage(pg, {
     kind: 'image',
     contentType: 'image/png',
-    storageUrl: 's3://opc-chat/manual.png',
+    storageUrl: 's3://converact-chat/manual.png',
     tenantId: 'tenant-policy-manual'
   });
   const policy = {
@@ -559,7 +559,7 @@ test('disabled and non-automatic attachment policy records explicit retryable ca
 test('collaboration attachment upload enforces size and returns a pending processable descriptor', async () => {
   const previous = snapshotEnv(['CONVERACT_API_KEY', 'CONVERACT_UPLOAD_DIR', 'CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES']);
   process.env.CONVERACT_API_KEY = API_KEY;
-  process.env.CONVERACT_UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'opc-attachment-upload-'));
+  process.env.CONVERACT_UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'converact-attachment-upload-'));
   process.env.CONVERACT_COLLABORATION_ATTACHMENT_MAX_BYTES = '16';
   try {
     const pg = new MemoryPg();
@@ -686,7 +686,7 @@ test('collaboration attachment upload enforces size and returns a pending proces
     assert.equal(statusResult.data.job.status, 'succeeded');
 
     const downloadPath = `/api/ivekit/chat/sessions/${session.id}/attachments/${attachmentId}/download`;
-    const downloaded = await routeIveKitChatApi(
+    const downloaded = await routeConveractFabricChatApi(
       pg,
       'GET',
       downloadPath,
@@ -702,7 +702,7 @@ test('collaboration attachment upload enforces size and returns a pending proces
     assert.deepEqual(downloaded.data, Buffer.from('image-bytes'));
     assert.match(downloaded.headers['content-disposition'], /contact\.png/);
 
-    const foreignDownload = await routeIveKitChatApi(
+    const foreignDownload = await routeConveractFabricChatApi(
       pg,
       'GET',
       downloadPath,
@@ -802,8 +802,8 @@ test('attachment worker coalesces concurrent runs and stops cleanly', async () =
 test('production server starts and stops the attachment processing worker', () => {
   const server = readFileSync('src/server.ts', 'utf8');
   const application = readFileSync('src/agent-runtime/converact/application.ts', 'utf8');
-  assert.match(server, /startIveKitApplication/);
-  assert.match(server, /await iveKitApplication\.stop\(\)/);
+  assert.match(server, /startConveractFabricApplication/);
+  assert.match(server, /await converactFabricApplication\.stop\(\)/);
   assert.match(application, /startAttachmentProcessingWorker/);
   assert.match(application, /collaboration\.attachment\.processed/);
 });
@@ -835,7 +835,7 @@ test('attachment processing preflight validates provider, Postgres, storage, and
   });
   assert.equal(configured.ready, true);
   const serialized = JSON.stringify(configured);
-  assert.doesNotMatch(serialized, /ocr-super-secret|minio-secret|postgres:\/\/opc:secret/);
+  assert.doesNotMatch(serialized, /ocr-super-secret|minio-secret|postgres:\/\/converact:secret/);
   assert.match(serialized, /\[configured\]/);
 });
 
@@ -846,7 +846,7 @@ test('attachment processing deployment surfaces expose every provider and worker
     readFileSync('docker-compose.callcenter.yml', 'utf8'),
     readFileSync('infra/docker-compose.production.yml', 'utf8'),
     readFileSync('infra/k8s/values.yaml', 'utf8'),
-    readFileSync('infra/k8s/templates/opc-deployment.yaml', 'utf8')
+    readFileSync('infra/k8s/templates/converact-deployment.yaml', 'utf8')
   ];
   for (const source of sources) {
     assert.match(source, /CONVERACT_OCR_BASE_URL|ocrBaseUrl/);

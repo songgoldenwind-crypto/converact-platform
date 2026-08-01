@@ -2,7 +2,7 @@ import type { BusinessRefSelection } from './context/use-business-context.js';
 
 export type WorkspaceMode = 'messages' | 'calls' | 'voice' | 'remote' | 'quality' | 'operations' | 'ivr';
 
-export interface IveKitLocationState {
+export interface ConveractFabricLocationState {
   workspace: WorkspaceMode;
   businessRef: BusinessRefSelection | null;
   sessionId: string;
@@ -12,12 +12,12 @@ export interface IveKitLocationState {
   flowId: string;
 }
 
-export type IveKitLocationPatch = Partial<Omit<IveKitLocationState, 'businessRef'>> & {
+export type ConveractFabricLocationPatch = Partial<Omit<ConveractFabricLocationState, 'businessRef'>> & {
   businessRef?: BusinessRefSelection | null;
 };
 
-export function readIveKitLocation(value: string | URL): IveKitLocationState {
-  const url = typeof value === 'string' ? new URL(value, 'http://ivekit.local') : value;
+export function readConveractFabricLocation(value: string | URL): ConveractFabricLocationState {
+  const url = typeof value === 'string' ? new URL(value, 'http://converact.local') : value;
   const callId = parameter(url, 'call_id');
   const voiceCallId = parameter(url, 'voice_call_id');
   const workspaceValue = parameter(url, 'workspace');
@@ -39,8 +39,8 @@ export function readIveKitLocation(value: string | URL): IveKitLocationState {
   };
 }
 
-export function updateIveKitLocation(value: string | URL, patch: IveKitLocationPatch): URL {
-  const url = new URL(typeof value === 'string' ? value : value.toString(), 'http://ivekit.local');
+export function updateConveractFabricLocation(value: string | URL, patch: ConveractFabricLocationPatch): URL {
+  const url = new URL(typeof value === 'string' ? value : value.toString(), 'http://converact.local');
   if (patch.businessRef !== undefined) {
     setParameter(url, 'business_ref_type', patch.businessRef?.type || '');
     setParameter(url, 'business_ref_id', patch.businessRef?.id || '');
@@ -58,7 +58,7 @@ export function sessionLocationPatch(
   currentBusinessRef: BusinessRefSelection | null,
   nextBusinessRef: BusinessRefSelection,
   sessionId: string
-): IveKitLocationPatch {
+): ConveractFabricLocationPatch {
   const businessChanged = currentBusinessRef?.type !== nextBusinessRef.type ||
     currentBusinessRef.id !== nextBusinessRef.id;
   return {

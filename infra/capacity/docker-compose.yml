@@ -43,15 +43,15 @@ services:
     build:
       context: ../..
       dockerfile: infra/capacity/Dockerfile
-    command: ["node", "--import", "tsx", "scripts/ivekit-capacity-controller.ts"]
+    command: ["node", "--import", "tsx", "scripts/converact-capacity-controller.ts"]
     environment:
       CONVERACT_DATABASE_URL: ${CONVERACT_DATABASE_URL:?set CONVERACT_DATABASE_URL}
       CONVERACT_FABRIC_CAPACITY_CONTROLLER_ID: ${CONVERACT_FABRIC_CAPACITY_CONTROLLER_ID:-capacity-controller-local}
-      CONVERACT_FABRIC_CAPACITY_MANIFEST_PATH: /run/ivekit-capacity/manifest.json
+      CONVERACT_FABRIC_CAPACITY_MANIFEST_PATH: /run/converact-capacity/manifest.json
       CONVERACT_FABRIC_CAPACITY_CONTROLLER_LEASE_MS: ${CONVERACT_FABRIC_CAPACITY_CONTROLLER_LEASE_MS:-15000}
       CONVERACT_FABRIC_CAPACITY_CONTROLLER_POLL_INTERVAL_MS: ${CONVERACT_FABRIC_CAPACITY_CONTROLLER_POLL_INTERVAL_MS:-500}
     volumes:
-      - ${CONVERACT_FABRIC_CAPACITY_MANIFEST_HOST_PATH:?set CONVERACT_FABRIC_CAPACITY_MANIFEST_HOST_PATH}:/run/ivekit-capacity/manifest.json:ro
+      - ${CONVERACT_FABRIC_CAPACITY_MANIFEST_HOST_PATH:?set CONVERACT_FABRIC_CAPACITY_MANIFEST_HOST_PATH}:/run/converact-capacity/manifest.json:ro
     restart: unless-stopped
 
   capacity-finalizer:
@@ -59,12 +59,12 @@ services:
     build:
       context: ../..
       dockerfile: infra/capacity/Dockerfile
-    command: ["node", "--import", "tsx", "scripts/ivekit-capacity-finalizer.ts"]
+    command: ["node", "--import", "tsx", "scripts/converact-capacity-finalizer.ts"]
     environment:
       CONVERACT_DATABASE_URL: ${CONVERACT_DATABASE_URL:?set CONVERACT_DATABASE_URL}
       CONVERACT_FABRIC_CAPACITY_FINALIZER_ID: ${CONVERACT_FABRIC_CAPACITY_FINALIZER_ID:-capacity-finalizer-local}
-      CONVERACT_FABRIC_CAPACITY_MANIFEST_PATH: /run/ivekit-capacity/manifest.json
-      CONVERACT_FABRIC_CAPACITY_EVIDENCE_SUBMISSION_PATH: /run/ivekit-capacity/evidence-submission.json
+      CONVERACT_FABRIC_CAPACITY_MANIFEST_PATH: /run/converact-capacity/manifest.json
+      CONVERACT_FABRIC_CAPACITY_EVIDENCE_SUBMISSION_PATH: /run/converact-capacity/evidence-submission.json
       CONVERACT_FABRIC_CAPACITY_FINALIZER_LEASE_MS: ${CONVERACT_FABRIC_CAPACITY_FINALIZER_LEASE_MS:-15000}
       CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX: ${CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX:?set CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX}
       CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET: ${CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET:?set CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET}
@@ -74,15 +74,15 @@ services:
       CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_ACCESS_KEY_ID: ${CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_ACCESS_KEY_ID:-}
       CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY: ${CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY:-}
     volumes:
-      - ${CONVERACT_FABRIC_CAPACITY_MANIFEST_HOST_PATH:?set CONVERACT_FABRIC_CAPACITY_MANIFEST_HOST_PATH}:/run/ivekit-capacity/manifest.json:ro
-      - ${CONVERACT_FABRIC_CAPACITY_EVIDENCE_SUBMISSION_HOST_PATH:?set CONVERACT_FABRIC_CAPACITY_EVIDENCE_SUBMISSION_HOST_PATH}:/run/ivekit-capacity/evidence-submission.json:ro
+      - ${CONVERACT_FABRIC_CAPACITY_MANIFEST_HOST_PATH:?set CONVERACT_FABRIC_CAPACITY_MANIFEST_HOST_PATH}:/run/converact-capacity/manifest.json:ro
+      - ${CONVERACT_FABRIC_CAPACITY_EVIDENCE_SUBMISSION_HOST_PATH:?set CONVERACT_FABRIC_CAPACITY_EVIDENCE_SUBMISSION_HOST_PATH}:/run/converact-capacity/evidence-submission.json:ro
 
   capacity-worker:
     profiles: ["worker"]
     build:
       context: ../..
       dockerfile: infra/capacity/Dockerfile
-    command: ["node", "--import", "tsx", "scripts/ivekit-capacity-worker.ts"]
+    command: ["node", "--import", "tsx", "scripts/converact-capacity-worker.ts"]
     environment:
       CONVERACT_DATABASE_URL: ${CONVERACT_DATABASE_URL:?set CONVERACT_DATABASE_URL}
       NATS_URL: nats://capacity-nats:4222
@@ -100,7 +100,7 @@ services:
       CONVERACT_FABRIC_CAPACITY_SHARD_LEASE_MS: ${CONVERACT_FABRIC_CAPACITY_SHARD_LEASE_MS:-30000}
       CONVERACT_FABRIC_CAPACITY_ACK_WAIT_MS: ${CONVERACT_FABRIC_CAPACITY_ACK_WAIT_MS:-30000}
       CONVERACT_FABRIC_CAPACITY_RETRY_DELAY_MS: ${CONVERACT_FABRIC_CAPACITY_RETRY_DELAY_MS:-1000}
-      CONVERACT_FABRIC_CAPACITY_DRIVER_SPEC_PATH: /opt/ivekit-capacity-worker/driver-spec.json
+      CONVERACT_FABRIC_CAPACITY_DRIVER_SPEC_PATH: /opt/converact-capacity-worker/driver-spec.json
       CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX: ${CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX:?set CONVERACT_FABRIC_CAPACITY_EVIDENCE_PREFIX}
       CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET: ${CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET:?set CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_BUCKET}
       CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION: ${CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION:?set CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_REGION}
@@ -110,8 +110,8 @@ services:
       CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY: ${CONVERACT_FABRIC_CAPACITY_EVIDENCE_S3_SECRET_ACCESS_KEY:-}
       CONVERACT_FABRIC_CAPACITY_WORKER_METADATA_JSON: ${CONVERACT_FABRIC_CAPACITY_WORKER_METADATA_JSON:-{}}
     volumes:
-      - ${CONVERACT_FABRIC_CAPACITY_WORKER_BUNDLE_HOST_PATH:?set CONVERACT_FABRIC_CAPACITY_WORKER_BUNDLE_HOST_PATH}:/opt/ivekit-capacity-worker:ro
-      - capacity_worker_results:/var/lib/ivekit-capacity
+      - ${CONVERACT_FABRIC_CAPACITY_WORKER_BUNDLE_HOST_PATH:?set CONVERACT_FABRIC_CAPACITY_WORKER_BUNDLE_HOST_PATH}:/opt/converact-capacity-worker:ro
+      - capacity_worker_results:/var/lib/converact-capacity
     depends_on:
       capacity-nats:
         condition: service_healthy
@@ -121,7 +121,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/capacity/Dockerfile
-    command: ["node", "--import", "tsx", "scripts/ivekit-cell-admission.ts"]
+    command: ["node", "--import", "tsx", "scripts/converact-cell-admission.ts"]
     environment:
       CONVERACT_DATABASE_URL: ${CONVERACT_DATABASE_URL:?set CONVERACT_DATABASE_URL}
       CONVERACT_FABRIC_CELL_ADMISSION_HOST: 0.0.0.0
@@ -163,7 +163,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/capacity/Dockerfile
-    command: ["node", "--import", "tsx", "scripts/ivekit-cell-capacity-projector.ts"]
+    command: ["node", "--import", "tsx", "scripts/converact-cell-capacity-projector.ts"]
     environment:
       CONVERACT_FABRIC_CELL_ADMISSION_ENDPOINT: http://capacity-admission:3200
       CONVERACT_FABRIC_CELL_ADMISSION_TOKEN: ${CONVERACT_FABRIC_CELL_ADMISSION_TOKEN:?set CONVERACT_FABRIC_CELL_ADMISSION_TOKEN}
@@ -188,7 +188,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/capacity/Dockerfile
-    command: ["node", "--import", "tsx", "scripts/ivekit-component-node-admission.ts"]
+    command: ["node", "--import", "tsx", "scripts/converact-component-node-admission.ts"]
     environment:
       CONVERACT_FABRIC_COMPONENT_NODE_HOST: 0.0.0.0
       CONVERACT_FABRIC_COMPONENT_NODE_PORT: 3210
@@ -226,7 +226,7 @@ services:
       - tsx
       - src/converact-placement-snapshot-projector.ts
     environment:
-      CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE: /run/ivekit-placement/placement.json
+      CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_FILE: /run/converact-placement/placement.json
       CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON: ${CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON:?set CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON}
       CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_KEY_ID: ${CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_KEY_ID:?set CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_KEY_ID}
       CONVERACT_FABRIC_PLACEMENT_PROFILE_ID: ${CONVERACT_FABRIC_PLACEMENT_PROFILE_ID:?set CONVERACT_FABRIC_PLACEMENT_PROFILE_ID}
@@ -236,7 +236,7 @@ services:
       CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_TTL_MS: ${CONVERACT_FABRIC_PLACEMENT_SNAPSHOT_TTL_MS:-10000}
       CONVERACT_FABRIC_PLACEMENT_PROJECTOR_TIMEOUT_MS: ${CONVERACT_FABRIC_PLACEMENT_PROJECTOR_TIMEOUT_MS:-2000}
     volumes:
-      - placement_snapshot:/run/ivekit-placement
+      - placement_snapshot:/run/converact-placement
     depends_on:
       capacity-admission:
         condition: service_healthy

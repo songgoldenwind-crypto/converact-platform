@@ -8,10 +8,10 @@ import { withPgTenant } from '../../db-pg-tenant.js';
 import { isLiveKitConfigured, readLiveKitConfig, type LiveKitConfig } from './config.js';
 import { MediaCallStore } from './media-call-store.js';
 import type {
-  IveKitMediaCallParticipant,
-  IveKitMediaCallSnapshot,
-  IveKitMediaModerationCommandRecord,
-  IveKitMediaTrackSource
+  ConveractFabricMediaCallParticipant,
+  ConveractFabricMediaCallSnapshot,
+  ConveractFabricMediaModerationCommandRecord,
+  ConveractFabricMediaTrackSource
 } from './types.js';
 
 export interface LiveKitModerationProvider {
@@ -41,13 +41,13 @@ export interface LiveKitModerationResult {
   status: 'applied' | 'already_applied';
   actor_identity: string;
   track_sid?: string;
-  source?: IveKitMediaTrackSource;
+  source?: ConveractFabricMediaTrackSource;
   muted?: true;
   reason?: string;
 }
 
 const memoryModerationLocks = new WeakMap<MemoryPg, Map<string, Promise<void>>>();
-const TRACK_SOURCES = new Set<IveKitMediaTrackSource>([
+const TRACK_SOURCES = new Set<ConveractFabricMediaTrackSource>([
   'camera',
   'microphone',
   'screen_share',
@@ -69,7 +69,7 @@ export class LiveKitModerationService {
     actor_is_system?: boolean;
     idempotency_key: string;
     track_sid: string;
-    source: IveKitMediaTrackSource;
+    source: ConveractFabricMediaTrackSource;
     muted: true;
     metadata?: Record<string, unknown>;
     recovery?: boolean;
@@ -306,7 +306,7 @@ export class LiveKitModerationService {
   }
 
   private executeRecoveryCommand(
-    command: IveKitMediaModerationCommandRecord
+    command: ConveractFabricMediaModerationCommandRecord
   ): Promise<LiveKitModerationResult> {
     const recoveryPg = this.requireRecoveryPg();
     return withPgTenant(recoveryPg, command.tenant_id, async (pg) => {
@@ -325,7 +325,7 @@ export class LiveKitModerationService {
           actor_is_system: command.actor_is_system,
           idempotency_key: command.idempotency_key,
           track_sid: String(request.track_sid || ''),
-          source: String(request.source || '') as IveKitMediaTrackSource,
+          source: String(request.source || '') as ConveractFabricMediaTrackSource,
           muted: request.muted as true,
           metadata: recordValue(request.metadata),
           recovery: true
@@ -396,7 +396,7 @@ export class LiveKitModerationService {
     );
   }
 
-  async revokeForTerminal(snapshot: IveKitMediaCallSnapshot): Promise<void> {
+  async revokeForTerminal(snapshot: ConveractFabricMediaCallSnapshot): Promise<void> {
     const provider = await this.resolveProvider({
       tenant_id: snapshot.call.tenant_id,
       call_id: snapshot.call.id,
@@ -505,7 +505,7 @@ function moderationPayloadHash(input: Record<string, unknown>): string {
 
 function moderationCommandPayload(input: {
   track_sid?: string;
-  source?: IveKitMediaTrackSource;
+  source?: ConveractFabricMediaTrackSource;
   muted?: true;
   reason?: string;
   metadata?: Record<string, unknown>;
@@ -540,7 +540,7 @@ async function authorizeModeration(
     actor_is_system?: boolean;
   },
   forUpdate: boolean
-): Promise<{ snapshot: IveKitMediaCallSnapshot; target: IveKitMediaCallParticipant }> {
+): Promise<{ snapshot: ConveractFabricMediaCallSnapshot; target: ConveractFabricMediaCallParticipant }> {
   const call = await store.getCallByRoom(input.tenant_id, input.room_name, { forUpdate });
   if (!call) throw notFound('media call not found');
   const participants = await store.listParticipants(input.tenant_id, call.id);
@@ -562,7 +562,7 @@ async function authorizeRemoval(
     actor_is_system?: boolean;
   },
   forUpdate: boolean
-): Promise<{ call: IveKitMediaCallSnapshot['call']; target: IveKitMediaCallParticipant }> {
+): Promise<{ call: ConveractFabricMediaCallSnapshot['call']; target: ConveractFabricMediaCallParticipant }> {
   const call = await store.getCallByRoom(input.tenant_id, input.room_name, { forUpdate });
   if (!call) throw notFound('media call not found');
   const participants = await store.listParticipants(input.tenant_id, call.id);
@@ -579,7 +579,7 @@ async function authorizeRemoval(
 function authorizeActor(
   actorIdentity: string,
   actorIsSystem: boolean,
-  participants: IveKitMediaCallParticipant[]
+  participants: ConveractFabricMediaCallParticipant[]
 ): void {
   const actor = required(actorIdentity, 'actor_identity');
   if (actorIsSystem) return;
@@ -589,17 +589,17 @@ function authorizeActor(
   }
 }
 
-function assertModeratableCall(status: IveKitMediaCallSnapshot['call']['status']): void {
+function assertModeratableCall(status: ConveractFabricMediaCallSnapshot['call']['status']): void {
   if (status !== 'accepted' && status !== 'active') {
     throw conflict('media call must be accepted before moderation');
   }
 }
 
-function isProviderActive(participant: IveKitMediaCallParticipant): boolean {
+function isProviderActive(participant: ConveractFabricMediaCallParticipant): boolean {
   return participant.status === 'accepted' || participant.status === 'joined';
 }
 
-function isInactive(participant: IveKitMediaCallParticipant): boolean {
+function isInactive(participant: ConveractFabricMediaCallParticipant): boolean {
   return ['left', 'declined', 'missed', 'removed'].includes(participant.status);
 }
 

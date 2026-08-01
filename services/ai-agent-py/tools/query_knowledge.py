@@ -17,7 +17,7 @@ def create(ctx: "ToolContext"):
     async def query_knowledge_base_tool(question: str) -> str:
         """Query the enterprise knowledge base to answer customer questions."""
         try:
-            result = await ctx.opc.post(
+            result = await ctx.converact.post(
                 "/api/knowledge/ask",
                 json={
                     "tenant_id": ctx.tenant_id,

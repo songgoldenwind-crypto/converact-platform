@@ -19,9 +19,9 @@ createServer((request, response) => {
   if (request.url === '/metrics') {
     response.writeHead(200, { 'content-type': 'text/plain; version=0.0.4' });
     response.end(
-      '# HELP opc_vm_acceptance_counter Controlled acceptance counter.\n' +
-      '# TYPE opc_vm_acceptance_counter counter\n' +
-      `opc_vm_acceptance_counter ${counter}\n`
+      '# HELP converact_vm_acceptance_counter Controlled acceptance counter.\n' +
+      '# TYPE converact_vm_acceptance_counter counter\n' +
+      `converact_vm_acceptance_counter ${counter}\n`
     );
     return;
   }

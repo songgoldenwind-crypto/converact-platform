@@ -1,38 +1,38 @@
-import type { IveKitIvrFlowGraph, IveKitIvrNodeType as SdkIveKitIvrNodeType } from '@converact/sdk';
+import type { ConveractFabricIvrFlowGraph, ConveractFabricIvrNodeType as SdkConveractFabricIvrNodeType } from '@converact/sdk';
 
-export type IveKitIvrNodeType = SdkIveKitIvrNodeType;
+export type ConveractFabricIvrNodeType = SdkConveractFabricIvrNodeType;
 
-export type IveKitIvrNodeCategory = 'call' | 'logic' | 'intelligence' | 'media';
+export type ConveractFabricIvrNodeCategory = 'call' | 'logic' | 'intelligence' | 'media';
 
-export interface IveKitIvrNodeDefinition {
-  type: IveKitIvrNodeType;
+export interface ConveractFabricIvrNodeDefinition {
+  type: ConveractFabricIvrNodeType;
   label: string;
   description: string;
-  category: IveKitIvrNodeCategory;
+  category: ConveractFabricIvrNodeCategory;
   default_data: Record<string, unknown>;
 }
 
-export interface IveKitIvrGraphNode {
+export interface ConveractFabricIvrGraphNode {
   id: string;
-  type: IveKitIvrNodeType;
+  type: ConveractFabricIvrNodeType;
   name: string;
   position: { x: number; y: number };
   data: Record<string, unknown>;
 }
 
-export interface IveKitIvrCanvasNode {
+export interface ConveractFabricIvrCanvasNode {
   id: string;
   type: 'ivr';
   position: { x: number; y: number };
   data: {
-    ivr_type: IveKitIvrNodeType;
+    ivr_type: ConveractFabricIvrNodeType;
     name: string;
     config: Record<string, unknown>;
     issue_count?: number;
   };
 }
 
-export interface IveKitIvrCanvasEdge {
+export interface ConveractFabricIvrCanvasEdge {
   id: string;
   source: string;
   target: string;
@@ -40,12 +40,12 @@ export interface IveKitIvrCanvasEdge {
   targetHandle?: string;
 }
 
-export interface IveKitIvrCanvasGraph {
-  nodes: IveKitIvrCanvasNode[];
-  edges: IveKitIvrCanvasEdge[];
+export interface ConveractFabricIvrCanvasGraph {
+  nodes: ConveractFabricIvrCanvasNode[];
+  edges: ConveractFabricIvrCanvasEdge[];
 }
 
-const definitions: IveKitIvrNodeDefinition[] = [
+const definitions: ConveractFabricIvrNodeDefinition[] = [
   node('start', 'Start', 'Initialize the call context', 'call', {}),
   node('play', 'Play audio', 'Play an audio asset or TTS prompt', 'call', { text: 'Welcome' }),
   node('menu', 'DTMF menu', 'Collect one menu selection', 'call', {
@@ -112,11 +112,11 @@ const definitions: IveKitIvrNodeDefinition[] = [
   })
 ];
 
-export const IVR_NODE_DEFINITIONS: readonly IveKitIvrNodeDefinition[] = Object.freeze(definitions);
+export const IVR_NODE_DEFINITIONS: readonly ConveractFabricIvrNodeDefinition[] = Object.freeze(definitions);
 
 const definitionByType = new Map(IVR_NODE_DEFINITIONS.map((definition) => [definition.type, definition]));
 
-export function createDefaultIvrGraph(): IveKitIvrFlowGraph {
+export function createDefaultIvrGraph(): ConveractFabricIvrFlowGraph {
   return {
     version: 1,
     entryNodeId: 'start',
@@ -130,10 +130,10 @@ export function createDefaultIvrGraph(): IveKitIvrFlowGraph {
 }
 
 export function createIvrNode(
-  type: IveKitIvrNodeType,
+  type: ConveractFabricIvrNodeType,
   position: { x: number; y: number },
   id = uniqueNodeId(type)
-): IveKitIvrGraphNode {
+): ConveractFabricIvrGraphNode {
   const definition = definitionByType.get(type);
   if (!definition) throw new TypeError(`unsupported IVR node type: ${type}`);
   return {
@@ -145,7 +145,7 @@ export function createIvrNode(
   };
 }
 
-export function ivrNodeOutputHandles(node: Pick<IveKitIvrGraphNode, 'type' | 'data'>): string[] {
+export function ivrNodeOutputHandles(node: Pick<ConveractFabricIvrGraphNode, 'type' | 'data'>): string[] {
   switch (node.type) {
     case 'start': case 'set_var':
       return ['out'];
@@ -176,10 +176,10 @@ export function ivrNodeOutputHandles(node: Pick<IveKitIvrGraphNode, 'type' | 'da
   }
 }
 
-export function toCanvasGraph(graph: IveKitIvrFlowGraph): IveKitIvrCanvasGraph {
+export function toCanvasGraph(graph: ConveractFabricIvrFlowGraph): ConveractFabricIvrCanvasGraph {
   return {
     nodes: graph.nodes.map((raw) => {
-      const nodeValue = raw as IveKitIvrGraphNode;
+      const nodeValue = raw as ConveractFabricIvrGraphNode;
       return {
         id: nodeValue.id,
         type: 'ivr' as const,
@@ -200,9 +200,9 @@ export function toCanvasGraph(graph: IveKitIvrFlowGraph): IveKitIvrCanvasGraph {
 }
 
 export function toIvrFlowGraph(
-  canvas: IveKitIvrCanvasGraph,
-  source: IveKitIvrFlowGraph
-): IveKitIvrFlowGraph {
+  canvas: ConveractFabricIvrCanvasGraph,
+  source: ConveractFabricIvrFlowGraph
+): ConveractFabricIvrFlowGraph {
   return {
     ...structuredClone(source),
     nodes: canvas.nodes.map((nodeValue) => ({
@@ -220,7 +220,7 @@ export function toIvrFlowGraph(
   };
 }
 
-export function parseImportedIvrGraph(json: string): IveKitIvrFlowGraph {
+export function parseImportedIvrGraph(json: string): ConveractFabricIvrFlowGraph {
   let value: unknown;
   try {
     value = JSON.parse(json);
@@ -233,17 +233,17 @@ export function parseImportedIvrGraph(json: string): IveKitIvrFlowGraph {
   }
   for (const candidate of value.nodes) {
     if (!record(candidate) || typeof candidate.id !== 'string' || typeof candidate.type !== 'string'
-      || !definitionByType.has(candidate.type as IveKitIvrNodeType) || !record(candidate.data)
+      || !definitionByType.has(candidate.type as ConveractFabricIvrNodeType) || !record(candidate.data)
       || !record(candidate.position) || typeof candidate.position.x !== 'number'
       || typeof candidate.position.y !== 'number') {
       if (record(candidate) && typeof candidate.type === 'string'
-        && !definitionByType.has(candidate.type as IveKitIvrNodeType)) {
+        && !definitionByType.has(candidate.type as ConveractFabricIvrNodeType)) {
         throw new TypeError(`unsupported IVR node type: ${candidate.type}`);
       }
       throw new TypeError('invalid IVR graph node');
     }
   }
-  return structuredClone(value) as unknown as IveKitIvrFlowGraph;
+  return structuredClone(value) as unknown as ConveractFabricIvrFlowGraph;
 }
 
 function dynamicDigitHandles(value: unknown): string[] {
@@ -254,16 +254,16 @@ function dynamicDigitHandles(value: unknown): string[] {
 }
 
 function node(
-  type: IveKitIvrNodeType,
+  type: ConveractFabricIvrNodeType,
   label: string,
   description: string,
-  category: IveKitIvrNodeCategory,
+  category: ConveractFabricIvrNodeCategory,
   default_data: Record<string, unknown>
-): IveKitIvrNodeDefinition {
+): ConveractFabricIvrNodeDefinition {
   return { type, label, description, category, default_data };
 }
 
-function uniqueNodeId(type: IveKitIvrNodeType): string {
+function uniqueNodeId(type: ConveractFabricIvrNodeType): string {
   const suffix = globalThis.crypto?.randomUUID?.().replaceAll('-', '')
     ?? `${Date.now()}${Math.random().toString(36).slice(2)}`;
   return `${type}_${suffix}`;

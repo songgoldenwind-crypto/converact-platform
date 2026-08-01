@@ -1,9 +1,9 @@
-import type { IveKitChatSession } from '@converact/sdk';
+import type { ConveractFabricChatSession } from '@converact/sdk';
 import { Search } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 
 export function SessionList(props: {
-  sessions: IveKitChatSession[];
+  sessions: ConveractFabricChatSession[];
   selectedId: string;
   query: string;
   loading: boolean;
@@ -53,7 +53,7 @@ export function SessionList(props: {
   );
 }
 
-function lastMessageLabel(session: IveKitChatSession): string {
+function lastMessageLabel(session: ConveractFabricChatSession): string {
   const message = session.summary?.last_message;
   if (!message) return 'No messages yet';
   if (message.deleted) return `${message.sender_identity}: Message deleted`;

@@ -1,12 +1,12 @@
 # ADR-CCAAS-2：双 Active Data Zone 与第三仲裁故障域
 
 **Status:** Proposed（2026-07-16）
-**Decision owner:** iveKit shared communication foundation
+**Decision owner:** Converact Fabric shared communication foundation
 **Related:** [`ccaas-1-cell-placement.md`](ccaas-1-cell-placement.md)、[`../capacity/profiles/mix-100k-v1.json`](../capacity/profiles/mix-100k-v1.json)、[`../MIX-100K双Zone与Cell架构评审.md`](../MIX-100K双Zone与Cell架构评审.md)
 
 ## 1. 背景
 
-iveKit 的商业级目标是在单 Region 内使用两个 Active Data Zone 正常各承载约 50% 流量，任一 Zone 故障后由另一 Zone 接纳完整 `MIX-100K-v1` 核心负载。
+Converact Fabric 的商业级目标是在单 Region 内使用两个 Active Data Zone 正常各承载约 50% 流量，任一 Zone 故障后由另一 Zone 接纳完整 `MIX-100K-v1` 核心负载。
 
 两个实时 Zone 不能直接等于两个仲裁节点。NATS JetStream、Redis Sentinel、PostgreSQL failover coordinator 等系统都需要多数派才能在网络分区下同时保证一致性和 fencing。纯 A/B 对称部署无法区分“对方宕机”和“双方网络断开”，自动双主会产生 split brain。
 
@@ -140,7 +140,7 @@ Zone failover 时必须继续：
 
 | 数据库组 | 内容 |
 | --- | --- |
-| iveKit authority shards | tenant/config/interaction/command/audit/outbox |
+| Converact Fabric authority shards | tenant/config/interaction/command/audit/outbox |
 | Tinode shards | message/topic/subscription/read state |
 | RustPBX configuration/CDR | PBX 配置、CDR projection；实时 dialog 不依赖 PG 恢复 |
 | operational metadata | capacity evidence、deployment、fork release、backup catalog |

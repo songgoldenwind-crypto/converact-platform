@@ -1,8 +1,8 @@
 import type {
-  IveKitChatMessage,
-  IveKitChatReceipt,
-  IveKitHttpSdk,
-  IveKitPolicyFinding
+  ConveractFabricChatMessage,
+  ConveractFabricChatReceipt,
+  ConveractFabricHttpSdk,
+  ConveractFabricPolicyFinding
 } from '@converact/sdk';
 import { Download, Forward, Pencil, Pin, Reply, RotateCcw, ShieldAlert, SmilePlus, Trash2 } from 'lucide-react';
 import React from 'react';
@@ -14,15 +14,15 @@ import { TranslationPanel } from './translation-panel.js';
 export function MessageTimeline(props: {
   messages: ChatClientMessage[];
   identity: string;
-  receipts?: IveKitChatReceipt[];
-  findings?: IveKitPolicyFinding[];
-  client?: IveKitHttpSdk | null;
+  receipts?: ConveractFabricChatReceipt[];
+  findings?: ConveractFabricPolicyFinding[];
+  client?: ConveractFabricHttpSdk | null;
   sessionId?: string;
   refreshVersion?: number;
   canLoadOlder: boolean;
   onLoadOlder(): void;
-  onReply(message: IveKitChatMessage): void;
-  onForward(message: IveKitChatMessage): void;
+  onReply(message: ConveractFabricChatMessage): void;
+  onForward(message: ConveractFabricChatMessage): void;
   onRetry(id: string): void;
   onReact(id: string, emoji: string, remove?: boolean): void;
   onPin(id: string, remove?: boolean): void;
@@ -161,13 +161,13 @@ function renderMentions(body: string, mentions: string[]) {
   return parts.map((part, index) => mentions.includes(part.slice(1)) ? <mark key={`${part}-${index}`}>{part}</mark> : part);
 }
 
-function aggregateReactions(reactions: NonNullable<IveKitChatMessage['reactions']>): Array<[string, number]> {
+function aggregateReactions(reactions: NonNullable<ConveractFabricChatMessage['reactions']>): Array<[string, number]> {
   const counts = new Map<string, number>();
   reactions.forEach((item) => counts.set(item.emoji, (counts.get(item.emoji) || 0) + 1));
   return [...counts];
 }
 
-function deliveryLabel(message: ChatClientMessage, receipts: IveKitChatReceipt[], identity: string): string {
+function deliveryLabel(message: ChatClientMessage, receipts: ConveractFabricChatReceipt[], identity: string): string {
   if (message.client_state === 'sending') return 'Sending';
   if (message.client_state === 'retry_wait') return 'Retry waiting';
   if (message.client_state === 'failed') return 'Failed';

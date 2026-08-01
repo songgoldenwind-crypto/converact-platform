@@ -1,6 +1,6 @@
 import { Room, RoomEvent } from 'livekit-client';
 
-import type { IveKitMediaJoinPlan } from '@converact/sdk';
+import type { ConveractFabricMediaJoinPlan } from '@converact/sdk';
 import type {
   LiveKitRoomAdapter,
   MediaAdapterConnectionState,
@@ -51,7 +51,7 @@ export interface LiveKitClientAdapterInput {
 
 declare global {
   interface Window {
-    __IVEKIT_DEV_LIVEKIT_ROOM_FACTORY__?: () => LiveKitRoomLike;
+    __CONVERACT_FABRIC_DEV_LIVEKIT_ROOM_FACTORY__?: () => LiveKitRoomLike;
   }
 }
 
@@ -90,7 +90,7 @@ export class LiveKitClientAdapter implements LiveKitRoomAdapter {
 
   constructor(private readonly input: LiveKitClientAdapterInput = {}) {}
 
-  connect(plan: IveKitMediaJoinPlan): Promise<void> {
+  connect(plan: ConveractFabricMediaJoinPlan): Promise<void> {
     if (this.disposed) return Promise.reject(new Error('LiveKit adapter is disposed'));
     const credentials = webRtcCredentials(plan);
     const key = `${credentials.url}\n${credentials.roomName}\n${credentials.token}`;
@@ -403,7 +403,7 @@ interface WebRtcCredentials {
   readonly roomName: string;
 }
 
-function webRtcCredentials(plan: IveKitMediaJoinPlan): WebRtcCredentials {
+function webRtcCredentials(plan: ConveractFabricMediaJoinPlan): WebRtcCredentials {
   if (plan.mode !== 'webrtc') throw new Error('LiveKit adapter requires a WebRTC join plan');
   const url = plan.token.livekit_url.trim();
   const token = plan.token.token.trim();
@@ -417,7 +417,7 @@ function webRtcCredentials(plan: IveKitMediaJoinPlan): WebRtcCredentials {
 function defaultRoomFactory(): LiveKitRoomLike {
   const development = (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV;
   const injected = development && typeof window !== 'undefined'
-    ? window.__IVEKIT_DEV_LIVEKIT_ROOM_FACTORY__
+    ? window.__CONVERACT_FABRIC_DEV_LIVEKIT_ROOM_FACTORY__
     : undefined;
   if (injected) return injected();
   return new Room({ adaptiveStream: true, dynacast: true }) as unknown as LiveKitRoomLike;

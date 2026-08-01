@@ -1,14 +1,14 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { runIveKitRestore } from './agent-runtime/converact/operations/backup-runner.js';
+import { runConveractFabricRestore } from './agent-runtime/converact/operations/backup-runner.js';
 
-export interface IveKitRestoreCliOptions {
+export interface ConveractFabricRestoreCliOptions {
   backup_directory: string;
   execute: boolean;
 }
 
-export function parseIveKitRestoreCli(args: string[]): IveKitRestoreCliOptions {
+export function parseConveractFabricRestoreCli(args: string[]): ConveractFabricRestoreCliOptions {
   let backup = '';
   let execute = false;
   for (let index = 0; index < args.length; index += 1) {
@@ -21,12 +21,12 @@ export function parseIveKitRestoreCli(args: string[]): IveKitRestoreCliOptions {
   return { backup_directory: resolve(backup), execute };
 }
 
-export async function mainIveKitRestore(
+export async function mainConveractFabricRestore(
   args = process.argv.slice(2),
   env: NodeJS.ProcessEnv = process.env
 ): Promise<void> {
-  const options = parseIveKitRestoreCli(args);
-  const result = await runIveKitRestore({
+  const options = parseConveractFabricRestoreCli(args);
+  const result = await runConveractFabricRestore({
     directory: options.backup_directory,
     execute: options.execute,
     env
@@ -45,7 +45,7 @@ function cliError(code: string): Error {
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : '';
 if (invokedPath === fileURLToPath(import.meta.url)) {
-  mainIveKitRestore().catch((error) => {
+  mainConveractFabricRestore().catch((error) => {
     process.stderr.write(`${JSON.stringify({
       status: 'failed',
       code: String((error as { code?: unknown }).code || 'restore_failed')

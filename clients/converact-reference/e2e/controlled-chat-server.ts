@@ -30,14 +30,14 @@ export interface ControlledChatState {
   tinodeSubscriptions: number;
   tinodeProtocolRejections: number;
   tinodeDataPacketsSent: number;
-  ivekitEventsSent: number;
-  ivekitMessageCreatedEvents: number;
+  converactFabricEventsSent: number;
+  converactFabricMessageCreatedEvents: number;
   sessionClosed: boolean;
 }
 
 const SESSION_ID = 'session-e2e';
 const TENANT_ID = 'tenant-e2e';
-const TOPIC_ID = 'grpIveKitE2E';
+const TOPIC_ID = 'grpConveractFabricE2E';
 const NOW = '2026-07-11T08:00:00.000Z';
 
 export async function startControlledChatServer(): Promise<ControlledChatServer> {
@@ -64,8 +64,8 @@ export async function startControlledChatServer(): Promise<ControlledChatServer>
     tinodeSubscriptions: 0,
     tinodeProtocolRejections: 0,
     tinodeDataPacketsSent: 0,
-    ivekitEventsSent: 0,
-    ivekitMessageCreatedEvents: 0,
+    converactFabricEventsSent: 0,
+    converactFabricMessageCreatedEvents: 0,
     sessionClosed: false
   };
 
@@ -153,8 +153,8 @@ export async function startControlledChatServer(): Promise<ControlledChatServer>
 
   function broadcast(type: string, data: Json) {
     const envelope = JSON.stringify({ type, data: { session_id: SESSION_ID, ...data } });
-    state.ivekitEventsSent += 1;
-    if (type === 'collaboration.message.created') state.ivekitMessageCreatedEvents += 1;
+    state.converactFabricEventsSent += 1;
+    if (type === 'collaboration.message.created') state.converactFabricMessageCreatedEvents += 1;
     for (const socket of events) if (socket.readyState === socket.OPEN) socket.send(envelope);
     broadcastTinode();
   }

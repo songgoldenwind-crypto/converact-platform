@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 把 OPC 里已经沉淀的 LiveKit 音视频能力和 Tinode/Collaboration IM 能力补成可交付、可验收、可抽离给 LED 项目复用的通用后端能力。
+**Goal:** 把 Converact Platform 里已经沉淀的 LiveKit 音视频能力和 Tinode/Collaboration IM 能力补成可交付、可验收、可抽离给 LED 项目复用的通用后端能力。
 
-**Architecture:** 采用“先稳定模块边界，再补生产化链路，最后抽离服务/SDK”的路线。LiveKit 仍以 `LiveKitMediaModule` + `/api/media/livekit/*` 为核心；IM 仍以 `CollaborationStore` + `ChatGateway` + Tinode 外部服务为核心；LED 侧通过稳定 HTTP facade、OpenAPI/契约文档和可运行 smoke 套件对接，不直接耦合 OPC call-center 业务。
+**Architecture:** 采用“先稳定模块边界，再补生产化链路，最后抽离服务/SDK”的路线。LiveKit 仍以 `LiveKitMediaModule` + `/api/media/livekit/*` 为核心；IM 仍以 `CollaborationStore` + `ChatGateway` + Tinode 外部服务为核心；LED 侧通过稳定 HTTP facade、OpenAPI/契约文档和可运行 smoke 套件对接，不直接耦合 Converact Platform call-center 业务。
 
-**Tech Stack:** TypeScript、Node.js test runner、PostgreSQL/RLS、LiveKit Server/Egress/SIP、Tinode、WebSocket、MinIO/S3 object storage、Playwright smoke、现有 OPC auth/tenant middleware、现有 iveKit collaboration/remote-assistance 模块。
+**Tech Stack:** TypeScript、Node.js test runner、PostgreSQL/RLS、LiveKit Server/Egress/SIP、Tinode、WebSocket、MinIO/S3 object storage、Playwright smoke、现有 Converact Platform auth/tenant middleware、现有 Converact Fabric collaboration/remote-assistance 模块。
 
 ---
 
@@ -18,19 +18,19 @@
 |---|---|---|---|
 | Phase 0 范围冻结 | 本文负责冻结范围 | `docs/livekit-im-full-capability-plan.md` | 本轮不继续扩 RustDesk，不把数字人细节并入 Media Core 主线 |
 | Phase 1 LiveKit preflight | 工作区已出现实现和测试 | `scripts/livekit-deployment-preflight.ts`、`test/livekit-deployment-preflight.test.ts`、`package.json` 中 `livekit:deployment-preflight` | 服务器仍需实际执行 preflight/readiness，不能把本地单测等同真实部署验收 |
-| Phase 2 LiveKit facade | 工作区已出现 `/api/ivekit/media/*` facade | `src/agent-runtime/ivekit/media-http.ts`、`src/http.ts` 中 iveKit media route | 静态 OpenAPI/完整错误码表仍需补；服务器 LiveKit 仍需真联调 |
-| Phase 6 IM/Tinode facade | 本地代码已完成 | `scripts/tinode-deployment-preflight.ts`、`src/agent-runtime/ivekit/chat-http.ts`、`test/tinode-deployment-preflight.test.ts`、`test/ivekit-chat-facade.test.ts` | 真实 Tinode 仍需服务器执行 preflight/smoke；不得把本地 fake 协议测试当成部署验收 |
+| Phase 2 LiveKit facade | 工作区已出现 `/api/ivekit/media/*` facade | `src/agent-runtime/converact/media-http.ts`、`src/http.ts` 中 Converact Fabric media route | 静态 OpenAPI/完整错误码表仍需补；服务器 LiveKit 仍需真联调 |
+| Phase 6 IM/Tinode facade | 本地代码已完成 | `scripts/tinode-deployment-preflight.ts`、`src/agent-runtime/converact/chat-http.ts`、`test/tinode-deployment-preflight.test.ts`、`test/converact-chat-facade.test.ts` | 真实 Tinode 仍需服务器执行 preflight/smoke；不得把本地 fake 协议测试当成部署验收 |
 | Phase 7 IM 同步/可靠性 | 7A outbound 与 7B inbound 均完成本地代码 | outbound delivery/attempt 与 inbound mapping/cursor/inbox/projector/dead-letter/reconnect 已通过单元及真实 PostgreSQL 测试 | `direct_client_publish=false` 继续生效；真实 Tinode、多副本与断网恢复待服务器验收 |
 | Phase 8 附件、OCR/ASR | 本地代码已完成 | `027_collaboration_attachment_processing.sql`、provider/worker/preflight/API/测试 | 真实对象存储与 OCR/ASR provider 待服务器验证 |
 | Phase 9 AI 质检/人审 | 本地代码已完成 | `028_collaboration_policy_findings.sql`、`029_collaboration_quality_review.sql`、provider/worker/facade/测试 | 真实模型效果、吞吐、阈值和人工审核 UI 待后续验证/开发 |
-| Phase 10 IM 高级状态 | 本地代码已完成 | `030_collaboration_message_state.sql`、`message-state-store.ts`、官方 `tinode-sdk` receive-only adapter、iveKit API/事件/前端契约与测试 | 真实 Tinode 浏览器 join、真实多副本 WebSocket/Redis 和 PostgreSQL RLS 仍待服务器验证；客户端保持 `JRP`、不得直发业务消息 |
+| Phase 10 IM 高级状态 | 本地代码已完成 | `030_collaboration_message_state.sql`、`message-state-store.ts`、官方 `tinode-sdk` receive-only adapter、Converact Fabric API/事件/前端契约与测试 | 真实 Tinode 浏览器 join、真实多副本 WebSocket/Redis 和 PostgreSQL RLS 仍待服务器验证；客户端保持 `JRP`、不得直发业务消息 |
 
 ### 0.1 不再盲写的规则
 
 1. 不新增与本文无关的功能点；发现新需求先更新本文，再进入 TDD。
 2. 每个 Phase 必须先写失败测试，确认失败原因正确，再写生产代码。
 3. 本地 fake provider 测试、脚本契约测试、服务器真实 smoke 必须分开描述，不能互相替代。
-4. LiveKit、Tinode、MinIO、RustDesk 都是 provider；OPC/iveKit facade 和本地审计镜像才是 LED 对接边界。
+4. LiveKit、Tinode、MinIO、RustDesk 都是 provider；Converact Platform/Converact Fabric facade 和本地审计镜像才是 LED 对接边界。
 5. 不引入 SQLite；继续使用 PostgreSQL、租户上下文和 RLS。
 6. RustDesk 远控保留现有成果，本轮只在影响 Web Assist/LiveKit/IM 闭环时修正。
 
@@ -85,20 +85,20 @@ IM 第一版不是只“本地保存消息”。目标能力包括：
 | Collaboration Session | 按 `business_ref` 创建/查询会话，支持订单/工单/通话绑定 | 已编码 | 需要 LED 对接字段文档 |
 | Chat Binding | 一个 session 绑定一个 Tinode topic，本地保存 provider topic | 已编码 | 需要真实 Tinode 部署 smoke |
 | 用户与参与人 | 创建/复用 Tinode 用户，加入/移除 topic，本地参与人镜像 | 已编码 | 需要浏览器 SDK token 联调 |
-| 文本消息 | 经 OPC facade 发送，写本地镜像，发布到 Tinode，触发防绕单扫描 | 已编码并有 durable delivery | 真实 Tinode 仍待服务器 smoke |
+| 文本消息 | 经 Converact Platform facade 发送，写本地镜像，发布到 Tinode，触发防绕单扫描 | 已编码并有 durable delivery | 真实 Tinode 仍待服务器 smoke |
 | Client Plan | 给浏览器返回 Tinode topic/user/token/ws_url/api_key | 已编码 | 需要前端 Tinode SDK 真连接 |
-| Tinode 实时同步 | Tinode 中直接产生的消息同步回 OPC 本地镜像、策略扫描、审计 | 未完成 | 需要 Tinode sync worker 或服务端强制消息走 OPC |
+| Tinode 实时同步 | Tinode 中直接产生的消息同步回 Converact Platform 本地镜像、策略扫描、审计 | 未完成 | 需要 Tinode sync worker 或服务端强制消息走 Converact Platform |
 | 附件消息 | 上传、对象存储引用、处理状态、checksum、OCR/ASR 异步 job | 本地代码已完成 | 真实对象存储权限仍待服务器验证 |
 | 图片 OCR | 图片中的手机号/二维码/联系方式识别后重新进入防绕单扫描 | provider-neutral 代码已完成 | 自建或第三方真实服务待选型和服务器验证 |
 | 语音 ASR | 语音/视频中联系方式转写后进入质检和防绕单 | provider-neutral 代码已完成 | 自建或第三方真实服务待选型和服务器验证 |
 | AI 质检 | 汇总文本、OCR、ASR，生成辅助 finding、风险分级和处置建议 | 本地代码与人审闭环已完成 | 真实模型效果、阈值和容量待服务器验证 |
 | 翻译 | store 类型已存在 | HTTP/API 未形成完整链路 | 后续按 LED 需求排期 |
 | 消息状态 | 参与人维度送达/已读、read-through、unread count、typing/presence TTL | 本地代码已完成 | 真实浏览器、多副本广播和真实 PostgreSQL 待服务器验证 |
-| 消息变更 | 发送者限时编辑、软删除、不可变 mutation hash audit | 本地代码已完成 | Tinode 原生消息不做 edit/delete 回写；本地镜像和 OPC WebSocket 是业务展示权威 |
+| 消息变更 | 发送者限时编辑、软删除、不可变 mutation hash audit | 本地代码已完成 | Tinode 原生消息不做 edit/delete 回写；本地镜像和 Converact Platform WebSocket 是业务展示权威 |
 
 ### 2.3 Remote Assistance 与本计划的关系
 
-远程协助、屏幕共享、页面内控制、RustDesk 系统级远控是 iveKit 视频/协作能力的一部分，但本轮不继续扩大 RustDesk 范围。
+远程协助、屏幕共享、页面内控制、RustDesk 系统级远控是 Converact Fabric 视频/协作能力的一部分，但本轮不继续扩大 RustDesk 范围。
 
 处理口径：
 
@@ -109,7 +109,7 @@ IM 第一版不是只“本地保存消息”。目标能力包括：
 
 ### 2.4 LiveKit 完成定义
 
-LiveKit 能力只有同时满足“API 可用、数据可追踪、真实环境可验收、LED 不耦合 OPC 内部实现”才算第一版完成。
+LiveKit 能力只有同时满足“API 可用、数据可追踪、真实环境可验收、LED 不耦合 Converact Platform 内部实现”才算第一版完成。
 
 | 子能力 | 必须实现 | 必须验证 | 不能算完成的情况 |
 |---|---|---|---|
@@ -121,7 +121,7 @@ LiveKit 能力只有同时满足“API 可用、数据可追踪、真实环境�
 | 屏幕共享与 Web Assist Media | consent 后 join media，screen track 状态、录屏状态、失败态可见 | Playwright browser smoke + Web Assist store test | 页面能打开但无法证明 track/consent/recording 状态 |
 | SIP/VoLTE | readiness 输出 dial plan、trunk/endpoint/tenant/room 映射 | `npm run smoke:media:sip-volte` 在真实电话环境跑 | 只生成 planned state 却宣称已打通电话 |
 | facade/API | `/api/ivekit/media/*` 稳定入口、capabilities、OpenAPI/Markdown contract | facade contract test + LED 对接清单 | LED 直接调用 `/api/media/livekit/*` 内部路径 |
-| 可抽离性 | public module entry、HTTP facade、env、smoke、迁移清单完整 | 抽离 checklist 审核 | 复制 OPC call-center 业务代码到 LED |
+| 可抽离性 | public module entry、HTTP facade、env、smoke、迁移清单完整 | 抽离 checklist 审核 | 复制 Converact Platform call-center 业务代码到 LED |
 
 ### 2.5 IM/Tinode 完成定义
 
@@ -129,11 +129,11 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 
 | 子能力 | 必须实现 | 必须验证 | 不能算完成的情况 |
 |---|---|---|---|
-| 部署配置 | Tinode base/ws/api key/root auth/user secret/env checklist/report | `npm run tinode:deployment-preflight`、`npm run smoke:chat:tinode` | Tinode 能启动但 OPC 不知道如何签发 client plan |
-| Session | 按 `business_ref_type` + `business_ref_id` 创建/查询，会话带 tenant | collaboration/iveKit chat HTTP test | LED 必须理解 OPC 内部 session 字段才能用 |
+| 部署配置 | Tinode base/ws/api key/root auth/user secret/env checklist/report | `npm run tinode:deployment-preflight`、`npm run smoke:chat:tinode` | Tinode 能启动但 Converact Platform 不知道如何签发 client plan |
+| Session | 按 `business_ref_type` + `business_ref_id` 创建/查询，会话带 tenant | collaboration/Converact Fabric chat HTTP test | LED 必须理解 Converact Platform 内部 session 字段才能用 |
 | Topic Binding | 一个 session 对应一个 provider topic，本地保存 provider、topic、status | bind/client-plan contract test | 每次打开聊天都新建 topic |
-| 参与人 | identity、role、display name、join/leave、Tinode grant 本地镜像 | participant test + Tinode smoke | 只在 Tinode 有用户，OPC 没本地审计 |
-| 文本消息 | 第一版业务消息走 OPC/iveKit facade，写本地镜像、发布 Tinode、触发 scan | message contract test + Tinode publish smoke | 浏览器直接发 Tinode，OPC 防绕单看不到 |
+| 参与人 | identity、role、display name、join/leave、Tinode grant 本地镜像 | participant test + Tinode smoke | 只在 Tinode 有用户，Converact Platform 没本地审计 |
+| 文本消息 | 第一版业务消息走 Converact Platform/Converact Fabric facade，写本地镜像、发布 Tinode、触发 scan | message contract test + Tinode publish smoke | 浏览器直接发 Tinode，Converact Platform 防绕单看不到 |
 | Tinode 实时同步 | 如果允许客户端直发 Tinode，必须有 sync cursor、seq 幂等、scan 重放 | sync worker test | 未做 sync worker 却允许直发业务消息 |
 | 附件 | presign/upload metadata/checksum/content type/大小限制/关联 message | attachment processing test | 只把图片 URL 当普通文本发 |
 | OCR/ASR | 第三方和自建 provider 使用同一 adapter，回填 extracted text 后重扫 | OCR/ASR adapter contract test | 识别结果只展示，不进入策略和审计 |
@@ -170,7 +170,7 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 | `scripts/livekit-browser-smoke.ts` | 坐席浏览器视频 smoke |
 | `scripts/livekit-customer-browser-smoke.ts` | 客户 H5 join smoke |
 | `scripts/web-assist-browser-smoke.ts` | Web Assist 浏览器 smoke |
-| `scripts/ai-agent-opc-callback-smoke.ts` | AI agent 回调 OPC smoke |
+| `scripts/ai-agent-converact-callback-smoke.ts` | AI agent 回调 Converact Platform smoke |
 | `scripts/sip-volte-readiness.ts` | SIP/VoLTE 配置 readiness |
 | `scripts/video-readiness-suite.ts` | 视频总 readiness |
 | `scripts/render-media-configs.ts` | LiveKit/Egress 配置渲染 |
@@ -231,7 +231,7 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 
 | API | 原因 | 阶段 |
 |---|---|---|
-| `/api/ivekit/media/*` facade | LED 不应被 OPC 内部 `/api/media` 命名绑死；facade 可保持兼容并输出稳定 contract | P2 |
+| `/api/ivekit/media/*` facade | LED 不应被 Converact Platform 内部 `/api/media` 命名绑死；facade 可保持兼容并输出稳定 contract | P2 |
 | `GET /api/ivekit/media/capabilities` | LED 启动时检查 media/token/recording/sip/web-assist 能力和配置状态 | P2 |
 | `GET /api/ivekit/media/openapi.json` 或静态文档 | 给 LED 研发和测试工具消费 | P2 |
 | recording signed download API | 生产环境不能只返回内部 storage URL | P3 |
@@ -255,7 +255,7 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 
 | API | 原因 | 阶段 |
 |---|---|---|
-| `/api/ivekit/chat/*` facade | LED 不应直接吃 OPC collaboration 内部路径 | P6 |
+| `/api/ivekit/chat/*` facade | LED 不应直接吃 Converact Platform collaboration 内部路径 | P6 |
 | `POST /api/ivekit/chat/attachments/presign` | 图片、语音、文件上传前签名 | P8 |
 | `POST /api/ivekit/chat/attachments/:id/extracted-text` | OCR/ASR 服务回填文本并触发重新扫描 | P8 |
 | `GET /api/ivekit/chat/policy-events` | LED 管理端查看防绕单事件 | P9 |
@@ -292,7 +292,7 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 1. 继续使用 PostgreSQL，不引入 SQLite。
 2. 新表必须带 `tenant_id`，并纳入 RLS/基线 schema。
 3. 所有业务对象统一使用 `business_ref_type` + `business_ref_id`。
-4. Tinode、LiveKit、MinIO 只作为 provider，不成为 OPC/LED 的唯一事实源；OPC 本地镜像保存审计和风控所需最小事实。
+4. Tinode、LiveKit、MinIO 只作为 provider，不成为 Converact Platform/LED 的唯一事实源；Converact Platform 本地镜像保存审计和风控所需最小事实。
 
 ---
 
@@ -326,14 +326,14 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 - Modify: `package.json`
 - Modify: `.env.example`
 - Modify: `infra/env.example`
-- Modify: `docs/iveKit视频IM通用能力详细设计.md`
+- Modify: `docs/converact-fabric-video-im-capability-design.md`
 
 **核心要求:**
 - 校验 `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET`。
-- 校验 `OPC_BASE_URL`、`OPC_MEDIA_API_TOKEN`、`OPC_MEDIA_INVITE_SECRET`。
-- 校验 `OPC_MEDIA_SMOKE_TENANT_ID` 或 `OPC_TENANT_ID`。
+- 校验 `CONVERACT_BASE_URL`、`CONVERACT_MEDIA_API_TOKEN`、`CONVERACT_MEDIA_INVITE_SECRET`。
+- 校验 `CONVERACT_MEDIA_SMOKE_TENANT_ID` 或 `CONVERACT_TENANT_ID`。
 - 校验 MinIO/Egress 必要 key，不泄漏 secret value。
-- 根据 `OPC_VIDEO_READINESS_TARGETS` 补充浏览器、Web Assist、SIP/VoLTE 变量提示。
+- 根据 `CONVERACT_VIDEO_READINESS_TARGETS` 补充浏览器、Web Assist、SIP/VoLTE 变量提示。
 - 输出 JSON report 和 Markdown checklist。
 - 不替代真实 `npm run smoke:media:readiness`，只做部署前环境门禁。
 
@@ -358,15 +358,15 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 **Status:** 工作区已出现 media facade 基础实现。`openapi.json` 或等价静态 contract 输出仍是本阶段遗留项。
 
 **Files:**
-- Create: `src/agent-runtime/ivekit/media-http.ts`
-- Create: `test/ivekit-media-facade.test.ts`
+- Create: `src/agent-runtime/converact/media-http.ts`
+- Create: `test/converact-media-facade.test.ts`
 - Modify: `src/http.ts`
-- Modify: `docs/iveKit视频IM通用能力详细设计.md`
+- Modify: `docs/converact-fabric-video-im-capability-design.md`
 
 **核心要求:**
 - facade 支持 room、join、participants、recordings、capabilities。
 - facade 仍调用 `LiveKitMediaModule`，不复制业务逻辑。
-- facade 使用 OPC/LED 平台鉴权和 tenant context。
+- facade 使用 Converact Platform/LED 平台鉴权和 tenant context。
 - response shape 固定，错误码固定。
 - 输出能力矩阵：`rooms=true`、`recording=true/false`、`sip=planned/ready`、`web_assist=true/false`。
 
@@ -378,7 +378,7 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 - [ ] Step 5: 更新文档 API 表。
 
 **Verification:**
-- `node --import tsx --test --test-reporter=dot test/ivekit-media-facade.test.ts test/livekit-media-http.test.ts test/livekit-media-module.test.ts`
+- `node --import tsx --test --test-reporter=dot test/converact-media-facade.test.ts test/livekit-media-http.test.ts test/livekit-media-module.test.ts`
 - `npm run typecheck`
 
 ### Phase 3: Recording/Egress 生产闭环
@@ -392,7 +392,7 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 - Modify: `src/agent-runtime/media-recording-evidence.ts`
 - Modify: `src/agent-runtime/media-recording-object.ts`
 - Modify: `src/agent-runtime/livekit/media-http.ts`
-- Modify: `src/agent-runtime/ivekit/media-http.ts`
+- Modify: `src/agent-runtime/converact/media-http.ts`
 - Create: `src/migrations/026_media_recording_lifecycle.sql`
 - Create: `test/livekit-recording-retention-export.test.ts`
 - Modify: `scripts/livekit-media-smoke.ts`
@@ -404,14 +404,14 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 - [x] 增加鉴权受控导出和 `media.recording.exported` 审计事件。
 - [x] 增加 retention 字段、dry-run/confirm 清理钩子、对象删除、evidence 删除回写和失败后可重试机制；未增加后台 worker。
 - [x] Egress 启动失败先留存失败记录；provider 已启动但 DB 写回失败时主动 stop Egress 做补偿。
-- [x] OPC 租户合规保留天数通过依赖注入进入 Media Core，Media Core 本身不反向依赖 call-center。
+- [x] Converact Platform 租户合规保留天数通过依赖注入进入 Media Core，Media Core 本身不反向依赖 call-center。
 - [x] PostgreSQL migration 增加 lifecycle 字段、egress 唯一索引、retention 索引和 FORCE RLS；生产不使用 SQLite。
 
 **Verification:**
 - `node --import tsx --test --test-reporter=dot test/media-recording-evidence.test.ts test/media-recording-object-resolver.test.ts test/livekit-media-http.test.ts`
 - `node --import tsx --test test/livekit-recording-retention-export.test.ts test/livekit-media-smoke.test.ts test/livekit-deployment-preflight.test.ts`
 - `npm run typecheck`
-- 服务器环境执行：设置 `OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT=1` 后运行 `npm run smoke:media`，证明 Egress 对象最终可读且可实际导出；当前本地未冒充该项通过。
+- 服务器环境执行：设置 `CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT=1` 后运行 `npm run smoke:media`，证明 Egress 对象最终可读且可实际导出；当前本地未冒充该项通过。
 
 ### Phase 4: LiveKit Browser/Web Assist 验收补强
 
@@ -447,7 +447,7 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 - Modify: `scripts/sip-volte-readiness.ts`
 - Modify: `src/agent-runtime/media-gateway/adapters/sip-volte-gateway.ts`
 - Create: `test/sip-volte-gateway-contract.test.ts`
-- Modify: `docs/iveKit视频IM通用能力详细设计.md`
+- Modify: `docs/converact-fabric-video-im-capability-design.md`
 
 **核心要求:**
 - 明确 LiveKit SIP bridge、RustPBX trunk、RWI endpoint、tenant、room 的映射。
@@ -468,12 +468,12 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 **Files:**
 - Create: `scripts/tinode-deployment-preflight.ts`
 - Create: `test/tinode-deployment-preflight.test.ts`
-- Create: `src/agent-runtime/ivekit/chat-http.ts`
-- Create: `test/ivekit-chat-facade.test.ts`
+- Create: `src/agent-runtime/converact/chat-http.ts`
+- Create: `test/converact-chat-facade.test.ts`
 - Modify: `package.json`
 - Modify: `.env.example`
 - Modify: `infra/env.example`
-- Modify: `docs/iveKit视频IM通用能力详细设计.md`
+- Modify: `docs/converact-fabric-video-im-capability-design.md`
 
 **核心要求:**
 - preflight 校验 `TINODE_BASE_URL` 或 `TINODE_WS_URL`、`TINODE_API_KEY`、root auth/basic auth、`TINODE_USER_PASSWORD_SECRET`。
@@ -482,14 +482,14 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 - OpenAPI/Markdown contract 明确请求、响应、错误码。
 
 **Verification:**
-- `node --import tsx --test --test-reporter=dot test/tinode-deployment-preflight.test.ts test/ivekit-chat-facade.test.ts test/collaboration-http.test.ts test/tinode-chat-smoke.test.ts`
+- `node --import tsx --test --test-reporter=dot test/tinode-deployment-preflight.test.ts test/converact-chat-facade.test.ts test/collaboration-http.test.ts test/tinode-chat-smoke.test.ts`
 - `npm run typecheck`
 
 ### Phase 7: Tinode 消息可靠性与条件式入站同步
 
-目标：解决当前最大 IM 架构风险：如果浏览器直接用 Tinode SDK 发消息，OPC 本地镜像、防绕单、审计可能看不到。
+目标：解决当前最大 IM 架构风险：如果浏览器直接用 Tinode SDK 发消息，Converact Platform 本地镜像、防绕单、审计可能看不到。
 
-**Recommended decision:** 第一版生产策略是“所有业务消息必须通过 OPC/iveKit facade 发送”；Tinode SDK 只负责实时连接、收消息、typing/presence。若 LED 强要求客户端直接发 Tinode，则必须先完成 sync worker。
+**Recommended decision:** 第一版生产策略是“所有业务消息必须通过 Converact Platform/Converact Fabric facade 发送”；Tinode SDK 只负责实时连接、收消息、typing/presence。若 LED 强要求客户端直接发 Tinode，则必须先完成 sync worker。
 
 **Status:** Phase 7A durable outbound 与 Phase 7B durable inbound 本地代码均已完成（2026-07-12）。outbound 先落 PostgreSQL 并完成 policy scan，再通过 claim lease 发布；inbound 按 binding cursor 补拉 Tinode `data/del`，经幂等 inbox 投影消息、引用附件、replace/delete、policy scan 和 AI 质检。`direct_client_publish=false` 仍是业务写入门禁，但 `provider_inbound_sync=true` 已作为漏记兜底和历史补偿能力存在。真实 Tinode、多副本和断网恢复仍待服务器验收。
 
@@ -506,9 +506,9 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 - 本地消息、附件和 idempotency key 先持久化，再执行 policy scan 和 provider publish。
 - `pending/publishing/retry_wait/delivered/failed` 状态、attempt count、claim lease、最后错误和 delivered time 是显式字段。
 - `collaboration_message_delivery_attempts` 保留每次 started/delivered/retry_wait/failed/lease_expired 历史并启用 FORCE RLS。
-- `Idempotency-Key` 防止 LED/OPC HTTP 重试重复创建本地消息或重复扫描。
+- `Idempotency-Key` 防止 LED/Converact Platform HTTP 重试重复创建本地消息或重复扫描。
 - worker 按 PostgreSQL due queue 自动重试，多副本通过 claim token 防止旧回包覆盖新 claim。
-- Tinode `pub.head` 携带稳定 OPC message ID / idempotency key，供后续审计和入站去重使用。
+- Tinode `pub.head` 携带稳定 Converact Platform message ID / idempotency key，供后续审计和入站去重使用。
 - claim lease 必须覆盖五段 provider timeout 加 1 秒；preflight、Compose 和 K8s 已接入。
 - root token、API key、basic password 和用户密码派生 secret 不写入消息、attempt、API 响应或 worker 日志。
 
@@ -520,13 +520,13 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 - 浏览器 SDK 仍保持 `JRP` 和 receive-only 业务裁决；是否未来开放 `W` 是独立产品决策，不再是实现 inbound 的前置条件。
 
 **Verification:**
-- `node --import tsx --test --test-reporter=dot test/tinode-message-delivery.test.ts test/tinode-sync-worker.test.ts test/tinode-deployment-preflight.test.ts test/collaboration-chat.test.ts test/ivekit-chat-facade.test.ts test/collaboration-http.test.ts test/tinode-chat-smoke.test.ts`
+- `node --import tsx --test --test-reporter=dot test/tinode-message-delivery.test.ts test/tinode-sync-worker.test.ts test/tinode-deployment-preflight.test.ts test/collaboration-chat.test.ts test/converact-chat-facade.test.ts test/collaboration-http.test.ts test/tinode-chat-smoke.test.ts`
 
 ### Phase 8: 附件上传、OCR、ASR 处理链
 
 目标：图片、语音、视频附件能走对象存储，OCR/ASR 提取结果重新进入防绕单和质检。
 
-**Status:** 本地代码已完成（2026-07-10）。已实现受限二进制上传、对象引用、PostgreSQL durable job、claim lease、重试/终态、OCR/ASR 自建与第三方 HTTP adapter、提取文本回填、policy 重扫、后台 worker、iveKit facade、部署参数和静态 preflight。真实 OCR/ASR、真实对象存储和多副本负载仍待服务器验证。
+**Status:** 本地代码已完成（2026-07-10）。已实现受限二进制上传、对象引用、PostgreSQL durable job、claim lease、重试/终态、OCR/ASR 自建与第三方 HTTP adapter、提取文本回填、policy 重扫、后台 worker、Converact Fabric facade、部署参数和静态 preflight。真实 OCR/ASR、真实对象存储和多副本负载仍待服务器验证。
 
 **Files:**
 - Create: `src/agent-runtime/collaboration/attachment-processing.ts`
@@ -575,28 +575,28 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 - 支持人审：confirm false_positive resolved escalated。
 - 支持 AI provider 两种模式：第三方 LLM 与自建 LLM。
 - 第一版 AI 质检做辅助判定，不绕过规则扫描和人审。
-- API 覆盖 finding 列表/详情/复核、message quality-review 入队/查询和租户级 due batch；iveKit facade 提供同构路径。
+- API 覆盖 finding 列表/详情/复核、message quality-review 入队/查询和租户级 due batch；Converact Fabric facade 提供同构路径。
 - Worker 在 OCR/ASR 回填后按新内容哈希重新入队，旧输入不会送给 provider。
 - rationale、review note 和自由格式 metadata 会脱敏手机号/邮箱；任务表不保存输入原文。
 
 **Verification:**
-- `node --import tsx --test --test-reporter=dot test/collaboration-policy-finding.test.ts test/collaboration-attachment-processing.test.ts test/ivekit-chat-facade.test.ts test/collaboration-http.test.ts`
+- `node --import tsx --test --test-reporter=dot test/collaboration-policy-finding.test.ts test/collaboration-attachment-processing.test.ts test/converact-chat-facade.test.ts test/collaboration-http.test.ts`
 - `npm run quality:deployment-preflight`（配置静态预检，不代表真实 provider 已通过）
 
 ### Phase 10: IM 高级状态
 
 目标：补齐用户体验相关状态，但不阻塞第一版交付。
 
-**Status:** 本地代码已完成（2026-07-10）。P10A-P10D 已落地：PostgreSQL/RLS receipt、未读、TTL 状态、限时 edit/soft delete、mutation hash audit、iveKit facade、租户 WebSocket 事件、官方 `tinode-sdk@0.25.1` 浏览器 receive-only adapter 和页面状态消费。Tinode topic 用户只授予 `JRP`，不含 `W`；JWT 身份不能冒用他人领取 client-plan 或发消息。真实 Tinode、真实浏览器双端、真实 PostgreSQL migration/RLS、多实例 Redis 广播仍待服务器验证。
+**Status:** 本地代码已完成（2026-07-10）。P10A-P10D 已落地：PostgreSQL/RLS receipt、未读、TTL 状态、限时 edit/soft delete、mutation hash audit、Converact Fabric facade、租户 WebSocket 事件、官方 `tinode-sdk@0.25.1` 浏览器 receive-only adapter 和页面状态消费。Tinode topic 用户只授予 `JRP`，不含 `W`；JWT 身份不能冒用他人领取 client-plan 或发消息。真实 Tinode、真实浏览器双端、真实 PostgreSQL migration/RLS、多实例 Redis 广播仍待服务器验证。
 
 **Architecture decision (2026-07-10):**
 - provider 的 publish ack 继续只表示“Tinode 已接受”，不冒充收件人 delivered/read。
 - delivered/read 以参与人维度持久化到 PostgreSQL/RLS，可按目标消息推进并计算 unread count。
-- typing/presence 是带 TTL 的会话状态，通过 iveKit API 和租户 WebSocket/Redis 广播；不写永久逐次审计。
+- typing/presence 是带 TTL 的会话状态，通过 Converact Fabric API 和租户 WebSocket/Redis 广播；不写永久逐次审计。
 - edit/delete 只允许发送者在配置时间窗内操作文本消息；删除为软删除，原始 `body` 保留，外部读取使用 current body；每次 mutation 写不可变哈希审计。
-- 浏览器 Tinode SDK 只负责接收、typing/presence/read note 等实时协议；业务消息仍经 iveKit facade，`direct_client_publish=false` 不变。
+- 浏览器 Tinode SDK 只负责接收、typing/presence/read note 等实时协议；业务消息仍经 Converact Fabric facade，`direct_client_publish=false` 不变。
 - Tinode 客户端 topic mode 固定为 `JRP`；`W` 权限只保留给后端管理/投递身份，防止绕过本地镜像、防绕单和质检。
-- edit/delete 当前只更新 PostgreSQL 本地镜像并通过 OPC WebSocket 广播；不伪装成 Tinode 原生消息变更已完成。
+- edit/delete 当前只更新 PostgreSQL 本地镜像并通过 Converact Platform WebSocket 广播；不伪装成 Tinode 原生消息变更已完成。
 
 **Files:**
 - Modify: `src/agent-runtime/collaboration/chat-gateway.ts`
@@ -609,7 +609,7 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 
 **能力:**
 - P10A: per-participant delivered/read receipts、read-through、unread count。
-- P10B: typing/presence TTL state、iveKit API、跨实例 WebSocket 广播。
+- P10B: typing/presence TTL state、Converact Fabric API、跨实例 WebSocket 广播。
 - P10C: sender-only edit/delete window、soft delete、mutation audit。
 - P10D: 官方 Tinode browser SDK adapter；禁止业务消息直发门禁测试。
 
@@ -623,20 +623,20 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 
 ### Phase 11: 抽包/独立服务交接
 
-目标：让 LED 项目能低成本复用，而不是复制 OPC 业务代码。
+目标：让 LED 项目能低成本复用，而不是复制 Converact Platform 业务代码。
 
-**Status:** 本地交接代码与文档已完成（2026-07-10）。新增无 store/数据库/provider import 的 `createIveKitHttpSdk`，覆盖 Media + Chat 全部稳定 facade；RustDesk 继续复用已有高层 LED SDK。新增可运行 LED 串联示例、API/事件契约、部署拓扑、migration/RLS 清单、抽离文件边界和真实验收矩阵。当前没有机械创建 `packages/ivekit-*` 或搬服务端目录，因为 HTTP 边界已经可独立复用，而服务端搬迁必须连 migration、tenant context、workers 和事件总线一起完成。
+**Status:** 本地交接代码与文档已完成（2026-07-10）。新增无 store/数据库/provider import 的 `createIveKitHttpSdk`，覆盖 Media + Chat 全部稳定 facade；RustDesk 继续复用已有高层 LED SDK。新增可运行 LED 串联示例、API/事件契约、部署拓扑、migration/RLS 清单、抽离文件边界和真实验收矩阵。当前没有机械创建 `packages/converact-*` 或搬服务端目录，因为 HTTP 边界已经可独立复用，而服务端搬迁必须连 migration、tenant context、workers 和事件总线一起完成。
 
 **Files:**
-- Create: `docs/ivekit-led-integration-guide.md`
-- Create: `docs/ivekit-openapi.md`
-- Create: `src/agent-runtime/ivekit/http-sdk.ts`
-- Create: `scripts/ivekit-led-integration-example.ts`
-- Create: `test/ivekit-http-sdk.test.ts`
-- Create: `test/ivekit-led-integration-example.test.ts`
-- Candidate package target after facade stabilization: `packages/ivekit-media/`
-- Candidate package target after facade stabilization: `packages/ivekit-chat/`
-- Candidate service target after API stabilization: `services/ivekit-media-collaboration/`
+- Create: `docs/converact-led-integration-guide.md`
+- Create: `docs/converact-openapi.md`
+- Create: `src/agent-runtime/converact/http-sdk.ts`
+- Create: `scripts/converact-led-integration-example.ts`
+- Create: `test/converact-http-sdk.test.ts`
+- Create: `test/converact-led-integration-example.test.ts`
+- Candidate package target after facade stabilization: `packages/converact-media/`
+- Candidate package target after facade stabilization: `packages/converact-chat/`
+- Candidate service target after API stabilization: `services/converact-media-collaboration/`
 
 **交付内容:**
 - HTTP API contract。
@@ -650,14 +650,14 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 
 **抽离策略:**
 - 短期：不迁目录，稳定 module public entry 和 HTTP facade。
-- 中期：抽 `packages/ivekit-media`、`packages/ivekit-chat`，但数据库接口仍通过 adapter 注入。
-- 长期：独立 `ivekit-collaboration-service`，OPC 和 LED 都通过 HTTP/gRPC 消费。
+- 中期：抽 `packages/converact-media`、`packages/converact-chat`，但数据库接口仍通过 adapter 注入。
+- 长期：独立 `converact-collaboration-service`，Converact Platform 和 LED 都通过 HTTP/gRPC 消费。
 
 **Local verification:**
 - HTTP SDK 文件边界、方法面、API key/Bearer 身份、路径、幂等 header、附件/录制二进制和结构化错误：3/3。
 - LED 示例实际执行 Media + Chat 五步 fake fetch 序列且不输出 secret：1/1。
-- iveKit Media/Chat facade + HTTP SDK + RustDesk LED SDK 聚焦回归：16/16。
-- LiveKit/Recording/Browser/Web Assist/Collaboration/Tinode/iveKit/RustDesk/Remote/SIP 综合本地回归：594/594。
+- Converact Fabric Media/Chat facade + HTTP SDK + RustDesk LED SDK 聚焦回归：16/16。
+- LiveKit/Recording/Browser/Web Assist/Collaboration/Tinode/Converact Fabric/RustDesk/Remote/SIP 综合本地回归：594/594。
 - 根目录和 frontend `tsc --noEmit`：均通过。
 - 两份 Compose `config --quiet` 与 `git diff --check`：通过。
 
@@ -721,13 +721,13 @@ npm run smoke:media:readiness
 如果只验证后端，不跑浏览器：
 
 ```bash
-OPC_VIDEO_READINESS_TARGETS=media,ai-callback,collaboration npm run smoke:media:readiness
+CONVERACT_VIDEO_READINESS_TARGETS=media,ai-callback,collaboration npm run smoke:media:readiness
 ```
 
 如果验证 Web Assist：
 
 ```bash
-OPC_VIDEO_READINESS_TARGETS=media,web-assist-browser,collaboration npm run smoke:media:readiness
+CONVERACT_VIDEO_READINESS_TARGETS=media,web-assist-browser,collaboration npm run smoke:media:readiness
 ```
 
 ### 8.3 Tinode/IM 服务器验收
@@ -743,7 +743,7 @@ npm run smoke:collaboration
 完成 facade 后补：
 
 ```bash
-node --import tsx --test --test-reporter=dot test/ivekit-chat-facade.test.ts
+node --import tsx --test --test-reporter=dot test/converact-chat-facade.test.ts
 ```
 
 ### 8.4 LED 对接验收
@@ -768,12 +768,12 @@ LED 研发拿到交付包后，必须能完成：
 
 | 风险 | 裁决 |
 |---|---|
-| 浏览器直接发 Tinode 消息导致 OPC 防绕单漏扫 | 第一版强制业务消息走 OPC facade；若要客户端直发 Tinode，先做 sync worker |
+| 浏览器直接发 Tinode 消息导致 Converact Platform 防绕单漏扫 | 第一版强制业务消息走 Converact Platform facade；若要客户端直发 Tinode，先做 sync worker |
 | 真实 LiveKit/Tinode 未部署却误报完成 | 所有 smoke/readiness 区分“本地 fake 测试”和“服务器真实验收” |
 | 功能边界过大导致继续发散 | RustDesk 扩展暂停；数字人细节后置；先 Media Core + IM Core |
 | OCR/ASR 供应商未定 | 先做 provider interface、job、回填、扫描闭环；第三方和自建都按同一契约接 |
 | SQLite 被误引入 | 明确继续 PostgreSQL + RLS |
-| LED 直接耦合 OPC 内部路径 | 增加 `/api/ivekit/media/*` 和 `/api/ivekit/chat/*` facade |
+| LED 直接耦合 Converact Platform 内部路径 | 增加 `/api/ivekit/media/*` 和 `/api/ivekit/chat/*` facade |
 | 录制对象只写 DB 不可读 | Phase 3 明确补对象读/导出/retention 验收 |
 | AI 质检误判影响业务 | AI finding 默认进入人审，不直接做不可逆处置 |
 
@@ -783,7 +783,7 @@ LED 研发拿到交付包后，必须能完成：
 
 Phase 3、4、6、7A、8、9、10 已按 TDD 落地并通过本地代码验证。下一段进入 Phase 11 对接/抽离交付：
 
-1. 稳定 iveKit OpenAPI/Markdown 契约、最小 SDK 和 LED 对接时序。
+1. 稳定 Converact Fabric OpenAPI/Markdown 契约、最小 SDK 和 LED 对接时序。
 2. 形成 Media、Chat、Remote 三个可抽离边界和部署/迁移清单，但暂不为搬目录而搬目录。
 3. 保持 `direct_client_publish=false` 和客户端 `JRP`；只有明确改变该产品裁决时，才回到 Phase 7B 实现 inbound seq/cursor sync。
 4. 服务器环境到位后集中执行 LiveKit/Tinode/RustDesk/OCR/ASR/AI provider 的真实验收，不把当前本地结果写成真实环境通过。LiveKit 必须使用 `livekit:acceptance-bundle` 固定证据目录，并以 `livekit:evidence-pack` 的 `ready_for_customer_review` 作为技术交付门禁。
@@ -805,10 +805,10 @@ Phase 3、4、6、7A、8、9、10 已按 TDD 落地并通过本地代码验证�
 
 在继续遵守“不上传服务器”的前提下，Option A 的本地实现已经完成：
 
-1. 新增 `infra/scripts/bootstrap-postgres-databases.sh`，只接受 `opc/keycloak/tinode/chatwoot` 固定白名单且要求 owner 为 `opc`；production base 幂等确认 `keycloak`，自建 Tinode overlay 扩展为 `keycloak,tinode`，existing volume 不会被删除或重置。
+1. 新增 `infra/scripts/bootstrap-postgres-databases.sh`，只接受 `converact/keycloak/tinode/chatwoot` 固定白名单且要求 owner 为 `converact`；production base 幂等确认 `keycloak`，自建 Tinode overlay 扩展为 `keycloak,tinode`，existing volume 不会被删除或重置。
 2. 新增 `infra/scripts/bootstrap-minio-bucket.sh`，对 endpoint 有界重试，使用 `mb --ignore-existing` 创建录制 bucket，执行 `anonymous set none`，回读确认 private 并用 `stat` 验证存在。
-3. production Compose 新增 `postgres-bootstrap` 与 `minio-init` one-shot 服务。PgBouncer/Keycloak/Tinode 等待数据库 bootstrap 成功；OPC 等待经过 PgBouncer 6432 的认证 `psql SELECT 1` 成功；Egress/RustPBX/OPC 等待 bucket bootstrap 成功。
-4. Chatwoot 放入显式 `omnichannel` profile，不再进入默认 iveKit startup/readiness。其 image pin、pgvector、`db:chatwoot_prepare`、Sidekiq、升级/回滚仍是独立生产化任务，没有被误报完成。
+3. production Compose 新增 `postgres-bootstrap` 与 `minio-init` one-shot 服务。PgBouncer/Keycloak/Tinode 等待数据库 bootstrap 成功；Converact Platform 等待经过 PgBouncer 6432 的认证 `psql SELECT 1` 成功；Egress/RustPBX/Converact Platform 等待 bucket bootstrap 成功。
+4. Chatwoot 放入显式 `omnichannel` profile，不再进入默认 Converact Fabric startup/readiness。其 image pin、pgvector、`db:chatwoot_prepare`、Sidekiq、升级/回滚仍是独立生产化任务，没有被误报完成。
 5. fake `psql`/`mc` 行为测试覆盖首次创建、重复幂等、白名单/输入拒绝、有限重试、秘密不出现在进程输出、bucket private 回读和 `stat` 失败；静态 Compose 契约与 external/self-hosted/profile 渲染门禁均已执行。
 
 本节只把“数据库和 bucket 初始化在代码中缺失”改为“代码与配置已具备”。真实 PostgreSQL fresh/existing-volume 创建、PgBouncer 连接、MinIO bucket 私有性和持久化、LiveKit Egress 对象写入、服务重启恢复以及端到端服务器执行仍为未验证项，persistent deployment/E2E goal 继续保持开放。
@@ -817,12 +817,12 @@ Phase 3、4、6、7A、8、9、10 已按 TDD 落地并通过本地代码验证�
 
 LiveKit 第一版的代码级生产网络缺口已经按独立 Media Core 方向收口：
 
-1. `LIVEKIT_URL` 只承担 OPC、AI Agent、RoomService、Egress 等服务端连接；新增 `LIVEKIT_PUBLIC_URL` 专供浏览器 Join Plan。生产必须显式使用 `wss://`，不会回退到容器内地址。
+1. `LIVEKIT_URL` 只承担 Converact Platform、AI Agent、RoomService、Egress 等服务端连接；新增 `LIVEKIT_PUBLIC_URL` 专供浏览器 Join Plan。生产必须显式使用 `wss://`，不会回退到容器内地址。
 2. capabilities 新增内部服务配置、公网地址配置和浏览器 join readiness 三类布尔状态，不返回 URL 或密钥。
 3. preflight 现在区分 `external`、`standalone-vm`、`bundled-dev`，分别检查内部地址、公网 WSS、独立 VM 域名/ACME 邮箱和固定镜像版本。离线报告继续脱敏，也不把静态检查冒充网络验收。
-4. `infra/livekit/` 已形成 OPC 无关的 Linux host-network 部署包，包含 LiveKit 内置 TURN、Caddy L4 SNI 分流、Redis、Egress、健康检查、配置渲染和防火墙清单。
+4. `infra/livekit/` 已形成 Converact Platform 无关的 Linux host-network 部署包，包含 LiveKit 内置 TURN、Caddy L4 SNI 分流、Redis、Egress、健康检查、配置渲染和防火墙清单。
 5. production Compose 默认外置 Media Core；内置 Server/SIP/Egress 放入 `media-bundled` profile。Kubernetes 默认关闭仓库内 bundled LiveKit，生产要求外部地址和公网地址，媒体节点应使用官方 LiveKit Helm chart。
-6. K8s Egress 模板已改为当前 `logging`、`redis`、`health_port`、`storage.s3` schema，并增加 `SYS_ADMIN` 与健康检查；镜像版本固定为 iveKit Server `v1.13.4-ivekit.1`、Egress `v1.13.0`、SIP `v1.7.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`。
+6. K8s Egress 模板已改为当前 `logging`、`redis`、`health_port`、`storage.s3` schema，并增加 `SYS_ADMIN` 与健康检查；镜像版本固定为 Converact Fabric Server `v1.13.4-ivekit.1`、Egress `v1.13.0`、SIP `v1.7.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`。
 7. production Token 服务在 LiveKit 内部地址/key/secret 不完整时 fail-closed，不再产生 dev token；Compose 与 Helm 同样在解析/渲染阶段要求真实凭据。preflight 拒绝示例占位密钥，并校验 standalone signal/turn 域名不同且 ACME 邮箱合法。
 
 本地专项测试、TypeScript 检查和 Compose 静态解析已经通过。Docker daemon 当前未运行，Helm CLI 当前未安装，因此镜像启动和 Helm render 没有被声明为通过。2026-07-11 已完成目标服务器 SSH/资源/端口只读盘点，但尚未上传或部署；DNS、证书、WSS、ICE UDP/TCP、强制 TURN、双浏览器音视频/屏幕共享、Egress 对象写入、多副本和性能仍属于服务器验收。

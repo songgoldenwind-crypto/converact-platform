@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { after, afterEach, test } from 'node:test';
 import type {
-  IveKitIvrCompilationReport,
-  IveKitIvrFlow,
-  IveKitIvrFlowGraph,
-  IveKitIvrFlowVersion,
-  IveKitIvrHttpClient,
-  IveKitIvrSimulationResult
+  ConveractFabricIvrCompilationReport,
+  ConveractFabricIvrFlow,
+  ConveractFabricIvrFlowGraph,
+  ConveractFabricIvrFlowVersion,
+  ConveractFabricIvrHttpClient,
+  ConveractFabricIvrSimulationResult
 } from '@converact/sdk';
 
 import { installTestDom } from '../test-dom.js';
@@ -105,7 +105,7 @@ test('IVR Designer preserves dirty work when a server event arrives and reloads 
   }
 });
 
-function fakeIvrClient(requests: string[]): IveKitIvrHttpClient {
+function fakeIvrClient(requests: string[]): ConveractFabricIvrHttpClient {
   let current = flow();
   return {
     async listFlows() { requests.push('list'); return [current]; },
@@ -152,7 +152,7 @@ function fakeIvrClient(requests: string[]): IveKitIvrHttpClient {
   };
 }
 
-function graph(): IveKitIvrFlowGraph {
+function graph(): ConveractFabricIvrFlowGraph {
   return {
     version: 1, entryNodeId: 'start', variables: [],
     nodes: [
@@ -163,7 +163,7 @@ function graph(): IveKitIvrFlowGraph {
   };
 }
 
-function flow(): IveKitIvrFlow {
+function flow(): ConveractFabricIvrFlow {
   return {
     id: 'flow-a', tenant_id: 'tenant-a', name: 'Support flow', status: 'draft',
     draft_graph: graph(), draft_revision: 1, current_published_version: 1, metadata: {},
@@ -172,7 +172,7 @@ function flow(): IveKitIvrFlow {
   };
 }
 
-function version(number: number): IveKitIvrFlowVersion {
+function version(number: number): ConveractFabricIvrFlowVersion {
   return {
     id: `version-${number}`, tenant_id: 'tenant-a', flow_id: 'flow-a', version: number,
     graph: graph(), graph_hash: 'a'.repeat(64), release_kind: number === 1 ? 'publish' : 'rollback',
@@ -181,11 +181,11 @@ function version(number: number): IveKitIvrFlowVersion {
   };
 }
 
-function compilation(value: IveKitIvrFlowGraph): IveKitIvrCompilationReport {
+function compilation(value: ConveractFabricIvrFlowGraph): ConveractFabricIvrCompilationReport {
   return { normalized_graph: value, graph_hash: 'a'.repeat(64), errors: [], warnings: [], dependencies: {} };
 }
 
-function simulation(): IveKitIvrSimulationResult {
+function simulation(): ConveractFabricIvrSimulationResult {
   return {
     status: 'completed',
     session: {

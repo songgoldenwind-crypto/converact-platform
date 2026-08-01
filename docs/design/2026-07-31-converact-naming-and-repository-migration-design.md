@@ -1,6 +1,6 @@
 # Converact 命名与仓库迁移设计
 
-> 状态：`approved_name / implementation_not_started`
+> 状态：`approved_name / implementation_in_progress / production_unchanged`
 >
 > 日期：2026-07-31
 >

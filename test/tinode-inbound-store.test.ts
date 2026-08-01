@@ -7,7 +7,7 @@ import test from 'node:test';
 
 import { Pool } from 'pg';
 
-import { buildIveKitStandaloneContext } from '../scripts/ivekit-standalone-build-context.js';
+import { buildConveractFabricStandaloneContext } from '../scripts/converact-standalone-build-context.js';
 import {
   TinodeInboundProjectionError,
   TinodeInboundStore
@@ -16,8 +16,8 @@ import {
   describeRejectedTinodePacket,
   normalizeTinodeInboundPacket
 } from '../src/agent-runtime/collaboration/tinode-inbound-protocol.js';
-import { applyIveKitMigrations } from '../src/converact-migrations.js';
-import { initializeIveKitRuntimeRole } from '../src/converact-runtime-role.js';
+import { applyConveractFabricMigrations } from '../src/converact-migrations.js';
+import { initializeConveractFabricRuntimeRole } from '../src/converact-runtime-role.js';
 import type { PgQueryable } from '../src/db-pg.js';
 
 const adminUrl = process.env.CONVERACT_FABRIC_STANDALONE_TEST_DATABASE_URL || '';
@@ -53,7 +53,7 @@ test('Tinode inbound pause materializes a paused cursor and invalidates an exist
 maybe('Tinode inbound claim, inbox replay, drift detection, dead letter, and cursor are durable', async () => {
   const admin = new Pool({ connectionString: adminUrl, max: 1 });
   const runtime = new Pool({ connectionString: runtimeUrl, max: 2 });
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-tinode-inbound-store-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-tinode-inbound-store-'));
   const context = join(root, 'context');
   const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
   const tenantId = `tenant_inbound_${suffix}`;
@@ -62,16 +62,16 @@ maybe('Tinode inbound claim, inbox replay, drift detection, dead letter, and cur
   const topic = `grpInbound${suffix}`;
   let now = new Date('2026-07-12T12:00:00.000Z');
   try {
-    buildIveKitStandaloneContext({
+    buildConveractFabricStandaloneContext({
       repoRoot: resolve('.'),
       outputDir: context,
       sourceCommit: '1'.repeat(40),
       generatedAt: now.toISOString()
     });
-    await initializeIveKitRuntimeRole(admin, runtimePassword);
-    await applyIveKitMigrations(admin, {
+    await initializeConveractFabricRuntimeRole(admin, runtimePassword);
+    await applyConveractFabricMigrations(admin, {
       directory: join(context, 'migrations'),
-      advisoryLockName: 'ivekit_tinode_inbound_store_test'
+      advisoryLockName: 'converact_tinode_inbound_store_test'
     });
     await admin.query('INSERT INTO tenants (id, name) VALUES ($1, $2)', [tenantId, 'Tinode inbound']);
     await admin.query(

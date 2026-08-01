@@ -17,7 +17,7 @@
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {
-      "@opc/shared/*": ["../shared/*"]
+      "@converact/shared/*": ["../shared/*"]
     }
   },
   "include": ["src"]

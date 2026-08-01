@@ -31,7 +31,7 @@ export interface ContactCenterHttpModule {
   monitor: ContactCenterMonitorService;
 }
 
-export interface RouteIveKitContactCenterApiOptions {
+export interface RouteConveractFabricContactCenterApiOptions {
   module?: ContactCenterHttpModule;
   create_module?: (
     pg: PgQueryable,
@@ -40,7 +40,7 @@ export interface RouteIveKitContactCenterApiOptions {
   supervisor_control?: ContactCenterSupervisorControlPort;
 }
 
-export async function routeIveKitContactCenterApi(
+export async function routeConveractFabricContactCenterApi(
   pg: PgQueryable | null,
   method: string,
   path: string,
@@ -48,7 +48,7 @@ export async function routeIveKitContactCenterApi(
   body: unknown,
   _rawBody: string | Buffer = '',
   headers: Headers = {},
-  options: RouteIveKitContactCenterApiOptions = {}
+  options: RouteConveractFabricContactCenterApiOptions = {}
 ): Promise<unknown | undefined> {
   const routePath = path.split('?')[0];
   if (!routePath.startsWith('/api/ivekit/contact-center/')) return undefined;
@@ -367,7 +367,7 @@ export function createPostgresContactCenterHttpModule(
 async function resolveModule(
   pg: PgQueryable | null,
   tenantId: string,
-  options: RouteIveKitContactCenterApiOptions
+  options: RouteConveractFabricContactCenterApiOptions
 ): Promise<ContactCenterHttpModule> {
   if (options.module) return options.module;
   if (!pg) throw new ContactCenterError({ code: 'conflict', status: 503, details: { reason: 'postgres_unavailable' } });

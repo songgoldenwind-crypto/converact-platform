@@ -1,6 +1,6 @@
-# iveKit Tinode v0.25.3 Topic Owner Hook
+# Converact Fabric Tinode v0.25.3 Topic Owner Hook
 
-This module binds an iveKit-managed Tinode group topic to one Cell reservation.
+This module binds a Converact Fabric-managed Tinode group topic to one Cell reservation.
 It preserves the native Tinode wire protocol and cluster ring.
 
 - ROOT topic creation stores `interaction_id`, `reservation_id`,
@@ -16,17 +16,17 @@ It preserves the native Tinode wire protocol and cluster ring.
 The stable Tinode `cluster_self`, component-node sidecar ID, and placement
 `owner_node_id` must be identical.
 
-The hook is disabled when no `IVEKIT_COMPONENT_NODE_*` settings are present.
+The hook is disabled when no `CONVERACT_FABRIC_COMPONENT_NODE_*` settings are present.
 Production Cell deployments set:
 
 ```text
-IVEKIT_COMPONENT_NODE_ENDPOINT=http://127.0.0.1:3210
-IVEKIT_COMPONENT_NODE_TOKEN=<secret>
-IVEKIT_COMPONENT_NODE_ID=<stable-statefulset-pod-name>
-IVEKIT_OWNER_GUARD_REQUIRED=1
-IVEKIT_OWNER_REFRESH_INTERVAL_MS=3000
-IVEKIT_OWNER_REFRESH_TIMEOUT_MS=1000
-IVEKIT_TINODE_OWNER_API_TOKEN=<separate-secret>
+CONVERACT_FABRIC_COMPONENT_NODE_ENDPOINT=http://127.0.0.1:3210
+CONVERACT_FABRIC_COMPONENT_NODE_TOKEN=<secret>
+CONVERACT_FABRIC_COMPONENT_NODE_ID=<stable-statefulset-pod-name>
+CONVERACT_FABRIC_OWNER_GUARD_REQUIRED=1
+CONVERACT_FABRIC_OWNER_REFRESH_INTERVAL_MS=3000
+CONVERACT_FABRIC_OWNER_REFRESH_TIMEOUT_MS=1000
+CONVERACT_FABRIC_TINODE_OWNER_API_TOKEN=<separate-secret>
 ```
 
 Local module tests do not replace applying the overlay to the exact upstream

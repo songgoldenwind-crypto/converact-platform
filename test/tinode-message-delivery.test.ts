@@ -17,7 +17,7 @@ import { closeCollaborationSession } from '../src/agent-runtime/collaboration/co
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
 import { TinodeProviderUserStore } from '../src/agent-runtime/collaboration/tinode-provider-user-store.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/converact/chat-http.js';
+import { routeConveractFabricChatApi } from '../src/agent-runtime/converact/chat-http.js';
 import {
   TinodeMessageDeliveryService,
   type TinodeDeliveryRunSummary
@@ -471,7 +471,7 @@ test('Tinode delivery migration exposes the durable outbox contract', () => {
   assert.match(migration, /CREATE UNIQUE INDEX[\s\S]+idempotency_key/i);
 });
 
-test('iveKit chat message API exposes durable failure and idempotent delivery status', async () => {
+test('Converact Fabric chat message API exposes durable failure and idempotent delivery status', async () => {
   const previousApiKey = process.env.CONVERACT_API_KEY;
   process.env.CONVERACT_API_KEY = 'tinode-delivery-test-key';
   const pg = new MemoryPg();
@@ -506,7 +506,7 @@ test('iveKit chat message API exposes durable failure and idempotent delivery st
     }
   };
   try {
-    const posted = await routeIveKitChatApi(
+    const posted = await routeConveractFabricChatApi(
       pg,
       'POST',
       path,
@@ -527,7 +527,7 @@ test('iveKit chat message API exposes durable failure and idempotent delivery st
     assert.equal(posted.data.message.provider_delivery.status, 'retry_wait');
     assert.equal(posted.data.message.provider_delivery.attempt_count, 1);
 
-    const replay = await routeIveKitChatApi(
+    const replay = await routeConveractFabricChatApi(
       pg,
       'POST',
       path,
@@ -543,7 +543,7 @@ test('iveKit chat message API exposes durable failure and idempotent delivery st
     assert.equal(gateway.published.length, 1);
 
     const deliveryPath = `${path}/${posted.data.message.id}/delivery`;
-    const delivery = await routeIveKitChatApi(
+    const delivery = await routeConveractFabricChatApi(
       pg,
       'GET',
       deliveryPath,
@@ -564,7 +564,7 @@ test('iveKit chat message API exposes durable failure and idempotent delivery st
     assert.equal(delivery.data.attempts[0]?.status, 'retry_wait');
 
     nowMs += 1_001;
-    const retried = await routeIveKitChatApi(
+    const retried = await routeConveractFabricChatApi(
       pg,
       'POST',
       `${deliveryPath}/retry`,
@@ -578,7 +578,7 @@ test('iveKit chat message API exposes durable failure and idempotent delivery st
     assert.equal(retried.data.delivery.provider_message_id, 'seq-http-2');
     assert.equal(retried.data.attempts.length, 2);
 
-    const crossTenant = await routeIveKitChatApi(
+    const crossTenant = await routeConveractFabricChatApi(
       pg,
       'GET',
       deliveryPath,

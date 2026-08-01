@@ -1,4 +1,4 @@
-name: iveKit Component Hooks
+name: Converact Fabric Component Hooks
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
       - "infra/converact/tinode/**"
       - "infra/converact/rustdesk-server/**"
       - "src/agent-runtime/converact/placement/rustdesk-owner-binding.ts"
-      - "scripts/ivekit-rustdesk-owner-binding.ts"
+      - "scripts/converact-rustdesk-owner-binding.ts"
       - "config/branding/**"
       - "scripts/converact-name-inventory.ts"
       - "scripts/verify-converact-naming.ts"
@@ -30,7 +30,7 @@ on:
       - "infra/converact/tinode/**"
       - "infra/converact/rustdesk-server/**"
       - "src/agent-runtime/converact/placement/rustdesk-owner-binding.ts"
-      - "scripts/ivekit-rustdesk-owner-binding.ts"
+      - "scripts/converact-rustdesk-owner-binding.ts"
       - "config/branding/**"
       - "scripts/converact-name-inventory.ts"
       - "scripts/verify-converact-naming.ts"
@@ -113,5 +113,5 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: >-
           node --import tsx --test
-          test/ivekit-rustdesk-server-owner-patch.test.ts
-          test/ivekit-rustdesk-owner-binding.test.ts
+          test/converact-rustdesk-server-owner-patch.test.ts
+          test/converact-rustdesk-owner-binding.test.ts

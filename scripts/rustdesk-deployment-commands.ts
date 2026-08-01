@@ -54,7 +54,7 @@ export function renderRustDeskDeploymentCommands(plan: RustDeskDeploymentCommand
     '',
     ...plan.ports.map((port) => `- \`${port}\``),
     '',
-    'RustDesk OSS hbbs generates `id_ed25519.pub` in its data directory. OPC must be able to read the mounted public key at `/rustdesk/id_ed25519.pub` or receive the same value through `CONVERACT_RUSTDESK_PUBLIC_KEY`.',
+    'RustDesk OSS hbbs generates `id_ed25519.pub` in its data directory. Converact must be able to read the mounted public key at `/rustdesk/id_ed25519.pub` or receive the same value through `CONVERACT_RUSTDESK_PUBLIC_KEY`.',
     ''
   ];
 
@@ -92,7 +92,7 @@ function createComposePlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPla
     summary: {
       compose_file: composeFile,
       rustdesk_services: 'rustdesk-hbbs rustdesk-hbbr',
-      opc_public_key_path: '/rustdesk/id_ed25519.pub'
+      converact_public_key_path: '/rustdesk/id_ed25519.pub'
     },
     ports: [...RUSTDESK_PORTS],
     sections: [
@@ -105,7 +105,7 @@ function createComposePlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPla
       ),
       section(
         'Start RustDesk Server',
-        'Start hbbs/hbbr with the RustDesk profile and inspect process state/logs before running OPC checks.',
+        'Start hbbs/hbbr with the RustDesk profile and inspect process state/logs before running Converact checks.',
         [
           `${profileCompose} up -d rustdesk-hbbs rustdesk-hbbr`,
           `${profileCompose} ps rustdesk-hbbs rustdesk-hbbr`,
@@ -114,15 +114,15 @@ function createComposePlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPla
       ),
       section(
         'Verify Key Mount And Env',
-        'Confirm hbbs generated the public key and the OPC container can read the mounted key file, then run the no-network deployment preflight and server runtime evidence collector.',
+        'Confirm hbbs generated the public key and the Converact container can read the mounted key file, then run the no-network deployment preflight and server runtime evidence collector.',
         [
           `${compose} exec rustdesk-hbbs test -s /root/id_ed25519.pub`,
-          `${compose} exec opc test -s /rustdesk/id_ed25519.pub`,
-          composeOpcCommand(compose, {
+          `${compose} exec converact test -s /rustdesk/id_ed25519.pub`,
+          composeConveractCommand(compose, {
             CONVERACT_RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE: '/tmp/rustdesk-env-checklist.md',
             CONVERACT_RUSTDESK_PREFLIGHT_REPORT_FILE: '/tmp/rustdesk-preflight.json'
           }, 'rustdesk:deployment-preflight'),
-          composeOpcCommand(compose, {
+          composeConveractCommand(compose, {
             CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE: '/tmp/rustdesk-server-evidence.json'
           }, 'rustdesk:server-evidence')
         ]
@@ -131,41 +131,41 @@ function createComposePlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPla
         'Run Server Readiness',
         'Run strict RustDesk readiness and LED facade smoke after env, key file, ports, launch page, protocol URL, audit, and device target settings are present.',
         [
-          composeOpcCommand(compose, {
+          composeConveractCommand(compose, {
             CONVERACT_RUSTDESK_READINESS_REPORT_FILE: '/tmp/rustdesk-readiness.json'
           }, 'rustdesk:readiness'),
-          `${compose} exec opc npm run rustdesk:ivekit-smoke`
+          `${compose} exec converact npm run rustdesk:converact-smoke`
         ]
       ),
       section(
         'Record Real Client Acceptance',
         'Generate and then fill the manual acceptance evidence after a real RustDesk client verifies screen view, control, file transfer, clipboard, recording, revoke disconnect, and old-link rejection. Export the matching gateway audit, validate coverage, and regenerate the final evidence pack before customer handoff.',
         [
-          composeOpcCommand(compose, {
+          composeConveractCommand(compose, {
             CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE: '/tmp/rustdesk-client-config-pack.md',
             CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: '<rustdesk-gateway-external-id>',
             CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '<rustdesk-runtime-id>'
           }, 'rustdesk:client-config-pack'),
-          composeOpcCommand(compose, {
+          composeConveractCommand(compose, {
             CONVERACT_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE: '/tmp/rustdesk-client-acceptance-runbook.md'
           }, 'rustdesk:client-acceptance'),
-          composeOpcCommand(compose, {
+          composeConveractCommand(compose, {
             CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE: '/tmp/rustdesk-client-acceptance-template.json'
           }, 'rustdesk:client-acceptance'),
-          composeOpcCommand(compose, {
+          composeConveractCommand(compose, {
             CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE: '/tmp/rustdesk-audit-export.jsonl',
             CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID: '<rustdesk-gateway-external-id>'
           }, 'rustdesk:audit-export'),
-          composeOpcCommand(compose, {
+          composeConveractCommand(compose, {
             CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE: '/tmp/rustdesk-client-acceptance-template.json',
             CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE: '/tmp/rustdesk-audit-export.jsonl',
             CONVERACT_RUSTDESK_ACCEPTANCE_OUTPUT_FILE: '/tmp/rustdesk-client-acceptance-result.json'
           }, 'rustdesk:client-acceptance'),
-          composeOpcCommand(compose, {
+          composeConveractCommand(compose, {
             CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE: '/tmp/rustdesk-audit-export.jsonl',
             CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE: '/tmp/rustdesk-audit-coverage.json'
           }, 'rustdesk:audit-coverage'),
-          composeOpcCommand(compose, {
+          composeConveractCommand(compose, {
             CONVERACT_RUSTDESK_EVIDENCE_PACK_FILE: '/tmp/rustdesk-evidence-pack.md',
             CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: deploymentCommandsArtifact,
             CONVERACT_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: '/tmp/rustdesk-env-checklist.md',
@@ -191,11 +191,11 @@ function createComposePlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPla
 }
 
 function createK8sPlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPlan {
-  const namespace = optionalString(resolveBrandEnv(env, 'RUSTDESK_DEPLOYMENT_K8S_NAMESPACE')) || 'opc';
-  const helmRelease = optionalString(resolveBrandEnv(env, 'RUSTDESK_DEPLOYMENT_HELM_RELEASE')) || 'opc';
+  const namespace = optionalString(resolveBrandEnv(env, 'RUSTDESK_DEPLOYMENT_K8S_NAMESPACE')) || 'converact';
+  const helmRelease = optionalString(resolveBrandEnv(env, 'RUSTDESK_DEPLOYMENT_HELM_RELEASE')) || 'converact';
   const helmChart = optionalString(resolveBrandEnv(env, 'RUSTDESK_DEPLOYMENT_HELM_CHART')) || 'infra/k8s';
   const helmValuesFile = optionalString(resolveBrandEnv(env, 'RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE')) || '<production-values.yaml>';
-  const opcDeployment = optionalString(resolveBrandEnv(env, 'RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT')) || `${helmRelease}-opc`;
+  const converactDeployment = optionalString(resolveBrandEnv(env, 'RUSTDESK_DEPLOYMENT_CONTROL_PLANE')) || `${helmRelease}-converact`;
   const rustdeskDeployment = optionalString(resolveBrandEnv(env, 'RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT')) || `${helmRelease}-rustdesk`;
   const deploymentCommandsArtifact = optionalString(resolveBrandEnv(env, 'RUSTDESK_DEPLOYMENT_COMMANDS_FILE')) || DEFAULT_DEPLOYMENT_COMMANDS_ARTIFACT;
 
@@ -206,15 +206,15 @@ function createK8sPlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPlan {
       helm_release: helmRelease,
       helm_chart: helmChart,
       helm_values_file: helmValuesFile,
-      opc_deployment: opcDeployment,
+      converact_deployment: converactDeployment,
       rustdesk_deployment: rustdeskDeployment,
-      opc_public_key_path: '/rustdesk/id_ed25519.pub'
+      converact_public_key_path: '/rustdesk/id_ed25519.pub'
     },
     ports: [...RUSTDESK_PORTS],
     sections: [
       section(
         'Install Or Upgrade Helm Release',
-        'Enable the RustDesk chart resources and wait for hbbs/hbbr to roll out before running OPC checks.',
+        'Enable the RustDesk chart resources and wait for hbbs/hbbr to roll out before running Converact checks.',
         [
           `helm upgrade --install ${helmRelease} ${helmChart} --namespace ${namespace} --create-namespace --values ${helmValuesFile} --set rustdesk.enabled=true`,
           `kubectl -n ${namespace} rollout status deployment/${rustdeskDeployment}`,
@@ -224,15 +224,15 @@ function createK8sPlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPlan {
       ),
       section(
         'Verify Key Mount And Env',
-        'Confirm hbbs generated the public key and the OPC pod can read the mounted key file, then run the no-network deployment preflight and server runtime evidence collector.',
+        'Confirm hbbs generated the public key and the Converact pod can read the mounted key file, then run the no-network deployment preflight and server runtime evidence collector.',
         [
           `kubectl -n ${namespace} exec deploy/${rustdeskDeployment} -c hbbs -- test -s /root/id_ed25519.pub`,
-          `kubectl -n ${namespace} exec deploy/${opcDeployment} -- test -s /rustdesk/id_ed25519.pub`,
-          k8sOpcCommand(namespace, opcDeployment, {
+          `kubectl -n ${namespace} exec deploy/${converactDeployment} -- test -s /rustdesk/id_ed25519.pub`,
+          k8sConveractCommand(namespace, converactDeployment, {
             CONVERACT_RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE: '/tmp/rustdesk-env-checklist.md',
             CONVERACT_RUSTDESK_PREFLIGHT_REPORT_FILE: '/tmp/rustdesk-preflight.json'
           }, 'rustdesk:deployment-preflight'),
-          k8sOpcCommand(namespace, opcDeployment, {
+          k8sConveractCommand(namespace, converactDeployment, {
             CONVERACT_RUSTDESK_SERVER_EVIDENCE_FILE: '/tmp/rustdesk-server-evidence.json'
           }, 'rustdesk:server-evidence')
         ]
@@ -241,41 +241,41 @@ function createK8sPlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPlan {
         'Run Server Readiness',
         'Run strict RustDesk readiness and LED facade smoke after DNS, Service, public key, launch page, protocol URL, audit, and target device settings are present.',
         [
-          k8sOpcCommand(namespace, opcDeployment, {
+          k8sConveractCommand(namespace, converactDeployment, {
             CONVERACT_RUSTDESK_READINESS_REPORT_FILE: '/tmp/rustdesk-readiness.json'
           }, 'rustdesk:readiness'),
-          `kubectl -n ${namespace} exec deploy/${opcDeployment} -- npm run rustdesk:ivekit-smoke`
+          `kubectl -n ${namespace} exec deploy/${converactDeployment} -- npm run rustdesk:converact-smoke`
         ]
       ),
       section(
         'Record Real Client Acceptance',
         'Generate and then fill the manual acceptance evidence after a real RustDesk client verifies screen view, control, file transfer, clipboard, recording, revoke disconnect, and old-link rejection. Export the matching gateway audit, validate coverage, and regenerate the final evidence pack before customer handoff.',
         [
-          k8sOpcCommand(namespace, opcDeployment, {
+          k8sConveractCommand(namespace, converactDeployment, {
             CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE: '/tmp/rustdesk-client-config-pack.md',
             CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: '<rustdesk-gateway-external-id>',
             CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '<rustdesk-runtime-id>'
           }, 'rustdesk:client-config-pack'),
-          k8sOpcCommand(namespace, opcDeployment, {
+          k8sConveractCommand(namespace, converactDeployment, {
             CONVERACT_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE: '/tmp/rustdesk-client-acceptance-runbook.md'
           }, 'rustdesk:client-acceptance'),
-          k8sOpcCommand(namespace, opcDeployment, {
+          k8sConveractCommand(namespace, converactDeployment, {
             CONVERACT_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE: '/tmp/rustdesk-client-acceptance-template.json'
           }, 'rustdesk:client-acceptance'),
-          k8sOpcCommand(namespace, opcDeployment, {
+          k8sConveractCommand(namespace, converactDeployment, {
             CONVERACT_RUSTDESK_AUDIT_EXPORT_FILE: '/tmp/rustdesk-audit-export.jsonl',
             CONVERACT_RUSTDESK_AUDIT_EXPORT_EXTERNAL_ID: '<rustdesk-gateway-external-id>'
           }, 'rustdesk:audit-export'),
-          k8sOpcCommand(namespace, opcDeployment, {
+          k8sConveractCommand(namespace, converactDeployment, {
             CONVERACT_RUSTDESK_ACCEPTANCE_REPORT_FILE: '/tmp/rustdesk-client-acceptance-template.json',
             CONVERACT_RUSTDESK_ACCEPTANCE_AUDIT_FILE: '/tmp/rustdesk-audit-export.jsonl',
             CONVERACT_RUSTDESK_ACCEPTANCE_OUTPUT_FILE: '/tmp/rustdesk-client-acceptance-result.json'
           }, 'rustdesk:client-acceptance'),
-          k8sOpcCommand(namespace, opcDeployment, {
+          k8sConveractCommand(namespace, converactDeployment, {
             CONVERACT_RUSTDESK_AUDIT_COVERAGE_FILE: '/tmp/rustdesk-audit-export.jsonl',
             CONVERACT_RUSTDESK_AUDIT_COVERAGE_REPORT_FILE: '/tmp/rustdesk-audit-coverage.json'
           }, 'rustdesk:audit-coverage'),
-          k8sOpcCommand(namespace, opcDeployment, {
+          k8sConveractCommand(namespace, converactDeployment, {
             CONVERACT_RUSTDESK_EVIDENCE_PACK_FILE: '/tmp/rustdesk-evidence-pack.md',
             CONVERACT_RUSTDESK_EVIDENCE_DEPLOYMENT_COMMANDS_FILE: deploymentCommandsArtifact,
             CONVERACT_RUSTDESK_EVIDENCE_ENV_CHECKLIST_FILE: '/tmp/rustdesk-env-checklist.md',
@@ -304,11 +304,11 @@ function section(title: string, purpose: string, commands: string[]): RustDeskDe
   return { title, purpose, commands };
 }
 
-function composeOpcCommand(compose: string, env: Record<string, string>, script: string): string {
-  return `${compose} exec opc env ${envAssignments(env)} npm run ${script}`;
+function composeConveractCommand(compose: string, env: Record<string, string>, script: string): string {
+  return `${compose} exec converact env ${envAssignments(env)} npm run ${script}`;
 }
 
-function k8sOpcCommand(
+function k8sConveractCommand(
   namespace: string,
   deployment: string,
   env: Record<string, string>,

@@ -1,13 +1,13 @@
-{{- if eq (include "opc.postgresMode" .) "bundled-dev" }}
+{{- if eq (include "converact.postgresMode" .) "bundled-dev" }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-postgres
   labels:
-    opc.ivekit.io/deployment-profile: bundled-dev
-    opc.ivekit.io/production-eligible: "false"
+    converact.io/deployment-profile: bundled-dev
+    converact.io/production-eligible: "false"
   annotations:
-    opc.ivekit.io/warning: "Single-instance PostgreSQL is development-only"
+    converact.io/warning: "Single-instance PostgreSQL is development-only"
 spec:
   serviceName: {{ .Release.Name }}-postgres
   replicas: 1
@@ -18,12 +18,12 @@ spec:
     metadata:
       labels:
         app: postgres
-        opc.ivekit.io/deployment-profile: bundled-dev
-        opc.ivekit.io/production-eligible: "false"
+        converact.io/deployment-profile: bundled-dev
+        converact.io/production-eligible: "false"
     spec:
       containers:
         - name: postgres
-          image: {{ include "opc.postgresImage" . | quote }}
+          image: {{ include "converact.postgresImage" . | quote }}
           imagePullPolicy: {{ .Values.postgres.image.pullPolicy | default "IfNotPresent" }}
           env:
             - name: POSTGRES_USER
@@ -51,8 +51,8 @@ kind: Service
 metadata:
   name: {{ .Release.Name }}-postgres
   labels:
-    opc.ivekit.io/deployment-profile: bundled-dev
-    opc.ivekit.io/production-eligible: "false"
+    converact.io/deployment-profile: bundled-dev
+    converact.io/production-eligible: "false"
 spec:
   selector:
     app: postgres

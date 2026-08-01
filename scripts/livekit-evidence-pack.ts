@@ -138,7 +138,7 @@ const REQUIRED_SERVER_CHECKS = [
 
 const CORE_PREFLIGHT_CHECKS = [
   'livekit_internal_url', 'livekit_public_url', 'livekit_public_wss', 'livekit_deployment_mode',
-  'livekit_api_key', 'livekit_api_secret', 'opc_base_url', 'media_api_token', 'media_invite_secret',
+  'livekit_api_key', 'livekit_api_secret', 'converact_base_url', 'media_api_token', 'media_invite_secret',
   'media_smoke_tenant', 'minio_access_key', 'minio_secret_key', 'media_recording_retention_days',
   'media_recording_http_timeout', 'media_recording_object_timeout', 'media_recording_object_poll_interval'
 ] as const;

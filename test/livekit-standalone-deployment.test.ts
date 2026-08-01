@@ -14,14 +14,14 @@ function edgeEnv(outputDir: string): NodeJS.ProcessEnv {
     CONVERACT_LIVEKIT_EDGE_CONFIG_DIR: outputDir,
     LIVEKIT_SIGNAL_DOMAIN: 'livekit.example.com',
     LIVEKIT_TURN_DOMAIN: 'turn.example.com',
-    IVEKIT_API_DOMAIN: 'opc.example.com',
+    CONVERACT_FABRIC_API_DOMAIN: 'converact.example.com',
     TINODE_PUBLIC_DOMAIN: 'tinode.example.com',
-    IVEKIT_API_HTTP_PORT: '8300',
+    CONVERACT_FABRIC_API_HTTP_PORT: '8300',
     TINODE_HTTP_PORT: '6060',
     LIVEKIT_ACME_EMAIL: 'ops@example.com',
     LIVEKIT_API_KEY: 'edge-livekit-key',
     LIVEKIT_API_SECRET: 'edge-livekit-secret',
-    CONVERACT_MEDIA_CONFIG_WEBHOOK_URL: 'https://opc.example.com/api/media/webhooks/livekit',
+    CONVERACT_MEDIA_CONFIG_WEBHOOK_URL: 'https://converact.example.com/api/media/webhooks/livekit',
     CONVERACT_MEDIA_CONFIG_REDIS_ADDRESS: '127.0.0.1:6379',
     CONVERACT_MEDIA_CONFIG_LIVEKIT_URL: 'ws://127.0.0.1:7880',
     MINIO_ENDPOINT: 'http://127.0.0.1:9000',
@@ -45,7 +45,7 @@ function edgeEnv(outputDir: string): NodeJS.ProcessEnv {
 }
 
 test('standalone LiveKit renderer writes signal, embedded TURN, Egress, and firewall configs', () => {
-  const outputDir = mkdtempSync(join(tmpdir(), 'opc-livekit-edge-'));
+  const outputDir = mkdtempSync(join(tmpdir(), 'converact-livekit-edge-'));
   try {
     const result = renderLiveKitEdgeConfigs(
       createLiveKitEdgeConfigRenderInputFromEnv(edgeEnv(outputDir))
@@ -68,7 +68,7 @@ test('standalone LiveKit renderer writes signal, embedded TURN, Egress, and fire
       livekit,
       /pli_throttle:\n    low_quality: 100ms\n    mid_quality: 100ms\n    high_quality: 100ms/
     );
-    assert.match(livekit, /https:\/\/opc\.example\.com\/api\/media\/webhooks\/livekit/);
+    assert.match(livekit, /https:\/\/converact\.example\.com\/api\/media\/webhooks\/livekit/);
 
     assert.match(egress, /ws_url: "ws:\/\/127\.0\.0\.1:7880"/);
     assert.match(egress, /redis:\n  address: "127\.0\.0\.1:6379"/);
@@ -80,7 +80,7 @@ test('standalone LiveKit renderer writes signal, embedded TURN, Egress, and fire
     assert.match(caddy, /dial: \["localhost:5349"\]/);
     assert.match(caddy, /"livekit\.example\.com"/);
     assert.match(caddy, /dial: \["localhost:7880"\]/);
-    assert.match(caddy, /"opc\.example\.com"/);
+    assert.match(caddy, /"converact\.example\.com"/);
     assert.match(caddy, /dial: \["localhost:8300"\]/);
     assert.match(caddy, /"tinode\.example\.com"/);
     assert.match(caddy, /dial: \["localhost:6060"\]/);
@@ -113,7 +113,7 @@ test('standalone LiveKit renderer writes signal, embedded TURN, Egress, and fire
 });
 
 test('standalone LiveKit renderer rejects invalid edge topology', () => {
-  const outputDir = mkdtempSync(join(tmpdir(), 'opc-livekit-edge-invalid-'));
+  const outputDir = mkdtempSync(join(tmpdir(), 'converact-livekit-edge-invalid-'));
   try {
     assert.throws(
       () => createLiveKitEdgeConfigRenderInputFromEnv({
@@ -189,7 +189,7 @@ test('standalone LiveKit Compose is Linux host-networked and reproducibly pinned
   assert.match(envExample, /^LIVEKIT_SERVER_IMAGE_TAG=v1\.13\.4-ivekit\.1$/m);
   assert.match(envExample, /^LIVEKIT_EGRESS_IMAGE_TAG=v1\.13\.0$/m);
   assert.match(envExample, /^LIVEKIT_CADDYL4_IMAGE_TAG=v2\.11\.3$/m);
-  assert.match(envExample, /^LIVEKIT_SERVER_IMAGE=ghcr\.io\/songgoldenwind-crypto\/opc-ivekit-livekit-server@sha256:[a-f0-9]{64}$/m);
+  assert.match(envExample, /^LIVEKIT_SERVER_IMAGE=ghcr\.io\/songgoldenwind-crypto\/converact-livekit-server@sha256:[a-f0-9]{64}$/m);
   assert.match(envExample, /^LIVEKIT_EGRESS_IMAGE=livekit\/egress:v1\.13\.0@sha256:[a-f0-9]{64}$/m);
   assert.match(envExample, /^LIVEKIT_CADDYL4_IMAGE=livekit\/caddyl4:v2\.11\.3@sha256:[a-f0-9]{64}$/m);
   assert.match(envExample, /^LIVEKIT_REDIS_IMAGE=redis:7\.4\.9@sha256:[a-f0-9]{64}$/m);
@@ -225,23 +225,24 @@ test('LiveKit media plane never depends on Egress or object storage availability
   assert.doesNotMatch(storage, /^  livekit:/m);
 });
 
-test('standalone iveKit application stack runs the iveKit-only process', () => {
+test('standalone Converact Fabric application stack runs the Converact Fabric-only process', () => {
   const compose = readFileSync(new URL('../infra/converact/docker-compose.yml', import.meta.url), 'utf8');
   const readme = readFileSync(new URL('../infra/converact/README.md', import.meta.url), 'utf8');
   const envExample = readFileSync(new URL('../infra/converact/env.example', import.meta.url), 'utf8');
-  const opcService = compose.match(/^  opc:\n([\s\S]*?)(?=\n  [a-zA-Z0-9_-]+:\n|(?![\s\S]))/m)?.[0] || '';
+  const converactService = compose.match(/^  converact:\n([\s\S]*?)(?=\n  [a-zA-Z0-9_-]+:\n|(?![\s\S]))/m)?.[0] || '';
 
-  assert.match(opcService, /command:\s*\["npm",\s*"run",\s*"start:ivekit"\]/);
-  assert.match(opcService, /aliases:\s*\n\s*- ivekit-api/);
-  assert.doesNotMatch(opcService, /CONVERACT_DISABLE_DIALER/);
-  assert.match(opcService, /CONVERACT_FABRIC_ALLOWED_ORIGINS: \$\{CONVERACT_FABRIC_ALLOWED_ORIGINS:\?[^}]+\}/);
-  assert.match(opcService, /CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES: \$\{CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES:-1048576\}/);
-  assert.match(opcService, /CONVERACT_SIP_VOLTE_ENABLED: \$\{CONVERACT_SIP_VOLTE_ENABLED:-0\}/);
-  assert.match(opcService, /LIVEKIT_SIP_BRIDGE_TARGET: \$\{LIVEKIT_SIP_BRIDGE_TARGET:-\}/);
-  assert.match(opcService, /RUSTPBX_LIVEKIT_TRUNK: \$\{RUSTPBX_LIVEKIT_TRUNK:-\}/);
-  assert.match(opcService, /RUSTPBX_RWI_URL: \$\{RUSTPBX_RWI_URL:-\}/);
-  assert.match(compose, /^  opc:$/m, 'legacy service key must remain stable');
-  assert.match(envExample, /standalone iveKit application image/i);
+  assert.match(converactService, /command:\s*\["npm",\s*"run",\s*"start:converact"\]/);
+  assert.match(converactService, /aliases:\s*\n\s*- converact-api/);
+  assert.doesNotMatch(converactService, /CONVERACT_DISABLE_DIALER/);
+  assert.match(converactService, /CONVERACT_FABRIC_ALLOWED_ORIGINS: \$\{CONVERACT_FABRIC_ALLOWED_ORIGINS:\?[^}]+\}/);
+  assert.match(converactService, /CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES: \$\{CONVERACT_FABRIC_HTTP_BODY_MAX_BYTES:-1048576\}/);
+  assert.match(converactService, /CONVERACT_SIP_VOLTE_ENABLED: \$\{CONVERACT_SIP_VOLTE_ENABLED:-0\}/);
+  assert.match(converactService, /LIVEKIT_SIP_BRIDGE_TARGET: \$\{LIVEKIT_SIP_BRIDGE_TARGET:-\}/);
+  assert.match(converactService, /RUSTPBX_LIVEKIT_TRUNK: \$\{RUSTPBX_LIVEKIT_TRUNK:-\}/);
+  assert.match(converactService, /RUSTPBX_RWI_URL: \$\{RUSTPBX_RWI_URL:-\}/);
+  assert.doesNotMatch(compose, /^  opc:$/m, 'legacy service key must not remain active');
+  assert.match(compose, /^  converact:$/m);
+  assert.match(envExample, /standalone Converact Fabric application image/i);
   assert.match(envExample, /^CONVERACT_FABRIC_ALLOWED_ORIGINS=https:\/\/led\.example\.com$/m);
   assert.match(envExample, /^CONVERACT_SIP_VOLTE_ENABLED=0$/m);
   assert.match(envExample, /^LIVEKIT_SIP_BRIDGE_TARGET=$/m);

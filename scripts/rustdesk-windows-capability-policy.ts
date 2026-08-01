@@ -49,7 +49,7 @@ export interface RustDeskWindowsCapabilityPolicy {
     apply: 'rustdesk_cli_option';
     verify: 'rustdesk_cli_readback';
     drift: 'fail_closed';
-    per_session_authority: 'ivekit_consent_authorization_and_control_lock';
+    per_session_authority: 'converact_consent_authorization_and_control_lock';
   };
 }
 
@@ -101,7 +101,7 @@ export function createRustDeskWindowsCapabilityPolicy(): RustDeskWindowsCapabili
       apply: 'rustdesk_cli_option',
       verify: 'rustdesk_cli_readback',
       drift: 'fail_closed',
-      per_session_authority: 'ivekit_consent_authorization_and_control_lock'
+      per_session_authority: 'converact_consent_authorization_and_control_lock'
     }
   };
 }

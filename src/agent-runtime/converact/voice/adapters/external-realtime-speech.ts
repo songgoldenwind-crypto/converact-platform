@@ -505,7 +505,7 @@ async function closeSocket(socket: WebSocket): Promise<void> {
     timer.unref();
     socket.once('close', finish);
     if (socket.readyState === WebSocket.CONNECTING) socket.terminate();
-    else socket.close(1000, 'ivekit session closed');
+    else socket.close(1000, 'converact session closed');
   });
 }
 

@@ -14,11 +14,11 @@
   [ADR-CCAAS-5](ccaas-5-media-authority-and-rtpengine.md)、
   [ADR-CCAAS-7](ccaas-7-rvoip-rustpbx-replacement-and-extraction.md)
 - 规范性架构：
-  [rvoip-opc-communication-foundation-integration-design.md](../design/rvoip-opc-communication-foundation-integration-design.md)
+  [rvoip-converact-communication-foundation-integration-design.md](../design/rvoip-converact-communication-foundation-integration-design.md)
 - 总体 Goal 与证据口径：
   [communication-foundation-vos5000-parity-performance-plan.md](../design/communication-foundation-vos5000-parity-performance-plan.md)
 - R4 实施计划：
-  [2026-07-29-unified-voice-foundation-r4.md](../superpowers/plans/2026-07-29-unified-voice-foundation-r4.md)
+  [2026-07-29-unified-voice-foundation-r4.md](../plans/2026-07-29-unified-voice-foundation-r4.md)
 - Revision 4 根 machine contract：
   [unified-voice-foundation-r4-v1.json](../capacity/contracts/unified-voice-foundation-r4-v1.json)
 - machine Authority matrix pointer：
@@ -33,7 +33,7 @@
 
 ## 1. 背景
 
-iveKit 当前同时存在两类实时通信事实：
+Converact Fabric 当前同时存在两类实时通信事实：
 
 - RustPBX/Voice Core 管理 SIP/PSTN Call、Leg、Business Dialog、路由、CDR、DTMF、
   录音意图和运营级恢复；
@@ -44,12 +44,12 @@ iveKit 当前同时存在两类实时通信事实：
 
 - [`MediaCallService.ensureVoiceBridge`](../../src/agent-runtime/livekit/media-call-service.ts)
   以确定性 room/media-call identity 关联 Voice Call；
-- [`LiveKitSipBridgeAdapter`](../../src/agent-runtime/ivekit/voice/adapters/livekit-sip.ts)
+- [`LiveKitSipBridgeAdapter`](../../src/agent-runtime/converact/voice/adapters/livekit-sip.ts)
   在 Provider effect 前持久化 bridge，调用 LiveKit SIP 创建 participant，并在控制面
   timeout 后通过 participant lookup 对账；
-- [`VoiceMediaBridgePort`](../../src/agent-runtime/ivekit/voice/ports.ts) 当前只暴露
+- [`VoiceMediaBridgePort`](../../src/agent-runtime/converact/voice/ports.ts) 当前只暴露
   `create`、`transfer` 和 `reconcile`；
-- [`VoiceLiveKitBridge`](../../src/agent-runtime/ivekit/voice/types.ts) 当前只记录一个
+- [`VoiceLiveKitBridge`](../../src/agent-runtime/converact/voice/types.ts) 当前只记录一个
   bridge 的 call/media-call/room/participant/provider 映射与粗粒度状态。
 
 这条路径可以作为实现基础，但它还不是“Voice/SIP 与 LiveKit 互相切换”的完整合同：
@@ -121,7 +121,7 @@ CDR、计费或 Recording Authority 从一个系统迁到另一个系统。
 
 RustPBX 通过 Media Engine Facade 创建 Voice↔LiveKit directed Edges；LiveKit SIP 是
 外部 bridge executor，继续把 SIP/RTP endpoint 映射为 LiveKit participant/track。
-OPC-owned Bridge Coordinator 只持久化关联、意图、decision、receipt 和 reconciliation，
+Converact Platform-owned Bridge Coordinator 只持久化关联、意图、decision、receipt 和 reconciliation，
 不接管任一协议或媒体 runtime。
 
 优点：
@@ -151,7 +151,7 @@ LiveKit 发布或订阅。
 所有 SIP participant、转接、终态和 CDR 由 LiveKit SIP 管理，RustPBX 退化为 trunk。
 
 不采用。该方案会重复或迁移 Business Dialog、路由、owner recovery、CDR、计费和录音
-Authority；现有 LiveKit SIP bridge 也没有 iveKit 的双腿 CDR、Region durability 和
+Authority；现有 LiveKit SIP bridge 也没有 Converact Fabric 的双腿 CDR、Region durability 和
 运营恢复合同。
 
 ### 3.4 决定
@@ -217,10 +217,10 @@ IPv6、长通话和运营商互通依赖 Goal 6。任何 production profile 签�
 为一个 pointer。
 R4 计划冻结的未来实现/测试路径为：
 
-- `future:src/agent-runtime/ivekit/voice/postgres/media-bridge-store.ts`
-- `future:src/agent-runtime/ivekit/voice/livekit-handoff.ts`
-- `future:test/ivekit-voice-media-bridge-store.test.ts`
-- `future:test/ivekit-livekit-handoff.test.ts`
+- `future:src/agent-runtime/converact/voice/postgres/media-bridge-store.ts`
+- `future:src/agent-runtime/converact/voice/livekit-handoff.ts`
+- `future:test/converact-voice-media-bridge-store.test.ts`
+- `future:test/converact-livekit-handoff.test.ts`
 - `future:docs/capacity/profiles/voice-livekit-bridge-v1.json`
 - `future:docs/evidence/voice-livekit-bridge-handoff-real-media.json`
 - `future:docs/evidence/voice-livekit-bridge-handoff-failure.json`
@@ -234,9 +234,9 @@ contract/profile 不得降低当前 R4 contract 和本 ADR 的 single-writer、�
 
 | 事实 | 唯一 Authority | 其他组件的合法角色 |
 | --- | --- | --- |
-| tenant、identity、business policy、合规、recording rule 与计费规则 | OPC/iveKit policy store | RustPBX、LiveKit 只消费版本化裁决 |
+| tenant、identity、business policy、合规、recording rule 与计费规则 | Converact Platform/Converact Fabric policy store | RustPBX、LiveKit 只消费版本化裁决 |
 | Call、Leg、Business Dialog、业务终态 | RustPBX Call Core | LiveKit participant 只是关联 projection |
-| owner epoch、route revision、command sequence | iveKit Voice owner contract | RustPBX 执行；Bridge executor 只校验 fence |
+| owner epoch、route revision、command sequence | Converact Fabric Voice owner contract | RustPBX 执行；Bridge executor 只校验 fence |
 | RustPBX Protocol Transaction/Dialog | 当前选定 `SipFoundation` | LiveKit SIP 不写 RustPBX protocol shadow |
 | LiveKit SIP native participant/call 状态 | LiveKit SIP executor | 通过 receipt/query 暴露，不成为 Business Dialog |
 | Logical Media Graph | RustPBX Call Core | MediaCall 只保存 Room/participant projection |
@@ -245,14 +245,14 @@ contract/profile 不得降低当前 R4 contract 和本 ADR 的 single-writer、�
 | SIP 侧 ordinary RTP binding | 被 Facade 选中的 RTPengine Backend | 不决定 Room、route 或业务终态 |
 | SIP/RTP 与 LiveKit track 的 gateway native session | LiveKit SIP executor | 不拥有 logical Edge assignment |
 | Room、WebRTC participant、track、ICE/DTLS/SRTP、SFU | LiveKit | Coturn 只执行 TURN relay；RustPBX/rvoip 不接管 |
-| bridge correlation、attempt、durable orchestration decision、receipt、tombstone | OPC-owned Bridge Coordinator store | 只持久化 Facade/Call Core 裁决，不成为 Call、Room 或 Media Authority |
+| bridge correlation、attempt、durable orchestration decision、receipt、tombstone | Converact Platform-owned Bridge Coordinator store | 只持久化 Facade/Call Core 裁决，不成为 Call、Room 或 Media Authority |
 | canonical DTMF event 与 IVR/业务副作用 | RustPBX per-Leg `DtmfEventAuthority` | LiveKit/SIP/RTP source 只上报候选输入 |
 | immutable Voice CDR fact | RustPBX Call Core | LiveKit usage 只作为关联 usage fact |
 | durable SIP CDR projection、final receipt 与 terminal repair | Region CDR convergence service | RustPBX 提交 immutable fact；LiveKit 不生成第二 SIP CDR |
-| customer rating session | OPC/iveKit billing | CDR、bridge、LiveKit 只提交 usage facts |
-| per-interaction recording intent 与 policy snapshot | RustPBX Call Core | 读取 OPC policy revision；executor 不自行决定开始录制 |
+| customer rating session | Converact Platform/Converact Fabric billing | CDR、bridge、LiveKit 只提交 usage facts |
+| per-interaction recording intent 与 policy snapshot | RustPBX Call Core | 读取 Converact Platform policy revision；executor 不自行决定开始录制 |
 | root RecordingManifest、其下 source segment chains、retention、legal hold | Region recording plane | SIP recorder/LiveKit Egress 只执行 source-scoped capture job |
-| capacity admission 与 signed profile | iveKit capacity ledger/finalizer | Backend 只上报 source-bound demand/usage |
+| capacity admission 与 signed profile | Converact Fabric capacity ledger/finalizer | Backend 只上报 source-bound demand/usage |
 
 任何实现如果让同一行出现两个可写 Authority，必须被拒绝或提交 superseding ADR。Bridge
 Coordinator 不是第三个媒体引擎；它不解析 WebRTC、不写 SIP Transaction、不转发 RTP，
@@ -327,7 +327,7 @@ ended_at
 - `request_hash`、`decision_hash` 和 `last_command_hash` 必须使用 canonical payload；
 - clear phone number、clear SIP URI、raw token、API secret、raw SRTP key 和未脱敏 SDP
   不进入 bridge durable metadata、日志或指标；
-- Room/participant attributes 只能保存 opaque iveKit identity 和 correlation，不得被
+- Room/participant attributes 只能保存 opaque Converact Fabric identity 和 correlation，不得被
   信任为 durable Authority；
 - terminal bridge 保留 tombstone、最后 receipt 和清理结果；不得删除后让同一
   idempotency key 被解释成从未执行。
@@ -560,7 +560,7 @@ writer 是否仍可能输出未确认前，禁止激活新 writer。
 `V2L_ACTIVE` 和 `L2V_ACTIVE` 不是一次性迁移。一个仍处于 active 的同一业务
 `CallId` 必须允许在有界场景内交替往返；资格场景固定为 32 个完整 round trip。每次
 switch 都创建新的 bridge、Edge 和必要的 binding-group generation，禁止复活或原地
-改写已 revoke 的 generation。往返过程中业务 Call、immutable Voice CDR、OPC rating
+改写已 revoke 的 generation。往返过程中业务 Call、immutable Voice CDR、Converact Platform rating
 session 和每个 recording role 的 root `RecordingManifest` 始终各只有一个；Provider
 participant、port pair、Backend allocation 和 writer 只允许随当前 generation 有界
 替换，不能随往返次数累积。
@@ -765,7 +765,7 @@ Goal 必须保留该单一客户计费入口。
   幂等；
 - 同一 tariff dimension 的 connected interval 使用去重后的 interval union，不把
   old/new handoff overlap 或 reconcile replay 重复相加；
-- 如果 tariff 明确同时收费 PSTN minute 与 LiveKit participant minute，仍由同一 OPC
+- 如果 tariff 明确同时收费 PSTN minute 与 LiveKit participant minute，仍由同一 Converact Platform
   rating session 按两个明确 dimension 结算；这不是组件各自收费；
 - early media、prepared candidate、revoked grace 和 receive/count/drop 不进入 billable
   connected interval，除非独立 tariff 明确规定且 evidence 可对账；
@@ -1133,7 +1133,7 @@ Voice/SIP 与 LiveKit 的正确整合方式不是在两套 runtime 之间移动 
 business interaction 下建立 owner-fenced、generation-scoped、可查询和可对账的双向
 Media Edge。RustPBX 管 Call 与 SIP 业务事实，LiveKit 管 WebRTC/Room/track，Media Engine
 Facade 管 Edge/writer decision，LiveKit SIP 只执行 bridge native session，Region
-recording plane 和 OPC billing 各自保持唯一治理 Authority。
+recording plane 和 Converact Platform billing 各自保持唯一治理 Authority。
 
 现有代码是可复用的 create/reconcile 起点，但不具备 active handoff 的原子 gate 和
 packet evidence。因此 R4 D0.3 先冻结合同；首期诚实采用 break-before-make，所有真实

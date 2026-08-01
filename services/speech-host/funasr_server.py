@@ -17,7 +17,7 @@ import wave
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
-app = FastAPI(title="OPC FunASR Server")
+app = FastAPI(title="Converact FunASR Server")
 _model = None
 
 

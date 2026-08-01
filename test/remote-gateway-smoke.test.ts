@@ -12,12 +12,12 @@ import type { RemoteConsentScope } from '../src/agent-runtime/collaboration/type
 
 test('remote gateway smoke config defaults to RustDesk and validates gateway inputs', () => {
   const defaultRustDesk = createRemoteGatewaySmokeConfigFromEnv({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact.local',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
     CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1'
   });
   assert.equal(defaultRustDesk.provider, 'rustdesk');
-  assert.equal(defaultRustDesk.baseUrl, 'http://opc.local');
+  assert.equal(defaultRustDesk.baseUrl, 'http://converact.local');
   assert.equal(defaultRustDesk.apiToken, 'rustdesk-token');
   assert.deepEqual(defaultRustDesk.permissions, [
     'view_screen',
@@ -27,7 +27,7 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
     'clipboard'
   ]);
   const edgeTenantRustDesk = createRemoteGatewaySmokeConfigFromEnv({
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact.local',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
     CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_from_edge',
@@ -76,7 +76,7 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact.local',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rdesk-device-1',
         CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: '1'
@@ -86,7 +86,7 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact.local',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
         CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rdesk-device-1',
@@ -97,7 +97,7 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact.local',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
         CONVERACT_RUSTDESK_CHECK_TCP_PORTS: '21115,not-a-port'
@@ -107,7 +107,7 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact.local',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
         CONVERACT_RUSTDESK_CHECK_UDP_PORTS: '21116,nope'
@@ -117,7 +117,7 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'ftp://opc.local',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'ftp://converact.local',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1'
       }),
@@ -136,7 +136,7 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact.local',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
         CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS: 'abc'
@@ -146,7 +146,7 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact.local',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
         CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS: '99'
@@ -156,7 +156,7 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact.local',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
         CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS: 'soon'
@@ -166,7 +166,7 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
   assert.throws(
     () =>
       createRemoteGatewaySmokeConfigFromEnv({
-        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+        CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact.local',
         CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
         CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'device-1',
         CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS: '0'
@@ -178,7 +178,7 @@ test('remote gateway smoke config defaults to RustDesk and validates gateway inp
 test('remote gateway smoke uses RustDesk control-plane env fallbacks', () => {
   const config = createRemoteGatewaySmokeConfigFromEnv({
     CONVERACT_REMOTE_GATEWAY_PROVIDER: 'rustdesk',
-    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://opc-rustdesk.example.com',
+    CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'https://converact-rustdesk.example.com',
     CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
     CONVERACT_REMOTE_GATEWAY_API_TOKEN: 'remote-token',
     CONVERACT_REMOTE_GATEWAY_TENANT_ID: 'tenant_led',
@@ -187,11 +187,11 @@ test('remote gateway smoke uses RustDesk control-plane env fallbacks', () => {
     CONVERACT_RUSTDESK_REQUIRE_PROTOCOL_URL: 'yes',
     CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: 'yes',
     CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT: 'yes',
-    CONVERACT_API_KEY: 'opc-api-key'
+    CONVERACT_API_KEY: 'converact-api-key'
   });
 
   assert.equal(config.provider, 'rustdesk');
-  assert.equal(config.baseUrl, 'https://opc-rustdesk.example.com');
+  assert.equal(config.baseUrl, 'https://converact-rustdesk.example.com');
   assert.equal(config.apiToken, 'rustdesk-token');
   assert.equal(config.tenantId, 'tenant_led');
   assert.equal(config.target.id, '123456789');
@@ -199,7 +199,7 @@ test('remote gateway smoke uses RustDesk control-plane env fallbacks', () => {
   assert.equal((config as { rustdeskRequireProtocolUrl?: boolean }).rustdeskRequireProtocolUrl, true);
   assert.equal((config as { rustdeskCheckDeviceOnline?: boolean }).rustdeskCheckDeviceOnline, true);
   assert.equal((config as { rustdeskCheckOperationAudit?: boolean }).rustdeskCheckOperationAudit, true);
-  assert.equal((config as { collaborationApiKey?: string }).collaborationApiKey, 'opc-api-key');
+  assert.equal((config as { collaborationApiKey?: string }).collaborationApiKey, 'converact-api-key');
 });
 
 test('remote gateway smoke is wired into package scripts and env example', () => {
@@ -264,7 +264,7 @@ test('remote gateway smoke optionally checks RustDesk runtime TCP and UDP ports'
 
   try {
     const config = createRemoteGatewaySmokeConfigFromEnv({
-      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc.local',
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact.local',
       CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
       CONVERACT_REMOTE_GATEWAY_TARGET_ID: '123456789',
       CONVERACT_RUSTDESK_CHECK_SERVER_PORTS: '1',
@@ -299,7 +299,7 @@ test('remote gateway smoke optionally checks RustDesk runtime TCP and UDP ports'
       if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
         return jsonResponse(201, {
           external_id: 'rustdesk-port-check-session',
-          launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-port-check-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+          launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-port-check-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
           target: { type: 'device', id: '123456789' },
           permissions: ['view_screen'],
           metadata: { rustdesk_id: '123456789' }
@@ -399,7 +399,7 @@ test('remote gateway smoke rejects RustDesk client config without a top-level pu
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -419,7 +419,7 @@ test('remote gateway smoke reports unreadable RustDesk public key files', async 
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -442,7 +442,7 @@ test('remote gateway smoke rejects RustDesk client config without a server key f
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -462,7 +462,7 @@ test('remote gateway smoke rejects RustDesk client config without manual key fie
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -489,7 +489,7 @@ test('remote gateway smoke rejects RustDesk client config without manual key fie
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-manual-key-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-key-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-key-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -515,7 +515,7 @@ test('remote gateway smoke rejects RustDesk client config without manual id serv
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -542,7 +542,7 @@ test('remote gateway smoke rejects RustDesk client config without manual id serv
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-manual-id-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-id-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-id-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -568,7 +568,7 @@ test('remote gateway smoke rejects RustDesk client config with mismatched manual
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -596,7 +596,7 @@ test('remote gateway smoke rejects RustDesk client config with mismatched manual
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-manual-id-mismatch-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-id-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-id-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -622,7 +622,7 @@ test('remote gateway smoke rejects RustDesk client config with mismatched manual
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -650,7 +650,7 @@ test('remote gateway smoke rejects RustDesk client config with mismatched manual
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-manual-relay-mismatch-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-relay-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-relay-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -676,7 +676,7 @@ test('remote gateway smoke rejects RustDesk client config with mismatched manual
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -704,7 +704,7 @@ test('remote gateway smoke rejects RustDesk client config with mismatched manual
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-manual-key-mismatch-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-key-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-key-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -730,7 +730,7 @@ test('remote gateway smoke rejects RustDesk client config with mismatched manual
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -760,7 +760,7 @@ test('remote gateway smoke rejects RustDesk client config with mismatched manual
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-manual-api-mismatch-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-api-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-manual-api-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -878,10 +878,10 @@ test('remote gateway smoke creates audits and ends a RustDesk session', async ()
   const result = await runRemoteGatewaySmoke(
     {
       provider: 'rustdesk',
-      baseUrl: 'http://opc.local',
+      baseUrl: 'http://converact.local',
       apiToken: 'rustdesk-token',
       tenantId: 'tenant_led',
-      collaborationApiKey: 'opc-api-key',
+      collaborationApiKey: 'converact-api-key',
       rustdeskCheckDeviceOnline: true,
       rustdeskCheckOperationAudit: true,
       actorIdentity: 'agent_gateway_smoke',
@@ -937,7 +937,7 @@ test('remote gateway smoke creates audits and ends a RustDesk session', async ()
       if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
         return jsonResponse(201, {
           external_id: 'rustdesk-session-1',
-          launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+          launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
           target: { type: 'device', id: '123456789', display_name: 'RustDesk smoke device' },
           permissions: ['view_screen', 'control_mouse_keyboard', 'record_screen', 'transfer_file', 'clipboard'],
           metadata: { rustdesk_id: '123456789' }
@@ -1035,7 +1035,7 @@ test('remote gateway smoke creates audits and ends a RustDesk session', async ()
 
   assert.equal(result.provider, 'rustdesk');
   assert.equal(result.externalId, 'rustdesk-session-1');
-  assert.equal(result.launchUrl, 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z');
+  assert.equal(result.launchUrl, 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z');
   assert.equal(result.auditEvents, 9);
   assert.deepEqual(result.rustdeskClientConfig, {
     apiServer: '',
@@ -1156,22 +1156,22 @@ test('remote gateway smoke cleans RustDesk sessions with invalid launch URLs', a
   const cases = [
     {
       externalId: 'rustdesk-session-missing-launch-token-1',
-      launchUrl: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-missing-launch-token-1',
+      launchUrl: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-missing-launch-token-1',
       message: /RustDesk gateway launch_url token is required/
     },
     {
       externalId: 'rustdesk-session-malformed-launch-token-1',
-      launchUrl: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-malformed-launch-token-1&token=launch-token&expires_at=2099-01-01T00:00:00.000Z',
+      launchUrl: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-malformed-launch-token-1&token=launch-token&expires_at=2099-01-01T00:00:00.000Z',
       message: /RustDesk gateway launch_url token must be a 64 character hex HMAC/
     },
     {
       externalId: 'rustdesk-session-wrong-launch-path-1',
-      launchUrl: 'https://opc.local/remote/other/launch?session_id=rustdesk-session-wrong-launch-path-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+      launchUrl: 'https://converact.local/remote/other/launch?session_id=rustdesk-session-wrong-launch-path-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
       message: /RustDesk gateway launch_url path must be \/remote\/rustdesk\/launch/
     },
     {
       externalId: 'rustdesk-session-wrong-launch-protocol-1',
-      launchUrl: 'ftp://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-wrong-launch-protocol-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+      launchUrl: 'ftp://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-wrong-launch-protocol-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
       message: /RustDesk gateway launch_url must be http\(s\)/
     }
   ];
@@ -1184,7 +1184,7 @@ test('remote gateway smoke cleans RustDesk sessions with invalid launch URLs', a
         runRemoteGatewaySmoke(
           {
             provider: 'rustdesk',
-            baseUrl: 'http://opc.local',
+            baseUrl: 'http://converact.local',
             apiToken: 'rustdesk-token',
             actorIdentity: 'agent_gateway_smoke',
             target: { type: 'device', id: '123456789' },
@@ -1241,7 +1241,7 @@ test('remote gateway smoke rejects duplicated RustDesk audit probe events and cl
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -1268,7 +1268,7 @@ test('remote gateway smoke rejects duplicated RustDesk audit probe events and cl
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-duplicate-probe-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-duplicate-probe-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-duplicate-probe-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -1365,7 +1365,7 @@ test('remote gateway smoke rejects empty audit events and cleans the RustDesk se
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -1392,7 +1392,7 @@ test('remote gateway smoke rejects empty audit events and cleans the RustDesk se
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-empty-audit-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-empty-audit-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-empty-audit-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -1447,7 +1447,7 @@ test('remote gateway smoke rejects audit events from another session and cleans 
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -1474,7 +1474,7 @@ test('remote gateway smoke rejects audit events from another session and cleans 
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-wrong-audit-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-wrong-audit-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-wrong-audit-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -1541,7 +1541,7 @@ test('remote gateway smoke rejects missing ended audit event after ending the Ru
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -1568,7 +1568,7 @@ test('remote gateway smoke rejects missing ended audit event after ending the Ru
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-missing-ended-audit-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-missing-ended-audit-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-missing-ended-audit-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -1648,7 +1648,7 @@ test('remote gateway smoke rejects a RustDesk launch plan with mismatched API se
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -1677,7 +1677,7 @@ test('remote gateway smoke rejects a RustDesk launch plan with mismatched API se
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-launch-api-mismatch-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-launch-api-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-launch-api-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -1716,7 +1716,7 @@ test('remote gateway smoke rejects a RustDesk launch plan with mismatched server
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -1743,7 +1743,7 @@ test('remote gateway smoke rejects a RustDesk launch plan with mismatched server
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-launch-fingerprint-mismatch-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-launch-fingerprint-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-launch-fingerprint-mismatch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -1839,7 +1839,7 @@ test('remote gateway smoke rejects a RustDesk launch plan without client config 
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -1866,7 +1866,7 @@ test('remote gateway smoke rejects a RustDesk launch plan without client config 
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-launch-client-config-missing-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-launch-client-config-missing-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-launch-client-config-missing-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -2011,7 +2011,7 @@ test('remote gateway smoke requires a RustDesk protocol URL when enabled and cle
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -2039,7 +2039,7 @@ test('remote gateway smoke requires a RustDesk protocol URL when enabled and cle
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-protocol-missing-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-protocol-missing-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-protocol-missing-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -2079,7 +2079,7 @@ test('remote gateway smoke rejects a RustDesk protocol URL for a different targe
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -2107,7 +2107,7 @@ test('remote gateway smoke rejects a RustDesk protocol URL for a different targe
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-protocol-wrong-target-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-protocol-wrong-target-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-protocol-wrong-target-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -2148,7 +2148,7 @@ test('remote gateway smoke rejects a RustDesk protocol URL without the rustdesk 
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -2176,7 +2176,7 @@ test('remote gateway smoke rejects a RustDesk protocol URL without the rustdesk 
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-protocol-wrong-scheme-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-protocol-wrong-scheme-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-protocol-wrong-scheme-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -2185,7 +2185,7 @@ test('remote gateway smoke rejects a RustDesk protocol URL without the rustdesk 
           if (method === 'GET' && pathname === '/api/opc/rustdesk/sessions/rustdesk-session-protocol-wrong-scheme-1/launch') {
             return jsonResponse(200, rustDeskLaunchPlanBody('rustdesk-session-protocol-wrong-scheme-1', {
               idServer: 'rustdesk-id.example.com',
-              protocolUrl: 'https://opc.local/connect/123456789?session=rustdesk-session-protocol-wrong-scheme-1'
+              protocolUrl: 'https://converact.local/connect/123456789?session=rustdesk-session-protocol-wrong-scheme-1'
             }));
           }
           if (method === 'GET' && pathname === '/api/opc/rustdesk/sessions/rustdesk-session-protocol-wrong-scheme-1/audit') {
@@ -2218,7 +2218,7 @@ test('remote gateway smoke checks RustDesk launch page when enabled', async () =
   const result = await runRemoteGatewaySmoke(
     {
       provider: 'rustdesk',
-      baseUrl: 'http://opc.local',
+      baseUrl: 'http://converact.local',
       apiToken: 'rustdesk-token',
       actorIdentity: 'agent_gateway_smoke',
       target: { type: 'device', id: '123456789' },
@@ -2248,7 +2248,7 @@ test('remote gateway smoke checks RustDesk launch page when enabled', async () =
       if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
         return jsonResponse(201, {
           external_id: 'rustdesk-session-launch-1',
-          launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-launch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+          launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-launch-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
           target: { type: 'device', id: '123456789' },
           permissions: ['view_screen'],
           metadata: { rustdesk_id: '123456789' }
@@ -2388,7 +2388,7 @@ test('remote gateway smoke checks RustDesk launch page when enabled', async () =
 
 test('remote gateway smoke rejects a RustDesk launch page that stays open after end', async () => {
   const externalId = 'rustdesk-session-ended-launch-page-open-1';
-  const launchUrl = `https://opc.local/remote/rustdesk/launch?session_id=${externalId}&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z`;
+  const launchUrl = `https://converact.local/remote/rustdesk/launch?session_id=${externalId}&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z`;
   const calls: string[] = [];
   let ended = false;
   let postedAuditEvent = false;
@@ -2398,7 +2398,7 @@ test('remote gateway smoke rejects a RustDesk launch page that stays open after 
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -2530,7 +2530,7 @@ test('remote gateway smoke rejects a RustDesk launch page that stays open after 
 
 test('remote gateway smoke rejects RustDesk ended launch plans with a launch URL', async () => {
   const externalId = 'rustdesk-session-ended-launch-url-1';
-  const launchUrl = `https://opc.local/remote/rustdesk/launch?session_id=${externalId}&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z`;
+  const launchUrl = `https://converact.local/remote/rustdesk/launch?session_id=${externalId}&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z`;
   const calls: string[] = [];
   let ended = false;
   let postedAuditEvent = false;
@@ -2540,7 +2540,7 @@ test('remote gateway smoke rejects RustDesk ended launch plans with a launch URL
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -2662,7 +2662,7 @@ test('remote gateway smoke rejects a RustDesk launch page with unrelated content
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -2690,7 +2690,7 @@ test('remote gateway smoke rejects a RustDesk launch page with unrelated content
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-wrong-page-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-wrong-page-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-wrong-page-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -2737,7 +2737,7 @@ test('remote gateway smoke ends an active RustDesk session when later validation
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -2764,7 +2764,7 @@ test('remote gateway smoke ends an active RustDesk session when later validation
           if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
             return jsonResponse(201, {
               external_id: 'rustdesk-session-cleanup-1',
-              launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-cleanup-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+              launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-cleanup-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
               target: { type: 'device', id: '123456789' },
               permissions: ['view_screen'],
               metadata: { rustdesk_id: '123456789' }
@@ -2862,7 +2862,7 @@ function rustDeskSuccessfulSmokeFetch(
     if (method === 'POST' && pathname === '/api/opc/rustdesk/sessions') {
       return jsonResponse(201, {
         external_id: 'rustdesk-session-client-config-contract-1',
-        launch_url: 'https://opc.local/remote/rustdesk/launch?session_id=rustdesk-session-client-config-contract-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+        launch_url: 'https://converact.local/remote/rustdesk/launch?session_id=rustdesk-session-client-config-contract-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
         target: { type: 'device', id: '123456789' },
         permissions: ['view_screen'],
         metadata: { rustdesk_id: '123456789' }
@@ -2938,7 +2938,7 @@ async function expectRustDeskLaunchPlanRejection(input: {
 }): Promise<{ calls: string[] }> {
   const calls: string[] = [];
   const permissions = input.permissions || ['view_screen'];
-  const launchUrl = `https://opc.local/remote/rustdesk/launch?session_id=${input.externalId}&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z`;
+  const launchUrl = `https://converact.local/remote/rustdesk/launch?session_id=${input.externalId}&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z`;
   let ended = false;
   let postedProbe = false;
 
@@ -2947,7 +2947,7 @@ async function expectRustDeskLaunchPlanRejection(input: {
       runRemoteGatewaySmoke(
         {
           provider: 'rustdesk',
-          baseUrl: 'http://opc.local',
+          baseUrl: 'http://converact.local',
           apiToken: 'rustdesk-token',
           actorIdentity: 'agent_gateway_smoke',
           target: { type: 'device', id: '123456789' },
@@ -3076,7 +3076,7 @@ function rustDeskLaunchPlanBody(
   const canLaunch = options.canLaunch ?? true;
   const rustdeskId = options.rustdeskId || '123456789';
   const targetId = options.targetId || rustdeskId;
-  const launchUrl = `https://opc.local/remote/rustdesk/launch?session_id=${externalId}&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z`;
+  const launchUrl = `https://converact.local/remote/rustdesk/launch?session_id=${externalId}&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z`;
   const body = {
     external_id: externalId,
     status: options.status || 'active',

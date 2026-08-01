@@ -1,7 +1,7 @@
 runtimeMode: userspace
 
 nodeSelector:
-  ivekit.io/rtpengine-userspace-ready: "true"
+  converact.io/rtpengine-userspace-ready: "true"
 
 kernel:
   hostMounts: false

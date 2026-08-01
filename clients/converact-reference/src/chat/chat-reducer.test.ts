@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { IveKitChatMessage, IveKitChatPin, IveKitChatReaction, IveKitChatRealtimeState, IveKitChatReceipt } from '@converact/sdk';
+import type { ConveractFabricChatMessage, ConveractFabricChatPin, ConveractFabricChatReaction, ConveractFabricChatRealtimeState, ConveractFabricChatReceipt } from '@converact/sdk';
 import { chatReducer, initialChatState } from './chat-reducer.js';
 
 test('chat reducer loads, prepends without duplication, and suppresses stale requests', () => {
@@ -76,14 +76,14 @@ test('chat reducer projects loaded and incremental read receipts', () => {
   let state = chatReducer(initialChatState(), {
     type: 'loaded', requestId: 1, messages: [message('a', 1)], receipts: [receipt('a', 'customer-1')]
   } as never);
-  assert.deepEqual(state.receipts.map((item: IveKitChatReceipt) => item.identity), ['customer-1']);
+  assert.deepEqual(state.receipts.map((item: ConveractFabricChatReceipt) => item.identity), ['customer-1']);
   state = chatReducer(state, {
     type: 'message_state_updated', requestId: 1, unreadCount: 0, receipts: [receipt('a', 'customer-2')]
   } as never);
-  assert.deepEqual(state.receipts.map((item: IveKitChatReceipt) => item.identity), ['customer-1', 'customer-2']);
+  assert.deepEqual(state.receipts.map((item: ConveractFabricChatReceipt) => item.identity), ['customer-1', 'customer-2']);
 });
 
-function message(id: string, order: number): IveKitChatMessage {
+function message(id: string, order: number): ConveractFabricChatMessage {
   return {
     id,
     created_at: new Date(order * 1000).toISOString(),
@@ -91,32 +91,32 @@ function message(id: string, order: number): IveKitChatMessage {
     edit_version: 0,
     deleted_at: null,
     reactions: []
-  } as unknown as IveKitChatMessage;
+  } as unknown as ConveractFabricChatMessage;
 }
 
-function realtimeState(identity: string, now: number): IveKitChatRealtimeState {
+function realtimeState(identity: string, now: number): ConveractFabricChatRealtimeState {
   return {
     identity,
     presence_status: 'online',
     presence_expires_at: new Date(now - 1).toISOString(),
     typing: true,
     typing_expires_at: new Date(now - 1).toISOString()
-  } as IveKitChatRealtimeState;
+  } as ConveractFabricChatRealtimeState;
 }
 
-function reaction(messageId: string, emoji: string): IveKitChatReaction {
-  return { message_id: messageId, emoji, identity: 'agent' } as IveKitChatReaction;
+function reaction(messageId: string, emoji: string): ConveractFabricChatReaction {
+  return { message_id: messageId, emoji, identity: 'agent' } as ConveractFabricChatReaction;
 }
 
-function pin(messageId: string): IveKitChatPin {
-  return { message_id: messageId } as IveKitChatPin;
+function pin(messageId: string): ConveractFabricChatPin {
+  return { message_id: messageId } as ConveractFabricChatPin;
 }
 
-function receipt(messageId: string, identity: string): IveKitChatReceipt {
+function receipt(messageId: string, identity: string): ConveractFabricChatReceipt {
   return {
     id: `${messageId}-${identity}`,
     message_id: messageId,
     identity,
     read_at: '2026-07-11T12:00:00.000Z'
-  } as IveKitChatReceipt;
+  } as ConveractFabricChatReceipt;
 }

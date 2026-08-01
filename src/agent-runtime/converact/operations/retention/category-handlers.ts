@@ -7,16 +7,16 @@ import {
   createObjectStorage,
   type ObjectStorage
 } from '../../../../storage/object-storage.js';
-import type { IveKitRetentionCategoryHandler } from './ports.js';
+import type { ConveractFabricRetentionCategoryHandler } from './ports.js';
 import type {
-  IveKitRetentionClaim,
-  IveKitRetentionDeletionSummary
+  ConveractFabricRetentionClaim,
+  ConveractFabricRetentionDeletionSummary
 } from './types.js';
 
 type RetentionRow = Record<string, unknown>;
 type RecordingDeleteResult = Awaited<ReturnType<typeof deleteRecordingObject>>;
 
-export interface PostgresIveKitRetentionCategoryHandlerOptions {
+export interface PostgresConveractFabricRetentionCategoryHandlerOptions {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
   storage?: ObjectStorage;
@@ -26,9 +26,9 @@ export interface PostgresIveKitRetentionCategoryHandlerOptions {
   now?: () => Date;
 }
 
-export function createPostgresIveKitRetentionCategoryHandlers(
-  options: PostgresIveKitRetentionCategoryHandlerOptions
-): Readonly<Record<'secure_files' | 'media_recordings', IveKitRetentionCategoryHandler>> {
+export function createPostgresConveractFabricRetentionCategoryHandlers(
+  options: PostgresConveractFabricRetentionCategoryHandlerOptions
+): Readonly<Record<'secure_files' | 'media_recordings', ConveractFabricRetentionCategoryHandler>> {
   let storage = options.storage;
   const resolveStorage = (): ObjectStorage => {
     storage ||= createObjectStorage(options.env || process.env);
@@ -53,9 +53,9 @@ export function createPostgresIveKitRetentionCategoryHandlers(
 async function deleteSecureFiles(
   pg: PgQueryable,
   storage: ObjectStorage,
-  claim: IveKitRetentionClaim,
+  claim: ConveractFabricRetentionClaim,
   now: () => Date
-): Promise<IveKitRetentionDeletionSummary> {
+): Promise<ConveractFabricRetentionDeletionSummary> {
   const claimedAt = now();
   const claimTokenHash = createHash('sha256').update(claim.run_id).digest('hex');
   const cleanupLeaseUntil = new Date(claimedAt.getTime() + 30 * 60_000).toISOString();
@@ -156,7 +156,7 @@ async function deleteSecureFiles(
 
 async function expireSecureFile(
   pg: PgQueryable,
-  claim: IveKitRetentionClaim,
+  claim: ConveractFabricRetentionClaim,
   fileId: string,
   claimTokenHash: string,
   now: Date
@@ -201,7 +201,7 @@ async function expireSecureFile(
 
 async function releaseSecureFileForRetry(
   pg: PgQueryable,
-  claim: IveKitRetentionClaim,
+  claim: ConveractFabricRetentionClaim,
   fileId: string,
   claimTokenHash: string,
   now: Date
@@ -223,9 +223,9 @@ async function releaseSecureFileForRetry(
 async function deleteMediaRecordings(
   pg: PgQueryable,
   remove: (recording: { storage_url: string }) => Promise<RecordingDeleteResult>,
-  claim: IveKitRetentionClaim,
+  claim: ConveractFabricRetentionClaim,
   now: () => Date
-): Promise<IveKitRetentionDeletionSummary> {
+): Promise<ConveractFabricRetentionDeletionSummary> {
   const candidates = await withPgTenant(pg, claim.policy.tenant_id, async (tenantPg) => {
     const result = await tenantPg.query<RetentionRow>(
       `SELECT recording.id, recording.storage_url,

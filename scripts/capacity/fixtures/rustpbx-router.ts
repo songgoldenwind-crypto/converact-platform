@@ -154,11 +154,11 @@ function boundedMaxBodyBytes(value: number | undefined): number {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const token = String(process.env.RUSTPBX_WEBHOOK_TOKEN || '');
-  const host = String(process.env.IVEKIT_CAPACITY_ROUTER_HOST || '0.0.0.0');
-  const port = Number(process.env.IVEKIT_CAPACITY_ROUTER_PORT || 8081);
+  const host = String(process.env.CONVERACT_FABRIC_CAPACITY_ROUTER_HOST || '0.0.0.0');
+  const port = Number(process.env.CONVERACT_FABRIC_CAPACITY_ROUTER_PORT || 8081);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Router port is invalid');
   const server = createRustPbxCapacityRouter({ token });
-  server.listen(port, host, () => process.stdout.write(`iveKit capacity Router listening on ${host}:${port}\n`));
+  server.listen(port, host, () => process.stdout.write(`Converact Fabric capacity Router listening on ${host}:${port}\n`));
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.on(signal, () => server.close(() => process.exit(0)));
   }

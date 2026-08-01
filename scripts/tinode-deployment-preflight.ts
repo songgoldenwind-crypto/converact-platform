@@ -302,7 +302,7 @@ function tinodeDeploymentEnvChecklistItems(
   const deliveryWorkerRequired = (baseUrlConfigured || wsUrlConfigured) && String(resolveBrandEnv(env, 'TINODE_DELIVERY_WORKER_ENABLED') || '1').trim() !== '0';
 
   return [
-    item('Tinode Server', 'TINODE_BASE_URL', !wsUrlConfigured, false, env.TINODE_BASE_URL, 'Tinode HTTP(S) server URL used by OPC services. Optional when TINODE_WS_URL is configured.'),
+    item('Tinode Server', 'TINODE_BASE_URL', !wsUrlConfigured, false, env.TINODE_BASE_URL, 'Tinode HTTP(S) server URL used by Converact services. Optional when TINODE_WS_URL is configured.'),
     item('Tinode Server', 'TINODE_WS_URL', !baseUrlConfigured, false, env.TINODE_WS_URL, 'Tinode WebSocket URL. Optional when TINODE_BASE_URL is configured.'),
     item('Tinode Runtime', 'TINODE_DEPLOYMENT_MODE', false, false, env.TINODE_DEPLOYMENT_MODE, 'Use external for a managed server or self_hosted for the bundled PostgreSQL-backed Tinode service.'),
     item('Tinode Runtime', 'TINODE_IMAGE_TAG', false, false, env.TINODE_IMAGE_TAG, 'Tinode container image tag used in self_hosted mode.'),
@@ -312,7 +312,7 @@ function tinodeDeploymentEnvChecklistItems(
     item('Tinode Runtime', 'TINODE_SAMPLE_DATA', false, false, env.TINODE_SAMPLE_DATA, 'Optional path to Tinode sample data; leave blank in production.'),
     item('Tinode Runtime', 'TINODE_UPGRADE_DB', false, false, env.TINODE_UPGRADE_DB, 'Set true only for an intentional Tinode schema upgrade.'),
     item('Tinode Auth', 'TINODE_API_KEY', true, true, env.TINODE_API_KEY, 'Non-root Tinode API key exposed only in browser client plans.'),
-    item('Tinode Auth', 'TINODE_ROOT_API_KEY', true, true, env.TINODE_ROOT_API_KEY, 'Root Tinode API key used only by OPC server-side protocol connections.'),
+    item('Tinode Auth', 'TINODE_ROOT_API_KEY', true, true, env.TINODE_ROOT_API_KEY, 'Root Tinode API key used only by Converact server-side protocol connections.'),
     item('Tinode Auth', 'TINODE_AUTH_TOKEN', !basicRootAuthConfigured, true, env.TINODE_AUTH_TOKEN, 'Tinode root auth token. Optional when complete basic root credentials are configured.'),
     item('Tinode Auth', 'TINODE_BASIC_USER', !rootTokenConfigured, false, env.TINODE_BASIC_USER, 'Tinode root basic-auth user. Optional when TINODE_AUTH_TOKEN is configured.'),
     item('Tinode Auth', 'TINODE_BASIC_PASSWORD', !rootTokenConfigured, true, env.TINODE_BASIC_PASSWORD, 'Tinode root basic-auth password. Optional when TINODE_AUTH_TOKEN is configured.'),

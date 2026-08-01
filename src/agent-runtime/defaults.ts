@@ -260,7 +260,7 @@ export function registerDefaultAgents(agentRegistry: AgentRegistryLike): JsonRec
     agent_id: orchestrationAgent.agent_id,
     version: '1.0.0',
     name: '开源集成栈推荐',
-    description: 'Recommends stable open-source integrations, MCP servers, and reusable skills for OPC capabilities.',
+    description: 'Recommends stable open-source integrations, MCP servers, and reusable skills for Converact capabilities.',
     trigger_intents: ['recommend_integrations', 'open_source_stack', '开源工具', '集成方案'],
     required_inputs: ['tenant_id'],
     allowed_toolsets: ['integration'],

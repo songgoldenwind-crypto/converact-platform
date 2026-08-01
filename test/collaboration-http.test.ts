@@ -54,7 +54,7 @@ async function route(
 
 test('collaboration HTTP exposes remote assistance consent tool audit and evidence flow', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
-  process.env.CONVERACT_UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'opc-collaboration-http-'));
+  process.env.CONVERACT_UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'converact-collaboration-http-'));
   const pg = new MemoryPg();
   const tenantId = 'tenant_collab_http';
 
@@ -416,7 +416,7 @@ test('collaboration HTTP manages RustDesk devices by tenant and business ref', a
   assert.deepEqual(byRefAfterDeactivate.data, []);
 });
 
-test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration', async () => {
+test('collaboration HTTP exposes a Converact Fabric RustDesk facade for LED integration', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const previousEnv = {
     baseUrl: process.env.CONVERACT_BASE_URL,
@@ -428,19 +428,19 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
     requirePhysicalDisconnect: process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT,
     edgeTokenSecret: process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET
   };
-  process.env.CONVERACT_BASE_URL = 'https://opc.example.com';
-  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'ivekit-rustdesk-launch-secret';
+  process.env.CONVERACT_BASE_URL = 'https://converact.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'converact-rustdesk-launch-secret';
   process.env.CONVERACT_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
   process.env.CONVERACT_RUSTDESK_ID_SERVER = 'rustdesk-id.example.com';
   process.env.CONVERACT_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.com';
   process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
   process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '1';
-  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = 'ivekit-http-edge-token-secret-at-least-32-bytes';
+  process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET = 'converact-http-edge-token-secret-at-least-32-bytes';
 
   try {
     const pg = new MemoryPg();
-    const tenantId = 'tenant_ivekit_rustdesk_http';
-    const businessRef = { type: 'service_order', id: 'SO-ivekit-rustdesk-http' };
+    const tenantId = 'tenant_converact_rustdesk_http';
+    const businessRef = { type: 'service_order', id: 'SO-converact-rustdesk-http' };
     const sessionResult = (await route(
       pg,
       'POST',
@@ -453,7 +453,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
       pg,
       'POST',
       `/api/collaboration/sessions/${sessionResult.data.id}/participants`,
-      { identity: 'agent-ivekit-rustdesk-http', role: 'agent' },
+      { identity: 'agent-converact-rustdesk-http', role: 'agent' },
       authHeaders(tenantId)
     );
     const remoteResult = (await route(
@@ -473,7 +473,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
       'POST',
       `/api/collaboration/remote-assistance/${remoteResult.data.id}/consent/grant`,
       {
-        actor_identity: 'customer-ivekit-rustdesk-http',
+        actor_identity: 'customer-converact-rustdesk-http',
         scopes: ['view_screen', 'control_mouse_keyboard', 'record_screen'],
         expires_at: '2099-01-01T00:00:00.000Z'
       },
@@ -487,7 +487,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
       {
         business_ref: businessRef,
         rustdesk_id: '123456789',
-        display_name: 'LED controller via iveKit',
+        display_name: 'LED controller via Converact Fabric',
         metadata: { rack: 'A-01' }
       },
       authHeaders(tenantId)
@@ -521,7 +521,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
     const gatewaySessionInput = {
       remote_session_id: remoteResult.data.id,
       device_id: registered.data.id,
-      actor_identity: 'agent-ivekit-rustdesk-http',
+      actor_identity: 'agent-converact-rustdesk-http',
       permissions: ['view_screen', 'control_mouse_keyboard', 'record_screen'],
       metadata: { source: 'led-http-facade' }
     };
@@ -579,7 +579,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
     const heartbeatToken = createRustDeskEdgeCommandToken({
       tenant_id: tenantId,
       rustdesk_id: '123456789',
-      edge_instance_id: 'edge-ivekit-rustdesk-http',
+      edge_instance_id: 'edge-converact-rustdesk-http',
       expires_at: '2099-01-01T00:00:00.000Z'
     }, process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET);
     await route(
@@ -610,7 +610,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
     };
     assert.equal(tool.status, 201);
     assert.equal(tool.data.provider, 'rustdesk');
-    assert.match(tool.data.launch_url, /^https:\/\/opc\.example\.com\/remote\/rustdesk\/launch/);
+    assert.match(tool.data.launch_url, /^https:\/\/converact\.example\.com\/remote\/rustdesk\/launch/);
     assert.equal(tool.data.metadata.rustdesk_id, '123456789');
     assert.equal(tool.data.metadata.rustdesk_device_id, registered.data.id);
 
@@ -640,9 +640,9 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
       authHeaders(tenantId)
     )) as { data: { events: Array<{ event_type: string; actor_identity: string }> } };
     assert.equal(initialAudit.data.events[0]?.event_type, 'remote.gateway_session.created');
-    assert.equal(initialAudit.data.events[0]?.actor_identity, 'agent-ivekit-rustdesk-http');
+    assert.equal(initialAudit.data.events[0]?.actor_identity, 'agent-converact-rustdesk-http');
 
-    const controlHeaders = authHeaders(tenantId, 'agent-ivekit-rustdesk-http');
+    const controlHeaders = authHeaders(tenantId, 'agent-converact-rustdesk-http');
     const controlBase = `/api/ivekit/rustdesk/gateway-sessions/${tool.data.external_id}/control`;
     const acquireConfirmation = (await route(
       pg,
@@ -685,12 +685,12 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
       `/api/ivekit/rustdesk/gateway-sessions/${tool.data.external_id}/events`,
       {
         event_type: 'remote.rustdesk.control_action.performed',
-        actor_identity: 'agent-ivekit-rustdesk-http',
+        actor_identity: 'agent-converact-rustdesk-http',
         target: '123456789',
-        idempotency_key: 'ivekit-rustdesk-operation-1',
+        idempotency_key: 'converact-rustdesk-operation-1',
         occurred_at: operationOccurredAt,
         metadata: {
-          operation_id: 'op-ivekit-1',
+          operation_id: 'op-converact-1',
           action: 'mouse.click',
           permission: 'control_mouse_keyboard',
           operation_grant_id: operationAuthorization.data.id,
@@ -704,7 +704,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
     };
     assert.equal(operationEvent.status, 201);
     assert.equal(operationEvent.data.event.event_type, 'remote.rustdesk.control_action.performed');
-    assert.equal(operationEvent.data.event.metadata.operation_id, 'op-ivekit-1');
+    assert.equal(operationEvent.data.event.metadata.operation_id, 'op-converact-1');
     assert.equal(operationEvent.data.event.occurred_at, operationOccurredAt);
 
     const auditWithOperation = (await route(
@@ -723,7 +723,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
       pg,
       'DELETE',
       `/api/ivekit/rustdesk/gateway-sessions/${tool.data.external_id}`,
-      { actor_identity: 'agent-ivekit-rustdesk-http' },
+      { actor_identity: 'agent-converact-rustdesk-http' },
       authHeaders(tenantId)
     );
     assert.deepEqual(ended, { status: 204, data: null });
@@ -779,9 +779,9 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
       `/api/ivekit/rustdesk/gateway-sessions/${tool.data.external_id}/events`,
       {
         event_type: 'remote.rustdesk.control_action.performed',
-        actor_identity: 'agent-ivekit-rustdesk-http',
+        actor_identity: 'agent-converact-rustdesk-http',
         metadata: {
-          operation_id: 'op-ivekit-after-end',
+          operation_id: 'op-converact-after-end',
           action: 'mouse.click',
           permission: 'control_mouse_keyboard'
         }
@@ -795,7 +795,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
       'GET',
       `/api/ivekit/rustdesk/gateway-sessions/${tool.data.external_id}/launch`,
       null,
-      authHeaders('tenant_ivekit_rustdesk_other')
+      authHeaders('tenant_converact_rustdesk_other')
     );
     assert.deepEqual(crossTenantLaunch, { status: 404, data: { error: 'rustdesk gateway session not found' } });
   } finally {
@@ -810,7 +810,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
   }
 });
 
-test('collaboration HTTP remote end closes local iveKit RustDesk gateway sessions without external gateway env', async () => {
+test('collaboration HTTP remote end closes local Converact Fabric RustDesk gateway sessions without external gateway env', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const previousEnv = {
     baseUrl: process.env.CONVERACT_BASE_URL,
@@ -821,8 +821,8 @@ test('collaboration HTTP remote end closes local iveKit RustDesk gateway session
     rustdeskBaseUrl: process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL,
     rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN
   };
-  process.env.CONVERACT_BASE_URL = 'https://opc.example.com';
-  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'ivekit-rustdesk-local-end-secret';
+  process.env.CONVERACT_BASE_URL = 'https://converact.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'converact-rustdesk-local-end-secret';
   delete process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER;
   delete process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL;
   delete process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN;
@@ -831,8 +831,8 @@ test('collaboration HTTP remote end closes local iveKit RustDesk gateway session
 
   try {
     const pg = new MemoryPg();
-    const tenantId = 'tenant_ivekit_rustdesk_local_end_http';
-    const businessRef = { type: 'service_order', id: 'SO-ivekit-rustdesk-local-end-http' };
+    const tenantId = 'tenant_converact_rustdesk_local_end_http';
+    const businessRef = { type: 'service_order', id: 'SO-converact-rustdesk-local-end-http' };
     const sessionResult = (await route(
       pg,
       'POST',
@@ -942,7 +942,7 @@ test('collaboration HTTP remote end closes local iveKit RustDesk gateway session
   }
 });
 
-test('collaboration HTTP consent revoke closes local iveKit RustDesk gateway sessions without external gateway env', async () => {
+test('collaboration HTTP consent revoke closes local Converact Fabric RustDesk gateway sessions without external gateway env', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
   const previousEnv = {
     baseUrl: process.env.CONVERACT_BASE_URL,
@@ -953,8 +953,8 @@ test('collaboration HTTP consent revoke closes local iveKit RustDesk gateway ses
     rustdeskBaseUrl: process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL,
     rustdeskToken: process.env.CONVERACT_RUSTDESK_API_TOKEN
   };
-  process.env.CONVERACT_BASE_URL = 'https://opc.example.com';
-  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'ivekit-rustdesk-local-revoke-secret';
+  process.env.CONVERACT_BASE_URL = 'https://converact.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'converact-rustdesk-local-revoke-secret';
   delete process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER;
   delete process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL;
   delete process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN;
@@ -963,8 +963,8 @@ test('collaboration HTTP consent revoke closes local iveKit RustDesk gateway ses
 
   try {
     const pg = new MemoryPg();
-    const tenantId = 'tenant_ivekit_rustdesk_local_revoke_http';
-    const businessRef = { type: 'service_order', id: 'SO-ivekit-rustdesk-local-revoke-http' };
+    const tenantId = 'tenant_converact_rustdesk_local_revoke_http';
+    const businessRef = { type: 'service_order', id: 'SO-converact-rustdesk-local-revoke-http' };
     const sessionResult = (await route(
       pg,
       'POST',
@@ -1186,7 +1186,7 @@ test('collaboration HTTP can explicitly end remote tool and assistance sessions'
 
 test('collaboration HTTP verifies Web Assist join tokens without API auth', async () => {
   process.env.CONVERACT_API_KEY = API_KEY;
-  process.env.IVEKIT_WEB_ASSIST_SECRET = 'collaboration-web-assist-secret';
+  process.env.CONVERACT_FABRIC_WEB_ASSIST_SECRET = 'collaboration-web-assist-secret';
   const pg = new MemoryPg();
   const tenantId = 'tenant_web_assist_http';
 
@@ -1208,7 +1208,7 @@ test('collaboration HTTP verifies Web Assist join tokens without API auth', asyn
     {
       collaboration_session_id: sessionResult.data.id,
       mode: 'web_remote_assist',
-      adapter_provider: 'ivekit_web'
+      adapter_provider: 'converact_web'
     },
     authHeaders(tenantId)
   )) as { status: number; data: { id: string } };
@@ -1711,17 +1711,17 @@ test('collaboration HTTP can start sync and revoke a configured RustDesk gateway
     token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
   process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://converact.example.com';
   process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
   const gatewayCalls: Array<{ url: string; method?: string }> = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const requestUrl = String(input);
     gatewayCalls.push({ url: requestUrl, method: init?.method });
-    if (requestUrl === 'https://opc.example.com/api/opc/rustdesk/sessions' && init?.method === 'POST') {
+    if (requestUrl === 'https://converact.example.com/api/opc/rustdesk/sessions' && init?.method === 'POST') {
       return new Response(
         JSON.stringify({
           external_id: 'rustdesk-http-session-1',
-          launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-http-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+          launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-http-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
           target: { type: 'device', id: '123456789', display_name: 'RustDesk LED controller' },
           permissions: ['view_screen', 'control_mouse_keyboard', 'record_screen', 'transfer_file', 'clipboard'],
           metadata: { rustdesk_id: '123456789', id_server: 'rustdesk-id.example.com' }
@@ -1729,7 +1729,7 @@ test('collaboration HTTP can start sync and revoke a configured RustDesk gateway
         { status: 201, headers: { 'content-type': 'application/json' } }
       );
     }
-    if (requestUrl === 'https://opc.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-1/audit?since=2026-07-03T00%3A00%3A00.000Z') {
+    if (requestUrl === 'https://converact.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-1/audit?since=2026-07-03T00%3A00%3A00.000Z') {
       return new Response(
         JSON.stringify({
           events: [
@@ -1785,7 +1785,7 @@ test('collaboration HTTP can start sync and revoke a configured RustDesk gateway
         { status: 200, headers: { 'content-type': 'application/json' } }
       );
     }
-    if (requestUrl === 'https://opc.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-1/audit?since=2026-07-04T00%3A00%3A00.000Z') {
+    if (requestUrl === 'https://converact.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-1/audit?since=2026-07-04T00%3A00%3A00.000Z') {
       return new Response(
         JSON.stringify({
           events: [
@@ -1804,10 +1804,10 @@ test('collaboration HTTP can start sync and revoke a configured RustDesk gateway
         { status: 200, headers: { 'content-type': 'application/json' } }
       );
     }
-    if (requestUrl === 'https://opc.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-1' && init?.method === 'DELETE') {
+    if (requestUrl === 'https://converact.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-1' && init?.method === 'DELETE') {
       return new Response(null, { status: 204 });
     }
-    if (requestUrl === 'https://opc.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-1/audit' && init?.method === 'GET') {
+    if (requestUrl === 'https://converact.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-1/audit' && init?.method === 'GET') {
       return new Response(
         JSON.stringify({
           events: [
@@ -1928,7 +1928,7 @@ test('collaboration HTTP can start sync and revoke a configured RustDesk gateway
     assert.equal(tool.status, 201);
     assert.equal(tool.data.provider, 'rustdesk');
     assert.equal(tool.data.external_id, 'rustdesk-http-session-1');
-    assert.equal(tool.data.launch_url, 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-http-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z');
+    assert.equal(tool.data.launch_url, 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-http-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z');
     assert.equal(tool.data.metadata.gateway_provider, 'rustdesk');
     assert.equal(tool.data.metadata.rustdesk_id, '123456789');
     assert.equal(synced.status, 201);
@@ -1945,7 +1945,7 @@ test('collaboration HTTP can start sync and revoke a configured RustDesk gateway
     assert.deepEqual(syncedRetry.data.events, []);
     assert.equal(revoked.status, 201);
     assert.equal(
-      gatewayCalls.some((call) => call.url === 'https://opc.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-1' && call.method === 'DELETE'),
+      gatewayCalls.some((call) => call.url === 'https://converact.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-1' && call.method === 'DELETE'),
       true
     );
     const timeline = (await route(
@@ -1982,20 +1982,20 @@ test('collaboration HTTP rejects RustDesk gateway sync events outside session pe
     token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
   process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://converact.example.com';
   process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const requestUrl = String(input);
-    if (requestUrl === 'https://opc.example.com/api/opc/rustdesk/sessions' && init?.method === 'POST') {
+    if (requestUrl === 'https://converact.example.com/api/opc/rustdesk/sessions' && init?.method === 'POST') {
       return jsonResponse(201, {
         external_id: 'rustdesk-http-session-ungranted-1',
-        launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-http-session-ungranted-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+        launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-http-session-ungranted-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
         target: { type: 'device', id: '123456789', display_name: 'RustDesk LED controller' },
         permissions: ['view_screen'],
         metadata: { rustdesk_id: '123456789' }
       });
     }
-    if (requestUrl === 'https://opc.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-ungranted-1/audit?since=2026-07-03T00%3A00%3A00.000Z') {
+    if (requestUrl === 'https://converact.example.com/api/opc/rustdesk/sessions/rustdesk-http-session-ungranted-1/audit?since=2026-07-03T00%3A00%3A00.000Z') {
       return jsonResponse(200, {
         events: [
           {
@@ -2105,7 +2105,7 @@ test('collaboration HTTP resolves registered RustDesk devices before starting ga
     token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
   process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://converact.example.com';
   process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
   const gatewayBodies: Array<Record<string, unknown>> = [];
   globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit): Promise<Response> => {
@@ -2114,7 +2114,7 @@ test('collaboration HTTP resolves registered RustDesk devices before starting ga
     return new Response(
       JSON.stringify({
         external_id: 'rustdesk-registered-device-session-1',
-        launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-registered-device-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+        launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-registered-device-session-1&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
         target: { type: 'device', id: '123456789', display_name: 'LED registered RustDesk controller' },
         permissions: ['view_screen', 'control_mouse_keyboard'],
         metadata: { rustdesk_id: '123456789' }
@@ -2203,7 +2203,7 @@ test('collaboration HTTP requires online heartbeat for registered RustDesk gatew
     onlineTtlMs: process.env.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS
   };
   process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://converact.example.com';
   process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
   process.env.CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE = '1';
   process.env.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS = '600000';
@@ -2212,7 +2212,7 @@ test('collaboration HTTP requires online heartbeat for registered RustDesk gatew
     gatewayCalls += 1;
     return jsonResponse(201, {
       external_id: 'rustdesk-offline-device-session',
-      launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-offline-device-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+      launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-offline-device-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
       target: { type: 'device', id: '123456789' },
       permissions: ['view_screen'],
       metadata: { rustdesk_id: '123456789' }
@@ -2329,14 +2329,14 @@ test('collaboration HTTP rejects unsupported gateway permission scopes before ca
     token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
   process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://converact.example.com';
   process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
   let gatewayCalls = 0;
   globalThis.fetch = (async (): Promise<Response> => {
     gatewayCalls += 1;
     return jsonResponse(201, {
       external_id: 'rustdesk-invalid-permission-session',
-      launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-invalid-permission-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+      launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-invalid-permission-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
       target: { type: 'device', id: '123456789' },
       permissions: ['view_screen', 'root_shell'],
       metadata: { rustdesk_id: '123456789' }
@@ -2408,14 +2408,14 @@ test('collaboration HTTP rejects RustDesk gateway permissions outside active con
     token: process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN
   };
   process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://converact.example.com';
   process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-token';
   let gatewayCalls = 0;
   globalThis.fetch = (async (): Promise<Response> => {
     gatewayCalls += 1;
     return jsonResponse(201, {
       external_id: 'rustdesk-ungranted-permission-session',
-      launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-ungranted-permission-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+      launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-ungranted-permission-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
       target: { type: 'device', id: '123456789' },
       permissions: ['control_mouse_keyboard'],
       metadata: { rustdesk_id: '123456789' }
@@ -2491,7 +2491,7 @@ test('collaboration HTTP defaults gateway provider to RustDesk and prefers RustD
   };
   delete process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER;
   delete process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL;
-  process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL = 'https://opc-rustdesk.example.com';
+  process.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL = 'https://converact-rustdesk.example.com';
   process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'remote-gateway-token';
   process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-specific-token';
 
@@ -2503,10 +2503,10 @@ test('collaboration HTTP defaults gateway provider to RustDesk and prefers RustD
       url: requestUrl,
       authorization: String((init?.headers as Record<string, string> | undefined)?.authorization || '')
     });
-    if (requestUrl === 'https://opc-rustdesk.example.com/api/opc/rustdesk/sessions' && init?.method === 'POST') {
+    if (requestUrl === 'https://converact-rustdesk.example.com/api/opc/rustdesk/sessions' && init?.method === 'POST') {
       return jsonResponse(201, {
         external_id: 'rustdesk-specific-env-session',
-        launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rustdesk-specific-env-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
+        launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rustdesk-specific-env-session&token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&expires_at=2099-01-01T00:00:00.000Z',
         target: { type: 'device', id: '123456789' },
         permissions: ['view_screen'],
         metadata: { rustdesk_id: '123456789' }
@@ -2564,7 +2564,7 @@ test('collaboration HTTP defaults gateway provider to RustDesk and prefers RustD
 
     assert.equal(tool.status, 201);
     assert.equal(tool.data.external_id, 'rustdesk-specific-env-session');
-    assert.equal(calls[0]?.url, 'https://opc-rustdesk.example.com/api/opc/rustdesk/sessions');
+    assert.equal(calls[0]?.url, 'https://converact-rustdesk.example.com/api/opc/rustdesk/sessions');
     assert.equal(calls[0]?.authorization, 'Bearer rustdesk-specific-token');
   } finally {
     globalThis.fetch = previousFetch;
@@ -2590,7 +2590,7 @@ test('collaboration HTTP exposes RustDesk control-plane session routes', async (
   };
   process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
   process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'different-remote-gateway-token';
-  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://converact.example.com';
   process.env.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
   process.env.CONVERACT_RUSTDESK_ID_SERVER = 'rustdesk-id.example.com';
   process.env.CONVERACT_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.com';
@@ -2999,7 +2999,7 @@ test('collaboration HTTP exposes RustDesk control-plane session routes', async (
     assert.equal(created.status, 201);
     assert.match(created.data.external_id, /^rdgw_/);
     const launchUrl = new URL(created.data.launch_url);
-    assert.equal(launchUrl.origin, 'https://opc.example.com');
+    assert.equal(launchUrl.origin, 'https://converact.example.com');
     assert.equal(launchUrl.pathname, '/remote/rustdesk/launch');
     assert.equal(launchUrl.searchParams.get('session_id'), created.data.external_id);
     assert.match(launchUrl.searchParams.get('token') || '', /^[a-f0-9]{64}$/);
@@ -3135,7 +3135,7 @@ test('collaboration HTTP requires RustDesk control-plane actor identities', asyn
     launchBaseUrl: process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL
   };
   process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://converact.example.com';
 
   try {
     const pg = new MemoryPg();
@@ -3207,7 +3207,7 @@ test('collaboration HTTP rejects RustDesk operation events outside session permi
     launchBaseUrl: process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL
   };
   process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://converact.example.com';
 
   try {
     const pg = new MemoryPg();
@@ -3272,7 +3272,7 @@ test('collaboration HTTP lists RustDesk control-plane sessions by tenant and sta
     launchBaseUrl: process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL
   };
   process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://converact.example.com';
 
   try {
     const pg = new MemoryPg();
@@ -3345,7 +3345,7 @@ test('collaboration HTTP rejects invalid RustDesk control-plane query params', a
     launchBaseUrl: process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL
   };
   process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
-  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://converact.example.com';
 
   try {
     const pg = new MemoryPg();
@@ -3427,7 +3427,7 @@ test('collaboration HTTP exposes RustDesk client config from public key file', a
     publicKeyFile: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE,
     serverKey: process.env.CONVERACT_RUSTDESK_SERVER_KEY
   };
-  const rustdeskDataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-data-'));
+  const rustdeskDataDir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-data-'));
   const publicKeyFile = join(rustdeskDataDir, 'id_ed25519.pub');
   writeFileSync(publicKeyFile, RUSTDESK_PUBLIC_KEY);
   process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
@@ -3487,7 +3487,7 @@ test('collaboration HTTP rejects blank RustDesk public key files', async () => {
     publicKey: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY,
     publicKeyFile: process.env.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE
   };
-  const rustdeskDataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-blank-key-'));
+  const rustdeskDataDir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-blank-key-'));
   const publicKeyFile = join(rustdeskDataDir, 'id_ed25519.pub');
   writeFileSync(publicKeyFile, '\n  \n');
   process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
@@ -3549,7 +3549,7 @@ test('collaboration HTTP rejects RustDesk API server without HTTP protocols', as
   }
 });
 
-test('collaboration HTTP rejects iveKit RustDesk client config API server without HTTP protocols', async () => {
+test('collaboration HTTP rejects Converact Fabric RustDesk client config API server without HTTP protocols', async () => {
   const previousEnv = {
     apiKey: process.env.CONVERACT_API_KEY,
     apiServer: process.env.CONVERACT_RUSTDESK_API_SERVER,
@@ -3568,7 +3568,7 @@ test('collaboration HTTP rejects iveKit RustDesk client config API server withou
       'GET',
       '/api/ivekit/rustdesk/client-config',
       null,
-      authHeaders('tenant_ivekit_bad_api_server')
+      authHeaders('tenant_converact_bad_api_server')
     );
 
     assert.deepEqual(clientConfig, {
@@ -3767,7 +3767,7 @@ test('collaboration HTTP stores attachment messages and scans extracted attachme
         attachments: [
           {
             kind: 'image',
-            storage_url: 's3://opc-chat/tenant_chat_attachment_http/order-photo.png',
+            storage_url: 's3://converact-chat/tenant_chat_attachment_http/order-photo.png',
             filename: 'order-photo.png',
             content_type: 'image/png',
             size_bytes: 2048,
@@ -3822,7 +3822,7 @@ test('collaboration HTTP stores attachment messages and scans extracted attachme
       };
     };
     assert.equal(chat.data.messages.length, 1);
-    assert.equal(chat.data.messages[0]?.attachments[0]?.storage_url, 's3://opc-chat/tenant_chat_attachment_http/order-photo.png');
+    assert.equal(chat.data.messages[0]?.attachments[0]?.storage_url, 's3://converact-chat/tenant_chat_attachment_http/order-photo.png');
     assert.equal(chat.data.messages[0]?.attachments[0]?.metadata.ocr_text, '请加我微信 led_private_001，手机号 555-456-7890');
     assert.equal(chat.data.policy_events.some((event) => event.policy_type === 'phone_number'), true);
   } finally {

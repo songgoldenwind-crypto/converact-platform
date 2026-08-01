@@ -187,7 +187,7 @@ function seedAuthStorage(auth: {
   userEmail: string;
   seatId: string;
 }) {
-  localStorage.setItem('opc_token', auth.token);
+  localStorage.setItem('converact_token', auth.token);
   localStorage.setItem('opc_tenant_id', auth.tenantId);
   localStorage.setItem('opc_tenant_name', auth.tenantName);
   localStorage.setItem('opc_user_id', auth.userId);

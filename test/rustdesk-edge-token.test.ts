@@ -14,7 +14,7 @@ import {
 const secret = 'rustdesk-edge-token-file-test-secret-32-bytes';
 
 test('RustDesk edge token generator writes a device-bound token with restricted permissions', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-token-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-rustdesk-edge-token-'));
   const outputFile = join(dir, 'edge-command.token');
   const config = createRustDeskEdgeTokenFileConfigFromEnv({
     CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET: secret,
@@ -38,7 +38,7 @@ test('RustDesk edge token generator writes a device-bound token with restricted 
     'edge-led-1'
   );
   const edgeConfig = createRustDeskEdgeAgentConfigFromEnv({
-    CONVERACT_BASE_URL: 'https://opc.example.com',
+    CONVERACT_BASE_URL: 'https://converact.example.com',
     CONVERACT_COLLABORATION_API_KEY: 'collaboration-key',
     CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
     CONVERACT_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',

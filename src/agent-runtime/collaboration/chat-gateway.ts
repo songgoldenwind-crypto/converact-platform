@@ -645,7 +645,7 @@ class TinodeWireClient {
     }
     await this.request('hi', {
       ver: '0.22',
-      ua: 'OPC iveKit ChatGateway'
+      ua: 'Converact Fabric ChatGateway'
     });
     this.helloSent = true;
   }

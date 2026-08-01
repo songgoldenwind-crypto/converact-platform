@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ivekit-cell-admission
+  name: converact-cell-admission
   labels:
-    app.kubernetes.io/name: ivekit-cell-admission
+    app.kubernetes.io/name: converact-cell-admission
 spec:
   replicas: 2
   strategy:
@@ -13,11 +13,11 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-cell-admission
+      app.kubernetes.io/name: converact-cell-admission
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: ivekit-cell-admission
+        app.kubernetes.io/name: converact-cell-admission
     spec:
       terminationGracePeriodSeconds: 30
       topologySpreadConstraints:
@@ -26,7 +26,7 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app.kubernetes.io/name: ivekit-cell-admission
+              app.kubernetes.io/name: converact-cell-admission
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -35,12 +35,12 @@ spec:
                 topologyKey: kubernetes.io/hostname
                 labelSelector:
                   matchLabels:
-                    app.kubernetes.io/name: ivekit-cell-admission
+                    app.kubernetes.io/name: converact-cell-admission
       containers:
         - name: admission
-          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
+          image: replace.example.com/converact/capacity-tools@sha256:replace-with-capacity-tools-digest
           imagePullPolicy: IfNotPresent
-          command: ["node", "--import", "tsx", "scripts/ivekit-cell-admission.ts"]
+          command: ["node", "--import", "tsx", "scripts/converact-cell-admission.ts"]
           ports:
             - name: http
               containerPort: 3200
@@ -52,27 +52,27 @@ spec:
             - name: CONVERACT_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-capacity-runtime
+                  name: converact-capacity-runtime
                   key: database-url
             - name: CONVERACT_FABRIC_CELL_ADMISSION_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: admission-token
             - name: CONVERACT_FABRIC_CELL_REGION_ID
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: region-id
             - name: CONVERACT_FABRIC_CELL_ZONE_ID
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: zone-id
             - name: CONVERACT_FABRIC_CELL_ID
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: cell-id
             - name: CONVERACT_FABRIC_CELL_INSTANCE_ID
               valueFrom:
@@ -85,12 +85,12 @@ spec:
             - name: CONVERACT_FABRIC_CELL_PROFILE_IDS
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: profile-ids
             - name: CONVERACT_FABRIC_CELL_INTERACTION_KINDS
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: interaction-kinds
             - name: CONVERACT_FABRIC_CELL_RESERVATION_TTL_MS
               value: "10000"
@@ -103,24 +103,24 @@ spec:
             - name: CONVERACT_FABRIC_CELL_DIMENSIONS_JSON
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: dimensions-json
             - name: CONVERACT_FABRIC_CELL_NODES_JSON
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: nodes-json
                   optional: true
             - name: CONVERACT_FABRIC_CELL_NODE_POOLS_JSON
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: node-pools-json
                   optional: true
             - name: CONVERACT_FABRIC_COMPONENT_NODE_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: component-node-token
             - name: CONVERACT_FABRIC_COMPONENT_NODE_LEASE_TTL_MS
               value: "10000"
@@ -154,42 +154,42 @@ spec:
             capabilities:
               drop: ["ALL"]
         - name: capacity-projector
-          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
+          image: replace.example.com/converact/capacity-tools@sha256:replace-with-capacity-tools-digest
           imagePullPolicy: IfNotPresent
           command:
-            ["node", "--import", "tsx", "scripts/ivekit-cell-capacity-projector.ts"]
+            ["node", "--import", "tsx", "scripts/converact-cell-capacity-projector.ts"]
           env:
             - name: CONVERACT_FABRIC_CELL_ADMISSION_ENDPOINT
               value: "http://127.0.0.1:3200"
             - name: CONVERACT_FABRIC_CELL_ADMISSION_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: admission-token
             - name: CONVERACT_FABRIC_CELL_REGION_ID
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: region-id
             - name: CONVERACT_FABRIC_CELL_ZONE_ID
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: zone-id
             - name: CONVERACT_FABRIC_CELL_ID
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: cell-id
             - name: CONVERACT_FABRIC_CELL_CAPACITY_PROFILE_ID
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: capacity-profile-id
             - name: CONVERACT_FABRIC_CELL_CAPACITY_PROFILE_SHA256
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: capacity-profile-sha256
             - name: CONVERACT_FABRIC_CELL_PROBE_INTERVAL_MS
               value: "2000"
@@ -198,24 +198,24 @@ spec:
             - name: CONVERACT_FABRIC_CELL_DIMENSIONS_JSON
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: dimensions-json
             - name: CONVERACT_FABRIC_CELL_NODES_JSON
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: nodes-json
                   optional: true
             - name: CONVERACT_FABRIC_CELL_NODE_POOLS_JSON
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: node-pools-json
                   optional: true
             - name: CONVERACT_FABRIC_CELL_PROBES_JSON
               valueFrom:
                 configMapKeyRef:
-                  name: ivekit-cell-admission
+                  name: converact-cell-admission
                   key: probes-json
           resources:
             requests:
@@ -234,10 +234,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ivekit-cell-admission
+  name: converact-cell-admission
 spec:
   selector:
-    app.kubernetes.io/name: ivekit-cell-admission
+    app.kubernetes.io/name: converact-cell-admission
   ports:
     - name: http
       port: 3200
@@ -246,9 +246,9 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: ivekit-cell-admission
+  name: converact-cell-admission
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-cell-admission
+      app.kubernetes.io/name: converact-cell-admission

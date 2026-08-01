@@ -16,7 +16,7 @@ test('storage isolation acceptance is a packaged repeatable command', () => {
     'tsx scripts/livekit-storage-isolation-acceptance.ts'
   );
   assert.match(
-    readFileSync(new URL('../scripts/ivekit-delivery-bundle.ts', import.meta.url), 'utf8'),
+    readFileSync(new URL('../scripts/converact-delivery-bundle.ts', import.meta.url), 'utf8'),
     /livekit-storage-isolation-acceptance\.ts/
   );
 });
@@ -45,10 +45,10 @@ test('storage isolation config is explicit and rejects unsafe control input', as
     LIVEKIT_URL: 'ws://127.0.0.1:7880',
     LIVEKIT_API_KEY: 'devkey',
     LIVEKIT_API_SECRET: 'secret',
-    CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
+    CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'converact-fresh-audit',
     CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '["deploy/livekit/docker-compose.yml","deploy/livekit/docker-compose.storage.yml"]',
     CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE: 'deploy/livekit/.env',
-    CONVERACT_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE: '/tmp/ivekit-storage-isolation.json',
+    CONVERACT_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE: '/tmp/converact-storage-isolation.json',
     CONVERACT_LIVEKIT_STORAGE_ISOLATION_TIMEOUT_MS: '45000'
   });
 
@@ -56,7 +56,7 @@ test('storage isolation config is explicit and rejects unsafe control input', as
     livekitUrl: 'ws://127.0.0.1:7880',
     apiKey: 'devkey',
     apiSecret: 'secret',
-    composeProject: 'ivekit-fresh-audit',
+    composeProject: 'converact-fresh-audit',
     composeFiles: [
       'deploy/livekit/docker-compose.yml',
       'deploy/livekit/docker-compose.storage.yml'
@@ -64,13 +64,13 @@ test('storage isolation config is explicit and rejects unsafe control input', as
     composeEnvFile: 'deploy/livekit/.env',
     storageService: 'minio',
     storageInitService: 'minio-init',
-    outputFile: '/tmp/ivekit-storage-isolation.json',
+    outputFile: '/tmp/converact-storage-isolation.json',
     timeoutMs: 45000
   });
   assert.deepEqual(createLiveKitStorageIsolationComposeArgs(config, ['stop', 'minio']), [
     'compose',
     '--env-file', 'deploy/livekit/.env',
-    '-p', 'ivekit-fresh-audit',
+    '-p', 'converact-fresh-audit',
     '-f', 'deploy/livekit/docker-compose.yml',
     '-f', 'deploy/livekit/docker-compose.storage.yml',
     'stop', 'minio'
@@ -82,26 +82,26 @@ test('storage isolation config is explicit and rejects unsafe control input', as
       LIVEKIT_URL: 'ws://user:password@127.0.0.1:7880?secret=value',
       LIVEKIT_API_KEY: 'devkey',
       LIVEKIT_API_SECRET: 'secret',
-      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit'
+      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'converact-fresh-audit'
     },
     {
       LIVEKIT_URL: 'ws://127.0.0.1:7880',
       LIVEKIT_API_KEY: 'devkey\ninjected',
       LIVEKIT_API_SECRET: 'secret',
-      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit'
+      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'converact-fresh-audit'
     },
     {
       LIVEKIT_URL: 'ws://127.0.0.1:7880',
       LIVEKIT_API_KEY: 'devkey',
       LIVEKIT_API_SECRET: 'secret',
-      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
+      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'converact-fresh-audit',
       CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '[]'
     },
     {
       LIVEKIT_URL: 'ws://127.0.0.1:7880',
       LIVEKIT_API_KEY: 'devkey',
       LIVEKIT_API_SECRET: 'secret',
-      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
+      CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'converact-fresh-audit',
       CONVERACT_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '["one.yml",42]'
     }
   ]) {
@@ -305,7 +305,7 @@ test('storage isolation report always tightens an existing output file to mode 0
   const { writeLiveKitStorageIsolationResult } = await import(
     '../scripts/livekit-storage-isolation-acceptance.js'
   );
-  const directory = mkdtempSync(join(tmpdir(), 'ivekit-storage-isolation-'));
+  const directory = mkdtempSync(join(tmpdir(), 'converact-storage-isolation-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const outputFile = join(directory, 'evidence.json');
   writeFileSync(outputFile, '{}\n', { mode: 0o644 });
@@ -336,7 +336,7 @@ function storageIsolationConfig() {
     livekitUrl: 'ws://127.0.0.1:7880',
     apiKey: 'devkey',
     apiSecret: 'secret',
-    composeProject: 'ivekit-fresh-audit',
+    composeProject: 'converact-fresh-audit',
     composeFiles: ['docker-compose.callcenter.yml'],
     composeEnvFile: '',
     storageService: 'minio',

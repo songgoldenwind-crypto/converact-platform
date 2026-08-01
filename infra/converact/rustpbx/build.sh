@@ -16,7 +16,7 @@ RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"
 RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"
 RUST_BUILDER_IMAGE="rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
 PATCHSET="ivekit.40"
-IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-${PATCHSET}-6c49ee76}"
+IMAGE="${CONVERACT_FABRIC_RUSTPBX_IMAGE:-converact/rustpbx:0.4.11-${PATCHSET}-6c49ee76}"
 
 if command -v sha256sum >/dev/null; then
   SHA256_COMMAND=(sha256sum)
@@ -55,10 +55,10 @@ if git -C "$SOURCE_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git -C "$SOURCE_ROOT" rev-parse HEAD
   )"
 else
-  CONVERACT_SOURCE_COMMIT="${IVEKIT_RUSTPBX_OPC_SOURCE_COMMIT:-}"
+  CONVERACT_SOURCE_COMMIT="${CONVERACT_SOURCE_COMMIT:-}"
 fi
 [[ "$CONVERACT_SOURCE_COMMIT" =~ ^[a-f0-9]{40}$ ]] || {
-  echo "exact OPC source commit is required" >&2
+  echo "exact Converact Platform source commit is required" >&2
   exit 1
 }
 
@@ -77,11 +77,11 @@ for command in docker git; do
   command -v "$command" >/dev/null || { echo "$command is required" >&2; exit 1; }
 done
 [[ -f "$HOOK_DIR/Cargo.toml" && -f "$HOOK_DIR/src/lib.rs" ]] || {
-  echo "iveKit Rust component hook is required" >&2
+  echo "Converact Fabric Rust component hook is required" >&2
   exit 1
 }
 
-BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ivekit-rustpbx-build.XXXXXX")"
+BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/converact-rustpbx-build.XXXXXX")"
 cleanup() { rm -rf "$BUILD_ROOT"; }
 trap cleanup EXIT
 
@@ -179,31 +179,31 @@ mkdir -p "$BUILD_ROOT/rustpbx/vendor/converact-component-hook"
 cp -R "$HOOK_DIR/." \
   "$BUILD_ROOT/rustpbx/vendor/converact-component-hook/"
 cp "$SCRIPT_DIR/Cargo.lock" "$BUILD_ROOT/rustpbx/Cargo.lock"
-cp "$SCRIPT_DIR/Dockerfile.runtime" "$BUILD_ROOT/rustpbx/Dockerfile.ivekit"
-cp "$SCRIPT_DIR/entrypoint.sh" "$BUILD_ROOT/rustpbx/entrypoint.ivekit.sh"
+cp "$SCRIPT_DIR/Dockerfile.runtime" "$BUILD_ROOT/rustpbx/Dockerfile.converact"
+cp "$SCRIPT_DIR/entrypoint.sh" "$BUILD_ROOT/rustpbx/entrypoint.converact.sh"
 
 DOCKER_RUN_ARGS=(--rm)
-if [[ -n "${IVEKIT_RUSTPBX_BUILD_CPUS:-}" ]]; then
-  DOCKER_RUN_ARGS+=(--cpus "$IVEKIT_RUSTPBX_BUILD_CPUS")
+if [[ -n "${CONVERACT_FABRIC_RUSTPBX_BUILD_CPUS:-}" ]]; then
+  DOCKER_RUN_ARGS+=(--cpus "$CONVERACT_FABRIC_RUSTPBX_BUILD_CPUS")
 fi
-if [[ -n "${IVEKIT_RUSTPBX_BUILD_MEMORY:-}" ]]; then
-  DOCKER_RUN_ARGS+=(--memory "$IVEKIT_RUSTPBX_BUILD_MEMORY")
+if [[ -n "${CONVERACT_FABRIC_RUSTPBX_BUILD_MEMORY:-}" ]]; then
+  DOCKER_RUN_ARGS+=(--memory "$CONVERACT_FABRIC_RUSTPBX_BUILD_MEMORY")
 fi
-if [[ -n "${IVEKIT_RUSTPBX_BUILD_JOBS:-}" ]]; then
-  [[ "$IVEKIT_RUSTPBX_BUILD_JOBS" =~ ^[1-9][0-9]*$ ]] || {
-    echo "IVEKIT_RUSTPBX_BUILD_JOBS must be a positive integer" >&2
+if [[ -n "${CONVERACT_FABRIC_RUSTPBX_BUILD_JOBS:-}" ]]; then
+  [[ "$CONVERACT_FABRIC_RUSTPBX_BUILD_JOBS" =~ ^[1-9][0-9]*$ ]] || {
+    echo "CONVERACT_FABRIC_RUSTPBX_BUILD_JOBS must be a positive integer" >&2
     exit 1
   }
-  DOCKER_RUN_ARGS+=(-e "CARGO_BUILD_JOBS=$IVEKIT_RUSTPBX_BUILD_JOBS")
+  DOCKER_RUN_ARGS+=(-e "CARGO_BUILD_JOBS=$CONVERACT_FABRIC_RUSTPBX_BUILD_JOBS")
 fi
-if [[ -n "${IVEKIT_RUSTPBX_CARGO_HOME:-}" ]]; then
-  mkdir -p "$IVEKIT_RUSTPBX_CARGO_HOME"
-  CARGO_HOME_DIR="$(cd "$IVEKIT_RUSTPBX_CARGO_HOME" && pwd)"
+if [[ -n "${CONVERACT_FABRIC_RUSTPBX_CARGO_HOME:-}" ]]; then
+  mkdir -p "$CONVERACT_FABRIC_RUSTPBX_CARGO_HOME"
+  CARGO_HOME_DIR="$(cd "$CONVERACT_FABRIC_RUSTPBX_CARGO_HOME" && pwd)"
   DOCKER_RUN_ARGS+=(-v "$CARGO_HOME_DIR:/cargo-home" -e CARGO_HOME=/cargo-home)
 fi
 
-if [[ "${IVEKIT_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
-  mapfile -t IVEKIT_RUSTPBX_FORMAT_FILES < <(
+if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
+  mapfile -t RUSTPBX_FORMAT_FILES < <(
     git -C "$BUILD_ROOT/rustpbx" apply --numstat \
       "$PATCH_DIR/rustpbx-ivekit-media-tracing.patch" \
       "$PATCH_DIR/rustpbx-ivekit-inbound-admission-response-contract.patch" \
@@ -214,8 +214,8 @@ if [[ "${IVEKIT_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
       "$PATCH_DIR/rustpbx-ivekit-server-invite-owner.patch" |
       awk '$3 ~ /\.rs$/ { print $3 }'
   )
-  ((${#IVEKIT_RUSTPBX_FORMAT_FILES[@]} > 0)) || {
-    echo "iveKit RustPBX format scope is empty" >&2
+  ((${#RUSTPBX_FORMAT_FILES[@]} > 0)) || {
+    echo "Converact Fabric RustPBX format scope is empty" >&2
     exit 1
   }
   docker run "${DOCKER_RUN_ARGS[@]}" \
@@ -234,31 +234,31 @@ if [[ "${IVEKIT_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
       cargo fmt --manifest-path vendor/converact-component-hook/Cargo.toml -- --check
       cargo check --locked --features cross --bin rustpbx --bin sipflow
       cargo clippy --locked --lib --features cross --no-deps
-      cargo test --locked --lib ivekit_
+      cargo test --locked --lib converact_
       cargo test --locked --lib test_recording_double_start_fails
       cargo test --locked --lib test_recording_pending_start_rejects_duplicate
       cargo test --locked --lib missing_callee_terminal_data_stays_independent_from_the_caller
-      cargo test --locked --test ivekit_dialog_shadow_contract_test
+      cargo test --locked --test converact_dialog_shadow_contract_test
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline prepared_invite_
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline reject_with_headers_
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline repeated_send_trying_emits_one_initial_response
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline failed_send_trying_can_retry_on_replacement_connection
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline transaction::tests::test_server
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline transaction::timer::
-    ' bash "${IVEKIT_RUSTPBX_FORMAT_FILES[@]}"
+    ' bash "${RUSTPBX_FORMAT_FILES[@]}"
   exit 0
 fi
 
-if [[ -n "${IVEKIT_RUSTPBX_LOCKFILE_OUTPUT:-}" ]]; then
+if [[ -n "${CONVERACT_FABRIC_RUSTPBX_LOCKFILE_OUTPUT:-}" ]]; then
   docker run "${DOCKER_RUN_ARGS[@]}" \
     -v "$BUILD_ROOT:/build" \
     -w /build/rustpbx \
     "$RUST_BUILDER_IMAGE" \
     cargo metadata --format-version 1 >/dev/null
-  LOCKFILE_OUTPUT_DIR="$(dirname "$IVEKIT_RUSTPBX_LOCKFILE_OUTPUT")"
+  LOCKFILE_OUTPUT_DIR="$(dirname "$CONVERACT_FABRIC_RUSTPBX_LOCKFILE_OUTPUT")"
   mkdir -p "$LOCKFILE_OUTPUT_DIR"
-  cp "$BUILD_ROOT/rustpbx/Cargo.lock" "$IVEKIT_RUSTPBX_LOCKFILE_OUTPUT"
-  printf '%s\n' "$IVEKIT_RUSTPBX_LOCKFILE_OUTPUT"
+  cp "$BUILD_ROOT/rustpbx/Cargo.lock" "$CONVERACT_FABRIC_RUSTPBX_LOCKFILE_OUTPUT"
+  printf '%s\n' "$CONVERACT_FABRIC_RUSTPBX_LOCKFILE_OUTPUT"
   exit 0
 fi
 
@@ -273,7 +273,7 @@ cp "$BUILD_ROOT/rustpbx/target/release/rustpbx" "$BUILD_ROOT/rustpbx/bin/$TARGET
 cp "$BUILD_ROOT/rustpbx/target/release/sipflow" "$BUILD_ROOT/rustpbx/bin/$TARGETARCH/sipflow"
 
 docker build \
-  -f "$BUILD_ROOT/rustpbx/Dockerfile.ivekit" \
+  -f "$BUILD_ROOT/rustpbx/Dockerfile.converact" \
   --build-arg "TARGETARCH=$TARGETARCH" \
   --build-arg "RUSTPBX_COMMIT=$RUSTPBX_COMMIT" \
   --build-arg "RSIPSTACK_COMMIT=$RSIPSTACK_COMMIT" \

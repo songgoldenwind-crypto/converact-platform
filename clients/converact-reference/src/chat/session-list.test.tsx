@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { cleanup, render } from '@testing-library/react';
-import type { IveKitChatSession } from '@converact/sdk';
+import type { ConveractFabricChatSession } from '@converact/sdk';
 import { installTestDom } from '../test-dom.js';
 import { SessionList } from './session-list.js';
 
@@ -24,7 +24,7 @@ test('session list renders unread, latest message, presence, and closed state', 
   assert.ok(view.getByText('Closed'));
 });
 
-function session(status: 'open' | 'closed'): IveKitChatSession {
+function session(status: 'open' | 'closed'): ConveractFabricChatSession {
   return {
     id: `session-${status}`,
     tenant_id: 'tenant-1',

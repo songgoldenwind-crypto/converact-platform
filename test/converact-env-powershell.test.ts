@@ -26,7 +26,7 @@ test('PowerShell compatibility boundary is packaged and loaded by Windows adapte
 
   const packager = readFileSync(join(root, 'scripts/rustdesk-windows-package.ts'), 'utf8');
   assert.match(packager, /converact-env-compat\.ps1/);
-  const delivery = readFileSync(join(root, 'scripts/ivekit-delivery-bundle.ts'), 'utf8');
+  const delivery = readFileSync(join(root, 'scripts/converact-delivery-bundle.ts'), 'utf8');
   assert.match(delivery, /converact-env-compat\.ps1/);
   assert.match(delivery, /converact-env-compat\.sh/);
 });

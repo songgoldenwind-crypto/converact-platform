@@ -25,7 +25,7 @@ import { startTinodeSyncWorker } from '../collaboration/tinode-sync-worker.js';
 import { startMediaCallTimeoutWorker } from '../livekit/media-call-timeout-worker.js';
 import { startLiveKitEgressReconciliationWorker } from '../livekit/egress-reconciliation-runtime.js';
 import { startLiveKitEgressCapacityMetricsWorker } from '../livekit/egress-capacity-metrics.js';
-import { startIveKitTenantEventRetentionWorker } from './tenant-event-retention-worker.js';
+import { startConveractFabricTenantEventRetentionWorker } from './tenant-event-retention-worker.js';
 import { MemoryPg, type PgQueryable } from '../../db-pg.js';
 import { wsBroadcast, wsBroadcastPersisted, wsBroadcastToUsers } from '../../ws.js';
 import { syncIntelligenceSourceForAttachment } from '../collaboration/intelligence-source-service.js';
@@ -46,21 +46,21 @@ import { TranslationService } from '../collaboration/translation-service.js';
 import { startTranslationWorker } from '../collaboration/translation-worker.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import {
-  IveKitTenantEventJournal,
-  IveKitTenantEventStore,
-  iveKitEventReplayEnabled
+  ConveractFabricTenantEventJournal,
+  ConveractFabricTenantEventStore,
+  converactFabricEventReplayEnabled
 } from './tenant-event-store.js';
 import type { IvrPendingActionExecutor, IvrPendingActionReconciler } from './ivr/ports.js';
 import {
-  iveKitIvrWorkerConfig,
-  startIveKitIvrPendingActionWorker,
-  startIveKitIvrReconciliationWorker
+  converactFabricIvrWorkerConfig,
+  startConveractFabricIvrPendingActionWorker,
+  startConveractFabricIvrReconciliationWorker
 } from './ivr/runtime.js';
 import {
-  iveKitVoiceWorkerConfig,
-  startIveKitVoiceCommandWorker,
-  startIveKitVoiceProviderEventWorker,
-  startIveKitVoiceReconciliationWorker
+  converactFabricVoiceWorkerConfig,
+  startConveractFabricVoiceCommandWorker,
+  startConveractFabricVoiceProviderEventWorker,
+  startConveractFabricVoiceReconciliationWorker
 } from './voice/runtime.js';
 import { startWebPhoneSessionCleanupWorker } from './voice/webphone-session-service.js';
 import { startContactCenterMaintenanceWorker } from './contact-center/maintenance-worker.js';
@@ -74,85 +74,85 @@ import {
 } from './notifications/health-worker.js';
 import {
   integrationEventWebhookWorkerConfig,
-  startIveKitEventWebhookWorker
+  startConveractFabricEventWebhookWorker
 } from './integration-events/worker.js';
-import { startPostgresIveKitRetentionWorker } from './operations/retention/runtime.js';
+import { startPostgresConveractFabricRetentionWorker } from './operations/retention/runtime.js';
 import {
-  iveKitRuntimeComponents,
-  startIveKitRuntimeHeartbeat
+  converactFabricRuntimeComponents,
+  startConveractFabricRuntimeHeartbeat
 } from './operations/runtime-heartbeat.js';
 import {
   startInteractionPlacementWorker,
-  type IveKitPlacementFoundation
+  type ConveractFabricPlacementFoundation
 } from './placement/index.js';
 import {
-  startIveKitWorkerBacklogMetrics,
+  startConveractFabricWorkerBacklogMetrics,
   workerBacklogMetricsConfig
 } from './operations/worker-backlog-metrics.js';
 import { RealtimeSpeechProjection } from './voice/realtime-speech-projection.js';
 import { RealtimeSpeechStore } from './voice/realtime-speech-store.js';
 
-export interface IveKitWorkerHandle {
+export interface ConveractFabricWorkerHandle {
   stop(): Promise<void>;
 }
 
-export interface IveKitRuntimeAdapters {
-  startTinode(input: Parameters<typeof startTinodeSyncWorker>[0]): IveKitWorkerHandle;
-  startTinodeInbound(input: Parameters<typeof startTinodeInboundWorker>[0]): IveKitWorkerHandle;
-  startFileScan(input: Parameters<typeof startSecureFileScanWorker>[0]): IveKitWorkerHandle;
-  startFileDerivative(input: Parameters<typeof startSecureFileDerivativeWorker>[0]): IveKitWorkerHandle;
-  startFileCleanup(input: Parameters<typeof startSecureFileCleanupWorker>[0]): IveKitWorkerHandle;
-  startAttachment(input: Parameters<typeof startAttachmentProcessingWorker>[0]): IveKitWorkerHandle;
-  startQuality(input: Parameters<typeof startQualityReviewWorker>[0]): IveKitWorkerHandle;
-  startTranslation(input: Parameters<typeof startTranslationWorker>[0]): IveKitWorkerHandle;
-  startMediaTimeout(input: Parameters<typeof startMediaCallTimeoutWorker>[0]): IveKitWorkerHandle;
-  startEgressReconciliation(input: Parameters<typeof startLiveKitEgressReconciliationWorker>[0]): IveKitWorkerHandle;
-  startEgressMetrics(input: Parameters<typeof startLiveKitEgressCapacityMetricsWorker>[0]): IveKitWorkerHandle;
-  startPlacement(input: Parameters<typeof startInteractionPlacementWorker>[0]): IveKitWorkerHandle;
-  startEventRetention(input: Parameters<typeof startIveKitTenantEventRetentionWorker>[0]): IveKitWorkerHandle;
-  startContactCenter(input: Parameters<typeof startContactCenterMaintenanceWorker>[0]): IveKitWorkerHandle;
-  startNotification(input: Parameters<typeof startNotificationDeliveryWorker>[0]): IveKitWorkerHandle;
-  startNotificationHealth(input: Parameters<typeof startNotificationHealthWorker>[0]): IveKitWorkerHandle;
-  startEventWebhook(input: Parameters<typeof startIveKitEventWebhookWorker>[0]): IveKitWorkerHandle;
-  startRetention(input: Parameters<typeof startPostgresIveKitRetentionWorker>[0]): IveKitWorkerHandle;
-  startRuntimeHeartbeat(input: Parameters<typeof startIveKitRuntimeHeartbeat>[0]): IveKitWorkerHandle;
-  startWorkerBacklogMetrics(input: Parameters<typeof startIveKitWorkerBacklogMetrics>[0]): IveKitWorkerHandle;
-  startIvrAction(input: Parameters<typeof startIveKitIvrPendingActionWorker>[0]): IveKitWorkerHandle;
-  startIvrReconciliation(input: Parameters<typeof startIveKitIvrReconciliationWorker>[0]): IveKitWorkerHandle;
-  startVoiceCommand(input: Parameters<typeof startIveKitVoiceCommandWorker>[0]): IveKitWorkerHandle;
-  startVoiceEvent(input: Parameters<typeof startIveKitVoiceProviderEventWorker>[0]): IveKitWorkerHandle;
-  startVoiceReconciliation(input: Parameters<typeof startIveKitVoiceReconciliationWorker>[0]): IveKitWorkerHandle;
+export interface ConveractFabricRuntimeAdapters {
+  startTinode(input: Parameters<typeof startTinodeSyncWorker>[0]): ConveractFabricWorkerHandle;
+  startTinodeInbound(input: Parameters<typeof startTinodeInboundWorker>[0]): ConveractFabricWorkerHandle;
+  startFileScan(input: Parameters<typeof startSecureFileScanWorker>[0]): ConveractFabricWorkerHandle;
+  startFileDerivative(input: Parameters<typeof startSecureFileDerivativeWorker>[0]): ConveractFabricWorkerHandle;
+  startFileCleanup(input: Parameters<typeof startSecureFileCleanupWorker>[0]): ConveractFabricWorkerHandle;
+  startAttachment(input: Parameters<typeof startAttachmentProcessingWorker>[0]): ConveractFabricWorkerHandle;
+  startQuality(input: Parameters<typeof startQualityReviewWorker>[0]): ConveractFabricWorkerHandle;
+  startTranslation(input: Parameters<typeof startTranslationWorker>[0]): ConveractFabricWorkerHandle;
+  startMediaTimeout(input: Parameters<typeof startMediaCallTimeoutWorker>[0]): ConveractFabricWorkerHandle;
+  startEgressReconciliation(input: Parameters<typeof startLiveKitEgressReconciliationWorker>[0]): ConveractFabricWorkerHandle;
+  startEgressMetrics(input: Parameters<typeof startLiveKitEgressCapacityMetricsWorker>[0]): ConveractFabricWorkerHandle;
+  startPlacement(input: Parameters<typeof startInteractionPlacementWorker>[0]): ConveractFabricWorkerHandle;
+  startEventRetention(input: Parameters<typeof startConveractFabricTenantEventRetentionWorker>[0]): ConveractFabricWorkerHandle;
+  startContactCenter(input: Parameters<typeof startContactCenterMaintenanceWorker>[0]): ConveractFabricWorkerHandle;
+  startNotification(input: Parameters<typeof startNotificationDeliveryWorker>[0]): ConveractFabricWorkerHandle;
+  startNotificationHealth(input: Parameters<typeof startNotificationHealthWorker>[0]): ConveractFabricWorkerHandle;
+  startEventWebhook(input: Parameters<typeof startConveractFabricEventWebhookWorker>[0]): ConveractFabricWorkerHandle;
+  startRetention(input: Parameters<typeof startPostgresConveractFabricRetentionWorker>[0]): ConveractFabricWorkerHandle;
+  startRuntimeHeartbeat(input: Parameters<typeof startConveractFabricRuntimeHeartbeat>[0]): ConveractFabricWorkerHandle;
+  startWorkerBacklogMetrics(input: Parameters<typeof startConveractFabricWorkerBacklogMetrics>[0]): ConveractFabricWorkerHandle;
+  startIvrAction(input: Parameters<typeof startConveractFabricIvrPendingActionWorker>[0]): ConveractFabricWorkerHandle;
+  startIvrReconciliation(input: Parameters<typeof startConveractFabricIvrReconciliationWorker>[0]): ConveractFabricWorkerHandle;
+  startVoiceCommand(input: Parameters<typeof startConveractFabricVoiceCommandWorker>[0]): ConveractFabricWorkerHandle;
+  startVoiceEvent(input: Parameters<typeof startConveractFabricVoiceProviderEventWorker>[0]): ConveractFabricWorkerHandle;
+  startVoiceReconciliation(input: Parameters<typeof startConveractFabricVoiceReconciliationWorker>[0]): ConveractFabricWorkerHandle;
 }
 
-export interface IveKitApplicationInput {
+export interface ConveractFabricApplicationInput {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
-  publish?: IveKitEventPublisher;
-  qualityReviewEnqueuer?: IveKitQualityReviewEnqueuer;
-  translationEnqueuer?: IveKitTranslationEnqueuer;
+  publish?: ConveractFabricEventPublisher;
+  qualityReviewEnqueuer?: ConveractFabricQualityReviewEnqueuer;
+  translationEnqueuer?: ConveractFabricTranslationEnqueuer;
   ivr_executor?: IvrPendingActionExecutor;
   ivr_reconciler?: IvrPendingActionReconciler;
-  adapters?: Partial<IveKitRuntimeAdapters>;
+  adapters?: Partial<ConveractFabricRuntimeAdapters>;
   instanceId?: string;
   placement?: Pick<
-    IveKitPlacementFoundation,
+    ConveractFabricPlacementFoundation,
     'coordinator' | 'media' | 'voice' | 'worker_id'
   >;
 }
 
-export interface IveKitApplication {
+export interface ConveractFabricApplication {
   realtimeSpeechProjection: RealtimeSpeechProjection;
   stop(): Promise<void>;
 }
 
-export type IveKitEventPublisher = (
+export type ConveractFabricEventPublisher = (
   tenantId: string,
   type: string,
   data: unknown,
   options?: { idempotency_key?: string }
 ) => void | Promise<void>;
 
-export interface IveKitQualityReviewEnqueuer {
+export interface ConveractFabricQualityReviewEnqueuer {
   enabled: boolean;
   enqueueMessage(
     input: { tenant_id: string; message_id: string },
@@ -160,7 +160,7 @@ export interface IveKitQualityReviewEnqueuer {
   ): Promise<unknown>;
 }
 
-export interface IveKitTranslationEnqueuer {
+export interface ConveractFabricTranslationEnqueuer {
   enabled: boolean;
   enqueueSource(input: {
     tenant_id: string;
@@ -170,10 +170,10 @@ export interface IveKitTranslationEnqueuer {
   }, pg?: PgQueryable): Promise<unknown>;
 }
 
-export function createIveKitRealtimeSpeechProjection(
+export function createConveractFabricRealtimeSpeechProjection(
   pg: PgQueryable,
   env: NodeJS.ProcessEnv = process.env,
-  publish: IveKitEventPublisher = applicationPublisher(pg, env)
+  publish: ConveractFabricEventPublisher = applicationPublisher(pg, env)
 ): RealtimeSpeechProjection {
   return new RealtimeSpeechProjection({
     store: new RealtimeSpeechStore(pg),
@@ -189,30 +189,30 @@ export function createIveKitRealtimeSpeechProjection(
   });
 }
 
-export function startIveKitApplication(input: IveKitApplicationInput): IveKitApplication {
+export function startConveractFabricApplication(input: ConveractFabricApplicationInput): ConveractFabricApplication {
   const env = input.env || process.env;
-  const voiceConfig = iveKitVoiceWorkerConfig(env);
-  const ivrConfig = iveKitIvrWorkerConfig(env);
+  const voiceConfig = converactFabricVoiceWorkerConfig(env);
+  const ivrConfig = converactFabricIvrWorkerConfig(env);
   const notificationConfig = notificationDeliveryWorkerConfig(env);
   const notificationHealthConfig = notificationHealthWorkerConfig(env);
   const eventWebhookConfig = integrationEventWebhookWorkerConfig(env);
   const backlogMetricsConfig = workerBacklogMetricsConfig(env);
   if (ivrConfig.enabled && !input.ivr_executor) {
-    throw new Error('enabled iveKit IVR pending-action executor must be injected');
+    throw new Error('enabled Converact Fabric IVR pending-action executor must be injected');
   }
   if (ivrConfig.enabled && !input.ivr_reconciler) {
-    throw new Error('enabled iveKit IVR pending-action reconciler must be injected');
+    throw new Error('enabled Converact Fabric IVR pending-action reconciler must be injected');
   }
   const publish = input.publish || applicationPublisher(input.pg, env);
-  const realtimeSpeechProjection = createIveKitRealtimeSpeechProjection(
+  const realtimeSpeechProjection = createConveractFabricRealtimeSpeechProjection(
     input.pg,
     env,
     publish
   );
-  const replayEnabled = iveKitEventReplayEnabled(env);
-  const providerEventJournal = new IveKitTenantEventJournal(input.pg, { env });
+  const replayEnabled = converactFabricEventReplayEnabled(env);
+  const providerEventJournal = new ConveractFabricTenantEventJournal(input.pg, { env });
   const providerReplayStore = !input.publish && replayEnabled
-    ? new IveKitTenantEventStore(input.pg, { env })
+    ? new ConveractFabricTenantEventStore(input.pg, { env })
     : null;
   const publishProviderRealtime = input.publish || publish;
   const providerEvent: IntelligenceProviderRouteEventHandler = async (event) => {
@@ -292,7 +292,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
         await publishFileDeliveryTransition(transition);
       }
     });
-  const adapters: IveKitRuntimeAdapters = {
+  const adapters: ConveractFabricRuntimeAdapters = {
     startTinode: input.adapters?.startTinode || startTinodeSyncWorker,
     startTinodeInbound: input.adapters?.startTinodeInbound || startTinodeInboundWorker,
     startFileScan: input.adapters?.startFileScan || startSecureFileScanWorker,
@@ -305,26 +305,26 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
     startEgressReconciliation: input.adapters?.startEgressReconciliation || startLiveKitEgressReconciliationWorker,
     startEgressMetrics: input.adapters?.startEgressMetrics || startLiveKitEgressCapacityMetricsWorker,
     startPlacement: input.adapters?.startPlacement || startInteractionPlacementWorker,
-    startEventRetention: input.adapters?.startEventRetention || startIveKitTenantEventRetentionWorker,
+    startEventRetention: input.adapters?.startEventRetention || startConveractFabricTenantEventRetentionWorker,
     startContactCenter: input.adapters?.startContactCenter || startContactCenterMaintenanceWorker,
     startNotification: input.adapters?.startNotification || startNotificationDeliveryWorker,
     startNotificationHealth: input.adapters?.startNotificationHealth || startNotificationHealthWorker,
-    startEventWebhook: input.adapters?.startEventWebhook || startIveKitEventWebhookWorker,
-    startRetention: input.adapters?.startRetention || startPostgresIveKitRetentionWorker,
-    startRuntimeHeartbeat: input.adapters?.startRuntimeHeartbeat || startIveKitRuntimeHeartbeat,
-    startWorkerBacklogMetrics: input.adapters?.startWorkerBacklogMetrics || startIveKitWorkerBacklogMetrics,
-    startIvrAction: input.adapters?.startIvrAction || startIveKitIvrPendingActionWorker,
-    startIvrReconciliation: input.adapters?.startIvrReconciliation || startIveKitIvrReconciliationWorker,
-    startVoiceCommand: input.adapters?.startVoiceCommand || startIveKitVoiceCommandWorker,
-    startVoiceEvent: input.adapters?.startVoiceEvent || startIveKitVoiceProviderEventWorker,
-    startVoiceReconciliation: input.adapters?.startVoiceReconciliation || startIveKitVoiceReconciliationWorker
+    startEventWebhook: input.adapters?.startEventWebhook || startConveractFabricEventWebhookWorker,
+    startRetention: input.adapters?.startRetention || startPostgresConveractFabricRetentionWorker,
+    startRuntimeHeartbeat: input.adapters?.startRuntimeHeartbeat || startConveractFabricRuntimeHeartbeat,
+    startWorkerBacklogMetrics: input.adapters?.startWorkerBacklogMetrics || startConveractFabricWorkerBacklogMetrics,
+    startIvrAction: input.adapters?.startIvrAction || startConveractFabricIvrPendingActionWorker,
+    startIvrReconciliation: input.adapters?.startIvrReconciliation || startConveractFabricIvrReconciliationWorker,
+    startVoiceCommand: input.adapters?.startVoiceCommand || startConveractFabricVoiceCommandWorker,
+    startVoiceEvent: input.adapters?.startVoiceEvent || startConveractFabricVoiceProviderEventWorker,
+    startVoiceReconciliation: input.adapters?.startVoiceReconciliation || startConveractFabricVoiceReconciliationWorker
   };
-  const workers: IveKitWorkerHandle[] = [
+  const workers: ConveractFabricWorkerHandle[] = [
     adapters.startRuntimeHeartbeat({
       pg: input.pg,
       env,
-      instance_id: input.instanceId || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || `ivekit-${process.pid}`,
-      components: iveKitRuntimeComponents(env)
+      instance_id: input.instanceId || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || `converact-${process.pid}`,
+      components: converactFabricRuntimeComponents(env)
     }),
     ...(backlogMetricsConfig.enabled ? [
       adapters.startWorkerBacklogMetrics({ pg: input.pg, env })
@@ -387,7 +387,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
             claim.session_id,
             projection.provider_mutation
           );
-          await new IveKitTenantEventJournal(pg, { env }).append({
+          await new ConveractFabricTenantEventJournal(pg, { env }).append({
             tenant_id: claim.tenant_id,
             type: correction.type,
             data: correction.data,
@@ -644,7 +644,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
     adapters.startEgressReconciliation({
       pg: input.pg,
       env,
-      worker_id: input.instanceId || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || `ivekit-${process.pid}`
+      worker_id: input.instanceId || resolveFabricEnv(env, 'INSTANCE_ID') || env.HOSTNAME || `converact-${process.pid}`
     }),
     adapters.startEgressMetrics({ pg: input.pg, env }),
     ...(input.placement ? [
@@ -709,7 +709,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
           }
           if (errors.length) {
             const label = errors.length === 1 ? 'worker' : 'workers';
-            throw new AggregateError(errors, `failed to stop ${errors.length} iveKit ${label}`);
+            throw new AggregateError(errors, `failed to stop ${errors.length} Converact Fabric ${label}`);
           }
         })();
       }
@@ -722,7 +722,7 @@ function createQualityReviewEnqueuer(
   pg: PgQueryable,
   env: NodeJS.ProcessEnv,
   onProviderEvent: IntelligenceProviderRouteEventHandler
-): IveKitQualityReviewEnqueuer {
+): ConveractFabricQualityReviewEnqueuer {
   const registry = createIntelligenceProviderRegistry(env);
   const enabled = registry.list().some((profile) => profile.capability === 'quality_review');
   return {
@@ -745,7 +745,7 @@ function createTranslationEnqueuer(
   pg: PgQueryable,
   env: NodeJS.ProcessEnv,
   onProviderEvent: IntelligenceProviderRouteEventHandler
-): IveKitTranslationEnqueuer {
+): ConveractFabricTranslationEnqueuer {
   const registry = createIntelligenceProviderRegistry(env);
   const enabled = registry.list().some((profile) => profile.capability === 'translation');
   return {
@@ -803,8 +803,8 @@ function createTranslationEnqueuer(
   };
 }
 
-function applicationPublisher(pg: PgQueryable, env: NodeJS.ProcessEnv): IveKitEventPublisher {
-  const eventStore = iveKitEventReplayEnabled(env) ? new IveKitTenantEventStore(pg, { env }) : null;
+function applicationPublisher(pg: PgQueryable, env: NodeJS.ProcessEnv): ConveractFabricEventPublisher {
+  const eventStore = converactFabricEventReplayEnabled(env) ? new ConveractFabricTenantEventStore(pg, { env }) : null;
   return async (tenantId, type, data, options) => {
     if (eventStore) {
       const event = await eventStore.append({

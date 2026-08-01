@@ -62,7 +62,7 @@ export function createTinodeChatSmokeConfigFromEnv(env: NodeJS.ProcessEnv): Tino
     senderIdentity: env.TINODE_CHAT_SMOKE_SENDER_IDENTITY || 'agent_tinode_smoke',
     participantIdentity: participantIdentity || undefined,
     participantProviderUserId: participantProviderUserId || undefined,
-    body: env.TINODE_CHAT_SMOKE_BODY || 'hello from OPC Tinode smoke',
+    body: env.TINODE_CHAT_SMOKE_BODY || 'hello from Converact Tinode smoke',
     timeoutMs: parsePositiveInteger(env.TINODE_CHAT_SMOKE_TIMEOUT_MS, 5_000)
   };
 }

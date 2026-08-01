@@ -91,7 +91,7 @@ function buildRegister(
     'Max-Forwards: 16',
     'Supported: path, outbound',
     `Expires: ${expires}`,
-    'User-Agent: ivekit-kamailio-webphone-acceptance',
+    'User-Agent: converact-kamailio-webphone-acceptance',
     'Content-Length: 0',
     '',
     ''

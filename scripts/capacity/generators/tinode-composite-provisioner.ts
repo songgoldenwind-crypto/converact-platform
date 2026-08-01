@@ -149,7 +149,7 @@ async function createAccount(
     await session.open();
     await session.request('hi', {
       ver: '0.22',
-      ua: 'iveKit composite capacity provisioner'
+      ua: 'Converact Fabric composite capacity provisioner'
     });
     const username = `cap_${canonicalSha256(`${input.namespace}:user:${globalOrdinal}`).slice(0, 22)}`;
     const password = randomBytes(24).toString('base64url');
@@ -158,11 +158,11 @@ async function createAccount(
       scheme: 'basic',
       secret: Buffer.from(`${username}:${password}`).toString('base64'),
       login: true,
-      tags: [`ivekit-capacity:${input.namespace}`],
+      tags: [`converact-capacity:${input.namespace}`],
       desc: {
         defacs: { auth: 'JRWS', anon: 'N' },
-        public: { fn: `iveKit capacity ${globalOrdinal}` },
-        private: { source: 'ivekit-capacity', ordinal: globalOrdinal }
+        public: { fn: `Converact Fabric capacity ${globalOrdinal}` },
+        private: { source: 'converact-capacity', ordinal: globalOrdinal }
       }
     });
     const user = String(ctrl.params?.user || '').trim();
@@ -199,7 +199,7 @@ async function createTopic(
     await session.open();
     await session.request('hi', {
       ver: '0.22',
-      ua: 'iveKit composite capacity provisioner'
+      ua: 'Converact Fabric composite capacity provisioner'
     });
     await session.request('login', { scheme: 'token', secret: publisher.token });
     const ctrl = await session.request('sub', {
@@ -207,7 +207,7 @@ async function createTopic(
       set: {
         desc: {
           public: {
-            fn: `iveKit capacity interaction ${ordinal}`,
+            fn: `Converact Fabric capacity interaction ${ordinal}`,
             'x-ivekit-capacity-namespace': input.namespace,
             'x-ivekit-capacity-ordinal': interactionStart + ordinal
           }

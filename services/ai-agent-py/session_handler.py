@@ -9,7 +9,7 @@ from livekit.agents import Agent, AgentSession, JobContext, JobProcess, WorkerOp
 from livekit.plugins import silero
 
 from livekit_audio_tap_transport import start_configured_livekit_audio_tap
-from opc_client import OPCClient
+from converact_client import ConveractClient
 from plugins.llm_config import get_llm
 from plugins.provider_runtime import build_session_connect_options
 from plugins.stt_selector import select_stt
@@ -80,19 +80,19 @@ def build_tool(ctx: ToolContext, name: str):
         customer = ctx.room_meta.get("customer") if isinstance(ctx.room_meta.get("customer"), dict) else {}
         phone = str(customer.get("phone") or ctx.room_meta.get("phone_number") or "")
         timezone = str(ctx.room_meta.get("timezone") or "Asia/Shanghai")
-        return check_compliance.create(ctx.opc, ctx.tenant_id, phone, timezone)
+        return check_compliance.create(ctx.converact, ctx.tenant_id, phone, timezone)
     if name == "disclosure_complete":
-        return disclosure_complete.create(ctx.opc, ctx.call_session_id, ctx.tenant_id)
+        return disclosure_complete.create(ctx.converact, ctx.call_session_id, ctx.tenant_id)
     if name == "check_intent":
-        return check_intent.create(ctx.opc, ctx.call_session_id, ctx.language)
+        return check_intent.create(ctx.converact, ctx.call_session_id, ctx.language)
     if name == "transfer_human":
         return transfer_human.create(
-            ctx.opc, ctx.ctx.room.name, ctx.tenant_id, ctx.call_session_id, ctx.language
+            ctx.converact, ctx.ctx.room.name, ctx.tenant_id, ctx.call_session_id, ctx.language
         )
     if name == "schedule_callback":
-        return schedule_callback.create(ctx.opc, ctx.ctx.room.name, ctx.tenant_id, ctx.language)
+        return schedule_callback.create(ctx.converact, ctx.ctx.room.name, ctx.tenant_id, ctx.language)
     if name == "send_material":
-        return send_material.create(ctx.opc, ctx.tenant_id)
+        return send_material.create(ctx.converact, ctx.tenant_id)
     if name == "query_knowledge":
         return query_knowledge.create(ctx)
     if name == "generate_summary":
@@ -108,13 +108,13 @@ def build_tool(ctx: ToolContext, name: str):
 
 async def entrypoint(ctx: JobContext) -> None:
     await ctx.connect()
-    opc = OPCClient()
+    converact = ConveractClient()
     audio_tap = None
 
     async def shutdown_runtime() -> None:
         if audio_tap is not None:
             await audio_tap.stop()
-        await opc.aclose()
+        await converact.aclose()
 
     ctx.add_shutdown_callback(shutdown_runtime)
 
@@ -131,7 +131,7 @@ async def entrypoint(ctx: JobContext) -> None:
             audio_tap = await start_configured_livekit_audio_tap(
                 room=ctx.room,
                 metadata=room_meta,
-                opc=opc,
+                converact=converact,
                 on_event=_observe_audio_tap_event,
             )
         except Exception as error:
@@ -141,7 +141,7 @@ async def entrypoint(ctx: JobContext) -> None:
             )
 
         script, spec = await resolve_agent_spec(
-            opc=opc,
+            converact=converact,
             agent_spec_id=agent_spec_id or None,
             script_id=script_id,
             language=language,
@@ -149,7 +149,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
         if spec and spec.nodes and call_session_id and agent_spec_id:
             try:
-                nav = await opc.navigate_flow(
+                nav = await converact.navigate_flow(
                     call_session_id=call_session_id,
                     agent_spec_id=agent_spec_id,
                     trigger="start",
@@ -172,7 +172,7 @@ async def entrypoint(ctx: JobContext) -> None:
             enabled_tools = [*enabled_tools, "query_knowledge"]
 
         tool_ctx = ToolContext(
-            opc=opc,
+            converact=converact,
             ctx=ctx,
             tenant_id=tenant_id,
             call_session_id=call_session_id,
@@ -241,7 +241,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 turn.get("latency_ms"),
             )
             asyncio.create_task(
-                opc.report_turn(
+                converact.report_turn(
                     call_session_id,
                     turn["role"],
                     turn["content"],

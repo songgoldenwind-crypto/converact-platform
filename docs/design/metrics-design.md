@@ -1,14 +1,14 @@
-# OPC AI 通信平台 — 指标与可观测性设计
+# Converact Platform AI 通信平台 — 指标与可观测性设计
 
 > **版本**: 1.1（按 `docs/design/README.md` 准绳去陈旧与标注目标态）
 > **最后更新**: 2026-06-29
-> **适用范围**: OPC 多租户 SaaS AI 语音/视频呼叫中心平台
+> **适用范围**: Converact Platform 多租户 SaaS AI 语音/视频呼叫中心平台
 >
 > **关联文档**（见 `docs/design/README.md`）：[安全与合规](./security-design.md)（告警通道对齐 §8.4）· [实现级架构规格](./architecture-v3.md) · [总体规划](./revised-master-plan.md) · [战略北极星](./super-contact-center-platform-vision.md) · [产品设计](./product-design.md) · [本目录导航与治理](./README.md)
 >
 > **陈旧校准（2026-06-29）**：本文原基于 DeepSeek 唯一 LLM、Kong 网关、ClickHouse 数据源撰写。按 `README.md` §3 禁用词表与 `product-direction-2026-06.md` §7 实际技术栈：
 > - **LLM** 现为多 provider（Claude/GPT-4o/Qwen/DeepSeek 等），DeepSeek 不再是唯一 provider；本文 LLM 并发容量数字按"单个 provider rate limit"理解，平台整体并发以聚合池为准
-> - **Kong 网关** 已废（见 `security-design.md` §0），追踪链与限流由 OPC 中间件承担
+> - **Kong 网关** 已废（见 `security-design.md` §0），追踪链与限流由 Converact Platform 中间件承担
 > - **ClickHouse** 延后（`vision.md` §5.5「PG 物化视图够用前期」），当前 Dashboard 数据源用 PostgreSQL 物化视图，业务事件亦存 PG
 > 下文相应位置已加 `【目标态】`/ `【已废】` / `【延后】` 行内标注。
 
@@ -75,7 +75,7 @@
 
 | 服务 | SLI 定义 | SLO | 错误预算/月 |
 |------|---------|-----|------------|
-| OPC API | 成功请求比例（非 5xx） | 99.9% | 43.2 min |
+| Converact Platform API | 成功请求比例（非 5xx） | 99.9% | 43.2 min |
 | AI Agent | 成功加入 LiveKit 房间比例 | 99.5% | 3.6 hr |
 | LiveKit | 房间创建成功率 | 99.9% | 43.2 min |
 | QM Engine | 评分任务完成率 | 99.0% | 7.2 hr |
@@ -165,7 +165,7 @@
 
 ```mermaid
 sequenceDiagram
-    participant Svc as OPC / AI Agent
+    participant Svc as Converact Platform / AI Agent
     participant NATS as NATS JetStream
     participant Meter as Metering Service
     participant PG as PostgreSQL (usage_records)
@@ -247,7 +247,7 @@ sequenceDiagram
 ```mermaid
 graph LR
     subgraph 应用层
-        OPC[OPC Node.js]
+        Converact Platform[Converact Platform Node.js]
         AI[AI Agent Python]
         FE[Frontend React]
     end
@@ -260,7 +260,7 @@ graph LR
     end
 
     subgraph 日志管道
-        OPC -->|structured logs| Fluentd
+        Converact Platform -->|structured logs| Fluentd
         AI -->|structured logs| Fluentd
         RustPBX -->|structured logs| Fluentd
         Fluentd -->|索引| ES[Elasticsearch]
@@ -268,7 +268,7 @@ graph LR
     end
 
     subgraph 指标管道
-        OPC -->|/metrics| Prom[Prometheus]
+        Converact Platform -->|/metrics| Prom[Prometheus]
         AI -->|/metrics| Prom
         LK -->|/metrics| Prom
         PG -->|exporter| Prom
@@ -278,7 +278,7 @@ graph LR
     end
 
     subgraph 事件分析管道
-        OPC -->|events| NATS_SVC
+        Converact Platform -->|events| NATS_SVC
         AI -->|events| NATS_SVC
         NATS_SVC -->|stream| CH[【延后】ClickHouse]
         CH -->|BI 报表| Metabase
@@ -327,8 +327,8 @@ graph LR
 {
   "timestamp": "2026-06-15T10:30:00.123Z",
   "level": "info",
-  "service": "opc",
-  "instance": "opc-7b8f9c-abc12",
+  "service": "converact",
+  "instance": "converact-7b8f9c-abc12",
   "tenant_id": "t_123",
   "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
   "span_id": "00f067aa0ba902b7",
@@ -374,12 +374,12 @@ graph LR
 
 ### 8.1 追踪链路
 
-> 目标态拓扑图。`Kong` 节点为【已废】（现状鉴权/限流在 OPC 中间件，无独立网关节点）；`DeepSeek LLM` 节点为多 provider 中之一（现状按 LLM provider pool 路由，非 DeepSeek 唯一，见头部校准）。
+> 目标态拓扑图。`Kong` 节点为【已废】（现状鉴权/限流在 Converact Platform 中间件，无独立网关节点）；`DeepSeek LLM` 节点为多 provider 中之一（现状按 LLM provider pool 路由，非 DeepSeek 唯一，见头部校准）。
 
 ```mermaid
 graph TD
-    A[Frontend Request] --> B["【已废】Kong (现状: OPC 中间件)"]
-    B --> C[OPC API Server]
+    A[Frontend Request] --> B["【已废】Kong (现状: Converact Platform 中间件)"]
+    B --> C[Converact Platform API Server]
     C --> D{NATS JetStream}
     D --> E[AI Agent]
     E --> F["LLM (provider pool)"]
@@ -400,8 +400,8 @@ graph TD
 
 ```
 Frontend request
-└── 【已废】Kong gateway (auth, rate limit) 【现状: OPC 中间件鉴权 + per-IP 限流】
-    └── OPC API handler
+└── 【已废】Kong gateway (auth, rate limit) 【现状: Converact Platform 中间件鉴权 + per-IP 限流】
+    └── Converact Platform API handler
         ├── NATS publish (call.initiate)
         │   └── AI Agent consumer
         │       ├── LiveKit room.join
@@ -418,14 +418,14 @@ Frontend request
 
 | Span 名称 | 服务 | 关键属性 |
 |-----------|------|---------|
-| `http.request` | OPC API | `http.method`, `http.route`, `http.status_code` |
-| `nats.publish` / `nats.consume` | OPC / AI Agent | `nats.subject`, `nats.stream` |
+| `http.request` | Converact Platform API | `http.method`, `http.route`, `http.status_code` |
+| `nats.publish` / `nats.consume` | Converact Platform / AI Agent | `nats.subject`, `nats.stream` |
 | `ai.agent.join` | AI Agent | `room_id`, `participant_identity` |
 | `llm.completion` | AI Agent | `model`, `prompt_tokens`, `completion_tokens`, `duration_ms` |
 | `rag.query` | AI Agent | `collection`, `top_k`, `relevance_score` |
 | `sip.invite` | RustPBX | `caller`, `callee`, `codec` |
 | `qm.evaluate` | QM Engine | `session_id`, `score`, `dimensions` |
-| `db.query` | OPC | `db.statement`(参数化), `db.rows_affected` |
+| `db.query` | Converact Platform | `db.statement`(参数化), `db.rows_affected` |
 
 ### 8.3 采样策略
 
@@ -532,4 +532,4 @@ nats_consumer_pending{stream="CALLS"} > 1000
 | 版本 | 日期 | 作者 | 变更内容 |
 |------|------|------|---------|
 | 1.0 | 2026-06-21 | - | 初始版本：KPI/SLI/SLO/告警/Dashboard/追踪 |
-| 1.1 | 2026-06-29 | OPC Team | 按 `docs/design/README.md` §3/§4 准绳去陈旧：(1) LLM 由 DeepSeek 唯一改写多 provider（L96/§3.2/§8.1 节点与树形链/§8.2 span 默认 LLM provider pool）；(2) Kong 追踪节点标【已废】,现状 OPC 中间件；(3) ClickHouse 数据源标【延后·Phase 4+】,现状 PG 物化视图（§5.1/§6.1/§6.2/§6.3）。头部加 `<关联文档>` block 与「陈旧校准」段；§6.2 选型表加"现状"列。未改既有 SLI/SLO 数字与 promQL 规则。 |
+| 1.1 | 2026-06-29 | Converact Platform Team | 按 `docs/design/README.md` §3/§4 准绳去陈旧：(1) LLM 由 DeepSeek 唯一改写多 provider（L96/§3.2/§8.1 节点与树形链/§8.2 span 默认 LLM provider pool）；(2) Kong 追踪节点标【已废】,现状 Converact Platform 中间件；(3) ClickHouse 数据源标【延后·Phase 4+】,现状 PG 物化视图（§5.1/§6.1/§6.2/§6.3）。头部加 `<关联文档>` block 与「陈旧校准」段；§6.2 选型表加"现状"列。未改既有 SLI/SLO 数字与 promQL 规则。 |

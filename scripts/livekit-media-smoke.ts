@@ -371,7 +371,7 @@ function assertSignedCustomerJoinPath(
   if (!joinPath) {
     throw new Error(`${stepName} did not return a signed customer join path`);
   }
-  const url = new URL(joinPath, 'http://opc.local');
+  const url = new URL(joinPath, 'http://converact.local');
   if (!url.searchParams.get('invite') || !url.searchParams.get('expires_at')) {
     throw new Error(`${stepName} did not return a signed customer join path`);
   }

@@ -32,7 +32,7 @@ import {
   startIntercomCommand,
   upsertAgentSeatCommand,
   updateAgentSeatStatusCommand,
-  verifyOpcApiKey,
+  verifyConveractApiKey,
   verifyRustpbxWebhookKey
 } from './agent-runtime/call-center/application.js';
 import { routeQmApi } from './agent-runtime/call-center/qm/qm-http.js';
@@ -128,12 +128,12 @@ export async function routeCallCenterApi(
   }
 
   if (path === '/api/livekit/rooms' && method === 'POST') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return createLiveKitRoomCommand(db, body as { tenant_id: string; purpose: 'ai_outbound' | 'video_service' | 'screen_share' | 'conference' | 'pstn_bridge'; call_session_id?: string; metadata?: Record<string, unknown>; room_name?: string });
   }
 
   if (path === '/api/livekit/token' && method === 'GET') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return issueLiveKitTokenCommand(db, {
       room_name: requiredQuery(url, 'room_name'),
       identity: requiredQuery(url, 'identity'),
@@ -143,13 +143,13 @@ export async function routeCallCenterApi(
   }
 
   if (path === '/api/livekit/agent-dispatch' && method === 'POST') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return handleAgentDispatchCommand(db, harness as any, body as AgentDispatchRequest);
   }
 
   const turnsMatch = path.match(/^\/api\/call-center\/calls\/([^/]+)\/turns$/);
   if (turnsMatch && method === 'POST') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return reportConversationTurnCommand(db, turnsMatch[1], body as ReportTurnRequest);
   }
   if (turnsMatch && method === 'GET') {
@@ -260,21 +260,21 @@ export async function routeCallCenterApi(
 
   const intentMatch = path.match(/^\/api\/call-center\/calls\/([^/]+)\/intent$/);
   if (intentMatch && method === 'POST') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return reportIntentCommand(db, harness as any, intentMatch[1], body as ReportIntentRequest);
   }
 
   const sessionCacheMatch = path.match(/^\/api\/call-center\/calls\/([^/]+)\/session-cache$/);
   if (sessionCacheMatch && method === 'GET') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return getCallSessionCacheCommand(sessionCacheMatch[1]);
   }
   if (sessionCacheMatch && method === 'PATCH') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return patchCallSessionCacheCommand(sessionCacheMatch[1], body as Record<string, unknown>);
   }
   if (sessionCacheMatch && method === 'DELETE') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return deleteCallSessionCacheCommand(sessionCacheMatch[1]);
   }
 
@@ -340,18 +340,18 @@ export async function routeCallCenterApi(
   }
 
   if (path === '/api/voice-agents/generate' && method === 'POST') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return generateVoiceAgentSpecCommand(db, body as GenerateVoiceAgentSpecInput);
   }
 
   if (path === '/api/voice-agents/import-ivr' && method === 'POST') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return importIvrVoiceAgentSpecCommand(db, body as ImportIvrVoiceAgentInput);
   }
 
   const navigateMatch = path.match(/^\/api\/call-center\/calls\/([^/]+)\/navigate$/);
   if (navigateMatch && method === 'POST') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return navigateCallFlowCommand(db, harness as any, navigateMatch[1], body as NavigateCallFlowRequest);
   }
 
@@ -362,7 +362,7 @@ export async function routeCallCenterApi(
 
   const publishMatch = path.match(/^\/api\/voice-agents\/specs\/([^/]+)\/publish$/);
   if (publishMatch && method === 'POST') {
-    verifyOpcApiKey(headers);
+    verifyConveractApiKey(headers);
     return publishVoiceAgentSpecCommand(db, publishMatch[1], requiredQuery(url, 'tenant_id'));
   }
 

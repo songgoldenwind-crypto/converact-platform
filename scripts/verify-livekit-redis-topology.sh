@@ -3,9 +3,9 @@ set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 CHART_DIR="$ROOT_DIR/infra/k8s"
-VALUES_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-livekit-redis-values.XXXXXX")
-DIRECT_RENDER=$(mktemp "${TMPDIR:-/tmp}/ivekit-livekit-redis-direct.XXXXXX")
-SENTINEL_RENDER=$(mktemp "${TMPDIR:-/tmp}/ivekit-livekit-redis-sentinel.XXXXXX")
+VALUES_FILE=$(mktemp "${TMPDIR:-/tmp}/converact-livekit-redis-values.XXXXXX")
+DIRECT_RENDER=$(mktemp "${TMPDIR:-/tmp}/converact-livekit-redis-direct.XXXXXX")
+SENTINEL_RENDER=$(mktemp "${TMPDIR:-/tmp}/converact-livekit-redis-sentinel.XXXXXX")
 
 cleanup() {
   rm -f "$VALUES_FILE" "$DIRECT_RENDER" "$SENTINEL_RENDER"
@@ -18,17 +18,17 @@ if ! command -v helm >/dev/null 2>&1; then
 fi
 
 cat >"$VALUES_FILE" <<'EOF'
-opc:
+converact:
   image:
-    repository: registry.example.invalid/opc/platform
+    repository: registry.example.invalid/converact/platform
     digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 aiAgent:
   image:
-    repository: registry.example.invalid/opc/ai-agent
+    repository: registry.example.invalid/converact/ai-agent
     digest: sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 frontend:
   image:
-    repository: registry.example.invalid/opc/frontend
+    repository: registry.example.invalid/converact/frontend
     digest: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 postgres:
   image:
@@ -59,18 +59,18 @@ media:
   egress:
     enabled: true
     image:
-      repository: ivekit/livekit-egress
-      allowedRegistries: [docker.io]
+      repository: ghcr.io/songgoldenwind-crypto/converact-livekit-egress
+      allowedRegistries: [ghcr.io]
       digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
   ingress:
     enabled: true
     image:
-      repository: ivekit/livekit-ingress
+      repository: ghcr.io/songgoldenwind-crypto/converact-livekit-ingress
       digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   sip:
     enabled: true
     image:
-      repository: livekit/sip
+      repository: ghcr.io/songgoldenwind-crypto/converact-livekit-sip
       digest: sha256:5555555555555555555555555555555555555555555555555555555555555555
 rustdesk:
   image:
@@ -79,7 +79,7 @@ rustdesk:
 EOF
 
 render() {
-  helm template opc "$CHART_DIR" --values "$VALUES_FILE" "$@"
+  helm template converact "$CHART_DIR" --values "$VALUES_FILE" "$@"
 }
 
 expect_failure() {
@@ -106,7 +106,7 @@ assert_count() {
 helm lint "$CHART_DIR" --values "$VALUES_FILE"
 render >"$DIRECT_RENDER"
 
-assert_count 5 'address: "opc-redis:6379"' "$DIRECT_RENDER" 'direct Redis blocks'
+assert_count 5 'address: "converact-redis:6379"' "$DIRECT_RENDER" 'direct Redis blocks'
 assert_count 0 'sentinel_master_name:' "$DIRECT_RENDER" 'direct Sentinel fields'
 assert_count 0 'mountPath: /etc/livekit-redis-tls' "$DIRECT_RENDER" 'direct TLS volume mounts'
 assert_count 1 'mountPath: /sip/config.yaml' "$DIRECT_RENDER" 'direct SIP config mounts'

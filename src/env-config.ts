@@ -30,7 +30,7 @@ const ENV_RULES: EnvRule[] = [
   { key: 'LIVEKIT_PUBLIC_URL', description: 'Public LiveKit WebSocket URL returned to browser clients', level: 'recommended' },
   { key: 'LIVEKIT_API_KEY', description: 'LiveKit API key', level: 'recommended' },
   { key: 'LIVEKIT_API_SECRET', description: 'LiveKit API secret', level: 'recommended' },
-  { key: 'CONVERACT_API_KEY', description: 'API key for OPC internal auth', level: 'recommended' },
+  { key: 'CONVERACT_API_KEY', description: 'API key for Converact internal auth', level: 'recommended' },
   { key: 'LLM_API_KEY', description: 'Self-hosted primary LLM API key (requires LLM_BASE_URL)', level: 'recommended' },
   { key: 'LLM_BASE_URL', description: 'Self-hosted primary LLM base URL (requires LLM_API_KEY)', level: 'recommended' },
   { key: 'DEEPSEEK_API_KEY', description: 'DeepSeek fallback LLM API key', level: 'recommended' }

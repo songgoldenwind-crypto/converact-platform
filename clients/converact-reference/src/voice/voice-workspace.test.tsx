@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { after, afterEach, test } from 'node:test';
 import React from 'react';
 import type {
-  IveKitClient,
-  IveKitVoiceCall,
-  IveKitVoiceCallCommand,
-  IveKitVoiceCommandKind,
-  IveKitVoiceControllerClient,
-  IveKitVoiceHttpClient
+  ConveractFabricClient,
+  ConveractFabricVoiceCall,
+  ConveractFabricVoiceCallCommand,
+  ConveractFabricVoiceCommandKind,
+  ConveractFabricVoiceControllerClient,
+  ConveractFabricVoiceHttpClient
 } from '@converact/sdk';
 
 import { installTestDom } from '../test-dom.js';
@@ -95,8 +95,8 @@ test('Voice workspace dials with a business reference and prepares an extension 
 
 test('Voice workspace defers realtime refresh until an active command completes', async () => {
   const requests: string[] = [];
-  let releaseAction!: (value: IveKitVoiceCallCommand) => void;
-  const actionResult = new Promise<IveKitVoiceCallCommand>((resolve) => { releaseAction = resolve; });
+  let releaseAction!: (value: ConveractFabricVoiceCallCommand) => void;
+  const actionResult = new Promise<ConveractFabricVoiceCallCommand>((resolve) => { releaseAction = resolve; });
   const client = fakeClient(requests, voiceCall('active'), {
     async enqueueCallAction(_callId, input) {
       requests.push(`action:${input.action}`);
@@ -166,9 +166,9 @@ test('Voice workspace fails closed when the provider capability snapshot is not 
 
 function fakeClient(
   requests: string[],
-  call: IveKitVoiceCall,
+  call: ConveractFabricVoiceCall,
   overrides: Partial<VoiceWorkspaceTestClient> = {}
-): IveKitClient {
+): ConveractFabricClient {
   const voice: VoiceWorkspaceTestClient = {
     async getCapabilities() {
       requests.push('capabilities');
@@ -217,16 +217,16 @@ function fakeClient(
     },
     ...overrides
   };
-  return { voice } as unknown as IveKitClient;
+  return { voice } as unknown as ConveractFabricClient;
 }
 
-type VoiceWorkspaceTestClient = IveKitVoiceControllerClient & Pick<
-  IveKitVoiceHttpClient,
+type VoiceWorkspaceTestClient = ConveractFabricVoiceControllerClient & Pick<
+  ConveractFabricVoiceHttpClient,
   'getProfileCapabilities'
 >;
 
-function voiceActionSnapshot(overrides: Partial<Record<IveKitVoiceCommandKind, boolean>> = {}) {
-  const kinds: IveKitVoiceCommandKind[] = [
+function voiceActionSnapshot(overrides: Partial<Record<ConveractFabricVoiceCommandKind, boolean>> = {}) {
+  const kinds: ConveractFabricVoiceCommandKind[] = [
     'originate', 'answer', 'hangup', 'dtmf', 'hold', 'resume', 'blind_transfer',
     'warm_transfer', 'conference', 'park', 'pickup', 'recording_start',
     'recording_pause', 'recording_resume', 'recording_stop', 'livekit_bridge_create'
@@ -241,7 +241,7 @@ function voiceActionSnapshot(overrides: Partial<Record<IveKitVoiceCommandKind, b
     },
     capability_schema_version: 1 as const,
     action_capabilities: {
-      commands: Object.fromEntries(kinds.map((kind) => [kind, overrides[kind] ?? true])) as Record<IveKitVoiceCommandKind, boolean>,
+      commands: Object.fromEntries(kinds.map((kind) => [kind, overrides[kind] ?? true])) as Record<ConveractFabricVoiceCommandKind, boolean>,
       conference_operations: { create: true, add: true, remove: true, destroy: true }
     },
     config_hash: 'a'.repeat(64), error_code: '', error_message: '',
@@ -249,7 +249,7 @@ function voiceActionSnapshot(overrides: Partial<Record<IveKitVoiceCommandKind, b
   };
 }
 
-function voiceCall(state: IveKitVoiceCall['state']): IveKitVoiceCall {
+function voiceCall(state: ConveractFabricVoiceCall['state']): ConveractFabricVoiceCall {
   return {
     id: 'voice-call-a', tenant_id: 'tenant-a', business_ref: { type: 'service_order', id: 'SO-100' },
     provider_profile_id: 'profile-a', provider_call_id: '', provider_dialog_id: '', media_call_id: null,
@@ -262,7 +262,7 @@ function voiceCall(state: IveKitVoiceCall['state']): IveKitVoiceCall {
   };
 }
 
-function voiceCommand(kind: IveKitVoiceCommandKind): IveKitVoiceCallCommand {
+function voiceCommand(kind: ConveractFabricVoiceCommandKind): ConveractFabricVoiceCallCommand {
   return {
     id: `command-${kind}`, tenant_id: 'tenant-a', call_id: 'voice-call-a', kind,
     state: 'pending', idempotency_key: `key-${kind}`, attempt_count: 0, max_attempts: 5,

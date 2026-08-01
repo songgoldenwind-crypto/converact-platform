@@ -7,7 +7,7 @@ import test from 'node:test';
 
 import { Pool } from 'pg';
 
-import { buildIveKitStandaloneContext } from '../scripts/ivekit-standalone-build-context.js';
+import { buildConveractFabricStandaloneContext } from '../scripts/converact-standalone-build-context.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { TinodeInboundProjector } from '../src/agent-runtime/collaboration/tinode-inbound-projector.js';
 import {
@@ -18,8 +18,8 @@ import { TinodeInboundStore } from '../src/agent-runtime/collaboration/tinode-in
 import { SecureFileStore } from '../src/agent-runtime/collaboration/secure-file-store.js';
 import { TinodeInboundService } from '../src/agent-runtime/collaboration/tinode-inbound-worker.js';
 import { QualityReviewService } from '../src/agent-runtime/collaboration/quality-review.js';
-import { applyIveKitMigrations } from '../src/converact-migrations.js';
-import { initializeIveKitRuntimeRole } from '../src/converact-runtime-role.js';
+import { applyConveractFabricMigrations } from '../src/converact-migrations.js';
+import { initializeConveractFabricRuntimeRole } from '../src/converact-runtime-role.js';
 import type { PgQueryable } from '../src/db-pg.js';
 import { withPgTenant } from '../src/db-pg-tenant.js';
 
@@ -31,7 +31,7 @@ const maybe = adminUrl && runtimeUrl && runtimePassword ? test : test.skip;
 maybe('Tinode inbound projector mirrors text, Drafty attachments, replacements, deletes, and policy scans', async () => {
   const admin = new Pool({ connectionString: adminUrl, max: 1 });
   const runtime = new Pool({ connectionString: runtimeUrl, max: 2 });
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-tinode-inbound-projector-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-tinode-inbound-projector-'));
   const context = join(root, 'context');
   const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
   const tenantId = `tenant_projector_${suffix}`;
@@ -42,16 +42,16 @@ maybe('Tinode inbound projector mirrors text, Drafty attachments, replacements, 
   const topic = `grpProjector${suffix}`;
   const now = new Date('2026-07-12T12:00:00.000Z');
   try {
-    buildIveKitStandaloneContext({
+    buildConveractFabricStandaloneContext({
       repoRoot: resolve('.'),
       outputDir: context,
       sourceCommit: '2'.repeat(40),
       generatedAt: now.toISOString()
     });
-    await initializeIveKitRuntimeRole(admin, runtimePassword);
-    await applyIveKitMigrations(admin, {
+    await initializeConveractFabricRuntimeRole(admin, runtimePassword);
+    await applyConveractFabricMigrations(admin, {
       directory: join(context, 'migrations'),
-      advisoryLockName: 'ivekit_tinode_inbound_projector_test'
+      advisoryLockName: 'converact_tinode_inbound_projector_test'
     });
     await admin.query('INSERT INTO tenants (id, name) VALUES ($1, $2)', [tenantId, 'Tinode projector']);
     await admin.query(

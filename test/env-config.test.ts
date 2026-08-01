@@ -46,7 +46,7 @@ test('validateEnv: production accepts discrete PostgreSQL connection variables',
   process.env.NODE_ENV = 'production';
   delete process.env.DATABASE_URL;
   process.env.PGHOST = 'postgres';
-  process.env.PGDATABASE = 'opc';
+  process.env.PGDATABASE = 'converact';
   process.env.PGUSER = 'opc_runtime';
   process.env.PGPASSWORD = 'runtime-secret';
   try {

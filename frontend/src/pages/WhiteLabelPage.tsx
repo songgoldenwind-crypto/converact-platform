@@ -92,7 +92,7 @@ export default function WhiteLabelPage() {
   async function previewTemplate() {
     const result = await apiPost<{ subject: string; body_html: string }>(
       `/api/white-label/email-templates/${selectedKey}/preview`,
-      { tenant_id: tenantId, brand_name: config?.brand_name || 'OPC', customer_name: '张三' }
+      { tenant_id: tenantId, brand_name: config?.brand_name || 'Converact', customer_name: '张三' }
     );
     setPreview(`${result.subject}\n\n${result.body_html}`);
   }

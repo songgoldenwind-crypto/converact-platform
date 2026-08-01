@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: ivekit-victoria-metrics-data
+  name: converact-victoria-metrics-data
   labels:
-    app.kubernetes.io/name: ivekit-victoria-metrics
+    app.kubernetes.io/name: converact-victoria-metrics
     app.kubernetes.io/component: metrics-storage
 spec:
   accessModes: [ReadWriteOnce]

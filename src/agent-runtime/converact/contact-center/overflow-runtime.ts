@@ -6,7 +6,7 @@ import type { VoiceAddressProtector } from '../voice/ports.js';
 import { PostgresVoiceCallUnitOfWork } from '../voice/postgres/unit-of-work.js';
 import { ContactCenterOverflowService } from './overflow-service.js';
 import { PostgresContactCenterUnitOfWork } from './postgres/unit-of-work.js';
-import { IveKitVoiceOverflowAdapter } from './voice-overflow-adapter.js';
+import { ConveractFabricVoiceOverflowAdapter } from './voice-overflow-adapter.js';
 
 export function createPostgresContactCenterOverflowService(
   pg: PgQueryable,
@@ -25,7 +25,7 @@ export function createPostgresContactCenterOverflowService(
   });
   return new ContactCenterOverflowService({
     unit_of_work: new PostgresContactCenterUnitOfWork(pg),
-    voice: new IveKitVoiceOverflowAdapter({ calls }),
+    voice: new ConveractFabricVoiceOverflowAdapter({ calls }),
     ...(options.now ? { now: options.now } : {})
   });
 }

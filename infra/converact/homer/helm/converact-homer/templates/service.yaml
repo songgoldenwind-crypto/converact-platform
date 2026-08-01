@@ -1,15 +1,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit-homer.fullname" . }}-hep
+  name: {{ include "converact-homer.fullname" . }}-hep
   labels:
-    {{- include "ivekit-homer.labels" . | nindent 4 }}
+    {{- include "converact-homer.labels" . | nindent 4 }}
   annotations:
     {{- toYaml .Values.service.annotations | nindent 4 }}
 spec:
   type: ClusterIP
   selector:
-    {{- include "ivekit-homer.selectorLabels" . | nindent 4 }}
+    {{- include "converact-homer.selectorLabels" . | nindent 4 }}
   ports:
     - name: hep
       port: {{ .Values.homer.ingest.udpPort }}
@@ -19,14 +19,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit-homer.fullname" . }}
+  name: {{ include "converact-homer.fullname" . }}
   labels:
-    {{- include "ivekit-homer.labels" . | nindent 4 }}
+    {{- include "converact-homer.labels" . | nindent 4 }}
 spec:
   type: ClusterIP
   clusterIP: None
   selector:
-    {{- include "ivekit-homer.selectorLabels" . | nindent 4 }}
+    {{- include "converact-homer.selectorLabels" . | nindent 4 }}
   ports:
     - name: http
       port: {{ .Values.homer.coordinator.port }}

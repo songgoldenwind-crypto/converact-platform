@@ -1,15 +1,25 @@
-# OPC AI-native 多模态技术问题解决平台
+# Converact Resolve — AI-native 多模态技术问题解决
 
-## 完整产品框架与演化方案 R1
+## 首个垂直产品 Profile 与演化方案 R1
+
+> <关联文档>
+>
+> - [平台范围、领域模型与产品组合 R2](./2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md)
+> - [ADR-CCAAS-11：Engagement 平台核心与 Resolution Profile](../adr/ccaas-11-engagement-platform-and-resolution-profile.md)
+> - [统一通信底座 R5](./unified-communication-foundation-r5.md)
+> - [统一领域语言](../../CONTEXT.md)
+>
+> </关联文档>
 
 | 属性 | 内容 |
 | --- | --- |
-| 文档状态 | `proposed_for_review` |
+| 文档状态 | `retained_vertical_profile / proposed_for_profile_review` |
 | 修订版本 | R1 |
 | 日期 | 2026-07-31 |
-| 产品代号 | OPC Resolve |
+| 产品代号 | Converact Resolve |
 | 规划周期 | 2026–2031 |
-| 文档类型 | 产品权威总纲、目标架构与演化路线 |
+| 文档类型 | `resolution` 垂直 Profile、首个 Offer 与市场验证路线 |
+| 平台范围状态 | Converact 总平台范围已由 R2 取代；本文不再定义 Converact 的全部业务边界 |
 | 独立预审 | 商业、领域与通信/AI 架构三路预审已完成；P0 意见已纳入本文 |
 | 当前生产证明 | 本文定义目标，不声明目标能力已经实现；未附独立证据的能力一律为 `not_run` |
 
@@ -19,15 +29,33 @@
 
 ### 1.1 本文决定什么
 
-本文冻结以下长期决策：
+本文冻结 `resolution` Profile 和 `Converact Resolve` Offer 的以下决策：
 
-1. OPC 的市场类别、首个切入行业和购买价值。
-2. 产品的核心业务对象、统一术语和领域不变量。
+1. Resolve Profile 的市场类别、首个切入行业和购买价值。
+2. 该 Profile 的业务对象、统一术语和领域不变量。
 3. 通信、媒体、AI、任务、工具、知识和治理之间的责任划分。
 4. 人工与 AI 协作、渠道切换、动作执行和结果验证的基本合同。
 5. SaaS、Overlay、Dedicated VPC、私有化和未来电信视频的演化方向。
 6. 产品包装、收费单位、试点方法和 2026–2031 Gate/Horizon。
 7. 后续详细设计必须遵守的性能、可靠性、安全和证据原则。
+
+本文不再决定 Converact 的最终平台类别、其他 Engagement Profile 的市场或整个产品组合。平台级
+权威见 [R2](./2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md)。
+
+### 1.1.1 与 R2 通用领域的绑定映射
+
+本文后续章节保留 `Resolution` 术语以避免丢失已完成的售后设计细节，但必须按以下方式解释：
+
+```text
+Resolution        = Engagement(profile_type = "resolution")
+ResolutionItem    = EngagementItem(item_type = "problem")
+ResolutionExecution = 该 Profile 的执行投影
+Durable Resolution Cell = Durable Engagement Cell 的 Resolution Profile 视图
+```
+
+本文中的 ICP、Pilot、USD 价格、B1、ROI、转年约、no-bid 和 Stop Gate 只约束 Resolve
+Profile/Offer。它们不能自动否定 Horizontal Platform，也不能成为其他 Profile 的默认市场
+结论。
 
 ### 1.2 本文不决定什么
 
@@ -44,7 +72,11 @@
 
 ### 1.3 与旧方案的关系
 
-本文以绿地方式定义未来产品。旧 AI-native、CCaaS、Voice Agent 和通信融合文档只作为需求来源和实现候选，不再自动约束目标架构。
+本文以绿地方式定义首个 Resolve 垂直产品。旧 AI-native、CCaaS、Voice Agent 和通信融合文档只作为需求来源和实现候选，不再自动约束该 Profile 的目标架构。
+
+2026-07-31 的平台范围修订由 R2 与 ADR-CCAAS-11 决定：Converact 是通用 AI-native 多模态通信
+与业务执行平台，本文作为第一个 `resolution` Profile 保留。R2 只取代本文的平台上位语义，
+不删除本文的售后客户旅程、Evidence、Outcome、翻译、商业和验收要求。
 
 本文经用户批准后，旧 AI-native 产品、业务形态和 Agent 总纲统一标记为 `superseded_reference`。旧文档中的通信安全、性能、互通和验收要求必须进入后续 traceability matrix，不能因架构重写而丢失；若与本文冲突，必须显式 ADR 解决，不能静默兼容两套权威。
 
@@ -66,15 +98,15 @@
 | `production_eligible` | 完成真实依赖、容量、故障、安全、升级和恢复证据 |
 | `not_run` | 没有可审计证据，不允许通过推断或厂商宣传补齐 |
 
-厂商公开数据只用于市场判断，不得成为 OPC 的性能、可靠性或容量证明。
+厂商公开数据只用于市场判断，不得成为 Converact 的性能、可靠性或容量证明。
 
 ---
 
 ## 2. 执行摘要
 
-### 2.1 最终产品定位
+### 2.1 本 Profile 的产品定位
 
-> OPC 是面向设备安装、售后技术支持、远程运维和软件支持的 AI-native 多模态技术问题解决平台。
+> Converact Resolve 是面向设备安装、售后技术支持、远程运维和软件支持的 AI-native 多模态技术问题解决 Profile；Converact 总平台类别由 R2 定义。
 
 产品不是以“一次电话”“一个视频房间”或“一条工单”为终点，而是让客户、AI、远程专家和现场工程师围绕同一个问题持续协作，直到结果被验证。
 
@@ -108,23 +140,23 @@ Overlay Assist
 Telephony Cell
 WebRTC / Video Cell
 AI Session Cell
-Durable Resolution Cell
+Durable Engagement Cell（Resolution Profile 视图）
 ```
 
 HumanCommunicationWithOptionalAI 的已建立基础媒体不等待 AI、数据库、知识库、录音或工作流；能力按租户政策降级、旁路或在敏感步骤前 fail-closed。AIEndpointCommunication 中 AI 是真实对端，故障时必须公告、重建、转人工或受控终止，不能虚假承诺透明旁路。
 
-### 2.4 OPC 必须拥有的核心
+### 2.4 Converact 必须拥有的核心
 
-OPC 长期必须自己掌握：
+Converact Platform 长期必须掌握共同 Authority；本 Profile 必须使用而不能复制这些能力：
 
 1. 跨 SIP/PSTN、WebRTC、屏幕、消息和未来 ViLTE 的 Interaction 连续性。
-2. Native 模式的 Customer、Asset、Resolution、Evidence、Task、Action、Outcome 权威；Overlay 模式拥有 OPC 自有 Resolution/ResolutionItem 的问题执行、测量和 Outcome 生命周期，以及稳定 Identity Binding、Projection、ResolutionExecution、Evidence 和 Action Ledger，但不覆盖外部主数据、Case/SLA 或正式关闭。
+2. Native 模式的 Engagement/Resolution、Evidence、Task、Action、Outcome 权威；Overlay 模式拥有 Converact 自有 Engagement 中 `resolution` Profile 的问题执行、测量和 Outcome 生命周期，以及稳定 Identity Binding、Projection、ResolutionExecution、Evidence 和 Action Ledger，但不覆盖外部主数据、Case/SLA 或正式关闭。
 3. 人工与 AI 的接管、归还、审批和结构化交接。
 4. 工具动作的幂等、授权、执行收据、不确定结果查询和补偿。
 5. 可验证结果、成本归因、质量评测和知识闭环。
 6. 模型、语音引擎、Agent 框架和部署方式的可替换性。
 
-### 2.5 OPC 不应重造的核心
+### 2.5 Converact 不应重造的核心
 
 首轮不自研：
 
@@ -136,11 +168,11 @@ OPC 长期必须自己掌握：
 - 完整 CRM、ERP、FSM、WFM 和远程桌面协议栈；
 - 已有生态能够提供的全球号码与线路。
 
-OPC 通过受控 Adapter 使用这些能力，并保持退出能力。
+Converact 通过受控 Adapter 使用这些能力，并保持退出能力。
 
 ---
 
-## 3. 市场类别与竞争决策
+## 3. Resolve Profile 的市场类别与竞争决策
 
 ### 3.1 为什么不从通用 CCaaS 开始
 
@@ -154,7 +186,7 @@ Genesys、NICE、Zoom、Amazon Connect 和 ServiceNow 已经覆盖：
 
 从零正面替换完整 CCaaS，意味着在形成独特客户价值前，就要承担多年表格功能、全球合规、电信运营和生态建设。
 
-OPC 保留完整 CCaaS 的长期可选能力，但首个产品不以“替换 Genesys/Zoom”为采购前提。
+Converact 保留完整 CCaaS 的长期可选能力，但首个产品不以“替换 Genesys/Zoom”为采购前提。
 
 ### 3.2 为什么不做通用语音 Agent
 
@@ -165,13 +197,13 @@ OPC 保留完整 CCaaS 的长期可选能力，但首个产品不以“替换 Ge
 - “低延迟、能打电话、能调用工具”已不足以形成长期壁垒；
 - Sierra、Decagon、Parloa、PolyAI、Retell、Vapi 等分别占据企业 Agent 和开发者基础设施位置。
 
-OPC 的 Agent 必须服务于可验证的技术问题解决，而不是成为另一个通用电话机器人。
+Resolve Profile 中的 Agent 必须服务于可验证的技术问题解决，而不是成为另一个通用电话机器人。Converact Platform 可以承载其他经独立 Gate 的 Agent Profile，但不能由本 Profile 代替其市场验证。
 
 ### 3.3 为什么不只做视觉远程支持
 
 SightCall、TechSee、CareAR、Zoom 和部分 FSM 平台已经提供视频、屏幕共享、AR 标注、OCR、条码、视觉识别和知识生成。
 
-OPC 的差异不应是某一个视觉按钮，而应是完整组合：
+Converact 的差异不应是某一个视觉按钮，而应是完整组合：
 
 - 电话和视频连续切换；
 - 实时跨语言协作；
@@ -183,11 +215,14 @@ OPC 的差异不应是某一个视觉按钮，而应是完整组合：
 - 未来运营商视频与 Data Channel 接入；
 - 基础通信与 AI 故障隔离。
 
-### 3.4 推荐竞争类别
+### 3.4 Resolve Profile 推荐竞争类别
 
-内部类别名称：
+平台内部 Profile 类别名称：
 
-> AI-native Multimodal Technical Resolution Platform（AI-native 多模态技术问题解决平台）
+> AI-native Multimodal Technical Resolution Profile（AI-native 多模态技术问题解决 Profile）
+
+Converact 总平台类别是 R2 定义的 `AI-native Multimodal Communications & Execution Platform`；
+两者是“平台类别—垂直 Profile”的关系，不是互相竞争的两个产品权威。
 
 首轮对外销售名称使用客户熟悉的语言：
 
@@ -245,13 +280,13 @@ ACV 只能从该公式反推；USD 60k–150k 不是所有合格客户都适用�
 首个区域包冻结为“中国专家服务美国客户”：
 
 - Pilot 媒体与 Evidence 默认在合同指定的美国区域处理；
-- 客户为业务数据 Controller/Business，OPC 为 Processor/Service Provider，角色以 DPA 为准；
+- 客户为业务数据 Controller/Business，Converact 为 Processor/Service Provider，角色以 DPA 为准；
 - 签署 DPA、subprocessor list、跨境数据清单和适用的 PIPL 出境机制/评估；
 - 默认不保存完整音视频；选定 Evidence 保留 90 天，转写/翻译派生物 30 天，运营日志 30 天；
 - 最小 Outcome/账务证明按合同和适用税务留存，不保留不必要原始媒体；
 - EU/UK、中国境内驻留或 On-prem 要求在相应区域包通过前 no-bid/延期。
 
-上述是产品默认合同，不替代客户和 OPC 的正式法律评审。
+上述是产品默认合同，不替代客户和 Converact 的正式法律评审。
 
 后续行业顺序：
 
@@ -298,19 +333,19 @@ AI Agent 和 Copilot 是系统执行组件，不是买家或直接用户。
 
 ### 3.7 市场模式吸收矩阵
 
-以下是对公开产品模式的方向性吸收，不是逐项功能对标或 OPC 完成证明：
+以下是对公开产品模式的方向性吸收，不是逐项功能对标或 Converact 完成证明：
 
-| 平台/类别 | 值得吸收的产品模式 | OPC 的差异化落点 | 明确不复制 |
+| 平台/类别 | 值得吸收的产品模式 | Converact 的差异化落点 | 明确不复制 |
 | --- | --- | --- | --- |
 | Genesys / Zoom Contact Center | 全渠道会话、路由、主管、质量、AI 发布治理、企业集成 | 通过 Overlay 接入，并把一次通信延伸为可验证 Resolution | 首轮完整 ACD/WFM/QM/全球线路 |
-| ServiceNow / Salesforce Service | Case/WorkOrder/SLA、流程、企业记录和权限 | 让外部 Case 保留 Authority，OPC 提供实时协作、Evidence 和 ResolutionExecution | 通用 CRM/FSM 数据模型 |
+| ServiceNow / Salesforce Service | Case/WorkOrder/SLA、流程、企业记录和权限 | 让外部 Case 保留 Authority，Converact 提供实时协作、Evidence 和 ResolutionExecution | 通用 CRM/FSM 数据模型 |
 | SightCall / TechSee / CareAR | 免 App 视频、远程视觉、标注、现场证据 | 电话连续性、跨语言、AI/人工共同 Task、OutcomeClaim | 只卖一个视频按钮或首轮自研远程桌面协议 |
 | Sierra / Decagon 等企业 Agent | Agent 生命周期、工具、评测、升级人工和结果叙事 | Action Receipt/reconcile、跨天 Resolution、设备/现场 Evidence | 通用客服 Agent 横向竞争 |
-| LiveKit / SFU 生态 | Room/WebRTC/SFU、实时媒体和 Agent channel 能力 | LiveKit 保持 Room Authority；OPC 拥有跨 SIP/业务连续性 | 用 Room/Agent session 代替 Resolution Authority |
+| LiveKit / SFU 生态 | Room/WebRTC/SFU、实时媒体和 Agent channel 能力 | LiveKit 保持 Room Authority；Converact 拥有跨 SIP/业务连续性 | 用 Room/Agent session 代替 Resolution Authority |
 | Hugging Face speech-to-speech | 自托管、可替换的实时语音组件和兼容接口 | 只替换重叠 SpeechRuntime，做同源质量/延迟/成本资格测试 | 宣称默认 VAD/模型天然最优 |
 | Pi / Nanobot / Agent kernel | 快速交互循环、工具调用和 specialist executor | 作为有界 AgentRun Adapter | 让框架 memory、cron、queue 成为企业 Authority |
 
-OPC 竞争优势不能来自“每列都有一个功能”，而要来自同一主流程中通信连续、证据可信、动作可控、结果可验证并能私有化。
+Resolve Assist 的竞争优势不能来自“每列都有一个功能”，而要来自同一主流程中通信连续、证据可信、动作可控、结果可验证并能私有化。
 
 ---
 
@@ -366,7 +401,7 @@ OPC 竞争优势不能来自“每列都有一个功能”，而要来自同一�
 + 减少翻译成本
 + 自动解决价值
 + 服务续费或增购贡献
-- OPC 平台、通信和 AI 成本
+- Converact 平台、通信和 AI 成本
 ```
 
 不得只使用通话量、坐席数、Token 或“机器人回复率”作为成功指标。
@@ -380,14 +415,14 @@ OPC 竞争优势不能来自“每列都有一个功能”，而要来自同一�
 - 12 周固定范围付费试点；
 - 只限定 1 个高成本、可测量主流程；
 - 主流程必须有试点前基线；
-- 客户与 OPC 共同签署结果定义；
+- 客户与 Converact 共同签署结果定义；
 - `benefit / total_cost` 目标不低于 3.0，等价于净 ROI `(benefit - total_cost) / total_cost` 不低于 2.0；
 - 目标回收期不超过 6 个月；
 - 结果达不到门槛时不扩大范围。
 
 这些是产品验证门槛，不是已经实现的业绩声明。
 
-Pilot 窗口收益按实际发生记录；年化收益单独按季节性、eligible volume 和保守改善率建模，不能把 12 周最好结果直接乘四。`total_cost` 同时包含 Pilot/订阅、用量、OPC onboarding、客户集成、培训、内部人工和流程变更成本。只有实际 Pilot 护栏通过且保守年化模型仍满足正式合同价值池，才能转年约。
+Pilot 窗口收益按实际发生记录；年化收益单独按季节性、eligible volume 和保守改善率建模，不能把 12 周最好结果直接乘四。`total_cost` 同时包含 Pilot/订阅、用量、Converact onboarding、客户集成、培训、内部人工和流程变更成本。只有实际 Pilot 护栏通过且保守年化模型仍满足正式合同价值池，才能转年约。
 
 ---
 
@@ -619,13 +654,13 @@ EvidenceCatalog ── ArtifactRef[] / ObservationRef[] / ClaimRef[] / Derivatio
 | Asset | 有身份、类型、配置、历史和遥测的设备或产品 | 任意附件 |
 | Resolution | 一次相关服务事件的持久容器，可包含一个或多个明确 ResolutionItem | 电话、Room、Ticket |
 | ResolutionItem | 一个规范化问题陈述及其独立验证、结果和复发口径 | 一段自由文本 |
-| ResolutionExecution | Overlay 模式下由 OPC 拥有的协作、媒体、AI、证据和动作执行状态 | 外部 CRM Case |
+| ResolutionExecution | Overlay 模式下由 Converact 拥有的协作、媒体、AI、证据和动作执行状态 | 外部 CRM Case |
 | Interaction | 客户、人工或 AI 围绕 Resolution 的一次连续参与 | 永久业务真相 |
 | CommunicationSession | 某一渠道上的通信实例 | Resolution |
 | ExternalSessionProjection | 对外部 PBX/CCaaS 会话的带版本、游标和陈旧状态的只读投影 | 外部 Call Authority |
-| ExternalCaseProjection | 对外部 CRM/FSM Case、WorkOrder、SLA 和关闭状态的投影 | OPC 可任意覆盖的数据 |
-| ExternalOutputProjection | 对外部人工、提示音或 Bot 输出的观测；无能力时不能被 OPC fence | OPC OutputLease |
-| ResolutionBinding | 外部 Case/Call 与 OPC Resolution/Item 的版本化多重关联 | 两侧对象的所有权转移 |
+| ExternalCaseProjection | 对外部 CRM/FSM Case、WorkOrder、SLA 和关闭状态的投影 | Converact 可任意覆盖的数据 |
+| ExternalOutputProjection | 对外部人工、提示音或 Bot 输出的观测；无能力时不能被 Converact fence | Converact OutputLease |
+| ResolutionBinding | 外部 Case/Call 与 Converact Resolution/Item 的版本化多重关联 | 两侧对象的所有权转移 |
 | Leg | SIP、WebRTC、ViLTE 或外部平台上的单个通信端点 | Participant |
 | Participant | 参与者身份及其当前角色，可为客户、人工、AI 或观察者 | 媒体 Track |
 | RealtimeStream | 可实时传输的统一资源族，分为 MediaStream、RealtimeTextStream、DataStream 和未来 IMSDataChannelSession | 所有资源都按 RTP Track 处理 |
@@ -663,14 +698,17 @@ EvidenceCatalog ── ArtifactRef[] / ObservationRef[] / ClaimRef[] / Derivatio
 9. 未经授权，AgentRun 不能直接修改业务状态或调用外部副作用工具。
 10. OutcomeClaim 必须引用 VerificationPolicyVersion、问题指纹、基线、观察窗口和 Evidence，不能只依赖模型自评。
 11. 只有 `Finalized` OutcomeClaim 可以进入结果计费；复发、争议或错误归因通过 Credit/Reversal 更正。
-12. 所有 OPC-generated 客户侧业务答复受 OutputLease 控制；字幕和翻译只有在其 OutputLease 的 audience、modality 和 semantic_scope 不冲突时才可并行。Overlay 外部人工、提示音或 Bot 输出只进入 ExternalOutputProjection，除非 Adapter 的 mute/floor/hold 能力已通过资格测试，否则 OPC 不声称能够 fence。
+12. 所有 Converact-generated 客户侧业务答复受 OutputLease 控制；字幕和翻译只有在其 OutputLease 的 audience、modality 和 semantic_scope 不冲突时才可并行。Overlay 外部人工、提示音或 Bot 输出只进入 ExternalOutputProjection，除非 Adapter 的 mute/floor/hold 能力已通过资格测试，否则 Converact 不声称能够 fence。
 13. 录音、转写、翻译和 AI 处理必须分别记录授权范围。
-14. 框架本地 session、memory、cron 和 queue 不是 OPC 权威。
+14. 框架本地 session、memory、cron 和 queue 不是 Converact 权威。
 15. 任何 `unknown` 外部动作结果必须进入查询或 reconcile，不能盲目重试。
 
 ### 7.4 Resolution 状态机
 
-以下 Resolution/ResolutionItem 生命周期在 Native 与 Overlay 两种模式都由 OPC Resolution Core 写入，用于 OPC 自己的问题执行、测量、验证和 Outcome 归因。Native 模式可把它作为 OPC 产品内的正式 Resolution 生命周期；Overlay 模式仍不得把它冒充外部 CRM/FSM 的 Case、SLA 或正式关闭：
+以下 Resolution/ResolutionItem 生命周期在 Native 与 Overlay 两种模式都由 Converact Engagement
+Core 写入，并由 Resolution Profile validator 约束，用于 Converact 自己的问题执行、测量、验证和
+Outcome 归因。Native 模式可把它作为 Converact 产品内的正式 Resolution 生命周期；Overlay 模式
+仍不得把它冒充外部 CRM/FSM 的 Case、SLA 或正式关闭：
 
 ```text
 Open
@@ -720,7 +758,7 @@ Resolution 只有在全部 Item 进入终态后才能 Closed。新发现的问�
 - 并发 add/reopen 使 Close 失败；Closed 后新增 Item 必须先原子 Reopen，再 attach；
 - projection 只在看到相同或更高 close_epoch 时显示 Closed，不能用异步计数猜测。
 
-Overlay 模式不复制外部 Case/WorkOrder 的正式生命周期。除了上述 OPC 自有 Resolution/ResolutionItem，OPC 还写一个用于描述本次外部系统协作进度的 `ResolutionExecution`：
+Overlay 模式不复制外部 Case/WorkOrder 的正式生命周期。除了上述 Converact 自有 Resolution/ResolutionItem，Converact 还写一个用于描述本次外部系统协作进度的 `ResolutionExecution`：
 
 ```text
 Bound
@@ -734,13 +772,13 @@ Bound
 ExecutionComplete / Reconciled → ExecutionReopened
 ```
 
-`ExecutionComplete` 表示 OPC 的协作/证据工作完成，不表示外部 Case 已关闭。只有外部 Projection/Receipt 达到新 source revision 后，OPC 才把执行标记为 `Reconciled`；ExternalCaseProjection 陈旧时界面必须显示 `stale/awaiting_external_authority`。
+`ExecutionComplete` 表示 Converact 的协作/证据工作完成，不表示外部 Case 已关闭。只有外部 Projection/Receipt 达到新 source revision 后，Converact 才把执行标记为 `Reconciled`；ExternalCaseProjection 陈旧时界面必须显示 `stale/awaiting_external_authority`。
 
 Overlay 映射规则：
 
-- 外部 Case `Closed` 只更新 ExternalCaseProjection；当对应 Verifier Receipt 满足 VerificationPolicy 时，OPC 才可推进 OutcomeClaim、ResolutionItem 和 Resolution，且仍须通过 membership-version close barrier；
-- 外部 Case `Reopened` 只更新 Projection 并触发 query/reconcile；若同一 problem fingerprint 在策略窗口内复发，则 OPC 重开对应 ResolutionItem，否则创建新 Item 或新 Resolution；
-- OPC 的 `Resolved/Closed/Reopened` 不直接改写外部 Case；需要外部变更时必须创建 ActionProposal/ActionIntent，并以 EffectReceipt 确认；
+- 外部 Case `Closed` 只更新 ExternalCaseProjection；当对应 Verifier Receipt 满足 VerificationPolicy 时，Converact 才可推进 OutcomeClaim、ResolutionItem 和 Resolution，且仍须通过 membership-version close barrier；
+- 外部 Case `Reopened` 只更新 Projection 并触发 query/reconcile；若同一 problem fingerprint 在策略窗口内复发，则 Converact 重开对应 ResolutionItem，否则创建新 Item 或新 Resolution；
+- Converact 的 `Resolved/Closed/Reopened` 不直接改写外部 Case；需要外部变更时必须创建 ActionProposal/ActionIntent，并以 EffectReceipt 确认；
 - 任一侧状态无法权威查询或 source revision 陈旧时，映射保持 `Unknown/AwaitingAuthority`，不得推断两侧已同步。
 
 ### 7.5 Action 状态机
@@ -931,31 +969,32 @@ Authority 必须按部署模式区分。
 | 领域 | 唯一 Authority |
 | --- | --- |
 | SIP REGISTER、Contact Binding、Location 和 edge dispatcher runtime | Kamailio；Standalone profile 才可由 Unified RustPBX 内置，二者不得同时写 |
-| 业务 Route/Trunk 选择、PSTN/SIP Call、Leg、Dialog | OPC Telephony Control（Unified RustPBX） |
+| 业务 Route/Trunk 选择、PSTN/SIP Call、Leg、Dialog | Converact Fabric Telephony Control（Unified RustPBX） |
 | WebRTC Room、Participant、Publication 和 SFU runtime | LiveKit/SFU |
-| Interaction、CommunicationSession、BridgeIntent 和跨通道 generation | OPC Communication Coordination |
-| Resolution、ResolutionItem、Task、OutcomeClaim | OPC Resolution Core |
-| 外部副作用 | OPC Action Ledger + Tool Policy |
-| 企业 Context、Memory、Knowledge | OPC Context & Knowledge Core |
-| Agent 发布和推广 | OPC Governance Core |
-| 计费归因 | OPC Metering Core |
-| 客户侧业务输出 | OPC Collaboration OutputLease |
+| Interaction、CommunicationSession、BridgeIntent 和跨通道 generation | Converact Fabric Coordination |
+| Engagement/Resolution、EngagementItem/ResolutionItem、OutcomeClaim | Converact Engage + Resolution Profile validator |
+| Task、AgentRun、Context、Handoff | Converact Agent Runtime |
+| 外部副作用 | Converact Action Ledger + Tool Policy |
+| 企业 Context、Memory、Knowledge | Converact Context & Knowledge Core |
+| Agent 发布和推广 | Converact Governance Core |
+| 计费归因 | Converact Metering Core |
+| 客户侧业务输出 | Converact Collaboration OutputLease |
 
 #### Overlay 模式
 
-| 领域 | 唯一 Authority | OPC 拥有 |
+| 领域 | 唯一 Authority | Converact 拥有 |
 | --- | --- | --- |
 | 外部电话、Dialog、Queue、Transfer | 客户 PBX/CCaaS | ExternalSessionProjection、ResolutionBinding、BridgeIntent |
 | 外部视频 Room/Meeting | 外部视频平台或 LiveKit/SFU | ExternalRoomProjection、CapabilityLease |
 | CRM Case、FSM WorkOrder、SLA、正式关闭 | 客户 CRM/FSM | ResolutionExecution、Interaction、Evidence、AI Run、Action Ledger |
-| 问题执行、测量与 OutcomeClaim | OPC Resolution Core | Resolution、ResolutionItem、ResolutionExecution、VerificationPolicy |
-| OPC 增加的视频/屏幕协作 | LiveKit/SFU 拥有 Room runtime | OPC CommunicationSession、BridgeIntent、ParticipantProjection |
+| 问题执行、测量与 OutcomeClaim | Converact Engage + Resolution Profile validator | Resolution、ResolutionItem、ResolutionExecution、VerificationPolicy |
+| Converact 增加的视频/屏幕协作 | LiveKit/SFU 拥有 Room runtime | Converact CommunicationSession、BridgeIntent、ParticipantProjection |
 | Outcome 正式确认 | 外部 Case Authority 或双方约定 Verifier | OutcomeProposal、Evidence、OutcomeClaim lifecycle |
-| 外部副作用 | 外部系统 + OPC 动作合同 | Authorization、Attempt、Receipt、reconcile |
+| 外部副作用 | 外部系统 + Converact 动作合同 | Authorization、Attempt、Receipt、reconcile |
 | 外部人工/平台对客户输出 | 客户 PBX/CCaaS/视频平台 | ExternalOutputProjection；不能默认 fence |
-| OPC 生成的字幕、翻译、TTS、通知 | OPC Collaboration OutputLease | 仅控制 OPC 自己的 generation |
+| Converact 生成的字幕、翻译、TTS、通知 | Converact Collaboration OutputLease | 仅控制 Converact 自己的 generation |
 
-Overlay 不创建隐性系统替换。OPC 始终拥有自己的 Resolution/ResolutionItem 问题执行与测量生命周期，但它不等于外部 Case、SLA 或正式关闭。`ResolutionBinding` 版本化关联两侧：
+Overlay 不创建隐性系统替换。Converact 始终拥有自己的 Resolution/ResolutionItem 问题执行与测量生命周期，但它不等于外部 Case、SLA 或正式关闭。`ResolutionBinding` 版本化关联两侧：
 
 ```text
 binding_id
@@ -967,7 +1006,7 @@ valid_from / valid_to
 binding_version
 ```
 
-一个外部 Case 可关联多个 Item，一个 Item 也可跨多个外部 Case/WorkOrder；默认不自动合并或拆分，变更必须 expected-version 和审计。外部系统确认正式关闭/验证后返回相应 Receipt，OPC 才能推进 Reconciled/Finalized。
+一个外部 Case 可关联多个 Item，一个 Item 也可跨多个外部 Case/WorkOrder；默认不自动合并或拆分，变更必须 expected-version 和审计。外部系统确认正式关闭/验证后返回相应 Receipt，Converact 才能推进 Reconciled/Finalized。
 
 External Projection 必须记录：
 
@@ -1054,7 +1093,7 @@ data_region
 
 #### WebRTC / Video Cell
 
-独立 LiveKit/SFU、Ingress/Egress、Control Adapter 和桥接资源池。LiveKit/SFU 拥有 Room、Participant、Publication runtime；OPC 只拥有业务绑定和桥接 generation。SFU 故障不得拖垮 Telephony Cell。
+独立 LiveKit/SFU、Ingress/Egress、Control Adapter 和桥接资源池。LiveKit/SFU 拥有 Room、Participant、Publication runtime；Converact 只拥有业务绑定和桥接 generation。SFU 故障不得拖垮 Telephony Cell。
 
 #### AI Session Cell
 
@@ -1160,7 +1199,7 @@ Overlay Adapter 将外部标识映射到稳定 Interaction 和 Resolution，但�
 
 - 订阅权威 call event/webhook，获得稳定 external call id、参与者和终态；
 - 通过 CTI deep link/SDK 在专家工作台关联当前 Call；
-- 原电话音频继续由客户 PBX/CCaaS 承载，OPC 不 answer、不 transfer、不改 Queue；
+- 原电话音频继续由客户 PBX/CCaaS 承载，Converact 不 answer、不 transfer、不改 Queue；
 - Milestone B1 只选择支持双声道 receive-only media fork 的一个 Provider，用于中英字幕/文字翻译；
 - 若 Provider 不支持可验证 media fork，则该 Provider 不满足 B1；不得用“generic SIP”掩盖差异；
 - translated TTS 不回注外部电话，除非未来 Adapter 通过 mute/floor/hold 能力 Gate。
@@ -1187,7 +1226,7 @@ LiveKit-compatible SFU
 
 Kamailio 保持 SIP edge，RTPengine 是普通 RTP/SRTP 性能下限，LiveKit/SFU 保持 WebRTC Room runtime Authority。具体 Rust SIP/RTP 库由资格测试决定，不能仅因已有代码或同为 Rust 而锁定。
 
-`voice-media-rs` 在本文中是 OPC 内部 Rust 媒体处理模块的工作名，不是假定存在的成熟第三方服务。它可吸收现有 codec/jitter/mixer/recorder 实现，但只能暴露统一 MediaPipeline 合同。
+`voice-media-rs` 在本文中是 Converact 内部 Rust 媒体处理模块的工作名，不是假定存在的成熟第三方服务。它可吸收现有 codec/jitter/mixer/recorder 实现，但只能暴露统一 MediaPipeline 合同。
 
 生产部署中：
 
@@ -1202,14 +1241,14 @@ Kamailio 保持 SIP edge，RTPengine 是普通 RTP/SRTP 性能下限，LiveKit/S
 
 | 起点 → 目标 | 媒体做法 | Runtime Authority | 产品阶段 |
 | --- | --- | --- | --- |
-| LiveKit audio → LiveKit audio+video/screen | 同 Room 增加 Publication，不重建业务 Interaction | LiveKit/SFU；OPC 管 consent/业务绑定 | Pilot/V1 |
-| Overlay 外部电话 audio → 外部 audio + LiveKit video | 音频留在客户 PBX/CCaaS，OPC 只增加视频和关联；不经过 RTPengine | 客户 PBX/CCaaS 管 Call；LiveKit 管 Room；OPC 仅 Projection/BridgeIntent | Pilot |
-| Native SIP/PSTN audio → RTPengine audio + LiveKit video | 保持 RTPengine 音频，增加独立 LiveKit 视频 | Unified RustPBX 管 Call；LiveKit 管 Room；OPC Coordination 管关联 generation | Native Option |
-| SIP/PSTN audio → LiveKit audio+video | prepare 新 Room/Participant/媒体边，make-before-break 后替换音频 | 双 Authority + OPC BridgeIntent | 资格测试后 |
-| LiveKit audio+video → SIP/PSTN audio | 先建立/确认 SIP 音频，视频 graceful detach，返回 RTPengine | 双 Authority + OPC BridgeIntent | 资格测试后 |
+| LiveKit audio → LiveKit audio+video/screen | 同 Room 增加 Publication，不重建业务 Interaction | LiveKit/SFU；Converact 管 consent/业务绑定 | Pilot/V1 |
+| Overlay 外部电话 audio → 外部 audio + LiveKit video | 音频留在客户 PBX/CCaaS，Converact 只增加视频和关联；不经过 RTPengine | 客户 PBX/CCaaS 管 Call；LiveKit 管 Room；Converact 仅 Projection/BridgeIntent | Pilot |
+| Native SIP/PSTN audio → RTPengine audio + LiveKit video | 保持 RTPengine 音频，增加独立 LiveKit 视频 | Unified RustPBX 管 Call；LiveKit 管 Room；Converact Coordination 管关联 generation | Native Option |
+| SIP/PSTN audio → LiveKit audio+video | prepare 新 Room/Participant/媒体边，make-before-break 后替换音频 | 双 Authority + Converact BridgeIntent | 资格测试后 |
+| LiveKit audio+video → SIP/PSTN audio | 先建立/确认 SIP 音频，视频 graceful detach，返回 RTPengine | 双 Authority + Converact BridgeIntent | 资格测试后 |
 | SIP/PSTN audio ↔ LiveKit audio | 独立 SIP↔WebRTC Bridge，录音/DTMF/hold/transfer 单独验证 | Unified RustPBX + LiveKit/SFU | V1/Native Option |
 | ViLTE voice/video mode switch | IMS 会话内按目标 Operator Profile 修改媒体；不经过 LiveKit SIP | IMS Control + IMS AV Gateway | Horizon Option |
-| ViLTE AV ↔ LiveKit AV | IMS AV Gateway 与 WebRTC/SFU 建立显式 AV bridge | IMS runtime + LiveKit/SFU + OPC Coordination | Horizon Option |
+| ViLTE AV ↔ LiveKit AV | IMS AV Gateway 与 WebRTC/SFU 建立显式 AV bridge | IMS runtime + LiveKit/SFU + Converact Coordination | Horizon Option |
 
 所有路径保持稳定 Resolution/Interaction 标识，使用显式 leg、participant、edge、pipeline 和 bridge generation；每个有向媒体 Edge generation 只有一个 billing writer。切换合同统一使用 prepare/commit/abort/query/reconcile，记录 codec、DTMF、hold/transfer、SRTP/DTLS、token/tenant、webhook 顺序、participant cleanup、crash/orphan、录音分段、switch gap/loss 和返回 RTPengine 的证据。Bridge 容量单独测试，不能继承排除 Bridge 的压测结果。
 
@@ -1359,12 +1398,12 @@ Carrier IMS / ViLTE
   └── Operator Conformance Profile
         运营商、终端、地区、3GPP Release、GSMA profile 和测试证据
         ↓
-  LiveKit/SFU + OPC RealtimeStream/Resolution Coordination
+  LiveKit/SFU + Converact RealtimeStream/Resolution Coordination
 ```
 
 IMS Data Channel 是与 IMS MMTel 会话关联、经 SDP 协商的独立媒体能力，不等于把一个普通 WebRTC `RTCDataChannel` 或 SFU Track 透传过去。必须按明确 Release 和运营商 Profile 实现；不能用未来兼容接口宣称已具备 ViLTE/NG-RTC。
 
-未来 Carrier IMS 保持网络侧注册、策略和 MMTel Session Authority；OPC 的 IMS Control Adapter/B2BUA 是 Unified Telephony Authority 内的一个 Adapter，只拥有 OPC 终止的 Leg/Dialog 和 External IMS Projection，不建立第二套 Call Authority。
+未来 Carrier IMS 保持网络侧注册、策略和 MMTel Session Authority；Converact 的 IMS Control Adapter/B2BUA 是 Unified Telephony Authority 内的一个 Adapter，只拥有 Converact 终止的 Leg/Dialog 和 External IMS Projection，不建立第二套 Call Authority。
 
 现在只冻结扩展接口：
 
@@ -1425,7 +1464,7 @@ codec/resample/mix primitives
 2. 现有 rsipstack/媒体路径保持基线，rvoip 先做 shadow parse/observe，不发送第二份响应。
 3. parser、transport、transaction、dialog、RTP 等按层独立迁移和回滚，不能一次 wholesale merge。
 4. 每个 slice 比较 RFC/互通正确性、算法复杂度、分配、锁、CPU、内存、长通话、崩溃和维护性。
-5. 同为 Rust、已有 benchmark 或上游声称性能高都不是吸收理由；OPC 必须复现 exact commit 的同源 Evidence。
+5. 同为 Rust、已有 benchmark 或上游声称性能高都不是吸收理由；Converact 必须复现 exact commit 的同源 Evidence。
 6. 中间双 Backend 只能用于 shadow/Canary，最终生产中一个领域只保留一个权威实现。
 7. 新呼叫迁到新实现，旧呼叫 drain；active-zero 和 reconcile 后才删除旧代码。
 8. 无法证明更优或维护风险更高的 rvoip slice 可以拒绝，不以“融合比例”衡量成功。
@@ -1487,7 +1526,7 @@ VAD → STT → LLM → TTS
 
 采用边界必须严格按“功能相同的部分替换”：
 
-- 替换 Active Call、LiveKit Agents 或旧 OPC 链路中重叠的 VAD→STT→LLM→TTS/流式语音循环；
+- 替换 Active Call、LiveKit Agents 或旧 Converact 链路中重叠的 VAD→STT→LLM→TTS/流式语音循环；
 - 保留它们不重叠的 Room/Participant、Channel、Agent lifecycle、tool orchestration、handoff、telemetry 和插件能力；
 - HF、托管 Realtime 和其他 Cascade 都实现同一 SpeechRuntime 合同；
 - VAD 是可独立资格测试和替换的组件，不因采用 HF 仓库而永久绑定其默认实现；
@@ -1497,14 +1536,14 @@ VAD → STT → LLM → TTS
 
 - 所有语言和噪声下优于托管模型；
 - 整体延迟必然低于 Native Realtime；
-- 已具备 OPC 所需的多租户、HA、配额和审计；
+- 已具备 Converact 所需的多租户、HA、配额和审计；
 - 其 VAD 在所有场景最佳。
 
 生产采用必须通过长短通话、噪声、重叠说话、打断、多语言、成本、GPU 利用率、崩溃恢复和容量测试。
 
 选择 HF 的理由是自托管、可替换和可优化潜力，而不是未经测试宣称它一定比 LiveKit Agents、Active Call 或托管 Realtime 更快、更准。比较必须使用相同音频集、语言、硬件、网络、turn 定义、首个稳定 partial、首个可听音频、质量护栏和总成本。
 
-预期降延迟来自 OPC 对整条链的工程控制，而不是仓库名称：
+预期降延迟来自 Converact 对整条链的工程控制，而不是仓库名称：
 
 - RTP/WebRTC frame 到 SpeechRuntime 使用有界、时间戳一致的流式接口；
 - VAD、streaming STT、LLM 和 streaming TTS 尽量同区/同资源池，减少跨供应商网络跳；
@@ -1541,7 +1580,7 @@ AgentExecution
 
 - 长任务属于 Resolution Task 和 Durable Workflow；
 - 框架只执行有界 AgentRun；
-- 模型和工具通过 OPC Gateway；
+- 模型和工具通过 Converact Gateway；
 - 框架本地 memory 不成为企业记忆；
 - 框架 cron、channel 和 queue 不成为平台 Authority；
 - 不允许直接取得 RustPBX、LiveKit、数据库或第三方系统的管理凭据。
@@ -1705,7 +1744,7 @@ OutputLease =
   + fence_token
 ```
 
-`semantic_scope` 来自版本化 Scope Registry，不是自由文本。Registry 定义父子关系、互斥矩阵、允许的派生 scope 和优先级；Lease 同时绑定 `audience_membership_generation`。网络分区时只能在短 TTL 内续用本地租约，无法向 Authority 续租就在到期前停止 OPC 生成输出，不能双主。
+`semantic_scope` 来自版本化 Scope Registry，不是自由文本。Registry 定义父子关系、互斥矩阵、允许的派生 scope 和优先级；Lease 同时绑定 `audience_membership_generation`。网络分区时只能在短 TTL 内续用本地租约，无法向 Authority 续租就在到期前停止 Converact 生成输出，不能双主。
 
 同一个 LeaseKey 或语义重叠的 scope 同时只能有一个有效 owner：
 
@@ -1724,11 +1763,11 @@ SYSTEM_HOLD
 - 翻译可以面向另一语言 audience 并行输出，但只能忠实转换来源语义，不能夹带新的业务答复；
 - 告警和法定披露使用独立、预留的 system semantic_scope。
 
-Copilot 可以并行推理，但任何 OPC 对外输出都必须先获得对应 OutputLease。迟到 generation 的文本、TTS 或 DataStream 消息被 fence 丢弃并计数。
+Copilot 可以并行推理，但任何 Converact 对外输出都必须先获得对应 OutputLease。迟到 generation 的文本、TTS 或 DataStream 消息被 fence 丢弃并计数。
 
-该承诺只覆盖 OPC-generated output。Overlay 中客户 PBX/CCaaS 的人工语音、提示音或外部 Bot 只能进入 `ExternalOutputProjection`，OPC 无法天然 mute/fence。只有 Adapter 的 mute/floor/hold 能力通过 capability test，产品才可承诺跨平台全局单输出；否则：
+该承诺只覆盖 Converact-generated output。Overlay 中客户 PBX/CCaaS 的人工语音、提示音或外部 Bot 只能进入 `ExternalOutputProjection`，Converact 无法天然 mute/fence。只有 Adapter 的 mute/floor/hold 能力通过 capability test，产品才可承诺跨平台全局单输出；否则：
 
-- 客户音频上的 OPC AI TTS 或同声译音 fail-closed；
+- 客户音频上的 Converact AI TTS 或同声译音 fail-closed；
 - 只允许专家侧 Copilot、明确派生字幕或不冲突的独立 audience；
 - UI 必须显示外部输出状态可能陈旧；
 - 不用“单输出所有者”掩盖不可控的外部平台。
@@ -1788,7 +1827,7 @@ Copilot 可以并行推理，但任何 OPC 对外输出都必须先获得对应 
 
 MCP 只负责接入，不替代：
 
-- OPC 身份和租户隔离；
+- Converact 身份和租户隔离；
 - Tool Policy；
 - 人工审批；
 - 幂等和 fencing；
@@ -2021,12 +2060,12 @@ Draft
 
 | SLI | Target v1 | 边界 |
 | --- | --- | --- |
-| SIP admission→首个 `100 Trying` | p99 ≤ 100ms | OPC edge 收到完整 INVITE 到发出响应；不含公网 |
+| SIP admission→首个 `100 Trying` | p99 ≤ 100ms | Converact edge 收到完整 INVITE 到发出响应；不含公网 |
 | 符合能力合同的建呼成功率 | ≥ 99.99% | 排除主叫取消、无路由、对端拒绝；单独报告所有排除项 |
-| OPC 增加的建呼处理延迟 | p95 ≤ 50ms，p99 ≤ 100ms | 不含上游/被叫振铃 |
-| 建立后意外中断 | ≤ 1 / 1,000,000 eligible session-minutes | 只计 OPC 因果；按 Cell/版本分解 |
-| 无转码 RTP 单向增加延迟 | p99 ≤ 5ms | 同机架测量点，包含 OPC media path |
-| OPC 增量丢包/重排 | ≤ 0.01% | 在冻结输入损伤矩阵内 |
+| Converact 增加的建呼处理延迟 | p95 ≤ 50ms，p99 ≤ 100ms | 不含上游/被叫振铃 |
+| 建立后意外中断 | ≤ 1 / 1,000,000 eligible session-minutes | 只计 Converact 因果；按 Cell/版本分解 |
+| 无转码 RTP 单向增加延迟 | p99 ≤ 5ms | 同机架测量点，包含 Converact media path |
+| Converact 增量丢包/重排 | ≤ 0.01% | 在冻结输入损伤矩阵内 |
 | DTMF 正确交付 | ≥ 99.99% | RFC 4733 主路径；INFO/in-band 分开报告 |
 | hold/resume/re-INVITE 成功率 | ≥ 99.95% | 合法协商且对端能力满足 |
 | blind/attended transfer 成功率 | ≥ 99.95% | 每种 REFER/Replaces 场景独立 |
@@ -2229,7 +2268,7 @@ clock_uncertainty
 - Media Quality Availability；
 - Feature/AI Capability Availability；
 - Durable Resolution Availability；
-- 外部依赖导致的不可用和 OPC 因果不可用。
+- 外部依赖导致的不可用和 Converact 因果不可用。
 
 不得用控制 API 正常代替媒体可用，也不得用基础通话正常掩盖翻译或录音缺口。
 
@@ -2339,7 +2378,7 @@ Consent 使用有版本、范围和到期时间的 `ConsentLease`，绑定 parti
 
 适合最快进入客户：
 
-- OPC 托管 Resolution、AI 和管理能力；
+- Converact 托管 Resolution、AI 和管理能力；
 - 通过 SIP/BYOC、Webhook、SDK 与现有系统连接；
 - 客户无需整体迁移 CCaaS；
 - 可先启用 Copilot 和视频升级。
@@ -2349,7 +2388,7 @@ Consent 使用有版本、范围和到期时间的 `ConsentLease`，绑定 parti
 适合中大型和受监管客户：
 
 - 单客户网络和计算边界；
-- 客户或 OPC 管理密钥；
+- 客户或 Converact 管理密钥；
 - 区域数据驻留；
 - 专属容量和升级窗口；
 - 可连接客户私有模型和系统。
@@ -2407,7 +2446,7 @@ Edge Node 不成为企业 Task、Knowledge 或 Billing Authority。
 
 首个 12 个月只销售一个外部 Offer：
 
-> **OPC Resolve Assist — 海外设备安装与售后远程解决**
+> **Converact Resolve — 海外设备安装与售后远程解决**
 
 包含：
 
@@ -2443,7 +2482,7 @@ Edge Node 不成为企业 Task、Knowledge 或 Billing Authority。
 | 用户 | 不超过 20 名 named experts |
 | 样本 | 最多 300 个 agreed eligible items；最小样本按基线波动、预期改善和统计功效在签约前计算 |
 | 交付 | Milestone A：电话关联→免 App 视频→Evidence→人工 Outcome→CRM；Milestone B1：中英字幕/文字翻译 |
-| 实施 | OPC 最多 20 person-days；客户按期提供线路、API、测试用户和基线 |
+| 实施 | Converact 最多 20 person-days；客户按期提供线路、API、测试用户和基线 |
 | 培训/支持 | 2 次远程管理员/专家培训、1 份运行手册、约定工作时区的 business-hours 支持；24×7 另购 |
 | 转正抵扣 | Pilot 完成后 30 天内签年约，50% Pilot 费抵首年平台费 |
 
@@ -2500,7 +2539,7 @@ B1 未通过则 Pilot 不算完成，不进入年约转换；Copilot 和 OCR 仍
 - 3 个设计伙伴运行同一个主流程；
 - 核心产品/Connector/Playbook 复用率不低于 80%；
 - 客户专属代码与流程不超过交付工作量 20%；
-- 标准 Pilot OPC 实施不超过 20 person-days；
+- 标准 Pilot Converact 实施不超过 20 person-days；
 - 至少 2/3 完成的 Pilot 转成年约；
 - 至少 70% 的 eligible items 按 Pilot 流程提供能力，且每周至少 60% 的 assigned experts 有有效使用；客户阻塞和系统不可用分别归因；
 - 稳态订阅与用量综合毛利不低于 70%；
@@ -2582,7 +2621,7 @@ Pilot A 的真实演示只展示已经通过 Gate 的主链：
 5. 专家查看现场并记录结构化 Evidence。
 6. 结果由预先指定人员按 VerificationPolicy 人工确认。
 7. 外部 CRM/FSM 获得 Receipt，并生成服务报告和 OutcomeClaim。
-8. OPC/外部故障时按合同继续、降级或 reconcile。
+8. Converact/外部故障时按合同继续、降级或 reconcile。
 
 B1 中英字幕/文字翻译通过资格测试后，完整 Pilot 演示必须包含它；B2 Copilot 和 B3 OCR 只有各自过 Gate 才加入。自主工具、通用视觉 AI、远程控制和 Playbook 自动发布不得以概念动画冒充当前产品。
 
@@ -2592,7 +2631,7 @@ B1 中英字幕/文字翻译通过资格测试后，完整 Pilot 演示必须包
 
 ### 20.4 竞争选择与 No-bid
 
-| 客户主要需求 | OPC 应对 | Win 条件 | No-bid / Partner 条件 |
+| 客户主要需求 | Converact 应对 | Win 条件 | No-bid / Partner 条件 |
 | --- | --- | --- | --- |
 | 继续使用微信/WhatsApp/Teams/邮件和人工翻译 | 量化派工、返工、语言等待和证据缺失后再比较 | 现状成本可验证且超过商业门槛 | 免费工具已满足、客户不提供基线或价值池不足时不投 |
 | 替换完整呼叫中心、WFM/QM | Overlay 到现有 CCaaS | 客户接受保留现有系统 | 只要传统 CCaaS 表格能力时不投 |
@@ -2602,7 +2641,7 @@ B1 中英字幕/文字翻译通过资格测试后，完整 Pilot 演示必须包
 | 私有化通信底座 | Native deployment option | 至少 2 个签约客户、有性能/主权收益 | 单客户专属 PBX Fork 不做 |
 | ViLTE/运营商 NG-RTC | 保留合规网关路线 | 运营商合同、Profile 和实验网 | 没有网络方/终端方配合不启动 |
 
-OPC 的核心 Win 主题是“在不推翻现有系统的前提下，提高跨语言设备问题的远程解决率，并留下可验证证据”，不是功能列表更长。
+Converact 的核心 Win 主题是“在不推翻现有系统的前提下，提高跨语言设备问题的远程解决率，并留下可验证证据”，不是功能列表更长。
 
 ### 20.5 销售异议
 
@@ -2611,7 +2650,7 @@ OPC 的核心 Win 主题是“在不推翻现有系统的前提下，提高跨�
 | 会不会影响现有电话 | Overlay、PassiveFork/有界能力；人与人通话中可选 AI 故障不应因果性中断媒体 |
 | 已经有 Zoom/Genesys | 不要求替换；补上技术 Resolution、视觉证据和跨天执行 |
 | AI 会不会乱操作 | Tool Policy、审批、Receipt、Unknown reconcile |
-| 为什么不买 SightCall | OPC 销售完整 Resolution Loop，而非单独视频工具 |
+| 为什么不买 SightCall | Converact 销售完整 Resolution Loop，而非单独视频工具 |
 | 数据能否不出客户环境 | Dedicated VPC、On-prem、自托管 Speech/Model |
 | 如何证明省钱 | 试点前基线、Verified Outcome、派工和停机证据 |
 | 模型过时怎么办 | Speech/Model/Agent Adapter 和版本化发布 |
@@ -2620,9 +2659,9 @@ OPC 的核心 Win 主题是“在不推翻现有系统的前提下，提高跨�
 
 首年只发展一种实施伙伴：
 
-- 服务中国出口制造商的 Salesforce Service Cloud 实施伙伴，能够共同完成数据、流程和客户培训，但不能拥有 OPC 产品 Fork。
+- 服务中国出口制造商的 Salesforce Service Cloud 实施伙伴，能够共同完成数据、流程和客户培训，但不能拥有 Converact 产品 Fork。
 
-PBX/CCaaS Provider、运营商、LiveKit/SFU、远程桌面、本地模型/GPU 和行业认证方只是技术/供应候选，不同时建设渠道计划。OPC 不在早期自行建立全球线路销售和所有行业实施团队。
+PBX/CCaaS Provider、运营商、LiveKit/SFU、远程桌面、本地模型/GPU 和行业认证方只是技术/供应候选，不同时建设渠道计划。Converact 不在早期自行建立全球线路销售和所有行业实施团队。
 
 ### 20.7 扩张顺序
 
@@ -2673,7 +2712,7 @@ PBX/CCaaS Provider、运营商、LiveKit/SFU、远程桌面、本地模型/GPU �
 - panic、OOM、CPU runaway、descriptor/port 泄漏和 worker restart 故障注入；
 - 热路径性能；
 - API 变化和退出成本；
-- 与 OPC Authority 的冲突审查。
+- 与 Converact Authority 的冲突审查。
 
 吸收不是复制目录。每项能力必须记录 `keep / wrap / rewrite / reject`、理由、基准、替换路径和删除旧实现的 active-zero Gate。
 
@@ -2819,7 +2858,7 @@ Gate：
 - 目标 3GPP Release、GSMA Profile、终端和网络矩阵冻结；
 - IMS/ViLTE 合规、互通、容量和故障实验完成；
 - 平台 API 已被外部伙伴稳定使用；
-- 不因平台化削弱核心 Resolution 产品。
+- 不因扩展 Platform/Option 削弱已签约 Resolve Offer 的质量、支持和故障隔离。
 
 ### 22.6 36–60 个月：未冻结 Horizon Options
 
@@ -2844,7 +2883,7 @@ Gate：
 | --- | --- |
 | W0 Product & Domain | Persona、JTBD、Resolution、Outcome、术语和用户旅程 |
 | W1 Communication Fabric | Overlay、SIP、RTP、WebRTC、switch、codec、drain、capacity |
-| W2 Resolution Core | 状态机、Task、Evidence、Outcome、API、数据和恢复 |
+| W2 Engagement Core + Resolution Profile | 通用状态、Profile 投影、Evidence、Outcome、API、数据和恢复 |
 | W3 Realtime Intelligence | Speech、HF、Realtime、VAD、翻译、Vision、旁路 |
 | W4 Human/AI Collaboration | Routing、ownership、handoff、workspace、supervisor |
 | W5a Minimal Connector Effect | 一个 CRM/FSM 的 ActionIntent、Authorization、Attempt、Receipt、query/reconcile |
@@ -2863,7 +2902,7 @@ W0 Product/Domain + W10 Commercialization
 
 W0 + W8 Platform Foundation
   ├─→ W1 Communication Fabric
-  └─→ W2 Resolution Core
+  └─→ W2 Engagement Core + Resolution Profile
 
 W2 + W8 → W5a Minimal Connector Effect
 W1 + W2 + W4 + W5a → Tracer Pilot A
@@ -2935,23 +2974,26 @@ Design
 - 压测数字提高，但排除了录音、转码、桥或 AI；
 - 支持多个框架，但每个框架拥有自己的状态和工具。
 
-### 24.3 停止或转向条件
+### 24.3 Resolve Profile 的停止或转向条件
 
-在以下条件下暂停相应路线：
+在以下条件下暂停相应 Resolve Profile、Offer 或能力路线：
 
-- 完成 20 次合格买家访谈后仍少于 3 家对同一流程的有时限付费意向：停止编码扩张，重做 ICP/JTBD；
+- 完成 20 次合格买家访谈后仍少于 3 家对同一流程的有时限付费意向：停止 Resolve Profile 编码扩张，重做该 Profile 的 ICP/JTBD；
 - 3 个标准 Pilot 中少于 2 个转年约：停止第二流程和规模销售，复盘产品价值；
 - Pilot 的 `benefit / total_cost` 无法达到预签门槛，或任何强制安全、CSAT、复发、升级率护栏失败：均不得转正式合同；
 - 连续两个客户的标准实施超过 20 person-days，公共复用低于 80% 或客户专属工作高于 20%：停止新增 Connector；
 - 真实成本模型在合理价格下 12 个月内无法达到 70% 稳态毛利：缩减高成本能力或调整市场；
-- 客户只愿为视频链接付费，不愿采用 Evidence、Resolution 和 Outcome：不继续打造平台，转伙伴/点工具策略；
+- Resolve 目标客户只愿为视频链接付费，不愿采用 Evidence、Resolution 和 Outcome：停止该
+  Offer 的产品化扩张，转伙伴/点工具策略；不能把该结论自动外推到其他 Profile；
 - Overlay 接入成本接近完整系统替换，或外部平台缺少可验证能力：对该平台 no-bid，不伪装完整集成；
 - 视频或必验 B1 翻译未改善主指标、不能达到质量门槛或损害护栏：暂停/重定位首个 Offer；B2 Copilot 或 B3 OCR 失败则只关闭对应 Optional；
 - 自主 Agent 的质量、安全或经济性长期低于 Copilot：保持人工主导；
 - 少于 2 个签约客户需要 Native Communications，或无法证明主权、成本、性能优势：不启动 Native 产品化；
 - ViLTE 没有已签运营商/设备商、Profile、终端和实验网：不进入实现。
 
-停止某一路线不等于推翻 Resolution Core，可保留验证有效的底座。
+停止某条 Resolve 路线不等于推翻 Engagement Core、通信底座或其他已验证 Horizontal
+Platform 能力。它也不自动授权转做另一个行业；新的 Profile 必须先建立自己的市场、产品和
+Evidence Gate。
 
 ---
 
@@ -2959,16 +3001,17 @@ Design
 
 ### 25.1 已冻结
 
-- 内部产品类别：AI-native 多模态技术问题解决平台；
+- Converact 总平台类别：由 R2 冻结为 AI-native 多模态通信与业务执行平台；
+- 本 Profile 类别：AI-native 多模态技术问题解决；
 - 首发外部 Offer：面向中国出口设备厂商的海外安装与售后远程解决；
 - 首个区域包：中国专家服务美国客户，按 DPA/跨境/保留默认合同交付；
 - 首个 JTBD：现有电话→免 App 视频→中文/英文协作→Evidence→人工验证；
 - 商业路径：Overlay-first、AI capability gated、Native-demand-gated、OEM-evidence-gated；
-- Overlay Authority：外部 PBX/CCaaS/CRM/FSM 保留 Call/Case/SLA/正式关闭权威；OPC 拥有问题测量的 Resolution/Item、Projection、Execution、Evidence、AI 和 Action Ledger；
+- Overlay Authority：外部 PBX/CCaaS/CRM/FSM 保留 Call/Case/SLA/正式关闭权威；Converact 拥有问题测量的 Resolution/Item、Projection、Execution、Evidence、AI 和 Action Ledger；
 - Native runtime：Kamailio 管 Registrar/Location，Unified RustPBX 管业务 Call，RTPengine 管普通 RTP/SRTP，LiveKit/SFU 管 Room runtime；
-- 核心聚合：Resolution + 独立 ResolutionItem；
+- Profile 核心映射：`Resolution = Engagement(resolution)`，`ResolutionItem = EngagementItem(problem)`；
 - 核心结果：版本化且 Finalized 后不可变的 OutcomeClaim；争议/冲正使用独立对象；
-- 人工与 AI：统一 Task、只约束 OPC 输出的范围化 OutputLease、结构化 Handoff；
+- 人工与 AI：统一 Task、只约束 Converact 输出的范围化 OutputLease、结构化 Handoff；
 - 通信与 AI：四个资源/故障域，区分 HumanCommunicationWithOptionalAI 与 AIEndpointCommunication；
 - 工具动作：Proposal→Intent、Policy、Approval、Attempt、分级 Receipt、Verification、Reconcile；
 - AI Runtime：多路径、多框架、可替换；HF 只替换重叠的 SpeechRuntime 功能；
@@ -3015,7 +3058,7 @@ Design
 | 领域 | 当前状态 | 本文目标 | 进入 `production_eligible` 的最低证据 |
 | --- | --- | --- | --- |
 | 市场 | `not_run`；无本文范围内付费证明 | 一个 ICP、Offer 和 Pilot | 20 访谈、3 付费 Pilot、2 转年约、ROI/毛利/复用证据 |
-| Overlay | 存在旧集成候选，未按本文验收 | 外部 Authority + OPC Projection/Execution | 真实供应商 capability matrix、乱序/丢失/Unknown/reconcile |
+| Overlay | 存在旧集成候选，未按本文验收 | 外部 Authority + Converact Projection/Execution | 真实供应商 capability matrix、乱序/丢失/Unknown/reconcile |
 | Telephony/Media | 存在旧代码与开源候选，资格未完成 | Native 合同、RTPengine fast path、统一资源世代 | SIP/codec/bridge/long-call/fault/capacity 原始 Evidence |
 | AI Runtime | 存在零散链路与框架候选 | 可替换 Speech/Agent/Vision Adapter | 同源质量/延迟/成本、长会话、故障、隐私和回滚 |
 | Resolution/Action | 存在设计或局部实现候选 | 单 Authority、Receipt、OutcomeClaim | 并发、幂等、crash、unknown、reversal 和审计测试 |
@@ -3027,7 +3070,7 @@ Design
 
 ## 26. 参考资料
 
-以下只作为市场和技术方向参考，不作为 OPC 完成证据。访问日期均为 2026-07-31；动态网页和 `latest/main` 只用于本次方向判断，进入实现前必须冻结版本、commit 或发布日期。
+以下只作为市场和技术方向参考，不作为 Converact 完成证据。访问日期均为 2026-07-31；动态网页和 `latest/main` 只用于本次方向判断，进入实现前必须冻结版本、commit 或发布日期。
 
 - [Genesys AI and Automation](https://www.genesys.com/capabilities/ai-and-automation)
 - [NICE CXone](https://www.nice.com/products/cxone)
@@ -3067,7 +3110,7 @@ Design
 | --- | --- |
 | 首个 ICP/JTBD 过宽 | §3.5、§19、§20：一个出口设备 ICP、美国区域包、一个流程和固定 Pilot |
 | Resolution 粒度与结果争议 | §7：ResolutionItem、OutcomeClaim、Observation/Reversal |
-| Overlay 权威冲突 | §7.4、§8.2：外部 Call/Case Authority，OPC 问题测量 Resolution/Item、Projection/Execution |
+| Overlay 权威冲突 | §7.4、§8.2：外部 Call/Case Authority，Converact 问题测量 Resolution/Item、Projection/Execution |
 | Track 混合资源和旁路承诺 | §7.2、§9：Source、Edge、Pipeline、Fork、Transform、Endpoint |
 | AI 故障承诺不准确 | §10.1：Human optional AI 与 AI Endpoint 两类服务 |
 | 四故障域只有口号 | §8.4：进程、资源、依赖、Fault Matrix、Journal、RTO/RPO |
@@ -3081,7 +3124,8 @@ Design
 | 远期功能被错误冻结 | §22.5–§22.6、§25：商业 Option 与当前目标分离 |
 | 当前/目标/生产状态混淆 | §1.4、§25.3–§25.4：Evidence-backed 状态明确 |
 
-独立预审不等于用户批准，也不等于实现验收。本文仍为 `proposed_for_review`。
+独立预审不等于用户批准，也不等于实现验收。本文仍为
+`retained_vertical_profile / proposed_for_profile_review`。
 
 ---
 
@@ -3089,11 +3133,20 @@ Design
 
 请优先评审以下六项：
 
-1. 是否接受内部“多模态技术问题解决平台”、外部“出口设备售后远程解决”的双层定位。
+1. 是否接受 R2 的通用平台之下，以“多模态技术问题解决”作为第一个 Profile、以“出口设备售后远程解决”作为第一个 Offer。
 2. 是否接受一个 ICP、美国首发区域、一个主流程、USD 20k 固定 Pilot、必验 B1 翻译和明确 no-bid。
 3. 是否接受 Overlay 外部系统保留 Authority，Native 必须由至少 2 个签约客户触发。
-4. 是否接受 ResolutionItem、Evidence、Task、Action、OutcomeClaim 和 OutputLease 作为永久业务核心。
+4. 是否接受 Engagement/EngagementItem 作为平台上位模型，并在本 Profile 中严格映射为 Resolution/ResolutionItem；Evidence、Task、Action、OutcomeClaim 和 OutputLease 继续使用平台 Authority。
 5. 是否接受 HF 只替换重叠 SpeechRuntime，Pi、Nanobot、LiveKit Agents 等均为可替换 Adapter。
 6. 是否接受 ViLTE、平台化和 36–60 月方向只是有 Gate 的 Option，不是当前开发承诺。
 
-本文获批后，下一步不是直接编码，而是先为 W0–W10 建立依赖顺序、机器合同和详细实施计划。
+本文 Profile 获批后，下一步不是跳过 R2/G00 直接编码，而是按更新后的 G00–G17 依赖、机器
+合同和详细实施计划执行。R2 平台范围获批不等于本文市场 Gate 或生产能力已经通过。
+
+---
+
+## 29. R2 平台范围修订记录
+
+| 日期 | Revision | 变更 |
+| --- | --- | --- |
+| 2026-07-31 | R1 profile clarification | Converact 总平台上移到 R2 的 Engagement/Communications & Execution 模型；本文保留为 Resolve Assist 的 `resolution` Profile，不再声明代表整个 Converact 业务边界 |

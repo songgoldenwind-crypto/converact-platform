@@ -1,9 +1,9 @@
 import type {
-  IveKitChatParticipant,
-  IveKitChatRealtimeState,
-  IveKitPolicyFinding,
-  IveKitPolicyFindingResult,
-  IveKitPolicyFindingReviewInput
+  ConveractFabricChatParticipant,
+  ConveractFabricChatRealtimeState,
+  ConveractFabricPolicyFinding,
+  ConveractFabricPolicyFindingResult,
+  ConveractFabricPolicyFindingReviewInput
 } from '@converact/sdk';
 import { ShieldAlert, Users, X } from 'lucide-react';
 import React, { lazy, Suspense } from 'react';
@@ -14,16 +14,16 @@ const FindingPanel = lazy(async () => {
 });
 
 export function ParticipantRail(props: {
-  participants: IveKitChatParticipant[];
-  realtime: IveKitChatRealtimeState[];
-  findings: IveKitPolicyFinding[];
+  participants: ConveractFabricChatParticipant[];
+  realtime: ConveractFabricChatRealtimeState[];
+  findings: ConveractFabricPolicyFinding[];
   identity: string;
   selectedFindingId: string;
-  findingDetail: IveKitPolicyFindingResult | null;
+  findingDetail: ConveractFabricPolicyFindingResult | null;
   onSelectFinding(id: string): void;
   onCloseFinding(): void;
-  onLoadFinding(id: string): Promise<IveKitPolicyFindingResult>;
-  onReviewFinding(id: string, input: IveKitPolicyFindingReviewInput): Promise<IveKitPolicyFindingResult>;
+  onLoadFinding(id: string): Promise<ConveractFabricPolicyFindingResult>;
+  onReviewFinding(id: string, input: ConveractFabricPolicyFindingReviewInput): Promise<ConveractFabricPolicyFindingResult>;
 }) {
   const state = new Map(props.realtime.map((item) => [item.identity, item]));
   const reviewer = props.participants.some((participant) =>

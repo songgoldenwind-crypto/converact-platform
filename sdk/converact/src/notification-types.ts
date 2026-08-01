@@ -1,12 +1,12 @@
-import type { IveKitSdkBusinessRef } from './types.js';
+import type { ConveractFabricSdkBusinessRef } from './types.js';
 
-export type IveKitNotificationChannel = 'in_app' | 'webhook' | 'email' | 'sms';
-export type IveKitNotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
-export type IveKitNotificationInboxAction = 'read' | 'unread' | 'archive' | 'unarchive';
+export type ConveractFabricNotificationChannel = 'in_app' | 'webhook' | 'email' | 'sms';
+export type ConveractFabricNotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type ConveractFabricNotificationInboxAction = 'read' | 'unread' | 'archive' | 'unarchive';
 
-export interface IveKitNotificationCapabilities {
+export interface ConveractFabricNotificationCapabilities {
   schema_version: number;
-  channels: Record<IveKitNotificationChannel | 'mobile_push', boolean>;
+  channels: Record<ConveractFabricNotificationChannel | 'mobile_push', boolean>;
   inbox: boolean;
   templates: boolean;
   preferences: boolean;
@@ -17,17 +17,17 @@ export interface IveKitNotificationCapabilities {
   active_health_checks: boolean;
 }
 
-export interface IveKitCreateNotificationInput {
+export interface ConveractFabricCreateNotificationInput {
   event_type: string;
   recipient: { kind: 'user' | 'external' | 'endpoint'; ref: string };
-  targets: Array<{ channel: IveKitNotificationChannel; recipient: string; endpoint_id?: string }>;
+  targets: Array<{ channel: ConveractFabricNotificationChannel; recipient: string; endpoint_id?: string }>;
   content: unknown;
   content_projection?: Record<string, unknown>;
-  priority?: IveKitNotificationPriority;
+  priority?: ConveractFabricNotificationPriority;
   force_delivery?: boolean;
   locale?: string;
   template?: { id: string; revision: number };
-  business_ref: IveKitSdkBusinessRef;
+  business_ref: ConveractFabricSdkBusinessRef;
   correlation_id?: string;
   policy?: Record<string, unknown>;
   scheduled_at?: string;
@@ -35,20 +35,20 @@ export interface IveKitCreateNotificationInput {
   max_attempts?: number;
 }
 
-export interface IveKitNotification {
+export interface ConveractFabricNotification {
   id: string;
   tenant_id: string;
   event_type: string;
   recipient_kind: string;
   recipient_ref: string;
-  channels: IveKitNotificationChannel[];
+  channels: ConveractFabricNotificationChannel[];
   locale: string;
   template_id: string | null;
   template_revision: number | null;
   content_projection: Record<string, unknown>;
-  priority: IveKitNotificationPriority;
+  priority: ConveractFabricNotificationPriority;
   force_delivery: boolean;
-  business_ref: IveKitSdkBusinessRef;
+  business_ref: ConveractFabricSdkBusinessRef;
   requested_by: string;
   correlation_id: string;
   state: string;
@@ -59,10 +59,10 @@ export interface IveKitNotification {
   completed_at: string | null;
 }
 
-export interface IveKitNotificationDelivery {
+export interface ConveractFabricNotificationDelivery {
   id: string;
   notification_id: string;
-  channel: IveKitNotificationChannel;
+  channel: ConveractFabricNotificationChannel;
   endpoint_id: string | null;
   provider_kind: string;
   provider_profile_id: string;
@@ -83,40 +83,40 @@ export interface IveKitNotificationDelivery {
   completed_at: string | null;
 }
 
-export interface IveKitNotificationCreateResult {
+export interface ConveractFabricNotificationCreateResult {
   created: boolean;
-  notification: IveKitNotification;
-  deliveries: IveKitNotificationDelivery[];
+  notification: ConveractFabricNotification;
+  deliveries: ConveractFabricNotificationDelivery[];
 }
 
-export interface IveKitNotificationInboxItem {
+export interface ConveractFabricNotificationInboxItem {
   id: string;
   tenant_id: string;
   notification_id: string;
   user_id: string;
   projection: Record<string, unknown>;
-  priority: IveKitNotificationPriority;
+  priority: ConveractFabricNotificationPriority;
   read_at: string | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export interface IveKitNotificationInboxPage {
-  items: IveKitNotificationInboxItem[];
+export interface ConveractFabricNotificationInboxPage {
+  items: ConveractFabricNotificationInboxItem[];
   next_cursor: string | null;
 }
 
-export interface IveKitNotificationPage<T> {
+export interface ConveractFabricNotificationPage<T> {
   items: T[];
   next_cursor: string | null;
 }
 
-export interface IveKitNotificationEndpoint {
+export interface ConveractFabricNotificationEndpoint {
   id: string;
   tenant_id: string;
   name: string;
-  channel: Exclude<IveKitNotificationChannel, 'in_app'>;
+  channel: Exclude<ConveractFabricNotificationChannel, 'in_app'>;
   provider_kind: 'webhook' | 'smtp' | 'email_http' | 'sms_http' | 'controlled';
   status: string;
   endpoint_url: string;
@@ -137,29 +137,29 @@ export interface IveKitNotificationEndpoint {
   updated_at: string;
 }
 
-export type IveKitCreateNotificationEndpointInput = Omit<
-  IveKitNotificationEndpoint,
+export type ConveractFabricCreateNotificationEndpointInput = Omit<
+  ConveractFabricNotificationEndpoint,
   'id' | 'tenant_id' | 'secret_configured' | 'signing_secret_configured' | 'health_status'
   | 'last_health_at' | 'revision' | 'created_by' | 'updated_by' | 'created_at' | 'updated_at'
 > & { secret_ref?: string; signing_secret_ref?: string };
 
-export interface IveKitNotificationEndpointListInput {
-  channel?: Exclude<IveKitNotificationChannel, 'in_app'>;
+export interface ConveractFabricNotificationEndpointListInput {
+  channel?: Exclude<ConveractFabricNotificationChannel, 'in_app'>;
   status?: 'active' | 'paused' | 'degraded' | 'disabled' | 'archived';
   limit?: number;
   cursor?: string;
 }
 
-export interface IveKitNotificationEndpointTestInput {
+export interface ConveractFabricNotificationEndpointTestInput {
   event_type: string;
   recipient: string;
   content: unknown;
   content_projection?: Record<string, unknown>;
-  business_ref?: IveKitSdkBusinessRef;
+  business_ref?: ConveractFabricSdkBusinessRef;
   correlation_id?: string;
 }
 
-export interface IveKitNotificationTemplate {
+export interface ConveractFabricNotificationTemplate {
   id: string;
   tenant_id: string;
   template_key: string;
@@ -173,12 +173,12 @@ export interface IveKitNotificationTemplate {
   updated_at: string;
 }
 
-export interface IveKitNotificationTemplateVersion {
+export interface ConveractFabricNotificationTemplateVersion {
   tenant_id: string;
   template_id: string;
   revision: number;
   locale: string;
-  channels: IveKitNotificationChannel[];
+  channels: ConveractFabricNotificationChannel[];
   content: Record<string, unknown>;
   content_hash: string;
   published: boolean;
@@ -187,42 +187,42 @@ export interface IveKitNotificationTemplateVersion {
   published_at: string | null;
 }
 
-export interface IveKitNotificationTemplateSnapshot {
-  template: IveKitNotificationTemplate;
-  version: IveKitNotificationTemplateVersion;
+export interface ConveractFabricNotificationTemplateSnapshot {
+  template: ConveractFabricNotificationTemplate;
+  version: ConveractFabricNotificationTemplateVersion;
 }
 
-export interface IveKitNotificationTemplateListInput {
-  status?: IveKitNotificationTemplate['status'];
+export interface ConveractFabricNotificationTemplateListInput {
+  status?: ConveractFabricNotificationTemplate['status'];
   limit?: number;
   cursor?: string;
 }
 
-export interface IveKitNotificationTemplateVersionListInput {
+export interface ConveractFabricNotificationTemplateVersionListInput {
   locale?: string;
   limit?: number;
   cursor?: string;
 }
 
-export interface IveKitNotificationDeliveryListInput {
+export interface ConveractFabricNotificationDeliveryListInput {
   notification_id?: string;
   endpoint_id?: string;
-  channel?: IveKitNotificationChannel;
+  channel?: ConveractFabricNotificationChannel;
   state?: string;
   limit?: number;
   cursor?: string;
 }
 
-export interface IveKitRetryNotificationDeliveryInput {
+export interface ConveractFabricRetryNotificationDeliveryInput {
   expected_state: 'failed' | 'dead_letter' | 'uncertain';
   allow_uncertain?: boolean;
 }
 
-export interface IveKitNotificationPreference {
+export interface ConveractFabricNotificationPreference {
   tenant_id: string;
   user_id: string;
   event_type: string;
-  channel: IveKitNotificationChannel;
+  channel: ConveractFabricNotificationChannel;
   enabled: boolean;
   locale: string;
   quiet_hours: Record<string, unknown>;

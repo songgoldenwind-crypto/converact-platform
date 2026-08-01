@@ -1,8 +1,9 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import { clearAuthSession, getTenantId, getUserId, saveAuthSession, type AuthSession } from '../api/client';
+import { readAuthStorage, removeAuthStorage, writeAuthStorage } from '../auth-storage';
 
 function getSnapshot(): boolean {
-  return !!(localStorage.getItem('opc_token') || localStorage.getItem('opc_api_key'));
+  return !!(readAuthStorage('token') || readAuthStorage('api_key'));
 }
 
 function subscribe(callback: () => void) {
@@ -22,19 +23,19 @@ export function useAuth() {
   }, []);
 
   const loginWithApiKey = useCallback((key: string) => {
-    localStorage.setItem('opc_api_key', key);
+    writeAuthStorage('api_key', key);
     window.dispatchEvent(new Event('auth-change'));
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('opc_api_key');
+    removeAuthStorage('api_key');
     clearAuthSession();
   }, []);
 
   const tenantId = getTenantId();
   const userId = getUserId();
-  const tenantName = localStorage.getItem('opc_tenant_name') || '';
-  const userEmail = localStorage.getItem('opc_user_email') || '';
+  const tenantName = readAuthStorage('tenant_name') || '';
+  const userEmail = readAuthStorage('user_email') || '';
 
   return {
     isAuthenticated,

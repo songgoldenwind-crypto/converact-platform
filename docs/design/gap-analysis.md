@@ -1,4 +1,4 @@
-# OPC 存量代码 vs 修订计划 v3 — Gap 分析
+# Converact Platform 存量代码 vs 修订计划 v3 — Gap 分析
 
 > **日期**: 2026-06-21（首次） · 2026-06-29（按 `docs/design/README.md` 准绳重扫陈旧项）
 > **目的**: 逐项对照 `revised-master-plan.md` v3 与现有代码，确定每个模块的 **保留 / 重构 / 新建 / 废弃** 决策。
@@ -20,7 +20,7 @@
 
 | 层 | 文件数 | 主要技术 | 状态 |
 |---|---|---|---|
-| OPC Core (TypeScript) | ~515 | Node.js raw HTTP + SQLite | 活跃 |
+| Converact Platform Core (TypeScript) | ~515 | Node.js raw HTTP + SQLite | 活跃 |
 | AI Agent (Python) | ~24 | LiveKit Agents SDK + DeepSeek | 活跃 |
 | Frontend (React) | ~15 | Vite + TailwindCSS | 基础框架 |
 | Infra | ~10 | Docker Compose + Helm 骨架 | 部分可用 |
@@ -248,7 +248,7 @@
 2. **新建** `src/ws.ts` — WebSocket 服务 + 鉴权 + 广播（【已落地于 2026-06，核查日期=2026-06-29】）
 3. **新建** `src/agent-runtime/call-center/compliance/` — 合规引擎 3 文件
 4. **新建** `POST /api/auth/register` + `POST /api/auth/login`
-5. **重构** `docker-compose.callcenter.yml` — 去掉 Chatwoot，opc 连 Postgres
+5. **重构** `docker-compose.callcenter.yml` — 去掉 Chatwoot，converact 连 Postgres
 6. **新增依赖** `pg`, `ws`, `bcrypt`（或 Node.js 原生 crypto scrypt）
 7. **修复** 所有未挂载的 HTTP 模块（billing/knowledge/wfm/webhooks/white-label）
 
@@ -282,4 +282,4 @@
 | 版本/日期 | 作者 | 变更内容 |
 |-----------|------|---------|
 | 2026-06-21 | - | 初始 gap 分析（对照 revised-master-plan v3） |
-| 2026-06-29 | OPC Team | 按 `docs/design/README.md` §3/§4 准绳重扫：(1) `src/ws.ts` 三处断言（§1.2 架构偏差 / §2.2 实时层 / §3.2 Sprint 1 Gap）改为"已落地"，附核查日期=2026-06-29；(2) Kamailio config 从"保留·Sprint 11"改为"废弃·延后 v2.0+"（使 §3.1 废弃=4 与明细 4 项对齐，消除原统计矛盾）；(3) 头部加 `<关联文档>` block 与重扫校准段。其余"❌ 不存在"行未本轮全量重扫，下个 Sprint 重跑。 |
+| 2026-06-29 | Converact Platform Team | 按 `docs/design/README.md` §3/§4 准绳重扫：(1) `src/ws.ts` 三处断言（§1.2 架构偏差 / §2.2 实时层 / §3.2 Sprint 1 Gap）改为"已落地"，附核查日期=2026-06-29；(2) Kamailio config 从"保留·Sprint 11"改为"废弃·延后 v2.0+"（使 §3.1 废弃=4 与明细 4 项对齐，消除原统计矛盾）；(3) 头部加 `<关联文档>` block 与重扫校准段。其余"❌ 不存在"行未本轮全量重扫，下个 Sprint 重跑。 |

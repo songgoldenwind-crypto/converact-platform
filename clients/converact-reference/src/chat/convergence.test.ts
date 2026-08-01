@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { IveKitChatMessage } from '@converact/sdk';
+import type { ConveractFabricChatMessage } from '@converact/sdk';
 import { ChatConvergence } from './convergence.js';
 
 test('convergence deduplicates, orders, coalesces invalidations, and advances after cursor', async () => {
   const pages = [
-    deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>(),
-    deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>()
+    deferred<{ items: ConveractFabricChatMessage[]; next_cursor: string | null; has_more: boolean }>(),
+    deferred<{ items: ConveractFabricChatMessage[]; next_cursor: string | null; has_more: boolean }>()
   ];
   const cursors: Array<string | null> = [];
   const projections: string[][] = [];
@@ -33,7 +33,7 @@ test('convergence deduplicates, orders, coalesces invalidations, and advances af
 });
 
 test('convergence suppresses stale generations and closes on authorization failure', async () => {
-  const pending = deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>();
+  const pending = deferred<{ items: ConveractFabricChatMessage[]; next_cursor: string | null; has_more: boolean }>();
   const projections: string[][] = [];
   const fatal: number[] = [];
   let request = 0;
@@ -56,8 +56,8 @@ test('convergence suppresses stale generations and closes on authorization failu
 });
 
 test('convergence supersedes an in-flight stale page without advancing its cursor', async () => {
-  const oldPage = deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>();
-  const currentPage = deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>();
+  const oldPage = deferred<{ items: ConveractFabricChatMessage[]; next_cursor: string | null; has_more: boolean }>();
+  const currentPage = deferred<{ items: ConveractFabricChatMessage[]; next_cursor: string | null; has_more: boolean }>();
   const pages = [oldPage, currentPage];
   const cursors: Array<string | null> = [];
   const changedBodies: string[][] = [];
@@ -81,8 +81,8 @@ test('convergence supersedes an in-flight stale page without advancing its curso
 });
 
 test('convergence ignores stale authorization failures after supersede or close', async () => {
-  const staleAfterSupersede = deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>();
-  const currentPage = deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>();
+  const staleAfterSupersede = deferred<{ items: ConveractFabricChatMessage[]; next_cursor: string | null; has_more: boolean }>();
+  const currentPage = deferred<{ items: ConveractFabricChatMessage[]; next_cursor: string | null; has_more: boolean }>();
   const fatal: number[] = [];
   let index = 0;
   const pages = [staleAfterSupersede, currentPage];
@@ -100,7 +100,7 @@ test('convergence ignores stale authorization failures after supersede or close'
   await Promise.all([running, queued]);
   assert.deepEqual(fatal, []);
 
-  const staleAfterClose = deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>();
+  const staleAfterClose = deferred<{ items: ConveractFabricChatMessage[]; next_cursor: string | null; has_more: boolean }>();
   const closedFatal: number[] = [];
   const closed = new ChatConvergence({
     fetchAfter: async () => staleAfterClose.promise,
@@ -120,8 +120,8 @@ test('convergence rejects a non-advancing has-more cursor', async () => {
   await assert.rejects(convergence.invalidate('initial'), /cursor did not advance/);
 });
 
-function message(id: string, order: number): IveKitChatMessage {
-  return { id, created_at: new Date(order * 1000).toISOString() } as IveKitChatMessage;
+function message(id: string, order: number): ConveractFabricChatMessage {
+  return { id, created_at: new Date(order * 1000).toISOString() } as ConveractFabricChatMessage;
 }
 
 function deferred<T>() {

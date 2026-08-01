@@ -18,7 +18,7 @@ export type MediaRoomPurpose =
   | 'conference'
   | 'pstn_bridge';
 
-export type IveKitMediaCallStatus =
+export type ConveractFabricMediaCallStatus =
   | 'created'
   | 'ringing'
   | 'accepted'
@@ -29,7 +29,7 @@ export type IveKitMediaCallStatus =
   | 'ended'
   | 'failed';
 
-export type IveKitMediaCallParticipantStatus =
+export type ConveractFabricMediaCallParticipantStatus =
   | 'invited'
   | 'ringing'
   | 'accepted'
@@ -39,8 +39,8 @@ export type IveKitMediaCallParticipantStatus =
   | 'missed'
   | 'removed';
 
-export type IveKitMediaCallRole = 'host' | 'participant' | 'observer';
-export type IveKitMediaCallAction =
+export type ConveractFabricMediaCallRole = 'host' | 'participant' | 'observer';
+export type ConveractFabricMediaCallAction =
   | 'ring'
   | 'accept'
   | 'reject'
@@ -50,12 +50,12 @@ export type IveKitMediaCallAction =
   | 'end'
   | 'fail';
 
-export interface IveKitMediaCall {
+export interface ConveractFabricMediaCall {
   id: string;
   tenant_id: string;
   room_name: string;
   media: 'voice' | 'video';
-  status: IveKitMediaCallStatus;
+  status: ConveractFabricMediaCallStatus;
   initiated_by: string;
   business_ref: MediaBusinessRef;
   title: string;
@@ -70,13 +70,13 @@ export interface IveKitMediaCall {
   updated_at: string;
 }
 
-export interface IveKitMediaCallParticipant {
+export interface ConveractFabricMediaCallParticipant {
   id: string;
   tenant_id: string;
   call_id: string;
   identity: string;
-  role: IveKitMediaCallRole;
-  status: IveKitMediaCallParticipantStatus;
+  role: ConveractFabricMediaCallRole;
+  status: ConveractFabricMediaCallParticipantStatus;
   display_name: string;
   metadata: Record<string, unknown>;
   invited_at: string;
@@ -84,32 +84,32 @@ export interface IveKitMediaCallParticipant {
   joined_at: string | null;
   left_at: string | null;
   connection_revision?: number;
-  connection_state?: IveKitMediaConnectionState;
+  connection_state?: ConveractFabricMediaConnectionState;
   connection_updated_at?: string | null;
   last_disconnected_at?: string | null;
   last_rejoined_at?: string | null;
-  quality_state?: IveKitMediaQualityState;
+  quality_state?: ConveractFabricMediaQualityState;
   quality_degraded_streak?: number;
   quality_recovered_streak?: number;
-  last_quality_level?: IveKitMediaQualityLevel;
+  last_quality_level?: ConveractFabricMediaQualityLevel;
   last_quality_sample_id?: string;
   last_qos_at?: string | null;
   updated_at: string;
 }
 
-export interface IveKitMediaCallSnapshot {
-  call: IveKitMediaCall;
-  participants: IveKitMediaCallParticipant[];
+export interface ConveractFabricMediaCallSnapshot {
+  call: ConveractFabricMediaCall;
+  participants: ConveractFabricMediaCallParticipant[];
 }
 
-export type IveKitMediaConnectionState =
+export type ConveractFabricMediaConnectionState =
   | 'connected'
   | 'reconnecting'
   | 'disconnected'
   | 'rejoining'
   | 'failed';
 
-export type IveKitMediaConnectionEventType =
+export type ConveractFabricMediaConnectionEventType =
   | 'connected'
   | 'reconnecting'
   | 'reconnected'
@@ -118,15 +118,15 @@ export type IveKitMediaConnectionEventType =
   | 'rejoined'
   | 'failed';
 
-export type IveKitMediaQualityState = 'unknown' | 'good' | 'degraded';
-export type IveKitMediaQualityLevel = 'excellent' | 'good' | 'poor' | 'lost' | 'unknown';
+export type ConveractFabricMediaQualityState = 'unknown' | 'good' | 'degraded';
+export type ConveractFabricMediaQualityLevel = 'excellent' | 'good' | 'poor' | 'lost' | 'unknown';
 
-export interface IveKitMediaQualitySnapshotInput {
+export interface ConveractFabricMediaQualitySnapshotInput {
   participant_identity: string;
   connection_revision: number;
   sample_id: string;
-  track_source: IveKitMediaTrackSource;
-  quality_level: IveKitMediaQualityLevel;
+  track_source: ConveractFabricMediaTrackSource;
+  quality_level: ConveractFabricMediaQualityLevel;
   rtt_ms?: number | null;
   jitter_ms?: number | null;
   packet_loss_ratio?: number | null;
@@ -135,89 +135,89 @@ export interface IveKitMediaQualitySnapshotInput {
   sampled_at: string;
 }
 
-export interface IveKitMediaQualitySnapshot extends IveKitMediaQualitySnapshotInput {
+export interface ConveractFabricMediaQualitySnapshot extends ConveractFabricMediaQualitySnapshotInput {
   id: string;
   tenant_id: string;
   call_id: string;
   received_at: string;
 }
 
-export interface IveKitMediaQualityParticipantState {
+export interface ConveractFabricMediaQualityParticipantState {
   tenant_id: string;
   call_id: string;
   identity: string;
-  participant_status: IveKitMediaCallParticipantStatus;
+  participant_status: ConveractFabricMediaCallParticipantStatus;
   connection_revision: number;
-  connection_state: IveKitMediaConnectionState;
+  connection_state: ConveractFabricMediaConnectionState;
   connection_updated_at: string | null;
   last_disconnected_at: string | null;
   last_rejoined_at: string | null;
-  quality_state: IveKitMediaQualityState;
+  quality_state: ConveractFabricMediaQualityState;
   quality_degraded_streak: number;
   quality_recovered_streak: number;
-  last_quality_level: IveKitMediaQualityLevel;
+  last_quality_level: ConveractFabricMediaQualityLevel;
   last_quality_sample_id: string;
   last_qos_at: string | null;
 }
 
-export interface IveKitMediaQualityTransition {
+export interface ConveractFabricMediaQualityTransition {
   tenant_id: string;
   call_id: string;
   participant_identity: string;
   connection_revision: number;
-  from: IveKitMediaQualityState;
+  from: ConveractFabricMediaQualityState;
   to: 'good' | 'degraded';
   event_type: 'degraded' | 'recovered';
-  quality_level: IveKitMediaQualityLevel;
+  quality_level: ConveractFabricMediaQualityLevel;
   sampled_at: string;
 }
 
-export interface IveKitMediaQualityReportResult {
+export interface ConveractFabricMediaQualityReportResult {
   accepted: number;
   replayed: number;
-  participant_states: IveKitMediaQualityParticipantState[];
-  transitions: IveKitMediaQualityTransition[];
+  participant_states: ConveractFabricMediaQualityParticipantState[];
+  transitions: ConveractFabricMediaQualityTransition[];
 }
 
-export interface IveKitMediaConnectionEventInput {
+export interface ConveractFabricMediaConnectionEventInput {
   participant_identity: string;
   event_id: string;
   connection_revision: number;
-  event_type: IveKitMediaConnectionEventType;
+  event_type: ConveractFabricMediaConnectionEventType;
   reason_code?: string;
   occurred_at: string;
 }
 
-export interface IveKitMediaConnectionEvent extends IveKitMediaConnectionEventInput {
+export interface ConveractFabricMediaConnectionEvent extends ConveractFabricMediaConnectionEventInput {
   id: string;
   tenant_id: string;
   call_id: string;
   reason_code: string;
-  connection_state: IveKitMediaConnectionState;
+  connection_state: ConveractFabricMediaConnectionState;
   received_at: string;
 }
 
-export interface IveKitMediaConnectionEventResult {
-  event: IveKitMediaConnectionEvent;
-  participant_state: IveKitMediaQualityParticipantState;
+export interface ConveractFabricMediaConnectionEventResult {
+  event: ConveractFabricMediaConnectionEvent;
+  participant_state: ConveractFabricMediaQualityParticipantState;
   replayed: boolean;
 }
 
-export interface IveKitMediaQualitySummary {
+export interface ConveractFabricMediaQualitySummary {
   tenant_id: string;
   call_id: string;
   generated_at: string;
-  participants: IveKitMediaQualityParticipantState[];
-  recent_snapshots: IveKitMediaQualitySnapshot[];
+  participants: ConveractFabricMediaQualityParticipantState[];
+  recent_snapshots: ConveractFabricMediaQualitySnapshot[];
 }
 
-export type IveKitMediaTrackSource =
+export type ConveractFabricMediaTrackSource =
   | 'camera'
   | 'microphone'
   | 'screen_share'
   | 'screen_share_audio';
 
-export interface IveKitMediaModerationActionRecord {
+export interface ConveractFabricMediaModerationActionRecord {
   id: string;
   tenant_id: string;
   call_id: string;
@@ -228,7 +228,7 @@ export interface IveKitMediaModerationActionRecord {
   idempotency_key: string;
   payload_hash: string;
   track_sid: string;
-  source: IveKitMediaTrackSource | '';
+  source: ConveractFabricMediaTrackSource | '';
   muted: boolean | null;
   reason: string;
   metadata: Record<string, unknown>;
@@ -236,7 +236,7 @@ export interface IveKitMediaModerationActionRecord {
   created_at: string;
 }
 
-export interface IveKitMediaModerationCommandRecord {
+export interface ConveractFabricMediaModerationCommandRecord {
   id: string;
   tenant_id: string;
   call_id: string;

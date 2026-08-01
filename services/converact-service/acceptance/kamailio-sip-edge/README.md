@@ -7,7 +7,7 @@ missing observation into a pass.
 
 The directory is an independent Node package. Run `npm ci` once after extracting
 the delivery bundle; its exact `tsx` and `ws` versions are locked locally and do
-not borrow dependencies from an OPC checkout.
+not borrow dependencies from a Converact checkout.
 
 ## Preconditions
 
@@ -23,7 +23,7 @@ not borrow dependencies from an OPC checkout.
 
 ## Scenario procedure
 
-Run the twelve contracts exported by `scripts/ivekit-kamailio-acceptance.ts`:
+Run the twelve contracts exported by `scripts/converact-kamailio-acceptance.ts`:
 weighted distribution, dialog affinity, transport and 503 retry, 486 no-retry,
 drain, node down/up, stale snapshot fail-closed, forged-header sanitization,
 public-port DMQ rejection, WebPhone registration refresh and cross-Edge delivery.
@@ -62,7 +62,7 @@ result. Aggregate from this directory with:
 CONVERACT_FABRIC_KAMAILIO_ACCEPTANCE_SOURCE_COMMIT=<40-hex-commit> \
 CONVERACT_FABRIC_KAMAILIO_ACCEPTANCE_ENVIRONMENT_ID=<environment-id> \
 CONVERACT_FABRIC_KAMAILIO_ACCEPTANCE_EVIDENCE_DIR=<absolute-or-relative-directory> \
-IVEKIT_KAMAILIO_IMAGE=<registry/image@sha256:digest> \
+CONVERACT_FABRIC_KAMAILIO_IMAGE=<registry/image@sha256:digest> \
 RUSTPBX_IMAGE=<registry/image@sha256:digest> \
 npm run accept
 ```

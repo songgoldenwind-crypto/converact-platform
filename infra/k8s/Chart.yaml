@@ -1,6 +1,6 @@
 apiVersion: v2
 name: converact-platform
-description: OPC AI Communication Platform
+description: Converact Platform
 version: 0.1.0
 appVersion: "1.0.0"
 type: application

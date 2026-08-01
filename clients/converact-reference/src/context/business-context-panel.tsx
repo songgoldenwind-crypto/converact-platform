@@ -1,15 +1,15 @@
-import type { IveKitBusinessContext, IveKitUnifiedTimelineEvent, IveKitUnifiedTimelinePage } from '@converact/sdk';
+import type { ConveractFabricBusinessContext, ConveractFabricUnifiedTimelineEvent, ConveractFabricUnifiedTimelinePage } from '@converact/sdk';
 import { Clock3, LoaderCircle, MessageSquare, MonitorCog, ShieldCheck, Users, Video, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 
 export function BusinessContextPanel(props: {
-  context: IveKitBusinessContext;
-  loadTimeline(input?: { cursor?: string; limit?: number }): Promise<IveKitUnifiedTimelinePage>;
+  context: ConveractFabricBusinessContext;
+  loadTimeline(input?: { cursor?: string; limit?: number }): Promise<ConveractFabricUnifiedTimelinePage>;
   onClose(): void;
 }) {
   const authorization = props.context.authorization;
   const [tab, setTab] = useState<'authorization' | 'activity'>('authorization');
-  const [events, setEvents] = useState<IveKitUnifiedTimelineEvent[]>([]);
+  const [events, setEvents] = useState<ConveractFabricUnifiedTimelineEvent[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);

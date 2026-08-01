@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "migration_id": "converact-rustdesk-client-rename-v2",
+  "status": "engineering_verified",
+  "source_manifest": "docs/capacity/forks/ivekit-forks-v1.json",
+  "source_manifest_sha256": "b6077031e54bb5d7440270f30a85910194d984311a280906d92cbf584de6e8c3",
+  "freeze_commit": "532350f34c9191092f62d9a1e89287de06f6c083",
+  "component_id": "rustdesk-client",
+  "path": "integrations/rustdesk-1.4.9/ivekit_native_evidence.rs",
+  "previous_sha256": "aa6135e3eb0fd532726a53ab188c7102da53d63f3dea4caf380b8b4818464654",
+  "current_sha256": "e2446647cb8ba82e5f00053277bb41d8efcce9e3cc8448bc7a043256b14d2e25",
+  "current_install_root": "%ProgramData%/Converact/RustDesk",
+  "legacy_install_root": "%ProgramData%/iveKit/RustDesk",
+  "selection_contract": "Use the current roots file when present or when no legacy roots file exists; otherwise use only the legacy root. Never scan or write both roots in one process.",
+  "migration_reason": "New installations use the Converact product identity while existing signed RustDesk evidence roots remain readable during the compatibility window.",
+  "removal_condition": "Remove the legacy root only after every supported Windows client and rollback generation has migrated its signed roots file and observed legacy-root use reaches zero.",
+  "verification": {
+    "unit": "test/converact-capacity-fork-status.test.ts",
+    "overlay": "test/rustdesk-native-control-overlay.test.ts",
+    "real_environment": "not_run"
+  }
+}

@@ -41,7 +41,7 @@ export default function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-[260px] bg-slate-800 text-white flex flex-col">
       <div className="px-6 py-5 border-b border-slate-700">
-        <h1 className="text-xl font-bold tracking-tight">OPC Admin</h1>
+        <h1 className="text-xl font-bold tracking-tight">Converact Console</h1>
         <p className="text-xs text-slate-400 mt-0.5">Call Center Platform</p>
       </div>
 

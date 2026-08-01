@@ -91,7 +91,7 @@ export class CommanderService {
           fallback_provider: 'dry_run',
           purpose: 'commander_plan',
           messages: [
-            { role: 'system', content: 'Create a concise execution plan for an OPC agent workflow.' },
+            { role: 'system', content: 'Create a concise execution plan for a Converact agent workflow.' },
             { role: 'user', content: JSON.stringify({ goal: input.goal, playbook_id: playbook.playbook_id, dag }) }
           ]
         }

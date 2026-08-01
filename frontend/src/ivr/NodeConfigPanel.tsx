@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Node } from '@xyflow/react';
 import { IVR_NODE_METADATA, type IvrNodeType, type PlayContent, type MenuOption, type ConditionRule, type GlobalShortcut, type VisualMenuItem } from './types';
 import { useIvrReferenceData } from './useIvrReferenceData';
-import { IVR_BRANCH } from '@opc/shared/ivr/branch-handles';
+import { IVR_BRANCH } from '@converact/shared/ivr/branch-handles';
 
 interface Props {
   node: Node | null;

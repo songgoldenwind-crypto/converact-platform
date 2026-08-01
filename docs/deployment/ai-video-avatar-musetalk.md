@@ -84,8 +84,8 @@ python scripts/test_avatar.py
 export LIVEKIT_URL=ws://localhost:7880
 export LIVEKIT_API_KEY=devkey
 export LIVEKIT_API_SECRET=secret
-export OPC_AVATAR_SMOKE_ROOM_NAME=opc-avatar-smoke
-export OPC_AVATAR_SMOKE_IDENTITY=opc-avatar-smoke-bot
+export CONVERACT_AVATAR_SMOKE_ROOM_NAME=converact-avatar-smoke
+export CONVERACT_AVATAR_SMOKE_IDENTITY=converact-avatar-smoke-bot
 npm run smoke:media:avatar
 ```
 
@@ -109,10 +109,10 @@ npm run smoke:media:avatar
 | `MUSETALK_MODEL_PATH` | ../../../MuseTalk/models | 模型路径 |
 | `AVATAR_DEFAULT_IMAGE` | assets/default.jpg | 默认形象 |
 | `AVATAR_AUDIO_CHUNK_MS` | 100 | 音频分块（影响延迟） |
-| `OPC_AVATAR_SMOKE_ROOM_NAME` | opc-avatar-smoke | LiveKit 轨道发布 smoke 房间名 |
-| `OPC_AVATAR_SMOKE_IDENTITY` | opc-avatar-smoke-bot | LiveKit 轨道发布 smoke 参与人 identity |
-| `OPC_AVATAR_SMOKE_SAMPLE_CHUNKS` | 3 | smoke 喂入的探测音频块数 |
-| `OPC_AVATAR_SMOKE_SETTLE_SECONDS` | 0.5 | smoke 发布后等待帧捕获的时间 |
+| `CONVERACT_AVATAR_SMOKE_ROOM_NAME` | converact-avatar-smoke | LiveKit 轨道发布 smoke 房间名 |
+| `CONVERACT_AVATAR_SMOKE_IDENTITY` | converact-avatar-smoke-bot | LiveKit 轨道发布 smoke 参与人 identity |
+| `CONVERACT_AVATAR_SMOKE_SAMPLE_CHUNKS` | 3 | smoke 喂入的探测音频块数 |
+| `CONVERACT_AVATAR_SMOKE_SETTLE_SECONDS` | 0.5 | smoke 发布后等待帧捕获的时间 |
 
 ## 触发数字人的调用链
 

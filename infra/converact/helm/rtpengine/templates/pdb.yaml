@@ -2,12 +2,12 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: ivekit-rtpengine
+  name: converact-rtpengine
   labels:
-    app.kubernetes.io/name: ivekit-rtpengine
+    app.kubernetes.io/name: converact-rtpengine
 spec:
   maxUnavailable: {{ .Values.pdb.maxUnavailable }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-rtpengine
+      app.kubernetes.io/name: converact-rtpengine
 {{- end }}

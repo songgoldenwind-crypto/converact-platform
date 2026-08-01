@@ -1,4 +1,4 @@
-# iveKit Rust Component Hook
+# Converact Fabric Rust Component Hook
 
 This crate is the source-level hook for RustDesk Server and RustPBX forks. It
 has no third-party dependencies and accepts an injected `Authorizer` transport.

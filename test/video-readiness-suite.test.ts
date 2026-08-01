@@ -154,7 +154,7 @@ test('video readiness suite runs selected smoke commands in order', async () => 
       CONVERACT_MEDIA_API_TOKEN: 'media-token',
       CONVERACT_MEDIA_INVITE_SECRET: 'invite-secret',
       CONVERACT_MEDIA_SMOKE_TENANT_ID: 'tenant-1',
-      CONVERACT_API_KEY: 'opc-key',
+      CONVERACT_API_KEY: 'converact-key',
       CONVERACT_AI_CALLBACK_SMOKE_TENANT_ID: 'tenant-1',
       CONVERACT_WEB_ASSIST_CUSTOMER_URL:
         '/remote-assist/session?tenant_id=tenant-1&remote_session_id=remote-1&token=signed-customer',
@@ -204,7 +204,7 @@ test('video readiness suite accepts RustDesk-specific remote gateway env fallbac
   const result = await runVideoReadinessSuite(
     createVideoReadinessSuiteConfigFromEnv({
       CONVERACT_VIDEO_READINESS_TARGETS: 'remote-gateway',
-      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc:3000',
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact:3000',
       CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
       CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rustdesk-device-1'
     }),
@@ -216,7 +216,7 @@ test('video readiness suite accepts RustDesk-specific remote gateway env fallbac
 
   assert.equal(result.ok, true);
   assert.deepEqual(calls.map((call) => call.command), ['npm run smoke:remote-gateway']);
-  assert.equal(calls[0]?.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL, 'http://opc:3000');
+  assert.equal(calls[0]?.env.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL, 'http://converact:3000');
   assert.equal(calls[0]?.env.CONVERACT_RUSTDESK_API_TOKEN, 'rustdesk-token');
 });
 
@@ -226,7 +226,7 @@ test('video readiness suite preflight requires RustDesk device-online auth input
       runVideoReadinessSuite(
         createVideoReadinessSuiteConfigFromEnv({
           CONVERACT_VIDEO_READINESS_TARGETS: 'remote-gateway',
-          CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc:3000',
+          CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact:3000',
           CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
           CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rustdesk-device-1',
           CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: '1'
@@ -242,12 +242,12 @@ test('video readiness suite accepts edge tenant fallback for RustDesk device-onl
   const result = await runVideoReadinessSuite(
     createVideoReadinessSuiteConfigFromEnv({
       CONVERACT_VIDEO_READINESS_TARGETS: 'remote-gateway',
-      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://opc:3000',
+      CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL: 'http://converact:3000',
       CONVERACT_RUSTDESK_API_TOKEN: 'rustdesk-token',
       CONVERACT_REMOTE_GATEWAY_TARGET_ID: 'rustdesk-device-1',
       CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE: '1',
       CONVERACT_RUSTDESK_EDGE_TENANT_ID: 'tenant_from_edge',
-      CONVERACT_API_KEY: 'opc-key'
+      CONVERACT_API_KEY: 'converact-key'
     }),
     async (command, args) => {
       calls.push([command, ...args].join(' '));
@@ -669,7 +669,7 @@ test('video readiness persisted report hashes output without storing tokens or s
 });
 
 test('video readiness CLI writes a failed artifact when preflight stops before the first step', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-video-readiness-preflight-report-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-video-readiness-preflight-report-'));
   const outputFile = join(dir, 'readiness.json');
   try {
     const result = spawnSync(
@@ -704,7 +704,7 @@ test('video readiness CLI writes a failed artifact when preflight stops before t
 });
 
 test('video readiness report writer creates a secret-safe JSON artifact', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-video-readiness-report-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-video-readiness-report-'));
   const outputFile = join(dir, 'nested', 'readiness.json');
   try {
     const write = writeVideoReadinessReport(outputFile, {

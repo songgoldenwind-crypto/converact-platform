@@ -2,14 +2,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.tinodeFullname" . }}
+  name: {{ include "converact.tinodeFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: tinode
 spec:
   type: {{ .Values.tinode.service.type }}
   selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    {{- include "converact.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: tinode
   ports:
     - name: http
@@ -21,15 +21,15 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.tinodeHeadlessFullname" . }}
+  name: {{ include "converact.tinodeHeadlessFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: tinode
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
   selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    {{- include "converact.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: tinode
   ports:
     - name: http

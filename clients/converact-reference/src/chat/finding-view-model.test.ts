@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { IveKitPolicyFinding } from '@converact/sdk';
+import type { ConveractFabricPolicyFinding } from '@converact/sdk';
 import { availableFindingActions, dedupeFindingReviews, projectFindings } from './finding-view-model.js';
 
 test('finding projection labels every source, deduplicates events, and orders risk', () => {
@@ -53,11 +53,11 @@ test('finding review history deduplicates idempotent response entries by audit i
 
 function finding(
   id: string,
-  source: IveKitPolicyFinding['source'],
-  severity: IveKitPolicyFinding['severity'],
+  source: ConveractFabricPolicyFinding['source'],
+  severity: ConveractFabricPolicyFinding['severity'],
   fingerprint: string,
   updatedAt = '2026-07-11T12:00:00.000Z'
-): IveKitPolicyFinding {
+): ConveractFabricPolicyFinding {
   return {
     id,
     tenant_id: 'tenant-1',

@@ -51,7 +51,7 @@ test('uses only Converact active package and chart names', () => {
   assert.match(cargoManifest, /^name = "converact-component-hook"$/m);
 });
 
-test('moves every active iveKit directory and TypeScript entrypoint', () => {
+test('moves every active Converact Fabric directory and TypeScript entrypoint', () => {
   const legacyDirectories = [
     'clients/ivekit-reference',
     'sdk/ivekit',

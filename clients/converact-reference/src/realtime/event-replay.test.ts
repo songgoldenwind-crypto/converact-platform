@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type {
-  IveKitEvent,
-  IveKitEventPage,
-  IveKitEventReplayResult
+  ConveractFabricEvent,
+  ConveractFabricEventPage,
+  ConveractFabricEventReplayResult
 } from '@converact/sdk';
 import { EventReplayController, eventWorkspace } from './event-replay.js';
 
-const event = (id: string, type: string): IveKitEvent => ({
+const event = (id: string, type: string): ConveractFabricEvent => ({
   event_id: id,
   cursor: `cursor-${id}`,
   tenant_id: 'tenant-replay',
@@ -24,7 +24,7 @@ const event = (id: string, type: string): IveKitEvent => ({
 test('event replay starts at head, resumes gaps once, and deduplicates event IDs', async () => {
   const delivered: string[] = [];
   const statuses: string[] = [];
-  const replays: IveKitEventReplayResult[] = [
+  const replays: ConveractFabricEventReplayResult[] = [
     {
       items: [event('1', 'collaboration.message.created'), event('1', 'collaboration.message.created')],
       next_cursor: 'cursor-1', has_more: false, snapshot_required: false, pages: 1
@@ -81,7 +81,7 @@ test('event replay refreshes all workspaces on snapshot fallback before moving t
 
 test('event replay does not deduplicate an event whose projection failed', async () => {
   let attempts = 0;
-  const replay: IveKitEventReplayResult = {
+  const replay: ConveractFabricEventReplayResult = {
     items: [event('retry-1', 'collaboration.message.created')],
     next_cursor: 'cursor-retry-1', has_more: false, snapshot_required: false, pages: 1
   };
@@ -116,6 +116,6 @@ test('durable event types route to the matching workspace', () => {
   assert.equal(eventWorkspace('tenant.settings.updated'), 'context');
 });
 
-function page(): IveKitEventPage {
+function page(): ConveractFabricEventPage {
   return { items: [], next_cursor: 'cursor', has_more: false, snapshot_required: false };
 }

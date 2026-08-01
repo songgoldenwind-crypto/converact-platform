@@ -26,7 +26,7 @@ const claim = {
 };
 
 test('Tinode inbound attachment importer creates an idempotent scan-gated secure file', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-tinode-inbound-file-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-tinode-inbound-file-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const pg = new MemoryPg();
   const files = new SecureFileStore(pg);

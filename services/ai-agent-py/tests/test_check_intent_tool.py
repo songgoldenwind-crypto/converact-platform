@@ -4,7 +4,7 @@ from intent_scorer import IntentScoreResult
 from tools.check_intent import run_check_intent
 
 
-class FakeOpc:
+class FakeConveract:
     def __init__(self) -> None:
         self.intents: list[tuple[str, float, list[str]]] = []
 
@@ -14,7 +14,7 @@ class FakeOpc:
 
 @pytest.mark.asyncio
 async def test_run_check_intent_reports_score_without_navigation(monkeypatch):
-    fake = FakeOpc()
+    fake = FakeConveract()
 
     async def mock_score(_summary: str, *, language: str = "zh", llm_complete=None):
         return IntentScoreResult(

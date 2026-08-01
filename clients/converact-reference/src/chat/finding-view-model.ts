@@ -1,6 +1,6 @@
-import type { IveKitPolicyFinding, IveKitPolicyFindingReview } from '@converact/sdk';
+import type { ConveractFabricPolicyFinding, ConveractFabricPolicyFindingReview } from '@converact/sdk';
 
-export type FindingReviewStatus = IveKitPolicyFinding['review_status'];
+export type FindingReviewStatus = ConveractFabricPolicyFinding['review_status'];
 export type FindingReviewAction = {
   status: Exclude<FindingReviewStatus, 'pending'>;
   label: string;
@@ -11,8 +11,8 @@ export interface FindingViewModel {
   id: string;
   messageId: string;
   policyType: string;
-  severity: IveKitPolicyFinding['severity'];
-  source: IveKitPolicyFinding['source'];
+  severity: ConveractFabricPolicyFinding['severity'];
+  source: ConveractFabricPolicyFinding['source'];
   sourceLabel: string;
   reviewStatus: FindingReviewStatus;
   statusLabel: string;
@@ -23,7 +23,7 @@ export interface FindingViewModel {
   updatedAt: string;
 }
 
-const SOURCE_LABELS: Record<IveKitPolicyFinding['source'], string> = {
+const SOURCE_LABELS: Record<ConveractFabricPolicyFinding['source'], string> = {
   text: 'Chat text',
   ocr: 'Image OCR',
   asr: 'Audio ASR',
@@ -57,8 +57,8 @@ const ACTIONS: Record<Exclude<FindingReviewStatus, 'resolved' | 'false_positive'
   ]
 };
 
-export function projectFindings(findings: readonly IveKitPolicyFinding[]): FindingViewModel[] {
-  const deduped = new Map<string, IveKitPolicyFinding>();
+export function projectFindings(findings: readonly ConveractFabricPolicyFinding[]): FindingViewModel[] {
+  const deduped = new Map<string, ConveractFabricPolicyFinding>();
   for (const finding of findings) {
     const key = finding.fingerprint || finding.id;
     const current = deduped.get(key);
@@ -73,12 +73,12 @@ export function availableFindingActions(status: FindingReviewStatus): FindingRev
 }
 
 export function dedupeFindingReviews(
-  reviews: readonly IveKitPolicyFindingReview[]
-): IveKitPolicyFindingReview[] {
+  reviews: readonly ConveractFabricPolicyFindingReview[]
+): ConveractFabricPolicyFindingReview[] {
   return [...new Map(reviews.map((review) => [review.id, review])).values()];
 }
 
-function projectFinding(finding: IveKitPolicyFinding): FindingViewModel {
+function projectFinding(finding: ConveractFabricPolicyFinding): FindingViewModel {
   const metadata = finding.metadata || {};
   const providerMode = String(metadata.provider_mode || '');
   const provider = safeText(String(metadata.provider || ''));

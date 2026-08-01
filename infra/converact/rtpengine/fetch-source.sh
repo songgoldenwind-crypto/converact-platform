@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_COMPAT_HELPER=/converact-env-compat.sh
+if [[ ! -r "$ENV_COMPAT_HELPER" ]]; then
+  ENV_COMPAT_HELPER="$SCRIPT_DIR/../../../scripts/converact-env-compat.sh"
+fi
+if [[ ! -r "$ENV_COMPAT_HELPER" ]]; then
+  ENV_COMPAT_HELPER="$SCRIPT_DIR/converact-env-compat.sh"
+fi
+if [[ ! -r "$ENV_COMPAT_HELPER" ]]; then
+  printf 'Converact environment compatibility helper is required\n' >&2
+  exit 66
+fi
+# shellcheck disable=SC1090
+source "$ENV_COMPAT_HELPER"
+converact_env_resolve_fabric RTPENGINE_ARCHIVE_FILE
+
 VERSION="mr26.0.1.13"
 COMMIT="506cfa74386a5373e40fca139a932917f22f0524"
 ARCHIVE_URL="https://codeload.github.com/sipwise/rtpengine/tar.gz/refs/tags/${VERSION}"
@@ -25,21 +41,21 @@ for command in git tar; do
     exit 69
   }
 done
-if [[ -z "${IVEKIT_RTPENGINE_ARCHIVE_FILE:-}" ]]; then
+if [[ -z "${CONVERACT_FABRIC_RTPENGINE_ARCHIVE_FILE:-}" ]]; then
   command -v curl >/dev/null || {
     printf 'curl is required\n' >&2
     exit 69
   }
 fi
 
-BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ivekit-rtpengine-source.XXXXXX")"
+BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/converact-rtpengine-source.XXXXXX")"
 cleanup() {
   rm -rf "$BUILD_ROOT"
 }
 trap cleanup EXIT
 
-ARCHIVE_FILE="${IVEKIT_RTPENGINE_ARCHIVE_FILE:-$BUILD_ROOT/rtpengine.tar.gz}"
-if [[ -z "${IVEKIT_RTPENGINE_ARCHIVE_FILE:-}" ]]; then
+ARCHIVE_FILE="${CONVERACT_FABRIC_RTPENGINE_ARCHIVE_FILE:-$BUILD_ROOT/rtpengine.tar.gz}"
+if [[ -z "${CONVERACT_FABRIC_RTPENGINE_ARCHIVE_FILE:-}" ]]; then
   curl \
     --fail \
     --location \
@@ -99,15 +115,15 @@ printf '%s\n' \
   "  \"commit\": \"$COMMIT\"," \
   "  \"archive_sha256\": \"$ARCHIVE_SHA256\"," \
   "  \"archive_size_bytes\": $ARCHIVE_SIZE" \
-  '}' > "$STAGING_DIR/ivekit-source-identity.json"
+  '}' > "$STAGING_DIR/converact-source-identity.json"
 
 git -C "$STAGING_DIR" init -q
 git -C "$STAGING_DIR" add .
-GIT_AUTHOR_NAME="ivekit-source-import" \
-GIT_AUTHOR_EMAIL="ivekit-source-import@localhost" \
+GIT_AUTHOR_NAME="converact-source-import" \
+GIT_AUTHOR_EMAIL="converact-source-import@localhost" \
 GIT_AUTHOR_DATE="2026-05-27T16:28:00Z" \
-GIT_COMMITTER_NAME="ivekit-source-import" \
-GIT_COMMITTER_EMAIL="ivekit-source-import@localhost" \
+GIT_COMMITTER_NAME="converact-source-import" \
+GIT_COMMITTER_EMAIL="converact-source-import@localhost" \
 GIT_COMMITTER_DATE="2026-05-27T16:28:00Z" \
   git -C "$STAGING_DIR" commit -qm "Import RTPengine ${VERSION}"
 

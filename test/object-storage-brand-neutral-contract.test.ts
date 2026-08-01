@@ -63,23 +63,23 @@ test('application Chart defaults to external brand-neutral S3 and keeps MinIO di
 
   assert.match(values, /objectStorage:\n    mode: external/);
   assert.match(values, /authMode: secret/);
-  assert.match(values, /existingSecret: opc-object-storage-runtime/);
+  assert.match(values, /existingSecret: converact-object-storage-runtime/);
   assert.match(values, /accessKeyIdKey: access-key-id/);
   assert.match(values, /secretAccessKeyKey: secret-access-key/);
   assert.match(values, /forcePathStyle: false/);
   assert.match(values, /minio:\n    enabled: false/);
-  assert.match(values, /existingSecret: opc-minio-legacy/);
+  assert.match(values, /existingSecret: converact-minio-legacy/);
   assert.doesNotMatch(values, /^  minioAccessKey:/m);
   assert.doesNotMatch(values, /^  minioSecretKey:/m);
-  assert.match(helpers, /define "opc\.objectStorageMode"/);
+  assert.match(helpers, /define "converact\.objectStorageMode"/);
   assert.match(helpers, /media\.objectStorage\.mode must be external or legacy-minio/);
   assert.match(helpers, /media\.objectStorage\.authMode must be secret or workload-identity/);
   assert.match(helpers, /media\.objectStorage\.existingSecret is required with secret authentication/);
   assert.match(helpers, /bundled MinIO requires media\.objectStorage\.mode=legacy-minio/);
 });
 
-test('OPC and Egress consume one S3 contract without putting credentials in Helm values or config', () => {
-  const deployment = source('infra/k8s/templates/opc-deployment.yaml');
+test('Converact and Egress consume one S3 contract without putting credentials in Helm values or config', () => {
+  const deployment = source('infra/k8s/templates/converact-deployment.yaml');
   const egress = source('infra/k8s/templates/livekit-egress-deployment.yaml');
   const helpers = source('infra/k8s/templates/_helpers.tpl');
   const secrets = source('infra/k8s/templates/secrets.yaml');
@@ -95,15 +95,15 @@ test('OPC and Egress consume one S3 contract without putting credentials in Helm
   ]) {
     assert.match(helpers, new RegExp(`name: ${variable}`), variable);
   }
-  assert.match(deployment, /include "opc\.objectStorageEnv"/);
-  assert.match(egress, /include "opc\.objectStorageEnv"/);
+  assert.match(deployment, /include "converact\.objectStorageEnv"/);
+  assert.match(egress, /include "converact\.objectStorageEnv"/);
   assert.match(egress, /access_key: ""/);
   assert.match(egress, /secret: ""/);
-  assert.match(egress, /force_path_style: \{\{ include "opc\.objectStorageForcePathStyle"/);
+  assert.match(egress, /force_path_style: \{\{ include "converact\.objectStorageForcePathStyle"/);
   assert.doesNotMatch(egress, /Values\.media\.minioAccessKey/);
   assert.doesNotMatch(egress, /Values\.media\.minioSecretKey/);
   assert.doesNotMatch(secrets, /minio-access-key|minio-secret-key/);
-  assert.match(minio, /name: \{\{ include "opc\.objectStorageSecretName" \. \}\}/);
+  assert.match(minio, /name: \{\{ include "converact\.objectStorageSecretName" \. \}\}/);
 });
 
 test('object storage Helm server acceptance covers external, workload identity, legacy and failures', () => {

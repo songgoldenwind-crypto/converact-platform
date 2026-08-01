@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE scenario SYSTEM "sipp.dtd">
-<scenario name="iveKit Kamailio forged owner header UAC">
+<scenario name="Converact Fabric Kamailio forged owner header UAC">
   <send retrans="500">
     <![CDATA[
       INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
       Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
-      From: ivekit-acceptance <sip:acceptance@[local_ip]>;tag=[call_number]
+      From: converact-acceptance <sip:acceptance@[local_ip]>;tag=[call_number]
       To: sut <sip:[service]@[remote_ip]>
       Call-ID: [call_id]
       CSeq: 1 INVITE
@@ -26,7 +26,7 @@
       ACK sip:[service]@[remote_ip]:[remote_port] SIP/2.0
       Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
       [routes]
-      From: ivekit-acceptance <sip:acceptance@[local_ip]>;tag=[call_number]
+      From: converact-acceptance <sip:acceptance@[local_ip]>;tag=[call_number]
       To: sut <sip:[service]@[remote_ip]>[peer_tag_param]
       Call-ID: [call_id]
       CSeq: 1 ACK
@@ -39,7 +39,7 @@
       BYE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
       Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
       [routes]
-      From: ivekit-acceptance <sip:acceptance@[local_ip]>;tag=[call_number]
+      From: converact-acceptance <sip:acceptance@[local_ip]>;tag=[call_number]
       To: sut <sip:[service]@[remote_ip]>[peer_tag_param]
       Call-ID: [call_id]
       CSeq: 2 BYE

@@ -9,25 +9,25 @@ import {
   createCollaborationModule
 } from '../src/agent-runtime/collaboration/index.js';
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
-import { createIveKitModule } from '../src/agent-runtime/converact/module.js';
+import { createConveractFabricModule } from '../src/agent-runtime/converact/module.js';
 import type { RemoteGatewayClient } from '../src/agent-runtime/collaboration/remote-gateway-client.js';
 import { RustDeskDeviceStore } from '../src/agent-runtime/collaboration/rustdesk-device-store.js';
 import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 import { signAccessToken, type AuthRole } from '../src/middleware/auth.js';
-import { createIveKitRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
+import { createConveractFabricRustDeskHttpClient } from '../sdk/converact/src/rustdesk-http-client.js';
 import type {
-  ConfigureIveKitRustDeskAccessPolicyInput,
-  IveKitRustDeskAccessPolicyHttpClient,
-  IveKitRustDeskHttpClient
+  ConfigureConveractFabricRustDeskAccessPolicyInput,
+  ConveractFabricRustDeskAccessPolicyHttpClient,
+  ConveractFabricRustDeskHttpClient
 } from '../src/agent-runtime/converact/index.js';
 
-const compilePolicyInput: ConfigureIveKitRustDeskAccessPolicyInput = {
+const compilePolicyInput: ConfigureConveractFabricRustDeskAccessPolicyInput = {
   mode: 'unattended_allowed',
   allowed_scopes: ['view_screen'] as const,
   business_ref: { type: 'service_order', id: 'compile-policy' },
   reason: 'Compile the additive policy contract'
 };
-const compileLegacyClient = (client: IveKitRustDeskAccessPolicyHttpClient): IveKitRustDeskHttpClient => client;
+const compileLegacyClient = (client: ConveractFabricRustDeskAccessPolicyHttpClient): ConveractFabricRustDeskHttpClient => client;
 void compilePolicyInput;
 void compileLegacyClient;
 
@@ -796,7 +796,7 @@ test('unattended gateway launch requires matching active policy and consent whil
   }
 });
 
-test('in-process iveKit facade applies the same unattended policy gate', async () => {
+test('in-process Converact Fabric facade applies the same unattended policy gate', async () => {
   const pg = new MemoryPg();
   const { tenantId, device } = await createDevice(pg, 'module-launch');
   const businessRef = {
@@ -813,7 +813,7 @@ test('in-process iveKit facade applies the same unattended policy gate', async (
       return {
         provider: 'rustdesk',
         external_id: `rdgw-policy-module-${createCalls.length}`,
-        launch_url: `https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-policy-module-${createCalls.length}`,
+        launch_url: `https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-policy-module-${createCalls.length}`,
         target: input.target,
         permissions: [...input.permissions],
         metadata: input.metadata || {}
@@ -822,7 +822,7 @@ test('in-process iveKit facade applies the same unattended policy gate', async (
     async endSession() {},
     async listAuditEvents() { return []; }
   };
-  const iveKit = createIveKitModule({ db: {}, pg, remoteGateway: gateway });
+  const converactFabric = createConveractFabricModule({ db: {}, pg, remoteGateway: gateway });
   const launch = {
     tenant_id: tenantId,
     remote_session_id: remote.id,
@@ -832,7 +832,7 @@ test('in-process iveKit facade applies the same unattended policy gate', async (
     access_mode: 'unattended' as const
   };
 
-  await assertPolicyDenial(() => iveKit.rustdesk.startGatewaySession(launch));
+  await assertPolicyDenial(() => converactFabric.rustdesk.startGatewaySession(launch));
   assert.equal(createCalls.length, 0);
   await createCollaborationModule({ pg }).rustdeskAccessPolicies.configurePolicy({
     tenant_id: tenantId,
@@ -845,7 +845,7 @@ test('in-process iveKit facade applies the same unattended policy gate', async (
     expires_at: '2099-01-01T00:00:00.000Z',
     idempotency_key: 'policy-module-launch-1'
   });
-  const tool = await iveKit.rustdesk.startGatewaySession(launch);
+  const tool = await converactFabric.rustdesk.startGatewaySession(launch);
   assert.equal(tool.provider, 'rustdesk');
   assert.equal(createCalls.length, 1);
   assert.equal(createCalls[0]?.metadata?.access_mode, 'unattended');
@@ -934,7 +934,7 @@ test('unattended gateway activation compensates when policy is revoked during up
   assert.equal((await module.remote.listToolSessions(remote.id)).length, 0);
 });
 
-test('iveKit RustDesk SDK maps policy routes, idempotency, access mode, and allowlisted DTOs', async () => {
+test('Converact Fabric RustDesk SDK maps policy routes, idempotency, access mode, and allowlisted DTOs', async () => {
   const calls: Array<{
     method: string;
     path: string;
@@ -954,7 +954,7 @@ test('iveKit RustDesk SDK maps policy routes, idempotency, access mode, and allo
       remote_session_id: 'remote-sdk-policy',
       provider: 'rustdesk',
       external_id: 'rdgw-sdk-policy',
-      launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-sdk-policy',
+      launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-sdk-policy',
       status: 'active',
       started_by: 'operator-sdk-policy',
       started_at: '2026-07-12T00:00:00.000Z',
@@ -962,8 +962,8 @@ test('iveKit RustDesk SDK maps policy routes, idempotency, access mode, and allo
       metadata: { access_mode: 'unattended' }
     }
   ];
-  const client = createIveKitRustDeskHttpClient({
-    baseUrl: 'https://opc.example.com',
+  const client = createConveractFabricRustDeskHttpClient({
+    baseUrl: 'https://converact.example.com',
     accessToken: 'owner-sdk-token',
     tenantId: 'tenant-sdk-policy',
     fetch: async (input, init = {}) => {
@@ -1018,10 +1018,10 @@ test('iveKit RustDesk SDK maps policy routes, idempotency, access mode, and allo
   );
 });
 
-test('iveKit RustDesk SDK rejects unsafe policy mutation fields before fetch', async () => {
+test('Converact Fabric RustDesk SDK rejects unsafe policy mutation fields before fetch', async () => {
   let fetchCalls = 0;
-  const client = createIveKitRustDeskHttpClient({
-    baseUrl: 'https://opc.example.com',
+  const client = createConveractFabricRustDeskHttpClient({
+    baseUrl: 'https://converact.example.com',
     accessToken: 'owner-sdk-token',
     tenantId: 'tenant-sdk-policy',
     fetch: async () => {
@@ -1190,7 +1190,7 @@ class DeferredRustDeskGatewayClient implements RemoteGatewayClient {
     return {
       provider: 'rustdesk' as const,
       external_id: this.externalId,
-      launch_url: `https://opc.example.com/remote/rustdesk/launch?session_id=${this.externalId}`,
+      launch_url: `https://converact.example.com/remote/rustdesk/launch?session_id=${this.externalId}`,
       target: input.target,
       permissions: [...input.permissions],
       metadata: input.metadata || {}

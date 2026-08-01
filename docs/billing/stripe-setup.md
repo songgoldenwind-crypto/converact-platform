@@ -9,7 +9,7 @@
 
 1. 登录 [Stripe Dashboard](https://dashboard.stripe.com/products)
 2. 点击 **添加产品**
-3. 名称：`OPC Pro`
+3. 名称：`Converact Platform Pro`
 4. 描述：`Pro plan — 20 seats, 2000 AI minutes/month`
 5. 定价模式：**标准定价**
 6. 价格：**$29 USD / 月**
@@ -19,7 +19,7 @@
 ### 1.2 Enterprise 计划
 
 1. 再次 **添加产品**
-2. 名称：`OPC Enterprise`
+2. 名称：`Converact Platform Enterprise`
 3. 描述：`Enterprise plan — unlimited seats, unlimited AI minutes`
 4. 价格：**$59 USD / 月**
 5. 保存后复制 **Price ID**
@@ -40,7 +40,7 @@ STRIPE_PRICE_PRO=price_xxxx
 STRIPE_PRICE_ENTERPRISE=price_xxxx
 
 # 公网回调地址（Checkout 成功/取消后跳转）
-OPC_BASE_URL=https://your-domain.com
+CONVERACT_BASE_URL=https://your-domain.com
 ```
 
 ## 3. 配置 Webhook
@@ -51,7 +51,7 @@ OPC_BASE_URL=https://your-domain.com
 # 安装 Stripe CLI: https://stripe.com/docs/stripe-cli
 stripe login
 
-# 转发 webhook 到本地 OPC
+# 转发 webhook 到本地 Converact Platform
 stripe listen --forward-to localhost:3000/api/webhooks/stripe
 
 # 输出会显示 whsec_xxxx，填入 STRIPE_WEBHOOK_SECRET
@@ -76,7 +76,7 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 ```bash
 # 用 API 触发 checkout（需认证）
 curl -X POST http://localhost:3000/api/billing/checkout \
-  -H "X-API-Key: $OPC_API_KEY" \
+  -H "X-API-Key: $CONVERACT_API_KEY" \
   -H "X-Tenant-Id: your-tenant-id" \
   -H "Content-Type: application/json" \
   -d '{"plan_code": "pro"}'
@@ -92,14 +92,14 @@ curl -X POST http://localhost:3000/api/billing/checkout \
 stripe trigger checkout.session.completed
 stripe trigger invoice.paid
 
-# 查看 OPC 日志确认 webhook 处理成功
+# 查看 Converact Platform 日志确认 webhook 处理成功
 ```
 
 ### 4.3 验证订阅状态
 
 ```bash
 curl http://localhost:3000/api/billing/subscription \
-  -H "X-API-Key: $OPC_API_KEY" \
+  -H "X-API-Key: $CONVERACT_API_KEY" \
   -H "X-Tenant-Id: your-tenant-id"
 ```
 
@@ -120,7 +120,7 @@ curl http://localhost:3000/api/billing/subscription \
   → Stripe Checkout 页面
   → 支付成功
   → Stripe 发 checkout.session.completed webhook
-  → OPC 创建/更新 billing_subscriptions 记录
+  → Converact Platform 创建/更新 billing_subscriptions 记录
   → 每月续费 → invoice.paid webhook → 更新 current_period
   → 支付失败 → invoice.payment_failed → status='past_due'
   → 取消订阅 → customer.subscription.deleted → plan='free', status='canceled'

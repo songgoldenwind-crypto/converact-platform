@@ -1,10 +1,10 @@
 import type {
-  IveKitHttpSdk,
-  IveKitIvrCompilationReport,
-  IveKitIvrFlow,
-  IveKitIvrFlowGraph,
-  IveKitIvrFlowVersion,
-  IveKitIvrSimulationResult
+  ConveractFabricHttpSdk,
+  ConveractFabricIvrCompilationReport,
+  ConveractFabricIvrFlow,
+  ConveractFabricIvrFlowGraph,
+  ConveractFabricIvrFlowVersion,
+  ConveractFabricIvrSimulationResult
 } from '@converact/sdk';
 import {
   addEdge,
@@ -59,18 +59,18 @@ import {
   parseImportedIvrGraph,
   toCanvasGraph,
   toIvrFlowGraph,
-  type IveKitIvrCanvasNode,
-  type IveKitIvrNodeCategory,
-  type IveKitIvrNodeType
+  type ConveractFabricIvrCanvasNode,
+  type ConveractFabricIvrNodeCategory,
+  type ConveractFabricIvrNodeType
 } from './ivr-designer-model.js';
 import { IvrNodeCard, type IvrFlowCanvasNode } from './ivr-node-card.js';
 
-type IvrClient = Pick<IveKitHttpSdk, 'ivr'>;
+type IvrClient = Pick<ConveractFabricHttpSdk, 'ivr'>;
 type DesignerEdge = Edge;
 type ValidationIssue = Record<string, unknown>;
 
 const nodeTypes = { ivr: IvrNodeCard };
-const categoryLabels: Record<IveKitIvrNodeCategory, string> = {
+const categoryLabels: Record<ConveractFabricIvrNodeCategory, string> = {
   call: 'Call control', logic: 'Routing and data', intelligence: 'AI and compliance', media: 'Visual media'
 };
 
@@ -95,9 +95,9 @@ function IvrDesignerWorkspaceInner(props: {
     initialCanvas.nodes as IvrFlowCanvasNode[]
   );
   const [edges, setEdges, applyEdgeChanges] = useEdgesState<DesignerEdge>(initialCanvas.edges);
-  const [graphBase, setGraphBase] = useState<IveKitIvrFlowGraph>(initialGraph);
-  const [flows, setFlows] = useState<IveKitIvrFlow[]>([]);
-  const [flow, setFlow] = useState<IveKitIvrFlow | null>(null);
+  const [graphBase, setGraphBase] = useState<ConveractFabricIvrFlowGraph>(initialGraph);
+  const [flows, setFlows] = useState<ConveractFabricIvrFlow[]>([]);
+  const [flow, setFlow] = useState<ConveractFabricIvrFlow | null>(null);
   const [flowName, setFlowName] = useState('New IVR flow');
   const [selectedNodeId, setSelectedNodeId] = useState('');
   const [dirty, setDirty] = useState(true);
@@ -105,12 +105,12 @@ function IvrDesignerWorkspaceInner(props: {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('Unsaved draft');
   const [error, setError] = useState('');
-  const [validation, setValidation] = useState<IveKitIvrCompilationReport | null>(null);
-  const [versions, setVersions] = useState<IveKitIvrFlowVersion[]>([]);
+  const [validation, setValidation] = useState<ConveractFabricIvrCompilationReport | null>(null);
+  const [versions, setVersions] = useState<ConveractFabricIvrFlowVersion[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [simulationScript, setSimulationScript] = useState('[]');
   const [simulationVariables, setSimulationVariables] = useState('{}');
-  const [simulation, setSimulation] = useState<IveKitIvrSimulationResult | null>(null);
+  const [simulation, setSimulation] = useState<ConveractFabricIvrSimulationResult | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
   const loadGeneration = useRef(0);
   const loadedFlowId = useRef('');
@@ -123,7 +123,7 @@ function IvrDesignerWorkspaceInner(props: {
 
   const selectedNode = nodes.find((nodeValue) => nodeValue.id === selectedNodeId) || null;
   const currentGraph = useCallback(() => toIvrFlowGraph({
-    nodes: nodes as unknown as IveKitIvrCanvasNode[],
+    nodes: nodes as unknown as ConveractFabricIvrCanvasNode[],
     edges: edges.map((edge) => ({
       id: edge.id, source: edge.source, target: edge.target,
       ...(edge.sourceHandle ? { sourceHandle: edge.sourceHandle } : {}),
@@ -131,7 +131,7 @@ function IvrDesignerWorkspaceInner(props: {
     }))
   }, graphBase), [edges, graphBase, nodes]);
 
-  const loadGraph = useCallback((graph: IveKitIvrFlowGraph) => {
+  const loadGraph = useCallback((graph: ConveractFabricIvrFlowGraph) => {
     const canvas = toCanvasGraph(graph);
     setGraphBase(structuredClone(graph));
     setNodes(canvas.nodes as IvrFlowCanvasNode[]);
@@ -202,7 +202,7 @@ function IvrDesignerWorkspaceInner(props: {
     setDirty(true);
   }, [setEdges]);
 
-  const addNode = useCallback((type: IveKitIvrNodeType, position?: { x: number; y: number }) => {
+  const addNode = useCallback((type: ConveractFabricIvrNodeType, position?: { x: number; y: number }) => {
     const graphNode = createIvrNode(type, position ?? {
       x: 160 + (nodes.length % 4) * 210,
       y: 100 + Math.floor(nodes.length / 4) * 145
@@ -216,17 +216,17 @@ function IvrDesignerWorkspaceInner(props: {
 
   const onDrop = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    const type = event.dataTransfer.getData('application/ivekit-ivr-node') as IveKitIvrNodeType;
+    const type = event.dataTransfer.getData('application/converact-ivr-node') as ConveractFabricIvrNodeType;
     if (!IVR_NODE_DEFINITIONS.some((definition) => definition.type === type)) return;
     addNode(type, screenToFlowPosition({ x: event.clientX, y: event.clientY }));
   }, [addNode, screenToFlowPosition]);
 
   const changeFlowName = (value: string) => { setFlowName(value); setDirty(true); };
-  const changeGraphBase = (patch: Partial<IveKitIvrFlowGraph>) => {
+  const changeGraphBase = (patch: Partial<ConveractFabricIvrFlowGraph>) => {
     setGraphBase((current) => ({ ...current, ...patch }));
     setDirty(true);
   };
-  const changeNode = (patch: Partial<IveKitIvrCanvasNode['data']>) => {
+  const changeNode = (patch: Partial<ConveractFabricIvrCanvasNode['data']>) => {
     setNodes((current) => current.map((nodeValue) => nodeValue.id === selectedNodeId
       ? { ...nodeValue, data: { ...nodeValue.data, ...patch } }
       : nodeValue));
@@ -240,7 +240,7 @@ function IvrDesignerWorkspaceInner(props: {
     setDirty(true);
   };
 
-  const persistDraft = async (): Promise<IveKitIvrFlow> => {
+  const persistDraft = async (): Promise<ConveractFabricIvrFlow> => {
     if (!props.client) throw new Error('IVR client is unavailable');
     const name = flowName.trim();
     if (!name) throw new Error('flow name is required');
@@ -326,7 +326,7 @@ function IvrDesignerWorkspaceInner(props: {
     setSimulation(result);
   });
 
-  const applyValidation = (report: IveKitIvrCompilationReport) => {
+  const applyValidation = (report: ConveractFabricIvrCompilationReport) => {
     setValidation(report);
     const counts = new Map<string, number>();
     for (const issue of [...report.errors, ...report.warnings]) {
@@ -339,7 +339,7 @@ function IvrDesignerWorkspaceInner(props: {
     })));
   };
 
-  const selectFlow = (next: IveKitIvrFlow) => {
+  const selectFlow = (next: ConveractFabricIvrFlow) => {
     if (dirty && !window.confirm('Discard unsaved IVR changes?')) return;
     props.onFlowIdChange(next.id);
   };
@@ -394,7 +394,7 @@ function IvrDesignerWorkspaceInner(props: {
             key={item.type}
             onClick={() => addNode(item.type)}
             onDragStart={(event) => {
-              event.dataTransfer.setData('application/ivekit-ivr-node', item.type);
+              event.dataTransfer.setData('application/converact-ivr-node', item.type);
               event.dataTransfer.effectAllowed = 'copy';
             }}
             title={item.description}
@@ -472,7 +472,7 @@ function IvrDesignerWorkspaceInner(props: {
 
 function NodeInspector(props: {
   node: IvrFlowCanvasNode;
-  onChange(patch: Partial<IveKitIvrCanvasNode['data']>): void;
+  onChange(patch: Partial<ConveractFabricIvrCanvasNode['data']>): void;
   onDelete(): void;
 }) {
   const definition = IVR_NODE_DEFINITIONS.find((item) => item.type === props.node.data.ivr_type)!;
@@ -505,8 +505,8 @@ function NodeInspector(props: {
 }
 
 function FlowInspector(props: {
-  graph: IveKitIvrFlowGraph;
-  onChange(patch: Partial<IveKitIvrFlowGraph>): void;
+  graph: ConveractFabricIvrFlowGraph;
+  onChange(patch: Partial<ConveractFabricIvrFlowGraph>): void;
 }) {
   const variables = props.graph.variables;
   const shortcuts = Array.isArray(props.graph.globalShortcuts) ? props.graph.globalShortcuts : [];
@@ -552,7 +552,7 @@ function JsonEditor(props: { label: string; value: unknown; onChange(value: neve
   }} />{error && <small className="ivr-field-error">{error}</small>}</Field>;
 }
 
-function ValidationPanel(props: { report: IveKitIvrCompilationReport | null; onSelectNode(id: string): void }) {
+function ValidationPanel(props: { report: ConveractFabricIvrCompilationReport | null; onSelectNode(id: string): void }) {
   if (!props.report) return <section className="ivr-validation"><header><CheckCircle2 size={13} /><strong>Validation</strong></header><p>Run server validation before publishing.</p></section>;
   const issues = [
     ...props.report.errors.map((issue) => ({ issue, severity: 'error' })),
@@ -569,10 +569,10 @@ function ValidationPanel(props: { report: IveKitIvrCompilationReport | null; onS
 }
 
 function SimulationPanel(props: {
-  flow: IveKitIvrFlow | null;
+  flow: ConveractFabricIvrFlow | null;
   script: string;
   variables: string;
-  result: IveKitIvrSimulationResult | null;
+  result: ConveractFabricIvrSimulationResult | null;
   busy: boolean;
   onScript(value: string): void;
   onVariables(value: string): void;

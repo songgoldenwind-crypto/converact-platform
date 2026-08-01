@@ -4,7 +4,7 @@ deploymentProfiles:
   observability: false
   benchmark: false
 
-# The default core deploys only the iveKit API. Media, IM, file security and
+# The default core deploys only the Converact Fabric API. Media, IM, file security and
 # provider workloads are attached explicitly after their immutable identities,
 # endpoints, Secrets and capacity budgets are supplied.
 clamav:

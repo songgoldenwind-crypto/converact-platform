@@ -10,9 +10,9 @@ const PRODUCTION_ENV_PATH = new URL('../infra/env.example', import.meta.url);
 const LIVEKIT_EDGE_COMPOSE_PATH = new URL('../infra/livekit/docker-compose.yml', import.meta.url);
 const LIVEKIT_STORAGE_COMPOSE_PATH = new URL('../infra/livekit/docker-compose.storage.yml', import.meta.url);
 const LIVEKIT_ENV_PATH = new URL('../infra/livekit/env.example', import.meta.url);
-const IVEKIT_APPLICATION_COMPOSE_PATH = new URL('../infra/converact/docker-compose.yml', import.meta.url);
-const IVEKIT_POSTGRES_ROLE_INIT_PATH = new URL('../infra/converact/init-postgres-runtime-role.sh', import.meta.url);
-const K8S_OPC_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/opc-deployment.yaml', import.meta.url);
+const CONVERACT_APPLICATION_COMPOSE_PATH = new URL('../infra/converact/docker-compose.yml', import.meta.url);
+const CONVERACT_POSTGRES_ROLE_INIT_PATH = new URL('../infra/converact/init-postgres-runtime-role.sh', import.meta.url);
+const K8S_CONVERACT_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/converact-deployment.yaml', import.meta.url);
 const K8S_HELPERS_PATH = new URL('../infra/k8s/templates/_helpers.tpl', import.meta.url);
 const K8S_AI_AGENT_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/ai-agent-deployment.yaml', import.meta.url);
 const K8S_FRONTEND_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/frontend-deployment.yaml', import.meta.url);
@@ -34,23 +34,23 @@ const DOCKERFILE_PATH = new URL('../Dockerfile', import.meta.url);
 const MINIO_SERVER_IMAGE = 'minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e';
 const MINIO_CLIENT_IMAGE = 'minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727';
 
-test('call center compose passes media security and recording env into opc service', () => {
+test('call center compose passes media security and recording env into converact service', () => {
   const compose = readFileSync(COMPOSE_PATH, 'utf8');
-  const opcEnvironment = readServiceEnvironment(compose, 'opc');
+  const converactEnvironment = readServiceEnvironment(compose, 'converact');
 
-  assert.equal(opcEnvironment.LIVEKIT_URL, 'ws://livekit:7880');
-  assert.equal(opcEnvironment.LIVEKIT_PUBLIC_URL, '${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}');
-  assert.equal(opcEnvironment.CONVERACT_MEDIA_API_TOKEN, '${CONVERACT_MEDIA_API_TOKEN:-dev-media-token}');
-  assert.equal(opcEnvironment.CONVERACT_MEDIA_INVITE_SECRET, '${CONVERACT_MEDIA_INVITE_SECRET:-dev-media-invite-secret}');
-  assert.equal(opcEnvironment.CONVERACT_MEDIA_INVITE_TTL_MS, '${CONVERACT_MEDIA_INVITE_TTL_MS:-86400000}');
-  assert.equal(opcEnvironment.CONVERACT_MEDIA_RECORDING_RETENTION_DAYS, '${CONVERACT_MEDIA_RECORDING_RETENTION_DAYS:-90}');
-  assert.equal(opcEnvironment.CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT, '${CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT:-0}');
-  assert.equal(opcEnvironment.CONVERACT_SIP_VOLTE_ENABLED, '${CONVERACT_SIP_VOLTE_ENABLED:-0}');
-  assert.equal('CONVERACT_DB_PATH' in opcEnvironment, false);
-  assert.equal(opcEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
-  assert.equal(opcEnvironment.MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
-  assert.equal(opcEnvironment.MINIO_ACCESS_KEY, 'minioadmin');
-  assert.equal(opcEnvironment.MINIO_SECRET_KEY, 'minioadmin');
+  assert.equal(converactEnvironment.LIVEKIT_URL, 'ws://livekit:7880');
+  assert.equal(converactEnvironment.LIVEKIT_PUBLIC_URL, '${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}');
+  assert.equal(converactEnvironment.CONVERACT_MEDIA_API_TOKEN, '${CONVERACT_MEDIA_API_TOKEN:-dev-media-token}');
+  assert.equal(converactEnvironment.CONVERACT_MEDIA_INVITE_SECRET, '${CONVERACT_MEDIA_INVITE_SECRET:-dev-media-invite-secret}');
+  assert.equal(converactEnvironment.CONVERACT_MEDIA_INVITE_TTL_MS, '${CONVERACT_MEDIA_INVITE_TTL_MS:-86400000}');
+  assert.equal(converactEnvironment.CONVERACT_MEDIA_RECORDING_RETENTION_DAYS, '${CONVERACT_MEDIA_RECORDING_RETENTION_DAYS:-90}');
+  assert.equal(converactEnvironment.CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT, '${CONVERACT_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT:-0}');
+  assert.equal(converactEnvironment.CONVERACT_SIP_VOLTE_ENABLED, '${CONVERACT_SIP_VOLTE_ENABLED:-0}');
+  assert.equal('CONVERACT_DB_PATH' in converactEnvironment, false);
+  assert.equal(converactEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
+  assert.equal(converactEnvironment.MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
+  assert.equal(converactEnvironment.MINIO_ACCESS_KEY, 'minioadmin');
+  assert.equal(converactEnvironment.MINIO_SECRET_KEY, 'minioadmin');
 });
 
 test('call center compose npm scripts ignore the private root env file', () => {
@@ -70,8 +70,8 @@ test('call center compose npm scripts ignore the private root env file', () => {
 test('LiveKit local config sends webhooks to the reusable media endpoint', () => {
   const config = readFileSync(LIVEKIT_CONFIG_PATH, 'utf8');
 
-  assert.match(config, /http:\/\/opc:3000\/api\/media\/webhooks\/livekit/);
-  assert.doesNotMatch(config, /http:\/\/opc:3000\/api\/webhooks\/livekit/);
+  assert.match(config, /http:\/\/converact:3000\/api\/media\/webhooks\/livekit/);
+  assert.doesNotMatch(config, /http:\/\/converact:3000\/api\/webhooks\/livekit/);
 });
 
 test('call center compose keeps local LiveKit and egress credentials aligned with mounted configs', () => {
@@ -86,7 +86,7 @@ test('call center compose keeps local LiveKit and egress credentials aligned wit
   assert.match(egressConfig, /access_key: minioadmin/);
   assert.match(egressConfig, /\n    secret: minioadmin/);
 
-  for (const serviceName of ['livekit-sip', 'opc', 'ai-agent']) {
+  for (const serviceName of ['livekit-sip', 'converact', 'ai-agent']) {
     const environment = readServiceEnvironment(compose, serviceName);
     assert.equal(environment.LIVEKIT_API_KEY, 'devkey');
     assert.equal(environment.LIVEKIT_API_SECRET, 'secret');
@@ -94,9 +94,9 @@ test('call center compose keeps local LiveKit and egress credentials aligned wit
 
   assert.equal(readServiceEnvironment(compose, 'minio').MINIO_ROOT_USER, 'minioadmin');
   assert.equal(readServiceEnvironment(compose, 'minio').MINIO_ROOT_PASSWORD, 'minioadmin');
-  const opcEnvironment = readServiceEnvironment(compose, 'opc');
-  assert.equal(opcEnvironment.MINIO_ACCESS_KEY, 'minioadmin');
-  assert.equal(opcEnvironment.MINIO_SECRET_KEY, 'minioadmin');
+  const converactEnvironment = readServiceEnvironment(compose, 'converact');
+  assert.equal(converactEnvironment.MINIO_ACCESS_KEY, 'minioadmin');
+  assert.equal(converactEnvironment.MINIO_SECRET_KEY, 'minioadmin');
 });
 
 test('call center compose bootstraps recording storage without coupling LiveKit to storage', () => {
@@ -124,7 +124,7 @@ test('call center compose bootstraps recording storage without coupling LiveKit 
   assert.doesNotMatch(livekit, /livekit-egress:/);
 });
 
-test('production compose mounts shared media configs and passes Media Core env into opc', () => {
+test('production compose mounts shared media configs and passes Media Core env into converact', () => {
   const compose = readFileSync(PRODUCTION_COMPOSE_PATH, 'utf8');
 
   assert.ok(readServiceVolumes(compose, 'livekit').includes('${CONVERACT_MEDIA_CONFIG_DIR:-../.runtime/media}/livekit.yaml:/etc/livekit.yaml:ro'));
@@ -134,25 +134,25 @@ test('production compose mounts shared media configs and passes Media Core env i
   assert.ok(readServiceVolumes(compose, 'rustpbx').includes('rustpbx-runtime-config:/app/config:ro'));
   assert.ok(!readServiceVolumes(compose, 'rustpbx').includes('../config/rustpbx.docker.toml:/app/rustpbx.toml:ro'));
 
-  const opcEnvironment = readServiceEnvironment(compose, 'opc');
-  assert.equal(opcEnvironment.LIVEKIT_URL, '${LIVEKIT_URL:?LIVEKIT_URL is required}');
-  assert.equal(opcEnvironment.LIVEKIT_PUBLIC_URL, '${LIVEKIT_PUBLIC_URL:?LIVEKIT_PUBLIC_URL is required}');
-  assert.equal(opcEnvironment.LIVEKIT_API_KEY, '${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}');
-  assert.equal(opcEnvironment.LIVEKIT_API_SECRET, '${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}');
-  assert.equal(opcEnvironment.CONVERACT_MEDIA_API_TOKEN, '${CONVERACT_MEDIA_API_TOKEN}');
-  assert.equal(opcEnvironment.CONVERACT_MEDIA_INVITE_SECRET, '${CONVERACT_MEDIA_INVITE_SECRET}');
-  assert.equal(opcEnvironment.CONVERACT_MEDIA_INVITE_TTL_MS, '${CONVERACT_MEDIA_INVITE_TTL_MS:-86400000}');
-  assert.equal(opcEnvironment.CONVERACT_MEDIA_RECORDING_RETENTION_DAYS, '${CONVERACT_MEDIA_RECORDING_RETENTION_DAYS:-90}');
-  assert.equal(opcEnvironment.CONVERACT_RECORDING_HTTP_ALLOWED_ORIGINS, '${CONVERACT_RECORDING_HTTP_ALLOWED_ORIGINS:-http://minio:9000}');
-  assert.equal(opcEnvironment.CONVERACT_SIP_VOLTE_ENABLED, '${CONVERACT_SIP_VOLTE_ENABLED:-0}');
-  assert.equal(opcEnvironment.LIVEKIT_SIP_BRIDGE_TARGET, '${LIVEKIT_SIP_BRIDGE_TARGET:-}');
-  assert.equal(opcEnvironment.RUSTPBX_LIVEKIT_TRUNK, '${RUSTPBX_LIVEKIT_TRUNK:-}');
-  assert.equal(opcEnvironment.RUSTPBX_RWI_URL, '${RUSTPBX_RWI_URL:-}');
-  assert.equal(opcEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
-  assert.equal(opcEnvironment.MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
-  assert.equal(opcEnvironment.MINIO_ACCESS_KEY, '${MINIO_ACCESS_KEY:-minioadmin}');
-  assert.equal(opcEnvironment.MINIO_SECRET_KEY, '${MINIO_SECRET_KEY:-minioadmin}');
-  assert.equal(opcEnvironment.CONVERACT_API_KEY, '${CONVERACT_API_KEY}');
+  const converactEnvironment = readServiceEnvironment(compose, 'converact');
+  assert.equal(converactEnvironment.LIVEKIT_URL, '${LIVEKIT_URL:?LIVEKIT_URL is required}');
+  assert.equal(converactEnvironment.LIVEKIT_PUBLIC_URL, '${LIVEKIT_PUBLIC_URL:?LIVEKIT_PUBLIC_URL is required}');
+  assert.equal(converactEnvironment.LIVEKIT_API_KEY, '${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}');
+  assert.equal(converactEnvironment.LIVEKIT_API_SECRET, '${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}');
+  assert.equal(converactEnvironment.CONVERACT_MEDIA_API_TOKEN, '${CONVERACT_MEDIA_API_TOKEN}');
+  assert.equal(converactEnvironment.CONVERACT_MEDIA_INVITE_SECRET, '${CONVERACT_MEDIA_INVITE_SECRET}');
+  assert.equal(converactEnvironment.CONVERACT_MEDIA_INVITE_TTL_MS, '${CONVERACT_MEDIA_INVITE_TTL_MS:-86400000}');
+  assert.equal(converactEnvironment.CONVERACT_MEDIA_RECORDING_RETENTION_DAYS, '${CONVERACT_MEDIA_RECORDING_RETENTION_DAYS:-90}');
+  assert.equal(converactEnvironment.CONVERACT_RECORDING_HTTP_ALLOWED_ORIGINS, '${CONVERACT_RECORDING_HTTP_ALLOWED_ORIGINS:-http://minio:9000}');
+  assert.equal(converactEnvironment.CONVERACT_SIP_VOLTE_ENABLED, '${CONVERACT_SIP_VOLTE_ENABLED:-0}');
+  assert.equal(converactEnvironment.LIVEKIT_SIP_BRIDGE_TARGET, '${LIVEKIT_SIP_BRIDGE_TARGET:-}');
+  assert.equal(converactEnvironment.RUSTPBX_LIVEKIT_TRUNK, '${RUSTPBX_LIVEKIT_TRUNK:-}');
+  assert.equal(converactEnvironment.RUSTPBX_RWI_URL, '${RUSTPBX_RWI_URL:-}');
+  assert.equal(converactEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
+  assert.equal(converactEnvironment.MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
+  assert.equal(converactEnvironment.MINIO_ACCESS_KEY, '${MINIO_ACCESS_KEY:-minioadmin}');
+  assert.equal(converactEnvironment.MINIO_SECRET_KEY, '${MINIO_SECRET_KEY:-minioadmin}');
+  assert.equal(converactEnvironment.CONVERACT_API_KEY, '${CONVERACT_API_KEY}');
 });
 
 test('Compose media services use pinned versions and production bundled media is opt-in', () => {
@@ -164,11 +164,11 @@ test('Compose media services use pinned versions and production bundled media is
 
   assert.match(
     readServiceBlock(local, 'livekit'),
-    /image: \$\{LIVEKIT_SERVER_IMAGE:-ivekit\/livekit-server:v1\.13\.4-ivekit\.1-0b3fd288\}/
+    /image: \$\{LIVEKIT_SERVER_IMAGE:-ghcr\.io\/songgoldenwind-crypto\/converact-livekit-server:v1\.13\.4-ivekit\.1-0b3fd288\}/
   );
   assert.match(
     readServiceBlock(production, 'livekit'),
-    /image: \$\{LIVEKIT_SERVER_IMAGE:\?LIVEKIT_SERVER_IMAGE immutable iveKit fork reference is required\}/
+    /image: \$\{LIVEKIT_SERVER_IMAGE:\?LIVEKIT_SERVER_IMAGE immutable Converact Fabric fork reference is required\}/
   );
   for (const compose of [local, production]) {
     const egress = readServiceBlock(compose, 'livekit-egress');
@@ -183,21 +183,21 @@ test('Compose media services use pinned versions and production bundled media is
   );
   assert.match(
     productionEnv,
-    /^LIVEKIT_SERVER_IMAGE=ghcr\.io\/songgoldenwind-crypto\/opc-ivekit-livekit-server@sha256:[a-f0-9]{64}$/m
+    /^LIVEKIT_SERVER_IMAGE=ghcr\.io\/songgoldenwind-crypto\/converact-livekit-server@sha256:[a-f0-9]{64}$/m
   );
   assert.match(
     productionEnv,
-    /^LIVEKIT_SIP_IMAGE=ghcr\.io\/songgoldenwind-crypto\/opc-livekit-sip@sha256:[a-f0-9]{64}$/m
+    /^LIVEKIT_SIP_IMAGE=ghcr\.io\/songgoldenwind-crypto\/converact-livekit-sip@sha256:[a-f0-9]{64}$/m
   );
   assert.match(productionEnv, /^LIVEKIT_SERVER_IMAGE_TAG=v1\.13\.4-ivekit\.1$/m);
   assert.match(rootEnv, /^LIVEKIT_SERVER_IMAGE_TAG=v1\.13\.4-ivekit\.1$/m);
-  assert.match(k8sValues, /repository: ghcr\.io\/songgoldenwind-crypto\/opc-ivekit-livekit-server/);
+  assert.match(k8sValues, /repository: ghcr\.io\/songgoldenwind-crypto\/converact-livekit-server/);
 
   for (const service of ['livekit', 'livekit-sip', 'livekit-egress']) {
     assert.match(readServiceBlock(production, service), /profiles: \["media-bundled"\]/);
   }
   assert.equal(readServiceEnvironment(production, 'livekit-sip').LIVEKIT_URL, 'ws://livekit:7880');
-  assert.doesNotMatch(readServiceBlock(production, 'opc'), /livekit:\n\s+condition:/);
+  assert.doesNotMatch(readServiceBlock(production, 'converact'), /livekit:\n\s+condition:/);
   assert.doesNotMatch(readServiceBlock(production, 'ai-agent'), /- livekit/);
   assert.match(productionEnv, /^LIVEKIT_URL=ws:\/\/media\.internal\.example:7880$/m);
 });
@@ -227,7 +227,7 @@ test('production compose gates databases PgBouncer and object storage', () => {
   );
   assert.doesNotMatch(pgbouncer, /bitnami|:latest/);
   assert.match(pgbouncer, /DB_HOST: postgres/);
-  assert.match(pgbouncer, /DB_USER: opc/);
+  assert.match(pgbouncer, /DB_USER: converact/);
   assert.match(pgbouncer, /DB_PASSWORD: \$\{POSTGRES_PASSWORD\}/);
   assert.match(pgbouncer, /AUTH_TYPE: scram-sha-256/);
   assert.match(pgbouncer, /POOL_MODE: transaction/);
@@ -260,7 +260,7 @@ test('production compose gates databases PgBouncer and object storage', () => {
   assert.match(minioInit, /minio:\n\s+condition: service_healthy/);
   assert.match(minioInit, /restart: "no"/);
 
-  for (const serviceName of ['livekit-egress', 'opc']) {
+  for (const serviceName of ['livekit-egress', 'converact']) {
     assert.match(
       readServiceBlock(compose, serviceName),
       /minio-init:\n\s+condition: service_completed_successfully/
@@ -270,7 +270,7 @@ test('production compose gates databases PgBouncer and object storage', () => {
   assert.match(rustpbx, /rustpbx-postgres-bootstrap:\n\s+condition: service_completed_successfully/);
   assert.match(rustpbx, /rustpbx-config-render:\n\s+condition: service_completed_successfully/);
   assert.doesNotMatch(rustpbx, /minio-init:/);
-  assert.match(readServiceBlock(compose, 'opc'), /pgbouncer:\n\s+condition: service_healthy/);
+  assert.match(readServiceBlock(compose, 'converact'), /pgbouncer:\n\s+condition: service_healthy/);
 });
 
 test('standalone LiveKit storage overlay keeps MinIO private and gates Egress on bucket readiness', () => {
@@ -311,12 +311,12 @@ test('standalone LiveKit storage overlay keeps MinIO private and gates Egress on
   assert.doesNotMatch(envExample, /^MINIO_(?:ACCESS_KEY|SECRET_KEY)=minioadmin$/m);
 });
 
-test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and RustDesk', () => {
-  const compose = readFileSync(IVEKIT_APPLICATION_COMPOSE_PATH, 'utf8');
+test('standalone Converact Fabric application stack isolates PostgreSQL, Tinode, Converact, and RustDesk', () => {
+  const compose = readFileSync(CONVERACT_APPLICATION_COMPOSE_PATH, 'utf8');
   const envExample = readFileSync(new URL('../infra/converact/env.example', import.meta.url), 'utf8');
 
   const postgres = readServiceBlock(compose, 'postgres');
-  assert.match(postgres, /image: \$\{IVEKIT_POSTGRES_IMAGE:\?IVEKIT_POSTGRES_IMAGE immutable digest reference is required\}/);
+  assert.match(postgres, /image: \$\{CONVERACT_POSTGRES_IMAGE:\?CONVERACT_POSTGRES_IMAGE immutable digest reference is required\}/);
   assert.doesNotMatch(postgres, /\n\s+ports:/);
   assert.match(postgres, /postgres_data:\/var\/lib\/postgresql\/data/);
   assert.equal(readServiceEnvironment(compose, 'postgres').POSTGRES_USER, 'opc_admin');
@@ -331,7 +331,7 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
   assert.match(migrate, /postgres-runtime-role:\n\s+condition: service_completed_successfully/);
 
   const redis = readServiceBlock(compose, 'redis');
-  assert.match(redis, /image: \$\{IVEKIT_REDIS_IMAGE:\?IVEKIT_REDIS_IMAGE immutable digest reference is required\}/);
+  assert.match(redis, /image: \$\{CONVERACT_REDIS_IMAGE:\?CONVERACT_REDIS_IMAGE immutable digest reference is required\}/);
   assert.doesNotMatch(redis, /\n\s+ports:/);
 
   const tinode = readServiceBlock(compose, 'tinode');
@@ -344,7 +344,7 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
   assert.match(tinode, /postgres:\n\s+condition: service_healthy/);
 
   const tinodeBootstrap = readServiceBlock(compose, 'tinode-bootstrap');
-  assert.match(tinodeBootstrap, /image: \$\{IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local\}/);
+  assert.match(tinodeBootstrap, /image: \$\{CONVERACT_PLATFORM_IMAGE:-converact-platform:local\}/);
   assert.match(tinodeBootstrap, /bootstrap-tinode-service-account\.ts/);
   assert.match(tinodeBootstrap, /tinode:\n\s+condition: service_healthy/);
   const tinodeBootstrapEnvironment = readServiceEnvironment(compose, 'tinode-bootstrap');
@@ -357,33 +357,33 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
     '${TINODE_DB_PASSWORD:?TINODE_DB_PASSWORD is required}'
   );
 
-  const opc = readServiceBlock(compose, 'opc');
-  assert.match(opc, /command: \["npm", "run", "start:ivekit"\]/);
-  assert.match(opc, /"127\.0\.0\.1:\$\{CONVERACT_HTTP_PORT:-8300\}:3000"/);
-  assert.match(opc, /postgres:\n\s+condition: service_healthy/);
-  assert.match(opc, /tinode-bootstrap:\n\s+condition: service_completed_successfully/);
-  const opcEnvironment = readServiceEnvironment(compose, 'opc');
-  assert.equal(opcEnvironment.PGUSER, 'opc_runtime');
-  assert.equal(opcEnvironment.PGPASSWORD, '${CONVERACT_RUNTIME_DB_PASSWORD:?CONVERACT_RUNTIME_DB_PASSWORD is required}');
-  assert.equal('DATABASE_URL' in opcEnvironment, false);
-  assert.equal('DATABASE_MIGRATION_URL' in opcEnvironment, false);
-  assert.equal('POSTGRES_PASSWORD' in opcEnvironment, false);
-  assert.equal(opcEnvironment.LIVEKIT_URL, '${LIVEKIT_URL:?LIVEKIT_URL is required}');
-  assert.equal(opcEnvironment.LIVEKIT_PUBLIC_URL, '${LIVEKIT_PUBLIC_URL:?LIVEKIT_PUBLIC_URL is required}');
-  assert.equal(opcEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
-  assert.equal(opcEnvironment.TINODE_BASE_URL, 'http://tinode:6060');
-  assert.equal(opcEnvironment.TINODE_WS_URL, 'ws://tinode:6060/v0/channels');
-  assert.equal(opcEnvironment.TINODE_PUBLIC_WS_URL, '${TINODE_PUBLIC_WS_URL:?TINODE_PUBLIC_WS_URL is required}');
-  assert.equal('CONVERACT_DISABLE_DIALER' in opcEnvironment, false);
-  assert.equal(opcEnvironment.CONVERACT_SCHEMA_MANAGED_BY_MIGRATIONS, '1');
-  assert.equal(opcEnvironment.CONVERACT_REMOTE_GATEWAY_BASE_URL, 'http://ivekit-api:3000');
-  assert.equal(opcEnvironment.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL, 'http://ivekit-api:3000');
+  const converact = readServiceBlock(compose, 'converact');
+  assert.match(converact, /command: \["npm", "run", "start:converact"\]/);
+  assert.match(converact, /"127\.0\.0\.1:\$\{CONVERACT_HTTP_PORT:-8300\}:3000"/);
+  assert.match(converact, /postgres:\n\s+condition: service_healthy/);
+  assert.match(converact, /tinode-bootstrap:\n\s+condition: service_completed_successfully/);
+  const converactEnvironment = readServiceEnvironment(compose, 'converact');
+  assert.equal(converactEnvironment.PGUSER, 'opc_runtime');
+  assert.equal(converactEnvironment.PGPASSWORD, '${CONVERACT_RUNTIME_DB_PASSWORD:?CONVERACT_RUNTIME_DB_PASSWORD is required}');
+  assert.equal('DATABASE_URL' in converactEnvironment, false);
+  assert.equal('DATABASE_MIGRATION_URL' in converactEnvironment, false);
+  assert.equal('POSTGRES_PASSWORD' in converactEnvironment, false);
+  assert.equal(converactEnvironment.LIVEKIT_URL, '${LIVEKIT_URL:?LIVEKIT_URL is required}');
+  assert.equal(converactEnvironment.LIVEKIT_PUBLIC_URL, '${LIVEKIT_PUBLIC_URL:?LIVEKIT_PUBLIC_URL is required}');
+  assert.equal(converactEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
+  assert.equal(converactEnvironment.TINODE_BASE_URL, 'http://tinode:6060');
+  assert.equal(converactEnvironment.TINODE_WS_URL, 'ws://tinode:6060/v0/channels');
+  assert.equal(converactEnvironment.TINODE_PUBLIC_WS_URL, '${TINODE_PUBLIC_WS_URL:?TINODE_PUBLIC_WS_URL is required}');
+  assert.equal('CONVERACT_DISABLE_DIALER' in converactEnvironment, false);
+  assert.equal(converactEnvironment.CONVERACT_SCHEMA_MANAGED_BY_MIGRATIONS, '1');
+  assert.equal(converactEnvironment.CONVERACT_REMOTE_GATEWAY_BASE_URL, 'http://converact-api:3000');
+  assert.equal(converactEnvironment.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL, 'http://converact-api:3000');
   assert.equal(
-    opcEnvironment.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE,
+    converactEnvironment.CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE,
     '${CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE:-rustdesk://connect/{rustdesk_id}?session={external_id}}'
   );
-  assert.match(opc, /aliases:\n\s+- ivekit-api/);
-  assert.match(opc, /ivekit_media: \{\}/);
+  assert.match(converact, /aliases:\n\s+- converact-api/);
+  assert.match(converact, /converact_media: \{\}/);
 
   for (const service of ['rustdesk-hbbs', 'rustdesk-hbbr']) {
     const block = readServiceBlock(compose, service);
@@ -393,19 +393,19 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
   }
 
   for (const variable of [
-    'IVEKIT_POSTGRES_IMAGE=postgres:16.10-alpine3.22',
-    'IVEKIT_REDIS_IMAGE=redis:7.4.9',
+    'CONVERACT_POSTGRES_IMAGE=postgres:16.10-alpine3.22',
+    'CONVERACT_REDIS_IMAGE=redis:7.4.9',
     'TINODE_IMAGE=tinode/tinode:0.25.3',
-    'RUSTDESK_SERVER_IMAGE=ghcr.io/songgoldenwind-crypto/opc-rustdesk-server:1.1.16-ivekit.1-73523b31'
+    'RUSTDESK_SERVER_IMAGE=ghcr.io/songgoldenwind-crypto/converact-rustdesk-server:1.1.16-ivekit.1-73523b31'
   ]) {
     assert.match(envExample, new RegExp(`^${variable.replaceAll('.', '\\.')}@sha256:[a-f0-9]{64}$`, 'm'));
   }
-  assert.doesNotMatch(envExample, /^IVEKIT_(?:POSTGRES|REDIS)_IMAGE_TAG=/m);
+  assert.doesNotMatch(envExample, /^(?:CONVERACT_FABRIC|CONVERACT)_(?:POSTGRES|REDIS)_IMAGE_TAG=/m);
 
-  assert.match(compose, /name: \$\{CONVERACT_MEDIA_DOCKER_NETWORK:-ivekit-media_default\}/);
+  assert.match(compose, /name: \$\{CONVERACT_MEDIA_DOCKER_NETWORK:-converact-media_default\}/);
   assert.doesNotMatch(compose, /CONVERACT_DB_PATH|sqlite/i);
 
-  const roleInit = readFileSync(IVEKIT_POSTGRES_ROLE_INIT_PATH, 'utf8');
+  const roleInit = readFileSync(CONVERACT_POSTGRES_ROLE_INIT_PATH, 'utf8');
   assert.match(roleInit, /CREATE ROLE opc_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS/);
   assert.match(roleInit, /CREATE ROLE tinode_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS/);
   assert.match(roleInit, /CREATE DATABASE tinode OWNER tinode_app/);
@@ -426,7 +426,7 @@ test('self-hosted Tinode extends database bootstrap and waits for it', () => {
     readServiceBlock(overlay, 'tinode'),
     /postgres-bootstrap:\n\s+condition: service_completed_successfully/
   );
-  assert.match(readServiceBlock(overlay, 'opc'), /tinode:\n\s+condition: service_started/);
+  assert.match(readServiceBlock(overlay, 'converact'), /tinode:\n\s+condition: service_started/);
 });
 
 test('Chatwoot is opt-in and production bootstrap remains PostgreSQL-only', () => {
@@ -442,7 +442,7 @@ test('Chatwoot is opt-in and production bootstrap remains PostgreSQL-only', () =
 test('production application image has no SQLite runtime fallback', () => {
   const dockerfile = readFileSync(DOCKERFILE_PATH, 'utf8');
 
-  assert.doesNotMatch(dockerfile, /CONVERACT_DB_PATH|opc\.sqlite|sqlite/i);
+  assert.doesNotMatch(dockerfile, /CONVERACT_DB_PATH|converact\.sqlite|sqlite/i);
 });
 
 test('compose media ports and Egress Redis match the LiveKit runtime configuration', () => {
@@ -466,7 +466,7 @@ test('compose media ports and Egress Redis match the LiveKit runtime configurati
   assert.doesNotMatch(localEgressConfig, /^s3:/m);
 });
 
-test('compose files deploy Tinode with PostgreSQL and wire internal OPC endpoints', () => {
+test('compose files deploy Tinode with PostgreSQL and wire internal Converact endpoints', () => {
   const localCompose = readFileSync(COMPOSE_PATH, 'utf8');
   const productionBaseCompose = readFileSync(PRODUCTION_COMPOSE_PATH, 'utf8');
   const productionTinodeCompose = readFileSync(PRODUCTION_TINODE_COMPOSE_PATH, 'utf8');
@@ -474,7 +474,7 @@ test('compose files deploy Tinode with PostgreSQL and wire internal OPC endpoint
   for (const compose of [localCompose, productionTinodeCompose]) {
     const tinode = readServiceBlock(compose, 'tinode');
     const tinodeEnvironment = readServiceEnvironment(compose, 'tinode');
-    const opcEnvironment = readServiceEnvironment(compose, 'opc');
+    const converactEnvironment = readServiceEnvironment(compose, 'converact');
 
     assert.match(tinode, /image: tinode\/tinode:\$\{TINODE_IMAGE_TAG:-0\.25\.3\}/);
     assert.match(tinode, /"6060:6060"/);
@@ -485,8 +485,8 @@ test('compose files deploy Tinode with PostgreSQL and wire internal OPC endpoint
     assert.match(tinodeEnvironment.UID_ENCRYPTION_KEY, /\$\{TINODE_UID_ENCRYPTION_KEY/);
     assert.equal(tinodeEnvironment.SAMPLE_DATA, '${TINODE_SAMPLE_DATA:-}');
     assert.equal(tinodeEnvironment.UPGRADE_DB, '${TINODE_UPGRADE_DB:-false}');
-    assert.equal(opcEnvironment.TINODE_BASE_URL, '${TINODE_BASE_URL:-http://tinode:6060}');
-    assert.equal(opcEnvironment.TINODE_WS_URL, '${TINODE_WS_URL:-ws://tinode:6060/v0/channels}');
+    assert.equal(converactEnvironment.TINODE_BASE_URL, '${TINODE_BASE_URL:-http://tinode:6060}');
+    assert.equal(converactEnvironment.TINODE_WS_URL, '${TINODE_WS_URL:-ws://tinode:6060/v0/channels}');
   }
 
   assert.equal(
@@ -506,9 +506,9 @@ test('compose files deploy Tinode with PostgreSQL and wire internal OPC endpoint
     '${TINODE_UID_ENCRYPTION_KEY:?TINODE_UID_ENCRYPTION_KEY is required}'
   );
   assert.doesNotMatch(productionBaseCompose, /^  tinode:/m);
-  const baseOpcEnvironment = readServiceEnvironment(productionBaseCompose, 'opc');
-  assert.equal(baseOpcEnvironment.TINODE_BASE_URL, '${TINODE_BASE_URL:-}');
-  assert.equal(baseOpcEnvironment.TINODE_WS_URL, '${TINODE_WS_URL:-}');
+  const baseConveractEnvironment = readServiceEnvironment(productionBaseCompose, 'converact');
+  assert.equal(baseConveractEnvironment.TINODE_BASE_URL, '${TINODE_BASE_URL:-}');
+  assert.equal(baseConveractEnvironment.TINODE_WS_URL, '${TINODE_WS_URL:-}');
 });
 
 test('production env requires Tinode runtime identity and PostgreSQL configuration', () => {
@@ -527,7 +527,7 @@ test('production env requires Tinode runtime identity and PostgreSQL configurati
   assert.match(envExample, /^TINODE_IMAGE_TAG=0\.25\.3$/m);
 });
 
-test('compose files define RustDesk OSS runtime and wire OPC control-plane env', () => {
+test('compose files define RustDesk OSS runtime and wire Converact control-plane env', () => {
   const localCompose = readFileSync(COMPOSE_PATH, 'utf8');
   const productionCompose = readFileSync(PRODUCTION_COMPOSE_PATH, 'utf8');
 
@@ -559,44 +559,44 @@ test('compose files define RustDesk OSS runtime and wire OPC control-plane env',
   assert.ok(readServiceVolumes(productionCompose, 'rustdesk-hbbr').includes('rustdesk_data:/data'));
 
   for (const compose of [localCompose, productionCompose]) {
-    const opcEnvironment = readServiceEnvironment(compose, 'opc');
-    assert.equal(opcEnvironment.CONVERACT_REMOTE_GATEWAY_PROVIDER, '${CONVERACT_REMOTE_GATEWAY_PROVIDER:-rustdesk}');
-    assert.equal(opcEnvironment.CONVERACT_REMOTE_GATEWAY_TENANT_ID, '${CONVERACT_REMOTE_GATEWAY_TENANT_ID:-tenant_led}');
-    assert.equal(opcEnvironment.CONVERACT_REMOTE_GATEWAY_TARGET_TYPE, '${CONVERACT_REMOTE_GATEWAY_TARGET_TYPE:-device}');
-    assert.match(opcEnvironment.CONVERACT_REMOTE_GATEWAY_TARGET_ID, /\$\{CONVERACT_REMOTE_GATEWAY_TARGET_ID/);
-    assert.match(opcEnvironment.CONVERACT_REMOTE_GATEWAY_TARGET_DISPLAY_NAME, /\$\{CONVERACT_REMOTE_GATEWAY_TARGET_DISPLAY_NAME/);
-    assert.match(opcEnvironment.CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY, /\$\{CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY/);
-    assert.equal(opcEnvironment.CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES, '${CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES:-view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard}');
-    assert.match(opcEnvironment.CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL, /\$\{CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL/);
-    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL, '${CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL:-http://opc:3000}');
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_ID_SERVER, /\$\{CONVERACT_RUSTDESK_ID_SERVER/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_RELAY_SERVER, /\$\{CONVERACT_RUSTDESK_RELAY_SERVER/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_API_SERVER, /\$\{CONVERACT_RUSTDESK_API_SERVER/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_PUBLIC_KEY, /\$\{CONVERACT_RUSTDESK_PUBLIC_KEY/);
-    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE, '${CONVERACT_RUSTDESK_PUBLIC_KEY_FILE:-/rustdesk/id_ed25519.pub}');
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_LAUNCH_BASE_URL, /\$\{CONVERACT_RUSTDESK_LAUNCH_BASE_URL/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_LAUNCH_SECRET, /\$\{CONVERACT_RUSTDESK_LAUNCH_SECRET/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS, /\$\{CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE, /\$\{CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE/);
-    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT, '${CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT:-0}');
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS, /\$\{CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE, /\$\{CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT, /\$\{CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_SERVER_PORTS, /\$\{CONVERACT_RUSTDESK_CHECK_SERVER_PORTS/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_HOST, /\$\{CONVERACT_RUSTDESK_CHECK_HOST/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_TCP_PORTS, /\$\{CONVERACT_RUSTDESK_CHECK_TCP_PORTS/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_UDP_PORTS, /\$\{CONVERACT_RUSTDESK_CHECK_UDP_PORTS/);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS, /\$\{CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS/);
-    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE, '${CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE:-1}');
-    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT, '${CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT:-1}');
-    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS, '${CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS:-1}');
-    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL, '${CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL:-1}');
-    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL, '${CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL:-1}');
-    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL, '${CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL:-1}');
-    assert.equal(opcEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT, '${CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT:-0}');
-    assert.equal('CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE' in opcEnvironment, false);
-    assert.match(opcEnvironment.CONVERACT_RUSTDESK_API_TOKEN, /\$\{CONVERACT_RUSTDESK_API_TOKEN/);
-    assert.ok(readServiceVolumes(compose, 'opc').includes('rustdesk_data:/rustdesk:ro'));
+    const converactEnvironment = readServiceEnvironment(compose, 'converact');
+    assert.equal(converactEnvironment.CONVERACT_REMOTE_GATEWAY_PROVIDER, '${CONVERACT_REMOTE_GATEWAY_PROVIDER:-rustdesk}');
+    assert.equal(converactEnvironment.CONVERACT_REMOTE_GATEWAY_TENANT_ID, '${CONVERACT_REMOTE_GATEWAY_TENANT_ID:-tenant_led}');
+    assert.equal(converactEnvironment.CONVERACT_REMOTE_GATEWAY_TARGET_TYPE, '${CONVERACT_REMOTE_GATEWAY_TARGET_TYPE:-device}');
+    assert.match(converactEnvironment.CONVERACT_REMOTE_GATEWAY_TARGET_ID, /\$\{CONVERACT_REMOTE_GATEWAY_TARGET_ID/);
+    assert.match(converactEnvironment.CONVERACT_REMOTE_GATEWAY_TARGET_DISPLAY_NAME, /\$\{CONVERACT_REMOTE_GATEWAY_TARGET_DISPLAY_NAME/);
+    assert.match(converactEnvironment.CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY, /\$\{CONVERACT_REMOTE_GATEWAY_ACTOR_IDENTITY/);
+    assert.equal(converactEnvironment.CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES, '${CONVERACT_REMOTE_GATEWAY_CONSENT_SCOPES:-view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard}');
+    assert.match(converactEnvironment.CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL, /\$\{CONVERACT_REMOTE_GATEWAY_CHECK_LAUNCH_URL/);
+    assert.equal(converactEnvironment.CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL, '${CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL:-http://converact:3000}');
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_ID_SERVER, /\$\{CONVERACT_RUSTDESK_ID_SERVER/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_RELAY_SERVER, /\$\{CONVERACT_RUSTDESK_RELAY_SERVER/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_API_SERVER, /\$\{CONVERACT_RUSTDESK_API_SERVER/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_PUBLIC_KEY, /\$\{CONVERACT_RUSTDESK_PUBLIC_KEY/);
+    assert.equal(converactEnvironment.CONVERACT_RUSTDESK_PUBLIC_KEY_FILE, '${CONVERACT_RUSTDESK_PUBLIC_KEY_FILE:-/rustdesk/id_ed25519.pub}');
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_LAUNCH_BASE_URL, /\$\{CONVERACT_RUSTDESK_LAUNCH_BASE_URL/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_LAUNCH_SECRET, /\$\{CONVERACT_RUSTDESK_LAUNCH_SECRET/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS, /\$\{CONVERACT_RUSTDESK_LAUNCH_TOKEN_TTL_MS/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE, /\$\{CONVERACT_RUSTDESK_REQUIRE_DEVICE_ONLINE/);
+    assert.equal(converactEnvironment.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT, '${CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT:-0}');
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS, /\$\{CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE, /\$\{CONVERACT_RUSTDESK_CHECK_DEVICE_ONLINE/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT, /\$\{CONVERACT_RUSTDESK_CHECK_OPERATION_AUDIT/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_CHECK_SERVER_PORTS, /\$\{CONVERACT_RUSTDESK_CHECK_SERVER_PORTS/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_CHECK_HOST, /\$\{CONVERACT_RUSTDESK_CHECK_HOST/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_CHECK_TCP_PORTS, /\$\{CONVERACT_RUSTDESK_CHECK_TCP_PORTS/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_CHECK_UDP_PORTS, /\$\{CONVERACT_RUSTDESK_CHECK_UDP_PORTS/);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS, /\$\{CONVERACT_RUSTDESK_CHECK_TIMEOUT_MS/);
+    assert.equal(converactEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE, '${CONVERACT_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE:-1}');
+    assert.equal(converactEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT, '${CONVERACT_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT:-1}');
+    assert.equal(converactEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS, '${CONVERACT_RUSTDESK_READINESS_CHECK_SERVER_PORTS:-1}');
+    assert.equal(converactEnvironment.CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL, '${CONVERACT_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL:-1}');
+    assert.equal(converactEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL, '${CONVERACT_RUSTDESK_READINESS_CHECK_LAUNCH_URL:-1}');
+    assert.equal(converactEnvironment.CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL, '${CONVERACT_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL:-1}');
+    assert.equal(converactEnvironment.CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT, '${CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT:-0}');
+    assert.equal('CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE' in converactEnvironment, false);
+    assert.match(converactEnvironment.CONVERACT_RUSTDESK_API_TOKEN, /\$\{CONVERACT_RUSTDESK_API_TOKEN/);
+    assert.ok(readServiceVolumes(compose, 'converact').includes('rustdesk_data:/rustdesk:ro'));
   }
 });
 
@@ -615,7 +615,7 @@ test('production env example declares required Media Core secrets', () => {
   assert.match(envExample, /^MINIO_SECRET_KEY=/m);
   assert.match(envExample, /^CONVERACT_MEDIA_CONFIG_DIR=/m);
   assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_PROVIDER=rustdesk/m);
-  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_BASE_URL=http:\/\/opc:3000/m);
+  assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_BASE_URL=http:\/\/converact:3000/m);
   assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_API_TOKEN=change_me_rustdesk_control_token/m);
   assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_TENANT_ID=tenant_led/m);
   assert.match(envExample, /^CONVERACT_REMOTE_GATEWAY_TARGET_TYPE=device/m);
@@ -813,8 +813,8 @@ test('root env example documents every video readiness input', () => {
   }
 });
 
-test('Kubernetes templates pass reusable video env into opc and ai agent', () => {
-  const opcDeployment = readFileSync(K8S_OPC_DEPLOYMENT_PATH, 'utf8');
+test('Kubernetes templates pass reusable video env into converact and ai agent', () => {
+  const converactDeployment = readFileSync(K8S_CONVERACT_DEPLOYMENT_PATH, 'utf8');
   const aiAgentDeployment = readFileSync(K8S_AI_AGENT_DEPLOYMENT_PATH, 'utf8');
   const secrets = readFileSync(K8S_SECRETS_PATH, 'utf8');
   const values = readFileSync(K8S_VALUES_PATH, 'utf8');
@@ -875,13 +875,13 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
     'CONVERACT_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT',
     'CONVERACT_RUSTDESK_API_TOKEN'
   ]) {
-    assert.match(opcDeployment, new RegExp(`name: ${envName}`));
+    assert.match(converactDeployment, new RegExp(`name: ${envName}`));
   }
 
   assert.match(aiAgentDeployment, /name: CONVERACT_API_KEY/);
-  assert.match(opcDeployment, /include "opc\.livekitInternalUrl"/);
-  assert.match(opcDeployment, /include "opc\.livekitPublicUrl"/);
-  assert.match(opcDeployment, /include "opc\.objectStorageEnv"/);
+  assert.match(converactDeployment, /include "converact\.livekitInternalUrl"/);
+  assert.match(converactDeployment, /include "converact\.livekitPublicUrl"/);
+  assert.match(converactDeployment, /include "converact\.objectStorageEnv"/);
   for (const envName of [
     'S3_ENDPOINT',
     'S3_BUCKET',
@@ -892,22 +892,22 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
   ]) {
     assert.match(helpers, new RegExp(`name: ${envName}`));
   }
-  assert.match(aiAgentDeployment, /include "opc\.livekitInternalUrl"/);
-  assert.match(opcDeployment, /mountPath: \/rustdesk/);
-  assert.match(opcDeployment, /claimName: {{ \.Release\.Name }}-rustdesk-data/);
+  assert.match(aiAgentDeployment, /include "converact\.livekitInternalUrl"/);
+  assert.match(converactDeployment, /mountPath: \/rustdesk/);
+  assert.match(converactDeployment, /claimName: {{ \.Release\.Name }}-rustdesk-data/);
   assert.match(values, /^  launchTokenTtlMs: "900000"/m);
   assert.match(values, /^  edgeTokenSecret: ""/m);
   assert.match(values, /^  readinessRequireHttpsLaunchUrl: "1"/m);
   assert.match(values, /^  requirePhysicalDisconnect: "0"/m);
   assert.match(values, /^  readinessCheckPhysicalDisconnect: "0"/m);
-  assert.doesNotMatch(opcDeployment, /name: CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE/);
+  assert.doesNotMatch(converactDeployment, /name: CONVERACT_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE/);
 
   for (const secretKey of [
     'livekit-api-key',
     'livekit-api-secret',
     'media-api-token',
     'media-invite-secret',
-    'opc-api-key',
+    'converact-api-key',
     'rustdesk-api-token',
     'rustdesk-edge-token-secret',
     'rustdesk-public-key',
@@ -915,7 +915,7 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
   ]) {
     assert.match(secrets, new RegExp(`${secretKey}:`));
   }
-  assert.doesNotMatch(secrets, /opc-postgres/);
+  assert.doesNotMatch(secrets, /converact-postgres/);
   assert.match(secrets, /\.Release\.Name/);
 
   assert.match(values, /^media:/m);
@@ -928,7 +928,7 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
   }
   assert.match(values, /^    mode: external$/m);
   assert.match(values, /^    authMode: secret$/m);
-  assert.match(values, /^    existingSecret: opc-object-storage-runtime$/m);
+  assert.match(values, /^    existingSecret: converact-object-storage-runtime$/m);
 });
 
 test('Kubernetes chart defines the in-cluster media runtime dependencies', () => {
@@ -938,14 +938,14 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   const sip = readFileSync(K8S_SIP_DEPLOYMENT_PATH, 'utf8');
   const values = readFileSync(K8S_VALUES_PATH, 'utf8');
   const helpers = readFileSync(K8S_HELPERS_PATH, 'utf8');
-  const opc = readFileSync(K8S_OPC_DEPLOYMENT_PATH, 'utf8');
+  const converact = readFileSync(K8S_CONVERACT_DEPLOYMENT_PATH, 'utf8');
   const aiAgent = readFileSync(K8S_AI_AGENT_DEPLOYMENT_PATH, 'utf8');
 
   assert.match(livekit, /bundled-dev is development-only/);
   assert.match(livekit, /name: {{ \.Release\.Name }}-livekit-config/);
   assert.match(livekit, /kind: Deployment/);
   assert.match(livekit, /name: {{ \.Release\.Name }}-livekit/);
-  assert.match(livekit, /include "opc\.livekitImage"/);
+  assert.match(livekit, /include "converact\.livekitImage"/);
   assert.match(livekit, /containerPort: 7880/);
   assert.match(livekit, /kind: Service/);
   assert.match(livekit, /port: 7880/);
@@ -973,13 +973,13 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(egress, /livekit-egress-{{ \$poolName }}/);
   assert.match(egress, /\.Values\.media\.egress\.image\.repository/);
   assert.match(egress, /EGRESS_CONFIG_FILE/);
-  assert.match(egress, /include "opc\.livekitInternalUrl"/);
-  assert.match(egress, /include "opc\.livekitRedisConfig"/);
+  assert.match(egress, /include "converact\.livekitInternalUrl"/);
+  assert.match(egress, /include "converact\.livekitRedisConfig"/);
   assert.match(egress, /insecure: {{ hasPrefix "ws:\/\/" \$livekitInternalUrl }}/);
   assert.doesNotMatch(egress, /^\s+insecure: true$/m);
   assert.match(egress, /logging:\n\s+level: info/);
-  assert.match(egress, /redis:\n\s+\{\{- include "opc\.livekitRedisConfig"/);
-  assert.match(helpers, /define "opc\.livekitRedisConfig"/);
+  assert.match(egress, /redis:\n\s+\{\{- include "converact\.livekitRedisConfig"/);
+  assert.match(helpers, /define "converact\.livekitRedisConfig"/);
   assert.match(helpers, /address:/);
   assert.match(helpers, /username:/);
   assert.match(helpers, /password:/);
@@ -1004,25 +1004,25 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(egress, /kind: ScaledObject/);
   assert.match(egress, /kind: HorizontalPodAutoscaler/);
   assert.match(egress, /kind: PrometheusRule/);
-  assert.match(egress, /include "opc\.objectStorageEnv"/);
+  assert.match(egress, /include "converact\.objectStorageEnv"/);
 
   assert.match(sip, /kind: Deployment/);
   assert.match(sip, /name: {{ \.Release\.Name }}-livekit-sip/);
-  assert.match(sip, /include "opc\.livekitSipImage"/);
-  assert.match(sip, /include "opc\.livekitInternalUrl"/);
+  assert.match(sip, /include "converact\.livekitSipImage"/);
+  assert.match(sip, /include "converact\.livekitInternalUrl"/);
   assert.match(sip, /sip_port: {{ \.Values\.media\.sip\.service\.port \| default 5061 }}/);
   assert.match(sip, /containerPort: 5061/);
   assert.match(sip, /kind: Service/);
 
-  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/opc-ivekit-livekit-server/);
+  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/converact-livekit-server/);
   assert.match(values, /repository: minio\/minio/);
   const minioValuesStart = values.indexOf('  minio:\n', values.indexOf('media:\n'));
   const minioValues = values.slice(minioValuesStart, values.indexOf('  egress:\n', minioValuesStart));
   assert.match(minioValues, /tag: RELEASE\.2025-09-07T16-13-09Z/);
   assert.match(minioValues, /digest: sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e/);
   assert.doesNotMatch(minioValues, /tag: latest/);
-  assert.match(values, /repository: ivekit\/livekit-egress/);
-  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/opc-livekit-sip/);
+  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/converact-livekit-egress/);
+  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/converact-livekit-sip/);
   assert.match(values, /^  enabled: false$/m);
   assert.match(values, /^  deploymentMode: external$/m);
   assert.match(
@@ -1041,25 +1041,25 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(values, /^        autoscaling:$/m);
   assert.match(values, /^          storageSize: 200Gi$/m);
   assert.doesNotMatch(values.slice(values.indexOf('  sip:\n', values.indexOf('media:\n')), values.indexOf('\n\ntinode:')), /tag:/);
-  assert.match(helpers, /define "opc\.livekitInternalUrl"/);
+  assert.match(helpers, /define "converact\.livekitInternalUrl"/);
   assert.match(helpers, /livekit\.url is required when livekit\.enabled=false/);
-  assert.match(helpers, /define "opc\.livekitPublicUrl"/);
+  assert.match(helpers, /define "converact\.livekitPublicUrl"/);
   assert.match(helpers, /livekit\.publicUrl is required/);
   assert.match(helpers, /livekit\.publicUrl must use wss:\/\//);
-  assert.match(helpers, /define "opc\.livekitApiKey"/);
+  assert.match(helpers, /define "converact\.livekitApiKey"/);
   assert.match(helpers, /livekit\.apiKey is required/);
-  assert.match(helpers, /define "opc\.livekitApiSecret"/);
+  assert.match(helpers, /define "converact\.livekitApiSecret"/);
   assert.match(helpers, /livekit\.apiSecret is required/);
-  assert.match(helpers, /define "opc\.livekitRedisAddress"/);
+  assert.match(helpers, /define "converact\.livekitRedisAddress"/);
   assert.match(helpers, /livekit\.redis\.address is required when external LiveKit uses in-chart Egress/);
-  assert.match(livekit, /include "opc\.livekitRedisConfig"/);
+  assert.match(livekit, /include "converact\.livekitRedisConfig"/);
   assert.doesNotMatch(readFileSync(K8S_SECRETS_PATH, 'utf8'), /livekit\.apiKey \| default "devkey"/);
   assert.doesNotMatch(readFileSync(K8S_SECRETS_PATH, 'utf8'), /livekit\.apiSecret \| default "secret"/);
   assert.doesNotMatch(livekit, /livekit\.apiKey \| default "devkey"/);
   assert.doesNotMatch(egress, /livekit\.apiSecret \| default "secret"/);
-  assert.match(opc, /name: LIVEKIT_PUBLIC_URL/);
-  assert.match(opc, /include "opc\.livekitPublicUrl"/);
-  assert.match(aiAgent, /include "opc\.livekitInternalUrl"/);
+  assert.match(converact, /name: LIVEKIT_PUBLIC_URL/);
+  assert.match(converact, /include "converact\.livekitPublicUrl"/);
+  assert.match(aiAgent, /include "converact\.livekitInternalUrl"/);
   assert.match(values, /port: 9000/);
   assert.match(values, /consolePort: 9001/);
   assert.match(values, /^  sip:\n[\s\S]*?^      limits:\n        memory: "256Mi"\n        cpu: "300m"/m);
@@ -1082,22 +1082,26 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   }
 });
 
-test('Kubernetes chart fails closed unless OPC application images use immutable digests', () => {
+test('Kubernetes chart fails closed unless Converact application images use immutable digests', () => {
   const helpers = readFileSync(K8S_HELPERS_PATH, 'utf8');
   const values = readFileSync(K8S_VALUES_PATH, 'utf8');
-  const opc = readFileSync(K8S_OPC_DEPLOYMENT_PATH, 'utf8');
+  const converact = readFileSync(K8S_CONVERACT_DEPLOYMENT_PATH, 'utf8');
   const aiAgent = readFileSync(K8S_AI_AGENT_DEPLOYMENT_PATH, 'utf8');
   const frontend = readFileSync(K8S_FRONTEND_DEPLOYMENT_PATH, 'utf8');
   const rustpbx = readFileSync(K8S_RUSTPBX_DEPLOYMENT_PATH, 'utf8');
 
-  for (const component of ['opc', 'aiAgent', 'frontend']) {
-    assert.match(helpers, new RegExp(`define "opc\\.${component}Image"`));
-    assert.match(helpers, new RegExp(`${component}\\.image\\.digest is required`));
-    assert.match(helpers, new RegExp(`${component}\\.image\\.digest must be an immutable sha256 digest`));
+  for (const [section, helper] of [
+    ['converact', 'platform'],
+    ['aiAgent', 'aiAgent'],
+    ['frontend', 'frontend']
+  ]) {
+    assert.match(helpers, new RegExp(`define "converact\\.${helper}Image"`));
+    assert.match(helpers, new RegExp(`${section}\\.image\\.digest is required`));
+    assert.match(helpers, new RegExp(`${section}\\.image\\.digest must be an immutable sha256 digest`));
   }
   assert.match(helpers, /regexMatch "\^sha256:\[a-f0-9\]\{64\}\$"/);
 
-  for (const sectionName of ['opc', 'aiAgent', 'frontend']) {
+  for (const sectionName of ['converact', 'aiAgent', 'frontend']) {
     const start = values.indexOf(`${sectionName}:\n`);
     const end = values.indexOf('\n\n', start);
     const section = values.slice(start, end);
@@ -1106,13 +1110,13 @@ test('Kubernetes chart fails closed unless OPC application images use immutable 
     assert.doesNotMatch(section, /tag:/);
   }
 
-  assert.match(opc, /image: {{ include "opc\.opcImage" \. | quote }}/);
-  assert.match(aiAgent, /image: {{ include "opc\.aiAgentImage" \. | quote }}/);
-  assert.match(frontend, /image: {{ include "opc\.frontendImage" \. | quote }}/);
-  assert.match(rustpbx, /\$opcImage := include "opc\.opcImage" \./);
+  assert.match(converact, /image: {{ include "converact\.platformImage" \. | quote }}/);
+  assert.match(aiAgent, /image: {{ include "converact\.aiAgentImage" \. | quote }}/);
+  assert.match(frontend, /image: {{ include "converact\.frontendImage" \. | quote }}/);
+  assert.match(rustpbx, /\$converactImage := include "converact\.platformImage" \./);
   assert.doesNotMatch(
-    `${opc}\n${aiAgent}\n${frontend}\n${rustpbx}`,
-    /(?:opc|aiAgent|frontend)\.image\.tag|:latest/
+    `${converact}\n${aiAgent}\n${frontend}\n${rustpbx}`,
+    /(?:converact|aiAgent|frontend)\.image\.tag|:latest/
   );
 });
 
@@ -1129,9 +1133,9 @@ test('Kubernetes chart renders every bundled infrastructure image by immutable d
   };
 
   for (const component of Object.keys(templates)) {
-    assert.match(helpers, new RegExp(`define "opc\\.${component}Image"`));
+    assert.match(helpers, new RegExp(`define "converact\\.${component}Image"`));
     assert.match(helpers, new RegExp(`immutable sha256 digest`));
-    assert.match(templates[component as keyof typeof templates], new RegExp(`include "opc\\.${component}Image"`));
+    assert.match(templates[component as keyof typeof templates], new RegExp(`include "converact\\.${component}Image"`));
     assert.doesNotMatch(templates[component as keyof typeof templates], /image:\s*[^\n]*:[^@\s"}]+\s*$/m);
   }
 
@@ -1142,12 +1146,12 @@ test('Kubernetes chart renders every bundled infrastructure image by immutable d
     assert.notEqual(start, 0, `missing top-level ${section} values`);
     assert.match(values.slice(start, end), /image:\n\s+repository: [^\n]+\n\s+digest: ""/);
   }
-  assert.match(values, /sip:\n[\s\S]*?image:\n\s+repository: ghcr\.io\/songgoldenwind-crypto\/opc-livekit-sip\n\s+digest: ""/);
+  assert.match(values, /sip:\n[\s\S]*?image:\n\s+repository: ghcr\.io\/songgoldenwind-crypto\/converact-livekit-sip\n\s+digest: ""/);
 });
 
 test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
   const rustdesk = readFileSync(K8S_RUSTDESK_DEPLOYMENT_PATH, 'utf8');
-  const opc = readFileSync(K8S_OPC_DEPLOYMENT_PATH, 'utf8');
+  const converact = readFileSync(K8S_CONVERACT_DEPLOYMENT_PATH, 'utf8');
   const values = readFileSync(K8S_VALUES_PATH, 'utf8');
 
   assert.match(rustdesk, /{{- if \.Values\.rustdesk\.enabled }}/);
@@ -1159,7 +1163,7 @@ test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
   assert.match(rustdesk, /command: \["hbbs"\]/);
   assert.match(rustdesk, /name: hbbr/);
   assert.match(rustdesk, /command: \["hbbr"\]/);
-  assert.match(rustdesk, /include "opc\.rustdeskImage"/);
+  assert.match(rustdesk, /include "converact\.rustdeskImage"/);
   assert.match(rustdesk, /containerPort: 21115/);
   assert.match(rustdesk, /containerPort: 21116/);
   assert.match(rustdesk, /protocol: UDP/);
@@ -1172,7 +1176,7 @@ test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
   assert.match(rustdesk, /\.Values\.rustdesk\.service\.type/);
 
   assert.match(values, /^rustdesk:/m);
-  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/opc-rustdesk-server/);
+  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/converact-rustdesk-server/);
   assert.match(values, /^  serverVersion: "1\.1\.16"$/m);
   assert.match(values.slice(values.indexOf('rustdesk:')), /^    digest: ""$/m);
   assert.match(values, /alwaysUseRelay: "N"/);
@@ -1182,10 +1186,10 @@ test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
     ['CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS', 'rustdesk.clientProfileTtlSeconds'],
     ['CONVERACT_RUSTDESK_CLIENT_ARTIFACTS_JSON', 'rustdesk.clientArtifactsJson']
   ]) {
-    assert.match(opc, new RegExp(`name: ${envName}\\n\\s+value: \\{\\{ \\.Values\\.${valuePath.replaceAll('.', '\\.')}`));
+    assert.match(converact, new RegExp(`name: ${envName}\\n\\s+value: \\{\\{ \\.Values\\.${valuePath.replaceAll('.', '\\.')}`));
   }
-  assert.doesNotMatch(opc, /CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
-  assert.match(rustdesk, /image: {{ include "opc\.rustdeskImage" \. \| quote }}/);
+  assert.doesNotMatch(converact, /CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
+  assert.match(rustdesk, /image: {{ include "converact\.rustdeskImage" \. \| quote }}/);
   assert.match(values, /^  clientVersion: "1\.4\.9"$/m);
   assert.ok((rustdesk.match(/mountPath: \/data/g) || []).length >= 2);
   assert.match(rustdesk, /runAsUser: 10001/);

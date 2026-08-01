@@ -19,7 +19,7 @@ def create(tool_ctx: ToolContext):
         if not tool_ctx.agent_spec_id:
             return {"error": "agent_spec_id is required for navigation"}
         try:
-            navigation = await tool_ctx.opc.navigate_flow(
+            navigation = await tool_ctx.converact.navigate_flow(
                 call_session_id=tool_ctx.call_session_id,
                 agent_spec_id=tool_ctx.agent_spec_id,
                 trigger=trigger,
@@ -27,7 +27,7 @@ def create(tool_ctx: ToolContext):
             )
             result = {**navigation}
             dispatch = await dispatch_navigation_terminal(
-                tool_ctx.opc, tool_ctx, navigation, customer_text
+                tool_ctx.converact, tool_ctx, navigation, customer_text
             )
             if dispatch is not None:
                 result["terminal_dispatch"] = dispatch

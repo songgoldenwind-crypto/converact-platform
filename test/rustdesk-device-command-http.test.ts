@@ -88,7 +88,7 @@ async function commandHttpFixture(owner?: {
     target: { type: 'device', id: device.rustdesk_id },
     permissions: ['view_screen', 'control_mouse_keyboard'],
     actor_identity: 'agent-command-http',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=command-http',
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=command-http',
     metadata: {
       rustdesk_target_mode: 'registered_device',
       rustdesk_device_id: device.id,
@@ -122,7 +122,7 @@ async function commandHttpFixture(owner?: {
   return { pg, tenantId, device, session, command: ended.command! };
 }
 
-test('iveKit RustDesk command claim and lifecycle are fenced by the current placement owner', async () => {
+test('Converact Fabric RustDesk command claim and lifecycle are fenced by the current placement owner', async () => {
   const previousApiKey = process.env.CONVERACT_API_KEY;
   const previousEdgeSecret = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
   process.env.CONVERACT_API_KEY = API_KEY;
@@ -224,7 +224,7 @@ test('iveKit RustDesk command claim and lifecycle are fenced by the current plac
   }
 });
 
-test('iveKit RustDesk command HTTP claims, reports progress, completes, and reads status', async () => {
+test('Converact Fabric RustDesk command HTTP claims, reports progress, completes, and reads status', async () => {
   const previousApiKey = process.env.CONVERACT_API_KEY;
   const previousEdgeSecret = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
   const previousJwtSecret = process.env.CONVERACT_JWT_SECRET;
@@ -356,7 +356,7 @@ test('iveKit RustDesk command HTTP claims, reports progress, completes, and read
   }
 });
 
-test('iveKit RustDesk command HTTP hides commands across tenant and device scope', async () => {
+test('Converact Fabric RustDesk command HTTP hides commands across tenant and device scope', async () => {
   const previousApiKey = process.env.CONVERACT_API_KEY;
   const previousEdgeSecret = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
   process.env.CONVERACT_API_KEY = API_KEY;
@@ -411,7 +411,7 @@ test('iveKit RustDesk command HTTP hides commands across tenant and device scope
   }
 });
 
-test('iveKit RustDesk emergency restart requires owner approval and prior precise failure', async () => {
+test('Converact Fabric RustDesk emergency restart requires owner approval and prior precise failure', async () => {
   const previousApiKey = process.env.CONVERACT_API_KEY;
   const previousEdgeSecret = process.env.CONVERACT_RUSTDESK_EDGE_TOKEN_SECRET;
   const previousJwtSecret = process.env.CONVERACT_JWT_SECRET;
@@ -548,7 +548,7 @@ test('collaboration RustDesk tool end queues a tool_ended physical disconnect', 
   };
   const previousFetch = globalThis.fetch;
   process.env.CONVERACT_API_KEY = API_KEY;
-  process.env.CONVERACT_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_BASE_URL = 'https://converact.example.com';
   process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-tool-end-command-secret';
   delete process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER;
   delete process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL;
@@ -639,7 +639,7 @@ test('collaboration RustDesk tool end queues a tool_ended physical disconnect', 
 
     process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '1';
     process.env.CONVERACT_REMOTE_GATEWAY_PROVIDER = 'rustdesk';
-    process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://opc-upstream.example.com';
+    process.env.CONVERACT_REMOTE_GATEWAY_BASE_URL = 'https://converact-upstream.example.com';
     process.env.CONVERACT_REMOTE_GATEWAY_API_TOKEN = 'rustdesk-upstream-token';
     let upstreamCalls = 0;
     globalThis.fetch = (async (): Promise<Response> => {
@@ -690,7 +690,7 @@ test('RustDesk control plane strict mode requires a capable registered device an
   process.env.CONVERACT_API_KEY = API_KEY;
   process.env.CONVERACT_RUSTDESK_API_TOKEN = 'rustdesk-control-plane-strict-token';
   process.env.CONVERACT_RUSTDESK_LAUNCH_SECRET = 'rustdesk-control-plane-strict-secret';
-  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://opc.example.com';
+  process.env.CONVERACT_RUSTDESK_LAUNCH_BASE_URL = 'https://converact.example.com';
   process.env.CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '1';
   process.env.CONVERACT_RUSTDESK_DEVICE_ONLINE_TTL_MS = '300000';
   const pg = new MemoryPg();
@@ -824,7 +824,7 @@ test('RustDesk control plane enters the resolved session tenant transaction', as
     target_display_name: 'RLS target',
     permissions: JSON.stringify(['view_screen']),
     actor_identity: 'agent-rls',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-rls-1',
+    launch_url: 'https://converact.example.com/remote/rustdesk/launch?session_id=rdgw-rls-1',
     metadata: '{}',
     created_at: '2026-07-11T00:00:00.000Z',
     ended_at: null,

@@ -7,13 +7,13 @@
 {{- if eq (int $exporter.sipPort) (int $exporter.sipsPort) -}}
 {{- fail "monitoring.sipExporter.sipPort and sipsPort must differ" -}}
 {{- end -}}
-{{- $image := include "ivekit.sipExporterImage" . -}}
+{{- $image := include "converact.sipExporterImage" . -}}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "ivekit.sipExporterFullname" . }}
+  name: {{ include "converact.sipExporterFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: sip-exporter
 spec:
   updateStrategy:
@@ -22,12 +22,12 @@ spec:
       maxUnavailable: 1
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: sip-exporter
   template:
     metadata:
       labels:
-        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        {{- include "converact.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: sip-exporter
     spec:
       hostNetwork: true
@@ -105,13 +105,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.sipExporterFullname" . }}
+  name: {{ include "converact.sipExporterFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: sip-exporter
 spec:
   selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    {{- include "converact.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: sip-exporter
   ports:
     - name: metrics
@@ -122,9 +122,9 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "ivekit.sipExporterFullname" . }}
+  name: {{ include "converact.sipExporterFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: sip-exporter
     {{- with .Values.monitoring.serviceMonitor.labels }}
     {{- toYaml . | nindent 4 }}
@@ -132,7 +132,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: sip-exporter
   endpoints:
     - port: metrics

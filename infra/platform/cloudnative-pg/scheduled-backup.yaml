@@ -1,17 +1,17 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
 metadata:
-  name: opc-postgres-daily
+  name: converact-postgres-daily
   labels:
-    app.kubernetes.io/name: opc-postgres-backup
-    app.kubernetes.io/part-of: ivekit-platform
+    app.kubernetes.io/name: converact-postgres-backup
+    app.kubernetes.io/part-of: converact-platform
 spec:
   schedule: "0 15 2 * * *"
   backupOwnerReference: self
   immediate: true
   suspend: false
   cluster:
-    name: opc-postgres
+    name: converact-postgres
   method: plugin
   pluginConfiguration:
     name: barman-cloud.cloudnative-pg.io

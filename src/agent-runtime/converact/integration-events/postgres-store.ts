@@ -1,16 +1,16 @@
 import type { PgQueryable } from '../../../db-pg.js';
 import { withPgTenant } from '../../../db-pg-tenant.js';
-import type { IveKitEventWebhookSubscriptionRepository } from './subscription-service.js';
+import type { ConveractFabricEventWebhookSubscriptionRepository } from './subscription-service.js';
 import type {
-  IveKitEventWebhookSubscription,
-  IveKitEventWebhookSubscriptionCreateResult,
-  IveKitEventWebhookSubscriptionPage,
-  IveKitStoredIntegrationEvent
+  ConveractFabricEventWebhookSubscription,
+  ConveractFabricEventWebhookSubscriptionCreateResult,
+  ConveractFabricEventWebhookSubscriptionPage,
+  ConveractFabricStoredIntegrationEvent
 } from './types.js';
 
 type Row = Record<string, unknown>;
 
-export interface IveKitEventWebhookClaimInput {
+export interface ConveractFabricEventWebhookClaimInput {
   tenant_id: string;
   worker_id: string;
   lease_token_hash: string;
@@ -19,7 +19,7 @@ export interface IveKitEventWebhookClaimInput {
   limit: number;
 }
 
-export interface IveKitEventWebhookCompleteInput {
+export interface ConveractFabricEventWebhookCompleteInput {
   tenant_id: string;
   subscription_id: string;
   worker_id: string;
@@ -28,17 +28,17 @@ export interface IveKitEventWebhookCompleteInput {
   now: Date;
 }
 
-export interface IveKitEventWebhookFailInput extends Omit<IveKitEventWebhookCompleteInput, 'last_event_id'> {
+export interface ConveractFabricEventWebhookFailInput extends Omit<ConveractFabricEventWebhookCompleteInput, 'last_event_id'> {
   error_code: string;
   retry_at: Date;
 }
 
-export class PostgresIveKitEventWebhookStore implements IveKitEventWebhookSubscriptionRepository {
+export class PostgresConveractFabricEventWebhookStore implements ConveractFabricEventWebhookSubscriptionRepository {
   constructor(private readonly pg: PgQueryable) {}
 
   async insert(
-    subscription: IveKitEventWebhookSubscription
-  ): Promise<IveKitEventWebhookSubscriptionCreateResult> {
+    subscription: ConveractFabricEventWebhookSubscription
+  ): Promise<ConveractFabricEventWebhookSubscriptionCreateResult> {
     return withPgTenant(this.pg, subscription.tenant_id, async (pg) => {
       const result = await pg.query<Row>(
         `INSERT INTO ivekit_event_webhook_subscriptions
@@ -68,7 +68,7 @@ export class PostgresIveKitEventWebhookStore implements IveKitEventWebhookSubscr
     });
   }
 
-  get(tenantId: string, subscriptionId: string): Promise<IveKitEventWebhookSubscription | null> {
+  get(tenantId: string, subscriptionId: string): Promise<ConveractFabricEventWebhookSubscription | null> {
     return withPgTenant(this.pg, tenantId, async (pg) => {
       const result = await pg.query<Row>(
         `SELECT subscription.* FROM ivekit_event_webhook_subscriptions subscription
@@ -81,10 +81,10 @@ export class PostgresIveKitEventWebhookStore implements IveKitEventWebhookSubscr
 
   list(input: {
     tenant_id: string;
-    status?: IveKitEventWebhookSubscription['status'];
+    status?: ConveractFabricEventWebhookSubscription['status'];
     limit?: number;
     cursor?: string;
-  }): Promise<IveKitEventWebhookSubscriptionPage> {
+  }): Promise<ConveractFabricEventWebhookSubscriptionPage> {
     const limit = bounded(input.limit, 50, 1, 200);
     const cursor = decodeCursor(input.cursor);
     return withPgTenant(this.pg, input.tenant_id, async (pg) => {
@@ -109,9 +109,9 @@ export class PostgresIveKitEventWebhookStore implements IveKitEventWebhookSubscr
   }
 
   update(
-    subscription: IveKitEventWebhookSubscription,
+    subscription: ConveractFabricEventWebhookSubscription,
     expectedRevision: number
-  ): Promise<IveKitEventWebhookSubscription> {
+  ): Promise<ConveractFabricEventWebhookSubscription> {
     return withPgTenant(this.pg, subscription.tenant_id, async (pg) => {
       const result = await pg.query<Row>(
         `UPDATE ivekit_event_webhook_subscriptions
@@ -138,7 +138,7 @@ export class PostgresIveKitEventWebhookStore implements IveKitEventWebhookSubscr
     return result.rows.map((row) => String(row.tenant_id));
   }
 
-  claimDue(input: IveKitEventWebhookClaimInput): Promise<IveKitEventWebhookSubscription[]> {
+  claimDue(input: ConveractFabricEventWebhookClaimInput): Promise<ConveractFabricEventWebhookSubscription[]> {
     validateClaim(input);
     return withPgTenant(this.pg, input.tenant_id, async (pg) => {
       const result = await pg.query<Row>(
@@ -171,7 +171,7 @@ export class PostgresIveKitEventWebhookStore implements IveKitEventWebhookSubscr
     afterEventId: string,
     now: Date,
     limit: number
-  ): Promise<IveKitStoredIntegrationEvent[]> {
+  ): Promise<ConveractFabricStoredIntegrationEvent[]> {
     if (!/^\d+$/.test(afterEventId)) throw httpError(422, 'event cursor is invalid');
     return withPgTenant(this.pg, tenantId, async (pg) => {
       const result = await pg.query<Row>(
@@ -188,7 +188,7 @@ export class PostgresIveKitEventWebhookStore implements IveKitEventWebhookSubscr
     });
   }
 
-  completeClaim(input: IveKitEventWebhookCompleteInput): Promise<IveKitEventWebhookSubscription> {
+  completeClaim(input: ConveractFabricEventWebhookCompleteInput): Promise<ConveractFabricEventWebhookSubscription> {
     validateFence(input);
     if (!/^\d+$/.test(input.last_event_id)) throw httpError(422, 'event cursor is invalid');
     return withPgTenant(this.pg, input.tenant_id, async (pg) => {
@@ -208,7 +208,7 @@ export class PostgresIveKitEventWebhookStore implements IveKitEventWebhookSubscr
     });
   }
 
-  failClaim(input: IveKitEventWebhookFailInput): Promise<IveKitEventWebhookSubscription> {
+  failClaim(input: ConveractFabricEventWebhookFailInput): Promise<ConveractFabricEventWebhookSubscription> {
     validateFence(input);
     const errorCode = /^[a-z0-9_]{1,100}$/.test(input.error_code) ? input.error_code : 'worker_failed';
     return withPgTenant(this.pg, input.tenant_id, async (pg) => {
@@ -228,7 +228,7 @@ export class PostgresIveKitEventWebhookStore implements IveKitEventWebhookSubscr
   }
 }
 
-function subscriptionParams(value: IveKitEventWebhookSubscription): unknown[] {
+function subscriptionParams(value: ConveractFabricEventWebhookSubscription): unknown[] {
   return [
     value.id, value.tenant_id, value.endpoint_id, value.name, value.event_patterns, value.status,
     value.last_event_id, value.next_attempt_at, value.attempt_count, value.error_code,
@@ -238,11 +238,11 @@ function subscriptionParams(value: IveKitEventWebhookSubscription): unknown[] {
   ];
 }
 
-function decodeSubscription(row: Row): IveKitEventWebhookSubscription {
+function decodeSubscription(row: Row): ConveractFabricEventWebhookSubscription {
   return {
     id: text(row.id), tenant_id: text(row.tenant_id), endpoint_id: text(row.endpoint_id),
     name: text(row.name), event_patterns: strings(row.event_patterns),
-    status: text(row.status) as IveKitEventWebhookSubscription['status'],
+    status: text(row.status) as ConveractFabricEventWebhookSubscription['status'],
     last_event_id: text(row.last_event_id), next_attempt_at: timestamp(row.next_attempt_at),
     attempt_count: number(row.attempt_count), error_code: text(row.error_code),
     lease_token_hash: text(row.lease_token_hash),
@@ -254,16 +254,16 @@ function decodeSubscription(row: Row): IveKitEventWebhookSubscription {
   };
 }
 
-function decodeEvent(row: Row): IveKitStoredIntegrationEvent {
+function decodeEvent(row: Row): ConveractFabricStoredIntegrationEvent {
   return {
     id: text(row.id), tenant_id: text(row.tenant_id), event_type: text(row.event_type),
-    visibility_scope: text(row.visibility_scope) as IveKitStoredIntegrationEvent['visibility_scope'],
+    visibility_scope: text(row.visibility_scope) as ConveractFabricStoredIntegrationEvent['visibility_scope'],
     visibility_ref_id: text(row.visibility_ref_id), audience_user_ids: strings(row.audience_user_ids),
     payload: row.payload, occurred_at: timestamp(row.occurred_at), expires_at: timestamp(row.expires_at)
   };
 }
 
-function validateClaim(input: IveKitEventWebhookClaimInput): void {
+function validateClaim(input: ConveractFabricEventWebhookClaimInput): void {
   validateFence(input);
   if (!Number.isInteger(input.lease_ms) || input.lease_ms < 5_000 || input.lease_ms > 900_000) {
     throw httpError(422, 'event webhook lease is invalid');

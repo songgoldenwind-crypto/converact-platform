@@ -12,7 +12,7 @@ test('SeaweedFS acceptance topology is isolated and immutable', () => {
   }
   assert.match(compose, /SEAWEEDFS_IMAGE immutable digest reference is required/);
   assert.match(compose, /127\.0\.0\.1:\$\{SEAWEEDFS_S3_HOST_PORT/);
-  assert.match(compose, /name: \$\{COMPOSE_PROJECT_NAME:-ivekit-seaweedfs\}-network/);
+  assert.match(compose, /name: \$\{COMPOSE_PROJECT_NAME:-converact-seaweedfs\}-network/);
   assert.doesNotMatch(compose, /internal: true/);
   assert.doesNotMatch(compose, /\n\s+- ["']?8333:8333/);
   assert.doesNotMatch(compose, /0\.0\.0\.0:\$\{SEAWEEDFS_S3_HOST_PORT/);

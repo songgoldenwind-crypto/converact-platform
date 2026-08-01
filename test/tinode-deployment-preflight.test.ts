@@ -285,7 +285,7 @@ test('Tinode deployment env checklist masks secrets and groups variables', () =>
 });
 
 test('Tinode deployment preflight writes checklist and report artifacts', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-tinode-preflight-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-tinode-preflight-'));
   const checklistPath = join(dir, 'tinode-env-checklist.md');
   const reportPath = join(dir, 'tinode-preflight.json');
   const env = configuredEnv();
@@ -303,7 +303,7 @@ test('Tinode deployment preflight writes checklist and report artifacts', () => 
 });
 
 test('Tinode deployment preflight CLI writes requested artifacts without leaking secrets', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'opc-tinode-preflight-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'converact-tinode-preflight-cli-'));
   const checklistPath = join(dir, 'tinode-env-checklist.md');
   const reportPath = join(dir, 'tinode-preflight.json');
   const stdout = execFileSync(

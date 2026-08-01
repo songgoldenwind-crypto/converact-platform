@@ -30,15 +30,15 @@ import { createPolicyTranslationProviderResolver } from '../collaboration/intell
 import { TranslationService } from '../collaboration/translation-service.js';
 import { wsBroadcast } from '../../ws.js';
 import {
-  IveKitTenantEventStore,
-  iveKitEventReplayEnabled
+  ConveractFabricTenantEventStore,
+  converactFabricEventReplayEnabled
 } from './tenant-event-store.js';
 
-export interface RouteIveKitChatApiOptions extends RouteCollaborationApiOptions {
+export interface RouteConveractFabricChatApiOptions extends RouteCollaborationApiOptions {
   translation?: TranslationService;
   secureFiles?: SecureFileService;
   publish?: (tenantId: string, type: string, data: unknown) => void | Promise<void>;
-  eventStore?: Pick<IveKitTenantEventStore, 'append'>;
+  eventStore?: Pick<ConveractFabricTenantEventStore, 'append'>;
   tinodeOperations?: Pick<
     TinodeOperationsService,
     'snapshot' | 'listDeadLetters' | 'replayDeadLetter'
@@ -56,11 +56,11 @@ function requireAuth(headers: Record<string, string | string[] | undefined>) {
   return ctx;
 }
 
-export async function prepareIveKitChatPlacement(
+export async function prepareConveractFabricChatPlacement(
   method: string,
   path: string,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitChatApiOptions,
+  options: RouteConveractFabricChatApiOptions,
   pg: PgQueryable | null
 ): Promise<PreparedTinodeSessionPlacement | null> {
   if (!options.tinodePlacement || method !== 'POST') return null;
@@ -140,7 +140,7 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
       snapshot: true,
       client_plan: providerConfigured && userProvisioningConfigured && clientWsConfigured,
       provider_inbound_sync: true,
-      durable_event_replay: iveKitEventReplayEnabled(env),
+      durable_event_replay: converactFabricEventReplayEnabled(env),
       durable_provider_delivery: true,
       provider_delivery_attempt_history: true,
       provider_operations: true,
@@ -213,12 +213,12 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
       translation_run_path: '/api/ivekit/chat/translation/run',
       idempotency_header: 'Idempotency-Key',
       direct_client_publish: false,
-      reason: 'Business messages must pass the iveKit facade for local audit and policy scanning.'
+      reason: 'Business messages must pass the Converact Fabric facade for local audit and policy scanning.'
     }
   };
 }
 
-export async function routeIveKitChatApi(
+export async function routeConveractFabricChatApi(
   pg: PgQueryable | null,
   method: string,
   path: string,
@@ -226,7 +226,7 @@ export async function routeIveKitChatApi(
   body: unknown,
   rawBody: string | Buffer = '',
   headers: Record<string, string | string[] | undefined> = {},
-  options: RouteIveKitChatApiOptions = {}
+  options: RouteConveractFabricChatApiOptions = {}
 ): Promise<unknown | undefined> {
   const routePath = path.split('?')[0];
   if (!routePath.startsWith('/api/ivekit/chat')) return undefined;
@@ -346,11 +346,11 @@ export async function routeIveKitChatApi(
     };
   }
 
-  const collaborationPath = collaborationPathForIveKitChat(routePath);
+  const collaborationPath = collaborationPathForConveractFabricChat(routePath);
   if (!collaborationPath) return undefined;
   const collaborationUrl = new URL(url.toString());
   collaborationUrl.pathname = collaborationPath;
-  const collaborationOptions: RouteIveKitChatApiOptions = pg
+  const collaborationOptions: RouteConveractFabricChatApiOptions = pg
     ? {
         ...options,
         secureFiles: secureFileService(pg, options),
@@ -372,7 +372,7 @@ export async function routeIveKitChatApi(
 
 function withTinodePlacementAfterCommit(
   result: unknown | undefined,
-  options: RouteIveKitChatApiOptions
+  options: RouteConveractFabricChatApiOptions
 ): unknown | undefined {
   const prepared = options.preparedTinodePlacement;
   if (!result || typeof result !== 'object' ||
@@ -401,7 +401,7 @@ async function routeTinodeOperationsApi(
   url: URL,
   _body: unknown,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitChatApiOptions
+  options: RouteConveractFabricChatApiOptions
 ): Promise<unknown | undefined> {
   const root = '/api/ivekit/chat/operations/tinode';
   if (!routePath.startsWith(root)) return undefined;
@@ -519,7 +519,7 @@ async function routeSecureFileApi(
   body: unknown,
   rawBody: string | Buffer,
   headers: Record<string, string | string[] | undefined>,
-  options: RouteIveKitChatApiOptions
+  options: RouteConveractFabricChatApiOptions
 ): Promise<unknown | undefined> {
   const filesPrefix = /^\/api\/ivekit\/chat\/sessions\/([^/]+)\/files(?:\/|$)/;
   const prefixMatch = routePath.match(filesPrefix);
@@ -675,7 +675,7 @@ async function routeSecureFileApi(
 
 function secureFileService(
   pg: PgQueryable,
-  options: RouteIveKitChatApiOptions
+  options: RouteConveractFabricChatApiOptions
 ): SecureFileService {
   return options.secureFiles || new SecureFileService({
     files: new SecureFileStore(pg),
@@ -686,7 +686,7 @@ function secureFileService(
 
 function secureFileMutationResult(
   pg: PgQueryable,
-  options: RouteIveKitChatApiOptions,
+  options: RouteConveractFabricChatApiOptions,
   tenantId: string,
   eventType: string,
   file: Awaited<ReturnType<SecureFileService['getFile']>>,
@@ -736,7 +736,7 @@ function safeDownloadFilename(value: string): string {
   return filename.replace(/[^a-zA-Z0-9._-]/g, '_') || 'download.bin';
 }
 
-function collaborationPathForIveKitChat(routePath: string): string {
+function collaborationPathForConveractFabricChat(routePath: string): string {
   if (routePath === '/api/ivekit/chat/sessions') {
     return '/api/collaboration/sessions';
   }
@@ -750,7 +750,7 @@ function collaborationPathForIveKitChat(routePath: string): string {
     return '/api/collaboration/quality-review/run';
   }
   if (routePath.startsWith('/api/ivekit/chat/objects/')) {
-    return `/api/collaboration/ivekit-objects/${routePath.slice('/api/ivekit/chat/objects/'.length)}`;
+    return `/api/collaboration/converact-objects/${routePath.slice('/api/ivekit/chat/objects/'.length)}`;
   }
 
   const qualityReviewMatch = routePath.match(
@@ -889,7 +889,7 @@ function hasValue(value: string | undefined): boolean {
   return Boolean(String(value || '').trim());
 }
 
-function translationService(pg: PgQueryable, options: RouteIveKitChatApiOptions): TranslationService {
+function translationService(pg: PgQueryable, options: RouteConveractFabricChatApiOptions): TranslationService {
   if (options.translation) return options.translation;
   const registry = createIntelligenceProviderRegistry();
   return new TranslationService({
@@ -946,13 +946,13 @@ function optionalPositiveInteger(value: string | null, field: string): number | 
 
 async function publishChatEvent(
   pg: PgQueryable,
-  options: RouteIveKitChatApiOptions,
+  options: RouteConveractFabricChatApiOptions,
   tenantId: string,
   type: string,
   data: unknown
 ): Promise<void> {
   const eventStore = options.eventStore || (
-    iveKitEventReplayEnabled() ? new IveKitTenantEventStore(pg) : null
+    converactFabricEventReplayEnabled() ? new ConveractFabricTenantEventStore(pg) : null
   );
   if (eventStore) await eventStore.append({ tenant_id: tenantId, type, data });
   await Promise.resolve((options.publish || wsBroadcast)(tenantId, type, data));

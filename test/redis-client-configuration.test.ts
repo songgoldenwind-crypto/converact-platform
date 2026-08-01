@@ -42,7 +42,7 @@ test('Redis data client rejects invalid topology instead of falling back to proc
 test('Redis Pub/Sub rejects incomplete Sentinel config instead of creating local-only fanout', async () => {
   resetRedisPubSubForTests(null);
   process.env.REDIS_TOPOLOGY = 'sentinel';
-  process.env.REDIS_SENTINEL_MASTER_NAME = 'ivekit-coordination';
+  process.env.REDIS_SENTINEL_MASTER_NAME = 'converact-coordination';
   process.env.REDIS_SENTINEL_ADDRESSES = 'valkey-0:26379,valkey-1:26379';
 
   await assert.rejects(

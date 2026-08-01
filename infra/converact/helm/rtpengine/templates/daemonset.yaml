@@ -45,13 +45,13 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: ivekit-rtpengine
+  name: converact-rtpengine
   labels:
-    app.kubernetes.io/name: ivekit-rtpengine
+    app.kubernetes.io/name: converact-rtpengine
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: ivekit-rtpengine
+      app.kubernetes.io/name: converact-rtpengine
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 1
@@ -59,7 +59,7 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: ivekit-rtpengine
+        app.kubernetes.io/name: converact-rtpengine
     spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
@@ -128,7 +128,7 @@ spec:
 {{ toYaml .Values.rtpengine.resources | indent 12 }}
           volumeMounts:
             - name: rtpengine-runtime
-              mountPath: /run/ivekit-rtpengine
+              mountPath: /run/converact-rtpengine
             - name: rtpengine-recording
               mountPath: /rec
 {{- if eq .Values.runtimeMode "kernel" }}
@@ -221,74 +221,74 @@ spec:
           image: "{{ .Values.mediaControl.image.repository }}@{{ .Values.mediaControl.image.digest }}"
           imagePullPolicy: {{ .Values.mediaControl.image.pullPolicy }}
           env:
-            - name: IVEKIT_MEDIA_CONTROL_PRODUCTION
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_PRODUCTION
               value: "true"
-            - name: IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_REQUIRE_MTLS
               value: "true"
-            - name: IVEKIT_MEDIA_CONTROL_TRANSPORT
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_TRANSPORT
               value: hybrid
-            - name: IVEKIT_MEDIA_CONTROL_HOST
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_HOST
               value: {{ .Values.mediaControl.host | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_PORT
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_PORT
               value: "3211"
-            - name: IVEKIT_MEDIA_CONTROL_TOKEN_FILE
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_TOKEN_FILE
               value: /run/secrets/service-token
-            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_ENDPOINT
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_ADMISSION_ENDPOINT
               value: {{ .Values.mediaControl.admissionEndpoint | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TOKEN_FILE
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_ADMISSION_TOKEN_FILE
               value: /run/secrets/admission-token
-            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS
               value: {{ ternary "true" "false" .Values.mediaControl.admissionRequireMtls | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_TLS_KEY_FILE
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_TLS_KEY_FILE
               value: /run/tls/tls.key
-            - name: IVEKIT_MEDIA_CONTROL_TLS_CERT_FILE
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_TLS_CERT_FILE
               value: /run/tls/tls.crt
-            - name: IVEKIT_MEDIA_CONTROL_TLS_CA_FILE
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_TLS_CA_FILE
               value: /run/tls/ca.crt
             {{- if .Values.mediaControl.admissionRequireMtls }}
-            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_KEY_FILE
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_ADMISSION_TLS_KEY_FILE
               value: /run/tls/tls.key
-            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CERT_FILE
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_ADMISSION_TLS_CERT_FILE
               value: /run/tls/tls.crt
-            - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CA_FILE
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_ADMISSION_TLS_CA_FILE
               value: /run/tls/ca.crt
             {{- end }}
-            - name: IVEKIT_MEDIA_CONTROL_MAX_RESERVATIONS
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_MAX_RESERVATIONS
               value: {{ .Values.mediaControl.maxReservations | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_MAX_TERMINAL_RESERVATIONS
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_MAX_TERMINAL_RESERVATIONS
               value: {{ .Values.mediaControl.maxTerminalReservations | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_MAX_COMMANDS_PER_RESERVATION
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_MAX_COMMANDS_PER_RESERVATION
               value: {{ .Values.mediaControl.maxCommandsPerReservation | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_TERMINAL_RETENTION_MS
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_TERMINAL_RETENTION_MS
               value: {{ .Values.mediaControl.terminalRetentionMs | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_EVENT_MAX_BINDINGS
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_EVENT_MAX_BINDINGS
               value: {{ .Values.mediaControl.eventMaxBindings | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_EVENT_REPLAY_CAPACITY
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_EVENT_REPLAY_CAPACITY
               value: {{ .Values.mediaControl.eventReplayCapacity | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_EVENT_MAX_SUBSCRIBERS_PER_OWNER
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_EVENT_MAX_SUBSCRIBERS_PER_OWNER
               value: {{ .Values.mediaControl.eventMaxSubscribersPerOwner | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_ORPHAN_BATCH_SIZE
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_ORPHAN_BATCH_SIZE
               value: {{ .Values.mediaControl.orphanBatchSize | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_ORPHAN_SWEEP_INTERVAL_MS
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_ORPHAN_SWEEP_INTERVAL_MS
               value: {{ .Values.mediaControl.orphanSweepIntervalMs | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_TRANSPORT_MAX_BINDINGS
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_TRANSPORT_MAX_BINDINGS
               value: {{ .Values.mediaControl.maxTransportBindings | quote }}
-            - name: IVEKIT_PROCESSING_MEDIA_ENDPOINT
+            - name: CONVERACT_FABRIC_PROCESSING_MEDIA_ENDPOINT
               value: http://127.0.0.1:8093
-            - name: IVEKIT_PROCESSING_MEDIA_TOKEN_FILE
+            - name: CONVERACT_FABRIC_PROCESSING_MEDIA_TOKEN_FILE
               value: /run/secrets/voice-media-processing-token
-            - name: IVEKIT_PROCESSING_MEDIA_CLIENT_IDENTITY
+            - name: CONVERACT_FABRIC_PROCESSING_MEDIA_CLIENT_IDENTITY
               value: {{ .Values.voiceMedia.clientIdentity | quote }}
-            - name: IVEKIT_PROCESSING_MEDIA_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_PROCESSING_MEDIA_TIMEOUT_MS
               value: {{ .Values.mediaControl.processing.requestTimeoutMs | quote }}
-            - name: IVEKIT_PROCESSING_MEDIA_MAX_RESPONSE_BYTES
+            - name: CONVERACT_FABRIC_PROCESSING_MEDIA_MAX_RESPONSE_BYTES
               value: {{ .Values.mediaControl.processing.maxResponseBytes | quote }}
-            - name: IVEKIT_PROCESSING_MEDIA_MAX_RELEASE_CONTEXTS
+            - name: CONVERACT_FABRIC_PROCESSING_MEDIA_MAX_RELEASE_CONTEXTS
               value: {{ .Values.mediaControl.processing.maxReleaseContexts | quote }}
             - name: CONVERACT_OTEL_ENABLED
               value: {{ ternary "1" "0" .Values.mediaControl.telemetry.enabled | quote }}
             - name: CONVERACT_OTEL_SERVICE_NAME
-              value: ivekit-media-control
+              value: converact-media-control
             - name: CONVERACT_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.mediaControl.telemetry.collectorEndpoint | quote }}
             - name: CONVERACT_OTEL_TRACE_SAMPLE_RATIO
@@ -301,35 +301,35 @@ spec:
               value: {{ .Values.mediaControl.telemetry.scheduledDelayMs | quote }}
             - name: CONVERACT_OTEL_EXPORT_TIMEOUT_MS
               value: {{ .Values.mediaControl.telemetry.exportTimeoutMs | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_WAL_DIRECTORY
-              value: /var/lib/ivekit-media-control
-            - name: IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORDS
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_WAL_DIRECTORY
+              value: /var/lib/converact-media-control
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_WAL_MAX_RECORDS
               value: {{ .Values.mediaControl.wal.maxRecords | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_WAL_MAX_BYTES
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_WAL_MAX_BYTES
               value: {{ .Values.mediaControl.wal.maxBytes | quote }}
-            - name: IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORD_BYTES
+            - name: CONVERACT_FABRIC_MEDIA_CONTROL_WAL_MAX_RECORD_BYTES
               value: {{ .Values.mediaControl.wal.maxRecordBytes | quote }}
-            - name: IVEKIT_RTPENGINE_NG_ENDPOINT
+            - name: CONVERACT_FABRIC_RTPENGINE_NG_ENDPOINT
               value: tcp://127.0.0.1:22222
-            - name: IVEKIT_RTPENGINE_RUNTIME_MODE
+            - name: CONVERACT_FABRIC_RTPENGINE_RUNTIME_MODE
               value: {{ .Values.runtimeMode | quote }}
-            - name: IVEKIT_RTPENGINE_MAX_CONNECTIONS
+            - name: CONVERACT_FABRIC_RTPENGINE_MAX_CONNECTIONS
               value: {{ .Values.mediaControl.rtpengine.maxConnections | quote }}
-            - name: IVEKIT_RTPENGINE_MAX_IN_FLIGHT
+            - name: CONVERACT_FABRIC_RTPENGINE_MAX_IN_FLIGHT
               value: {{ .Values.mediaControl.rtpengine.maxInFlight | quote }}
-            - name: IVEKIT_RTPENGINE_MAX_REQUEST_BYTES
+            - name: CONVERACT_FABRIC_RTPENGINE_MAX_REQUEST_BYTES
               value: {{ .Values.mediaControl.rtpengine.maxRequestBytes | quote }}
-            - name: IVEKIT_RTPENGINE_MAX_RESPONSE_BYTES
+            - name: CONVERACT_FABRIC_RTPENGINE_MAX_RESPONSE_BYTES
               value: {{ .Values.mediaControl.rtpengine.maxResponseBytes | quote }}
-            - name: IVEKIT_RTPENGINE_MAX_QUEUED_BYTES
+            - name: CONVERACT_FABRIC_RTPENGINE_MAX_QUEUED_BYTES
               value: {{ .Values.mediaControl.rtpengine.maxQueuedBytes | quote }}
-            - name: IVEKIT_RTPENGINE_REQUEST_TIMEOUT_MS
+            - name: CONVERACT_FABRIC_RTPENGINE_REQUEST_TIMEOUT_MS
               value: {{ .Values.mediaControl.rtpengine.requestTimeoutMs | quote }}
-            - name: IVEKIT_RTPENGINE_RECOVERY_CONCURRENCY
+            - name: CONVERACT_FABRIC_RTPENGINE_RECOVERY_CONCURRENCY
               value: {{ .Values.mediaControl.rtpengine.recoveryConcurrency | quote }}
-            - name: IVEKIT_RTPENGINE_MAX_SESSIONS
+            - name: CONVERACT_FABRIC_RTPENGINE_MAX_SESSIONS
               value: {{ .Values.mediaControl.rtpengine.maxSessions | quote }}
-            - name: IVEKIT_RTPENGINE_MAX_COMMANDS
+            - name: CONVERACT_FABRIC_RTPENGINE_MAX_COMMANDS
               value: {{ .Values.mediaControl.rtpengine.maxCommands | quote }}
           ports:
             - name: media-control
@@ -342,7 +342,7 @@ spec:
                   - node
                   - --import
                   - tsx
-                  - scripts/ivekit-rtpengine-drain.ts
+                  - scripts/converact-rtpengine-drain.ts
           livenessProbe:
             tcpSocket:
               port: media-control
@@ -368,7 +368,7 @@ spec:
 {{ toYaml .Values.mediaControl.resources | indent 12 }}
           volumeMounts:
             - name: media-control-wal
-              mountPath: /var/lib/ivekit-media-control
+              mountPath: /var/lib/converact-media-control
             - name: media-control-secret
               mountPath: /run/secrets
               readOnly: true

@@ -32,13 +32,13 @@ test('standalone source graph orders media quality before runtime security', () 
   assert.ok(quality >= 0);
   assert.ok(runtimeSecurity > quality);
 
-  const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
+  const delivery = readFileSync('scripts/converact-delivery-bundle.ts', 'utf8');
   assert.match(delivery, /063_livekit_media_quality\.sql/);
 });
 
 test('OpenAPI, environment, events, SDK, and metrics expose the bounded QoS contract', () => {
   const openapi = readFileSync('docs/openapi.yaml', 'utf8');
-  const markdown = readFileSync('docs/ivekit-openapi.md', 'utf8');
+  const markdown = readFileSync('docs/converact-openapi.md', 'utf8');
   const metrics = readFileSync(
     'src/agent-runtime/livekit/media-quality-metrics.ts',
     'utf8'
@@ -55,7 +55,7 @@ test('OpenAPI, environment, events, SDK, and metrics expose the bounded QoS cont
     'IveKitMediaConnectionEventInput',
     'IveKitMediaConnectionEventResult'
   ]) assert.match(openapi, new RegExp(`    ${schema}:`));
-  assert.match(markdown, /ivekit\.media\.qos\.degraded/);
+  assert.match(markdown, /converact\.media\.qos\.degraded/);
   assert.match(markdown, /SDP、ICE/);
   assert.match(sdk, /reportCallQuality/);
   assert.match(sdk, /reportCallConnectionEvent/);

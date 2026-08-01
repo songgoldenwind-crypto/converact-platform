@@ -735,7 +735,7 @@ export function buildEndpointSdp(input: {
   const lines = [
     'v=0',
     `o=- ${input.session_id} 1 IN ${family} ${input.address}`,
-    's=ivekit-rtpengine-acceptance',
+    's=converact-rtpengine-acceptance',
     `c=IN ${family} ${input.address}`,
     't=0 0',
     `m=audio ${port} ${profile} 0`,
@@ -743,7 +743,7 @@ export function buildEndpointSdp(input: {
     'a=ptime:20',
     'a=rtcp-mux',
     'a=sendrecv',
-    `a=ssrc:${ssrc} cname:ivekit-${input.session_id}`
+    `a=ssrc:${ssrc} cname:converact-${input.session_id}`
   ];
   if (input.key_material) {
     const checked = checkedSdesKeyMaterial(input.key_material);

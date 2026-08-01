@@ -159,7 +159,7 @@ export function patchRendezvousServer(source) {
       '                    // there maybe several attempt, so sink can be none',
     '                Some(rendezvous_message::Union::RequestRelay(mut rf)) => {\n' +
       '                    if let Err(err) = crate::ivekit_owner::claim_relay(&rf.id, &rf.uuid).await {\n' +
-      '                        log::warn!("ivekit RustDesk relay claim rejected: target={} relay_uuid={} err={}", rf.id, rf.uuid, err);\n' +
+      '                        log::warn!("Converact RustDesk relay claim rejected: target={} relay_uuid={} err={}", rf.id, rf.uuid, err);\n' +
       '                        return true;\n' +
       '                    }\n' +
       '                    // there maybe several attempt, so sink can be none',
@@ -186,7 +186,7 @@ export function patchRelayServer(source) {
         '                    let mut peer = PEERS.lock().await.remove(&rf.uuid);',
       '                if !rf.uuid.is_empty() {\n' +
         '                    if let Err(err) = crate::ivekit_owner::open_or_assert_relay(&rf.uuid).await {\n' +
-        '                        log::warn!("ivekit RustDesk relay owner rejected: relay_uuid={} err={}", rf.uuid, err);\n' +
+        '                        log::warn!("Converact RustDesk relay owner rejected: relay_uuid={} err={}", rf.uuid, err);\n' +
         '                        return;\n' +
         '                    }\n' +
         '                    let mut peer = PEERS.lock().await.remove(&rf.uuid);',

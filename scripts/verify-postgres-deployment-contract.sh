@@ -3,9 +3,9 @@ set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 CHART_DIR="$ROOT_DIR/infra/k8s"
-VALUES_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-postgres-values.XXXXXX")
-EXTERNAL_RENDER=$(mktemp "${TMPDIR:-/tmp}/ivekit-postgres-external.XXXXXX")
-BUNDLED_RENDER=$(mktemp "${TMPDIR:-/tmp}/ivekit-postgres-bundled.XXXXXX")
+VALUES_FILE=$(mktemp "${TMPDIR:-/tmp}/converact-postgres-values.XXXXXX")
+EXTERNAL_RENDER=$(mktemp "${TMPDIR:-/tmp}/converact-postgres-external.XXXXXX")
+BUNDLED_RENDER=$(mktemp "${TMPDIR:-/tmp}/converact-postgres-bundled.XXXXXX")
 
 cleanup() {
   rm -f "$VALUES_FILE" "$EXTERNAL_RENDER" "$BUNDLED_RENDER"
@@ -18,22 +18,22 @@ if ! command -v helm >/dev/null 2>&1; then
 fi
 
 cat >"$VALUES_FILE" <<'EOF'
-opc:
+converact:
   image:
-    repository: registry.example.invalid/opc/platform
+    repository: registry.example.invalid/converact/platform
     digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 aiAgent:
   image:
-    repository: registry.example.invalid/opc/ai-agent
+    repository: registry.example.invalid/converact/ai-agent
     digest: sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 frontend:
   image:
-    repository: registry.example.invalid/opc/frontend
+    repository: registry.example.invalid/converact/frontend
     digest: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 postgres:
   mode: external
   external:
-    existingSecret: opc-database-runtime
+    existingSecret: converact-database-runtime
     secretKey: database-url
   image:
     repository: postgres
@@ -69,7 +69,7 @@ rustdesk:
 EOF
 
 render() {
-  helm template opc "$CHART_DIR" --values "$VALUES_FILE" "$@"
+  helm template converact "$CHART_DIR" --values "$VALUES_FILE" "$@"
 }
 
 expect_failure() {
@@ -84,11 +84,11 @@ expect_failure() {
 helm lint "$CHART_DIR" --values "$VALUES_FILE"
 render >"$EXTERNAL_RENDER"
 
-grep -q 'name: opc-database-runtime' "$EXTERNAL_RENDER" || {
+grep -q 'name: converact-database-runtime' "$EXTERNAL_RENDER" || {
   printf '%s\n' 'external database Secret reference is missing' >&2
   exit 1
 }
-if grep -q 'kind: StatefulSet' "$EXTERNAL_RENDER" && grep -q 'name: opc-postgres' "$EXTERNAL_RENDER"; then
+if grep -q 'kind: StatefulSet' "$EXTERNAL_RENDER" && grep -q 'name: converact-postgres' "$EXTERNAL_RENDER"; then
   printf '%s\n' 'external mode rendered bundled-dev PostgreSQL' >&2
   exit 1
 fi
@@ -98,7 +98,7 @@ if grep -q 'database-url: postgresql://' "$EXTERNAL_RENDER"; then
 fi
 
 render --set-string postgres.mode=bundled-dev >"$BUNDLED_RENDER"
-grep -q 'opc.ivekit.io/deployment-profile: bundled-dev' "$BUNDLED_RENDER" || {
+grep -q 'converact.io/deployment-profile: bundled-dev' "$BUNDLED_RENDER" || {
   printf '%s\n' 'bundled-dev PostgreSQL marker is missing' >&2
   exit 1
 }

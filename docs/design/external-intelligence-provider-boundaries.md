@@ -1,7 +1,7 @@
 # 外部 OCR、ASR、翻译与模型 Provider 边界
 
 > **Revision 5 覆盖说明（2026-07-31）**：Provider governance、实时 tap 和故障隔离继续
-> 有效；机器人 speech pipeline 已改为 Channel Agent + OPC `SpeechRuntime`。
+> 有效；机器人 speech pipeline 已改为 Channel Agent + Converact Platform `SpeechRuntime`。
 > Hugging Face `speech-to-speech` 只替换功能相同的 VAD/STT/LLM/TTS 执行部分，
 > Active Call 与 LiveKit Agents 的非重叠能力继续保留。规范见
 > [统一通信底座 Revision 5](./unified-communication-foundation-r5.md) 和
@@ -11,9 +11,9 @@
 
 ## 1. 架构裁决
 
-当前阶段不部署 PaddleOCR、sherpa-onnx、vLLM、SGLang 或其他自建模型服务。iveKit 交付可替换的 Provider 协议、媒体旁路、治理、故障隔离和验收合同，真实能力由外部服务提供。
+当前阶段不部署 PaddleOCR、sherpa-onnx、vLLM、SGLang 或其他自建模型服务。Converact Fabric 交付可替换的 Provider 协议、媒体旁路、治理、故障隔离和验收合同，真实能力由外部服务提供。
 
-自建服务以后只能作为同一 Provider Port 的另一种 adapter，不得要求 OPC、LED、Tinode、LiveKit、RustPBX 或 Quality Service 修改领域模型。
+自建服务以后只能作为同一 Provider Port 的另一种 adapter，不得要求 Converact Platform、LED、Tinode、LiveKit、RustPBX 或 Quality Service 修改领域模型。
 
 本阶段覆盖：
 
@@ -66,11 +66,11 @@ RustPBX decoded audio -> Telephony Channel Agent
 LiveKit subscribed track -> Room Channel Agent
                           |
                           v
-                  OPC SpeechRuntime
+                  Converact Platform SpeechRuntime
           HF primary target / native baseline
                           |
                           v
-              OPC AI-native Orchestrator
+              Converact Platform AI-native Orchestrator
 ```
 
 固定边界：
@@ -80,7 +80,7 @@ LiveKit subscribed track -> Room Channel Agent
 - Active Call 只保留电话 Agent/Playbook/DTMF/REFER/interrupt 等独特能力，不成为
   第二 PBX；
 - HF 只替换功能重叠的 VAD/STT/LLM/TTS execution；
-- OPC Orchestrator 拥有跨渠道 Task、Tool、Memory、Policy、Approval 和 Action Ledger；
+- Converact Platform Orchestrator 拥有跨渠道 Task、Tool、Memory、Policy、Approval 和 Action Ledger；
 - 每个 session 只有一个 VAD producer、turn commit 和 response cancel Authority；
 - 真实 A/B 前，HF 相对 native 的延迟、VAD、质量、barge-in 和 failover 均为
   `not_run`；
@@ -129,7 +129,7 @@ response: text + confidence + language + observations[]
 
 实时视频和屏幕共享不得把完整视频流交给 OCR。应由独立 worker 按固定频率和总帧数上限采样，超载时丢弃 OCR 任务而不是回压 LiveKit 或 RustDesk。
 
-OCR Provider 不获得对象存储凭据、数据库连接或可长期回源 URL。iveKit 从私有对象存储读取已通过安全门的字节，再以有界 multipart 请求发送。
+OCR Provider 不获得对象存储凭据、数据库连接或可长期回源 URL。Converact Fabric 从私有对象存储读取已通过安全门的字节，再以有界 multipart 请求发送。
 
 ## 4. Provider 治理
 

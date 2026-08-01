@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
 import type {
-  IveKitAttachmentUploadInput,
-  IveKitAttachmentUploadOptions,
-  IveKitChatAttachmentUploadDescriptor,
-  IveKitChatMessage,
-  IveKitChatMessageInput,
-  IveKitChatParticipant,
-  IveKitChatSession,
-  IveKitHttpSdk,
-  IveKitPolicyFinding,
-  IveKitPolicyFindingResult,
-  IveKitPolicyFindingReviewInput
+  ConveractFabricAttachmentUploadInput,
+  ConveractFabricAttachmentUploadOptions,
+  ConveractFabricChatAttachmentUploadDescriptor,
+  ConveractFabricChatMessage,
+  ConveractFabricChatMessageInput,
+  ConveractFabricChatParticipant,
+  ConveractFabricChatSession,
+  ConveractFabricHttpSdk,
+  ConveractFabricPolicyFinding,
+  ConveractFabricPolicyFindingResult,
+  ConveractFabricPolicyFindingReviewInput
 } from '@converact/sdk';
 import { openAuthenticatedWebSocket } from '../websocket-auth.js';
 import { ChatConvergence } from './convergence.js';
@@ -23,8 +23,8 @@ import { dedupeFindingReviews } from './finding-view-model.js';
 import type { ChatConvergenceTrigger } from './types.js';
 
 export interface UseChatSessionInput {
-  client: IveKitHttpSdk | null;
-  session: IveKitChatSession | null;
+  client: ConveractFabricHttpSdk | null;
+  session: ConveractFabricChatSession | null;
   identity: string;
   role?: string;
   accessToken: string;
@@ -34,9 +34,9 @@ export interface UseChatSessionInput {
 
 export function useChatSession(input: UseChatSessionInput) {
   const [state, dispatch] = useReducer(chatReducer, undefined, initialChatState);
-  const [participants, setParticipants] = useState<IveKitChatParticipant[]>([]);
-  const [findings, setFindings] = useState<IveKitPolicyFinding[]>([]);
-  const [findingDetails, setFindingDetails] = useState<Record<string, IveKitPolicyFindingResult>>({});
+  const [participants, setParticipants] = useState<ConveractFabricChatParticipant[]>([]);
+  const [findings, setFindings] = useState<ConveractFabricPolicyFinding[]>([]);
+  const [findingDetails, setFindingDetails] = useState<Record<string, ConveractFabricPolicyFindingResult>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasOlder, setHasOlder] = useState(false);
@@ -255,7 +255,7 @@ export function useChatSession(input: UseChatSessionInput) {
     dispatch({ type: 'history_prepended', requestId: generation, messages: page.items });
   }, [client, sessionId]);
 
-  const sendMessage = useCallback(async (messageInput: Omit<IveKitChatMessageInput, 'sender_identity'>) => {
+  const sendMessage = useCallback(async (messageInput: Omit<ConveractFabricChatMessageInput, 'sender_identity'>) => {
     if (!client || !sessionId || state.closed || state.connection === 'fatal') throw new Error('session is not writable');
     const generation = requestId.current;
     const key = globalThis.crypto.randomUUID();
@@ -285,8 +285,8 @@ export function useChatSession(input: UseChatSessionInput) {
   }, [client, sessionId, input.identity, state.closed, state.connection]);
 
   const uploadAttachment = useCallback((
-    attachment: IveKitAttachmentUploadInput,
-    options?: IveKitAttachmentUploadOptions
+    attachment: ConveractFabricAttachmentUploadInput,
+    options?: ConveractFabricAttachmentUploadOptions
   ) => {
     if (!client || !sessionId || state.closed) throw new Error('session is not writable');
     return client.chat.uploadAttachmentWithProgress(sessionId, attachment, options);
@@ -379,7 +379,7 @@ export function useChatSession(input: UseChatSessionInput) {
     return result;
   }, [client, sessionId]);
 
-  const reviewFinding = useCallback(async (findingId: string, review: IveKitPolicyFindingReviewInput) => {
+  const reviewFinding = useCallback(async (findingId: string, review: ConveractFabricPolicyFindingReviewInput) => {
     if (!client || !sessionId || state.closed) throw new Error('session is not writable');
     const generation = requestId.current;
     const result = await client.chat.reviewFinding(sessionId, findingId, review);
@@ -409,14 +409,14 @@ function optimisticMessage(
   id: string,
   sessionId: string,
   identity: string,
-  input: Omit<IveKitChatMessageInput, 'sender_identity'>
-): IveKitChatMessage {
+  input: Omit<ConveractFabricChatMessageInput, 'sender_identity'>
+): ConveractFabricChatMessage {
   return {
     id,
     session_id: sessionId,
     sender_identity: identity,
     body: input.body || '',
-    message_type: (input.message_type || 'text') as IveKitChatMessage['message_type'],
+    message_type: (input.message_type || 'text') as ConveractFabricChatMessage['message_type'],
     created_at: new Date().toISOString(),
     attachments: (input.attachments || []).map((attachment, index) => ({
       ...attachment,
@@ -432,12 +432,12 @@ function optimisticMessage(
     deleted_at: null,
     edit_version: 0,
     provider_delivery: { status: 'pending' }
-  } as unknown as IveKitChatMessage;
+  } as unknown as ConveractFabricChatMessage;
 }
 
-export type AttachmentDescriptor = IveKitChatAttachmentUploadDescriptor;
+export type AttachmentDescriptor = ConveractFabricChatAttachmentUploadDescriptor;
 
-function upsertFinding(findings: IveKitPolicyFinding[], finding: IveKitPolicyFinding): IveKitPolicyFinding[] {
+function upsertFinding(findings: ConveractFabricPolicyFinding[], finding: ConveractFabricPolicyFinding): ConveractFabricPolicyFinding[] {
   const next = findings.filter((item) => item.id !== finding.id && item.fingerprint !== finding.fingerprint);
   return [...next, finding];
 }

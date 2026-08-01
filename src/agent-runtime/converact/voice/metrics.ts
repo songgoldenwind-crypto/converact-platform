@@ -10,21 +10,21 @@ import type {
 
 const callTotal = new Counter({
   name: 'opc_ivekit_voice_calls_total',
-  help: 'Total iveKit Voice call lifecycle observations',
+  help: 'Total Converact Fabric Voice call lifecycle observations',
   labelNames: ['adapter', 'direction', 'state'],
   registers: [metricsRegistry]
 });
 
 const commandTotal = new Counter({
   name: 'opc_ivekit_voice_commands_total',
-  help: 'Total iveKit Voice command outcomes',
+  help: 'Total Converact Fabric Voice command outcomes',
   labelNames: ['adapter', 'kind', 'result', 'error_code'],
   registers: [metricsRegistry]
 });
 
 const commandDuration = new Histogram({
   name: 'opc_ivekit_voice_command_duration_seconds',
-  help: 'iveKit Voice command duration',
+  help: 'Converact Fabric Voice command duration',
   labelNames: ['adapter', 'kind', 'result'],
   buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 120],
   registers: [metricsRegistry]
@@ -32,28 +32,28 @@ const commandDuration = new Histogram({
 
 const uncertainTotal = new Counter({
   name: 'opc_ivekit_voice_uncertain_commands_total',
-  help: 'Total iveKit Voice commands entering uncertain state',
+  help: 'Total Converact Fabric Voice commands entering uncertain state',
   labelNames: ['adapter', 'kind'],
   registers: [metricsRegistry]
 });
 
 const reconciliationTotal = new Counter({
   name: 'opc_ivekit_voice_reconciliations_total',
-  help: 'Total iveKit Voice reconciliation outcomes',
+  help: 'Total Converact Fabric Voice reconciliation outcomes',
   labelNames: ['adapter', 'result'],
   registers: [metricsRegistry]
 });
 
 const providerEventTotal = new Counter({
   name: 'opc_ivekit_voice_provider_events_total',
-  help: 'Total iveKit Voice provider event outcomes',
+  help: 'Total Converact Fabric Voice provider event outcomes',
   labelNames: ['adapter', 'event_type', 'result'],
   registers: [metricsRegistry]
 });
 
 const providerEventLag = new Histogram({
   name: 'opc_ivekit_voice_provider_event_lag_seconds',
-  help: 'iveKit Voice provider event processing lag',
+  help: 'Converact Fabric Voice provider event processing lag',
   labelNames: ['adapter', 'event_type'],
   buckets: [0.01, 0.1, 0.5, 1, 5, 15, 60, 300, 900, 3600],
   registers: [metricsRegistry]
@@ -61,28 +61,28 @@ const providerEventLag = new Histogram({
 
 const bridgeTotal = new Counter({
   name: 'opc_ivekit_voice_bridges_total',
-  help: 'Total iveKit Voice LiveKit SIP bridge outcomes',
+  help: 'Total Converact Fabric Voice LiveKit SIP bridge outcomes',
   labelNames: ['adapter', 'result'],
   registers: [metricsRegistry]
 });
 
 const preflightTotal = new Counter({
   name: 'opc_ivekit_voice_preflight_total',
-  help: 'Total iveKit Voice provider preflight outcomes',
+  help: 'Total Converact Fabric Voice provider preflight outcomes',
   labelNames: ['adapter', 'result'],
   registers: [metricsRegistry]
 });
 
 const audioTapEventTotal = new Counter({
   name: 'opc_ivekit_voice_audio_tap_events_total',
-  help: 'Total iveKit realtime audio tap gateway events',
+  help: 'Total Converact Fabric realtime audio tap gateway events',
   labelNames: ['media_source', 'event_type', 'reason'],
   registers: [metricsRegistry]
 });
 
 const audioTapDroppedSeconds = new Counter({
   name: 'opc_ivekit_voice_audio_tap_dropped_seconds_total',
-  help: 'Total audio duration dropped by iveKit realtime audio tap gateways',
+  help: 'Total audio duration dropped by Converact Fabric realtime audio tap gateways',
   labelNames: ['media_source', 'reason'],
   registers: [metricsRegistry]
 });

@@ -1,4 +1,4 @@
-# iveKit LiveKit Fork Build
+# Converact Fabric LiveKit Fork Build
 
 The fork target is exactly:
 
@@ -12,9 +12,12 @@ component hook and the LiveKit room-owner registry into the source tree. It
 then patches `cmd/server/main.go` and `pkg/service/roommanager.go` at exact
 anchors and fails if the upstream source has drifted. Before Prometheus,
 SignalClient and Router initialization, the server's internal
-`currentNode.NodeID()` is set to `IVEKIT_COMPONENT_NODE_ID`; the LiveKit Redis
-router, iveKit placement metadata and local component-node sidecar therefore
-share one stable identity.
+`currentNode.NodeID()` is set from the embedded fork ABI
+`IVEKIT_COMPONENT_NODE_ID`; deployment manifests map Converact-owned secrets and
+configuration into that fixed process boundary. The LiveKit Redis router,
+Converact Fabric placement metadata and local component-node sidecar therefore
+share one stable identity. Product-facing configuration remains
+`CONVERACT_FABRIC_*`; `IVEKIT_*` is not a public operator input.
 
 The same overlay applies
 `patches/livekit-ivekit-small-room-hot-path.patch`. The patch publishes the
@@ -28,7 +31,7 @@ neither the forward nor reverse check matches the pinned source.
 
 ```bash
 LIVEKIT_SOURCE_DIR=/path/to/livekit-v1.13.4 \
-IVEKIT_LIVEKIT_IMAGE=registry.example.com/ivekit/livekit-server:v1.13.4-ivekit.1-0b3fd288 \
+CONVERACT_FABRIC_LIVEKIT_IMAGE=registry.example.com/converact/livekit-server:v1.13.4-ivekit.1-0b3fd288 \
 bash infra/converact/livekit/build.sh
 ```
 

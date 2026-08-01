@@ -2,7 +2,7 @@
 
 ## 1. 目标与边界
 
-iveKit 使用 Kamailio `siptrace` 把 SIP 信令副本发送给 HOMER 11 或兼容的 HEPv3 collector，用于按 Call-ID 还原事务、对话、失败分支和节点路径。
+Converact Fabric 使用 Kamailio `siptrace` 把 SIP 信令副本发送给 HOMER 11 或兼容的 HEPv3 collector，用于按 Call-ID 还原事务、对话、失败分支和节点路径。
 
 这条链路是纯观测旁路：
 
@@ -12,7 +12,7 @@ iveKit 使用 Kamailio `siptrace` 把 SIP 信令副本发送给 HOMER 11 或兼�
 - 默认关闭；即使已完成受控同硬件 A/B，也必须按 Cell 容量预算显式开启；
 - 当前仅支持私有可信网络内的 HEPv3/UDP，不允许跨公网直连。
 
-HOMER 固定在 `11.0.297`、commit `ac4e1ae7f63660a655a5ef42e6607ab4cefc1c6b`。iveKit overlay 为 DuckLake 增加 PostgreSQL catalog，并生成非 root、自带离线 DuckDB 扩展的镜像。部署时必须使用验证过的自定义镜像 digest，不能使用上游浮动 tag，也不能把未包含 overlay 的上游镜像当作等价制品。
+HOMER 固定在 `11.0.297`、commit `ac4e1ae7f63660a655a5ef42e6607ab4cefc1c6b`。Converact Fabric overlay 为 DuckLake 增加 PostgreSQL catalog，并生成非 root、自带离线 DuckDB 扩展的镜像。部署时必须使用验证过的自定义镜像 digest，不能使用上游浮动 tag，也不能把未包含 overlay 的上游镜像当作等价制品。
 
 ## 2. 已实现的发送端
 
@@ -35,7 +35,7 @@ HEPv3/UDP 发送链路没有应用层认证和 TLS；确定性采样只能控制
 
 ## 3. HOMER PostgreSQL 部署
 
-HOMER 使用独立 Chart `infra/ivekit/homer/helm/ivekit-homer`，不进入 iveKit API Chart 的 readiness，也不和 Kamailio/RustPBX 共用进程。固定约束如下：
+HOMER 使用独立 Chart `infra/converact/homer/helm/converact-homer`，不进入 Converact Fabric API Chart 的 readiness，也不和 Kamailio/RustPBX 共用进程。固定约束如下：
 
 - `homer.catalogType` 只能是 `postgres`，Chart 不接受 SQLite；
 - `replicaCount=1`、`homer.storage.shardCount=1`，一个 Cell 对应一个 release、一个 writer、一个 PostgreSQL catalog 和一组 Parquet 数据；
@@ -48,7 +48,7 @@ HOMER 使用独立 Chart `infra/ivekit/homer/helm/ivekit-homer`，不进入 iveK
 
 ```yaml
 image:
-  repository: registry.example.com/ivekit/homer
+  repository: registry.example.com/converact/homer
   digest: sha256:<64-hex-digest>
 
 secrets:
@@ -122,14 +122,14 @@ off；控制器自身故障不改变 route-agent readiness。
 ## 5. Compose 配置
 
 ```dotenv
-OPC_IVEKIT_KAMAILIO_SIP_TRACE_ENABLED=true
-OPC_IVEKIT_KAMAILIO_HEP_COLLECTOR_HOST=homer-capture
-OPC_IVEKIT_KAMAILIO_HEP_COLLECTOR_PORT=9060
-OPC_IVEKIT_KAMAILIO_HEP_CAPTURE_ID=101
-OPC_IVEKIT_KAMAILIO_HEP_INCLUDE_OPTIONS=false
-OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED=true
-OPC_IVEKIT_KAMAILIO_HOMER_METRICS_ENDPOINT=http://homer-capture:9090/metrics
-OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_SAMPLE_PERCENT=10
+CONVERACT_FABRIC_KAMAILIO_SIP_TRACE_ENABLED=true
+CONVERACT_FABRIC_KAMAILIO_HEP_COLLECTOR_HOST=homer-capture
+CONVERACT_FABRIC_KAMAILIO_HEP_COLLECTOR_PORT=9060
+CONVERACT_FABRIC_KAMAILIO_HEP_CAPTURE_ID=101
+CONVERACT_FABRIC_KAMAILIO_HEP_INCLUDE_OPTIONS=false
+CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_ENABLED=true
+CONVERACT_FABRIC_KAMAILIO_HOMER_METRICS_ENDPOINT=http://homer-capture:9090/metrics
+CONVERACT_FABRIC_KAMAILIO_HEP_HIGH_WATER_SAMPLE_PERCENT=10
 ```
 
 Compose 只用于单 Cell 发送端集成验证，不是当前 HOMER PostgreSQL 生产部署面。生产 HOMER 使用独立 Chart、持久卷、保留策略、备份、访问控制和容量预算。

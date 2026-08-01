@@ -15,10 +15,10 @@ import {
   rustDeskClientConfig,
   rustDeskPublicKey
 } from '../src/agent-runtime/collaboration/rustdesk-client-config.js';
-import { createIveKitHttpServer } from '../src/agent-runtime/converact/index.js';
+import { createConveractFabricHttpServer } from '../src/agent-runtime/converact/index.js';
 import { createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';
-import { createServer as createOpcHttpServer } from '../src/http.js';
+import { createServer as createConveractHttpServer } from '../src/http.js';
 import { listenOnRandomPort } from './test-helpers.js';
 
 const NOW = new Date('2026-07-12T12:00:00.000Z');
@@ -201,7 +201,7 @@ test('RustDesk client profiles use only validated explicit artifact metadata', (
   );
 });
 
-test('RustDesk Windows profile carries the pinned iveKit native control capability', () => {
+test('RustDesk Windows profile carries the pinned Converact Fabric native control capability', () => {
   const filename = 'rustdesk-1.4.9-ivekit1-x86_64.exe';
   const custom = {
     ...artifact('windows', 'x86_64', filename),
@@ -491,7 +491,7 @@ test('authenticated client-profile endpoint returns private no-store responses a
   ])));
   process.env.CONVERACT_API_KEY = 'profile-api-key';
   const db = createDatabase(':memory:');
-  const server = createIveKitHttpServer({ db, pg: new MemoryPg() });
+  const server = createConveractFabricHttpServer({ db, pg: new MemoryPg() });
   t.after(async () => {
     restoreProfileProcessEnv(previous);
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -542,7 +542,7 @@ test('monolith client-profile endpoint preserves private no-store and tenant-awa
     artifact('windows', 'x86_64', 'rustdesk-1.4.9-x86_64.exe')
   ])));
   process.env.CONVERACT_API_KEY = 'profile-api-key';
-  const server = createOpcHttpServer(createDatabase(':memory:'), new MemoryPg());
+  const server = createConveractHttpServer(createDatabase(':memory:'), new MemoryPg());
   t.after(async () => {
     restoreProfileProcessEnv(previous);
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -578,7 +578,7 @@ test('RustDesk client profile deployment passes pinned version and manifest into
     assert.match(env, /^CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS=900$/m);
     assert.doesNotMatch(env, /^CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS=/m);
   }
-  for (const path of ['../infra/k8s/values.yaml', '../infra/k8s/templates/opc-deployment.yaml']) {
+  for (const path of ['../infra/k8s/values.yaml', '../infra/k8s/templates/converact-deployment.yaml']) {
     const helm = readFileSync(new URL(path, import.meta.url), 'utf8');
     assert.doesNotMatch(helm, /CONVERACT_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
   }

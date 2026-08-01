@@ -6,10 +6,10 @@ import {
   type MediaQualityStorePort
 } from '../src/agent-runtime/livekit/media-quality-service.js';
 import type {
-  IveKitMediaConnectionEvent,
-  IveKitMediaQualityParticipantState,
-  IveKitMediaQualitySnapshot,
-  IveKitMediaQualitySummary
+  ConveractFabricMediaConnectionEvent,
+  ConveractFabricMediaQualityParticipantState,
+  ConveractFabricMediaQualitySnapshot,
+  ConveractFabricMediaQualitySummary
 } from '../src/agent-runtime/livekit/types.js';
 
 const now = new Date('2026-07-15T08:00:00.000Z');
@@ -175,7 +175,7 @@ function connection(
 }
 
 class FakeMediaQualityStore implements MediaQualityStorePort {
-  private participant: IveKitMediaQualityParticipantState = {
+  private participant: ConveractFabricMediaQualityParticipantState = {
     tenant_id: 'tenant_media_quality',
     call_id: 'call_quality',
     identity: 'customer-1',
@@ -192,8 +192,8 @@ class FakeMediaQualityStore implements MediaQualityStorePort {
     last_quality_sample_id: '',
     last_qos_at: null
   };
-  private readonly snapshots = new Map<string, { value: IveKitMediaQualitySnapshot; payloadHash: string }>();
-  private readonly events = new Map<string, { value: IveKitMediaConnectionEvent; payloadHash: string }>();
+  private readonly snapshots = new Map<string, { value: ConveractFabricMediaQualitySnapshot; payloadHash: string }>();
+  private readonly events = new Map<string, { value: ConveractFabricMediaConnectionEvent; payloadHash: string }>();
 
   transaction<T>(_tenantId: string, fn: (store: MediaQualityStorePort) => Promise<T>): Promise<T> {
     return fn(this);
@@ -217,7 +217,7 @@ class FakeMediaQualityStore implements MediaQualityStorePort {
       if (existing.payloadHash !== input.payload_hash) throw conflict();
       return { snapshot: existing.value, replayed: true };
     }
-    const value: IveKitMediaQualitySnapshot = {
+    const value: ConveractFabricMediaQualitySnapshot = {
       ...input,
       id: `qos-${this.snapshots.size + 1}`,
       received_at: now.toISOString()
@@ -238,7 +238,7 @@ class FakeMediaQualityStore implements MediaQualityStorePort {
   }
 
   async insertConnectionEvent(input: Parameters<MediaQualityStorePort['insertConnectionEvent']>[0]) {
-    const value: IveKitMediaConnectionEvent = {
+    const value: ConveractFabricMediaConnectionEvent = {
       ...input,
       id: `connection-${this.events.size + 1}`,
       received_at: now.toISOString()
@@ -254,7 +254,7 @@ class FakeMediaQualityStore implements MediaQualityStorePort {
     return { ...this.participant };
   }
 
-  async getQualitySummary(): Promise<IveKitMediaQualitySummary | null> {
+  async getQualitySummary(): Promise<ConveractFabricMediaQualitySummary | null> {
     return {
       tenant_id: this.participant.tenant_id,
       call_id: this.participant.call_id,

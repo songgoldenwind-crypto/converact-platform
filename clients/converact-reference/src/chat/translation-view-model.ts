@@ -1,8 +1,8 @@
-import type { IveKitTranslationJob, IveKitTranslationListResult, IveKitTranslationStatus } from '@converact/sdk';
+import type { ConveractFabricTranslationJob, ConveractFabricTranslationListResult, ConveractFabricTranslationStatus } from '@converact/sdk';
 
 export interface TranslationProjection {
   targetLanguage: string;
-  status: IveKitTranslationStatus;
+  status: ConveractFabricTranslationStatus;
   statusLabel: string;
   translatedText: string;
   jobId: string;
@@ -10,7 +10,7 @@ export interface TranslationProjection {
   errorCode: string;
 }
 
-export function projectTranslations(input: IveKitTranslationListResult): TranslationProjection[] {
+export function projectTranslations(input: ConveractFabricTranslationListResult): TranslationProjection[] {
   const latestJobs = latestByTarget(input.jobs);
   const latestResults = latestByTarget(input.items);
   const targets = new Set([...latestJobs.keys(), ...latestResults.keys()]);
@@ -50,7 +50,7 @@ function latestByTarget<T extends { target_language: string; created_at: string;
   return result;
 }
 
-function translationStatusLabel(status: IveKitTranslationStatus): string {
+function translationStatusLabel(status: ConveractFabricTranslationStatus): string {
   switch (status) {
     case 'pending': return 'Queued';
     case 'processing': return 'Translating';

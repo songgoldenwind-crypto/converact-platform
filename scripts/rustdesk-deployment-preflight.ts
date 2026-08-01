@@ -180,7 +180,7 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
     'collaboration_api_key',
     collaborationApiKeyConfigured ? 'pass' : 'fail',
     collaborationApiKeyConfigured
-      ? 'OPC collaboration API key is configured for device online and edge-agent checks'
+      ? 'Converact collaboration API key is configured for device online and edge-agent checks'
       : 'CONVERACT_RUSTDESK_EDGE_API_KEY, CONVERACT_COLLABORATION_API_KEY, or CONVERACT_API_KEY is required'
   );
   addCheck(
@@ -385,6 +385,7 @@ function rustDeskDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): RustDeskDe
   );
   const clientConfigBaseUrl = stripTrailingSlash(
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_BASE_URL') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_BASE_URL') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_BASE_URL') ||
     resolveBrandEnv(env, 'BASE_URL') ||
     resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL') ||
@@ -392,11 +393,13 @@ function rustDeskDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): RustDeskDe
   );
   const clientConfigApiKey =
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_API_KEY') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_API_KEY') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_API_KEY') ||
     resolveBrandEnv(env, 'COLLABORATION_API_KEY') ||
     resolveBrandEnv(env, 'API_KEY');
   const clientConfigTenantId =
     resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_TENANT_ID') ||
+    resolveBrandEnv(env, 'RUSTDESK_FABRIC_TENANT_ID') ||
     resolveBrandEnv(env, 'RUSTDESK_IVEKIT_TENANT_ID') ||
     resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') ||
     resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') ||
@@ -408,13 +411,13 @@ function rustDeskDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): RustDeskDe
     item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_CONTROL_PLANE_BASE_URL', true, 'RustDesk control-plane API base URL. Can fall back to CONVERACT_REMOTE_GATEWAY_BASE_URL.', resolveBrandEnv(env, 'RUSTDESK_CONTROL_PLANE_BASE_URL') || resolveBrandEnv(env, 'REMOTE_GATEWAY_BASE_URL')),
     item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_API_TOKEN', true, 'RustDesk control-plane token. Can fall back to CONVERACT_REMOTE_GATEWAY_API_TOKEN.', resolveBrandEnv(env, 'RUSTDESK_API_TOKEN') || resolveBrandEnv(env, 'REMOTE_GATEWAY_API_TOKEN'), true),
     item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_PUBLIC_KEY', false, 'Inline RustDesk public key. Use file variable when mounted from hbbs volume.', resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY')),
-    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_PUBLIC_KEY_FILE', !hasInlinePublicKey, 'Mounted id_ed25519.pub path readable by OPC. Required when CONVERACT_RUSTDESK_PUBLIC_KEY is not set.', resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY_FILE')),
+    item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_PUBLIC_KEY_FILE', !hasInlinePublicKey, 'Mounted id_ed25519.pub path readable by Converact. Required when CONVERACT_RUSTDESK_PUBLIC_KEY is not set.', resolveBrandEnv(env, 'RUSTDESK_PUBLIC_KEY_FILE')),
     item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_ID_SERVER', true, 'RustDesk ID server shown to clients and used by port checks.', resolveBrandEnv(env, 'RUSTDESK_ID_SERVER')),
     item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_RELAY_SERVER', false, 'RustDesk relay server shown to clients.', resolveBrandEnv(env, 'RUSTDESK_RELAY_SERVER')),
     item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_LAUNCH_BASE_URL', true, 'Public base URL for signed RustDesk launch pages. Can fall back to CONVERACT_BASE_URL, CONVERACT_REMOTE_GATEWAY_BASE_URL, or control-plane base URL.', launchBaseUrl),
     item(env, 'Server Readiness', 'CONVERACT_REMOTE_GATEWAY_TENANT_ID', true, 'Tenant used by remote-gateway smoke/readiness. Can fall back to CONVERACT_RUSTDESK_EDGE_TENANT_ID or CONVERACT_TENANT_ID.', resolveBrandEnv(env, 'REMOTE_GATEWAY_TENANT_ID') || resolveBrandEnv(env, 'RUSTDESK_EDGE_TENANT_ID') || resolveBrandEnv(env, 'TENANT_ID')),
     item(env, 'Server Readiness', 'CONVERACT_REMOTE_GATEWAY_TARGET_ID', !runEdgeAgent, 'Internal rustdesk_devices.id when device online check is enabled, or raw target during early smoke. Optional when readiness edge-agent derives the target.', resolveBrandEnv(env, 'REMOTE_GATEWAY_TARGET_ID')),
-    item(env, 'Server Readiness', 'CONVERACT_COLLABORATION_API_KEY', true, 'OPC API key used for device online checks. Can fall back to CONVERACT_RUSTDESK_EDGE_API_KEY or CONVERACT_API_KEY.', resolveBrandEnv(env, 'RUSTDESK_EDGE_API_KEY') || resolveBrandEnv(env, 'COLLABORATION_API_KEY') || resolveBrandEnv(env, 'API_KEY'), true),
+    item(env, 'Server Readiness', 'CONVERACT_COLLABORATION_API_KEY', true, 'Converact API key used for device online checks. Can fall back to CONVERACT_RUSTDESK_EDGE_API_KEY or CONVERACT_API_KEY.', resolveBrandEnv(env, 'RUSTDESK_EDGE_API_KEY') || resolveBrandEnv(env, 'COLLABORATION_API_KEY') || resolveBrandEnv(env, 'API_KEY'), true),
     item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_CHECK_HOST', serverPortsCheck, 'Host used by hbbs/hbbr TCP/UDP port checks. Required when server port checks are enabled; can fall back to CONVERACT_RUSTDESK_ID_SERVER.', resolveBrandEnv(env, 'RUSTDESK_CHECK_HOST') || resolveBrandEnv(env, 'RUSTDESK_ID_SERVER')),
     item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_PROTOCOL_URL_TEMPLATE', protocolUrlRequired, 'rustdesk:// template containing {rustdesk_id}. Required when protocol URL checks are enabled.', resolveBrandEnv(env, 'RUSTDESK_PROTOCOL_URL_TEMPLATE')),
     item(env, 'Server Readiness', 'CONVERACT_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', false, 'Set to 1 to reject new RustDesk sessions unless the device heartbeat declares physical-disconnect command capability.', resolveBrandEnv(env, 'RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT')),
@@ -448,9 +451,9 @@ function rustDeskDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): RustDeskDe
     item(env, 'Event Audit', 'CONVERACT_RUSTDESK_EVENT_DEAD_LETTER_FILE', false, 'Local JSONL file for failed event forwards.', resolveBrandEnv(env, 'RUSTDESK_EVENT_DEAD_LETTER_FILE')),
     item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_FILE', false, 'Markdown output path for the RustDesk client installation/config handoff pack.', resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_PACK_FILE')),
     item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_PACK_TITLE', false, 'Display title written into the client config handoff pack.', resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_PACK_TITLE')),
-    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL', false, 'iveKit/OPC base URL used to fetch /api/ivekit/rustdesk/client-config. Can fall back to CONVERACT_RUSTDESK_IVEKIT_BASE_URL, CONVERACT_BASE_URL, CONVERACT_REMOTE_GATEWAY_BASE_URL, or control-plane base URL.', clientConfigBaseUrl),
-    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY', false, 'API key used to fetch iveKit RustDesk client config. Can fall back to CONVERACT_RUSTDESK_IVEKIT_API_KEY, CONVERACT_COLLABORATION_API_KEY, or CONVERACT_API_KEY.', clientConfigApiKey, true),
-    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID', false, 'Tenant used to fetch iveKit RustDesk client config. Can fall back to CONVERACT_RUSTDESK_IVEKIT_TENANT_ID, CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID.', clientConfigTenantId),
+    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_BASE_URL', false, 'Converact Fabric/Converact base URL used to fetch /api/ivekit/rustdesk/client-config. Can fall back to CONVERACT_RUSTDESK_FABRIC_BASE_URL, CONVERACT_BASE_URL, CONVERACT_REMOTE_GATEWAY_BASE_URL, or control-plane base URL.', clientConfigBaseUrl),
+    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_API_KEY', false, 'API key used to fetch Converact Fabric RustDesk client config. Can fall back to CONVERACT_RUSTDESK_FABRIC_API_KEY, CONVERACT_COLLABORATION_API_KEY, or CONVERACT_API_KEY.', clientConfigApiKey, true),
+    item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_TENANT_ID', false, 'Tenant used to fetch Converact Fabric RustDesk client config. Can fall back to CONVERACT_RUSTDESK_FABRIC_TENANT_ID, CONVERACT_REMOTE_GATEWAY_TENANT_ID, CONVERACT_RUSTDESK_EDGE_TENANT_ID, or CONVERACT_TENANT_ID.', clientConfigTenantId),
     item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_USER_ID', false, 'Optional operator/user id sent when fetching the client config or launch plan.', resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_USER_ID')),
     item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID', false, 'Optional gateway external_id used to include a concrete launch plan in the handoff pack.', resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID')),
     item(env, 'Client Config Pack', 'CONVERACT_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID', false, 'Optional expected RustDesk runtime id used to validate the launch plan target.', resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID')),
@@ -463,10 +466,10 @@ function rustDeskDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): RustDeskDe
     item(env, 'Final Evidence', 'CONVERACT_RUSTDESK_EVIDENCE_PACK_FILE', false, 'Final customer handoff evidence pack markdown output.', resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_PACK_FILE')),
     item(env, 'Final Evidence', 'CONVERACT_RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE', false, 'Audit coverage report path passed into rustdesk:evidence-pack.', resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_AUDIT_COVERAGE_REPORT_FILE')),
     item(env, 'Final Evidence', 'CONVERACT_RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE', false, 'Client config pack artifact path passed into rustdesk:evidence-pack.', resolveBrandEnv(env, 'RUSTDESK_EVIDENCE_CLIENT_CONFIG_PACK_FILE') || resolveBrandEnv(env, 'RUSTDESK_CLIENT_CONFIG_PACK_FILE')),
-    item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL', false, 'OPC base URL used by LED example. Can fall back to CONVERACT_BASE_URL.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_BASE_URL') || resolveBrandEnv(env, 'BASE_URL')),
+    item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_BASE_URL', false, 'Converact base URL used by LED example. Can fall back to CONVERACT_BASE_URL.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_BASE_URL') || resolveBrandEnv(env, 'BASE_URL')),
     item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_API_KEY', false, 'API key used by LED example.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_API_KEY'), true),
     item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_TENANT_ID', false, 'Tenant used by LED example.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_TENANT_ID')),
-    item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID', false, 'Existing remote_session_id provided by OPC/LED workflow.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID')),
+    item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID', false, 'Existing remote_session_id provided by Converact/LED workflow.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_REMOTE_SESSION_ID')),
     item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_DEVICE_ID', false, 'Existing internal rustdesk_devices.id for LED example.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_DEVICE_ID')),
     item(env, 'LED Handoff', 'CONVERACT_RUSTDESK_LED_EXAMPLE_RUSTDESK_ID', false, 'Raw RustDesk runtime ID when LED example should register a device.', resolveBrandEnv(env, 'RUSTDESK_LED_EXAMPLE_RUSTDESK_ID'))
   ];

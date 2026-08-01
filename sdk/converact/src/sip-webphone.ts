@@ -11,20 +11,20 @@ import {
 } from 'sip.js';
 
 import {
-  parseIveKitVoiceExtensionSessionPlan,
-  type IveKitVoiceExtensionSessionPlan
+  parseConveractFabricVoiceExtensionSessionPlan,
+  type ConveractFabricVoiceExtensionSessionPlan
 } from './voice-types.js';
 
-export { parseIveKitVoiceExtensionSessionPlan } from './voice-types.js';
+export { parseConveractFabricVoiceExtensionSessionPlan } from './voice-types.js';
 
-export type IveKitSipRegistrationState =
+export type ConveractFabricSipRegistrationState =
   'idle' | 'connecting' | 'registered' | 'disconnected' | 'failed' | 'stopped';
-export type IveKitSipCallState =
+export type ConveractFabricSipCallState =
   'idle' | 'incoming' | 'outgoing' | 'ringing' | 'active' | 'held' | 'ending';
 
-export interface IveKitSipWebPhoneState {
-  registration: IveKitSipRegistrationState;
-  call: IveKitSipCallState;
+export interface ConveractFabricSipWebPhoneState {
+  registration: ConveractFabricSipRegistrationState;
+  call: ConveractFabricSipCallState;
   remote_identity: string;
   muted: boolean;
   input_device_id: string;
@@ -32,26 +32,26 @@ export interface IveKitSipWebPhoneState {
   error: string | null;
 }
 
-export interface IveKitSipAudioDevice {
+export interface ConveractFabricSipAudioDevice {
   device_id: string;
   kind: 'audioinput' | 'audiooutput';
   label: string;
 }
 
-export interface IveKitSipAudioElement {
+export interface ConveractFabricSipAudioElement {
   autoplay: boolean;
   srcObject: unknown;
   play(): Promise<void>;
   setSinkId?(deviceId: string): Promise<void>;
 }
 
-export interface IveKitSipWebPhoneEngineEvents {
-  registration(state: IveKitSipRegistrationState, error?: Error): void;
-  call(state: IveKitSipCallState, remoteIdentity?: string): void;
+export interface ConveractFabricSipWebPhoneEngineEvents {
+  registration(state: ConveractFabricSipRegistrationState, error?: Error): void;
+  call(state: ConveractFabricSipCallState, remoteIdentity?: string): void;
   error(error: Error): void;
 }
 
-export interface IveKitSipWebPhoneEngine {
+export interface ConveractFabricSipWebPhoneEngine {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   dial(target: string): Promise<void>;
@@ -63,18 +63,18 @@ export interface IveKitSipWebPhoneEngine {
   sendDtmf(tones: string): Promise<void>;
   setInputDevice(deviceId: string): Promise<void>;
   setOutputDevice(deviceId: string): Promise<void>;
-  listAudioDevices(): Promise<IveKitSipAudioDevice[]>;
-  attachRemoteAudio(element: IveKitSipAudioElement): void;
+  listAudioDevices(): Promise<ConveractFabricSipAudioDevice[]>;
+  attachRemoteAudio(element: ConveractFabricSipAudioElement): void;
 }
 
-export interface IveKitSipWebPhoneEngineFactoryInput {
-  plan: IveKitVoiceExtensionSessionPlan;
-  events: IveKitSipWebPhoneEngineEvents;
+export interface ConveractFabricSipWebPhoneEngineFactoryInput {
+  plan: ConveractFabricVoiceExtensionSessionPlan;
+  events: ConveractFabricSipWebPhoneEngineEvents;
 }
 
-export interface IveKitSipWebPhone {
-  getSnapshot(): Readonly<IveKitSipWebPhoneState>;
-  subscribe(listener: (state: Readonly<IveKitSipWebPhoneState>) => void): () => void;
+export interface ConveractFabricSipWebPhone {
+  getSnapshot(): Readonly<ConveractFabricSipWebPhoneState>;
+  subscribe(listener: (state: Readonly<ConveractFabricSipWebPhoneState>) => void): () => void;
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   dial(target: string): Promise<void>;
@@ -86,30 +86,30 @@ export interface IveKitSipWebPhone {
   sendDtmf(tones: string): Promise<void>;
   setInputDevice(deviceId: string): Promise<void>;
   setOutputDevice(deviceId: string): Promise<void>;
-  listAudioDevices(): Promise<IveKitSipAudioDevice[]>;
-  attachRemoteAudio(element: IveKitSipAudioElement): void;
+  listAudioDevices(): Promise<ConveractFabricSipAudioDevice[]>;
+  attachRemoteAudio(element: ConveractFabricSipAudioElement): void;
   dispose(): Promise<void>;
 }
 
-export function createIveKitSipWebPhone(input: {
+export function createConveractFabricSipWebPhone(input: {
   plan: unknown;
   now?: () => number;
-  engineFactory?: (input: IveKitSipWebPhoneEngineFactoryInput) => IveKitSipWebPhoneEngine;
+  engineFactory?: (input: ConveractFabricSipWebPhoneEngineFactoryInput) => ConveractFabricSipWebPhoneEngine;
   timer?: {
     set(callback: () => void, delayMs: number): unknown;
     clear(handle: unknown): void;
   };
-}): IveKitSipWebPhone {
+}): ConveractFabricSipWebPhone {
   return new SipWebPhone(input);
 }
 
-class SipWebPhone implements IveKitSipWebPhone {
-  readonly #plan: IveKitVoiceExtensionSessionPlan;
+class SipWebPhone implements ConveractFabricSipWebPhone {
+  readonly #plan: ConveractFabricVoiceExtensionSessionPlan;
   readonly #now: () => number;
-  readonly #engine: IveKitSipWebPhoneEngine;
+  readonly #engine: ConveractFabricSipWebPhoneEngine;
   readonly #timer: { set(callback: () => void, delayMs: number): unknown; clear(handle: unknown): void };
-  readonly #listeners = new Set<(state: Readonly<IveKitSipWebPhoneState>) => void>();
-  #state: Readonly<IveKitSipWebPhoneState> = Object.freeze({
+  readonly #listeners = new Set<(state: Readonly<ConveractFabricSipWebPhoneState>) => void>();
+  #state: Readonly<ConveractFabricSipWebPhoneState> = Object.freeze({
     registration: 'idle', call: 'idle', remote_identity: '', muted: false,
     input_device_id: '', output_device_id: '', error: null
   });
@@ -119,16 +119,16 @@ class SipWebPhone implements IveKitSipWebPhone {
   constructor(input: {
     plan: unknown;
     now?: () => number;
-    engineFactory?: (input: IveKitSipWebPhoneEngineFactoryInput) => IveKitSipWebPhoneEngine;
+    engineFactory?: (input: ConveractFabricSipWebPhoneEngineFactoryInput) => ConveractFabricSipWebPhoneEngine;
     timer?: {
       set(callback: () => void, delayMs: number): unknown;
       clear(handle: unknown): void;
     };
   }) {
     this.#now = input.now ?? Date.now;
-    this.#plan = parseIveKitVoiceExtensionSessionPlan(input.plan, { now: this.#now });
+    this.#plan = parseConveractFabricVoiceExtensionSessionPlan(input.plan, { now: this.#now });
     this.#timer = input.timer ?? defaultTimer();
-    const events: IveKitSipWebPhoneEngineEvents = {
+    const events: ConveractFabricSipWebPhoneEngineEvents = {
       registration: (registration, error) => this.#patch({
         registration, error: error ? safeError(error) : registration === 'failed' ? 'SIP registration failed' : null
       }),
@@ -142,11 +142,11 @@ class SipWebPhone implements IveKitSipWebPhone {
     this.#engine = (input.engineFactory ?? createSipJsEngine)({ plan: this.#plan, events });
   }
 
-  getSnapshot(): Readonly<IveKitSipWebPhoneState> {
+  getSnapshot(): Readonly<ConveractFabricSipWebPhoneState> {
     return this.#state;
   }
 
-  subscribe(listener: (state: Readonly<IveKitSipWebPhoneState>) => void): () => void {
+  subscribe(listener: (state: Readonly<ConveractFabricSipWebPhoneState>) => void): () => void {
     this.#listeners.add(listener);
     listener(this.#state);
     return () => this.#listeners.delete(listener);
@@ -248,12 +248,12 @@ class SipWebPhone implements IveKitSipWebPhone {
     this.#patch({ output_device_id: deviceId });
   }
 
-  listAudioDevices(): Promise<IveKitSipAudioDevice[]> {
+  listAudioDevices(): Promise<ConveractFabricSipAudioDevice[]> {
     this.#active();
     return this.#engine.listAudioDevices();
   }
 
-  attachRemoteAudio(element: IveKitSipAudioElement): void {
+  attachRemoteAudio(element: ConveractFabricSipAudioElement): void {
     this.#active();
     this.#engine.attachRemoteAudio(element);
   }
@@ -301,13 +301,13 @@ class SipWebPhone implements IveKitSipWebPhone {
   }
 
   #capability(
-    capability: keyof IveKitVoiceExtensionSessionPlan['capabilities'],
+    capability: keyof ConveractFabricVoiceExtensionSessionPlan['capabilities'],
     message: string
   ): void {
     if (!this.#plan.capabilities[capability]) throw new Error(message);
   }
 
-  #patch(patch: Partial<IveKitSipWebPhoneState>): void {
+  #patch(patch: Partial<ConveractFabricSipWebPhoneState>): void {
     this.#state = Object.freeze({ ...this.#state, ...patch });
     for (const listener of this.#listeners) listener(this.#state);
   }
@@ -349,9 +349,9 @@ class SipWebPhone implements IveKitSipWebPhone {
   }
 }
 
-class SipJsEngine implements IveKitSipWebPhoneEngine {
-  readonly #plan: IveKitVoiceExtensionSessionPlan;
-  readonly #events: IveKitSipWebPhoneEngineEvents;
+class SipJsEngine implements ConveractFabricSipWebPhoneEngine {
+  readonly #plan: ConveractFabricVoiceExtensionSessionPlan;
+  readonly #events: ConveractFabricSipWebPhoneEngineEvents;
   #userAgent: UserAgent | null = null;
   #registerer: Registerer | null = null;
   #session: Session | null = null;
@@ -360,9 +360,9 @@ class SipJsEngine implements IveKitSipWebPhoneEngine {
   #muted = false;
   #inputDeviceId = '';
   #outputDeviceId = '';
-  #remoteAudio: IveKitSipAudioElement | null = null;
+  #remoteAudio: ConveractFabricSipAudioElement | null = null;
 
-  constructor(input: IveKitSipWebPhoneEngineFactoryInput) {
+  constructor(input: ConveractFabricSipWebPhoneEngineFactoryInput) {
     this.#plan = input.plan;
     this.#events = input.events;
   }
@@ -514,7 +514,7 @@ class SipJsEngine implements IveKitSipWebPhoneEngine {
     await this.#applyOutputDevice();
   }
 
-  async listAudioDevices(): Promise<IveKitSipAudioDevice[]> {
+  async listAudioDevices(): Promise<ConveractFabricSipAudioDevice[]> {
     const mediaDevices = (globalThis as unknown as {
       navigator?: {
         mediaDevices?: {
@@ -536,7 +536,7 @@ class SipJsEngine implements IveKitSipWebPhoneEngine {
       }));
   }
 
-  attachRemoteAudio(element: IveKitSipAudioElement): void {
+  attachRemoteAudio(element: ConveractFabricSipAudioElement): void {
     this.#remoteAudio = element;
     element.autoplay = true;
     void this.#applyOutputDevice().catch((error) => this.#events.error(error));
@@ -656,11 +656,11 @@ class SipJsEngine implements IveKitSipWebPhoneEngine {
   }
 }
 
-function createSipJsEngine(input: IveKitSipWebPhoneEngineFactoryInput): IveKitSipWebPhoneEngine {
+function createSipJsEngine(input: ConveractFabricSipWebPhoneEngineFactoryInput): ConveractFabricSipWebPhoneEngine {
   return new SipJsEngine(input);
 }
 
-function rtcIceServers(plan: IveKitVoiceExtensionSessionPlan): Array<{
+function rtcIceServers(plan: ConveractFabricVoiceExtensionSessionPlan): Array<{
   urls: string | string[];
   username?: string;
   credential?: string;

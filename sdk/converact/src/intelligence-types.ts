@@ -1,6 +1,6 @@
-import type { IveKitPolicyFindingReview, IveKitPolicyFindingReviewInput } from './chat-types.js';
+import type { ConveractFabricPolicyFindingReview, ConveractFabricPolicyFindingReviewInput } from './chat-types.js';
 
-export type IveKitProviderCapability =
+export type ConveractFabricProviderCapability =
   | 'ocr'
   | 'asr'
   | 'quality_review'
@@ -8,9 +8,9 @@ export type IveKitProviderCapability =
   | 'realtime_speech'
   | 'tts'
   | 'model_gateway';
-export type IveKitProviderMode = 'self_hosted' | 'third_party';
+export type ConveractFabricProviderMode = 'self_hosted' | 'third_party';
 
-interface IveKitIntelligencePolicySettings {
+interface ConveractFabricIntelligencePolicySettings {
   ocr_enabled: boolean;
   asr_enabled: boolean;
   quality_review_enabled: boolean;
@@ -25,7 +25,7 @@ interface IveKitIntelligencePolicySettings {
   min_asr_confidence: number;
 }
 
-interface IveKitRealtimeIntelligencePolicyUpdate {
+interface ConveractFabricRealtimeIntelligencePolicyUpdate {
   realtime_speech_enabled?: boolean;
   tts_enabled?: boolean;
   model_gateway_enabled?: boolean;
@@ -37,7 +37,7 @@ interface IveKitRealtimeIntelligencePolicyUpdate {
   model_gateway_profile_ids?: string[];
 }
 
-type IveKitRouteNativePolicyProfiles = {
+type ConveractFabricRouteNativePolicyProfiles = {
   ocr_profile_id?: string;
   asr_profile_id?: string;
   quality_profile_id?: string;
@@ -48,7 +48,7 @@ type IveKitRouteNativePolicyProfiles = {
   translation_profile_ids: string[];
 };
 
-type IveKitLegacyPolicyProfiles = {
+type ConveractFabricLegacyPolicyProfiles = {
   ocr_profile_id: string;
   asr_profile_id: string;
   quality_profile_id: string;
@@ -59,13 +59,13 @@ type IveKitLegacyPolicyProfiles = {
   translation_profile_ids?: string[];
 };
 
-export type IveKitIntelligencePolicyUpdate = IveKitIntelligencePolicySettings &
-  IveKitRealtimeIntelligencePolicyUpdate & (
-  | IveKitRouteNativePolicyProfiles
-  | IveKitLegacyPolicyProfiles
+export type ConveractFabricIntelligencePolicyUpdate = ConveractFabricIntelligencePolicySettings &
+  ConveractFabricRealtimeIntelligencePolicyUpdate & (
+  | ConveractFabricRouteNativePolicyProfiles
+  | ConveractFabricLegacyPolicyProfiles
 );
 
-export type IveKitIntelligencePolicy = IveKitIntelligencePolicySettings & {
+export type ConveractFabricIntelligencePolicy = ConveractFabricIntelligencePolicySettings & {
   realtime_speech_enabled: boolean;
   tts_enabled: boolean;
   model_gateway_enabled: boolean;
@@ -91,21 +91,21 @@ export type IveKitIntelligencePolicy = IveKitIntelligencePolicySettings & {
   updated_at: string | null;
 };
 
-export type IveKitIntelligencePolicyWrite = IveKitIntelligencePolicyUpdate & { version: number };
+export type ConveractFabricIntelligencePolicyWrite = ConveractFabricIntelligencePolicyUpdate & { version: number };
 
-export interface IveKitIntelligenceCapabilities {
+export interface ConveractFabricIntelligenceCapabilities {
   tenant_id: string;
   policy_configured: boolean;
   policy_version: number;
-  capabilities: Record<IveKitProviderCapability, {
+  capabilities: Record<ConveractFabricProviderCapability, {
     enabled: boolean;
     automatic: boolean;
     available: boolean;
-    provider_mode: IveKitProviderMode | 'unconfigured';
+    provider_mode: ConveractFabricProviderMode | 'unconfigured';
     provider_profile_ids: string[];
     providers: Array<{
       profile_id: string;
-      mode: IveKitProviderMode | 'unconfigured';
+      mode: ConveractFabricProviderMode | 'unconfigured';
       available: boolean;
       reason: string;
     }>;
@@ -115,10 +115,10 @@ export interface IveKitIntelligenceCapabilities {
   confidence_thresholds: { ocr: number; asr: number };
 }
 
-export interface IveKitProviderProfileSummary {
+export interface ConveractFabricProviderProfileSummary {
   id: string;
-  capability: IveKitProviderCapability;
-  mode: IveKitProviderMode;
+  capability: ConveractFabricProviderCapability;
+  mode: ConveractFabricProviderMode;
   name: string;
   configured: boolean;
   token_configured: boolean;
@@ -135,9 +135,9 @@ export interface IveKitProviderProfileSummary {
   max_session_seconds: number;
 }
 
-export interface IveKitProviderRuntimeSnapshot {
+export interface ConveractFabricProviderRuntimeSnapshot {
   tenant_id: string;
-  capability: IveKitProviderCapability;
+  capability: ConveractFabricProviderCapability;
   profile_id: string;
   minute_request_count: number;
   day_request_count: number;
@@ -150,17 +150,17 @@ export interface IveKitProviderRuntimeSnapshot {
   updated_at: string;
 }
 
-export interface IveKitProviderHealthResult {
+export interface ConveractFabricProviderHealthResult {
   profile_id: string;
-  capability: IveKitProviderCapability;
-  mode: IveKitProviderMode;
+  capability: ConveractFabricProviderCapability;
+  mode: ConveractFabricProviderMode;
   status: 'healthy' | 'degraded' | 'unavailable';
   http_class: string;
   latency_ms: number;
   checked_at: string;
 }
 
-export interface IveKitIntelligenceSourceSnapshot {
+export interface ConveractFabricIntelligenceSourceSnapshot {
   source: Record<string, unknown> & { id: string; session_id: string; status: string };
   message_id: string;
   replayed: boolean;
@@ -169,7 +169,7 @@ export interface IveKitIntelligenceSourceSnapshot {
   findings: Array<Record<string, unknown>>;
 }
 
-export interface IveKitFindingQueueInput {
+export interface ConveractFabricFindingQueueInput {
   session_id?: string;
   source?: 'text' | 'ocr' | 'asr' | 'ai' | 'aggregate';
   severity?: 'low' | 'medium' | 'high';
@@ -180,12 +180,12 @@ export interface IveKitFindingQueueInput {
   limit?: number;
 }
 
-export interface IveKitFindingQueuePage {
-  items: IveKitFindingQueueItem[];
+export interface ConveractFabricFindingQueuePage {
+  items: ConveractFabricFindingQueueItem[];
   next_cursor: string;
 }
 
-export interface IveKitFindingQueueItem {
+export interface ConveractFabricFindingQueueItem {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -214,18 +214,18 @@ export interface IveKitFindingQueueItem {
   resolved_at: string | null;
 }
 
-export interface IveKitFindingQueueDetail {
+export interface ConveractFabricFindingQueueDetail {
   session_id: string;
-  finding: IveKitFindingQueueItem;
-  reviews: IveKitPolicyFindingReview[];
+  finding: ConveractFabricFindingQueueItem;
+  reviews: ConveractFabricPolicyFindingReview[];
 }
 
-export type IveKitFindingQueueReviewInput = IveKitPolicyFindingReviewInput;
+export type ConveractFabricFindingQueueReviewInput = ConveractFabricPolicyFindingReviewInput;
 
-export type IveKitTranslationStatus =
+export type ConveractFabricTranslationStatus =
   | 'pending' | 'processing' | 'retry_wait' | 'succeeded' | 'failed' | 'cancelled';
 
-export interface IveKitTranslationJob {
+export interface ConveractFabricTranslationJob {
   id: string;
   tenant_id: string;
   session_id: string;
@@ -235,11 +235,11 @@ export interface IveKitTranslationJob {
   source_language: string;
   target_language: string;
   source_hash: string;
-  status: IveKitTranslationStatus;
+  status: ConveractFabricTranslationStatus;
   attempt_count: number;
   max_attempts: number;
   provider_profile_id: string;
-  provider_mode: IveKitProviderMode | 'unconfigured';
+  provider_mode: ConveractFabricProviderMode | 'unconfigured';
   provider_name: string;
   provider_request_id: string;
   error_code: string;
@@ -249,7 +249,7 @@ export interface IveKitTranslationJob {
   completed_at: string | null;
 }
 
-export interface IveKitTranslationResult {
+export interface ConveractFabricTranslationResult {
   id: string;
   tenant_id: string;
   message_id: string;
@@ -260,7 +260,7 @@ export interface IveKitTranslationResult {
   target_language: string;
   translated_text: string;
   provider_profile_id: string;
-  provider_mode: IveKitProviderMode | 'unconfigured';
+  provider_mode: ConveractFabricProviderMode | 'unconfigured';
   provider_name: string;
   provider_request_id: string;
   confidence: number | null;
@@ -269,17 +269,17 @@ export interface IveKitTranslationResult {
   updated_at: string;
 }
 
-export interface IveKitTranslationRequestInput {
+export interface ConveractFabricTranslationRequestInput {
   source_language?: string;
   target_language: string;
 }
 
-export interface IveKitTranslationRequestResult {
-  job: IveKitTranslationJob;
+export interface ConveractFabricTranslationRequestResult {
+  job: ConveractFabricTranslationJob;
   replayed: boolean;
 }
 
-export interface IveKitTranslationListResult {
-  items: IveKitTranslationResult[];
-  jobs: IveKitTranslationJob[];
+export interface ConveractFabricTranslationListResult {
+  items: ConveractFabricTranslationResult[];
+  jobs: ConveractFabricTranslationJob[];
 }

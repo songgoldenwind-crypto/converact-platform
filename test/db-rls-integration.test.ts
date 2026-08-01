@@ -142,7 +142,7 @@ maybe('runtime role cannot enable generic RLS bypass', async () => {
   });
 });
 
-maybe('iveKit media call lifecycle tables hide every foreign tenant row', async () => {
+maybe('Converact Fabric media call lifecycle tables hide every foreign tenant row', async () => {
   const a = 'tenant_rls_media_a';
   const b = 'tenant_rls_media_b';
   const callId = 'mcall_rls_b';

@@ -136,7 +136,7 @@ def main() -> None:
         "CONVERACT_FABRIC_KAMAILIO_COMPOSE_TOPOLOGY_OUTPUT": output / "kamailio-topology.json",
     }
     env_lines = [
-        "COMPOSE_PROJECT_NAME=ivekit-rustpbx-baseline",
+        "COMPOSE_PROJECT_NAME=converact-rustpbx-baseline",
         *(f"{name}={value}" for name, value in images.items()),
         *(f"{name}={value}" for name, value in runtime.items()),
         *(f"{name}={value}" for name, value in kamailio_memory.items()),
@@ -163,7 +163,7 @@ def main() -> None:
         "CONVERACT_FABRIC_KAMAILIO_RUSTPBX_SOURCE_CIDRS=172.30.44.10/32",
         "CONVERACT_FABRIC_KAMAILIO_DMQ_SOURCE_CIDRS=127.0.0.1/32",
         "CONVERACT_FABRIC_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS=https://capacity.invalid",
-        "CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER=ivekit-capacity",
+        "CONVERACT_FABRIC_WEBPHONE_JWT_ISSUER=converact-capacity",
         "CONVERACT_FABRIC_WEBPHONE_JWT_AUDIENCE=rustpbx-capacity",
         "CONVERACT_FABRIC_KAMAILIO_ALLOW_PUBLIC_WSS=false",
         "CONVERACT_FABRIC_KAMAILIO_REQUIRE_CLIENT_CERTIFICATE=false",

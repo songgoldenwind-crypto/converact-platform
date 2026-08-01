@@ -6,13 +6,13 @@
 
 ## 背景
 
-OPC IVR 拆栈为 **OPC（流程大脑）+ RustPBX（媒体）**。加厚版 ADR-1.1 用 `playCompleted` 逐步回调推进 play，等价于 **G2 逐步回调**，与 Genesys Cloud Architect 的 **播放队列 + 同步点 flush** 不一致。
+Converact Platform IVR 拆栈为 **Converact Platform（流程大脑）+ RustPBX（媒体）**。加厚版 ADR-1.1 用 `playCompleted` 逐步回调推进 play，等价于 **G2 逐步回调**，与 Genesys Cloud Architect 的 **播放队列 + 同步点 flush** 不一致。
 
 Grilling（2026-06-25）裁定：**完全对标 Genesys**。
 
 ## Genesys 参照行为
 
-| Genesys | OPC 目标态 |
+| Genesys | Converact Platform 目标态 |
 |---------|------------|
 | Play Audio **入队**，逻辑继续 | `play.contents` → `context.audioQueue`，**段间不 advance** |
 | Menu / Collect / Transfer / Disconnect **隐式 flush** | 进入这些节点前播完 `audioQueue` |
@@ -26,7 +26,7 @@ Grilling（2026-06-25）裁定：**完全对标 Genesys**。
 
 ### G1 — 同步点模型
 
-媒体层在同步点保证「播完再继续」，不以 OPC 超时自动 `playCompleted` 作为主路径。
+媒体层在同步点保证「播完再继续」，不以 Converact Platform 超时自动 `playCompleted` 作为主路径。
 
 ### Q1 — 真·播放队列
 
@@ -43,7 +43,7 @@ Grilling（2026-06-25）裁定：**完全对标 Genesys**。
 
 ### B1 — Barge-in
 
-队列未 flush 时，若当前/队列段 `interruptible`，RustPBX 上报 `bargeInDigits` → OPC 清空 `audioQueue`，digit 进入 `pendingDigits` / Menu。
+队列未 flush 时，若当前/队列段 `interruptible`，RustPBX 上报 `bargeInDigits` → Converact Platform 清空 `audioQueue`，digit 进入 `pendingDigits` / Menu。
 
 ### E1 — 图配置即行为（M1）
 

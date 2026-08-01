@@ -189,7 +189,7 @@ export interface PrepareProtocolEffectInput {
   route_binding: SipRouteBinding;
   wire_attempt_facts: SipWireAttemptFacts;
   /**
-   * Output of the OPC-owned canonical outbound SIP serializer. The adapter
+   * Output of the Converact-owned canonical outbound SIP serializer. The adapter
    * owns the Via branch placeholder and validates all visible route/auth
    * bindings before it freezes the final wire image.
    */

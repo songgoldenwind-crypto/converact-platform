@@ -1,10 +1,10 @@
 import type { PgQueryable } from '../../../../db-pg.js';
 import { withPgTenant } from '../../../../db-pg-tenant.js';
-import type { IveKitRateLimitRepository } from './ports.js';
+import type { ConveractFabricRateLimitRepository } from './ports.js';
 import type {
-  IveKitRateLimitDecision,
-  IveKitRateLimitReservationDimension,
-  IveKitRateLimitReservationInput
+  ConveractFabricRateLimitDecision,
+  ConveractFabricRateLimitReservationDimension,
+  ConveractFabricRateLimitReservationInput
 } from './types.js';
 
 interface BucketRow {
@@ -14,15 +14,15 @@ interface BucketRow {
 }
 
 class ReservationDenied extends Error {
-  constructor(readonly decision: IveKitRateLimitDecision) {
+  constructor(readonly decision: ConveractFabricRateLimitDecision) {
     super('reservation_denied');
   }
 }
 
-export class PostgresIveKitRateLimitStore implements IveKitRateLimitRepository {
+export class PostgresConveractFabricRateLimitStore implements ConveractFabricRateLimitRepository {
   constructor(private readonly pg: PgQueryable) {}
 
-  async reserve(input: IveKitRateLimitReservationInput): Promise<IveKitRateLimitDecision> {
+  async reserve(input: ConveractFabricRateLimitReservationInput): Promise<ConveractFabricRateLimitDecision> {
     try {
       return await withPgTenant(this.pg, input.tenant_id, async (pg) => {
         const now = timestamp(input.now);
@@ -41,10 +41,10 @@ export class PostgresIveKitRateLimitStore implements IveKitRateLimitRepository {
 
 async function reserveDimension(
   pg: PgQueryable,
-  input: IveKitRateLimitReservationInput,
-  dimension: IveKitRateLimitReservationDimension,
+  input: ConveractFabricRateLimitReservationInput,
+  dimension: ConveractFabricRateLimitReservationDimension,
   now: Date
-): Promise<IveKitRateLimitDecision> {
+): Promise<ConveractFabricRateLimitDecision> {
   const windowStartedAt = floorWindow(now, dimension.window_seconds);
   const windowEndsAt = new Date(windowStartedAt.getTime() + dimension.window_seconds * 1_000);
   const expiresAt = new Date(windowEndsAt.getTime() + dimension.window_seconds * 1_000);

@@ -9,11 +9,13 @@ export type FindingDisposition = 'rename' | 'unclassified' | AllowedFindingDispo
 export interface NamingClassificationRule {
   id: string;
   path_globs: string[];
+  exclude_path_globs?: string[];
   tokens: string[];
-  reason?: string;
-  owner?: string;
-  removal_condition?: string;
-  evidence?: string;
+  match_patterns?: string[];
+  reason: string;
+  owner: string;
+  removal_condition: string;
+  evidence: string;
 }
 
 export interface ConveractNamingPolicy {
@@ -78,6 +80,7 @@ function tokenMatchesRule(found: string, allowed: string): boolean {
 function findRules(
   path: string,
   token: string,
+  matchContext: string,
   policy: ConveractNamingPolicy,
 ): Array<{ disposition: AllowedFindingDisposition; id: string }> {
   const matches: Array<{ disposition: AllowedFindingDisposition; id: string }> = [];
@@ -85,7 +88,11 @@ function findRules(
     for (const rule of policy.classifications[disposition]) {
       if (
         rule.path_globs.some((glob) => globToRegExp(glob).test(path)) &&
-        rule.tokens.some((allowed) => tokenMatchesRule(token, allowed))
+        (rule.exclude_path_globs === undefined ||
+          !rule.exclude_path_globs.some((glob) => globToRegExp(glob).test(path))) &&
+        rule.tokens.some((allowed) => tokenMatchesRule(token, allowed)) &&
+        (rule.match_patterns === undefined ||
+          rule.match_patterns.some((pattern) => new RegExp(pattern, 'u').test(matchContext)))
       ) {
         matches.push({ disposition, id: rule.id });
       }
@@ -100,7 +107,10 @@ function collectMatches(value: string, policy: ConveractNamingPolicy): LegacyTok
     new RegExp(escapeRegExp(policy.repository.legacy), 'giu'),
     ...[...policy.environment.legacyPrefixes]
       .sort((left, right) => right.length - left.length)
-      .map((prefix) => new RegExp(`${escapeRegExp(prefix)}[A-Z0-9_]*`, 'gu')),
+      .map(
+        (prefix) =>
+          new RegExp(`(?<![A-Za-z0-9_])${escapeRegExp(prefix)}[A-Z0-9_]*`, 'gu'),
+      ),
     ...[...policy.brand.legacy]
       .sort((left, right) => right.length - left.length)
       .map(
@@ -146,9 +156,10 @@ function makeFinding(
   line: number,
   column: number,
   token: string,
+  matchContext: string,
   policy: ConveractNamingPolicy,
 ): LegacyNameFinding {
-  const classified = findRules(path, token, policy);
+  const classified = findRules(path, token, matchContext, policy);
   const dispositions = new Set(classified.map((match) => match.disposition));
   if (dispositions.size > 1) {
     return {
@@ -173,6 +184,16 @@ function makeFinding(
   };
 }
 
+function lexicalMatchContext(value: string, index: number, length: number): string {
+  const isContextCharacter = (character: string): boolean =>
+    /[A-Za-z0-9_./:@+-]/u.test(character);
+  let start = index;
+  let end = index + length;
+  while (start > 0 && isContextCharacter(value[start - 1]!)) start -= 1;
+  while (end < value.length && isContextCharacter(value[end]!)) end += 1;
+  return value.slice(start, end);
+}
+
 export function scanLegacyNames(
   root: string,
   policy: ConveractNamingPolicy,
@@ -182,7 +203,17 @@ export function scanLegacyNames(
 
   for (const rawPath of [...paths].map(normalizePath).sort()) {
     for (const match of collectMatches(rawPath, policy)) {
-      findings.push(makeFinding(rawPath, 'path', 0, match.index + 1, match.token, policy));
+      findings.push(
+        makeFinding(
+          rawPath,
+          'path',
+          0,
+          match.index + 1,
+          match.token,
+          lexicalMatchContext(rawPath, match.index, match.token.length),
+          policy,
+        ),
+      );
     }
 
     const absolutePath = join(root, rawPath);
@@ -197,7 +228,15 @@ export function scanLegacyNames(
     for (const match of collectMatches(content, policy)) {
       const location = lineAndColumn(content, match.index);
       findings.push(
-        makeFinding(rawPath, 'content', location.line, location.column, match.token, policy),
+        makeFinding(
+          rawPath,
+          'content',
+          location.line,
+          location.column,
+          match.token,
+          lexicalMatchContext(content, match.index, match.token.length),
+          policy,
+        ),
       );
     }
   }
@@ -223,6 +262,54 @@ export function loadNamingPolicy(path: string): ConveractNamingPolicy {
 function isNamingPolicy(value: unknown): value is ConveractNamingPolicy {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Partial<ConveractNamingPolicy>;
+  const classifications = candidate.classifications;
+  const rules = classifications
+    ? [
+        ...(classifications.compatibility ?? []),
+        ...(classifications.historical ?? []),
+        ...(classifications.external ?? []),
+      ]
+    : [];
+  const validRule = (rule: unknown): rule is NamingClassificationRule => {
+    if (typeof rule !== 'object' || rule === null) return false;
+    const candidateRule = rule as Partial<NamingClassificationRule>;
+    return (
+      typeof candidateRule.id === 'string' &&
+      candidateRule.id.length > 0 &&
+      Array.isArray(candidateRule.path_globs) &&
+      candidateRule.path_globs.length > 0 &&
+      candidateRule.path_globs.every((glob) => typeof glob === 'string' && glob.length > 0) &&
+      (candidateRule.exclude_path_globs === undefined ||
+        (Array.isArray(candidateRule.exclude_path_globs) &&
+          candidateRule.exclude_path_globs.length > 0 &&
+          candidateRule.exclude_path_globs.every(
+            (glob) => typeof glob === 'string' && glob.length > 0,
+          ))) &&
+      Array.isArray(candidateRule.tokens) &&
+      candidateRule.tokens.length > 0 &&
+      candidateRule.tokens.every((token) => typeof token === 'string' && token.length > 0) &&
+      (candidateRule.match_patterns === undefined ||
+        (Array.isArray(candidateRule.match_patterns) &&
+          candidateRule.match_patterns.length > 0 &&
+          candidateRule.match_patterns.every((pattern) => {
+            if (typeof pattern !== 'string' || pattern.length === 0) return false;
+            try {
+              new RegExp(pattern, 'u');
+              return true;
+            } catch {
+              return false;
+            }
+          }))) &&
+      typeof candidateRule.reason === 'string' &&
+      candidateRule.reason.length > 0 &&
+      typeof candidateRule.owner === 'string' &&
+      candidateRule.owner.length > 0 &&
+      typeof candidateRule.removal_condition === 'string' &&
+      candidateRule.removal_condition.length > 0 &&
+      typeof candidateRule.evidence === 'string' &&
+      candidateRule.evidence.length > 0
+    );
+  };
   return (
     candidate.schema_version === 1 &&
     Array.isArray(candidate.brand?.legacy) &&
@@ -233,7 +320,8 @@ function isNamingPolicy(value: unknown): value is ConveractNamingPolicy {
     Array.isArray(candidate.environment?.currentPrefixes) &&
     Array.isArray(candidate.classifications?.compatibility) &&
     Array.isArray(candidate.classifications?.historical) &&
-    Array.isArray(candidate.classifications?.external)
+    Array.isArray(candidate.classifications?.external) &&
+    rules.every(validRule)
   );
 }
 

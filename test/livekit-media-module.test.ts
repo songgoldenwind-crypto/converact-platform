@@ -481,7 +481,7 @@ test('media module blocks public media actions for closed rooms', async () => {
   db.close();
 });
 
-test('media module accepts injected LiveKit config for reuse outside OPC env', async () => {
+test('media module accepts injected LiveKit config for reuse outside Converact env', async () => {
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'LiveKit Injected Config' });
   const media = createLiveKitMediaModule({

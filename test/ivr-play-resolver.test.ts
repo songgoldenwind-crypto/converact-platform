@@ -35,10 +35,10 @@ const lookup = (id: string): AudioLibraryEntry | null => {
 test('resolvePlayContents: TTS with variable substitution', () => {
   const resolved = resolvePlayContents(
     [{ playType: 'tts', text: '您好，{{公司名}}' }],
-    { 公司名: 'OPC' },
+    { 公司名: 'Converact' },
   );
   assert.equal(resolved.promptType, 'tts');
-  assert.ok(resolved.text.includes('OPC'));
+  assert.ok(resolved.text.includes('Converact'));
 });
 
 test('resolvePlayContents: audio library file resolves to audio URL', () => {

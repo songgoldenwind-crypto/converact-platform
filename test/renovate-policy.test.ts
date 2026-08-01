@@ -34,7 +34,7 @@ interface ForkManifest {
   }>;
 }
 
-test('Renovate policy pins mutable artifacts and never automerges iveKit updates', async () => {
+test('Renovate policy pins mutable artifacts and never automerges Converact Fabric updates', async () => {
   const config = JSON.parse(await readFile('renovate.json', 'utf8')) as RenovateConfig;
 
   assert.equal(config.automerge, false);
@@ -48,7 +48,7 @@ test('Renovate policy pins mutable artifacts and never automerges iveKit updates
   );
   assert.ok(upstreamManager);
   assert.equal(upstreamManager.customType, 'regex');
-  assert.ok(upstreamManager.matchStrings?.some((pattern) => pattern.includes('ivekit-upstream')));
+  assert.ok(upstreamManager.matchStrings?.some((pattern) => pattern.includes('converact-upstream')));
 
   const digestManager = config.customManagers?.find(
     (manager) => manager.datasourceTemplate === 'docker'
@@ -57,11 +57,11 @@ test('Renovate policy pins mutable artifacts and never automerges iveKit updates
   assert.ok(digestManager.matchStrings?.some((pattern) => pattern.includes('currentDigest')));
 
   const upstreamRule = config.packageRules?.find((rule) =>
-    rule.matchDepTypes?.includes('ivekit-upstream')
+    rule.matchDepTypes?.includes('converact-upstream')
   );
   assert.ok(upstreamRule);
   assert.equal(upstreamRule.automerge, false);
-  assert.ok(upstreamRule.labels?.includes('ivekit-upstream'));
+  assert.ok(upstreamRule.labels?.includes('converact-upstream'));
 
   for (const rule of config.packageRules ?? []) {
     assert.notEqual(rule.automerge, true);
@@ -74,7 +74,7 @@ test('Renovate upstream watch covers every tagged fork without changing source a
   ) as ForkManifest;
   const watch = await readFile('.github/renovate-upstreams.env', 'utf8');
   const watched = new Map<string, string>();
-  const pattern = /# renovate: datasource=github-tags depName=([^\s]+) versioning=[^\s]+ depType=ivekit-upstream\s+[^=]+=(\S+)/g;
+  const pattern = /# renovate: datasource=github-tags depName=([^\s]+) versioning=[^\s]+ depType=converact-upstream\s+[^=]+=(\S+)/g;
 
   for (const match of watch.matchAll(pattern)) {
     watched.set(match[1], match[2]);

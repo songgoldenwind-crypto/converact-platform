@@ -1,7 +1,7 @@
 # 通信底座 VOS5000 对标与 100K 性能优化完全体设计
 
 > 相关决策：
-> [`整合设计 Revision 4`](rvoip-opc-communication-foundation-integration-design.md) ·
+> [`整合设计 Revision 4`](rvoip-converact-communication-foundation-integration-design.md) ·
 > [`ADR-CCAAS-5`](../adr/ccaas-5-media-authority-and-rtpengine.md) ·
 > [`ADR-CCAAS-7 Revision 6`](../adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md) ·
 > [`ADR-CCAAS-8`](../adr/ccaas-8-voice-livekit-bridge-handoff.md)
@@ -10,14 +10,14 @@
 >
 > 更新日期：2026-07-30
 >
-> 适用范围：OPC 与 LED 共用的 iveKit 通信底座
+> 适用范围：Converact Platform 与 LED 共用的 Converact Fabric 通信底座
 >
 > 不包含：LED 业务领域逻辑、移动端产品实现、真实 OCR/ASR/翻译供应商采购、双 Windows 物理机验收
 
 ## 1. 文档目的
 
 本文把前面几轮通信底座升级、性能设计和 VOS5000 对标讨论收敛成一个可执行的终态方案。
-它不是新的平行架构，也不是推翻现有 iveKit，而是回答以下问题：
+它不是新的平行架构，也不是推翻现有 Converact Fabric，而是回答以下问题：
 
 1. 之前的 Wave 1、Wave 2、Wave 3 和 MIX-100K/Cell 架构哪些继续保留；
 2. 现有 Kamailio + RustPBX 架构离运营级软交换底座还缺什么；
@@ -26,7 +26,7 @@
 5. 如何保证增加节点时边际效率不明显衰减；
 6. 录音、录像、对象存储、ASR、OCR、翻译和 AI 故障如何不影响实时媒体；
 7. 旧性能测试是否继续，以及哪些测试能形成真实容量结论；
-8. OPC/RustPBX 与 rvoip 如何整合而不产生第二套 PBX、SIP 或媒体权威；
+8. Converact Platform/RustPBX 与 rvoip 如何整合而不产生第二套 PBX、SIP 或媒体权威；
 9. Voice/SIP/PSTN 与 LiveKit 如何双向切换而不转移 Call、WebRTC、计费或录音 Authority；
 10. 后续开发应该拆成哪些 Goal，每个 Goal 如何验收。
 
@@ -50,11 +50,11 @@ Revision 4 的横切运行语义由
 
 现阶段正确的产品表述是：
 
-> iveKit 已具备向 VOS5000 级通信底座演进的控制面和集群骨架，容量声明仍为 `none`，待终态媒体面和目标硬件证据完成后再更新。
+> Converact Fabric 已具备向 VOS5000 级通信底座演进的控制面和集群骨架，容量声明仍为 `none`，待终态媒体面和目标硬件证据完成后再更新。
 
 ### 2.2 当前架构是否需要改变
 
-不需要推翻 Region/Zone/Cell、Kamailio、RustPBX 和 iveKit 控制面，但需要调整媒体职责。
+不需要推翻 Region/Zone/Cell、Kamailio、RustPBX 和 Converact Fabric 控制面，但需要调整媒体职责。
 
 保留：
 
@@ -65,10 +65,10 @@ Revision 4 的横切运行语义由
   但 Backend assignment、binding commit 和 writer fence 归 Media Engine Facade；
 - RustPBX 下建立唯一 `SipFoundation` Seam：当前由 rsipstack Adapter 实现，rvoip 的
   Message Codec、Transaction、Protocol Dialog、Transport/DNS 和 REGISTER/auth
-  primitives 经过等价门禁后逐模块迁入；OPC 自定义 Protocol Session façade，不引入
+  primitives 经过等价门禁后逐模块迁入；Converact Platform 自定义 Protocol Session façade，不引入
   rvoip Endpoint/SessionHandle/Orchestrator。目标为一个 Unified RustPBX executable、
   同一 Tokio control runtime、内部无 RPC，不部署第二套 PBX；
-- iveKit 的 placement、admission、lease epoch、owner fencing、signed snapshot 和审计体系；
+- Converact Fabric 的 placement、admission、lease epoch、owner fencing、signed snapshot 和审计体系；
 - PostgreSQL、NATS JetStream、对象存储、HOMER、OpenTelemetry 和 VictoriaMetrics；
 - LiveKit 作为 WebRTC 音视频、屏幕共享、Ingress/Egress、TURN 和视频 SFU；
 - Tinode 作为 IM 数据面；
@@ -98,7 +98,7 @@ Revision 4 的横切运行语义由
 - 让录音上传、磁盘写入、ASR、OCR、翻译或审计反向阻塞媒体；
 - 只依据平均 CPU、平均延迟或单一成功率形成容量声明；
 - 把 4 vCPU 云主机的受控结果外推为 32 物理核生产结论。
-- 把 rvoip 上游 benchmark、源码存在或 parser 能力直接写成 OPC 生产能力；
+- 把 rvoip 上游 benchmark、源码存在或 parser 能力直接写成 Converact Platform 生产能力；
 - 让 rsipstack 与 rvoip 对同一 Protocol Session 同时发送、计时、改状态或写业务事实。
 - 让两个 Backend 对同一 Media Edge generation 发包、改写 Wire Binding 或释放同一
   端口/SSRC/buffer。
@@ -251,7 +251,7 @@ worker、codec permit、队列和 SIP/control headroom 预算，不能把历史�
 ### 4.3 对标不是复制
 
 VOS5000 类系统的能力来自信令、B2BUA、媒体、转码、录音、路由、计费和运维的整体协作。
-iveKit 不复制其单体实现，而采用：
+Converact Fabric 不复制其单体实现，而采用：
 
 - 云原生控制面；
 - Cell 本地实时数据面；
@@ -355,7 +355,7 @@ Kamailio 不负责：
 - AI/ASR/翻译。
 
 Kamailio dispatcher 官方提供 round-robin、weight、relative weight、call-load 和属性哈希等算法，
-但哈希算法不自动保证公平。因此 iveKit 不直接使用固定算法作为容量真相，而由 route-agent
+但哈希算法不自动保证公平。因此 Converact Fabric 不直接使用固定算法作为容量真相，而由 route-agent
 根据签名容量快照编译相对权重，再由 component-node admission 做最终硬门。
 
 参考：[Kamailio dispatcher 官方文档](https://kamailio.org/docs/modules/stable/modules/dispatcher.html)。
@@ -384,7 +384,7 @@ RustPBX 对 SIP 协议底座只依赖 `SipFoundation` Interface。当前
 Protocol Transaction、Protocol Dialog、Transport、snapshot/restore 和 effect
 contracts。任何 rvoip Module 都以进程内 Adapter 或 Exact Source Slice 接入，不新增
 网络跳、第二套 B2BUA 或第二套业务模型 Authority。完整设计见
-[`rvoip-opc-communication-foundation-integration-design.md`](rvoip-opc-communication-foundation-integration-design.md)。
+[`rvoip-converact-communication-foundation-integration-design.md`](rvoip-converact-communication-foundation-integration-design.md)。
 
 所有可见 SIP effect 必须遵循
 `prepare_effect -> Business Dialog + durable shadow commit -> owner-fenced
@@ -421,7 +421,7 @@ refcount 为零时释放一次；raw SRTP key 不持久化，只保存 reference
 分配给 decode-required Edge 的 Binding Group 由进程内
 `EmbeddedVoiceMediaBackend` 负责。每条 Edge 只有一个 writer，不能由 ordinary 与
 processing Backend 双写。rtpengine 官方文档说明了
-多线程、内核转发、转码、media forking 和录音能力；iveKit fork 仍需增加 owner epoch、
+多线程、内核转发、转码、media forking 和录音能力；Converact Fabric fork 仍需增加 owner epoch、
 容量槽、低基数指标、故障隔离和可重复构建门禁。
 
 Rust-native Backend 不属于完成 `CARRIER-CELL-V1` 的前置条件；如启动该竞争实现，必须
@@ -554,11 +554,11 @@ service 保留 authoritative manifest。Goal 0 必须发布 ADR revision 固化�
 | assigned ordinary Edge 的 Backend Binding Group、Wire Transport Bundle、effective wire SDP、端口、SRTP 与 RTP/RTCP runtime | 默认 RTPengine；候选只有资格化后可用于新 Edge |
 | assigned decode-required Edge 的 Backend Binding Group、Wire Transport Bundle、端口与 source validation | 进程内 `EmbeddedVoiceMediaBackend` |
 | decode-required Edge 的 SSRC/sequence、jitter、DTMF、转码 runtime | 进程内 `voice-media-rs` worker |
-| Voice↔LiveKit logical bridge、generation/attempt、command/receipt、handoff decision 与 tombstone | OPC Bridge Coordinator store；directed Edge/writer decision 仍归 Media Engine Facade |
+| Voice↔LiveKit logical bridge、generation/attempt、command/receipt、handoff decision 与 tombstone | Converact Platform Bridge Coordinator store；directed Edge/writer decision 仍归 Media Engine Facade |
 | LiveKit SIP participant/native call execution state | LiveKit SIP executor receipt/query |
 | Room、WebRTC Participant/Track、ICE/DTLS/SRTP 与 SFU route | LiveKit |
 | root RecordingManifest、source segment chains、checksum、spool/upload、retention 与 evidence state | Region recording plane |
-| `VOICE-LIVEKIT-BRIDGE-V1` admission、capacity profile 与 evidence finalization | iveKit capacity ledger/finalizer |
+| `VOICE-LIVEKIT-BRIDGE-V1` admission、capacity profile 与 evidence finalization | Converact Fabric capacity ledger/finalizer |
 
 每个 Media Edge 都必须在协议中声明 stable Edge ID/generation、source/destination、
 mode、plan/binding revision、Backend source/binary/config identity、writer fence、
@@ -1730,7 +1730,7 @@ rtpengine/RecordingManifest 后，必须发布新的 `MIX-100K-v2` 或更高 rev
 
 依赖：Goal 0。
 
-### Goal 2：rtpengine 精确源码与 iveKit fork
+### Goal 2：rtpengine 精确源码与 Converact Fabric fork
 
 目标：
 
@@ -2114,7 +2114,7 @@ Backend 属于 Track R；它不阻塞 G.729 或 Goal 4，也不改变 RTPengine 
 - 自动 ACK/CANCEL/错误输出的显式 effect policy；
 - REGISTER Authority 分离：公网入站 responder/location 归 Kamailio；outbound
   trunk/Standalone REGISTER Protocol Transaction 归选定 `SipFoundation`；
-  identity/credential/placement 归 OPC。
+  identity/credential/placement 归 Converact Platform。
 
 验收：
 
@@ -2453,11 +2453,11 @@ Goal 0..10 + Goal 3L --> Goal 11 正式验收
   继续作为统一 QoE 合同；本文增加 VOS-EQ 和媒体容量维度。
 - [Kamailio SIP Edge Design](kamailio-sip-edge-design.md)：
   继续作为 SIP Edge 详细设计；本文明确其不拥有媒体。
-- [iveKit V3 Completion Audit](../ivekit-v3-completion-audit.md)：
+- [Converact Fabric V3 Completion Audit](../converact-fabric-v3-completion-audit.md)：
   继续记录 implemented/controlled/not_run 事实。
 - [rvoip 替换与能力提取审计](../adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md)：
   固定 rvoip 的低层技术定位、禁止高层重复 runtime 的边界和 Backend 资格门槛。
-- [rvoip × OPC/iveKit 通信底座整合设计](rvoip-opc-communication-foundation-integration-design.md)：
+- [rvoip × Converact Platform/Converact Fabric 通信底座整合设计](rvoip-converact-communication-foundation-integration-design.md)：
   规范 `SipFoundation` Seam、逐 Module 采用、G.729、权威、迁移、回滚、测试和证据。
 - [项目领域语言](../../CONTEXT.md)：
   区分 Business Dialog、Protocol Dialog、Logical Media Graph、Media Plan、directed
@@ -2465,7 +2465,7 @@ Goal 0..10 + Goal 3L --> Goal 11 正式验收
   和 Processing Session，防止设计与实现混淆权威。
 
 本文是后续 Goal 的总入口。规范冲突时，最新 Accepted ADR 决定 Authority 与重大选型；
-[`rvoip × OPC/iveKit 通信底座整合设计`](rvoip-opc-communication-foundation-integration-design.md)
+[`rvoip × Converact Platform/Converact Fabric 通信底座整合设计`](rvoip-converact-communication-foundation-integration-design.md)
 决定 rvoip 的具体 Interface、Adapter 和迁移细节；本文决定 Goal 0-11 的依赖、容量口径
 和全局门禁。实现状态仍以 completion audit 和机器可读 evidence 为准。
 

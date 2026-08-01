@@ -2,17 +2,17 @@
 set -euo pipefail
 
 EXPECTED_SERVER_IP="64.225.122.227"
-if [[ "${IVEKIT_VALIDATION_SERVER_IP:-}" != "$EXPECTED_SERVER_IP" ]]; then
-  echo "IVEKIT_VALIDATION_SERVER_IP must identify the controlled validation server" >&2
+if [[ "${CONVERACT_FABRIC_VALIDATION_SERVER_IP:-}" != "$EXPECTED_SERVER_IP" ]]; then
+  echo "CONVERACT_FABRIC_VALIDATION_SERVER_IP must identify the controlled validation server" >&2
   exit 2
 fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PACKAGE_DIR="$ROOT/services/converact-service/acceptance/victoria-metrics"
-PROJECT="ivekit_vm_accept_${$}_${RANDOM}"
+PROJECT="converact_vm_accept_${$}_${RANDOM}"
 RUNTIME_DIR="/tmp/$PROJECT"
-EVIDENCE_FILE="${IVEKIT_VM_EVIDENCE_FILE:-$ROOT/docs/evidence/wave2-victoria-metrics-runtime-2026-07-22.json}"
-NODE="${IVEKIT_NODE_BIN:-/opt/opc-wave123-validation-20260722/cache/toolchain/bin/node}"
+EVIDENCE_FILE="${CONVERACT_FABRIC_VM_EVIDENCE_FILE:-$ROOT/docs/evidence/wave2-victoria-metrics-runtime-2026-07-22.json}"
+NODE="${CONVERACT_FABRIC_NODE_BIN:-/opt/converact-wave123-validation-20260722/cache/toolchain/bin/node}"
 COMPOSE=(docker compose -p "$PROJECT" -f "$PACKAGE_DIR/docker-compose.yml")
 EXPECTED_LED=(
   led-platform-admin-1
@@ -162,7 +162,7 @@ fi
 CURRENT_STAGE="prepare-restore"
 "${COMPOSE[@]}" stop prometheus >/dev/null
 "${COMPOSE[@]}" stop victoria-metrics >/dev/null
-if [[ "$RUNTIME_DIR" != /tmp/ivekit_vm_accept_* ]]; then
+if [[ "$RUNTIME_DIR" != /tmp/converact_vm_accept_* ]]; then
   echo "unsafe runtime directory" >&2
   exit 5
 fi

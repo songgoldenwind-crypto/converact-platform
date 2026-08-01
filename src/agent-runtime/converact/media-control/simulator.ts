@@ -272,9 +272,9 @@ export class InMemoryMediaTransport implements MediaTransportPort {
         owner_node_id: command.owner_node_id,
         expires_at: command.expires_at,
         transport_session_id: `transport-${this.#nextSession++}`,
-        effective_sdp: offerSdp.includes('a=ivekit-media-node:')
+        effective_sdp: offerSdp.includes('a=converact-media-node:')
           ? offerSdp
-          : `${offerSdp}a=ivekit-media-node:simulator\r\n`,
+          : `${offerSdp}a=converact-media-node:simulator\r\n`,
         state: 'prepared',
         owner_epoch: command.owner_epoch,
         last_sequence: command.command_sequence,

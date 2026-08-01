@@ -170,7 +170,7 @@ def _fetch_html(url: str, timeout_ms: int = 7000) -> tuple[str, str]:
     request = Request(
         url,
         headers={
-            "User-Agent": "OPC AI Worker/1.0",
+            "User-Agent": "Converact AI Worker/1.0",
             "Accept": "text/html,application/xhtml+xml",
         },
     )

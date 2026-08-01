@@ -31,7 +31,7 @@ test('model gateway routes calls through dry-run adapter and records usage', asy
       purpose: 'playbook_planning',
       messages: [
         { role: 'system', content: 'You are a dry-run planner.' },
-        { role: 'user', content: 'Plan a simple OPC growth workflow.' }
+        { role: 'user', content: 'Plan a simple Converact growth workflow.' }
       ]
     }
   );

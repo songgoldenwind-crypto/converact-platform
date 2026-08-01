@@ -3,12 +3,12 @@ import { after, afterEach, before, test } from 'node:test';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 
 import type {
-  IveKitClient,
-  IveKitMediaCallAction,
-  IveKitMediaCallSnapshot,
-  IveKitMediaCallStatus,
-  IveKitMediaConnectionEventInput,
-  IveKitMediaJoinPlan
+  ConveractFabricClient,
+  ConveractFabricMediaCallAction,
+  ConveractFabricMediaCallSnapshot,
+  ConveractFabricMediaCallStatus,
+  ConveractFabricMediaConnectionEventInput,
+  ConveractFabricMediaJoinPlan
 } from '@converact/sdk';
 import { installTestDom } from '../test-dom.js';
 import type { MediaRejoinScheduler } from './media-rejoin-controller.js';
@@ -111,7 +111,7 @@ test('terminal transition disposes media before publishing the terminal snapshot
 });
 
 test('switching call disposes the old adapter and suppresses its late HTTP response', async () => {
-  const old = deferred<IveKitMediaCallSnapshot>();
+  const old = deferred<ConveractFabricMediaCallSnapshot>();
   const adapters: FakeAdapter[] = [];
   const client = fakeClient({
     getCall: async (id) => id === 'call-old' ? old.promise : snapshot('ringing', 'call-new')
@@ -223,8 +223,8 @@ test('terminal disconnect obtains a fresh token and adapter, restores camera and
   const sequence: string[] = [];
   const scheduler = new FakeRejoinScheduler();
   const adapters: FakeAdapter[] = [];
-  const connectionEvents: IveKitMediaConnectionEventInput[] = [];
-  const joinInputs: import('@converact/sdk').IveKitMediaJoinInput[] = [];
+  const connectionEvents: ConveractFabricMediaConnectionEventInput[] = [];
+  const joinInputs: import('@converact/sdk').ConveractFabricMediaJoinInput[] = [];
   let joinPlans = 0;
   const client = fakeClient({
     getCall: async () => snapshot('active'),
@@ -319,7 +319,7 @@ test('terminal rejoin waits for browser online and stops when the call becomes t
 
 test('native LiveKit reconnect reports the same revision without replacing the room or token', async () => {
   const adapters: FakeAdapter[] = [];
-  const connectionEvents: IveKitMediaConnectionEventInput[] = [];
+  const connectionEvents: ConveractFabricMediaConnectionEventInput[] = [];
   let joinPlans = 0;
   const client = fakeClient({
     getCall: async () => snapshot('active'),
@@ -354,7 +354,7 @@ test('native LiveKit reconnect reports the same revision without replacing the r
 test('terminal rejoin increments revision per failed fresh join and becomes fatal after bounded exhaustion', async () => {
   const scheduler = new FakeRejoinScheduler();
   const adapters: FakeAdapter[] = [];
-  const connectionEvents: IveKitMediaConnectionEventInput[] = [];
+  const connectionEvents: ConveractFabricMediaConnectionEventInput[] = [];
   let joinPlans = 0;
   const client = fakeClient({
     getCall: async () => snapshot('active'),
@@ -455,7 +455,7 @@ class FakeAdapter implements LiveKitRoomAdapter {
   ) {}
   setEventHandler(handler: (event: MediaAdapterEvent) => void) { this.onEvent = handler; }
   emit(event: MediaAdapterEvent) { this.onEvent?.(event); }
-  async connect(_plan: IveKitMediaJoinPlan) {
+  async connect(_plan: ConveractFabricMediaJoinPlan) {
     this.sequence.push('adapter:connect');
     if (this.emitConnected) this.onEvent?.({ type: 'state', generation: 1, state: 'connected' });
   }
@@ -488,7 +488,7 @@ class FakeWebSocket {
 }
 
 function input(
-  client: IveKitClient,
+  client: ConveractFabricClient,
   adapterFactory: MediaAdapterFactory,
   overrides: Partial<Parameters<typeof useMediaCall>[0]> = {}
 ): Parameters<typeof useMediaCall>[0] {
@@ -506,7 +506,7 @@ function input(
   };
 }
 
-function fakeClient(overrides: Partial<IveKitClient['media']>): IveKitClient {
+function fakeClient(overrides: Partial<ConveractFabricClient['media']>): ConveractFabricClient {
   const unexpected = async (name: string): Promise<never> => { throw new Error(`unexpected ${name}`); };
   return {
     media: {
@@ -514,11 +514,11 @@ function fakeClient(overrides: Partial<IveKitClient['media']>): IveKitClient {
       createCallJoinPlan: () => unexpected('createCallJoinPlan'),
       transitionCall: () => unexpected('transitionCall'),
       ...overrides
-    } as IveKitClient['media']
-  } as IveKitClient;
+    } as ConveractFabricClient['media']
+  } as ConveractFabricClient;
 }
 
-function snapshot(status: IveKitMediaCallStatus, id = 'call-1'): IveKitMediaCallSnapshot {
+function snapshot(status: ConveractFabricMediaCallStatus, id = 'call-1'): ConveractFabricMediaCallSnapshot {
   return {
     call: {
       id,
@@ -552,7 +552,7 @@ function joinPlan(
   token = 'short-token',
   reservationId?: string,
   ownerEpoch = '12884901889'
-): IveKitMediaJoinPlan {
+): ConveractFabricMediaJoinPlan {
   return {
     mode: 'webrtc', channel: 'webrtc', roomName: 'room-call-1', role: 'participant',
     token: {

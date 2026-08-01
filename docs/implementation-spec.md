@@ -1,4 +1,4 @@
-# OPC 视频+语音呼叫中心 — 实施规格
+# Converact Platform 视频+语音呼叫中心 — 实施规格
 
 > 本文是 [`architecture-video-voice-callcenter.md`](./architecture-video-voice-callcenter.md) 的开发级补充。
 > 架构文档定义「是什么」，本文定义「怎么做」。
@@ -60,7 +60,7 @@
 
 | 状态 | 含义 |
 |------|------|
-| `initiated` | OPC 创建了 session 记录，尚未发送 SIP |
+| `initiated` | Converact Platform 创建了 session 记录，尚未发送 SIP |
 | `ringing` | INVITE 已发 / 收到 180 |
 | `in_progress` | 200 OK / 已接通 |
 | `completed` | BYE，正常挂断 |
@@ -92,7 +92,7 @@
 | `busy` | 正在通话 | ❌ |
 | `break` | 休息（手动设置） | ❌ |
 
-**心跳**：坐席面板每 15s 发 heartbeat → OPC 更新 `last_heartbeat_at`。若 60s 无心跳 → 自动切 `offline`。
+**心跳**：坐席面板每 15s 发 heartbeat → Converact Platform 更新 `last_heartbeat_at`。若 60s 无心跳 → 自动切 `offline`。
 
 ### 1.4 LiveKit Room 生命周期
 
@@ -102,13 +102,13 @@
 └─────────┘                          └────────┘                         └────────┘
 ```
 
-Room `empty_timeout`: 300s (LiveKit config)。OPC 在收到 `room_finished` webhook 后将 `livekit_rooms.status` 改为 `closed`。
+Room `empty_timeout`: 300s (LiveKit config)。Converact Platform 在收到 `room_finished` webhook 后将 `livekit_rooms.status` 改为 `closed`。
 
 ---
 
 ## 2. 完整 HTTP API 契约
 
-### 2.1 OPC 新增端点总表
+### 2.1 Converact Platform 新增端点总表
 
 | Method | Path | 调用方 | 说明 |
 |--------|------|--------|------|
@@ -119,7 +119,7 @@ Room `empty_timeout`: 300s (LiveKit config)。OPC 在收到 `room_finished` webh
 | PUT | `/api/call-center/seats/:id/status` | 坐席面板 | 切换状态 |
 | POST | `/api/call-center/seats/:id/heartbeat` | 坐席面板 | 心跳 |
 | GET | `/api/call-center/outbound-tasks` | 坐席面板 / 管理 | 外呼任务列表 |
-| POST | `/api/call-center/outbound-tasks` | OPC 内部 / API | 创建外呼任务 |
+| POST | `/api/call-center/outbound-tasks` | Converact Platform 内部 / API | 创建外呼任务 |
 | POST | `/api/call-center/outbound-tasks/:id/cancel` | 管理 | 取消任务 |
 | POST | `/api/call-center/calls/originate` | 坐席面板 | 坐席手动外呼 |
 | POST | `/api/call-center/calls/:id/transfer` | 坐席面板 / AI Agent | 转接 |
@@ -127,16 +127,16 @@ Room `empty_timeout`: 300s (LiveKit config)。OPC 在收到 `room_finished` webh
 | POST | `/api/call-center/calls/:id/hangup` | 坐席面板 | 挂断 |
 | GET | `/api/call-center/calls/:id` | 坐席面板 | 通话详情 |
 | GET | `/api/call-center/calls` | 坐席面板 / 管理 | 通话记录列表 |
-| POST | `/api/livekit/rooms` | OPC 内部 | 创建 Room |
+| POST | `/api/livekit/rooms` | Converact Platform 内部 | 创建 Room |
 | GET | `/api/livekit/token` | 坐席面板 / H5 | 获取加入 Room 的 token |
-| POST | `/api/livekit/agent-dispatch` | OPC 内部 / AI Agent | 请求转人工 |
+| POST | `/api/livekit/agent-dispatch` | Converact Platform 内部 / AI Agent | 请求转人工 |
 | GET | `/api/call-center/dashboard` | 坐席面板 | 今日概览数据 |
 
 ### 2.2 端点详细规格
 
 #### `POST /api/call-router`
 
-RustPBX 每收到一个 INVITE 就回调此端点。OPC 必须在 3s 内响应。
+RustPBX 每收到一个 INVITE 就回调此端点。Converact Platform 必须在 3s 内响应。
 
 **Request** (from RustPBX):
 ```typescript
@@ -153,7 +153,7 @@ interface CallRouterRequest {
 }
 ```
 
-**Response** (OPC → RustPBX):
+**Response** (Converact Platform → RustPBX):
 ```typescript
 interface CallRouterResponse {
   action: 'forward' | 'queue' | 'reject' | 'ivr' | 'voicemail';
@@ -181,7 +181,7 @@ interface CallRouterResponse {
 }
 ```
 
-**路由决策逻辑** (OPC 内部):
+**路由决策逻辑** (Converact Platform 内部):
 ```
 1. 解析 to_uri 提取被叫号码
 2. 查 tenant 配置 → 找到对应租户
@@ -223,7 +223,7 @@ interface RustPBXCDR {
 
 **Response**: `200 OK` (body ignored)
 
-**OPC 处理逻辑**:
+**Converact Platform 处理逻辑**:
 1. 通过 `call_id` 匹配 `voice_call_sessions.rustpbx_call_id`
 2. 更新 session: status → `completed` / `missed`
 3. 更新 duration, hangup_cause
@@ -382,7 +382,7 @@ interface TokenResponse {
 
 #### `POST /api/livekit/agent-dispatch`
 
-AI Agent 请求 OPC 执行转人工（从 Python agent 调用）。
+AI Agent 请求 Converact Platform 执行转人工（从 Python agent 调用）。
 
 **Request**:
 ```typescript
@@ -447,7 +447,7 @@ interface DashboardData {
 
 ## 3. 实时通信协议
 
-### 3.1 坐席面板 ↔ OPC（SSE 推送）
+### 3.1 坐席面板 ↔ Converact Platform（SSE 推送）
 
 坐席面板打开后建立 Server-Sent Events 连接，接收实时事件。
 
@@ -493,17 +493,17 @@ interface QueueUpdateEvent {
 }
 ```
 
-**实现**: OPC 内部使用 Redis Pub/Sub：
+**实现**: Converact Platform 内部使用 Redis Pub/Sub：
 - Channel: `seat:{seat_id}:events`
 - AI Agent / CDR receiver / dialer 发布事件到 Redis
 - SSE handler 订阅该 channel 并 stream 给前端
 
-### 3.2 AI Agent ↔ OPC（HTTP API）
+### 3.2 AI Agent ↔ Converact Platform（HTTP API）
 
-AI Agent (Python) 通过 HTTP 调用 OPC：
+AI Agent (Python) 通过 HTTP 调用 Converact Platform：
 
 ```python
-# services/ai-agent-py/opc_client.py
+# services/ai-agent-py/converact_client.py
 
 class OPCClient:
     def __init__(self, base_url: str, api_key: str):
@@ -526,12 +526,12 @@ class OPCClient:
         ...
 ```
 
-### 3.3 OPC → AI Agent 指令
+### 3.3 Converact Platform → AI Agent 指令
 
-OPC 通过 LiveKit Room metadata 或 data channel 向 AI Agent 下发指令：
+Converact Platform 通过 LiveKit Room metadata 或 data channel 向 AI Agent 下发指令：
 
 ```typescript
-// OPC 更新 Room metadata 来影响 AI Agent 行为
+// Converact Platform 更新 Room metadata 来影响 AI Agent 行为
 interface RoomMetadataUpdate {
   action?: 'stop_conversation' | 'change_script' | 'extend_timeout';
   new_script_id?: string;
@@ -549,25 +549,25 @@ AI Agent 监听 `RoomEvent.RoomMetadataChanged` 并响应。
 
 | 场景 | 处理 |
 |------|------|
-| OPC 3s 内未响应 | RustPBX fallback_action = "reject" → 给来电方 486 |
-| OPC 返回 5xx | 同上，reject |
-| OPC 返回非法 JSON | 同上，reject |
+| Converact Platform 3s 内未响应 | RustPBX fallback_action = "reject" → 给来电方 486 |
+| Converact Platform 返回 5xx | 同上，reject |
+| Converact Platform 返回非法 JSON | 同上，reject |
 
-**OPC 侧优化**：call-router handler 不做重 DB 查询，路由配置预热到内存 (Redis cache)。
+**Converact Platform 侧优化**：call-router handler 不做重 DB 查询，路由配置预热到内存 (Redis cache)。
 
 ### 4.2 AI Agent 崩溃
 
 | 场景 | 检测方式 | 恢复 |
 |------|---------|------|
-| Agent 进程 crash | LiveKit `participant_left` webhook, identity 含 "ai-agent" 前缀 | OPC 自动 dispatch 新 Agent 到同一 Room |
-| Agent 无响应 > 10s | AI Agent 内部 watchdog 定时 publish data message | OPC 检测到无 heartbeat → 重启 Agent |
+| Agent 进程 crash | LiveKit `participant_left` webhook, identity 含 "ai-agent" 前缀 | Converact Platform 自动 dispatch 新 Agent 到同一 Room |
+| Agent 无响应 > 10s | AI Agent 内部 watchdog 定时 publish data message | Converact Platform 检测到无 heartbeat → 重启 Agent |
 | STT/LLM/TTS provider 超时 | Agent 内部 exception → fallback | Agent 播报 "请稍候" → 重试 → 3 次失败 → 转人工 |
 
 **Agent 重连流程**：
-1. OPC 收到 `participant_left` for AI Agent
+1. Converact Platform 收到 `participant_left` for AI Agent
 2. 检查 Room 中是否仍有客户 participant
 3. 若有 → 5s 内 dispatch 新 Agent（带同一 script + conversation context）
-4. 新 Agent 从 OPC 获取已有 conversation_turns → 恢复上下文
+4. 新 Agent 从 Converact Platform 获取已有 conversation_turns → 恢复上下文
 
 ### 4.3 CDR 丢失补偿
 
@@ -729,7 +729,7 @@ class TransferOrchestrator {
 
 坐席面板收到 `incoming_call` 事件后：
 - **接受**: `POST /api/livekit/token?room_name=xxx&identity=seat_xxx&role=agent` → 拿 token → 加入 Room
-- **拒绝/超时(20s)**: OPC 自动找下一个空闲坐席 → 重复流程。3 次全拒 → 排队或回调。
+- **拒绝/超时(20s)**: Converact Platform 自动找下一个空闲坐席 → 重复流程。3 次全拒 → 排队或回调。
 
 ---
 
@@ -740,7 +740,7 @@ class TransferOrchestrator {
 | 层级 | 工具 | 范围 |
 |------|------|------|
 | 单元测试 | Node.js test runner | call-router 路由逻辑、seat 状态机、dialer 调度 |
-| 集成测试 | Node.js + Docker | OPC ↔ Redis、OPC ↔ SQLite |
+| 集成测试 | Node.js + Docker | Converact Platform ↔ Redis、Converact Platform ↔ SQLite |
 | 组件测试 | Mock RustPBX / Mock LiveKit | 完整通话流程无需真实 SIP |
 | E2E 测试 | Docker Compose full stack | 真实 SIP 通话 (SIPp + LiveKit) |
 
@@ -932,11 +932,11 @@ lk sip dispatch-rule create --url http://localhost:7880 --api-key $LK_API_KEY --
 3. 同时用 LiveKit CLI join 对应 Room: `lk room join --room call-xxx`
 4. **验收标准**：两端能互相听到音频
 
-### 8.8 Step 7: OPC Schema 扩展
+### 8.8 Step 7: Converact Platform Schema 扩展
 
 ```bash
-# 在 OPC 项目中执行 schema 迁移
-cd /Users/songjinfeng/Desktop/opc
+# 在 Converact Platform 项目中执行 schema 迁移
+cd /Users/songjinfeng/Desktop/converact
 # 在 src/schema.sql 末尾追加新表 (参考架构文档 §6)
 # 重建 DB:
 rm -f data/opc.sqlite
@@ -955,14 +955,14 @@ npm run seed
 | 6 | RustPBX SIP 可达 | `sipsak -s sip:test@host:5060` | 200 OK |
 | 7 | LiveKit SIP 可达 | `sipsak -s sip:test@host:5061` | 200 OK |
 | 8 | SIP Trunk 互通 | RustPBX WebPhone → LiveKit Room | 双向音频通 |
-| 9 | OPC Schema 扩展 | `npm run seed` 无报错 | 新表可查 |
-| 10 | OPC call-router 桩 | RustPBX INVITE → OPC 200 | 日志显示回调 |
+| 9 | Converact Platform Schema 扩展 | `npm run seed` 无报错 | 新表可查 |
+| 10 | Converact Platform call-router 桩 | RustPBX INVITE → Converact Platform 200 | 日志显示回调 |
 
 ---
 
 ## 9. 依赖版本锁定
 
-### 9.1 OPC (Node.js)
+### 9.1 Converact Platform (Node.js)
 
 ```json
 {
@@ -993,10 +993,10 @@ pydantic>=2.10.0
 
 | 服务 | 镜像 | Tag 策略 |
 |------|------|----------|
-| RustPBX | iveKit fixed-source image | 生产使用审核后的 immutable digest |
-| LiveKit Server | `ivekit/livekit-server` | `v1.13.4-ivekit.1`，生产制品必须绑定 iveKit fork 的 digest |
-| LiveKit SIP | iveKit exact-source image | `v1.7.0`，生产制品必须使用签名 digest |
-| LiveKit Egress | `ivekit/livekit-egress` | `v1.13.0` 源码基线，Chart 强制 custom image digest |
+| RustPBX | Converact Fabric fixed-source image | 生产使用审核后的 immutable digest |
+| LiveKit Server | `converact/livekit-server` | `v1.13.4-ivekit.1`，生产制品必须绑定 Converact Fabric fork 的 digest |
+| LiveKit SIP | Converact Fabric exact-source image | `v1.7.0`，生产制品必须使用签名 digest |
+| LiveKit Egress | `converact/livekit-egress` | `v1.13.0` 源码基线，Chart 强制 custom image digest |
 | Redis | `redis` | standalone Media Core 固定 `7.4.9` |
 | MinIO | `minio/minio` | `RELEASE.2025-09-07T16-13-09Z` + manifest digest |
 
@@ -1010,7 +1010,7 @@ pydantic>=2.10.0
 |------|---------|----------|
 | RustPBX | Prometheus `/metrics` | `rustpbx_active_calls`, `rustpbx_call_duration_seconds`, `rustpbx_queue_wait_seconds` |
 | LiveKit | Prometheus `/metrics` | `livekit_room_count`, `livekit_participant_count`, `livekit_packet_loss_ratio` |
-| OPC | 自定义 | `opc_outbound_tasks_pending`, `opc_transfer_latency_ms`, `opc_ai_intent_score_histogram` |
+| Converact Platform | 自定义 | `opc_outbound_tasks_pending`, `opc_transfer_latency_ms`, `opc_ai_intent_score_histogram` |
 | AI Agent | LiveKit Agent metrics | `agent_response_latency_ms`, `agent_stt_latency_ms`, `agent_tts_latency_ms` |
 
 ### 10.2 日志格式
@@ -1021,7 +1021,7 @@ pydantic>=2.10.0
 {
   "ts": "2026-06-15T18:30:00.000Z",
   "level": "info",
-  "service": "opc",
+  "service": "converact",
   "module": "call-router",
   "call_id": "uuid",
   "tenant_id": "tenant_abc",
@@ -1049,13 +1049,13 @@ pydantic>=2.10.0
 
 | 通信路径 | 认证方式 |
 |---------|----------|
-| 前端 → OPC API | Bearer Token (JWT, 坐席登录后颁发) |
+| 前端 → Converact Platform API | Bearer Token (JWT, 坐席登录后颁发) |
 | 客户 H5 → LiveKit | 一次性 JWT (room+identity 绑定, 30 min TTL) |
-| RustPBX → OPC | 固定 API Key (Header: `X-PBX-Key`) |
-| LiveKit → OPC webhook | HMAC 签名验证 (livekit-server-sdk 内建) |
-| OPC → RustPBX RWI | WebSocket + Basic Auth |
-| OPC → LiveKit API | API Key + Secret |
-| AI Agent → OPC | 内网固定 API Key |
+| RustPBX → Converact Platform | 固定 API Key (Header: `X-PBX-Key`) |
+| LiveKit → Converact Platform webhook | HMAC 签名验证 (livekit-server-sdk 内建) |
+| Converact Platform → RustPBX RWI | WebSocket + Basic Auth |
+| Converact Platform → LiveKit API | API Key + Secret |
+| AI Agent → Converact Platform | 内网固定 API Key |
 
 ### 11.2 录音合规
 
@@ -1086,7 +1086,7 @@ pydantic>=2.10.0
 - [ ] SSL 证书配置（WebRTC 要求 HTTPS origin）
 - [ ] MinIO bucket 创建 + 权限配置
 - [ ] Redis 密码保护
-- [ ] OPC API key 生成并分发
+- [ ] Converact Platform API key 生成并分发
 - [ ] 监控告警 webhook 配置 (Slack/企微)
 - [ ] 合规录音提示音文件上传
 - [ ] 压测通过 (100 并发语音 + 10 并发视频)

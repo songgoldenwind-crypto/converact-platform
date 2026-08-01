@@ -12,7 +12,7 @@ import {
 } from '../src/agent-runtime/media-recording-object.js';
 
 test('recording object resolver reads file urls', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'opc-recording-object-'));
+  const dir = await mkdtemp(join(tmpdir(), 'converact-recording-object-'));
   try {
     const filePath = join(dir, 'recording.mp4');
     const body = Buffer.from('recording-object-body');
@@ -31,7 +31,7 @@ test('recording object resolver reads file urls', async () => {
 });
 
 test('recording object resolver rejects files above the bounded export size before reading them', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'opc-recording-object-limit-'));
+  const dir = await mkdtemp(join(tmpdir(), 'converact-recording-object-limit-'));
   try {
     const filePath = join(dir, 'oversized.mp4');
     await writeFile(filePath, Buffer.alloc(5));
@@ -128,7 +128,7 @@ test('recording object resolver blocks cross-bucket S3 access in production', as
 test('recording object resolver blocks arbitrary production file paths', async () => {
   const previousNodeEnv = process.env.NODE_ENV;
   const previousRoot = process.env.CONVERACT_RECORDING_OBJECT_DIR;
-  const dir = await mkdtemp(join(tmpdir(), 'opc-recording-object-blocked-'));
+  const dir = await mkdtemp(join(tmpdir(), 'converact-recording-object-blocked-'));
   const filePath = join(dir, 'recording.mp4');
   await writeFile(filePath, 'blocked production file');
   process.env.NODE_ENV = 'production';
@@ -153,7 +153,7 @@ test('recording object resolver blocks arbitrary production file paths', async (
 test('recording object resolver and cleanup allow files under the configured production root', async () => {
   const previousNodeEnv = process.env.NODE_ENV;
   const previousRoot = process.env.CONVERACT_RECORDING_OBJECT_DIR;
-  const dir = await mkdtemp(join(tmpdir(), 'opc-recording-object-root-'));
+  const dir = await mkdtemp(join(tmpdir(), 'converact-recording-object-root-'));
   const filePath = join(dir, 'recording.ogg');
   const body = Buffer.from('configured recording object');
   await writeFile(filePath, body);

@@ -160,7 +160,7 @@ test('abort removes multipart state, expires the upload, and remains idempotent'
 });
 
 function serviceFixture(t: { after(fn: () => void): void }) {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-secure-file-service-'));
+  const root = mkdtempSync(join(tmpdir(), 'converact-secure-file-service-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const pg = new MemoryPg();
   const files = new SecureFileStore(pg);

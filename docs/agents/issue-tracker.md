@@ -2,7 +2,7 @@
 
 Issues and PRDs for this repo live as markdown files in `.scratch/`.
 
-This repo is on GitHub (`songgoldenwind-crypto/opc`) but work is tracked locally so
+This repo is on GitHub (`songgoldenwind-crypto/converact`) but work is tracked locally so
 half-formed issues and design-in-progress don't pollute the public GitHub Issues list.
 
 ## Conventions

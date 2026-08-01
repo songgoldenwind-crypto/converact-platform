@@ -1,11 +1,11 @@
 {{- if and .Values.tinode.enabled (eq .Values.tinode.mode "compact") }}
-{{- include "ivekit.tinodeValidate" . }}
+{{- include "converact.tinodeValidate" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ivekit.tinodeFullname" . }}
+  name: {{ include "converact.tinodeFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: tinode
 spec:
   replicas: {{ .Values.tinode.replicaCount }}
@@ -13,12 +13,12 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: tinode
   template:
     metadata:
       labels:
-        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        {{- include "converact.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: tinode
     spec:
       automountServiceAccountToken: false
@@ -31,11 +31,11 @@ spec:
       {{- end }}
       containers:
         - name: tinode
-          image: {{ include "ivekit.tinodeImage" . | quote }}
+          image: {{ include "converact.tinodeImage" . | quote }}
           imagePullPolicy: {{ .Values.tinode.image.pullPolicy }}
           envFrom:
             - configMapRef:
-                name: {{ include "ivekit.tinodeFullname" . }}
+                name: {{ include "converact.tinodeFullname" . }}
           env:
             - name: TINODE_RUNTIME_DIR
               value: /var/lib/tinode-runtime
@@ -46,22 +46,22 @@ spec:
             - name: POSTGRES_DSN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.postgresDsnKey }}
             - name: API_KEY_SALT
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.apiKeySaltKey }}
             - name: AUTH_TOKEN_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.authTokenKeyKey }}
             - name: UID_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.uidEncryptionKeyKey }}
           ports:
             - name: http
@@ -106,7 +106,7 @@ spec:
         - name: botdata
           {{- if .Values.tinode.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ default (include "ivekit.tinodeFullname" .) .Values.tinode.persistence.existingClaim }}
+            claimName: {{ default (include "converact.tinodeFullname" .) .Values.tinode.persistence.existingClaim }}
           {{- else }}
           emptyDir: {}
           {{- end }}

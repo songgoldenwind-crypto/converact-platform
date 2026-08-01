@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@opc/shared': path.resolve(__dirname, '../shared'),
+      '@converact/shared': path.resolve(__dirname, '../shared'),
     },
   },
   server: {

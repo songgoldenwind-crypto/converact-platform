@@ -46,7 +46,7 @@ import { VoiceProviderEventWorker } from './workers/provider-event-worker.js';
 import { VoiceReconciliationWorker } from './workers/reconciliation-worker.js';
 import type { VoiceCallCommand, VoiceDeploymentProfile } from './types.js';
 
-export interface IveKitVoiceWorkerConfig {
+export interface ConveractFabricVoiceWorkerConfig {
   enabled: boolean;
   command_interval_ms: number;
   command_batch_size: number;
@@ -62,7 +62,7 @@ export interface IveKitVoiceWorkerConfig {
   tenant_limit: number;
 }
 
-export interface IveKitVoiceRuntimeInput {
+export interface ConveractFabricVoiceRuntimeInput {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
   provider_registry?: VoiceProviderRegistry;
@@ -72,15 +72,15 @@ export interface IveKitVoiceRuntimeInput {
   placement_worker_id?: string;
 }
 
-export interface IveKitVoiceWorkerHandle {
+export interface ConveractFabricVoiceWorkerHandle {
   stop(): Promise<void>;
 }
 
 export type VoiceQueue = 'voice_command' | 'voice_configuration' | 'voice_provider_event';
 
-export function iveKitVoiceWorkerConfig(
+export function converactFabricVoiceWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
-): IveKitVoiceWorkerConfig {
+): ConveractFabricVoiceWorkerConfig {
   const enabled = binaryFlag(resolveFabricEnv(env, 'VOICE_WORKERS_ENABLED'), false, 'CONVERACT_FABRIC_VOICE_WORKERS_ENABLED');
   if (enabled) {
     canonicalKey(resolveFabricEnv(env, 'VOICE_ADDRESS_KEY'), 'CONVERACT_FABRIC_VOICE_ADDRESS_KEY');
@@ -160,11 +160,11 @@ export function iveKitVoiceWorkerConfig(
   };
 }
 
-export function startIveKitVoiceCommandWorker(
-  input: IveKitVoiceRuntimeInput
-): IveKitVoiceWorkerHandle {
-  const config = iveKitVoiceWorkerConfig(input.env);
-  const registry = input.provider_registry ?? createIveKitVoiceProviderRegistry(input.env);
+export function startConveractFabricVoiceCommandWorker(
+  input: ConveractFabricVoiceRuntimeInput
+): ConveractFabricVoiceWorkerHandle {
+  const config = converactFabricVoiceWorkerConfig(input.env);
+  const registry = input.provider_registry ?? createConveractFabricVoiceProviderRegistry(input.env);
   const protector = requiredProtector(input);
   const workerId = `voice-command:${process.pid}:${randomUUID()}`;
   const listTenants = createVoiceQueueTenantLister(
@@ -182,7 +182,7 @@ export function startIveKitVoiceCommandWorker(
       const configuration = new PostgresVoiceConfigurationStore(input.pg);
       const calls = new PostgresVoiceCallStore(input.pg);
       const recordings = new PostgresVoiceRecordingStore(input.pg);
-      const secretResolver = createIveKitVoiceSecretResolver(input.env);
+      const secretResolver = createConveractFabricVoiceSecretResolver(input.env);
       const executor = new VoiceProviderCallCommandExecutor({
         calls,
         configuration,
@@ -201,7 +201,7 @@ export function startIveKitVoiceCommandWorker(
             placement: input.media_placement,
             placementWorkerId: input.placement_worker_id
           }),
-          bridge: await createIveKitLiveKitBridgePort({
+          bridge: await createConveractFabricLiveKitBridgePort({
             profile,
             bridges: recordings,
             secret_resolver: secretResolver,
@@ -214,7 +214,7 @@ export function startIveKitVoiceCommandWorker(
         configuration,
         provider_registry: registry,
         address_protector: protector,
-        call_executor: (command) => dispatchIveKitVoiceCallCommand(
+        call_executor: (command) => dispatchConveractFabricVoiceCallCommand(
           command,
           (providerCommand) => executor.execute(providerCommand),
           (bridgeCommand) => bridgeExecutor.execute(bridgeCommand)
@@ -232,10 +232,10 @@ export function startIveKitVoiceCommandWorker(
   });
 }
 
-export function startIveKitVoiceProviderEventWorker(
-  input: IveKitVoiceRuntimeInput
-): IveKitVoiceWorkerHandle {
-  const config = iveKitVoiceWorkerConfig(input.env);
+export function startConveractFabricVoiceProviderEventWorker(
+  input: ConveractFabricVoiceRuntimeInput
+): ConveractFabricVoiceWorkerHandle {
+  const config = converactFabricVoiceWorkerConfig(input.env);
   const worker = new VoiceProviderEventWorker({
     unit_of_work: new PostgresVoiceProviderEventUnitOfWork(input.pg),
     recording_service: new VoiceRecordingService(),
@@ -266,14 +266,14 @@ export function startIveKitVoiceProviderEventWorker(
   });
 }
 
-export function startIveKitVoiceReconciliationWorker(
-  input: IveKitVoiceRuntimeInput
-): IveKitVoiceWorkerHandle {
-  const config = iveKitVoiceWorkerConfig(input.env);
-  const secretResolver = createIveKitVoiceSecretResolver(input.env);
+export function startConveractFabricVoiceReconciliationWorker(
+  input: ConveractFabricVoiceRuntimeInput
+): ConveractFabricVoiceWorkerHandle {
+  const config = converactFabricVoiceWorkerConfig(input.env);
+  const secretResolver = createConveractFabricVoiceSecretResolver(input.env);
   const worker = new VoiceReconciliationWorker({
     unit_of_work: new PostgresVoiceCallUnitOfWork(input.pg),
-    provider_registry: input.provider_registry ?? createIveKitVoiceProviderRegistry(input.env),
+    provider_registry: input.provider_registry ?? createConveractFabricVoiceProviderRegistry(input.env),
     worker_id: `voice-reconciliation:${process.pid}:${randomUUID()}`,
     batch_size: config.command_batch_size,
     lease_ms: config.command_lease_ms,
@@ -293,7 +293,7 @@ export function startIveKitVoiceReconciliationWorker(
           bridge: async (profileId) => {
             const profile = await configuration.getProfile(command.tenant_id, profileId);
             if (!profile) throw new VoiceError({ code: 'not_found', status: 404 });
-            return createIveKitLiveKitBridgePort({
+            return createConveractFabricLiveKitBridgePort({
               profile,
               bridges: recordings,
               secret_resolver: secretResolver,
@@ -354,10 +354,10 @@ export function createVoiceQueueTenantLister(
   };
 }
 
-export function createIveKitVoiceProviderRegistry(
+export function createConveractFabricVoiceProviderRegistry(
   env: NodeJS.ProcessEnv = process.env
 ): VoiceProviderRegistry {
-  const resolver = createIveKitVoiceSecretResolver(env);
+  const resolver = createConveractFabricVoiceSecretResolver(env);
   const registry = new VoiceProviderRegistry();
   registry.register('rustpbx', new RustPbxVoiceProviderFactory({
     secret_resolver: resolver,
@@ -366,7 +366,7 @@ export function createIveKitVoiceProviderRegistry(
   return registry;
 }
 
-export function dispatchIveKitVoiceCallCommand(
+export function dispatchConveractFabricVoiceCallCommand(
   command: VoiceCallCommand,
   providerExecutor: (command: VoiceCallCommand) => Promise<VoiceCallCommandExecutorResult>,
   bridgeExecutor: (command: VoiceCallCommand) => Promise<VoiceCallCommandExecutorResult>
@@ -376,7 +376,7 @@ export function dispatchIveKitVoiceCallCommand(
     : providerExecutor(command);
 }
 
-function createIveKitVoiceSecretResolver(
+function createConveractFabricVoiceSecretResolver(
   env: NodeJS.ProcessEnv = process.env
 ): VoiceSecretResolver {
   const configured = envNames(resolveFabricEnv(env, 'VOICE_SECRET_ENV_NAMES'));
@@ -400,7 +400,7 @@ function createIveKitVoiceSecretResolver(
   });
 }
 
-async function createIveKitLiveKitBridgePort(input: {
+async function createConveractFabricLiveKitBridgePort(input: {
   profile: VoiceDeploymentProfile;
   bridges: PostgresVoiceRecordingStore;
   secret_resolver: VoiceSecretResolver;
@@ -419,7 +419,7 @@ async function createIveKitLiveKitBridgePort(input: {
     bridges: input.bridges,
     timeout_ms: optionalPositiveInteger(
       input.profile.config.timeout_ms,
-      iveKitVoiceWorkerConfig(input.env).provider_timeout_ms
+      converactFabricVoiceWorkerConfig(input.env).provider_timeout_ms
     ),
     production: input.env?.NODE_ENV === 'production',
     internal_service: input.profile.config.internal_service === true
@@ -433,7 +433,7 @@ function startTenantLoop(input: {
   run_tenant: (tenantId: string) => Promise<unknown>;
   shutdown?: () => Promise<void>;
   label: string;
-}): IveKitVoiceWorkerHandle {
+}): ConveractFabricVoiceWorkerHandle {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let active: Promise<void> | null = null;
   let stopped = !input.enabled;
@@ -473,7 +473,7 @@ async function runTenantBatch(input: {
   for (const tenantId of unique(await input.list_tenants())) await input.run_tenant(tenantId);
 }
 
-function requiredProtector(input: IveKitVoiceRuntimeInput): VoiceAddressProtector {
+function requiredProtector(input: ConveractFabricVoiceRuntimeInput): VoiceAddressProtector {
   if (input.address_protector) return input.address_protector;
   const env = input.env || process.env;
   return new EncryptedVoiceAddressProtector({

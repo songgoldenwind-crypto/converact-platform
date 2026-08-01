@@ -36,7 +36,7 @@ test('taste refresh keeps Commander focused on lead acquisition instead of platf
   assert.doesNotMatch(js, /One-person company marketing OS/);
   assert.doesNotMatch(js, /营销驾驶舱：一句话启动一整套营销工作流/);
   assert.doesNotMatch(js, /内容、页面、客服\/外呼、CRM/);
-  assert.doesNotMatch(js, /说一句目标，OPC 帮你组装营销工具流/);
+  assert.doesNotMatch(js, /说一句目标，Converact 帮你组装营销工具流/);
   assert.doesNotMatch(html, /生成一周内容并承接到落地页/);
 
   assert.match(js, /一人公司的 AI 获客与跟进助手/);

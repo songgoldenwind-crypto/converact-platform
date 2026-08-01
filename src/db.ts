@@ -1651,7 +1651,7 @@ function migrateSprint12IvrMarketplaceSchema(db: unknown): void {
       tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
       version TEXT NOT NULL DEFAULT '1.0.0',
-      author TEXT NOT NULL DEFAULT 'OPC',
+      author TEXT NOT NULL DEFAULT 'Converact',
       description TEXT NOT NULL DEFAULT '',
       manifest TEXT NOT NULL DEFAULT '{}',
       status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published')),

@@ -3,20 +3,20 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  createIveKitBackupId,
-  runIveKitBackup
+  createConveractFabricBackupId,
+  runConveractFabricBackup
 } from './agent-runtime/converact/operations/backup-runner.js';
 
-export interface IveKitBackupCliOptions {
+export interface ConveractFabricBackupCliOptions {
   backup_id: string;
   output_directory: string;
 }
 
-export function parseIveKitBackupCli(
+export function parseConveractFabricBackupCli(
   args: string[],
   env: NodeJS.ProcessEnv = process.env,
   now = new Date()
-): IveKitBackupCliOptions {
+): ConveractFabricBackupCliOptions {
   let output = '';
   let backupId = '';
   for (let index = 0; index < args.length; index += 1) {
@@ -25,19 +25,19 @@ export function parseIveKitBackupCli(
     else if (argument === '--backup-id') backupId = requiredValue(args[++index], '--backup-id');
     else throw cliError('backup_argument_invalid');
   }
-  backupId ||= createIveKitBackupId(now);
+  backupId ||= createConveractFabricBackupId(now);
   if (output) return { backup_id: backupId, output_directory: resolve(output) };
   const root = String(resolveFabricEnv(env, 'BACKUP_ROOT') || '').trim();
   if (!root) throw cliError('backup_root_required');
   return { backup_id: backupId, output_directory: resolve(root, backupId) };
 }
 
-export async function mainIveKitBackup(
+export async function mainConveractFabricBackup(
   args = process.argv.slice(2),
   env: NodeJS.ProcessEnv = process.env
 ): Promise<void> {
-  const options = parseIveKitBackupCli(args, env);
-  const result = await runIveKitBackup({
+  const options = parseConveractFabricBackupCli(args, env);
+  const result = await runConveractFabricBackup({
     directory: options.output_directory,
     backup_id: options.backup_id,
     env
@@ -62,7 +62,7 @@ function cliError(code: string): Error {
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : '';
 if (invokedPath === fileURLToPath(import.meta.url)) {
-  mainIveKitBackup().catch((error) => {
+  mainConveractFabricBackup().catch((error) => {
     process.stderr.write(`${JSON.stringify({
       status: 'failed',
       code: String((error as { code?: unknown }).code || 'backup_failed')

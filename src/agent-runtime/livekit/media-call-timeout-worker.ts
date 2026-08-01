@@ -4,7 +4,7 @@ import { withPgTenant } from '../../db-pg-tenant.js';
 import { MediaCallService } from './media-call-service.js';
 import type { MediaCallPlacementPort } from './media-call-service.js';
 import { MediaCallStore } from './media-call-store.js';
-import type { IveKitMediaCallSnapshot } from './types.js';
+import type { ConveractFabricMediaCallSnapshot } from './types.js';
 
 export interface MediaCallTimeoutWorkerConfig {
   enabled: boolean;
@@ -71,7 +71,7 @@ export async function runMediaCallTimeoutBatch(input: {
   now?: Date;
   tenantLimit: number;
   batchSize: number;
-  onTimedOut?: (snapshot: IveKitMediaCallSnapshot) => void | Promise<void>;
+  onTimedOut?: (snapshot: ConveractFabricMediaCallSnapshot) => void | Promise<void>;
   placement?: MediaCallPlacementPort;
   placementWorkerId?: string;
 }): Promise<MediaCallTimeoutRunSummary> {
@@ -122,7 +122,7 @@ export function mediaCallTimeoutWorkerConfig(
 export function startMediaCallTimeoutWorker(input: {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
-  onTimedOut?: (snapshot: IveKitMediaCallSnapshot) => void | Promise<void>;
+  onTimedOut?: (snapshot: ConveractFabricMediaCallSnapshot) => void | Promise<void>;
   placement?: MediaCallPlacementPort;
   placementWorkerId?: string;
 }): MediaCallTimeoutWorker {

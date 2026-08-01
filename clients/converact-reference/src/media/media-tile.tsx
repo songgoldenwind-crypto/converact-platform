@@ -1,11 +1,11 @@
 import { MicOff, Signal } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
-import type { IveKitMediaCallParticipant } from '@converact/sdk';
+import type { ConveractFabricMediaCallParticipant } from '@converact/sdk';
 import type { MediaTrackHandle } from './types.js';
 
 export function MediaTile(props: {
-  participant: IveKitMediaCallParticipant;
+  participant: ConveractFabricMediaCallParticipant;
   camera?: MediaTrackHandle;
   microphone?: MediaTrackHandle;
   speaking: boolean;

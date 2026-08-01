@@ -81,12 +81,12 @@ const database = new Pool({
   idleTimeoutMillis: 10_000,
   query_timeout: 3_000,
   statement_timeout: 2_000,
-  application_name: `ivekit-dialog-recovery-${config.identity.cell_id}`,
+  application_name: `converact-dialog-recovery-${config.identity.cell_id}`,
   allowExitOnIdle: true
 });
 database.on('error', () => {
   databaseReady = false;
-  process.stderr.write('ivekit dialog recovery database idle client error\n');
+  process.stderr.write('converact dialog recovery database idle client error\n');
 });
 try {
   await database.query('SELECT 1');
@@ -156,7 +156,7 @@ const compactTimer = setInterval(() => {
   void journal.compact()
     .catch((error) => {
       process.stderr.write(
-        `ivekit dialog shadow compaction failed: ${safeError(error)}\n`
+        `converact dialog shadow compaction failed: ${safeError(error)}\n`
       );
     })
     .finally(() => {
@@ -172,7 +172,7 @@ const runTerminalRepair = (): void => {
   void terminalRepairWorker.runOnce()
     .catch((error) => {
       process.stderr.write(
-        `ivekit terminal shadow repair failed: ${safeError(error)}\n`
+        `converact terminal shadow repair failed: ${safeError(error)}\n`
       );
     })
     .finally(() => {
@@ -187,7 +187,7 @@ terminalRepairTimer.unref();
 
 server.listen(config.port, config.host, () => {
   process.stdout.write(
-    `ivekit dialog shadow agent listening on ${config.host}:${config.port} ` +
+    `converact dialog shadow agent listening on ${config.host}:${config.port} ` +
     `cell=${config.identity.cell_id} node=${config.identity.node_id} ` +
     `production=${config.production} mtls=${Boolean(tls)}\n`
   );
@@ -199,21 +199,21 @@ async function shutdown(signal: string): Promise<void> {
   stopping = true;
   clearInterval(compactTimer);
   clearInterval(terminalRepairTimer);
-  process.stdout.write(`ivekit dialog shadow agent stopping on ${signal}\n`);
+  process.stdout.write(`converact dialog shadow agent stopping on ${signal}\n`);
   const forced = setTimeout(() => process.exit(1), 10_000);
   forced.unref();
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await port?.close().catch((error) => {
     process.stderr.write(
-      `ivekit dialog shadow NATS drain failed: ${safeError(error)}\n`
+      `converact dialog shadow NATS drain failed: ${safeError(error)}\n`
     );
   });
   await database.end().catch(() => {
-    process.stderr.write('ivekit dialog recovery database close failed\n');
+    process.stderr.write('converact dialog recovery database close failed\n');
   });
   await journal.close().catch((error) => {
     process.stderr.write(
-      `ivekit dialog shadow journal close failed: ${safeError(error)}\n`
+      `converact dialog shadow journal close failed: ${safeError(error)}\n`
     );
   });
   clearTimeout(forced);

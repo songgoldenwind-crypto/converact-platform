@@ -10,7 +10,7 @@
 export type EdgeHandle =
   | string;  // e.g. 'true', 'false', 'digit_1', 'digit_2', 'timeout', 'success', 'fail', 'high', 'low', 'continue'
 
-import { IVR_BRANCH } from '@opc/shared/ivr/branch-handles';
+import { IVR_BRANCH } from '@converact/shared/ivr/branch-handles';
 
 // --- Common node fields ---
 export interface IvrNodeBase {

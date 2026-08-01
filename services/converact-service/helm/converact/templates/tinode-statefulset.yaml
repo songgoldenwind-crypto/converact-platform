@@ -1,26 +1,26 @@
 {{- if and .Values.tinode.enabled (eq .Values.tinode.mode "cluster") }}
-{{- include "ivekit.tinodeValidate" . }}
+{{- include "converact.tinodeValidate" . }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "ivekit.tinodeFullname" . }}
+  name: {{ include "converact.tinodeFullname" . }}
   labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
+    {{- include "converact.labels" . | nindent 4 }}
     app.kubernetes.io/component: tinode
 spec:
-  serviceName: {{ include "ivekit.tinodeHeadlessFullname" . }}
+  serviceName: {{ include "converact.tinodeHeadlessFullname" . }}
   replicas: {{ .Values.tinode.cluster.replicaCount }}
   podManagementPolicy: Parallel
   updateStrategy:
     type: RollingUpdate
   selector:
     matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      {{- include "converact.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: tinode
   template:
     metadata:
       labels:
-        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        {{- include "converact.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: tinode
     spec:
       automountServiceAccountToken: false
@@ -31,14 +31,14 @@ spec:
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: tinode
         - maxSkew: 1
           topologyKey: {{ .Values.tinode.cluster.scheduling.hostnameTopologyKey | quote }}
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              {{- include "converact.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: tinode
       affinity:
         podAntiAffinity:
@@ -46,7 +46,7 @@ spec:
             - topologyKey: {{ .Values.tinode.cluster.scheduling.hostnameTopologyKey | quote }}
               labelSelector:
                 matchLabels:
-                  {{- include "ivekit.selectorLabels" . | nindent 18 }}
+                  {{- include "converact.selectorLabels" . | nindent 18 }}
                   app.kubernetes.io/component: tinode
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
@@ -54,7 +54,7 @@ spec:
                 topologyKey: {{ .Values.tinode.cluster.scheduling.zoneTopologyKey | quote }}
                 labelSelector:
                   matchLabels:
-                    {{- include "ivekit.selectorLabels" . | nindent 20 }}
+                    {{- include "converact.selectorLabels" . | nindent 20 }}
                     app.kubernetes.io/component: tinode
       {{- with .Values.tinode.cluster.scheduling.nodeSelector }}
       nodeSelector:
@@ -72,31 +72,31 @@ spec:
       {{- end }}
       containers:
         - name: tinode
-          image: {{ include "ivekit.tinodeImage" . | quote }}
+          image: {{ include "converact.tinodeImage" . | quote }}
           imagePullPolicy: {{ .Values.tinode.image.pullPolicy }}
           envFrom:
             - configMapRef:
-                name: {{ include "ivekit.tinodeFullname" . }}
+                name: {{ include "converact.tinodeFullname" . }}
           env:
             - name: POSTGRES_DSN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.postgresDsnKey }}
             - name: API_KEY_SALT
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.apiKeySaltKey }}
             - name: AUTH_TOKEN_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.authTokenKeyKey }}
             - name: UID_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.uidEncryptionKeyKey }}
             - name: CLUSTER_SELF
               valueFrom:
@@ -113,12 +113,12 @@ spec:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.accessKeyIdKey }}
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ivekit.secretName" . }}
+                  name: {{ include "converact.secretName" . }}
                   key: {{ .Values.tinode.secrets.secretAccessKeyKey }}
             - name: AWS_REGION
               value: {{ .Values.tinode.cluster.media.region | quote }}
@@ -131,17 +131,17 @@ spec:
             - name: AWS_CORS_ORIGINS
               value: {{ .Values.tinode.cluster.media.corsOrigins | quote }}
             - name: TINODE_CLUSTER_NODE_0_NAME
-              value: {{ printf "%s-0" (include "ivekit.tinodeFullname" .) | quote }}
+              value: {{ printf "%s-0" (include "converact.tinodeFullname" .) | quote }}
             - name: TINODE_CLUSTER_NODE_0_ADDR
-              value: {{ printf "%s-0.%s:%v" (include "ivekit.tinodeFullname" .) (include "ivekit.tinodeHeadlessFullname" .) .Values.tinode.cluster.clusterPort | quote }}
+              value: {{ printf "%s-0.%s:%v" (include "converact.tinodeFullname" .) (include "converact.tinodeHeadlessFullname" .) .Values.tinode.cluster.clusterPort | quote }}
             - name: TINODE_CLUSTER_NODE_1_NAME
-              value: {{ printf "%s-1" (include "ivekit.tinodeFullname" .) | quote }}
+              value: {{ printf "%s-1" (include "converact.tinodeFullname" .) | quote }}
             - name: TINODE_CLUSTER_NODE_1_ADDR
-              value: {{ printf "%s-1.%s:%v" (include "ivekit.tinodeFullname" .) (include "ivekit.tinodeHeadlessFullname" .) .Values.tinode.cluster.clusterPort | quote }}
+              value: {{ printf "%s-1.%s:%v" (include "converact.tinodeFullname" .) (include "converact.tinodeHeadlessFullname" .) .Values.tinode.cluster.clusterPort | quote }}
             - name: TINODE_CLUSTER_NODE_2_NAME
-              value: {{ printf "%s-2" (include "ivekit.tinodeFullname" .) | quote }}
+              value: {{ printf "%s-2" (include "converact.tinodeFullname" .) | quote }}
             - name: TINODE_CLUSTER_NODE_2_ADDR
-              value: {{ printf "%s-2.%s:%v" (include "ivekit.tinodeFullname" .) (include "ivekit.tinodeHeadlessFullname" .) .Values.tinode.cluster.clusterPort | quote }}
+              value: {{ printf "%s-2.%s:%v" (include "converact.tinodeFullname" .) (include "converact.tinodeHeadlessFullname" .) .Values.tinode.cluster.clusterPort | quote }}
           ports:
             - name: http
               containerPort: 6060

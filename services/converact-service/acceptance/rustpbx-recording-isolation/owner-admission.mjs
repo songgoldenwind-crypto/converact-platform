@@ -139,10 +139,10 @@ function plainRecord(value) {
 async function startServer() {
   const fixture = createOwnerAdmissionFixture({
     serviceKey: process.env.RUSTPBX_WEBHOOK_TOKEN,
-    componentToken: process.env.IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN,
-    nodeId: process.env.IVEKIT_RUSTPBX_OWNER_NODE_ID
+    componentToken: process.env.CONVERACT_FABRIC_RUSTPBX_COMPONENT_NODE_TOKEN,
+    nodeId: process.env.CONVERACT_FABRIC_RUSTPBX_OWNER_NODE_ID
   });
-  const port = Number(process.env.IVEKIT_RUSTPBX_OWNER_FIXTURE_PORT || 3210);
+  const port = Number(process.env.CONVERACT_FABRIC_RUSTPBX_OWNER_FIXTURE_PORT || 3210);
   if (!Number.isSafeInteger(port) || port < 1024 || port > 65_535) {
     throw new Error('fixture port is invalid');
   }

@@ -61,7 +61,7 @@ test('desktop IVR Designer lazy-loads and completes the draft-to-simulation work
     expect(layout.library?.right).toBeLessThanOrEqual(layout.editor?.left || 0);
     expect(layout.editor?.right).toBeLessThanOrEqual(layout.inspector?.left || 0);
     expect(layout.canvas?.bottom).toBeLessThanOrEqual(layout.designer?.bottom || layout.height);
-    await capture(designer.page, testInfo, 'ivekit-ivr-designer-desktop.png');
+    await capture(designer.page, testInfo, 'converact-ivr-designer-desktop.png');
   } finally {
     await designer.context.close();
   }
@@ -95,7 +95,7 @@ test('mobile IVR Designer keeps every workspace inside the viewport', async ({ b
     }
     expect(layout.library?.bottom).toBeLessThanOrEqual(layout.editor?.top || 0);
     expect(layout.editor?.bottom).toBeLessThanOrEqual(layout.inspector?.top || 0);
-    await capture(designer.page, testInfo, 'ivekit-ivr-designer-mobile.png');
+    await capture(designer.page, testInfo, 'converact-ivr-designer-mobile.png');
   } finally {
     await designer.context.close();
   }
@@ -108,8 +108,8 @@ async function openDesigner(
 ): Promise<{ context: BrowserContext; page: Page; requests: string[] }> {
   const context = await browser.newContext({ viewport });
   await context.addInitScript(() => {
-    window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'ivr-token';
-    window.__IVEKIT_DEV_IDENTITY__ = 'ivr-designer';
+    window.__CONVERACT_FABRIC_DEV_ACCESS_TOKEN__ = 'ivr-token';
+    window.__CONVERACT_FABRIC_DEV_IDENTITY__ = 'ivr-designer';
   });
   const page = await context.newPage();
   const requests: string[] = [];

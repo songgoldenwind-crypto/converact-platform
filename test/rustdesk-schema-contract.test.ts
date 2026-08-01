@@ -81,7 +81,7 @@ test('RustDesk migrations enable tenant RLS after creating gateway tables', () =
   assert.match(sql, /ENABLE ROW LEVEL SECURITY/, 'RLS migration must enable row-level security');
   assert.match(sql, /FORCE ROW LEVEL SECURITY/, 'RLS migration must force row-level security for table owners');
   assert.match(sql, /DROP POLICY IF EXISTS tenant_isolation/, 'RLS migration must replace stale tenant policies');
-  assert.match(sql, /opc_rls_bypass\(\) OR tenant_id = opc_current_tenant\(\)/, 'RLS policy must use OPC tenant context');
+  assert.match(sql, /opc_rls_bypass\(\) OR tenant_id = opc_current_tenant\(\)/, 'RLS policy must use Converact tenant context');
 });
 
 test('RustDesk device command migration creates and protects the command queue', () => {

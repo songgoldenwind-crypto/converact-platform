@@ -149,7 +149,7 @@ export function createLocalFfmpegDerivativeProvider(
     async derive(input) {
       assertDerivativeInput(input, maxInputBytes);
       const sourceExtension = sourceExtensionForMime(input.source_mime);
-      const directory = mkdtempSync(join(tmpdir(), 'ivekit-derivative-'));
+      const directory = mkdtempSync(join(tmpdir(), 'converact-derivative-'));
       const inputPath = join(directory, `input${sourceExtension}`);
       let outputPath = '';
       try {

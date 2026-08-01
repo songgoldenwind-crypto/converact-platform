@@ -5,21 +5,21 @@ import type { IntelligenceProviderCapability } from './intelligence-provider-reg
 
 const reservationTotal = new Counter({
   name: 'opc_ivekit_intelligence_provider_reservations_total',
-  help: 'Total iveKit intelligence provider reservation outcomes',
+  help: 'Total Converact Fabric intelligence provider reservation outcomes',
   labelNames: ['capability', 'profile_id', 'result'],
   registers: [metricsRegistry]
 });
 
 const requestTotal = new Counter({
   name: 'opc_ivekit_intelligence_provider_requests_total',
-  help: 'Total iveKit intelligence provider request outcomes',
+  help: 'Total Converact Fabric intelligence provider request outcomes',
   labelNames: ['capability', 'profile_id', 'result', 'error_code'],
   registers: [metricsRegistry]
 });
 
 const requestDuration = new Histogram({
   name: 'opc_ivekit_intelligence_provider_request_duration_seconds',
-  help: 'iveKit intelligence provider request duration',
+  help: 'Converact Fabric intelligence provider request duration',
   labelNames: ['capability', 'profile_id', 'result'],
   buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 120, 300],
   registers: [metricsRegistry]
@@ -27,21 +27,21 @@ const requestDuration = new Histogram({
 
 const failoverTotal = new Counter({
   name: 'opc_ivekit_intelligence_provider_failovers_total',
-  help: 'Total iveKit intelligence provider failovers',
+  help: 'Total Converact Fabric intelligence provider failovers',
   labelNames: ['capability', 'from_profile', 'to_profile'],
   registers: [metricsRegistry]
 });
 
 const routeExhaustedTotal = new Counter({
   name: 'opc_ivekit_intelligence_provider_routes_exhausted_total',
-  help: 'Total exhausted iveKit intelligence provider routes',
+  help: 'Total exhausted Converact Fabric intelligence provider routes',
   labelNames: ['capability'],
   registers: [metricsRegistry]
 });
 
 const circuitTransitionTotal = new Counter({
   name: 'opc_ivekit_intelligence_provider_circuit_transitions_total',
-  help: 'Total iveKit intelligence provider circuit state transitions',
+  help: 'Total Converact Fabric intelligence provider circuit state transitions',
   labelNames: ['capability', 'profile_id', 'from_state', 'to_state'],
   registers: [metricsRegistry]
 });

@@ -20,49 +20,49 @@ import { promisify } from 'node:util';
 import { resolveS3ConnectionConfig } from '../../../storage/s3-connection-config.js';
 
 import {
-  createIveKitBackupManifest,
+  createConveractFabricBackupManifest,
   postgresClientEnvironment,
-  readIveKitObjectBackupEntries,
+  readConveractFabricObjectBackupEntries,
   requiredRestoreConfirmation,
   sha256,
-  validateIveKitBackupSet,
-  type IveKitBackupManifest,
-  type IveKitObjectBackupEntry
+  validateConveractFabricBackupSet,
+  type ConveractFabricBackupManifest,
+  type ConveractFabricObjectBackupEntry
 } from './backup.js';
 import { REQUIRED_MIGRATIONS } from './readiness.js';
 
-export interface IveKitProcessResult {
+export interface ConveractFabricProcessResult {
   stdout: string;
   stderr: string;
 }
 
-export type IveKitProcessRunner = (
+export type ConveractFabricProcessRunner = (
   executable: string,
   args: string[],
   options: { env: NodeJS.ProcessEnv; cwd?: string }
-) => Promise<IveKitProcessResult>;
+) => Promise<ConveractFabricProcessResult>;
 
-export interface IveKitBackupObject {
+export interface ConveractFabricBackupObject {
   key: string;
   etag: string;
   body: Readable;
 }
 
-export interface IveKitBackupObjectSource {
-  list(): AsyncIterable<IveKitBackupObject>;
+export interface ConveractFabricBackupObjectSource {
+  list(): AsyncIterable<ConveractFabricBackupObject>;
 }
 
-export interface IveKitRestoreObjectTarget {
-  put(entry: IveKitObjectBackupEntry, sourcePath: string): Promise<void>;
+export interface ConveractFabricRestoreObjectTarget {
+  put(entry: ConveractFabricObjectBackupEntry, sourcePath: string): Promise<void>;
 }
 
-export interface IveKitBackupResult {
+export interface ConveractFabricBackupResult {
   status: 'complete';
   directory: string;
-  manifest: IveKitBackupManifest;
+  manifest: ConveractFabricBackupManifest;
 }
 
-export interface IveKitRestoreResult {
+export interface ConveractFabricRestoreResult {
   status: 'validated' | 'restored';
   backup_id: string;
   object_count: number;
@@ -84,15 +84,15 @@ const REQUIRED_RESTORE_TABLES = [
   'ivekit_runtime_heartbeats'
 ] as const;
 
-export async function runIveKitBackup(input: {
+export async function runConveractFabricBackup(input: {
   directory: string;
   backup_id: string;
   env?: NodeJS.ProcessEnv;
   source_commit?: string;
   created_at?: string;
-  processRunner?: IveKitProcessRunner;
-  objectSource?: IveKitBackupObjectSource;
-}): Promise<IveKitBackupResult> {
+  processRunner?: ConveractFabricProcessRunner;
+  objectSource?: ConveractFabricBackupObjectSource;
+}): Promise<ConveractFabricBackupResult> {
   const directory = resolve(input.directory);
   const env = input.env || process.env;
   const runner = input.processRunner || runProcess;
@@ -127,7 +127,7 @@ export async function runIveKitBackup(input: {
         const key = safeObjectKey(object.key);
         const backupFile = `objects/${sha256(key)}.bin`;
         const measured = await writeMeasuredStream(object.body, join(directory, backupFile));
-        const entry: IveKitObjectBackupEntry = {
+        const entry: ConveractFabricObjectBackupEntry = {
           key,
           backup_file: backupFile,
           sha256: measured.sha256,
@@ -141,11 +141,11 @@ export async function runIveKitBackup(input: {
       await objectManifest.close();
     }
 
-    const manifest = await createIveKitBackupManifest({
+    const manifest = await createConveractFabricBackupManifest({
       directory,
       backup_id: input.backup_id,
       created_at: input.created_at || new Date().toISOString(),
-      source_commit: input.source_commit || env.IVEKIT_SOURCE_COMMIT || '',
+      source_commit: input.source_commit || resolveFabricEnv(env, 'SOURCE_COMMIT') || '',
       database_file: 'database.dump',
       object_manifest_file: 'objects.jsonl',
       object_count: objectCount,
@@ -159,7 +159,7 @@ export async function runIveKitBackup(input: {
     await writeFile(join(directory, 'manifest.sha256'), `${sha256(manifestBytes)}\n`, {
       flag: 'wx', mode: 0o600
     });
-    await validateIveKitBackupSet({ directory });
+    await validateConveractFabricBackupSet({ directory });
     await replaceJson(join(directory, '.ivekit-backup'), {
       schema_version: 1,
       backup_id: manifest.backup_id,
@@ -179,15 +179,15 @@ export async function runIveKitBackup(input: {
   }
 }
 
-export async function runIveKitRestore(input: {
+export async function runConveractFabricRestore(input: {
   directory: string;
   execute?: boolean;
   env?: NodeJS.ProcessEnv;
-  processRunner?: IveKitProcessRunner;
-  objectTarget?: IveKitRestoreObjectTarget;
-}): Promise<IveKitRestoreResult> {
+  processRunner?: ConveractFabricProcessRunner;
+  objectTarget?: ConveractFabricRestoreObjectTarget;
+}): Promise<ConveractFabricRestoreResult> {
   const directory = resolve(input.directory);
-  const manifest = await validateIveKitBackupSet({ directory });
+  const manifest = await validateConveractFabricBackupSet({ directory });
   if (!input.execute) {
     return {
       status: 'validated',
@@ -201,8 +201,8 @@ export async function runIveKitRestore(input: {
   }
 
   const env = input.env || process.env;
-  requiredRestoreConfirmation(manifest.backup_id, env.IVEKIT_RESTORE_CONFIRM);
-  if (env.IVEKIT_RESTORE_TARGET_EMPTY !== '1') {
+  requiredRestoreConfirmation(manifest.backup_id, resolveFabricEnv(env, 'RESTORE_CONFIRM'));
+  if (resolveFabricEnv(env, 'RESTORE_TARGET_EMPTY') !== '1') {
     throw operationError('restore_empty_target_assertion_required');
   }
   const runner = input.processRunner || runProcess;
@@ -243,7 +243,7 @@ export async function runIveKitRestore(input: {
     databasesRestored += 1;
   }
 
-  const entries = await readIveKitObjectBackupEntries(directory, manifest.objects.file);
+  const entries = await readConveractFabricObjectBackupEntries(directory, manifest.objects.file);
   const target = input.objectTarget || createRestoreObjectTarget(env);
   let restored = 0;
   for (const entry of entries) {
@@ -297,19 +297,19 @@ function restoreDatabaseEnvironment(env: NodeJS.ProcessEnv, name: string): NodeJ
   return postgresClientEnvironment(env, connectionUrl);
 }
 
-export function createIveKitBackupId(now = new Date()): string {
+export function createConveractFabricBackupId(now = new Date()): string {
   const timestamp = now.toISOString().replace(/[-:.]/g, '').replace('T', '-');
-  return `ivekit-${timestamp}-${randomUUID()}`;
+  return `converact-${timestamp}-${randomUUID()}`;
 }
 
-export function createBackupObjectSource(env: NodeJS.ProcessEnv): IveKitBackupObjectSource {
+export function createBackupObjectSource(env: NodeJS.ProcessEnv): ConveractFabricBackupObjectSource {
   const config = s3Config(env);
   return config ? new S3BackupObjectSource(config) : new LocalBackupObjectSource(
     resolveBrandEnv(env, 'UPLOAD_DIR') || join(process.cwd(), 'data', 'uploads')
   );
 }
 
-export function createRestoreObjectTarget(env: NodeJS.ProcessEnv): IveKitRestoreObjectTarget {
+export function createRestoreObjectTarget(env: NodeJS.ProcessEnv): ConveractFabricRestoreObjectTarget {
   const config = s3Config(env);
   return config ? new S3RestoreObjectTarget(config) : new LocalRestoreObjectTarget(
     resolveBrandEnv(env, 'UPLOAD_DIR') || join(process.cwd(), 'data', 'uploads')
@@ -320,7 +320,7 @@ export async function runProcess(
   executable: string,
   args: string[],
   options: { env: NodeJS.ProcessEnv; cwd?: string }
-): Promise<IveKitProcessResult> {
+): Promise<ConveractFabricProcessResult> {
   const result = await execFileAsync(executable, args, {
     env: options.env,
     cwd: options.cwd,
@@ -330,14 +330,14 @@ export async function runProcess(
   return { stdout: String(result.stdout || ''), stderr: String(result.stderr || '') };
 }
 
-class LocalBackupObjectSource implements IveKitBackupObjectSource {
+class LocalBackupObjectSource implements ConveractFabricBackupObjectSource {
   private readonly root: string;
 
   constructor(root: string) {
     this.root = resolve(root);
   }
 
-  async *list(): AsyncIterable<IveKitBackupObject> {
+  async *list(): AsyncIterable<ConveractFabricBackupObject> {
     const metadata = await stat(this.root).catch(() => null);
     if (!metadata?.isDirectory()) throw operationError('local_object_root_missing');
     for await (const file of walkRegularFiles(this.root, this.root)) {
@@ -356,10 +356,10 @@ interface S3Configuration {
   credentials?: { accessKeyId: string; secretAccessKey: string };
 }
 
-class S3BackupObjectSource implements IveKitBackupObjectSource {
+class S3BackupObjectSource implements ConveractFabricBackupObjectSource {
   constructor(private readonly config: S3Configuration) {}
 
-  async *list(): AsyncIterable<IveKitBackupObject> {
+  async *list(): AsyncIterable<ConveractFabricBackupObject> {
     const { GetObjectCommand, ListObjectsV2Command, S3Client } = await import('@aws-sdk/client-s3');
     const client = new S3Client(s3ClientOptions(this.config));
     let continuationToken: string | undefined;
@@ -388,14 +388,14 @@ class S3BackupObjectSource implements IveKitBackupObjectSource {
   }
 }
 
-class LocalRestoreObjectTarget implements IveKitRestoreObjectTarget {
+class LocalRestoreObjectTarget implements ConveractFabricRestoreObjectTarget {
   private readonly root: string;
 
   constructor(root: string) {
     this.root = resolve(root);
   }
 
-  async put(entry: IveKitObjectBackupEntry, sourcePath: string): Promise<void> {
+  async put(entry: ConveractFabricObjectBackupEntry, sourcePath: string): Promise<void> {
     const target = containedObjectPath(this.root, entry.key);
     await mkdir(dirname(target), { recursive: true, mode: 0o700 });
     try {
@@ -407,10 +407,10 @@ class LocalRestoreObjectTarget implements IveKitRestoreObjectTarget {
   }
 }
 
-class S3RestoreObjectTarget implements IveKitRestoreObjectTarget {
+class S3RestoreObjectTarget implements ConveractFabricRestoreObjectTarget {
   constructor(private readonly config: S3Configuration) {}
 
-  async put(entry: IveKitObjectBackupEntry, sourcePath: string): Promise<void> {
+  async put(entry: ConveractFabricObjectBackupEntry, sourcePath: string): Promise<void> {
     const { HeadObjectCommand, PutObjectCommand, S3Client } = await import('@aws-sdk/client-s3');
     const client = new S3Client(s3ClientOptions(this.config));
     try {

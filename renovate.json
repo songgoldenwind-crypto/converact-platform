@@ -27,10 +27,10 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Discover tagged iveKit upstream releases without changing the authoritative fork manifest",
+      "description": "Discover tagged Converact Fabric upstream releases without changing the authoritative fork manifest",
       "managerFilePatterns": ["/^\\.github\\/renovate-upstreams\\.env$/"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>github-tags) depName=(?<depName>[^\\s]+) versioning=(?<versioning>[^\\s]+) depType=(?<depType>ivekit-upstream)\\s+[A-Z0-9_]+_VERSION=(?<currentValue>\\S+)"
+        "# renovate: datasource=(?<datasource>github-tags) depName=(?<depName>[^\\s]+) versioning=(?<versioning>[^\\s]+) depType=(?<depType>converact-upstream)\\s+[A-Z0-9_]+_VERSION=(?<currentValue>\\S+)"
       ]
     },
     {
@@ -38,7 +38,7 @@
       "description": "Update immutable Docker references in environment examples and the fork manifest",
       "managerFilePatterns": [
         "/(^|/)(?:\\.env|env)\\.example$/",
-        "/^docs\\/capacity\\/forks\\/ivekit-forks-v1\\.json$/"
+        "/^docs\\/capacity\\/forks\\/converact-forks-v1\\.json$/"
       ],
       "matchStrings": [
         "(?<depName>[a-z0-9][a-z0-9._/-]*):(?<currentValue>[A-Za-z0-9][A-Za-z0-9._-]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
@@ -51,12 +51,12 @@
   "packageRules": [
     {
       "description": "Fork discovery PRs require patch replay, exact commit resolution and the full release gate",
-      "matchDepTypes": ["ivekit-upstream"],
+      "matchDepTypes": ["converact-upstream"],
       "automerge": false,
-      "labels": ["dependencies", "ivekit-upstream"],
+      "labels": ["dependencies", "converact-upstream"],
       "minimumReleaseAge": "7 days",
       "prBodyNotes": [
-        "This PR is upgrade discovery only. Resolve the tag to an exact 40-character commit, replay iveKit patches, update the fork manifest, and run component plus OCI release gates before merge."
+        "This PR is upgrade discovery only. Resolve the tag to an exact 40-character commit, replay Converact Fabric patches, update the fork manifest, and run component plus OCI release gates before merge."
       ]
     },
     {
@@ -72,7 +72,7 @@
       "labels": ["dependencies", "github-actions"]
     },
     {
-      "description": "Do not query generated placeholders or unpublished iveKit candidate images",
+      "description": "Do not query generated placeholders or unpublished Converact Fabric candidate images",
       "matchDatasources": ["docker"],
       "matchPackageNames": [
         "ghcr.io/songgoldenwind-crypto/**",

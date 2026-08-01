@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_COMPAT_HELPER="$SCRIPT_DIR/../../../scripts/converact-env-compat.sh"
+if [[ ! -r "$ENV_COMPAT_HELPER" ]]; then
+  ENV_COMPAT_HELPER="$SCRIPT_DIR/converact-env-compat.sh"
+fi
+if [[ ! -r "$ENV_COMPAT_HELPER" ]]; then
+  printf '%s\n' 'Converact environment compatibility helper is required' >&2
+  exit 66
+fi
+# shellcheck disable=SC1090
+source "$ENV_COMPAT_HELPER"
+
+for suffix in \
+  LIVEKIT_INGRESS_IMAGE \
+  LIVEKIT_INGRESS_BUILDER_IMAGE \
+  LIVEKIT_INGRESS_RUNTIME_IMAGE \
+  LIVEKIT_INGRESS_TARGETARCH; do
+  converact_env_resolve_fabric "$suffix"
+done
+
+export IVEKIT_LIVEKIT_INGRESS_IMAGE="${CONVERACT_FABRIC_LIVEKIT_INGRESS_IMAGE:?CONVERACT_FABRIC_LIVEKIT_INGRESS_IMAGE is required}"
+export IVEKIT_LIVEKIT_INGRESS_BUILDER_IMAGE="${CONVERACT_FABRIC_LIVEKIT_INGRESS_BUILDER_IMAGE:?CONVERACT_FABRIC_LIVEKIT_INGRESS_BUILDER_IMAGE is required}"
+export IVEKIT_LIVEKIT_INGRESS_RUNTIME_IMAGE="${CONVERACT_FABRIC_LIVEKIT_INGRESS_RUNTIME_IMAGE:?CONVERACT_FABRIC_LIVEKIT_INGRESS_RUNTIME_IMAGE is required}"
+if [[ -n "${CONVERACT_FABRIC_LIVEKIT_INGRESS_TARGETARCH:-}" ]]; then
+  export IVEKIT_LIVEKIT_INGRESS_TARGETARCH="$CONVERACT_FABRIC_LIVEKIT_INGRESS_TARGETARCH"
+fi
+
+exec "$SCRIPT_DIR/build.sh"

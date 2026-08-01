@@ -1,11 +1,11 @@
-import type { IveKitSdkBusinessRef } from './types.js';
+import type { ConveractFabricSdkBusinessRef } from './types.js';
 
-export type IveKitVoiceBusinessRef = Pick<IveKitSdkBusinessRef, 'type' | 'id'>;
-export type IveKitVoiceDirection = 'inbound' | 'outbound';
-export type IveKitVoiceRouteDirection = IveKitVoiceDirection | 'both';
-export type IveKitVoiceAddressKind = 'e164' | 'extension' | 'sip_uri';
+export type ConveractFabricVoiceBusinessRef = Pick<ConveractFabricSdkBusinessRef, 'type' | 'id'>;
+export type ConveractFabricVoiceDirection = 'inbound' | 'outbound';
+export type ConveractFabricVoiceRouteDirection = ConveractFabricVoiceDirection | 'both';
+export type ConveractFabricVoiceAddressKind = 'e164' | 'extension' | 'sip_uri';
 
-export type IveKitVoiceCallState =
+export type ConveractFabricVoiceCallState =
   | 'planned'
   | 'queued'
   | 'dialing'
@@ -20,7 +20,7 @@ export type IveKitVoiceCallState =
   | 'failed'
   | 'timed_out';
 
-export type IveKitVoiceCommandState =
+export type ConveractFabricVoiceCommandState =
   | 'pending'
   | 'processing'
   | 'retry_wait'
@@ -29,7 +29,7 @@ export type IveKitVoiceCommandState =
   | 'cancelled'
   | 'uncertain';
 
-export type IveKitVoiceCommandKind =
+export type ConveractFabricVoiceCommandKind =
   | 'originate'
   | 'answer'
   | 'hangup'
@@ -47,9 +47,9 @@ export type IveKitVoiceCommandKind =
   | 'recording_stop'
   | 'livekit_bridge_create';
 
-export type IveKitVoiceConferenceOperation = 'create' | 'add' | 'remove' | 'destroy';
+export type ConveractFabricVoiceConferenceOperation = 'create' | 'add' | 'remove' | 'destroy';
 
-export type IveKitVoiceParkingSlotState =
+export type ConveractFabricVoiceParkingSlotState =
   | 'parking'
   | 'parked'
   | 'retrieving'
@@ -57,32 +57,32 @@ export type IveKitVoiceParkingSlotState =
   | 'failed'
   | 'expired';
 
-export interface IveKitVoiceActionCapabilities {
-  commands: Readonly<Record<IveKitVoiceCommandKind, boolean>>;
-  conference_operations: Readonly<Record<IveKitVoiceConferenceOperation, boolean>>;
+export interface ConveractFabricVoiceActionCapabilities {
+  commands: Readonly<Record<ConveractFabricVoiceCommandKind, boolean>>;
+  conference_operations: Readonly<Record<ConveractFabricVoiceConferenceOperation, boolean>>;
 }
 
-export interface IveKitVoiceConferenceCreateOptions {
+export interface ConveractFabricVoiceConferenceCreateOptions {
   backend?: 'internal' | 'external';
   max_members?: number;
   record?: boolean;
 }
 
-export type IveKitVoiceConfigurationResourceType =
+export type ConveractFabricVoiceConfigurationResourceType =
   | 'deployment_profile'
   | 'sip_trunk'
   | 'did'
   | 'extension'
   | 'route';
 
-export type IveKitVoiceConfigurationOperation =
+export type ConveractFabricVoiceConfigurationOperation =
   | 'preflight'
   | 'apply'
   | 'test'
   | 'disable'
   | 'delete';
 
-export type IveKitVoiceCapability =
+export type ConveractFabricVoiceCapability =
   | 'management_http'
   | 'json_rpc_routing'
   | 'step_ivr'
@@ -93,20 +93,20 @@ export type IveKitVoiceCapability =
   | 'queue'
   | 'postgres_backend';
 
-export type IveKitVoiceAdapter =
+export type ConveractFabricVoiceAdapter =
   | 'rustpbx'
   | 'livekit_sip'
   | 'active_call'
   | 'livekit_agents'
   | 'controlled';
 
-export type IveKitRealtimeVoiceAiProvider =
+export type ConveractFabricRealtimeVoiceAiProvider =
   | 'active_call'
   | 'livekit_agents'
   | 'self_hosted'
   | 'third_party';
 
-export type IveKitRealtimeVoiceAiCapability =
+export type ConveractFabricRealtimeVoiceAiCapability =
   | 'vad'
   | 'streaming_asr'
   | 'streaming_tts'
@@ -116,11 +116,11 @@ export type IveKitRealtimeVoiceAiCapability =
   | 'transcript_events'
   | 'latency_metrics';
 
-export interface IveKitRealtimeVoiceAiProfile {
+export interface ConveractFabricRealtimeVoiceAiProfile {
   id: string;
   tenant_id: string;
   name: string;
-  provider: IveKitRealtimeVoiceAiProvider;
+  provider: ConveractFabricRealtimeVoiceAiProvider;
   status: 'disabled' | 'enabled' | 'degraded' | 'archived';
   endpoint: string;
   provider_version: string;
@@ -129,37 +129,37 @@ export interface IveKitRealtimeVoiceAiProfile {
   revision: number;
 }
 
-export interface IveKitRealtimeVoiceAiToolRef {
+export interface ConveractFabricRealtimeVoiceAiToolRef {
   tool_id: string;
   version: number;
   schema_hash: string;
 }
 
-export interface IveKitRealtimeVoiceAiCapabilities {
+export interface ConveractFabricRealtimeVoiceAiCapabilities {
   profile_id: string;
-  provider: IveKitRealtimeVoiceAiProvider;
+  provider: ConveractFabricRealtimeVoiceAiProvider;
   provider_version: string;
-  capabilities: Readonly<Record<IveKitRealtimeVoiceAiCapability, boolean>>;
+  capabilities: Readonly<Record<ConveractFabricRealtimeVoiceAiCapability, boolean>>;
   checked_at: string;
 }
 
-export interface IveKitStartRealtimeVoiceAiSessionInput {
+export interface ConveractFabricStartRealtimeVoiceAiSessionInput {
   tenant_id: string;
   call_id: string;
   profile_id: string;
   language: string;
-  tools: ReadonlyArray<IveKitRealtimeVoiceAiToolRef>;
+  tools: ReadonlyArray<ConveractFabricRealtimeVoiceAiToolRef>;
   idempotency_key: string;
 }
 
-export interface IveKitRealtimeVoiceAiSessionPlan {
+export interface ConveractFabricRealtimeVoiceAiSessionPlan {
   provider_session_id: string;
-  provider: IveKitRealtimeVoiceAiProvider;
+  provider: ConveractFabricRealtimeVoiceAiProvider;
   provider_version: string;
-  capabilities: Readonly<Record<IveKitRealtimeVoiceAiCapability, boolean>>;
+  capabilities: Readonly<Record<ConveractFabricRealtimeVoiceAiCapability, boolean>>;
 }
 
-export interface IveKitRealtimeVoiceAiSessionCommandInput {
+export interface ConveractFabricRealtimeVoiceAiSessionCommandInput {
   tenant_id: string;
   call_id: string;
   provider_session_id: string;
@@ -167,7 +167,7 @@ export interface IveKitRealtimeVoiceAiSessionCommandInput {
   idempotency_key: string;
 }
 
-export interface IveKitRealtimeVoiceAiDtmfInput {
+export interface ConveractFabricRealtimeVoiceAiDtmfInput {
   tenant_id: string;
   call_id: string;
   provider_session_id: string;
@@ -175,7 +175,7 @@ export interface IveKitRealtimeVoiceAiDtmfInput {
   idempotency_key: string;
 }
 
-export type IveKitRealtimeVoiceAiEventType =
+export type ConveractFabricRealtimeVoiceAiEventType =
   | 'session.started'
   | 'session.ended'
   | 'vad.started'
@@ -188,9 +188,9 @@ export type IveKitRealtimeVoiceAiEventType =
   | 'interrupted'
   | 'latency.measured';
 
-export interface IveKitRealtimeVoiceAiProjectedEvent {
+export interface ConveractFabricRealtimeVoiceAiProjectedEvent {
   external_event_id: string;
-  type: IveKitRealtimeVoiceAiEventType;
+  type: ConveractFabricRealtimeVoiceAiEventType;
   provider_session_id: string;
   occurred_at: string;
   transcript_text: string;
@@ -203,34 +203,34 @@ export interface IveKitRealtimeVoiceAiProjectedEvent {
   safe_metadata: Record<string, unknown>;
 }
 
-export interface IveKitRealtimeVoiceAiProjectionPolicy {
+export interface ConveractFabricRealtimeVoiceAiProjectionPolicy {
   persist_transcripts: boolean;
   persist_partial_transcripts: boolean;
   allowed_tool_refs: ReadonlyArray<string>;
   max_transcript_chars: number;
 }
 
-export interface IveKitVoiceAddressProjection {
-  kind: IveKitVoiceAddressKind;
+export interface ConveractFabricVoiceAddressProjection {
+  kind: ConveractFabricVoiceAddressKind;
   redacted: string;
 }
 
-export interface IveKitVoiceClearAddress {
-  kind: IveKitVoiceAddressKind;
+export interface ConveractFabricVoiceClearAddress {
+  kind: ConveractFabricVoiceAddressKind;
   value: string;
 }
 
-export interface IveKitVoicePageInput {
+export interface ConveractFabricVoicePageInput {
   cursor?: string;
   limit?: number;
 }
 
-export interface IveKitVoicePage<T> {
+export interface ConveractFabricVoicePage<T> {
   items: T[];
   next_cursor: string | null;
 }
 
-export interface IveKitVoiceCapabilities {
+export interface ConveractFabricVoiceCapabilities {
   api_version: 'v1';
   tenant_id: string;
   capabilities: {
@@ -250,11 +250,11 @@ export interface IveKitVoiceCapabilities {
   };
 }
 
-export interface IveKitVoiceDeploymentProfile {
+export interface ConveractFabricVoiceDeploymentProfile {
   id: string;
   tenant_id: string;
   name: string;
-  adapter: IveKitVoiceAdapter;
+  adapter: ConveractFabricVoiceAdapter;
   status: 'disabled' | 'enabled' | 'degraded' | 'archived';
   base_url: string;
   desired_version: string;
@@ -267,16 +267,16 @@ export interface IveKitVoiceDeploymentProfile {
   updated_at: string;
 }
 
-export interface IveKitVoiceCapabilitySnapshot {
+export interface ConveractFabricVoiceCapabilitySnapshot {
   id: string;
   tenant_id: string;
   profile_id: string;
   provider: string;
   provider_version: string;
   status: 'ready' | 'degraded' | 'not_available' | 'failed';
-  capabilities: Readonly<Record<IveKitVoiceCapability, boolean>>;
+  capabilities: Readonly<Record<ConveractFabricVoiceCapability, boolean>>;
   capability_schema_version: 1;
-  action_capabilities: IveKitVoiceActionCapabilities;
+  action_capabilities: ConveractFabricVoiceActionCapabilities;
   config_hash: string;
   error_code: string;
   error_message: string;
@@ -284,13 +284,13 @@ export interface IveKitVoiceCapabilitySnapshot {
   created_at: string;
 }
 
-export interface IveKitVoiceSipTrunk {
+export interface ConveractFabricVoiceSipTrunk {
   id: string;
   tenant_id: string;
   profile_id: string;
   name: string;
   provider_ref: string;
-  direction: IveKitVoiceRouteDirection;
+  direction: ConveractFabricVoiceRouteDirection;
   transport: 'udp' | 'tcp' | 'tls';
   codecs: string[];
   max_channels: number;
@@ -304,12 +304,12 @@ export interface IveKitVoiceSipTrunk {
   updated_at: string;
 }
 
-export interface IveKitVoiceDid {
+export interface ConveractFabricVoiceDid {
   id: string;
   tenant_id: string;
   trunk_id: string;
   route_id: string | null;
-  e164: IveKitVoiceAddressProjection;
+  e164: ConveractFabricVoiceAddressProjection;
   provider_ref: string;
   status: 'active' | 'disabled' | 'porting' | 'released';
   metadata: Record<string, unknown>;
@@ -318,7 +318,7 @@ export interface IveKitVoiceDid {
   updated_at: string;
 }
 
-export interface IveKitVoiceExtension {
+export interface ConveractFabricVoiceExtension {
   id: string;
   tenant_id: string;
   profile_id: string;
@@ -334,12 +334,12 @@ export interface IveKitVoiceExtension {
   updated_at: string;
 }
 
-export interface IveKitVoiceRoute {
+export interface ConveractFabricVoiceRoute {
   id: string;
   tenant_id: string;
   profile_id: string;
   name: string;
-  direction: IveKitVoiceRouteDirection;
+  direction: ConveractFabricVoiceRouteDirection;
   status: 'draft' | 'active' | 'disabled' | 'archived';
   draft_revision: number;
   draft_rules: Record<string, unknown>;
@@ -350,7 +350,7 @@ export interface IveKitVoiceRoute {
   updated_at: string;
 }
 
-export interface IveKitVoiceRouteVersion {
+export interface ConveractFabricVoiceRouteVersion {
   id: string;
   tenant_id: string;
   route_id: string;
@@ -363,18 +363,18 @@ export interface IveKitVoiceRouteVersion {
   published_at: string;
 }
 
-export interface IveKitVoiceCall {
+export interface ConveractFabricVoiceCall {
   id: string;
   tenant_id: string;
-  business_ref: IveKitVoiceBusinessRef;
+  business_ref: ConveractFabricVoiceBusinessRef;
   provider_profile_id: string;
   provider_call_id: string;
   provider_dialog_id: string;
   media_call_id: string | null;
-  direction: IveKitVoiceDirection;
-  state: IveKitVoiceCallState;
-  from: IveKitVoiceAddressProjection;
-  to: IveKitVoiceAddressProjection;
+  direction: ConveractFabricVoiceDirection;
+  state: ConveractFabricVoiceCallState;
+  from: ConveractFabricVoiceAddressProjection;
+  to: ConveractFabricVoiceAddressProjection;
   idempotency_key: string;
   initiated_by: string;
   metadata: Record<string, unknown>;
@@ -387,12 +387,12 @@ export interface IveKitVoiceCall {
   updated_at: string;
 }
 
-export interface IveKitVoiceParkingSlot {
+export interface ConveractFabricVoiceParkingSlot {
   id: string;
   tenant_id: string;
   profile_id: string;
   slot: string;
-  state: IveKitVoiceParkingSlotState;
+  state: ConveractFabricVoiceParkingSlotState;
   parked_call_id: string;
   park_command_id: string;
   pickup_call_id: string | null;
@@ -405,7 +405,7 @@ export interface IveKitVoiceParkingSlot {
   released_at: string | null;
 }
 
-export interface IveKitVoiceParticipant {
+export interface ConveractFabricVoiceParticipant {
   id: string;
   tenant_id: string;
   call_id: string;
@@ -421,10 +421,10 @@ export interface IveKitVoiceParticipant {
   updated_at: string;
 }
 
-interface IveKitVoicePublicCommand {
+interface ConveractFabricVoicePublicCommand {
   id: string;
   tenant_id: string;
-  state: IveKitVoiceCommandState;
+  state: ConveractFabricVoiceCommandState;
   idempotency_key: string;
   attempt_count: number;
   max_attempts: number;
@@ -437,19 +437,19 @@ interface IveKitVoicePublicCommand {
   completed_at: string | null;
 }
 
-export interface IveKitVoiceCallCommand extends IveKitVoicePublicCommand {
+export interface ConveractFabricVoiceCallCommand extends ConveractFabricVoicePublicCommand {
   call_id: string;
-  kind: IveKitVoiceCommandKind;
+  kind: ConveractFabricVoiceCommandKind;
 }
 
-export interface IveKitVoiceConfigurationCommand extends IveKitVoicePublicCommand {
+export interface ConveractFabricVoiceConfigurationCommand extends ConveractFabricVoicePublicCommand {
   profile_id: string;
-  resource_type: IveKitVoiceConfigurationResourceType;
+  resource_type: ConveractFabricVoiceConfigurationResourceType;
   resource_id: string;
-  operation: IveKitVoiceConfigurationOperation;
+  operation: ConveractFabricVoiceConfigurationOperation;
 }
 
-export interface IveKitVoiceProviderEvent {
+export interface ConveractFabricVoiceProviderEvent {
   id: string;
   tenant_id: string;
   profile_id: string;
@@ -470,7 +470,7 @@ export interface IveKitVoiceProviderEvent {
   processed_at: string | null;
 }
 
-export interface IveKitVoiceLiveKitBridge {
+export interface ConveractFabricVoiceLiveKitBridge {
   id: string;
   tenant_id: string;
   call_id: string;
@@ -486,7 +486,7 @@ export interface IveKitVoiceLiveKitBridge {
   ended_at: string | null;
 }
 
-export interface IveKitVoiceRecording {
+export interface ConveractFabricVoiceRecording {
   id: string;
   tenant_id: string;
   call_id: string;
@@ -507,7 +507,7 @@ export interface IveKitVoiceRecording {
   updated_at: string;
 }
 
-export interface IveKitVoiceConsent {
+export interface ConveractFabricVoiceConsent {
   id: string;
   tenant_id: string;
   subject_ref_type: string;
@@ -523,7 +523,7 @@ export interface IveKitVoiceConsent {
   updated_at: string;
 }
 
-export interface IveKitVoicePolicy {
+export interface ConveractFabricVoicePolicy {
   id: string;
   tenant_id: string;
   require_outbound_consent: boolean;
@@ -540,46 +540,46 @@ export interface IveKitVoicePolicy {
   updated_at: string;
 }
 
-export interface IveKitVoiceCreateProfileInput {
+export interface ConveractFabricVoiceCreateProfileInput {
   name: string;
-  adapter: IveKitVoiceAdapter;
+  adapter: ConveractFabricVoiceAdapter;
   base_url?: string;
   desired_version?: string;
   config?: Record<string, unknown>;
   secret_refs?: Record<string, string>;
-  status?: IveKitVoiceDeploymentProfile['status'];
+  status?: ConveractFabricVoiceDeploymentProfile['status'];
 }
 
-export type IveKitVoiceProfilePatch = Partial<Pick<IveKitVoiceDeploymentProfile,
+export type ConveractFabricVoiceProfilePatch = Partial<Pick<ConveractFabricVoiceDeploymentProfile,
   'name' | 'adapter' | 'status' | 'base_url' | 'desired_version' | 'config' | 'secret_refs'>>;
 
-export interface IveKitVoiceCreateTrunkInput {
+export interface ConveractFabricVoiceCreateTrunkInput {
   profile_id: string;
   name: string;
-  direction: IveKitVoiceRouteDirection;
-  transport: IveKitVoiceSipTrunk['transport'];
+  direction: ConveractFabricVoiceRouteDirection;
+  transport: ConveractFabricVoiceSipTrunk['transport'];
   codecs: string[];
   max_channels: number;
   credential_secret_ref: string;
   desired_state?: Record<string, unknown>;
 }
 
-export type IveKitVoiceTrunkPatch = Partial<Pick<IveKitVoiceSipTrunk,
+export type ConveractFabricVoiceTrunkPatch = Partial<Pick<ConveractFabricVoiceSipTrunk,
   'name' | 'direction' | 'transport' | 'codecs' | 'max_channels' |
   'credential_secret_ref' | 'desired_state' | 'status'>>;
 
-export interface IveKitVoiceCreateDidInput {
+export interface ConveractFabricVoiceCreateDidInput {
   trunk_id: string;
   route_id?: string | null;
   e164: string;
   metadata?: Record<string, unknown>;
-  status?: IveKitVoiceDid['status'];
+  status?: ConveractFabricVoiceDid['status'];
 }
 
-export type IveKitVoiceDidPatch = Partial<Pick<IveKitVoiceDid,
+export type ConveractFabricVoiceDidPatch = Partial<Pick<ConveractFabricVoiceDid,
   'trunk_id' | 'route_id' | 'provider_ref' | 'status' | 'metadata'>>;
 
-export interface IveKitVoiceCreateExtensionInput {
+export interface ConveractFabricVoiceCreateExtensionInput {
   profile_id: string;
   identity: string;
   extension: string;
@@ -587,65 +587,65 @@ export interface IveKitVoiceCreateExtensionInput {
   credential_secret_ref: string;
   permissions?: Record<string, unknown>;
   webrtc_enabled: boolean;
-  status?: IveKitVoiceExtension['status'];
+  status?: ConveractFabricVoiceExtension['status'];
 }
 
-export type IveKitVoiceExtensionPatch = Partial<Pick<IveKitVoiceExtension,
+export type ConveractFabricVoiceExtensionPatch = Partial<Pick<ConveractFabricVoiceExtension,
   'identity' | 'extension' | 'display_name' | 'credential_secret_ref' |
   'permissions' | 'webrtc_enabled' | 'status'>>;
 
-export interface IveKitVoiceCreateRouteInput {
+export interface ConveractFabricVoiceCreateRouteInput {
   profile_id: string;
   name: string;
-  direction: IveKitVoiceRouteDirection;
+  direction: ConveractFabricVoiceRouteDirection;
   draft_rules: Record<string, unknown>;
 }
 
-export type IveKitVoiceRoutePatch = Partial<Pick<IveKitVoiceRoute,
+export type ConveractFabricVoiceRoutePatch = Partial<Pick<ConveractFabricVoiceRoute,
   'name' | 'direction' | 'status' | 'draft_rules'>>;
 
-export interface IveKitVoiceCreateOutboundCallInput {
+export interface ConveractFabricVoiceCreateOutboundCallInput {
   profile_id: string;
-  from: IveKitVoiceClearAddress;
-  to: IveKitVoiceClearAddress;
-  business_ref: IveKitVoiceBusinessRef;
+  from: ConveractFabricVoiceClearAddress;
+  to: ConveractFabricVoiceClearAddress;
+  business_ref: ConveractFabricVoiceBusinessRef;
   metadata?: Record<string, unknown>;
 }
 
-export interface IveKitVoiceCallActionInput {
-  action: IveKitVoiceCommandKind;
+export interface ConveractFabricVoiceCallActionInput {
+  action: ConveractFabricVoiceCommandKind;
   payload?: Record<string, unknown>;
 }
 
-export interface IveKitVoicePolicyWrite {
+export interface ConveractFabricVoicePolicyWrite {
   require_outbound_consent: boolean;
-  recording_mode: IveKitVoicePolicy['recording_mode'];
+  recording_mode: ConveractFabricVoicePolicy['recording_mode'];
   recording_retention_days: number;
   require_ai_disclosure: boolean;
   allowed_calling_windows: unknown[];
   masking_policy?: Record<string, unknown>;
-  status: IveKitVoicePolicy['status'];
+  status: ConveractFabricVoicePolicy['status'];
   revision?: number | null;
 }
 
-export interface IveKitVoiceCreateConsentInput {
+export interface ConveractFabricVoiceCreateConsentInput {
   subject_ref_type: string;
   subject_ref_id: string;
   business_ref_type: string;
   business_ref_id: string;
-  consent_type: IveKitVoiceConsent['consent_type'];
-  status: IveKitVoiceConsent['status'];
+  consent_type: ConveractFabricVoiceConsent['consent_type'];
+  status: ConveractFabricVoiceConsent['status'];
   evidence_ref: string;
   expires_at?: string | null;
 }
 
-export interface IveKitVoiceIceServer {
+export interface ConveractFabricVoiceIceServer {
   urls: string | string[];
   username?: string;
   credential?: string;
 }
 
-export interface IveKitVoiceExtensionSessionCapabilities {
+export interface ConveractFabricVoiceExtensionSessionCapabilities {
   incoming: boolean;
   outgoing: boolean;
   dtmf: boolean;
@@ -655,7 +655,7 @@ export interface IveKitVoiceExtensionSessionCapabilities {
   audio_output: boolean;
 }
 
-export interface IveKitVoiceExtensionSessionPlan {
+export interface ConveractFabricVoiceExtensionSessionPlan {
   session_id: string;
   extension_id: string;
   transport: 'wss';
@@ -666,14 +666,14 @@ export interface IveKitVoiceExtensionSessionPlan {
   display_name?: string;
   expires_at: string;
   register_expires_seconds: number;
-  ice_servers: IveKitVoiceIceServer[];
-  capabilities: IveKitVoiceExtensionSessionCapabilities;
+  ice_servers: ConveractFabricVoiceIceServer[];
+  capabilities: ConveractFabricVoiceExtensionSessionCapabilities;
 }
 
-export function parseIveKitVoiceExtensionSessionPlan(
+export function parseConveractFabricVoiceExtensionSessionPlan(
   value: unknown,
   options: { now?: () => number } = {}
-): IveKitVoiceExtensionSessionPlan {
+): ConveractFabricVoiceExtensionSessionPlan {
   const invalid = () => new TypeError('invalid voice extension session plan');
   if (!isSessionRecord(value)) throw invalid();
   const string = (input: unknown, max = 2_048): string => {
@@ -712,7 +712,7 @@ export function parseIveKitVoiceExtensionSessionPlan(
   });
   if (!isSessionRecord(value.capabilities)) throw invalid();
   const capabilities = value.capabilities;
-  const boolean = (key: keyof IveKitVoiceExtensionSessionCapabilities): boolean => {
+  const boolean = (key: keyof ConveractFabricVoiceExtensionSessionCapabilities): boolean => {
     if (typeof capabilities[key] !== 'boolean') throw invalid();
     return capabilities[key];
   };
@@ -748,13 +748,13 @@ function isSessionRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-export interface IveKitVoiceCreateCallResult {
-  call: IveKitVoiceCall;
-  command: IveKitVoiceCallCommand;
+export interface ConveractFabricVoiceCreateCallResult {
+  call: ConveractFabricVoiceCall;
+  command: ConveractFabricVoiceCallCommand;
 }
 
-export interface IveKitVoicePublishRouteResult {
-  route: IveKitVoiceRoute;
-  version: IveKitVoiceRouteVersion;
-  command: IveKitVoiceConfigurationCommand;
+export interface ConveractFabricVoicePublishRouteResult {
+  route: ConveractFabricVoiceRoute;
+  version: ConveractFabricVoiceRouteVersion;
+  command: ConveractFabricVoiceConfigurationCommand;
 }

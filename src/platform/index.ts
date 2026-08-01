@@ -1,5 +1,5 @@
 /**
- * OPC platform module (Phase K) — tenant, channel, landing, tasks, analytics.
+ * Converact platform module (Phase K) — tenant, channel, landing, tasks, analytics.
  * Lead acquisition code should import platform from here, not from builder paths.
  */
 export * from './tenant.js';

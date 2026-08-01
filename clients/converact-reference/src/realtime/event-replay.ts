@@ -1,10 +1,10 @@
 import type {
-  IveKitEvent,
-  IveKitEventPage,
-  IveKitEventPageInput,
-  IveKitEventReplayInput,
-  IveKitEventReplayResult,
-  IveKitEventSnapshotReason
+  ConveractFabricEvent,
+  ConveractFabricEventPage,
+  ConveractFabricEventPageInput,
+  ConveractFabricEventReplayInput,
+  ConveractFabricEventReplayResult,
+  ConveractFabricEventSnapshotReason
 } from '@converact/sdk';
 
 export type EventReplayStatus = 'idle' | 'syncing' | 'live' | 'snapshot' | 'error' | 'stopped';
@@ -12,14 +12,14 @@ export type EventReplayStatus = 'idle' | 'syncing' | 'live' | 'snapshot' | 'erro
 export interface EventReplayControllerOptions {
   events: {
     getHeadCursor(): Promise<string>;
-    listPage(input: IveKitEventPageInput): Promise<IveKitEventPage>;
-    replay(input: IveKitEventReplayInput): Promise<IveKitEventReplayResult>;
+    listPage(input: ConveractFabricEventPageInput): Promise<ConveractFabricEventPage>;
+    replay(input: ConveractFabricEventReplayInput): Promise<ConveractFabricEventReplayResult>;
   };
   initialCursor?: string;
   pageSize?: number;
   maxPages?: number;
   maxSeenEventIds?: number;
-  onEvent(event: IveKitEvent): void | Promise<void>;
+  onEvent(event: ConveractFabricEvent): void | Promise<void>;
   snapshots: {
     chat(): void | Promise<void>;
     media(): void | Promise<void>;
@@ -144,7 +144,7 @@ export function eventWorkspace(type: string): EventWorkspace {
   return 'context';
 }
 
-export function snapshotReason(value: unknown): IveKitEventSnapshotReason | undefined {
+export function snapshotReason(value: unknown): ConveractFabricEventSnapshotReason | undefined {
   return value === 'invalid_cursor' || value === 'cursor_tenant_mismatch' || value === 'cursor_expired'
     ? value
     : undefined;

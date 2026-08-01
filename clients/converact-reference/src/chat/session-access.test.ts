@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { IveKitChatParticipant, IveKitChatSession } from '@converact/sdk';
+import type { ConveractFabricChatParticipant, ConveractFabricChatSession } from '@converact/sdk';
 import { eventRevokesSession, sessionAllowsWrites } from './session-access.js';
 
 test('only active participants in an open session may write', () => {
@@ -20,10 +20,10 @@ test('session close and current participant leave events revoke access', () => {
   }, 'agent-1'), false);
 });
 
-function session(status: 'open' | 'closed'): IveKitChatSession {
-  return { status } as IveKitChatSession;
+function session(status: 'open' | 'closed'): ConveractFabricChatSession {
+  return { status } as ConveractFabricChatSession;
 }
 
-function participant(leftAt: string | null): IveKitChatParticipant {
-  return { identity: 'agent-1', left_at: leftAt } as IveKitChatParticipant;
+function participant(leftAt: string | null): ConveractFabricChatParticipant {
+  return { identity: 'agent-1', left_at: leftAt } as ConveractFabricChatParticipant;
 }

@@ -2,22 +2,22 @@ import { createHmac } from 'node:crypto';
 import { isIP } from 'node:net';
 
 import { canonicalNotificationJson } from '../../notifications/canonical.js';
-import { IveKitOperationsError } from './errors.js';
-import type { IveKitAuditRepository } from './ports.js';
+import { ConveractFabricOperationsError } from './errors.js';
+import type { ConveractFabricAuditRepository } from './ports.js';
 import type {
-  IveKitAuditAppendResult,
-  IveKitAuditListInput,
-  IveKitAuditPage,
-  IveKitAuditRequest
+  ConveractFabricAuditAppendResult,
+  ConveractFabricAuditListInput,
+  ConveractFabricAuditPage,
+  ConveractFabricAuditRequest
 } from './types.js';
 
-export class IveKitAuditService {
-  readonly #repository: IveKitAuditRepository;
+export class ConveractFabricAuditService {
+  readonly #repository: ConveractFabricAuditRepository;
   readonly #ipHmacKey: Buffer;
   readonly #now: () => Date;
 
   constructor(input: {
-    repository: IveKitAuditRepository;
+    repository: ConveractFabricAuditRepository;
     ip_hmac_key: string;
     now?: () => Date;
   }) {
@@ -26,7 +26,7 @@ export class IveKitAuditService {
     this.#now = input.now || (() => new Date());
   }
 
-  async append(input: IveKitAuditRequest): Promise<IveKitAuditAppendResult> {
+  async append(input: ConveractFabricAuditRequest): Promise<ConveractFabricAuditAppendResult> {
     const occurredAt = input.occurred_at
       ? timestamp(input.occurred_at)
       : this.#now().toISOString();
@@ -54,7 +54,7 @@ export class IveKitAuditService {
     });
   }
 
-  list(input: IveKitAuditListInput): Promise<IveKitAuditPage> {
+  list(input: ConveractFabricAuditListInput): Promise<ConveractFabricAuditPage> {
     return this.#repository.list({
       tenant_id: requiredText(input.tenant_id, 255),
       limit: input.limit,
@@ -65,7 +65,7 @@ export class IveKitAuditService {
     });
   }
 
-  async exportJsonl(input: IveKitAuditListInput & { max_events?: number }): Promise<string> {
+  async exportJsonl(input: ConveractFabricAuditListInput & { max_events?: number }): Promise<string> {
     const max = boundedInteger(input.max_events, 10_000, 1, 100_000);
     const lines: string[] = [];
     let cursor = input.cursor;
@@ -155,6 +155,6 @@ function boundedInteger(value: number | undefined, fallback: number, min: number
   return value;
 }
 
-function validationError(): IveKitOperationsError {
-  return new IveKitOperationsError('validation_failed', 422);
+function validationError(): ConveractFabricOperationsError {
+  return new ConveractFabricOperationsError('validation_failed', 422);
 }

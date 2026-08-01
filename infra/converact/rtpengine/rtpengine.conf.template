@@ -12,7 +12,7 @@ delete-delay=0
 recording-dir=__RECORDING_DIR__
 recording-method=pcap
 recording-format=eth
-templates=ivekit-signalling-templates
+templates=converact-signalling-templates
 
-[ivekit-signalling-templates]
+[converact-signalling-templates]
 g711-relay-v1=replace-origin replace-session-connection trust-address rtcp-mux=[accept offer] SDES=only-AES_CM_128_HMAC_SHA1_80

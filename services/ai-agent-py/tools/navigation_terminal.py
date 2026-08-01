@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import logging
 
-from opc_client import OPCClient
+from converact_client import ConveractClient
 from tool_context import ToolContext
 
 logger = logging.getLogger("ai-agent.tools")
 
 
 async def dispatch_navigation_terminal(
-    opc: OPCClient,
+    converact: ConveractClient,
     ctx: ToolContext,
     navigation: dict,
     customer_text: str,
@@ -21,7 +21,7 @@ async def dispatch_navigation_terminal(
     summary = customer_text or str(navigation.get("message_for_agent") or "")
 
     if action == "transfer_human":
-        return await opc.request_transfer(
+        return await converact.request_transfer(
             room_name=ctx.ctx.room.name,
             tenant_id=ctx.tenant_id,
             call_session_id=ctx.call_session_id,
@@ -31,7 +31,7 @@ async def dispatch_navigation_terminal(
         )
 
     if action == "end_call":
-        return await opc.end_call(
+        return await converact.end_call(
             room_name=ctx.ctx.room.name,
             tenant_id=ctx.tenant_id,
             reason="navigation terminal: end_call",
