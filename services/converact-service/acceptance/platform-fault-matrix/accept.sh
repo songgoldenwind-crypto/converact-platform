@@ -12,12 +12,12 @@ CONFIRMATION=${CONVERACT_G02_FAULT_CONFIRM:-}
 RUN_ID=${CONVERACT_G02_FAULT_RUN_ID:-}
 SOURCE_COMMIT=${CONVERACT_G02_SOURCE_COMMIT:-}
 POSTGRES_IMAGE=${POSTGRES_IMAGE:-}
-POSTGRES_HOST_PORT=${POSTGRES_HOST_PORT:-}
 MEDIA_DURATION_MS=${CONVERACT_G02_MEDIA_DURATION_MS:-30000}
 PROJECT=
 EVIDENCE_DIR=
 COMPOSE_ACTIVE=0
 MEDIA_PID=
+POSTGRES_ADDRESS=
 
 if [[ "$CONFIRMATION" != "G02_PLATFORM_FAULT_MATRIX" ]]; then
   printf '%s\n' 'CONVERACT_G02_FAULT_CONFIRM must equal G02_PLATFORM_FAULT_MATRIX' >&2
@@ -72,27 +72,6 @@ if [[ -n "$(git -C "$ROOT_DIR" status --porcelain --untracked-files=all)" ]]; th
   exit 2
 fi
 
-reserve_loopback_port() {
-  "$NODE_BIN" -e '
-    const net = require("node:net");
-    const server = net.createServer();
-    server.listen({ host: "127.0.0.1", port: 0, exclusive: true }, () => {
-      const address = server.address();
-      if (!address || typeof address === "string") process.exit(1);
-      server.close((error) => {
-        if (error) process.exit(1);
-        process.stdout.write(String(address.port));
-      });
-    });
-  '
-}
-
-if [[ -z "$POSTGRES_HOST_PORT" ]]; then POSTGRES_HOST_PORT=$(reserve_loopback_port); fi
-if [[ ! "$POSTGRES_HOST_PORT" =~ ^[0-9]+$ ]] || (( POSTGRES_HOST_PORT < 1024 || POSTGRES_HOST_PORT > 65535 )); then
-  printf '%s\n' 'POSTGRES_HOST_PORT must be an unprivileged TCP port' >&2
-  exit 2
-fi
-
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
 CONVERACT_RUNTIME_DB_PASSWORD=$(openssl rand -hex 24)
 PROJECT="converact-g02-$RUN_ID"
@@ -120,9 +99,9 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-export POSTGRES_IMAGE POSTGRES_HOST_PORT POSTGRES_PASSWORD
+export POSTGRES_IMAGE POSTGRES_PASSWORD
 export CONVERACT_RUNTIME_DB_PASSWORD
-export PGHOST=127.0.0.1 PGPORT="$POSTGRES_HOST_PORT" PGDATABASE=opc PGUSER=opc_admin PGPASSWORD="$POSTGRES_PASSWORD"
+export PGDATABASE=opc PGUSER=opc_admin PGPASSWORD="$POSTGRES_PASSWORD"
 export CONVERACT_G02_FAULT_RUN_ID="$RUN_ID"
 export CONVERACT_G02_STARTED_AT
 CONVERACT_G02_STARTED_AT=$("$NODE_BIN" -e 'process.stdout.write(new Date().toISOString())')
@@ -164,6 +143,20 @@ wait_postgres() {
   done
 }
 
+set_postgres_address() {
+  local container_id network
+  container_id=$(compose ps --quiet postgres)
+  network="${PROJECT}_validation"
+  POSTGRES_ADDRESS=$(docker inspect \
+    --format "{{with index .NetworkSettings.Networks \"$network\"}}{{.IPAddress}}{{end}}" \
+    "$container_id")
+  if [[ -z "$POSTGRES_ADDRESS" || "$POSTGRES_ADDRESS" == *[[:space:]]* ]]; then
+    printf '%s\n' 'PostgreSQL private bridge address is unavailable' >&2
+    return 1
+  fi
+  export PGHOST="$POSTGRES_ADDRESS" PGPORT=5432
+}
+
 wait_file() {
   local path=$1
   local pid=$2
@@ -195,6 +188,7 @@ RAW_MANIFEST="$EVIDENCE_DIR/raw-output.sha256"
 snapshot_unrelated >"$BEFORE_CONTAINERS"
 COMPOSE_ACTIVE=1
 compose up --detach postgres >"$EVIDENCE_DIR/postgres-up.log" 2>&1
+set_postgres_address
 wait_postgres
 
 CONVERACT_FABRIC_MIGRATIONS_DIR="$ROOT_DIR/src/migrations" \
@@ -219,6 +213,7 @@ compose stop --timeout 5 postgres >"$EVIDENCE_DIR/postgres-stop.log" 2>&1
 "$NODE_BIN" --import tsx "$DATABASE_PROBE" outage "$OUTAGE_RESULT" \
   >"$EVIDENCE_DIR/database-outage.log" 2>&1
 compose start postgres >"$EVIDENCE_DIR/postgres-start.log" 2>&1
+set_postgres_address
 wait_postgres
 FAULT_COMPLETED_AT=$("$NODE_BIN" -e 'process.stdout.write(new Date().toISOString())')
 CONTAINER_ID_AFTER=$(compose ps --quiet postgres)

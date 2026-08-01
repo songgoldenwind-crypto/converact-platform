@@ -27,7 +27,7 @@ The runner requires all of the following before any Compose action:
 2. a bounded run ID, producing a dedicated `converact-g02-*` Compose project;
 3. every container image by immutable `name@sha256:digest` reference;
 4. randomly generated campaign-only admin/runtime database passwords that are never written to evidence;
-5. loopback-only published ports and an internal Compose network;
+5. no published database port and a private internal bridge reachable only from the validation host;
 6. source commit, config hash, image digests, host/hardware/clock/workload/seed/time and raw-output hashes in the
    final evidence identity;
 7. project-scoped cleanup only. The runner must not prune Docker or stop unrelated containers.
@@ -58,7 +58,7 @@ CONVERACT_G02_MEDIA_DURATION_MS=30000 \
 ```
 
 The source tree must already contain `npm ci` dependencies and must run with Node v24. The runner records the exact
-Node image and binary SHA-256, reserves a loopback port, creates a unique
+Node image and binary SHA-256, resolves the database's unpublished private bridge address, creates a unique
 Compose project and evidence directory, generates both database passwords in memory, and removes only its own
 container/network/volume. It refuses to overwrite an existing run. Evidence is written under
 `.runtime/platform-fault-matrix/<run-id>/` with raw-file hashes, exact source/config/image/host/hardware/clock/workload

@@ -207,10 +207,21 @@ test('acceptance entrypoints are project-scoped digest-pinned and explicit about
   assert.match(script, /docker compose --project-name/);
   assert.doesNotMatch(script, /docker (?:system )?prune|docker stop \$\(docker ps/);
   assert.match(compose, /\?POSTGRES_IMAGE immutable digest reference is required/);
-  assert.match(compose, /127\.0\.0\.1:/);
+  assert.match(compose, /internal: true/);
   assert.match(readme, /synthetic.*not.*real.*human media/is);
   assert.match(readme, /production[_ -]eligible.*false/is);
   assert.match(readme, /not_run/);
+});
+
+test('database remains unpublished while the host probe uses its private bridge address', () => {
+  const script = readFileSync(new URL('accept.sh', acceptanceRoot), 'utf8');
+  const compose = readFileSync(new URL('docker-compose.yml', acceptanceRoot), 'utf8');
+  const readme = readFileSync(new URL('README.md', acceptanceRoot), 'utf8');
+
+  assert.doesNotMatch(compose, /^\s+ports:/m);
+  assert.match(script, /POSTGRES_ADDRESS=\$\(docker inspect/);
+  assert.match(script, /export PGHOST="\$POSTGRES_ADDRESS" PGPORT=5432/);
+  assert.match(readme, /no published database port.*private internal bridge/is);
 });
 
 test('database evidence requires actual RLS restart recovery and synthetic continuity facts', () => {
