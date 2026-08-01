@@ -52,6 +52,58 @@ test('inbox changed digest conflicts instead of overwriting', async () => {
   );
 });
 
+test('inbox serializes an ordering scope and does not apply stale revisions', async () => {
+  const incoming = platformEvent({ event_id: 'event-stale', aggregate_revision: 7 });
+  const pg = new RecordingPg((sql) => {
+    if (/ORDER BY inbox\.aggregate_revision DESC/i.test(sql)) {
+      return [inboxRow({
+        event_id: 'event-newer',
+        aggregate_revision: 8,
+        payload_digest: 'e'.repeat(64)
+      })];
+    }
+    if (/INSERT INTO converact_platform_inbox/i.test(sql)) return [inboxRow()];
+    return [];
+  });
+
+  const result = await new PostgresPlatformEventReceiptStore(pg).appendInbox({
+    tenant_id: 'tenant-a', consumer_id: 'projection-a', event: incoming
+  });
+
+  assert.deepEqual(result, { status: 'stale' });
+  assert.equal(
+    pg.calls.some((call) => /INSERT INTO converact_platform_inbox/i.test(call.text)),
+    true,
+    'a stale event is persisted as an inbox receipt but must not be applied'
+  );
+  assert.equal(pg.calls.some((call) => /pg_advisory_xact_lock/i.test(call.text)), true);
+});
+
+test('inbox freezes revision gaps and same-revision conflicts before persistence', async () => {
+  for (const [event, expectedCode] of [
+    [platformEvent({ event_id: 'event-gap', aggregate_revision: 10 }), 'platform_inbox_gap_requires_reconcile'],
+    [platformEvent({
+      event_id: 'event-same-revision',
+      aggregate_revision: 7,
+      payload_digest: 'f'.repeat(64)
+    }), 'platform_inbox_conflict']
+  ] as const) {
+    const pg = new RecordingPg((sql) => {
+      if (/ORDER BY inbox\.aggregate_revision DESC/i.test(sql)) return [inboxRow()];
+      if (/INSERT INTO converact_platform_inbox/i.test(sql)) return [inboxRow()];
+      return [];
+    });
+    await assert.rejects(
+      () => new PostgresPlatformEventReceiptStore(pg).appendInbox({
+        tenant_id: 'tenant-a', consumer_id: 'projection-a', event
+      }),
+      (error: unknown) => (error as PlatformFoundationStoreError).code === expectedCode,
+      expectedCode
+    );
+    assert.equal(pg.calls.some((call) => /INSERT INTO converact_platform_inbox/i.test(call.text)), false);
+  }
+});
+
 test('effect receipt append uses latest generation and owner epoch fencing', async () => {
   const accepted = receipt('accepted');
   const completed = receipt('completed');
@@ -109,7 +161,7 @@ test('outbox claim is tenant-scoped skip-locked and strictly bounded', async () 
   }), /platform_claim_invalid/);
 });
 
-function platformEvent(): PlatformEventV2 {
+function platformEvent(overrides: Partial<PlatformEventV2> = {}): PlatformEventV2 {
   const data = { state: 'ready' };
   return {
     schema_version: 2, source_schema_version: 2, event_id: 'event-a',
@@ -120,7 +172,7 @@ function platformEvent(): PlatformEventV2 {
     payload_digest: platformPayloadDigest(data), occurred_at: '2026-08-01T12:00:00.000Z',
     observed_at: '2026-08-01T12:00:00.010Z', correlation: { correlation_id: 'correlation-a' },
     causation_event_id: null, purpose: 'state_projection', region_policy: 'tenant-primary',
-    retention_policy: 'event-30d', data, extensions: {}
+    retention_policy: 'event-30d', data, extensions: {}, ...overrides
   };
 }
 

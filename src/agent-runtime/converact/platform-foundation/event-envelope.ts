@@ -169,7 +169,11 @@ export function decideInboxWrite(
 ): PlatformInboxWriteDecision {
   if (!existing) return 'insert';
   if (existing.event_id !== undefined && existing.event_id === incoming.event_id) {
-    return existing.payload_digest === incoming.payload_digest ? 'replay' : 'conflict';
+    return existing.payload_digest === incoming.payload_digest
+      && existing.aggregate_revision === incoming.aggregate_revision
+      && (existing.ordering_key === undefined || existing.ordering_key === incoming.ordering_key)
+      ? 'replay'
+      : 'conflict';
   }
   if (existing.ordering_key !== undefined && existing.ordering_key !== incoming.ordering_key) {
     return 'insert';

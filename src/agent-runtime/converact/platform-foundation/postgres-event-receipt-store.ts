@@ -45,9 +45,55 @@ export class PostgresPlatformEventReceiptStore {
     tenant_id: string;
     consumer_id: string;
     event: PlatformEventV2;
-  }): Promise<{ status: 'inserted' | 'replay' }> {
+  }): Promise<{ status: 'inserted' | 'replay' | 'stale' }> {
     assertInboxInput(input);
     return withPgTenant(this.pg, input.tenant_id, async (pg) => {
+      await pg.query(
+        `SELECT pg_advisory_xact_lock(
+           hashtextextended(concat_ws(E'\\x1f', $1, $2, $3), 0)
+         )`,
+        [input.tenant_id, input.consumer_id, input.event.ordering_key]
+      );
+
+      const exact = await pg.query<Row>(
+        `SELECT inbox.payload_digest, inbox.aggregate_revision,
+                inbox.event_id, inbox.ordering_key
+         FROM converact_platform_inbox inbox
+         WHERE inbox.tenant_id = $1
+           AND inbox.consumer_id = $2
+           AND inbox.event_id = $3
+         FOR UPDATE`,
+        [input.tenant_id, input.consumer_id, input.event.event_id]
+      );
+      if (exact.rows.length > 1) storeError('platform_inbox_store_invalid');
+      if (exact.rows[0]) {
+        const decision = decideInboxWrite(decodeInboxState(exact.rows[0]), input.event);
+        if (decision === 'replay') return { status: 'replay' };
+        storeError('platform_inbox_conflict');
+      }
+
+      const latest = await pg.query<Row>(
+        `SELECT inbox.payload_digest, inbox.aggregate_revision,
+                inbox.event_id, inbox.ordering_key
+         FROM converact_platform_inbox inbox
+         WHERE inbox.tenant_id = $1
+           AND inbox.consumer_id = $2
+           AND inbox.ordering_key = $3
+         ORDER BY inbox.aggregate_revision DESC, inbox.received_at DESC, inbox.event_id DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [input.tenant_id, input.consumer_id, input.event.ordering_key]
+      );
+      if (latest.rows.length > 1) storeError('platform_inbox_store_invalid');
+      const orderingDecision = decideInboxWrite(
+        latest.rows[0] ? decodeInboxState(latest.rows[0]) : null,
+        input.event
+      );
+      if (orderingDecision === 'replay') return { status: 'replay' };
+      if (orderingDecision === 'conflict' || orderingDecision === 'gap_requires_reconcile') {
+        inboxDecisionError(orderingDecision);
+      }
+
       const inserted = await pg.query<Row>(
         `INSERT INTO converact_platform_inbox
           (tenant_id, consumer_id, event_id, payload_digest, aggregate_revision,
@@ -67,7 +113,9 @@ export class PostgresPlatformEventReceiptStore {
         ]
       );
       if (inserted.rows.length > 1) storeError('platform_inbox_store_invalid');
-      if (inserted.rows[0]) return { status: 'inserted' };
+      if (inserted.rows[0]) {
+        return { status: orderingDecision === 'stale' ? 'stale' : 'inserted' };
+      }
 
       const replay = await pg.query<Row>(
         `SELECT inbox.payload_digest, inbox.aggregate_revision,
@@ -296,6 +344,14 @@ function effectDecisionError(decision: Exclude<ReturnType<typeof decideEffectRec
     ? 'platform_effect_stale_writer'
     : decision === 'conflict' ? 'platform_effect_conflict' : 'platform_effect_invalid_transition';
   return storeError(code);
+}
+
+function inboxDecisionError(
+  decision: Exclude<ReturnType<typeof decideInboxWrite>, 'insert' | 'replay' | 'stale'>
+): never {
+  return storeError(decision === 'gap_requires_reconcile'
+    ? 'platform_inbox_gap_requires_reconcile'
+    : 'platform_inbox_conflict');
 }
 
 function sameReceipt(left: EffectReceipt, right: EffectReceipt): boolean {

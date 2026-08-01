@@ -92,6 +92,12 @@ test('a new generation must restart at accepted and cannot move backwards', () =
   assert.equal(decideEffectReceiptAppend(prior, receipt('accepted', {
     receipt_id: 'receipt-generation-3', generation: 3
   })), 'stale_writer');
+  assert.equal(decideEffectReceiptAppend(prior, receipt('accepted', {
+    receipt_id: 'receipt-generation-5-wrong-writer',
+    generation: 5,
+    writer_id: 'effect-worker-b',
+    owner_epoch: 8
+  })), 'conflict', 'a new generation cannot change writer without advancing owner epoch');
 });
 
 test('audit link is exact and rejects raw request secret or payload fields', () => {

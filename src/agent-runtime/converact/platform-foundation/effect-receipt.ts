@@ -57,13 +57,15 @@ export function decideEffectReceiptAppend(
   if (candidate.generation < head.generation || candidate.owner_epoch < head.owner_epoch) {
     return 'stale_writer';
   }
+  if (candidate.owner_epoch === head.owner_epoch && candidate.writer_id !== head.writer_id) {
+    return 'conflict';
+  }
   if (candidate.generation > head.generation) {
     return candidate.stage === 'accepted' ? 'append' : 'invalid_transition';
   }
 
   const sameStage = current.find((item) => item.stage === candidate.stage);
   if (sameStage) return sameReceipt(sameStage, candidate) ? 'replay' : 'conflict';
-  if (candidate.owner_epoch === head.owner_epoch && candidate.writer_id !== head.writer_id) return 'conflict';
   const expected = STAGES[current.length];
   return candidate.stage === expected ? 'append' : 'invalid_transition';
 }
