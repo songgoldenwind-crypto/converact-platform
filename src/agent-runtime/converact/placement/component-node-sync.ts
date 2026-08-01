@@ -10,6 +10,7 @@ import type {
   ComponentNodeStateSnapshot
 } from './component-node-admission.js';
 import type { AdmissionState } from './types.js';
+import { systemMonotonicNowMs } from '../platform-foundation/clock.js';
 
 export interface ComponentNodeSyncTarget {
   component: ComponentNodeComponent;
@@ -128,7 +129,7 @@ export class ComponentNodeSynchronizer {
       1_000_000,
       'component node queued checkpoint syncs'
     );
-    this.#monotonicClockMs = input.monotonic_clock_ms || Date.now;
+    this.#monotonicClockMs = input.monotonic_clock_ms || systemMonotonicNowMs;
     const targetIds = new Set<string>();
     const factory = input.client_factory || ((target) =>
       new HttpComponentNodeAdmissionClient({
