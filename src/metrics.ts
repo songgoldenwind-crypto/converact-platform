@@ -88,6 +88,27 @@ export const billingUsage = new Gauge({
   registers: [register]
 });
 
+// G02 foundation metrics use only contract-approved low-cardinality labels.
+// Existing v1 tenant-labelled series above remain for compatibility but are
+// not evidence of compliance with the new cardinality contract.
+export const platformTelemetryDroppedTotal = new Counter({
+  name: 'converact_platform_telemetry_dropped_total',
+  help: 'Bounded platform telemetry dropped before exporter backpressure can affect business work',
+  labelNames: ['reason'],
+  registers: [register]
+});
+
+export function recordPlatformTelemetryDrop(
+  reason: 'queue_full' | 'exporter_unavailable' | 'deadline_exceeded'
+): void {
+  if (!['queue_full', 'exporter_unavailable', 'deadline_exceeded'].includes(reason)) return;
+  try {
+    platformTelemetryDroppedTotal.labels(reason).inc();
+  } catch {
+    // Observability must never change business or established-media success.
+  }
+}
+
 /** Prometheus metrics registry — exposed at /metrics endpoint. */
 export const metricsRegistry = register;
 
