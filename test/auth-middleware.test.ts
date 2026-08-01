@@ -138,6 +138,57 @@ test('auth required: missing Authorization header throws 401', () => {
   }
 });
 
+test('production never implicitly trusts development identity headers', () => {
+  const restore = isolateAuthEnvironment();
+  try {
+    process.env.NODE_ENV = 'production';
+    assert.throws(
+      () => resolveAuthContext({
+        'x-tenant-id': 'attacker-tenant',
+        'x-user-id': 'attacker-user',
+        'x-role': 'owner'
+      }),
+      (error: any) => error.status === 401
+    );
+  } finally {
+    restore();
+  }
+});
+
+test('production rejects explicit AUTH_DISABLED development mode', () => {
+  const restore = isolateAuthEnvironment();
+  try {
+    process.env.NODE_ENV = 'production';
+    process.env.CONVERACT_AUTH_DISABLED = '1';
+    assert.throws(
+      () => resolveAuthContext({
+        'x-tenant-id': 'attacker-tenant',
+        'x-user-id': 'attacker-user'
+      }),
+      (error: any) => error.status === 401
+    );
+  } finally {
+    restore();
+  }
+});
+
+test('production does not let a shared API key choose an arbitrary tenant', () => {
+  const restore = isolateAuthEnvironment();
+  try {
+    process.env.NODE_ENV = 'production';
+    process.env.CONVERACT_API_KEY = 'shared-api-key';
+    assert.throws(
+      () => resolveAuthContext({
+        'x-api-key': 'shared-api-key',
+        'x-tenant-id': 'attacker-selected-tenant'
+      }),
+      (error: any) => error.status === 401
+    );
+  } finally {
+    restore();
+  }
+});
+
 test('auth required: non-Bearer token throws 401', () => {
   const origDisabled = process.env.CONVERACT_AUTH_DISABLED;
   const origIssuer = process.env.CONVERACT_AUTH_ISSUER;
@@ -211,4 +262,22 @@ function signRs256(payload: Record<string, unknown>, privateKey: ReturnType<type
   const input = `${header}.${body}`;
   const signature = createSign('RSA-SHA256').update(input).sign(privateKey).toString('base64url');
   return `${input}.${signature}`;
+}
+
+function isolateAuthEnvironment(): () => void {
+  const keys = [
+    'NODE_ENV',
+    'CONVERACT_AUTH_DISABLED', 'OPC_AUTH_DISABLED',
+    'CONVERACT_AUTH_ISSUER', 'OPC_AUTH_ISSUER',
+    'CONVERACT_JWT_SECRET', 'OPC_JWT_SECRET',
+    'CONVERACT_API_KEY', 'OPC_API_KEY'
+  ];
+  const previous = new Map(keys.map((key) => [key, process.env[key]]));
+  for (const key of keys) delete process.env[key];
+  return () => {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  };
 }

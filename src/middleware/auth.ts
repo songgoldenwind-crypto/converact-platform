@@ -26,14 +26,15 @@ const DEFAULT_TOKEN_TTL_SEC = 86_400;
  * Resolve authentication context from HTTP headers.
  *
  * Priority:
- * 1. X-API-Key (system)
+ * 1. Non-production X-API-Key (development system context)
  * 2. Bearer JWT (CONVERACT_JWT_SECRET HS256, or CONVERACT_AUTH_ISSUER RS256 JWKS)
- * 3. Dev headers (CONVERACT_AUTH_DISABLED=1 or no issuer/secret)
+ * 3. Dev headers in non-production only
  */
 export function resolveAuthContext(headers: Record<string, string | string[] | undefined>): AuthContext {
   const apiKey = header(headers, 'X-API-Key') || header(headers, 'x-api-key');
   const expectedKey = resolveBrandEnv(process.env, 'API_KEY');
-  if (apiKey && expectedKey && apiKey === expectedKey) {
+  if (process.env.NODE_ENV !== 'production'
+    && apiKey && expectedKey && apiKey === expectedKey) {
     return {
       tenantId: header(headers, 'X-Tenant-Id') || header(headers, 'x-tenant-id') || 'system',
       userId: 'system',
@@ -57,7 +58,8 @@ export function resolveAuthContext(headers: Record<string, string | string[] | u
 
   const authDisabled = resolveBrandEnv(process.env, 'AUTH_DISABLED') === '1';
   const issuer = resolveBrandEnv(process.env, 'AUTH_ISSUER');
-  if (authDisabled || (!issuer && !resolveBrandEnv(process.env, 'JWT_SECRET'))) {
+  if (process.env.NODE_ENV !== 'production'
+    && (authDisabled || (!issuer && !resolveBrandEnv(process.env, 'JWT_SECRET')))) {
     return resolveDevContext(headers);
   }
 
