@@ -105,6 +105,8 @@ const sourceMaps = {
     implementation_paths: [
       'src/agent-runtime/converact/platform-foundation/resilience.ts',
       'src/agent-runtime/converact/operations/readiness.ts',
+      'services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts',
+      'services/converact-service/acceptance/platform-fault-matrix/control-accept.sh',
     ],
     test_paths: [
       'test/converact-platform-resilience.test.ts',
@@ -115,8 +117,12 @@ const sourceMaps = {
     patterns: /(?:fault|failure|crash|partition|dns|object.?store|gpu|provider|long.?run|media)/iu,
     implementation_paths: [
       'src/agent-runtime/converact/platform-foundation/fault-policy.ts',
+      'services/converact-service/acceptance/platform-fault-matrix/campaign-evidence.mjs',
+      'services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts',
+      'services/converact-service/acceptance/platform-fault-matrix/control-accept.sh',
       'services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs',
       'services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs',
+      'services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs',
     ],
     test_paths: [
       'test/converact-platform-fault-matrix-contract.test.ts',
@@ -588,6 +594,12 @@ function evidenceIndex() {
     'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-4f9ea6f-01/raw-output.sha256';
   const controlledDatabaseSupplementalManifestUri =
     'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-4f9ea6f-01/supplemental-manifest.sha256';
+  const controlledCapacityEvidenceUri =
+    'architecture-foundation/execution/goal-02/evidence/capacity-b263a55-01.md';
+  const controlledCapacityRawManifestUri =
+    'architecture-foundation/execution/goal-02/evidence/raw/capacity-b263a55-01/raw-output.sha256';
+  const controlledCapacitySupplementalManifestUri =
+    'architecture-foundation/execution/goal-02/evidence/raw/capacity-b263a55-01/supplemental-manifest.sha256';
   const independentReviewUri =
     'architecture-foundation/execution/goal-02/independent-review.md';
   const entry = (
@@ -624,6 +636,14 @@ function evidenceIndex() {
       controlledDatabaseRawManifestUri,
       controlledDatabaseSupplementalManifestUri,
     ]);
+  const controlledCapacity = (id, evidenceClass, scope, requiredEvidence) => ({
+    ...entry(id, evidenceClass, scope, requiredEvidence, 'verified_controlled', [
+      controlledCapacityEvidenceUri,
+      controlledCapacityRawManifestUri,
+      controlledCapacitySupplementalManifestUri,
+    ]),
+    non_claim: 'One fixed-host control-plane overload campaign verified hard active, pending, retry and fanout limits. It does not prove media, mixed-cell or production capacity, long media, restore, drain, region recovery, the remaining dependency matrix, native safety or DR.',
+  });
   const entries = [
     entry('G02-E00-DESIGN', 'document_contract', 'design_authority_threat_recovery', ['contract test'], 'target_contract'),
     local('G02-E01-IDENTITY', 'local_test', 'tenant_identity_cross_tenant', ['focused tests', 'RLS integration']),
@@ -644,7 +664,12 @@ function evidenceIndex() {
     entry('G02-E10-RESTORE', 'backup_restore', 'backup_restore_rehearsal', ['raw restore output', 'RPO/RTO']),
     entry('G02-E11-DRAIN', 'rolling_drain', 'node_loss_rolling_schema_active_zero', ['raw multi-node output']),
     entry('G02-E12-LONG-MEDIA', 'long_media_fault', 'established_human_media_fault_isolation', ['real long media and fault schedule']),
-    entry('G02-E13-CAPACITY', 'capacity', 'bounded_queue_retry_fanout_overload', ['same-hardware raw capacity output']),
+    controlledCapacity(
+      'G02-E13-CAPACITY',
+      'capacity',
+      'bounded_queue_retry_fanout_overload',
+      ['same-hardware raw capacity output'],
+    ),
     entry('G02-E14-REGION', 'region_recovery', 'region_failover_split_brain_reconcile', ['raw region recovery output']),
     entry('G02-E15-NATIVE', 'native_safety', 'core_dump_unsafe_ffi_source', ['exact-source review', 'fault/fuzz evidence']),
     {
@@ -656,7 +681,7 @@ function evidenceIndex() {
         'verified_local',
         [independentReviewUri],
       ),
-      non_claim: 'Independent review accepted the local foundation only; external dependency, long-media, restore, drain, capacity, region, native-safety and production gates remain unproved.',
+      non_claim: 'Independent review accepted the local foundation, controlled database restart and fixed-host control-plane capacity only; external dependency, long-media, restore, drain, SIP/media/fleet capacity, region, native-safety and production gates remain unproved.',
     },
   ];
   return {

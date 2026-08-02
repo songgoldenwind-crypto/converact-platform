@@ -116,11 +116,15 @@ test('final independent review is accepted only with explicit external evidence 
   assert.match(review, /Reviewer task: `\/root\/g02_final_independent_review`/);
   assert.match(review, /Reviewed commit: `c920d7a59e02daba38118491217630fef94ce393`/);
   assert.match(review, /Binary diff SHA-256: `341e2bbb844e3bbf705c1f6e6faec670a258434a1d489de2dd2fc0d8a2781cae`/);
+  assert.match(review, /Latest incremental reviewed commit: `b263a55a975704f852b53a3da6eaba711307b07b`/);
+  assert.match(review, /Latest accepted capacity run: `capacity-b263a55-01`/);
   assert.match(review, /Critical: `0`/);
   assert.match(review, /High: `0`/);
   assert.match(review, /Important: `0`/);
   assert.match(review, /Minor: `0`/);
   assert.match(review, /Production eligibility: `false`/);
+  assert.match(review, /2,000,000 immediate decisions/);
+  assert.match(review, /Important 0 \/ Minor 0/);
 
   const evidence = readJson(join(goalDirectory, documents.evidence[1]));
   const reviewEntry = evidence.entries.find((entry) => entry.evidence_id === 'G02-E16-REVIEW');
@@ -128,12 +132,20 @@ test('final independent review is accepted only with explicit external evidence 
   assert.deepEqual(reviewEntry?.evidence_uris, [reviewUri]);
   assert.equal(reviewEntry?.production_eligible, false);
 
+  const capacityEntry = evidence.entries.find((entry) => entry.evidence_id === 'G02-E13-CAPACITY');
+  assert.equal(capacityEntry?.status, 'verified_controlled');
+  assert.deepEqual(capacityEntry?.evidence_uris, [
+    'architecture-foundation/execution/goal-02/evidence/capacity-b263a55-01.md',
+    'architecture-foundation/execution/goal-02/evidence/raw/capacity-b263a55-01/raw-output.sha256',
+    'architecture-foundation/execution/goal-02/evidence/raw/capacity-b263a55-01/supplemental-manifest.sha256',
+  ]);
+  assert.equal(capacityEntry?.production_eligible, false);
+
   const remainingNotRun = new Set([
     'G02-E09-DEPENDENCY',
     'G02-E10-RESTORE',
     'G02-E11-DRAIN',
     'G02-E12-LONG-MEDIA',
-    'G02-E13-CAPACITY',
     'G02-E14-REGION',
     'G02-E15-NATIVE',
   ]);
@@ -244,6 +256,12 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
     'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-4f9ea6f-01/raw-output.sha256';
   const controlledDatabaseSupplementalManifest =
     'architecture-foundation/execution/goal-02/evidence/raw/database-restart-db-4f9ea6f-01/supplemental-manifest.sha256';
+  const controlledCapacityEvidence =
+    'architecture-foundation/execution/goal-02/evidence/capacity-b263a55-01.md';
+  const controlledCapacityRawManifest =
+    'architecture-foundation/execution/goal-02/evidence/raw/capacity-b263a55-01/raw-output.sha256';
+  const controlledCapacitySupplementalManifest =
+    'architecture-foundation/execution/goal-02/evidence/raw/capacity-b263a55-01/supplemental-manifest.sha256';
   const localEvidence =
     'architecture-foundation/execution/goal-02/evidence/local-verification-2026-08-02-final-source.md';
   const localRawManifest =
@@ -274,6 +292,14 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
         controlledDatabaseSupplementalManifest,
       ]);
       assert.match(entry.non_claim, /synthetic.*not.*real human media/is);
+    } else if (entry.evidence_id === 'G02-E13-CAPACITY') {
+      assert.equal(entry.status, 'verified_controlled');
+      assert.deepEqual(entry.evidence_uris, [
+        controlledCapacityEvidence,
+        controlledCapacityRawManifest,
+        controlledCapacitySupplementalManifest,
+      ]);
+      assert.match(entry.non_claim, /control-plane.*does not prove media/is);
     } else if (entry.evidence_id === 'G02-E16-REVIEW') {
       assert.equal(entry.status, 'verified_local');
       assert.deepEqual(entry.evidence_uris, [
@@ -290,7 +316,7 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
   );
   assert.equal(evidence.summary.production_eligible_entries, 0);
   assert.equal(evidence.summary.verified_local_entries, verifiedLocal.size + 1);
-  assert.equal(evidence.summary.verified_controlled_entries, 1);
+  assert.equal(evidence.summary.verified_controlled_entries, 2);
   const localVerificationRecord = readFileSync(
     join(repositoryRoot, localEvidence),
     'utf8',
@@ -356,6 +382,72 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
   assert.equal(controlledResult.real_human_media, false);
   assert.equal(controlledResult.evidence.identity.source_commit, '4f9ea6f94a8e0740975c801aff5a6a180124a62b');
   assert.equal(controlledResult.evidence.checks.every((check) => check.passed === true), true);
+  const controlledCapacityRecord = readFileSync(
+    join(repositoryRoot, controlledCapacityEvidence),
+    'utf8',
+  );
+  assert.match(controlledCapacityRecord, /b263a55a975704f852b53a3da6eaba711307b07b/);
+  assert.match(controlledCapacityRecord, /0afc449f460f015d0e6d9e952af2aefbb31882eaebe83743ed9cfa1ddbe0b826/);
+  assert.match(controlledCapacityRecord, /production_eligible.*false/is);
+  assert.match(controlledCapacityRecord, /not SIP, RTP, media/is);
+  const capacityRawEntries = readFileSync(
+    join(repositoryRoot, controlledCapacityRawManifest),
+    'utf8',
+  ).trim().split('\n');
+  assert.equal(capacityRawEntries.length, 4);
+  for (const line of capacityRawEntries) {
+    const match = /^([a-f0-9]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,127})$/u.exec(line);
+    assert.ok(match, `invalid capacity raw evidence manifest entry: ${line}`);
+    assert.equal(
+      sha256File(join(dirname(join(repositoryRoot, controlledCapacityRawManifest)), match[2])),
+      match[1],
+      `capacity raw evidence digest mismatch: ${match[2]}`,
+    );
+  }
+  const capacitySupplementalEntries = readFileSync(
+    join(repositoryRoot, controlledCapacitySupplementalManifest),
+    'utf8',
+  ).trim().split('\n');
+  assert.equal(capacitySupplementalEntries.length, 8);
+  for (const line of capacitySupplementalEntries) {
+    const match = /^([a-f0-9]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,127})$/u.exec(line);
+    assert.ok(match, `invalid capacity supplemental manifest entry: ${line}`);
+    assert.equal(
+      sha256File(join(dirname(join(repositoryRoot, controlledCapacitySupplementalManifest)), match[2])),
+      match[1],
+      `capacity supplemental evidence digest mismatch: ${match[2]}`,
+    );
+  }
+  const capacityResult = readJson(join(
+    dirname(join(repositoryRoot, controlledCapacitySupplementalManifest)),
+    'capacity-controlled-evidence.json',
+  ));
+  assert.equal(capacityResult.status, 'verified_controlled');
+  assert.equal(capacityResult.production_eligible, false);
+  assert.equal(capacityResult.evidence.identity.source_commit, 'b263a55a975704f852b53a3da6eaba711307b07b');
+  assert.equal(capacityResult.evidence.operations, 2_000_000);
+  assert.equal(capacityResult.evidence.accepted, 1_400_000);
+  assert.equal(capacityResult.evidence.overloaded, 600_000);
+  assert.equal(capacityResult.evidence.rejected_overloaded, 400_000);
+  assert.equal(capacityResult.evidence.rejected_retry_exhausted, 100_000);
+  assert.equal(capacityResult.evidence.rejected_fanout_exceeded, 100_000);
+  assert.equal(capacityResult.evidence.observed_max_active, 64);
+  assert.equal(capacityResult.evidence.observed_max_pending, 256);
+  assert.equal(capacityResult.evidence.observed_max_retry, 3);
+  assert.equal(capacityResult.evidence.observed_max_fanout, 8);
+  assert.equal(capacityResult.evidence.attempted_max_retry, 4);
+  assert.equal(capacityResult.evidence.attempted_max_fanout, 9);
+  assert.equal(capacityResult.evidence.configured_retained_lease_limit, 320);
+  assert.equal(capacityResult.evidence.observed_max_retained_leases, 320);
+  assert.equal(capacityResult.evidence.queued_requests_at_completion, 0);
+  assert.equal(capacityResult.evidence.policy_rejections_preserved_admission_counters, true);
+  assert.equal(capacityResult.evidence.counter_integrity, true);
+  const rejectedCapacityRecord = readFileSync(join(
+    repositoryRoot,
+    'architecture-foundation/execution/goal-02/evidence/capacity-b5c500d-01.md',
+  ), 'utf8');
+  assert.match(rejectedCapacityRecord, /superseded_rejected/);
+  assert.match(rejectedCapacityRecord, /not accepted evidence/i);
   const supersededDatabaseRecord = readFileSync(
     join(repositoryRoot, supersededDatabaseEvidence),
     'utf8',

@@ -7,11 +7,14 @@ volume, network, database, credential, port, or evidence directory.
 ## Current implementation status
 
 - The evidence contract covers all 12 dependencies and every failure mode in the G02 machine fault matrix.
-- The first executable slice runs an isolated PostgreSQL campaign: all migrations through 112, the real
+- The database executable slice runs an isolated PostgreSQL campaign: all migrations through 112, the real
   `opc_runtime` role, cross-tenant RLS negative checks, Inbox/EffectReceipt/Usage persistence, an actual PostgreSQL
   container stop/start, a fresh recovery process, replay/conflict/writer-fence checks and append-only enforcement.
 - A bounded synthetic UDP stream runs across the database outage to diagnose causal isolation without making a
   Human Communication claim.
+- The control-plane executable slice runs the production `BoundedWorkGate` on a fixed host, saturates active and
+  pending admission, proves retry/fanout rejection before capacity consumption, and records bounded latency,
+  event-loop and RSS measurements. It starts no container and makes no SIP/media/fleet capacity claim.
 - Event system, object store, PKI/KMS, DNS, configuration, wall-clock, AI/GPU, recording upload, provider,
   observability and host/node adapters are not yet executed by this slice.
 - Every unexecuted dependency remains `not_run`.
@@ -64,8 +67,26 @@ container/network/volume. It refuses to overwrite an existing run. Evidence is w
 `.runtime/platform-fault-matrix/<run-id>/` with raw-file hashes, exact source/config/image/host/hardware/clock/workload
 identity and a final `database-controlled-evidence.json`.
 
-An accepted database result is only `verified_controlled` for that database restart scenario. The aggregate matrix,
-real long media, capacity, multi-node drain, region recovery, DR and production eligibility remain `not_run`.
+An accepted database result is only `verified_controlled` for that database restart scenario. An accepted control
+result is only `verified_controlled` for the bounded platform control primitive on the exact measured host. The
+aggregate matrix, real long media, SIP/media/mixed-cell/fleet capacity, multi-node drain, region recovery, DR and
+production eligibility remain `not_run`.
+
+Controlled fixed-host capacity campaign:
+
+```bash
+CONVERACT_G02_CONTROL_CONFIRM=G02_PLATFORM_CONTROL_EVIDENCE \
+CONVERACT_G02_FAULT_RUN_ID='capacity-<unique suffix>' \
+CONVERACT_G02_SOURCE_COMMIT='<40 hex exact commit>' \
+CONVERACT_G02_NODE_IMAGE='node@sha256:<64 hex digest>' \
+CONVERACT_G02_CAPACITY_OPERATIONS=2000000 \
+NODE_BIN='/absolute/path/to/node-v24' \
+./control-accept.sh
+```
+
+The control runner refuses a dirty or mismatched source checkout, records the exact Node binary, fixed hardware,
+clock, workload and seed, scans every retained artifact, compares all pre-existing container state byte-for-byte,
+and cannot start, stop or delete a container.
 
 Secrets, tokens, passwords, cookies, private keys and credentials are forbidden in evidence. Missing prerequisites,
 partial campaigns, mock services, loopback media, upstream benchmarks and historical results never promote a real

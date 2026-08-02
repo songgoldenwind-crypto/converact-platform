@@ -219,13 +219,17 @@
       "evidence_id": "G02-E13-CAPACITY",
       "evidence_class": "capacity",
       "scope": "bounded_queue_retry_fanout_overload",
-      "status": "not_run",
+      "status": "verified_controlled",
       "production_eligible": false,
       "required_evidence": [
         "same-hardware raw capacity output"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/capacity-b263a55-01.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/capacity-b263a55-01/raw-output.sha256",
+        "architecture-foundation/execution/goal-02/evidence/raw/capacity-b263a55-01/supplemental-manifest.sha256"
+      ],
+      "non_claim": "One fixed-host control-plane overload campaign verified hard active, pending, retry and fanout limits. It does not prove media, mixed-cell or production capacity, long media, restore, drain, region recovery, the remaining dependency matrix, native safety or DR."
     },
     {
       "evidence_id": "G02-E14-REGION",
@@ -264,15 +268,15 @@
       "evidence_uris": [
         "architecture-foundation/execution/goal-02/independent-review.md"
       ],
-      "non_claim": "Independent review accepted the local foundation only; external dependency, long-media, restore, drain, capacity, region, native-safety and production gates remain unproved."
+      "non_claim": "Independent review accepted the local foundation, controlled database restart and fixed-host control-plane capacity only; external dependency, long-media, restore, drain, SIP/media/fleet capacity, region, native-safety and production gates remain unproved."
     }
   ],
   "summary": {
     "entries": 18,
     "target_contract_entries": 1,
     "verified_local_entries": 9,
-    "verified_controlled_entries": 1,
-    "not_run_entries": 7,
+    "verified_controlled_entries": 2,
+    "not_run_entries": 6,
     "production_eligible_entries": 0
   }
 }

@@ -9,14 +9,17 @@
 - Reviewed commit: `c920d7a59e02daba38118491217630fef94ce393`
 - Binary diff SHA-256: `341e2bbb844e3bbf705c1f6e6faec670a258434a1d489de2dd2fc0d8a2781cae`
 - Final runtime/test source: `4f9ea6f94a8e0740975c801aff5a6a180124a62b`
+- Latest incremental reviewed commit: `b263a55a975704f852b53a3da6eaba711307b07b`
+- Latest accepted capacity run: `capacity-b263a55-01`
 - Critical: `0`
 - High: `0`
 - Important: `0`
 - Minor: `0`
 - Production eligibility: `false`
 
-The independent reviewer accepted the local foundation and the one controlled
-PostgreSQL restart slice. This is not runtime, production, long-media, capacity,
+The independent reviewer accepted the local foundation, one controlled
+PostgreSQL restart slice and one fixed-host bounded control-plane capacity
+slice. This is not production, long-media, SIP/media/mixed-cell/fleet capacity,
 restore, drain, region or native-safety acceptance.
 
 ## Reviewed boundary
@@ -84,6 +87,40 @@ history, evidence-secret, key overlap, readiness, effect takeover, metric
 cardinality and JWKS streaming findings were also rechecked as closed. No open
 Critical, High, Important or Minor code finding remains at the reviewed boundary.
 
+## Incremental capacity review
+
+The same read-only reviewer first rejected predecessor Run
+`capacity-b5c500d-01` with `Critical 0 / High 0 / Important 2 / Minor 2`:
+the workload had not attempted retry/fanout overflow, the builder accepted an
+input marked `failed`, and the queue assertion was not derived. The predecessor
+is retained as `superseded_rejected` and is not referenced by the evidence
+index.
+
+Follow-up review of runtime commit
+`b263a55a975704f852b53a3da6eaba711307b07b` and complete new Run
+`capacity-b263a55-01` closed every finding with disposition
+`accepted_with_external_evidence_blockers` and
+`Critical 0 / High 0 / Important 0 / Minor 0`.
+
+Fresh review verified:
+
+- 2,000,000 immediate decisions: 1,400,000 accepted, 400,000 admission
+  saturation rejects, 100,000 `retry=4` rejects and 100,000 `fanout=9`
+  rejects;
+- accepted maxima `retry=3` and `fanout=8`, attempted maxima `4` and `9`,
+  unchanged admission counters across policy rejects, 320/320 retained-lease
+  bound, zero queued requests at completion and final active/pending `0/0`;
+- `status=failed`, missing rejection classes, counter drift, queued work and a
+  false bounded-queue assertion all fail evidence promotion;
+- source/config/raw identities, 4 raw plus 8 supplemental manifest entries,
+  secret scans and byte-identical snapshots of nine stopped pre-existing
+  containers;
+- `npm run typecheck`, focused tests `22/22`, G02 contract `11/11`,
+  `git diff --check`, and isolated generator idempotence.
+
+The capacity result remains `production_eligible=false` and proves only the
+production bounded control primitive on one exact fixed host.
+
 ## Remaining external evidence blockers
 
 These entries remain `not_run`:
@@ -92,12 +129,11 @@ These entries remain `not_run`:
 - `G02-E10-RESTORE`
 - `G02-E11-DRAIN`
 - `G02-E12-LONG-MEDIA`
-- `G02-E13-CAPACITY`
 - `G02-E14-REGION`
 - `G02-E15-NATIVE`
 
 They require the remaining real dependency matrix, backup/restore and measured
 RPO/RTO, multi-node drain/active-zero, real long Human Communication, fixed-host
-capacity and overload, region recovery/split-brain, and exact-source native/
+SIP/media/mixed-cell/fleet capacity, region recovery/split-brain, and exact-source native/
 unsafe/FFI fault/fuzz/core-dump evidence. Until those campaigns exist, G02 is
 `blocked_external`, not `completed`, and every production claim remains false.

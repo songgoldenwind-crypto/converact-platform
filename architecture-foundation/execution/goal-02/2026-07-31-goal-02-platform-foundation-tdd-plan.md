@@ -421,10 +421,12 @@ Controlled progress, without promoting the aggregate task:
 - [x] Build and test the fenced matrix catalog and an exact-source PostgreSQL restart slice.
 - [x] Run the PostgreSQL slice with real migrations/RLS, actual stop/start, fresh-process reconciliation, synthetic
   transport continuity and project-scoped cleanup; record it as `verified_controlled` only.
+- [x] Run the exact-source `BoundedWorkGate` on the fixed 2-vCPU validation host for 2,000,000 attempts; prove
+  active/pending/retry/fanout hard bounds and retain it as control-plane-only `verified_controlled` evidence.
 - [x] Verify every retained raw hash, byte-identical unrelated-container snapshots, zero campaign resources and
   secret-shaped evidence rejection.
-- [x] Keep the aggregate dependency matrix, real Human Communication, capacity, restore, drain, region and production
-  claims `not_run`.
+- [x] Keep the aggregate dependency matrix, real Human Communication, SIP/media/mixed-cell/fleet capacity, restore,
+  drain, region and production claims `not_run`.
 
 - [ ] Build a fenced fault harness for Postgres, event system, object store, PKI/KMS, DNS, config, wall clock,
   AI/GPU, recording upload, provider, observability and node crash.
@@ -433,7 +435,8 @@ Controlled progress, without promoting the aggregate task:
 - [ ] Run multi-node drain/node loss/region recovery with active-zero receipts.
 - [ ] Run each fault beside a real long Human Communication session and prove no causal termination from optional
   dependencies; separately report embedded process-owned edge interruption.
-- [ ] Run bounded queue/retry/fanout overload and capacity on fixed hardware/config/workload.
+- [x] Run bounded queue/retry/fanout overload and capacity on fixed hardware/config/workload; this proves only the
+  platform control primitive and does not qualify SIP/media/mixed-cell/fleet capacity.
 - [ ] Record commit/source/binary/image/config/model/hardware/clocks/workload/seed/time/raw output in evidence index.
 - [x] If any prerequisite or campaign is absent, keep that entry `not_run`; never borrow historical evidence.
 

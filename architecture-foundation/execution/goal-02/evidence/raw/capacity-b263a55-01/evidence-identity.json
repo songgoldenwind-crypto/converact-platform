@@ -1,0 +1,19 @@
+{
+  "goal_id": "G02",
+  "goal_sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9",
+  "source_commit": "b263a55a975704f852b53a3da6eaba711307b07b",
+  "config_sha256": "e264114cfa3bcffef4a33de025043aad7d7c47188dbe62bd8436fe0696b506b5",
+  "raw_output_sha256": "0afc449f460f015d0e6d9e952af2aefbb31882eaebe83743ed9cfa1ddbe0b826",
+  "image_digests": [
+    "node@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d"
+  ],
+  "node_binary_sha256": "41a74efb34cbde5c7632cdac0cf8bd1a14d0b8d73dc1e82755014d9a9ce70f5c",
+  "node_version": "v24.18.0",
+  "host": "VM-0-3-ubuntu",
+  "hardware": "Linux 6.8.0-71-generic x86_64 GNU/Linux; 2 vCPU; 7.5 GiB RAM; Node v24.18.0",
+  "clock": "UTC wall clock; Node monotonic performance clock; kvm-clock kernel clocksource",
+  "workload": "2000000 production BoundedWorkGate admissions; active=64; pending=256; retry=3; fanout=8; fixed host; synthetic control-plane only",
+  "seed": "capacity-b263a55-01",
+  "started_at": "2026-08-01T23:57:48.530Z",
+  "completed_at": "2026-08-01T23:57:50.331Z"
+}
