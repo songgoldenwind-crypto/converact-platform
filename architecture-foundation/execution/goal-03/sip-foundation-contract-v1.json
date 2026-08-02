@@ -216,6 +216,13 @@
     "restore": "confirmed_quiescent_same_adapter_only",
     "drain": "reject_new_protocol_sessions_preserve_existing_sessions"
   },
+  "protocol_session_lifecycle": {
+    "open_reservation": "counts_as_active_before_adapter_identity_or_create_callback",
+    "reentrant_same_id": "fail_closed_open_in_progress",
+    "reentrant_capacity": "opening_reservations_consume_session_capacity",
+    "drain_active_zero": "sessions_plus_opening_reservations_must_equal_zero",
+    "failed_open": "revoke_lease_release_reservation_then_recompute_active_zero"
+  },
   "command_identity_fields": [
     "tenant_id",
     "protocol_session_id",

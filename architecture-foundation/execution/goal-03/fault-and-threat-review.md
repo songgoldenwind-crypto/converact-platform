@@ -19,13 +19,14 @@ Production eligibility: `false`
 | --- | --- | --- |
 | forged Edge metadata | strip all external internal headers; rebuild six allowed fields after strong Edge identity | contract/source only; live mTLS campaign not inherited |
 | request smuggling or parser differential | original bytes + hash, closed limits, conflicting singleton rejection, shared corpus | corpus created; Adapter differential replay `not_run` |
-| Call-ID confused with business Call | distinct checked types and digest-derived Protocol Dialog ID | G03 unit evidence required |
+| Call-ID or UUID confused with business Call | distinct types; legacy import requires an exact durable `VoiceCall` tenant/ID lookup plus module-issued authority record | G03 unit evidence required |
 | stale/split-brain owner | positive epoch, generation, expected revision and durable CAS | local logic/source tests; fleet partition `not_run` |
 | duplicate visible effect | idempotency key + exact prepared bytes + receipt replay | local ledger tests; physical restart `not_run` |
 | unknown send blindly retried | unknown state, query, repair lease/token/revision fence | local ledger tests |
 | auth/SDP secret leak | raw values excluded from logs, metrics, evidence and error details | source review; runtime secret scan `not_run` |
 | queue/connection exhaustion | hard capacities, deterministic 503/Retry-After, no unbounded waiter/task | local tests; host saturation distribution `not_run` |
 | malicious object/accessor/proxy input | closed own-data snapshots and bounded copies | existing local SipFoundation tests |
+| Adapter callback reenters open/drain | reserve ID/capacity before callback; opening reservation counts as active; same-ID reentry fails closed | G03 local reentrancy tests; host fault campaign `not_run` |
 | schema downgrade or shadow writer | schema/writer registries disabled until activation receipt; exact writer role | source/migration tests; physical activation `not_run` |
 
 ## 3. Failure-domain Truth Table

@@ -19,6 +19,7 @@
     "terminal_leg_states",
     "events",
     "transitions",
+    "atomic_operations",
     "concurrency",
     "race_policy",
     "bounds",
@@ -108,6 +109,7 @@
         "generated_identity",
         "generated_digest_characters",
         "types",
+        "legacy_call_id_import",
         "invariants"
       ],
       "properties": {
@@ -271,6 +273,41 @@
           ],
           "items": false
         },
+        "legacy_call_id_import": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "accepted_syntax",
+            "authority",
+            "credential",
+            "raw_sip_call_id_or_plain_object"
+          ],
+          "properties": {
+            "accepted_syntax": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "vcall_*"
+                },
+                {
+                  "const": "uuid"
+                }
+              ],
+              "items": false
+            },
+            "authority": {
+              "const": "existing_VoiceCall_repository_exact_tenant_and_id_match"
+            },
+            "credential": {
+              "const": "module_issued_non_forgeable_in_process_record"
+            },
+            "raw_sip_call_id_or_plain_object": {
+              "const": "rejected"
+            }
+          }
+        },
         "invariants": {
           "type": "array",
           "minItems": 6,
@@ -397,8 +434,8 @@
     },
     "events": {
       "type": "array",
-      "minItems": 13,
-      "maxItems": 13,
+      "minItems": 12,
+      "maxItems": 12,
       "prefixItems": [
         {
           "const": "start_invite"
@@ -428,9 +465,6 @@
           "const": "transfer_abort"
         },
         {
-          "const": "transfer_commit"
-        },
-        {
           "const": "bye_requested"
         },
         {
@@ -444,8 +478,8 @@
     },
     "transitions": {
       "type": "array",
-      "minItems": 24,
-      "maxItems": 24,
+      "minItems": 23,
+      "maxItems": 23,
       "prefixItems": [
         {
           "type": "object",
@@ -752,34 +786,10 @@
               "const": "transfer_abort"
             },
             "to": {
-              "const": "confirmed"
+              "const": "previous_confirmed_or_held_state"
             },
             "required_effect": {
               "const": "none"
-            }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "from",
-            "event",
-            "to",
-            "required_effect"
-          ],
-          "properties": {
-            "from": {
-              "const": "transferring"
-            },
-            "event": {
-              "const": "transfer_commit"
-            },
-            "to": {
-              "const": "terminating"
-            },
-            "required_effect": {
-              "const": "bye_old_selected_leg"
             }
           }
         },
@@ -1026,6 +1036,63 @@
       ],
       "items": false
     },
+    "atomic_operations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transfer_commit_selection"
+      ],
+      "properties": {
+        "transfer_commit_selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required_fields",
+            "precondition",
+            "mutation",
+            "required_effect",
+            "generic_leg_event"
+          ],
+          "properties": {
+            "required_fields": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "prefixItems": [
+                {
+                  "const": "old_leg_id"
+                },
+                {
+                  "const": "old_leg_generation"
+                },
+                {
+                  "const": "new_leg_id"
+                },
+                {
+                  "const": "event_id"
+                },
+                {
+                  "const": "event_hash"
+                }
+              ],
+              "items": false
+            },
+            "precondition": {
+              "const": "old_is_selected_and_transferring_new_is_confirmed_and_both_are_fenced"
+            },
+            "mutation": {
+              "const": "atomically_select_new_then_mark_old_terminating"
+            },
+            "required_effect": {
+              "const": "bye_old_selected_leg"
+            },
+            "generic_leg_event": {
+              "const": "forbidden"
+            }
+          }
+        }
+      }
+    },
     "concurrency": {
       "type": "object",
       "additionalProperties": false,
@@ -1033,11 +1100,13 @@
         "mutation_fence",
         "owner_epoch",
         "generation",
+        "call_open_generation",
         "revision",
         "duplicate_event",
         "conflicting_duplicate",
         "stale_owner",
-        "sequence_gap"
+        "sequence_gap",
+        "mailbox_and_timer_mutation"
       ],
       "properties": {
         "mutation_fence": {
@@ -1067,7 +1136,10 @@
           "const": "positive_uint64_monotonic"
         },
         "generation": {
-          "const": "positive_uint64_monotonic_per_leg_binding"
+          "const": "positive_uint64_bound_to_call_projection_and_every_leg"
+        },
+        "call_open_generation": {
+          "const": "required_positive_uint64_from_durable_authority"
         },
         "revision": {
           "const": "positive_uint64_advance_exactly_one"
@@ -1083,6 +1155,9 @@
         },
         "sequence_gap": {
           "const": "fail_closed_then_reconcile"
+        },
+        "mailbox_and_timer_mutation": {
+          "const": "same_tenant_owner_generation_revision_fence_as_leg_mutation"
         }
       }
     },
@@ -1094,11 +1169,16 @@
         "cancel_races_2xx",
         "bye_duplicate",
         "fork_winner",
+        "fork_attempt_identity",
+        "fork_selection_sip_status",
         "late_fork_2xx",
+        "already_acked_late_fork_2xx",
         "remaining_early_forks",
         "reinvite",
         "reinvite_glare",
-        "transfer"
+        "transfer",
+        "transfer_commit",
+        "transfer_abort"
       ],
       "properties": {
         "cancel_before_final": {
@@ -1113,8 +1193,17 @@
         "fork_winner": {
           "const": "first_durably_selected_2xx_leg_only"
         },
+        "fork_attempt_identity": {
+          "const": "explicit_and_bounded_per_attempt"
+        },
+        "fork_selection_sip_status": {
+          "const": "integer_200_through_299_only"
+        },
         "late_fork_2xx": {
           "const": "ACK_then_BYE_non_winner"
+        },
+        "already_acked_late_fork_2xx": {
+          "const": "BYE_without_duplicate_ACK"
         },
         "remaining_early_forks": {
           "const": "CANCEL"
@@ -1127,6 +1216,12 @@
         },
         "transfer": {
           "const": "old_selected_leg_remains_until_transfer_commit"
+        },
+        "transfer_commit": {
+          "const": "atomic_selection_swap_then_BYE_old_leg"
+        },
+        "transfer_abort": {
+          "const": "restore_pre_transfer_confirmed_or_held_state"
         }
       }
     },
@@ -1142,6 +1237,7 @@
         "mailbox_per_call_default",
         "mailbox_per_call_hard_ceiling",
         "dedupe_receipts_per_call_hard_ceiling",
+        "fork_attempt_tracking",
         "timers_per_call_hard_ceiling",
         "overflow_policy"
       ],
@@ -1169,6 +1265,9 @@
         },
         "dedupe_receipts_per_call_hard_ceiling": {
           "const": 2048
+        },
+        "fork_attempt_tracking": {
+          "const": "bounded_by_dedupe_receipts_per_call"
         },
         "timers_per_call_hard_ceiling": {
           "const": 128

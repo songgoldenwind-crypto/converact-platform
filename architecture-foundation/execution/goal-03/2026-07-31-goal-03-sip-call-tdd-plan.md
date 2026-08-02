@@ -35,15 +35,22 @@ Test first: `test/converact-call-leg-foundation.test.ts`.
 Failing cases:
 
 - SIP Call-ID cannot be accepted as a CallId by implicit conversion;
+- UUID/`vcall_*` compatibility requires an exact existing `VoiceCall`
+  repository match and module-issued authority record; plain objects fail;
 - all six types reject whitespace, empty and oversized values;
 - deterministic IDs resist component-boundary ambiguity;
 - one Call supports bounded multiple Legs and Dialog history;
-- stale owner/generation/revision and conflicting duplicate fail closed;
+- restored Call generation is explicit; stale owner/generation/revision and
+  conflicting duplicate fail closed;
 - duplicate event ID/hash replays without revision change;
 - CANCEL racing 2xx produces ACK-then-BYE;
-- fork winner/non-winner, transfer and re-INVITE do not create ambiguous state;
-- mailbox/Leg/Dialog limits reject new work while preserving existing state;
-- a handler exception leaves unrelated Call registry entries intact.
+- per-attempt fork selection rejects non-2xx status; winner/non-winner, atomic
+  transfer selection, held-transfer abort and re-INVITE do not create
+  ambiguous state or duplicate ACK;
+- mailbox/timer/Leg/Dialog mutations share the authority fence and their limits
+  reject new work while preserving existing state;
+- a synchronous exception or async-handler rejection is reported as failure
+  and leaves unrelated Call registry entries intact.
 
 Minimal implementation files:
 
@@ -64,6 +71,8 @@ Tests first in the G03 test file and existing SipFoundation/effect suites:
   `(level, from_state)` tuple;
 - illegal receipt combinations fail closed;
 - start drain rejects only new Protocol Sessions;
+- opening sessions reserve capacity before Adapter callbacks, close reentrant
+  capacity windows and prevent false active-zero;
 - existing sessions continue, release O(1), active-zero becomes observable;
 - repeated drain is idempotent and a deadline never force-closes Calls;
 - deterministic Retry-After bounds remain exact.

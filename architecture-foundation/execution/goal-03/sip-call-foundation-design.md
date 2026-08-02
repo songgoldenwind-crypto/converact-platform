@@ -47,26 +47,42 @@ Queue, Routing, Billing, API or Addon interfaces.
 New deterministic identifiers use SHA-256 over length-prefixed tenant,
 namespace and components, truncated to 128 bits and prefixed by type. This
 avoids delimiter ambiguity and does not force a ULID migration. Existing UUID
-and `vcall_*` values enter only through a checked compatibility constructor.
+and `vcall_*` values enter only after the existing durable `VoiceCall`
+repository returns an exact tenant/ID match and the foundation module issues a
+non-forgeable in-process authority record. A raw string, SIP header or
+look-alike plain object is rejected even when it has valid UUID syntax.
 
 ## 3. Call and Leg Mutation
 
 The existing `VoiceCall` state machine remains the only business Call state
 machine. G03 adds a Leg state projection used by Call Core; it is not a new
-database authority. Every Leg mutation carries tenant, Call, owner epoch,
-generation and expected revision. A mutation either advances the revision
-exactly once, returns the original receipt for the same event ID/hash, or fails
-closed.
+database authority. Opening or restoring a Call projection requires its
+durable positive generation. Every Leg, mailbox and timer mutation carries
+tenant, Call, owner epoch, generation and expected revision. A mutation either
+advances the revision exactly once, returns the original receipt for the same
+event ID/hash, or fails closed.
 
 Race decisions are explicit:
 
 - CANCEL before final response sends CANCEL and closes 487 with a non-2xx ACK.
 - A racing 2xx after CANCEL is ACKed and then terminated with BYE.
-- The first durably selected fork 2xx is the winner; a late 2xx is ACKed then
-  BYE'd, and remaining early branches receive CANCEL.
+- Every fork attempt has an explicit bounded identity, and the selection input
+  accepts only an integer SIP status from 200 through 299. The first durably
+  selected fork 2xx is the winner; a late unacknowledged 2xx is ACKed then
+  BYE'd, an already acknowledged loser receives only BYE, and remaining early
+  branches receive CANCEL.
 - Re-INVITE glare returns 491 and uses bounded retry; it does not create a Leg.
-- Transfer keeps the old selected Leg until the transfer commit is durable.
+- Transfer keeps the old selected Leg until one dedicated atomic selection
+  operation durably selects the confirmed replacement and marks the old Leg
+  terminating. A generic per-Leg `transfer_commit` event is forbidden. Abort
+  restores the exact pre-transfer stable state (`confirmed` or `held`).
 - Duplicate BYE/CANCEL/effect identities do not create duplicate CDR or effects.
+
+Per-Call callbacks are synchronous-only at this projection boundary. A thrown
+handler or accidentally returned Promise is classified as failed, its
+rejection is consumed, and no unrelated Call entry is mutated. Async protocol
+work must be represented as durable/bounded work rather than hidden behind a
+callback return value.
 
 Per-Call work is bounded. Call/Leg/Dialog lookup is expected O(1); reconciliation
 may be O(number of Legs) but the number of Legs has a hard ceiling. No global
@@ -112,8 +128,11 @@ recorded as `not_run`, not described as completed wiring.
    transaction-quiescent, same-Adapter/runtime snapshot after outer Call-owner
    authority is granted.
 8. `drain` stops new Protocol Sessions, preserves existing runtime identity and
-   reaches active-zero naturally. A deadline does not authorize forced BYE or
-   deletion.
+   reaches active-zero naturally. A session-opening reservation is installed
+   before any Adapter identity getter or create callback and counts toward both
+   capacity and active-zero; failed opens revoke their lease and release that
+   reservation. Reentrant same-ID opens fail closed. A deadline does not
+   authorize forced BYE or deletion.
 
 Automatic ACK, CANCEL, retransmission and error responses remain declared
 effect policies. An Adapter cannot emit an unregistered visible effect.

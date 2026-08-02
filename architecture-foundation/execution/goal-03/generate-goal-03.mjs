@@ -231,6 +231,15 @@ function sipFoundationContract() {
       restore: 'confirmed_quiescent_same_adapter_only',
       drain: 'reject_new_protocol_sessions_preserve_existing_sessions',
     },
+    protocol_session_lifecycle: {
+      open_reservation:
+        'counts_as_active_before_adapter_identity_or_create_callback',
+      reentrant_same_id: 'fail_closed_open_in_progress',
+      reentrant_capacity: 'opening_reservations_consume_session_capacity',
+      drain_active_zero:
+        'sessions_plus_opening_reservations_must_equal_zero',
+      failed_open: 'revoke_lease_release_reservation_then_recompute_active_zero',
+    },
     command_identity_fields: [
       'tenant_id',
       'protocol_session_id',
@@ -355,8 +364,7 @@ function callLegContract() {
     ['held', 'resume_committed', 'confirmed', 'none'],
     ['confirmed', 'transfer_prepare', 'transferring', 'none'],
     ['held', 'transfer_prepare', 'transferring', 'none'],
-    ['transferring', 'transfer_abort', 'confirmed', 'none'],
-    ['transferring', 'transfer_commit', 'terminating', 'bye_old_selected_leg'],
+    ['transferring', 'transfer_abort', 'previous_confirmed_or_held_state', 'none'],
     ['confirmed', 'bye_requested', 'terminating', 'send_bye'],
     ['held', 'bye_requested', 'terminating', 'send_bye'],
     ['terminating', 'termination_observed', 'terminated', 'none'],
@@ -386,6 +394,12 @@ function callLegContract() {
         { type: 'MediaSessionId', prefix: 'media_', legacy_inputs: [] },
         { type: 'InteractionId', prefix: 'interaction_', legacy_inputs: ['CallId_string_when_one_call_is_the_interaction'] },
       ],
+      legacy_call_id_import: {
+        accepted_syntax: ['vcall_*', 'uuid'],
+        authority: 'existing_VoiceCall_repository_exact_tenant_and_id_match',
+        credential: 'module_issued_non_forgeable_in_process_record',
+        raw_sip_call_id_or_plain_object: 'rejected',
+      },
       invariants: [
         'sip_call_id_is_not_CallId',
         'one_Call_has_many_Legs',
@@ -408,30 +422,52 @@ function callLegContract() {
     events: [
       'start_invite', 'provisional', 'final_2xx', 'cancel_requested',
       'late_final_2xx', 'hold_committed', 'resume_committed',
-      'transfer_prepare', 'transfer_abort', 'transfer_commit',
+      'transfer_prepare', 'transfer_abort',
       'bye_requested', 'termination_observed', 'protocol_failure',
     ],
     transitions,
+    atomic_operations: {
+      transfer_commit_selection: {
+        required_fields: [
+          'old_leg_id', 'old_leg_generation', 'new_leg_id',
+          'event_id', 'event_hash',
+        ],
+        precondition:
+          'old_is_selected_and_transferring_new_is_confirmed_and_both_are_fenced',
+        mutation:
+          'atomically_select_new_then_mark_old_terminating',
+        required_effect: 'bye_old_selected_leg',
+        generic_leg_event: 'forbidden',
+      },
+    },
     concurrency: {
       mutation_fence: ['tenant_id', 'call_id', 'owner_epoch', 'generation', 'expected_revision'],
       owner_epoch: 'positive_uint64_monotonic',
-      generation: 'positive_uint64_monotonic_per_leg_binding',
+      generation: 'positive_uint64_bound_to_call_projection_and_every_leg',
+      call_open_generation: 'required_positive_uint64_from_durable_authority',
       revision: 'positive_uint64_advance_exactly_one',
       duplicate_event: 'same_event_id_and_hash_returns_original_receipt',
       conflicting_duplicate: 'fail_closed',
       stale_owner: 'query_only',
       sequence_gap: 'fail_closed_then_reconcile',
+      mailbox_and_timer_mutation:
+        'same_tenant_owner_generation_revision_fence_as_leg_mutation',
     },
     race_policy: {
       cancel_before_final: 'CANCEL_then_487_ACK',
       cancel_races_2xx: 'ACK_2xx_then_BYE_without_second_CDR',
       bye_duplicate: 'idempotent_same_effect_identity',
       fork_winner: 'first_durably_selected_2xx_leg_only',
+      fork_attempt_identity: 'explicit_and_bounded_per_attempt',
+      fork_selection_sip_status: 'integer_200_through_299_only',
       late_fork_2xx: 'ACK_then_BYE_non_winner',
+      already_acked_late_fork_2xx: 'BYE_without_duplicate_ACK',
       remaining_early_forks: 'CANCEL',
       reinvite: 'same_leg_same_dialog_new_negotiation_generation',
       reinvite_glare: '491_and_bounded_retry_without_new_leg',
       transfer: 'old_selected_leg_remains_until_transfer_commit',
+      transfer_commit: 'atomic_selection_swap_then_BYE_old_leg',
+      transfer_abort: 'restore_pre_transfer_confirmed_or_held_state',
     },
     bounds: {
       active_calls_hard_ceiling: 1000000,
@@ -442,6 +478,7 @@ function callLegContract() {
       mailbox_per_call_default: 256,
       mailbox_per_call_hard_ceiling: 1024,
       dedupe_receipts_per_call_hard_ceiling: 2048,
+      fork_attempt_tracking: 'bounded_by_dedupe_receipts_per_call',
       timers_per_call_hard_ceiling: 128,
       overflow_policy: 'reject_new_work_without_mutating_existing_call',
     },

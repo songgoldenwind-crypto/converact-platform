@@ -11,12 +11,12 @@ evidence is not promoted.
 
 | Domain | Current/target implementation | Focused tests | Evidence ID |
 | --- | --- | --- | --- |
-| owned ID types | `src/agent-runtime/converact/voice/foundation-identifiers.ts` | `test/converact-call-leg-foundation.test.ts` | `G03-E03-ID-STATE` |
+| owned ID types and authority-attested legacy import | `src/agent-runtime/converact/voice/foundation-identifiers.ts`; existing `VoiceCallRepository` lookup port | `test/converact-call-leg-foundation.test.ts` | `G03-E03-ID-STATE` |
 | Call business state | `voice/types.ts`; `voice/state-machine.ts`; `voice/call-service.ts` | Voice application/state tests | `G03-E03-ID-STATE` |
-| Leg/race state | `voice/call-leg-state-machine.ts` | `test/converact-call-leg-foundation.test.ts` | `G03-E03-ID-STATE` |
+| Leg/race state, atomic transfer, fenced mailbox/timers | `voice/call-leg-state-machine.ts` | `test/converact-call-leg-foundation.test.ts` | `G03-E03-ID-STATE` |
 | SipFoundation types/capabilities | `sip-foundation/types.ts`; `capabilities.ts`; `closed-schema.ts` | `test/converact-sip-foundation.test.ts` | `G03-E02-BASELINE` |
 | originate/answer/terminate control port | target machine contract; current RustPBX binding remains outside the target port | contract test; future Adapter activation tests | `not_run` |
-| Protocol Session and drain | `sip-foundation/session-registry.ts` | foundation + G03 tests | `G03-E09-DRAIN` |
+| Protocol Session, pre-callback reservation and drain | `sip-foundation/session-registry.ts` | foundation + G03 reentrancy tests | `G03-E09-DRAIN` |
 | rsipstack Adapter | `sip-foundation/rsipstack-adapter.ts`; `route-binding.ts` | foundation tests; exact patch tests | `G03-E02-BASELINE`, `G03-E07-WIRE` |
 | durable effects/receipts | `effect-oracle.ts`; `postgres-effect-store.ts`; migration 107 | effect oracle and physical PostgreSQL tests | `G03-E04-EFFECT`, `G03-E05-POSTGRES` |
 | recovery/clock | `sip-foundation/recovery.ts`; dialog takeover/shadow sources | recovery and takeover tests | `G03-E08-RECOVERY` |

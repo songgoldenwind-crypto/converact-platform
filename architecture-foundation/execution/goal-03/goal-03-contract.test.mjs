@@ -143,6 +143,14 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.equal(contract.error_interface.secret_or_raw_wire_details, 'forbidden');
   assert.equal(contract.boundedness.global_hot_lock, 'forbidden');
   assert.equal(contract.boundedness.unbounded_queue, 'forbidden');
+  assert.equal(
+    contract.protocol_session_lifecycle.open_reservation,
+    'counts_as_active_before_adapter_identity_or_create_callback',
+  );
+  assert.equal(
+    contract.protocol_session_lifecycle.drain_active_zero,
+    'sessions_plus_opening_reservations_must_equal_zero',
+  );
   assert.equal(contract.deletion_gate.rsipstack_delete_before_g06, false);
 
   const build = readFileSync(join(repositoryRoot, 'infra/converact/rustpbx/build.sh'), 'utf8');
@@ -163,8 +171,28 @@ test('Call/Leg and effect contracts distinguish identities, races and receipt me
     ],
   );
   assert.ok(call.identifiers.invariants.includes('sip_call_id_is_not_CallId'));
+  assert.equal(
+    call.identifiers.legacy_call_id_import.authority,
+    'existing_VoiceCall_repository_exact_tenant_and_id_match',
+  );
+  assert.equal(
+    call.identifiers.legacy_call_id_import.raw_sip_call_id_or_plain_object,
+    'rejected',
+  );
   assert.equal(call.race_policy.cancel_races_2xx, 'ACK_2xx_then_BYE_without_second_CDR');
   assert.equal(call.race_policy.late_fork_2xx, 'ACK_then_BYE_non_winner');
+  assert.equal(call.race_policy.already_acked_late_fork_2xx, 'BYE_without_duplicate_ACK');
+  assert.equal(call.race_policy.fork_selection_sip_status, 'integer_200_through_299_only');
+  assert.equal(call.race_policy.transfer_abort, 'restore_pre_transfer_confirmed_or_held_state');
+  assert.equal(
+    call.atomic_operations.transfer_commit_selection.generic_leg_event,
+    'forbidden',
+  );
+  assert.equal(
+    call.concurrency.mailbox_and_timer_mutation,
+    'same_tenant_owner_generation_revision_fence_as_leg_mutation',
+  );
+  assert.equal(call.events.includes('transfer_commit'), false);
   assert.equal(call.complexity.transition, 'O(1)');
   assert.equal(call.complexity.global_active_call_scan_on_hot_path, 'forbidden');
 

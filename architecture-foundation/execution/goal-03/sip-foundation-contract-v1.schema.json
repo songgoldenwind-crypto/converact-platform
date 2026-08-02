@@ -23,6 +23,7 @@
     "hangup_cause_interface",
     "error_interface",
     "commands",
+    "protocol_session_lifecycle",
     "command_identity_fields",
     "protocol_coverage",
     "edge_core_sip_v1",
@@ -809,6 +810,34 @@
         },
         "drain": {
           "const": "reject_new_protocol_sessions_preserve_existing_sessions"
+        }
+      }
+    },
+    "protocol_session_lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "open_reservation",
+        "reentrant_same_id",
+        "reentrant_capacity",
+        "drain_active_zero",
+        "failed_open"
+      ],
+      "properties": {
+        "open_reservation": {
+          "const": "counts_as_active_before_adapter_identity_or_create_callback"
+        },
+        "reentrant_same_id": {
+          "const": "fail_closed_open_in_progress"
+        },
+        "reentrant_capacity": {
+          "const": "opening_reservations_consume_session_capacity"
+        },
+        "drain_active_zero": {
+          "const": "sessions_plus_opening_reservations_must_equal_zero"
+        },
+        "failed_open": {
+          "const": "revoke_lease_release_reservation_then_recompute_active_zero"
         }
       }
     },

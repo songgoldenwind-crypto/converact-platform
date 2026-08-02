@@ -22,10 +22,12 @@ values are never persisted.
 
 ## 2. Owner and Replay
 
-Every restored mutation validates the positive uint64 owner epoch, Protocol
-Session generation and command sequence. A stale owner may query but cannot
-send, reconcile or mutate. The new owner uses compare-and-swap against the
-durable generation; split-brain writers fail closed.
+Every restored Call projection opens at the positive uint64 generation loaded
+from durable authority; generation `1` is never assumed. Every restored
+mutation validates the owner epoch, Protocol Session/Leg generation and command
+sequence. A stale owner may query but cannot send, reconcile, enqueue mailbox
+work, register timers or mutate. The new owner uses compare-and-swap against
+the durable generation; split-brain writers fail closed.
 
 Duplicate event ID plus identical hash returns the prior receipt. Identical ID
 with a different hash is a conflict. Sequence gaps stop mutation and enter
@@ -78,10 +80,14 @@ active_zero
 Rules:
 
 - `start_drain` is idempotent and atomically prevents new Protocol Sessions.
+- A new session reserves its ID and capacity before invoking any Adapter
+  getter/callback. The reservation counts as active during reentrancy, so drain
+  cannot observe false active-zero; same-ID reentry fails closed.
 - Existing sessions keep the Adapter source/binary/config/capability identity
   with which they started.
 - Existing Call media is not forced through another Adapter.
-- Session release is O(1); active-zero is a counter observation, not a table scan.
+- Session/open-failure release is O(1); active-zero is the O(1) sum of committed
+  sessions and opening reservations, not a table scan.
 - A drain deadline produces `drain_timed_out` evidence but does not force
   BYE/CANCEL, change authority or authorize dependency deletion.
 - Rollback re-enables new placement only through an explicit generation change;
