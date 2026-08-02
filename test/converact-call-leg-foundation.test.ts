@@ -98,6 +98,57 @@ test('owned identifiers are bounded, typed and boundary-unambiguous', async () =
     } as unknown as PostgresVoiceCallStore),
     hasCode('voice_foundation_legacy_call_id_invalid')
   );
+  const prototypeSpoof = Object.create(
+    PostgresVoiceCallStore.prototype
+  ) as PostgresVoiceCallStore;
+  Object.defineProperty(prototypeSpoof, 'get', {
+    configurable: true,
+    value: async () => ({
+      id: 'vcall_prototype-forged',
+      tenant_id: TENANT_ID
+    })
+  });
+  assert.throws(
+    () => VoiceCallIdAuthorityAdapter.bind(prototypeSpoof),
+    hasCode('voice_foundation_legacy_call_id_invalid')
+  );
+  const overriddenStore = legacyCallRepository(null);
+  Object.defineProperty(overriddenStore, 'get', {
+    configurable: true,
+    value: async () => ({
+      id: 'vcall_own-override',
+      tenant_id: TENANT_ID
+    })
+  });
+  await assert.rejects(
+    () => VoiceCallIdAuthorityAdapter.bind(overriddenStore).resolveExisting(
+      TENANT_ID,
+      'vcall_own-override'
+    ),
+    hasCode('voice_foundation_legacy_call_id_invalid')
+  );
+  const originalPrototypeGet = PostgresVoiceCallStore.prototype.get;
+  Object.defineProperty(PostgresVoiceCallStore.prototype, 'get', {
+    configurable: true,
+    value: async () => ({
+      id: 'vcall_prototype-override',
+      tenant_id: TENANT_ID
+    })
+  });
+  try {
+    await assert.rejects(
+      () => VoiceCallIdAuthorityAdapter.bind(
+        legacyCallRepository(null)
+      ).resolveExisting(TENANT_ID, 'vcall_prototype-override'),
+      hasCode('voice_foundation_legacy_call_id_invalid')
+    );
+  } finally {
+    Object.defineProperty(PostgresVoiceCallStore.prototype, 'get', {
+      configurable: true,
+      value: originalPrototypeGet,
+      writable: true
+    });
+  }
   await assert.rejects(
     () => VoiceCallIdAuthorityAdapter.bind(
       legacyCallRepository(null)
@@ -321,8 +372,19 @@ test('durable fork selection cancels every registered early sibling', () => {
   assert.equal(fixture.registry.getLeg(fixture.legA).state, 'confirmed');
   assert.equal(fixture.registry.getLeg(fixture.legB).state, 'terminating');
 
-  const loser = fixture.registry.observeDurableForkWinner(
+  fixture.registry.applyLegEvent(
     fixture.fence('9', '1'),
+    event(fixture.legA, 'evt-winner-bye', 'bye_requested')
+  );
+  const terminatingWinnerRetransmit = fixture.registry.observeDurableForkWinner(
+    fixture.fence('10', '1'),
+    forkEvent(fixture.legA, 'evt-winner-2xx-retransmit')
+  );
+  assert.equal(terminatingWinnerRetransmit.required_effect, 'ack_then_bye');
+  assert.equal(fixture.registry.getLeg(fixture.legA).state, 'terminating');
+
+  const loser = fixture.registry.observeDurableForkWinner(
+    fixture.fence('11', '1'),
     forkEvent(fixture.legB, 'evt-loser')
   );
   assert.equal(loser.selected_leg_id, fixture.legA);

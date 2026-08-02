@@ -32,6 +32,9 @@ the durable generation; split-brain writers fail closed.
 Duplicate event ID plus identical hash returns the prior receipt. Identical ID
 with a different hash is a conflict. Sequence gaps stop mutation and enter
 bounded query/reconcile; they do not guess missing effects.
+The hash is lowercase SHA-256 over RFC 8785 JCS UTF-8 bytes of the closed event
+envelope with only its `event_hash` member omitted; it is never caller prose or
+a hash of a selected payload subset.
 
 Timer restoration uses the captured duration and elapsed monotonic evidence.
 Downtime is subtracted once. Expired timers return zero remaining duration and

@@ -280,6 +280,9 @@
             "accepted_syntax",
             "authority",
             "credential",
+            "runtime_brand",
+            "repository_composition",
+            "query_dispatch",
             "raw_sip_call_id_or_plain_object"
           ],
           "properties": {
@@ -302,6 +305,15 @@
             },
             "credential": {
               "const": "module_private_issuer_no_caller_supplied_lookup_or_record"
+            },
+            "runtime_brand": {
+              "const": "constructor_issued_module_private_WeakSet_membership"
+            },
+            "repository_composition": {
+              "const": "native_private_field_not_structurally_replaceable"
+            },
+            "query_dispatch": {
+              "const": "captured_trusted_prototype_method_ignores_own_override"
             },
             "raw_sip_call_id_or_plain_object": {
               "const": "rejected"
@@ -1178,6 +1190,7 @@
         "fork_selection_sip_status",
         "late_fork_2xx",
         "already_acked_late_fork_2xx",
+        "terminating_winner_retransmitted_2xx",
         "remaining_early_forks",
         "reinvite",
         "reinvite_glare",
@@ -1212,6 +1225,9 @@
         },
         "already_acked_late_fork_2xx": {
           "const": "BYE_without_duplicate_ACK"
+        },
+        "terminating_winner_retransmitted_2xx": {
+          "const": "remain_terminating_and_emit_idempotent_ACK_then_BYE"
         },
         "remaining_early_forks": {
           "const": "bounded_per_leg_send_cancel_effects_in_winner_receipt"

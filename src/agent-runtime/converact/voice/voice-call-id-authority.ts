@@ -5,7 +5,11 @@ import {
   type CallId,
   VoiceFoundationIdentifierError
 } from './foundation-identifiers.js';
-import { PostgresVoiceCallStore } from './postgres/call-store.js';
+import {
+  getTrustedExistingVoiceCall,
+  isTrustedPostgresVoiceCallStore,
+  PostgresVoiceCallStore
+} from './postgres/call-store.js';
 
 const AUTHORITY_ISSUER = Symbol('voice-call-id-authority-issuer');
 const TENANT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/;
@@ -31,9 +35,7 @@ export class VoiceCallIdAuthorityAdapter {
   }
 
   static bind(calls: PostgresVoiceCallStore): VoiceCallIdAuthorityAdapter {
-    if (typeof calls !== 'object' || calls === null ||
-        utilTypes.isProxy(calls) ||
-        Object.getPrototypeOf(calls) !== PostgresVoiceCallStore.prototype) {
+    if (!isTrustedPostgresVoiceCallStore(calls)) {
       throw invalidLegacyCallId();
     }
     return new VoiceCallIdAuthorityAdapter(AUTHORITY_ISSUER, calls);
@@ -45,7 +47,11 @@ export class VoiceCallIdAuthorityAdapter {
   ): Promise<CallId> {
     const tenantId = legacyTenantId(tenantIdInput);
     const format = legacyCallIdFormat(legacyCallIdInput);
-    const stored = await this.#calls.get(tenantId, legacyCallIdInput);
+    const stored = await getTrustedExistingVoiceCall(
+      this.#calls,
+      tenantId,
+      legacyCallIdInput
+    );
     if (typeof stored !== 'object' || stored === null ||
         utilTypes.isProxy(stored) ||
         stored.id !== legacyCallIdInput ||

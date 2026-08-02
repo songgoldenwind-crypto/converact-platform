@@ -49,10 +49,13 @@ namespace and components, truncated to 128 bits and prefixed by type. This
 avoids delimiter ambiguity and does not force a ULID migration. Existing UUID
 and `vcall_*` values enter only through the module-issued
 `VoiceCallIdAuthorityAdapter`, bound at composition time to the exact concrete
-`PostgresVoiceCallStore`. That store must return an exact tenant/ID match. The
-module exposes neither a caller-supplied lookup nor an import record. A raw
-string, SIP header or look-alike plain object is rejected even when it has valid
-UUID syntax.
+`PostgresVoiceCallStore`. Construction records a module-private WeakSet brand,
+the repository keeps its `PgQueryable` in a native private field, and authority
+lookup invokes the captured original prototype method rather than a caller
+override. The store must return an exact tenant/ID match. The module exposes
+neither a caller-supplied lookup nor an import record. A raw string, SIP header,
+look-alike prototype object, proxy or genuine instance with an own `get`
+override cannot mint authority even when the value has valid UUID syntax.
 
 ## 3. Call and Leg Mutation
 
@@ -73,7 +76,9 @@ Race decisions are explicit:
   through 299. The first durably selected fork 2xx is the winner; its receipt
   contains one bounded per-Leg CANCEL effect for every remaining early branch.
   A late unacknowledged 2xx is ACKed then BYE'd, while an already acknowledged
-  loser receives only BYE.
+  loser receives only BYE. A new or retransmitted 2xx for a winner whose BYE
+  has already been requested cannot revive the Leg: it remains `terminating`
+  and emits the idempotent ACK-then-BYE effect.
 - Re-INVITE glare returns 491 and uses bounded retry; it does not create a Leg.
 - Transfer keeps the old selected Leg until one dedicated atomic selection
   operation durably selects the confirmed replacement and marks the old Leg
@@ -104,8 +109,10 @@ fields fail validation. The schema closes the following semantic interface:
 - `terminate` carries a normalized hangup cause; a raw backend error is never a
   business cause.
 - ingress and egress use one bounded, ordered-per-Protocol-Session envelope
-  with event ID/hash dedupe. They cannot mutate Call state before the Call
-  authority commits its durable decision.
+  with event ID/hash dedupe. `event_hash` is lowercase SHA-256 over RFC 8785 JCS
+  UTF-8 bytes of the complete closed event envelope with only `event_hash`
+  omitted. They cannot mutate Call state before the Call authority commits its
+  durable decision.
 - SDP crosses the seam only as immutable exact bytes plus SHA-256, role and
   negotiation generation. No parser-owned SDP type crosses the seam.
 - runtime timers use a monotonic clock. Snapshots persist semantic timer kind,

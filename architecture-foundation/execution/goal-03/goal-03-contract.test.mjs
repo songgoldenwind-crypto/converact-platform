@@ -52,7 +52,7 @@ function compile(schemaName) {
   const ajv = new Ajv2020({
     allErrors: true,
     strict: true,
-    formats: { 'date-time': true },
+    formats: { 'date-time': validateRfc3339UtcDateTime },
   });
   return ajv.compile(readJson(join(goalDirectory, schemaName)));
 }
@@ -188,7 +188,7 @@ test('SipFoundation control messages have one compiled closed wire schema', () =
   const ajv = new Ajv2020({
     allErrors: true,
     strict: true,
-    formats: { 'date-time': true },
+    formats: { 'date-time': validateRfc3339UtcDateTime },
   });
   const validate = ajv.compile(schema);
   const examples = contract.control_interface.message_examples;
@@ -209,7 +209,19 @@ test('SipFoundation control messages have one compiled closed wire schema', () =
       true,
       `${name}: ${JSON.stringify(validate.errors)}`,
     );
+    if (example.message_kind === 'egress_event') {
+      assert.equal(
+        example.event.event_hash,
+        egressEventHash(example.event),
+        `${name}: canonical event hash`,
+      );
+    }
   }
+
+  assert.equal(
+    contract.egress_events.event_hash_canonicalization,
+    'sha256_lowercase_hex_of_rfc8785_jcs_utf8_event_without_event_hash',
+  );
 
   const unknownRequestField = structuredClone(examples.originate_request);
   unknownRequestField.request.undeclared = true;
@@ -226,6 +238,18 @@ test('SipFoundation control messages have one compiled closed wire schema', () =
   const unknownEventPayload = structuredClone(examples.provisional_received);
   unknownEventPayload.event.payload.undeclared = true;
   assertInvalid(validate, unknownEventPayload, 'unknown event payload field');
+  const missingEventHash = structuredClone(examples.transport_accepted);
+  delete missingEventHash.event.event_hash;
+  assertInvalid(validate, missingEventHash, 'missing event hash');
+  const malformedEventHash = structuredClone(examples.transport_accepted);
+  malformedEventHash.event.event_hash = 'not-a-sha256';
+  assertInvalid(validate, malformedEventHash, 'malformed event hash');
+  const invalidWallClock = structuredClone(examples.transport_accepted);
+  invalidWallClock.event.observed_at_wall_clock = 'not-a-date';
+  assertInvalid(validate, invalidWallClock, 'invalid RFC3339 wall clock');
+  const invalidCalendarDate = structuredClone(examples.transport_accepted);
+  invalidCalendarDate.event.observed_at_wall_clock = '2026-02-30T00:00:00Z';
+  assertInvalid(validate, invalidCalendarDate, 'invalid RFC3339 calendar date');
   const malformedHash = structuredClone(examples.originate_result);
   malformedHash.result.request_hash = 'not-a-sha256';
   assertInvalid(validate, malformedHash, 'malformed request hash');
@@ -257,12 +281,28 @@ test('Call/Leg and effect contracts distinguish identities, races and receipt me
     'module_private_issuer_no_caller_supplied_lookup_or_record',
   );
   assert.equal(
+    call.identifiers.legacy_call_id_import.runtime_brand,
+    'constructor_issued_module_private_WeakSet_membership',
+  );
+  assert.equal(
+    call.identifiers.legacy_call_id_import.repository_composition,
+    'native_private_field_not_structurally_replaceable',
+  );
+  assert.equal(
+    call.identifiers.legacy_call_id_import.query_dispatch,
+    'captured_trusted_prototype_method_ignores_own_override',
+  );
+  assert.equal(
     call.identifiers.legacy_call_id_import.raw_sip_call_id_or_plain_object,
     'rejected',
   );
   assert.equal(call.race_policy.cancel_races_2xx, 'ACK_2xx_then_BYE_without_second_CDR');
   assert.equal(call.race_policy.late_fork_2xx, 'ACK_then_BYE_non_winner');
   assert.equal(call.race_policy.already_acked_late_fork_2xx, 'BYE_without_duplicate_ACK');
+  assert.equal(
+    call.race_policy.terminating_winner_retransmitted_2xx,
+    'remain_terminating_and_emit_idempotent_ACK_then_BYE',
+  );
   assert.equal(call.race_policy.fork_selection_sip_status, 'integer_200_through_299_only');
   assert.equal(call.race_policy.transfer_abort, 'restore_pre_transfer_confirmed_or_held_state');
   assert.equal(
@@ -372,8 +412,8 @@ test('evidence starts honest and no required design artifact contains placeholde
     assert.doesNotMatch(value, /\b(?:TBD|TODO|FIXME)\b/u, path);
   }
   const review = readFileSync(join(goalDirectory, 'independent-review.md'), 'utf8');
-  assert.match(review, /Review status: `remediation_complete_re_review_pending`/u);
-  assert.match(review, /Critical 0 \/ High 2 \/ Important 2 \/ Minor 0/u);
+  assert.match(review, /Review status: `third_review_remediation_complete_re_review_pending`/u);
+  assert.match(review, /Critical 0 \/ High 1 \/ Important 2 \/ Minor 2/u);
   assert.match(review, /Production eligibility: `false`/u);
 });
 
@@ -400,3 +440,36 @@ test('generator is deterministic and the seam imports no rvoip implementation ty
     assert.doesNotMatch(value, /from\s+['"](?:rvoip|@?rvoip|rvoip_)/u, path);
   }
 });
+
+function egressEventHash(event) {
+  const { event_hash: ignored, ...hashInput } = event;
+  return sha256(Buffer.from(canonicalJson(hashInput), 'utf8'));
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value === 'boolean' || typeof value === 'number' ||
+      typeof value === 'string') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(',')}]`;
+  }
+  const record = value;
+  return `{${Object.keys(record).sort().map((key) =>
+    `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(',')}}`;
+}
+
+function validateRfc3339UtcDateTime(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?Z$/u.exec(value);
+  if (!match) return false;
+  const [, year, month, day, hour, minute, second] = match.map(Number);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) {
+    return false;
+  }
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [
+    31, leapYear ? 29 : 28, 31, 30, 31, 30,
+    31, 31, 30, 31, 30, 31,
+  ][month - 1];
+  return day >= 1 && day <= daysInMonth;
+}

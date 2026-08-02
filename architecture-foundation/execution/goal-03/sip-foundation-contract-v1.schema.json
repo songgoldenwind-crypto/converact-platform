@@ -5153,8 +5153,8 @@
                     },
                     "required": {
                       "type": "array",
-                      "minItems": 15,
-                      "maxItems": 15,
+                      "minItems": 16,
+                      "maxItems": 16,
                       "prefixItems": [
                         {
                           "const": "tenant_id"
@@ -5182,6 +5182,9 @@
                         },
                         {
                           "const": "event_id"
+                        },
+                        {
+                          "const": "event_hash"
                         },
                         {
                           "const": "owner_epoch"
@@ -5217,6 +5220,7 @@
                         "protocol_dialog_id",
                         "transaction_id",
                         "event_id",
+                        "event_hash",
                         "owner_epoch",
                         "generation",
                         "observed_at_wall_clock",
@@ -5391,6 +5395,18 @@
                             }
                           }
                         },
+                        "event_hash": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "$ref"
+                          ],
+                          "properties": {
+                            "$ref": {
+                              "const": "#/$defs/Sha256"
+                            }
+                          }
+                        },
                         "owner_epoch": {
                           "type": "object",
                           "additionalProperties": false,
@@ -5420,7 +5436,8 @@
                           "additionalProperties": false,
                           "required": [
                             "type",
-                            "format"
+                            "format",
+                            "pattern"
                           ],
                           "properties": {
                             "type": {
@@ -5428,6 +5445,9 @@
                             },
                             "format": {
                               "const": "date-time"
+                            },
+                            "pattern": {
+                              "const": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?Z$"
                             }
                           }
                         },
@@ -6660,7 +6680,8 @@
                     "observed_at_wall_clock",
                     "received_at_monotonic_offset_ns",
                     "event_type",
-                    "payload"
+                    "payload",
+                    "event_hash"
                   ],
                   "properties": {
                     "tenant_id": {
@@ -6732,6 +6753,9 @@
                           "const": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db"
                         }
                       }
+                    },
+                    "event_hash": {
+                      "const": "0d837c4216c8c9a4b3232f4782817d1d33f237afaaf5b9708acaf2ca89c5cfd4"
                     }
                   }
                 }
@@ -6766,7 +6790,8 @@
                     "observed_at_wall_clock",
                     "received_at_monotonic_offset_ns",
                     "event_type",
-                    "payload"
+                    "payload",
+                    "event_hash"
                   ],
                   "properties": {
                     "tenant_id": {
@@ -6842,6 +6867,9 @@
                           "const": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db"
                         }
                       }
+                    },
+                    "event_hash": {
+                      "const": "3aefe0826668f17db4fe53828d2b598ac6bb998d7de808afab3e0fc4195643ff"
                     }
                   }
                 }
@@ -6876,7 +6904,8 @@
                     "observed_at_wall_clock",
                     "received_at_monotonic_offset_ns",
                     "event_type",
-                    "payload"
+                    "payload",
+                    "event_hash"
                   ],
                   "properties": {
                     "tenant_id": {
@@ -6952,6 +6981,9 @@
                           "const": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db"
                         }
                       }
+                    },
+                    "event_hash": {
+                      "const": "7e8baadc2034a4eb887ea3646dfacb14ebe0767f911841f6f46f4d558978431c"
                     }
                   }
                 }
@@ -6986,7 +7018,8 @@
                     "observed_at_wall_clock",
                     "received_at_monotonic_offset_ns",
                     "event_type",
-                    "payload"
+                    "payload",
+                    "event_hash"
                   ],
                   "properties": {
                     "tenant_id": {
@@ -7062,6 +7095,9 @@
                           "const": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db"
                         }
                       }
+                    },
+                    "event_hash": {
+                      "const": "b2a0edc0f68261bbcce54f160571e7688beb6882d37d08500bcdff0be3607c33"
                     }
                   }
                 }
@@ -7096,7 +7132,8 @@
                     "observed_at_wall_clock",
                     "received_at_monotonic_offset_ns",
                     "event_type",
-                    "payload"
+                    "payload",
+                    "event_hash"
                   ],
                   "properties": {
                     "tenant_id": {
@@ -7168,6 +7205,9 @@
                           "const": true
                         }
                       }
+                    },
+                    "event_hash": {
+                      "const": "a292424483b224d4d5e8386c929a024b927636b51b4023d7dc47ec5f8f2dac02"
                     }
                   }
                 }
@@ -7202,7 +7242,8 @@
                     "observed_at_wall_clock",
                     "received_at_monotonic_offset_ns",
                     "event_type",
-                    "payload"
+                    "payload",
+                    "event_hash"
                   ],
                   "properties": {
                     "tenant_id": {
@@ -7270,6 +7311,9 @@
                           "const": true
                         }
                       }
+                    },
+                    "event_hash": {
+                      "const": "29010efa80ae7b04c87aa991fd8211594fa8a07ccf8c7c8eb475afe8809789ad"
                     }
                   }
                 }
@@ -7304,7 +7348,8 @@
                     "observed_at_wall_clock",
                     "received_at_monotonic_offset_ns",
                     "event_type",
-                    "payload"
+                    "payload",
+                    "event_hash"
                   ],
                   "properties": {
                     "tenant_id": {
@@ -7364,6 +7409,9 @@
                           "const": 32000
                         }
                       }
+                    },
+                    "event_hash": {
+                      "const": "2682b2be486962bf21ee85a52061ec2625b5d1d4084a096959fa607d46186add"
                     }
                   }
                 }
@@ -7398,7 +7446,8 @@
                     "observed_at_wall_clock",
                     "received_at_monotonic_offset_ns",
                     "event_type",
-                    "payload"
+                    "payload",
+                    "event_hash"
                   ],
                   "properties": {
                     "tenant_id": {
@@ -7470,6 +7519,9 @@
                           "const": 1
                         }
                       }
+                    },
+                    "event_hash": {
+                      "const": "452f620cf083e120ed94a62c0a4a99253bc3881a4123f9593b9460116f42562f"
                     }
                   }
                 }
@@ -7504,7 +7556,8 @@
                     "observed_at_wall_clock",
                     "received_at_monotonic_offset_ns",
                     "event_type",
-                    "payload"
+                    "payload",
+                    "event_hash"
                   ],
                   "properties": {
                     "tenant_id": {
@@ -7568,6 +7621,9 @@
                           "const": 2000
                         }
                       }
+                    },
+                    "event_hash": {
+                      "const": "e0b9983bf483245f61c12ae62f97e182abc2288b37110b34e06cf59950b63908"
                     }
                   }
                 }
@@ -7648,8 +7704,8 @@
         },
         "semantic_invariants": {
           "type": "array",
-          "minItems": 8,
-          "maxItems": 8,
+          "minItems": 10,
+          "maxItems": 10,
           "prefixItems": [
             {
               "const": "PositiveUint64 parses base10 without leading zero and is <=18446744073709551615"
@@ -7668,6 +7724,12 @@
             },
             {
               "const": "wire event length and SHA-256 match the exact received bytes"
+            },
+            {
+              "const": "event_hash is SHA-256 lowercase hex of RFC8785 JCS UTF-8 event bytes with event_hash omitted"
+            },
+            {
+              "const": "observed_at_wall_clock is a calendar-valid RFC3339 UTC Z timestamp"
             },
             {
               "const": "command result or error command_id exactly matches its request"
@@ -7695,13 +7757,14 @@
         "payload_schema_refs",
         "delivery",
         "duplicate_and_reorder",
+        "event_hash_canonicalization",
         "business_mutation"
       ],
       "properties": {
         "envelope_fields": {
           "type": "array",
-          "minItems": 15,
-          "maxItems": 15,
+          "minItems": 16,
+          "maxItems": 16,
           "prefixItems": [
             {
               "const": "tenant_id"
@@ -7729,6 +7792,9 @@
             },
             {
               "const": "event_id"
+            },
+            {
+              "const": "event_hash"
             },
             {
               "const": "owner_epoch"
@@ -7803,6 +7869,9 @@
         },
         "duplicate_and_reorder": {
           "const": "event_id_hash_dedupe_then_state_fence"
+        },
+        "event_hash_canonicalization": {
+          "const": "sha256_lowercase_hex_of_rfc8785_jcs_utf8_event_without_event_hash"
         },
         "business_mutation": {
           "const": "forbidden_until_Call_authority_durable_decision"

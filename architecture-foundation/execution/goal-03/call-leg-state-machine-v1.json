@@ -67,6 +67,9 @@
       ],
       "authority": "exact_PostgresVoiceCallStore_composition_binding_and_tenant_id_match",
       "credential": "module_private_issuer_no_caller_supplied_lookup_or_record",
+      "runtime_brand": "constructor_issued_module_private_WeakSet_membership",
+      "repository_composition": "native_private_field_not_structurally_replaceable",
+      "query_dispatch": "captured_trusted_prototype_method_ignores_own_override",
       "raw_sip_call_id_or_plain_object": "rejected"
     },
     "invariants": [
@@ -306,6 +309,7 @@
     "fork_selection_sip_status": "integer_200_through_299_only",
     "late_fork_2xx": "ACK_then_BYE_non_winner",
     "already_acked_late_fork_2xx": "BYE_without_duplicate_ACK",
+    "terminating_winner_retransmitted_2xx": "remain_terminating_and_emit_idempotent_ACK_then_BYE",
     "remaining_early_forks": "bounded_per_leg_send_cancel_effects_in_winner_receipt",
     "reinvite": "same_leg_same_dialog_new_negotiation_generation",
     "reinvite_glare": "491_and_bounded_retry_without_new_leg",

@@ -165,9 +165,3 @@ function invalidIdentifier(): VoiceFoundationIdentifierError {
     'voice_foundation_identifier_invalid'
   );
 }
-
-function invalidLegacyCallId(): VoiceFoundationIdentifierError {
-  return new VoiceFoundationIdentifierError(
-    'voice_foundation_legacy_call_id_invalid'
-  );
-}

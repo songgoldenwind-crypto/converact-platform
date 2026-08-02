@@ -34,6 +34,18 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
+function canonicalJson(value) {
+  if (value === null || typeof value === 'boolean' || typeof value === 'number' ||
+      typeof value === 'string') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(',')}]`;
+  }
+  return `{${Object.keys(value).sort().map((key) =>
+    `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+}
+
 function sha256File(path) {
   return sha256(readFileSync(path));
 }
@@ -176,9 +188,15 @@ function sipFoundationMessageSchema() {
     protocol_dialog_id: nullable(schemaRef('ProtocolDialogId')),
     transaction_id: nullable(schemaRef('TransactionId')),
     event_id: schemaRef('OpaqueIdentifier'),
+    event_hash: schemaRef('Sha256'),
     owner_epoch: schemaRef('PositiveUint64'),
     generation: schemaRef('PositiveUint64'),
-    observed_at_wall_clock: { type: 'string', format: 'date-time' },
+    observed_at_wall_clock: {
+      type: 'string',
+      format: 'date-time',
+      pattern:
+        '^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?Z$',
+    },
     received_at_monotonic_offset_ns: {
       type: 'integer',
       minimum: 0,
@@ -515,9 +533,8 @@ function sipFoundationMessageExamples() {
     retryable: false,
     source: 'call_core',
   };
-  const event = (eventType, payload, index) => ({
-    message_kind: 'egress_event',
-    event: {
+  const event = (eventType, payload, index) => {
+    const hashInput = {
       tenant_id: 'tenant-foundation',
       call_id: ids.call,
       leg_id: ids.leg,
@@ -533,8 +550,15 @@ function sipFoundationMessageExamples() {
       received_at_monotonic_offset_ns: index,
       event_type: eventType,
       payload,
-    },
-  });
+    };
+    return {
+      message_kind: 'egress_event',
+      event: {
+        ...hashInput,
+        event_hash: sha256(Buffer.from(canonicalJson(hashInput), 'utf8')),
+      },
+    };
+  };
   const response = (sipStatus, reasonPhrase) => ({
     sip_status: sipStatus,
     reason_phrase: reasonPhrase,
@@ -735,6 +759,8 @@ function sipFoundationContract() {
         'request_hash is SHA-256 of the canonical closed command request',
         'wire_freeze_sha256 is SHA-256 of the exact committed wire image',
         'wire event length and SHA-256 match the exact received bytes',
+        'event_hash is SHA-256 lowercase hex of RFC8785 JCS UTF-8 event bytes with event_hash omitted',
+        'observed_at_wall_clock is a calendar-valid RFC3339 UTC Z timestamp',
         'command result or error command_id exactly matches its request',
         'event_type selects exactly one closed payload schema',
       ],
@@ -745,7 +771,7 @@ function sipFoundationContract() {
       envelope_fields: [
         'tenant_id', 'call_id', 'leg_id', 'interaction_id',
         'protocol_session_id', 'protocol_session_generation',
-        'protocol_dialog_id', 'transaction_id', 'event_id',
+        'protocol_dialog_id', 'transaction_id', 'event_id', 'event_hash',
         'owner_epoch', 'generation', 'observed_at_wall_clock',
         'received_at_monotonic_offset_ns', 'event_type', 'payload',
       ],
@@ -763,6 +789,8 @@ function sipFoundationContract() {
       },
       delivery: 'bounded_ordered_per_protocol_session',
       duplicate_and_reorder: 'event_id_hash_dedupe_then_state_fence',
+      event_hash_canonicalization:
+        'sha256_lowercase_hex_of_rfc8785_jcs_utf8_event_without_event_hash',
       business_mutation: 'forbidden_until_Call_authority_durable_decision',
     },
     sdp_interface: {
@@ -987,6 +1015,9 @@ function callLegContract() {
         accepted_syntax: ['vcall_*', 'uuid'],
         authority: 'exact_PostgresVoiceCallStore_composition_binding_and_tenant_id_match',
         credential: 'module_private_issuer_no_caller_supplied_lookup_or_record',
+        runtime_brand: 'constructor_issued_module_private_WeakSet_membership',
+        repository_composition: 'native_private_field_not_structurally_replaceable',
+        query_dispatch: 'captured_trusted_prototype_method_ignores_own_override',
         raw_sip_call_id_or_plain_object: 'rejected',
       },
       invariants: [
@@ -1053,6 +1084,8 @@ function callLegContract() {
       fork_selection_sip_status: 'integer_200_through_299_only',
       late_fork_2xx: 'ACK_then_BYE_non_winner',
       already_acked_late_fork_2xx: 'BYE_without_duplicate_ACK',
+      terminating_winner_retransmitted_2xx:
+        'remain_terminating_and_emit_idempotent_ACK_then_BYE',
       remaining_early_forks: 'bounded_per_leg_send_cancel_effects_in_winner_receipt',
       reinvite: 'same_leg_same_dialog_new_negotiation_generation',
       reinvite_glare: '491_and_bounded_retry_without_new_leg',

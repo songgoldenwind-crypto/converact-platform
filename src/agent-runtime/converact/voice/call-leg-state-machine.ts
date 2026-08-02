@@ -200,6 +200,7 @@ export interface ForkSelectionReceipt {
   readonly required_effect:
     | 'none'
     | 'ack_2xx'
+    | 'ack_then_bye'
     | 'ack_then_bye_non_winner'
     | 'send_bye_non_winner_after_ack';
   readonly branch_effects: readonly Readonly<{
@@ -584,11 +585,14 @@ export class CallLegRegistry {
       call.selectedLegId ??
       legId;
     const alreadyAcknowledged = leg.state === 'confirmed';
+    const terminationAlreadyRequested = leg.state === 'terminating';
     const isWinner = selectedLegId === legId;
     const requiredEffect = isWinner
-      ? alreadyAcknowledged
-        ? 'none' as const
-        : 'ack_2xx' as const
+      ? terminationAlreadyRequested
+        ? 'ack_then_bye' as const
+        : alreadyAcknowledged
+          ? 'none' as const
+          : 'ack_2xx' as const
       : alreadyAcknowledged
         ? 'send_bye_non_winner_after_ack' as const
         : 'ack_then_bye_non_winner' as const;
@@ -616,7 +620,9 @@ export class CallLegRegistry {
     }
     const revision = call.revision + 1n;
     call.selectedLegId = selectedLegId;
-    leg.state = isWinner ? 'confirmed' : 'terminating';
+    leg.state = isWinner && !terminationAlreadyRequested
+      ? 'confirmed'
+      : 'terminating';
     call.revision = revision;
     const receipt = Object.freeze({
       event_id: eventId,

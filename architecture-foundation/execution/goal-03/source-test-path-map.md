@@ -11,9 +11,9 @@ evidence is not promoted.
 
 | Domain | Current/target implementation | Focused tests | Evidence ID |
 | --- | --- | --- | --- |
-| owned ID types and authority-attested legacy import | `voice/foundation-identifiers.ts`; module-issued `voice-call-id-authority.ts` bound to exact `PostgresVoiceCallStore` | `test/converact-call-leg-foundation.test.ts` | `G03-E03-ID-STATE` |
+| owned ID types and authority-attested legacy import | `voice/foundation-identifiers.ts`; module-issued `voice-call-id-authority.ts` bound by constructor WeakSet brand to exact `PostgresVoiceCallStore`, native-private composition and captured query method | `test/converact-call-leg-foundation.test.ts` including prototype/own-override rejection | `G03-E03-ID-STATE` |
 | Call business state | `voice/types.ts`; `voice/state-machine.ts`; `voice/call-service.ts` | Voice application/state tests | `G03-E03-ID-STATE` |
-| Leg/race state, pre-INVITE fork registration/CANCEL effects, atomic transfer, fenced callback-free mailbox/timers | `voice/call-leg-state-machine.ts` | `test/converact-call-leg-foundation.test.ts` | `G03-E03-ID-STATE` |
+| Leg/race state, pre-INVITE fork registration/CANCEL effects, terminating-winner 2xx retransmission, atomic transfer, fenced callback-free mailbox/timers | `voice/call-leg-state-machine.ts` | `test/converact-call-leg-foundation.test.ts` | `G03-E03-ID-STATE` |
 | SipFoundation types/capabilities | `sip-foundation/types.ts`; `capabilities.ts`; `closed-schema.ts` | `test/converact-sip-foundation.test.ts` | `G03-E02-BASELINE` |
 | originate/answer/terminate control port | closed `sip-foundation-control-message-v1` schema embedded in the target machine contract; current RustPBX binding remains outside the target port | compiled closed-schema contract test; future Adapter activation tests | `not_run` |
 | Protocol Session, pre-callback reservation and drain | `sip-foundation/session-registry.ts` | foundation + G03 reentrancy tests | `G03-E09-DRAIN` |

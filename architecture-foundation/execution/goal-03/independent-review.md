@@ -1,28 +1,32 @@
 # G03 Independent Review
 
-Review status: `remediation_complete_re_review_pending`
+Review status: `third_review_remediation_complete_re_review_pending`
 Production eligibility: `false`
 
-The independent second review examined exact commit
-`3559afca6ea322ad84a72d357edfc61356c5684b` read-only and reported
-`Critical 0 / High 2 / Important 2 / Minor 0`, therefore **REJECT**:
+The independent third review examined exact commit
+`32a212868a3c31b036584cd29f3a8ec583f1fa9d` read-only and reported
+`Critical 0 / High 1 / Important 2 / Minor 2`, therefore **REJECT**:
 
-1. a Promise-returning Call-registry handler continued after being classified
-   forbidden;
-2. fork winner selection did not cancel already-early siblings because attempt
-   membership was learned only at final response;
-3. legacy CallId attestation accepted a caller-supplied structural lookup;
-4. the control contract listed field names/prose without closed concrete
-   request/result/error/event payload schemas.
+1. a new/retransmitted 2xx revived a terminating selected fork winner;
+2. an object with the concrete store prototype and an own `get` method could
+   pass legacy CallId binding;
+3. the closed egress envelope promised ID/hash dedupe while omitting and
+   rejecting `event_hash`;
+4. the contract test treated every `date-time` string as valid;
+5. the identifier module retained one unused legacy error helper.
 
-Runtime remediation for findings 1–3 is committed at `44a2a68`; the Call
-registry no longer executes callbacks, legacy IDs require a module-issued
-adapter bound to the exact `PostgresVoiceCallStore`, and fork branches are
-registered before INVITE with bounded per-Leg CANCEL effects. Finding 4 is
-remediated in the current review candidate with a compiled Draft 2020-12 closed
-message schema covering concrete command requests/results/errors and every
-event payload. These are locally verified implementation statements, not
-reviewer acceptance.
+The current review candidate preserves `terminating` and returns an idempotent
+ACK-then-BYE effect, constructor-brands each exact store in a module-private
+WeakSet, protects its database composition with a native private field and
+invokes a captured trusted query method. The egress schema now requires a
+canonical `event_hash`; tests verify both the hash and a real RFC 3339 UTC
+validator; the orphan helper is removed. Targeted tests and typecheck pass.
+These are local remediation statements, not reviewer acceptance.
+
+The earlier `3559afc` review (`Critical 0 / High 2 / Important 2 / Minor 0`)
+remains part of the rejection history. Its callback, early-fork cancellation,
+structural lookup and concrete-schema findings were closed before this third
+review; the third reviewer independently confirmed those four closures.
 
 Until a reviewer examines a new exact commit/diff and reports zero unresolved
 Critical, High, Important and Minor findings, `G03-E15-REVIEW` remains

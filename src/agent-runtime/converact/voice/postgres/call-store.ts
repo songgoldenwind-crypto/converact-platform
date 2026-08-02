@@ -31,11 +31,19 @@ const CALL_COLUMNS = `
   call.ringing_at, call.answered_at, call.ended_at, call.termination_reason,
   call.revision, call.created_at, call.updated_at`;
 
+const POSTGRES_VOICE_CALL_STORE_INSTANCES =
+  new WeakSet<PostgresVoiceCallStore>();
+
 export class PostgresVoiceCallStore implements VoiceCallRepository {
-  constructor(private readonly pg: PgQueryable) {}
+  readonly #pg: PgQueryable;
+
+  constructor(pg: PgQueryable) {
+    this.#pg = pg;
+    POSTGRES_VOICE_CALL_STORE_INSTANCES.add(this);
+  }
 
   get(tenantId: string, callId: string, options: { for_update?: boolean } = {}): Promise<VoiceCall | null> {
-    return withPgTenant(this.pg, tenantId, async (pg) => {
+    return withPgTenant(this.#pg, tenantId, async (pg) => {
       const result = await pg.query<VoicePgRow>(
         `SELECT ${CALL_COLUMNS}
          FROM ivekit_voice_calls call
@@ -48,7 +56,7 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
   }
 
   findByIdempotencyKey(tenantId: string, key: string): Promise<VoiceCall | null> {
-    return withPgTenant(this.pg, tenantId, async (pg) => {
+    return withPgTenant(this.#pg, tenantId, async (pg) => {
       const result = await pg.query<VoicePgRow>(
         `SELECT ${CALL_COLUMNS}
          FROM ivekit_voice_calls call
@@ -65,7 +73,7 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
     providerCallId: string,
     options: { for_update?: boolean } = {}
   ): Promise<VoiceCall | null> {
-    return withPgTenant(this.pg, tenantId, async (pg) => {
+    return withPgTenant(this.#pg, tenantId, async (pg) => {
       const result = await pg.query<VoicePgRow>(
         `SELECT ${CALL_COLUMNS}
          FROM ivekit_voice_calls call
@@ -84,7 +92,7 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
     side: 'from' | 'to'
   ): Promise<VoiceProtectedAddress | null> {
     const prefix = side === 'from' ? 'from' : 'to';
-    return withPgTenant(this.pg, tenantId, async (pg) => {
+    return withPgTenant(this.#pg, tenantId, async (pg) => {
       const result = await pg.query<VoicePgRow>(
         `SELECT ${prefix}_address_kind AS kind,
                 ${prefix}_address_ciphertext AS ciphertext,
@@ -108,7 +116,7 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
     state?: VoiceCall['state'];
     business_ref?: { type: string; id: string };
   }): Promise<VoicePage<VoiceCall>> {
-    return withPgTenant(this.pg, input.tenant_id, async (pg) => {
+    return withPgTenant(this.#pg, input.tenant_id, async (pg) => {
       const limit = boundedLimit(input.limit);
       const [cursorAt, cursorId] = cursorTuple(input.cursor);
       const result = await pg.query<VoicePgRow>(
@@ -130,7 +138,7 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
   }
 
   insert(call: VoiceCall, from: VoiceProtectedAddress, to: VoiceProtectedAddress): Promise<VoiceCall> {
-    return withPgTenant(this.pg, call.tenant_id, async (pg) => {
+    return withPgTenant(this.#pg, call.tenant_id, async (pg) => {
       const result = await pg.query<VoicePgRow>(
         `INSERT INTO ivekit_voice_calls
           (id, tenant_id, business_ref_type, business_ref_id, provider_profile_id,
@@ -183,7 +191,7 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
   }
 
   update(call: VoiceCall, expectedRevision: number): Promise<VoiceCall> {
-    return withPgTenant(this.pg, call.tenant_id, async (pg) => {
+    return withPgTenant(this.#pg, call.tenant_id, async (pg) => {
       const result = await pg.query<VoicePgRow>(
         `UPDATE ivekit_voice_calls
          SET provider_call_id = $3, provider_dialog_id = $4, media_call_id = $5,
@@ -209,7 +217,7 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
   }
 
   insertParticipant(input: VoiceParticipant): Promise<VoiceParticipant> {
-    return withPgTenant(this.pg, input.tenant_id, async (pg) => {
+    return withPgTenant(this.#pg, input.tenant_id, async (pg) => {
       const result = await pg.query<VoicePgRow>(
         `INSERT INTO ivekit_voice_call_participants
           (id, tenant_id, call_id, identity, participant_kind, role, state,
@@ -238,7 +246,7 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
   }
 
   updateParticipant(input: VoiceParticipant): Promise<VoiceParticipant> {
-    return withPgTenant(this.pg, input.tenant_id, async (pg) => {
+    return withPgTenant(this.#pg, input.tenant_id, async (pg) => {
       const result = await pg.query<VoicePgRow>(
         `UPDATE ivekit_voice_call_participants
          SET state = $3, provider_participant_id = $4, metadata = $5::jsonb,
@@ -255,7 +263,7 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
   }
 
   listParticipants(tenantId: string, callId: string): Promise<VoiceParticipant[]> {
-    return withPgTenant(this.pg, tenantId, async (pg) => {
+    return withPgTenant(this.#pg, tenantId, async (pg) => {
       const result = await pg.query<VoicePgRow>(
         `SELECT * FROM ivekit_voice_call_participants
          WHERE tenant_id = $1 AND call_id = $2 ORDER BY created_at ASC, id ASC`,
@@ -264,6 +272,28 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
       return result.rows.map(decodeParticipant);
     });
   }
+}
+
+const TRUSTED_POSTGRES_VOICE_CALL_GET = PostgresVoiceCallStore.prototype.get;
+
+export function isTrustedPostgresVoiceCallStore(
+  value: unknown
+): value is PostgresVoiceCallStore {
+  return typeof value === 'object' &&
+    value !== null &&
+    POSTGRES_VOICE_CALL_STORE_INSTANCES.has(value as PostgresVoiceCallStore) &&
+    Object.getPrototypeOf(value) === PostgresVoiceCallStore.prototype;
+}
+
+export function getTrustedExistingVoiceCall(
+  store: PostgresVoiceCallStore,
+  tenantId: string,
+  callId: string
+): Promise<VoiceCall | null> {
+  if (!isTrustedPostgresVoiceCallStore(store)) {
+    throw new TypeError('untrusted_postgres_voice_call_store');
+  }
+  return TRUSTED_POSTGRES_VOICE_CALL_GET.call(store, tenantId, callId);
 }
 
 function decodeCall(row: VoicePgRow): VoiceCall {

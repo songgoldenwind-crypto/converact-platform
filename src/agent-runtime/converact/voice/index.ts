@@ -31,7 +31,7 @@ export * from './metrics.js';
 export * from './ports.js';
 export * from './parking-reconciler.js';
 export * from './preflight.js';
-export * from './postgres/call-store.js';
+export { PostgresVoiceCallStore } from './postgres/call-store.js';
 export * from './postgres/cdr-convergence-store.js';
 export * from './postgres/command-store.js';
 export * from './postgres/configuration-store.js';

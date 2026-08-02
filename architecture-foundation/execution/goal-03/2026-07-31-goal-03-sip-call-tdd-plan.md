@@ -36,8 +36,9 @@ Failing cases:
 
 - SIP Call-ID cannot be accepted as a CallId by implicit conversion;
 - UUID/`vcall_*` compatibility requires the module-issued adapter bound to the
-  exact concrete `PostgresVoiceCallStore` plus an exact tenant/ID match;
-  caller-supplied lookups, records and plain objects fail;
+  constructor-branded exact concrete `PostgresVoiceCallStore`, native-private
+  composition, captured trusted query and an exact tenant/ID match;
+  caller lookups, records, prototype spoofs and own-method overrides fail;
 - all six types reject whitespace, empty and oversized values;
 - deterministic IDs resist component-boundary ambiguity;
 - one Call supports bounded multiple Legs and Dialog history;
@@ -49,7 +50,7 @@ Failing cases:
   selection rejects non-2xx status and returns per-Leg CANCEL effects for every
   remaining early sibling; winner/non-winner, atomic transfer selection,
   held-transfer abort and re-INVITE do not create ambiguous state or duplicate
-  ACK;
+  ACK; a terminating winner cannot be revived by a new/retransmitted 2xx;
 - mailbox/timer/Leg/Dialog mutations share the authority fence and their limits
   reject new work while preserving existing state;
 - the Call registry exposes no callback execution seam; bounded dequeued work
