@@ -1,0 +1,1718 @@
+diff --git a/src/call/domain/mod.rs b/src/call/domain/mod.rs
+index 23ee053d..806ccffb 100644
+--- a/src/call/domain/mod.rs
++++ b/src/call/domain/mod.rs
+@@ -15,6 +15,7 @@ mod command;
+ pub mod foundation_identity;
+ mod hangup;
+ mod leg;
++pub mod native_call;
+ mod policy;
+ mod state;
+ mod transfer_event;
+diff --git a/src/call/domain/native_call.rs b/src/call/domain/native_call.rs
+new file mode 100644
+index 00000000..fe6b030d
+--- /dev/null
++++ b/src/call/domain/native_call.rs
+@@ -0,0 +1,1700 @@
++use crate::call::domain::foundation_identity::{
++    CallId, InteractionId, LegId, NativeCallIdentity, ProtocolDialogId, ProviderCallId,
++};
++use serde::{Deserialize, Serialize};
++use std::collections::{HashMap, HashSet, VecDeque};
++
++const ACTIVE_CALLS_HARD_CEILING: usize = 1_000_000;
++const LEGS_PER_CALL_DEFAULT: usize = 32;
++const LEGS_PER_CALL_HARD_CEILING: usize = 256;
++const FORK_BRANCHES_PER_ATTEMPT_HARD_CEILING: usize = 32;
++const DIALOG_HISTORY_PER_LEG_HARD_CEILING: usize = 16;
++const MAILBOX_PER_CALL_HARD_CEILING: usize = 1_024;
++const MAILBOX_PER_CALL_DEFAULT: usize = 256;
++const DEDUPE_RECEIPTS_PER_CALL_HARD_CEILING: usize = 2_048;
++const TIMERS_PER_CALL_HARD_CEILING: usize = 128;
++const IDENTIFIER_HARD_CEILING: usize = 128;
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
++pub enum NativeCallError {
++    #[error("native Call input is invalid")]
++    InvalidInput,
++    #[error("native Call authority does not match")]
++    AuthorityConflict,
++    #[error("native Call owner is stale")]
++    StaleOwner,
++    #[error("native Call generation is stale")]
++    StaleGeneration,
++    #[error("native Call revision conflicts")]
++    RevisionConflict,
++    #[error("native Call Leg does not exist")]
++    LegNotFound,
++    #[error("native Call Leg already exists")]
++    LegConflict,
++    #[error("native Call Dialog already belongs to another Leg")]
++    DialogConflict,
++    #[error("native Call event conflicts with an earlier event")]
++    EventConflict,
++    #[error("native Call Leg transition is invalid")]
++    TransitionInvalid,
++    #[error("native Call bounded capacity is exhausted")]
++    CapacityExhausted,
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub struct NativeCallBounds {
++    pub active_calls: usize,
++    pub legs_per_call: usize,
++    pub fork_branches_per_attempt: usize,
++    pub protocol_dialog_history_per_leg: usize,
++    pub mailbox_per_call: usize,
++    pub dedupe_receipts_per_call: usize,
++    pub timers_per_call: usize,
++}
++
++impl Default for NativeCallBounds {
++    fn default() -> Self {
++        Self {
++            active_calls: ACTIVE_CALLS_HARD_CEILING,
++            legs_per_call: LEGS_PER_CALL_DEFAULT,
++            fork_branches_per_attempt: FORK_BRANCHES_PER_ATTEMPT_HARD_CEILING,
++            protocol_dialog_history_per_leg: DIALOG_HISTORY_PER_LEG_HARD_CEILING,
++            mailbox_per_call: MAILBOX_PER_CALL_DEFAULT,
++            dedupe_receipts_per_call: DEDUPE_RECEIPTS_PER_CALL_HARD_CEILING,
++            timers_per_call: TIMERS_PER_CALL_HARD_CEILING,
++        }
++    }
++}
++
++impl NativeCallBounds {
++    fn validate(self) -> Result<Self, NativeCallError> {
++        for (value, maximum) in [
++            (self.active_calls, ACTIVE_CALLS_HARD_CEILING),
++            (self.legs_per_call, LEGS_PER_CALL_HARD_CEILING),
++            (
++                self.fork_branches_per_attempt,
++                FORK_BRANCHES_PER_ATTEMPT_HARD_CEILING,
++            ),
++            (
++                self.protocol_dialog_history_per_leg,
++                DIALOG_HISTORY_PER_LEG_HARD_CEILING,
++            ),
++            (self.mailbox_per_call, MAILBOX_PER_CALL_HARD_CEILING),
++            (
++                self.dedupe_receipts_per_call,
++                DEDUPE_RECEIPTS_PER_CALL_HARD_CEILING,
++            ),
++            (self.timers_per_call, TIMERS_PER_CALL_HARD_CEILING),
++        ] {
++            if value == 0 || value > maximum {
++                return Err(NativeCallError::InvalidInput);
++            }
++        }
++        Ok(self)
++    }
++}
++
++#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(rename_all = "snake_case")]
++pub enum NativeLegDirection {
++    Inbound,
++    Outbound,
++}
++
++#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(rename_all = "snake_case")]
++pub enum NativeLegState {
++    Planned,
++    Inviting,
++    Early,
++    Confirmed,
++    Held,
++    Transferring,
++    Terminating,
++    Terminated,
++    Failed,
++}
++
++impl NativeLegState {
++    pub const fn is_terminal(self) -> bool {
++        matches!(self, Self::Terminated | Self::Failed)
++    }
++}
++
++#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(rename_all = "snake_case")]
++pub enum NativeLegEvent {
++    StartInvite,
++    Provisional,
++    Final2xx,
++    CancelRequested,
++    LateFinal2xx,
++    HoldCommitted,
++    ResumeCommitted,
++    TransferPrepare,
++    TransferAbort,
++    ByeRequested,
++    TerminationObserved,
++    ProtocolFailure,
++}
++
++impl NativeLegEvent {
++    const fn as_str(self) -> &'static str {
++        match self {
++            Self::StartInvite => "start_invite",
++            Self::Provisional => "provisional",
++            Self::Final2xx => "final_2xx",
++            Self::CancelRequested => "cancel_requested",
++            Self::LateFinal2xx => "late_final_2xx",
++            Self::HoldCommitted => "hold_committed",
++            Self::ResumeCommitted => "resume_committed",
++            Self::TransferPrepare => "transfer_prepare",
++            Self::TransferAbort => "transfer_abort",
++            Self::ByeRequested => "bye_requested",
++            Self::TerminationObserved => "termination_observed",
++            Self::ProtocolFailure => "protocol_failure",
++        }
++    }
++}
++
++#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(rename_all = "snake_case")]
++pub enum NativeRequiredEffect {
++    None,
++    Ack2xx,
++    CancelIfInviteExists,
++    SendCancel,
++    AckThenBye,
++    ByeOldSelectedLeg,
++    SendBye,
++    AckThenByeNonWinner,
++    SendByeNonWinnerAfterAck,
++    Retry491Bounded,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct NativeCallFence {
++    tenant_id: String,
++    call_id: CallId,
++    owner_epoch: u64,
++    generation: u64,
++    expected_revision: u64,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
++pub struct NativeLegSnapshot {
++    pub leg_id: LegId,
++    pub provider_call_id: ProviderCallId,
++    pub direction: NativeLegDirection,
++    pub generation: u64,
++    pub negotiation_generation: u64,
++    pub state: NativeLegState,
++    pub active_protocol_dialog_id: Option<ProtocolDialogId>,
++    pub protocol_dialog_history: Vec<ProtocolDialogId>,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
++pub struct NativeCallSnapshot {
++    pub tenant_id: String,
++    pub call_id: CallId,
++    pub interaction_id: InteractionId,
++    pub owner_epoch: u64,
++    pub generation: u64,
++    pub revision: u64,
++    pub selected_leg_id: Option<LegId>,
++    pub legs: Vec<NativeLegSnapshot>,
++    pub mailbox_depth: usize,
++    pub timer_count: usize,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct NativeLegMutationReceipt {
++    pub event_id: String,
++    pub event_hash: String,
++    pub leg_id: LegId,
++    pub revision: u64,
++    pub state: NativeLegState,
++    pub required_effect: NativeRequiredEffect,
++    pub replayed: bool,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct NativeForkBranchEffect {
++    pub leg_id: LegId,
++    pub required_effect: NativeRequiredEffect,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct NativeForkSelectionReceipt {
++    pub event_id: String,
++    pub event_hash: String,
++    pub leg_id: LegId,
++    pub revision: u64,
++    pub selected_leg_id: LegId,
++    pub required_effect: NativeRequiredEffect,
++    pub branch_effects: Vec<NativeForkBranchEffect>,
++    pub replayed: bool,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct NativeForkBranchReceipt {
++    pub event_id: String,
++    pub event_hash: String,
++    pub leg_id: LegId,
++    pub fork_attempt_id: String,
++    pub revision: u64,
++    pub replayed: bool,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct NativeTransferSelectionReceipt {
++    pub event_id: String,
++    pub event_hash: String,
++    pub old_leg_id: LegId,
++    pub new_leg_id: LegId,
++    pub revision: u64,
++    pub selected_leg_id: LegId,
++    pub required_effect: NativeRequiredEffect,
++    pub replayed: bool,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct NativeNegotiationReceipt {
++    pub event_id: String,
++    pub event_hash: String,
++    pub leg_id: LegId,
++    pub revision: u64,
++    pub negotiation_generation: u64,
++    pub required_effect: NativeRequiredEffect,
++    pub replayed: bool,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct NativeCallWorkItem {
++    pub work_id: String,
++    pub kind: String,
++}
++
++#[derive(Clone, Debug)]
++struct NativeLeg {
++    leg_id: LegId,
++    provider_call_id: ProviderCallId,
++    direction: NativeLegDirection,
++    generation: u64,
++    negotiation_generation: u64,
++    state: NativeLegState,
++    transfer_return_state: Option<NativeLegState>,
++    active_protocol_dialog_id: Option<ProtocolDialogId>,
++    protocol_dialog_history: Vec<ProtocolDialogId>,
++}
++
++impl NativeLeg {
++    fn snapshot(&self) -> NativeLegSnapshot {
++        NativeLegSnapshot {
++            leg_id: self.leg_id.clone(),
++            provider_call_id: self.provider_call_id.clone(),
++            direction: self.direction,
++            generation: self.generation,
++            negotiation_generation: self.negotiation_generation,
++            state: self.state,
++            active_protocol_dialog_id: self.active_protocol_dialog_id.clone(),
++            protocol_dialog_history: self.protocol_dialog_history.clone(),
++        }
++    }
++}
++
++#[derive(Clone, Debug)]
++struct NativeForkAttempt {
++    branches: Vec<LegId>,
++    winner: Option<LegId>,
++}
++
++#[derive(Clone, Debug)]
++enum StoredReceipt {
++    Leg(NativeLegMutationReceipt),
++    Fork(NativeForkSelectionReceipt),
++    Branch(NativeForkBranchReceipt),
++    Transfer(NativeTransferSelectionReceipt),
++    Negotiation(NativeNegotiationReceipt),
++}
++
++impl StoredReceipt {
++    fn replayed(mut self) -> Self {
++        match &mut self {
++            Self::Leg(value) => value.replayed = true,
++            Self::Fork(value) => value.replayed = true,
++            Self::Branch(value) => value.replayed = true,
++            Self::Transfer(value) => value.replayed = true,
++            Self::Negotiation(value) => value.replayed = true,
++        }
++        self
++    }
++}
++
++#[derive(Clone, Debug)]
++struct DedupeEntry {
++    event_hash: String,
++    operation: String,
++    leg_id: LegId,
++    receipt: StoredReceipt,
++}
++
++pub struct NativeCall {
++    tenant_id: String,
++    call_id: CallId,
++    interaction_id: InteractionId,
++    owner_epoch: u64,
++    generation: u64,
++    revision: u64,
++    selected_leg_id: Option<LegId>,
++    legs: HashMap<LegId, NativeLeg>,
++    dialogs: HashMap<ProtocolDialogId, LegId>,
++    fork_attempts: HashMap<String, NativeForkAttempt>,
++    fork_attempt_by_leg: HashMap<LegId, String>,
++    dedupe: HashMap<String, DedupeEntry>,
++    mailbox: VecDeque<NativeCallWorkItem>,
++    mailbox_work_ids: HashSet<String>,
++    timers: HashSet<String>,
++    bounds: NativeCallBounds,
++}
++
++impl NativeCall {
++    pub fn new(
++        identity: NativeCallIdentity,
++        bounds: NativeCallBounds,
++    ) -> Result<Self, NativeCallError> {
++        let bounds = bounds.validate()?;
++        Ok(Self {
++            tenant_id: identity.tenant_id().to_string(),
++            call_id: identity.call_id().clone(),
++            interaction_id: identity.interaction_id().clone(),
++            owner_epoch: identity.owner_epoch(),
++            generation: identity.generation(),
++            revision: identity.revision(),
++            selected_leg_id: None,
++            legs: HashMap::with_capacity(bounds.legs_per_call.min(8)),
++            dialogs: HashMap::new(),
++            fork_attempts: HashMap::new(),
++            fork_attempt_by_leg: HashMap::new(),
++            dedupe: HashMap::with_capacity(bounds.dedupe_receipts_per_call.min(32)),
++            mailbox: VecDeque::with_capacity(bounds.mailbox_per_call.min(32)),
++            mailbox_work_ids: HashSet::with_capacity(bounds.mailbox_per_call.min(32)),
++            timers: HashSet::with_capacity(bounds.timers_per_call.min(16)),
++            bounds,
++        })
++    }
++
++    pub fn fence(&self) -> NativeCallFence {
++        NativeCallFence {
++            tenant_id: self.tenant_id.clone(),
++            call_id: self.call_id.clone(),
++            owner_epoch: self.owner_epoch,
++            generation: self.generation,
++            expected_revision: self.revision,
++        }
++    }
++
++    pub fn snapshot(&self) -> NativeCallSnapshot {
++        let mut legs: Vec<_> = self.legs.values().map(NativeLeg::snapshot).collect();
++        legs.sort_by(|left, right| left.leg_id.cmp(&right.leg_id));
++        NativeCallSnapshot {
++            tenant_id: self.tenant_id.clone(),
++            call_id: self.call_id.clone(),
++            interaction_id: self.interaction_id.clone(),
++            owner_epoch: self.owner_epoch,
++            generation: self.generation,
++            revision: self.revision,
++            selected_leg_id: self.selected_leg_id.clone(),
++            legs,
++            mailbox_depth: self.mailbox.len(),
++            timer_count: self.timers.len(),
++        }
++    }
++
++    pub fn leg(&self, leg_id: &LegId) -> Result<NativeLegSnapshot, NativeCallError> {
++        self.legs
++            .get(leg_id)
++            .map(NativeLeg::snapshot)
++            .ok_or(NativeCallError::LegNotFound)
++    }
++
++    pub fn add_leg(
++        &mut self,
++        fence: &NativeCallFence,
++        leg_id: LegId,
++        provider_call_id: ProviderCallId,
++        direction: NativeLegDirection,
++    ) -> Result<NativeLegSnapshot, NativeCallError> {
++        self.resolve_fence(fence, None)?;
++        if self.legs.contains_key(&leg_id) {
++            return Err(NativeCallError::LegConflict);
++        }
++        if self.legs.len() >= self.bounds.legs_per_call {
++            return Err(NativeCallError::CapacityExhausted);
++        }
++        let revision = self.next_revision()?;
++        let leg = NativeLeg {
++            leg_id: leg_id.clone(),
++            provider_call_id,
++            direction,
++            generation: fence.generation,
++            negotiation_generation: 1,
++            state: NativeLegState::Planned,
++            transfer_return_state: None,
++            active_protocol_dialog_id: None,
++            protocol_dialog_history: Vec::with_capacity(
++                self.bounds.protocol_dialog_history_per_leg.min(4),
++            ),
++        };
++        let snapshot = leg.snapshot();
++        self.legs.insert(leg_id, leg);
++        self.revision = revision;
++        Ok(snapshot)
++    }
++
++    pub fn apply_leg_event(
++        &mut self,
++        fence: &NativeCallFence,
++        leg_id: &LegId,
++        event_id: &str,
++        event_hash: &str,
++        event: NativeLegEvent,
++    ) -> Result<NativeLegMutationReceipt, NativeCallError> {
++        let event_id = checked_identifier(event_id)?;
++        let event_hash = checked_hash(event_hash)?;
++        let operation = format!("leg-event:{}", event.as_str());
++        if let Some(stored) = self.find_replay(fence, leg_id, &event_id, &event_hash, &operation)? {
++            return match stored {
++                StoredReceipt::Leg(receipt) => Ok(receipt),
++                _ => Err(NativeCallError::EventConflict),
++            };
++        }
++        self.resolve_fence(fence, Some(leg_id))?;
++        self.reserve_dedupe()?;
++
++        let leg = self.legs.get(leg_id).ok_or(NativeCallError::LegNotFound)?;
++        let (mut next_state, required_effect) =
++            transition(leg.state, event).ok_or(NativeCallError::TransitionInvalid)?;
++        if event == NativeLegEvent::TransferAbort {
++            next_state = leg
++                .transfer_return_state
++                .ok_or(NativeCallError::TransitionInvalid)?;
++        }
++        let revision = self.next_revision()?;
++        let leg = self
++            .legs
++            .get_mut(leg_id)
++            .ok_or(NativeCallError::LegNotFound)?;
++        if event == NativeLegEvent::TransferPrepare {
++            leg.transfer_return_state = Some(leg.state);
++        } else if matches!(
++            event,
++            NativeLegEvent::TransferAbort | NativeLegEvent::ProtocolFailure
++        ) {
++            leg.transfer_return_state = None;
++        }
++        leg.state = next_state;
++        self.revision = revision;
++        let receipt = NativeLegMutationReceipt {
++            event_id: event_id.clone(),
++            event_hash: event_hash.clone(),
++            leg_id: leg_id.clone(),
++            revision,
++            state: next_state,
++            required_effect,
++            replayed: false,
++        };
++        self.remember(
++            event_id,
++            event_hash,
++            operation,
++            leg_id.clone(),
++            StoredReceipt::Leg(receipt.clone()),
++        );
++        Ok(receipt)
++    }
++
++    pub fn bind_protocol_dialog(
++        &mut self,
++        fence: &NativeCallFence,
++        leg_id: &LegId,
++        protocol_dialog_id: ProtocolDialogId,
++        event_id: &str,
++        event_hash: &str,
++    ) -> Result<NativeLegMutationReceipt, NativeCallError> {
++        let event_id = checked_identifier(event_id)?;
++        let event_hash = checked_hash(event_hash)?;
++        let operation = format!("bind-dialog:{protocol_dialog_id}");
++        if let Some(stored) = self.find_replay(fence, leg_id, &event_id, &event_hash, &operation)? {
++            return match stored {
++                StoredReceipt::Leg(receipt) => Ok(receipt),
++                _ => Err(NativeCallError::EventConflict),
++            };
++        }
++        self.resolve_fence(fence, Some(leg_id))?;
++        self.reserve_dedupe()?;
++        if self
++            .dialogs
++            .get(&protocol_dialog_id)
++            .is_some_and(|owner| owner != leg_id)
++        {
++            return Err(NativeCallError::DialogConflict);
++        }
++        let leg = self.legs.get(leg_id).ok_or(NativeCallError::LegNotFound)?;
++        let already_bound = leg
++            .protocol_dialog_history
++            .iter()
++            .any(|value| value == &protocol_dialog_id);
++        if !already_bound
++            && leg.protocol_dialog_history.len() >= self.bounds.protocol_dialog_history_per_leg
++        {
++            return Err(NativeCallError::CapacityExhausted);
++        }
++        let revision = self.next_revision()?;
++        let leg = self
++            .legs
++            .get_mut(leg_id)
++            .ok_or(NativeCallError::LegNotFound)?;
++        if !already_bound {
++            leg.protocol_dialog_history.push(protocol_dialog_id.clone());
++            self.dialogs
++                .insert(protocol_dialog_id.clone(), leg_id.clone());
++        }
++        leg.active_protocol_dialog_id = Some(protocol_dialog_id);
++        let state = leg.state;
++        self.revision = revision;
++        let receipt = NativeLegMutationReceipt {
++            event_id: event_id.clone(),
++            event_hash: event_hash.clone(),
++            leg_id: leg_id.clone(),
++            revision,
++            state,
++            required_effect: NativeRequiredEffect::None,
++            replayed: false,
++        };
++        self.remember(
++            event_id,
++            event_hash,
++            operation,
++            leg_id.clone(),
++            StoredReceipt::Leg(receipt.clone()),
++        );
++        Ok(receipt)
++    }
++
++    pub fn register_fork_branch(
++        &mut self,
++        fence: &NativeCallFence,
++        leg_id: &LegId,
++        fork_attempt_id: &str,
++        event_id: &str,
++        event_hash: &str,
++    ) -> Result<NativeForkBranchReceipt, NativeCallError> {
++        let fork_attempt_id = checked_identifier(fork_attempt_id)?;
++        let event_id = checked_identifier(event_id)?;
++        let event_hash = checked_hash(event_hash)?;
++        let operation = format!("fork-branch-registration:{fork_attempt_id}");
++        if let Some(stored) = self.find_replay(fence, leg_id, &event_id, &event_hash, &operation)? {
++            return match stored {
++                StoredReceipt::Branch(receipt) => Ok(receipt),
++                _ => Err(NativeCallError::EventConflict),
++            };
++        }
++        self.resolve_fence(fence, Some(leg_id))?;
++        self.reserve_dedupe()?;
++        if self
++            .legs
++            .get(leg_id)
++            .is_none_or(|leg| leg.state != NativeLegState::Planned)
++        {
++            return Err(NativeCallError::TransitionInvalid);
++        }
++        if self.fork_attempt_by_leg.contains_key(leg_id) {
++            return Err(NativeCallError::EventConflict);
++        }
++        if let Some(attempt) = self.fork_attempts.get(&fork_attempt_id) {
++            if attempt.winner.is_some() {
++                return Err(NativeCallError::EventConflict);
++            }
++            if attempt.branches.len() >= self.bounds.fork_branches_per_attempt {
++                return Err(NativeCallError::CapacityExhausted);
++            }
++        }
++        let revision = self.next_revision()?;
++        let attempt = self
++            .fork_attempts
++            .entry(fork_attempt_id.clone())
++            .or_insert_with(|| NativeForkAttempt {
++                branches: Vec::with_capacity(self.bounds.fork_branches_per_attempt.min(4)),
++                winner: None,
++            });
++        attempt.branches.push(leg_id.clone());
++        self.fork_attempt_by_leg
++            .insert(leg_id.clone(), fork_attempt_id.clone());
++        self.revision = revision;
++        let receipt = NativeForkBranchReceipt {
++            event_id: event_id.clone(),
++            event_hash: event_hash.clone(),
++            leg_id: leg_id.clone(),
++            fork_attempt_id,
++            revision,
++            replayed: false,
++        };
++        self.remember(
++            event_id,
++            event_hash,
++            operation,
++            leg_id.clone(),
++            StoredReceipt::Branch(receipt.clone()),
++        );
++        Ok(receipt)
++    }
++
++    #[allow(clippy::too_many_arguments)]
++    pub fn observe_fork_winner(
++        &mut self,
++        fence: &NativeCallFence,
++        leg_id: &LegId,
++        fork_attempt_id: &str,
++        sip_status: u16,
++        event_id: &str,
++        event_hash: &str,
++    ) -> Result<NativeForkSelectionReceipt, NativeCallError> {
++        if !(200..=299).contains(&sip_status) {
++            return Err(NativeCallError::InvalidInput);
++        }
++        let fork_attempt_id = checked_identifier(fork_attempt_id)?;
++        let event_id = checked_identifier(event_id)?;
++        let event_hash = checked_hash(event_hash)?;
++        let operation = format!("durable-fork-selection:{fork_attempt_id}");
++        if let Some(stored) = self.find_replay(fence, leg_id, &event_id, &event_hash, &operation)? {
++            return match stored {
++                StoredReceipt::Fork(receipt) => Ok(receipt),
++                _ => Err(NativeCallError::EventConflict),
++            };
++        }
++        self.resolve_fence(fence, Some(leg_id))?;
++        self.reserve_dedupe()?;
++        let attempt = self
++            .fork_attempts
++            .get(&fork_attempt_id)
++            .ok_or(NativeCallError::TransitionInvalid)?;
++        if !attempt.branches.iter().any(|value| value == leg_id)
++            || self.fork_attempt_by_leg.get(leg_id) != Some(&fork_attempt_id)
++        {
++            return Err(NativeCallError::TransitionInvalid);
++        }
++        let branches = attempt.branches.clone();
++        let existing_winner = attempt.winner.clone();
++        let leg_state = self
++            .legs
++            .get(leg_id)
++            .map(|leg| leg.state)
++            .ok_or(NativeCallError::LegNotFound)?;
++        if !matches!(
++            leg_state,
++            NativeLegState::Inviting
++                | NativeLegState::Early
++                | NativeLegState::Confirmed
++                | NativeLegState::Terminating
++        ) {
++            return Err(NativeCallError::TransitionInvalid);
++        }
++        let selected_leg_id = existing_winner
++            .clone()
++            .or_else(|| self.selected_leg_id.clone())
++            .unwrap_or_else(|| leg_id.clone());
++        let is_winner = &selected_leg_id == leg_id;
++        let required_effect = if is_winner {
++            match leg_state {
++                NativeLegState::Terminating => NativeRequiredEffect::AckThenBye,
++                NativeLegState::Confirmed => NativeRequiredEffect::None,
++                _ => NativeRequiredEffect::Ack2xx,
++            }
++        } else if leg_state == NativeLegState::Confirmed {
++            NativeRequiredEffect::SendByeNonWinnerAfterAck
++        } else {
++            NativeRequiredEffect::AckThenByeNonWinner
++        };
++        let revision = self.next_revision()?;
++        let mut branch_effects = Vec::with_capacity(branches.len().saturating_sub(1));
++        if existing_winner.is_none() && is_winner {
++            for branch_id in &branches {
++                if branch_id == leg_id {
++                    continue;
++                }
++                let branch = self
++                    .legs
++                    .get(branch_id)
++                    .ok_or(NativeCallError::LegNotFound)?;
++                if let Some(effect) = fork_cancellation_effect(branch.state) {
++                    branch_effects.push(NativeForkBranchEffect {
++                        leg_id: branch_id.clone(),
++                        required_effect: effect,
++                    });
++                }
++            }
++            for effect in &branch_effects {
++                self.legs
++                    .get_mut(&effect.leg_id)
++                    .ok_or(NativeCallError::LegNotFound)?
++                    .state = NativeLegState::Terminating;
++            }
++            self.fork_attempts
++                .get_mut(&fork_attempt_id)
++                .ok_or(NativeCallError::TransitionInvalid)?
++                .winner = Some(leg_id.clone());
++        }
++        self.selected_leg_id = Some(selected_leg_id.clone());
++        self.legs
++            .get_mut(leg_id)
++            .ok_or(NativeCallError::LegNotFound)?
++            .state = if is_winner && leg_state != NativeLegState::Terminating {
++            NativeLegState::Confirmed
++        } else {
++            NativeLegState::Terminating
++        };
++        self.revision = revision;
++        let receipt = NativeForkSelectionReceipt {
++            event_id: event_id.clone(),
++            event_hash: event_hash.clone(),
++            leg_id: leg_id.clone(),
++            revision,
++            selected_leg_id,
++            required_effect,
++            branch_effects,
++            replayed: false,
++        };
++        self.remember(
++            event_id,
++            event_hash,
++            operation,
++            leg_id.clone(),
++            StoredReceipt::Fork(receipt.clone()),
++        );
++        Ok(receipt)
++    }
++
++    #[allow(clippy::too_many_arguments)]
++    pub fn commit_transfer_selection(
++        &mut self,
++        fence: &NativeCallFence,
++        old_leg_id: &LegId,
++        old_leg_generation: u64,
++        new_leg_id: &LegId,
++        event_id: &str,
++        event_hash: &str,
++    ) -> Result<NativeTransferSelectionReceipt, NativeCallError> {
++        if old_leg_id == new_leg_id {
++            return Err(NativeCallError::InvalidInput);
++        }
++        let event_id = checked_identifier(event_id)?;
++        let event_hash = checked_hash(event_hash)?;
++        let operation =
++            format!("transfer-selection:{old_leg_id}:{old_leg_generation}:{new_leg_id}");
++        if let Some(stored) =
++            self.find_replay(fence, new_leg_id, &event_id, &event_hash, &operation)?
++        {
++            return match stored {
++                StoredReceipt::Transfer(receipt) => Ok(receipt),
++                _ => Err(NativeCallError::EventConflict),
++            };
++        }
++        self.resolve_fence(fence, Some(new_leg_id))?;
++        self.reserve_dedupe()?;
++        let old_leg = self
++            .legs
++            .get(old_leg_id)
++            .ok_or(NativeCallError::LegNotFound)?;
++        if old_leg.generation != old_leg_generation {
++            return Err(NativeCallError::StaleGeneration);
++        }
++        let new_state = self
++            .legs
++            .get(new_leg_id)
++            .map(|leg| leg.state)
++            .ok_or(NativeCallError::LegNotFound)?;
++        if self.selected_leg_id.as_ref() != Some(old_leg_id)
++            || old_leg.state != NativeLegState::Transferring
++            || new_state != NativeLegState::Confirmed
++        {
++            return Err(NativeCallError::TransitionInvalid);
++        }
++        let revision = self.next_revision()?;
++        let old_leg = self
++            .legs
++            .get_mut(old_leg_id)
++            .ok_or(NativeCallError::LegNotFound)?;
++        old_leg.state = NativeLegState::Terminating;
++        old_leg.transfer_return_state = None;
++        self.selected_leg_id = Some(new_leg_id.clone());
++        self.revision = revision;
++        let receipt = NativeTransferSelectionReceipt {
++            event_id: event_id.clone(),
++            event_hash: event_hash.clone(),
++            old_leg_id: old_leg_id.clone(),
++            new_leg_id: new_leg_id.clone(),
++            revision,
++            selected_leg_id: new_leg_id.clone(),
++            required_effect: NativeRequiredEffect::ByeOldSelectedLeg,
++            replayed: false,
++        };
++        self.remember(
++            event_id,
++            event_hash,
++            operation,
++            new_leg_id.clone(),
++            StoredReceipt::Transfer(receipt.clone()),
++        );
++        Ok(receipt)
++    }
++
++    pub fn advance_negotiation(
++        &mut self,
++        fence: &NativeCallFence,
++        leg_id: &LegId,
++        event_id: &str,
++        event_hash: &str,
++        glare: bool,
++    ) -> Result<NativeNegotiationReceipt, NativeCallError> {
++        let event_id = checked_identifier(event_id)?;
++        let event_hash = checked_hash(event_hash)?;
++        let operation = format!(
++            "advance-negotiation:{}",
++            if glare { "glare" } else { "accepted" }
++        );
++        if let Some(stored) = self.find_replay(fence, leg_id, &event_id, &event_hash, &operation)? {
++            return match stored {
++                StoredReceipt::Negotiation(receipt) => Ok(receipt),
++                _ => Err(NativeCallError::EventConflict),
++            };
++        }
++        self.resolve_fence(fence, Some(leg_id))?;
++        self.reserve_dedupe()?;
++        let leg = self.legs.get(leg_id).ok_or(NativeCallError::LegNotFound)?;
++        if !matches!(leg.state, NativeLegState::Confirmed | NativeLegState::Held) {
++            return Err(NativeCallError::TransitionInvalid);
++        }
++        let negotiation_generation = if glare {
++            leg.negotiation_generation
++        } else {
++            leg.negotiation_generation
++                .checked_add(1)
++                .ok_or(NativeCallError::CapacityExhausted)?
++        };
++        let revision = self.next_revision()?;
++        let leg = self
++            .legs
++            .get_mut(leg_id)
++            .ok_or(NativeCallError::LegNotFound)?;
++        if !glare {
++            leg.negotiation_generation = negotiation_generation;
++        }
++        self.revision = revision;
++        let receipt = NativeNegotiationReceipt {
++            event_id: event_id.clone(),
++            event_hash: event_hash.clone(),
++            leg_id: leg_id.clone(),
++            revision,
++            negotiation_generation,
++            required_effect: if glare {
++                NativeRequiredEffect::Retry491Bounded
++            } else {
++                NativeRequiredEffect::None
++            },
++            replayed: false,
++        };
++        self.remember(
++            event_id,
++            event_hash,
++            operation,
++            leg_id.clone(),
++            StoredReceipt::Negotiation(receipt.clone()),
++        );
++        Ok(receipt)
++    }
++
++    pub fn enqueue_work(
++        &mut self,
++        fence: &NativeCallFence,
++        work_id: &str,
++        kind: &str,
++    ) -> Result<(), NativeCallError> {
++        self.resolve_fence(fence, None)?;
++        let work_id = checked_identifier(work_id)?;
++        let kind = checked_identifier(kind)?;
++        if self.mailbox_work_ids.contains(&work_id) {
++            return Err(NativeCallError::EventConflict);
++        }
++        if self.mailbox.len() >= self.bounds.mailbox_per_call {
++            return Err(NativeCallError::CapacityExhausted);
++        }
++        let revision = self.next_revision()?;
++        self.mailbox.push_back(NativeCallWorkItem {
++            work_id: work_id.clone(),
++            kind,
++        });
++        self.mailbox_work_ids.insert(work_id);
++        self.revision = revision;
++        Ok(())
++    }
++
++    pub fn dequeue_work(
++        &mut self,
++        fence: &NativeCallFence,
++    ) -> Result<Option<NativeCallWorkItem>, NativeCallError> {
++        self.resolve_fence(fence, None)?;
++        let Some(front) = self.mailbox.front() else {
++            return Ok(None);
++        };
++        let work_id = front.work_id.clone();
++        let revision = self.next_revision()?;
++        let item = self.mailbox.pop_front();
++        if item.is_some() {
++            self.mailbox_work_ids.remove(&work_id);
++            self.revision = revision;
++        }
++        Ok(item)
++    }
++
++    pub fn register_timer(
++        &mut self,
++        fence: &NativeCallFence,
++        timer_id: &str,
++    ) -> Result<(), NativeCallError> {
++        self.resolve_fence(fence, None)?;
++        let timer_id = checked_identifier(timer_id)?;
++        if self.timers.contains(&timer_id) {
++            return Ok(());
++        }
++        if self.timers.len() >= self.bounds.timers_per_call {
++            return Err(NativeCallError::CapacityExhausted);
++        }
++        let revision = self.next_revision()?;
++        self.timers.insert(timer_id);
++        self.revision = revision;
++        Ok(())
++    }
++
++    pub fn release_timer(
++        &mut self,
++        fence: &NativeCallFence,
++        timer_id: &str,
++    ) -> Result<bool, NativeCallError> {
++        self.resolve_fence(fence, None)?;
++        let timer_id = checked_identifier(timer_id)?;
++        if !self.timers.contains(&timer_id) {
++            return Ok(false);
++        }
++        let revision = self.next_revision()?;
++        self.timers.remove(&timer_id);
++        self.revision = revision;
++        Ok(true)
++    }
++
++    fn resolve_authority(&self, fence: &NativeCallFence) -> Result<(), NativeCallError> {
++        if fence.tenant_id != self.tenant_id || fence.call_id != self.call_id {
++            return Err(NativeCallError::AuthorityConflict);
++        }
++        if fence.owner_epoch != self.owner_epoch {
++            return Err(NativeCallError::StaleOwner);
++        }
++        if fence.generation != self.generation {
++            return Err(NativeCallError::StaleGeneration);
++        }
++        Ok(())
++    }
++
++    fn resolve_fence(
++        &self,
++        fence: &NativeCallFence,
++        leg_id: Option<&LegId>,
++    ) -> Result<(), NativeCallError> {
++        self.resolve_authority(fence)?;
++        if fence.expected_revision != self.revision {
++            return Err(NativeCallError::RevisionConflict);
++        }
++        if let Some(leg_id) = leg_id {
++            let leg = self.legs.get(leg_id).ok_or(NativeCallError::LegNotFound)?;
++            if leg.generation != fence.generation {
++                return Err(NativeCallError::StaleGeneration);
++            }
++        }
++        Ok(())
++    }
++
++    fn find_replay(
++        &self,
++        fence: &NativeCallFence,
++        leg_id: &LegId,
++        event_id: &str,
++        event_hash: &str,
++        operation: &str,
++    ) -> Result<Option<StoredReceipt>, NativeCallError> {
++        self.resolve_authority(fence)?;
++        let leg = self.legs.get(leg_id).ok_or(NativeCallError::LegNotFound)?;
++        if leg.generation != fence.generation {
++            return Err(NativeCallError::StaleGeneration);
++        }
++        let Some(stored) = self.dedupe.get(event_id) else {
++            return Ok(None);
++        };
++        if stored.event_hash != event_hash
++            || stored.operation != operation
++            || &stored.leg_id != leg_id
++        {
++            return Err(NativeCallError::EventConflict);
++        }
++        Ok(Some(stored.receipt.clone().replayed()))
++    }
++
++    fn reserve_dedupe(&self) -> Result<(), NativeCallError> {
++        if self.dedupe.len() >= self.bounds.dedupe_receipts_per_call {
++            return Err(NativeCallError::CapacityExhausted);
++        }
++        Ok(())
++    }
++
++    fn remember(
++        &mut self,
++        event_id: String,
++        event_hash: String,
++        operation: String,
++        leg_id: LegId,
++        receipt: StoredReceipt,
++    ) {
++        self.dedupe.insert(
++            event_id,
++            DedupeEntry {
++                event_hash,
++                operation,
++                leg_id,
++                receipt,
++            },
++        );
++    }
++
++    fn next_revision(&self) -> Result<u64, NativeCallError> {
++        self.revision
++            .checked_add(1)
++            .ok_or(NativeCallError::CapacityExhausted)
++    }
++}
++
++fn transition(
++    state: NativeLegState,
++    event: NativeLegEvent,
++) -> Option<(NativeLegState, NativeRequiredEffect)> {
++    use NativeLegEvent as Event;
++    use NativeLegState as State;
++    use NativeRequiredEffect as Effect;
++    match (state, event) {
++        (State::Planned, Event::StartInvite) => Some((State::Inviting, Effect::None)),
++        (State::Inviting, Event::Provisional) => Some((State::Early, Effect::None)),
++        (State::Inviting | State::Early, Event::Final2xx) => {
++            Some((State::Confirmed, Effect::Ack2xx))
++        }
++        (State::Planned, Event::CancelRequested) => {
++            Some((State::Terminating, Effect::CancelIfInviteExists))
++        }
++        (State::Inviting | State::Early, Event::CancelRequested) => {
++            Some((State::Terminating, Effect::SendCancel))
++        }
++        (State::Terminating, Event::LateFinal2xx) => Some((State::Terminating, Effect::AckThenBye)),
++        (State::Confirmed, Event::HoldCommitted) => Some((State::Held, Effect::None)),
++        (State::Held, Event::ResumeCommitted) => Some((State::Confirmed, Effect::None)),
++        (State::Confirmed | State::Held, Event::TransferPrepare) => {
++            Some((State::Transferring, Effect::None))
++        }
++        (State::Transferring, Event::TransferAbort) => Some((State::Confirmed, Effect::None)),
++        (State::Confirmed | State::Held, Event::ByeRequested) => {
++            Some((State::Terminating, Effect::SendBye))
++        }
++        (State::Terminating, Event::TerminationObserved) => Some((State::Terminated, Effect::None)),
++        (
++            State::Planned
++            | State::Inviting
++            | State::Early
++            | State::Confirmed
++            | State::Held
++            | State::Transferring
++            | State::Terminating,
++            Event::ProtocolFailure,
++        ) => Some((State::Failed, Effect::None)),
++        _ => None,
++    }
++}
++
++fn fork_cancellation_effect(state: NativeLegState) -> Option<NativeRequiredEffect> {
++    match state {
++        NativeLegState::Planned => Some(NativeRequiredEffect::CancelIfInviteExists),
++        NativeLegState::Inviting | NativeLegState::Early => Some(NativeRequiredEffect::SendCancel),
++        NativeLegState::Confirmed => Some(NativeRequiredEffect::SendByeNonWinnerAfterAck),
++        _ => None,
++    }
++}
++
++fn checked_identifier(value: &str) -> Result<String, NativeCallError> {
++    if value.is_empty()
++        || value.len() > IDENTIFIER_HARD_CEILING
++        || !value.is_ascii()
++        || !value.bytes().enumerate().all(|(index, byte)| {
++            byte.is_ascii_alphanumeric()
++                || (index > 0 && matches!(byte, b'.' | b'_' | b':' | b'@' | b'/' | b'-'))
++        })
++    {
++        return Err(NativeCallError::InvalidInput);
++    }
++    Ok(value.to_string())
++}
++
++fn checked_hash(value: &str) -> Result<String, NativeCallError> {
++    if value.len() != 64
++        || !value
++            .bytes()
++            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
++    {
++        return Err(NativeCallError::InvalidInput);
++    }
++    Ok(value.to_string())
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::call::domain::foundation_identity::{
++        NativeCallIdentity, ProviderCallId, derive_call_id, derive_interaction_id, derive_leg_id,
++        derive_protocol_dialog_id,
++    };
++
++    const HASH_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
++    const HASH_B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
++
++    fn identity() -> NativeCallIdentity {
++        NativeCallIdentity::from_canonical(
++            "tenant-a",
++            derive_call_id("tenant-a", &["projection-a"]).unwrap(),
++            derive_interaction_id("tenant-a", &["interaction-a"]).unwrap(),
++            ProviderCallId::parse("provider-a").unwrap(),
++            7,
++            11,
++            1,
++        )
++        .unwrap()
++    }
++
++    fn leg(name: &str) -> crate::call::domain::foundation_identity::LegId {
++        derive_leg_id("tenant-a", &[name]).unwrap()
++    }
++
++    #[test]
++    fn transitions_are_fenced_and_identical_events_replay_without_mutation() {
++        let mut call = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let leg_id = leg("leg-a");
++        call.add_leg(
++            &call.fence(),
++            leg_id.clone(),
++            ProviderCallId::parse("provider-a").unwrap(),
++            NativeLegDirection::Outbound,
++        )
++        .unwrap();
++
++        let invite_fence = call.fence();
++        let receipt = call
++            .apply_leg_event(
++                &invite_fence,
++                &leg_id,
++                "event-start",
++                HASH_A,
++                NativeLegEvent::StartInvite,
++            )
++            .unwrap();
++        assert_eq!(receipt.state, NativeLegState::Inviting);
++        assert_eq!(receipt.required_effect, NativeRequiredEffect::None);
++        assert!(!receipt.replayed);
++
++        let replay = call
++            .apply_leg_event(
++                &invite_fence,
++                &leg_id,
++                "event-start",
++                HASH_A,
++                NativeLegEvent::StartInvite,
++            )
++            .unwrap();
++        assert!(replay.replayed);
++        assert_eq!(replay.revision, receipt.revision);
++        assert_eq!(call.snapshot().revision, receipt.revision);
++
++        assert_eq!(
++            call.apply_leg_event(
++                &invite_fence,
++                &leg_id,
++                "event-start",
++                HASH_B,
++                NativeLegEvent::StartInvite,
++            )
++            .unwrap_err(),
++            NativeCallError::EventConflict,
++        );
++        assert_eq!(
++            call.apply_leg_event(
++                &invite_fence,
++                &leg_id,
++                "event-final",
++                HASH_B,
++                NativeLegEvent::Final2xx,
++            )
++            .unwrap_err(),
++            NativeCallError::RevisionConflict,
++        );
++
++        let final_receipt = call
++            .apply_leg_event(
++                &call.fence(),
++                &leg_id,
++                "event-final",
++                HASH_B,
++                NativeLegEvent::Final2xx,
++            )
++            .unwrap();
++        assert_eq!(final_receipt.state, NativeLegState::Confirmed);
++        assert_eq!(final_receipt.required_effect, NativeRequiredEffect::Ack2xx);
++    }
++
++    #[test]
++    fn cancelling_then_observing_late_2xx_never_revives_the_leg() {
++        let mut call = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let leg_id = leg("leg-a");
++        call.add_leg(
++            &call.fence(),
++            leg_id.clone(),
++            ProviderCallId::parse("provider-a").unwrap(),
++            NativeLegDirection::Outbound,
++        )
++        .unwrap();
++        call.apply_leg_event(
++            &call.fence(),
++            &leg_id,
++            "start",
++            HASH_A,
++            NativeLegEvent::StartInvite,
++        )
++        .unwrap();
++        let cancel = call
++            .apply_leg_event(
++                &call.fence(),
++                &leg_id,
++                "cancel",
++                HASH_B,
++                NativeLegEvent::CancelRequested,
++            )
++            .unwrap();
++        assert_eq!(cancel.required_effect, NativeRequiredEffect::SendCancel);
++
++        let late = call
++            .apply_leg_event(
++                &call.fence(),
++                &leg_id,
++                "late-2xx",
++                HASH_A,
++                NativeLegEvent::LateFinal2xx,
++            )
++            .unwrap();
++        assert_eq!(late.state, NativeLegState::Terminating);
++        assert_eq!(late.required_effect, NativeRequiredEffect::AckThenBye);
++    }
++
++    #[test]
++    fn protocol_dialog_history_and_global_ownership_are_bounded() {
++        let bounds = NativeCallBounds {
++            protocol_dialog_history_per_leg: 2,
++            ..NativeCallBounds::default()
++        };
++        let mut call = NativeCall::new(identity(), bounds).unwrap();
++        let leg_a = leg("leg-a");
++        let leg_b = leg("leg-b");
++        for (leg_id, provider) in [(&leg_a, "provider-a"), (&leg_b, "provider-b")] {
++            call.add_leg(
++                &call.fence(),
++                leg_id.clone(),
++                ProviderCallId::parse(provider).unwrap(),
++                NativeLegDirection::Outbound,
++            )
++            .unwrap();
++        }
++        let dialog_a = derive_protocol_dialog_id("tenant-a", &["dialog-a"]).unwrap();
++        let dialog_b = derive_protocol_dialog_id("tenant-a", &["dialog-b"]).unwrap();
++        let dialog_c = derive_protocol_dialog_id("tenant-a", &["dialog-c"]).unwrap();
++        call.bind_protocol_dialog(&call.fence(), &leg_a, dialog_a.clone(), "bind-a", HASH_A)
++            .unwrap();
++        call.bind_protocol_dialog(&call.fence(), &leg_a, dialog_b, "bind-b", HASH_B)
++            .unwrap();
++        assert_eq!(
++            call.bind_protocol_dialog(&call.fence(), &leg_a, dialog_c, "bind-c", HASH_A,)
++                .unwrap_err(),
++            NativeCallError::CapacityExhausted,
++        );
++        assert_eq!(
++            call.bind_protocol_dialog(&call.fence(), &leg_b, dialog_a, "bind-conflict", HASH_B,)
++                .unwrap_err(),
++            NativeCallError::DialogConflict,
++        );
++    }
++
++    #[test]
++    fn durable_fork_winner_cancels_siblings_and_late_non_winner_is_acked_then_ended() {
++        let mut call = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let winner = leg("winner");
++        let loser = leg("loser");
++        for (leg_id, provider) in [(&winner, "provider-a"), (&loser, "provider-b")] {
++            call.add_leg(
++                &call.fence(),
++                leg_id.clone(),
++                ProviderCallId::parse(provider).unwrap(),
++                NativeLegDirection::Outbound,
++            )
++            .unwrap();
++            call.register_fork_branch(
++                &call.fence(),
++                leg_id,
++                "fork-a",
++                &format!("register-{provider}"),
++                HASH_A,
++            )
++            .unwrap();
++            call.apply_leg_event(
++                &call.fence(),
++                leg_id,
++                &format!("start-{provider}"),
++                HASH_B,
++                NativeLegEvent::StartInvite,
++            )
++            .unwrap();
++        }
++
++        let selected = call
++            .observe_fork_winner(&call.fence(), &winner, "fork-a", 200, "winner-2xx", HASH_A)
++            .unwrap();
++        assert_eq!(selected.selected_leg_id, winner);
++        assert_eq!(selected.required_effect, NativeRequiredEffect::Ack2xx);
++        assert_eq!(selected.branch_effects.len(), 1);
++        assert_eq!(selected.branch_effects[0].leg_id, loser);
++        assert_eq!(
++            selected.branch_effects[0].required_effect,
++            NativeRequiredEffect::SendCancel,
++        );
++
++        call.apply_leg_event(
++            &call.fence(),
++            &winner,
++            "winner-bye",
++            HASH_B,
++            NativeLegEvent::ByeRequested,
++        )
++        .unwrap();
++        let winner_retransmit = call
++            .observe_fork_winner(
++                &call.fence(),
++                &winner,
++                "fork-a",
++                200,
++                "winner-2xx-retransmit",
++                HASH_A,
++            )
++            .unwrap();
++        assert_eq!(
++            winner_retransmit.required_effect,
++            NativeRequiredEffect::AckThenBye,
++        );
++        assert_eq!(
++            call.leg(&winner).unwrap().state,
++            NativeLegState::Terminating,
++        );
++
++        let late = call
++            .observe_fork_winner(&call.fence(), &loser, "fork-a", 200, "loser-2xx", HASH_B)
++            .unwrap();
++        assert_eq!(
++            late.required_effect,
++            NativeRequiredEffect::AckThenByeNonWinner,
++        );
++        assert_eq!(call.leg(&loser).unwrap().state, NativeLegState::Terminating);
++    }
++
++    #[test]
++    fn mailbox_and_timer_pressure_fail_closed_without_losing_existing_work() {
++        let bounds = NativeCallBounds {
++            mailbox_per_call: 1,
++            timers_per_call: 1,
++            ..NativeCallBounds::default()
++        };
++        let mut call = NativeCall::new(identity(), bounds).unwrap();
++        call.enqueue_work(&call.fence(), "work-a", "invite")
++            .unwrap();
++        assert_eq!(
++            call.enqueue_work(&call.fence(), "work-b", "bye")
++                .unwrap_err(),
++            NativeCallError::CapacityExhausted,
++        );
++        assert_eq!(
++            call.dequeue_work(&call.fence()).unwrap().unwrap().work_id,
++            "work-a"
++        );
++        call.register_timer(&call.fence(), "timer-a").unwrap();
++        assert_eq!(
++            call.register_timer(&call.fence(), "timer-b").unwrap_err(),
++            NativeCallError::CapacityExhausted,
++        );
++        assert!(call.release_timer(&call.fence(), "timer-a").unwrap());
++    }
++
++    #[test]
++    fn transfer_selection_and_negotiation_preserve_one_selected_leg() {
++        let mut call = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let old_leg = leg("old-leg");
++        let new_leg = leg("new-leg");
++        for (leg_id, provider) in [(&old_leg, "provider-a"), (&new_leg, "provider-b")] {
++            call.add_leg(
++                &call.fence(),
++                leg_id.clone(),
++                ProviderCallId::parse(provider).unwrap(),
++                NativeLegDirection::Outbound,
++            )
++            .unwrap();
++        }
++        call.register_fork_branch(
++            &call.fence(),
++            &old_leg,
++            "initial-attempt",
++            "register-old",
++            HASH_A,
++        )
++        .unwrap();
++        call.apply_leg_event(
++            &call.fence(),
++            &old_leg,
++            "start-old",
++            HASH_A,
++            NativeLegEvent::StartInvite,
++        )
++        .unwrap();
++        call.apply_leg_event(
++            &call.fence(),
++            &old_leg,
++            "answer-old",
++            HASH_A,
++            NativeLegEvent::Final2xx,
++        )
++        .unwrap();
++        call.observe_fork_winner(
++            &call.fence(),
++            &old_leg,
++            "initial-attempt",
++            200,
++            "select-old",
++            HASH_A,
++        )
++        .unwrap();
++        call.apply_leg_event(
++            &call.fence(),
++            &old_leg,
++            "prepare-transfer",
++            HASH_A,
++            NativeLegEvent::TransferPrepare,
++        )
++        .unwrap();
++        call.apply_leg_event(
++            &call.fence(),
++            &new_leg,
++            "start-new",
++            HASH_A,
++            NativeLegEvent::StartInvite,
++        )
++        .unwrap();
++        call.apply_leg_event(
++            &call.fence(),
++            &new_leg,
++            "answer-new",
++            HASH_A,
++            NativeLegEvent::Final2xx,
++        )
++        .unwrap();
++
++        let transfer_fence = call.fence();
++        let transfer = call
++            .commit_transfer_selection(
++                &transfer_fence,
++                &old_leg,
++                11,
++                &new_leg,
++                "commit-transfer",
++                HASH_B,
++            )
++            .unwrap();
++        assert_eq!(transfer.selected_leg_id, new_leg);
++        assert_eq!(
++            transfer.required_effect,
++            NativeRequiredEffect::ByeOldSelectedLeg,
++        );
++        assert_eq!(
++            call.leg(&old_leg).unwrap().state,
++            NativeLegState::Terminating,
++        );
++        assert_eq!(call.snapshot().selected_leg_id, Some(new_leg.clone()),);
++        assert!(
++            call.commit_transfer_selection(
++                &transfer_fence,
++                &old_leg,
++                11,
++                &new_leg,
++                "commit-transfer",
++                HASH_B,
++            )
++            .unwrap()
++            .replayed,
++        );
++
++        let accepted = call
++            .advance_negotiation(&call.fence(), &new_leg, "reinvite-accepted", HASH_A, false)
++            .unwrap();
++        assert_eq!(accepted.negotiation_generation, 2);
++        let glare = call
++            .advance_negotiation(&call.fence(), &new_leg, "reinvite-glare", HASH_B, true)
++            .unwrap();
++        assert_eq!(glare.negotiation_generation, 2);
++        assert_eq!(glare.required_effect, NativeRequiredEffect::Retry491Bounded,);
++        assert_eq!(call.snapshot().legs.len(), 2);
++    }
++
++    #[test]
++    fn held_transfer_abort_restores_held_state() {
++        let mut call = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let leg_id = leg("held-leg");
++        call.add_leg(
++            &call.fence(),
++            leg_id.clone(),
++            ProviderCallId::parse("provider-a").unwrap(),
++            NativeLegDirection::Outbound,
++        )
++        .unwrap();
++        for (event_id, event) in [
++            ("start", NativeLegEvent::StartInvite),
++            ("answer", NativeLegEvent::Final2xx),
++            ("hold", NativeLegEvent::HoldCommitted),
++            ("prepare", NativeLegEvent::TransferPrepare),
++            ("abort", NativeLegEvent::TransferAbort),
++        ] {
++            call.apply_leg_event(&call.fence(), &leg_id, event_id, HASH_A, event)
++                .unwrap();
++        }
++        assert_eq!(call.leg(&leg_id).unwrap().state, NativeLegState::Held);
++    }
++
++    #[test]
++    fn stale_authority_and_dedupe_pressure_fail_without_mutation() {
++        let bounds = NativeCallBounds {
++            dedupe_receipts_per_call: 1,
++            ..NativeCallBounds::default()
++        };
++        let mut call = NativeCall::new(identity(), bounds).unwrap();
++        let leg_id = leg("leg-a");
++        call.add_leg(
++            &call.fence(),
++            leg_id.clone(),
++            ProviderCallId::parse("provider-a").unwrap(),
++            NativeLegDirection::Outbound,
++        )
++        .unwrap();
++
++        let mut stale_owner = call.fence();
++        stale_owner.owner_epoch -= 1;
++        assert_eq!(
++            call.apply_leg_event(
++                &stale_owner,
++                &leg_id,
++                "stale-owner",
++                HASH_A,
++                NativeLegEvent::StartInvite,
++            )
++            .unwrap_err(),
++            NativeCallError::StaleOwner,
++        );
++        let mut stale_generation = call.fence();
++        stale_generation.generation += 1;
++        assert_eq!(
++            call.apply_leg_event(
++                &stale_generation,
++                &leg_id,
++                "stale-generation",
++                HASH_A,
++                NativeLegEvent::StartInvite,
++            )
++            .unwrap_err(),
++            NativeCallError::StaleGeneration,
++        );
++
++        call.apply_leg_event(
++            &call.fence(),
++            &leg_id,
++            "start",
++            HASH_A,
++            NativeLegEvent::StartInvite,
++        )
++        .unwrap();
++        let before = call.snapshot();
++        assert_eq!(
++            call.apply_leg_event(
++                &call.fence(),
++                &leg_id,
++                "provisional",
++                HASH_B,
++                NativeLegEvent::Provisional,
++            )
++            .unwrap_err(),
++            NativeCallError::CapacityExhausted,
++        );
++        assert_eq!(call.snapshot(), before);
++    }
++
++    #[test]
++    fn revision_overflow_and_invalid_bounds_never_partially_mutate() {
++        let defaults = NativeCallBounds::default();
++        assert_eq!(defaults.legs_per_call, 32);
++        assert_eq!(defaults.mailbox_per_call, 256);
++        assert!(matches!(
++            NativeCall::new(
++                identity(),
++                NativeCallBounds {
++                    timers_per_call: 0,
++                    ..defaults
++                },
++            ),
++            Err(NativeCallError::InvalidInput),
++        ));
++
++        let max_revision_identity = NativeCallIdentity::from_canonical(
++            "tenant-a",
++            derive_call_id("tenant-a", &["projection-overflow"]).unwrap(),
++            derive_interaction_id("tenant-a", &["interaction-overflow"]).unwrap(),
++            ProviderCallId::parse("provider-overflow").unwrap(),
++            7,
++            11,
++            u64::MAX,
++        )
++        .unwrap();
++        let mut call = NativeCall::new(max_revision_identity, defaults).unwrap();
++        assert_eq!(
++            call.add_leg(
++                &call.fence(),
++                leg("overflow-leg"),
++                ProviderCallId::parse("provider-overflow").unwrap(),
++                NativeLegDirection::Outbound,
++            )
++            .unwrap_err(),
++            NativeCallError::CapacityExhausted,
++        );
++        assert_eq!(call.snapshot().revision, u64::MAX);
++        assert!(call.snapshot().legs.is_empty());
++    }
++}

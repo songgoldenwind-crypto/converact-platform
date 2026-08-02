@@ -155,6 +155,24 @@ separately implemented and measured. Local exact-source evidence is 13 focused
 registry tests and the complete RustPBX library suite (`1934` passed, `1`
 ignored).
 
+ivekit.47 compiles the frozen native Call/Leg transition model into the
+RustPBX domain layer. One bounded `NativeCall` owns its canonical Legs,
+Protocol Dialog history, fork attempts, selected Leg, dedupe receipts, mailbox
+and timers. Every mutation carries tenant/Call/owner/generation/revision
+fencing; an identical event replays its original receipt, while conflicting,
+stale, invalid or over-capacity work fails without changing the existing Call.
+The normal mutation path uses expected O(1) maps, fork selection inspects at
+most 32 registered branches, snapshots alone sort bounded Legs, and revision
+overflow is checked before mutation. The model creates no task, callback,
+global lock, periodic scan or unbounded queue.
+
+This is a compiled native model, not a claim that the live registry already
+dispatches every SIP event through it. `G03-E16-NATIVE-AUTHORITY`, the durable
+SipEffect writer/replay, active-registry composition, add-Leg admission and
+ivekit.47 Linux/image/peer/capacity evidence therefore remain `not_run`. Local
+exact-source evidence is 9 focused native-model tests and the complete RustPBX
+library suite (`1943` passed, `1` ignored).
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the
