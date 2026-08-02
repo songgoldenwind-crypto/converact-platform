@@ -383,10 +383,13 @@ test('backup restore evidence requires a distinct empty target and measured zero
     identity,
     backup: {
       status: 'passed',
+      process_pid: 101,
       source_database_id: 'source-db-a',
       artifact_sha256: '1'.repeat(64),
       checkpoint_records: 7,
       checkpoint_digest: '2'.repeat(64),
+      object_count: 1,
+      object_digest: '3'.repeat(64),
       backup_started_at: '2026-08-01T16:00:01.000Z',
       backup_completed_at: '2026-08-01T16:00:02.000Z'
     },
@@ -398,6 +401,8 @@ test('backup restore evidence requires a distinct empty target and measured zero
       migration_head: '112_converact_platform_history_receipt_integrity',
       restored_records: 7,
       restored_digest: '2'.repeat(64),
+      restored_object_count: 1,
+      restored_object_digest: '3'.repeat(64),
       measured_rpo_ms: 0,
       measured_rto_ms: 3_250,
       runtime_rls_verified: true,
@@ -414,8 +419,9 @@ test('backup restore evidence requires a distinct empty target and measured zero
   assert.equal(buildBackupRestoreEvidence({
     identity,
     backup: {
-      status: 'passed', source_database_id: 'same-db', artifact_sha256: '1'.repeat(64),
+      status: 'passed', process_pid: 101, source_database_id: 'same-db', artifact_sha256: '1'.repeat(64),
       checkpoint_records: 7, checkpoint_digest: '2'.repeat(64),
+      object_count: 1, object_digest: '3'.repeat(64),
       backup_started_at: '2026-08-01T16:00:01.000Z',
       backup_completed_at: '2026-08-01T16:00:02.000Z'
     },
@@ -423,10 +429,86 @@ test('backup restore evidence requires a distinct empty target and measured zero
       status: 'passed', target_database_id: 'same-db', target_was_empty: true,
       fresh_process_pid: 202, migration_head: '112_converact_platform_history_receipt_integrity',
       restored_records: 7, restored_digest: '2'.repeat(64), measured_rpo_ms: 0,
+      restored_object_count: 1, restored_object_digest: '3'.repeat(64),
       measured_rto_ms: 3_250, runtime_rls_verified: true, append_only_verified: true,
       unrelated_containers_unchanged: true, validation_resources_remaining: 0
     }
   }).status, 'failed');
+
+  assert.equal(buildBackupRestoreEvidence({
+    identity,
+    backup: {
+      status: 'passed', process_pid: 202, source_database_id: 'source-db-a',
+      artifact_sha256: '1'.repeat(64), checkpoint_records: 7,
+      checkpoint_digest: '2'.repeat(64), object_count: 1, object_digest: '3'.repeat(64),
+      backup_started_at: '2026-08-01T16:00:01.000Z',
+      backup_completed_at: '2026-08-01T16:00:02.000Z'
+    },
+    restore: {
+      status: 'passed', target_database_id: 'restore-db-b', target_was_empty: true,
+      fresh_process_pid: 202, migration_head: '112_converact_platform_history_receipt_integrity',
+      restored_records: 7, restored_digest: '2'.repeat(64),
+      restored_object_count: 1, restored_object_digest: '3'.repeat(64),
+      measured_rpo_ms: 0, measured_rto_ms: 3_250, runtime_rls_verified: true,
+      append_only_verified: true, unrelated_containers_unchanged: true,
+      validation_resources_remaining: 0
+    }
+  }).status, 'failed');
+
+  assert.equal(buildBackupRestoreEvidence({
+    identity,
+    backup: {
+      status: 'passed', process_pid: 101, source_database_id: 'source-db-a',
+      artifact_sha256: '1'.repeat(64), checkpoint_records: 7,
+      checkpoint_digest: '2'.repeat(64), object_count: 1, object_digest: '3'.repeat(64),
+      backup_started_at: '2026-08-01T16:00:01.000Z',
+      backup_completed_at: '2026-08-01T16:00:02.000Z'
+    },
+    restore: {
+      status: 'passed', target_database_id: 'restore-db-b', target_was_empty: true,
+      fresh_process_pid: 202, migration_head: '112_converact_platform_history_receipt_integrity',
+      restored_records: 7, restored_digest: '2'.repeat(64),
+      restored_object_count: 1, restored_object_digest: '4'.repeat(64),
+      measured_rpo_ms: 0, measured_rto_ms: 3_250, runtime_rls_verified: true,
+      append_only_verified: true, unrelated_containers_unchanged: true,
+      validation_resources_remaining: 0
+    }
+  }).status, 'failed');
+});
+
+test('backup restore runner is exact-source project-scoped and destroys only validation resources', () => {
+  const script = readFileSync(new URL('restore-accept.sh', acceptanceRoot), 'utf8');
+  assert.match(script, /G02_PLATFORM_RESTORE_EVIDENCE/);
+  assert.match(script, /git -C "\$ROOT_DIR" rev-parse HEAD/);
+  assert.match(script, /git -C "\$ROOT_DIR" status --porcelain/);
+  assert.match(script, /POSTGRES_IMAGE.*@sha256/);
+  assert.match(script, /SOURCE_PROJECT=.*\$\{RUN_ID\}.*source/);
+  assert.match(script, /TARGET_PROJECT=.*\$\{RUN_ID\}.*target/);
+  assert.match(script, /compose_source up --detach postgres/);
+  assert.match(script, /compose_source down --volumes --remove-orphans/);
+  assert.match(script, /compose_target up --detach postgres/);
+  assert.match(script, /restore-probe\.ts.*backup/s);
+  assert.match(script, /restore-probe\.ts.*restore/s);
+  assert.match(script, /restore-probe\.ts.*verify/s);
+  assert.match(script, /target-empty\.json/);
+  assert.match(script, /trap cleanup EXIT HUP INT TERM/);
+  assert.doesNotMatch(script, /docker (?:system )?prune/);
+  assert.doesNotMatch(script, /docker (?:stop|rm) /);
+});
+
+test('restore probe preserves opaque container identity while resolving only file paths', () => {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    CONVERACT_G02_FAULT_RUN_ID: 'restore-parse',
+    CONVERACT_G02_RESTORE_CONFIRM: 'G02_PLATFORM_RESTORE_EVIDENCE'
+  };
+  delete env.CONVERACT_UPLOAD_DIR;
+  assert.throws(() => execFileSync(process.execPath, [
+    '--import', 'tsx', new URL('restore-probe.ts', acceptanceRoot).pathname,
+    'backup', 'a'.repeat(12), '/tmp/converact-unused-backup', '/tmp/converact-unused-output'
+  ], { cwd: process.cwd(), env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }),
+  (error: unknown) => String((error as { stderr?: unknown }).stderr || '').trim()
+    === 'converact_upload_dir_invalid');
 });
 
 test('drain evidence requires distinct live processes, active-zero and stale-owner fencing', () => {

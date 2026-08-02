@@ -16,20 +16,26 @@ export function buildBackupRestoreEvidence(input) {
   const restore = plainRecord(input?.restore) ? input.restore : {};
   const valid = backup.status === 'passed'
     && restore.status === 'passed'
+    && positiveInteger(backup.process_pid)
+    && positiveInteger(restore.fresh_process_pid)
+    && backup.process_pid !== restore.fresh_process_pid
     && token(backup.source_database_id)
     && token(restore.target_database_id)
     && backup.source_database_id !== restore.target_database_id
     && sha256(backup.artifact_sha256)
     && nonNegativeInteger(backup.checkpoint_records)
     && sha256(backup.checkpoint_digest)
+    && positiveInteger(backup.object_count)
+    && sha256(backup.object_digest)
     && canonicalTimestamp(backup.backup_started_at)
     && canonicalTimestamp(backup.backup_completed_at)
     && Date.parse(backup.backup_completed_at) >= Date.parse(backup.backup_started_at)
     && restore.target_was_empty === true
-    && positiveInteger(restore.fresh_process_pid)
     && restore.migration_head === EXPECTED_MIGRATION
     && restore.restored_records === backup.checkpoint_records
     && restore.restored_digest === backup.checkpoint_digest
+    && restore.restored_object_count === backup.object_count
+    && restore.restored_object_digest === backup.object_digest
     && boundedDuration(restore.measured_rpo_ms, true)
     && boundedDuration(restore.measured_rto_ms, false)
     && restore.runtime_rls_verified === true
