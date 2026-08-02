@@ -87,7 +87,7 @@
         },
         {
           "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-owner-epoch.patch",
-          "sha256": "5b8b013db043a2d5baf1fb1fa95479f2c026686d89163fee3f83d195d82a77f5",
+          "sha256": "f93c46dd267671f2af050ba5e971575bd351f7960a7b91f177c765632c4421b0",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-inbound-admission.patch",
           "purpose": "Embed the Rust component guard, accept standards-compliant SIP Call-ID words while keeping node IDs strict, authorize inbound ownership through the local component-node agent, and fence every tracked RWI mutation by the exact owner epoch."
         },
@@ -177,7 +177,7 @@
         },
         {
           "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch",
-          "sha256": "d6eb33fafeb321d8c1cf92ec022cbcdf161f68984a0780068a49a1a1631e1e73",
+          "sha256": "08e05b0af76225020528cc8ac0b2660374c3d57beb942cc3e036ec7a25401335",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-lifecycle.patch",
           "purpose": "Commit bounded PII-minimized per-leg dialog recovery state through the cell-local mTLS shadow service before visible T1 18x, 200 and successful in-dialog responses, with exact replay after uncertain transport outcomes and ordinary-profile isolation."
         },
