@@ -196,6 +196,7 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql"
       ],
       "test_paths": [
+        "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts"
       ],
@@ -219,6 +220,7 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql"
       ],
       "test_paths": [
+        "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts"
       ],
@@ -387,12 +389,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -457,12 +462,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -657,12 +665,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -922,6 +933,7 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql"
       ],
       "test_paths": [
+        "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts"
       ],
@@ -1020,6 +1032,7 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql"
       ],
       "test_paths": [
+        "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts"
       ],
@@ -1091,6 +1104,7 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql"
       ],
       "test_paths": [
+        "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts"
       ],
@@ -1115,6 +1129,7 @@
         "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch"
       ],
       "test_paths": [
+        "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-foundation-recovery.test.ts",
         "test/converact-rsipstack-server-invite-lifecycle-patch.test.ts",
         "test/converact-rustpbx-dialog-recovery-patch.test.ts"
@@ -1554,12 +1569,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -1607,6 +1625,7 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql"
       ],
       "test_paths": [
+        "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts"
       ],
@@ -1813,12 +1832,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -1838,12 +1860,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -1913,12 +1938,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -1938,12 +1966,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -1963,12 +1994,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -1988,12 +2022,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2013,12 +2050,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2038,12 +2078,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2063,12 +2106,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2088,12 +2134,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2138,12 +2187,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2163,12 +2215,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2188,12 +2243,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2213,12 +2271,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2238,12 +2299,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2263,12 +2327,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2288,12 +2355,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2313,12 +2383,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2338,12 +2411,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2363,12 +2439,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2388,12 +2467,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2438,12 +2520,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2488,12 +2573,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2513,12 +2601,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2538,12 +2629,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2563,12 +2657,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2663,12 +2760,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2688,12 +2788,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2713,12 +2816,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2788,12 +2894,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2813,12 +2922,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2838,12 +2950,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2863,12 +2978,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2913,12 +3031,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2938,12 +3059,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2963,12 +3087,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -2988,12 +3115,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -3013,12 +3143,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -3038,12 +3171,15 @@
       "source_evidence_status": "not_run",
       "g03_domain": "call_leg",
       "implementation_paths": [
+        "src/agent-runtime/converact/voice/foundation-identifiers.ts",
+        "src/agent-runtime/converact/voice/call-leg-state-machine.ts",
         "src/agent-runtime/converact/voice/types.ts",
         "src/agent-runtime/converact/voice/state-machine.ts",
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts"
       ],
       "test_paths": [
+        "test/converact-call-leg-foundation.test.ts",
         "test/converact-voice-application.test.ts",
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts"
@@ -3164,6 +3300,7 @@
         "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch"
       ],
       "test_paths": [
+        "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-foundation-recovery.test.ts",
         "test/converact-rsipstack-server-invite-lifecycle-patch.test.ts",
         "test/converact-rustpbx-dialog-recovery-patch.test.ts"

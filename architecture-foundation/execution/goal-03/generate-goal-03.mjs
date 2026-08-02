@@ -137,6 +137,91 @@ function sipFoundationContract() {
       'protocol_dialog_changed',
       'dns_candidate_exhausted',
     ],
+    control_interface: {
+      current_binding: 'RustPBX_call_path_outside_target_control_port',
+      target_binding: 'Converact_owned_SipFoundationControlPort',
+      implementation_status: 'interface_frozen_adapter_activation_not_run',
+      commands: {
+        originate: {
+          required_fields: [
+            'tenant_id', 'call_id', 'leg_id', 'interaction_id',
+            'command_id', 'owner_epoch', 'generation', 'request_uri',
+            'route_id', 'offer',
+          ],
+          success: 'durable_effect_identity_and_protocol_session_handle',
+        },
+        answer: {
+          required_fields: [
+            'tenant_id', 'call_id', 'leg_id', 'protocol_dialog_id',
+            'command_id', 'owner_epoch', 'generation', 'answer',
+          ],
+          success: 'durable_effect_identity',
+        },
+        terminate: {
+          required_fields: [
+            'tenant_id', 'call_id', 'leg_id', 'command_id',
+            'owner_epoch', 'generation', 'hangup_cause',
+          ],
+          success: 'durable_effect_identity_or_terminal_observation',
+        },
+      },
+      command_rule: 'prepare_then_durable_decision_then_commit_send',
+      direct_socket_write_by_call_core: 'forbidden',
+    },
+    egress_events: {
+      envelope_fields: [
+        'tenant_id', 'call_id', 'leg_id', 'interaction_id',
+        'protocol_session_id', 'protocol_session_generation',
+        'protocol_dialog_id', 'transaction_id', 'event_id',
+        'owner_epoch', 'generation', 'observed_at_wall_clock',
+        'received_at_monotonic_offset', 'event_type', 'payload',
+      ],
+      delivery: 'bounded_ordered_per_protocol_session',
+      duplicate_and_reorder: 'event_id_hash_dedupe_then_state_fence',
+      business_mutation: 'forbidden_until_Call_authority_durable_decision',
+    },
+    sdp_interface: {
+      representation: 'Converact_owned_immutable_exact_bytes_plus_sha256',
+      roles: ['offer', 'answer'],
+      negotiation_identity: [
+        'leg_id', 'protocol_dialog_id', 'negotiation_generation',
+      ],
+      parser_types_exposed: false,
+      maximum_bytes: 32768,
+      mutation_after_prepare: 'forbidden',
+    },
+    timer_interface: {
+      runtime_deadlines: 'monotonic_clock_only',
+      persisted_values: [
+        'semantic_timer_kind', 'remaining_duration_ms_at_snapshot',
+        'wall_clock_audit_timestamp',
+      ],
+      persisted_monotonic_instant: 'forbidden',
+      restoration: 'recompute_bounded_deadline_after_owner_fence',
+    },
+    hangup_cause_interface: {
+      categories: [
+        'normal_clearing', 'caller_cancelled', 'no_answer', 'busy',
+        'rejected', 'temporary_failure', 'service_unavailable',
+        'protocol_error', 'security_rejected', 'timeout', 'unknown',
+      ],
+      fields: [
+        'category', 'sip_status', 'q850_cause', 'reason_token',
+        'retryable', 'source',
+      ],
+      raw_backend_error_as_business_cause: 'forbidden',
+    },
+    error_interface: {
+      categories: [
+        'invalid_input', 'capacity', 'store', 'dns', 'transport',
+        'transaction', 'dialog', 'security', 'timeout', 'internal',
+      ],
+      fields: [
+        'category', 'stable_code', 'retryable', 'sip_status',
+        'retry_after_seconds', 'hangup_cause',
+      ],
+      secret_or_raw_wire_details: 'forbidden',
+    },
     commands: {
       prepare_effect: 'freeze_bytes_hash_route_attempt_without_send',
       commit_send: 'owner_fenced_idempotent_visible_effect',
@@ -765,12 +850,15 @@ const sourceMaps = Object.freeze({
   call_leg: {
     patterns: /(?:call|leg|fork|transfer|owner|generation|cdr|race|business dialog)/iu,
     implementation_paths: [
+      'src/agent-runtime/converact/voice/foundation-identifiers.ts',
+      'src/agent-runtime/converact/voice/call-leg-state-machine.ts',
       'src/agent-runtime/converact/voice/types.ts',
       'src/agent-runtime/converact/voice/state-machine.ts',
       'src/agent-runtime/converact/voice/dialog-owner-takeover.ts',
       'src/agent-runtime/converact/voice/cdr-convergence.ts',
     ],
     test_paths: [
+      'test/converact-call-leg-foundation.test.ts',
       'test/converact-voice-application.test.ts',
       'test/converact-dialog-owner-takeover.test.ts',
       'test/converact-voice-cdr-convergence.test.ts',
@@ -784,6 +872,7 @@ const sourceMaps = Object.freeze({
       'src/migrations/107_ivekit_sip_effect_oracle.sql',
     ],
     test_paths: [
+      'test/converact-sip-receipt-drain.test.ts',
       'test/converact-sip-effect-oracle.test.ts',
       'test/converact-sip-effect-postgres.test.ts',
     ],
@@ -809,6 +898,7 @@ const sourceMaps = Object.freeze({
       'infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch',
     ],
     test_paths: [
+      'test/converact-sip-receipt-drain.test.ts',
       'test/converact-sip-foundation-recovery.test.ts',
       'test/converact-rsipstack-server-invite-lifecycle-patch.test.ts',
       'test/converact-rustpbx-dialog-recovery-patch.test.ts',

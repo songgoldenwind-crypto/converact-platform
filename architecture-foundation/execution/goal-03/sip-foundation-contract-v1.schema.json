@@ -16,6 +16,12 @@
     "source_identity",
     "anti_corruption_boundary",
     "ingress_events",
+    "control_interface",
+    "egress_events",
+    "sdp_interface",
+    "timer_interface",
+    "hangup_cause_interface",
+    "error_interface",
     "commands",
     "command_identity_fields",
     "protocol_coverage",
@@ -263,6 +269,512 @@
         }
       ],
       "items": false
+    },
+    "control_interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_binding",
+        "target_binding",
+        "implementation_status",
+        "commands",
+        "command_rule",
+        "direct_socket_write_by_call_core"
+      ],
+      "properties": {
+        "current_binding": {
+          "const": "RustPBX_call_path_outside_target_control_port"
+        },
+        "target_binding": {
+          "const": "Converact_owned_SipFoundationControlPort"
+        },
+        "implementation_status": {
+          "const": "interface_frozen_adapter_activation_not_run"
+        },
+        "commands": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "originate",
+            "answer",
+            "terminate"
+          ],
+          "properties": {
+            "originate": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "required_fields",
+                "success"
+              ],
+              "properties": {
+                "required_fields": {
+                  "type": "array",
+                  "minItems": 10,
+                  "maxItems": 10,
+                  "prefixItems": [
+                    {
+                      "const": "tenant_id"
+                    },
+                    {
+                      "const": "call_id"
+                    },
+                    {
+                      "const": "leg_id"
+                    },
+                    {
+                      "const": "interaction_id"
+                    },
+                    {
+                      "const": "command_id"
+                    },
+                    {
+                      "const": "owner_epoch"
+                    },
+                    {
+                      "const": "generation"
+                    },
+                    {
+                      "const": "request_uri"
+                    },
+                    {
+                      "const": "route_id"
+                    },
+                    {
+                      "const": "offer"
+                    }
+                  ],
+                  "items": false
+                },
+                "success": {
+                  "const": "durable_effect_identity_and_protocol_session_handle"
+                }
+              }
+            },
+            "answer": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "required_fields",
+                "success"
+              ],
+              "properties": {
+                "required_fields": {
+                  "type": "array",
+                  "minItems": 8,
+                  "maxItems": 8,
+                  "prefixItems": [
+                    {
+                      "const": "tenant_id"
+                    },
+                    {
+                      "const": "call_id"
+                    },
+                    {
+                      "const": "leg_id"
+                    },
+                    {
+                      "const": "protocol_dialog_id"
+                    },
+                    {
+                      "const": "command_id"
+                    },
+                    {
+                      "const": "owner_epoch"
+                    },
+                    {
+                      "const": "generation"
+                    },
+                    {
+                      "const": "answer"
+                    }
+                  ],
+                  "items": false
+                },
+                "success": {
+                  "const": "durable_effect_identity"
+                }
+              }
+            },
+            "terminate": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "required_fields",
+                "success"
+              ],
+              "properties": {
+                "required_fields": {
+                  "type": "array",
+                  "minItems": 7,
+                  "maxItems": 7,
+                  "prefixItems": [
+                    {
+                      "const": "tenant_id"
+                    },
+                    {
+                      "const": "call_id"
+                    },
+                    {
+                      "const": "leg_id"
+                    },
+                    {
+                      "const": "command_id"
+                    },
+                    {
+                      "const": "owner_epoch"
+                    },
+                    {
+                      "const": "generation"
+                    },
+                    {
+                      "const": "hangup_cause"
+                    }
+                  ],
+                  "items": false
+                },
+                "success": {
+                  "const": "durable_effect_identity_or_terminal_observation"
+                }
+              }
+            }
+          }
+        },
+        "command_rule": {
+          "const": "prepare_then_durable_decision_then_commit_send"
+        },
+        "direct_socket_write_by_call_core": {
+          "const": "forbidden"
+        }
+      }
+    },
+    "egress_events": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "envelope_fields",
+        "delivery",
+        "duplicate_and_reorder",
+        "business_mutation"
+      ],
+      "properties": {
+        "envelope_fields": {
+          "type": "array",
+          "minItems": 15,
+          "maxItems": 15,
+          "prefixItems": [
+            {
+              "const": "tenant_id"
+            },
+            {
+              "const": "call_id"
+            },
+            {
+              "const": "leg_id"
+            },
+            {
+              "const": "interaction_id"
+            },
+            {
+              "const": "protocol_session_id"
+            },
+            {
+              "const": "protocol_session_generation"
+            },
+            {
+              "const": "protocol_dialog_id"
+            },
+            {
+              "const": "transaction_id"
+            },
+            {
+              "const": "event_id"
+            },
+            {
+              "const": "owner_epoch"
+            },
+            {
+              "const": "generation"
+            },
+            {
+              "const": "observed_at_wall_clock"
+            },
+            {
+              "const": "received_at_monotonic_offset"
+            },
+            {
+              "const": "event_type"
+            },
+            {
+              "const": "payload"
+            }
+          ],
+          "items": false
+        },
+        "delivery": {
+          "const": "bounded_ordered_per_protocol_session"
+        },
+        "duplicate_and_reorder": {
+          "const": "event_id_hash_dedupe_then_state_fence"
+        },
+        "business_mutation": {
+          "const": "forbidden_until_Call_authority_durable_decision"
+        }
+      }
+    },
+    "sdp_interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "representation",
+        "roles",
+        "negotiation_identity",
+        "parser_types_exposed",
+        "maximum_bytes",
+        "mutation_after_prepare"
+      ],
+      "properties": {
+        "representation": {
+          "const": "Converact_owned_immutable_exact_bytes_plus_sha256"
+        },
+        "roles": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "const": "offer"
+            },
+            {
+              "const": "answer"
+            }
+          ],
+          "items": false
+        },
+        "negotiation_identity": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {
+              "const": "leg_id"
+            },
+            {
+              "const": "protocol_dialog_id"
+            },
+            {
+              "const": "negotiation_generation"
+            }
+          ],
+          "items": false
+        },
+        "parser_types_exposed": {
+          "const": false
+        },
+        "maximum_bytes": {
+          "const": 32768
+        },
+        "mutation_after_prepare": {
+          "const": "forbidden"
+        }
+      }
+    },
+    "timer_interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_deadlines",
+        "persisted_values",
+        "persisted_monotonic_instant",
+        "restoration"
+      ],
+      "properties": {
+        "runtime_deadlines": {
+          "const": "monotonic_clock_only"
+        },
+        "persisted_values": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {
+              "const": "semantic_timer_kind"
+            },
+            {
+              "const": "remaining_duration_ms_at_snapshot"
+            },
+            {
+              "const": "wall_clock_audit_timestamp"
+            }
+          ],
+          "items": false
+        },
+        "persisted_monotonic_instant": {
+          "const": "forbidden"
+        },
+        "restoration": {
+          "const": "recompute_bounded_deadline_after_owner_fence"
+        }
+      }
+    },
+    "hangup_cause_interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "categories",
+        "fields",
+        "raw_backend_error_as_business_cause"
+      ],
+      "properties": {
+        "categories": {
+          "type": "array",
+          "minItems": 11,
+          "maxItems": 11,
+          "prefixItems": [
+            {
+              "const": "normal_clearing"
+            },
+            {
+              "const": "caller_cancelled"
+            },
+            {
+              "const": "no_answer"
+            },
+            {
+              "const": "busy"
+            },
+            {
+              "const": "rejected"
+            },
+            {
+              "const": "temporary_failure"
+            },
+            {
+              "const": "service_unavailable"
+            },
+            {
+              "const": "protocol_error"
+            },
+            {
+              "const": "security_rejected"
+            },
+            {
+              "const": "timeout"
+            },
+            {
+              "const": "unknown"
+            }
+          ],
+          "items": false
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "prefixItems": [
+            {
+              "const": "category"
+            },
+            {
+              "const": "sip_status"
+            },
+            {
+              "const": "q850_cause"
+            },
+            {
+              "const": "reason_token"
+            },
+            {
+              "const": "retryable"
+            },
+            {
+              "const": "source"
+            }
+          ],
+          "items": false
+        },
+        "raw_backend_error_as_business_cause": {
+          "const": "forbidden"
+        }
+      }
+    },
+    "error_interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "categories",
+        "fields",
+        "secret_or_raw_wire_details"
+      ],
+      "properties": {
+        "categories": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "prefixItems": [
+            {
+              "const": "invalid_input"
+            },
+            {
+              "const": "capacity"
+            },
+            {
+              "const": "store"
+            },
+            {
+              "const": "dns"
+            },
+            {
+              "const": "transport"
+            },
+            {
+              "const": "transaction"
+            },
+            {
+              "const": "dialog"
+            },
+            {
+              "const": "security"
+            },
+            {
+              "const": "timeout"
+            },
+            {
+              "const": "internal"
+            }
+          ],
+          "items": false
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "prefixItems": [
+            {
+              "const": "category"
+            },
+            {
+              "const": "stable_code"
+            },
+            {
+              "const": "retryable"
+            },
+            {
+              "const": "sip_status"
+            },
+            {
+              "const": "retry_after_seconds"
+            },
+            {
+              "const": "hangup_cause"
+            }
+          ],
+          "items": false
+        },
+        "secret_or_raw_wire_details": {
+          "const": "forbidden"
+        }
+      }
     },
     "commands": {
       "type": "object",

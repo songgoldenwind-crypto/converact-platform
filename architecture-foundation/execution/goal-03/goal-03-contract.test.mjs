@@ -125,6 +125,22 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.equal(contract.admission_and_store_slo.durable_transaction_p99_budget_ms, 20);
   assert.equal(contract.admission_and_store_slo.store_write_timeout_ms, 250);
   assert.equal(contract.admission_and_store_slo.queue_depth_ceiling, 1024);
+  assert.deepEqual(
+    Object.keys(contract.control_interface.commands),
+    ['originate', 'answer', 'terminate'],
+  );
+  assert.equal(
+    contract.control_interface.implementation_status,
+    'interface_frozen_adapter_activation_not_run',
+  );
+  assert.equal(contract.sdp_interface.parser_types_exposed, false);
+  assert.equal(contract.sdp_interface.maximum_bytes, 32768);
+  assert.equal(contract.timer_interface.runtime_deadlines, 'monotonic_clock_only');
+  assert.equal(
+    contract.hangup_cause_interface.raw_backend_error_as_business_cause,
+    'forbidden',
+  );
+  assert.equal(contract.error_interface.secret_or_raw_wire_details, 'forbidden');
   assert.equal(contract.boundedness.global_hot_lock, 'forbidden');
   assert.equal(contract.boundedness.unbounded_queue, 'forbidden');
   assert.equal(contract.deletion_gate.rsipstack_delete_before_g06, false);

@@ -76,6 +76,27 @@ active-Call scan belongs to request, timer or RTP hot paths.
 
 The public contract is semantic, not an immediate Rust signature freeze:
 
+- `originate` accepts only Converact-owned tenant/Call/Leg/Interaction IDs,
+  owner/generation fence, route reference, request URI and immutable SDP offer.
+- `answer` binds one Call/Leg/Protocol Dialog and an immutable SDP answer.
+- `terminate` carries a normalized hangup cause; a raw backend error is never a
+  business cause.
+- ingress and egress use one bounded, ordered-per-Protocol-Session envelope
+  with event ID/hash dedupe. They cannot mutate Call state before the Call
+  authority commits its durable decision.
+- SDP crosses the seam only as immutable exact bytes plus SHA-256, role and
+  negotiation generation. No parser-owned SDP type crosses the seam.
+- runtime timers use a monotonic clock. Snapshots persist semantic timer kind,
+  bounded remaining duration and a separate wall-clock audit timestamp, never
+  a process-local monotonic instant.
+- stable error and hangup categories carry optional SIP/Q.850 codes,
+  retryability and bounded Retry-After; secrets, raw wire and backend exception
+  strings are forbidden.
+
+The control port is frozen in G03. The current RustPBX control binding remains
+outside that target port until its separately gated Adapter activation; this is
+recorded as `not_run`, not described as completed wiring.
+
 1. `prepare_effect` freezes canonical bytes, Adapter/runtime identity, route,
    DNS candidate, transport/local endpoint, Via branch lineage, owner fence and
    hashes. It performs no visible send.
@@ -159,7 +180,7 @@ observation distinguishable even though both converge the effect record to
 | State | Meaning |
 | --- | --- |
 | current | Source contains a bounded seam, exact rsipstack Adapter, ledger and recovery eligibility; live writer activation and complete runtime wiring are not proved |
-| target | Machine contracts, ID/Leg semantics, drain and full corpus are frozen and implemented by G03 |
+| target | The complete interface and corpus are frozen; ID/Leg, receipt and drain slices have local implementation, while control-port Adapter activation remains `not_run` |
 | production eligible | `false` until physical store, real peers, latency distribution, long-run, fault/OOM, native safety and host performance evidence pass independent review |
 
 No rvoip benchmark, old server result or historical Wave result is inherited.
