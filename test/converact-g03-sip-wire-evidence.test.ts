@@ -138,4 +138,5 @@ test('G03 SIPp scenarios measure one required Trying and bounded final responses
     overload,
     /<ereg regexp="\^\[ \]\*\[1-9\]\[0-9\]\*\[ \]\*\$" search_in="hdr" header="Retry-After:"/
   );
+  assert.match(overload, /<log message="verified Retry-After: \[\$1\]" \/>/);
 });

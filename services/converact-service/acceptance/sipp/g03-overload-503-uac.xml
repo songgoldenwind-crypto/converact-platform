@@ -21,6 +21,7 @@
   <recv response="503" rtd="g03_overload" response_txn="invite">
     <action>
       <ereg regexp="^[ ]*[1-9][0-9]*[ ]*$" search_in="hdr" header="Retry-After:" check_it="true" assign_to="1" />
+      <log message="verified Retry-After: [$1]" />
     </action>
   </recv>
 
