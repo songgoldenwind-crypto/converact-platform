@@ -3,7 +3,7 @@
   "migration_id": "converact-rustdesk-client-rename-v2",
   "status": "engineering_verified",
   "source_manifest": "docs/capacity/forks/ivekit-forks-v1.json",
-  "source_manifest_sha256": "b6077031e54bb5d7440270f30a85910194d984311a280906d92cbf584de6e8c3",
+  "source_manifest_sha256": "5142f664279e81688a8100247e5c4561ef3b3f0c0fb6958ee75b42ef2dd65dee",
   "freeze_commit": "532350f34c9191092f62d9a1e89287de06f6c083",
   "component_id": "rustdesk-client",
   "path": "integrations/rustdesk-1.4.9/ivekit_native_evidence.rs",

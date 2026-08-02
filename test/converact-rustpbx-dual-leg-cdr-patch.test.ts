@@ -289,7 +289,7 @@ test('RustPBX CDR deployment uses a persistent per-node spool and file-backed se
     /IVEKIT_RUSTPBX_CDR_SERVICE_KEY_FILE[\s\S]*\/run\/cdr-secrets\/service-key/
   );
   assert.match(legacyStatefulSet, /name: cdr-secrets[\s\S]*defaultMode: 0440/);
-  assert.match(workflow, /VERSION: 0\.4\.11-ivekit\.40-6c49ee76/);
+  assert.match(workflow, /VERSION: 0\.4\.11-ivekit\.41-6c49ee76/);
 });
 
 test('RustPBX CDR patch is syntactically valid and hash-bound', () => {

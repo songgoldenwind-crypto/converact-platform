@@ -21,8 +21,8 @@ evidence is not promoted.
 | durable effects/receipts | `effect-oracle.ts`; `postgres-effect-store.ts`; migration 107 | effect oracle and physical PostgreSQL tests; `test/converact-g03-postgres-restart-acceptance.test.ts` | `G03-E04-EFFECT`, `G03-E05-POSTGRES` |
 | physical restart/replay probe | `services/converact-service/acceptance/g03-sip-foundation/postgres-effect-restart-probe.ts` | `test/converact-g03-postgres-restart-acceptance.test.ts`; controlled host campaign | `G03-E05-POSTGRES` |
 | recovery/clock | `sip-foundation/recovery.ts`; dialog takeover/shadow sources | recovery and takeover tests | `G03-E08-RECOVERY` |
-| one 100 Trying | rsipstack single-trying patch; RustPBX call module | exact patch/native test and SIPp latency campaign | `G03-E06-TRYING` |
-| raw wire corpus | `architecture-foundation/execution/goal-03/wire-corpus/*` | G03 contract/corpus test; future differential harness | `G03-E07-WIRE` |
+| one 100 Trying | rsipstack single-trying patch; RustPBX call module; `g03-trying/final/overload` SIPp scenarios; `scripts/converact-g03-sip-latency.ts` | exact patch/native test, SIPp 3.7.7 raw RTT plus aggregate/message-count parser tests, nearest-rank tests and controlled latency campaign | `G03-E06-TRYING` |
+| raw wire corpus | `architecture-foundation/execution/goal-03/wire-corpus/*`; `rsipstack-ivekit-wire-guard.patch`; `scripts/g03/rsipstack-wire-replay.rs`; `scripts/converact-g03-wire-differential.ts` | G03 contract/corpus test; exact queue parser tests; dual-binary sanitized differential tests | `G03-E07-WIRE` |
 | exact source build | `infra/converact/rustpbx/build.sh`; `Cargo.lock`; patch queue | RustPBX build/patch contract tests | `G03-E02-BASELINE` |
 | controlled PostgreSQL evidence | `architecture-foundation/execution/goal-03/controlled-postgres-restart-report.md`; retained raw evidence manifest | exact-source physical PostgreSQL campaign and independent evidence review | `G03-E05-POSTGRES` |
 | interop/long/performance | SIPp acceptance scripts and future controlled campaign | real external dependency | `G03-E11/E12/E13` |

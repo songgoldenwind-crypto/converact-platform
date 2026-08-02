@@ -18,7 +18,7 @@ test('RustPBX media-control client patch is ordered and exact-source applicable'
     build,
     /rustpbx-ivekit-http-client-capacity\.patch"[\s\S]*rustpbx-ivekit-media-control-client\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.40"/);
+  assert.match(build, /PATCHSET="ivekit\.41"/);
   assert.match(patch, /pub mod ivekit_media_control/);
   assert.match(patch, /src\/ivekit_media_control\.rs/);
   assert.match(patch, /ivekit\.media-control\.v1/);
@@ -81,7 +81,7 @@ test('RustPBX media-control client preserves command and uncertainty semantics',
   );
 });
 
-test('RustPBX deployment references advance atomically to ivekit.40', () => {
+test('RustPBX deployment examples remain on qualified ivekit.40', () => {
   for (const path of [
     'infra/env.example',
     'infra/converact/env.example',

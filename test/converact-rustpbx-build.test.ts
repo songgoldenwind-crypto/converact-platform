@@ -70,7 +70,7 @@ test('Converact Fabric RustPBX build pins source, toolchain, lockfile, and runti
   assert.match(buildScript, /find \. -type f -name '\*\.patch'.*LC_ALL=C sort/);
   assert.match(buildScript, /CONVERACT_SOURCE_COMMIT=.*rev-parse HEAD/s);
   assert.match(runtimeDockerfile, /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m);
-  assert.match(buildScript, /PATCHSET="ivekit\.40"/);
+  assert.match(buildScript, /PATCHSET="ivekit\.41"/);
   assert.match(
     buildScript,
     /--build-arg "CONVERACT_SOURCE_COMMIT=\$CONVERACT_SOURCE_COMMIT"/
@@ -357,7 +357,7 @@ test('Converact Fabric exposes reproducible RustPBX build and acceptance command
 test('Converact Fabric publishes native amd64 and arm64 RustPBX images as one manifest', () => {
   assert.match(imageWorkflow, /runner: ubuntu-24\.04\n/);
   assert.match(imageWorkflow, /runner: ubuntu-24\.04-arm\n/);
-  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.40-6c49ee76/);
+  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.41-6c49ee76/);
   assert.match(imageWorkflow, /docker manifest create/);
   assert.match(imageWorkflow, /docker manifest push/);
   assert.match(imageWorkflow, /packages: write/);

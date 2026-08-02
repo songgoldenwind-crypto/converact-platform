@@ -1,0 +1,337 @@
+diff --git a/src/sip/message.rs b/src/sip/message.rs
+index e60f0ad..a704af3 100644
+--- a/src/sip/message.rs
++++ b/src/sip/message.rs
+@@ -781,7 +781,7 @@ mod tests {
+             "CSeq: 314159 INVITE\r\n",
+             "Contact: <sip:bob@192.0.2.4>\r\n",
+             "Content-Type: application/sdp\r\n",
+-            "Content-Length: 131\r\n",
++            "Content-Length: 127\r\n",
+             "\r\n",
+             "v=0\r\no=bob 2890844527 2890844527 IN IP4 192.0.2.4\r\ns=-\r\nc=IN IP4 192.0.2.4\r\nt=0 0\r\nm=audio 3456 RTP/AVP 0\r\na=rtpmap:0 PCMU/8000"
+         )
+diff --git a/src/sip/parser.rs b/src/sip/parser.rs
+index f9175b3..9f85fa1 100644
+--- a/src/sip/parser.rs
++++ b/src/sip/parser.rs
+@@ -5,9 +5,20 @@ use crate::sip::{
+     Error, Method, StatusCode, Uri, Version,
+ };
+ use memchr::{memchr, memmem};
++
++const MAX_SIP_MESSAGE_BYTES: usize = 65_535;
++const MAX_SIP_HEADER_BYTES: usize = 32_768;
++const MAX_SIP_HEADER_LINE_BYTES: usize = 8_192;
++const MAX_SIP_HEADERS: usize = 128;
++const MAX_SIP_BODY_BYTES: usize = 32_768;
++
+ pub fn parse_message(data: &[u8]) -> Result<SipMessage, Error> {
++    if data.len() > MAX_SIP_MESSAGE_BYTES {
++        return Err(Error::ParseError("SIP message exceeds wire limit".into()));
++    }
+     let sep = find_double_crlf(data)
+         .ok_or_else(|| Error::ParseError("SIP message: missing \\r\\n\\r\\n separator".into()))?;
++    validate_message_boundaries(data, sep)?;
+ 
+     let header_section = &data[..sep];
+     let body_start = sep + 4;
+@@ -73,6 +84,196 @@ pub fn parse_message(data: &[u8]) -> Result<SipMessage, Error> {
+     }
+ }
+ 
++fn validate_message_boundaries(data: &[u8], separator: usize) -> Result<(), Error> {
++    if separator > MAX_SIP_HEADER_BYTES {
++        return Err(Error::ParseError(
++            "SIP header section exceeds wire limit".into(),
++        ));
++    }
++    let body_length = data.len() - separator - 4;
++    if body_length > MAX_SIP_BODY_BYTES {
++        return Err(Error::ParseError("SIP body exceeds wire limit".into()));
++    }
++
++    let header_section = &data[..separator];
++    let mut offset = 0;
++    let mut line_index = 0;
++    let mut header_count = 0;
++    let mut content_length = None;
++    let mut singleton_headers = 0_u64;
++
++    loop {
++        let line_end = memmem::find(&header_section[offset..], b"\r\n")
++            .map(|relative| offset + relative)
++            .unwrap_or(header_section.len());
++        let line = &header_section[offset..line_end];
++        if line.is_empty() || line.len() > MAX_SIP_HEADER_LINE_BYTES {
++            return Err(Error::ParseError(
++                "SIP header line violates wire limit".into(),
++            ));
++        }
++        if memchr(b'\r', line).is_some() || memchr(b'\n', line).is_some() {
++            return Err(Error::ParseError(
++                "SIP header contains a bare line ending".into(),
++            ));
++        }
++
++        if line_index == 0 {
++            validate_request_uri_percent_encoding(line)?;
++        } else {
++            header_count += 1;
++            if header_count > MAX_SIP_HEADERS {
++                return Err(Error::ParseError(
++                    "SIP header count exceeds wire limit".into(),
++                ));
++            }
++            if matches!(line.first(), Some(b' ' | b'\t')) {
++                return Err(Error::ParseError(
++                    "obsolete SIP header folding is forbidden".into(),
++                ));
++            }
++            let colon = memchr(b':', line)
++                .ok_or_else(|| Error::ParseError("SIP header is missing a colon".into()))?;
++            let header_name = &line[..colon];
++            if header_name.is_empty() || !header_name.iter().all(|byte| is_sip_token(*byte)) {
++                return Err(Error::ParseError("SIP header name is invalid".into()));
++            }
++            let header_value = trim_ascii_whitespace(&line[colon + 1..]);
++            if header_name.eq_ignore_ascii_case(b"content-length")
++                || header_name.eq_ignore_ascii_case(b"l")
++            {
++                if content_length.is_some() {
++                    return Err(Error::ParseError(
++                        "duplicate SIP Content-Length is forbidden".into(),
++                    ));
++                }
++                content_length = Some(parse_content_length(header_value)?);
++            }
++            if let Some(bit) = singleton_header_bit(header_name) {
++                if singleton_headers & bit != 0 {
++                    return Err(Error::ParseError(
++                        "duplicate singleton SIP header is forbidden".into(),
++                    ));
++                }
++                singleton_headers |= bit;
++            }
++        }
++
++        line_index += 1;
++        if line_end == header_section.len() {
++            break;
++        }
++        offset = line_end + 2;
++    }
++
++    if content_length.unwrap_or(0) != body_length {
++        return Err(Error::ParseError(
++            "SIP Content-Length does not match the framed body".into(),
++        ));
++    }
++    Ok(())
++}
++
++fn validate_request_uri_percent_encoding(start_line: &[u8]) -> Result<(), Error> {
++    if start_line.starts_with(b"SIP/") {
++        return Ok(());
++    }
++    let method_end = memchr(b' ', start_line)
++        .or_else(|| memchr(b'\t', start_line))
++        .ok_or_else(|| Error::ParseError("SIP request line is invalid".into()))?;
++    let uri_start = start_line[method_end..]
++        .iter()
++        .position(|byte| *byte != b' ' && *byte != b'\t')
++        .map(|relative| method_end + relative)
++        .ok_or_else(|| Error::ParseError("SIP request URI is missing".into()))?;
++    let uri_end = start_line[uri_start..]
++        .iter()
++        .position(|byte| *byte == b' ' || *byte == b'\t')
++        .map(|relative| uri_start + relative)
++        .ok_or_else(|| Error::ParseError("SIP request version is missing".into()))?;
++    let uri = &start_line[uri_start..uri_end];
++    let mut index = 0;
++    while index < uri.len() {
++        if uri[index] == b'%'
++            && (index + 2 >= uri.len()
++                || !uri[index + 1].is_ascii_hexdigit()
++                || !uri[index + 2].is_ascii_hexdigit())
++        {
++            return Err(Error::ParseError(
++                "SIP request URI contains an invalid escape".into(),
++            ));
++        }
++        index += if uri[index] == b'%' { 3 } else { 1 };
++    }
++    Ok(())
++}
++
++fn parse_content_length(value: &[u8]) -> Result<usize, Error> {
++    if value.is_empty() || !value.iter().all(u8::is_ascii_digit) {
++        return Err(Error::ParseError("SIP Content-Length is invalid".into()));
++    }
++    value.iter().try_fold(0_usize, |length, byte| {
++        length
++            .checked_mul(10)
++            .and_then(|current| current.checked_add(usize::from(byte - b'0')))
++            .filter(|current| *current <= MAX_SIP_BODY_BYTES)
++            .ok_or_else(|| Error::ParseError("SIP Content-Length exceeds wire limit".into()))
++    })
++}
++
++fn trim_ascii_whitespace(mut value: &[u8]) -> &[u8] {
++    while matches!(value.first(), Some(b' ' | b'\t')) {
++        value = &value[1..];
++    }
++    while matches!(value.last(), Some(b' ' | b'\t')) {
++        value = &value[..value.len() - 1];
++    }
++    value
++}
++
++fn is_sip_token(byte: u8) -> bool {
++    byte.is_ascii_alphanumeric()
++        || matches!(
++            byte,
++            b'-' | b'.' | b'!' | b'%' | b'*' | b'_' | b'+' | b'`' | b'\'' | b'~'
++        )
++}
++
++fn singleton_header_bit(name: &[u8]) -> Option<u64> {
++    let bit = if name.eq_ignore_ascii_case(b"from") || name.eq_ignore_ascii_case(b"f") {
++        0
++    } else if name.eq_ignore_ascii_case(b"to") || name.eq_ignore_ascii_case(b"t") {
++        1
++    } else if name.eq_ignore_ascii_case(b"call-id") || name.eq_ignore_ascii_case(b"i") {
++        2
++    } else if name.eq_ignore_ascii_case(b"cseq") {
++        3
++    } else if name.eq_ignore_ascii_case(b"max-forwards") {
++        4
++    } else if name.eq_ignore_ascii_case(b"content-type") || name.eq_ignore_ascii_case(b"c") {
++        5
++    } else if name.eq_ignore_ascii_case(b"content-disposition") {
++        6
++    } else if name.eq_ignore_ascii_case(b"expires") {
++        7
++    } else if name.eq_ignore_ascii_case(b"event") || name.eq_ignore_ascii_case(b"o") {
++        8
++    } else if name.eq_ignore_ascii_case(b"subscription-state") {
++        9
++    } else if name.eq_ignore_ascii_case(b"refer-to") || name.eq_ignore_ascii_case(b"r") {
++        10
++    } else if name.eq_ignore_ascii_case(b"referred-by") || name.eq_ignore_ascii_case(b"b") {
++        11
++    } else if name.eq_ignore_ascii_case(b"rseq") {
++        12
++    } else if name.eq_ignore_ascii_case(b"rack") {
++        13
++    } else {
++        return None;
++    };
++    Some(1_u64 << bit)
++}
++
+ fn parse_request_line(line: &str, headers: Headers, body: Vec<u8>) -> Result<SipMessage, Error> {
+     let mut parts = line.splitn(3, [' ', '\t']);
+     let method_str = parts
+@@ -166,6 +367,7 @@ impl<'a> Iterator for SplitCrLf<'a> {
+ 
+ #[cfg(test)]
+ mod tests {
++    use super::{MAX_SIP_BODY_BYTES, MAX_SIP_HEADER_LINE_BYTES};
+     use crate::sip::SipMessage;
+     #[test]
+     fn parser_keeps_body_with_colons_intact() {
+@@ -177,7 +379,7 @@ mod tests {
+             "Call-ID: call-id-1\r\n",
+             "CSeq: 1 INVITE\r\n",
+             "Content-Type: application/sdp\r\n",
+-            "Content-Length: 27\r\n",
++            "Content-Length: 26\r\n",
+             "\r\n",
+             "a=rtcp:4000 IN IP4 1.2.3.4"
+         )
+@@ -194,4 +396,84 @@ mod tests {
+             SipMessage::Response(_) => panic!("expected request"),
+         }
+     }
++
++    #[test]
++    fn parser_rejects_conflicting_content_length() {
++        let wire = concat!(
++            "INVITE sip:bob@example.test SIP/2.0\r\n",
++            "Via: SIP/2.0/UDP example.test;branch=z9hG4bK-1\r\n",
++            "Content-Length: 0\r\n",
++            "Content-Length: 4\r\n",
++            "\r\n",
++            "test"
++        );
++        assert!(SipMessage::try_from(wire).is_err());
++    }
++
++    #[test]
++    fn parser_rejects_obsolete_header_folding() {
++        let wire = concat!(
++            "INVITE sip:bob@example.test SIP/2.0\r\n",
++            "Via: SIP/2.0/UDP example.test;branch=z9hG4bK-1\r\n",
++            "Authorization: Digest username=alice\r\n",
++            " response=unsafe\r\n",
++            "Content-Length: 0\r\n",
++            "\r\n"
++        );
++        assert!(SipMessage::try_from(wire).is_err());
++    }
++
++    #[test]
++    fn parser_rejects_oversized_header_line() {
++        let wire = format!(
++            "OPTIONS sip:bob@example.test SIP/2.0\r\nX-Oversized: {}\r\nContent-Length: 0\r\n\r\n",
++            "x".repeat(MAX_SIP_HEADER_LINE_BYTES)
++        );
++        assert!(SipMessage::try_from(wire).is_err());
++    }
++
++    #[test]
++    fn parser_accepts_the_wire_boundary_limits() {
++        let boundary_header = format!(
++            "X-Limit: {}",
++            "x".repeat(MAX_SIP_HEADER_LINE_BYTES - "X-Limit: ".len())
++        );
++        let head = format!(
++            "INVITE sip:bob@example.test SIP/2.0\r\n{}\r\nContent-Length: {}\r\n\r\n",
++            boundary_header, MAX_SIP_BODY_BYTES
++        );
++        let mut wire = head.into_bytes();
++        wire.resize(wire.len() + MAX_SIP_BODY_BYTES, 0);
++        assert!(SipMessage::try_from(wire).is_ok());
++    }
++
++    #[test]
++    fn parser_rejects_invalid_uri_escape_and_duplicate_singleton() {
++        let invalid_uri = concat!(
++            "INVITE sip:alice%ZZ@example.test SIP/2.0\r\n",
++            "Content-Length: 0\r\n",
++            "\r\n"
++        );
++        assert!(SipMessage::try_from(invalid_uri).is_err());
++
++        let duplicate_call_id = concat!(
++            "OPTIONS sip:bob@example.test SIP/2.0\r\n",
++            "Call-ID: first@example.test\r\n",
++            "i: second@example.test\r\n",
++            "Content-Length: 0\r\n",
++            "\r\n"
++        );
++        assert!(SipMessage::try_from(duplicate_call_id).is_err());
++    }
++
++    #[test]
++    fn parser_accepts_valid_extension_header_token() {
++        let wire = concat!(
++            "OPTIONS sip:bob@example.test SIP/2.0\r\n",
++            "X.!%*+_`'~-Token: value\r\n",
++            "Content-Length: 0\r\n",
++            "\r\n"
++        );
++        assert!(SipMessage::try_from(wire).is_ok());
++    }
+ }

@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 61,
+  "revision": 62,
   "status": "proposed",
-  "generated_at": "2026-07-31T22:13:52+08:00",
+  "generated_at": "2026-08-02T08:22:55Z",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.40-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.41-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.40-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.41-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -887,7 +887,7 @@
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The current ivekit.40 exact pinned patch queue passes cargo check --lib and focused server-INVITE owner tests; its release image, full RustPBX suite, SIPp wire behavior, runtime trace continuity and load/capacity comparison remain not_run.",
+          "The prior ivekit.40 exact pinned patch queue passed cargo check --lib and focused server-INVITE owner tests; the current ivekit.41 RustPBX build, release image, full RustPBX suite, SIPp wire behavior, runtime trace continuity and load/capacity comparison remain not_run.",
           "The exact ivekit.19 locked build and local controlled runtime pass, but the candidate has not been published with an immutable registry manifest digest, SBOM, signature or provenance.",
           "Strict packet-sequence RTP evidence passes at 10 shared-host calls and controlled RTP throughput evidence passes through 800 shared-host calls. The 150-call strict sample is invalid because the generators saturate, and both 900-call throughput samples contain mixed generator and SUT/protocol signals. Independent-generator production-capacity, realtime audio gateway authorization, recording failure injection, WSS load, multi-node failover and Cell-10K evidence are not attached.",
           "The historical shared four-vCPU signaling gate passes at 1,400 CPS and fails its strict boundary at 1,500 CPS. The ivekit.18 sustained 1,000-CPS direct and Kamailio regression gates pass, but neither result is a production or media capacity claim."
@@ -975,6 +975,12 @@
           "sha256": "d84ba38aae7e91682d4180e87cdad9a910178a67dd8d5791dade5f765bea6eef",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-single-trying.patch",
           "purpose": "Implement the RFC 3261 server-INVITE 300-699 lifecycle with frozen-response Timer G replay, Timer H/I termination, typed owner outcomes and retained timer-head wakeups while preserving the existing 2xx path."
+        },
+        {
+          "path": "infra/converact/rustpbx/patches/rsipstack-ivekit-wire-guard.patch",
+          "sha256": "cb8160dc802daf1ee5b53801b217b2e0dba99fc9bd1e059c390bba64be6a7cc2",
+          "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-server-invite-lifecycle.patch",
+          "purpose": "Bound one SIP message, header section, header line, header count and body with one allocation-free linear pre-parse pass; reject duplicate Content-Length, singleton ambiguity, obsolete folding, malformed request-URI escapes and framed-length mismatch."
         }
       ],
       "implemented_changes": [
@@ -1091,6 +1097,20 @@
             "Timer insertion and cancellation retain a wake permit only when the queue head changes, including insertion before waiter registration; non-head insertion does not wake the worker.",
             "The exact pinned full queue passes rustfmt, all 264 rsipstack library tests, RustPBX cargo check --lib and two RustPBX owner tests; release image, SIPp wire/load behavior and timer-capacity benchmarks remain not_run."
           ]
+        },
+        {
+          "change_id": "rsipstack-wire-guard-v1",
+          "summary": "Fail closed on bounded SIP framing and singleton-header ambiguity before the existing parser allocates typed headers.",
+          "capacity_dimensions": [
+            "sip.message_bytes",
+            "sip.header_bytes",
+            "sip.transactions_per_second"
+          ],
+          "acceptance_evidence": [
+            "The guard is one O(n) pass over a message capped at 65,535 bytes with fixed counters and a u64 singleton bitset; it adds no lock, task, map, set or per-header allocation.",
+            "The exact ivekit.41 queue applies after all eight existing rsipstack patches and passes all 270 library tests on Rust 1.94.1.",
+            "A sanitized dual-binary harness and 22-case controlled-host differential replay are required before wire evidence is promoted; that campaign remains not_run."
+          ]
         }
       ],
       "planned_changes": [],
@@ -1112,6 +1132,16 @@
           "infra/converact/rustpbx/patches/rsipstack-ivekit-rejection-headers.patch",
           "infra/converact/rustpbx/patches/rsipstack-ivekit-single-trying.patch",
           "infra/converact/rustpbx/patches/rsipstack-ivekit-server-invite-lifecycle.patch",
+          "infra/converact/rustpbx/patches/rsipstack-ivekit-wire-guard.patch",
+          "scripts/g03/rsipstack-wire-replay.rs",
+          "scripts/converact-g03-wire-differential.ts",
+          "scripts/converact-g03-sip-latency.ts",
+          "services/converact-service/acceptance/sipp/g03-trying-uac.xml",
+          "services/converact-service/acceptance/sipp/g03-final-486-uac.xml",
+          "services/converact-service/acceptance/sipp/g03-overload-503-uac.xml",
+          "test/converact-g03-sip-wire-evidence.test.ts",
+          "test/converact-g03-wire-differential.test.ts",
+          "test/converact-g03-sip-latency.test.ts",
           "test/ivekit-rsipstack-prepared-invite-patch.test.ts",
           "test/ivekit-rsipstack-single-trying-patch.test.ts",
           "test/ivekit-rsipstack-server-invite-lifecycle-patch.test.ts",
@@ -1120,12 +1150,12 @@
           "test/ivekit-rustpbx-build.test.ts",
           "test/ivekit-voice-deployment.test.ts"
         ],
-        "checked_at": "2026-07-30T15:52:43+08:00"
+        "checked_at": "2026-08-02T08:22:55Z"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The exact ivekit.40 pinned queue passes all 264 rsipstack library tests and RustPBX cargo check --lib, but no ivekit.40 release image digest, SBOM, signature or registry provenance exists.",
+          "The exact ivekit.41 pinned rsipstack queue passes all 270 library tests, but the RustPBX release image, SBOM, signature, registry provenance and controlled 22-case wire differential remain not_run.",
           "The shared-host 1,400-CPS signaling baseline passed, but TCP/TLS/WSS transport load, controlled overload recovery, RTP integration and Cell-10K benchmarks are not attached."
         ]
       },

@@ -29,7 +29,7 @@ test('processing terminal event patch is ordered, reproducible, and manifest-bou
     build,
     /rustpbx-ivekit-recording-lifecycle-reservation\.patch"[\s\S]*rustpbx-ivekit-processing-terminal-events\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.40"/);
+  assert.match(build, /PATCHSET="ivekit\.41"/);
 
   const manifest = JSON.parse(
     readFileSync('docs/capacity/forks/ivekit-forks-v1.json', 'utf8')

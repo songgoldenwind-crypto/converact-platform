@@ -30,7 +30,7 @@ Source-flow review identifies the RustPBX `CallModule` and later
 application-level calls on one transaction emit one outbound transport event.
 The patched rsipstack library passed all 252 tests at that checkpoint. A
 separate native regression proves a failed first transport send can retry on a
-replacement connection. The RustPBX full suite, ivekit.40 release image, and
+replacement connection. The RustPBX full suite, ivekit.41 release image, and
 end-to-end durable-admission Retry-After wire propagation remain `not_run`.
 Current Timer G/H/I evidence is recorded separately below. The 1,911-test
 RustPBX result below remains the ivekit.38 evidence baseline.
@@ -63,6 +63,23 @@ non-head wakeups. Native evidence on the pinned sources is 264/264 rsipstack
 library tests plus two targeted RustPBX owner-retention tests. Docker verification,
 the full RustPBX suite, release image, SIPp wire tests, and load/capacity gates
 remain `not_run`.
+
+## Bounded SIP wire guard
+
+ivekit.41 adds one allocation-free O(n) validation pass before rsipstack turns
+wire headers into owned strings. The scan is capped at 65,535 message bytes,
+32,768 header bytes, 8,192 bytes per line, 128 headers and 32,768 body bytes.
+It uses fixed counters plus a `u64` singleton-header bitset; there is no global
+lock, collection, task or per-header allocation on this path.
+
+Duplicate `Content-Length`, duplicate singleton headers, obsolete folding,
+invalid request-URI percent escapes, bare line endings and framed body-length
+mismatch fail closed. This deliberately tightens four malformed fixtures that
+the ivekit.40 parser accepted; accepted-message semantics must remain identical
+and the security change is versioned as `G03-WIRE-SECURITY-001`. The complete
+ivekit.41 rsipstack queue applies cleanly and passes 270/270 local native library
+tests. Controlled-host dual-binary wire replay, RustPBX image build, SIPp
+latency and production eligibility remain `not_run`.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

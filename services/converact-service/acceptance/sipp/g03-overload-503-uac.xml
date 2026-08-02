@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+
+<scenario name="Converact G03 overload 503 latency">
+  <send retrans="500" start_rtd="g03_overload" start_txn="invite">
+    <![CDATA[
+      INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: Converact G03 SIPp <sip:sipp@[local_ip]:[local_port]>;tag=[call_number]
+      To: Converact G03 Route <sip:[service]@[remote_ip]:[remote_port]>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:sipp@[local_ip]:[local_port];transport=[transport]>
+      Max-Forwards: 70
+      Subject: Converact G03 overload evidence
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+  <recv response="503" rtd="g03_overload" response_txn="invite">
+    <action>
+      <ereg regexp="^[ ]*[1-9][0-9]*[ ]*$" search_in="hdr" header="Retry-After:" check_it="true" assign_to="1" />
+    </action>
+  </recv>
+
+  <send retrans="500" ack_txn="invite">
+    <![CDATA[
+      ACK sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch-3]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      CSeq: 1 ACK
+      Contact: <sip:sipp@[local_ip]:[local_port];transport=[transport]>
+      Max-Forwards: 70
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+  <pause milliseconds="25" />
+  <ResponseTimeRepartition value="1,2,5,10,20,30,40,50,75,100,150,200,250,500,1000" />
+  <CallLengthRepartition value="10,25,50,100,250,500,1000" />
+</scenario>
