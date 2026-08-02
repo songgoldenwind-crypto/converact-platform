@@ -175,7 +175,8 @@ test('RustPBX CI verifies exact-source behavior before publishing images', () =>
   assert.doesNotMatch(buildScript, /cargo fmt --all/);
   assert.match(buildScript, /cargo check --locked --features cross --bin rustpbx --bin sipflow/);
   assert.match(buildScript, /cargo clippy --locked --lib --features cross --no-deps/);
-  assert.match(buildScript, /cargo test --locked --lib converact_/);
+  assert.match(buildScript, /^\s*cargo test --locked --lib\s*$/m);
+  assert.doesNotMatch(buildScript, /cargo test --locked --lib converact_/);
   assert.match(
     buildScript,
     /cargo test --locked --lib missing_callee_terminal_data_stays_independent_from_the_caller/

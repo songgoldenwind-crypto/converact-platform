@@ -315,7 +315,7 @@ if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
       cargo fmt --manifest-path vendor/converact-component-hook/Cargo.toml -- --check
       cargo check --locked --features cross --bin rustpbx --bin sipflow
       cargo clippy --locked --lib --features cross --no-deps
-      cargo test --locked --lib converact_
+      cargo test --locked --lib
       cargo test --locked --lib test_recording_double_start_fails
       cargo test --locked --lib test_recording_pending_start_rejects_duplicate
       cargo test --locked --lib missing_callee_terminal_data_stays_independent_from_the_caller
