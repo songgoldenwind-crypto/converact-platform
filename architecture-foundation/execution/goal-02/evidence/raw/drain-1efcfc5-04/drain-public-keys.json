@@ -1,0 +1,23 @@
+{
+  "drain_id": "drain-drain-1efcfc5-04",
+  "node_id": "node-drain",
+  "owner_epoch": "4294967297",
+  "authority_key_ids": {
+    "platform_worker_leases": "drain-platform_worker_leases-key-v1",
+    "domain_event_inflight": "drain-domain_event_inflight-key-v1",
+    "communication_attached_generations": "drain-communication_attached_generations-key-v1",
+    "recording_attached_generations": "drain-recording_attached_generations-key-v1",
+    "ai_attached_generations": "drain-ai_attached_generations-key-v1",
+    "unobserved_effect_receipts": "drain-unobserved_effect_receipts-key-v1",
+    "billing_projection_conflicts": "drain-billing_projection_conflicts-key-v1"
+  },
+  "public_keys": {
+    "drain-platform_worker_leases-key-v1": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAuUNuCy3Mkoz4rr2bKi0M9u0NL0X52Nm3b1c3/Oo2p7E=\n-----END PUBLIC KEY-----\n",
+    "drain-domain_event_inflight-key-v1": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAVEHFXBPuZ9+436rhF0XZtJHq2vyi03Z8E3p6YFgFOrk=\n-----END PUBLIC KEY-----\n",
+    "drain-communication_attached_generations-key-v1": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAcUJI4C0bq8Y567plOSNu5XOQQhGo0NsV/K0y5khYIOM=\n-----END PUBLIC KEY-----\n",
+    "drain-recording_attached_generations-key-v1": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAZA2V2Yz+QRxZDAJObhKOlLlaAeJgqcSBhSt+5rfnbGQ=\n-----END PUBLIC KEY-----\n",
+    "drain-ai_attached_generations-key-v1": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEASBdmA6Pt6i0VyAVeX3FtBvTays8N1ywoCQdZXZ0+hOA=\n-----END PUBLIC KEY-----\n",
+    "drain-unobserved_effect_receipts-key-v1": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAOtfsXhjYpXykKxZOfor/0s6ZuafFtqZ0H7Yepx9KOfQ=\n-----END PUBLIC KEY-----\n",
+    "drain-billing_projection_conflicts-key-v1": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxkvjG2ZUYhah9eSXZnUu/4k9QA1l3ZtLujcrSwItPsQ=\n-----END PUBLIC KEY-----\n"
+  }
+}

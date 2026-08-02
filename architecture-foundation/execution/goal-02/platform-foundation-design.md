@@ -7,7 +7,8 @@
 - 前置提交：G00 `c10a3a2c636fa0f62f8108a113a729138e367929`；G01
   `051ad988edcc204fbd716f6ea73ce92ec08ab4b2`
 - 本文状态：`target_contract`
-- Runtime 状态：在本 Goal 的红绿测试完成前为 `not_run`
+- Runtime 状态：仅 evidence index 明确链接的本地/受控切片可分别标为
+  `verified_local`/`verified_controlled`；其余为 `not_run`
 - Production eligibility：`false`
 
 G02 只建立所有产品域共享的平台护栏，不实现 SIP、codec、RTPengine、LiveKit handoff、
@@ -31,7 +32,7 @@ Engagement/Profile 或 Agent 业务。普通 RTP/RTCP/SRTP 数据面不调用本
 | CDR convergence | `src/agent-runtime/converact/voice/cdr-convergence.ts` | `reuse_as_input_adapter` | 有序列、owner epoch、payload hash、durable receipt、单次 billing event；不是最终 Billing Authority |
 | Recording | `src/agent-runtime/converact/recordings/` | `reuse_and_bind` | capture/upload 隔离、owner epoch、segment generation、checksum、bounded spool 可复用；需绑定 ConsentLease 与唯一 segment billing key |
 | Telemetry | `src/telemetry.ts`、`src/metrics.ts` | `reuse_and_harden` | OTLP queue/batch/timeout 有界；旧指标把 `tenant_id` 放入 Prometheus 标签，缺统一 correlation、cardinality budget 与 exporter 故障隔离证明 |
-| Readiness/drain | `src/agent-runtime/converact/operations/readiness.ts`、`placement/` | `reuse_patterns` | 已有 migration/readiness/heartbeat/placement drain；尚无跨 Authority active-zero receipt 和平台统一 drain contract |
+| Readiness/drain | `src/agent-runtime/converact/operations/readiness.ts`、`placement/` | `reuse_patterns` | 已有 migration/readiness/heartbeat/placement drain；本 Goal 已建立并受控验证平台 drain coordinator 与签名 active-zero contract，但独立生产 Authority reporters 和已部署 multi-node/fleet drain 仍未证明 |
 | Backup/restore | `src/agent-runtime/converact/operations/backup-runner.ts` | `reuse_and_qualify` | 有 checksum、partial marker、empty-target guard 与多 DB/object restore；真实 restore、RTO/RPO、region recovery 均未重新证明 |
 | Clock | 分散的 `Date.now()`/`new Date()`，少数 placement 注入 clock | `replace_with_port` | wall/monotonic/RTP clock 未形成统一类型边界；部分名为 monotonic 的默认值仍是 `Date.now` |
 | Secret/key | `src/sso-config-store.ts`、env resolvers、`internal-tls.ts`、各 provider resolver | `isolate_behind_port` | OIDC `client_secret` 有明文 SQLite 存储路径；没有统一 key version/rotation/revocation/zeroization/core-dump/native Gate |
@@ -197,6 +198,8 @@ zeroize、core-dump disabled、fuzz/sanitizer evidence 与独立 fault isolation
 
 ## 8. Verification boundary
 
-本地 unit/property/schema 测试只能把相应条目标为 `verified_local`。真实 Postgres、event bus、
-object store、PKI/KMS、DNS、clock fault、long media、multi-node drain、backup restore、region DR、
-capacity 与 overload 在取得当前 commit 原始 Evidence 前全部 `not_run`。历史 Evidence 不继承。
+本地 unit/property/schema 测试只能把相应条目标为 `verified_local`。当前 evidence index 另行链接了
+受控数据库重启、冻结检查点恢复、固定主机控制面容量和固定主机多进程 drain/node-loss 切片；它们
+仅为 `verified_controlled`。真实完整依赖矩阵、continuous-write PITR、long media、已部署
+multi-node/fleet drain、SIP/media/fleet capacity、region DR、native safety 与 production eligibility
+仍为 `not_run`。历史 Evidence 不继承，受控证据不得外推到未测范围。

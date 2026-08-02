@@ -427,15 +427,18 @@ Controlled progress, without promoting the aggregate task:
   verify one object, exact checkpoint digest, fresh-process RLS/append-only behavior, RPO 0 and measured RTO.
 - [x] Verify every retained raw hash, byte-identical unrelated-container snapshots, zero campaign resources and
   secret-shaped evidence rejection.
-- [x] Keep the aggregate dependency matrix, real Human Communication, SIP/media/mixed-cell/fleet capacity, drain,
-  region and production claims `not_run`; frozen-checkpoint restore alone is `verified_controlled`.
+- [x] Run the exact-source fixed-host multi-process drain/node-loss slice, retain both signed receipt revisions,
+  verify active-zero and owner-epoch fencing, and accept only `G02-E11-DRAIN` as `verified_controlled`.
+- [x] Keep the aggregate dependency matrix, real Human Communication, SIP/media/mixed-cell/fleet capacity,
+  deployed multi-node/fleet drain, region and production claims `not_run`; controlled evidence never promotes them.
 
 - [ ] Build a fenced fault harness for Postgres, event system, object store, PKI/KMS, DNS, config, wall clock,
   AI/GPU, recording upload, provider, observability and node crash.
 - [ ] Prove single-node crash/restart, stale owner, duplicate/reorder, N/N-1 rolling and key rotation.
 - [x] Run frozen-checkpoint backup/restore rehearsal and capture measured RPO/RTO; continuous-write PITR and
   region DR remain separate `not_run` gates.
-- [ ] Run multi-node drain/node loss/region recovery with active-zero receipts.
+- [x] Run fixed-host multi-process drain/node loss with signed active-zero receipts and retain exact-source evidence.
+- [ ] Run deployed multi-node/fleet drain and region recovery with independently operated Authority reporters.
 - [ ] Run each fault beside a real long Human Communication session and prove no causal termination from optional
   dependencies; separately report embedded process-owned edge interruption.
 - [x] Run bounded queue/retry/fanout overload and capacity on fixed hardware/config/workload; this proves only the
@@ -465,9 +468,10 @@ Controlled progress, without promoting the aggregate task:
   process exit/signal, admission error codes, signed active-zero vector, schema decisions and bounded cleanup facts.
 - [x] GREEN: implement only the platform drain coordinator and receipt verifier; reuse existing Cell and component
   admission controllers plus the production event decoder/inbox decision functions in the campaign.
-- [ ] Run an exact-source, clean-checkout multi-process campaign on `ubuntu@101.42.7.139`; keep all nine existing
+- [x] Run an exact-source, clean-checkout multi-process campaign on `ubuntu@101.42.7.139`; keep all nine existing
   containers stopped and prove their before/after snapshots are byte-identical.
-- [ ] Retain raw output/manifests/identity/non-claim and independent review. This campaign cannot claim real media,
+- [x] Retain raw output/manifests/identity/non-claim and independent review for source `1efcfc5`, Run
+  `drain-1efcfc5-04`, with final `Critical 0 / High 0 / Important 0 / Minor 0`. This campaign cannot claim real media,
   region recovery, production eligibility or continuation of an embedded process-owned edge.
 
 ## 15. Task T13 — Independent review and closeout

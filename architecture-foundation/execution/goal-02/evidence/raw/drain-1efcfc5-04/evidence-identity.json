@@ -1,0 +1,19 @@
+{
+  "goal_id": "G02",
+  "goal_sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9",
+  "source_commit": "1efcfc553602a29b17abc5565505645385ff3529",
+  "config_sha256": "ecbaa9b8d5a4dd6db97959b39e86a1a7187c3cfcb8411971aabd9338a739f9db",
+  "raw_output_sha256": "a57f05fe9689ad7febc0e5a98ed4b4734f3ccc24f0957cd90beac75a607dee68",
+  "image_digests": [
+    "node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d"
+  ],
+  "node_binary_sha256": "41a74efb34cbde5c7632cdac0cf8bd1a14d0b8d73dc1e82755014d9a9ce70f5c",
+  "node_version": "v24.18.0",
+  "host": "VM-0-3-ubuntu",
+  "hardware": "Linux 6.8.0-71-generic x86_64 GNU/Linux; 2 vCPU; 7.5 GiB RAM; Node v24.18.0",
+  "clock": "UTC wall clock for receipt audit; Node monotonic performance clock for drain deadline; kvm-clock kernel clocksource",
+  "workload": "production Cell and component admission controllers; production signed active-zero coordinator; four child roles; actual SIGKILL; event N/N-1 and replay decisions; no media and no container actions",
+  "seed": "drain-1efcfc5-04",
+  "started_at": "2026-08-02T02:25:58.531Z",
+  "completed_at": "2026-08-02T02:26:00.276Z"
+}

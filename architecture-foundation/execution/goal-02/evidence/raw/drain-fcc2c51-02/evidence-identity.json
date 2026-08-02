@@ -1,0 +1,19 @@
+{
+  "goal_id": "G02",
+  "goal_sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9",
+  "source_commit": "fcc2c511a5950efbb275c7863f889d7ec9a89c51",
+  "config_sha256": "63a8aeaceab93ddb859fdc85fab82230aa40f8d65c4f28281cfeaa8d41d5cf83",
+  "raw_output_sha256": "463b875662a5ce61cae97a31b66860e6442a2cc59efba042c8c59cc3d2abf12b",
+  "image_digests": [
+    "node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d"
+  ],
+  "node_binary_sha256": "41a74efb34cbde5c7632cdac0cf8bd1a14d0b8d73dc1e82755014d9a9ce70f5c",
+  "node_version": "v24.18.0",
+  "host": "VM-0-3-ubuntu",
+  "hardware": "Linux 6.8.0-71-generic x86_64 GNU/Linux; 2 vCPU; 7.5 GiB RAM; Node v24.18.0",
+  "clock": "UTC wall clock for receipt audit; Node monotonic performance clock for drain deadline; kvm-clock kernel clocksource",
+  "workload": "production Cell and component admission controllers; production signed active-zero coordinator; four child roles; actual SIGKILL; event N/N-1 and replay decisions; no media and no container actions",
+  "seed": "drain-fcc2c51-02",
+  "started_at": "2026-08-02T01:50:44.517Z",
+  "completed_at": "2026-08-02T01:50:46.262Z"
+}

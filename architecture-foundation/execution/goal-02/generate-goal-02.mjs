@@ -610,6 +610,14 @@ function evidenceIndex() {
     'architecture-foundation/execution/goal-02/evidence/raw/restore-a517cf3-01/raw-output.sha256';
   const controlledRestoreSupplementalManifestUri =
     'architecture-foundation/execution/goal-02/evidence/raw/restore-a517cf3-01/supplemental-manifest.sha256';
+  const controlledDrainEvidenceUri =
+    'architecture-foundation/execution/goal-02/evidence/drain-1efcfc5-04.md';
+  const controlledDrainRawManifestUri =
+    'architecture-foundation/execution/goal-02/evidence/raw/drain-1efcfc5-04/raw-output.sha256';
+  const controlledDrainSupplementalManifestUri =
+    'architecture-foundation/execution/goal-02/evidence/raw/drain-1efcfc5-04/supplemental-manifest.sha256';
+  const controlledDrainPostTransferManifestUri =
+    'architecture-foundation/execution/goal-02/evidence/raw/drain-1efcfc5-04/post-transfer-secret-scan.sha256';
   const independentReviewUri =
     'architecture-foundation/execution/goal-02/independent-review.md';
   const entry = (
@@ -662,6 +670,15 @@ function evidenceIndex() {
     ]),
     non_claim: 'One isolated frozen-checkpoint restore into a distinct empty PostgreSQL target verified the production backup/restore path, one object, runtime RLS, append-only history and measured RPO/RTO. It does not prove continuous-write PITR, region recovery, production DR, long media, the remaining dependency matrix, SIP/media capacity or native safety.',
   });
+  const controlledDrain = (id, evidenceClass, scope, requiredEvidence) => ({
+    ...entry(id, evidenceClass, scope, requiredEvidence, 'verified_controlled', [
+      controlledDrainEvidenceUri,
+      controlledDrainRawManifestUri,
+      controlledDrainSupplementalManifestUri,
+      controlledDrainPostTransferManifestUri,
+    ]),
+    non_claim: 'One fixed-host controlled multi-process slice verified exact drain phases, a signed revision-1-to-revision-2 active-zero transition, process loss, placement/owner-epoch fencing and local rolling-schema decisions. All keys and reports were self-generated inside one controlled child, and only communication used a real reservation; the other six Authority inputs were constructed empty. It does not prove independent production trust or reporters, a deployed rolling fleet, SIP or real Human Communication media continuity, embedded-edge survival, region recovery, DR, fleet/media capacity or production behavior.',
+  });
   const entries = [
     entry('G02-E00-DESIGN', 'document_contract', 'design_authority_threat_recovery', ['contract test'], 'target_contract'),
     local('G02-E01-IDENTITY', 'local_test', 'tenant_identity_cross_tenant', ['focused tests', 'RLS integration']),
@@ -685,7 +702,12 @@ function evidenceIndex() {
       'backup_restore_rehearsal',
       ['raw restore output', 'RPO/RTO'],
     ),
-    entry('G02-E11-DRAIN', 'rolling_drain', 'node_loss_rolling_schema_active_zero', ['raw multi-node output']),
+    controlledDrain(
+      'G02-E11-DRAIN',
+      'rolling_drain',
+      'fixed_host_multi_process_node_loss_rolling_schema_active_zero',
+      ['raw fixed-host multi-process output', 'signed active-zero receipts', 'source and runtime identity'],
+    ),
     entry('G02-E12-LONG-MEDIA', 'long_media_fault', 'established_human_media_fault_isolation', ['real long media and fault schedule']),
     controlledCapacity(
       'G02-E13-CAPACITY',
@@ -704,7 +726,7 @@ function evidenceIndex() {
         'verified_local',
         [independentReviewUri],
       ),
-      non_claim: 'Independent review accepted the local foundation, controlled database restart, frozen-checkpoint restore and fixed-host control-plane capacity only; external dependency, continuous-write PITR, long-media, drain, SIP/media/fleet capacity, region, native-safety and production gates remain unproved.',
+      non_claim: 'Independent review accepted the local foundation, controlled database restart, frozen-checkpoint restore, fixed-host control-plane capacity and fixed-host multi-process drain slice only; external dependency, continuous-write PITR, long-media, deployed SIP/media/fleet drain and capacity, region, native-safety and production gates remain unproved.',
     },
   ];
   return {

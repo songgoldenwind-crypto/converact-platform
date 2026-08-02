@@ -22,8 +22,9 @@ volume, network, database, credential, port, or evidence directory.
 - The drain executable slice runs the production Cell/component admission controllers, platform drain coordinator
   and event compatibility decisions across separate Node processes. It observes an actual `SIGKILL`, stale-owner
   rejection, the seven-phase monotonic drain sequence and an independent fresh-process verification of seven
-  Ed25519-bound zero receipts. It performs no container action and makes no real-media or region claim. Until an
-  exact-source fixed-host result is retained and reviewed, `G02-E11-DRAIN` remains `not_run`.
+  Ed25519-bound zero receipts. Exact-source Run `drain-1efcfc5-04` is retained and independently reviewed, so only
+  this fixed-host controlled slice is `verified_controlled`. It performs no container action and makes no real-media,
+  deployed multi-node/fleet, region or production claim.
 - Event system, object store, PKI/KMS, DNS, configuration, wall-clock, AI/GPU, recording upload, provider,
   observability and host/node adapters are not yet executed by this slice.
 - Every unexecuted dependency remains `not_run`.
@@ -77,9 +78,10 @@ container/network/volume. It refuses to overwrite an existing run. Evidence is w
 identity and a final `database-controlled-evidence.json`.
 
 An accepted database result is only `verified_controlled` for that database restart scenario. An accepted control
-result is only `verified_controlled` for the bounded platform control primitive on the exact measured host. The
-aggregate matrix, real long media, SIP/media/mixed-cell/fleet capacity, multi-node drain, region recovery, DR and
-production eligibility remain `not_run`.
+result is only `verified_controlled` for the bounded platform control primitive on the exact measured host. An
+accepted drain result is only `verified_controlled` for its fixed-host multi-process coordinator/admission slice.
+The aggregate matrix, real long media, SIP/media/mixed-cell/fleet capacity, deployed multi-node/fleet drain, region
+recovery, DR and production eligibility remain `not_run`.
 
 Controlled fixed-host capacity campaign:
 

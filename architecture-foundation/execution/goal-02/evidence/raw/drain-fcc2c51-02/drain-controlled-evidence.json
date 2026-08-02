@@ -1,0 +1,135 @@
+{
+  "evidence_id": "G02-E11-DRAIN",
+  "status": "verified_controlled",
+  "production_eligible": false,
+  "evidence": {
+    "status": "passed",
+    "duration_ms": 976,
+    "clock_domain": "monotonic",
+    "orchestrator_pid": 3418849,
+    "drain_node_pid": 3418857,
+    "lost_node_pid": 3418869,
+    "recovery_node_pid": 3418881,
+    "fresh_verifier_pid": 3418901,
+    "drain_node_exit_code": 0,
+    "drain_node_exit_signal": null,
+    "lost_node_exit_code": null,
+    "lost_node_exit_signal": "SIGKILL",
+    "recovery_node_exit_code": 0,
+    "recovery_node_exit_signal": null,
+    "fresh_verifier_exit_code": 0,
+    "fresh_verifier_exit_signal": null,
+    "phase_sequence": [
+      "accepting",
+      "route_draining",
+      "worker_draining",
+      "authority_draining",
+      "active_zero_verified",
+      "quiesced",
+      "stopped"
+    ],
+    "drain_rejection_code": "component_node_draining",
+    "established_mutations_before_drain": 1,
+    "established_mutations_during_drain": 1,
+    "established_close_state": "closed",
+    "active_zero_receipts": [
+      {
+        "authority": "platform_worker_leases",
+        "key_id": "drain-platform_worker_leases-key-v1",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "body_sha256": "23953f3de5c1ed12280b2b3c6ea89dae42205172323504283c697fb44acc1dad",
+        "signature_sha256": "91f7d47af86d2bf30c4a423c52eb04b7543793a98cba65b81337a326fbe3cd9b"
+      },
+      {
+        "authority": "domain_event_inflight",
+        "key_id": "drain-domain_event_inflight-key-v1",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "body_sha256": "d967f997990e8f813b58465210c9903f85097b8030e312dfbc1064838faa5933",
+        "signature_sha256": "d7c32b263d425f82a8f8c563e83639bf65eb7da2dcdd11bb65d46bbd8165ecdb"
+      },
+      {
+        "authority": "communication_attached_generations",
+        "key_id": "drain-communication_attached_generations-key-v1",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "body_sha256": "a9c71df2495defe953e2b3a42d5d9bf3f5b736746f0dff782f0c9ab716b72a0c",
+        "signature_sha256": "37e3c36a17cec65fc6a0553265699f1a94f96f16aab5d15a12fc15709afa5cea"
+      },
+      {
+        "authority": "recording_attached_generations",
+        "key_id": "drain-recording_attached_generations-key-v1",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "body_sha256": "1d0c5fbf906cf48c83bd54cc4e9f468778dc313abb816996e4c0f7dce6c13e35",
+        "signature_sha256": "8424c37f03df38bb2dd843de953c8189b4b767bbfcc7009806a8ef446727819b"
+      },
+      {
+        "authority": "ai_attached_generations",
+        "key_id": "drain-ai_attached_generations-key-v1",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "body_sha256": "4e5c187c6ce8dbfa56d3fdc16c94e3ec3b4e2c2ffb04df1b29f03301d317bc3c",
+        "signature_sha256": "d2ee4f951a93f07e53987f1f6f2739460443ac2b1389d2768133ea3a8ae372f2"
+      },
+      {
+        "authority": "unobserved_effect_receipts",
+        "key_id": "drain-unobserved_effect_receipts-key-v1",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "body_sha256": "9f4dce745b73e19b1d4084c8f5093990623da1d0966f63ad482b5281f6c0eeaa",
+        "signature_sha256": "7ce671483394c60d2023b82847f7e6dc06489cd3c4e9a37e4227b669f97ae361"
+      },
+      {
+        "authority": "billing_projection_conflicts",
+        "key_id": "drain-billing_projection_conflicts-key-v1",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "body_sha256": "3c1de37e42c7af7c03067e3555acf589925276d1f79403dc329c339c2a342bb6",
+        "signature_sha256": "6dfd021d9debf678156dc51a6f03bec73acd147583d11340f713f69d66c99da4"
+      }
+    ],
+    "receipts_manifest_sha256": "1caff6097f4db23e8ea0bcdf944dc90df6211534dd7429eb9c525b64676185d3",
+    "fresh_receipt_verification_count": 7,
+    "fresh_receipt_verified_phase": "active_zero_verified",
+    "initial_owner_node_id": "node-lost",
+    "post_loss_owner_node_id": "node-recovery",
+    "initial_owner_epoch": "4294967299",
+    "post_loss_owner_epoch": "4294967300",
+    "stale_owner_error_code": "stale_owner_epoch",
+    "post_loss_new_work_state": "active",
+    "rolling_schema": {
+      "n_plus_1_reads_n": "accepted",
+      "additive_minor": "accepted",
+      "unknown_major": "quarantined:unsupported_schema_version",
+      "duplicate": "replay",
+      "stale": "stale",
+      "gap": "gap_requires_reconcile",
+      "distinct_ordering_key": "insert"
+    },
+    "unrelated_containers_before_sha256": "813f75653746be1a506520dea825fc8462595a207be99b072f1b72e9152ca4d0",
+    "unrelated_containers_after_sha256": "813f75653746be1a506520dea825fc8462595a207be99b072f1b72e9152ca4d0",
+    "container_actions": 0,
+    "validation_processes_remaining": 0,
+    "identity": {
+      "goal_id": "G02",
+      "goal_sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9",
+      "source_commit": "fcc2c511a5950efbb275c7863f889d7ec9a89c51",
+      "config_sha256": "63a8aeaceab93ddb859fdc85fab82230aa40f8d65c4f28281cfeaa8d41d5cf83",
+      "raw_output_sha256": "463b875662a5ce61cae97a31b66860e6442a2cc59efba042c8c59cc3d2abf12b",
+      "image_digests": [
+        "node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d"
+      ],
+      "node_binary_sha256": "41a74efb34cbde5c7632cdac0cf8bd1a14d0b8d73dc1e82755014d9a9ce70f5c",
+      "node_version": "v24.18.0",
+      "host": "VM-0-3-ubuntu",
+      "hardware": "Linux 6.8.0-71-generic x86_64 GNU/Linux; 2 vCPU; 7.5 GiB RAM; Node v24.18.0",
+      "clock": "UTC wall clock for receipt audit; Node monotonic performance clock for drain deadline; kvm-clock kernel clocksource",
+      "workload": "production Cell and component admission controllers; production signed active-zero coordinator; four child roles; actual SIGKILL; event N/N-1 and replay decisions; no media and no container actions",
+      "seed": "drain-fcc2c51-02",
+      "started_at": "2026-08-02T01:50:44.517Z",
+      "completed_at": "2026-08-02T01:50:46.262Z"
+    }
+  }
+}

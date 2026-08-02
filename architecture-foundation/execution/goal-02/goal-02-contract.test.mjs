@@ -9,6 +9,7 @@ import test from 'node:test';
 import Ajv2020 from 'ajv/dist/2020.js';
 import {
   buildBackupRestoreEvidence,
+  buildDrainEvidence,
 } from '../../../services/converact-service/acceptance/platform-fault-matrix/campaign-evidence.mjs';
 
 const goalDirectory = dirname(fileURLToPath(import.meta.url));
@@ -119,9 +120,10 @@ test('final independent review is accepted only with explicit external evidence 
   assert.match(review, /Reviewer task: `\/root\/g02_final_independent_review`/);
   assert.match(review, /Reviewed commit: `c920d7a59e02daba38118491217630fef94ce393`/);
   assert.match(review, /Binary diff SHA-256: `341e2bbb844e3bbf705c1f6e6faec670a258434a1d489de2dd2fc0d8a2781cae`/);
-  assert.match(review, /Latest incremental reviewed commit: `a517cf368bc25417c0f51870091e3306592b6fc4`/);
+  assert.match(review, /Latest incremental reviewed commit: `1efcfc553602a29b17abc5565505645385ff3529`/);
   assert.match(review, /Latest accepted capacity run: `capacity-b263a55-01`/);
   assert.match(review, /Latest accepted restore run: `restore-a517cf3-01`/);
+  assert.match(review, /Latest accepted drain run: `drain-1efcfc5-04`/);
   assert.match(review, /Critical: `0`/);
   assert.match(review, /High: `0`/);
   assert.match(review, /Important: `0`/);
@@ -158,7 +160,6 @@ test('final independent review is accepted only with explicit external evidence 
 
   const remainingNotRun = new Set([
     'G02-E09-DEPENDENCY',
-    'G02-E11-DRAIN',
     'G02-E12-LONG-MEDIA',
     'G02-E14-REGION',
     'G02-E15-NATIVE',
@@ -282,6 +283,14 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
     'architecture-foundation/execution/goal-02/evidence/raw/restore-a517cf3-01/raw-output.sha256';
   const controlledRestoreSupplementalManifest =
     'architecture-foundation/execution/goal-02/evidence/raw/restore-a517cf3-01/supplemental-manifest.sha256';
+  const controlledDrainEvidence =
+    'architecture-foundation/execution/goal-02/evidence/drain-1efcfc5-04.md';
+  const controlledDrainRawManifest =
+    'architecture-foundation/execution/goal-02/evidence/raw/drain-1efcfc5-04/raw-output.sha256';
+  const controlledDrainSupplementalManifest =
+    'architecture-foundation/execution/goal-02/evidence/raw/drain-1efcfc5-04/supplemental-manifest.sha256';
+  const controlledDrainPostTransferManifest =
+    'architecture-foundation/execution/goal-02/evidence/raw/drain-1efcfc5-04/post-transfer-secret-scan.sha256';
   const rejectedRestoreEvidence =
     'architecture-foundation/execution/goal-02/evidence/restore-7a46401-01.md';
   const rejectedRestoreRawManifest =
@@ -334,6 +343,15 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
         controlledRestoreSupplementalManifest,
       ]);
       assert.match(entry.non_claim, /frozen-checkpoint.*does not prove continuous-write PITR/is);
+    } else if (entry.evidence_id === 'G02-E11-DRAIN') {
+      assert.equal(entry.status, 'verified_controlled');
+      assert.deepEqual(entry.evidence_uris, [
+        controlledDrainEvidence,
+        controlledDrainRawManifest,
+        controlledDrainSupplementalManifest,
+        controlledDrainPostTransferManifest,
+      ]);
+      assert.match(entry.non_claim, /self-generated.*does not prove.*SIP.*media/is);
     } else if (entry.evidence_id === 'G02-E16-REVIEW') {
       assert.equal(entry.status, 'verified_local');
       assert.deepEqual(entry.evidence_uris, [
@@ -350,7 +368,7 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
   );
   assert.equal(evidence.summary.production_eligible_entries, 0);
   assert.equal(evidence.summary.verified_local_entries, verifiedLocal.size + 1);
-  assert.equal(evidence.summary.verified_controlled_entries, 3);
+  assert.equal(evidence.summary.verified_controlled_entries, 4);
   const localVerificationRecord = readFileSync(
     join(repositoryRoot, localEvidence),
     'utf8',
@@ -556,6 +574,83 @@ test('evidence registry never promotes historical or unexecuted acceptance', () 
     backup: restoreResult.evidence.backup,
     restore: restoreResult.evidence.restore,
   }).status, 'verified_controlled');
+  const controlledDrainRecord = readFileSync(
+    join(repositoryRoot, controlledDrainEvidence),
+    'utf8',
+  );
+  assert.match(controlledDrainRecord, /1efcfc553602a29b17abc5565505645385ff3529/);
+  assert.match(controlledDrainRecord, /a57f05fe9689ad7febc0e5a98ed4b4734f3ccc24f0957cd90beac75a607dee68/);
+  assert.match(controlledDrainRecord, /14\/14 Ed25519 signatures/);
+  assert.match(controlledDrainRecord, /production_eligible.*false/is);
+  assert.match(controlledDrainRecord, /does not prove.*SIP.*media/is);
+  const drainRawEntries = readFileSync(
+    join(repositoryRoot, controlledDrainRawManifest),
+    'utf8',
+  ).trim().split('\n');
+  assert.equal(drainRawEntries.length, 6);
+  for (const line of drainRawEntries) {
+    const match = /^([a-f0-9]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,127})$/u.exec(line);
+    assert.ok(match, `invalid drain raw manifest entry: ${line}`);
+    assert.equal(
+      sha256File(join(dirname(join(repositoryRoot, controlledDrainRawManifest)), match[2])),
+      match[1],
+      `drain raw digest mismatch: ${match[2]}`,
+    );
+  }
+  const drainSupplementalEntries = readFileSync(
+    join(repositoryRoot, controlledDrainSupplementalManifest),
+    'utf8',
+  ).trim().split('\n');
+  assert.equal(drainSupplementalEntries.length, 10);
+  for (const line of drainSupplementalEntries) {
+    const match = /^([a-f0-9]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,127})$/u.exec(line);
+    assert.ok(match, `invalid drain supplemental manifest entry: ${line}`);
+    assert.equal(
+      sha256File(join(dirname(join(repositoryRoot, controlledDrainSupplementalManifest)), match[2])),
+      match[1],
+      `drain supplemental digest mismatch: ${match[2]}`,
+    );
+  }
+  const drainPostTransferEntries = readFileSync(
+    join(repositoryRoot, controlledDrainPostTransferManifest),
+    'utf8',
+  ).trim().split('\n');
+  assert.equal(drainPostTransferEntries.length, 11);
+  for (const line of drainPostTransferEntries) {
+    const match = /^([a-f0-9]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,127})$/u.exec(line);
+    assert.ok(match, `invalid drain post-transfer manifest entry: ${line}`);
+    assert.equal(
+      sha256File(join(dirname(join(repositoryRoot, controlledDrainPostTransferManifest)), match[2])),
+      match[1],
+      `drain post-transfer digest mismatch: ${match[2]}`,
+    );
+  }
+  const drainRawDirectory = dirname(join(repositoryRoot, controlledDrainRawManifest));
+  const drainResult = readJson(join(drainRawDirectory, 'drain-controlled-evidence.json'));
+  const rebuiltDrain = buildDrainEvidence({
+    identity: readJson(join(drainRawDirectory, 'evidence-identity.json')),
+    raw_manifest: readFileSync(join(drainRawDirectory, 'raw-output.sha256'), 'utf8'),
+    raw_artifacts: Object.fromEntries([
+      'drain-public-keys.json',
+      'drain-receipts.json',
+      'drain-result.json',
+      'drain-run.log',
+      'unrelated-containers-after.tsv',
+      'unrelated-containers-before.tsv',
+    ].map((name) => [name, readFileSync(join(drainRawDirectory, name), 'utf8')])),
+  });
+  assert.deepEqual(rebuiltDrain, drainResult);
+  assert.equal(drainResult.status, 'verified_controlled');
+  assert.equal(drainResult.production_eligible, false);
+  assert.equal(drainResult.evidence.identity.source_commit, '1efcfc553602a29b17abc5565505645385ff3529');
+  assert.equal(drainResult.evidence.initial_nonzero_receipts.length, 7);
+  assert.equal(drainResult.evidence.active_zero_receipts.length, 7);
+  assert.equal(drainResult.evidence.initial_nonzero_receipts.find(
+    (receipt) => receipt.authority === 'communication_attached_generations',
+  )?.active_count, '1');
+  assert.equal(drainResult.evidence.active_zero_receipts.every(
+    (receipt) => receipt.active_count === '0',
+  ), true);
   const rejectedRestoreRecord = readFileSync(
     join(repositoryRoot, rejectedRestoreEvidence),
     'utf8',

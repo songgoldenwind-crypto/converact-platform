@@ -198,14 +198,21 @@
     {
       "evidence_id": "G02-E11-DRAIN",
       "evidence_class": "rolling_drain",
-      "scope": "node_loss_rolling_schema_active_zero",
-      "status": "not_run",
+      "scope": "fixed_host_multi_process_node_loss_rolling_schema_active_zero",
+      "status": "verified_controlled",
       "production_eligible": false,
       "required_evidence": [
-        "raw multi-node output"
+        "raw fixed-host multi-process output",
+        "signed active-zero receipts",
+        "source and runtime identity"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/drain-1efcfc5-04.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/drain-1efcfc5-04/raw-output.sha256",
+        "architecture-foundation/execution/goal-02/evidence/raw/drain-1efcfc5-04/supplemental-manifest.sha256",
+        "architecture-foundation/execution/goal-02/evidence/raw/drain-1efcfc5-04/post-transfer-secret-scan.sha256"
+      ],
+      "non_claim": "One fixed-host controlled multi-process slice verified exact drain phases, a signed revision-1-to-revision-2 active-zero transition, process loss, placement/owner-epoch fencing and local rolling-schema decisions. All keys and reports were self-generated inside one controlled child, and only communication used a real reservation; the other six Authority inputs were constructed empty. It does not prove independent production trust or reporters, a deployed rolling fleet, SIP or real Human Communication media continuity, embedded-edge survival, region recovery, DR, fleet/media capacity or production behavior."
     },
     {
       "evidence_id": "G02-E12-LONG-MEDIA",
@@ -272,15 +279,15 @@
       "evidence_uris": [
         "architecture-foundation/execution/goal-02/independent-review.md"
       ],
-      "non_claim": "Independent review accepted the local foundation, controlled database restart, frozen-checkpoint restore and fixed-host control-plane capacity only; external dependency, continuous-write PITR, long-media, drain, SIP/media/fleet capacity, region, native-safety and production gates remain unproved."
+      "non_claim": "Independent review accepted the local foundation, controlled database restart, frozen-checkpoint restore, fixed-host control-plane capacity and fixed-host multi-process drain slice only; external dependency, continuous-write PITR, long-media, deployed SIP/media/fleet drain and capacity, region, native-safety and production gates remain unproved."
     }
   ],
   "summary": {
     "entries": 18,
     "target_contract_entries": 1,
     "verified_local_entries": 9,
-    "verified_controlled_entries": 3,
-    "not_run_entries": 5,
+    "verified_controlled_entries": 4,
+    "not_run_entries": 4,
     "production_eligible_entries": 0
   }
 }

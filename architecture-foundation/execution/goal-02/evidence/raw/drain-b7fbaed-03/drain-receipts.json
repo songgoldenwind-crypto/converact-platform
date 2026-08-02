@@ -1,0 +1,230 @@
+{
+  "initial_receipts": [
+    {
+      "key_id": "drain-platform_worker_leases-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "platform_worker_leases",
+        "receipt_revision": 1,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.646Z",
+        "expires_at": "2026-08-02T02:16:26.646Z"
+      },
+      "signature": "67GIJW64wyuc489JydinwJMyFubuCRXJFMK-yAgEuMe6EYKxnQVNgWbk-MkuWqJhdWnPBKQVeYAjUCRuordNBg"
+    },
+    {
+      "key_id": "drain-domain_event_inflight-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "domain_event_inflight",
+        "receipt_revision": 1,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.646Z",
+        "expires_at": "2026-08-02T02:16:26.646Z"
+      },
+      "signature": "t2LvlD5MXUhtjemaemoCE8O1ZMbskbzzB4-VCEkdqzF0r7EIxiJOpgz2AZoyeH22IlNZ8U--NR2nxIYcrNC7AA"
+    },
+    {
+      "key_id": "drain-communication_attached_generations-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "communication_attached_generations",
+        "receipt_revision": 1,
+        "active_count": "1",
+        "active_id_digest": "77500663cee99c7559ac0fe3d320b879bbf5f862522ed6d95dccec7fb5a3b6fb",
+        "observed_at": "2026-08-02T02:15:26.646Z",
+        "expires_at": "2026-08-02T02:16:26.646Z"
+      },
+      "signature": "xgdijT--tUFMwrpt8EWR1rvEpYJ9QcROmbdUxev5ILBIqR_3YK6R5emyxQkJLYoVApyUDv8MmxhpFIscS4HEDw"
+    },
+    {
+      "key_id": "drain-recording_attached_generations-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "recording_attached_generations",
+        "receipt_revision": 1,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.646Z",
+        "expires_at": "2026-08-02T02:16:26.646Z"
+      },
+      "signature": "u1nhZO3icvHRdgJ8c-t5q_0tTiwTUxKqdexLGcmBtbRYSgMCdHpOC3RdFNlaFU01Fu8I3TltyMgonS0m1a2eAw"
+    },
+    {
+      "key_id": "drain-ai_attached_generations-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "ai_attached_generations",
+        "receipt_revision": 1,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.646Z",
+        "expires_at": "2026-08-02T02:16:26.646Z"
+      },
+      "signature": "BIq7bkVUYf1OghSlFoS3L3lEHxwcKRa6T3xqnZf8aKf9ZuQYUuczIK9Ct8zbn-gO25FNoxr5NsiqCEiuMqG1Bg"
+    },
+    {
+      "key_id": "drain-unobserved_effect_receipts-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "unobserved_effect_receipts",
+        "receipt_revision": 1,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.646Z",
+        "expires_at": "2026-08-02T02:16:26.646Z"
+      },
+      "signature": "d1vz_1CTiRN798vvSqlKVdV7XCdfdsWwd9fKs3e55JQjnHqDm2-CHyKK-jJaFP7Kv-UffyKWs9MNpdZJPvQrDw"
+    },
+    {
+      "key_id": "drain-billing_projection_conflicts-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "billing_projection_conflicts",
+        "receipt_revision": 1,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.646Z",
+        "expires_at": "2026-08-02T02:16:26.646Z"
+      },
+      "signature": "KRFgstDBFv1uv6C7NoSe5h9j1Bb7EM-T34qbifpDZ1UK1XUSf4jb7BEJDCsrddEc3EcBbW5XVMJdHAOJQdCbDQ"
+    }
+  ],
+  "active_zero_receipts": [
+    {
+      "key_id": "drain-platform_worker_leases-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "platform_worker_leases",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.655Z",
+        "expires_at": "2026-08-02T02:16:26.655Z"
+      },
+      "signature": "VMjL11NcSrTgVe5PyIWA3ivsxQMDA7oUYlsi77hXbD8Hfk7d_YjB1BCTL4tWTnh1QxLanjQTa_ty0-eCocPICw"
+    },
+    {
+      "key_id": "drain-domain_event_inflight-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "domain_event_inflight",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.655Z",
+        "expires_at": "2026-08-02T02:16:26.655Z"
+      },
+      "signature": "i3MzHQ6cL0OQI-e3N2DYYD0N1LMDXzcXnE08mEdCDKS3YI8Anx8pkqiM2p0qseJpva_0KFvwHBiA0w4k20RgBw"
+    },
+    {
+      "key_id": "drain-communication_attached_generations-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "communication_attached_generations",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.655Z",
+        "expires_at": "2026-08-02T02:16:26.655Z"
+      },
+      "signature": "cyz-_O3v4Deo6RG3TPUWH08pquj_emO7qQOPEo-J3b_5Zq4jdaw7asXTnRFiaxl3YNCz9T1rLDVUF0SMX91KBQ"
+    },
+    {
+      "key_id": "drain-recording_attached_generations-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "recording_attached_generations",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.655Z",
+        "expires_at": "2026-08-02T02:16:26.655Z"
+      },
+      "signature": "cnJJbq3jCUFGbQSm0UatOkxKqWfQPvUDE0diZke4O6oILZUVIqwXdwyr6JnEI0fYLdHevdMBvyhgbmqdPeATDw"
+    },
+    {
+      "key_id": "drain-ai_attached_generations-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "ai_attached_generations",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.655Z",
+        "expires_at": "2026-08-02T02:16:26.655Z"
+      },
+      "signature": "XzNhDCTeBshITlT0JBFyTa-9P3g9cmbH2GhokJngobQ64I8P7FYCa86PJ2xPNujrk4dqYzm_ISmhNXNUhxWlCQ"
+    },
+    {
+      "key_id": "drain-unobserved_effect_receipts-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "unobserved_effect_receipts",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.655Z",
+        "expires_at": "2026-08-02T02:16:26.655Z"
+      },
+      "signature": "6Y-Sb1D1J7hcAPJpHjBUWCGuTvsWqFPE3r3mEhyNtXyRO809qhwkYn7GD8ftj95cFTdr0LZPZ0fd2GNzMrpvDw"
+    },
+    {
+      "key_id": "drain-billing_projection_conflicts-key-v1",
+      "body": {
+        "schema_version": "1.0.0",
+        "drain_id": "drain-drain-b7fbaed-03",
+        "node_id": "node-drain",
+        "owner_epoch": "4294967297",
+        "authority": "billing_projection_conflicts",
+        "receipt_revision": 2,
+        "active_count": "0",
+        "active_id_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "observed_at": "2026-08-02T02:15:26.655Z",
+        "expires_at": "2026-08-02T02:16:26.655Z"
+      },
+      "signature": "fqLrZwIWnY4RQ3t3cdLLZni_lH4jW8b02G1gJVUZnMapy1LrA2fBuqZcehaMLveT-hxpc_KxbOiCoakIE1QgAg"
+    }
+  ]
+}

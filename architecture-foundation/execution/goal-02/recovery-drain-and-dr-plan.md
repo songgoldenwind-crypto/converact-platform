@@ -2,8 +2,10 @@
 
 ## 1. 状态和目标声明
 
-本文给出 target contract；除非 evidence index 引用当前 commit 的原始结果，RTO、RPO、long-run、
-region recovery、capacity 和 production eligibility 均为 `not_run`。
+本文给出 target contract。Evidence index 已将一次冻结检查点恢复、一次固定主机控制面容量和一次
+固定主机多进程 drain/node-loss 切片限定为 `verified_controlled`；这不证明 continuous-write PITR、
+long-run、已部署 multi-node/fleet drain、region recovery、SIP/media/fleet capacity 或 production
+eligibility，后述未测范围均保持 `not_run`。
 
 | 数据/能力 | Target RPO | Target RTO | established media contract |
 | --- | --- | --- | --- |
@@ -128,7 +130,8 @@ Region failover 不是 DNS 指向新地址这么简单：
 3. process kill/restart、stale owner、duplicate/reorder；
 4. rolling N/N-1 schema 和 key rotation；
 5. backup/restore rehearsal；
-6. multi-node drain、node loss 和 region recovery；
+6. fixed-host multi-process drain/node loss（已受控执行）以及独立的 deployed multi-node/fleet drain
+   和 region recovery（仍未执行）；
 7. 与真实 long human media 并行的全 fault matrix；
 8. bounded queue/retry/fanout overload/capacity。
 
