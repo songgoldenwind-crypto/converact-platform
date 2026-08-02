@@ -26,7 +26,7 @@ index 0b4ac71..e91f911 100644
                  builder = addon_registry.apply_proxy_server_hooks(builder, core.clone());
 diff --git a/src/ivekit_owner.rs b/src/ivekit_owner.rs
 new file mode 100644
-index 0000000..9babc06
+index 0000000..cd97368
 --- /dev/null
 +++ b/src/ivekit_owner.rs
 @@ -0,0 +1,429 @@

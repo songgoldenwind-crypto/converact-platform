@@ -87,7 +87,7 @@
         },
         {
           "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-owner-epoch.patch",
-          "sha256": "23288524935d02e01a8840b674a2731faa839daf3a9facb4ab8f7f1c88a51f55",
+          "sha256": "5b8b013db043a2d5baf1fb1fa95479f2c026686d89163fee3f83d195d82a77f5",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-inbound-admission.patch",
           "purpose": "Embed the Rust component guard, accept standards-compliant SIP Call-ID words while keeping node IDs strict, authorize inbound ownership through the local component-node agent, and fence every tracked RWI mutation by the exact owner epoch."
         },

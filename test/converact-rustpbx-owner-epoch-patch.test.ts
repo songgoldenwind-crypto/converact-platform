@@ -38,6 +38,7 @@ test('RustPBX owner epoch patch wires local component authorization outside RTP 
 });
 
 test('RustPBX owner epoch patch is syntactically valid and hash-bound in the fork manifest', () => {
+  const patchBytes = readFileSync(patchPath, 'utf8');
   const parsed = spawnSync(
     'git',
     ['apply', '--numstat', patchPath],
@@ -48,6 +49,23 @@ test('RustPBX owner epoch patch is syntactically valid and hash-bound in the for
   assert.match(parsed.stdout, /src\/ivekit_owner\.rs/);
   assert.match(parsed.stdout, /src\/proxy\/routing\/http\.rs/);
   assert.match(parsed.stdout, /src\/rwi\/handler\.rs/);
+
+  const ownerSection = patchBytes
+    .split('diff --git a/src/ivekit_owner.rs b/src/ivekit_owner.rs\n')[1]!
+    .split('\ndiff --git ')[0]!;
+  const abbreviatedBlob = /^index 0000000\.\.([a-f0-9]+)$/m.exec(ownerSection)?.[1];
+  assert.ok(abbreviatedBlob);
+  const ownerSource = `${ownerSection
+    .split('\n')
+    .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+    .map((line) => line.slice(1))
+    .join('\n')}\n`;
+  const ownerBlob = spawnSync('git', ['hash-object', '--stdin'], {
+    encoding: 'utf8',
+    input: ownerSource
+  });
+  assert.equal(ownerBlob.status, 0, ownerBlob.stderr);
+  assert.equal(ownerBlob.stdout.trim().slice(0, abbreviatedBlob.length), abbreviatedBlob);
 
   const manifest = JSON.parse(
     readFileSync('docs/capacity/forks/ivekit-forks-v1.json', 'utf8')
@@ -67,7 +85,7 @@ test('RustPBX owner epoch patch is syntactically valid and hash-bound in the for
   assert.ok(patch);
   assert.equal(
     patch.sha256,
-    createHash('sha256').update(readFileSync(patchPath)).digest('hex')
+    createHash('sha256').update(patchBytes).digest('hex')
   );
   assert.equal(
     rustpbx.implemented_changes.some(
