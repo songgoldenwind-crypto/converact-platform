@@ -18,6 +18,8 @@ import {
   type PrepareProtocolEffectInput,
   type SipFoundationAdapter,
   type SipFoundationBackendSession,
+  type SipFoundationDrainState,
+  type SipFoundationDrainStatus,
   type PreparedProtocolEffectAuthority,
   type SipProtocolSession,
   type SipProtocolSessionBinding,
@@ -52,6 +54,7 @@ implements PreparedProtocolEffectAuthority {
   readonly #maximumSessions: number;
   readonly #maximumAttempts: number;
   #activeAttempts = 0;
+  #drainState: SipFoundationDrainState = 'accepting';
   readonly #sessions = new Map<string, {
     session: SipProtocolSession;
     lease: RegistrySessionLease;
@@ -85,6 +88,23 @@ implements PreparedProtocolEffectAuthority {
 
   get active_attempt_count(): number {
     return this.#activeAttempts;
+  }
+
+  get drain_status(): SipFoundationDrainStatus {
+    return Object.freeze({
+      state: this.#drainState,
+      active_session_count: this.#sessions.size,
+      active_attempt_count: this.#activeAttempts
+    });
+  }
+
+  startDrain(): SipFoundationDrainStatus {
+    if (this.#drainState === 'accepting') {
+      this.#drainState = this.#sessions.size === 0
+        ? 'active_zero'
+        : 'draining';
+    }
+    return this.drain_status;
   }
 
   openProtocolSession(
@@ -128,6 +148,9 @@ implements PreparedProtocolEffectAuthority {
         );
       }
       return existing.session;
+    }
+    if (this.#drainState !== 'accepting') {
+      throw new SipFoundationError('sip_foundation_draining');
     }
     if (this.#sessions.size >= this.#maximumSessions) {
       throw new SipFoundationError(
@@ -190,6 +213,9 @@ implements PreparedProtocolEffectAuthority {
     existing.lease.revoke();
     BACKEND_SESSION_RUNTIMES.delete(existing.session);
     this.#sessions.delete(id);
+    if (this.#drainState === 'draining' && this.#sessions.size === 0) {
+      this.#drainState = 'active_zero';
+    }
   }
 
   verifyPreparedEffect(prepared: PreparedProtocolEffect): Uint8Array {

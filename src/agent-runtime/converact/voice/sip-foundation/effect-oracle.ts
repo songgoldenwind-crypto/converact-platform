@@ -94,6 +94,79 @@ export class SipEffectError extends Error {
   }
 }
 
+export type ProtocolEffectReceiptSemanticClass =
+  | 'durable_decision'
+  | 'send_attempted'
+  | 'accepted'
+  | 'completed'
+  | 'state_observed'
+  | 'unknown'
+  | 'failed';
+
+export interface ProtocolEffectReceiptSemanticInput {
+  level: ProtocolEffectReceiptLevel;
+  from_state: ProtocolEffectState;
+}
+
+const RECEIPT_SEMANTIC_INPUT_KEYS = ['level', 'from_state'] as const;
+
+/**
+ * Projects a persisted receipt tuple into externally meaningful semantics.
+ * In particular, local transport acceptance is never promoted to protocol
+ * completion, and reconciliation from unknown remains distinguishable from a
+ * completion observed on the primary path.
+ */
+export function classifyProtocolEffectReceipt(
+  input: ProtocolEffectReceiptSemanticInput
+): ProtocolEffectReceiptSemanticClass {
+  const value = snapshotClosedRecord(
+    input,
+    RECEIPT_SEMANTIC_INPUT_KEYS,
+    receiptSemanticError
+  );
+  const level = value.level as ProtocolEffectReceiptLevel;
+  const fromState = value.from_state as ProtocolEffectState;
+  if (level === 'durable_decision' && fromState === 'prepared') {
+    return 'durable_decision';
+  }
+  if (level === 'send_attempted' && fromState === 'durable_decision') {
+    return 'send_attempted';
+  }
+  if (level === 'transport_accepted' && fromState === 'send_attempted') {
+    return 'accepted';
+  }
+  if (level === 'protocol_observed' &&
+      (fromState === 'send_attempted' ||
+       fromState === 'transport_accepted')) {
+    return 'completed';
+  }
+  if (level === 'protocol_observed' && fromState === 'unknown') {
+    return 'state_observed';
+  }
+  if (level === 'unknown' &&
+      (fromState === 'send_attempted' ||
+       fromState === 'transport_accepted' ||
+       fromState === 'unknown')) {
+    return 'unknown';
+  }
+  if (level === 'failed' &&
+      (fromState === 'prepared' ||
+       fromState === 'durable_decision' ||
+       fromState === 'send_attempted' ||
+       fromState === 'transport_accepted' ||
+       fromState === 'unknown')) {
+    return 'failed';
+  }
+  throw receiptSemanticError();
+}
+
+function receiptSemanticError(): SipEffectError {
+  return new SipEffectError({
+    code: 'sip_effect_validation_failed',
+    message: 'illegal persisted SIP effect receipt tuple'
+  });
+}
+
 export interface DurableProtocolEffectPrepareInput {
   tenant_id: string;
   decision_id: string;

@@ -242,6 +242,17 @@ export interface SipProtocolSessionLease {
   reserveAttempt(): void;
 }
 
+export type SipFoundationDrainState =
+  | 'accepting'
+  | 'draining'
+  | 'active_zero';
+
+export interface SipFoundationDrainStatus {
+  readonly state: SipFoundationDrainState;
+  readonly active_session_count: number;
+  readonly active_attempt_count: number;
+}
+
 export interface SipFoundationAdapter {
   readonly backend_id: SipFoundationBackendId;
   readonly runtime_identity: BackendRuntimeIdentity;
@@ -282,6 +293,7 @@ export type SipFoundationErrorCode =
   | 'sip_foundation_session_capacity_exhausted'
   | 'sip_foundation_session_not_found'
   | 'sip_foundation_session_closed'
+  | 'sip_foundation_draining'
   | 'sip_foundation_route_binding_invalid'
   | 'sip_foundation_wire_attempt_invalid'
   | 'sip_foundation_fence_invalid'
