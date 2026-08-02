@@ -135,5 +135,5 @@ this reconciliation snapshot; they are not runtime or production evidence.
 | `goals/goal-15-context-knowledge-studio-governance.md` | `560810993a5363ba8e9d3fb5d61f73313ca788bf3357e2366e289ccfd3aa4cc8` |
 | `goals/goal-16-v1-pilot-commercial-production.md` | `c20f8b775f90009f767761077f6f278ea489eaadd7dfda621a41e57ad601a6c7` |
 | `goals/goal-17-vilte-future-telecom-conditional.md` | `d323667615cd60696a409e9e42b32063c9947ab9a7c609125496eaa6804959a3` |
-| `goals/manifest.json` | `28bd84f6e4ce1b74679cc55140a61d5b882474fedcc569e7bfc004270d4d1a55` |
+| `goals/manifest.json` | `11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912` |
 | `goals/manifest.schema.json` | `e1bae93876ed1f08148a6f66528a48955731f4152c397c48607ee463ca95ae84` |

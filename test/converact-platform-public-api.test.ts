@@ -6,7 +6,10 @@ import * as foundation from '../src/agent-runtime/converact/platform-foundation/
 test('platform foundation exposes one explicit public module boundary', () => {
   assert.deepEqual(Object.keys(foundation).sort(), [
     'BoundedAdmissionGate',
+    'PLATFORM_DRAIN_AUTHORITIES',
     'PlatformBillingStoreError',
+    'PlatformDrainCoordinator',
+    'PlatformDrainError',
     'PlatformFoundationStoreError',
     'PostgresPlatformBillingLedgerStore',
     'PostgresPlatformEventReceiptStore',
@@ -37,6 +40,7 @@ test('platform foundation exposes one explicit public module boundary', () => {
     'reconstructUsage',
     'redactObservabilityValue',
     'resolveKeyUsage',
+    'signPlatformDrainReceipt',
     'systemMonotonicNowMs'
   ].sort());
 });
