@@ -59,7 +59,7 @@ test('the current patchset retains single-Trying ownership after the existing rs
   assert.match(build, /PATCHSET="ivekit\.41"/);
   assert.match(
     build,
-    /cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline failed_send_trying_can_retry_on_replacement_connection/
+    /^\s*cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline\s*$/m
   );
   assert.match(
     readme,

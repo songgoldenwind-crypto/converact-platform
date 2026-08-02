@@ -148,10 +148,6 @@ test('RustPBX releases business concurrency before bounded protocol retention', 
   assert.match(source, /ivekit_max_concurrency_rejection_retains_owner_until_cancelled/);
   assert.match(
     build,
-    /cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline transaction::tests::test_server/
-  );
-  assert.match(
-    build,
-    /cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline transaction::timer::/
+    /^\s*cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline\s*$/m
   );
 });
