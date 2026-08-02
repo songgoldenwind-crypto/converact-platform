@@ -13,9 +13,15 @@ test('RustPBX owner epoch patch wires local component authorization outside RTP 
 
   assert.match(build, /rustpbx-ivekit-owner-epoch\.patch/);
   assert.match(build, /integrations\/component-hook-rs/);
-  // Patch payloads preserve the exact historical crate identity until a separately
-  // versioned upstream patch migration replaces it.
-  assert.match(patch, /ivekit-component-hook/);
+  assert.match(
+    patch,
+    /converact-component-hook = \{ path = "vendor\/converact-component-hook" \}/
+  );
+  assert.match(patch, /use converact_component_hook::/);
+  assert.doesNotMatch(
+    patch,
+    /ivekit-component-hook = \{ path = "vendor\/ivekit-component-hook" \}/
+  );
   assert.match(patch, /pub mod ivekit_owner/);
   assert.match(patch, /reservation_id/);
   assert.match(patch, /owner_epoch/);

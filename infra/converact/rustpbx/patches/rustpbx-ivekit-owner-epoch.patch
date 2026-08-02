@@ -6,7 +6,7 @@ index ea78bd7..d5b2aad 100644
  dotenvy = "0.15.7"
  md-5 = "0.11.0"
  once_cell = "1.21.4"
-+ivekit-component-hook = { path = "vendor/ivekit-component-hook" }
++converact-component-hook = { path = "vendor/converact-component-hook" }
  regex = "1.12.4"
  http = "1.4.2"
  urlencoding = "2.1.3"
@@ -33,7 +33,7 @@ index 0000000..9babc06
 +use anyhow::{Result, anyhow};
 +use async_trait::async_trait;
 +use dashmap::DashMap;
-+use ivekit_component_hook::{
++use converact_component_hook::{
 +    Authorization, AuthorizationRequest, Authorizer, Guard, Operation, Request,
 +};
 +use serde::{Deserialize, Serialize};
