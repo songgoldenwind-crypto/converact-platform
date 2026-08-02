@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import {
   ALPINE_ACCEPTANCE_IMAGE,
   SIPP_BINARY_SHA256,
+  createRouterEvidenceCommand,
   createRustPbxSippScenarios,
   countIncomingInviteRetransmissions,
   parseSippStatistics,
@@ -103,6 +104,21 @@ test('RustPBX SIPp acceptance gives each isolated UAC a unique Call-ID namespace
     renderSippCallIdTemplate('answer-tcp-reconnect', '1784029000-42', '172.30.44.20'),
     'answer-tcp-reconnect-1784029000-42-%u@172.30.44.20'
   );
+});
+
+test('RustPBX SIPp acceptance reads Router evidence with the Node-only capacity image', () => {
+  const command = createRouterEvidenceCommand('converact-rustpbx-baseline-router-1');
+
+  assert.deepEqual(command.slice(0, 4), [
+    'exec',
+    'converact-rustpbx-baseline-router-1',
+    'node',
+    '-e'
+  ]);
+  assert.match(command[4]!, /process\.env\.RUSTPBX_WEBHOOK_TOKEN/);
+  assert.match(command[4]!, /127\.0\.0\.1:8081\/evidence/);
+  assert.doesNotMatch(command.join(' '), /python|urllib|x-pbx-key[^}]*acceptance-password/i);
+  assert.throws(() => createRouterEvidenceCommand('router;env'), /Router container is invalid/);
 });
 
 test('RustPBX SIPp acceptance parses the final cumulative statistics row', () => {

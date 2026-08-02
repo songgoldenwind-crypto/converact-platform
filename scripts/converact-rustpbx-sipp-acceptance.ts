@@ -505,19 +505,26 @@ function assertScenarioAssets(directory: string, scenarios: RustPbxSippScenario[
 }
 
 async function readRouterEvidence(options: RustPbxSippOptions): Promise<RouterEvidence> {
-  const program = [
-    'import json, os, urllib.request',
-    'request = urllib.request.Request("http://127.0.0.1:8081/evidence", headers={"X-PBX-Key": os.environ["RUSTPBX_WEBHOOK_TOKEN"]})',
-    'print(urllib.request.urlopen(request, timeout=3).read().decode("utf-8"))'
-  ].join('; ');
-  const result = await requireCommand(options.docker, [
-    'exec', options.router_container, 'python', '-c', program
-  ], 10_000);
+  const result = await requireCommand(
+    options.docker,
+    createRouterEvidenceCommand(options.router_container),
+    10_000
+  );
   const payload = JSON.parse(result.stdout) as RouterEvidence;
   return {
     router_requests: nonNegative(payload.router_requests),
     cdr_requests: nonNegative(payload.cdr_requests)
   };
+}
+
+export function createRouterEvidenceCommand(routerContainer: string): string[] {
+  const container = boundedName(routerContainer, 'Router container');
+  const program = [
+    "fetch('http://127.0.0.1:8081/evidence',{headers:{'X-PBX-Key':process.env.RUSTPBX_WEBHOOK_TOKEN||''}})",
+    ".then(async response=>{if(!response.ok)throw new Error(String(response.status));process.stdout.write(await response.text())})",
+    ".catch(error=>{console.error(error);process.exit(1)})"
+  ].join('');
+  return ['exec', container, 'node', '-e', program];
 }
 
 async function waitForRouterEvidence(
