@@ -203,15 +203,10 @@ export PGHOST="$TARGET_ADDRESS" CONVERACT_UPLOAD_DIR="$TARGET_UPLOADS"
   >"$EVIDENCE_DIR/target-runtime-role-before.log" 2>&1
 "$NODE_BIN_PATH" --import tsx "$RESTORE_PROBE" empty "$TARGET_CONTAINER" "$EMPTY_RESULT" \
   >"$EVIDENCE_DIR/target-empty.log" 2>&1
-RTO_STARTED_MS=$("$NODE_BIN_PATH" -e 'process.stdout.write(String(Date.now()))')
-"$NODE_BIN_PATH" --import tsx "$RESTORE_PROBE" restore \
-  "$TARGET_CONTAINER" "$BACKUP_DIR" "$RESTORE_RESULT" \
-  >"$EVIDENCE_DIR/restore.log" 2>&1
-"$NODE_BIN_PATH" --import tsx "$ROOT_DIR/src/converact-init-runtime-role.ts" \
-  >"$EVIDENCE_DIR/target-runtime-role-after.log" 2>&1
-"$NODE_BIN_PATH" --import tsx "$RESTORE_PROBE" verify \
-  "$BACKUP_RESULT" "$EMPTY_RESULT" "$RESTORE_RESULT" "$RTO_STARTED_MS" "$VERIFY_RESULT" \
-  >"$EVIDENCE_DIR/restore-verify.log" 2>&1
+"$NODE_BIN_PATH" --import tsx "$RESTORE_PROBE" orchestrate \
+  "$TARGET_CONTAINER" "$BACKUP_DIR" "$BACKUP_RESULT" "$EMPTY_RESULT" \
+  "$RESTORE_RESULT" "$VERIFY_RESULT" \
+  >"$EVIDENCE_DIR/restore-orchestrate.log" 2>&1
 compose_target down --volumes --remove-orphans >"$EVIDENCE_DIR/target-down.log" 2>&1
 TARGET_ACTIVE=0
 

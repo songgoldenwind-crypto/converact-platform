@@ -385,6 +385,7 @@ test('backup restore evidence requires a distinct empty target and measured zero
       status: 'passed',
       process_pid: 101,
       source_database_id: 'source-db-a',
+      backup_id: 'restore-proof-a',
       artifact_sha256: '1'.repeat(64),
       checkpoint_records: 7,
       checkpoint_digest: '2'.repeat(64),
@@ -396,7 +397,9 @@ test('backup restore evidence requires a distinct empty target and measured zero
     restore: {
       status: 'passed',
       target_database_id: 'restore-db-b',
+      backup_id: 'restore-proof-a',
       target_was_empty: true,
+      restore_process_pid: 201,
       fresh_process_pid: 202,
       migration_head: '112_converact_platform_history_receipt_integrity',
       restored_records: 7,
@@ -405,6 +408,8 @@ test('backup restore evidence requires a distinct empty target and measured zero
       restored_object_digest: '3'.repeat(64),
       measured_rpo_ms: 0,
       measured_rto_ms: 3_250,
+      rto_clock_domain: 'monotonic',
+      rto_measurement_scope: 'restore_runtime_role_fresh_process_verify',
       runtime_rls_verified: true,
       append_only_verified: true,
       unrelated_containers_unchanged: true,
@@ -420,6 +425,7 @@ test('backup restore evidence requires a distinct empty target and measured zero
     identity,
     backup: {
       status: 'passed', process_pid: 101, source_database_id: 'same-db', artifact_sha256: '1'.repeat(64),
+      backup_id: 'restore-proof-a',
       checkpoint_records: 7, checkpoint_digest: '2'.repeat(64),
       object_count: 1, object_digest: '3'.repeat(64),
       backup_started_at: '2026-08-01T16:00:01.000Z',
@@ -427,10 +433,14 @@ test('backup restore evidence requires a distinct empty target and measured zero
     },
     restore: {
       status: 'passed', target_database_id: 'same-db', target_was_empty: true,
+      backup_id: 'restore-proof-a',
+      restore_process_pid: 201,
       fresh_process_pid: 202, migration_head: '112_converact_platform_history_receipt_integrity',
       restored_records: 7, restored_digest: '2'.repeat(64), measured_rpo_ms: 0,
       restored_object_count: 1, restored_object_digest: '3'.repeat(64),
       measured_rto_ms: 3_250, runtime_rls_verified: true, append_only_verified: true,
+      rto_clock_domain: 'monotonic',
+      rto_measurement_scope: 'restore_runtime_role_fresh_process_verify',
       unrelated_containers_unchanged: true, validation_resources_remaining: 0
     }
   }).status, 'failed');
@@ -439,6 +449,7 @@ test('backup restore evidence requires a distinct empty target and measured zero
     identity,
     backup: {
       status: 'passed', process_pid: 202, source_database_id: 'source-db-a',
+      backup_id: 'restore-proof-a',
       artifact_sha256: '1'.repeat(64), checkpoint_records: 7,
       checkpoint_digest: '2'.repeat(64), object_count: 1, object_digest: '3'.repeat(64),
       backup_started_at: '2026-08-01T16:00:01.000Z',
@@ -446,10 +457,14 @@ test('backup restore evidence requires a distinct empty target and measured zero
     },
     restore: {
       status: 'passed', target_database_id: 'restore-db-b', target_was_empty: true,
+      backup_id: 'restore-proof-a',
+      restore_process_pid: 201,
       fresh_process_pid: 202, migration_head: '112_converact_platform_history_receipt_integrity',
       restored_records: 7, restored_digest: '2'.repeat(64),
       restored_object_count: 1, restored_object_digest: '3'.repeat(64),
       measured_rpo_ms: 0, measured_rto_ms: 3_250, runtime_rls_verified: true,
+      rto_clock_domain: 'monotonic',
+      rto_measurement_scope: 'restore_runtime_role_fresh_process_verify',
       append_only_verified: true, unrelated_containers_unchanged: true,
       validation_resources_remaining: 0
     }
@@ -459,6 +474,7 @@ test('backup restore evidence requires a distinct empty target and measured zero
     identity,
     backup: {
       status: 'passed', process_pid: 101, source_database_id: 'source-db-a',
+      backup_id: 'restore-proof-a',
       artifact_sha256: '1'.repeat(64), checkpoint_records: 7,
       checkpoint_digest: '2'.repeat(64), object_count: 1, object_digest: '3'.repeat(64),
       backup_started_at: '2026-08-01T16:00:01.000Z',
@@ -466,18 +482,69 @@ test('backup restore evidence requires a distinct empty target and measured zero
     },
     restore: {
       status: 'passed', target_database_id: 'restore-db-b', target_was_empty: true,
+      backup_id: 'restore-proof-a',
+      restore_process_pid: 201,
       fresh_process_pid: 202, migration_head: '112_converact_platform_history_receipt_integrity',
       restored_records: 7, restored_digest: '2'.repeat(64),
       restored_object_count: 1, restored_object_digest: '4'.repeat(64),
       measured_rpo_ms: 0, measured_rto_ms: 3_250, runtime_rls_verified: true,
+      rto_clock_domain: 'monotonic',
+      rto_measurement_scope: 'restore_runtime_role_fresh_process_verify',
       append_only_verified: true, unrelated_containers_unchanged: true,
       validation_resources_remaining: 0
+    }
+  }).status, 'failed');
+
+  assert.equal(buildBackupRestoreEvidence({
+    identity,
+    backup: {
+      status: 'passed', process_pid: 101, source_database_id: 'source-db-a',
+      backup_id: 'restore-proof-a', artifact_sha256: '1'.repeat(64), checkpoint_records: 7,
+      checkpoint_digest: '2'.repeat(64), object_count: 1, object_digest: '3'.repeat(64),
+      backup_started_at: '2026-08-01T16:00:01.000Z',
+      backup_completed_at: '2026-08-01T16:00:02.000Z'
+    },
+    restore: {
+      status: 'passed', target_database_id: 'restore-db-b', target_was_empty: true,
+      backup_id: 'restore-proof-b', restore_process_pid: 201, fresh_process_pid: 202,
+      migration_head: '112_converact_platform_history_receipt_integrity',
+      restored_records: 7, restored_digest: '2'.repeat(64),
+      restored_object_count: 1, restored_object_digest: '3'.repeat(64),
+      measured_rpo_ms: 0, measured_rto_ms: 3_250, runtime_rls_verified: true,
+      rto_clock_domain: 'monotonic',
+      rto_measurement_scope: 'restore_runtime_role_fresh_process_verify',
+      append_only_verified: true, unrelated_containers_unchanged: true,
+      validation_resources_remaining: 0
+    }
+  }).status, 'failed');
+
+  assert.equal(buildBackupRestoreEvidence({
+    identity,
+    backup: {
+      status: 'passed', process_pid: 101, source_database_id: 'source-db-a',
+      backup_id: 'restore-proof-a', artifact_sha256: '1'.repeat(64), checkpoint_records: 7,
+      checkpoint_digest: '2'.repeat(64), object_count: 1, object_digest: '3'.repeat(64),
+      backup_started_at: '2026-08-01T16:00:01.000Z',
+      backup_completed_at: '2026-08-01T16:00:02.000Z'
+    },
+    restore: {
+      status: 'passed', target_database_id: 'restore-db-b', target_was_empty: true,
+      backup_id: 'restore-proof-a', restore_process_pid: 201, fresh_process_pid: 202,
+      migration_head: '112_converact_platform_history_receipt_integrity',
+      restored_records: 7, restored_digest: '2'.repeat(64),
+      restored_object_count: 1, restored_object_digest: '3'.repeat(64),
+      measured_rpo_ms: 0, measured_rto_ms: 3_250,
+      rto_clock_domain: 'wall',
+      rto_measurement_scope: 'restore_runtime_role_fresh_process_verify',
+      runtime_rls_verified: true, append_only_verified: true,
+      unrelated_containers_unchanged: true, validation_resources_remaining: 0
     }
   }).status, 'failed');
 });
 
 test('backup restore runner is exact-source project-scoped and destroys only validation resources', () => {
   const script = readFileSync(new URL('restore-accept.sh', acceptanceRoot), 'utf8');
+  const probe = readFileSync(new URL('restore-probe.ts', acceptanceRoot), 'utf8');
   assert.match(script, /G02_PLATFORM_RESTORE_EVIDENCE/);
   assert.match(script, /git -C "\$ROOT_DIR" rev-parse HEAD/);
   assert.match(script, /git -C "\$ROOT_DIR" status --porcelain/);
@@ -488,8 +555,11 @@ test('backup restore runner is exact-source project-scoped and destroys only val
   assert.match(script, /compose_source down --volumes --remove-orphans/);
   assert.match(script, /compose_target up --detach postgres/);
   assert.match(script, /restore-probe\.ts.*backup/s);
-  assert.match(script, /restore-probe\.ts.*restore/s);
-  assert.match(script, /restore-probe\.ts.*verify/s);
+  assert.match(script, /restore-probe\.ts.*orchestrate/s);
+  assert.doesNotMatch(script, /RTO_STARTED_MS|Date\.now\(\)/);
+  assert.match(probe, /performance\.now\(\)/);
+  assert.match(probe, /restore_runtime_role_fresh_process_verify/);
+  assert.doesNotMatch(probe, /measured_rto_ms:\s*Math\.max\([^\n]*Date\.now/);
   assert.match(script, /target-empty\.json/);
   assert.match(script, /trap cleanup EXIT HUP INT TERM/);
   assert.doesNotMatch(script, /docker (?:system )?prune/);

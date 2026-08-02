@@ -2,10 +2,12 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { promisify } from 'node:util';
 
 import { Pool } from 'pg';
 
+import { initializeConveractFabricRuntimeRole } from '../../../../src/converact-runtime-role.js';
 import { withPgTenant } from '../../../../src/db-pg-tenant.js';
 import {
   runConveractFabricBackup,
@@ -23,7 +25,7 @@ const execFileAsync = promisify(execFile);
 
 async function main(): Promise<void> {
   const [mode, ...args] = process.argv.slice(2);
-  if (['backup', 'empty', 'restore'].includes(String(mode))) {
+  if (['backup', 'empty', 'restore', 'orchestrate'].includes(String(mode))) {
     requiredEnv('CONVERACT_G02_RESTORE_CONFIRM', /^G02_PLATFORM_RESTORE_EVIDENCE$/u);
   }
   if (mode === 'backup') {
@@ -38,9 +40,15 @@ async function main(): Promise<void> {
     const [container, directory, output] = requiredArgs(args, 3, false);
     return runRestore(container!, directory!, output!);
   }
+  if (mode === 'orchestrate') {
+    const [container, directory, backup, empty, restored, verified] = requiredArgs(args, 6, false);
+    return runOrchestratedRestore(
+      container!, directory!, backup!, empty!, restored!, verified!
+    );
+  }
   if (mode === 'verify') {
-    const [backup, empty, restored, rtoStarted, output] = requiredArgs(args, 5, false);
-    return runVerify(backup!, empty!, restored!, rtoStarted!, output!);
+    const [backup, empty, restored, output] = requiredArgs(args, 4, false);
+    return runVerify(backup!, empty!, restored!, output!);
   }
   if (mode === 'cleanup') {
     const [verified, before, after, remaining, output] = requiredArgs(args, 5, false);
@@ -153,20 +161,58 @@ async function runRestore(containerInput: string, directoryInput: string, output
   });
 }
 
+async function runOrchestratedRestore(
+  containerInput: string,
+  directoryInput: string,
+  backupPath: string,
+  emptyPath: string,
+  restoredPath: string,
+  verifiedPath: string
+): Promise<void> {
+  const monotonicStarted = performance.now();
+  await runRestore(containerInput, directoryInput, restoredPath);
+  await initializeRuntimeRole();
+  await execFileAsync(process.execPath, [
+    '--import', 'tsx', import.meta.filename,
+    'verify', backupPath, emptyPath, restoredPath, verifiedPath
+  ], {
+    env: process.env,
+    encoding: 'utf8',
+    timeout: 120_000,
+    maxBuffer: 64 * 1024
+  });
+  const measuredRtoMs = Math.max(1, Math.ceil(performance.now() - monotonicStarted));
+  const verified = readJson(verifiedPath);
+  if (verified.status !== 'passed') throw operationError('restore_fresh_process_verification_failed');
+  replaceJson(verifiedPath, {
+    ...verified,
+    measured_rto_ms: measuredRtoMs,
+    rto_clock_domain: 'monotonic',
+    rto_measurement_scope: 'restore_runtime_role_fresh_process_verify'
+  });
+}
+
+async function initializeRuntimeRole(): Promise<void> {
+  const admin = databasePool('admin');
+  try {
+    await initializeConveractFabricRuntimeRole(
+      admin,
+      requiredTextEnv('CONVERACT_RUNTIME_DB_PASSWORD')
+    );
+  } finally {
+    await admin.end();
+  }
+}
+
 async function runVerify(
   backupPath: string,
   emptyPath: string,
   restoredPath: string,
-  rtoStartedInput: string,
   output: string
 ): Promise<void> {
   const backup = readJson(backupPath);
   const empty = readJson(emptyPath);
   const restored = readJson(restoredPath);
-  const rtoStarted = Number(rtoStartedInput);
-  if (!Number.isSafeInteger(rtoStarted) || rtoStarted < 1 || rtoStarted > Date.now()) {
-    throw operationError('restore_rto_start_invalid');
-  }
   const admin = databasePool('admin');
   const runtime = databasePool('runtime');
   try {
@@ -210,6 +256,11 @@ async function runVerify(
     const valid = backup.status === 'passed'
       && empty.status === 'passed'
       && restored.status === 'passed'
+      && typeof backup.backup_id === 'string'
+      && restored.backup_id === backup.backup_id
+      && Number.isSafeInteger(restored.process_pid)
+      && restored.process_pid > 0
+      && restored.process_pid !== process.pid
       && backup.source_database_id !== empty.target_database_id
       && restored.target_database_id === empty.target_database_id
       && backup.process_pid !== process.pid
@@ -220,7 +271,9 @@ async function runVerify(
     writeJson(output, {
       status: 'passed',
       target_database_id: empty.target_database_id,
+      backup_id: backup.backup_id,
       target_was_empty: true,
+      restore_process_pid: restored.process_pid,
       fresh_process_pid: process.pid,
       migration_head: migrationHead,
       restored_records: checkpoint.records,
@@ -228,7 +281,6 @@ async function runVerify(
       restored_object_count: restored.objects_restored,
       restored_object_digest: object.digest,
       measured_rpo_ms: 0,
-      measured_rto_ms: Math.max(1, Date.now() - rtoStarted),
       runtime_rls_verified: true,
       append_only_verified: true
     });
@@ -453,6 +505,12 @@ function readJson(path: string): JsonRecord {
 function writeJson(path: string, value: unknown): void {
   writeFileSync(resolve(path), `${JSON.stringify(value, null, 2)}\n`, {
     flag: 'wx', mode: 0o600
+  });
+}
+
+function replaceJson(path: string, value: unknown): void {
+  writeFileSync(resolve(path), `${JSON.stringify(value, null, 2)}\n`, {
+    flag: 'w', mode: 0o600
   });
 }
 

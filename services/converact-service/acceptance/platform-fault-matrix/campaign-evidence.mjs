@@ -17,11 +17,16 @@ export function buildBackupRestoreEvidence(input) {
   const valid = backup.status === 'passed'
     && restore.status === 'passed'
     && positiveInteger(backup.process_pid)
+    && positiveInteger(restore.restore_process_pid)
     && positiveInteger(restore.fresh_process_pid)
     && backup.process_pid !== restore.fresh_process_pid
+    && backup.process_pid !== restore.restore_process_pid
+    && restore.restore_process_pid !== restore.fresh_process_pid
     && token(backup.source_database_id)
     && token(restore.target_database_id)
     && backup.source_database_id !== restore.target_database_id
+    && token(backup.backup_id)
+    && restore.backup_id === backup.backup_id
     && sha256(backup.artifact_sha256)
     && nonNegativeInteger(backup.checkpoint_records)
     && sha256(backup.checkpoint_digest)
@@ -38,6 +43,8 @@ export function buildBackupRestoreEvidence(input) {
     && restore.restored_object_digest === backup.object_digest
     && boundedDuration(restore.measured_rpo_ms, true)
     && boundedDuration(restore.measured_rto_ms, false)
+    && restore.rto_clock_domain === 'monotonic'
+    && restore.rto_measurement_scope === 'restore_runtime_role_fresh_process_verify'
     && restore.runtime_rls_verified === true
     && restore.append_only_verified === true
     && restore.unrelated_containers_unchanged === true
