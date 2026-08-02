@@ -1,36 +1,51 @@
 # G03 Independent Review
 
-Review status: `third_review_remediation_complete_re_review_pending`
+Review status: `interim_code_and_controlled_postgres_reviews_accepted_final_g03_review_pending`
 Production eligibility: `false`
 
-The independent third review examined exact commit
-`32a212868a3c31b036584cd29f3a8ec583f1fa9d` read-only and reported
-`Critical 0 / High 1 / Important 2 / Minor 2`, therefore **REJECT**:
+## Accepted implementation review
 
-1. a new/retransmitted 2xx revived a terminating selected fork winner;
-2. an object with the concrete store prototype and an own `get` method could
-   pass legacy CallId binding;
-3. the closed egress envelope promised ID/hash dedupe while omitting and
-   rejecting `event_hash`;
-4. the contract test treated every `date-time` string as valid;
-5. the identifier module retained one unused legacy error helper.
+The independent reviewer examined exact implementation commit
+`a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb` against accepted baseline
+`9fbfbdab1c127e28373fb475cddc2cb3f021172f`. The reviewed diff has SHA-256
+`3b68acfccde992669800d6246967b3f193aadf9b03fbec7eaa8f575a928839b0`.
+The result was **ACCEPT** with
+`Critical 0 / High 0 / Important 0 / Minor 0`.
 
-The current review candidate preserves `terminating` and returns an idempotent
-ACK-then-BYE effect, constructor-brands each exact store in a module-private
-WeakSet, protects its database composition with a native private field and
-invokes a captured trusted query method. The egress schema now requires a
-canonical `event_hash`; tests verify both the hash and a real RFC 3339 UTC
-validator; the orphan helper is removed. Targeted tests and typecheck pass.
-These are local remediation statements, not reviewer acceptance.
+That review closed the restart-probe races previously found at `6cbe1a3`:
 
-The earlier `3559afc` review (`Critical 0 / High 2 / Important 2 / Minor 0`)
-remains part of the rejection history. Its callback, early-fork cancellation,
-structural lookup and concrete-schema findings were closed before this third
-review; the third reviewer independently confirmed those four closures.
+1. the timeout is now a hard process watchdog and cannot leave the probe alive;
+2. PostgreSQL identity is sampled only after the accepted write and therefore
+   cannot predate the durable boundary being claimed;
+3. runtime-role initialization uses one checked-out PostgreSQL client, so the
+   transaction and `set_config` scope cannot move across pooled connections.
 
-Until a reviewer examines a new exact commit/diff and reports zero unresolved
-Critical, High, Important and Minor findings, `G03-E15-REVIEW` remains
-`not_run`.
+## Accepted controlled PostgreSQL evidence review
 
-External evidence that may remain `not_run` must be listed separately and may
-not be converted into review acceptance or production eligibility.
+The independent evidence reviewer examined campaign
+`converact-g03-pg-restart-a18229cd-02` and the retained, non-sensitive raw
+artifacts. The result was **ACCEPT** with
+`Critical 0 / High 0 / Important 0 / Minor 0`.
+
+The accepted scope is only `G03-E05-POSTGRES = verified_controlled`: physical
+role ACL, outage behavior, an actual restart of the same PostgreSQL system,
+separate-process replay without a duplicate Effect/Receipt, exact-source
+identity, campaign cleanup and preservation of the nine pre-existing stopped
+containers. Full Docker inspect documents were deliberately excluded because
+they can contain unrelated environment values; equal normalized digests and
+unchanged container IDs are retained instead.
+
+## Rejection history and remaining gate
+
+The earlier `6cbe1a3` evidence review was rejected with
+`Critical 0 / High 0 / Important 3 / Minor 0`; all three findings above were
+closed and independently accepted at `a18229c`. Earlier implementation review
+rejections at `3559afc` and `32a2128` also remain in history; their findings
+were closed before the accepted implementation baseline.
+
+This is not the final G03 review. `G03-E15-REVIEW` remains `not_run` until the
+100 Trying, wire differential, fault isolation, peer interoperability,
+long-call and performance campaigns are either proved or honestly retained as
+open external gates, and a reviewer examines the final exact commit/diff.
+Those remaining campaign entries are currently `not_run`; production
+eligibility remains false.

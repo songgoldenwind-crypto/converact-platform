@@ -1450,13 +1450,25 @@ function writeWireCorpus() {
 }
 
 function evidenceIndex() {
-  const entry = (evidence_id, claim, status, evidence_uris = []) => ({
+  const evidenceSourceCommit =
+    'a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb';
+  const localEvidenceRoot =
+    'architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c';
+  const postgresEvidenceRoot =
+    'architecture-foundation/execution/goal-03/evidence/raw/postgres-restart-a18229cd-02';
+  const entry = (
+    evidence_id,
+    claim,
+    status,
+    evidence_uris = [],
+    raw_output_sha256 = null,
+  ) => ({
     evidence_id,
     claim,
     status,
     evidence_uris,
-    source_commit: null,
-    raw_output_sha256: null,
+    source_commit: status === 'not_run' ? null : evidenceSourceCommit,
+    raw_output_sha256,
     production_eligible: false,
   });
   return {
@@ -1468,25 +1480,82 @@ function evidenceIndex() {
     current_state: 'implementation_in_progress',
     production_eligible: false,
     entries: [
-      entry('G03-E01-CONTRACT', 'G03 machine contracts and binding validation', 'not_run'),
-      entry('G03-E02-BASELINE', 'Existing SipFoundation focused baseline', 'not_run'),
-      entry('G03-E03-ID-STATE', 'Strong IDs and Call/Leg race semantics', 'not_run'),
-      entry('G03-E04-EFFECT', 'Durable effect and semantic receipt classes', 'not_run'),
-      entry('G03-E05-POSTGRES', 'Physical PostgreSQL durability, ACL and restart replay', 'not_run'),
+      entry(
+        'G03-E01-CONTRACT',
+        'G03 machine contracts and binding validation',
+        'verified_local',
+        [`${localEvidenceRoot}/contract.log`],
+        'ab36ff826e117234cf8a46ed3bc4cc304ca10709ef1f45b18f6901c2de50baee',
+      ),
+      entry(
+        'G03-E02-BASELINE',
+        'Existing SipFoundation focused baseline',
+        'verified_local',
+        [
+          `${localEvidenceRoot}/README.md`,
+          `${localEvidenceRoot}/focused.log`,
+          `${localEvidenceRoot}/part-manifest.sha256`,
+        ],
+        '40aa77621bd95b6528dcbe4e9770238a589ea4098a9cb57ffe790fcf3f5a6892',
+      ),
+      entry(
+        'G03-E03-ID-STATE',
+        'Strong IDs and Call/Leg race semantics',
+        'verified_local',
+        [`${localEvidenceRoot}/focused.log`],
+        '9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9',
+      ),
+      entry(
+        'G03-E04-EFFECT',
+        'Durable effect and semantic receipt classes',
+        'verified_local',
+        [`${localEvidenceRoot}/focused.log`],
+        '9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9',
+      ),
+      entry(
+        'G03-E05-POSTGRES',
+        'Physical PostgreSQL durability, ACL and restart replay',
+        'verified_controlled',
+        [
+          `${postgresEvidenceRoot}/README.md`,
+          `${postgresEvidenceRoot}/retained-output.sha256`,
+          `${postgresEvidenceRoot}/verify.json`,
+          'architecture-foundation/execution/goal-03/controlled-postgres-restart-report.md',
+        ],
+        'a4aa58ab2c1006830cfffe400be87741775becbaa8a85a02b1edaf02e393d8aa',
+      ),
       entry('G03-E06-TRYING', '100 Trying and final/overload raw latency distribution', 'not_run'),
       entry('G03-E07-WIRE', 'Wire corpus rsipstack baseline and differential replay', 'not_run'),
-      entry('G03-E08-RECOVERY', 'Confirmed-quiescent recovery, clock and fencing', 'not_run'),
-      entry('G03-E09-DRAIN', 'New-call stop, old-call drain and active-zero', 'not_run'),
+      entry(
+        'G03-E08-RECOVERY',
+        'Confirmed-quiescent recovery, clock and fencing',
+        'verified_local',
+        [`${localEvidenceRoot}/focused.log`],
+        '9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9',
+      ),
+      entry(
+        'G03-E09-DRAIN',
+        'New-call stop, old-call drain and active-zero',
+        'verified_local',
+        [`${localEvidenceRoot}/focused.log`],
+        '9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9',
+      ),
       entry('G03-E10-FAULT', 'Protocol/worker crash, panic, OOM and blocking isolation', 'not_run'),
       entry('G03-E11-INTEROP', 'SIPp and real peer interoperability', 'not_run'),
       entry('G03-E12-LONG-CALL', 'Long call control and restart stability', 'not_run'),
       entry('G03-E13-PERFORMANCE', 'Same-source hot-path latency, allocation and capacity baseline', 'not_run'),
-      entry('G03-E14-TYPECHECK', 'Repository TypeScript typecheck', 'not_run'),
+      entry(
+        'G03-E14-TYPECHECK',
+        'Repository TypeScript typecheck',
+        'verified_local',
+        [`${localEvidenceRoot}/typecheck.log`],
+        '40bc31d5c95fb879712acd5d1ffc8bcac91b04826d82c408f5246ca6e9bdcea9',
+      ),
       entry('G03-E15-REVIEW', 'Independent G03 review', 'not_run'),
     ],
     inherited_claims: [],
     external_or_environment_blockers: [
-      'physical_postgresql_runtime_not_started',
+      '100_trying_and_wire_differential_campaign_not_run',
       'real_sip_peer_campaign_not_run',
       'host_fault_and_oom_campaign_not_run',
       'long_call_and_capacity_campaign_not_run',

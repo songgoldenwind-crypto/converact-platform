@@ -1,0 +1,17 @@
+✔ G03 binding, manifest and gate-only amendment are immutable (12.28625ms)
+✔ all G03 machine documents validate as closed versioned contracts (197.738667ms)
+✔ SipFoundation freezes one authority, exact current pins and bounded SLOs (0.519042ms)
+✔ SipFoundation control messages have one compiled closed wire schema (24.788417ms)
+✔ Call/Leg and effect contracts distinguish identities, races and receipt meanings (0.245666ms)
+✔ wire corpus hashes exact bytes and covers every mandatory G03 feature (2.769542ms)
+✔ all 143 source rows targeting G03 map once without evidence promotion (4.643625ms)
+✔ evidence starts honest and no required design artifact contains placeholders (0.727833ms)
+✔ generator is deterministic and the seam imports no rvoip implementation type (47.21575ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 336.715459

@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "phase": "verify",
+  "restart_confirmed": true,
+  "process_replacement_confirmed": true,
+  "pre_restart_effect_replay_confirmed": true,
+  "system_identifier": "7669328856915570727",
+  "previous_postmaster_start_time": "2026-08-02 07:12:55.438928+00",
+  "recovered_postmaster_start_time": "2026-08-02 07:13:09.110738+00",
+  "production_eligible": false
+}

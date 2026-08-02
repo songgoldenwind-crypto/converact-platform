@@ -1,0 +1,10 @@
+✔ SIP effect executor is a physical fail-closed PostgreSQL DML boundary (590.898483ms)
+ℹ PostgreSQL server_version=16.14; production_eligible=not_run
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1245.81197

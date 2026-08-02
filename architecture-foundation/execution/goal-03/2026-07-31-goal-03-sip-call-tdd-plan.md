@@ -1,8 +1,10 @@
 # Goal 03 SIP/Call Foundation — Detailed TDD Plan
 
 The filename is retained from the binding Goal; execution begins 2026-08-02.
-Every step uses exact file staging, does not push, does not touch production or
-the validation host, and does not start G04.
+Every step uses exact file staging, does not push, does not touch frozen
+production, and does not start G04. Controlled campaigns may use only the
+authorized validation host and must preserve its pre-existing stopped
+containers.
 
 ## 1. Contract Slice
 
@@ -104,15 +106,20 @@ Run serially:
 6. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.
 
-Update only evidence entries proved by these commands. `not_run` remains for
-physical PostgreSQL, real peer, long call, host fault/OOM and performance.
+Update only evidence entries proved by these commands. Local verification does
+not by itself promote physical PostgreSQL, real peer, long call, host fault/OOM
+or performance evidence.
 
 ## 5. External/Host Campaigns
 
 These run only when their prerequisites are deliberately provided; absence
-does not stop offline work:
+does not stop independent offline work. The physical PostgreSQL restart/replay
+campaign completed on the authorized validation host and is recorded as
+`G03-E05-POSTGRES = verified_controlled`; it does not qualify the remaining
+campaigns:
 
-- PostgreSQL N/N+1 activation, role/RLS, kill/restart and receipt replay;
+- PostgreSQL role/RLS, physical restart and receipt replay (completed
+  controlled slice; rolling N/N+1 remains outside this evidence);
 - SIPp + Asterisk/FreeSWITCH/baresip interoperability;
 - `100 Trying`, final and 503 raw latency distribution;
 - 2h control soak and long-call restart/drain;

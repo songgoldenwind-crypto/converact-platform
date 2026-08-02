@@ -18,11 +18,13 @@ evidence is not promoted.
 | originate/answer/terminate control port | closed `sip-foundation-control-message-v1` schema embedded in the target machine contract; current RustPBX binding remains outside the target port | compiled closed-schema contract test; future Adapter activation tests | `not_run` |
 | Protocol Session, pre-callback reservation and drain | `sip-foundation/session-registry.ts` | foundation + G03 reentrancy tests | `G03-E09-DRAIN` |
 | rsipstack Adapter | `sip-foundation/rsipstack-adapter.ts`; `route-binding.ts` | foundation tests; exact patch tests | `G03-E02-BASELINE`, `G03-E07-WIRE` |
-| durable effects/receipts | `effect-oracle.ts`; `postgres-effect-store.ts`; migration 107 | effect oracle and physical PostgreSQL tests | `G03-E04-EFFECT`, `G03-E05-POSTGRES` |
+| durable effects/receipts | `effect-oracle.ts`; `postgres-effect-store.ts`; migration 107 | effect oracle and physical PostgreSQL tests; `test/converact-g03-postgres-restart-acceptance.test.ts` | `G03-E04-EFFECT`, `G03-E05-POSTGRES` |
+| physical restart/replay probe | `services/converact-service/acceptance/g03-sip-foundation/postgres-effect-restart-probe.ts` | `test/converact-g03-postgres-restart-acceptance.test.ts`; controlled host campaign | `G03-E05-POSTGRES` |
 | recovery/clock | `sip-foundation/recovery.ts`; dialog takeover/shadow sources | recovery and takeover tests | `G03-E08-RECOVERY` |
 | one 100 Trying | rsipstack single-trying patch; RustPBX call module | exact patch/native test and SIPp latency campaign | `G03-E06-TRYING` |
 | raw wire corpus | `architecture-foundation/execution/goal-03/wire-corpus/*` | G03 contract/corpus test; future differential harness | `G03-E07-WIRE` |
 | exact source build | `infra/converact/rustpbx/build.sh`; `Cargo.lock`; patch queue | RustPBX build/patch contract tests | `G03-E02-BASELINE` |
+| controlled PostgreSQL evidence | `architecture-foundation/execution/goal-03/controlled-postgres-restart-report.md`; retained raw evidence manifest | exact-source physical PostgreSQL campaign and independent evidence review | `G03-E05-POSTGRES` |
 | interop/long/performance | SIPp acceptance scripts and future controlled campaign | real external dependency | `G03-E11/E12/E13` |
 
 ## 3. Existing Source Disposition
@@ -39,7 +41,9 @@ evidence is not promoted.
 
 ## 4. Evidence Non-inheritance
 
-The 103-test audit baseline is local source/unit evidence only. Physical
-PostgreSQL, SIP peer, long-call, fault/OOM and host-capacity results require new
-raw outputs bound to the final G03 commit. Existing server containers remain
-untouched and no production evidence is borrowed.
+The local source/unit suite and the controlled physical PostgreSQL restart are
+separate evidence classes. The latter qualifies only `G03-E05-POSTGRES` and is
+not production evidence. SIP peer, long-call, fault/OOM and host-capacity
+results still require new raw outputs bound to their exact source commit.
+Frozen production remains untouched and no historical production evidence is
+borrowed.

@@ -392,17 +392,45 @@ test('all 143 source rows targeting G03 map once without evidence promotion', ()
   }
 });
 
-test('evidence starts honest and no required design artifact contains placeholders', () => {
+test('evidence promotes only exact proved slices and retains every open gate', () => {
   const evidence = readJson(join(goalDirectory, documents.evidence[1]));
   assert.equal(evidence.production_eligible, false);
+  assert.equal(evidence.current_state, 'implementation_in_progress');
   assert.deepEqual(evidence.inherited_claims, []);
   assert.equal(evidence.entries.length, 15);
   assert.equal(new Set(evidence.entries.map((entry) => entry.evidence_id)).size, 15);
+  const expectedStatuses = {
+    'G03-E01-CONTRACT': 'verified_local',
+    'G03-E02-BASELINE': 'verified_local',
+    'G03-E03-ID-STATE': 'verified_local',
+    'G03-E04-EFFECT': 'verified_local',
+    'G03-E05-POSTGRES': 'verified_controlled',
+    'G03-E06-TRYING': 'not_run',
+    'G03-E07-WIRE': 'not_run',
+    'G03-E08-RECOVERY': 'verified_local',
+    'G03-E09-DRAIN': 'verified_local',
+    'G03-E10-FAULT': 'not_run',
+    'G03-E11-INTEROP': 'not_run',
+    'G03-E12-LONG-CALL': 'not_run',
+    'G03-E13-PERFORMANCE': 'not_run',
+    'G03-E14-TYPECHECK': 'verified_local',
+    'G03-E15-REVIEW': 'not_run',
+  };
   for (const entry of evidence.entries) {
-    assert.equal(entry.status, 'not_run');
-    assert.deepEqual(entry.evidence_uris, []);
-    assert.equal(entry.source_commit, null);
-    assert.equal(entry.raw_output_sha256, null);
+    assert.equal(entry.status, expectedStatuses[entry.evidence_id]);
+    if (entry.status === 'not_run') {
+      assert.deepEqual(entry.evidence_uris, []);
+      assert.equal(entry.source_commit, null);
+      assert.equal(entry.raw_output_sha256, null);
+    } else {
+      assert.ok(entry.evidence_uris.length > 0, entry.evidence_id);
+      assert.equal(
+        entry.source_commit,
+        'a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb',
+        entry.evidence_id,
+      );
+      assert.match(entry.raw_output_sha256, /^[a-f0-9]{64}$/u);
+    }
     assert.equal(entry.production_eligible, false);
   }
   for (const path of requiredMarkdown) {
@@ -412,8 +440,13 @@ test('evidence starts honest and no required design artifact contains placeholde
     assert.doesNotMatch(value, /\b(?:TBD|TODO|FIXME)\b/u, path);
   }
   const review = readFileSync(join(goalDirectory, 'independent-review.md'), 'utf8');
-  assert.match(review, /Review status: `third_review_remediation_complete_re_review_pending`/u);
-  assert.match(review, /Critical 0 \/ High 1 \/ Important 2 \/ Minor 2/u);
+  assert.match(
+    review,
+    /Review status: `interim_code_and_controlled_postgres_reviews_accepted_final_g03_review_pending`/u,
+  );
+  assert.match(review, /a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb/u);
+  assert.match(review, /Critical 0 \/ High 0 \/ Important 0 \/ Minor 0/u);
+  assert.match(review, /G03-E15-REVIEW` remains `not_run`/u);
   assert.match(review, /Production eligibility: `false`/u);
 });
 

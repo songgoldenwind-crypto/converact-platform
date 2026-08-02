@@ -1,0 +1,7 @@
+{
+  "status": "passed",
+  "phase": "cleanup",
+  "tenant_rows_remaining": 0,
+  "campaign_effect_rows_remaining": 0,
+  "production_eligible": false
+}

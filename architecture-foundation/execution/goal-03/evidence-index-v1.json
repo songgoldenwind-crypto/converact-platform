@@ -19,46 +19,61 @@
     {
       "evidence_id": "G03-E01-CONTRACT",
       "claim": "G03 machine contracts and binding validation",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_local",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c/contract.log"
+      ],
+      "source_commit": "a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb",
+      "raw_output_sha256": "ab36ff826e117234cf8a46ed3bc4cc304ca10709ef1f45b18f6901c2de50baee",
       "production_eligible": false
     },
     {
       "evidence_id": "G03-E02-BASELINE",
       "claim": "Existing SipFoundation focused baseline",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_local",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c/README.md",
+        "architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c/focused.log",
+        "architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c/part-manifest.sha256"
+      ],
+      "source_commit": "a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb",
+      "raw_output_sha256": "40aa77621bd95b6528dcbe4e9770238a589ea4098a9cb57ffe790fcf3f5a6892",
       "production_eligible": false
     },
     {
       "evidence_id": "G03-E03-ID-STATE",
       "claim": "Strong IDs and Call/Leg race semantics",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_local",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c/focused.log"
+      ],
+      "source_commit": "a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb",
+      "raw_output_sha256": "9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9",
       "production_eligible": false
     },
     {
       "evidence_id": "G03-E04-EFFECT",
       "claim": "Durable effect and semantic receipt classes",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_local",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c/focused.log"
+      ],
+      "source_commit": "a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb",
+      "raw_output_sha256": "9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9",
       "production_eligible": false
     },
     {
       "evidence_id": "G03-E05-POSTGRES",
       "claim": "Physical PostgreSQL durability, ACL and restart replay",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_controlled",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/postgres-restart-a18229cd-02/README.md",
+        "architecture-foundation/execution/goal-03/evidence/raw/postgres-restart-a18229cd-02/retained-output.sha256",
+        "architecture-foundation/execution/goal-03/evidence/raw/postgres-restart-a18229cd-02/verify.json",
+        "architecture-foundation/execution/goal-03/controlled-postgres-restart-report.md"
+      ],
+      "source_commit": "a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb",
+      "raw_output_sha256": "a4aa58ab2c1006830cfffe400be87741775becbaa8a85a02b1edaf02e393d8aa",
       "production_eligible": false
     },
     {
@@ -82,19 +97,23 @@
     {
       "evidence_id": "G03-E08-RECOVERY",
       "claim": "Confirmed-quiescent recovery, clock and fencing",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_local",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c/focused.log"
+      ],
+      "source_commit": "a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb",
+      "raw_output_sha256": "9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9",
       "production_eligible": false
     },
     {
       "evidence_id": "G03-E09-DRAIN",
       "claim": "New-call stop, old-call drain and active-zero",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_local",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c/focused.log"
+      ],
+      "source_commit": "a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb",
+      "raw_output_sha256": "9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9",
       "production_eligible": false
     },
     {
@@ -136,10 +155,12 @@
     {
       "evidence_id": "G03-E14-TYPECHECK",
       "claim": "Repository TypeScript typecheck",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_local",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c/typecheck.log"
+      ],
+      "source_commit": "a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb",
+      "raw_output_sha256": "40bc31d5c95fb879712acd5d1ffc8bcac91b04826d82c408f5246ca6e9bdcea9",
       "production_eligible": false
     },
     {
@@ -154,7 +175,7 @@
   ],
   "inherited_claims": [],
   "external_or_environment_blockers": [
-    "physical_postgresql_runtime_not_started",
+    "100_trying_and_wire_differential_campaign_not_run",
     "real_sip_peer_campaign_not_run",
     "host_fault_and_oom_campaign_not_run",
     "long_call_and_capacity_campaign_not_run"

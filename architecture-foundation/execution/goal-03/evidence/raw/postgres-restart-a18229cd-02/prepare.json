@@ -1,0 +1,52 @@
+{
+  "status": "passed",
+  "phase": "prepare",
+  "process_pid": 1,
+  "process_instance_id": "b9e866a8-dfac-4071-a9ca-7760f5fb7cf1",
+  "campaign_binding": {
+    "run_id": "g03-restart-a18229cd-02",
+    "source_commit": "a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb",
+    "database_name": "converact_g03_g03_restart_a18229cd_02",
+    "confirmation_sha256": "63a8b0b26b532c8d582f45f53f6ef317ca364e10ca83154a3bb69e5ea1e29d4f",
+    "tenant_name": "G03 PostgreSQL restart g03-restart-a18229cd-02",
+    "tenant_marker": {
+      "goal_id": "G03",
+      "run_id": "g03-restart-a18229cd-02",
+      "source_commit": "a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb",
+      "confirmation_sha256": "63a8b0b26b532c8d582f45f53f6ef317ca364e10ca83154a3bb69e5ea1e29d4f"
+    },
+    "protocol_effect_id": "g03-effect-g03-restart-a18229cd-02",
+    "durable_receipt_id": "g03-durable-g03-restart-a18229cd-02",
+    "send_receipt_id": "g03-send-g03-restart-a18229cd-02",
+    "accepted_receipt_id": "g03-accepted-g03-restart-a18229cd-02",
+    "observed_receipt_id": "g03-observed-g03-restart-a18229cd-02",
+    "writer_activation_receipt_id": "g03-writer-activation-g03-restart-a18229cd-02",
+    "schema_activation_receipt_id": "g03-schema-activation-g03-restart-a18229cd-02"
+  },
+  "postgres_identity": {
+    "system_identifier": "7669328856915570727",
+    "postmaster_start_time": "2026-08-02 07:12:55.438928+00"
+  },
+  "identity": {
+    "tenant_id": "g03-restart-a18229cd-02",
+    "protocol_effect_id": "g03-effect-g03-restart-a18229cd-02",
+    "protocol_session_id": "g03-session-g03-effect-g03-restart-a18229cd-02",
+    "protocol_session_generation": "33333333-3333-4333-8333-333333333333",
+    "decision_id": "g03-decision-g03-effect-g03-restart-a18229cd-02",
+    "idempotency_key": "g03-idempotency-g03-effect-g03-restart-a18229cd-02",
+    "request_hash": "e9717c7af109f511272b7f3322d4342939c8ce9f1848c42f06bbcdb059583ff0",
+    "command_id": "g03-command-g03-effect-g03-restart-a18229cd-02",
+    "adapter_identity_hash": "a508eb4edb551f7a28919f05ca067829641abcbfd1668f721f0d999d93089026",
+    "wire_bytes_hash": "2ec30463869234fe5a648c83515408aff7639695056596ca8b89f2c78f715420",
+    "wire_length_bytes": 257,
+    "route_binding_hash": "38e8b69a1c0f5946a61e4a0a86743ddc46d51fcba7b92999cb76426e463a95a7",
+    "wire_attempt_facts_hash": "859e256d394adb3c40cd1537f37cb73f6714aef5079753d8651b8c717f165034",
+    "wire_freeze_sha256": "b0157e87e5d237dedaa9ebc9419502977503d0e2a3dd365271323f47232febde",
+    "owner_epoch": "1",
+    "command_sequence": "1"
+  },
+  "state": "transport_accepted",
+  "revision": "4",
+  "last_receipt_id": "g03-accepted-g03-restart-a18229cd-02",
+  "production_eligible": false
+}
