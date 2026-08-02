@@ -132,6 +132,22 @@ test('RustPBX verification accepts only a complete exact-source override set', (
   );
 });
 
+test('rsipstack native tests fetch one locked graph before switching offline', () => {
+  const rsipstackLockPath = 'infra/converact/rustpbx/rsipstack.Cargo.lock';
+  assert.equal(existsSync(rsipstackLockPath), true);
+  const lock = readFileSync(rsipstackLockPath, 'utf8');
+  assert.match(lock, /^version = 4$/m);
+  assert.match(lock, /name = "rtp-rs"\nversion = "0\.6\.0"/);
+  assert.match(
+    buildScript,
+    /cp "\$SCRIPT_DIR\/rsipstack\.Cargo\.lock" "\$BUILD_ROOT\/rsipstack\/Cargo\.lock"/
+  );
+  assert.match(
+    buildScript,
+    /cargo fetch --manifest-path \/build\/rsipstack\/Cargo\.toml --locked[\s\S]*cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline/
+  );
+});
+
 test('RustPBX deployment examples reference the current patchset', () => {
   for (const path of [
     'infra/env.example',

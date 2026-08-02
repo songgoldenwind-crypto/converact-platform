@@ -257,6 +257,7 @@ mkdir -p "$BUILD_ROOT/rustpbx/vendor/converact-component-hook"
 cp -R "$HOOK_DIR/." \
   "$BUILD_ROOT/rustpbx/vendor/converact-component-hook/"
 cp "$SCRIPT_DIR/Cargo.lock" "$BUILD_ROOT/rustpbx/Cargo.lock"
+cp "$SCRIPT_DIR/rsipstack.Cargo.lock" "$BUILD_ROOT/rsipstack/Cargo.lock"
 cp "$SCRIPT_DIR/Dockerfile.runtime" "$BUILD_ROOT/rustpbx/Dockerfile.converact"
 cp "$SCRIPT_DIR/entrypoint.sh" "$BUILD_ROOT/rustpbx/entrypoint.converact.sh"
 
@@ -320,6 +321,7 @@ if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
       cargo test --locked --lib test_recording_pending_start_rejects_duplicate
       cargo test --locked --lib missing_callee_terminal_data_stays_independent_from_the_caller
       cargo test --locked --test ivekit_dialog_shadow_contract_test
+      cargo fetch --manifest-path /build/rsipstack/Cargo.toml --locked
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline prepared_invite_
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline reject_with_headers_
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline repeated_send_trying_emits_one_initial_response
