@@ -1,0 +1,63 @@
+{
+  "evidence_id": "G02-E10-RESTORE",
+  "status": "verified_controlled",
+  "production_eligible": false,
+  "measured_rpo_ms": 0,
+  "measured_rto_ms": 5777,
+  "evidence": {
+    "identity": {
+      "goal_id": "G02",
+      "goal_sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9",
+      "source_commit": "a517cf368bc25417c0f51870091e3306592b6fc4",
+      "config_sha256": "9e3aaf41aa3630615b77615e6c1a2176e1ce4e3d658f4cb983f9e6d835ba5a7d",
+      "raw_output_sha256": "b742d246dfdbcd1ee0765f9179d0d474583cfca2404773072f0a0feaf66a2f3a",
+      "image_digests": [
+        "postgres@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb",
+        "node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d"
+      ],
+      "node_binary_sha256": "41a74efb34cbde5c7632cdac0cf8bd1a14d0b8d73dc1e82755014d9a9ce70f5c",
+      "node_version": "v24.18.0",
+      "host": "VM-0-3-ubuntu",
+      "hardware": "Linux 6.8.0-71-generic x86_64 GNU/Linux; 2 vCPU; 7.5 GiB RAM; Node v24.18.0",
+      "clock": "UTC wall clock; Node monotonic performance clock; kvm-clock kernel clocksource",
+      "workload": "distinct source and empty target PostgreSQL containers; production backup/restore; one object; runtime RLS and append-only verification; measured RPO/RTO",
+      "seed": "restore-a517cf3-01",
+      "started_at": "2026-08-02T00:52:31.378Z",
+      "completed_at": "2026-08-02T00:52:51.501Z"
+    },
+    "backup": {
+      "status": "passed",
+      "process_pid": 3403212,
+      "source_database_id": "b72a1f7eed62761258fea52b93be6a4c1e56b9b59662bf2c0f6e05f6f1064e1a",
+      "backup_id": "restore-restore-a517cf3-01",
+      "artifact_sha256": "c8a8ab15ba985b8eee02e428694dd9e5ac6dfcd6261eab90608331fddec79f94",
+      "checkpoint_records": 6,
+      "checkpoint_digest": "ccf4fee5b512188b1ff7c4a776ac1e315ed85b16de94970a6be3c7beefe640d7",
+      "object_count": 1,
+      "object_digest": "ac24f6e5792644388d4d9e8d4cbd6d36f299192921009cd20dcf7a299ce495d4",
+      "backup_started_at": "2026-08-02T00:52:39.785Z",
+      "backup_completed_at": "2026-08-02T00:52:40.672Z"
+    },
+    "restore": {
+      "status": "passed",
+      "target_database_id": "ef3c8cb3c5abb9fa9875bff8e216a31a8678bfa422f8721f941bcdccc17e3177",
+      "backup_id": "restore-restore-a517cf3-01",
+      "target_was_empty": true,
+      "restore_process_pid": 3403853,
+      "fresh_process_pid": 3404097,
+      "migration_head": "112_converact_platform_history_receipt_integrity",
+      "restored_records": 6,
+      "restored_digest": "ccf4fee5b512188b1ff7c4a776ac1e315ed85b16de94970a6be3c7beefe640d7",
+      "restored_object_count": 1,
+      "restored_object_digest": "ac24f6e5792644388d4d9e8d4cbd6d36f299192921009cd20dcf7a299ce495d4",
+      "measured_rpo_ms": 0,
+      "runtime_rls_verified": true,
+      "append_only_verified": true,
+      "measured_rto_ms": 5777,
+      "rto_clock_domain": "monotonic",
+      "rto_measurement_scope": "restore_runtime_role_fresh_process_verify",
+      "unrelated_containers_unchanged": true,
+      "validation_resources_remaining": 0
+    }
+  }
+}

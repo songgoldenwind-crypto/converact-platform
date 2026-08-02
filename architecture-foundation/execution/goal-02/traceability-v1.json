@@ -1318,6 +1318,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -1595,7 +1597,9 @@
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs",
-        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs"
+        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts"
       ],
       "test_paths": [
         "test/converact-platform-fault-matrix-contract.test.ts",
@@ -1959,6 +1963,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -1986,6 +1992,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2013,6 +2021,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2040,6 +2050,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2067,6 +2079,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2094,6 +2108,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2121,6 +2137,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2656,6 +2674,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2683,6 +2703,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2710,6 +2732,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2737,6 +2761,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2764,6 +2790,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2791,6 +2819,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2818,6 +2848,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -2870,6 +2902,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -3250,7 +3284,9 @@
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs",
-        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs"
+        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts"
       ],
       "test_paths": [
         "test/converact-platform-fault-matrix-contract.test.ts",
@@ -3949,6 +3985,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -4529,6 +4567,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -4606,7 +4646,9 @@
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs",
-        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs"
+        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts"
       ],
       "test_paths": [
         "test/converact-platform-fault-matrix-contract.test.ts",
@@ -4636,7 +4678,9 @@
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs",
-        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs"
+        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts"
       ],
       "test_paths": [
         "test/converact-platform-fault-matrix-contract.test.ts",
@@ -6122,6 +6166,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -6287,6 +6333,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -7201,6 +7249,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -7251,6 +7301,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -7301,6 +7353,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -7574,6 +7628,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -7787,6 +7843,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -8075,6 +8133,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -8171,6 +8231,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -8899,6 +8961,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -9715,6 +9779,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -10285,6 +10351,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -10435,6 +10503,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -10489,6 +10559,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -10516,6 +10588,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -10915,6 +10989,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -11088,6 +11164,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -11253,6 +11331,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -11330,7 +11410,9 @@
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs",
-        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs"
+        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts"
       ],
       "test_paths": [
         "test/converact-platform-fault-matrix-contract.test.ts",
@@ -11483,7 +11565,9 @@
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs",
-        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs"
+        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts"
       ],
       "test_paths": [
         "test/converact-platform-fault-matrix-contract.test.ts",
@@ -11659,7 +11743,9 @@
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs",
-        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs"
+        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts"
       ],
       "test_paths": [
         "test/converact-platform-fault-matrix-contract.test.ts",
@@ -11712,7 +11798,9 @@
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs",
-        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs"
+        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts"
       ],
       "test_paths": [
         "test/converact-platform-fault-matrix-contract.test.ts",
@@ -12502,6 +12590,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],
@@ -12654,7 +12744,9 @@
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs",
         "services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs",
-        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs"
+        "services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts"
       ],
       "test_paths": [
         "test/converact-platform-fault-matrix-contract.test.ts",
@@ -12818,6 +12910,8 @@
       "implementation_paths": [
         "src/agent-runtime/converact/platform-foundation/resilience.ts",
         "src/agent-runtime/converact/operations/readiness.ts",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh",
+        "services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts",
         "services/converact-service/acceptance/platform-fault-matrix/control-accept.sh"
       ],

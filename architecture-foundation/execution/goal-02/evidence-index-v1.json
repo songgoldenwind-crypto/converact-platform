@@ -182,14 +182,18 @@
       "evidence_id": "G02-E10-RESTORE",
       "evidence_class": "backup_restore",
       "scope": "backup_restore_rehearsal",
-      "status": "not_run",
+      "status": "verified_controlled",
       "production_eligible": false,
       "required_evidence": [
         "raw restore output",
         "RPO/RTO"
       ],
-      "evidence_uris": [],
-      "non_claim": "No current-commit raw evidence has been accepted; remains not_run."
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-02/evidence/restore-a517cf3-01.md",
+        "architecture-foundation/execution/goal-02/evidence/raw/restore-a517cf3-01/raw-output.sha256",
+        "architecture-foundation/execution/goal-02/evidence/raw/restore-a517cf3-01/supplemental-manifest.sha256"
+      ],
+      "non_claim": "One isolated frozen-checkpoint restore into a distinct empty PostgreSQL target verified the production backup/restore path, one object, runtime RLS, append-only history and measured RPO/RTO. It does not prove continuous-write PITR, region recovery, production DR, long media, the remaining dependency matrix, SIP/media capacity or native safety."
     },
     {
       "evidence_id": "G02-E11-DRAIN",
@@ -268,15 +272,15 @@
       "evidence_uris": [
         "architecture-foundation/execution/goal-02/independent-review.md"
       ],
-      "non_claim": "Independent review accepted the local foundation, controlled database restart and fixed-host control-plane capacity only; external dependency, long-media, restore, drain, SIP/media/fleet capacity, region, native-safety and production gates remain unproved."
+      "non_claim": "Independent review accepted the local foundation, controlled database restart, frozen-checkpoint restore and fixed-host control-plane capacity only; external dependency, continuous-write PITR, long-media, drain, SIP/media/fleet capacity, region, native-safety and production gates remain unproved."
     }
   ],
   "summary": {
     "entries": 18,
     "target_contract_entries": 1,
     "verified_local_entries": 9,
-    "verified_controlled_entries": 2,
-    "not_run_entries": 6,
+    "verified_controlled_entries": 3,
+    "not_run_entries": 5,
     "production_eligible_entries": 0
   }
 }

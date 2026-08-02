@@ -105,6 +105,8 @@ const sourceMaps = {
     implementation_paths: [
       'src/agent-runtime/converact/platform-foundation/resilience.ts',
       'src/agent-runtime/converact/operations/readiness.ts',
+      'services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh',
+      'services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts',
       'services/converact-service/acceptance/platform-fault-matrix/capacity-probe.ts',
       'services/converact-service/acceptance/platform-fault-matrix/control-accept.sh',
     ],
@@ -123,6 +125,8 @@ const sourceMaps = {
       'services/converact-service/acceptance/platform-fault-matrix/evidence-contract.mjs',
       'services/converact-service/acceptance/platform-fault-matrix/evidence-secret-scan.mjs',
       'services/converact-service/acceptance/platform-fault-matrix/identity-probe.mjs',
+      'services/converact-service/acceptance/platform-fault-matrix/restore-accept.sh',
+      'services/converact-service/acceptance/platform-fault-matrix/restore-probe.ts',
     ],
     test_paths: [
       'test/converact-platform-fault-matrix-contract.test.ts',
@@ -600,6 +604,12 @@ function evidenceIndex() {
     'architecture-foundation/execution/goal-02/evidence/raw/capacity-b263a55-01/raw-output.sha256';
   const controlledCapacitySupplementalManifestUri =
     'architecture-foundation/execution/goal-02/evidence/raw/capacity-b263a55-01/supplemental-manifest.sha256';
+  const controlledRestoreEvidenceUri =
+    'architecture-foundation/execution/goal-02/evidence/restore-a517cf3-01.md';
+  const controlledRestoreRawManifestUri =
+    'architecture-foundation/execution/goal-02/evidence/raw/restore-a517cf3-01/raw-output.sha256';
+  const controlledRestoreSupplementalManifestUri =
+    'architecture-foundation/execution/goal-02/evidence/raw/restore-a517cf3-01/supplemental-manifest.sha256';
   const independentReviewUri =
     'architecture-foundation/execution/goal-02/independent-review.md';
   const entry = (
@@ -644,6 +654,14 @@ function evidenceIndex() {
     ]),
     non_claim: 'One fixed-host control-plane overload campaign verified hard active, pending, retry and fanout limits. It does not prove media, mixed-cell or production capacity, long media, restore, drain, region recovery, the remaining dependency matrix, native safety or DR.',
   });
+  const controlledRestore = (id, evidenceClass, scope, requiredEvidence) => ({
+    ...entry(id, evidenceClass, scope, requiredEvidence, 'verified_controlled', [
+      controlledRestoreEvidenceUri,
+      controlledRestoreRawManifestUri,
+      controlledRestoreSupplementalManifestUri,
+    ]),
+    non_claim: 'One isolated frozen-checkpoint restore into a distinct empty PostgreSQL target verified the production backup/restore path, one object, runtime RLS, append-only history and measured RPO/RTO. It does not prove continuous-write PITR, region recovery, production DR, long media, the remaining dependency matrix, SIP/media capacity or native safety.',
+  });
   const entries = [
     entry('G02-E00-DESIGN', 'document_contract', 'design_authority_threat_recovery', ['contract test'], 'target_contract'),
     local('G02-E01-IDENTITY', 'local_test', 'tenant_identity_cross_tenant', ['focused tests', 'RLS integration']),
@@ -661,7 +679,12 @@ function evidenceIndex() {
       'postgres_restart_runtime_rls_reconcile_synthetic_transport',
       ['raw database restart output', 'source and runtime identity', 'post-run integrity verification'],
     ),
-    entry('G02-E10-RESTORE', 'backup_restore', 'backup_restore_rehearsal', ['raw restore output', 'RPO/RTO']),
+    controlledRestore(
+      'G02-E10-RESTORE',
+      'backup_restore',
+      'backup_restore_rehearsal',
+      ['raw restore output', 'RPO/RTO'],
+    ),
     entry('G02-E11-DRAIN', 'rolling_drain', 'node_loss_rolling_schema_active_zero', ['raw multi-node output']),
     entry('G02-E12-LONG-MEDIA', 'long_media_fault', 'established_human_media_fault_isolation', ['real long media and fault schedule']),
     controlledCapacity(
@@ -681,7 +704,7 @@ function evidenceIndex() {
         'verified_local',
         [independentReviewUri],
       ),
-      non_claim: 'Independent review accepted the local foundation, controlled database restart and fixed-host control-plane capacity only; external dependency, long-media, restore, drain, SIP/media/fleet capacity, region, native-safety and production gates remain unproved.',
+      non_claim: 'Independent review accepted the local foundation, controlled database restart, frozen-checkpoint restore and fixed-host control-plane capacity only; external dependency, continuous-write PITR, long-media, drain, SIP/media/fleet capacity, region, native-safety and production gates remain unproved.',
     },
   ];
   return {

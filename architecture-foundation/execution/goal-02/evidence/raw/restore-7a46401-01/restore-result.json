@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "process_pid": 3394964,
+  "target_database_id": "b43cdbb5bad1fc6452b095561ac4c34ea9484153cebbfbd0fc029cde31dc23c6",
+  "backup_id": "restore-restore-7a46401-01",
+  "database_count": 1,
+  "databases_restored": 1,
+  "objects_restored": 1
+}

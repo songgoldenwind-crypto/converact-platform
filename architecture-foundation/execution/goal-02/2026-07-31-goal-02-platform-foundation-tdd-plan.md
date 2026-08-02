@@ -423,15 +423,18 @@ Controlled progress, without promoting the aggregate task:
   transport continuity and project-scoped cleanup; record it as `verified_controlled` only.
 - [x] Run the exact-source `BoundedWorkGate` on the fixed 2-vCPU validation host for 2,000,000 attempts; prove
   active/pending/retry/fanout hard bounds and retain it as control-plane-only `verified_controlled` evidence.
+- [x] Run the production backup/restore path from one isolated PostgreSQL source into a distinct empty target;
+  verify one object, exact checkpoint digest, fresh-process RLS/append-only behavior, RPO 0 and measured RTO.
 - [x] Verify every retained raw hash, byte-identical unrelated-container snapshots, zero campaign resources and
   secret-shaped evidence rejection.
-- [x] Keep the aggregate dependency matrix, real Human Communication, SIP/media/mixed-cell/fleet capacity, restore,
-  drain, region and production claims `not_run`.
+- [x] Keep the aggregate dependency matrix, real Human Communication, SIP/media/mixed-cell/fleet capacity, drain,
+  region and production claims `not_run`; frozen-checkpoint restore alone is `verified_controlled`.
 
 - [ ] Build a fenced fault harness for Postgres, event system, object store, PKI/KMS, DNS, config, wall clock,
   AI/GPU, recording upload, provider, observability and node crash.
 - [ ] Prove single-node crash/restart, stale owner, duplicate/reorder, N/N-1 rolling and key rotation.
-- [ ] Run backup/restore rehearsal and capture measured RPO/RTO.
+- [x] Run frozen-checkpoint backup/restore rehearsal and capture measured RPO/RTO; continuous-write PITR and
+  region DR remain separate `not_run` gates.
 - [ ] Run multi-node drain/node loss/region recovery with active-zero receipts.
 - [ ] Run each fault beside a real long Human Communication session and prove no causal termination from optional
   dependencies; separately report embedded process-owned edge interruption.

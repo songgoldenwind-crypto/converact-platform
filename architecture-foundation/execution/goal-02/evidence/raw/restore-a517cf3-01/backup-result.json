@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "process_pid": 3403212,
+  "source_database_id": "b72a1f7eed62761258fea52b93be6a4c1e56b9b59662bf2c0f6e05f6f1064e1a",
+  "backup_id": "restore-restore-a517cf3-01",
+  "artifact_sha256": "c8a8ab15ba985b8eee02e428694dd9e5ac6dfcd6261eab90608331fddec79f94",
+  "checkpoint_records": 6,
+  "checkpoint_digest": "ccf4fee5b512188b1ff7c4a776ac1e315ed85b16de94970a6be3c7beefe640d7",
+  "object_count": 1,
+  "object_digest": "ac24f6e5792644388d4d9e8d4cbd6d36f299192921009cd20dcf7a299ce495d4",
+  "backup_started_at": "2026-08-02T00:52:39.785Z",
+  "backup_completed_at": "2026-08-02T00:52:40.672Z"
+}

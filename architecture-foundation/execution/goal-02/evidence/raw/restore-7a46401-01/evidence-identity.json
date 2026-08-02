@@ -1,0 +1,20 @@
+{
+  "goal_id": "G02",
+  "goal_sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9",
+  "source_commit": "7a464015f9c6f1b0990721c07ed58721d51b3b0a",
+  "config_sha256": "3b9715d043def64d3c169c45d3629b2d4fe2ed76a64072b986c35c21fab18f34",
+  "raw_output_sha256": "7a8aa0e8d1f43a1a49da0e0ee7b3e78a58c655080f9190d5e508f6a54e2e8d79",
+  "image_digests": [
+    "postgres@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb",
+    "node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d"
+  ],
+  "node_binary_sha256": "41a74efb34cbde5c7632cdac0cf8bd1a14d0b8d73dc1e82755014d9a9ce70f5c",
+  "node_version": "v24.18.0",
+  "host": "VM-0-3-ubuntu",
+  "hardware": "Linux 6.8.0-71-generic x86_64 GNU/Linux; 2 vCPU; 7.5 GiB RAM; Node v24.18.0",
+  "clock": "UTC wall clock; Node monotonic performance clock; kvm-clock kernel clocksource",
+  "workload": "distinct source and empty target PostgreSQL containers; production backup/restore; one object; runtime RLS and append-only verification; measured RPO/RTO",
+  "seed": "restore-7a46401-01",
+  "started_at": "2026-08-02T00:25:24.154Z",
+  "completed_at": "2026-08-02T00:25:44.730Z"
+}

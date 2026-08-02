@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "target_database_id": "ef3c8cb3c5abb9fa9875bff8e216a31a8678bfa422f8721f941bcdccc17e3177",
+  "backup_id": "restore-restore-a517cf3-01",
+  "target_was_empty": true,
+  "restore_process_pid": 3403853,
+  "fresh_process_pid": 3404097,
+  "migration_head": "112_converact_platform_history_receipt_integrity",
+  "restored_records": 6,
+  "restored_digest": "ccf4fee5b512188b1ff7c4a776ac1e315ed85b16de94970a6be3c7beefe640d7",
+  "restored_object_count": 1,
+  "restored_object_digest": "ac24f6e5792644388d4d9e8d4cbd6d36f299192921009cd20dcf7a299ce495d4",
+  "measured_rpo_ms": 0,
+  "runtime_rls_verified": true,
+  "append_only_verified": true,
+  "measured_rto_ms": 5777,
+  "rto_clock_domain": "monotonic",
+  "rto_measurement_scope": "restore_runtime_role_fresh_process_verify"
+}

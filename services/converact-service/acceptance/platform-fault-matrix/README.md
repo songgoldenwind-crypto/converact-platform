@@ -15,6 +15,10 @@ volume, network, database, credential, port, or evidence directory.
 - The control-plane executable slice runs the production `BoundedWorkGate` on a fixed host, saturates active and
   pending admission, proves retry/fanout rejection before capacity consumption, and records bounded latency,
   event-loop and RSS measurements. It starts no container and makes no SIP/media/fleet capacity claim.
+- The restore executable slice runs the production backup and restore functions against two project-scoped,
+  digest-pinned PostgreSQL containers. The source is removed before a distinct empty target is created; a fresh
+  process verifies exact database/object digests, RLS and append-only history. One parent process measures restore,
+  runtime-role initialization and fresh-process verification through a single monotonic timing boundary.
 - Event system, object store, PKI/KMS, DNS, configuration, wall-clock, AI/GPU, recording upload, provider,
   observability and host/node adapters are not yet executed by this slice.
 - Every unexecuted dependency remains `not_run`.
@@ -87,6 +91,25 @@ NODE_BIN='/absolute/path/to/node-v24' \
 The control runner refuses a dirty or mismatched source checkout, records the exact Node binary, fixed hardware,
 clock, workload and seed, scans every retained artifact, compares all pre-existing container state byte-for-byte,
 and cannot start, stop or delete a container.
+
+Controlled backup/restore campaign:
+
+```bash
+CONVERACT_G02_RESTORE_CONFIRM=G02_PLATFORM_RESTORE_EVIDENCE \
+CONVERACT_G02_FAULT_RUN_ID='restore-<unique suffix>' \
+CONVERACT_G02_SOURCE_COMMIT='<40 hex exact commit>' \
+CONVERACT_G02_NODE_IMAGE='node:24-bookworm-slim@sha256:<64 hex digest>' \
+POSTGRES_IMAGE='postgres@sha256:<64 hex digest>' \
+NODE_BIN='/absolute/path/to/node-v24' \
+./restore-accept.sh
+```
+
+The restore runner can act only on containers carrying its exact source/target
+Compose project labels. It publishes no database port, removes its source and
+target containers/networks/volumes, verifies pre-existing container snapshots,
+and retains only secret-scanned textual evidence. RTO excludes target-container
+boot and uses a process-local monotonic clock. Its frozen-checkpoint result does
+not prove continuous-write PITR, regional DR or production eligibility.
 
 Secrets, tokens, passwords, cookies, private keys and credentials are forbidden in evidence. Missing prerequisites,
 partial campaigns, mock services, loopback media, upstream benchmarks and historical results never promote a real

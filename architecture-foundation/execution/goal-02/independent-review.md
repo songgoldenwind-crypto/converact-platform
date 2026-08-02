@@ -9,8 +9,9 @@
 - Reviewed commit: `c920d7a59e02daba38118491217630fef94ce393`
 - Binary diff SHA-256: `341e2bbb844e3bbf705c1f6e6faec670a258434a1d489de2dd2fc0d8a2781cae`
 - Final runtime/test source: `4f9ea6f94a8e0740975c801aff5a6a180124a62b`
-- Latest incremental reviewed commit: `b263a55a975704f852b53a3da6eaba711307b07b`
+- Latest incremental reviewed commit: `a517cf368bc25417c0f51870091e3306592b6fc4`
 - Latest accepted capacity run: `capacity-b263a55-01`
+- Latest accepted restore run: `restore-a517cf3-01`
 - Critical: `0`
 - High: `0`
 - Important: `0`
@@ -18,9 +19,10 @@
 - Production eligibility: `false`
 
 The independent reviewer accepted the local foundation, one controlled
-PostgreSQL restart slice and one fixed-host bounded control-plane capacity
-slice. This is not production, long-media, SIP/media/mixed-cell/fleet capacity,
-restore, drain, region or native-safety acceptance.
+PostgreSQL restart slice, one frozen-checkpoint restore slice and one fixed-host
+bounded control-plane capacity slice. This is not production, continuous-write
+PITR, long-media, SIP/media/mixed-cell/fleet capacity, drain, region or
+native-safety acceptance.
 
 ## Reviewed boundary
 
@@ -121,19 +123,60 @@ Fresh review verified:
 The capacity result remains `production_eligible=false` and proves only the
 production bounded control primitive on one exact fixed host.
 
+## Incremental restore review
+
+The same read-only reviewer rejected predecessor Run `restore-7a46401-01` with
+`Critical 0 / High 0 / Important 1 / Minor 2`. Although the production
+backup/restore path, source/target isolation, empty target, exact database and
+object digests, RLS, append-only history and cleanup were valid, its required
+6,158 ms RTO subtracted cross-process `Date.now()` wall-clock values. That
+violated the frozen monotonic elapsed-time contract. The predecessor remains
+retained as `superseded_rejected_wall_clock_rto`, is not indexed as accepted,
+and the current evidence builder rejects it.
+
+Commit `a517cf368bc25417c0f51870091e3306592b6fc4` introduced one parent-process
+`performance.now()` boundary around production restore, runtime-role
+initialization and a distinct fresh verification child. It also binds one
+backup ID, three distinct process identities and exact RTO scope. New Run
+`restore-a517cf3-01` closed the finding with disposition
+`accepted_with_external_evidence_blockers` and
+`Critical 0 / High 0 / Important 0 / Minor 0`.
+
+Fresh review verified:
+
+- exact source `a517cf3`, immutable PostgreSQL and Node image references, Node
+  binary identity, config identity and a clean execution checkout;
+- source and target database identities differ; the source project was removed
+  before target creation; the target had zero public tables before restore;
+- one backup ID across backup/restore, backup/restore/fresh-verification PIDs
+  `3403212 / 3403853 / 3404097`, six exact authority records and one exact
+  object;
+- monotonic RTO 5,777 ms with scope restore + runtime-role initialization +
+  fresh-process verification, and quiescent-checkpoint RPO 0 ms;
+- runtime RLS and append-only mutation rejection, byte-identical snapshots of
+  nine stopped pre-existing containers, zero campaign resources, 23 raw plus
+  27 supplemental manifest entries, and secret scans before and after transfer;
+- current builder accepts the new result and rejects the predecessor; focused
+  tests `21/21`, G02 contract `11/11`, typecheck, diff check and generator
+  idempotence passed.
+
+The accepted restore remains `production_eligible=false`; the binary archive is
+not retained in Git, and the run proves neither continuous-write PITR nor
+regional or production disaster recovery.
+
 ## Remaining external evidence blockers
 
 These entries remain `not_run`:
 
 - `G02-E09-DEPENDENCY`
-- `G02-E10-RESTORE`
 - `G02-E11-DRAIN`
 - `G02-E12-LONG-MEDIA`
 - `G02-E14-REGION`
 - `G02-E15-NATIVE`
 
-They require the remaining real dependency matrix, backup/restore and measured
-RPO/RTO, multi-node drain/active-zero, real long Human Communication, fixed-host
-SIP/media/mixed-cell/fleet capacity, region recovery/split-brain, and exact-source native/
-unsafe/FFI fault/fuzz/core-dump evidence. Until those campaigns exist, G02 is
+They require the remaining real dependency matrix, continuous-write PITR,
+multi-node drain/active-zero, real long Human Communication, fixed-host
+SIP/media/mixed-cell/fleet capacity, region recovery/split-brain, and
+exact-source native/unsafe/FFI fault/fuzz/core-dump evidence. Until those
+campaigns exist, G02 is
 `blocked_external`, not `completed`, and every production claim remains false.

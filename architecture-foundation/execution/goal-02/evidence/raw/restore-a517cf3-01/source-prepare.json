@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "process_pid": 3403180,
+  "migration_head": "112_converact_platform_history_receipt_integrity",
+  "tenant_a_visible": 1,
+  "tenant_b_visible_from_a": 0,
+  "no_context_visible": 0,
+  "cross_tenant_insert_denied": true,
+  "inbox_inserted": true,
+  "accepted_receipt_inserted": true,
+  "completed_receipt_inserted": true,
+  "usage_inserted": true
+}
