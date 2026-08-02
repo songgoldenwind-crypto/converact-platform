@@ -2,15 +2,14 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 
+import type { PgQueryable } from '../src/db-pg.js';
 import {
-  attestLegacyCallId,
   deriveCallId,
   deriveInteractionId,
   deriveLegId,
   deriveMediaSessionId,
   deriveProtocolDialogId,
   deriveTransactionId,
-  importLegacyCallId,
   parseCallId,
   parseInteractionId,
   parseLegId,
@@ -18,6 +17,13 @@ import {
   parseProtocolDialogId,
   parseTransactionId
 } from '../src/agent-runtime/converact/voice/foundation-identifiers.js';
+import * as foundationIdentifiers from '../src/agent-runtime/converact/voice/foundation-identifiers.js';
+import {
+  VoiceCallIdAuthorityAdapter
+} from '../src/agent-runtime/converact/voice/voice-call-id-authority.js';
+import {
+  PostgresVoiceCallStore
+} from '../src/agent-runtime/converact/voice/postgres/call-store.js';
 import {
   CallLegRegistry
 } from '../src/agent-runtime/converact/voice/call-leg-state-machine.js';
@@ -65,48 +71,43 @@ test('owned identifiers are bounded, typed and boundary-unambiguous', async () =
     () => parseCallId('wire-call@example.invalid'),
     hasCode('voice_foundation_identifier_invalid')
   );
-  const vcallRecord = await attestLegacyCallId(
-    legacyCallLookup('vcall_legacy-42'),
-    TENANT_ID,
-    'vcall_legacy-42'
-  );
-  assert.match(importLegacyCallId(TENANT_ID, vcallRecord), /^call_[a-f0-9]{32}$/);
-  const uuidRecord = await attestLegacyCallId(
-    legacyCallLookup('44444444-4444-4444-8444-444444444444'),
-    TENANT_ID,
-    '44444444-4444-4444-8444-444444444444'
+  const vcallAuthority = VoiceCallIdAuthorityAdapter.bind(
+    legacyCallRepository('vcall_legacy-42')
   );
   assert.match(
-    importLegacyCallId(TENANT_ID, uuidRecord),
+    await vcallAuthority.resolveExisting(TENANT_ID, 'vcall_legacy-42'),
     /^call_[a-f0-9]{32}$/
   );
-  assert.throws(
-    () => importLegacyCallId(TENANT_ID, {
-      source: 'voice_call_repository',
-      tenant_id: TENANT_ID,
-      format: 'uuid',
-      value: '44444444-4444-4444-8444-444444444444'
-    } as never),
-    hasCode('voice_foundation_legacy_call_id_invalid')
+  const uuidAuthority = VoiceCallIdAuthorityAdapter.bind(
+    legacyCallRepository('44444444-4444-4444-8444-444444444444')
   );
-  assert.throws(
-    () => importLegacyCallId(TENANT_ID, '44444444-4444-4444-8444-444444444444' as never),
-    hasCode('voice_foundation_legacy_call_id_invalid')
-  );
-  assert.throws(
-    () => importLegacyCallId('tenant-other', uuidRecord),
-    hasCode('voice_foundation_legacy_call_id_invalid')
-  );
-  await assert.rejects(
-    () => attestLegacyCallId(legacyCallLookup(null), TENANT_ID, 'vcall_missing'),
-    hasCode('voice_foundation_legacy_call_id_invalid')
-  );
-  await assert.rejects(
-    () => attestLegacyCallId(
-      legacyCallLookup('vcall_tenant-mismatch', 'tenant-other'),
+  assert.match(
+    await uuidAuthority.resolveExisting(
       TENANT_ID,
-      'vcall_tenant-mismatch'
+      '44444444-4444-4444-8444-444444444444'
     ),
+    /^call_[a-f0-9]{32}$/
+  );
+  assert.equal('attestLegacyCallId' in foundationIdentifiers, false);
+  assert.equal('importLegacyCallId' in foundationIdentifiers, false);
+  assert.throws(
+    () => VoiceCallIdAuthorityAdapter.bind({
+      async get() {
+        return { id: 'vcall_forged', tenant_id: TENANT_ID };
+      }
+    } as unknown as PostgresVoiceCallStore),
+    hasCode('voice_foundation_legacy_call_id_invalid')
+  );
+  await assert.rejects(
+    () => VoiceCallIdAuthorityAdapter.bind(
+      legacyCallRepository(null)
+    ).resolveExisting(TENANT_ID, 'vcall_missing'),
+    hasCode('voice_foundation_legacy_call_id_invalid')
+  );
+  await assert.rejects(
+    () => VoiceCallIdAuthorityAdapter.bind(
+      legacyCallRepository('vcall_tenant-mismatch', 'tenant-other')
+    ).resolveExisting(TENANT_ID, 'vcall_tenant-mismatch'),
     hasCode('voice_foundation_legacy_call_id_invalid')
   );
 });
@@ -270,42 +271,63 @@ test('CANCEL/2xx, transfer and re-INVITE races retain one unambiguous Leg', () =
   assert.equal(heldTransfer.registry.getLeg(heldTransfer.legA).state, 'held');
 });
 
-test('durable fork selection keeps one winner and cleans a late 2xx branch', () => {
+test('durable fork selection cancels every registered early sibling', () => {
   const fixture = callFixture({ legs_per_call: 2 });
   fixture.registry.addLeg(
     fixture.fence('1', '1'),
     { leg_id: fixture.legB, direction: 'outbound' }
   );
-  fixture.registry.applyLegEvent(
+  fixture.registry.registerForkBranch(
     fixture.fence('2', '1'),
+    forkBranchEvent(fixture.legA, 'evt-register-fork-a')
+  );
+  fixture.registry.registerForkBranch(
+    fixture.fence('3', '1'),
+    forkBranchEvent(fixture.legB, 'evt-register-fork-b')
+  );
+  fixture.registry.applyLegEvent(
+    fixture.fence('4', '1'),
     event(fixture.legA, 'evt-fork-start', 'start_invite')
+  );
+  fixture.registry.applyLegEvent(
+    fixture.fence('5', '1'),
+    event(fixture.legA, 'evt-fork-early-a', 'provisional')
+  );
+  fixture.registry.applyLegEvent(
+    fixture.fence('6', '1'),
+    event(fixture.legB, 'evt-fork-start-b', 'start_invite')
+  );
+  fixture.registry.applyLegEvent(
+    fixture.fence('7', '1'),
+    event(fixture.legB, 'evt-fork-early-b', 'provisional')
   );
   assert.throws(
     () => fixture.registry.observeDurableForkWinner(
-      fixture.fence('3', '1'),
+      fixture.fence('8', '1'),
       forkEvent(fixture.legA, 'evt-not-final-2xx', 'fork-attempt-1', 180)
     ),
     hasCode('call_leg_input_invalid')
   );
   const winner = fixture.registry.observeDurableForkWinner(
-    fixture.fence('3', '1'),
+    fixture.fence('8', '1'),
     forkEvent(fixture.legA, 'evt-winner')
   );
   assert.equal(winner.selected_leg_id, fixture.legA);
   assert.equal(winner.required_effect, 'ack_2xx');
+  assert.deepEqual(winner.branch_effects, [{
+    leg_id: fixture.legB,
+    required_effect: 'send_cancel'
+  }]);
   assert.equal(fixture.registry.getLeg(fixture.legA).state, 'confirmed');
-
-  fixture.registry.applyLegEvent(
-    fixture.fence('4', '1'),
-    event(fixture.legB, 'evt-fork-start-b', 'start_invite')
-  );
+  assert.equal(fixture.registry.getLeg(fixture.legB).state, 'terminating');
 
   const loser = fixture.registry.observeDurableForkWinner(
-    fixture.fence('5', '1'),
+    fixture.fence('9', '1'),
     forkEvent(fixture.legB, 'evt-loser')
   );
   assert.equal(loser.selected_leg_id, fixture.legA);
   assert.equal(loser.required_effect, 'ack_then_bye_non_winner');
+  assert.deepEqual(loser.branch_effects, []);
   assert.equal(fixture.registry.getCall(fixture.callId).selected_leg_id, fixture.legA);
   assert.equal(fixture.registry.getLeg(fixture.legB).state, 'terminating');
 });
@@ -319,29 +341,36 @@ test('fork branch ceilings are isolated by bounded attempt identity', () => {
     fixture.fence('1'),
     { leg_id: fixture.legB, direction: 'outbound' }
   );
-  fixture.registry.applyLegEvent(
+  fixture.registry.registerForkBranch(
     fixture.fence('2'),
-    event(fixture.legA, 'evt-attempt-start-a', 'start_invite')
-  );
-  fixture.registry.observeDurableForkWinner(
-    fixture.fence('3'),
-    forkEvent(fixture.legA, 'evt-attempt-a', 'attempt-a')
-  );
-  fixture.registry.applyLegEvent(
-    fixture.fence('4'),
-    event(fixture.legB, 'evt-attempt-start-b', 'start_invite')
+    forkBranchEvent(fixture.legA, 'evt-attempt-a', 'attempt-a')
   );
   assert.throws(
-    () => fixture.registry.observeDurableForkWinner(
-      fixture.fence('5'),
-      forkEvent(fixture.legB, 'evt-attempt-overflow', 'attempt-a')
+    () => fixture.registry.registerForkBranch(
+      fixture.fence('3'),
+      forkBranchEvent(fixture.legB, 'evt-attempt-overflow', 'attempt-a')
     ),
     hasCode('call_leg_capacity_exhausted')
   );
-  assert.doesNotThrow(() => fixture.registry.observeDurableForkWinner(
-    fixture.fence('5'),
-    forkEvent(fixture.legB, 'evt-attempt-b', 'attempt-b')
+  assert.doesNotThrow(() => fixture.registry.registerForkBranch(
+    fixture.fence('3'),
+    forkBranchEvent(fixture.legB, 'evt-attempt-b', 'attempt-b')
   ));
+});
+
+test('fork attempt membership is frozen before an INVITE starts', () => {
+  const fixture = callFixture();
+  fixture.registry.applyLegEvent(
+    fixture.fence('1'),
+    event(fixture.legA, 'evt-unregistered-start', 'start_invite')
+  );
+  assert.throws(
+    () => fixture.registry.registerForkBranch(
+      fixture.fence('2'),
+      forkBranchEvent(fixture.legA, 'evt-register-too-late')
+    ),
+    hasCode('call_leg_transition_invalid')
+  );
 });
 
 test('durable transfer commit atomically moves selection before retiring the old Leg', () => {
@@ -350,32 +379,36 @@ test('durable transfer commit atomically moves selection before retiring the old
     fixture.fence('1'),
     { leg_id: fixture.legB, direction: 'outbound' }
   );
-  fixture.registry.applyLegEvent(
+  fixture.registry.registerForkBranch(
     fixture.fence('2'),
-    event(fixture.legA, 'evt-transfer-start-a', 'start_invite')
+    forkBranchEvent(fixture.legA, 'evt-transfer-register-a')
   );
   fixture.registry.applyLegEvent(
     fixture.fence('3'),
+    event(fixture.legA, 'evt-transfer-start-a', 'start_invite')
+  );
+  fixture.registry.applyLegEvent(
+    fixture.fence('4'),
     event(fixture.legA, 'evt-transfer-answer-a', 'final_2xx')
   );
   fixture.registry.observeDurableForkWinner(
-    fixture.fence('4'),
+    fixture.fence('5'),
     forkEvent(fixture.legA, 'evt-transfer-select-a')
   );
   fixture.registry.applyLegEvent(
-    fixture.fence('5'),
+    fixture.fence('6'),
     event(fixture.legA, 'evt-transfer-prepare', 'transfer_prepare')
   );
   fixture.registry.applyLegEvent(
-    fixture.fence('6'),
+    fixture.fence('7'),
     event(fixture.legB, 'evt-transfer-start-b', 'start_invite')
   );
   fixture.registry.applyLegEvent(
-    fixture.fence('7'),
+    fixture.fence('8'),
     event(fixture.legB, 'evt-transfer-answer-b', 'final_2xx')
   );
   const committed = fixture.registry.commitTransferSelection(
-    fixture.fence('8'),
+    fixture.fence('9'),
     {
       old_leg_id: fixture.legA,
       old_leg_generation: '1',
@@ -450,7 +483,7 @@ test('bounded Leg, Dialog and mailbox overflow preserves existing state', () => 
   });
 });
 
-test('a failing synchronous or asynchronous handler cannot damage another Call', async () => {
+test('a failing mutation cannot damage another Call and registry executes no callbacks', () => {
   const registry = boundedRegistry({ active_calls: 2 });
   const first = openCall(registry, 'first');
   const second = openCall(registry, 'second');
@@ -467,45 +500,7 @@ test('a failing synchronous or asynchronous handler cannot damage another Call',
   );
   assert.equal(registry.active_call_count, 2);
   assert.equal(registry.getCall(second.callId).revision, '0');
-
-  registry.enqueueCallWork(fence(first.callId, '1'), {
-    work_id: 'work-handler-failure',
-    kind: 'protocol_event'
-  });
-  assert.deepEqual(
-    registry.processNextCallWork(fence(first.callId, '2'), () => {
-      throw new Error('controlled worker failure');
-    }),
-    {
-      status: 'failed',
-      item: {
-        work_id: 'work-handler-failure',
-        kind: 'protocol_event'
-      },
-      failure_code: 'handler_failed'
-    }
-  );
-  assert.equal(registry.getCall(second.callId).revision, '0');
-
-  registry.enqueueCallWork(fence(first.callId, '3'), {
-    work_id: 'work-async-handler-failure',
-    kind: 'protocol_event'
-  });
-  assert.deepEqual(
-    registry.processNextCallWork(fence(first.callId, '4'), async () => {
-      throw new Error('controlled async worker failure');
-    }),
-    {
-      status: 'failed',
-      item: {
-        work_id: 'work-async-handler-failure',
-        kind: 'protocol_event'
-      },
-      failure_code: 'async_handler_forbidden'
-    }
-  );
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.equal(registry.getCall(second.callId).revision, '0');
+  assert.equal('processNextCallWork' in registry, false);
 });
 
 test('mailbox and timer work require the same owner/generation/revision fence', () => {
@@ -629,6 +624,19 @@ function forkEvent(
   };
 }
 
+function forkBranchEvent(
+  leg_id: ReturnType<typeof deriveLegId>,
+  event_id: string,
+  fork_attempt_id = 'fork-attempt-1'
+) {
+  return {
+    leg_id,
+    fork_attempt_id,
+    event_id,
+    event_hash: sha256(event_id)
+  };
+}
+
 function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -642,18 +650,54 @@ function hasCode(code: string) {
   );
 }
 
-function legacyCallLookup(
+function legacyCallRepository(
   storedId: string | null,
   tenantId = TENANT_ID
-) {
-  return {
-    async get(requestedTenantId: string, requestedCallId: string) {
-      if (storedId === null || requestedCallId !== storedId) return null;
+): PostgresVoiceCallStore {
+  const pg: PgQueryable = {
+    async query(text: string, params: unknown[] = []) {
+      const rows = /FROM ivekit_voice_calls call/iu.test(text) &&
+          storedId !== null &&
+          params[1] === storedId
+        ? [legacyCallRow(storedId, tenantId)]
+        : [];
       return {
-        id: storedId,
-        tenant_id: tenantId,
-        requested_tenant_id: requestedTenantId
-      };
+        rows,
+        rowCount: rows.length,
+        command: '',
+        oid: 0,
+        fields: []
+      } as never;
     }
+  };
+  return new PostgresVoiceCallStore(pg);
+}
+
+function legacyCallRow(id: string, tenantId: string): Record<string, unknown> {
+  return {
+    id,
+    tenant_id: tenantId,
+    business_ref_type: 'test',
+    business_ref_id: 'legacy-call-id-authority',
+    provider_profile_id: 'profile-foundation',
+    provider_call_id: '',
+    provider_dialog_id: '',
+    media_call_id: null,
+    direction: 'inbound',
+    state: 'planned',
+    from_address_kind: 'extension',
+    from_address_redacted: '**01',
+    to_address_kind: 'extension',
+    to_address_redacted: '**02',
+    idempotency_key: `legacy-${id}`,
+    initiated_by: 'test',
+    metadata: {},
+    ringing_at: null,
+    answered_at: null,
+    ended_at: null,
+    termination_reason: '',
+    revision: 1,
+    created_at: '2026-08-02T00:00:00.000Z',
+    updated_at: '2026-08-02T00:00:00.000Z'
   };
 }

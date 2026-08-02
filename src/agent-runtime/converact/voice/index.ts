@@ -19,6 +19,7 @@ export * from './configuration-service.js';
 export * from './deployment-profile-service.js';
 export * from './errors.js';
 export * from './foundation-identifiers.js';
+export * from './voice-call-id-authority.js';
 export * from './http.js';
 export * from './kamailio-route-agent.js';
 export * from './kamailio-route-compiler.js';

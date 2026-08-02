@@ -132,6 +132,13 @@ export interface ObserveForkWinnerInput {
   event_hash: string;
 }
 
+export interface RegisterForkBranchInput {
+  leg_id: LegId;
+  fork_attempt_id: string;
+  event_id: string;
+  event_hash: string;
+}
+
 export interface CommitTransferSelectionInput {
   old_leg_id: LegId;
   old_leg_generation: string;
@@ -151,18 +158,6 @@ export interface CallWorkItem {
   work_id: string;
   kind: string;
 }
-
-export type CallWorkResult = Readonly<{
-  status: 'empty';
-}> | Readonly<{
-  status: 'completed' | 'failed';
-  item: Readonly<CallWorkItem>;
-  failure_code:
-    | 'none'
-    | 'handler_failed'
-    | 'async_handler_forbidden'
-    | 'handler_contract_invalid';
-}>;
 
 export interface CallLegSnapshot {
   readonly leg_id: LegId;
@@ -207,6 +202,22 @@ export interface ForkSelectionReceipt {
     | 'ack_2xx'
     | 'ack_then_bye_non_winner'
     | 'send_bye_non_winner_after_ack';
+  readonly branch_effects: readonly Readonly<{
+    leg_id: LegId;
+    required_effect:
+      | 'cancel_if_invite_exists'
+      | 'send_cancel'
+      | 'send_bye_non_winner_after_ack';
+  }>[];
+  readonly replayed: boolean;
+}
+
+export interface ForkBranchRegistrationReceipt {
+  readonly event_id: string;
+  readonly event_hash: string;
+  readonly leg_id: LegId;
+  readonly fork_attempt_id: string;
+  readonly revision: string;
   readonly replayed: boolean;
 }
 
@@ -245,7 +256,6 @@ const UINT64_PATTERN = /^(0|[1-9][0-9]{0,19})$/;
 const POSITIVE_UINT64_PATTERN = /^[1-9][0-9]{0,19}$/;
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
-const PROMISE_THEN = Promise.prototype.then;
 const CALL_LEG_EVENTS = new Set<CallLegEvent>([
   'start_invite',
   'provisional',
@@ -320,6 +330,8 @@ interface MutableCall {
   selectedLegId: LegId | null;
   readonly legs: Map<LegId, MutableLeg>;
   readonly forkBranchesByAttempt: Map<string, Set<LegId>>;
+  readonly forkAttemptByLeg: Map<LegId, string>;
+  readonly forkWinnerByAttempt: Map<string, LegId>;
   readonly dedupe: Map<string, DedupeEntry>;
   readonly mailbox: BoundedQueue<Readonly<CallWorkItem>>;
   readonly mailboxWorkIds: Set<string>;
@@ -382,6 +394,8 @@ export class CallLegRegistry {
       selectedLegId: null,
       legs: new Map(),
       forkBranchesByAttempt: new Map(),
+      forkAttemptByLeg: new Map(),
+      forkWinnerByAttempt: new Map(),
       dedupe: new Map(),
       mailbox: new BoundedQueue(this.#bounds.mailbox_per_call),
       mailboxWorkIds: new Set(),
@@ -556,17 +570,19 @@ export class CallLegRegistry {
     const { call, leg } = this.#resolveFence(fence, legId);
     this.#reserveDedupe(call);
     const forkBranches = call.forkBranchesByAttempt.get(forkAttemptId);
-    if (!forkBranches?.has(legId) &&
-        (forkBranches?.size ?? 0) >=
-          this.#bounds.fork_branches_per_attempt) {
-      throw capacity();
+    if (!forkBranches?.has(legId) ||
+        call.forkAttemptByLeg.get(legId) !== forkAttemptId) {
+      throw failure('call_leg_transition_invalid');
     }
     if (leg.state !== 'inviting' &&
         leg.state !== 'early' &&
-        leg.state !== 'confirmed') {
+        leg.state !== 'confirmed' &&
+        leg.state !== 'terminating') {
       throw failure('call_leg_transition_invalid');
     }
-    const selectedLegId = call.selectedLegId ?? legId;
+    const selectedLegId = call.forkWinnerByAttempt.get(forkAttemptId) ??
+      call.selectedLegId ??
+      legId;
     const alreadyAcknowledged = leg.state === 'confirmed';
     const isWinner = selectedLegId === legId;
     const requiredEffect = isWinner
@@ -576,12 +592,29 @@ export class CallLegRegistry {
       : alreadyAcknowledged
         ? 'send_bye_non_winner_after_ack' as const
         : 'ack_then_bye_non_winner' as const;
-    const revision = call.revision + 1n;
-    if (forkBranches) {
-      forkBranches.add(legId);
-    } else {
-      call.forkBranchesByAttempt.set(forkAttemptId, new Set([legId]));
+    const branchEffects: Array<Readonly<{
+      leg_id: LegId;
+      required_effect:
+        | 'cancel_if_invite_exists'
+        | 'send_cancel'
+        | 'send_bye_non_winner_after_ack';
+    }>> = [];
+    if (!call.forkWinnerByAttempt.has(forkAttemptId) && isWinner) {
+      for (const branchId of forkBranches) {
+        if (branchId === legId) continue;
+        const branch = call.legs.get(branchId);
+        if (!branch) throw failure('call_leg_leg_not_found');
+        const effect = forkCancellationEffect(branch.state);
+        if (!effect) continue;
+        branch.state = 'terminating';
+        branchEffects.push(Object.freeze({
+          leg_id: branchId,
+          required_effect: effect
+        }));
+      }
+      call.forkWinnerByAttempt.set(forkAttemptId, legId);
     }
+    const revision = call.revision + 1n;
     call.selectedLegId = selectedLegId;
     leg.state = isWinner ? 'confirmed' : 'terminating';
     call.revision = revision;
@@ -592,6 +625,60 @@ export class CallLegRegistry {
       revision: revision.toString(),
       selected_leg_id: selectedLegId,
       required_effect: requiredEffect,
+      branch_effects: Object.freeze(branchEffects),
+      replayed: false
+    });
+    this.#remember(call, eventId, eventHash, operation, legId, receipt);
+    return receipt;
+  }
+
+  registerForkBranch(
+    fence: CallMutationFence,
+    input: RegisterForkBranchInput
+  ): ForkBranchRegistrationReceipt {
+    const checked = exactRecord(input, [
+      'leg_id',
+      'fork_attempt_id',
+      'event_id',
+      'event_hash'
+    ]);
+    const legId = parseLegId(checked.leg_id);
+    const forkAttemptId = identifier(checked.fork_attempt_id);
+    const eventId = identifier(checked.event_id);
+    const eventHash = hash(checked.event_hash);
+    const operation = `fork-branch-registration:${forkAttemptId}`;
+    const replay = this.#findReplay<ForkBranchRegistrationReceipt>(
+      fence,
+      legId,
+      eventId,
+      eventHash,
+      operation
+    );
+    if (replay) return replay;
+    const { call, leg } = this.#resolveFence(fence, legId);
+    this.#reserveDedupe(call);
+    if (leg.state !== 'planned') {
+      throw failure('call_leg_transition_invalid');
+    }
+    if (call.forkWinnerByAttempt.has(forkAttemptId) ||
+        call.forkAttemptByLeg.has(legId)) {
+      throw failure('call_leg_event_conflict');
+    }
+    const branches = call.forkBranchesByAttempt.get(forkAttemptId);
+    if ((branches?.size ?? 0) >= this.#bounds.fork_branches_per_attempt) {
+      throw capacity();
+    }
+    const revision = call.revision + 1n;
+    if (branches) branches.add(legId);
+    else call.forkBranchesByAttempt.set(forkAttemptId, new Set([legId]));
+    call.forkAttemptByLeg.set(legId, forkAttemptId);
+    call.revision = revision;
+    const receipt = Object.freeze({
+      event_id: eventId,
+      event_hash: eventHash,
+      leg_id: legId,
+      fork_attempt_id: forkAttemptId,
+      revision: revision.toString(),
       replayed: false
     });
     this.#remember(call, eventId, eventHash, operation, legId, receipt);
@@ -725,47 +812,6 @@ export class CallLegRegistry {
     call.mailboxWorkIds.delete(item.work_id);
     call.revision += 1n;
     return item;
-  }
-
-  processNextCallWork(
-    fence: CallMutationFence,
-    handler: (item: Readonly<CallWorkItem>) => unknown
-  ): CallWorkResult {
-    if (typeof handler !== 'function') throw invalidInput();
-    const item = this.dequeueCallWork(fence);
-    if (!item) return Object.freeze({ status: 'empty' });
-    try {
-      const result = handler(item);
-      if (utilTypes.isPromise(result)) {
-        void Reflect.apply(PROMISE_THEN, result, [
-          () => undefined,
-          () => undefined
-        ]);
-        return Object.freeze({
-          status: 'failed',
-          item,
-          failure_code: 'async_handler_forbidden'
-        });
-      }
-      if (result !== undefined) {
-        return Object.freeze({
-          status: 'failed',
-          item,
-          failure_code: 'handler_contract_invalid'
-        });
-      }
-      return Object.freeze({
-        status: 'completed',
-        item,
-        failure_code: 'none'
-      });
-    } catch {
-      return Object.freeze({
-        status: 'failed',
-        item,
-        failure_code: 'handler_failed'
-      });
-    }
   }
 
   registerTimer(fence: CallMutationFence, timerIdInput: string): void {
@@ -983,6 +1029,16 @@ class BoundedQueue<Value> {
     this.#size -= 1;
     return value ?? null;
   }
+}
+
+function forkCancellationEffect(
+  state: CallLegState
+): 'cancel_if_invite_exists' | 'send_cancel' |
+  'send_bye_non_winner_after_ack' | null {
+  if (state === 'planned') return 'cancel_if_invite_exists';
+  if (state === 'inviting' || state === 'early') return 'send_cancel';
+  if (state === 'confirmed') return 'send_bye_non_winner_after_ack';
+  return null;
 }
 
 function transition(

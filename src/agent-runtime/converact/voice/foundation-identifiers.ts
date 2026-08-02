@@ -1,8 +1,6 @@
 import { createHash } from 'node:crypto';
-import { types as utilTypes } from 'node:util';
 
 declare const VOICE_FOUNDATION_ID: unique symbol;
-declare const LEGACY_CALL_ID_AUTHORITY: unique symbol;
 
 type BrandedIdentifier<Name extends string> = string & {
   readonly [VOICE_FOUNDATION_ID]: Name;
@@ -27,21 +25,6 @@ export class VoiceFoundationIdentifierError extends Error {
     this.name = 'VoiceFoundationIdentifierError';
     this.code = code;
   }
-}
-
-export interface LegacyCallIdAuthorityLookup {
-  get(
-    tenantId: string,
-    callId: string
-  ): Promise<Readonly<{ id: string; tenant_id: string }> | null>;
-}
-
-export interface LegacyCallIdAuthorityRecord {
-  readonly [LEGACY_CALL_ID_AUTHORITY]: true;
-  readonly source: 'voice_call_repository';
-  readonly tenant_id: string;
-  readonly format: 'vcall' | 'uuid';
-  readonly value: string;
 }
 
 const CANONICAL_DIGEST_PATTERN = '[a-f0-9]{32}';
@@ -70,12 +53,8 @@ const CANONICAL_PATTERNS = Object.freeze({
   )
 });
 const COMMON_INPUT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/;
-const LEGACY_VCALL_PATTERN = /^vcall_[A-Za-z0-9][A-Za-z0-9._:@/-]{0,120}$/;
-const LEGACY_UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_COMPONENTS = 16;
 const MAX_COMPONENT_UTF8_BYTES = 4_096;
-const LEGACY_CALL_ID_AUTHORITY_RECORDS = new WeakSet<object>();
 
 export function parseCallId(value: unknown): CallId {
   return parseCanonical(value, CANONICAL_PATTERNS.call) as CallId;
@@ -135,79 +114,6 @@ export function deriveInteractionId(
   ...components: string[]
 ): InteractionId {
   return derive(ID_SPECS.interaction, tenantId, components) as InteractionId;
-}
-
-/**
- * Loads a legacy identifier from the existing durable VoiceCall authority and
- * issues an in-process, non-forgeable import record. Merely matching the UUID
- * or vcall syntax is never enough to cross the business Call boundary.
- */
-export async function attestLegacyCallId(
-  lookup: LegacyCallIdAuthorityLookup,
-  tenantIdInput: string,
-  legacyCallIdInput: string
-): Promise<LegacyCallIdAuthorityRecord> {
-  const tenantId = legacyTenantId(tenantIdInput);
-  const format = legacyCallIdFormat(legacyCallIdInput);
-  if (!lookup || typeof lookup.get !== 'function') throw invalidLegacyCallId();
-  const stored = await lookup.get(tenantId, legacyCallIdInput);
-  if (typeof stored !== 'object' || stored === null || utilTypes.isProxy(stored)) {
-    throw invalidLegacyCallId();
-  }
-  let storedId: unknown;
-  let storedTenantId: unknown;
-  try {
-    storedId = stored.id;
-    storedTenantId = stored.tenant_id;
-  } catch {
-    throw invalidLegacyCallId();
-  }
-  if (storedId !== legacyCallIdInput || storedTenantId !== tenantId) {
-    throw invalidLegacyCallId();
-  }
-  const record = Object.freeze({
-    source: 'voice_call_repository' as const,
-    tenant_id: tenantId,
-    format,
-    value: legacyCallIdInput
-  }) as LegacyCallIdAuthorityRecord;
-  LEGACY_CALL_ID_AUTHORITY_RECORDS.add(record);
-  return record;
-}
-
-/**
- * The only supported bridge from attested pre-foundation business Call IDs.
- * A raw SIP Call-ID (including one that happens to be a UUID) is rejected.
- */
-export function importLegacyCallId(
-  tenantIdInput: string,
-  input: LegacyCallIdAuthorityRecord
-): CallId {
-  const tenantId = legacyTenantId(tenantIdInput);
-  if (typeof input !== 'object' || input === null ||
-      utilTypes.isProxy(input) ||
-      !LEGACY_CALL_ID_AUTHORITY_RECORDS.has(input) ||
-      input.tenant_id !== tenantId) throw invalidLegacyCallId();
-  return deriveCallId(
-    tenantId,
-    'legacy-voice-call-repository',
-    input.format,
-    input.value
-  );
-}
-
-function legacyTenantId(value: unknown): string {
-  if (typeof value !== 'string' || !COMMON_INPUT_PATTERN.test(value)) {
-    throw invalidLegacyCallId();
-  }
-  return value;
-}
-
-function legacyCallIdFormat(value: unknown): 'vcall' | 'uuid' {
-  if (typeof value !== 'string') throw invalidLegacyCallId();
-  if (LEGACY_VCALL_PATTERN.test(value)) return 'vcall';
-  if (LEGACY_UUID_PATTERN.test(value)) return 'uuid';
-  throw invalidLegacyCallId();
 }
 
 function derive(
