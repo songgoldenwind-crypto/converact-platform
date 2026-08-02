@@ -21,7 +21,11 @@ test('RustPBX build pins and patches the rustrtc media transport source', () => 
     build,
     /git clone[\s\S]*https:\/\/github\.com\/restsend\/rustrtc\.git[\s\S]*"\$BUILD_ROOT\/rustrtc"/
   );
-  assert.match(build, /checkout --detach "\$RUSTRTC_COMMIT"/);
+  assert.match(
+    build,
+    /clone_pinned_source \\\n+\s+rustrtc \\\n+\s+"\$RUSTRTC_COMMIT"/
+  );
+  assert.match(build, /checkout --detach "\$expected_commit"/);
   assert.match(
     build,
     /git -C "\$BUILD_ROOT\/rustrtc" apply --check "\$PATCH_DIR\/rustrtc-ivekit-udp-socket-capacity\.patch"/
