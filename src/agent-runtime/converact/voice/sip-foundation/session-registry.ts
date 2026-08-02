@@ -55,6 +55,7 @@ implements PreparedProtocolEffectAuthority {
   readonly #maximumAttempts: number;
   #activeAttempts = 0;
   #drainState: SipFoundationDrainState = 'accepting';
+  readonly #openingSessionIds = new Set<string>();
   readonly #sessions = new Map<string, {
     session: SipProtocolSession;
     lease: RegistrySessionLease;
@@ -83,7 +84,7 @@ implements PreparedProtocolEffectAuthority {
   }
 
   get active_session_count(): number {
-    return this.#sessions.size;
+    return this.#occupiedSessionCount;
   }
 
   get active_attempt_count(): number {
@@ -93,14 +94,14 @@ implements PreparedProtocolEffectAuthority {
   get drain_status(): SipFoundationDrainStatus {
     return Object.freeze({
       state: this.#drainState,
-      active_session_count: this.#sessions.size,
+      active_session_count: this.#occupiedSessionCount,
       active_attempt_count: this.#activeAttempts
     });
   }
 
   startDrain(): SipFoundationDrainStatus {
     if (this.#drainState === 'accepting') {
-      this.#drainState = this.#sessions.size === 0
+      this.#drainState = this.#occupiedSessionCount === 0
         ? 'active_zero'
         : 'draining';
     }
@@ -111,20 +112,6 @@ implements PreparedProtocolEffectAuthority {
     adapter: SipFoundationAdapter,
     input: OpenProtocolSessionInput
   ): SipProtocolSession {
-    const identity = validateBackendRuntimeIdentity(adapter.runtime_identity);
-    const capabilitySet = createBackendCapabilitySet(
-      adapter.capability_set
-    );
-    if (adapter.backend_id !== identity.backend_id ||
-        capabilitySet.backend_id !== adapter.backend_id ||
-        !sameRuntimeIdentity(
-          identity,
-          backendRuntimeIdentityFromCapabilitySet(capabilitySet)
-        )) {
-      throw new SipFoundationError(
-        'sip_foundation_adapter_identity_mismatch'
-      );
-    }
     const value = snapshotClosedRecord(input, OPEN_SESSION_KEYS, inputError);
     const protocolSessionId = identifier(value.protocol_session_id);
     const requestedBinding = bindSipProtocolSession(
@@ -132,6 +119,7 @@ implements PreparedProtocolEffectAuthority {
     );
     const existing = this.#sessions.get(protocolSessionId);
     if (existing) {
+      const identity = validatedAdapterIdentity(adapter);
       if (!sameRuntimeIdentity(
         existing.session.adapter_identity,
         identity
@@ -149,30 +137,37 @@ implements PreparedProtocolEffectAuthority {
       }
       return existing.session;
     }
+    if (this.#openingSessionIds.has(protocolSessionId)) {
+      throw new SipFoundationError(
+        'sip_foundation_session_open_in_progress'
+      );
+    }
     if (this.#drainState !== 'accepting') {
       throw new SipFoundationError('sip_foundation_draining');
     }
-    if (this.#sessions.size >= this.#maximumSessions) {
+    if (this.#occupiedSessionCount >= this.#maximumSessions) {
       throw new SipFoundationError(
         'sip_foundation_session_capacity_exhausted'
       );
     }
-
-    const lease = new RegistrySessionLease(
-      () => {
-        if (this.#activeAttempts >= this.#maximumAttempts) {
-          throw new SipFoundationError(
-            'sip_foundation_session_capacity_exhausted'
-          );
-        }
-        this.#activeAttempts += 1;
-      },
-      (count) => {
-        this.#activeAttempts -= count;
-      }
-    );
-    SESSION_LEASES.add(lease);
+    this.#openingSessionIds.add(protocolSessionId);
+    let lease: RegistrySessionLease | null = null;
     try {
+      const identity = validatedAdapterIdentity(adapter);
+      lease = new RegistrySessionLease(
+        () => {
+          if (this.#activeAttempts >= this.#maximumAttempts) {
+            throw new SipFoundationError(
+              'sip_foundation_session_capacity_exhausted'
+            );
+          }
+          this.#activeAttempts += 1;
+        },
+        (count) => {
+          this.#activeAttempts -= count;
+        }
+      );
+      SESSION_LEASES.add(lease);
       const candidate = adapter.createProtocolSession(
         {
           protocol_session_id: protocolSessionId,
@@ -192,9 +187,12 @@ implements PreparedProtocolEffectAuthority {
         session,
         lease
       });
+      this.#openingSessionIds.delete(protocolSessionId);
       return session;
     } catch (error) {
-      lease.revoke();
+      this.#openingSessionIds.delete(protocolSessionId);
+      lease?.revoke();
+      this.#maybeReachActiveZero();
       throw error;
     }
   }
@@ -213,9 +211,7 @@ implements PreparedProtocolEffectAuthority {
     existing.lease.revoke();
     BACKEND_SESSION_RUNTIMES.delete(existing.session);
     this.#sessions.delete(id);
-    if (this.#drainState === 'draining' && this.#sessions.size === 0) {
-      this.#drainState = 'active_zero';
-    }
+    this.#maybeReachActiveZero();
   }
 
   verifyPreparedEffect(prepared: PreparedProtocolEffect): Uint8Array {
@@ -225,9 +221,36 @@ implements PreparedProtocolEffectAuthority {
     }
     return verifyPreparedProtocolEffect(prepared, session);
   }
+
+  get #occupiedSessionCount(): number {
+    return this.#sessions.size + this.#openingSessionIds.size;
+  }
+
+  #maybeReachActiveZero(): void {
+    if (this.#drainState === 'draining' &&
+        this.#occupiedSessionCount === 0) {
+      this.#drainState = 'active_zero';
+    }
+  }
 }
 
 Object.freeze(SipFoundationSessionRegistry.prototype);
+
+function validatedAdapterIdentity(adapter: SipFoundationAdapter) {
+  const identity = validateBackendRuntimeIdentity(adapter.runtime_identity);
+  const capabilitySet = createBackendCapabilitySet(adapter.capability_set);
+  if (adapter.backend_id !== identity.backend_id ||
+      capabilitySet.backend_id !== adapter.backend_id ||
+      !sameRuntimeIdentity(
+        identity,
+        backendRuntimeIdentityFromCapabilitySet(capabilitySet)
+      )) {
+    throw new SipFoundationError(
+      'sip_foundation_adapter_identity_mismatch'
+    );
+  }
+  return identity;
+}
 
 export function assertSipFoundationSessionLease(
   lease: SipProtocolSessionLease

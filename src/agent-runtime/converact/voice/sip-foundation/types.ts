@@ -291,6 +291,7 @@ export type SipFoundationErrorCode =
   | 'sip_foundation_session_identity_conflict'
   | 'sip_foundation_session_binding_conflict'
   | 'sip_foundation_session_capacity_exhausted'
+  | 'sip_foundation_session_open_in_progress'
   | 'sip_foundation_session_not_found'
   | 'sip_foundation_session_closed'
   | 'sip_foundation_draining'

@@ -22,7 +22,9 @@ import {
 } from '../src/agent-runtime/converact/voice/sip-foundation/session-registry.js';
 import type {
   BackendCapabilitySetInput,
+  SipFoundationAdapter,
   SipFoundationCapabilityId,
+  SipFoundationDrainStatus,
   SipRouteBinding
 } from '../src/agent-runtime/converact/voice/sip-foundation/types.js';
 
@@ -119,6 +121,59 @@ test('SipFoundation drain rejects only new sessions and exposes active-zero', ()
   assert.equal(registry.startDrain().state, 'active_zero');
 });
 
+test('drain sees a reentrant Adapter open reservation and never reports false active-zero', () => {
+  const registry = new SipFoundationSessionRegistry({
+    maximum_sessions: 1,
+    maximum_attempts: 1
+  });
+  const delegate = new RsipstackFoundationAdapter(capabilitySet());
+  let observed: SipFoundationDrainStatus | null = null;
+  const adapter = wrappedAdapter(delegate, (input, lease) => {
+    observed = registry.startDrain();
+    return delegate.createProtocolSession(input, lease);
+  });
+  const session = registry.openProtocolSession(adapter, {
+    protocol_session_id: 'session-reentrant-drain',
+    session_binding: sessionBinding()
+  });
+  assert.deepEqual(observed, {
+    state: 'draining',
+    active_session_count: 1,
+    active_attempt_count: 0
+  });
+  assert.equal(registry.drain_status.state, 'draining');
+  assert.equal(registry.drain_status.active_session_count, 1);
+  registry.release(session);
+  assert.equal(registry.drain_status.state, 'active_zero');
+});
+
+test('an opening reservation closes the reentrant session-capacity window', () => {
+  const registry = new SipFoundationSessionRegistry({
+    maximum_sessions: 1,
+    maximum_attempts: 1
+  });
+  const delegate = new RsipstackFoundationAdapter(capabilitySet());
+  let nestedError: unknown = null;
+  const adapter = wrappedAdapter(delegate, (input, lease) => {
+    try {
+      registry.openProtocolSession(delegate, {
+        protocol_session_id: 'session-reentrant-nested',
+        session_binding: sessionBinding()
+      });
+    } catch (error) {
+      nestedError = error;
+    }
+    return delegate.createProtocolSession(input, lease);
+  });
+  const session = registry.openProtocolSession(adapter, {
+    protocol_session_id: 'session-reentrant-outer',
+    session_binding: sessionBinding()
+  });
+  assert.equal(hasCode('sip_foundation_session_capacity_exhausted')(nestedError), true);
+  assert.equal(registry.active_session_count, 1);
+  registry.release(session);
+});
+
 function capabilitySet() {
   const supported = new Set<SipFoundationCapabilityId>(
     RSIPSTACK_BASELINE_REQUIRED_CAPABILITIES
@@ -142,6 +197,18 @@ function capabilitySet() {
     binary_digest: 'b'.repeat(64),
     config_digest: 'c'.repeat(64),
     capability_set_digest: computeBackendCapabilitySetDigest(payload)
+  });
+}
+
+function wrappedAdapter(
+  delegate: SipFoundationAdapter,
+  createProtocolSession: SipFoundationAdapter['createProtocolSession']
+): SipFoundationAdapter {
+  return Object.freeze({
+    backend_id: delegate.backend_id,
+    runtime_identity: delegate.runtime_identity,
+    capability_set: delegate.capability_set,
+    createProtocolSession
   });
 }
 
