@@ -675,6 +675,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rsipstack-ivekit-rejection-headers.patch',
     'rsipstack-ivekit-single-trying.patch',
     'rsipstack-ivekit-server-invite-lifecycle.patch',
+    'rsipstack-ivekit-wire-guard.patch',
     'rustrtc-ivekit-udp-socket-capacity.patch',
     'rustpbx-ivekit-ami-dialogs.patch',
     'rustpbx-ivekit-rwi-originate-hangup.patch',
