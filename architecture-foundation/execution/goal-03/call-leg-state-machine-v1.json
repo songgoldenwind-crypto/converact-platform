@@ -65,8 +65,8 @@
         "vcall_*",
         "uuid"
       ],
-      "authority": "existing_VoiceCall_repository_exact_tenant_and_id_match",
-      "credential": "module_issued_non_forgeable_in_process_record",
+      "authority": "exact_PostgresVoiceCallStore_composition_binding_and_tenant_id_match",
+      "credential": "module_private_issuer_no_caller_supplied_lookup_or_record",
       "raw_sip_call_id_or_plain_object": "rejected"
     },
     "invariants": [
@@ -293,7 +293,8 @@
     "conflicting_duplicate": "fail_closed",
     "stale_owner": "query_only",
     "sequence_gap": "fail_closed_then_reconcile",
-    "mailbox_and_timer_mutation": "same_tenant_owner_generation_revision_fence_as_leg_mutation"
+    "mailbox_and_timer_mutation": "same_tenant_owner_generation_revision_fence_as_leg_mutation",
+    "call_work_dispatch": "dequeue_only_no_callback_execution"
   },
   "race_policy": {
     "cancel_before_final": "CANCEL_then_487_ACK",
@@ -301,10 +302,11 @@
     "bye_duplicate": "idempotent_same_effect_identity",
     "fork_winner": "first_durably_selected_2xx_leg_only",
     "fork_attempt_identity": "explicit_and_bounded_per_attempt",
+    "fork_branch_registration": "before_start_invite",
     "fork_selection_sip_status": "integer_200_through_299_only",
     "late_fork_2xx": "ACK_then_BYE_non_winner",
     "already_acked_late_fork_2xx": "BYE_without_duplicate_ACK",
-    "remaining_early_forks": "CANCEL",
+    "remaining_early_forks": "bounded_per_leg_send_cancel_effects_in_winner_receipt",
     "reinvite": "same_leg_same_dialog_new_negotiation_generation",
     "reinvite_glare": "491_and_bounded_retry_without_new_leg",
     "transfer": "old_selected_leg_remains_until_transfer_commit",
@@ -328,7 +330,8 @@
     "call_lookup": "expected_O(1)",
     "leg_lookup": "expected_O(1)",
     "dialog_lookup": "expected_O(1)",
-    "transition": "O(1)",
+    "transition": "O(1)_except_fork_winner",
+    "fork_winner": "O(branches_in_attempt)_hard_ceiling_32",
     "bounded_call_reconciliation": "O(legs_per_call)",
     "global_active_call_scan_on_hot_path": "forbidden"
   }

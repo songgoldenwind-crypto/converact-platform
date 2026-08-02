@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 const goalDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = realpathSync(resolve(goalDirectory, '../../..'));
 const generatedAt = '2026-08-02T00:00:00.000Z';
+const sipFoundationControlSchemaId =
+  'https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json';
 
 const binding = Object.freeze({
   goal_path: 'goals/goal-03-sip-call-durable-foundation.md',
@@ -94,6 +96,570 @@ function envelope(contractId) {
   };
 }
 
+function closedObject(properties, required = Object.keys(properties)) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required,
+    properties,
+  };
+}
+
+function schemaRef(name) {
+  return { $ref: `#/$defs/${name}` };
+}
+
+function controlSchemaRef(name) {
+  return `${sipFoundationControlSchemaId}#/$defs/${name}`;
+}
+
+function nullable(schema) {
+  return { anyOf: [schema, { type: 'null' }] };
+}
+
+function boundedPositiveDecimalPattern(maximum) {
+  const alternatives = [`[1-9][0-9]{0,${maximum.length - 2}}`];
+  for (let index = 0; index < maximum.length; index += 1) {
+    const upper = Number(maximum[index]) - 1;
+    const lower = index === 0 ? 1 : 0;
+    if (upper < lower) continue;
+    const digit = upper === lower ? `${lower}` : `[${lower}-${upper}]`;
+    const remaining = maximum.length - index - 1;
+    alternatives.push(
+      `${maximum.slice(0, index)}${digit}` +
+      (remaining === 0 ? '' : `[0-9]{${remaining}}`),
+    );
+  }
+  alternatives.push(maximum);
+  return `^(?:${alternatives.join('|')})$`;
+}
+
+function sipFoundationMessageSchema() {
+  const method = {
+    enum: [
+      'INVITE', 'ACK', 'BYE', 'CANCEL', 'REGISTER', 'OPTIONS',
+      'UPDATE', 'PRACK', 'REFER', 'NOTIFY', 'INFO',
+    ],
+  };
+  const eventTypes = [
+    ['request_received', 'RequestReceivedPayload'],
+    ['response_received', 'ResponseReceivedPayload'],
+    ['provisional_received', 'ProvisionalReceivedPayload'],
+    ['final_received', 'FinalReceivedPayload'],
+    ['transport_accepted', 'TransportAcceptedPayload'],
+    ['transport_failed', 'TransportFailedPayload'],
+    ['transaction_timed_out', 'TransactionTimedOutPayload'],
+    ['protocol_dialog_changed', 'ProtocolDialogChangedPayload'],
+    ['dns_candidate_exhausted', 'DnsCandidateExhaustedPayload'],
+  ];
+  const commonCommand = {
+    tenant_id: schemaRef('TenantId'),
+    call_id: schemaRef('CallId'),
+    leg_id: schemaRef('LegId'),
+    command_id: schemaRef('OpaqueIdentifier'),
+    owner_epoch: schemaRef('PositiveUint64'),
+    generation: schemaRef('PositiveUint64'),
+  };
+  const commonResult = {
+    command_id: schemaRef('OpaqueIdentifier'),
+    effect_id: schemaRef('OpaqueIdentifier'),
+    request_hash: schemaRef('Sha256'),
+    wire_freeze_sha256: schemaRef('Sha256'),
+  };
+  const commonEvent = {
+    tenant_id: schemaRef('TenantId'),
+    call_id: schemaRef('CallId'),
+    leg_id: schemaRef('LegId'),
+    interaction_id: schemaRef('InteractionId'),
+    protocol_session_id: schemaRef('OpaqueIdentifier'),
+    protocol_session_generation: schemaRef('PositiveUint64'),
+    protocol_dialog_id: nullable(schemaRef('ProtocolDialogId')),
+    transaction_id: nullable(schemaRef('TransactionId')),
+    event_id: schemaRef('OpaqueIdentifier'),
+    owner_epoch: schemaRef('PositiveUint64'),
+    generation: schemaRef('PositiveUint64'),
+    observed_at_wall_clock: { type: 'string', format: 'date-time' },
+    received_at_monotonic_offset_ns: {
+      type: 'integer',
+      minimum: 0,
+      maximum: 9_007_199_254_740_991,
+    },
+    event_type: { enum: eventTypes.map(([eventType]) => eventType) },
+    payload: { type: 'object' },
+  };
+  const sdpDocument = (role) => closedObject({
+    role: role === null ? { enum: ['offer', 'answer'] } : { const: role },
+    content_type: { const: 'application/sdp' },
+    bytes_base64: {
+      type: 'string',
+      maxLength: 43_692,
+      pattern: '^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$',
+    },
+    byte_length: { type: 'integer', minimum: 0, maximum: 32_768 },
+    sha256: schemaRef('Sha256'),
+    negotiation_generation: schemaRef('PositiveUint64'),
+  });
+  return {
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    $id: sipFoundationControlSchemaId,
+    title: 'Converact SipFoundation control message v1',
+    type: 'object',
+    oneOf: [
+      schemaRef('OriginateRequestMessage'),
+      schemaRef('AnswerRequestMessage'),
+      schemaRef('TerminateRequestMessage'),
+      schemaRef('OriginateResultMessage'),
+      schemaRef('AnswerResultMessage'),
+      schemaRef('TerminateResultMessage'),
+      schemaRef('CommandErrorMessage'),
+      schemaRef('EgressEventMessage'),
+    ],
+    unevaluatedProperties: false,
+    $defs: {
+      TenantId: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 128,
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$',
+      },
+      OpaqueIdentifier: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 128,
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$',
+      },
+      CallId: { type: 'string', pattern: '^call_[a-f0-9]{32}$' },
+      LegId: { type: 'string', pattern: '^leg_[a-f0-9]{32}$' },
+      InteractionId: {
+        type: 'string',
+        pattern: '^interaction_[a-f0-9]{32}$',
+      },
+      ProtocolDialogId: {
+        type: 'string',
+        pattern: '^pdlg_[a-f0-9]{32}$',
+      },
+      TransactionId: {
+        type: 'string',
+        pattern: '^ptxn_[a-f0-9]{32}$',
+      },
+      PositiveUint64: {
+        type: 'string',
+        pattern: boundedPositiveDecimalPattern('18446744073709551615'),
+      },
+      Sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+      RequestUri: {
+        type: 'string',
+        minLength: 5,
+        maxLength: 2048,
+        pattern: '^sips?:[^\\s]+$',
+      },
+      SdpDocument: sdpDocument(null),
+      SdpOffer: sdpDocument('offer'),
+      SdpAnswer: sdpDocument('answer'),
+      HangupCause: closedObject({
+        category: {
+          enum: [
+            'normal_clearing', 'caller_cancelled', 'no_answer', 'busy',
+            'rejected', 'temporary_failure', 'service_unavailable',
+            'protocol_error', 'security_rejected', 'timeout', 'unknown',
+          ],
+        },
+        sip_status: nullable({ type: 'integer', minimum: 100, maximum: 699 }),
+        q850_cause: nullable({ type: 'integer', minimum: 0, maximum: 127 }),
+        reason_token: nullable({
+          type: 'string', minLength: 1, maxLength: 64,
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$',
+        }),
+        retryable: { type: 'boolean' },
+        source: { enum: ['call_core', 'sip_edge', 'sip_peer', 'sip_foundation'] },
+      }),
+      SipFoundationError: closedObject({
+        category: {
+          enum: [
+            'invalid_input', 'capacity', 'store', 'dns', 'transport',
+            'transaction', 'dialog', 'security', 'timeout', 'internal',
+          ],
+        },
+        stable_code: {
+          type: 'string', minLength: 1, maxLength: 96,
+          pattern: '^[a-z][a-z0-9_]{0,95}$',
+        },
+        retryable: { type: 'boolean' },
+        sip_status: nullable({ type: 'integer', minimum: 100, maximum: 699 }),
+        retry_after_seconds: nullable({
+          type: 'integer', minimum: 0, maximum: 86_400,
+        }),
+        hangup_cause: nullable(schemaRef('HangupCause')),
+      }),
+      SemanticTimerSnapshot: closedObject({
+        timer_kind: {
+          enum: [
+            'A', 'B', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
+            'glare_retry', 'dns', 'connect', 'application',
+          ],
+        },
+        remaining_duration_ms_at_snapshot: {
+          type: 'integer', minimum: 0, maximum: 600_000,
+        },
+        wall_clock_audit_timestamp: { type: 'string', format: 'date-time' },
+        owner_epoch: schemaRef('PositiveUint64'),
+        generation: schemaRef('PositiveUint64'),
+      }),
+      OriginateRequest: closedObject({
+        ...commonCommand,
+        interaction_id: schemaRef('InteractionId'),
+        request_uri: schemaRef('RequestUri'),
+        route_id: schemaRef('OpaqueIdentifier'),
+        offer: schemaRef('SdpOffer'),
+      }),
+      AnswerRequest: closedObject({
+        ...commonCommand,
+        protocol_dialog_id: schemaRef('ProtocolDialogId'),
+        answer: schemaRef('SdpAnswer'),
+      }),
+      TerminateRequest: closedObject({
+        ...commonCommand,
+        hangup_cause: schemaRef('HangupCause'),
+      }),
+      OriginateResult: closedObject({
+        ...commonResult,
+        outcome: { const: 'effect_committed' },
+        protocol_session_id: schemaRef('OpaqueIdentifier'),
+        protocol_session_generation: schemaRef('PositiveUint64'),
+      }),
+      AnswerResult: closedObject({
+        ...commonResult,
+        outcome: { const: 'effect_committed' },
+      }),
+      TerminateResult: {
+        ...closedObject({
+          command_id: schemaRef('OpaqueIdentifier'),
+          outcome: { enum: ['effect_committed', 'terminal_observed'] },
+          effect_id: nullable(schemaRef('OpaqueIdentifier')),
+          terminal_event_id: nullable(schemaRef('OpaqueIdentifier')),
+          request_hash: schemaRef('Sha256'),
+          wire_freeze_sha256: nullable(schemaRef('Sha256')),
+        }),
+        oneOf: [
+          {
+            type: 'object',
+            required: ['outcome', 'effect_id', 'terminal_event_id', 'wire_freeze_sha256'],
+            properties: {
+              outcome: { const: 'effect_committed' },
+              effect_id: schemaRef('OpaqueIdentifier'),
+              terminal_event_id: { type: 'null' },
+              wire_freeze_sha256: schemaRef('Sha256'),
+            },
+          },
+          {
+            type: 'object',
+            required: ['outcome', 'effect_id', 'terminal_event_id', 'wire_freeze_sha256'],
+            properties: {
+              outcome: { const: 'terminal_observed' },
+              effect_id: { type: 'null' },
+              terminal_event_id: schemaRef('OpaqueIdentifier'),
+              wire_freeze_sha256: { type: 'null' },
+            },
+          },
+        ],
+      },
+      OriginateRequestMessage: closedObject({
+        message_kind: { const: 'command_request' },
+        command: { const: 'originate' },
+        request: schemaRef('OriginateRequest'),
+      }),
+      AnswerRequestMessage: closedObject({
+        message_kind: { const: 'command_request' },
+        command: { const: 'answer' },
+        request: schemaRef('AnswerRequest'),
+      }),
+      TerminateRequestMessage: closedObject({
+        message_kind: { const: 'command_request' },
+        command: { const: 'terminate' },
+        request: schemaRef('TerminateRequest'),
+      }),
+      OriginateResultMessage: closedObject({
+        message_kind: { const: 'command_result' },
+        command: { const: 'originate' },
+        result: schemaRef('OriginateResult'),
+      }),
+      AnswerResultMessage: closedObject({
+        message_kind: { const: 'command_result' },
+        command: { const: 'answer' },
+        result: schemaRef('AnswerResult'),
+      }),
+      TerminateResultMessage: closedObject({
+        message_kind: { const: 'command_result' },
+        command: { const: 'terminate' },
+        result: schemaRef('TerminateResult'),
+      }),
+      CommandErrorMessage: closedObject({
+        message_kind: { const: 'command_error' },
+        command: { enum: ['originate', 'answer', 'terminate'] },
+        command_id: schemaRef('OpaqueIdentifier'),
+        error: schemaRef('SipFoundationError'),
+      }),
+      RequestReceivedPayload: closedObject({
+        method,
+        request_uri: schemaRef('RequestUri'),
+        cseq: { type: 'integer', minimum: 1, maximum: 2_147_483_647 },
+        wire_length_bytes: { type: 'integer', minimum: 1, maximum: 65_535 },
+        wire_sha256: schemaRef('Sha256'),
+      }),
+      ResponseReceivedPayload: closedObject({
+        sip_status: { type: 'integer', minimum: 100, maximum: 699 },
+        reason_phrase: { type: 'string', maxLength: 128 },
+        cseq_method: method,
+        cseq: { type: 'integer', minimum: 1, maximum: 2_147_483_647 },
+        wire_length_bytes: { type: 'integer', minimum: 1, maximum: 65_535 },
+        wire_sha256: schemaRef('Sha256'),
+      }),
+      ProvisionalReceivedPayload: closedObject({
+        sip_status: { type: 'integer', minimum: 100, maximum: 199 },
+        reason_phrase: { type: 'string', maxLength: 128 },
+        cseq_method: method,
+        cseq: { type: 'integer', minimum: 1, maximum: 2_147_483_647 },
+        wire_length_bytes: { type: 'integer', minimum: 1, maximum: 65_535 },
+        wire_sha256: schemaRef('Sha256'),
+      }),
+      FinalReceivedPayload: closedObject({
+        sip_status: { type: 'integer', minimum: 200, maximum: 699 },
+        reason_phrase: { type: 'string', maxLength: 128 },
+        cseq_method: method,
+        cseq: { type: 'integer', minimum: 1, maximum: 2_147_483_647 },
+        wire_length_bytes: { type: 'integer', minimum: 1, maximum: 65_535 },
+        wire_sha256: schemaRef('Sha256'),
+      }),
+      TransportAcceptedPayload: closedObject({
+        transport: { enum: ['udp', 'tcp', 'tls'] },
+        connection_id: schemaRef('OpaqueIdentifier'),
+        peer_address: { type: 'string', minLength: 1, maxLength: 255 },
+        peer_port: { type: 'integer', minimum: 1, maximum: 65_535 },
+        tls_verified: { type: 'boolean' },
+      }),
+      TransportFailedPayload: closedObject({
+        transport: { enum: ['udp', 'tcp', 'tls'] },
+        connection_id: nullable(schemaRef('OpaqueIdentifier')),
+        stable_code: {
+          type: 'string', minLength: 1, maxLength: 96,
+          pattern: '^[a-z][a-z0-9_]{0,95}$',
+        },
+        retryable: { type: 'boolean' },
+      }),
+      TransactionTimedOutPayload: closedObject({
+        timer_kind: { enum: ['A', 'B', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'] },
+        elapsed_ms: { type: 'integer', minimum: 1, maximum: 600_000 },
+      }),
+      ProtocolDialogChangedPayload: closedObject({
+        previous_state: nullable({ enum: ['early', 'confirmed', 'terminated'] }),
+        state: { enum: ['early', 'confirmed', 'terminated'] },
+        route_set_sha256: nullable(schemaRef('Sha256')),
+        local_cseq: { type: 'integer', minimum: 0, maximum: 2_147_483_647 },
+        remote_cseq: { type: 'integer', minimum: 0, maximum: 2_147_483_647 },
+      }),
+      DnsCandidateExhaustedPayload: closedObject({
+        query_name_sha256: schemaRef('Sha256'),
+        candidate_count: { type: 'integer', minimum: 0, maximum: 8 },
+        elapsed_ms: { type: 'integer', minimum: 1, maximum: 10_000 },
+      }),
+      EgressEventEnvelope: {
+        ...closedObject(commonEvent),
+        oneOf: eventTypes.map(([eventType, payload]) => ({
+          type: 'object',
+          required: ['event_type', 'payload'],
+          properties: {
+            event_type: { const: eventType },
+            payload: schemaRef(payload),
+          },
+        })),
+      },
+      EgressEventMessage: closedObject({
+        message_kind: { const: 'egress_event' },
+        event: schemaRef('EgressEventEnvelope'),
+      }),
+    },
+  };
+}
+
+function sipFoundationMessageExamples() {
+  const ids = {
+    call: `call_${'a'.repeat(32)}`,
+    leg: `leg_${'b'.repeat(32)}`,
+    interaction: `interaction_${'c'.repeat(32)}`,
+    dialog: `pdlg_${'d'.repeat(32)}`,
+    transaction: `ptxn_${'e'.repeat(32)}`,
+  };
+  const wireSha = sha256('INVITE sip:bob@example.invalid SIP/2.0\r\n\r\n');
+  const sdpBytes = Buffer.from('v=0\r\n', 'utf8');
+  const sdp = (role) => ({
+    role,
+    content_type: 'application/sdp',
+    bytes_base64: sdpBytes.toString('base64'),
+    byte_length: sdpBytes.byteLength,
+    sha256: sha256(sdpBytes),
+    negotiation_generation: '1',
+  });
+  const command = {
+    tenant_id: 'tenant-foundation',
+    call_id: ids.call,
+    leg_id: ids.leg,
+    command_id: 'command-foundation-1',
+    owner_epoch: '7',
+    generation: '1',
+  };
+  const hangupCause = {
+    category: 'normal_clearing',
+    sip_status: null,
+    q850_cause: 16,
+    reason_token: 'normal_call_clearing',
+    retryable: false,
+    source: 'call_core',
+  };
+  const event = (eventType, payload, index) => ({
+    message_kind: 'egress_event',
+    event: {
+      tenant_id: 'tenant-foundation',
+      call_id: ids.call,
+      leg_id: ids.leg,
+      interaction_id: ids.interaction,
+      protocol_session_id: 'protocol-session-foundation',
+      protocol_session_generation: '1',
+      protocol_dialog_id: ids.dialog,
+      transaction_id: ids.transaction,
+      event_id: `event-foundation-${index}`,
+      owner_epoch: '7',
+      generation: '1',
+      observed_at_wall_clock: '2026-08-02T00:00:00.000Z',
+      received_at_monotonic_offset_ns: index,
+      event_type: eventType,
+      payload,
+    },
+  });
+  const response = (sipStatus, reasonPhrase) => ({
+    sip_status: sipStatus,
+    reason_phrase: reasonPhrase,
+    cseq_method: 'INVITE',
+    cseq: 1,
+    wire_length_bytes: 128,
+    wire_sha256: wireSha,
+  });
+  return {
+    originate_request: {
+      message_kind: 'command_request',
+      command: 'originate',
+      request: {
+        ...command,
+        interaction_id: ids.interaction,
+        request_uri: 'sip:bob@example.invalid',
+        route_id: 'route-primary',
+        offer: sdp('offer'),
+      },
+    },
+    answer_request: {
+      message_kind: 'command_request',
+      command: 'answer',
+      request: {
+        ...command,
+        protocol_dialog_id: ids.dialog,
+        answer: sdp('answer'),
+      },
+    },
+    terminate_request: {
+      message_kind: 'command_request',
+      command: 'terminate',
+      request: { ...command, hangup_cause: hangupCause },
+    },
+    originate_result: {
+      message_kind: 'command_result',
+      command: 'originate',
+      result: {
+        command_id: command.command_id,
+        effect_id: 'effect-foundation-1',
+        request_hash: wireSha,
+        wire_freeze_sha256: wireSha,
+        outcome: 'effect_committed',
+        protocol_session_id: 'protocol-session-foundation',
+        protocol_session_generation: '1',
+      },
+    },
+    answer_result: {
+      message_kind: 'command_result',
+      command: 'answer',
+      result: {
+        command_id: command.command_id,
+        effect_id: 'effect-foundation-2',
+        request_hash: wireSha,
+        wire_freeze_sha256: wireSha,
+        outcome: 'effect_committed',
+      },
+    },
+    terminate_result: {
+      message_kind: 'command_result',
+      command: 'terminate',
+      result: {
+        command_id: command.command_id,
+        outcome: 'terminal_observed',
+        effect_id: null,
+        terminal_event_id: 'event-terminal-1',
+        request_hash: wireSha,
+        wire_freeze_sha256: null,
+      },
+    },
+    command_error: {
+      message_kind: 'command_error',
+      command: 'originate',
+      command_id: command.command_id,
+      error: {
+        category: 'transport',
+        stable_code: 'sip_transport_unavailable',
+        retryable: true,
+        sip_status: 503,
+        retry_after_seconds: 1,
+        hangup_cause: null,
+      },
+    },
+    request_received: event('request_received', {
+      method: 'INVITE',
+      request_uri: 'sip:bob@example.invalid',
+      cseq: 1,
+      wire_length_bytes: 128,
+      wire_sha256: wireSha,
+    }, 1),
+    response_received: event('response_received', response(401, 'Unauthorized'), 2),
+    provisional_received: event('provisional_received', response(180, 'Ringing'), 3),
+    final_received: event('final_received', response(200, 'OK'), 4),
+    transport_accepted: event('transport_accepted', {
+      transport: 'tls',
+      connection_id: 'connection-foundation-1',
+      peer_address: '192.0.2.10',
+      peer_port: 5061,
+      tls_verified: true,
+    }, 5),
+    transport_failed: event('transport_failed', {
+      transport: 'tcp',
+      connection_id: null,
+      stable_code: 'connect_timeout',
+      retryable: true,
+    }, 6),
+    transaction_timed_out: event('transaction_timed_out', {
+      timer_kind: 'B',
+      elapsed_ms: 32_000,
+    }, 7),
+    protocol_dialog_changed: event('protocol_dialog_changed', {
+      previous_state: 'early',
+      state: 'confirmed',
+      route_set_sha256: wireSha,
+      local_cseq: 1,
+      remote_cseq: 1,
+    }, 8),
+    dns_candidate_exhausted: event('dns_candidate_exhausted', {
+      query_name_sha256: sha256('sip-edge.example.invalid'),
+      candidate_count: 8,
+      elapsed_ms: 2_000,
+    }, 9),
+  };
+}
+
 function sipFoundationContract() {
   return {
     $schema: './sip-foundation-contract-v1.schema.json',
@@ -141,30 +707,37 @@ function sipFoundationContract() {
       current_binding: 'RustPBX_call_path_outside_target_control_port',
       target_binding: 'Converact_owned_SipFoundationControlPort',
       implementation_status: 'interface_frozen_adapter_activation_not_run',
+      schema_dialect: 'https://json-schema.org/draft/2020-12/schema',
+      field_presence: 'all_fields_required_optional_values_use_explicit_null',
+      message_schema: sipFoundationMessageSchema(),
+      message_examples: sipFoundationMessageExamples(),
       commands: {
         originate: {
-          required_fields: [
-            'tenant_id', 'call_id', 'leg_id', 'interaction_id',
-            'command_id', 'owner_epoch', 'generation', 'request_uri',
-            'route_id', 'offer',
-          ],
-          success: 'durable_effect_identity_and_protocol_session_handle',
+          request_schema_ref: controlSchemaRef('OriginateRequestMessage'),
+          success_schema_ref: controlSchemaRef('OriginateResultMessage'),
+          error_schema_ref: controlSchemaRef('CommandErrorMessage'),
         },
         answer: {
-          required_fields: [
-            'tenant_id', 'call_id', 'leg_id', 'protocol_dialog_id',
-            'command_id', 'owner_epoch', 'generation', 'answer',
-          ],
-          success: 'durable_effect_identity',
+          request_schema_ref: controlSchemaRef('AnswerRequestMessage'),
+          success_schema_ref: controlSchemaRef('AnswerResultMessage'),
+          error_schema_ref: controlSchemaRef('CommandErrorMessage'),
         },
         terminate: {
-          required_fields: [
-            'tenant_id', 'call_id', 'leg_id', 'command_id',
-            'owner_epoch', 'generation', 'hangup_cause',
-          ],
-          success: 'durable_effect_identity_or_terminal_observation',
+          request_schema_ref: controlSchemaRef('TerminateRequestMessage'),
+          success_schema_ref: controlSchemaRef('TerminateResultMessage'),
+          error_schema_ref: controlSchemaRef('CommandErrorMessage'),
         },
       },
+      semantic_invariants: [
+        'PositiveUint64 parses base10 without leading zero and is <=18446744073709551615',
+        'SdpDocument role matches the command field and decoded bytes equal byte_length',
+        'SdpDocument sha256 is SHA-256 of the exact decoded immutable bytes',
+        'request_hash is SHA-256 of the canonical closed command request',
+        'wire_freeze_sha256 is SHA-256 of the exact committed wire image',
+        'wire event length and SHA-256 match the exact received bytes',
+        'command result or error command_id exactly matches its request',
+        'event_type selects exactly one closed payload schema',
+      ],
       command_rule: 'prepare_then_durable_decision_then_commit_send',
       direct_socket_write_by_call_core: 'forbidden',
     },
@@ -174,13 +747,26 @@ function sipFoundationContract() {
         'protocol_session_id', 'protocol_session_generation',
         'protocol_dialog_id', 'transaction_id', 'event_id',
         'owner_epoch', 'generation', 'observed_at_wall_clock',
-        'received_at_monotonic_offset', 'event_type', 'payload',
+        'received_at_monotonic_offset_ns', 'event_type', 'payload',
       ],
+      envelope_schema_ref: controlSchemaRef('EgressEventEnvelope'),
+      payload_schema_refs: {
+        request_received: controlSchemaRef('RequestReceivedPayload'),
+        response_received: controlSchemaRef('ResponseReceivedPayload'),
+        provisional_received: controlSchemaRef('ProvisionalReceivedPayload'),
+        final_received: controlSchemaRef('FinalReceivedPayload'),
+        transport_accepted: controlSchemaRef('TransportAcceptedPayload'),
+        transport_failed: controlSchemaRef('TransportFailedPayload'),
+        transaction_timed_out: controlSchemaRef('TransactionTimedOutPayload'),
+        protocol_dialog_changed: controlSchemaRef('ProtocolDialogChangedPayload'),
+        dns_candidate_exhausted: controlSchemaRef('DnsCandidateExhaustedPayload'),
+      },
       delivery: 'bounded_ordered_per_protocol_session',
       duplicate_and_reorder: 'event_id_hash_dedupe_then_state_fence',
       business_mutation: 'forbidden_until_Call_authority_durable_decision',
     },
     sdp_interface: {
+      schema_ref: controlSchemaRef('SdpDocument'),
       representation: 'Converact_owned_immutable_exact_bytes_plus_sha256',
       roles: ['offer', 'answer'],
       negotiation_identity: [
@@ -191,6 +777,7 @@ function sipFoundationContract() {
       mutation_after_prepare: 'forbidden',
     },
     timer_interface: {
+      schema_ref: controlSchemaRef('SemanticTimerSnapshot'),
       runtime_deadlines: 'monotonic_clock_only',
       persisted_values: [
         'semantic_timer_kind', 'remaining_duration_ms_at_snapshot',
@@ -200,6 +787,7 @@ function sipFoundationContract() {
       restoration: 'recompute_bounded_deadline_after_owner_fence',
     },
     hangup_cause_interface: {
+      schema_ref: controlSchemaRef('HangupCause'),
       categories: [
         'normal_clearing', 'caller_cancelled', 'no_answer', 'busy',
         'rejected', 'temporary_failure', 'service_unavailable',
@@ -212,6 +800,7 @@ function sipFoundationContract() {
       raw_backend_error_as_business_cause: 'forbidden',
     },
     error_interface: {
+      schema_ref: controlSchemaRef('SipFoundationError'),
       categories: [
         'invalid_input', 'capacity', 'store', 'dns', 'transport',
         'transaction', 'dialog', 'security', 'timeout', 'internal',
@@ -396,8 +985,8 @@ function callLegContract() {
       ],
       legacy_call_id_import: {
         accepted_syntax: ['vcall_*', 'uuid'],
-        authority: 'existing_VoiceCall_repository_exact_tenant_and_id_match',
-        credential: 'module_issued_non_forgeable_in_process_record',
+        authority: 'exact_PostgresVoiceCallStore_composition_binding_and_tenant_id_match',
+        credential: 'module_private_issuer_no_caller_supplied_lookup_or_record',
         raw_sip_call_id_or_plain_object: 'rejected',
       },
       invariants: [
@@ -452,6 +1041,7 @@ function callLegContract() {
       sequence_gap: 'fail_closed_then_reconcile',
       mailbox_and_timer_mutation:
         'same_tenant_owner_generation_revision_fence_as_leg_mutation',
+      call_work_dispatch: 'dequeue_only_no_callback_execution',
     },
     race_policy: {
       cancel_before_final: 'CANCEL_then_487_ACK',
@@ -459,10 +1049,11 @@ function callLegContract() {
       bye_duplicate: 'idempotent_same_effect_identity',
       fork_winner: 'first_durably_selected_2xx_leg_only',
       fork_attempt_identity: 'explicit_and_bounded_per_attempt',
+      fork_branch_registration: 'before_start_invite',
       fork_selection_sip_status: 'integer_200_through_299_only',
       late_fork_2xx: 'ACK_then_BYE_non_winner',
       already_acked_late_fork_2xx: 'BYE_without_duplicate_ACK',
-      remaining_early_forks: 'CANCEL',
+      remaining_early_forks: 'bounded_per_leg_send_cancel_effects_in_winner_receipt',
       reinvite: 'same_leg_same_dialog_new_negotiation_generation',
       reinvite_glare: '491_and_bounded_retry_without_new_leg',
       transfer: 'old_selected_leg_remains_until_transfer_commit',
@@ -486,7 +1077,8 @@ function callLegContract() {
       call_lookup: 'expected_O(1)',
       leg_lookup: 'expected_O(1)',
       dialog_lookup: 'expected_O(1)',
-      transition: 'O(1)',
+      transition: 'O(1)_except_fork_winner',
+      fork_winner: 'O(branches_in_attempt)_hard_ceiling_32',
       bounded_call_reconciliation: 'O(legs_per_call)',
       global_active_call_scan_on_hot_path: 'forbidden',
     },

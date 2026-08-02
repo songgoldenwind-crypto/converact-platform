@@ -298,10 +298,10 @@
               "items": false
             },
             "authority": {
-              "const": "existing_VoiceCall_repository_exact_tenant_and_id_match"
+              "const": "exact_PostgresVoiceCallStore_composition_binding_and_tenant_id_match"
             },
             "credential": {
-              "const": "module_issued_non_forgeable_in_process_record"
+              "const": "module_private_issuer_no_caller_supplied_lookup_or_record"
             },
             "raw_sip_call_id_or_plain_object": {
               "const": "rejected"
@@ -1106,7 +1106,8 @@
         "conflicting_duplicate",
         "stale_owner",
         "sequence_gap",
-        "mailbox_and_timer_mutation"
+        "mailbox_and_timer_mutation",
+        "call_work_dispatch"
       ],
       "properties": {
         "mutation_fence": {
@@ -1158,6 +1159,9 @@
         },
         "mailbox_and_timer_mutation": {
           "const": "same_tenant_owner_generation_revision_fence_as_leg_mutation"
+        },
+        "call_work_dispatch": {
+          "const": "dequeue_only_no_callback_execution"
         }
       }
     },
@@ -1170,6 +1174,7 @@
         "bye_duplicate",
         "fork_winner",
         "fork_attempt_identity",
+        "fork_branch_registration",
         "fork_selection_sip_status",
         "late_fork_2xx",
         "already_acked_late_fork_2xx",
@@ -1196,6 +1201,9 @@
         "fork_attempt_identity": {
           "const": "explicit_and_bounded_per_attempt"
         },
+        "fork_branch_registration": {
+          "const": "before_start_invite"
+        },
         "fork_selection_sip_status": {
           "const": "integer_200_through_299_only"
         },
@@ -1206,7 +1214,7 @@
           "const": "BYE_without_duplicate_ACK"
         },
         "remaining_early_forks": {
-          "const": "CANCEL"
+          "const": "bounded_per_leg_send_cancel_effects_in_winner_receipt"
         },
         "reinvite": {
           "const": "same_leg_same_dialog_new_negotiation_generation"
@@ -1285,6 +1293,7 @@
         "leg_lookup",
         "dialog_lookup",
         "transition",
+        "fork_winner",
         "bounded_call_reconciliation",
         "global_active_call_scan_on_hot_path"
       ],
@@ -1299,7 +1308,10 @@
           "const": "expected_O(1)"
         },
         "transition": {
-          "const": "O(1)"
+          "const": "O(1)_except_fork_winner"
+        },
+        "fork_winner": {
+          "const": "O(branches_in_attempt)_hard_ceiling_32"
         },
         "bounded_call_reconciliation": {
           "const": "O(legs_per_call)"

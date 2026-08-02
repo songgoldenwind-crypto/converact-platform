@@ -160,6 +160,83 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.match(build, /PATCHSET="ivekit\.40"/u);
 });
 
+test('SipFoundation control messages have one compiled closed wire schema', () => {
+  const contract = readJson(join(goalDirectory, documents.sip[1]));
+  const schema = contract.control_interface.message_schema;
+  assert.equal(
+    schema.$id,
+    'https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json',
+  );
+  assert.equal(schema.unevaluatedProperties, false);
+  for (const command of Object.values(contract.control_interface.commands)) {
+    for (const ref of Object.values(command)) {
+      assert.match(ref, new RegExp(`^${schema.$id.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}#`));
+    }
+  }
+  for (const definition of [
+    'SdpDocument',
+    'HangupCause',
+    'SipFoundationError',
+    'OriginateRequest',
+    'AnswerRequest',
+    'TerminateRequest',
+    'EgressEventEnvelope',
+  ]) {
+    assert.equal(schema.$defs[definition].additionalProperties, false, definition);
+  }
+
+  const ajv = new Ajv2020({
+    allErrors: true,
+    strict: true,
+    formats: { 'date-time': true },
+  });
+  const validate = ajv.compile(schema);
+  const examples = contract.control_interface.message_examples;
+  assert.deepEqual(
+    Object.keys(examples),
+    [
+      'originate_request', 'answer_request', 'terminate_request',
+      'originate_result', 'answer_result', 'terminate_result',
+      'command_error', 'request_received', 'response_received',
+      'provisional_received', 'final_received', 'transport_accepted',
+      'transport_failed', 'transaction_timed_out',
+      'protocol_dialog_changed', 'dns_candidate_exhausted',
+    ],
+  );
+  for (const [name, example] of Object.entries(examples)) {
+    assert.equal(
+      validate(example),
+      true,
+      `${name}: ${JSON.stringify(validate.errors)}`,
+    );
+  }
+
+  const unknownRequestField = structuredClone(examples.originate_request);
+  unknownRequestField.request.undeclared = true;
+  assertInvalid(validate, unknownRequestField, 'unknown originate request field');
+  const missingSdpHash = structuredClone(examples.answer_request);
+  delete missingSdpHash.request.answer.sha256;
+  assertInvalid(validate, missingSdpHash, 'missing SDP hash');
+  const wrongSdpRole = structuredClone(examples.originate_request);
+  wrongSdpRole.request.offer.role = 'answer';
+  assertInvalid(validate, wrongSdpRole, 'originate with answer-role SDP');
+  const uint64Overflow = structuredClone(examples.originate_request);
+  uint64Overflow.request.owner_epoch = '18446744073709551616';
+  assertInvalid(validate, uint64Overflow, 'owner epoch above uint64');
+  const unknownEventPayload = structuredClone(examples.provisional_received);
+  unknownEventPayload.event.payload.undeclared = true;
+  assertInvalid(validate, unknownEventPayload, 'unknown event payload field');
+  const malformedHash = structuredClone(examples.originate_result);
+  malformedHash.result.request_hash = 'not-a-sha256';
+  assertInvalid(validate, malformedHash, 'malformed request hash');
+  const ambiguousError = structuredClone(examples.command_error);
+  ambiguousError.error.raw_backend_error = 'secret';
+  assertInvalid(validate, ambiguousError, 'raw backend error');
+  const ambiguousTerminate = structuredClone(examples.terminate_result);
+  ambiguousTerminate.result.effect_id = 'effect-also-present';
+  assertInvalid(validate, ambiguousTerminate, 'ambiguous terminate result');
+});
+
 test('Call/Leg and effect contracts distinguish identities, races and receipt meanings', () => {
   const call = readJson(join(goalDirectory, documents.call[1]));
   assert.equal(call.authority, 'Unified RustPBX Call Core');
@@ -173,7 +250,11 @@ test('Call/Leg and effect contracts distinguish identities, races and receipt me
   assert.ok(call.identifiers.invariants.includes('sip_call_id_is_not_CallId'));
   assert.equal(
     call.identifiers.legacy_call_id_import.authority,
-    'existing_VoiceCall_repository_exact_tenant_and_id_match',
+    'exact_PostgresVoiceCallStore_composition_binding_and_tenant_id_match',
+  );
+  assert.equal(
+    call.identifiers.legacy_call_id_import.credential,
+    'module_private_issuer_no_caller_supplied_lookup_or_record',
   );
   assert.equal(
     call.identifiers.legacy_call_id_import.raw_sip_call_id_or_plain_object,
@@ -192,8 +273,15 @@ test('Call/Leg and effect contracts distinguish identities, races and receipt me
     call.concurrency.mailbox_and_timer_mutation,
     'same_tenant_owner_generation_revision_fence_as_leg_mutation',
   );
+  assert.equal(call.concurrency.call_work_dispatch, 'dequeue_only_no_callback_execution');
+  assert.equal(call.race_policy.fork_branch_registration, 'before_start_invite');
+  assert.equal(
+    call.race_policy.remaining_early_forks,
+    'bounded_per_leg_send_cancel_effects_in_winner_receipt',
+  );
   assert.equal(call.events.includes('transfer_commit'), false);
-  assert.equal(call.complexity.transition, 'O(1)');
+  assert.equal(call.complexity.transition, 'O(1)_except_fork_winner');
+  assert.equal(call.complexity.fork_winner, 'O(branches_in_attempt)_hard_ceiling_32');
   assert.equal(call.complexity.global_active_call_scan_on_hot_path, 'forbidden');
 
   const effect = readJson(join(goalDirectory, documents.effect[1]));
@@ -284,7 +372,8 @@ test('evidence starts honest and no required design artifact contains placeholde
     assert.doesNotMatch(value, /\b(?:TBD|TODO|FIXME)\b/u, path);
   }
   const review = readFileSync(join(goalDirectory, 'independent-review.md'), 'utf8');
-  assert.match(review, /Review status: `pending`/u);
+  assert.match(review, /Review status: `remediation_complete_re_review_pending`/u);
+  assert.match(review, /Critical 0 \/ High 2 \/ Important 2 \/ Minor 0/u);
   assert.match(review, /Production eligibility: `false`/u);
 });
 

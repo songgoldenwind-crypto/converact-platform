@@ -47,10 +47,12 @@ Queue, Routing, Billing, API or Addon interfaces.
 New deterministic identifiers use SHA-256 over length-prefixed tenant,
 namespace and components, truncated to 128 bits and prefixed by type. This
 avoids delimiter ambiguity and does not force a ULID migration. Existing UUID
-and `vcall_*` values enter only after the existing durable `VoiceCall`
-repository returns an exact tenant/ID match and the foundation module issues a
-non-forgeable in-process authority record. A raw string, SIP header or
-look-alike plain object is rejected even when it has valid UUID syntax.
+and `vcall_*` values enter only through the module-issued
+`VoiceCallIdAuthorityAdapter`, bound at composition time to the exact concrete
+`PostgresVoiceCallStore`. That store must return an exact tenant/ID match. The
+module exposes neither a caller-supplied lookup nor an import record. A raw
+string, SIP header or look-alike plain object is rejected even when it has valid
+UUID syntax.
 
 ## 3. Call and Leg Mutation
 
@@ -66,11 +68,12 @@ Race decisions are explicit:
 
 - CANCEL before final response sends CANCEL and closes 487 with a non-2xx ACK.
 - A racing 2xx after CANCEL is ACKed and then terminated with BYE.
-- Every fork attempt has an explicit bounded identity, and the selection input
-  accepts only an integer SIP status from 200 through 299. The first durably
-  selected fork 2xx is the winner; a late unacknowledged 2xx is ACKed then
-  BYE'd, an already acknowledged loser receives only BYE, and remaining early
-  branches receive CANCEL.
+- Every fork branch is registered under one explicit bounded attempt before its
+  INVITE starts. The selection input accepts only an integer SIP status from 200
+  through 299. The first durably selected fork 2xx is the winner; its receipt
+  contains one bounded per-Leg CANCEL effect for every remaining early branch.
+  A late unacknowledged 2xx is ACKed then BYE'd, while an already acknowledged
+  loser receives only BYE.
 - Re-INVITE glare returns 491 and uses bounded retry; it does not create a Leg.
 - Transfer keeps the old selected Leg until one dedicated atomic selection
   operation durably selects the confirmed replacement and marks the old Leg
@@ -78,11 +81,11 @@ Race decisions are explicit:
   restores the exact pre-transfer stable state (`confirmed` or `held`).
 - Duplicate BYE/CANCEL/effect identities do not create duplicate CDR or effects.
 
-Per-Call callbacks are synchronous-only at this projection boundary. A thrown
-handler or accidentally returned Promise is classified as failed, its
-rejection is consumed, and no unrelated Call entry is mutated. Async protocol
-work must be represented as durable/bounded work rather than hidden behind a
-callback return value.
+The Call projection never invokes caller-provided callbacks. It exposes only
+fenced enqueue/dequeue operations on a bounded per-Call mailbox. A supervised
+worker owns execution outside the registry and may re-enter only through the
+same tenant/Call/owner/generation/revision fences. Async work therefore cannot
+escape from a callback after the registry has reported failure.
 
 Per-Call work is bounded. Call/Leg/Dialog lookup is expected O(1); reconciliation
 may be O(number of Legs) but the number of Legs has a hard ceiling. No global
@@ -90,7 +93,10 @@ active-Call scan belongs to request, timer or RTP hot paths.
 
 ## 4. SipFoundation Deep Interface
 
-The public contract is semantic, not an immediate Rust signature freeze:
+The public contract is frozen as the closed Draft 2020-12 JSON Schema
+`sip-foundation-control-message-v1`. Every field is required; optional values
+use explicit `null`; unknown root, request, result, error and event-payload
+fields fail validation. The schema closes the following semantic interface:
 
 - `originate` accepts only Converact-owned tenant/Call/Leg/Interaction IDs,
   owner/generation fence, route reference, request URI and immutable SDP offer.
@@ -108,6 +114,12 @@ The public contract is semantic, not an immediate Rust signature freeze:
 - stable error and hangup categories carry optional SIP/Q.850 codes,
   retryability and bounded Retry-After; secrets, raw wire and backend exception
   strings are forbidden.
+
+The schema also freezes request/result/error envelopes, each event-type payload,
+identifier patterns, maximum lengths, SDP/wire hash fields and timer clock
+units. Its separately listed semantic invariants require byte length and SHA-256
+to match the exact immutable bytes and require decimal epoch/generation strings
+to fit unsigned 64-bit range; syntax validation alone is not sufficient.
 
 The control port is frozen in G03. The current RustPBX control binding remains
 outside that target port until its separately gated Adapter activation; this is

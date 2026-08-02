@@ -35,8 +35,9 @@ Test first: `test/converact-call-leg-foundation.test.ts`.
 Failing cases:
 
 - SIP Call-ID cannot be accepted as a CallId by implicit conversion;
-- UUID/`vcall_*` compatibility requires an exact existing `VoiceCall`
-  repository match and module-issued authority record; plain objects fail;
+- UUID/`vcall_*` compatibility requires the module-issued adapter bound to the
+  exact concrete `PostgresVoiceCallStore` plus an exact tenant/ID match;
+  caller-supplied lookups, records and plain objects fail;
 - all six types reject whitespace, empty and oversized values;
 - deterministic IDs resist component-boundary ambiguity;
 - one Call supports bounded multiple Legs and Dialog history;
@@ -44,22 +45,27 @@ Failing cases:
   conflicting duplicate fail closed;
 - duplicate event ID/hash replays without revision change;
 - CANCEL racing 2xx produces ACK-then-BYE;
-- per-attempt fork selection rejects non-2xx status; winner/non-winner, atomic
-  transfer selection, held-transfer abort and re-INVITE do not create
-  ambiguous state or duplicate ACK;
+- fork membership is registered before INVITE and bounded per attempt;
+  selection rejects non-2xx status and returns per-Leg CANCEL effects for every
+  remaining early sibling; winner/non-winner, atomic transfer selection,
+  held-transfer abort and re-INVITE do not create ambiguous state or duplicate
+  ACK;
 - mailbox/timer/Leg/Dialog mutations share the authority fence and their limits
   reject new work while preserving existing state;
-- a synchronous exception or async-handler rejection is reported as failure
-  and leaves unrelated Call registry entries intact.
+- the Call registry exposes no callback execution seam; bounded dequeued work
+  executes only in a supervised worker and re-enters through the same fence.
 
 Minimal implementation files:
 
 - `src/agent-runtime/converact/voice/foundation-identifiers.ts`
+- `src/agent-runtime/converact/voice/voice-call-id-authority.ts`
 - `src/agent-runtime/converact/voice/call-leg-state-machine.ts`
 - exact exports from `voice/index.ts`
 
-Complexity: expected O(1) Call/Leg lookup and transition; O(bounded Legs) only
-for explicit reconciliation. No global scan/task/database access.
+Complexity: expected O(1) Call/Leg lookup and ordinary transition. Fork winner
+selection is O(branches in that attempt), with a hard ceiling of 32, and
+explicit reconciliation is O(bounded Legs). No global scan/task/database
+access.
 
 Commit intent: `feat(voice): add bounded call leg foundation`.
 

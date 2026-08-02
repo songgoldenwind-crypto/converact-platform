@@ -68,48 +68,1833 @@
     "current_binding": "RustPBX_call_path_outside_target_control_port",
     "target_binding": "Converact_owned_SipFoundationControlPort",
     "implementation_status": "interface_frozen_adapter_activation_not_run",
-    "commands": {
-      "originate": {
-        "required_fields": [
-          "tenant_id",
-          "call_id",
-          "leg_id",
-          "interaction_id",
-          "command_id",
-          "owner_epoch",
-          "generation",
-          "request_uri",
-          "route_id",
-          "offer"
-        ],
-        "success": "durable_effect_identity_and_protocol_session_handle"
-      },
-      "answer": {
-        "required_fields": [
-          "tenant_id",
-          "call_id",
-          "leg_id",
-          "protocol_dialog_id",
-          "command_id",
-          "owner_epoch",
-          "generation",
-          "answer"
-        ],
-        "success": "durable_effect_identity"
-      },
-      "terminate": {
-        "required_fields": [
-          "tenant_id",
-          "call_id",
-          "leg_id",
-          "command_id",
-          "owner_epoch",
-          "generation",
-          "hangup_cause"
-        ],
-        "success": "durable_effect_identity_or_terminal_observation"
+    "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+    "field_presence": "all_fields_required_optional_values_use_explicit_null",
+    "message_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json",
+      "title": "Converact SipFoundation control message v1",
+      "type": "object",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/OriginateRequestMessage"
+        },
+        {
+          "$ref": "#/$defs/AnswerRequestMessage"
+        },
+        {
+          "$ref": "#/$defs/TerminateRequestMessage"
+        },
+        {
+          "$ref": "#/$defs/OriginateResultMessage"
+        },
+        {
+          "$ref": "#/$defs/AnswerResultMessage"
+        },
+        {
+          "$ref": "#/$defs/TerminateResultMessage"
+        },
+        {
+          "$ref": "#/$defs/CommandErrorMessage"
+        },
+        {
+          "$ref": "#/$defs/EgressEventMessage"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "$defs": {
+        "TenantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        },
+        "OpaqueIdentifier": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        },
+        "CallId": {
+          "type": "string",
+          "pattern": "^call_[a-f0-9]{32}$"
+        },
+        "LegId": {
+          "type": "string",
+          "pattern": "^leg_[a-f0-9]{32}$"
+        },
+        "InteractionId": {
+          "type": "string",
+          "pattern": "^interaction_[a-f0-9]{32}$"
+        },
+        "ProtocolDialogId": {
+          "type": "string",
+          "pattern": "^pdlg_[a-f0-9]{32}$"
+        },
+        "TransactionId": {
+          "type": "string",
+          "pattern": "^ptxn_[a-f0-9]{32}$"
+        },
+        "PositiveUint64": {
+          "type": "string",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)$"
+        },
+        "Sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "RequestUri": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 2048,
+          "pattern": "^sips?:[^\\s]+$"
+        },
+        "SdpDocument": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role",
+            "content_type",
+            "bytes_base64",
+            "byte_length",
+            "sha256",
+            "negotiation_generation"
+          ],
+          "properties": {
+            "role": {
+              "enum": [
+                "offer",
+                "answer"
+              ]
+            },
+            "content_type": {
+              "const": "application/sdp"
+            },
+            "bytes_base64": {
+              "type": "string",
+              "maxLength": 43692,
+              "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+            },
+            "byte_length": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 32768
+            },
+            "sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "negotiation_generation": {
+              "$ref": "#/$defs/PositiveUint64"
+            }
+          }
+        },
+        "SdpOffer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role",
+            "content_type",
+            "bytes_base64",
+            "byte_length",
+            "sha256",
+            "negotiation_generation"
+          ],
+          "properties": {
+            "role": {
+              "const": "offer"
+            },
+            "content_type": {
+              "const": "application/sdp"
+            },
+            "bytes_base64": {
+              "type": "string",
+              "maxLength": 43692,
+              "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+            },
+            "byte_length": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 32768
+            },
+            "sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "negotiation_generation": {
+              "$ref": "#/$defs/PositiveUint64"
+            }
+          }
+        },
+        "SdpAnswer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role",
+            "content_type",
+            "bytes_base64",
+            "byte_length",
+            "sha256",
+            "negotiation_generation"
+          ],
+          "properties": {
+            "role": {
+              "const": "answer"
+            },
+            "content_type": {
+              "const": "application/sdp"
+            },
+            "bytes_base64": {
+              "type": "string",
+              "maxLength": 43692,
+              "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+            },
+            "byte_length": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 32768
+            },
+            "sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "negotiation_generation": {
+              "$ref": "#/$defs/PositiveUint64"
+            }
+          }
+        },
+        "HangupCause": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "category",
+            "sip_status",
+            "q850_cause",
+            "reason_token",
+            "retryable",
+            "source"
+          ],
+          "properties": {
+            "category": {
+              "enum": [
+                "normal_clearing",
+                "caller_cancelled",
+                "no_answer",
+                "busy",
+                "rejected",
+                "temporary_failure",
+                "service_unavailable",
+                "protocol_error",
+                "security_rejected",
+                "timeout",
+                "unknown"
+              ]
+            },
+            "sip_status": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 699
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "q850_cause": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 127
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason_token": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "source": {
+              "enum": [
+                "call_core",
+                "sip_edge",
+                "sip_peer",
+                "sip_foundation"
+              ]
+            }
+          }
+        },
+        "SipFoundationError": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "category",
+            "stable_code",
+            "retryable",
+            "sip_status",
+            "retry_after_seconds",
+            "hangup_cause"
+          ],
+          "properties": {
+            "category": {
+              "enum": [
+                "invalid_input",
+                "capacity",
+                "store",
+                "dns",
+                "transport",
+                "transaction",
+                "dialog",
+                "security",
+                "timeout",
+                "internal"
+              ]
+            },
+            "stable_code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "^[a-z][a-z0-9_]{0,95}$"
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "sip_status": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 699
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 86400
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "hangup_cause": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/HangupCause"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "SemanticTimerSnapshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "timer_kind",
+            "remaining_duration_ms_at_snapshot",
+            "wall_clock_audit_timestamp",
+            "owner_epoch",
+            "generation"
+          ],
+          "properties": {
+            "timer_kind": {
+              "enum": [
+                "A",
+                "B",
+                "D",
+                "E",
+                "F",
+                "G",
+                "H",
+                "I",
+                "J",
+                "K",
+                "glare_retry",
+                "dns",
+                "connect",
+                "application"
+              ]
+            },
+            "remaining_duration_ms_at_snapshot": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 600000
+            },
+            "wall_clock_audit_timestamp": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "owner_epoch": {
+              "$ref": "#/$defs/PositiveUint64"
+            },
+            "generation": {
+              "$ref": "#/$defs/PositiveUint64"
+            }
+          }
+        },
+        "OriginateRequest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tenant_id",
+            "call_id",
+            "leg_id",
+            "command_id",
+            "owner_epoch",
+            "generation",
+            "interaction_id",
+            "request_uri",
+            "route_id",
+            "offer"
+          ],
+          "properties": {
+            "tenant_id": {
+              "$ref": "#/$defs/TenantId"
+            },
+            "call_id": {
+              "$ref": "#/$defs/CallId"
+            },
+            "leg_id": {
+              "$ref": "#/$defs/LegId"
+            },
+            "command_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "owner_epoch": {
+              "$ref": "#/$defs/PositiveUint64"
+            },
+            "generation": {
+              "$ref": "#/$defs/PositiveUint64"
+            },
+            "interaction_id": {
+              "$ref": "#/$defs/InteractionId"
+            },
+            "request_uri": {
+              "$ref": "#/$defs/RequestUri"
+            },
+            "route_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "offer": {
+              "$ref": "#/$defs/SdpOffer"
+            }
+          }
+        },
+        "AnswerRequest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tenant_id",
+            "call_id",
+            "leg_id",
+            "command_id",
+            "owner_epoch",
+            "generation",
+            "protocol_dialog_id",
+            "answer"
+          ],
+          "properties": {
+            "tenant_id": {
+              "$ref": "#/$defs/TenantId"
+            },
+            "call_id": {
+              "$ref": "#/$defs/CallId"
+            },
+            "leg_id": {
+              "$ref": "#/$defs/LegId"
+            },
+            "command_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "owner_epoch": {
+              "$ref": "#/$defs/PositiveUint64"
+            },
+            "generation": {
+              "$ref": "#/$defs/PositiveUint64"
+            },
+            "protocol_dialog_id": {
+              "$ref": "#/$defs/ProtocolDialogId"
+            },
+            "answer": {
+              "$ref": "#/$defs/SdpAnswer"
+            }
+          }
+        },
+        "TerminateRequest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tenant_id",
+            "call_id",
+            "leg_id",
+            "command_id",
+            "owner_epoch",
+            "generation",
+            "hangup_cause"
+          ],
+          "properties": {
+            "tenant_id": {
+              "$ref": "#/$defs/TenantId"
+            },
+            "call_id": {
+              "$ref": "#/$defs/CallId"
+            },
+            "leg_id": {
+              "$ref": "#/$defs/LegId"
+            },
+            "command_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "owner_epoch": {
+              "$ref": "#/$defs/PositiveUint64"
+            },
+            "generation": {
+              "$ref": "#/$defs/PositiveUint64"
+            },
+            "hangup_cause": {
+              "$ref": "#/$defs/HangupCause"
+            }
+          }
+        },
+        "OriginateResult": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "command_id",
+            "effect_id",
+            "request_hash",
+            "wire_freeze_sha256",
+            "outcome",
+            "protocol_session_id",
+            "protocol_session_generation"
+          ],
+          "properties": {
+            "command_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "effect_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "request_hash": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "wire_freeze_sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "outcome": {
+              "const": "effect_committed"
+            },
+            "protocol_session_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "protocol_session_generation": {
+              "$ref": "#/$defs/PositiveUint64"
+            }
+          }
+        },
+        "AnswerResult": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "command_id",
+            "effect_id",
+            "request_hash",
+            "wire_freeze_sha256",
+            "outcome"
+          ],
+          "properties": {
+            "command_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "effect_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "request_hash": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "wire_freeze_sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "outcome": {
+              "const": "effect_committed"
+            }
+          }
+        },
+        "TerminateResult": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "command_id",
+            "outcome",
+            "effect_id",
+            "terminal_event_id",
+            "request_hash",
+            "wire_freeze_sha256"
+          ],
+          "properties": {
+            "command_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "outcome": {
+              "enum": [
+                "effect_committed",
+                "terminal_observed"
+              ]
+            },
+            "effect_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/OpaqueIdentifier"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "terminal_event_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/OpaqueIdentifier"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "request_hash": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "wire_freeze_sha256": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Sha256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "outcome",
+                "effect_id",
+                "terminal_event_id",
+                "wire_freeze_sha256"
+              ],
+              "properties": {
+                "outcome": {
+                  "const": "effect_committed"
+                },
+                "effect_id": {
+                  "$ref": "#/$defs/OpaqueIdentifier"
+                },
+                "terminal_event_id": {
+                  "type": "null"
+                },
+                "wire_freeze_sha256": {
+                  "$ref": "#/$defs/Sha256"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "outcome",
+                "effect_id",
+                "terminal_event_id",
+                "wire_freeze_sha256"
+              ],
+              "properties": {
+                "outcome": {
+                  "const": "terminal_observed"
+                },
+                "effect_id": {
+                  "type": "null"
+                },
+                "terminal_event_id": {
+                  "$ref": "#/$defs/OpaqueIdentifier"
+                },
+                "wire_freeze_sha256": {
+                  "type": "null"
+                }
+              }
+            }
+          ]
+        },
+        "OriginateRequestMessage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "message_kind",
+            "command",
+            "request"
+          ],
+          "properties": {
+            "message_kind": {
+              "const": "command_request"
+            },
+            "command": {
+              "const": "originate"
+            },
+            "request": {
+              "$ref": "#/$defs/OriginateRequest"
+            }
+          }
+        },
+        "AnswerRequestMessage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "message_kind",
+            "command",
+            "request"
+          ],
+          "properties": {
+            "message_kind": {
+              "const": "command_request"
+            },
+            "command": {
+              "const": "answer"
+            },
+            "request": {
+              "$ref": "#/$defs/AnswerRequest"
+            }
+          }
+        },
+        "TerminateRequestMessage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "message_kind",
+            "command",
+            "request"
+          ],
+          "properties": {
+            "message_kind": {
+              "const": "command_request"
+            },
+            "command": {
+              "const": "terminate"
+            },
+            "request": {
+              "$ref": "#/$defs/TerminateRequest"
+            }
+          }
+        },
+        "OriginateResultMessage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "message_kind",
+            "command",
+            "result"
+          ],
+          "properties": {
+            "message_kind": {
+              "const": "command_result"
+            },
+            "command": {
+              "const": "originate"
+            },
+            "result": {
+              "$ref": "#/$defs/OriginateResult"
+            }
+          }
+        },
+        "AnswerResultMessage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "message_kind",
+            "command",
+            "result"
+          ],
+          "properties": {
+            "message_kind": {
+              "const": "command_result"
+            },
+            "command": {
+              "const": "answer"
+            },
+            "result": {
+              "$ref": "#/$defs/AnswerResult"
+            }
+          }
+        },
+        "TerminateResultMessage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "message_kind",
+            "command",
+            "result"
+          ],
+          "properties": {
+            "message_kind": {
+              "const": "command_result"
+            },
+            "command": {
+              "const": "terminate"
+            },
+            "result": {
+              "$ref": "#/$defs/TerminateResult"
+            }
+          }
+        },
+        "CommandErrorMessage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "message_kind",
+            "command",
+            "command_id",
+            "error"
+          ],
+          "properties": {
+            "message_kind": {
+              "const": "command_error"
+            },
+            "command": {
+              "enum": [
+                "originate",
+                "answer",
+                "terminate"
+              ]
+            },
+            "command_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "error": {
+              "$ref": "#/$defs/SipFoundationError"
+            }
+          }
+        },
+        "RequestReceivedPayload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "request_uri",
+            "cseq",
+            "wire_length_bytes",
+            "wire_sha256"
+          ],
+          "properties": {
+            "method": {
+              "enum": [
+                "INVITE",
+                "ACK",
+                "BYE",
+                "CANCEL",
+                "REGISTER",
+                "OPTIONS",
+                "UPDATE",
+                "PRACK",
+                "REFER",
+                "NOTIFY",
+                "INFO"
+              ]
+            },
+            "request_uri": {
+              "$ref": "#/$defs/RequestUri"
+            },
+            "cseq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "wire_length_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "wire_sha256": {
+              "$ref": "#/$defs/Sha256"
+            }
+          }
+        },
+        "ResponseReceivedPayload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sip_status",
+            "reason_phrase",
+            "cseq_method",
+            "cseq",
+            "wire_length_bytes",
+            "wire_sha256"
+          ],
+          "properties": {
+            "sip_status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 699
+            },
+            "reason_phrase": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "cseq_method": {
+              "enum": [
+                "INVITE",
+                "ACK",
+                "BYE",
+                "CANCEL",
+                "REGISTER",
+                "OPTIONS",
+                "UPDATE",
+                "PRACK",
+                "REFER",
+                "NOTIFY",
+                "INFO"
+              ]
+            },
+            "cseq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "wire_length_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "wire_sha256": {
+              "$ref": "#/$defs/Sha256"
+            }
+          }
+        },
+        "ProvisionalReceivedPayload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sip_status",
+            "reason_phrase",
+            "cseq_method",
+            "cseq",
+            "wire_length_bytes",
+            "wire_sha256"
+          ],
+          "properties": {
+            "sip_status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 199
+            },
+            "reason_phrase": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "cseq_method": {
+              "enum": [
+                "INVITE",
+                "ACK",
+                "BYE",
+                "CANCEL",
+                "REGISTER",
+                "OPTIONS",
+                "UPDATE",
+                "PRACK",
+                "REFER",
+                "NOTIFY",
+                "INFO"
+              ]
+            },
+            "cseq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "wire_length_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "wire_sha256": {
+              "$ref": "#/$defs/Sha256"
+            }
+          }
+        },
+        "FinalReceivedPayload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sip_status",
+            "reason_phrase",
+            "cseq_method",
+            "cseq",
+            "wire_length_bytes",
+            "wire_sha256"
+          ],
+          "properties": {
+            "sip_status": {
+              "type": "integer",
+              "minimum": 200,
+              "maximum": 699
+            },
+            "reason_phrase": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "cseq_method": {
+              "enum": [
+                "INVITE",
+                "ACK",
+                "BYE",
+                "CANCEL",
+                "REGISTER",
+                "OPTIONS",
+                "UPDATE",
+                "PRACK",
+                "REFER",
+                "NOTIFY",
+                "INFO"
+              ]
+            },
+            "cseq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "wire_length_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "wire_sha256": {
+              "$ref": "#/$defs/Sha256"
+            }
+          }
+        },
+        "TransportAcceptedPayload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "transport",
+            "connection_id",
+            "peer_address",
+            "peer_port",
+            "tls_verified"
+          ],
+          "properties": {
+            "transport": {
+              "enum": [
+                "udp",
+                "tcp",
+                "tls"
+              ]
+            },
+            "connection_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "peer_address": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "peer_port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "tls_verified": {
+              "type": "boolean"
+            }
+          }
+        },
+        "TransportFailedPayload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "transport",
+            "connection_id",
+            "stable_code",
+            "retryable"
+          ],
+          "properties": {
+            "transport": {
+              "enum": [
+                "udp",
+                "tcp",
+                "tls"
+              ]
+            },
+            "connection_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/OpaqueIdentifier"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "stable_code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "^[a-z][a-z0-9_]{0,95}$"
+            },
+            "retryable": {
+              "type": "boolean"
+            }
+          }
+        },
+        "TransactionTimedOutPayload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "timer_kind",
+            "elapsed_ms"
+          ],
+          "properties": {
+            "timer_kind": {
+              "enum": [
+                "A",
+                "B",
+                "D",
+                "E",
+                "F",
+                "G",
+                "H",
+                "I",
+                "J",
+                "K"
+              ]
+            },
+            "elapsed_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 600000
+            }
+          }
+        },
+        "ProtocolDialogChangedPayload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "previous_state",
+            "state",
+            "route_set_sha256",
+            "local_cseq",
+            "remote_cseq"
+          ],
+          "properties": {
+            "previous_state": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "early",
+                    "confirmed",
+                    "terminated"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "state": {
+              "enum": [
+                "early",
+                "confirmed",
+                "terminated"
+              ]
+            },
+            "route_set_sha256": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Sha256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "local_cseq": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "remote_cseq": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            }
+          }
+        },
+        "DnsCandidateExhaustedPayload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "query_name_sha256",
+            "candidate_count",
+            "elapsed_ms"
+          ],
+          "properties": {
+            "query_name_sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "candidate_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "elapsed_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          }
+        },
+        "EgressEventEnvelope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tenant_id",
+            "call_id",
+            "leg_id",
+            "interaction_id",
+            "protocol_session_id",
+            "protocol_session_generation",
+            "protocol_dialog_id",
+            "transaction_id",
+            "event_id",
+            "owner_epoch",
+            "generation",
+            "observed_at_wall_clock",
+            "received_at_monotonic_offset_ns",
+            "event_type",
+            "payload"
+          ],
+          "properties": {
+            "tenant_id": {
+              "$ref": "#/$defs/TenantId"
+            },
+            "call_id": {
+              "$ref": "#/$defs/CallId"
+            },
+            "leg_id": {
+              "$ref": "#/$defs/LegId"
+            },
+            "interaction_id": {
+              "$ref": "#/$defs/InteractionId"
+            },
+            "protocol_session_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "protocol_session_generation": {
+              "$ref": "#/$defs/PositiveUint64"
+            },
+            "protocol_dialog_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProtocolDialogId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "transaction_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TransactionId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "event_id": {
+              "$ref": "#/$defs/OpaqueIdentifier"
+            },
+            "owner_epoch": {
+              "$ref": "#/$defs/PositiveUint64"
+            },
+            "generation": {
+              "$ref": "#/$defs/PositiveUint64"
+            },
+            "observed_at_wall_clock": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "received_at_monotonic_offset_ns": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "event_type": {
+              "enum": [
+                "request_received",
+                "response_received",
+                "provisional_received",
+                "final_received",
+                "transport_accepted",
+                "transport_failed",
+                "transaction_timed_out",
+                "protocol_dialog_changed",
+                "dns_candidate_exhausted"
+              ]
+            },
+            "payload": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "event_type",
+                "payload"
+              ],
+              "properties": {
+                "event_type": {
+                  "const": "request_received"
+                },
+                "payload": {
+                  "$ref": "#/$defs/RequestReceivedPayload"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "event_type",
+                "payload"
+              ],
+              "properties": {
+                "event_type": {
+                  "const": "response_received"
+                },
+                "payload": {
+                  "$ref": "#/$defs/ResponseReceivedPayload"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "event_type",
+                "payload"
+              ],
+              "properties": {
+                "event_type": {
+                  "const": "provisional_received"
+                },
+                "payload": {
+                  "$ref": "#/$defs/ProvisionalReceivedPayload"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "event_type",
+                "payload"
+              ],
+              "properties": {
+                "event_type": {
+                  "const": "final_received"
+                },
+                "payload": {
+                  "$ref": "#/$defs/FinalReceivedPayload"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "event_type",
+                "payload"
+              ],
+              "properties": {
+                "event_type": {
+                  "const": "transport_accepted"
+                },
+                "payload": {
+                  "$ref": "#/$defs/TransportAcceptedPayload"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "event_type",
+                "payload"
+              ],
+              "properties": {
+                "event_type": {
+                  "const": "transport_failed"
+                },
+                "payload": {
+                  "$ref": "#/$defs/TransportFailedPayload"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "event_type",
+                "payload"
+              ],
+              "properties": {
+                "event_type": {
+                  "const": "transaction_timed_out"
+                },
+                "payload": {
+                  "$ref": "#/$defs/TransactionTimedOutPayload"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "event_type",
+                "payload"
+              ],
+              "properties": {
+                "event_type": {
+                  "const": "protocol_dialog_changed"
+                },
+                "payload": {
+                  "$ref": "#/$defs/ProtocolDialogChangedPayload"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "event_type",
+                "payload"
+              ],
+              "properties": {
+                "event_type": {
+                  "const": "dns_candidate_exhausted"
+                },
+                "payload": {
+                  "$ref": "#/$defs/DnsCandidateExhaustedPayload"
+                }
+              }
+            }
+          ]
+        },
+        "EgressEventMessage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "message_kind",
+            "event"
+          ],
+          "properties": {
+            "message_kind": {
+              "const": "egress_event"
+            },
+            "event": {
+              "$ref": "#/$defs/EgressEventEnvelope"
+            }
+          }
+        }
       }
     },
+    "message_examples": {
+      "originate_request": {
+        "message_kind": "command_request",
+        "command": "originate",
+        "request": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "command_id": "command-foundation-1",
+          "owner_epoch": "7",
+          "generation": "1",
+          "interaction_id": "interaction_cccccccccccccccccccccccccccccccc",
+          "request_uri": "sip:bob@example.invalid",
+          "route_id": "route-primary",
+          "offer": {
+            "role": "offer",
+            "content_type": "application/sdp",
+            "bytes_base64": "dj0wDQo=",
+            "byte_length": 5,
+            "sha256": "4cf57627095fbc4886de378fcb3407917caca20bf078ca3f0fac3e5ca9b192d8",
+            "negotiation_generation": "1"
+          }
+        }
+      },
+      "answer_request": {
+        "message_kind": "command_request",
+        "command": "answer",
+        "request": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "command_id": "command-foundation-1",
+          "owner_epoch": "7",
+          "generation": "1",
+          "protocol_dialog_id": "pdlg_dddddddddddddddddddddddddddddddd",
+          "answer": {
+            "role": "answer",
+            "content_type": "application/sdp",
+            "bytes_base64": "dj0wDQo=",
+            "byte_length": 5,
+            "sha256": "4cf57627095fbc4886de378fcb3407917caca20bf078ca3f0fac3e5ca9b192d8",
+            "negotiation_generation": "1"
+          }
+        }
+      },
+      "terminate_request": {
+        "message_kind": "command_request",
+        "command": "terminate",
+        "request": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "command_id": "command-foundation-1",
+          "owner_epoch": "7",
+          "generation": "1",
+          "hangup_cause": {
+            "category": "normal_clearing",
+            "sip_status": null,
+            "q850_cause": 16,
+            "reason_token": "normal_call_clearing",
+            "retryable": false,
+            "source": "call_core"
+          }
+        }
+      },
+      "originate_result": {
+        "message_kind": "command_result",
+        "command": "originate",
+        "result": {
+          "command_id": "command-foundation-1",
+          "effect_id": "effect-foundation-1",
+          "request_hash": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db",
+          "wire_freeze_sha256": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db",
+          "outcome": "effect_committed",
+          "protocol_session_id": "protocol-session-foundation",
+          "protocol_session_generation": "1"
+        }
+      },
+      "answer_result": {
+        "message_kind": "command_result",
+        "command": "answer",
+        "result": {
+          "command_id": "command-foundation-1",
+          "effect_id": "effect-foundation-2",
+          "request_hash": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db",
+          "wire_freeze_sha256": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db",
+          "outcome": "effect_committed"
+        }
+      },
+      "terminate_result": {
+        "message_kind": "command_result",
+        "command": "terminate",
+        "result": {
+          "command_id": "command-foundation-1",
+          "outcome": "terminal_observed",
+          "effect_id": null,
+          "terminal_event_id": "event-terminal-1",
+          "request_hash": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db",
+          "wire_freeze_sha256": null
+        }
+      },
+      "command_error": {
+        "message_kind": "command_error",
+        "command": "originate",
+        "command_id": "command-foundation-1",
+        "error": {
+          "category": "transport",
+          "stable_code": "sip_transport_unavailable",
+          "retryable": true,
+          "sip_status": 503,
+          "retry_after_seconds": 1,
+          "hangup_cause": null
+        }
+      },
+      "request_received": {
+        "message_kind": "egress_event",
+        "event": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "interaction_id": "interaction_cccccccccccccccccccccccccccccccc",
+          "protocol_session_id": "protocol-session-foundation",
+          "protocol_session_generation": "1",
+          "protocol_dialog_id": "pdlg_dddddddddddddddddddddddddddddddd",
+          "transaction_id": "ptxn_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "event_id": "event-foundation-1",
+          "owner_epoch": "7",
+          "generation": "1",
+          "observed_at_wall_clock": "2026-08-02T00:00:00.000Z",
+          "received_at_monotonic_offset_ns": 1,
+          "event_type": "request_received",
+          "payload": {
+            "method": "INVITE",
+            "request_uri": "sip:bob@example.invalid",
+            "cseq": 1,
+            "wire_length_bytes": 128,
+            "wire_sha256": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db"
+          }
+        }
+      },
+      "response_received": {
+        "message_kind": "egress_event",
+        "event": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "interaction_id": "interaction_cccccccccccccccccccccccccccccccc",
+          "protocol_session_id": "protocol-session-foundation",
+          "protocol_session_generation": "1",
+          "protocol_dialog_id": "pdlg_dddddddddddddddddddddddddddddddd",
+          "transaction_id": "ptxn_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "event_id": "event-foundation-2",
+          "owner_epoch": "7",
+          "generation": "1",
+          "observed_at_wall_clock": "2026-08-02T00:00:00.000Z",
+          "received_at_monotonic_offset_ns": 2,
+          "event_type": "response_received",
+          "payload": {
+            "sip_status": 401,
+            "reason_phrase": "Unauthorized",
+            "cseq_method": "INVITE",
+            "cseq": 1,
+            "wire_length_bytes": 128,
+            "wire_sha256": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db"
+          }
+        }
+      },
+      "provisional_received": {
+        "message_kind": "egress_event",
+        "event": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "interaction_id": "interaction_cccccccccccccccccccccccccccccccc",
+          "protocol_session_id": "protocol-session-foundation",
+          "protocol_session_generation": "1",
+          "protocol_dialog_id": "pdlg_dddddddddddddddddddddddddddddddd",
+          "transaction_id": "ptxn_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "event_id": "event-foundation-3",
+          "owner_epoch": "7",
+          "generation": "1",
+          "observed_at_wall_clock": "2026-08-02T00:00:00.000Z",
+          "received_at_monotonic_offset_ns": 3,
+          "event_type": "provisional_received",
+          "payload": {
+            "sip_status": 180,
+            "reason_phrase": "Ringing",
+            "cseq_method": "INVITE",
+            "cseq": 1,
+            "wire_length_bytes": 128,
+            "wire_sha256": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db"
+          }
+        }
+      },
+      "final_received": {
+        "message_kind": "egress_event",
+        "event": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "interaction_id": "interaction_cccccccccccccccccccccccccccccccc",
+          "protocol_session_id": "protocol-session-foundation",
+          "protocol_session_generation": "1",
+          "protocol_dialog_id": "pdlg_dddddddddddddddddddddddddddddddd",
+          "transaction_id": "ptxn_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "event_id": "event-foundation-4",
+          "owner_epoch": "7",
+          "generation": "1",
+          "observed_at_wall_clock": "2026-08-02T00:00:00.000Z",
+          "received_at_monotonic_offset_ns": 4,
+          "event_type": "final_received",
+          "payload": {
+            "sip_status": 200,
+            "reason_phrase": "OK",
+            "cseq_method": "INVITE",
+            "cseq": 1,
+            "wire_length_bytes": 128,
+            "wire_sha256": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db"
+          }
+        }
+      },
+      "transport_accepted": {
+        "message_kind": "egress_event",
+        "event": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "interaction_id": "interaction_cccccccccccccccccccccccccccccccc",
+          "protocol_session_id": "protocol-session-foundation",
+          "protocol_session_generation": "1",
+          "protocol_dialog_id": "pdlg_dddddddddddddddddddddddddddddddd",
+          "transaction_id": "ptxn_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "event_id": "event-foundation-5",
+          "owner_epoch": "7",
+          "generation": "1",
+          "observed_at_wall_clock": "2026-08-02T00:00:00.000Z",
+          "received_at_monotonic_offset_ns": 5,
+          "event_type": "transport_accepted",
+          "payload": {
+            "transport": "tls",
+            "connection_id": "connection-foundation-1",
+            "peer_address": "192.0.2.10",
+            "peer_port": 5061,
+            "tls_verified": true
+          }
+        }
+      },
+      "transport_failed": {
+        "message_kind": "egress_event",
+        "event": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "interaction_id": "interaction_cccccccccccccccccccccccccccccccc",
+          "protocol_session_id": "protocol-session-foundation",
+          "protocol_session_generation": "1",
+          "protocol_dialog_id": "pdlg_dddddddddddddddddddddddddddddddd",
+          "transaction_id": "ptxn_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "event_id": "event-foundation-6",
+          "owner_epoch": "7",
+          "generation": "1",
+          "observed_at_wall_clock": "2026-08-02T00:00:00.000Z",
+          "received_at_monotonic_offset_ns": 6,
+          "event_type": "transport_failed",
+          "payload": {
+            "transport": "tcp",
+            "connection_id": null,
+            "stable_code": "connect_timeout",
+            "retryable": true
+          }
+        }
+      },
+      "transaction_timed_out": {
+        "message_kind": "egress_event",
+        "event": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "interaction_id": "interaction_cccccccccccccccccccccccccccccccc",
+          "protocol_session_id": "protocol-session-foundation",
+          "protocol_session_generation": "1",
+          "protocol_dialog_id": "pdlg_dddddddddddddddddddddddddddddddd",
+          "transaction_id": "ptxn_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "event_id": "event-foundation-7",
+          "owner_epoch": "7",
+          "generation": "1",
+          "observed_at_wall_clock": "2026-08-02T00:00:00.000Z",
+          "received_at_monotonic_offset_ns": 7,
+          "event_type": "transaction_timed_out",
+          "payload": {
+            "timer_kind": "B",
+            "elapsed_ms": 32000
+          }
+        }
+      },
+      "protocol_dialog_changed": {
+        "message_kind": "egress_event",
+        "event": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "interaction_id": "interaction_cccccccccccccccccccccccccccccccc",
+          "protocol_session_id": "protocol-session-foundation",
+          "protocol_session_generation": "1",
+          "protocol_dialog_id": "pdlg_dddddddddddddddddddddddddddddddd",
+          "transaction_id": "ptxn_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "event_id": "event-foundation-8",
+          "owner_epoch": "7",
+          "generation": "1",
+          "observed_at_wall_clock": "2026-08-02T00:00:00.000Z",
+          "received_at_monotonic_offset_ns": 8,
+          "event_type": "protocol_dialog_changed",
+          "payload": {
+            "previous_state": "early",
+            "state": "confirmed",
+            "route_set_sha256": "47d2d1e29094162abde31950380343667d509fc5ed5f57d7bc02216ff9b8a5db",
+            "local_cseq": 1,
+            "remote_cseq": 1
+          }
+        }
+      },
+      "dns_candidate_exhausted": {
+        "message_kind": "egress_event",
+        "event": {
+          "tenant_id": "tenant-foundation",
+          "call_id": "call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "leg_id": "leg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "interaction_id": "interaction_cccccccccccccccccccccccccccccccc",
+          "protocol_session_id": "protocol-session-foundation",
+          "protocol_session_generation": "1",
+          "protocol_dialog_id": "pdlg_dddddddddddddddddddddddddddddddd",
+          "transaction_id": "ptxn_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "event_id": "event-foundation-9",
+          "owner_epoch": "7",
+          "generation": "1",
+          "observed_at_wall_clock": "2026-08-02T00:00:00.000Z",
+          "received_at_monotonic_offset_ns": 9,
+          "event_type": "dns_candidate_exhausted",
+          "payload": {
+            "query_name_sha256": "07bb451ac91c31cb603384c2bc28b720fd78771fcb7d8d185a3a2209be85ef20",
+            "candidate_count": 8,
+            "elapsed_ms": 2000
+          }
+        }
+      }
+    },
+    "commands": {
+      "originate": {
+        "request_schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/OriginateRequestMessage",
+        "success_schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/OriginateResultMessage",
+        "error_schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/CommandErrorMessage"
+      },
+      "answer": {
+        "request_schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/AnswerRequestMessage",
+        "success_schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/AnswerResultMessage",
+        "error_schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/CommandErrorMessage"
+      },
+      "terminate": {
+        "request_schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/TerminateRequestMessage",
+        "success_schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/TerminateResultMessage",
+        "error_schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/CommandErrorMessage"
+      }
+    },
+    "semantic_invariants": [
+      "PositiveUint64 parses base10 without leading zero and is <=18446744073709551615",
+      "SdpDocument role matches the command field and decoded bytes equal byte_length",
+      "SdpDocument sha256 is SHA-256 of the exact decoded immutable bytes",
+      "request_hash is SHA-256 of the canonical closed command request",
+      "wire_freeze_sha256 is SHA-256 of the exact committed wire image",
+      "wire event length and SHA-256 match the exact received bytes",
+      "command result or error command_id exactly matches its request",
+      "event_type selects exactly one closed payload schema"
+    ],
     "command_rule": "prepare_then_durable_decision_then_commit_send",
     "direct_socket_write_by_call_core": "forbidden"
   },
@@ -127,15 +1912,28 @@
       "owner_epoch",
       "generation",
       "observed_at_wall_clock",
-      "received_at_monotonic_offset",
+      "received_at_monotonic_offset_ns",
       "event_type",
       "payload"
     ],
+    "envelope_schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/EgressEventEnvelope",
+    "payload_schema_refs": {
+      "request_received": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/RequestReceivedPayload",
+      "response_received": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/ResponseReceivedPayload",
+      "provisional_received": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/ProvisionalReceivedPayload",
+      "final_received": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/FinalReceivedPayload",
+      "transport_accepted": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/TransportAcceptedPayload",
+      "transport_failed": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/TransportFailedPayload",
+      "transaction_timed_out": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/TransactionTimedOutPayload",
+      "protocol_dialog_changed": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/ProtocolDialogChangedPayload",
+      "dns_candidate_exhausted": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/DnsCandidateExhaustedPayload"
+    },
     "delivery": "bounded_ordered_per_protocol_session",
     "duplicate_and_reorder": "event_id_hash_dedupe_then_state_fence",
     "business_mutation": "forbidden_until_Call_authority_durable_decision"
   },
   "sdp_interface": {
+    "schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/SdpDocument",
     "representation": "Converact_owned_immutable_exact_bytes_plus_sha256",
     "roles": [
       "offer",
@@ -151,6 +1949,7 @@
     "mutation_after_prepare": "forbidden"
   },
   "timer_interface": {
+    "schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/SemanticTimerSnapshot",
     "runtime_deadlines": "monotonic_clock_only",
     "persisted_values": [
       "semantic_timer_kind",
@@ -161,6 +1960,7 @@
     "restoration": "recompute_bounded_deadline_after_owner_fence"
   },
   "hangup_cause_interface": {
+    "schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/HangupCause",
     "categories": [
       "normal_clearing",
       "caller_cancelled",
@@ -185,6 +1985,7 @@
     "raw_backend_error_as_business_cause": "forbidden"
   },
   "error_interface": {
+    "schema_ref": "https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json#/$defs/SipFoundationError",
     "categories": [
       "invalid_input",
       "capacity",
