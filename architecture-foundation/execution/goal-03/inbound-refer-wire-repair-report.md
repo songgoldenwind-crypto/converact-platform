@@ -28,13 +28,21 @@ unbounded structure was added.
 | rsipstack | `8318e97b1170de4e5245b120afec1cdf53e3d716` |
 | rustrtc | `166c6d22984429eb6b509920c14fcd69f974f0b3` |
 | Rust builder | `rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55` |
-| repaired `src/proxy/call.rs` blob | `063c9ade01dd2d0500c50626540ad253ebbb7de8` |
+| functional repair `src/proxy/call.rs` blob | `063c9ade01dd2d0500c50626540ad253ebbb7de8` |
+| formatted candidate `src/proxy/call.rs` blob | `f4044cd0665c7d859fa028f40361d9e26b4c614e` |
 | candidate patch | `infra/converact/rustpbx/patches/rustpbx-ivekit-inbound-refer-wire.patch` |
-| candidate patch SHA-256 | `0a172e6dece62543bc95fd07ef9f75bf6b3c4ed0451853fdf02ba00b2d8eb8b3` |
+| candidate patch SHA-256 | `c2bc415cf2cc9eb3a8248edc981ff1cdf4df9f9023ab2a360be7ec11a2f914be` |
 
 These are pre-commit diagnostic results based on the exact pinned and previously
 patched source tree plus the candidate repair. They prove the defect and repair,
 but do not replace the required clean, commit-bound `build.sh` verification.
+
+The first commit-bound verify-only replay then failed closed at the Rust 1.94
+format gate before compilation. It found five pre-existing formatting deltas in
+the same patched `call.rs` file. Manifest revision 64 incorporates those
+mechanical deltas into the candidate patch; they do not change the REFER repair
+or its runtime behavior. The failed replay remains diagnostic evidence and is
+not promoted as a passing source gate.
 
 ## Reproduction and Verification
 
@@ -45,6 +53,7 @@ but do not replace the required clean, commit-bound `build.sh` verification.
 | Original trace run | INVITE rejected as `duplicate singleton SIP header is forbidden` after two `Max-Forwards` fields were emitted | `ef4b39075ac4e1112450223eac143131568b43aaa605632628127654e223bee7` | `39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c` |
 | Repaired focused native test | `1 passed`, `0 failed` | `7e7cd583d87f3268b290d6a0862c1d5a92f0728fccc81762022868512f3377de` | `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa` |
 | Repaired full native library suite | `1913 passed`, `0 failed`, `1 ignored`, 230.19 seconds | `2d2789951a73b9ba83cb6fa0c0320f3f653242866e43c4004b9a672073996181` | `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa` |
+| First clean verify-only replay at `663ec0e02e2cc5b15646a7738eb19bc6a85015b3` | failed closed at Rust 1.94 `rustfmt`; no compile/test result promoted | `6445c00127de44be5209d097ca9d090bcad93f5fd6f6b585deff9877f22aae80` | `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865` |
 
 The existing native E2E test is the behavioral regression: it sends REFER,
 requires `202`, processes the NOTIFY subscription, requires the transfer target

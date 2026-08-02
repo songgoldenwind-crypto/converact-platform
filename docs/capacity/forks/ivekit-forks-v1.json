@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 63,
+  "revision": 64,
   "status": "proposed",
-  "generated_at": "2026-08-02T16:23:56Z",
+  "generated_at": "2026-08-02T16:41:31Z",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -243,7 +243,7 @@
         },
         {
           "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-inbound-refer-wire.patch",
-          "sha256": "0a172e6dece62543bc95fd07ef9f75bf6b3c4ed0451853fdf02ba00b2d8eb8b3",
+          "sha256": "c2bc415cf2cc9eb3a8248edc981ff1cdf4df9f9023ab2a360be7ec11a2f914be",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-server-invite-owner.patch",
           "purpose": "Remove the duplicate untyped Max-Forwards header from inbound REFER transfer origination, rely on rsipstack's canonical typed singleton, and allocate an extension-header vector only when a Replaces value exists."
         }

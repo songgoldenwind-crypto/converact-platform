@@ -1,8 +1,63 @@
 diff --git a/src/proxy/call.rs b/src/proxy/call.rs
-index 3fd22ecd..063c9ade 100644
+index 3fd22ecd..f4044cd0 100644
 --- a/src/proxy/call.rs
 +++ b/src/proxy/call.rs
-@@ -2012,16 +2012,12 @@ impl CallModule {
+@@ -282,13 +282,11 @@ impl DefaultRouteInvite {
+         let trunks_snapshot = self.data_context.trunks_snapshot();
+         let routes_snapshot = self.data_context.routes_snapshot();
+         let source_trunk = if matches!(direction, DialDirection::Inbound) {
+-            cookie
+-                .get_extension::<TrunkContext>()
+-                .and_then(|context| {
+-                    trunks_snapshot
+-                        .get(&context.name)
+-                        .and_then(|config| build_source_trunk(context.name, config, direction))
+-                })
++            cookie.get_extension::<TrunkContext>().and_then(|context| {
++                trunks_snapshot
++                    .get(&context.name)
++                    .and_then(|config| build_source_trunk(context.name, config, direction))
++            })
+         } else {
+             None
+         };
+@@ -374,9 +372,8 @@ impl CallModule {
+         // Share the trunk rate limiter between RoutingState (acquire during
+         // routing) and SipSession (release on teardown) by taking the Arc from
+         // the server inner.
+-        let mut routing_state = RoutingState::with_trunk_rate_limiter(
+-            server.trunk_rate_limiter.clone(),
+-        );
++        let mut routing_state =
++            RoutingState::with_trunk_rate_limiter(server.trunk_rate_limiter.clone());
+         let limiter = server
+             .frequency_limiter
+             .clone()
+@@ -544,8 +541,8 @@ impl CallModule {
+                 crate::call::TransferEndpoint::Uri(uri) => {
+                     let realm = self.inner.config.select_realm("");
+                     let normalized = crate::call::build_sip_uri(uri, &realm);
+-                    let forwarded_uri =
+-                        rsipstack::sip::Uri::try_from(normalized.as_str()).map_err(|e| {
++                    let forwarded_uri = rsipstack::sip::Uri::try_from(normalized.as_str())
++                        .map_err(|e| {
+                             RouteError::from((
+                                 anyhow!("invalid always-forwarding target '{}': {}", uri, e),
+                                 Some(rsipstack::sip::StatusCode::ServerInternalError),
+@@ -1268,11 +1265,7 @@ impl CallModule {
+                 let watch = session_token.clone();
+                 let remote = conn.get_remote_addr().map(|a| a.to_string());
+                 let transport = conn.transport().to_string();
+-                let session_id = tx
+-                    .original
+-                    .call_id_header()
+-                    .ok()
+-                    .map(|c| c.to_string());
++                let session_id = tx.original.call_id_header().ok().map(|c| c.to_string());
+                 crate::utils::spawn(async move {
+                     transport_token.cancelled().await;
+                     info!(
+@@ -2012,16 +2005,12 @@ impl CallModule {
                  .map_err(|e| (500, format!("Invalid caller URI: {:?}", e)))?;
  
          // Build headers
@@ -23,7 +78,7 @@ index 3fd22ecd..063c9ade 100644
  
          // Get media config for SDP
          let media = server.default_media_config();
-@@ -2061,7 +2057,7 @@ impl CallModule {
+@@ -2061,7 +2050,7 @@ impl CallModule {
              offer: Some(sdp_offer.into_bytes()),
              destination: None,
              credential: None,
@@ -32,3 +87,18 @@ index 3fd22ecd..063c9ade 100644
              call_id: Some(new_call_id.clone()),
              ..Default::default()
          };
+@@ -2451,11 +2440,9 @@ mod tests {
+             _direction: &DialDirection,
+             _cookie: &TransactionCookie,
+         ) -> Result<RouteResult> {
+-            option.caller = rsipstack::sip::Uri::try_from(
+-                "sip:rewritten-caller@source.example.com",
+-            )?;
+-            option.callee =
+-                rsipstack::sip::Uri::try_from("sip:001234@carrier.example.com:5060")?;
++            option.caller =
++                rsipstack::sip::Uri::try_from("sip:rewritten-caller@source.example.com")?;
++            option.callee = rsipstack::sip::Uri::try_from("sip:001234@carrier.example.com:5060")?;
+             Ok(RouteResult::Forward(option, Some(Default::default())))
+         }
+     }

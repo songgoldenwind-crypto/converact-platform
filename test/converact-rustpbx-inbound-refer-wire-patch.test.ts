@@ -19,10 +19,19 @@ function effective(patch: string): string {
     .join('\n');
 }
 
+function additions(patch: string): string {
+  return patch
+    .split('\n')
+    .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+    .map((line) => line.slice(1))
+    .join('\n');
+}
+
 test('inbound REFER emits one canonical Max-Forwards header', () => {
   assert.equal(existsSync(PATCH), true, `${PATCH} is required`);
   const patch = readFileSync(PATCH, 'utf8');
   const source = effective(patch);
+  const addedSource = additions(patch);
 
   assert.equal(spawnSync('git', ['apply', '--numstat', PATCH]).status, 0);
   assert.match(source, /let headers = replaces_header\.map\(\|replaces\|/);
@@ -32,7 +41,10 @@ test('inbound REFER emits one canonical Max-Forwards header', () => {
     source,
     /Header::Other\([\s\S]{0,80}"Max-Forwards"/
   );
-  assert.doesNotMatch(source, /Vec::with_capacity|Mutex|RwLock|spawn\(/);
+  assert.doesNotMatch(
+    addedSource,
+    /Vec::with_capacity|Mutex|RwLock|spawn\(/
+  );
 });
 
 test('the exact build applies the REFER wire repair and runs the full library suite', () => {
@@ -65,7 +77,7 @@ test('the fork manifest binds the REFER wire repair and focused native evidence'
   );
 
   assert.ok(rustpbx);
-  assert.equal(manifest.revision, 63);
+  assert.equal(manifest.revision, 64);
   assert.equal(
     rustpbx.build.output_image,
     'ivekit/rustpbx:0.4.11-ivekit.42-6c49ee76'

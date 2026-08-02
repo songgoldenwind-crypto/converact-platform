@@ -48,7 +48,7 @@ test('ivekit.42 retains the server INVITE lifecycle and owner patches in order',
 });
 
 test('the fork manifest binds both lifecycle patches and their evidence', () => {
-  assert.equal(manifest.revision, 63);
+  assert.equal(manifest.revision, 64);
   for (const [componentId, patchPath, contents, changeId] of [
     ['rsipstack', RSIPSTACK_PATCH, rsipstackPatch, 'rsipstack-server-invite-lifecycle-v1'],
     ['rustpbx', RUSTPBX_PATCH, rustpbxPatch, 'rustpbx-server-invite-owner-v1']
