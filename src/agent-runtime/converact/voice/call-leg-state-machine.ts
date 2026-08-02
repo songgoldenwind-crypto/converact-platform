@@ -56,7 +56,6 @@ export type CallLegEvent =
   | 'resume_committed'
   | 'transfer_prepare'
   | 'transfer_abort'
-  | 'transfer_commit'
   | 'bye_requested'
   | 'termination_observed'
   | 'protocol_failure';
@@ -70,6 +69,7 @@ export type CallLegRequiredEffect =
   | 'bye_old_selected_leg'
   | 'send_bye'
   | 'ack_then_bye_non_winner'
+  | 'send_bye_non_winner_after_ack'
   | '491_bounded_retry';
 
 export interface CallLegRegistryBounds {
@@ -87,6 +87,7 @@ export interface OpenCallProjectionInput {
   call_id: CallId;
   interaction_id: InteractionId;
   owner_epoch: string;
+  generation: string;
 }
 
 export interface CallMutationFence {
@@ -125,6 +126,15 @@ export interface BindProtocolDialogInput {
 
 export interface ObserveForkWinnerInput {
   leg_id: LegId;
+  fork_attempt_id: string;
+  event_id: string;
+  event_hash: string;
+}
+
+export interface CommitTransferSelectionInput {
+  old_leg_id: LegId;
+  old_leg_generation: string;
+  new_leg_id: LegId;
   event_id: string;
   event_hash: string;
 }
@@ -146,7 +156,11 @@ export type CallWorkResult = Readonly<{
 }> | Readonly<{
   status: 'completed' | 'failed';
   item: Readonly<CallWorkItem>;
-  failure_code: 'none' | 'handler_failed';
+  failure_code:
+    | 'none'
+    | 'handler_failed'
+    | 'async_handler_forbidden'
+    | 'handler_contract_invalid';
 }>;
 
 export interface CallLegSnapshot {
@@ -187,7 +201,22 @@ export interface ForkSelectionReceipt {
   readonly leg_id: LegId;
   readonly revision: string;
   readonly selected_leg_id: LegId;
-  readonly required_effect: 'none' | 'ack_then_bye_non_winner';
+  readonly required_effect:
+    | 'none'
+    | 'ack_2xx'
+    | 'ack_then_bye_non_winner'
+    | 'send_bye_non_winner_after_ack';
+  readonly replayed: boolean;
+}
+
+export interface TransferSelectionReceipt {
+  readonly event_id: string;
+  readonly event_hash: string;
+  readonly old_leg_id: LegId;
+  readonly new_leg_id: LegId;
+  readonly revision: string;
+  readonly selected_leg_id: LegId;
+  readonly required_effect: 'bye_old_selected_leg';
   readonly replayed: boolean;
 }
 
@@ -215,6 +244,7 @@ const UINT64_PATTERN = /^(0|[1-9][0-9]{0,19})$/;
 const POSITIVE_UINT64_PATTERN = /^[1-9][0-9]{0,19}$/;
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
+const PROMISE_THEN = Promise.prototype.then;
 const CALL_LEG_EVENTS = new Set<CallLegEvent>([
   'start_invite',
   'provisional',
@@ -225,7 +255,6 @@ const CALL_LEG_EVENTS = new Set<CallLegEvent>([
   'resume_committed',
   'transfer_prepare',
   'transfer_abort',
-  'transfer_commit',
   'bye_requested',
   'termination_observed',
   'protocol_failure'
@@ -248,7 +277,6 @@ const TRANSITIONS = new Map<string, Readonly<{
   transition('confirmed', 'transfer_prepare', 'transferring', 'none'),
   transition('held', 'transfer_prepare', 'transferring', 'none'),
   transition('transferring', 'transfer_abort', 'confirmed', 'none'),
-  transition('transferring', 'transfer_commit', 'terminating', 'bye_old_selected_leg'),
   transition('confirmed', 'bye_requested', 'terminating', 'send_bye'),
   transition('held', 'bye_requested', 'terminating', 'send_bye'),
   transition('terminating', 'termination_observed', 'terminated', 'none'),
@@ -269,6 +297,7 @@ interface MutableLeg {
   readonly generation: bigint;
   negotiationGeneration: bigint;
   state: CallLegState;
+  transferReturnState: 'confirmed' | 'held' | null;
   activeProtocolDialogId: ProtocolDialogId | null;
   readonly protocolDialogHistory: ProtocolDialogId[];
 }
@@ -285,12 +314,15 @@ interface MutableCall {
   readonly callId: CallId;
   readonly interactionId: InteractionId;
   readonly ownerEpoch: bigint;
+  readonly initialGeneration: bigint;
   revision: bigint;
   selectedLegId: LegId | null;
+  readonly generations: Set<bigint>;
   readonly legs: Map<LegId, MutableLeg>;
-  readonly forkBranches: Set<LegId>;
+  readonly forkBranchesByAttempt: Map<string, Set<LegId>>;
   readonly dedupe: Map<string, DedupeEntry>;
   readonly mailbox: BoundedQueue<Readonly<CallWorkItem>>;
+  readonly mailboxWorkIds: Set<string>;
   readonly timers: Set<string>;
 }
 
@@ -321,17 +353,20 @@ export class CallLegRegistry {
       'tenant_id',
       'call_id',
       'interaction_id',
-      'owner_epoch'
+      'owner_epoch',
+      'generation'
     ]);
     const tenantId = identifier(checked.tenant_id);
     const callId = parseCallId(checked.call_id);
     const interactionId = parseInteractionId(checked.interaction_id);
     const ownerEpoch = uint64(checked.owner_epoch, true);
+    const initialGeneration = uint64(checked.generation, true);
     const existing = this.#calls.get(callId);
     if (existing) {
       if (existing.tenantId !== tenantId ||
           existing.interactionId !== interactionId ||
-          existing.ownerEpoch !== ownerEpoch) {
+          existing.ownerEpoch !== ownerEpoch ||
+          existing.initialGeneration !== initialGeneration) {
         throw failure('call_leg_call_conflict');
       }
       return snapshotCall(existing);
@@ -342,12 +377,15 @@ export class CallLegRegistry {
       callId,
       interactionId,
       ownerEpoch,
+      initialGeneration,
       revision: 0n,
       selectedLegId: null,
+      generations: new Set([initialGeneration]),
       legs: new Map(),
-      forkBranches: new Set(),
+      forkBranchesByAttempt: new Map(),
       dedupe: new Map(),
       mailbox: new BoundedQueue(this.#bounds.mailbox_per_call),
+      mailboxWorkIds: new Set(),
       timers: new Set()
     };
     this.#calls.set(callId, call);
@@ -372,10 +410,12 @@ export class CallLegRegistry {
       generation: context.generation,
       negotiationGeneration: 1n,
       state: 'planned',
+      transferReturnState: null,
       activeProtocolDialogId: null,
       protocolDialogHistory: []
     };
     context.call.legs.set(legId, leg);
+    context.call.generations.add(context.generation);
     this.#legs.set(legId, Object.freeze({ call: context.call, leg }));
     context.call.revision += 1n;
     return snapshotLeg(leg);
@@ -408,17 +448,26 @@ export class CallLegRegistry {
     this.#reserveDedupe(call);
     const rule = TRANSITIONS.get(`${leg.state}:${event}`);
     if (!rule) throw failure('call_leg_transition_invalid');
+    const nextState = event === 'transfer_abort'
+      ? leg.transferReturnState
+      : rule.to;
+    if (nextState === null) throw failure('call_leg_transition_invalid');
     const revision = call.revision + 1n;
     const receipt = Object.freeze({
       event_id: eventId,
       event_hash: eventHash,
       leg_id: legId,
       revision: revision.toString(),
-      state: rule.to,
+      state: nextState,
       required_effect: rule.required_effect,
       replayed: false
     }) satisfies CallLegMutationReceipt;
-    leg.state = rule.to;
+    if (event === 'transfer_prepare') {
+      leg.transferReturnState = leg.state as 'confirmed' | 'held';
+    } else if (event === 'transfer_abort' || event === 'protocol_failure') {
+      leg.transferReturnState = null;
+    }
+    leg.state = nextState;
     call.revision = revision;
     this.#remember(call, eventId, eventHash, operation, legId, receipt);
     return receipt;
@@ -486,13 +535,15 @@ export class CallLegRegistry {
   ): ForkSelectionReceipt {
     const checked = exactRecord(input, [
       'leg_id',
+      'fork_attempt_id',
       'event_id',
       'event_hash'
     ]);
     const legId = parseLegId(checked.leg_id);
+    const forkAttemptId = identifier(checked.fork_attempt_id);
     const eventId = identifier(checked.event_id);
     const eventHash = hash(checked.event_hash);
-    const operation = 'durable-fork-selection';
+    const operation = `durable-fork-selection:${forkAttemptId}`;
     const replay = this.#findReplay<ForkSelectionReceipt>(
       fence,
       legId,
@@ -503,20 +554,35 @@ export class CallLegRegistry {
     if (replay) return replay;
     const { call, leg } = this.#resolveFence(fence, legId);
     this.#reserveDedupe(call);
-    if (!call.forkBranches.has(legId) &&
-        call.forkBranches.size >= this.#bounds.fork_branches_per_attempt) {
+    const forkBranches = call.forkBranchesByAttempt.get(forkAttemptId);
+    if (!forkBranches?.has(legId) &&
+        (forkBranches?.size ?? 0) >=
+          this.#bounds.fork_branches_per_attempt) {
       throw capacity();
     }
-    if (call.selectedLegId === null && leg.state !== 'confirmed') {
+    if (leg.state !== 'inviting' &&
+        leg.state !== 'early' &&
+        leg.state !== 'confirmed') {
       throw failure('call_leg_transition_invalid');
     }
     const selectedLegId = call.selectedLegId ?? legId;
-    const requiredEffect = selectedLegId === legId
-      ? 'none' as const
-      : 'ack_then_bye_non_winner' as const;
+    const alreadyAcknowledged = leg.state === 'confirmed';
+    const isWinner = selectedLegId === legId;
+    const requiredEffect = isWinner
+      ? alreadyAcknowledged
+        ? 'none' as const
+        : 'ack_2xx' as const
+      : alreadyAcknowledged
+        ? 'send_bye_non_winner_after_ack' as const
+        : 'ack_then_bye_non_winner' as const;
     const revision = call.revision + 1n;
-    call.forkBranches.add(legId);
+    if (forkBranches) {
+      forkBranches.add(legId);
+    } else {
+      call.forkBranchesByAttempt.set(forkAttemptId, new Set([legId]));
+    }
     call.selectedLegId = selectedLegId;
+    leg.state = isWinner ? 'confirmed' : 'terminating';
     call.revision = revision;
     const receipt = Object.freeze({
       event_id: eventId,
@@ -528,6 +594,65 @@ export class CallLegRegistry {
       replayed: false
     });
     this.#remember(call, eventId, eventHash, operation, legId, receipt);
+    return receipt;
+  }
+
+  commitTransferSelection(
+    fence: CallMutationFence,
+    input: CommitTransferSelectionInput
+  ): TransferSelectionReceipt {
+    const checked = exactRecord(input, [
+      'old_leg_id',
+      'old_leg_generation',
+      'new_leg_id',
+      'event_id',
+      'event_hash'
+    ]);
+    const oldLegId = parseLegId(checked.old_leg_id);
+    const newLegId = parseLegId(checked.new_leg_id);
+    const oldLegGeneration = uint64(checked.old_leg_generation, true);
+    const eventId = identifier(checked.event_id);
+    const eventHash = hash(checked.event_hash);
+    if (oldLegId === newLegId) throw invalidInput();
+    const operation =
+      `transfer-selection:${oldLegId}:${oldLegGeneration}:${newLegId}`;
+    const replay = this.#findReplay<TransferSelectionReceipt>(
+      fence,
+      newLegId,
+      eventId,
+      eventHash,
+      operation
+    );
+    if (replay) return replay;
+    const { call, leg: newLeg } = this.#resolveFence(fence, newLegId);
+    const oldLeg = call.legs.get(oldLegId);
+    if (!oldLeg || oldLeg.generation !== oldLegGeneration) {
+      throw failure(
+        oldLeg ? 'call_leg_stale_generation' : 'call_leg_leg_not_found'
+      );
+    }
+    this.#reserveDedupe(call);
+    if (call.selectedLegId !== oldLegId ||
+        oldLeg.state !== 'transferring' ||
+        newLeg.state !== 'confirmed') {
+      throw failure('call_leg_transition_invalid');
+    }
+    const revision = call.revision + 1n;
+    oldLeg.state = 'terminating';
+    oldLeg.transferReturnState = null;
+    call.selectedLegId = newLegId;
+    call.revision = revision;
+    const receipt = Object.freeze({
+      event_id: eventId,
+      event_hash: eventHash,
+      old_leg_id: oldLegId,
+      new_leg_id: newLegId,
+      revision: revision.toString(),
+      selected_leg_id: newLegId,
+      required_effect: 'bye_old_selected_leg' as const,
+      replayed: false
+    });
+    this.#remember(call, eventId, eventHash, operation, newLegId, receipt);
     return receipt;
   }
 
@@ -577,29 +702,57 @@ export class CallLegRegistry {
     return receipt;
   }
 
-  enqueueCallWork(callIdInput: CallId, input: CallWorkItem): void {
-    const call = this.#requireCall(parseCallId(callIdInput));
+  enqueueCallWork(fence: CallMutationFence, input: CallWorkItem): void {
+    const { call } = this.#resolveFence(fence, null);
     const checked = exactRecord(input, ['work_id', 'kind']);
     const item = Object.freeze({
       work_id: identifier(checked.work_id),
       kind: identifier(checked.kind)
     });
+    if (call.mailboxWorkIds.has(item.work_id)) {
+      throw failure('call_leg_event_conflict');
+    }
     if (!call.mailbox.enqueue(item)) throw capacity();
+    call.mailboxWorkIds.add(item.work_id);
+    call.revision += 1n;
   }
 
-  dequeueCallWork(callIdInput: CallId): Readonly<CallWorkItem> | null {
-    return this.#requireCall(parseCallId(callIdInput)).mailbox.dequeue();
+  dequeueCallWork(fence: CallMutationFence): Readonly<CallWorkItem> | null {
+    const { call } = this.#resolveFence(fence, null);
+    const item = call.mailbox.dequeue();
+    if (!item) return null;
+    call.mailboxWorkIds.delete(item.work_id);
+    call.revision += 1n;
+    return item;
   }
 
   processNextCallWork(
-    callIdInput: CallId,
-    handler: (item: Readonly<CallWorkItem>) => void
+    fence: CallMutationFence,
+    handler: (item: Readonly<CallWorkItem>) => unknown
   ): CallWorkResult {
     if (typeof handler !== 'function') throw invalidInput();
-    const item = this.dequeueCallWork(callIdInput);
+    const item = this.dequeueCallWork(fence);
     if (!item) return Object.freeze({ status: 'empty' });
     try {
-      handler(item);
+      const result = handler(item);
+      if (utilTypes.isPromise(result)) {
+        void Reflect.apply(PROMISE_THEN, result, [
+          () => undefined,
+          () => undefined
+        ]);
+        return Object.freeze({
+          status: 'failed',
+          item,
+          failure_code: 'async_handler_forbidden'
+        });
+      }
+      if (result !== undefined) {
+        return Object.freeze({
+          status: 'failed',
+          item,
+          failure_code: 'handler_contract_invalid'
+        });
+      }
       return Object.freeze({
         status: 'completed',
         item,
@@ -614,17 +767,20 @@ export class CallLegRegistry {
     }
   }
 
-  registerTimer(callIdInput: CallId, timerIdInput: string): void {
-    const call = this.#requireCall(parseCallId(callIdInput));
+  registerTimer(fence: CallMutationFence, timerIdInput: string): void {
+    const { call } = this.#resolveFence(fence, null);
     const timerId = identifier(timerIdInput);
     if (call.timers.has(timerId)) return;
     if (call.timers.size >= this.#bounds.timers_per_call) throw capacity();
     call.timers.add(timerId);
+    call.revision += 1n;
   }
 
-  releaseTimer(callIdInput: CallId, timerIdInput: string): boolean {
-    const call = this.#requireCall(parseCallId(callIdInput));
-    return call.timers.delete(identifier(timerIdInput));
+  releaseTimer(fence: CallMutationFence, timerIdInput: string): boolean {
+    const { call } = this.#resolveFence(fence, null);
+    const released = call.timers.delete(identifier(timerIdInput));
+    if (released) call.revision += 1n;
+    return released;
   }
 
   getCall(callIdInput: CallId): CallProjectionSnapshot {
@@ -752,6 +908,9 @@ export class CallLegRegistry {
       throw failure('call_leg_revision_conflict');
     }
     if (legId === null) {
+      if (!context.call.generations.has(context.generation)) {
+        throw failure('call_leg_stale_generation');
+      }
       return { call: context.call, leg: null, generation: context.generation };
     }
     const leg = context.call.legs.get(legId);
