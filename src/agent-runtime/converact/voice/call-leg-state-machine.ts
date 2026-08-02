@@ -127,6 +127,7 @@ export interface BindProtocolDialogInput {
 export interface ObserveForkWinnerInput {
   leg_id: LegId;
   fork_attempt_id: string;
+  sip_status: number;
   event_id: string;
   event_hash: string;
 }
@@ -317,7 +318,6 @@ interface MutableCall {
   readonly initialGeneration: bigint;
   revision: bigint;
   selectedLegId: LegId | null;
-  readonly generations: Set<bigint>;
   readonly legs: Map<LegId, MutableLeg>;
   readonly forkBranchesByAttempt: Map<string, Set<LegId>>;
   readonly dedupe: Map<string, DedupeEntry>;
@@ -380,7 +380,6 @@ export class CallLegRegistry {
       initialGeneration,
       revision: 0n,
       selectedLegId: null,
-      generations: new Set([initialGeneration]),
       legs: new Map(),
       forkBranchesByAttempt: new Map(),
       dedupe: new Map(),
@@ -415,7 +414,6 @@ export class CallLegRegistry {
       protocolDialogHistory: []
     };
     context.call.legs.set(legId, leg);
-    context.call.generations.add(context.generation);
     this.#legs.set(legId, Object.freeze({ call: context.call, leg }));
     context.call.revision += 1n;
     return snapshotLeg(leg);
@@ -536,11 +534,14 @@ export class CallLegRegistry {
     const checked = exactRecord(input, [
       'leg_id',
       'fork_attempt_id',
+      'sip_status',
       'event_id',
       'event_hash'
     ]);
     const legId = parseLegId(checked.leg_id);
     const forkAttemptId = identifier(checked.fork_attempt_id);
+    const sipStatus = boundedInteger(checked.sip_status, 699);
+    if (sipStatus < 200 || sipStatus > 299) throw invalidInput();
     const eventId = identifier(checked.event_id);
     const eventHash = hash(checked.event_hash);
     const operation = `durable-fork-selection:${forkAttemptId}`;
@@ -908,7 +909,7 @@ export class CallLegRegistry {
       throw failure('call_leg_revision_conflict');
     }
     if (legId === null) {
-      if (!context.call.generations.has(context.generation)) {
+      if (context.call.initialGeneration !== context.generation) {
         throw failure('call_leg_stale_generation');
       }
       return { call: context.call, leg: null, generation: context.generation };

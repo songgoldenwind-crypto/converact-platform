@@ -280,6 +280,13 @@ test('durable fork selection keeps one winner and cleans a late 2xx branch', () 
     fixture.fence('2', '1'),
     event(fixture.legA, 'evt-fork-start', 'start_invite')
   );
+  assert.throws(
+    () => fixture.registry.observeDurableForkWinner(
+      fixture.fence('3', '1'),
+      forkEvent(fixture.legA, 'evt-not-final-2xx', 'fork-attempt-1', 180)
+    ),
+    hasCode('call_leg_input_invalid')
+  );
   const winner = fixture.registry.observeDurableForkWinner(
     fixture.fence('3', '1'),
     forkEvent(fixture.legA, 'evt-winner')
@@ -610,11 +617,13 @@ function event(
 function forkEvent(
   leg_id: ReturnType<typeof deriveLegId>,
   event_id: string,
-  fork_attempt_id = 'fork-attempt-1'
+  fork_attempt_id = 'fork-attempt-1',
+  sip_status = 200
 ) {
   return {
     leg_id,
     fork_attempt_id,
+    sip_status,
     event_id,
     event_hash: sha256(event_id)
   };
