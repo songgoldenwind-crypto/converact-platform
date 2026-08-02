@@ -146,6 +146,14 @@ test('rsipstack native tests fetch one locked graph before switching offline', (
     buildScript,
     /cargo fetch --manifest-path \/build\/rsipstack\/Cargo\.toml --locked[\s\S]*cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline/
   );
+  assert.match(
+    buildScript,
+    /^\s*cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline\s*$/m
+  );
+  assert.doesNotMatch(
+    buildScript,
+    /cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline prepared_invite_/
+  );
 });
 
 test('RustPBX deployment examples reference the current patchset', () => {

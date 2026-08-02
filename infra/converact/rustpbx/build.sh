@@ -322,13 +322,7 @@ if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
       cargo test --locked --lib missing_callee_terminal_data_stays_independent_from_the_caller
       cargo test --locked --test ivekit_dialog_shadow_contract_test
       cargo fetch --manifest-path /build/rsipstack/Cargo.toml --locked
-      cargo test --manifest-path /build/rsipstack/Cargo.toml --offline prepared_invite_
-      cargo test --manifest-path /build/rsipstack/Cargo.toml --offline reject_with_headers_
-      cargo test --manifest-path /build/rsipstack/Cargo.toml --offline repeated_send_trying_emits_one_initial_response
-      cargo test --manifest-path /build/rsipstack/Cargo.toml --offline failed_send_trying_can_retry_on_replacement_connection
-      cargo test --manifest-path /build/rsipstack/Cargo.toml --offline transaction::tests::test_server
-      cargo test --manifest-path /build/rsipstack/Cargo.toml --offline transaction::timer::
-      cargo test --manifest-path /build/rsipstack/Cargo.toml --offline sip::parser::
+      cargo test --manifest-path /build/rsipstack/Cargo.toml --offline
     ' bash "${RUSTPBX_FORMAT_FILES[@]}"
   exit 0
 fi
