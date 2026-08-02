@@ -1,0 +1,1458 @@
+diff --git a/examples/proxy.rs b/examples/proxy.rs
+index b6b189b..7a66fcb 100644
+--- a/examples/proxy.rs
++++ b/examples/proxy.rs
+@@ -26,7 +26,9 @@ use rsipstack::transport::udp::UdpConnection;
+ #[cfg(feature = "websocket")]
+ use rsipstack::transport::websocket::WebSocketListenerConnection;
+ use rsipstack::transport::SipAddr;
+-use rsipstack::transport::{SipConnection, TransportEvent};
++use rsipstack::transport::{
++    connection::transport_connection_event_channel, SipConnection, TransportEvent,
++};
+ use rsipstack::{transport::TransportLayer, EndpointBuilder};
+ use rsipstack::{Error, Result};
+ use std::collections::{HashMap, HashSet};
+@@ -37,7 +39,6 @@ use std::net::SocketAddr;
+ use std::sync::Arc;
+ use std::{env, vec};
+ use tokio::select;
+-use tokio::sync::mpsc;
+ use tokio::sync::Mutex;
+ use tokio_util::sync::CancellationToken;
+ use tower::ServiceBuilder;
+@@ -635,8 +636,8 @@ async fn handle_websocket(client_addr: ClientAddr, socket: WebSocket, _state: Ap
+     let ws_sink = Arc::new(Mutex::new(ws_sink));
+ 
+     // Create a channel pair for bidirectional communication
+-    let (from_ws_tx, from_ws_rx) = mpsc::unbounded_channel();
+-    let (to_ws_tx, mut to_ws_rx) = mpsc::unbounded_channel();
++    let (from_ws_tx, from_ws_rx) = transport_connection_event_channel();
++    let (to_ws_tx, mut to_ws_rx) = transport_connection_event_channel();
+     let transport_type = rsip::transport::Transport::Ws;
+     // Create a unique SIP address for this WebSocket connection
+     let local_addr = SipAddr {
+@@ -935,14 +936,15 @@ mod tests {
+     async fn test_channel_connection_creation() {
+         use rsipstack::transport::channel::ChannelConnection;
+         use rsipstack::transport::SipAddr;
+-        use rsipstack::transport::{SipConnection, TransportEvent};
+-        use tokio::sync::mpsc;
++        use rsipstack::transport::{
++            connection::transport_connection_event_channel, SipConnection, TransportEvent,
++        };
+ 
+         let _ = tracing_subscriber::fmt::try_init();
+ 
+         // Create channel pair like in handle_websocket
+-        let (to_transport_tx, to_transport_rx) = mpsc::unbounded_channel();
+-        let (from_transport_tx, mut from_transport_rx) = mpsc::unbounded_channel();
++        let (to_transport_tx, to_transport_rx) = transport_connection_event_channel();
++        let (from_transport_tx, mut from_transport_rx) = transport_connection_event_channel();
+ 
+         // Create SIP address
+         let local_addr = SipAddr {
+diff --git a/src/bounded.rs b/src/bounded.rs
+new file mode 100644
+index 0000000..e277e48
+--- /dev/null
++++ b/src/bounded.rs
+@@ -0,0 +1,197 @@
++use std::sync::atomic::{AtomicU64, Ordering};
++use tokio::sync::mpsc;
++
++pub const TRANSACTION_EVENT_QUEUE_CAPACITY: usize = 8;
++pub const DIALOG_STATE_QUEUE_CAPACITY: usize = 16;
++pub const TRANSPORT_EVENT_QUEUE_CAPACITY: usize = 8_192;
++pub const TRANSPORT_CONNECTION_EVENT_QUEUE_CAPACITY: usize = 256;
++
++#[derive(Debug)]
++pub(crate) struct MailboxRejections {
++    full: AtomicU64,
++    closed: AtomicU64,
++}
++
++impl MailboxRejections {
++    const fn new() -> Self {
++        Self {
++            full: AtomicU64::new(0),
++            closed: AtomicU64::new(0),
++        }
++    }
++
++    fn record<T>(&self, error: &mpsc::error::TrySendError<T>) {
++        match error {
++            mpsc::error::TrySendError::Full(_) => {
++                self.full.fetch_add(1, Ordering::Relaxed);
++            }
++            mpsc::error::TrySendError::Closed(_) => {
++                self.closed.fetch_add(1, Ordering::Relaxed);
++            }
++        }
++    }
++
++    fn snapshot(&self) -> MailboxRejectionStats {
++        MailboxRejectionStats {
++            full_rejections_total: self.full.load(Ordering::Relaxed),
++            closed_rejections_total: self.closed.load(Ordering::Relaxed),
++        }
++    }
++}
++
++static TRANSACTION_EVENT_REJECTIONS: MailboxRejections = MailboxRejections::new();
++static DIALOG_STATE_REJECTIONS: MailboxRejections = MailboxRejections::new();
++static TRANSPORT_EVENT_REJECTIONS: MailboxRejections = MailboxRejections::new();
++
++pub struct BoundedSender<T> {
++    inner: mpsc::Sender<T>,
++    rejections: &'static MailboxRejections,
++}
++
++impl<T> Clone for BoundedSender<T> {
++    fn clone(&self) -> Self {
++        Self {
++            inner: self.inner.clone(),
++            rejections: self.rejections,
++        }
++    }
++}
++
++impl<T> std::fmt::Debug for BoundedSender<T> {
++    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        formatter
++            .debug_struct("BoundedSender")
++            .field("capacity", &self.inner.capacity())
++            .field("max_capacity", &self.inner.max_capacity())
++            .field("closed", &self.inner.is_closed())
++            .finish()
++    }
++}
++
++impl<T> BoundedSender<T> {
++    pub fn send(&self, value: T) -> Result<(), mpsc::error::TrySendError<T>> {
++        self.try_send(value)
++    }
++
++    pub fn try_send(&self, value: T) -> Result<(), mpsc::error::TrySendError<T>> {
++        self.inner.try_send(value).inspect_err(|error| {
++            self.rejections.record(error);
++        })
++    }
++
++    pub fn capacity(&self) -> usize {
++        self.inner.capacity()
++    }
++
++    pub fn max_capacity(&self) -> usize {
++        self.inner.max_capacity()
++    }
++
++    pub fn is_closed(&self) -> bool {
++        self.inner.is_closed()
++    }
++}
++
++pub type BoundedReceiver<T> = mpsc::Receiver<T>;
++
++fn bounded_channel<T>(
++    capacity: usize,
++    rejections: &'static MailboxRejections,
++) -> (BoundedSender<T>, BoundedReceiver<T>) {
++    assert!(capacity > 0, "protocol mailbox capacity must be positive");
++    let (inner, receiver) = mpsc::channel(capacity);
++    (BoundedSender { inner, rejections }, receiver)
++}
++
++pub(crate) fn transaction_event_channel<T>() -> (BoundedSender<T>, BoundedReceiver<T>) {
++    bounded_channel(
++        TRANSACTION_EVENT_QUEUE_CAPACITY,
++        &TRANSACTION_EVENT_REJECTIONS,
++    )
++}
++
++pub(crate) fn dialog_state_channel<T>() -> (BoundedSender<T>, BoundedReceiver<T>) {
++    bounded_channel(DIALOG_STATE_QUEUE_CAPACITY, &DIALOG_STATE_REJECTIONS)
++}
++
++pub(crate) fn transport_event_channel<T>() -> (BoundedSender<T>, BoundedReceiver<T>) {
++    bounded_channel(TRANSPORT_EVENT_QUEUE_CAPACITY, &TRANSPORT_EVENT_REJECTIONS)
++}
++
++pub(crate) fn transport_connection_event_channel<T>() -> (BoundedSender<T>, BoundedReceiver<T>) {
++    bounded_channel(
++        TRANSPORT_CONNECTION_EVENT_QUEUE_CAPACITY,
++        &TRANSPORT_EVENT_REJECTIONS,
++    )
++}
++
++#[cfg(test)]
++static TEST_MAILBOX_REJECTIONS: MailboxRejections = MailboxRejections::new();
++
++#[cfg(test)]
++pub(crate) fn test_channel<T>() -> (BoundedSender<T>, BoundedReceiver<T>) {
++    bounded_channel(64, &TEST_MAILBOX_REJECTIONS)
++}
++
++#[cfg(test)]
++pub(crate) fn test_channel_with_capacity<T>(
++    capacity: usize,
++) -> (BoundedSender<T>, BoundedReceiver<T>) {
++    bounded_channel(capacity, &TEST_MAILBOX_REJECTIONS)
++}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct MailboxRejectionStats {
++    pub full_rejections_total: u64,
++    pub closed_rejections_total: u64,
++}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct ProtocolMailboxStats {
++    pub transaction_event: MailboxRejectionStats,
++    pub dialog_state: MailboxRejectionStats,
++    pub transport_event: MailboxRejectionStats,
++}
++
++pub fn protocol_mailbox_stats() -> ProtocolMailboxStats {
++    ProtocolMailboxStats {
++        transaction_event: TRANSACTION_EVENT_REJECTIONS.snapshot(),
++        dialog_state: DIALOG_STATE_REJECTIONS.snapshot(),
++        transport_event: TRANSPORT_EVENT_REJECTIONS.snapshot(),
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    static BOUNDARY_TEST_REJECTIONS: MailboxRejections = MailboxRejections::new();
++
++    #[tokio::test]
++    async fn bounded_sender_rejects_full_and_closed_mailboxes() {
++        let before = BOUNDARY_TEST_REJECTIONS.snapshot();
++        let (sender, mut receiver) = bounded_channel(1, &BOUNDARY_TEST_REJECTIONS);
++
++        assert!(sender.send(1).is_ok());
++        assert!(matches!(
++            sender.send(2),
++            Err(mpsc::error::TrySendError::Full(2))
++        ));
++        assert_eq!(receiver.recv().await, Some(1));
++        drop(receiver);
++        assert!(matches!(
++            sender.send(3),
++            Err(mpsc::error::TrySendError::Closed(3))
++        ));
++
++        let after = BOUNDARY_TEST_REJECTIONS.snapshot();
++        assert_eq!(
++            after.full_rejections_total,
++            before.full_rejections_total + 1
++        );
++        assert_eq!(
++            after.closed_rejections_total,
++            before.closed_rejections_total + 1
++        );
++    }
++}
+diff --git a/src/dialog/dialog.rs b/src/dialog/dialog.rs
+index 98aa6f9..dd8f6e2 100644
+--- a/src/dialog/dialog.rs
++++ b/src/dialog/dialog.rs
+@@ -6,6 +6,7 @@ use super::{
+     subscription::{ClientSubscriptionDialog, ServerSubscriptionDialog},
+     DialogId,
+ };
++use crate::bounded::{self, BoundedReceiver, BoundedSender};
+ use crate::sip::{
+     prelude::{HeadersExt, ToTypedHeader},
+     typed::{CSeq, Contact},
+@@ -27,7 +28,7 @@ use std::sync::{
+     atomic::{AtomicU32, Ordering},
+     Arc,
+ };
+-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
++use tokio::sync::mpsc;
+ use tokio_util::sync::CancellationToken;
+ use tracing::{debug, info, warn};
+ 
+@@ -337,8 +338,12 @@ pub struct DialogInner {
+     pub(super) remote_reliable: Mutex<Option<RemoteReliableState>>,
+ }
+ 
+-pub type DialogStateReceiver = UnboundedReceiver<DialogState>;
+-pub type DialogStateSender = UnboundedSender<DialogState>;
++pub type DialogStateReceiver = BoundedReceiver<DialogState>;
++pub type DialogStateSender = BoundedSender<DialogState>;
++
++pub fn dialog_state_channel() -> (DialogStateSender, DialogStateReceiver) {
++    bounded::dialog_state_channel()
++}
+ 
+ pub(super) type DialogInnerRef = Arc<DialogInner>;
+ 
+diff --git a/src/dialog/dialog_layer.rs b/src/dialog/dialog_layer.rs
+index 9cc6c5c..9dc8d69 100644
+--- a/src/dialog/dialog_layer.rs
++++ b/src/dialog/dialog_layer.rs
+@@ -354,10 +354,7 @@ impl DialogLayer {
+             state_sender,
+             credential,
+             local_contact,
+-            {
+-                let (tx, _) = tokio::sync::mpsc::unbounded_channel();
+-                tx
+-            },
++            transaction_event_sender_noop(),
+         )?;
+ 
+         let dialog = ClientPublicationDialog::new(Arc::new(dlg_inner));
+@@ -402,10 +399,7 @@ impl DialogLayer {
+             state_sender,
+             credential,
+             local_contact,
+-            {
+-                let (tx, _) = tokio::sync::mpsc::unbounded_channel();
+-                tx
+-            },
++            transaction_event_sender_noop(),
+         )?;
+ 
+         let dialog = ClientSubscriptionDialog {
+@@ -520,7 +514,7 @@ impl DialogLayer {
+     }
+ 
+     pub fn new_dialog_state_channel(&self) -> (DialogStateSender, DialogStateReceiver) {
+-        tokio::sync::mpsc::unbounded_channel()
++        super::dialog::dialog_state_channel()
+     }
+ 
+     pub fn build_local_contact(
+diff --git a/src/dialog/invitation.rs b/src/dialog/invitation.rs
+index 54633ae..dddff78 100644
+--- a/src/dialog/invitation.rs
++++ b/src/dialog/invitation.rs
+@@ -543,7 +543,7 @@ impl DialogLayer {
+     /// # async fn example() -> rsipstack::Result<()> {
+     /// # let dialog_layer: DialogLayer = todo!();
+     /// # let invite_option: InviteOption = todo!();
+-    /// let (state_tx, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
++    /// let (state_tx, mut state_rx) = dialog_layer.new_dialog_state_channel();
+     /// let (dialog, response) = dialog_layer.do_invite(invite_option, state_tx).await?;
+     ///
+     /// // Monitor dialog state changes
+@@ -708,9 +708,9 @@ impl DialogLayer {
+ #[cfg(test)]
+ mod prepared_invite_tests {
+     use super::*;
++    use crate::bounded::test_channel;
+     use crate::transport::{udp::UdpConnection, TransportLayer};
+     use crate::EndpointBuilder;
+-    use tokio::sync::mpsc::unbounded_channel;
+     use tokio_util::sync::CancellationToken;
+ 
+     async fn prepared_invite(logical_offer: &[u8]) -> PreparedClientInvite {
+@@ -729,7 +729,7 @@ mod prepared_invite_tests {
+             .with_transport_layer(transport)
+             .build();
+         let dialog_layer = DialogLayer::new(endpoint.inner.clone());
+-        let (state_sender, _) = unbounded_channel();
++        let (state_sender, _) = test_channel();
+         dialog_layer
+             .prepare_invite(
+                 InviteOption {
+diff --git a/src/dialog/tests/test_client_dialog.rs b/src/dialog/tests/test_client_dialog.rs
+index 726f797..6e57beb 100644
+--- a/src/dialog/tests/test_client_dialog.rs
++++ b/src/dialog/tests/test_client_dialog.rs
+@@ -1,3 +1,4 @@
++use crate::bounded::test_channel;
+ use crate::dialog::{
+     client_dialog::ClientInviteDialog,
+     dialog::{DialogInner, DialogState, TerminatedReason},
+@@ -12,7 +13,6 @@ use crate::transport::{udp::UdpConnection, SipAddr, TransportLayer};
+ use crate::EndpointBuilder;
+ use async_trait::async_trait;
+ use std::sync::Arc;
+-use tokio::sync::mpsc::unbounded_channel;
+ use tokio::sync::oneshot;
+ use tokio_util::sync::CancellationToken;
+ 
+@@ -48,7 +48,7 @@ fn create_invite_request(from_tag: &str, to_tag: &str, call_id: &str) -> Request
+ #[tokio::test]
+ async fn test_client_dialog_creation() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     let dialog_id = DialogId {
+         call_id: "test-call-id".to_string(),
+@@ -57,7 +57,7 @@ async fn test_client_dialog_creation() -> crate::Result<()> {
+     };
+ 
+     let invite_req = create_invite_request("alice-tag", "", "test-call-id");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+     let dialog_inner = DialogInner::new(
+         TransactionRole::Client,
+         dialog_id.clone(),
+@@ -83,7 +83,7 @@ async fn test_client_dialog_creation() -> crate::Result<()> {
+ #[tokio::test]
+ async fn test_client_dialog_sequence_handling() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     let dialog_id = DialogId {
+         call_id: "test-call-seq".to_string(),
+@@ -92,7 +92,7 @@ async fn test_client_dialog_sequence_handling() -> crate::Result<()> {
+     };
+ 
+     let invite_req = create_invite_request("alice-tag", "bob-tag", "test-call-seq");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_inner = DialogInner::new(
+         TransactionRole::Client,
+@@ -123,7 +123,7 @@ async fn test_client_dialog_sequence_handling() -> crate::Result<()> {
+ #[tokio::test]
+ async fn test_client_dialog_state_transitions() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     let dialog_id = DialogId {
+         call_id: "test-call-flow".to_string(),
+@@ -132,7 +132,7 @@ async fn test_client_dialog_state_transitions() -> crate::Result<()> {
+     };
+ 
+     let invite_req = create_invite_request("alice-tag", "", "test-call-flow");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_inner = DialogInner::new(
+         TransactionRole::Client,
+@@ -200,7 +200,7 @@ async fn test_client_dialog_state_transitions() -> crate::Result<()> {
+ #[tokio::test]
+ async fn test_client_dialog_termination_scenarios() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     // Test 1: Early termination (before confirmed)
+     let dialog_id_1 = DialogId {
+@@ -210,7 +210,7 @@ async fn test_client_dialog_termination_scenarios() -> crate::Result<()> {
+     };
+ 
+     let invite_req_1 = create_invite_request("alice-tag", "", "test-call-term-early");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_inner_1 = DialogInner::new(
+         TransactionRole::Client,
+@@ -247,7 +247,7 @@ async fn test_client_dialog_termination_scenarios() -> crate::Result<()> {
+     };
+ 
+     let invite_req_2 = create_invite_request("alice-tag", "bob-tag", "test-call-term-normal");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_inner_2 = DialogInner::new(
+         TransactionRole::Client,
+@@ -287,7 +287,7 @@ async fn test_client_dialog_termination_scenarios() -> crate::Result<()> {
+ #[tokio::test]
+ async fn test_make_request_preserves_remote_target_and_route_order() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     let dialog_id = DialogId {
+         call_id: "route-order-call".to_string(),
+@@ -296,7 +296,7 @@ async fn test_make_request_preserves_remote_target_and_route_order() -> crate::R
+     };
+ 
+     let invite_req = create_invite_request("from-tag", "to-tag", "route-order-call");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_inner = DialogInner::new(
+         TransactionRole::Client,
+@@ -370,7 +370,7 @@ async fn test_make_request_preserves_remote_target_and_route_order() -> crate::R
+ #[tokio::test]
+ async fn test_route_set_updates_from_200_ok_response() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     let dialog_id = DialogId {
+         call_id: "route-update-call".to_string(),
+@@ -379,7 +379,7 @@ async fn test_route_set_updates_from_200_ok_response() -> crate::Result<()> {
+     };
+ 
+     let invite_req = create_invite_request("from-tag", "", "route-update-call");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_inner = DialogInner::new(
+         TransactionRole::Client,
+@@ -474,7 +474,7 @@ async fn test_route_set_updates_from_200_ok_response() -> crate::Result<()> {
+ #[tokio::test]
+ async fn test_confirmed_dialog_bye_keeps_contact_uri_with_outbound_route() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     let dialog_id = DialogId {
+         call_id: "bye-contact-call".to_string(),
+@@ -483,7 +483,7 @@ async fn test_confirmed_dialog_bye_keeps_contact_uri_with_outbound_route() -> cr
+     };
+ 
+     let invite_req = create_invite_request("from-tag", "", "bye-contact-call");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_inner = DialogInner::new(
+         TransactionRole::Client,
+@@ -596,7 +596,7 @@ async fn test_cancel_conforms_to_rfc3261_section_9_1() -> crate::Result<()> {
+         ..Default::default()
+     };
+ 
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     // Use create_client_invite_dialog - creates dialog and transaction without sending
+     let (client_dialog, mut tx) =
+@@ -811,8 +811,8 @@ async fn test_ack_sent_to_domain_name_from_contact() -> crate::Result<()> {
+     // ========== UAS: Start listening for incoming transactions ==========
+     let mut uas_incoming = uas_endpoint.incoming_transactions()?;
+ 
+-    let (uac_state_sender, _) = unbounded_channel();
+-    let (uas_state_sender, _) = unbounded_channel();
++    let (uac_state_sender, _) = test_channel();
++    let (uas_state_sender, _) = test_channel();
+ 
+     // Oneshot channel to receive the ACK for verification
+     let (ack_sender, ack_receiver) = oneshot::channel::<Request>();
+@@ -984,8 +984,8 @@ async fn test_ack_sent_to_websocket_channel_via_locator() -> crate::Result<()> {
+     use crate::transport::connection::TransportEvent;
+ 
+     // ========== Setup channel connection to simulate WebSocket ==========
+-    let (to_channel_tx, to_channel_rx) = unbounded_channel();
+-    let (from_channel_tx, mut from_channel_rx) = unbounded_channel();
++    let (to_channel_tx, to_channel_rx) = test_channel();
++    let (from_channel_tx, mut from_channel_rx) = test_channel();
+ 
+     let contact_host = "nbs1t4oqh57u.invalid";
+     let contact_user = "kr9e8brl";
+@@ -1046,7 +1046,7 @@ async fn test_ack_sent_to_websocket_channel_via_locator() -> crate::Result<()> {
+     });
+ 
+     // Create channels for dialog state
+-    let (uac_state_sender, _uac_state_receiver) = unbounded_channel();
++    let (uac_state_sender, _uac_state_receiver) = test_channel();
+ 
+     // ========== Start UAC INVITE in background ==========
+     // INVITE is sent to the WebSocket contact domain which will be routed via the channel
+@@ -1206,7 +1206,7 @@ async fn test_drop_unconfirmed_dialog_with_487_response() -> crate::Result<()> {
+         ..Default::default()
+     };
+ 
+-    let (state_sender, mut state_receiver) = unbounded_channel();
++    let (state_sender, mut state_receiver) = test_channel();
+ 
+     // Start the invite in a task that we will abort to trigger drop
+     let dialog_layer_clone = dialog_layer.clone();
+@@ -1431,7 +1431,7 @@ async fn test_drop_unconfirmed_dialog_without_final_response_impl() -> crate::Re
+         ..Default::default()
+     };
+ 
+-    let (state_sender, mut state_receiver) = unbounded_channel();
++    let (state_sender, mut state_receiver) = test_channel();
+ 
+     // Start the invite in a task that we will abort to trigger drop
+     let dialog_layer_clone = dialog_layer.clone();
+diff --git a/src/dialog/tests/test_dialog_layer.rs b/src/dialog/tests/test_dialog_layer.rs
+index 8bf6bde..71bbb0e 100644
+--- a/src/dialog/tests/test_dialog_layer.rs
++++ b/src/dialog/tests/test_dialog_layer.rs
+@@ -2,6 +2,7 @@
+ //!
+ //! This module contains tests for dialog management and lifecycle
+ 
++use crate::bounded::test_channel;
+ use crate::dialog::{dialog_layer::DialogLayer, DialogId};
+ use crate::sip::{headers::*, prelude::HeadersExt, HostWithPort, Param, Request, Transport};
+ use crate::transaction::{
+@@ -12,7 +13,6 @@ use crate::transaction::{
+ use crate::transport::{
+     tcp_listener::TcpListenerConnection, udp::UdpConnection, SipAddr, TransportLayer,
+ };
+-use tokio::sync::mpsc::unbounded_channel;
+ use tokio_util::sync::CancellationToken;
+ 
+ /// Test helper to create a test endpoint
+@@ -89,7 +89,7 @@ async fn test_server_invite_dialog_creation() -> crate::Result<()> {
+         Some(mock_conn),
+     );
+ 
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (state_sender, _state_receiver) = test_channel();
+ 
+     // Create server invite dialog
+     let dialog = dialog_layer.get_or_create_server_invite(
+@@ -127,7 +127,7 @@ async fn test_existing_server_invite_dialog_retrieval() -> crate::Result<()> {
+         Some(mock_conn.clone()),
+     );
+ 
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     let dialog1 = dialog_layer.get_or_create_server_invite(
+         &tx1,
+@@ -178,7 +178,7 @@ async fn test_dialog_retrieval_and_matching() -> crate::Result<()> {
+         Some(mock_conn.clone()),
+     );
+ 
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     let dialog = dialog_layer.get_or_create_server_invite(
+         &tx,
+@@ -236,7 +236,7 @@ async fn test_dialog_removal() -> crate::Result<()> {
+     let key = TransactionKey::from_request(&invite_req, TransactionRole::Server)?;
+     let tx = Transaction::new_server(key, invite_req, endpoint.inner.clone(), Some(mock_conn));
+ 
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     let dialog = dialog_layer.get_or_create_server_invite(
+         &tx,
+@@ -272,7 +272,7 @@ async fn test_dialog_layer_with_swapped_tags() -> crate::Result<()> {
+     let key = TransactionKey::from_request(&invite_req, TransactionRole::Server)?;
+     let tx = Transaction::new_server(key, invite_req, endpoint.inner.clone(), Some(mock_conn));
+ 
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     let dialog = dialog_layer.get_or_create_server_invite(
+         &tx,
+@@ -303,7 +303,7 @@ async fn test_multiple_dialogs_management() -> crate::Result<()> {
+     let dialog_layer = DialogLayer::new(endpoint.inner.clone());
+     let mock_conn = create_mock_connection().await?;
+ 
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     // Create multiple dialogs
+     for i in 0..5 {
+@@ -388,7 +388,7 @@ async fn test_dialog_error_cases() -> crate::Result<()> {
+     let key = TransactionKey::from_request(&invite_req, TransactionRole::Server)?;
+     let tx = Transaction::new_server(key, invite_req, endpoint.inner.clone(), Some(mock_conn));
+ 
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     // Should return error when trying to get dialog with non-existent to-tag
+     let result = dialog_layer.get_or_create_server_invite(
+@@ -426,7 +426,7 @@ async fn test_server_invite_dialog_with_tcp_transport() -> crate::Result<()> {
+     let key = TransactionKey::from_request(&invite_req, TransactionRole::Server)?;
+     let tx = Transaction::new_server(key, invite_req.clone(), endpoint.inner.clone(), Some(conn));
+ 
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (state_sender, _state_receiver) = test_channel();
+ 
+     let dialog = dialog_layer.get_or_create_server_invite(
+         &tx,
+diff --git a/src/dialog/tests/test_dialog_states.rs b/src/dialog/tests/test_dialog_states.rs
+index 0bf8cea..3a73284 100644
+--- a/src/dialog/tests/test_dialog_states.rs
++++ b/src/dialog/tests/test_dialog_states.rs
+@@ -3,6 +3,7 @@
+ //! This module contains comprehensive tests for dialog state transitions
+ //! according to RFC 3261 Section 12.
+ 
++use crate::bounded::test_channel;
+ use crate::dialog::{
+     dialog::{DialogInner, DialogState, TerminatedReason, TransactionHandle},
+     DialogId,
+@@ -10,7 +11,6 @@ use crate::dialog::{
+ use crate::sip::{headers::*, Request, Response, StatusCode};
+ use crate::transaction::{endpoint::EndpointBuilder, key::TransactionRole};
+ use crate::transport::TransportLayer;
+-use tokio::sync::mpsc::unbounded_channel;
+ use tokio_util::sync::CancellationToken;
+ 
+ /// Test helper to create a mock INVITE request
+@@ -109,7 +109,7 @@ fn test_dialog_id_eq() {
+ #[tokio::test]
+ async fn test_dialog_state_transitions() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (state_sender, _state_receiver) = test_channel();
+ 
+     // Create dialog ID
+     let dialog_id = DialogId {
+@@ -120,7 +120,7 @@ async fn test_dialog_state_transitions() -> crate::Result<()> {
+ 
+     // Create INVITE request
+     let invite_req = create_invite_request("alice-tag-456", "", "test-call-id-123");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     // Create dialog inner
+     let dialog_inner = DialogInner::new(
+@@ -179,7 +179,7 @@ async fn test_dialog_state_transitions() -> crate::Result<()> {
+ #[tokio::test]
+ async fn test_server_dialog_state_transitions() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (state_sender, _state_receiver) = test_channel();
+ 
+     // Create dialog ID
+     let dialog_id = DialogId {
+@@ -190,7 +190,7 @@ async fn test_server_dialog_state_transitions() -> crate::Result<()> {
+ 
+     // Create INVITE request
+     let invite_req = create_invite_request("alice-tag-456", "", "test-call-id-server-123");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     // Create server dialog inner
+     let dialog_inner = DialogInner::new(
+@@ -236,7 +236,7 @@ async fn test_server_dialog_state_transitions() -> crate::Result<()> {
+ #[tokio::test]
+ async fn test_dialog_in_dialog_requests() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (state_sender, _state_receiver) = test_channel();
+ 
+     // Create dialog ID
+     let dialog_id = DialogId {
+@@ -248,7 +248,7 @@ async fn test_dialog_in_dialog_requests() -> crate::Result<()> {
+     // Create initial INVITE request
+     let invite_req =
+         create_invite_request("alice-tag-456", "bob-tag-789", "test-call-id-in-dialog-123");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     // Create confirmed dialog
+     let dialog_inner = DialogInner::new(
+@@ -414,7 +414,7 @@ async fn test_dialog_in_dialog_requests() -> crate::Result<()> {
+ #[tokio::test]
+ async fn test_dialog_termination_scenarios() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (state_sender, _state_receiver) = test_channel();
+ 
+     // Test 1: Termination with error status code
+     let dialog_id_1 = DialogId {
+@@ -424,7 +424,7 @@ async fn test_dialog_termination_scenarios() -> crate::Result<()> {
+     };
+ 
+     let invite_req_1 = create_invite_request("alice-tag-456", "", "test-call-id-term-1");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_inner_1 = DialogInner::new(
+         TransactionRole::Client,
+@@ -458,7 +458,7 @@ async fn test_dialog_termination_scenarios() -> crate::Result<()> {
+     };
+ 
+     let invite_req_2 = create_invite_request("alice-tag-456", "bob-tag-789", "test-call-id-term-2");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_inner_2 = DialogInner::new(
+         TransactionRole::Client,
+@@ -494,7 +494,7 @@ async fn test_dialog_termination_scenarios() -> crate::Result<()> {
+ #[tokio::test]
+ async fn test_dialog_sequence_numbers() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (state_sender, _state_receiver) = test_channel();
+ 
+     let dialog_id = DialogId {
+         call_id: "test-call-id-seq-123".to_string(),
+@@ -503,7 +503,7 @@ async fn test_dialog_sequence_numbers() -> crate::Result<()> {
+     };
+ 
+     let invite_req = create_invite_request("alice-tag-456", "bob-tag-789", "test-call-id-seq-123");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_inner = DialogInner::new(
+         TransactionRole::Client,
+diff --git a/src/dialog/tests/test_prack.rs b/src/dialog/tests/test_prack.rs
+index d00bf0a..45a24ac 100644
+--- a/src/dialog/tests/test_prack.rs
++++ b/src/dialog/tests/test_prack.rs
+@@ -1,4 +1,5 @@
+ use super::test_dialog_states::{create_invite_request, create_test_endpoint};
++use crate::bounded::test_channel;
+ use crate::dialog::{dialog::DialogInner, server_dialog::ServerInviteDialog, DialogId};
+ use crate::sip::headers::*;
+ use crate::sip::{Header, Method, Request, SipMessage, StatusCode};
+@@ -11,14 +12,13 @@ use crate::transport::{
+ };
+ use std::convert::TryFrom;
+ use std::sync::Arc;
+-use tokio::sync::mpsc::unbounded_channel;
+ use tokio::time::{timeout, Duration};
+ 
+ #[tokio::test]
+ async fn server_dialog_handles_prack_request() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _state_receiver) = unbounded_channel();
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (state_sender, _state_receiver) = test_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_id = DialogId {
+         call_id: "test-call-prack".to_string(),
+@@ -73,8 +73,8 @@ async fn server_dialog_handles_prack_request() -> crate::Result<()> {
+ 
+     let key = TransactionKey::from_request(&prack_request, TransactionRole::Server)?;
+ 
+-    let (_, incoming_rx) = unbounded_channel();
+-    let (transport_tx, mut transport_rx) = unbounded_channel();
++    let (_, incoming_rx) = test_channel();
++    let (transport_tx, mut transport_rx) = test_channel();
+ 
+     let sip_addr: SipAddr = crate::sip::HostWithPort::try_from("127.0.0.1:5060")?.into();
+ 
+diff --git a/src/dialog/tests/test_refer.rs b/src/dialog/tests/test_refer.rs
+index 84993e2..961998a 100644
+--- a/src/dialog/tests/test_refer.rs
++++ b/src/dialog/tests/test_refer.rs
+@@ -1,6 +1,6 @@
+ use std::sync::Arc;
+ 
+-use tokio::sync::mpsc::unbounded_channel;
++use crate::bounded::test_channel;
+ 
+ use crate::dialog::{client_dialog::ClientInviteDialog, dialog::DialogInner, DialogId};
+ use crate::sip::{ReferTo, Uri};
+@@ -18,7 +18,7 @@ fn test_refer_to_from_uri_preserves_existing_uri_behavior() -> crate::Result<()>
+ #[tokio::test]
+ async fn test_client_dialog_refer_accepts_name_addr_values() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (state_sender, _) = unbounded_channel();
++    let (state_sender, _) = test_channel();
+ 
+     let dialog_id = DialogId {
+         call_id: "refer-name-addr".to_string(),
+@@ -27,7 +27,7 @@ async fn test_client_dialog_refer_accepts_name_addr_values() -> crate::Result<()
+     };
+ 
+     let invite_req = create_invite_request("alice-tag", "bob-tag", "refer-name-addr");
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
+ 
+     let dialog_inner = DialogInner::new(
+         TransactionRole::Client,
+diff --git a/src/dialog/tests/test_server_dialog.rs b/src/dialog/tests/test_server_dialog.rs
+index 1e00716..2ddf2dd 100644
+--- a/src/dialog/tests/test_server_dialog.rs
++++ b/src/dialog/tests/test_server_dialog.rs
+@@ -1,14 +1,14 @@
++use crate::bounded::test_channel;
+ use crate::sip::prelude::{HeadersExt, ToTypedHeader};
+ use std::net::{IpAddr, Ipv4Addr};
+ use std::sync::Arc;
+-use tokio::sync::mpsc::unbounded_channel;
+ 
+ use crate::{
+     dialog::{
+-        DialogId,
+         dialog::DialogInner,
+         server_dialog::ServerInviteDialog,
+         tests::test_dialog_states::{create_invite_request, create_test_endpoint},
++        DialogId,
+     },
+     transaction::{key::TransactionRole, transaction::TransactionEvent},
+     transport::SipAddr,
+@@ -24,8 +24,8 @@ async fn test_dialog_make_request() -> crate::Result<()> {
+     };
+ 
+     let endpoint = create_test_endpoint().await?;
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
++    let (state_sender, _state_receiver) = test_channel();
+     // Create INVITE request
+     let invite_req = create_invite_request("alice-tag-456", "", "test-call-id-123");
+     // Create dialog inner
+@@ -48,13 +48,12 @@ async fn test_dialog_make_request() -> crate::Result<()> {
+         .expect("Failed to make request");
+     assert_eq!(bye.method, crate::sip::Method::Bye);
+ 
+-    assert!(
+-        bye.via_header()
+-            .expect("not via header")
+-            .typed()?
+-            .received()
+-            .is_none()
+-    );
++    assert!(bye
++        .via_header()
++        .expect("not via header")
++        .typed()?
++        .received()
++        .is_none());
+     assert!(
+         bye.via_header().expect("not via header").typed()?.branch()
+             != invite_req
+@@ -76,8 +75,8 @@ async fn test_accept_with_public_contact_preserves_contact_header() -> crate::Re
+     };
+ 
+     let endpoint = create_test_endpoint().await?;
+-    let (tu_sender, mut tu_receiver) = unbounded_channel();
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (tu_sender, mut tu_receiver) = test_channel();
++    let (state_sender, _state_receiver) = test_channel();
+ 
+     // Create INVITE request
+     let invite_req = create_invite_request(&dialog_id.remote_tag, "", "test-call-id-contact");
+@@ -162,8 +161,8 @@ async fn test_reject_with_headers_preserves_retry_after_and_reason() -> crate::R
+         remote_tag: "alice-tag-456".to_string(),
+     };
+     let endpoint = create_test_endpoint().await?;
+-    let (tu_sender, mut tu_receiver) = unbounded_channel();
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (tu_sender, mut tu_receiver) = test_channel();
++    let (state_sender, _state_receiver) = test_channel();
+     let invite_req = create_invite_request(&dialog_id.remote_tag, "", "test-call-id-retry-after");
+     let dialog_inner = DialogInner::new(
+         TransactionRole::Server,
+@@ -221,8 +220,8 @@ async fn test_server_dialog_bye_via() -> crate::Result<()> {
+     };
+ 
+     let endpoint = create_test_endpoint().await?;
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
++    let (state_sender, _state_receiver) = test_channel();
+ 
+     // Create an INVITE request FROM alice (remote)
+     // This invite has Via: SIP/2.0/UDP alice.example.com:5060;branch=...;received=172.0.0.1
+@@ -271,8 +270,8 @@ async fn test_server_dialog_reinvite_via() -> crate::Result<()> {
+     };
+ 
+     let endpoint = create_test_endpoint().await?;
+-    let (tu_sender, _tu_receiver) = unbounded_channel();
+-    let (state_sender, _state_receiver) = unbounded_channel();
++    let (tu_sender, _tu_receiver) = test_channel();
++    let (state_sender, _state_receiver) = test_channel();
+ 
+     let invite_req = create_invite_request(&dialog_id.remote_tag, "", &dialog_id.call_id);
+ 
+diff --git a/src/dialog/tests/test_sub_pub.rs b/src/dialog/tests/test_sub_pub.rs
+index 844c1c5..2f64fa1 100644
+--- a/src/dialog/tests/test_sub_pub.rs
++++ b/src/dialog/tests/test_sub_pub.rs
+@@ -55,8 +55,8 @@ async fn test_server_publication_creation() -> crate::Result<()> {
+ #[tokio::test]
+ async fn test_client_publication_etag_handling() -> crate::Result<()> {
+     let endpoint = create_test_endpoint().await?;
+-    let (tu_sender, _tu_receiver) = tokio::sync::mpsc::unbounded_channel();
+-    let (state_sender, _state_receiver) = tokio::sync::mpsc::unbounded_channel();
++    let (tu_sender, _tu_receiver) = crate::bounded::test_channel();
++    let (state_sender, _state_receiver) = crate::bounded::test_channel();
+ 
+     let dialog_id = DialogId {
+         call_id: "pub-call-id".to_string(),
+diff --git a/src/lib.rs b/src/lib.rs
+index 5b0215a..9ce1d65 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -239,6 +239,7 @@
+ 
+ pub type Result<T> = std::result::Result<T, crate::error::Error>;
+ pub use crate::error::Error;
++pub mod bounded;
+ pub mod dialog;
+ pub mod error;
+ pub mod resolver;
+diff --git a/src/transaction/endpoint.rs b/src/transaction/endpoint.rs
+index 0c7e60e..c881702 100644
+--- a/src/transaction/endpoint.rs
++++ b/src/transaction/endpoint.rs
+@@ -21,10 +21,7 @@ use std::{
+     },
+     time::Duration,
+ };
+-use tokio::{
+-    select,
+-    sync::mpsc::{channel, error},
+-};
++use tokio::{select, sync::mpsc::channel};
+ use tokio_util::sync::CancellationToken;
+ use tracing::{debug, info, trace, warn};
+ 
+@@ -493,8 +490,8 @@ impl EndpointInner {
+                 if let Some(tu) = self.transactions.get(t.key()) {
+                     match tu.send(TransactionEvent::Timer(t)) {
+                         Ok(_) => {}
+-                        Err(error::SendError(t)) => {
+-                            if let TransactionEvent::Timer(t) = t {
++                        Err(error) => {
++                            if let TransactionEvent::Timer(t) = error.into_inner() {
+                                 self.detach_transaction(t.key(), None);
+                             }
+                         }
+diff --git a/src/transaction/tests/test_client.rs b/src/transaction/tests/test_client.rs
+index aecfff1..a3bda4e 100644
+--- a/src/transaction/tests/test_client.rs
++++ b/src/transaction/tests/test_client.rs
+@@ -1,3 +1,4 @@
++use crate::bounded::test_channel;
+ use crate::sip::{headers::*, prelude::HeadersExt, Header, Response, SipMessage, Uri};
+ use crate::transaction::key::{TransactionKey, TransactionRole};
+ use crate::transaction::transaction::Transaction;
+@@ -5,7 +6,7 @@ use crate::transport::udp::UdpConnection;
+ use crate::{transport::TransportEvent, Result};
+ use std::convert::TryFrom;
+ use std::time::Duration;
+-use tokio::{select, sync::mpsc::unbounded_channel, time::sleep};
++use tokio::{select, time::sleep};
+ use tracing::info;
+ 
+ fn make_invite_request(uri: &str) -> Result<crate::sip::Request> {
+@@ -38,7 +39,7 @@ async fn test_client_transaction() -> Result<()> {
+ 
+     let peer_server = UdpConnection::create_connection("127.0.0.1:0".parse()?, None, None).await?;
+     let peer_server_loop = async {
+-        let (sender, mut recevier) = unbounded_channel();
++        let (sender, mut recevier) = test_channel();
+         select! {
+             _ = async {
+                 if let Some(event) = recevier.recv().await {
+diff --git a/src/transaction/tests/test_server.rs b/src/transaction/tests/test_server.rs
+index 6ed041a..4077895 100644
+--- a/src/transaction/tests/test_server.rs
++++ b/src/transaction/tests/test_server.rs
+@@ -448,8 +448,8 @@ async fn reliable_transport_uses_h_but_no_g_or_i() {
+ 
+ #[tokio::test]
+ async fn initial_final_send_failure_does_not_commit_response_and_terminates() {
+-    let (_incoming_tx, incoming_rx) = tokio::sync::mpsc::unbounded_channel();
+-    let (outgoing_tx, outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (_incoming_tx, incoming_rx) = crate::bounded::test_channel();
++    let (outgoing_tx, outgoing_rx) = crate::bounded::test_channel();
+     drop(outgoing_rx);
+     let channel_addr = SipAddr::from(
+         "127.0.0.1:5060"
+@@ -493,8 +493,8 @@ async fn initial_final_send_failure_does_not_commit_response_and_terminates() {
+ 
+ #[tokio::test]
+ async fn async_final_response_send_failure_terminates_and_notifies_owner() {
+-    let (_incoming_tx, incoming_rx) = tokio::sync::mpsc::unbounded_channel();
+-    let (outgoing_tx, outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (_incoming_tx, incoming_rx) = crate::bounded::test_channel();
++    let (outgoing_tx, outgoing_rx) = crate::bounded::test_channel();
+     drop(outgoing_rx);
+     let channel_addr = SipAddr::from(
+         "127.0.0.1:5060"
+@@ -617,8 +617,8 @@ async fn endpoint_capacity_emergency_503_remains_stateless() {
+ 
+ #[tokio::test]
+ async fn repeated_send_trying_emits_one_initial_response() {
+-    let (_incoming_tx, incoming_rx) = tokio::sync::mpsc::unbounded_channel();
+-    let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (_incoming_tx, incoming_rx) = crate::bounded::test_channel();
++    let (outgoing_tx, mut outgoing_rx) = crate::bounded::test_channel();
+     let channel_addr = SipAddr::from(
+         "127.0.0.1:5060"
+             .parse::<std::net::SocketAddr>()
+@@ -686,8 +686,8 @@ async fn repeated_send_trying_emits_one_initial_response() {
+ 
+ #[tokio::test]
+ async fn failed_send_trying_can_retry_on_replacement_connection() {
+-    let (_failed_incoming_tx, failed_incoming_rx) = tokio::sync::mpsc::unbounded_channel();
+-    let (failed_outgoing_tx, failed_outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (_failed_incoming_tx, failed_incoming_rx) = crate::bounded::test_channel();
++    let (failed_outgoing_tx, failed_outgoing_rx) = crate::bounded::test_channel();
+     drop(failed_outgoing_rx);
+     let channel_addr = SipAddr::from(
+         "127.0.0.1:5060"
+@@ -733,8 +733,8 @@ async fn failed_send_trying_can_retry_on_replacement_connection() {
+ 
+     assert!(transaction.send_trying().await.is_err());
+ 
+-    let (_retry_incoming_tx, retry_incoming_rx) = tokio::sync::mpsc::unbounded_channel();
+-    let (retry_outgoing_tx, mut retry_outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (_retry_incoming_tx, retry_incoming_rx) = crate::bounded::test_channel();
++    let (retry_outgoing_tx, mut retry_outgoing_rx) = crate::bounded::test_channel();
+     let retry_connection = ChannelConnection::create_connection(
+         retry_incoming_rx,
+         retry_outgoing_tx,
+diff --git a/src/transaction/transaction.rs b/src/transaction/transaction.rs
+index 2d926ac..92ab3bd 100644
+--- a/src/transaction/transaction.rs
++++ b/src/transaction/transaction.rs
+@@ -1,6 +1,7 @@
+ use super::endpoint::EndpointInnerRef;
+ use super::key::TransactionKey;
+ use super::{SipConnection, TransactionState, TransactionTimer, TransactionType};
++use crate::bounded::{self, BoundedReceiver, BoundedSender};
+ use crate::dialog::DialogId;
+ use crate::sip::{
+     ContentLength, HasHeaders, Header, HeadersExt, Method, Request, Response, SipMessage,
+@@ -10,11 +11,10 @@ use crate::transaction::key::TransactionRole;
+ use crate::transaction::make_tag;
+ use crate::transport::SipAddr;
+ use crate::{Error, Result};
+-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+ use tracing::{debug, trace, warn};
+ 
+-pub type TransactionEventReceiver = UnboundedReceiver<TransactionEvent>;
+-pub type TransactionEventSender = UnboundedSender<TransactionEvent>;
++pub type TransactionEventReceiver = BoundedReceiver<TransactionEvent>;
++pub type TransactionEventSender = BoundedSender<TransactionEvent>;
+ 
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub enum ServerInviteTermination {
+@@ -71,7 +71,7 @@ pub enum TransactionEvent {
+ /// Useful for restoring dialogs after restart when a real transaction-user channel
+ /// is not available yet.
+ pub fn transaction_event_sender_noop() -> TransactionEventSender {
+-    let (tx, mut rx) = unbounded_channel::<TransactionEvent>();
++    let (tx, mut rx) = transaction_event_channel();
+     tokio::spawn(async move {
+         while let Some(_ev) = rx.recv().await {
+             // drop
+@@ -79,6 +79,10 @@ pub fn transaction_event_sender_noop() -> TransactionEventSender {
+     });
+     tx
+ }
++
++pub fn transaction_event_channel() -> (TransactionEventSender, TransactionEventReceiver) {
++    bounded::transaction_event_channel()
++}
+ /// SIP Transaction
+ ///
+ /// `Transaction` implements the SIP transaction layer as defined in RFC 3261.
+@@ -202,7 +206,7 @@ impl Transaction {
+         connection: Option<SipConnection>,
+         endpoint_inner: EndpointInnerRef,
+     ) -> Self {
+-        let (tu_sender, tu_receiver) = unbounded_channel();
++        let (tu_sender, tu_receiver) = transaction_event_channel();
+         let state = if matches!(
+             transaction_type,
+             TransactionType::ServerInvite | TransactionType::ServerNonInvite
+diff --git a/src/transport/channel.rs b/src/transport/channel.rs
+index 90a9f0d..a16e79b 100644
+--- a/src/transport/channel.rs
++++ b/src/transport/channel.rs
+@@ -157,7 +157,7 @@ mod tests {
+ 
+     #[tokio::test]
+     async fn test_create_connection_bounded_send_receive() {
+-        let (_incoming_tx, incoming_rx) = mpsc::unbounded_channel();
++        let (_incoming_tx, incoming_rx) = crate::bounded::test_channel();
+         let (outgoing_tx, mut outgoing_rx) = mpsc::channel(16);
+         let conn = ChannelConnection::create_connection_bounded(
+             incoming_rx,
+@@ -177,7 +177,7 @@ mod tests {
+ 
+     #[tokio::test]
+     async fn test_try_send_on_bounded() {
+-        let (_incoming_tx, incoming_rx) = mpsc::unbounded_channel();
++        let (_incoming_tx, incoming_rx) = crate::bounded::test_channel();
+         let (outgoing_tx, mut outgoing_rx) = mpsc::channel(2);
+         let conn = ChannelConnection::create_connection_bounded(
+             incoming_rx,
+@@ -197,8 +197,8 @@ mod tests {
+ 
+     #[tokio::test]
+     async fn test_try_send_on_unbounded() {
+-        let (_incoming_tx, incoming_rx) = mpsc::unbounded_channel();
+-        let (outgoing_tx, mut outgoing_rx) = mpsc::unbounded_channel();
++        let (_incoming_tx, incoming_rx) = crate::bounded::test_channel();
++        let (outgoing_tx, mut outgoing_rx) = crate::bounded::test_channel();
+         let conn =
+             ChannelConnection::create_connection(incoming_rx, outgoing_tx, test_sip_addr(), None)
+                 .await
+@@ -213,7 +213,7 @@ mod tests {
+ 
+     #[tokio::test]
+     async fn test_try_send_bounded_full() {
+-        let (_incoming_tx, incoming_rx) = mpsc::unbounded_channel();
++        let (_incoming_tx, incoming_rx) = crate::bounded::test_channel();
+         let (outgoing_tx, _outgoing_rx) = mpsc::channel(1);
+         let conn = ChannelConnection::create_connection_bounded(
+             incoming_rx,
+@@ -234,7 +234,8 @@ mod tests {
+ 
+     #[tokio::test]
+     async fn test_bounded_connection_serve_loop() {
+-        let (incoming_tx, incoming_rx) = mpsc::unbounded_channel::<super::super::TransportEvent>();
++        let (incoming_tx, incoming_rx) =
++            crate::bounded::test_channel::<super::super::TransportEvent>();
+         let (outgoing_tx, _outgoing_rx) = mpsc::channel(16);
+         let conn = ChannelConnection::create_connection_bounded(
+             incoming_rx,
+@@ -246,7 +247,7 @@ mod tests {
+         .expect("create_connection_bounded");
+ 
+         // Serve loop in background, forwarding events
+-        let (event_tx, _event_rx) = mpsc::unbounded_channel();
++        let (event_tx, _event_rx) = crate::bounded::test_channel();
+         let serve_conn = conn.clone();
+         tokio::spawn(async move {
+             let _ = serve_conn.serve_loop(event_tx).await;
+@@ -265,7 +266,8 @@ mod tests {
+ 
+     #[tokio::test]
+     async fn test_bounded_serve_loop_twice_returns_error() {
+-        let (incoming_tx, incoming_rx) = mpsc::unbounded_channel::<super::super::TransportEvent>();
++        let (incoming_tx, incoming_rx) =
++            crate::bounded::test_channel::<super::super::TransportEvent>();
+         let (outgoing_tx, _outgoing_rx) = mpsc::channel(16);
+         let conn = ChannelConnection::create_connection_bounded(
+             incoming_rx,
+@@ -279,13 +281,13 @@ mod tests {
+         // Drop the sender so the incoming channel is closed
+         drop(incoming_tx);
+ 
+-        let (event_tx, _event_rx) = mpsc::unbounded_channel();
++        let (event_tx, _event_rx) = crate::bounded::test_channel();
+         let result = conn.serve_loop(event_tx).await;
+         // First serve_loop should succeed (incoming channel is closed, so recv returns None)
+         assert!(result.is_ok());
+ 
+         // Second serve_loop should fail since incoming was already taken
+-        let (event_tx2, _event_rx2) = mpsc::unbounded_channel();
++        let (event_tx2, _event_rx2) = crate::bounded::test_channel();
+         let result2 = conn.serve_loop(event_tx2).await;
+         assert!(result2.is_err());
+     }
+diff --git a/src/transport/connection.rs b/src/transport/connection.rs
+index 58839ed..d63a6a2 100644
+--- a/src/transport/connection.rs
++++ b/src/transport/connection.rs
+@@ -1,4 +1,5 @@
+ use super::{sip_addr::SipAddr, stream::StreamConnection, tcp::TcpConnection, udp::UdpConnection};
++use crate::bounded::{self, BoundedReceiver, BoundedSender};
+ use crate::sip::headers::untyped::Via;
+ use crate::sip::{
+     prelude::{HeadersExt, ToTypedHeader},
+@@ -14,7 +15,6 @@ use crate::Result;
+ use if_addrs::IfAddr;
+ use std::net::{IpAddr, Ipv4Addr};
+ use std::{fmt, net::SocketAddr};
+-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+ use tokio_util::sync::CancellationToken;
+ use tracing::debug;
+ 
+@@ -60,8 +60,16 @@ pub enum TransportEvent {
+     Closed(SipConnection),
+ }
+ 
+-pub type TransportReceiver = UnboundedReceiver<TransportEvent>;
+-pub type TransportSender = UnboundedSender<TransportEvent>;
++pub type TransportReceiver = BoundedReceiver<TransportEvent>;
++pub type TransportSender = BoundedSender<TransportEvent>;
++
++pub fn transport_event_channel() -> (TransportSender, TransportReceiver) {
++    bounded::transport_event_channel()
++}
++
++pub fn transport_connection_event_channel() -> (TransportSender, TransportReceiver) {
++    bounded::transport_connection_event_channel()
++}
+ 
+ pub const KEEPALIVE_REQUEST: &[u8] = b"\r\n\r\n";
+ pub const KEEPALIVE_RESPONSE: &[u8] = b"\r\n";
+@@ -511,8 +519,8 @@ mod tests {
+ 
+     #[tokio::test]
+     async fn test_transport_channel_returns_udp() -> crate::Result<()> {
+-        let (_incoming_tx, incoming_rx) = tokio::sync::mpsc::unbounded_channel();
+-        let (outgoing_tx, _outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++        let (_incoming_tx, incoming_rx) = crate::bounded::test_channel();
++        let (outgoing_tx, _outgoing_rx) = crate::bounded::test_channel();
+         let conn =
+             ChannelConnection::create_connection(incoming_rx, outgoing_tx, test_sip_addr(), None)
+                 .await?;
+@@ -546,8 +554,8 @@ mod tests {
+ 
+     #[tokio::test]
+     async fn test_transport_channel_send() -> crate::Result<()> {
+-        let (_incoming_tx, incoming_rx) = tokio::sync::mpsc::unbounded_channel();
+-        let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++        let (_incoming_tx, incoming_rx) = crate::bounded::test_channel();
++        let (outgoing_tx, mut outgoing_rx) = crate::bounded::test_channel();
+         let conn =
+             ChannelConnection::create_connection(incoming_rx, outgoing_tx, test_sip_addr(), None)
+                 .await?;
+diff --git a/src/transport/tests/test_udp.rs b/src/transport/tests/test_udp.rs
+index 1a9d82a..3c03b13 100644
+--- a/src/transport/tests/test_udp.rs
++++ b/src/transport/tests/test_udp.rs
+@@ -1,3 +1,4 @@
++use crate::bounded::{test_channel, test_channel_with_capacity};
+ use crate::{
+     transport::{
+         connection::{KEEPALIVE_REQUEST, KEEPALIVE_RESPONSE},
+@@ -7,13 +8,13 @@ use crate::{
+     Result,
+ };
+ use std::time::Duration;
+-use tokio::{select, sync::mpsc::unbounded_channel, time::sleep};
++use tokio::{select, time::sleep};
+ 
+ #[tokio::test]
+ async fn test_udp_keepalive() -> Result<()> {
+     let peer_bob = UdpConnection::create_connection("127.0.0.1:0".parse()?, None, None).await?;
+     let peer_alice = UdpConnection::create_connection("127.0.0.1:0".parse()?, None, None).await?;
+-    let (alice_tx, _) = unbounded_channel::<TransportEvent>();
++    let (alice_tx, _) = test_channel::<TransportEvent>();
+ 
+     let bob_loop = async {
+         sleep(Duration::from_millis(20)).await; // wait for serve_loop to start
+@@ -44,8 +45,8 @@ async fn test_udp_keepalive() -> Result<()> {
+ async fn test_udp_recv_sip_message() -> Result<()> {
+     let peer_bob = UdpConnection::create_connection("127.0.0.1:0".parse()?, None, None).await?;
+     let peer_alice = UdpConnection::create_connection("127.0.0.1:0".parse()?, None, None).await?;
+-    let (alice_tx, _) = unbounded_channel();
+-    let (bob_tx, mut bob_rx) = unbounded_channel();
++    let (alice_tx, _) = test_channel();
++    let (bob_tx, mut bob_rx) = test_channel();
+ 
+     let send_loop = async {
+         sleep(Duration::from_millis(20)).await; // wait for serve_loop to start
+@@ -91,7 +92,7 @@ async fn test_udp_recv_sip_message() -> Result<()> {
+ async fn test_udp_recv_binary_body_sip_message() -> Result<()> {
+     let peer_bob = UdpConnection::create_connection("127.0.0.1:0".parse()?, None, None).await?;
+     let peer_alice = UdpConnection::create_connection("127.0.0.1:0".parse()?, None, None).await?;
+-    let (bob_tx, mut bob_rx) = unbounded_channel();
++    let (bob_tx, mut bob_rx) = test_channel();
+ 
+     let send_loop = async {
+         sleep(Duration::from_millis(20)).await;
+@@ -141,3 +142,55 @@ Content-Length: 3\r\n\r\n"
+     };
+     Ok(())
+ }
++
++#[tokio::test]
++async fn test_udp_ingress_survives_a_full_transport_mailbox() -> Result<()> {
++    let receiver = UdpConnection::create_connection("127.0.0.1:0".parse()?, None, None).await?;
++    let sender = UdpConnection::create_connection("127.0.0.1:0".parse()?, None, None).await?;
++    let (event_tx, mut event_rx) = test_channel_with_capacity(1);
++
++    let message = |cseq: usize| {
++        format!(
++            "OPTIONS sip:bob@example.com SIP/2.0\r\n\
++Via: SIP/2.0/UDP 127.0.0.1:5061;branch=z9hG4bK{cseq}\r\n\
++CSeq: {cseq} OPTIONS\r\n\r\n"
++        )
++    };
++
++    let drive = async {
++        sender
++            .send_raw(message(1).as_bytes(), receiver.get_addr())
++            .await?;
++        sleep(Duration::from_millis(20)).await;
++        sender
++            .send_raw(message(2).as_bytes(), receiver.get_addr())
++            .await?;
++        sleep(Duration::from_millis(20)).await;
++
++        let first = event_rx.recv().await.expect("first message must be queued");
++        assert!(matches!(first, TransportEvent::Incoming(_, _, _)));
++
++        sender
++            .send_raw(message(3).as_bytes(), receiver.get_addr())
++            .await?;
++        let third = tokio::time::timeout(Duration::from_millis(200), event_rx.recv())
++            .await
++            .expect("UDP receive loop must continue after shedding one message")
++            .expect("transport mailbox must remain open");
++        assert!(matches!(third, TransportEvent::Incoming(_, _, _)));
++
++        Result::<()>::Ok(())
++    };
++
++    select! {
++        result = receiver.serve_loop(event_tx) => {
++            panic!("shared UDP receive loop exited during mailbox overload: {result:?}");
++        }
++        result = drive => result?,
++        _ = sleep(Duration::from_secs(1)) => {
++            panic!("timed out exercising UDP mailbox overload");
++        }
++    }
++
++    Ok(())
++}
+diff --git a/src/transport/transport_layer.rs b/src/transport/transport_layer.rs
+index aef815a..0b20404 100644
+--- a/src/transport/transport_layer.rs
++++ b/src/transport/transport_layer.rs
+@@ -1,6 +1,11 @@
+ use super::tls::{TlsConfig, TlsConnection};
+ use super::websocket::WebSocketConnection;
+-use super::{connection::TransportSender, sip_addr::SipAddr, tcp::TcpConnection, SipConnection};
++use super::{
++    connection::{transport_event_channel, TransportSender},
++    sip_addr::SipAddr,
++    tcp::TcpConnection,
++    SipConnection,
++};
+ use crate::resolver::SipResolver;
+ use crate::sip::{Host, HostWithPort, Transport};
+ use crate::transaction::key::TransactionKey;
+@@ -15,7 +20,6 @@ use std::sync::{
+     Arc,
+ };
+ use tokio::select;
+-use tokio::sync::mpsc;
+ use tokio_util::sync::CancellationToken;
+ use tracing::{debug, info, warn};
+ 
+@@ -229,7 +233,7 @@ impl TransportLayer {
+         cancel_token: CancellationToken,
+         domain_resolver: Box<dyn DomainResolver>,
+     ) -> Self {
+-        let (transport_tx, transport_rx) = mpsc::unbounded_channel();
++        let (transport_tx, transport_rx) = transport_event_channel();
+         let inner = TransportLayerInner {
+             cancel_token,
+             listens: Arc::new(RwLock::new(Vec::new())),
+diff --git a/src/transport/udp.rs b/src/transport/udp.rs
+index 5974c17..bb85137 100644
+--- a/src/transport/udp.rs
++++ b/src/transport/udp.rs
+@@ -180,7 +180,7 @@ impl UdpConnection {
+                 addr: addr.into(),
+             };
+ 
+-            sender.send(TransportEvent::Incoming(
++            let event = TransportEvent::Incoming(
+                 msg,
+                 SipConnection::Udp(Self {
+                     external: self.external.clone(),
+@@ -189,7 +189,18 @@ impl UdpConnection {
+                     inner: self.inner.clone(),
+                 }),
+                 from,
+-            ))?;
++            );
++            match sender.try_send(event) {
++                Ok(()) => {}
++                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
++                    // UDP has no connection to shed. Drop only this datagram;
++                    // the shared listener must survive transient overload.
++                    continue;
++                }
++                Err(error @ tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
++                    return Err(error.into());
++                }
++            }
+         }
+     }
+ 
+

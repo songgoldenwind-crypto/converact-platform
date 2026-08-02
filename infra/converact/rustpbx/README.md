@@ -94,6 +94,23 @@ RustPBX library suite pass on the controlled candidate source tree (`1913`
 passed, `1` ignored); the clean commit-bound build, release image, SIPp and
 capacity gates remain `not_run`.
 
+## Bounded protocol and Call-control mailboxes
+
+ivekit.43 replaces production transaction, Dialog, transport, Call actor,
+timer, REFER, RWI, WebSocket output and local SipFlow unbounded channels with
+fixed-capacity Tokio mailboxes. SIP/Call ingress uses non-blocking admission
+and fixed-label rejection counters. Timer delivery may await capacity only in
+its existing off-ingress timer task, so timeout semantics are retained without
+blocking packet ingress. A full shared UDP transport mailbox drops the current
+datagram and continues the listener; a closed mailbox terminates it. Per-
+connection transport queues use the lower 256-event ceiling rather than the
+8,192-event global ceiling.
+
+Local exact-source evidence is 272/272 rsipstack library tests and 1919 passed
+plus 1 ignored RustPBX library test. The `.43` release image, controlled-host
+wire/latency/long-call/fault/capacity campaigns and production eligibility
+remain `not_run` until requalified against the committed patchset.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

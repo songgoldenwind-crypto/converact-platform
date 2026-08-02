@@ -1,0 +1,2138 @@
+diff --git a/src/call/app/controller.rs b/src/call/app/controller.rs
+index 97829180..d57fb893 100644
+--- a/src/call/app/controller.rs
++++ b/src/call/app/controller.rs
+@@ -53,9 +53,9 @@ pub struct RecordingInfo {
+ /// Use [`cancel_timeout`](Self::cancel_timeout) to suppress a pending fire.
+ pub struct CallController {
+     pub(crate) session: SipSessionHandle,
+-    pub(crate) event_rx: mpsc::UnboundedReceiver<ControllerEvent>,
++    pub(crate) event_rx: ControllerEventReceiver,
+     /// Sends fired timer IDs to the AppEventLoop.
+-    pub(crate) fired_timer_tx: mpsc::UnboundedSender<String>,
++    pub(crate) fired_timer_tx: mpsc::Sender<String>,
+     /// Set of timer IDs that have been cancelled and should be suppressed.
+     pub(crate) cancelled_timers: Arc<Mutex<HashSet<String>>>,
+     /// JoinHandles of pending timer tasks, keyed by timer id, so they can be
+@@ -101,6 +101,16 @@ pub enum ControllerEvent {
+     Custom(String, serde_json::Value),
+ }
+ 
++pub const CALL_CONTROLLER_EVENT_QUEUE_CAPACITY: usize = 32;
++pub const CALL_CONTROLLER_TIMER_QUEUE_CAPACITY: usize = 16;
++
++pub type ControllerEventSender = mpsc::Sender<ControllerEvent>;
++pub type ControllerEventReceiver = mpsc::Receiver<ControllerEvent>;
++
++pub fn controller_event_channel() -> (ControllerEventSender, ControllerEventReceiver) {
++    mpsc::channel(CALL_CONTROLLER_EVENT_QUEUE_CAPACITY)
++}
++
+ /// Configuration for collecting DTMF input.
+ #[derive(Debug, Clone)]
+ pub struct DtmfCollectConfig {
+@@ -123,13 +133,13 @@ pub struct DtmfCollectConfig {
+ impl CallController {
+     /// Create a controller and its paired timer-fire channel.
+     ///
+-    /// The returned `UnboundedReceiver<String>` **must** be passed to
++    /// The returned bounded receiver **must** be passed to
+     /// [`AppEventLoop::new`] so fired timer IDs reach `on_timeout`.
+     pub fn new(
+         session: SipSessionHandle,
+-        event_rx: mpsc::UnboundedReceiver<ControllerEvent>,
+-    ) -> (Self, mpsc::UnboundedReceiver<String>) {
+-        let (fired_timer_tx, fired_timer_rx) = mpsc::unbounded_channel();
++        event_rx: ControllerEventReceiver,
++    ) -> (Self, mpsc::Receiver<String>) {
++        let (fired_timer_tx, fired_timer_rx) = mpsc::channel(CALL_CONTROLLER_TIMER_QUEUE_CAPACITY);
+         let ctrl = Self {
+             session,
+             event_rx,
+@@ -254,7 +264,9 @@ impl CallController {
+             // Only fire if not cancelled in the meantime.
+             let was_cancelled = cancelled.lock().remove(&id_task);
+             if !was_cancelled {
+-                let _ = tx.send(id_task);
++                if tx.send(id_task).await.is_err() {
++                    crate::metrics::call_control::mailbox_rejected("timer", "closed");
++                }
+             }
+         });
+         self.timer_tasks.lock().insert(id, handle);
+@@ -471,15 +483,75 @@ mod tests {
+     use tokio::sync::mpsc;
+     use tokio::time::{Duration, timeout};
+ 
++    #[test]
++    fn controller_event_mailbox_rejects_full_and_closed_without_waiting() {
++        let (event_tx, event_rx) = controller_event_channel();
++
++        for sequence in 0..CALL_CONTROLLER_EVENT_QUEUE_CAPACITY {
++            event_tx
++                .try_send(ControllerEvent::Custom(
++                    format!("event-{sequence}"),
++                    serde_json::Value::Null,
++                ))
++                .expect("configured mailbox capacity must accept exactly that many events");
++        }
++
++        assert!(matches!(
++            event_tx.try_send(ControllerEvent::Custom(
++                "overflow".to_string(),
++                serde_json::Value::Null,
++            )),
++            Err(mpsc::error::TrySendError::Full(_))
++        ));
++
++        drop(event_rx);
++        assert!(matches!(
++            event_tx.try_send(ControllerEvent::Custom(
++                "closed".to_string(),
++                serde_json::Value::Null,
++            )),
++            Err(mpsc::error::TrySendError::Closed(_))
++        ));
++    }
++
++    #[tokio::test]
++    async fn timer_delivery_waits_for_bounded_mailbox_capacity() {
++        let (command_tx, _command_rx) = mpsc::channel(1);
++        let (_event_tx, event_rx) = controller_event_channel();
++        let session = crate::proxy::proxy_call::sip_session::SipSessionHandle::new_for_test(
++            "timer-capacity",
++            command_tx,
++        );
++        let (controller, mut timer_rx) = CallController::new(session, event_rx);
++
++        for sequence in 0..CALL_CONTROLLER_TIMER_QUEUE_CAPACITY {
++            controller
++                .fired_timer_tx
++                .try_send(format!("occupied-{sequence}"))
++                .expect("timer mailbox must accept its configured capacity");
++        }
++
++        controller.set_timeout("deferred", Duration::ZERO);
++        tokio::time::sleep(Duration::from_millis(10)).await;
++
++        for _ in 0..CALL_CONTROLLER_TIMER_QUEUE_CAPACITY {
++            assert!(timer_rx.recv().await.is_some());
++        }
++        let deferred = timeout(Duration::from_millis(100), timer_rx.recv())
++            .await
++            .expect("expired timer must wait for capacity instead of being dropped");
++        assert_eq!(deferred.as_deref(), Some("deferred"));
++    }
++
+     /// Creates a controller with access to both the event sender and command receiver.
+     /// Returns (controller, event_tx, cmd_rx)
+     fn make_controller_with_channels() -> (
+         CallController,
+-        mpsc::UnboundedSender<ControllerEvent>,
++        ControllerEventSender,
+         mpsc::Receiver<CallCommand>,
+     ) {
+         let (cmd_tx, cmd_rx) = mpsc::channel(256);
+-        let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
++        let (event_tx, event_rx) = controller_event_channel();
+ 
+         // Create a minimal SipSessionHandle for testing
+         use crate::proxy::proxy_call::sip_session::SipSessionHandle;
+@@ -498,12 +570,13 @@ mod tests {
+             while let Some(cmd) = cmd_rx.recv().await {
+                 if matches!(cmd, CallCommand::StopRecording) {
+                     // Simulate the session processing the stop and sending back RecordingComplete
+-                    let _ =
+-                        event_tx_clone.send(ControllerEvent::RecordingComplete(RecordingInfo {
++                    let _ = event_tx_clone.try_send(ControllerEvent::RecordingComplete(
++                        RecordingInfo {
+                             path: "/tmp/test.wav".to_string(),
+                             duration: Duration::from_secs(5),
+                             size_bytes: 1024,
+-                        }));
++                        },
++                    ));
+                     break;
+                 }
+             }
+@@ -526,7 +599,7 @@ mod tests {
+             // Wait for StopRecording command
+             while let Some(cmd) = cmd_rx.recv().await {
+                 if matches!(cmd, CallCommand::StopRecording) {
+-                    let _ = event_tx.send(ControllerEvent::Hangup(None));
++                    let _ = event_tx.try_send(ControllerEvent::Hangup(None));
+                     break;
+                 }
+             }
+@@ -550,18 +623,19 @@ mod tests {
+             while let Some(cmd) = cmd_rx.recv().await {
+                 if matches!(cmd, CallCommand::StopRecording) {
+                     // Send some other events first (simulating concurrent events)
+-                    let _ = event_tx_clone.send(ControllerEvent::DtmfReceived("1".to_string()));
+-                    let _ = event_tx_clone.send(ControllerEvent::AudioComplete {
++                    let _ = event_tx_clone.try_send(ControllerEvent::DtmfReceived("1".to_string()));
++                    let _ = event_tx_clone.try_send(ControllerEvent::AudioComplete {
+                         track_id: "test".to_string(),
+                         interrupted: false,
+                     });
+                     // Then send RecordingComplete
+-                    let _ =
+-                        event_tx_clone.send(ControllerEvent::RecordingComplete(RecordingInfo {
++                    let _ = event_tx_clone.try_send(ControllerEvent::RecordingComplete(
++                        RecordingInfo {
+                             path: "/tmp/test2.wav".to_string(),
+                             duration: Duration::from_secs(10),
+                             size_bytes: 2048,
+-                        }));
++                        },
++                    ));
+                     break;
+                 }
+             }
+diff --git a/src/call/app/event_loop.rs b/src/call/app/event_loop.rs
+index c1520be3..b5a91808 100644
+--- a/src/call/app/event_loop.rs
++++ b/src/call/app/event_loop.rs
+@@ -14,7 +14,7 @@ pub struct AppEventLoop {
+     context: ApplicationContext,
+     cancel_token: CancellationToken,
+     /// Receives timer IDs fired by `CallController::set_timeout`.
+-    fired_timer_rx: mpsc::UnboundedReceiver<String>,
++    fired_timer_rx: mpsc::Receiver<String>,
+ }
+ 
+ impl AppEventLoop {
+@@ -36,7 +36,7 @@ impl AppEventLoop {
+         controller: CallController,
+         context: ApplicationContext,
+         cancel_token: CancellationToken,
+-        fired_timer_rx: mpsc::UnboundedReceiver<String>,
++        fired_timer_rx: mpsc::Receiver<String>,
+     ) -> Self {
+         Self {
+             app,
+diff --git a/src/call/app/ivr_test.rs b/src/call/app/ivr_test.rs
+index 1f6f343b..22735631 100644
+--- a/src/call/app/ivr_test.rs
++++ b/src/call/app/ivr_test.rs
+@@ -1827,7 +1827,7 @@ action = { type = "transfer", target = "100" }
+             .with_loop(false)
+             .with_codec_preference(vec![CodecType::PCMU])
+             .with_on_end(std::sync::Arc::new(move |reason| {
+-                let _ = tx.send(ControllerEvent::AudioComplete {
++                let _ = tx.try_send(ControllerEvent::AudioComplete {
+                     track_id: "default".to_string(),
+                     interrupted: matches!(reason, PlaybackEndReason::Interrupted),
+                 });
+diff --git a/src/call/app/mod.rs b/src/call/app/mod.rs
+index 842a4d44..dc833f68 100644
+--- a/src/call/app/mod.rs
++++ b/src/call/app/mod.rs
+@@ -108,8 +108,9 @@ pub use app_context::{
+     AppSharedState, ApplicationContext, CallInfo, PendingQueuePlan, extract_sip_headers,
+ };
+ pub use controller::{
+-    CallController, ControllerEvent, DtmfCollectConfig, HangupDuringCollection, PlaybackHandle,
+-    RecordingHandle, RecordingInfo,
++    CallController, ControllerEvent, ControllerEventReceiver, ControllerEventSender,
++    DtmfCollectConfig, HangupDuringCollection, PlaybackHandle, RecordingHandle, RecordingInfo,
++    controller_event_channel,
+ };
+ pub use event_loop::AppEventLoop;
+ 
+diff --git a/src/call/app/testing.rs b/src/call/app/testing.rs
+index 2890a418..0e2af4bc 100644
+--- a/src/call/app/testing.rs
++++ b/src/call/app/testing.rs
+@@ -21,7 +21,10 @@
+ //! stack.assert_cmd(50, "hangup", |c| matches!(c, CallCommand::Hangup { .. })).await;
+ //! ```
+ 
+-use super::{AppEventLoop, CallApp, CallController, ControllerEvent, RecordingInfo};
++use super::{
++    AppEventLoop, CallApp, CallController, ControllerEvent, RecordingInfo,
++    controller::ControllerEventSender,
++};
+ use crate::call::app::{ApplicationContext, CallInfo};
+ use crate::call::domain::CallCommand;
+ use crate::config::Config;
+@@ -35,7 +38,7 @@ use tokio::sync::mpsc;
+ use tokio_util::sync::CancellationToken;
+ 
+ /// Type alias for mock call stack command sender.
+-pub type MockCmdTx = tokio::sync::mpsc::UnboundedSender<CallCommand>;
++pub type MockCmdTx = tokio::sync::mpsc::Sender<CallCommand>;
+ /// Type alias for mock call stack command receiver.
+ pub type MockCmdRx = tokio::sync::mpsc::Receiver<CallCommand>;
+ 
+@@ -47,7 +50,7 @@ pub type MockCmdRx = tokio::sync::mpsc::Receiver<CallCommand>;
+ /// - A real [`AppEventLoop`] running the app in a background Tokio task.
+ pub struct MockCallStack {
+     /// Inject SIP-originated events into the running app.
+-    event_tx: mpsc::UnboundedSender<ControllerEvent>,
++    event_tx: ControllerEventSender,
+     /// Observe [`CallCommand`]s emitted by the app toward the SIP layer.
+     cmd_rx: MockCmdRx,
+     /// Cancel token wired to the AppEventLoop's child token.
+@@ -88,7 +91,7 @@ impl MockCallStack {
+         let handle = SipSessionHandle::new_for_test("test-session", cmd_tx);
+ 
+         // Synthetic event channel: test → controller.
+-        let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel::<ControllerEvent>();
++        let (event_tx, event_rx) = super::controller::controller_event_channel();
+ 
+         // Controller + companion timer-fire channel for AppEventLoop.
+         let (controller, timer_rx) = CallController::new(handle, event_rx);
+@@ -112,13 +115,13 @@ impl MockCallStack {
+     pub fn dtmf(&self, digit: impl Into<String>) -> &Self {
+         let _ = self
+             .event_tx
+-            .send(ControllerEvent::DtmfReceived(digit.into()));
++            .try_send(ControllerEvent::DtmfReceived(digit.into()));
+         self
+     }
+ 
+     /// Inject an audio-playback-complete event.
+     pub fn audio_complete(&self, track_id: impl Into<String>) -> &Self {
+-        let _ = self.event_tx.send(ControllerEvent::AudioComplete {
++        let _ = self.event_tx.try_send(ControllerEvent::AudioComplete {
+             track_id: track_id.into(),
+             interrupted: false,
+         });
+@@ -127,7 +130,7 @@ impl MockCallStack {
+ 
+     /// Inject an interrupted audio event (e.g. barge-in).
+     pub fn audio_interrupted(&self, track_id: impl Into<String>) -> &Self {
+-        let _ = self.event_tx.send(ControllerEvent::AudioComplete {
++        let _ = self.event_tx.try_send(ControllerEvent::AudioComplete {
+             track_id: track_id.into(),
+             interrupted: true,
+         });
+@@ -143,7 +146,7 @@ impl MockCallStack {
+     ) -> &Self {
+         let _ = self
+             .event_tx
+-            .send(ControllerEvent::RecordingComplete(RecordingInfo {
++            .try_send(ControllerEvent::RecordingComplete(RecordingInfo {
+                 path: path.into(),
+                 duration,
+                 size_bytes,
+@@ -153,7 +156,7 @@ impl MockCallStack {
+ 
+     /// Inject a remote-hangup event (no specific reason).
+     pub fn remote_hangup(&self) -> &Self {
+-        let _ = self.event_tx.send(ControllerEvent::Hangup(None));
++        let _ = self.event_tx.try_send(ControllerEvent::Hangup(None));
+         self
+     }
+ 
+@@ -161,14 +164,14 @@ impl MockCallStack {
+     pub fn custom(&self, name: impl Into<String>, data: serde_json::Value) -> &Self {
+         let _ = self
+             .event_tx
+-            .send(ControllerEvent::Custom(name.into(), data));
++            .try_send(ControllerEvent::Custom(name.into(), data));
+         self
+     }
+ 
+     /// Return a clone of the event sender so callers can inject events
+     /// asynchronously (e.g. from a background task wired to a real FileTrack
+     /// completion_notify).
+-    pub fn event_sender(&self) -> mpsc::UnboundedSender<ControllerEvent> {
++    pub fn event_sender(&self) -> ControllerEventSender {
+         self.event_tx.clone()
+     }
+ 
+@@ -222,7 +225,7 @@ impl MockCallStack {
+ 
+     /// Inject a timeout event.
+     pub fn timeout(&self, id: impl Into<String>) -> &Self {
+-        let _ = self.event_tx.send(ControllerEvent::Timeout(id.into()));
++        let _ = self.event_tx.try_send(ControllerEvent::Timeout(id.into()));
+         self
+     }
+ 
+diff --git a/src/call/domain/transfer_event.rs b/src/call/domain/transfer_event.rs
+index e75b379c..18d738ad 100644
+--- a/src/call/domain/transfer_event.rs
++++ b/src/call/domain/transfer_event.rs
+@@ -7,9 +7,16 @@
+ use tokio::sync::mpsc;
+ 
+ /// Type alias for ReferNotify event sender.
+-pub type ReferNotifyTx = mpsc::UnboundedSender<ReferNotifyEvent>;
++pub type ReferNotifyTx = mpsc::Sender<ReferNotifyEvent>;
+ /// Type alias for ReferNotify event receiver.
+-pub type ReferNotifyRx = mpsc::UnboundedReceiver<ReferNotifyEvent>;
++pub type ReferNotifyRx = mpsc::Receiver<ReferNotifyEvent>;
++
++pub const REFER_NOTIFY_QUEUE_CAPACITY: usize = 16;
++pub const MAX_REFER_NOTIFY_SUBSCRIBERS: usize = 16;
++
++pub fn refer_notify_channel() -> (ReferNotifyTx, ReferNotifyRx) {
++    mpsc::channel(REFER_NOTIFY_QUEUE_CAPACITY)
++}
+ 
+ /// Whether this event represents a synchronous REFER response or an
+ /// asynchronous REFER subscription NOTIFY.
+@@ -29,3 +36,47 @@ pub struct ReferNotifyEvent {
+     pub reason: Option<String>,
+     pub event_type: ReferNotifyEventType,
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn event(sequence: usize) -> ReferNotifyEvent {
++        ReferNotifyEvent {
++            call_id: format!("call-{sequence}"),
++            sip_status: 202,
++            reason: None,
++            event_type: ReferNotifyEventType::ReferResponse,
++        }
++    }
++
++    #[test]
++    fn refer_notify_mailbox_rejects_full_and_closed_without_waiting() {
++        let (sender, receiver) = refer_notify_channel();
++
++        for sequence in 0..REFER_NOTIFY_QUEUE_CAPACITY {
++            sender
++                .try_send(event(sequence))
++                .expect("configured mailbox capacity must accept exactly that many events");
++        }
++
++        assert!(matches!(
++            sender.try_send(event(REFER_NOTIFY_QUEUE_CAPACITY)),
++            Err(mpsc::error::TrySendError::Full(_))
++        ));
++
++        drop(receiver);
++        assert!(matches!(
++            sender.try_send(event(REFER_NOTIFY_QUEUE_CAPACITY + 1)),
++            Err(mpsc::error::TrySendError::Closed(_))
++        ));
++    }
++
++    #[test]
++    fn subscriber_limit_is_independent_from_per_subscriber_queue_capacity() {
++        assert!(MAX_REFER_NOTIFY_SUBSCRIBERS > 0);
++        assert!(REFER_NOTIFY_QUEUE_CAPACITY > 0);
++        assert_eq!(MAX_REFER_NOTIFY_SUBSCRIBERS, 16);
++        assert_eq!(REFER_NOTIFY_QUEUE_CAPACITY, 16);
++    }
++}
+diff --git a/src/call/runtime/default_app_runtime.rs b/src/call/runtime/default_app_runtime.rs
+index 567d1313..3d30ec43 100644
+--- a/src/call/runtime/default_app_runtime.rs
++++ b/src/call/runtime/default_app_runtime.rs
+@@ -5,7 +5,7 @@
+ 
+ use async_trait::async_trait;
+ use std::sync::Arc;
+-use tokio::sync::{RwLock, mpsc};
++use tokio::sync::RwLock;
+ use tokio_util::sync::CancellationToken;
+ 
+ use crate::call::app::{ApplicationContext, CallApp, CallController, ControllerEvent};
+@@ -99,7 +99,7 @@ impl AppRuntime for DefaultAppRuntime {
+         }
+ 
+         // Create event channel for app events (DTMF, hangup, etc.)
+-        let (event_tx, event_rx) = mpsc::unbounded_channel::<ControllerEvent>();
++        let (event_tx, event_rx) = crate::call::app::controller_event_channel();
+ 
+         // Create controller — it owns the timer sender, we get the receiver back.
+         let (controller, timer_rx) = CallController::new(self.handle.clone(), event_rx);
+diff --git a/src/console/handlers/setting.rs b/src/console/handlers/setting.rs
+index 42a4e62b..34fb9a26 100644
+--- a/src/console/handlers/setting.rs
++++ b/src/console/handlers/setting.rs
+@@ -2429,8 +2429,9 @@ async fn cluster_reload_sse_handler(
+     };
+ 
+     use axum::response::sse::{KeepAlive, Sse};
+-    let (tx, rx) =
+-        tokio::sync::mpsc::unbounded_channel::<Result<SseEvent, std::convert::Infallible>>();
++    let (tx, rx) = tokio::sync::mpsc::channel::<Result<SseEvent, std::convert::Infallible>>(
++        crate::handler::ami::CLUSTER_RELOAD_EVENT_QUEUE_CAPACITY,
++    );
+ 
+     let payload = crate::handler::ami::PingReloadPayload {
+         trunks: query.trunks,
+@@ -2443,9 +2444,11 @@ async fn cluster_reload_sse_handler(
+         macro_rules! sse_send {
+             ($event_type:expr, $data:expr) => {
+                 let tx = tx.clone();
+-                let _ = tx.send(Ok(SseEvent::default()
+-                    .event($event_type)
+-                    .data($data.to_string())));
++                let _ = tx
++                    .send(Ok(SseEvent::default()
++                        .event($event_type)
++                        .data($data.to_string())))
++                    .await;
+             };
+         }
+ 
+@@ -3100,10 +3103,7 @@ pub(crate) async fn test_http_router(
+         "direction": "internal"
+     });
+ 
+-    let req = state
+-        .http_client()
+-        .post(&payload.url)
+-        .json(&test_request);
++    let req = state.http_client().post(&payload.url).json(&test_request);
+     match crate::http_util::execute_request(req, &opts.headers, opts.timeout).await {
+         Ok(resp) => Json(json!({
+             "status": "ok",
+diff --git a/src/handler/ami.rs b/src/handler/ami.rs
+index fa70faa1..460df132 100644
+--- a/src/handler/ami.rs
++++ b/src/handler/ami.rs
+@@ -847,6 +847,9 @@ pub struct PingReloadPayload {
+     pub addons: Vec<String>,
+ }
+ 
++#[cfg(feature = "commerce")]
++pub const CLUSTER_RELOAD_EVENT_QUEUE_CAPACITY: usize = 64;
++
+ #[cfg(feature = "commerce")]
+ impl<'de> serde::Deserialize<'de> for PingReloadPayload {
+     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+@@ -1004,7 +1007,11 @@ async fn cluster_ping_handler(State(state): State<AppState>) -> Response {
+         let start = Instant::now();
+         let opts = crate::http_util::HttpFetchOptions::new()
+             .with_timeout(std::time::Duration::from_secs(5));
+-        match crate::http_util::execute_request(state.http_client().get(&url), &opts.headers, opts.timeout)
++        match crate::http_util::execute_request(
++            state.http_client().get(&url),
++            &opts.headers,
++            opts.timeout,
++        )
+         .await
+         {
+             Ok(resp) => {
+@@ -1070,15 +1077,19 @@ async fn cluster_reload_config_handler(
+     use std::convert::Infallible;
+ 
+     let payload = query;
+-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<SseEvent, Infallible>>();
++    let (tx, rx) = tokio::sync::mpsc::channel::<Result<SseEvent, Infallible>>(
++        CLUSTER_RELOAD_EVENT_QUEUE_CAPACITY,
++    );
+ 
+     crate::utils::spawn(async move {
+         let send_event = |event_type: &'static str, data: serde_json::Value| {
+             let tx = tx.clone();
+             async move {
+-                let _ = tx.send(Ok(SseEvent::default()
+-                    .event(event_type)
+-                    .data(data.to_string())));
++                let _ = tx
++                    .send(Ok(SseEvent::default()
++                        .event(event_type)
++                        .data(data.to_string())))
++                    .await;
+             }
+         };
+ 
+@@ -1458,8 +1469,7 @@ pub async fn reload_addons_with_sync(
+             addons: selected.clone(),
+         };
+         let peers = fanout_reload_to_peers(app, &payload).await;
+-        let peers_json =
+-            serde_json::to_value(&peers).unwrap_or(serde_json::json!([]));
++        let peers_json = serde_json::to_value(&peers).unwrap_or(serde_json::json!([]));
+         return serde_json::json!({
+             "local": local_json,
+             "synced": true,
+@@ -1645,10 +1655,7 @@ mod reload_addon_tests {
+     #[test]
+     fn build_local_reload_map_error_result() {
+         let requested = vec!["ivr".to_string()];
+-        let results = vec![(
+-            "ivr",
+-            Err("build failed: no provider url".to_string()),
+-        )];
++        let results = vec![("ivr", Err("build failed: no provider url".to_string()))];
+         let map = build_local_reload_map(&requested, results);
+         let entry = map.get("ivr").expect("ivr key present");
+         assert_eq!(entry["status"], "error");
+diff --git a/src/metrics.rs b/src/metrics.rs
+index 18080dfa..acf6ee2a 100644
+--- a/src/metrics.rs
++++ b/src/metrics.rs
+@@ -145,6 +145,34 @@ pub mod transaction {
+         metrics::counter!("rustpbx_sip_transport_connection_limit_rejections_total")
+             .increment(count);
+     }
++
++    pub fn set_protocol_mailbox_capacity(mailbox: &'static str, capacity: usize) {
++        metrics::gauge!(
++            "rustpbx_sip_protocol_mailbox_capacity",
++            "mailbox" => mailbox
++        )
++        .set(capacity as f64);
++    }
++
++    pub fn protocol_mailbox_rejected(mailbox: &'static str, reason: &'static str, count: u64) {
++        metrics::counter!(
++            "rustpbx_sip_protocol_mailbox_rejections_total",
++            "mailbox" => mailbox,
++            "reason" => reason
++        )
++        .increment(count);
++    }
++}
++
++pub mod call_control {
++    pub fn mailbox_rejected(mailbox: &'static str, reason: &'static str) {
++        metrics::counter!(
++            "rustpbx_call_control_mailbox_rejections_total",
++            "mailbox" => mailbox,
++            "reason" => reason
++        )
++        .increment(1);
++    }
+ }
+ 
+ pub mod trunk {
+diff --git a/src/proxy/call.rs b/src/proxy/call.rs
+index f4044cd0..99ba5707 100644
+--- a/src/proxy/call.rs
++++ b/src/proxy/call.rs
+@@ -2063,7 +2063,7 @@ impl CallModule {
+         let target_for_log = target_uri.to_string();
+ 
+         // Do the originate
+-        let (state_tx, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
++        let (state_tx, mut state_rx) = dialog_layer.new_dialog_state_channel();
+         let mut invitation = dialog_layer.do_invite(invite_option, state_tx).boxed();
+ 
+         // Create session and register
+diff --git a/src/proxy/presence.rs b/src/proxy/presence.rs
+index 465a56a1..41186664 100644
+--- a/src/proxy/presence.rs
++++ b/src/proxy/presence.rs
+@@ -378,7 +378,9 @@ impl PresenceManager {
+ 
+                     let new_status = match header_status {
+                         Some("online" | "available" | "idle") => PresenceStatus::Idle,
+-                        Some(s @ ("away" | "break" | "lunch" | "training" | "meeting" | "personal")) => PresenceStatus::Away(s.to_string()),
++                        Some(
++                            s @ ("away" | "break" | "lunch" | "training" | "meeting" | "personal"),
++                        ) => PresenceStatus::Away(s.to_string()),
+                         Some("dnd") => PresenceStatus::Dnd,
+                         Some("busy") => PresenceStatus::Busy,
+                         Some("ringing") => PresenceStatus::Ringing,
+@@ -612,7 +614,7 @@ impl PresenceModule {
+ 
+         debug!("Handle SUBSCRIBE for {}", identity);
+ 
+-        let (state_tx, _) = tokio::sync::mpsc::unbounded_channel();
++        let (state_tx, _) = self.server.dialog_layer.new_dialog_state_channel();
+         let dialog = self
+             .server
+             .dialog_layer
+@@ -713,7 +715,10 @@ impl PresenceModule {
+                     status = PresenceStatus::Busy;
+                 } else if lower.contains("away") {
+                     status = PresenceStatus::Away(String::new());
+-                } else if lower.contains("idle") || lower.contains("available") || lower.contains("open") {
++                } else if lower.contains("idle")
++                    || lower.contains("available")
++                    || lower.contains("open")
++                {
+                     status = PresenceStatus::Idle;
+                 }
+             }
+@@ -796,13 +801,10 @@ impl PresenceModule {
+                 status: PidfStatus {
+                     basic: basic_status.to_string(),
+                 },
+-                note: state
+-                    .note
+-                    .clone()
+-                    .or_else(|| match &state.status {
+-                        PresenceStatus::Away(detail) if !detail.is_empty() => Some(detail.clone()),
+-                        _ => Some(state.status.to_string()),
+-                    }),
++                note: state.note.clone().or_else(|| match &state.status {
++                    PresenceStatus::Away(detail) if !detail.is_empty() => Some(detail.clone()),
++                    _ => Some(state.status.to_string()),
++                }),
+                 contact: Some(format!("sip:{}@{}", identity, domain)),
+                 activities: match state.status {
+                     PresenceStatus::Busy | PresenceStatus::Dnd => Some(RpidActivities {
+@@ -897,7 +899,7 @@ impl PresenceModule {
+             .and_then(|h| h.value().parse::<u32>().ok())
+             .unwrap_or(3600);
+ 
+-        let (state_tx, _) = tokio::sync::mpsc::unbounded_channel();
++        let (state_tx, _) = self.server.dialog_layer.new_dialog_state_channel();
+         let dialog = self
+             .server
+             .dialog_layer
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index c150436c..7162d60b 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -61,9 +61,12 @@ use audio_codec::CodecType;
+ 
+ use dashmap::DashMap;
+ use parking_lot::RwLock;
++#[cfg(test)]
++use rsipstack::dialog::dialog::dialog_state_channel;
+ use rsipstack::dialog::{
+-    DialogId, dialog::Dialog, dialog::DialogState, dialog::TerminatedReason,
+-    dialog::TransactionHandle, server_dialog::ServerInviteDialog,
++    DialogId, dialog::Dialog, dialog::DialogState, dialog::DialogStateReceiver,
++    dialog::DialogStateSender, dialog::TerminatedReason, dialog::TransactionHandle,
++    server_dialog::ServerInviteDialog,
+ };
+ use rsipstack::sip::StatusCode;
+ use rsipstack::transport::SipAddr;
+@@ -204,7 +207,7 @@ pub struct SipSession {
+     timer_queue: DelayQueue<DialogId>,
+     timer_keys: HashMap<DialogId, delay_queue::Key>,
+ 
+-    pub callee_event_tx: Option<mpsc::UnboundedSender<DialogState>>,
++    pub callee_event_tx: Option<DialogStateSender>,
+     pub callee_guards: Vec<ClientDialogGuard>,
+ 
+     pub dtmf_digits: Vec<char>,
+@@ -277,10 +280,7 @@ impl SipSessionHandle {
+         false
+     }
+ 
+-    pub fn set_app_event_sender(
+-        &self,
+-        sender: Option<mpsc::UnboundedSender<crate::call::app::ControllerEvent>>,
+-    ) {
++    pub fn set_app_event_sender(&self, sender: Option<crate::call::app::ControllerEventSender>) {
+         let bridge = self.app_event_bridge.read();
+         if let Some(ref handle) = *bridge {
+             handle.set_app_event_sender(sender);
+@@ -1140,7 +1140,7 @@ impl SipSession {
+             .map(|c| c.uri.clone())
+             .or_else(|| server.default_contact_uri());
+ 
+-        let (state_tx, state_rx) = mpsc::unbounded_channel();
++        let (state_tx, state_rx) = server.dialog_layer.new_dialog_state_channel();
+ 
+         let server_dialog = server
+             .dialog_layer
+@@ -1198,7 +1198,7 @@ impl SipSession {
+ 
+         let dialog_guard = ServerDialogGuard::new(server.dialog_layer.clone(), server_dialog.id());
+ 
+-        let (callee_state_tx, callee_state_rx) = mpsc::unbounded_channel();
++        let (callee_state_tx, callee_state_rx) = server.dialog_layer.new_dialog_state_channel();
+         session.callee_event_tx = Some(callee_state_tx);
+ 
+         server
+@@ -2165,8 +2165,8 @@ impl SipSession {
+ 
+     pub async fn process(
+         &mut self,
+-        mut state_rx: mpsc::UnboundedReceiver<DialogState>,
+-        mut callee_state_rx: mpsc::UnboundedReceiver<DialogState>,
++        mut state_rx: DialogStateReceiver,
++        mut callee_state_rx: DialogStateReceiver,
+         mut cmd_rx: mpsc::Receiver<CallCommand>,
+         _dialog_guard: ServerDialogGuard,
+     ) -> Result<()> {
+@@ -3620,7 +3620,7 @@ impl SipSession {
+ 
+     pub async fn execute_dialplan(
+         &mut self,
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<(), CalleeError> {
+         let flow = self.context.dialplan.flow.clone();
+         self.execute_flow(&flow, callee_state_rx).await
+@@ -3629,7 +3629,7 @@ impl SipSession {
+     fn execute_flow<'a>(
+         &'a mut self,
+         flow: &'a crate::call::DialplanFlow,
+-        callee_state_rx: &'a mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &'a mut DialogStateReceiver,
+     ) -> futures::future::BoxFuture<'a, Result<(), CalleeError>> {
+         use crate::call::DialplanFlow;
+         use futures::FutureExt;
+@@ -3757,7 +3757,7 @@ impl SipSession {
+     async fn run_targets(
+         &mut self,
+         strategy: &crate::call::DialStrategy,
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<(), CalleeError> {
+         use crate::call::DialStrategy;
+ 
+@@ -3772,7 +3772,7 @@ impl SipSession {
+     async fn dial_sequential(
+         &mut self,
+         targets: &[crate::call::Location],
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<(), CalleeError> {
+         let mut last_error = into_callee_err(
+             &StatusCode::TemporarilyUnavailable,
+@@ -3803,7 +3803,7 @@ impl SipSession {
+     async fn dial_parallel(
+         &mut self,
+         targets: &[crate::call::Location],
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<(), CalleeError> {
+         if targets.is_empty() {
+             return Err(into_callee_err(
+@@ -3829,7 +3829,7 @@ impl SipSession {
+         &mut self,
+         targets: &[crate::call::Location],
+         stop_playback_on_answer: Option<&str>,
+-        _callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        _callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<(), CalleeError> {
+         use futures::StreamExt;
+         use futures::stream::FuturesUnordered;
+@@ -4841,7 +4841,7 @@ impl SipSession {
+     async fn try_single_target(
+         &mut self,
+         target: &crate::call::Location,
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+         stop_playback_on_answer: Option<&str>,
+         no_trying_timeout: Option<Duration>,
+     ) -> Result<(), CalleeError> {
+@@ -9456,7 +9456,7 @@ impl SipSession {
+     pub async fn execute_command(
+         &mut self,
+         command: CallCommand,
+-        callee_state_rx: Option<&mut mpsc::UnboundedReceiver<DialogState>>,
++        callee_state_rx: Option<&mut DialogStateReceiver>,
+     ) -> CommandResult {
+         let capability_check = self.check_capability(&command);
+ 
+@@ -9489,7 +9489,7 @@ impl SipSession {
+     async fn process_command(
+         &mut self,
+         command: CallCommand,
+-        mut callee_state_rx: Option<&mut mpsc::UnboundedReceiver<DialogState>>,
++        mut callee_state_rx: Option<&mut DialogStateReceiver>,
+     ) -> CommandResult {
+         match command {
+             CallCommand::Answer { leg_id } => {
+@@ -10203,7 +10203,7 @@ impl SipSession {
+         // Spawn background task to handle INVITE response
+         let invite_handle = crate::utils::spawn(async move {
+             let leg_id = leg_id_for_spawn;
+-            let (state_tx, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
++            let (state_tx, mut state_rx) = dialog_layer.new_dialog_state_channel();
+             let mut invitation = dialog_layer.do_invite(invite_option, state_tx).boxed();
+ 
+             let mut result: Result<rsipstack::dialog::client_dialog::ClientInviteDialog, String> =
+@@ -12047,7 +12047,7 @@ mod tests {
+         );
+         let original_request = request.clone();
+         let (tx, _) = create_transaction(request).await;
+-        let (state_tx, _state_rx) = mpsc::unbounded_channel();
++        let (state_tx, _state_rx) = dialog_state_channel();
+         let server_dialog = server
+             .dialog_layer
+             .get_or_create_server_invite(&tx, state_tx, None, None)
+@@ -12131,7 +12131,7 @@ mod tests {
+         );
+         let original_request = request.clone();
+         let (tx, _) = create_transaction(request).await;
+-        let (state_tx, _state_rx) = mpsc::unbounded_channel();
++        let (state_tx, _state_rx) = dialog_state_channel();
+         let server_dialog = server
+             .dialog_layer
+             .get_or_create_server_invite(&tx, state_tx, None, None)
+@@ -12213,7 +12213,7 @@ mod tests {
+         );
+         let original_request = request.clone();
+         let (tx, _) = create_transaction(request).await;
+-        let (state_tx, _state_rx) = mpsc::unbounded_channel();
++        let (state_tx, _state_rx) = dialog_state_channel();
+         let server_dialog = server
+             .dialog_layer
+             .get_or_create_server_invite(&tx, state_tx, None, None)
+@@ -12324,7 +12324,7 @@ mod tests {
+         );
+         let original_request = request.clone();
+         let (tx, _) = create_transaction(request).await;
+-        let (state_tx, _state_rx) = mpsc::unbounded_channel();
++        let (state_tx, _state_rx) = dialog_state_channel();
+         let server_dialog = server
+             .dialog_layer
+             .get_or_create_server_invite(&tx, state_tx, None, None)
+@@ -12484,7 +12484,7 @@ mod tests {
+         );
+         let original_request = request.clone();
+         let (tx, _) = create_transaction(request).await;
+-        let (state_tx, _state_rx) = mpsc::unbounded_channel();
++        let (state_tx, _state_rx) = dialog_state_channel();
+         let server_dialog = server
+             .dialog_layer
+             .get_or_create_server_invite(&tx, state_tx, None, None)
+@@ -12678,7 +12678,7 @@ mod tests {
+         );
+         let original_request = request.clone();
+         let (tx, _) = create_transaction(request).await;
+-        let (state_tx, _state_rx) = mpsc::unbounded_channel();
++        let (state_tx, _state_rx) = dialog_state_channel();
+         let server_dialog = server
+             .dialog_layer
+             .get_or_create_server_invite(&tx, state_tx, None, None)
+@@ -12816,7 +12816,7 @@ mod tests {
+     async fn test_callee_event_channel_closed() {
+         use rsipstack::dialog::DialogId;
+ 
+-        let (tx, mut rx) = mpsc::unbounded_channel::<DialogState>();
++        let (tx, mut rx) = dialog_state_channel();
+ 
+         let dialog_id = DialogId {
+             call_id: "test".into(),
+@@ -13030,7 +13030,7 @@ mod tests {
+         );
+         let original_request = request.clone();
+         let (tx, _) = create_transaction(request).await;
+-        let (state_tx, _state_rx) = mpsc::unbounded_channel();
++        let (state_tx, _state_rx) = dialog_state_channel();
+         let server_dialog = server
+             .dialog_layer
+             .get_or_create_server_invite(&tx, state_tx, None, None)
+@@ -13064,7 +13064,7 @@ mod tests {
+             caller_peer,
+             callee_peer,
+         );
+-        let (callee_tx, mut callee_rx) = mpsc::unbounded_channel();
++        let (callee_tx, mut callee_rx) = dialog_state_channel();
+         session.callee_event_tx = Some(callee_tx);
+ 
+         let result = session
+@@ -13100,7 +13100,7 @@ mod tests {
+         );
+         let original_request = request.clone();
+         let (tx, _) = create_transaction(request).await;
+-        let (state_tx, _state_rx) = mpsc::unbounded_channel();
++        let (state_tx, _state_rx) = dialog_state_channel();
+         let server_dialog = server
+             .dialog_layer
+             .get_or_create_server_invite(&tx, state_tx, None, None)
+@@ -13134,7 +13134,7 @@ mod tests {
+             caller_peer,
+             callee_peer,
+         );
+-        let (callee_tx, mut callee_rx) = mpsc::unbounded_channel();
++        let (callee_tx, mut callee_rx) = dialog_state_channel();
+         session.callee_event_tx = Some(callee_tx);
+ 
+         let result = session
+diff --git a/src/proxy/proxy_call/sip_session/queue.rs b/src/proxy/proxy_call/sip_session/queue.rs
+index ef29a8bb..4fdb0898 100644
+--- a/src/proxy/proxy_call/sip_session/queue.rs
++++ b/src/proxy/proxy_call/sip_session/queue.rs
+@@ -1,17 +1,16 @@
+ use super::{CalleeError, SipSession, into_callee_err};
+ use crate::call::domain::LegId;
+ use anyhow::Result;
+-use rsipstack::dialog::dialog::DialogState;
++use rsipstack::dialog::dialog::DialogStateReceiver;
+ use rsipstack::sip::StatusCode;
+ use std::time::Duration;
+-use tokio::sync::mpsc;
+ use tracing::{debug, info, warn};
+ 
+ impl SipSession {
+     pub(super) async fn execute_queue(
+         &mut self,
+         plan: &crate::call::QueuePlan,
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<(), CalleeError> {
+         use crate::call::DialStrategy;
+ 
+@@ -173,7 +172,7 @@ impl SipSession {
+         &mut self,
+         agents: &[crate::call::Location],
+         _ring_timeout: Option<Duration>,
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+         no_trying_timeout: Option<Duration>,
+         retry_codes: Option<&[u16]>,
+     ) -> Result<(), CalleeError> {
+@@ -230,7 +229,7 @@ impl SipSession {
+         &mut self,
+         agents: &[crate::call::Location],
+         _ring_timeout: Option<Duration>,
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<(), CalleeError> {
+         if agents.is_empty() {
+             return Err(into_callee_err(
+@@ -284,7 +283,7 @@ impl SipSession {
+     pub(super) async fn execute_queue_fallback(
+         &mut self,
+         plan: &crate::call::QueuePlan,
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<(), CalleeError> {
+         use crate::call::{FailureAction, QueueFallbackAction, TransferEndpoint};
+ 
+diff --git a/src/proxy/proxy_call/sip_session/transfer.rs b/src/proxy/proxy_call/sip_session/transfer.rs
+index 86b5852d..356696d4 100644
+--- a/src/proxy/proxy_call/sip_session/transfer.rs
++++ b/src/proxy/proxy_call/sip_session/transfer.rs
+@@ -3,7 +3,7 @@ use crate::call::domain::{CallCommand, LegId, LegState};
+ use crate::callrecord::CallRecordHangupReason;
+ use anyhow::{Result, anyhow};
+ use futures::{SinkExt, StreamExt};
+-use rsipstack::dialog::dialog::DialogState;
++use rsipstack::dialog::dialog::DialogStateReceiver;
+ use rsipstack::sip::StatusCode;
+ use tokio::sync::mpsc;
+ use tokio_tungstenite::tungstenite::Message;
+@@ -182,7 +182,7 @@ impl SipSession {
+         leg_id: LegId,
+         target: String,
+         attended: bool,
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<()> {
+         info!(%leg_id, %target, %attended, "Handling transfer");
+ 
+@@ -222,7 +222,7 @@ impl SipSession {
+         &mut self,
+         leg_id: LegId,
+         target: String,
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<()> {
+         match parse_transfer_target(&target) {
+             TransferTarget::Queue {
+@@ -389,7 +389,7 @@ impl SipSession {
+         queue_name: &str,
+         return_ivr: Option<String>,
+         target_overrides: Vec<String>,
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<()> {
+         info!(%leg_id, queue = %queue_name, ?return_ivr, overrides = %target_overrides.len(), "Starting queue transfer");
+ 
+@@ -843,7 +843,7 @@ impl SipSession {
+         &mut self,
+         leg_id: LegId,
+         target: String,
+-        callee_state_rx: &mut mpsc::UnboundedReceiver<DialogState>,
++        callee_state_rx: &mut DialogStateReceiver,
+     ) -> Result<()> {
+         let replaces = self
+             .build_replaces_header()
+@@ -872,10 +872,18 @@ impl SipSession {
+             reason,
+             event_type,
+         };
+-        let subscribers = self.server.transfer_notify_subscribers.lock().await;
+-        for tx in subscribers.iter() {
+-            let _ = tx.send(event.clone());
+-        }
++        let mut subscribers = self.server.transfer_notify_subscribers.lock().await;
++        subscribers.retain(|tx| match tx.try_send(event.clone()) {
++            Ok(()) => true,
++            Err(mpsc::error::TrySendError::Full(_)) => {
++                crate::metrics::call_control::mailbox_rejected("refer_notify", "full");
++                true
++            }
++            Err(mpsc::error::TrySendError::Closed(_)) => {
++                crate::metrics::call_control::mailbox_rejected("refer_notify", "closed");
++                false
++            }
++        });
+     }
+ 
+     pub(super) async fn handle_transfer_complete(&mut self, consult_leg: LegId) -> Result<()> {
+diff --git a/src/proxy/proxy_call/state.rs b/src/proxy/proxy_call/state.rs
+index 79a5cca3..c759aea5 100644
+--- a/src/proxy/proxy_call/state.rs
++++ b/src/proxy/proxy_call/state.rs
+@@ -199,7 +199,7 @@ pub struct SipSessionShared {
+     inner: Arc<RwLock<SipSessionSnapshot>>,
+     registry: Option<Weak<ActiveProxyCallRegistry>>,
+     events: Arc<RwLock<Option<ProxyCallEventSender>>>,
+-    app_event_tx: Arc<RwLock<Option<mpsc::UnboundedSender<crate::call::app::ControllerEvent>>>>,
++    app_event_tx: Arc<RwLock<Option<crate::call::app::ControllerEventSender>>>,
+ }
+ 
+ impl SipSessionShared {
+@@ -238,17 +238,24 @@ impl SipSessionShared {
+     /// Set (or clear) the app-event sender used by [`send_app_event`].
+     ///
+     /// Called by `run_application` at the start and end of a call app.
+-    pub fn set_app_event_sender(
+-        &self,
+-        sender: Option<mpsc::UnboundedSender<crate::call::app::ControllerEvent>>,
+-    ) {
++    pub fn set_app_event_sender(&self, sender: Option<crate::call::app::ControllerEventSender>) {
+         *self.app_event_tx.write() = sender;
+     }
+ 
+     pub fn send_app_event(&self, event: crate::call::app::ControllerEvent) -> bool {
+         let slot = self.app_event_tx.read();
+         if let Some(tx) = slot.as_ref() {
+-            return tx.send(event).is_ok();
++            return match tx.try_send(event) {
++                Ok(()) => true,
++                Err(error) => {
++                    let reason = match error {
++                        mpsc::error::TrySendError::Full(_) => "full",
++                        mpsc::error::TrySendError::Closed(_) => "closed",
++                    };
++                    crate::metrics::call_control::mailbox_rejected("app_event", reason);
++                    false
++                }
++            };
+         }
+         false
+     }
+@@ -317,7 +324,13 @@ impl SipSessionShared {
+ 
+     pub(crate) fn emit_custom_event(&self, event: ProxyCallEvent) {
+         if let Some(sender) = self.event_sender() {
+-            let _ = sender.send(event);
++            if let Err(error) = sender.try_send(event) {
++                let reason = match error {
++                    mpsc::error::TrySendError::Full(_) => "full",
++                    mpsc::error::TrySendError::Closed(_) => "closed",
++                };
++                crate::metrics::call_control::mailbox_rejected("proxy_event", reason);
++            }
+         }
+     }
+ 
+@@ -549,7 +562,7 @@ pub enum ProxyCallEvent {
+ pub(crate) type SessionActionSender = mpsc::Sender<SessionAction>;
+ pub(crate) type SessionActionReceiver = mpsc::Receiver<SessionAction>;
+ 
+-pub type ProxyCallEventSender = mpsc::UnboundedSender<ProxyCallEvent>;
++pub type ProxyCallEventSender = mpsc::Sender<ProxyCallEvent>;
+ 
+ #[derive(Clone)]
+ pub struct SipSessionHandle {
+@@ -560,13 +573,9 @@ pub struct SipSessionHandle {
+ 
+ impl SipSessionHandle {
+     /// Create a new handle with the given shared state
+-    /// Note: event_tx is set up for app event forwarding but the receiver is
+-    /// currently not actively polled. This is a placeholder for future app framework integration.
+     pub fn with_shared(shared: SipSessionShared, capacity: usize) -> (Self, SessionActionReceiver) {
+         let session_id = shared.session_id();
+         let (cmd_tx, cmd_rx) = mpsc::channel(capacity);
+-        let (event_tx, _event_rx) = mpsc::unbounded_channel();
+-        shared.set_event_sender(event_tx);
+         let handle = Self {
+             session_id,
+             shared,
+@@ -601,10 +610,7 @@ impl SipSessionHandle {
+ 
+     /// Register (or clear) the sender used to deliver [`ControllerEvent`]s to the
+     /// running `CallApp`.
+-    pub fn set_app_event_sender(
+-        &self,
+-        sender: Option<mpsc::UnboundedSender<crate::call::app::ControllerEvent>>,
+-    ) {
++    pub fn set_app_event_sender(&self, sender: Option<crate::call::app::ControllerEventSender>) {
+         self.shared.set_app_event_sender(sender);
+     }
+ 
+diff --git a/src/proxy/server.rs b/src/proxy/server.rs
+index e9da10cd..eb7093ea 100644
+--- a/src/proxy/server.rs
++++ b/src/proxy/server.rs
+@@ -1172,6 +1172,24 @@ impl SipServer {
+             let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+             let mut previous = capacity_endpoint.get_stats();
++            let mut previous_mailboxes = rsipstack::bounded::protocol_mailbox_stats();
++
++            crate::metrics::transaction::set_protocol_mailbox_capacity(
++                "transaction_event",
++                rsipstack::bounded::TRANSACTION_EVENT_QUEUE_CAPACITY,
++            );
++            crate::metrics::transaction::set_protocol_mailbox_capacity(
++                "dialog_state",
++                rsipstack::bounded::DIALOG_STATE_QUEUE_CAPACITY,
++            );
++            crate::metrics::transaction::set_protocol_mailbox_capacity(
++                "transport_event",
++                rsipstack::bounded::TRANSPORT_EVENT_QUEUE_CAPACITY,
++            );
++            crate::metrics::transaction::set_protocol_mailbox_capacity(
++                "transport_connection_event",
++                rsipstack::bounded::TRANSPORT_CONNECTION_EVENT_QUEUE_CAPACITY,
++            );
+ 
+             loop {
+                 tokio::select! {
+@@ -1211,7 +1229,51 @@ impl SipServer {
+                                 previous.transport_connection_limit_rejections_total,
+                             ),
+                         );
++                        let mailboxes = rsipstack::bounded::protocol_mailbox_stats();
++                        crate::metrics::transaction::protocol_mailbox_rejected(
++                            "transaction_event",
++                            "full",
++                            mailboxes.transaction_event.full_rejections_total.saturating_sub(
++                                previous_mailboxes.transaction_event.full_rejections_total,
++                            ),
++                        );
++                        crate::metrics::transaction::protocol_mailbox_rejected(
++                            "transaction_event",
++                            "closed",
++                            mailboxes.transaction_event.closed_rejections_total.saturating_sub(
++                                previous_mailboxes.transaction_event.closed_rejections_total,
++                            ),
++                        );
++                        crate::metrics::transaction::protocol_mailbox_rejected(
++                            "dialog_state",
++                            "full",
++                            mailboxes.dialog_state.full_rejections_total.saturating_sub(
++                                previous_mailboxes.dialog_state.full_rejections_total,
++                            ),
++                        );
++                        crate::metrics::transaction::protocol_mailbox_rejected(
++                            "dialog_state",
++                            "closed",
++                            mailboxes.dialog_state.closed_rejections_total.saturating_sub(
++                                previous_mailboxes.dialog_state.closed_rejections_total,
++                            ),
++                        );
++                        crate::metrics::transaction::protocol_mailbox_rejected(
++                            "transport_event",
++                            "full",
++                            mailboxes.transport_event.full_rejections_total.saturating_sub(
++                                previous_mailboxes.transport_event.full_rejections_total,
++                            ),
++                        );
++                        crate::metrics::transaction::protocol_mailbox_rejected(
++                            "transport_event",
++                            "closed",
++                            mailboxes.transport_event.closed_rejections_total.saturating_sub(
++                                previous_mailboxes.transport_event.closed_rejections_total,
++                            ),
++                        );
+                         previous = stats;
++                        previous_mailboxes = mailboxes;
+                     }
+                 }
+             }
+diff --git a/src/proxy/tests/common.rs b/src/proxy/tests/common.rs
+index 1f924ead..003af919 100644
+--- a/src/proxy/tests/common.rs
++++ b/src/proxy/tests/common.rs
+@@ -20,7 +20,6 @@ use rsipstack::transport::channel::ChannelConnection;
+ use std::sync::Arc;
+ use std::sync::atomic::AtomicUsize;
+ use std::time::Duration;
+-use tokio::sync::mpsc;
+ use tokio_util::sync::CancellationToken;
+ 
+ /// Creates a test SIP server with a memory user backend and locator
+@@ -48,7 +47,8 @@ pub async fn create_test_server_with_config(
+ 
+     let endpoint = rsipstack::EndpointBuilder::new().build();
+     // Add a mock transport to the endpoint so it can send out-of-dialog requests in tests
+-    let (tx_chan, _rx_chan) = tokio::sync::mpsc::unbounded_channel();
++    let (tx_chan, _rx_chan) =
++        rsipstack::transport::connection::transport_connection_event_channel();
+     let mock_addr = SipAddr {
+         r#type: Some(rsipstack::sip::Transport::Udp),
+         addr: rsipstack::sip::HostWithPort {
+@@ -122,9 +122,7 @@ pub async fn create_test_server_with_config(
+             let _ = engine.spawn(handle);
+             engine
+         },
+-        trunk_rate_limiter: Arc::new(
+-            crate::proxy::trunk_rate_limiter::TrunkRateLimiter::new(),
+-        ),
++        trunk_rate_limiter: Arc::new(crate::proxy::trunk_rate_limiter::TrunkRateLimiter::new()),
+     });
+     // Add test users
+     let enabled_user = SipUser {
+@@ -170,7 +168,7 @@ pub async fn create_transaction(
+             port: Some(5060.into()),
+         },
+     };
+-    let (tx, rx) = mpsc::unbounded_channel();
++    let (tx, rx) = rsipstack::transport::connection::transport_connection_event_channel();
+     let connection = ChannelConnection::create_connection(rx, tx, mock_addr, None)
+         .await
+         .expect("failed to create channel connection");
+diff --git a/src/proxy/tests/test_sip_session_regressions.rs b/src/proxy/tests/test_sip_session_regressions.rs
+index d9206193..a5ef2b07 100644
+--- a/src/proxy/tests/test_sip_session_regressions.rs
++++ b/src/proxy/tests/test_sip_session_regressions.rs
+@@ -18,7 +18,6 @@ use async_trait::async_trait;
+ use std::sync::Arc;
+ use std::sync::atomic::{AtomicUsize, Ordering};
+ use std::time::Instant;
+-use tokio::sync::mpsc;
+ use tokio_util::sync::CancellationToken;
+ 
+ struct AlreadyRunningThenOkRuntime {
+@@ -226,7 +225,7 @@ async fn build_session_on_server(
+         None,
+     );
+     let (tx, _) = create_transaction(request).await;
+-    let (state_tx, _state_rx) = mpsc::unbounded_channel();
++    let (state_tx, _state_rx) = rsipstack::dialog::dialog::dialog_state_channel();
+     let server_dialog = server
+         .dialog_layer
+         .get_or_create_server_invite(&tx, state_tx, None, None)
+@@ -494,7 +493,7 @@ async fn test_queue_transfer_without_return_ivr_keeps_hangup_fallback_when_no_ag
+     );
+     let config = make_queue_hangup_config("support");
+     let mut session = build_session_with_config(dialplan, config).await;
+-    let (callee_tx, mut callee_rx) = mpsc::unbounded_channel();
++    let (callee_tx, mut callee_rx) = rsipstack::dialog::dialog::dialog_state_channel();
+     session.callee_event_tx = Some(callee_tx);
+ 
+     let err = session
+@@ -523,7 +522,7 @@ async fn test_queue_transfer_return_ivr_overrides_hangup_fallback_when_no_agents
+     );
+     let config = make_queue_hangup_config("support");
+     let mut session = build_session_with_config(dialplan, config).await;
+-    let (callee_tx, mut callee_rx) = mpsc::unbounded_channel();
++    let (callee_tx, mut callee_rx) = rsipstack::dialog::dialog::dialog_state_channel();
+     session.callee_event_tx = Some(callee_tx);
+ 
+     let runtime = Arc::new(StartOnlyRuntime::new());
+diff --git a/src/proxy/tests/test_ua.rs b/src/proxy/tests/test_ua.rs
+index ccb3d317..dd1ef874 100644
+--- a/src/proxy/tests/test_ua.rs
++++ b/src/proxy/tests/test_ua.rs
+@@ -13,7 +13,7 @@ use std::collections::HashMap;
+ use std::net::SocketAddr;
+ use std::sync::Arc;
+ use tokio::select;
+-use tokio::sync::{Mutex, mpsc::unbounded_channel};
++use tokio::sync::Mutex;
+ use tokio_util::sync::CancellationToken;
+ use tracing::debug;
+ 
+@@ -273,7 +273,7 @@ impl TestUa {
+         };
+ 
+         let state_sender = self.state_sender.clone().unwrap_or_else(|| {
+-            let (sender, _) = unbounded_channel();
++            let (sender, _) = rsipstack::dialog::dialog::dialog_state_channel();
+             sender
+         });
+         let (dialog, resp) = dialog_layer
+diff --git a/src/proxy/ws.rs b/src/proxy/ws.rs
+index fcd67b28..aece3a22 100644
+--- a/src/proxy/ws.rs
++++ b/src/proxy/ws.rs
+@@ -4,11 +4,14 @@ use futures::{SinkExt, StreamExt};
+ use rsipstack::sip::{SipMessage, prelude::HeadersExt};
+ use rsipstack::{
+     transaction::endpoint::EndpointInnerRef,
+-    transport::{SipAddr, SipConnection, TransportEvent, channel::ChannelConnection},
++    transport::{
++        SipAddr, SipConnection, TransportEvent, channel::ChannelConnection,
++        connection::transport_connection_event_channel,
++    },
+ };
+ use std::sync::{Arc, Mutex};
+ use std::time::{Duration, Instant};
+-use tokio::{select, sync::mpsc};
++use tokio::select;
+ use tokio_util::sync::CancellationToken;
+ use tracing::{debug, info, trace, warn};
+ 
+@@ -23,8 +26,8 @@ pub async fn sip_ws_handler(
+     pre_auth_registry: Option<Arc<PreAuthRegistry>>,
+ ) {
+     let (mut ws_sink, mut ws_read) = socket.split();
+-    let (from_ws_tx, from_ws_rx) = mpsc::unbounded_channel();
+-    let (to_ws_tx, mut to_ws_rx) = mpsc::unbounded_channel();
++    let (from_ws_tx, from_ws_rx) = transport_connection_event_channel();
++    let (to_ws_tx, mut to_ws_rx) = transport_connection_event_channel();
+ 
+     let transport_type = if client_addr.is_secure {
+         rsipstack::sip::transport::Transport::Wss
+diff --git a/src/rwi/app.rs b/src/rwi/app.rs
+index f5338b47..0b17a11a 100644
+--- a/src/rwi/app.rs
++++ b/src/rwi/app.rs
+@@ -188,7 +188,7 @@ mod tests {
+     #[tokio::test]
+     async fn test_on_enter_without_session_id_no_call_answered() {
+         let gateway = create_test_gateway();
+-        let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
++        let (event_tx, mut event_rx) = crate::rwi::gateway::rwi_session_event_channel();
+ 
+         {
+             let mut gw = gateway.write();
+diff --git a/src/rwi/gateway.rs b/src/rwi/gateway.rs
+index 67d55a5c..501890a0 100644
+--- a/src/rwi/gateway.rs
++++ b/src/rwi/gateway.rs
+@@ -1,14 +1,14 @@
+ use crate::rwi::auth::RwiIdentity;
+ use crate::rwi::event::{RwiEvent, RwiEventSpec, merge_event_context};
+ use crate::rwi::proto::CallMetaStore;
+-use crate::rwi::session::{OwnershipMode, RwiSession, SupervisorMode};
++use crate::rwi::session::{OwnershipMode, RwiSession, SupervisorMode, rwi_command_channel};
+ use chrono::{DateTime, Utc};
+-use parking_lot::RwLock;
+ use parking_lot::Mutex;
++use parking_lot::RwLock;
+ use std::collections::{HashMap, HashSet, VecDeque};
+ use std::sync::{Arc, Arc as StdArc};
+-use tracing::warn;
+ use tokio::sync::{broadcast, mpsc};
++use tracing::warn;
+ 
+ pub type SessionId = String;
+ pub type CallId = String;
+@@ -23,7 +23,29 @@ pub struct EventCacheEntry {
+ }
+ 
+ /// Sender for pushing JSON-serialized events to a WebSocket session.
+-pub type WsEventSender = mpsc::UnboundedSender<serde_json::Value>;
++pub type WsEventSender = mpsc::Sender<serde_json::Value>;
++pub type DtmfTapSender = mpsc::Sender<(Option<String>, char)>;
++
++pub const RWI_SESSION_EVENT_QUEUE_CAPACITY: usize = 256;
++pub const RWI_DTMF_TAP_QUEUE_CAPACITY: usize = 64;
++
++pub fn rwi_session_event_channel() -> (WsEventSender, mpsc::Receiver<serde_json::Value>) {
++    mpsc::channel(RWI_SESSION_EVENT_QUEUE_CAPACITY)
++}
++
++pub fn rwi_dtmf_tap_channel() -> (DtmfTapSender, mpsc::Receiver<(Option<String>, char)>) {
++    mpsc::channel(RWI_DTMF_TAP_QUEUE_CAPACITY)
++}
++
++fn try_send_ws_event(sender: &WsEventSender, value: serde_json::Value) {
++    if let Err(error) = sender.try_send(value) {
++        let reason = match error {
++            mpsc::error::TrySendError::Full(_) => "full",
++            mpsc::error::TrySendError::Closed(_) => "closed",
++        };
++        crate::metrics::call_control::mailbox_rejected("rwi_session_event", reason);
++    }
++}
+ 
+ #[derive(Debug, Clone)]
+ pub struct GatewayState {
+@@ -47,7 +69,7 @@ pub struct RwiGateway {
+     max_cache_size: usize,
+     max_cache_age_secs: u64,
+     /// Per-call DTMF taps for active DtmfCollect operations.
+-    dtmf_taps: Mutex<HashMap<CallId, tokio::sync::mpsc::UnboundedSender<(Option<String>, char)>>>,
++    dtmf_taps: Mutex<HashMap<CallId, DtmfTapSender>>,
+     /// Per-call channel variables (key/value store).
+     call_vars: HashMap<CallId, HashMap<String, String>>,
+     /// Per-session event type filter; if set, only events whose type name is in the set are delivered.
+@@ -105,7 +127,7 @@ impl RwiGateway {
+     /// Create a new RWI session and return the Arc handle.
+     /// The caller must call [`set_session_event_sender`] with the WS sender after this.
+     pub fn create_session(&mut self, identity: RwiIdentity) -> Arc<RwLock<RwiSession>> {
+-        let (command_tx, _command_rx) = tokio::sync::mpsc::unbounded_channel();
++        let (command_tx, _command_rx) = rwi_command_channel();
+         let session = RwiSession::new(identity, command_tx);
+         let session_id = session.id.clone();
+         let session = Arc::new(RwLock::new(session));
+@@ -316,7 +338,7 @@ impl RwiGateway {
+                     return;
+                 }
+             }
+-            let _ = sender.send(value.clone());
++            try_send_ws_event(sender, value.clone());
+         }
+     }
+ 
+@@ -348,9 +370,7 @@ impl RwiGateway {
+     }
+ 
+     pub fn cache_event(&self, call_id: &CallId, event: &RwiEvent) -> u64 {
+-        let mut cache_state = self
+-            .event_cache
+-            .lock();
++        let mut cache_state = self.event_cache.lock();
+         let max_age = self.max_cache_age_secs;
+         let now = chrono::Utc::now();
+         while let Some(front) = cache_state.cache.front() {
+@@ -384,9 +404,7 @@ impl RwiGateway {
+     /// Get events for a call since a given sequence number
+     /// Used for session resumption after disconnect
+     pub fn get_events_since(&self, last_sequence: u64) -> Vec<EventCacheEntry> {
+-        let cache_state = self
+-            .event_cache
+-            .lock();
++        let cache_state = self.event_cache.lock();
+ 
+         cache_state
+             .cache
+@@ -402,9 +420,7 @@ impl RwiGateway {
+         call_id: &CallId,
+         last_sequence: u64,
+     ) -> Vec<EventCacheEntry> {
+-        let cache_state = self
+-            .event_cache
+-            .lock();
++        let cache_state = self.event_cache.lock();
+ 
+         cache_state
+             .cache
+@@ -416,9 +432,7 @@ impl RwiGateway {
+ 
+     /// Check if event is still in cache window
+     pub fn is_sequence_in_cache(&self, sequence: u64) -> bool {
+-        let cache_state = self
+-            .event_cache
+-            .lock();
++        let cache_state = self.event_cache.lock();
+ 
+         if cache_state.cache.is_empty() {
+             return false;
+@@ -430,9 +444,7 @@ impl RwiGateway {
+ 
+     /// Get current sequence number
+     pub fn current_sequence(&self) -> u64 {
+-        let cache_state = self
+-            .event_cache
+-            .lock();
++        let cache_state = self.event_cache.lock();
+         cache_state.next_sequence
+     }
+ 
+@@ -465,9 +477,18 @@ impl RwiGateway {
+                 .and_then(|v| v.as_str())
+                 .map(ToOwned::to_owned);
+             if let Some(c) = digit_char {
+-                let taps = self.dtmf_taps.lock();
+-                if let Some(tx) = taps.get(call_id) {
+-                    let _ = tx.send((leg_id, c));
++                let mut taps = self.dtmf_taps.lock();
++                if let Some(tx) = taps.get(call_id).cloned()
++                    && let Err(error) = tx.try_send((leg_id, c))
++                {
++                    let reason = match error {
++                        mpsc::error::TrySendError::Full(_) => "full",
++                        mpsc::error::TrySendError::Closed(_) => "closed",
++                    };
++                    crate::metrics::call_control::mailbox_rejected("rwi_dtmf_tap", reason);
++                    if reason == "closed" {
++                        taps.remove(call_id);
++                    }
+                 }
+             }
+         }
+@@ -485,11 +506,7 @@ impl RwiGateway {
+     }
+ 
+     /// Register a DTMF tap for an active DtmfCollect on `call_id`.
+-    pub fn add_dtmf_tap(
+-        &self,
+-        call_id: CallId,
+-        tx: tokio::sync::mpsc::UnboundedSender<(Option<String>, char)>,
+-    ) {
++    pub fn add_dtmf_tap(&self, call_id: CallId, tx: DtmfTapSender) {
+         self.dtmf_taps.lock().insert(call_id, tx);
+     }
+ 
+@@ -554,9 +571,7 @@ impl RwiGateway {
+         let events = match last_sequence {
+             Some(seq) => self.get_events_since(seq),
+             None => {
+-                let cache_state = self
+-                    .event_cache
+-                    .lock();
++                let cache_state = self.event_cache.lock();
+                 cache_state.cache.iter().cloned().collect()
+             }
+         };
+@@ -576,9 +591,7 @@ impl RwiGateway {
+         let events = match last_sequence {
+             Some(seq) => self.get_events_for_call_since(call_id, seq),
+             None => {
+-                let cache_state = self
+-                    .event_cache
+-                    .lock();
++                let cache_state = self.event_cache.lock();
+                 cache_state
+                     .cache
+                     .iter()
+@@ -621,7 +634,7 @@ impl RwiGateway {
+                     return;
+                 }
+             }
+-            let _ = sender.send(flat.payload.clone());
++            try_send_ws_event(sender, flat.payload.clone());
+         }
+     }
+ 
+@@ -774,7 +787,7 @@ mod tests {
+     async fn test_broadcast_generic() {
+         let mut gw = RwiGateway::new();
+         let sid = gw.create_session(create_identity()).read().id.clone();
+-        let (tx, mut rx) = mpsc::unbounded_channel();
++        let (tx, mut rx) = rwi_session_event_channel();
+         gw.set_session_event_sender(&sid, tx);
+         gw.broadcast(&crate::rwi::CallRinging {
+             call_id: "c1".into(),
+@@ -787,7 +800,7 @@ mod tests {
+     async fn test_send_to_owner_generic() {
+         let mut gw = RwiGateway::new();
+         let sid = gw.create_session(create_identity()).read().id.clone();
+-        let (tx, mut rx) = mpsc::unbounded_channel();
++        let (tx, mut rx) = rwi_session_event_channel();
+         gw.set_session_event_sender(&sid, tx);
+         gw.claim_call_ownership(&sid, "c1".into(), OwnershipMode::Control)
+             .unwrap();
+@@ -797,4 +810,23 @@ mod tests {
+         let v = rx.recv().await.unwrap();
+         assert!(v.to_string().contains("call_answered"));
+     }
++
++    #[test]
++    fn session_event_mailbox_rejects_overflow_without_growing() {
++        let (sender, receiver) = rwi_session_event_channel();
++        for sequence in 0..RWI_SESSION_EVENT_QUEUE_CAPACITY {
++            sender
++                .try_send(serde_json::json!({ "sequence": sequence }))
++                .expect("configured RWI event capacity must be available");
++        }
++        assert!(matches!(
++            sender.try_send(serde_json::Value::Null),
++            Err(mpsc::error::TrySendError::Full(_))
++        ));
++        drop(receiver);
++        assert!(matches!(
++            sender.try_send(serde_json::Value::Null),
++            Err(mpsc::error::TrySendError::Closed(_))
++        ));
++    }
+ }
+diff --git a/src/rwi/handler.rs b/src/rwi/handler.rs
+index e2c1fb0b..7aa20130 100644
+--- a/src/rwi/handler.rs
++++ b/src/rwi/handler.rs
+@@ -4,7 +4,7 @@ use crate::proxy::server::SipServerRef;
+ use crate::rwi::RwiGatewayRef;
+ use crate::rwi::auth::{RwiAuth, RwiIdentity};
+ use crate::rwi::processor::{CommandError, CommandResult, RwiCommandProcessor};
+-use crate::rwi::session::{RwiCommandMessage, RwiCommandPayload};
++use crate::rwi::session::{RwiCommandPayload, RwiCommandSender, rwi_command_channel};
+ use axum::{
+     Extension,
+     extract::Query,
+@@ -17,6 +17,8 @@ use std::sync::Arc;
+ use tokio::sync::RwLock;
+ use tokio::sync::mpsc;
+ 
++pub const RWI_WEBSOCKET_OUTPUT_QUEUE_CAPACITY: usize = 256;
++
+ #[allow(clippy::too_many_arguments)]
+ pub async fn rwi_ws_handler(
+     _client_addr: ClientAddr,
+@@ -94,7 +96,7 @@ async fn handle_websocket(
+ ) {
+     let (mut ws_sender, mut ws_receiver) = socket.split();
+ 
+-    let (ws_tx, mut ws_rx) = mpsc::unbounded_channel::<String>();
++    let (ws_tx, mut ws_rx) = mpsc::channel::<String>(RWI_WEBSOCKET_OUTPUT_QUEUE_CAPACITY);
+ 
+     let processor = {
+         let conference_manager = sip_server
+@@ -116,12 +118,14 @@ async fn handle_websocket(
+         let mut gw = gateway.write();
+         let session = gw.create_session(identity.clone());
+         let id = session.read().id.clone();
+-        let (event_tx, mut event_rx) = mpsc::unbounded_channel::<serde_json::Value>();
++        let (event_tx, mut event_rx) = crate::rwi::gateway::rwi_session_event_channel();
+         let ws_tx_clone = ws_tx.clone();
+         crate::utils::spawn(async move {
+             while let Some(v) = event_rx.recv().await {
+                 if let Ok(s) = serde_json::to_string(&v) {
+-                    let _ = ws_tx_clone.send(s);
++                    if ws_tx_clone.send(s).await.is_err() {
++                        break;
++                    }
+                 }
+             }
+         });
+@@ -137,7 +141,7 @@ async fn handle_websocket(
+         }
+     });
+ 
+-    let (command_tx, _command_rx) = mpsc::unbounded_channel::<RwiCommandMessage>();
++    let (command_tx, _command_rx) = rwi_command_channel();
+ 
+     let session_id_clone = session_id.clone();
+     let gateway_clone = gateway.clone();
+@@ -194,11 +198,11 @@ async fn handle_websocket(
+ /// Returns the JSON string to send back as a response (always — even for errors).
+ async fn handle_text_message(
+     text: &str,
+-    _command_tx: &mpsc::UnboundedSender<RwiCommandMessage>,
++    _command_tx: &RwiCommandSender,
+     processor: Arc<RwiCommandProcessor>,
+     session_id: &str,
+     gateway: RwiGatewayRef,
+-    ws_tx: &mpsc::UnboundedSender<String>,
++    ws_tx: &mpsc::Sender<String>,
+ ) {
+     let value: serde_json::Value = match serde_json::from_str(text) {
+         Ok(v) => v,
+@@ -212,7 +216,7 @@ async fn handle_text_message(
+                 "error": format!("parse_error: {e}"),
+             }))
+             .unwrap_or_default();
+-            let _ = ws_tx.send(err_resp);
++            let _ = ws_tx.send(err_resp).await;
+             return;
+         }
+     };
+@@ -234,7 +238,7 @@ async fn handle_text_message(
+                 "error": "missing_action",
+             }))
+             .unwrap_or_default();
+-            let _ = ws_tx.send(err_resp);
++            let _ = ws_tx.send(err_resp).await;
+             return;
+         }
+     };
+@@ -269,7 +273,7 @@ async fn handle_text_message(
+                 "error": format!("unknown_action: {msg}"),
+             }))
+             .unwrap_or_default();
+-            let _ = ws_tx.send(err_resp);
++            let _ = ws_tx.send(err_resp).await;
+             return;
+         }
+     };
+@@ -290,7 +294,7 @@ async fn handle_text_message(
+                     "error": "invalid_ivekit_owners",
+                 }))
+                 .unwrap_or_default();
+-                let _ = ws_tx.send(err_resp);
++                let _ = ws_tx.send(err_resp).await;
+                 return;
+             }
+         },
+@@ -318,7 +322,7 @@ async fn handle_text_message(
+                         "error": format!("ivekit_owner_open_failed:{error}"),
+                     }))
+                     .unwrap_or_default();
+-                    let _ = ws_tx.send(err_resp);
++                    let _ = ws_tx.send(err_resp).await;
+                     return;
+                 }
+             }
+@@ -336,7 +340,7 @@ async fn handle_text_message(
+                 "error": format!("ivekit_owner_rejected:{error}"),
+             }))
+             .unwrap_or_default();
+-            let _ = ws_tx.send(err_resp);
++            let _ = ws_tx.send(err_resp).await;
+             return;
+         }
+     }
+@@ -389,7 +393,7 @@ async fn handle_text_message(
+ 
+     let event = build_command_result_event(&action_id, &action, call_id.as_deref(), result);
+     if let Ok(json) = serde_json::to_string(&event) {
+-        let _ = ws_tx.send(json);
++        let _ = ws_tx.send(json).await;
+     }
+ 
+     processor.record_action(action_id, None).await;
+diff --git a/src/rwi/processor.rs b/src/rwi/processor.rs
+index 1f3785e0..5c3ca67b 100644
+--- a/src/rwi/processor.rs
++++ b/src/rwi/processor.rs
+@@ -33,6 +33,7 @@ const RWI_MEDIA_CLEANUP_CONCURRENCY: usize = 8;
+ const RWI_MEDIA_CLEANUP_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(5);
+ const RWI_MEDIA_CLEANUP_RETRY_MIN: Duration = Duration::from_millis(250);
+ const RWI_MEDIA_CLEANUP_RETRY_MAX: Duration = Duration::from_secs(30);
++const RWI_LEG_CONNECTED_QUEUE_CAPACITY: usize = 32;
+ 
+ struct PendingRwiMediaCleanup {
+     runtime: tokio::sync::Mutex<crate::ivekit_media_lifecycle::IveKitMediaRuntime>,
+@@ -658,10 +659,14 @@ impl RwiCommandProcessor {
+         let Some(ref server) = self.sip_server else {
+             return;
+         };
+-        let (tx, mut rx) =
+-            tokio::sync::mpsc::unbounded_channel::<crate::call::domain::ReferNotifyEvent>();
++        let (tx, mut rx) = crate::call::domain::refer_notify_channel();
+         {
+             let mut subscribers = server.transfer_notify_subscribers.lock().await;
++            subscribers.retain(|sender| !sender.is_closed());
++            if subscribers.len() >= crate::call::domain::MAX_REFER_NOTIFY_SUBSCRIBERS {
++                crate::metrics::call_control::mailbox_rejected("refer_subscriber", "full");
++                return;
++            }
+             subscribers.push(tx);
+         }
+ 
+@@ -1619,7 +1624,7 @@ impl RwiCommandProcessor {
+ 
+         let cancel_token = tokio_util::sync::CancellationToken::new();
+         let conference_manager = self.conference_manager.clone();
+-        let (state_tx, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
++        let (state_tx, mut state_rx) = dialog_layer.new_dialog_state_channel();
+         let mut prepared_invite = dialog_layer
+             .prepare_invite(invite_option, state_tx)
+             .map_err(|error| {
+@@ -1722,7 +1727,7 @@ impl RwiCommandProcessor {
+                 let mut app_cancel: Option<tokio_util::sync::CancellationToken> = None;
+                 // Channel for leg-connected notifications from spawned INVITE tasks
+                 let (leg_connected_tx, mut leg_connected_rx) =
+-                    tokio::sync::mpsc::unbounded_channel::<LegId>();
++                    tokio::sync::mpsc::channel::<LegId>(RWI_LEG_CONNECTED_QUEUE_CAPACITY);
+                 // Per-leg conference bridge handles (auto-bridge caller ↔ agent)
+                 let mut leg_bridge_handles: HashMap<LegId, Vec<ConferenceBridgeHandle>> =
+                     HashMap::new();
+@@ -1918,7 +1923,8 @@ impl RwiCommandProcessor {
+                                             let connected_notifier = leg_connected_tx.clone();
+ 
+                                             let handle = crate::utils::spawn(async move {
+-                                                let (state_tx, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
++                                                let (state_tx, mut state_rx) =
++                                                    dialog_layer_clone.new_dialog_state_channel();
+                                                 let invitation = dialog_layer_clone.do_invite(invite_option, state_tx).boxed();
+ 
+                                                 match invitation.await {
+@@ -1933,7 +1939,7 @@ impl RwiCommandProcessor {
+                                                                         tracing::warn!(%call_id_for_spawn, %leg_id_clone, error = %e, "Failed to set remote description on leg peer");
+                                                                     } else {
+                                                                         // Notify main loop: agent answered, trigger auto-bridge
+-                                                                        let _ = connected_notifier.send(leg_id_clone.clone());
++                                                                        let _ = connected_notifier.send(leg_id_clone.clone()).await;
+                                                                     }
+                                                                 }
+                                                             } else {
+@@ -2861,7 +2867,7 @@ impl RwiCommandProcessor {
+         // parallel-originate leg can also be placed straight out a named trunk.
+         Self::apply_explicit_originate_trunk(&server, &mut invite_option, trunk, &call_id)?;
+ 
+-        let (state_tx, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
++        let (state_tx, mut state_rx) = dialog_layer.new_dialog_state_channel();
+         let mut invitation = dialog_layer.do_invite(invite_option, state_tx).boxed();
+ 
+         let cancel_token = tokio_util::sync::CancellationToken::new();
+@@ -3255,7 +3261,7 @@ impl RwiCommandProcessor {
+             return Ok(CommandResult::Success);
+         }
+ 
+-        let (tap_tx, mut tap_rx) = tokio::sync::mpsc::unbounded_channel::<(Option<String>, char)>();
++        let (tap_tx, mut tap_rx) = crate::rwi::gateway::rwi_dtmf_tap_channel();
+ 
+         // Register the tap in the gateway.
+         {
+@@ -6191,7 +6197,7 @@ mod tests {
+         let _ha = create_test_call(&registry, "leg-a", "1001", "2001", DialDirection::Outbound);
+         let _hb = create_test_call(&registry, "leg-b", "1001", "2002", DialDirection::Outbound);
+ 
+-        let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
++        let (event_tx, mut event_rx) = crate::rwi::gateway::rwi_session_event_channel();
+         {
+             let mut gw = gateway.write();
+             let identity = crate::rwi::auth::RwiIdentity {
+@@ -6346,7 +6352,7 @@ mod tests {
+         let (_handle, _rx) =
+             create_test_call_with_rx(&registry, "call-ev", "1001", "2000", DialDirection::Inbound);
+ 
+-        let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
++        let (event_tx, mut event_rx) = crate::rwi::gateway::rwi_session_event_channel();
+         {
+             let mut gw = gateway.write();
+             let identity = crate::rwi::auth::RwiIdentity {
+@@ -7915,7 +7921,7 @@ mod tests {
+         let registry = Arc::new(ActiveProxyCallRegistry::new());
+ 
+         let mut gateway_impl = RwiGateway::new();
+-        let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
++        let (event_tx, mut event_rx) = crate::rwi::gateway::rwi_session_event_channel();
+         gateway_impl.set_session_event_sender(&"test-session".to_string(), event_tx);
+         let gateway = Arc::new(RwLock::new(gateway_impl));
+ 
+diff --git a/src/rwi/proto.rs b/src/rwi/proto.rs
+index e9c70d75..8fbe1588 100644
+--- a/src/rwi/proto.rs
++++ b/src/rwi/proto.rs
+@@ -4,6 +4,7 @@ use std::sync::Arc;
+ use tokio::sync::RwLock;
+ 
+ pub const RWI_VERSION: &str = "1.0";
++pub const RWI_EVENT_QUEUE_CAPACITY: usize = 256;
+ 
+ /// Common call context flattened into all call-scoped RWI events.
+ /// All fields are Option — when None they are omitted from JSON.
+@@ -50,9 +51,13 @@ impl<T> RwiEnvelope<T> {
+ }
+ 
+ /// Type alias for RWI event sender.
+-pub type RwiEventTx = tokio::sync::mpsc::UnboundedSender<RwiEvent>;
++pub type RwiEventTx = tokio::sync::mpsc::Sender<RwiEvent>;
+ /// Type alias for RWI event receiver.
+-pub type RwiEventRx = tokio::sync::mpsc::UnboundedReceiver<RwiEvent>;
++pub type RwiEventRx = tokio::sync::mpsc::Receiver<RwiEvent>;
++
++pub fn rwi_event_channel() -> (RwiEventTx, RwiEventRx) {
++    tokio::sync::mpsc::channel(RWI_EVENT_QUEUE_CAPACITY)
++}
+ 
+ pub use crate::rwi::event::RwiEvent;
+ 
+diff --git a/src/rwi/session.rs b/src/rwi/session.rs
+index 01b3c51f..0b970a30 100644
+--- a/src/rwi/session.rs
++++ b/src/rwi/session.rs
+@@ -4,6 +4,14 @@ use std::collections::{HashMap, HashSet};
+ use tokio::sync::mpsc;
+ use uuid::Uuid;
+ 
++pub const RWI_COMMAND_QUEUE_CAPACITY: usize = 64;
++pub type RwiCommandSender = mpsc::Sender<RwiCommandMessage>;
++pub type RwiCommandReceiver = mpsc::Receiver<RwiCommandMessage>;
++
++pub fn rwi_command_channel() -> (RwiCommandSender, RwiCommandReceiver) {
++    mpsc::channel(RWI_COMMAND_QUEUE_CAPACITY)
++}
++
+ #[derive(Debug, Clone)]
+ pub struct RwiSession {
+     pub id: String,
+@@ -11,7 +19,7 @@ pub struct RwiSession {
+     pub subscribed_contexts: HashSet<String>,
+     pub owned_calls: HashMap<String, CallOwnership>,
+     pub supervisor_targets: HashMap<String, SupervisorMode>,
+-    pub command_tx: mpsc::UnboundedSender<RwiCommandMessage>,
++    pub command_tx: RwiCommandSender,
+     pub created_at: std::time::Instant,
+ }
+ 
+@@ -1197,10 +1205,7 @@ impl From<RwiRequest> for RwiCommandPayload {
+ }
+ 
+ impl RwiSession {
+-    pub fn new(
+-        identity: RwiIdentity,
+-        command_tx: mpsc::UnboundedSender<RwiCommandMessage>,
+-    ) -> Self {
++    pub fn new(identity: RwiIdentity, command_tx: RwiCommandSender) -> Self {
+         Self {
+             id: Uuid::new_v4().to_string(),
+             identity,
+@@ -1288,7 +1293,6 @@ impl RwiSession {
+ mod tests {
+     use super::*;
+     use crate::rwi::auth::RwiIdentity;
+-    use tokio::sync::mpsc;
+ 
+     fn create_test_identity() -> RwiIdentity {
+         RwiIdentity {
+@@ -1297,8 +1301,8 @@ mod tests {
+         }
+     }
+ 
+-    fn create_test_session() -> (RwiSession, mpsc::UnboundedReceiver<RwiCommandMessage>) {
+-        let (tx, rx) = mpsc::unbounded_channel();
++    fn create_test_session() -> (RwiSession, RwiCommandReceiver) {
++        let (tx, rx) = rwi_command_channel();
+         let identity = create_test_identity();
+         let session = RwiSession::new(identity, tx);
+         (session, rx)
+@@ -1307,7 +1311,7 @@ mod tests {
+     #[test]
+     fn test_session_creation() {
+         let identity = create_test_identity();
+-        let (tx, _rx) = mpsc::unbounded_channel();
++        let (tx, _rx) = rwi_command_channel();
+         let session = RwiSession::new(identity.clone(), tx);
+ 
+         assert!(!session.id.is_empty());
+diff --git a/src/rwi/transfer.rs b/src/rwi/transfer.rs
+index a9f1ca87..45972807 100644
+--- a/src/rwi/transfer.rs
++++ b/src/rwi/transfer.rs
+@@ -1090,7 +1090,7 @@ impl TransferController {
+ 
+         // Spawn originate task
+         crate::utils::spawn(async move {
+-            let (state_tx, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
++            let (state_tx, mut state_rx) = dialog_layer.new_dialog_state_channel();
+             let mut invitation = dialog_layer.do_invite(invite_option, state_tx).boxed();
+ 
+             // Create session and register
+diff --git a/src/sipflow/backend/local.rs b/src/sipflow/backend/local.rs
+index 4c4496ac..7364bcc9 100644
+--- a/src/sipflow/backend/local.rs
++++ b/src/sipflow/backend/local.rs
+@@ -3,6 +3,7 @@ use async_trait::async_trait;
+ use chrono::{DateTime, Local};
+ use std::net::IpAddr;
+ use std::path::PathBuf;
++use std::sync::Arc;
+ use tokio::sync::mpsc;
+ use tokio_util::sync::CancellationToken;
+ use tracing::warn;
+@@ -26,12 +27,15 @@ enum Command {
+     },
+ }
+ 
++pub const LOCAL_SIPFLOW_CHANNEL_CAPACITY: usize = 8_192;
++
+ /// Local (embedded) backend that runs sipflow storage in a background task
+ pub struct LocalBackend {
+-    sender: mpsc::UnboundedSender<Command>,
++    sender: mpsc::Sender<Command>,
+     root: String,
+     subdirs: SipFlowSubdirs,
+     cancel_token: CancellationToken,
++    perf: Arc<PerfCounters>,
+ }
+ 
+ impl LocalBackend {
+@@ -44,14 +48,14 @@ impl LocalBackend {
+     ) -> Result<Self> {
+         std::fs::create_dir_all(&root)?;
+ 
+-        let (tx, mut rx) = mpsc::unbounded_channel::<Command>();
++        let (tx, mut rx) = mpsc::channel::<Command>(LOCAL_SIPFLOW_CHANNEL_CAPACITY);
+         let cancel_token = CancellationToken::new();
+         let cancel_token_clone = cancel_token.clone();
+         let root_clone = root.clone();
+         let subdirs_clone = subdirs.clone();
+         // Spawn background worker task
+         let perf = PerfCounters::new_arc();
+-        let perf_dumper = perf.clone();
++        let worker_perf = perf.clone();
+         crate::utils::spawn(async move {
+             let mut storage = StorageManager::new(
+                 &PathBuf::from(&root_clone),
+@@ -62,7 +66,7 @@ impl LocalBackend {
+             );
+ 
+             let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+-            let mut dumper = PerfDumper::new(perf_dumper);
++            let mut dumper = PerfDumper::new(worker_perf.clone());
+ 
+             loop {
+                 tokio::select! {
+@@ -73,7 +77,7 @@ impl LocalBackend {
+                     Some(cmd) = rx.recv() => {
+                         match cmd {
+                             Command::RecordItem { call_id, item } => {
+-                                perf.items_recorded.fetch_add(1, Ordering::Relaxed);
++                                worker_perf.items_recorded.fetch_add(1, Ordering::Relaxed);
+                                 // Convert SipFlowItem to Packet for storage
+                                 let default_port = if matches!(&item.msg_type, SipFlowMsgType::Sip)
+                                 {
+@@ -125,15 +129,15 @@ impl LocalBackend {
+                             }
+                             Command::Flush { done } => {
+                                 let _ = storage.force_flush().await;
+-                                perf.flushes.fetch_add(1, Ordering::Relaxed);
+-                                perf.set_pending(storage.batch_len() as i64);
++                                worker_perf.flushes.fetch_add(1, Ordering::Relaxed);
++                                worker_perf.set_pending(storage.batch_len() as i64);
+                                 let _ = done.send(());
+                             }
+                         }
+                     }
+                     _ = interval.tick() => {
+                         let _ = storage.check_flush().await;
+-                        perf.set_pending(storage.batch_len() as i64);
++                        worker_perf.set_pending(storage.batch_len() as i64);
+                         if let Some(msg) = dumper.try_dump() {
+                             tracing::info!("{msg}");
+                         }
+@@ -147,6 +151,7 @@ impl LocalBackend {
+             root,
+             subdirs,
+             cancel_token,
++            perf,
+         })
+     }
+ }
+@@ -155,7 +160,7 @@ impl LocalBackend {
+ impl SipFlowBackend for LocalBackend {
+     async fn flush(&self) -> Result<()> {
+         let (tx, rx) = tokio::sync::oneshot::channel();
+-        if self.sender.send(Command::Flush { done: tx }).is_err() {
++        if self.sender.send(Command::Flush { done: tx }).await.is_err() {
+             warn!("SipFlowBackend flush: worker channel closed, skipping flush");
+             return Ok(());
+         }
+@@ -173,12 +178,14 @@ impl SipFlowBackend for LocalBackend {
+     }
+ 
+     fn record(&self, call_id: &str, item: SipFlowItem) -> Result<()> {
+-        self.sender
+-            .send(Command::RecordItem {
+-                call_id: call_id.to_string(),
+-                item,
+-            })
+-            .map_err(|e| anyhow::anyhow!("Failed to send record command: {}", e))?;
++        let permit = self.sender.try_reserve().map_err(|error| {
++            self.perf.items_dropped.fetch_add(1, Ordering::Relaxed);
++            anyhow::anyhow!("Failed to reserve local sipflow queue capacity: {error}")
++        })?;
++        permit.send(Command::RecordItem {
++            call_id: call_id.to_string(),
++            item,
++        });
+         Ok(())
+     }
+ 
+@@ -391,3 +398,37 @@ impl Drop for LocalBackend {
+         self.cancel_token.cancel();
+     }
+ }
++
++#[cfg(test)]
++mod bounded_queue_tests {
++    use super::*;
++
++    fn item(sequence: u64) -> SipFlowItem {
++        SipFlowItem {
++            timestamp: sequence,
++            seq: sequence,
++            leg: None,
++            msg_type: SipFlowMsgType::Sip,
++            src_addr: String::new(),
++            dst_addr: String::new(),
++            payload: bytes::Bytes::new(),
++        }
++    }
++
++    #[test]
++    fn local_backend_rejects_a_full_queue_without_allocating_more_backlog() {
++        let (sender, _receiver) = mpsc::channel(1);
++        let perf = PerfCounters::new_arc();
++        let backend = LocalBackend {
++            sender,
++            root: String::new(),
++            subdirs: SipFlowSubdirs::default(),
++            cancel_token: CancellationToken::new(),
++            perf: perf.clone(),
++        };
++
++        backend.record("call-a", item(1)).expect("first item fits");
++        assert!(backend.record("call-b", item(2)).is_err());
++        assert_eq!(perf.items_dropped.load(Ordering::Relaxed), 1);
++    }
++}
+
