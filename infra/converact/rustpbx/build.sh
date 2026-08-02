@@ -81,8 +81,23 @@ done
   exit 1
 }
 
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
 BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/converact-rustpbx-build.XXXXXX")"
-cleanup() { rm -rf "$BUILD_ROOT"; }
+ROOT_OWNED_BUILD_OUTPUT=0
+cleanup() {
+  local status="$?"
+  trap - EXIT
+  if [[ "$ROOT_OWNED_BUILD_OUTPUT" == 1 ]]; then
+    docker run --rm \
+      -v "$BUILD_ROOT:/build" \
+      "$RUST_BUILDER_IMAGE" \
+      chown -R "$HOST_UID:$HOST_GID" /build \
+      >/dev/null 2>&1 || true
+  fi
+  rm -rf "$BUILD_ROOT" || true
+  exit "$status"
+}
 trap cleanup EXIT
 
 git clone --filter=blob:none --no-checkout https://github.com/restsend/rustpbx.git "$BUILD_ROOT/rustpbx"
@@ -220,6 +235,7 @@ if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
     echo "Converact Fabric RustPBX format scope is empty" >&2
     exit 1
   }
+  ROOT_OWNED_BUILD_OUTPUT=1
   docker run "${DOCKER_RUN_ARGS[@]}" \
     -v "$BUILD_ROOT:/build" \
     -w /build/rustpbx \
@@ -242,7 +258,7 @@ if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
       cargo test --locked --lib test_recording_double_start_fails
       cargo test --locked --lib test_recording_pending_start_rejects_duplicate
       cargo test --locked --lib missing_callee_terminal_data_stays_independent_from_the_caller
-      cargo test --locked --test converact_dialog_shadow_contract_test
+      cargo test --locked --test ivekit_dialog_shadow_contract_test
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline prepared_invite_
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline reject_with_headers_
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline repeated_send_trying_emits_one_initial_response
@@ -255,6 +271,7 @@ if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
 fi
 
 if [[ -n "${CONVERACT_FABRIC_RUSTPBX_LOCKFILE_OUTPUT:-}" ]]; then
+  ROOT_OWNED_BUILD_OUTPUT=1
   docker run "${DOCKER_RUN_ARGS[@]}" \
     -v "$BUILD_ROOT:/build" \
     -w /build/rustpbx \
@@ -267,6 +284,7 @@ if [[ -n "${CONVERACT_FABRIC_RUSTPBX_LOCKFILE_OUTPUT:-}" ]]; then
   exit 0
 fi
 
+ROOT_OWNED_BUILD_OUTPUT=1
 docker run "${DOCKER_RUN_ARGS[@]}" \
   -v "$BUILD_ROOT:/build" \
   -w /build/rustpbx \

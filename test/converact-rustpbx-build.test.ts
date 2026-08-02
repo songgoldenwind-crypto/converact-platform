@@ -56,6 +56,14 @@ test('Converact Fabric RustPBX build pins source, toolchain, lockfile, and runti
   assert.match(buildScript, /CONVERACT_FABRIC_RUSTPBX_BUILD_MEMORY/);
   assert.match(buildScript, /CONVERACT_FABRIC_RUSTPBX_BUILD_JOBS/);
   assert.match(buildScript, /CONVERACT_FABRIC_RUSTPBX_CARGO_HOME/);
+  assert.match(buildScript, /HOST_UID="\$\(id -u\)"/);
+  assert.match(buildScript, /HOST_GID="\$\(id -g\)"/);
+  assert.match(buildScript, /local status="\$\?"/);
+  assert.match(
+    buildScript,
+    /docker run --rm[\s\S]*-v "\$BUILD_ROOT:\/build"[\s\S]*chown -R "\$HOST_UID:\$HOST_GID" \/build/
+  );
+  assert.match(buildScript, /exit "\$status"/);
   assert.match(buildScript, /cross compilation is not supported/);
   assert.match(
     buildScript,
@@ -151,8 +159,9 @@ test('RustPBX CI verifies exact-source behavior before publishing images', () =>
   );
   assert.match(
     buildScript,
-    /cargo test --locked --test converact_dialog_shadow_contract_test/
+    /cargo test --locked --test ivekit_dialog_shadow_contract_test/
   );
+  assert.doesNotMatch(buildScript, /--test converact_dialog_shadow_contract_test/);
 });
 
 test('Converact Fabric RustPBX patch reconnects only failed TCP sends and removes matching stale entries', () => {
