@@ -30,7 +30,7 @@ Source-flow review identifies the RustPBX `CallModule` and later
 application-level calls on one transaction emit one outbound transport event.
 The patched rsipstack library passed all 252 tests at that checkpoint. A
 separate native regression proves a failed first transport send can retry on a
-replacement connection. The RustPBX full suite, ivekit.41 release image, and
+replacement connection. The RustPBX full suite, ivekit.42 release image, and
 end-to-end durable-admission Retry-After wire propagation remain `not_run`.
 Current Timer G/H/I evidence is recorded separately below. The 1,911-test
 RustPBX result below remains the ivekit.38 evidence baseline.
@@ -80,6 +80,19 @@ and the security change is versioned as `G03-WIRE-SECURITY-001`. The complete
 ivekit.41 rsipstack queue applies cleanly and passes 270/270 local native library
 tests. Controlled-host dual-binary wire replay, RustPBX image build, SIPp
 latency and production eligibility remain `not_run`.
+
+## Inbound REFER wire singleton
+
+ivekit.42 removes an additional untyped `Max-Forwards` header from RustPBX's
+inbound REFER transfer origination. rsipstack already creates the required
+typed `Max-Forwards: 70`; emitting both values violates the G03 singleton wire
+contract and is rejected by the bounded parser. Supplemental INVITE headers are
+now absent for a blind transfer and contain only `Replaces` when an attended
+transfer needs it, avoiding both the malformed wire message and an unnecessary
+header-vector allocation. The focused native REFER test and the complete
+RustPBX library suite pass on the controlled candidate source tree (`1913`
+passed, `1` ignored); the clean commit-bound build, release image, SIPp and
+capacity gates remain `not_run`.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

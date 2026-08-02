@@ -49,7 +49,7 @@ test('the exact rsipstack queue rejects bounded wire ambiguities before parsing'
     build,
     /rsipstack-ivekit-server-invite-lifecycle\.patch"[\s\S]*rsipstack-ivekit-wire-guard\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.41"/);
+  assert.match(build, /PATCHSET="ivekit\.42"/);
   assert.match(
     build,
     /^\s*cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline\s*$/m

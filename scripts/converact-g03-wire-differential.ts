@@ -292,7 +292,7 @@ function validateIdentity(identity: WireDifferentialIdentity): void {
       !COMMIT_PATTERN.test(identity.source_commit) ||
       !COMMIT_PATTERN.test(identity.rsipstack_commit) ||
       identity.baseline_patchset !== 'ivekit.40' ||
-      identity.current_patchset !== 'ivekit.41' ||
+      identity.current_patchset !== 'ivekit.42' ||
       !isSha256(identity.baseline_binary_sha256) ||
       !isSha256(identity.current_binary_sha256) ||
       !isSha256(identity.patch_set_sha256)) {
@@ -364,7 +364,7 @@ function runCli(): void {
       source_commit: arguments_['source-commit']!,
       rsipstack_commit: arguments_['rsipstack-commit']!,
       baseline_patchset: 'ivekit.40',
-      current_patchset: 'ivekit.41',
+      current_patchset: 'ivekit.42',
       baseline_binary_sha256: sha256(readFileSync(baselineBinary)),
       current_binary_sha256: sha256(readFileSync(currentBinary)),
       patch_set_sha256: arguments_['patch-set-sha256']!

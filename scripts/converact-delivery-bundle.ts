@@ -708,7 +708,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rustpbx-ivekit-recording-lifecycle-reservation.patch',
     'rustpbx-ivekit-processing-terminal-events.patch',
     'rustpbx-ivekit-processing-ivr-execution.patch',
-    'rustpbx-ivekit-server-invite-owner.patch'
+    'rustpbx-ivekit-server-invite-owner.patch',
+    'rustpbx-ivekit-inbound-refer-wire.patch'
   ].map((name) => ({
     source: `infra/converact/rustpbx/patches/${name}`,
     destination: `deploy/rustpbx/patches/${name}`

@@ -33,10 +33,10 @@ function effective(patch: string): string {
     .join('\n');
 }
 
-test('ivekit.41 retains the server INVITE lifecycle and owner patches in order', () => {
+test('ivekit.42 retains the server INVITE lifecycle and owner patches in order', () => {
   assert.equal(spawnSync('git', ['apply', '--numstat', RSIPSTACK_PATCH]).status, 0);
   assert.equal(spawnSync('git', ['apply', '--numstat', RUSTPBX_PATCH]).status, 0);
-  assert.match(build, /PATCHSET="ivekit\.41"/);
+  assert.match(build, /PATCHSET="ivekit\.42"/);
   assert.match(
     build,
     /rsipstack-ivekit-single-trying\.patch"[\s\S]*rsipstack-ivekit-server-invite-lifecycle\.patch"[\s\S]*rsipstack-ivekit-wire-guard\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/
@@ -48,7 +48,7 @@ test('ivekit.41 retains the server INVITE lifecycle and owner patches in order',
 });
 
 test('the fork manifest binds both lifecycle patches and their evidence', () => {
-  assert.equal(manifest.revision, 62);
+  assert.equal(manifest.revision, 63);
   for (const [componentId, patchPath, contents, changeId] of [
     ['rsipstack', RSIPSTACK_PATCH, rsipstackPatch, 'rsipstack-server-invite-lifecycle-v1'],
     ['rustpbx', RUSTPBX_PATCH, rustpbxPatch, 'rustpbx-server-invite-owner-v1']

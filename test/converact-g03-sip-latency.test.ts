@@ -169,7 +169,7 @@ function identity() {
     source_commit: '1'.repeat(40),
     rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
     rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
-    patchset: 'ivekit.41' as const,
+    patchset: 'ivekit.42' as const,
     sipp_version: '3.7.7' as const,
     sipp_binary_sha256: '8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef',
     host_fingerprint_sha256: '2'.repeat(64)

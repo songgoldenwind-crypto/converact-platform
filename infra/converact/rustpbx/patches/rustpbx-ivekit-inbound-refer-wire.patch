@@ -1,0 +1,34 @@
+diff --git a/src/proxy/call.rs b/src/proxy/call.rs
+index 3fd22ecd..063c9ade 100644
+--- a/src/proxy/call.rs
++++ b/src/proxy/call.rs
+@@ -2012,16 +2012,12 @@ impl CallModule {
+                 .map_err(|e| (500, format!("Invalid caller URI: {:?}", e)))?;
+ 
+         // Build headers
+-        let mut headers = vec![rsipstack::sip::Header::Other(
+-            "Max-Forwards".into(),
+-            "70".into(),
+-        )];
+-        if let Some(replaces) = replaces_header {
+-            headers.push(rsipstack::sip::Header::Other(
++        let headers = replaces_header.map(|replaces| {
++            vec![rsipstack::sip::Header::Other(
+                 "Replaces".into(),
+                 replaces.into(),
+-            ));
+-        }
++            )]
++        });
+ 
+         // Get media config for SDP
+         let media = server.default_media_config();
+@@ -2061,7 +2057,7 @@ impl CallModule {
+             offer: Some(sdp_offer.into_bytes()),
+             destination: None,
+             credential: None,
+-            headers: Some(headers),
++            headers,
+             call_id: Some(new_call_id.clone()),
+             ..Default::default()
+         };

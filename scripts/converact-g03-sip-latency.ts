@@ -13,7 +13,7 @@ export interface SipLatencyIdentity {
   readonly source_commit: string;
   readonly rustpbx_commit: string;
   readonly rsipstack_commit: string;
-  readonly patchset: 'ivekit.41';
+  readonly patchset: 'ivekit.42';
   readonly sipp_version: '3.7.7';
   readonly sipp_binary_sha256: string;
   readonly host_fingerprint_sha256: string;
@@ -345,7 +345,7 @@ function validateIdentity(identity: SipLatencyIdentity): void {
       !COMMIT_PATTERN.test(identity.source_commit) ||
       identity.rustpbx_commit !== '6c49ee76baa54fdbf8f98020cc9bee158c7c15de' ||
       identity.rsipstack_commit !== '8318e97b1170de4e5245b120afec1cdf53e3d716' ||
-      identity.patchset !== 'ivekit.41' ||
+      identity.patchset !== 'ivekit.42' ||
       identity.sipp_version !== '3.7.7' ||
       identity.sipp_binary_sha256 !==
         '8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef' ||
@@ -414,7 +414,7 @@ function runCli(): void {
       source_commit: arguments_['source-commit']!,
       rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
       rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
-      patchset: 'ivekit.41',
+      patchset: 'ivekit.42',
       sipp_version: '3.7.7',
       sipp_binary_sha256: '8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef',
       host_fingerprint_sha256: arguments_['host-fingerprint-sha256']!

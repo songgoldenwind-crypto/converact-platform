@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 62,
+  "revision": 63,
   "status": "proposed",
-  "generated_at": "2026-08-02T08:22:55Z",
+  "generated_at": "2026-08-02T16:23:56Z",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.41-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.42-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.41-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.42-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -240,6 +240,12 @@
           "sha256": "f0397035f8141e375b0794200cc2c8d6bbbad54577e077175925c65675822c31",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-processing-ivr-execution.patch",
           "purpose": "Retain each stateful 300-699 server INVITE transaction until ACK, Timer H, transport failure or shutdown without retaining the business-concurrency slot, and count abnormal terminal causes with fixed-cardinality telemetry."
+        },
+        {
+          "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-inbound-refer-wire.patch",
+          "sha256": "0a172e6dece62543bc95fd07ef9f75bf6b3c4ed0451853fdf02ba00b2d8eb8b3",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-server-invite-owner.patch",
+          "purpose": "Remove the duplicate untyped Max-Forwards header from inbound REFER transfer origination, rely on rsipstack's canonical typed singleton, and allocate an extension-header vector only when a Replaces value exists."
         }
       ],
       "protocols": [
@@ -745,6 +751,21 @@
           ]
         },
         {
+          "change_id": "rustpbx-inbound-refer-wire-v1",
+          "summary": "Emit a parser-valid inbound REFER transfer INVITE with one canonical Max-Forwards singleton.",
+          "capacity_dimensions": [
+            "sip.active_transactions",
+            "sip.transactions_per_second",
+            "sip.invite_cps"
+          ],
+          "acceptance_evidence": [
+            "The exact ivekit.41 full RustPBX library suite exposed one inbound REFER failure, and 20 of 20 isolated repetitions failed with the same outcome.",
+            "Trace evidence binds the failure to one generated INVITE containing both rsipstack's typed Max-Forwards and RustPBX's additional untyped Max-Forwards; the strict singleton parser correctly rejected that wire message.",
+            "The repair keeps rsipstack authoritative for the required Max-Forwards singleton and creates a supplemental header vector only when Replaces is present.",
+            "Controlled exact pinned patched-source verification passes the focused inbound REFER E2E and the complete RustPBX library suite with 1913 passes, zero failures and one ignored infrastructure test; clean final-commit build replay remains not_run."
+          ]
+        },
+        {
           "change_id": "rustpbx-rustrtc-udp-socket-capacity-v1",
           "summary": "Use a pinned rustrtc transport fork with bounded per-socket RTP and RTCP receive/send buffer controls.",
           "capacity_dimensions": [
@@ -839,6 +860,10 @@
           "test/ivekit-rustpbx-processing-ivr-execution-patch.test.ts",
           "infra/converact/rustpbx/patches/rustpbx-ivekit-server-invite-owner.patch",
           "test/ivekit-rsipstack-server-invite-lifecycle-patch.test.ts",
+          "infra/converact/rustpbx/patches/rustpbx-ivekit-inbound-refer-wire.patch",
+          "test/converact-rustpbx-inbound-refer-wire-patch.test.ts",
+          "src/proxy/tests/test_inbound_refer.rs",
+          "architecture-foundation/execution/goal-03/inbound-refer-wire-repair-report.md",
           "infra/converact/rustpbx/patches/rustpbx-local-rustrtc.patch",
           "infra/converact/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
@@ -887,7 +912,7 @@
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The prior ivekit.40 exact pinned patch queue passed cargo check --lib and focused server-INVITE owner tests; the current ivekit.41 RustPBX build, release image, full RustPBX suite, SIPp wire behavior, runtime trace continuity and load/capacity comparison remain not_run.",
+          "The prior ivekit.41 exact pinned queue exposed the duplicate-Max-Forwards inbound REFER defect. The ivekit.42 candidate passes focused and full-library controlled source verification, while clean final-commit build replay, release image, SIPp wire behavior, runtime trace continuity and load/capacity comparison remain not_run.",
           "The exact ivekit.19 locked build and local controlled runtime pass, but the candidate has not been published with an immutable registry manifest digest, SBOM, signature or provenance.",
           "Strict packet-sequence RTP evidence passes at 10 shared-host calls and controlled RTP throughput evidence passes through 800 shared-host calls. The 150-call strict sample is invalid because the generators saturate, and both 900-call throughput samples contain mixed generator and SUT/protocol signals. Independent-generator production-capacity, realtime audio gateway authorization, recording failure injection, WSS load, multi-node failover and Cell-10K evidence are not attached.",
           "The historical shared four-vCPU signaling gate passes at 1,400 CPS and fails its strict boundary at 1,500 CPS. The ivekit.18 sustained 1,000-CPS direct and Kamailio regression gates pass, but neither result is a production or media capacity claim."

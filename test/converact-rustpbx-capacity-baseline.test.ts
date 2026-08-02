@@ -84,7 +84,7 @@ test('RustPBX direct baseline trusts the SIPp source instead of the absent Kamai
       ...process.env,
       CONVERACT_FABRIC_CAPACITY_INCLUDE_KAMAILIO: '0',
       RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS: '1',
-      RUSTPBX_IMAGE: 'converact/rustpbx:0.4.11-ivekit.41-6c49ee76',
+      RUSTPBX_IMAGE: 'converact/rustpbx:0.4.11-ivekit.42-6c49ee76',
       KAMAILIO_IMAGE: 'converact/kamailio:6.0.7-ivekit.1',
       POSTGRES_IMAGE: 'postgres@sha256:' + 'a'.repeat(64),
       PYTHON_IMAGE: 'python@sha256:' + 'b'.repeat(64),

@@ -147,7 +147,7 @@ function identity() {
     source_commit: '5'.repeat(40),
     rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
     baseline_patchset: 'ivekit.40',
-    current_patchset: 'ivekit.41',
+    current_patchset: 'ivekit.42',
     baseline_binary_sha256: '6'.repeat(64),
     current_binary_sha256: '7'.repeat(64),
     patch_set_sha256: '8'.repeat(64)
