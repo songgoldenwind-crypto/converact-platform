@@ -50,6 +50,17 @@ def media_proxy_mode() -> str:
     return value
 
 
+def include_kamailio() -> bool:
+    value = os.environ.get(
+        "CONVERACT_FABRIC_CAPACITY_INCLUDE_KAMAILIO", "1"
+    ).strip()
+    if value not in {"0", "1"}:
+        raise SystemExit(
+            "CONVERACT_FABRIC_CAPACITY_INCLUDE_KAMAILIO must be 0 or 1"
+        )
+    return value == "1"
+
+
 def rtp_port_range() -> dict[str, int]:
     start = bounded_integer("RUSTPBX_RTP_START_PORT", 20000, 1024, 65534)
     end = bounded_integer("RUSTPBX_RTP_END_PORT", 40000, 1024, 65534)
@@ -76,6 +87,7 @@ def main() -> None:
     output = Path(sys.argv[1]).resolve()
     output.mkdir(parents=True, exist_ok=True)
 
+    with_kamailio = include_kamailio()
     images = {
         "RUSTPBX_IMAGE": required_image("RUSTPBX_IMAGE", False),
         "KAMAILIO_IMAGE": required_image("KAMAILIO_IMAGE", False),
@@ -141,7 +153,8 @@ def main() -> None:
         *(f"{name}={value}" for name, value in runtime.items()),
         *(f"{name}={value}" for name, value in kamailio_memory.items()),
         f"RUSTPBX_CONFIG_FILE={config_path}",
-        "RUSTPBX_ACCEPTANCE_TRUNK_IP=172.30.44.9",
+        "RUSTPBX_ACCEPTANCE_TRUNK_IP="
+        + ("172.30.44.9" if with_kamailio else "172.30.44.20"),
         *(f"{name}={value}" for name, value in secret_paths.items()),
         *(f"{name}={value}" for name, value in kamailio_paths.items()),
         f"CONVERACT_FABRIC_KAMAILIO_CONFIG_FILE={kamailio_paths['CONVERACT_FABRIC_KAMAILIO_COMPOSE_CONFIG_OUTPUT']}",

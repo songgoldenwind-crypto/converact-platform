@@ -74,3 +74,25 @@ test('RustPBX baseline preparation creates private runtime secrets without leaki
   assert.match(env, /^KAMAILIO_IMAGE=converact\/kamailio:6\.0\.7-ivekit\.1$/m);
   assert.match(env, /^CAPACITY_TOOLS_IMAGE=converact\/capacity-tools:test$/m);
 });
+
+test('RustPBX direct baseline trusts the SIPp source instead of the absent Kamailio hop', () => {
+  const output = mkdtempSync(join(tmpdir(), 'converact-rustpbx-direct-baseline-'));
+  const result = spawnSync('python3', [join(root, 'prepare.py'), output], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      CONVERACT_FABRIC_CAPACITY_INCLUDE_KAMAILIO: '0',
+      RUSTPBX_IMAGE: 'converact/rustpbx:0.4.11-ivekit.41-6c49ee76',
+      KAMAILIO_IMAGE: 'converact/kamailio:6.0.7-ivekit.1',
+      POSTGRES_IMAGE: 'postgres@sha256:' + 'a'.repeat(64),
+      PYTHON_IMAGE: 'python@sha256:' + 'b'.repeat(64),
+      CAPACITY_TOOLS_IMAGE: 'converact/capacity-tools:test'
+    }
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const env = readFileSync(join(output, '.env'), 'utf8');
+  assert.match(env, /^RUSTPBX_ACCEPTANCE_TRUNK_IP=172\.30\.44\.20$/m);
+  assert.doesNotMatch(env, /^RUSTPBX_ACCEPTANCE_TRUNK_IP=172\.30\.44\.9$/m);
+});
