@@ -1,0 +1,721 @@
+diff --git a/src/proxy/active_call_registry.rs b/src/proxy/active_call_registry.rs
+index 02c3c4df..364b3055 100644
+--- a/src/proxy/active_call_registry.rs
++++ b/src/proxy/active_call_registry.rs
+@@ -7,6 +7,7 @@ use dashmap::DashMap;
+ use serde::Serialize;
+ use std::sync::atomic::{AtomicUsize, Ordering};
+ use tokio::sync::Notify;
++#[cfg(test)]
+ use tracing::warn;
+ 
+ const ACTIVE_CALLS_HARD_CEILING: usize = 1_000_000;
+@@ -86,6 +87,27 @@ pub struct ActiveProxyCallRegistry {
+     change_notify: Notify,
+ }
+ 
++#[must_use = "an uncommitted active-Call lease rolls back its registry indexes"]
++pub struct ActiveCallAdmissionLease {
++    registry: std::sync::Arc<ActiveProxyCallRegistry>,
++    provider_call_id: String,
++}
++
++impl std::fmt::Debug for ActiveCallAdmissionLease {
++    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        formatter
++            .debug_struct("ActiveCallAdmissionLease")
++            .field("provider_call_id", &self.provider_call_id)
++            .finish_non_exhaustive()
++    }
++}
++
++impl Drop for ActiveCallAdmissionLease {
++    fn drop(&mut self) {
++        self.registry.remove(&self.provider_call_id);
++    }
++}
++
+ impl Default for ActiveProxyCallRegistry {
+     fn default() -> Self {
+         Self::new()
+@@ -124,6 +146,7 @@ impl ActiveProxyCallRegistry {
+         self.change_notify.notify_waiters();
+     }
+ 
++    #[cfg(test)]
+     pub fn upsert(&self, entry: ActiveProxyCallEntry, handle: SipSessionHandle) {
+         if let Err(error) = self.try_upsert(entry, handle) {
+             warn!(error = %error, "active call compatibility registration rejected");
+@@ -155,6 +178,31 @@ impl ActiveProxyCallRegistry {
+         self.try_upsert_slot(entry, handle, Some(identity), false)
+     }
+ 
++    pub fn try_open(
++        self: &std::sync::Arc<Self>,
++        entry: ActiveProxyCallEntry,
++        handle: SipSessionHandle,
++        initial_dialog_id: String,
++    ) -> Result<ActiveCallAdmissionLease, ActiveCallRegistryError> {
++        let provider_call_id = entry.session_id.clone();
++        match crate::ivekit_owner::owner_identity(&provider_call_id) {
++            Some(identity) => {
++                self.try_upsert_authoritative(entry, handle.clone(), identity)?;
++            }
++            None => {
++                self.try_insert(entry, handle.clone())?;
++            }
++        }
++        if let Err(error) = self.try_register_dialog(initial_dialog_id, handle) {
++            self.remove(&provider_call_id);
++            return Err(error);
++        }
++        Ok(ActiveCallAdmissionLease {
++            registry: self.clone(),
++            provider_call_id,
++        })
++    }
++
+     fn try_upsert_slot(
+         &self,
+         entry: ActiveProxyCallEntry,
+@@ -268,6 +316,7 @@ impl ActiveProxyCallRegistry {
+         }
+     }
+ 
++    #[cfg(test)]
+     pub fn register_dialog(&self, dialog_id: String, handle: SipSessionHandle) {
+         if let Err(error) = self.try_register_dialog(dialog_id, handle) {
+             warn!(error = %error, "active call dialog compatibility registration rejected");
+@@ -889,4 +938,42 @@ mod tests {
+         assert!(registry.get_by_call_id(&call_id).is_empty());
+         assert!(registry.is_empty());
+     }
++
++    #[test]
++    fn admission_lease_owns_call_and_dialog_indexes_until_drop() {
++        let registry = std::sync::Arc::new(ActiveProxyCallRegistry::with_limits(4, 16));
++        let session = "provider-call-a";
++        {
++            let _lease = registry
++                .try_open(
++                    make_entry(session),
++                    make_handle(session),
++                    "dialog-a".to_string(),
++                )
++                .unwrap();
++            assert_eq!(registry.count(), 1);
++            assert_eq!(registry.handles_by_dialog_count(), 1);
++        }
++
++        assert!(registry.is_empty());
++        assert_eq!(registry.handles_by_dialog_count(), 0);
++        assert_eq!(registry.dialog_by_session_count(), 0);
++    }
++
++    #[test]
++    fn failed_dialog_admission_rolls_back_the_new_call_slot() {
++        let registry = std::sync::Arc::new(ActiveProxyCallRegistry::with_limits(4, 16));
++        let session = "provider-call-a";
++        let error = registry
++            .try_open(
++                make_entry(session),
++                make_handle(session),
++                "invalid dialog".to_string(),
++            )
++            .unwrap_err();
++
++        assert_eq!(error, ActiveCallRegistryError::InvalidDialogIdentifier);
++        assert!(registry.is_empty());
++        assert_eq!(registry.handles_by_dialog_count(), 0);
++    }
+ }
+diff --git a/src/proxy/call.rs b/src/proxy/call.rs
+index 99ba5707..340e4010 100644
+--- a/src/proxy/call.rs
++++ b/src/proxy/call.rs
+@@ -2062,13 +2062,15 @@ impl CallModule {
+         let original_session_id = original_session_id.to_string();
+         let target_for_log = target_uri.to_string();
+ 
+-        // Do the originate
+         let (state_tx, mut state_rx) = dialog_layer.new_dialog_state_channel();
+-        let mut invitation = dialog_layer.do_invite(invite_option, state_tx).boxed();
++        let prepared_invite = dialog_layer
++            .prepare_invite(invite_option, state_tx)
++            .map_err(|error| (503, format!("Failed to prepare transfer INVITE: {error}")))?;
++        let initial_dialog_id = prepared_invite.dialog_id();
+ 
+         // Create session and register
+         let id = SessionId::from(new_call_id.clone());
+-        let (new_handle, mut _cmd_rx) = SipSession::with_handle(id);
++        let (new_handle, cmd_rx) = SipSession::with_handle(id);
+ 
+         let entry = ActiveProxyCallEntry {
+             session_id: new_call_id.clone(),
+@@ -2079,7 +2081,10 @@ impl CallModule {
+             answered_at: None,
+             status: ActiveProxyCallStatus::Ringing,
+         };
+-        registry.upsert(entry, new_handle.clone());
++        let active_call_lease = registry
++            .try_open(entry, new_handle, initial_dialog_id.to_string())
++            .map_err(|error| (503, format!("Transfer Call admission rejected: {error}")))?;
++        let mut invitation = prepared_invite.send().boxed();
+ 
+         // Wait for invitation result with timeout
+         let timeout_secs = 60u64;
+@@ -2110,10 +2115,24 @@ impl CallModule {
+         .await;
+ 
+         match result {
+-            Ok(Ok((_, Some(resp))))
++            Ok(Ok((dialog, Some(resp))))
+                 if resp.status_code().kind()
+                     == rsipstack::sip::status_code::StatusCodeKind::Successful =>
+             {
++                let Some(active_handle) = registry.get_handle(&new_call_id) else {
++                    if let Err(hangup_error) = dialog.hangup().await {
++                        warn!(%new_call_id, error = %hangup_error, "Failed to terminate unowned transfer dialog");
++                    }
++                    return Err((503, "Transfer Call authority is unavailable".to_string()));
++                };
++                if let Err(error) =
++                    registry.try_register_dialog(dialog.id().to_string(), active_handle)
++                {
++                    if let Err(hangup_error) = dialog.hangup().await {
++                        warn!(%new_call_id, error = %hangup_error, "Failed to terminate rejected transfer dialog");
++                    }
++                    return Err((503, format!("Transfer Dialog admission rejected: {error}")));
++                }
+                 info!(%new_call_id, "Inbound REFER transfer target answered");
+ 
+                 registry.update(&new_call_id, |entry| {
+@@ -2125,15 +2144,28 @@ impl CallModule {
+                 let leg_a = crate::call::domain::LegId::new(&original_session_id);
+                 let leg_b = crate::call::domain::LegId::new(&new_call_id);
+ 
+-                original_handle
+-                    .send_command(crate::call::domain::CallCommand::Bridge {
++                if let Err(error) =
++                    original_handle.send_command(crate::call::domain::CallCommand::Bridge {
+                         leg_a,
+                         leg_b,
+                         mode: crate::call::domain::P2PMode::Audio,
+                     })
+-                    .map_err(|e| (500, format!("Failed to bridge calls: {}", e)))?;
++                {
++                    if let Err(hangup_error) = dialog.hangup().await {
++                        warn!(%new_call_id, error = %hangup_error, "Failed to terminate unbridged transfer dialog");
++                    }
++                    return Err((500, format!("Failed to bridge calls: {error}")));
++                }
+ 
+                 info!(%original_session_id, %new_call_id, "Bridged original and transfer target calls");
++                crate::proxy::proxy_call::outbound_call_owner::spawn_confirmed_outbound_owner(
++                    new_call_id.clone(),
++                    registry.clone(),
++                    active_call_lease,
++                    rsipstack::dialog::invitation::DialogGuard::new(&dialog_layer, dialog.id()),
++                    cmd_rx,
++                    None,
++                );
+                 Ok(())
+             }
+             Ok(Ok((_, Some(resp)))) => {
+diff --git a/src/proxy/proxy_call.rs b/src/proxy/proxy_call.rs
+index b5fa8ffc..cfa4ddb4 100644
+--- a/src/proxy/proxy_call.rs
++++ b/src/proxy/proxy_call.rs
+@@ -16,6 +16,7 @@ pub(crate) mod dtmf;
+ pub(crate) mod leg_registry;
+ pub(crate) mod media_peer;
+ pub(crate) mod media_state;
++pub(crate) mod outbound_call_owner;
+ pub(crate) mod reporter;
+ pub(crate) mod session_hooks;
+ pub(crate) mod session_registry;
+diff --git a/src/proxy/proxy_call/state.rs b/src/proxy/proxy_call/state.rs
+index c759aea5..f62cf591 100644
+--- a/src/proxy/proxy_call/state.rs
++++ b/src/proxy/proxy_call/state.rs
+@@ -1,9 +1,6 @@
+ use crate::call::{DialDirection, Dialplan, TransactionCookie};
+ use crate::callrecord::{CallRecordHangupMessage, CallRecordHangupReason};
+-use crate::proxy::active_call_registry::{
+-    ActiveProxyCallEntry, ActiveProxyCallRegistry, ActiveProxyCallStatus,
+-};
+-use crate::proxy::proxy_call::sip_session::SipSessionHandle as NewSipSessionHandle;
++use crate::proxy::active_call_registry::{ActiveProxyCallRegistry, ActiveProxyCallStatus};
+ use crate::rwi::SupervisorMode;
+ use anyhow::Result;
+ use chrono::{DateTime, Utc};
+@@ -285,32 +282,6 @@ impl SipSessionShared {
+         inner.queue_name.clone()
+     }
+ 
+-    /// Register this session with the active call registry
+-    pub fn register_active_call(&self, handle: NewSipSessionHandle) {
+-        if let Some(registry) = self.registry.as_ref().and_then(|r| r.upgrade()) {
+-            let inner = self.inner.read();
+-            let entry = ActiveProxyCallEntry {
+-                session_id: inner.session_id.clone(),
+-                caller: inner.caller.clone(),
+-                callee: inner.callee.clone(),
+-                direction: inner.direction.clone(),
+-                started_at: inner.started_at,
+-                answered_at: inner.answer_time,
+-                status: ActiveProxyCallStatus::Ringing,
+-            };
+-            registry.upsert(entry, handle.clone());
+-            // Also register the server dialog
+-            registry.register_dialog(inner.session_id.clone(), handle);
+-        }
+-    }
+-
+-    /// Register a dialog with the active call registry
+-    pub fn register_dialog(&self, dialog_id: String, handle: NewSipSessionHandle) {
+-        if let Some(registry) = self.registry.as_ref().and_then(|r| r.upgrade()) {
+-            registry.register_dialog(dialog_id, handle);
+-        }
+-    }
+-
+     pub fn unregister(&self) {
+         if let Some(registry) = self.registry.as_ref().and_then(|r| r.upgrade()) {
+             let inner = self.inner.read();
+diff --git a/src/rwi/processor.rs b/src/rwi/processor.rs
+index 5c3ca67b..509fd239 100644
+--- a/src/rwi/processor.rs
++++ b/src/rwi/processor.rs
+@@ -6,8 +6,8 @@ use crate::call::runtime::conference_media_bridge::{
+     AudioReceiver, ConferenceBridgeHandle, PcmAudioFrame,
+ };
+ use crate::media::Track as MediaTrackTrait;
+-use crate::proxy::active_call_registry::ActiveProxyCallRegistry;
+-use crate::proxy::proxy_call::media_peer::VoiceEnginePeer;
++use crate::proxy::active_call_registry::{ActiveCallAdmissionLease, ActiveProxyCallRegistry};
++use crate::proxy::proxy_call::media_peer::{MediaPeer, VoiceEnginePeer};
+ use crate::proxy::proxy_call::sip_session::{PeerConnectionAudioReceiver, SipSessionHandle};
+ use crate::proxy::server::SipServerRef;
+ use crate::rwi::RwiGatewayRef;
+@@ -35,6 +35,36 @@ const RWI_MEDIA_CLEANUP_RETRY_MIN: Duration = Duration::from_millis(250);
+ const RWI_MEDIA_CLEANUP_RETRY_MAX: Duration = Duration::from_secs(30);
+ const RWI_LEG_CONNECTED_QUEUE_CAPACITY: usize = 32;
+ 
++struct ParallelOriginateCandidate {
++    call_id: String,
++    registry: Arc<ActiveProxyCallRegistry>,
++    active_call_lease: ActiveCallAdmissionLease,
++    dialog_guard: rsipstack::dialog::invitation::DialogGuard,
++    cmd_rx: crate::call::domain::CallCommandRx,
++    caller_peer: Arc<dyn MediaPeer>,
++}
++
++impl ParallelOriginateCandidate {
++    fn activate(self) {
++        let Self {
++            call_id,
++            registry,
++            active_call_lease,
++            dialog_guard,
++            cmd_rx,
++            caller_peer,
++        } = self;
++        crate::proxy::proxy_call::outbound_call_owner::spawn_confirmed_outbound_owner(
++            call_id,
++            registry,
++            active_call_lease,
++            dialog_guard,
++            cmd_rx,
++            Some(caller_peer),
++        );
++    }
++}
++
+ struct PendingRwiMediaCleanup {
+     runtime: tokio::sync::Mutex<crate::ivekit_media_lifecycle::IveKitMediaRuntime>,
+ }
+@@ -1631,6 +1661,27 @@ impl RwiCommandProcessor {
+                 CommandError::CommandFailed(format!("failed to prepare outbound INVITE: {error}"))
+             })?;
+         let prepared_dialog_id = prepared_invite.dialog_id();
++        let (handle, mut cmd_rx) = {
++            use crate::call::runtime::SessionId;
++            use crate::proxy::proxy_call::sip_session::SipSession;
++
++            let id = SessionId::from(call_id.clone());
++            SipSession::with_handle(id)
++        };
++        let entry = crate::proxy::active_call_registry::ActiveProxyCallEntry {
++            session_id: call_id.clone(),
++            caller: Some(caller_display.clone()),
++            callee: Some(callee_display.clone()),
++            direction: "outbound".to_string(),
++            started_at: chrono::Utc::now(),
++            answered_at: None,
++            status: crate::proxy::active_call_registry::ActiveProxyCallStatus::Ringing,
++        };
++        let active_call_lease = registry
++            .try_open(entry, handle.clone(), prepared_dialog_id.to_string())
++            .map_err(|error| {
++                CommandError::CommandFailed(format!("active_call_admission_rejected:{error}"))
++            })?;
+         let offer_branch_id = crate::ivekit_media_lifecycle::stable_dialog_branch_id(
+             &prepared_dialog_id.call_id,
+             &prepared_dialog_id.local_tag,
+@@ -1667,6 +1718,7 @@ impl RwiCommandProcessor {
+         }
+ 
+         crate::utils::spawn(async move {
++            let _active_call_lease = active_call_lease;
+             let mut invitation = prepared_invite.send().boxed();
+ 
+             let caller_media_builder = crate::media::MediaStreamBuilder::new()
+@@ -1679,28 +1731,7 @@ impl RwiCommandProcessor {
+ 
+             caller_peer.update_track(Box::new(media_track), None).await;
+ 
+-            let (_handle, mut cmd_rx) = {
+-                use crate::call::runtime::SessionId;
+-                use crate::proxy::active_call_registry::{
+-                    ActiveProxyCallEntry, ActiveProxyCallStatus,
+-                };
+-                use crate::proxy::proxy_call::sip_session::SipSession;
+-
+-                let id = SessionId::from(call_id.clone());
+-                let (handle, cmd_rx) = SipSession::with_handle(id);
+-
+-                let entry = ActiveProxyCallEntry {
+-                    session_id: call_id.clone(),
+-                    caller: Some(caller_display.clone()),
+-                    callee: Some(callee_display.clone()),
+-                    direction: "outbound".to_string(),
+-                    started_at: chrono::Utc::now(),
+-                    answered_at: None,
+-                    status: ActiveProxyCallStatus::Ringing,
+-                };
+-                registry.upsert(entry, handle.clone());
+-                (handle, cmd_rx)
+-            };
++            let _handle = handle;
+ 
+             // Snapshot the queue configs (hold music paths) for use in cmd_task.
+             let cmd_queue_configs: Arc<HashMap<String, crate::proxy::routing::RouteQueueConfig>> = {
+@@ -2316,6 +2347,27 @@ impl RwiCommandProcessor {
+                 } => {
+                     match result {
+                         Ok((dialog, Some(resp))) if resp.status_code.kind() == rsipstack::sip::StatusCodeKind::Successful => {
++                            let Some(active_handle) = registry.get_handle(&call_id) else {
++                                if let Err(error) = dialog.hangup().await {
++                                    tracing::warn!(%call_id, error = %error, "Failed to terminate unowned dialog");
++                                }
++                                close_rwi_originate_media_best_effort(&call_id, &mut ivekit_media).await;
++                                cleanup().await;
++                                return;
++                            };
++                            if let Err(error) = registry.try_register_dialog(
++                                dialog.id().to_string(),
++                                active_handle,
++                            ) {
++                                tracing::error!(%call_id, error = %error, "Confirmed Dialog admission rejected");
++                                if let Err(hangup_error) = dialog.hangup().await {
++                                    tracing::warn!(%call_id, error = %hangup_error, "Failed to terminate rejected dialog");
++                                }
++                                registry.remove(&call_id);
++                                close_rwi_originate_media_best_effort(&call_id, &mut ivekit_media).await;
++                                cleanup().await;
++                                return;
++                            }
+                             let sdp_answer = if resp.body().is_empty() {
+                                 None
+                             } else {
+@@ -2587,8 +2639,12 @@ impl RwiCommandProcessor {
+ 
+         let cancel_token = tokio_util::sync::CancellationToken::new();
+ 
+-        type OriginateFuture =
+-            Pin<Box<dyn Future<Output = Result<(usize, String), (usize, String)>> + Send>>;
++        type OriginateFuture = Pin<
++            Box<
++                dyn Future<Output = Result<(usize, ParallelOriginateCandidate), (usize, String)>>
++                    + Send,
++            >,
++        >;
+         let mut futures: Vec<OriginateFuture> = Vec::new();
+ 
+         for (idx, target) in targets.iter().enumerate() {
+@@ -2619,7 +2675,7 @@ impl RwiCommandProcessor {
+                 )
+                 .await
+                 {
+-                    Ok(call_id) => Ok((idx, call_id)),
++                    Ok(candidate) => Ok((idx, candidate)),
+                     Err(e) => Err((idx, e)),
+                 }
+             };
+@@ -2638,8 +2694,10 @@ impl RwiCommandProcessor {
+                 remaining = rest;
+ 
+                 match result {
+-                    Ok((leg_idx, call_id)) => {
++                    Ok((leg_idx, candidate)) => {
++                        let call_id = candidate.call_id.clone();
+                         cancel_token.cancel();
++                        candidate.activate();
+ 
+                         info!(
+                             operation_id = %operation_id,
+@@ -2768,7 +2826,7 @@ impl RwiCommandProcessor {
+         gateway: RwiGatewayRef,
+         registry: Arc<ActiveProxyCallRegistry>,
+         operation_id: &str,
+-    ) -> Result<String, String> {
++    ) -> Result<ParallelOriginateCandidate, String> {
+         let call_id = target.call_id.clone();
+         let target_uri_str = target.destination.clone();
+ 
+@@ -2868,7 +2926,10 @@ impl RwiCommandProcessor {
+         Self::apply_explicit_originate_trunk(&server, &mut invite_option, trunk, &call_id)?;
+ 
+         let (state_tx, mut state_rx) = dialog_layer.new_dialog_state_channel();
+-        let mut invitation = dialog_layer.do_invite(invite_option, state_tx).boxed();
++        let prepared_invite = dialog_layer
++            .prepare_invite(invite_option, state_tx)
++            .map_err(|error| format!("Failed to prepare outbound INVITE: {error}"))?;
++        let initial_dialog_id = prepared_invite.dialog_id();
+ 
+         let cancel_token = tokio_util::sync::CancellationToken::new();
+         let caller_media_builder = crate::media::MediaStreamBuilder::new()
+@@ -2880,25 +2941,26 @@ impl RwiCommandProcessor {
+             )));
+         caller_peer.update_track(Box::new(media_track), None).await;
+ 
+-        {
++        let (handle, mut _cmd_rx) = {
+             use crate::call::runtime::SessionId;
+-            use crate::proxy::active_call_registry::{ActiveProxyCallEntry, ActiveProxyCallStatus};
+             use crate::proxy::proxy_call::sip_session::SipSession;
+ 
+             let id = SessionId::from(call_id.clone());
+-            let (handle, _cmd_rx) = SipSession::with_handle(id);
+-
+-            let entry = ActiveProxyCallEntry {
+-                session_id: call_id.clone(),
+-                caller: Some(caller_str.clone()),
+-                callee: Some(target_uri_str.clone()),
+-                direction: "outbound".to_string(),
+-                started_at: chrono::Utc::now(),
+-                answered_at: None,
+-                status: ActiveProxyCallStatus::Ringing,
+-            };
+-            registry.upsert(entry, handle);
+-        }
++            SipSession::with_handle(id)
++        };
++        let entry = crate::proxy::active_call_registry::ActiveProxyCallEntry {
++            session_id: call_id.clone(),
++            caller: Some(caller_str.clone()),
++            callee: Some(target_uri_str.clone()),
++            direction: "outbound".to_string(),
++            started_at: chrono::Utc::now(),
++            answered_at: None,
++            status: crate::proxy::active_call_registry::ActiveProxyCallStatus::Ringing,
++        };
++        let active_call_lease = registry
++            .try_open(entry, handle, initial_dialog_id.to_string())
++            .map_err(|error| format!("Active Call admission rejected: {error}"))?;
++        let mut invitation = prepared_invite.send().boxed();
+ 
+         let result = tokio::time::timeout(
+             Duration::from_secs(60),
+@@ -2923,9 +2985,23 @@ impl RwiCommandProcessor {
+         ).await;
+ 
+         match result {
+-            Ok(Ok((dialog_id, Some(resp))))
++            Ok(Ok((dialog, Some(resp))))
+                 if resp.status_code.kind() == rsipstack::sip::StatusCodeKind::Successful =>
+             {
++                let Some(active_handle) = registry.get_handle(&call_id) else {
++                    if let Err(error) = dialog.hangup().await {
++                        warn!(%call_id, error = %error, "Failed to terminate unowned parallel originate dialog");
++                    }
++                    return Err("Active Call authority is unavailable".to_string());
++                };
++                if let Err(error) =
++                    registry.try_register_dialog(dialog.id().to_string(), active_handle)
++                {
++                    if let Err(hangup_error) = dialog.hangup().await {
++                        warn!(%call_id, error = %hangup_error, "Failed to terminate rejected parallel originate dialog");
++                    }
++                    return Err(format!("Confirmed Dialog admission rejected: {error}"));
++                }
+                 let sdp_answer = if resp.body().is_empty() {
+                     None
+                 } else {
+@@ -2966,9 +3042,17 @@ impl RwiCommandProcessor {
+                 );
+ 
+                 let _ = caller_peer;
+-                let _ = dialog_id;
+-
+-                Ok(call_id)
++                Ok(ParallelOriginateCandidate {
++                    call_id,
++                    registry,
++                    active_call_lease,
++                    dialog_guard: rsipstack::dialog::invitation::DialogGuard::new(
++                        &dialog_layer,
++                        dialog.id(),
++                    ),
++                    cmd_rx: _cmd_rx,
++                    caller_peer,
++                })
+             }
+             Ok(Ok((_, resp_opt))) => {
+                 let status = resp_opt.as_ref().map(|r| r.status_code.code());
+diff --git a/src/rwi/transfer.rs b/src/rwi/transfer.rs
+index 45972807..5e1a39f2 100644
+--- a/src/rwi/transfer.rs
++++ b/src/rwi/transfer.rs
+@@ -1088,25 +1088,30 @@ impl TransferController {
+         let orig_call_id_spawn = original_call_id.to_string(); // Clone for spawned task
+         let target_owned = target.to_string();
+ 
++        let (state_tx, mut state_rx) = dialog_layer.new_dialog_state_channel();
++        let prepared_invite = dialog_layer
++            .prepare_invite(invite_option, state_tx)
++            .map_err(|error| format!("Failed to prepare 3PCC INVITE: {error}"))?;
++        let initial_dialog_id = prepared_invite.dialog_id();
++        let id = SessionId::from(call_id_for_spawn.clone());
++        let (handle, cmd_rx) = SipSession::with_handle(id);
++        let entry = ActiveProxyCallEntry {
++            session_id: call_id_for_spawn.clone(),
++            caller: Some("transfer".to_string()),
++            callee: Some(target_for_log),
++            direction: "outbound".to_string(),
++            started_at: chrono::Utc::now(),
++            answered_at: None,
++            status: ActiveProxyCallStatus::Ringing,
++        };
++        let active_call_lease = registry
++            .try_open(entry, handle, initial_dialog_id.to_string())
++            .map_err(|error| format!("3PCC active Call admission rejected: {error}"))?;
++
+         // Spawn originate task
+         crate::utils::spawn(async move {
+-            let (state_tx, mut state_rx) = dialog_layer.new_dialog_state_channel();
+-            let mut invitation = dialog_layer.do_invite(invite_option, state_tx).boxed();
+-
+-            // Create session and register
+-            let id = SessionId::from(call_id_for_spawn.clone());
+-            let (handle, mut _cmd_rx) = SipSession::with_handle(id);
+-
+-            let entry = ActiveProxyCallEntry {
+-                session_id: call_id_for_spawn.clone(),
+-                caller: Some("transfer".to_string()),
+-                callee: Some(target_for_log),
+-                direction: "outbound".to_string(),
+-                started_at: chrono::Utc::now(),
+-                answered_at: None,
+-                status: ActiveProxyCallStatus::Ringing,
+-            };
+-            registry.upsert(entry, handle.clone());
++            let mut active_call_lease = Some(active_call_lease);
++            let mut invitation = prepared_invite.send().boxed();
+ 
+             // Wait for invitation result
+             let timeout_secs = 60;
+@@ -1143,10 +1148,27 @@ impl TransferController {
+             ).await;
+ 
+             match result {
+-                Ok(Ok((_, Some(resp))))
++                Ok(Ok((dialog, Some(resp))))
+                     if resp.status_code().kind()
+                         == rsipstack::sip::status_code::StatusCodeKind::Successful =>
+                 {
++                    let final_dialog_admission = registry
++                        .get_handle(&call_id_for_spawn)
++                        .ok_or("active Call authority unavailable")
++                        .and_then(|handle| {
++                            registry
++                                .try_register_dialog(dialog.id().to_string(), handle)
++                                .map_err(|_| "confirmed Dialog admission rejected")
++                        });
++                    if let Err(reason) = final_dialog_admission {
++                        warn!(%call_id_for_spawn, %reason, "3PCC confirmed Dialog rejected");
++                        if let Err(error) = dialog.hangup().await {
++                            warn!(%call_id_for_spawn, error = %error, "Failed to terminate rejected 3PCC dialog");
++                        }
++                        registry.remove(&call_id_for_spawn);
++                        crate::metrics::transfer::three_pcc_failed("dialog_admission");
++                        return;
++                    }
+                     info!(%call_id_for_spawn, "3PCC originate answered, completing transfer");
+ 
+                     // Record 3PCC success metrics
+@@ -1158,6 +1180,17 @@ impl TransferController {
+                         entry.answered_at = Some(chrono::Utc::now());
+                         entry.status = ActiveProxyCallStatus::Talking;
+                     });
++                    let lease = active_call_lease
++                        .take()
++                        .expect("3PCC active Call lease must exist before owner handoff");
++                    crate::proxy::proxy_call::outbound_call_owner::spawn_confirmed_outbound_owner(
++                        call_id_for_spawn.clone(),
++                        registry.clone(),
++                        lease,
++                        rsipstack::dialog::invitation::DialogGuard::new(&dialog_layer, dialog.id()),
++                        cmd_rx,
++                        None,
++                    );
+ 
+                     // Send answered event
+                     let gw = gateway.read();
+diff --git a/src/proxy/proxy_call/outbound_call_owner.rs b/src/proxy/proxy_call/outbound_call_owner.rs
+new file mode 100644
+index 00000000..08924f36
+--- /dev/null
++++ b/src/proxy/proxy_call/outbound_call_owner.rs
+@@ -0,0 +1,41 @@
++use crate::call::domain::{CallCommand, CallCommandRx};
++use crate::proxy::active_call_registry::{ActiveCallAdmissionLease, ActiveProxyCallRegistry};
++use crate::proxy::proxy_call::media_peer::MediaPeer;
++use std::sync::Arc;
++use std::time::Duration;
++use tracing::warn;
++
++const OUTBOUND_CALL_HARD_LIFETIME: Duration = Duration::from_secs(3_600);
++
++pub(crate) fn spawn_confirmed_outbound_owner(
++    call_id: String,
++    registry: Arc<ActiveProxyCallRegistry>,
++    active_call_lease: ActiveCallAdmissionLease,
++    dialog_guard: rsipstack::dialog::invitation::DialogGuard,
++    mut cmd_rx: CallCommandRx,
++    media_keepalive: Option<Arc<dyn MediaPeer>>,
++) {
++    crate::utils::spawn(async move {
++        let _active_call_lease = active_call_lease;
++        let _dialog_guard = dialog_guard;
++        let _media_keepalive = media_keepalive;
++        let deadline = tokio::time::sleep(OUTBOUND_CALL_HARD_LIFETIME);
++        tokio::pin!(deadline);
++
++        loop {
++            tokio::select! {
++                _ = &mut deadline => break,
++                command = cmd_rx.recv() => match command {
++                    Some(CallCommand::Hangup(_)) | None => break,
++                    Some(_) => {
++                        warn!(
++                            %call_id,
++                            "confirmed outbound owner rejected an unsupported command"
++                        );
++                    }
++                }
++            }
++        }
++        registry.remove(&call_id);
++    });
++}

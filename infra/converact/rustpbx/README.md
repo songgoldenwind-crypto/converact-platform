@@ -135,6 +135,26 @@ exact-source evidence is 11 focused registry tests and the complete RustPBX
 library suite (`1932` passed, `1` ignored). Exact Linux image, SIPp capacity,
 crash/restart and durable SipEffect writer gates remain `not_run` for `.45`.
 
+ivekit.46 closes the remaining standalone outbound send-before-authority paths
+used by RWI originate, parallel originate, 3PCC transfer and inbound REFER.
+Each path now prepares the INVITE without a wire effect, atomically acquires a
+bounded active-Call lease plus its initial Dialog index, and only then sends the
+INVITE. The lease owns every registry index for its lifetime and rolls them back
+on every failed or cancelled handoff. A confirmed Dialog is admitted before an
+answered event or transfer bridge becomes visible. Parallel originate transfers
+only the selected candidate's lease, Dialog guard, command receiver and media
+peer to one owner task; losing candidates tear down through RAII. The owner has
+one existing bounded command mailbox and one monotonic hard-lifetime timer, and
+adds no periodic registry scan, global lock or unbounded queue.
+
+This patch does not claim the remaining G03 gates. The native Call/Leg state
+machine, durable SipEffect writer/replay, add-leg INVITE admission, non-Hangup
+commands on standalone transfer owners, real peer transfer-media continuity,
+crash/restart and `.46` Linux/image/capacity evidence remain `not_run` until
+separately implemented and measured. Local exact-source evidence is 13 focused
+registry tests and the complete RustPBX library suite (`1934` passed, `1`
+ignored).
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the
