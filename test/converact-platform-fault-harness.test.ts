@@ -729,6 +729,7 @@ test('drain runner is exact-source read-only to containers and retains bounded e
   assert.match(script, /cmp -s "\$BEFORE_CONTAINERS" "\$AFTER_CONTAINERS"/);
   assert.match(script, /docker ps -q/);
   assert.match(script, /evidence-secret-scan\.mjs/);
+  assert.doesNotMatch(script, /printf \\"/);
   assert.doesNotMatch(script, /docker (?:compose\s+)?(?:up|start|stop|kill|rm|down)|docker system prune/);
   assert.match(probe, /fork\(/);
   assert.match(probe, /SIGKILL/);
