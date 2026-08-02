@@ -86,5 +86,10 @@ test('the exact RustPBX build applies bounded protocol mailboxes before bounded 
     build,
     /rustpbx-ivekit-inbound-refer-wire\.patch"[\s\S]*rustpbx-ivekit-bounded-call-mailboxes\.patch"/
   );
+  assert.match(
+    build,
+    /git -C "\$BUILD_ROOT\/rsipstack" apply --numstat[\s\\\n]+"\$PATCH_DIR\/rsipstack-ivekit-bounded-protocol-mailboxes\.patch"/
+  );
+  assert.doesNotMatch(build, /"\$PATCH_DIR"\/rsipstack-\*\.patch/);
   assert.match(build, /^\s*cargo test --locked --lib\s*$/m);
 });

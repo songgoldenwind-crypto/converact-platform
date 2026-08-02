@@ -306,10 +306,19 @@ if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
     exit 1
   }
   mapfile -t RSIPSTACK_FORMAT_FILES < <(
-    git -C "$BUILD_ROOT/rsipstack" apply --numstat \
-      "$PATCH_DIR"/rsipstack-*.patch |
-      awk '$3 ~ /\.rs$/ { print "/build/rsipstack/" $3 }' |
-      LC_ALL=C sort -u
+    {
+      printf '%s\n' \
+        /build/rsipstack/src/sip/message.rs \
+        /build/rsipstack/src/sip/parser.rs \
+        /build/rsipstack/src/transaction/endpoint.rs \
+        /build/rsipstack/src/transaction/mod.rs \
+        /build/rsipstack/src/transaction/timer.rs \
+        /build/rsipstack/src/transaction/transaction.rs \
+        /build/rsipstack/src/transaction/tests/test_server.rs
+      git -C "$BUILD_ROOT/rsipstack" apply --numstat \
+        "$PATCH_DIR/rsipstack-ivekit-bounded-protocol-mailboxes.patch" |
+        awk '$3 ~ /\.rs$/ { print "/build/rsipstack/" $3 }'
+    } | LC_ALL=C sort -u
   )
   ((${#RSIPSTACK_FORMAT_FILES[@]} > 0)) || {
     echo "Converact Fabric rsipstack format scope is empty" >&2
