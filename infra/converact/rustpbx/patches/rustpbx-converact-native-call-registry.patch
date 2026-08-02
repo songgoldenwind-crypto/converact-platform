@@ -1,0 +1,846 @@
+diff --git a/src/proxy/active_call_registry.rs b/src/proxy/active_call_registry.rs
+index bffd7f51..02c3c4df 100644
+--- a/src/proxy/active_call_registry.rs
++++ b/src/proxy/active_call_registry.rs
+@@ -1,8 +1,18 @@
++use crate::call::domain::foundation_identity::{
++    CallId, NativeCallIdentity, ProtocolDialogId, ProviderCallId, derive_protocol_dialog_id,
++};
+ use crate::proxy::proxy_call::sip_session::SipSessionHandle;
+ use chrono::{DateTime, Utc};
+ use dashmap::DashMap;
+ use serde::Serialize;
++use std::sync::atomic::{AtomicUsize, Ordering};
+ use tokio::sync::Notify;
++use tracing::warn;
++
++const ACTIVE_CALLS_HARD_CEILING: usize = 1_000_000;
++const CALL_LEGS_HARD_CEILING: usize = 256;
++const PROTOCOL_DIALOG_HISTORY_HARD_CEILING: usize = 16;
++const PROVIDER_DIALOG_IDENTIFIER_HARD_CEILING: usize = 1_024;
+ 
+ #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize)]
+ pub enum ActiveProxyCallStatus {
+@@ -30,11 +40,49 @@ pub struct ActiveProxyCallEntry {
+     pub status: ActiveProxyCallStatus,
+ }
+ 
++struct ActiveProxyCallSlot {
++    entry: ActiveProxyCallEntry,
++    handle: SipSessionHandle,
++    identity: Option<NativeCallIdentity>,
++}
++
++struct RegisteredProtocolDialog {
++    id: ProtocolDialogId,
++    provider_dialog_id: String,
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
++pub enum ActiveCallRegistryError {
++    #[error("active call provider identifier is invalid")]
++    InvalidProviderIdentifier,
++    #[error("active call handle does not match the provider identifier")]
++    HandleMismatch,
++    #[error("active call provider identifier is already registered")]
++    ProviderAlreadyRegistered,
++    #[error("active call capacity is exhausted")]
++    CapacityExhausted,
++    #[error("active call authority identity conflicts with the existing call")]
++    AuthorityConflict,
++    #[error("active call leg capacity is exhausted")]
++    LegCapacityExhausted,
++    #[error("active call session is not registered")]
++    SessionNotRegistered,
++    #[error("protocol dialog identifier is invalid")]
++    InvalidDialogIdentifier,
++    #[error("protocol dialog history capacity is exhausted")]
++    DialogCapacityExhausted,
++    #[error("protocol dialog is already owned by another call")]
++    DialogAuthorityConflict,
++}
++
+ pub struct ActiveProxyCallRegistry {
+-    entries: DashMap<String, ActiveProxyCallEntry>,
+-    handles: DashMap<String, SipSessionHandle>,
++    slots: DashMap<String, ActiveProxyCallSlot>,
++    providers_by_call: DashMap<CallId, Vec<String>>,
+     handles_by_dialog: DashMap<String, SipSessionHandle>,
+-    dialog_by_session: DashMap<String, Vec<String>>,
++    dialog_by_session: DashMap<String, Vec<RegisteredProtocolDialog>>,
++    active_count: AtomicUsize,
++    max_active_calls: usize,
++    max_dialogs_per_session: usize,
+     change_notify: Notify,
+ }
+ 
+@@ -46,37 +94,247 @@ impl Default for ActiveProxyCallRegistry {
+ 
+ impl ActiveProxyCallRegistry {
+     pub fn new() -> Self {
++        Self::new_with_limits(
++            ACTIVE_CALLS_HARD_CEILING,
++            PROTOCOL_DIALOG_HISTORY_HARD_CEILING,
++        )
++    }
++
++    fn new_with_limits(max_active_calls: usize, max_dialogs_per_session: usize) -> Self {
+         Self {
+-            entries: DashMap::new(),
+-            handles: DashMap::new(),
++            slots: DashMap::new(),
++            providers_by_call: DashMap::new(),
+             handles_by_dialog: DashMap::new(),
+             dialog_by_session: DashMap::new(),
++            active_count: AtomicUsize::new(0),
++            max_active_calls,
++            max_dialogs_per_session,
+             change_notify: Notify::new(),
+         }
+     }
+ 
++    #[cfg(test)]
++    fn with_limits(max_active_calls: usize, max_dialogs_per_session: usize) -> Self {
++        assert!(max_active_calls > 0);
++        assert!(max_dialogs_per_session > 0);
++        Self::new_with_limits(max_active_calls, max_dialogs_per_session)
++    }
++
+     fn notify_waiters(&self) {
+         self.change_notify.notify_waiters();
+     }
+ 
+     pub fn upsert(&self, entry: ActiveProxyCallEntry, handle: SipSessionHandle) {
+-        self.entries.insert(entry.session_id.clone(), entry);
+-        self.handles
+-            .insert(handle.session_id().to_string(), handle);
+-        self.notify_waiters();
++        if let Err(error) = self.try_upsert(entry, handle) {
++            warn!(error = %error, "active call compatibility registration rejected");
++        }
+     }
+ 
+-    pub fn register_dialog(&self, dialog_id: String, handle: SipSessionHandle) {
+-        let session_key = handle.session_id().to_string();
+-        self.handles_by_dialog
+-            .insert(dialog_id.clone(), handle);
++    pub fn try_upsert(
++        &self,
++        entry: ActiveProxyCallEntry,
++        handle: SipSessionHandle,
++    ) -> Result<bool, ActiveCallRegistryError> {
++        self.try_upsert_slot(entry, handle, None, true)
++    }
++
++    pub fn try_insert(
++        &self,
++        entry: ActiveProxyCallEntry,
++        handle: SipSessionHandle,
++    ) -> Result<bool, ActiveCallRegistryError> {
++        self.try_upsert_slot(entry, handle, None, false)
++    }
++
++    pub fn try_upsert_authoritative(
++        &self,
++        entry: ActiveProxyCallEntry,
++        handle: SipSessionHandle,
++        identity: NativeCallIdentity,
++    ) -> Result<bool, ActiveCallRegistryError> {
++        self.try_upsert_slot(entry, handle, Some(identity), false)
++    }
++
++    fn try_upsert_slot(
++        &self,
++        entry: ActiveProxyCallEntry,
++        handle: SipSessionHandle,
++        identity: Option<NativeCallIdentity>,
++        allow_update: bool,
++    ) -> Result<bool, ActiveCallRegistryError> {
++        ProviderCallId::parse(&entry.session_id)
++            .map_err(|_| ActiveCallRegistryError::InvalidProviderIdentifier)?;
++        if handle.session_id() != entry.session_id {
++            return Err(ActiveCallRegistryError::HandleMismatch);
++        }
++        if identity
++            .as_ref()
++            .is_some_and(|value| value.provider_call_id().as_str() != entry.session_id)
++        {
++            return Err(ActiveCallRegistryError::AuthorityConflict);
++        }
++
++        use dashmap::mapref::entry::Entry;
++        match self.slots.entry(entry.session_id.clone()) {
++            Entry::Occupied(mut occupied) => {
++                if !allow_update {
++                    return Err(ActiveCallRegistryError::ProviderAlreadyRegistered);
++                }
++                let current = occupied.get_mut();
++                match (&current.identity, &identity) {
++                    (Some(existing), Some(incoming)) if existing != incoming => {
++                        return Err(ActiveCallRegistryError::AuthorityConflict);
++                    }
++                    (None, Some(incoming)) => {
++                        self.register_call_provider(incoming)?;
++                        current.identity = Some(incoming.clone());
++                    }
++                    _ => {}
++                }
++                current.entry = entry;
++                current.handle = handle;
++                self.notify_waiters();
++                Ok(false)
++            }
++            Entry::Vacant(vacant) => {
++                self.reserve_active_slot()?;
++                if let Some(identity) = identity.as_ref()
++                    && let Err(error) = self.register_call_provider(identity)
++                {
++                    self.release_active_slot();
++                    return Err(error);
++                }
++                vacant.insert(ActiveProxyCallSlot {
++                    entry,
++                    handle,
++                    identity,
++                });
++                self.notify_waiters();
++                Ok(true)
++            }
++        }
++    }
++
++    fn reserve_active_slot(&self) -> Result<(), ActiveCallRegistryError> {
++        self.active_count
++            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
++                (current < self.max_active_calls).then_some(current + 1)
++            })
++            .map(|_| ())
++            .map_err(|_| ActiveCallRegistryError::CapacityExhausted)
++    }
++
++    fn release_active_slot(&self) {
++        let previous = self.active_count.fetch_sub(1, Ordering::AcqRel);
++        debug_assert!(previous > 0);
++    }
++
++    fn register_call_provider(
++        &self,
++        identity: &NativeCallIdentity,
++    ) -> Result<(), ActiveCallRegistryError> {
+         use dashmap::mapref::entry::Entry;
+-        match self.dialog_by_session.entry(session_key) {
++        let call_id = identity.call_id().clone();
++        let provider_call_id = identity.provider_call_id().as_str();
++        match self.providers_by_call.entry(call_id) {
+             Entry::Occupied(mut e) => {
+-                e.get_mut().push(dialog_id);
++                let providers = e.get_mut();
++                if providers.iter().any(|value| value == provider_call_id) {
++                    return Ok(());
++                }
++                if providers.len() >= CALL_LEGS_HARD_CEILING {
++                    return Err(ActiveCallRegistryError::LegCapacityExhausted);
++                }
++                providers.push(provider_call_id.to_string());
+             }
+             Entry::Vacant(e) => {
+-                e.insert(vec![dialog_id]);
++                e.insert(vec![provider_call_id.to_string()]);
++            }
++        }
++        Ok(())
++    }
++
++    fn unregister_call_provider(&self, identity: &NativeCallIdentity) {
++        let call_id = identity.call_id();
++        let should_remove = if let Some(mut providers) = self.providers_by_call.get_mut(call_id) {
++            providers.retain(|value| value != identity.provider_call_id().as_str());
++            providers.is_empty()
++        } else {
++            false
++        };
++        if should_remove {
++            self.providers_by_call
++                .remove_if(call_id, |_, providers| providers.is_empty());
++        }
++    }
++
++    pub fn register_dialog(&self, dialog_id: String, handle: SipSessionHandle) {
++        if let Err(error) = self.try_register_dialog(dialog_id, handle) {
++            warn!(error = %error, "active call dialog compatibility registration rejected");
++        }
++    }
++
++    pub fn try_register_dialog(
++        &self,
++        dialog_id: String,
++        handle: SipSessionHandle,
++    ) -> Result<bool, ActiveCallRegistryError> {
++        if !valid_dialog_identifier(&dialog_id) {
++            return Err(ActiveCallRegistryError::InvalidDialogIdentifier);
++        }
++        let session_key = handle.session_id().to_string();
++        let Some(slot) = self.slots.get(&session_key) else {
++            return Err(ActiveCallRegistryError::SessionNotRegistered);
++        };
++        let protocol_dialog_id = match slot.identity.as_ref() {
++            Some(identity) => derive_protocol_dialog_id(
++                identity.tenant_id(),
++                &[identity.call_id().as_str(), &dialog_id],
++            ),
++            None => derive_protocol_dialog_id("standalone", &[&session_key, &dialog_id]),
++        }
++        .map_err(|_| ActiveCallRegistryError::InvalidDialogIdentifier)?;
++        // Retain the slot guard until both dialog indexes are published. Removal
++        // starts by taking this slot out, so it cannot miss an in-flight dialog.
++
++        use dashmap::mapref::entry::Entry;
++        match self.handles_by_dialog.entry(dialog_id.clone()) {
++            Entry::Occupied(existing) => {
++                if existing.get().session_id() == session_key {
++                    return Ok(false);
++                }
++                Err(ActiveCallRegistryError::DialogAuthorityConflict)
++            }
++            Entry::Vacant(vacant) => {
++                let inserted = match self.dialog_by_session.entry(session_key) {
++                    Entry::Occupied(mut dialogs) => {
++                        if dialogs
++                            .get()
++                            .iter()
++                            .any(|value| value.provider_dialog_id == dialog_id)
++                        {
++                            false
++                        } else {
++                            if dialogs.get().len() >= self.max_dialogs_per_session {
++                                return Err(ActiveCallRegistryError::DialogCapacityExhausted);
++                            }
++                            dialogs.get_mut().push(RegisteredProtocolDialog {
++                                id: protocol_dialog_id,
++                                provider_dialog_id: dialog_id,
++                            });
++                            true
++                        }
++                    }
++                    Entry::Vacant(dialogs) => {
++                        dialogs.insert(vec![RegisteredProtocolDialog {
++                            id: protocol_dialog_id,
++                            provider_dialog_id: dialog_id,
++                        }]);
++                        true
++                    }
++                };
++                vacant.insert(handle);
++                Ok(inserted)
+             }
+         }
+     }
+@@ -85,12 +343,10 @@ impl ActiveProxyCallRegistry {
+         let handle = self.handles_by_dialog.remove(dialog_id);
+         if let Some((_, handle)) = handle {
+             let should_remove = {
+-                let mut dialogs = self
+-                    .dialog_by_session
+-                    .get_mut(handle.session_id());
++                let mut dialogs = self.dialog_by_session.get_mut(handle.session_id());
+                 match dialogs.as_mut() {
+                     Some(d) => {
+-                        d.retain(|d| d != dialog_id);
++                        d.retain(|d| d.provider_dialog_id != dialog_id);
+                         d.is_empty()
+                     }
+                     None => false,
+@@ -103,41 +359,48 @@ impl ActiveProxyCallRegistry {
+     }
+ 
+     pub fn get_handle_by_dialog(&self, dialog_id: &str) -> Option<SipSessionHandle> {
+-        self.handles_by_dialog
+-            .get(dialog_id)
+-            .map(|e| e.clone())
++        self.handles_by_dialog.get(dialog_id).map(|e| e.clone())
++    }
++
++    pub fn protocol_dialog_history(&self, session_id: &str) -> Vec<ProtocolDialogId> {
++        self.dialog_by_session
++            .get(session_id)
++            .map(|dialogs| dialogs.iter().map(|dialog| dialog.id.clone()).collect())
++            .unwrap_or_default()
+     }
+ 
+     pub fn update<F>(&self, session_id: &str, updater: F)
+     where
+         F: FnOnce(&mut ActiveProxyCallEntry),
+     {
+-        if let Some(mut entry) = self.entries.get_mut(session_id) {
+-            updater(&mut *entry);
++        if let Some(mut slot) = self.slots.get_mut(session_id) {
++            updater(&mut slot.entry);
+         }
+         self.notify_waiters();
+     }
+ 
+     pub fn remove(&self, session_id: &str) {
+-        self.entries.remove(session_id);
+-        self.handles.remove(session_id);
++        let Some((_, slot)) = self.slots.remove(session_id) else {
++            return;
++        };
++        self.release_active_slot();
++        if let Some(identity) = slot.identity.as_ref() {
++            self.unregister_call_provider(identity);
++        }
+         if let Some((_, dialogs)) = self.dialog_by_session.remove(session_id) {
+-            for dialog_id in dialogs {
+-                self.handles_by_dialog.remove(&dialog_id);
++            for dialog in dialogs {
++                self.handles_by_dialog.remove(&dialog.provider_dialog_id);
+             }
+         }
++        self.notify_waiters();
+     }
+ 
+     pub fn count(&self) -> usize {
+-        self.entries.len()
++        self.active_count.load(Ordering::Acquire)
+     }
+ 
+     pub fn list_recent(&self, limit: usize) -> Vec<ActiveProxyCallEntry> {
+-        let mut entries: Vec<_> = self
+-            .entries
+-            .iter()
+-            .map(|e| e.clone())
+-            .collect();
++        let mut entries: Vec<_> = self.slots.iter().map(|slot| slot.entry.clone()).collect();
+         entries.sort_by_key(|b| std::cmp::Reverse(b.started_at));
+         if entries.len() > limit {
+             entries.truncate(limit);
+@@ -146,16 +409,36 @@ impl ActiveProxyCallRegistry {
+     }
+ 
+     pub fn get(&self, session_id: &str) -> Option<ActiveProxyCallEntry> {
+-        self.entries.get(session_id).map(|e| e.clone())
++        self.slots.get(session_id).map(|slot| slot.entry.clone())
+     }
+ 
+     pub fn get_handle(&self, session_id: &str) -> Option<SipSessionHandle> {
+-        self.handles.get(session_id).map(|e| e.clone())
++        self.slots.get(session_id).map(|slot| slot.handle.clone())
++    }
++
++    pub fn get_identity(&self, provider_call_id: &str) -> Option<NativeCallIdentity> {
++        self.slots
++            .get(provider_call_id)
++            .and_then(|slot| slot.identity.clone())
++    }
++
++    pub fn get_by_call_id(&self, call_id: &CallId) -> Vec<ActiveProxyCallEntry> {
++        let Some(providers) = self
++            .providers_by_call
++            .get(call_id)
++            .map(|providers| providers.value().clone())
++        else {
++            return Vec::new();
++        };
++        providers
++            .iter()
++            .filter_map(|provider_call_id| self.get(provider_call_id))
++            .collect()
+     }
+ 
+     /// Get all active session IDs
+     pub fn session_ids(&self) -> Vec<String> {
+-        self.entries.iter().map(|e| e.key().clone()).collect()
++        self.slots.iter().map(|slot| slot.key().clone()).collect()
+     }
+ 
+     /// Alias for count() for SessionRegistry compatibility
+@@ -187,12 +470,16 @@ impl ActiveProxyCallRegistry {
+     }
+ 
+     pub fn is_empty(&self) -> bool {
+-        self.entries.is_empty()
++        self.count() == 0
+     }
+ 
+     /// Register a unified session handle
+     /// This is used by SipSession to register itself
+-    pub fn register_handle(&self, session_id: String, handle: SipSessionHandle) {
++    pub fn register_handle(
++        &self,
++        session_id: String,
++        handle: SipSessionHandle,
++    ) -> Result<bool, ActiveCallRegistryError> {
+         let entry = ActiveProxyCallEntry {
+             session_id: session_id.clone(),
+             caller: None,
+@@ -202,7 +489,10 @@ impl ActiveProxyCallRegistry {
+             answered_at: None,
+             status: ActiveProxyCallStatus::Ringing,
+         };
+-        self.upsert(entry, handle);
++        match crate::ivekit_owner::owner_identity(&session_id) {
++            Some(identity) => self.try_upsert_authoritative(entry, handle, identity),
++            None => self.try_insert(entry, handle),
++        }
+     }
+ 
+     #[cfg(test)]
+@@ -222,30 +512,33 @@ impl ActiveProxyCallRegistry {
+             - chrono::Duration::from_std(max_age).unwrap_or_else(|_| chrono::Duration::hours(1));
+ 
+         let stale_ids: Vec<String> = self
+-            .entries
++            .slots
+             .iter()
+-            .filter(|entry| {
+-                let last_activity = entry.answered_at.unwrap_or(entry.started_at);
++            .filter(|slot| {
++                let last_activity = slot.entry.answered_at.unwrap_or(slot.entry.started_at);
+                 last_activity < cutoff
+             })
+-            .map(|entry| entry.key().clone())
++            .map(|slot| slot.key().clone())
+             .collect();
+ 
+         let count = stale_ids.len();
+         for id in stale_ids {
+-            self.entries.remove(&id);
+-            self.handles.remove(&id);
+-            if let Some((_, dialogs)) = self.dialog_by_session.remove(&id) {
+-                for dialog_id in dialogs {
+-                    self.handles_by_dialog.remove(&dialog_id);
+-                }
+-            }
++            self.remove(&id);
+         }
+ 
+         count
+     }
+ }
+ 
++fn valid_dialog_identifier(value: &str) -> bool {
++    !value.is_empty()
++        && value.len() <= PROVIDER_DIALOG_IDENTIFIER_HARD_CEILING
++        && value.is_ascii()
++        && !value
++            .bytes()
++            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -402,4 +695,198 @@ mod tests {
+         assert_eq!(registry.count(), 0);
+         assert_eq!(registry.handles_by_dialog_count(), 0);
+     }
++
++    fn native_identity(
++        projection_call_id: &str,
++        provider_call_id: &str,
++    ) -> crate::call::domain::foundation_identity::NativeCallIdentity {
++        crate::call::domain::foundation_identity::NativeCallIdentity::adopt_projection(
++            "tenant-a",
++            projection_call_id,
++            projection_call_id,
++            provider_call_id,
++            1,
++            1,
++            1,
++        )
++        .unwrap()
++    }
++
++    #[test]
++    fn authoritative_identity_is_indexed_by_business_call_id() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 16);
++        let session = "provider-call-a";
++        let handle = make_handle(session);
++        let identity = native_identity("vcall_a", session);
++        let call_id = identity.call_id().clone();
++
++        assert!(
++            registry
++                .try_upsert_authoritative(make_entry(session), handle, identity)
++                .unwrap()
++        );
++        assert_eq!(registry.get_identity(session).unwrap().call_id(), &call_id);
++        assert_eq!(registry.get_by_call_id(&call_id).len(), 1);
++        assert_eq!(registry.get_by_call_id(&call_id)[0].session_id, session);
++    }
++
++    #[test]
++    fn capacity_rejects_new_work_without_mutating_existing_call() {
++        let registry = ActiveProxyCallRegistry::with_limits(1, 16);
++        let first = "provider-call-a";
++        let second = "provider-call-b";
++
++        assert!(
++            registry
++                .try_upsert(make_entry(first), make_handle(first))
++                .unwrap()
++        );
++        assert!(
++            registry
++                .try_upsert(make_entry(second), make_handle(second))
++                .is_err()
++        );
++        assert_eq!(registry.count(), 1);
++        assert!(registry.get(first).is_some());
++        assert!(registry.get(second).is_none());
++    }
++
++    #[test]
++    fn concurrent_capacity_admission_never_exceeds_the_hard_ceiling() {
++        let registry = std::sync::Arc::new(ActiveProxyCallRegistry::with_limits(1, 16));
++        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
++        let workers: Vec<_> = ["provider-call-a", "provider-call-b"]
++            .into_iter()
++            .map(|session| {
++                let registry = registry.clone();
++                let barrier = barrier.clone();
++                std::thread::spawn(move || {
++                    barrier.wait();
++                    registry
++                        .try_insert(make_entry(session), make_handle(session))
++                        .is_ok()
++                })
++            })
++            .collect();
++        barrier.wait();
++        let accepted = workers
++            .into_iter()
++            .map(|worker| worker.join().unwrap())
++            .filter(|accepted| *accepted)
++            .count();
++
++        assert_eq!(accepted, 1);
++        assert_eq!(registry.count(), 1);
++    }
++
++    #[test]
++    fn dialog_history_is_deduplicated_and_bounded() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 2);
++        let session = "provider-call-a";
++        let handle = make_handle(session);
++        registry
++            .try_upsert(make_entry(session), handle.clone())
++            .unwrap();
++
++        assert!(
++            registry
++                .try_register_dialog("dialog-a".to_string(), handle.clone())
++                .unwrap()
++        );
++        assert!(
++            !registry
++                .try_register_dialog("dialog-a".to_string(), handle.clone())
++                .unwrap()
++        );
++        assert!(
++            registry
++                .try_register_dialog("dialog-b".to_string(), handle.clone())
++                .unwrap()
++        );
++        assert!(
++            registry
++                .try_register_dialog("dialog-c".to_string(), handle)
++                .is_err()
++        );
++        assert_eq!(registry.handles_by_dialog_count(), 2);
++        assert!(
++            registry
++                .protocol_dialog_history(session)
++                .iter()
++                .all(|dialog_id| dialog_id.as_str().starts_with("pdlg_"))
++        );
++        assert_eq!(
++            registry
++                .dialog_by_session
++                .get(session)
++                .map(|dialogs| dialogs.len()),
++            Some(2)
++        );
++    }
++
++    #[test]
++    fn authoritative_registration_rejects_provider_identity_confusion() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 16);
++        let identity = native_identity("vcall_a", "different-provider-call");
++        assert!(
++            registry
++                .try_upsert_authoritative(
++                    make_entry("provider-call-a"),
++                    make_handle("provider-call-a"),
++                    identity,
++                )
++                .is_err()
++        );
++        assert!(registry.is_empty());
++    }
++
++    #[test]
++    fn new_call_admission_rejects_duplicate_provider_ids_without_replacing_the_handle() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 16);
++        let session = "provider-call-a";
++        let original = make_handle(session);
++        registry
++            .try_insert(make_entry(session), original.clone())
++            .unwrap();
++
++        assert!(
++            registry
++                .try_insert(make_entry(session), make_handle(session))
++                .is_err()
++        );
++        assert_eq!(
++            registry.get_handle(session).unwrap().session_id(),
++            original.session_id()
++        );
++        assert_eq!(registry.count(), 1);
++    }
++
++    #[test]
++    fn one_business_call_indexes_multiple_provider_legs_and_removes_them_independently() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 16);
++        let first = native_identity("vcall_a", "provider-call-a");
++        let second = native_identity("vcall_a", "provider-call-b");
++        let call_id = first.call_id().clone();
++        registry
++            .try_upsert_authoritative(
++                make_entry("provider-call-a"),
++                make_handle("provider-call-a"),
++                first,
++            )
++            .unwrap();
++        registry
++            .try_upsert_authoritative(
++                make_entry("provider-call-b"),
++                make_handle("provider-call-b"),
++                second,
++            )
++            .unwrap();
++
++        assert_eq!(registry.get_by_call_id(&call_id).len(), 2);
++        registry.remove("provider-call-a");
++        assert_eq!(registry.get_by_call_id(&call_id).len(), 1);
++        registry.remove("provider-call-b");
++        assert!(registry.get_by_call_id(&call_id).is_empty());
++        assert!(registry.is_empty());
++    }
+ }
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index 7162d60b..f294545b 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -39,6 +39,7 @@ use crate::media::bridge::{BridgeEndpoint, BridgePeerBuilder};
+ use crate::media::negotiate::{CodecInfo, MediaNegotiator};
+ use crate::media::recorder::Recorder;
+ use crate::media::{FileTrack, PlaybackEndReason, RtpTrackBuilder, Track};
++use crate::proxy::active_call_registry::ActiveCallRegistryError;
+ use crate::proxy::call::parse_allowed_codecs;
+ use crate::proxy::proxy_call::media_state::AnchoredMediaMode;
+ use crate::proxy::proxy_call::session_registry::SupervisorSession;
+@@ -98,6 +99,36 @@ fn sip_status_to_hangup_reason(status_code: u16) -> CallRecordHangupReason {
+         _ => CallRecordHangupReason::Failed,
+     }
+ }
++
++async fn reject_active_call_admission(
++    tx: &mut rsipstack::transaction::transaction::Transaction,
++    session_id: &str,
++    close_owner: bool,
++) -> Result<()> {
++    let code = StatusCode::ServiceUnavailable;
++    let reply = tx
++        .reply_with(
++            code.clone(),
++            vec![
++                rsipstack::sip::Header::Other("Retry-After".to_string(), "1".to_string()),
++                rsipstack::sip::Header::Other(
++                    "Reason".to_string(),
++                    crate::proxy::call::q850_reason_value(
++                        &code,
++                        Some("active call admission rejected"),
++                    ),
++                ),
++            ],
++            None,
++        )
++        .await
++        .map_err(|error| anyhow!("active call rejection reply failed: {error}"));
++    if close_owner {
++        crate::ivekit_owner::close_owner(session_id).await;
++    }
++    reply?;
++    Ok(())
++}
+ use std::time::{Duration, Instant};
+ use tokio::sync::mpsc;
+ 
+@@ -1201,13 +1232,33 @@ impl SipSession {
+         let (callee_state_tx, callee_state_rx) = server.dialog_layer.new_dialog_state_channel();
+         session.callee_event_tx = Some(callee_state_tx);
+ 
+-        server
++        let mut remove_registered_call_on_rejection = false;
++        let active_call_admission = match server
+             .active_call_registry
+-            .register_handle(session_id.clone(), handle.clone());
+-
+-        server
+-            .active_call_registry
+-            .register_dialog(server_dialog.id().to_string(), handle.clone());
++            .register_handle(session_id.clone(), handle.clone())
++        {
++            Ok(_) => {
++                remove_registered_call_on_rejection = true;
++                server
++                    .active_call_registry
++                    .try_register_dialog(server_dialog.id().to_string(), handle.clone())
++            }
++            Err(error) => Err(error),
++        };
++        if let Err(error) = active_call_admission {
++            warn!(
++                %session_id,
++                error = %error,
++                "Active call admission rejected before session start"
++            );
++            if remove_registered_call_on_rejection {
++                server.active_call_registry.remove(&session_id);
++            }
++            let close_owner = remove_registered_call_on_rejection
++                || error != ActiveCallRegistryError::ProviderAlreadyRegistered;
++            reject_active_call_admission(tx, &session_id, close_owner).await?;
++            return Ok(());
++        }
+ 
+         // Emit CallIncoming event via RWI gateway if configured.
+         let incoming_sip_headers = {
+@@ -5165,6 +5216,25 @@ impl SipSession {
+         invite_option: &rsipstack::dialog::invitation::InviteOption,
+         default_expires: u64,
+     ) -> Result<(), CalleeError> {
++        let active_handle = self
++            .server
++            .active_call_registry
++            .get_handle(&self.context.session_id)
++            .ok_or_else(|| {
++                into_callee_err(
++                    &StatusCode::ServiceUnavailable,
++                    Some("Active call authority is unavailable".to_string()),
++                )
++            })?;
++        self.server
++            .active_call_registry
++            .try_register_dialog(dialog_id.to_string(), active_handle)
++            .map_err(|error| {
++                into_callee_err(
++                    &StatusCode::ServiceUnavailable,
++                    Some(format!("Protocol dialog admission rejected: {error}")),
++                )
++            })?;
+         let callee_sdp = response.as_ref().and_then(|r: &rsipstack::sip::Response| {
+             let body = r.body();
+             Self::extract_sdp(body)

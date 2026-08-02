@@ -121,6 +121,20 @@ the canonical business `CallId`. Positive owner epoch, generation and revision
 are mandatory, and a provider-ID mismatch fails admission closed. Runtime
 registry and durable SipEffect activation remain separate G03 gates.
 
+ivekit.45 binds the native identity to one bounded active-Call registry. The
+provider SIP Call-ID remains a lookup key, while canonical business `CallId`
+indexes at most 256 provider legs and each session retains at most 16 canonical
+`ProtocolDialogId` values. New-call capacity uses a bounded atomic-counter
+reservation with a hard ceiling of 1,000,000; duplicate providers, identity
+conflicts and dialog overflow fail closed without replacing the existing owner.
+The inbound path returns a final `503 Service Unavailable` with `Retry-After: 1`
+after admission failure, and successful callee Dialogs are registered before a
+caller-visible 200 response. Registry cleanup and operator listing may scan
+bounded control-plane state, but SIP packet and media paths do not. Local
+exact-source evidence is 11 focused registry tests and the complete RustPBX
+library suite (`1932` passed, `1` ignored). Exact Linux image, SIPp capacity,
+crash/restart and durable SipEffect writer gates remain `not_run` for `.45`.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the
