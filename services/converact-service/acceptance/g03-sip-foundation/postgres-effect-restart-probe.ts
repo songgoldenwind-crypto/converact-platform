@@ -37,6 +37,11 @@ import type {
 
 export type PostgresRestartPhase = 'prepare' | 'recover' | 'cleanup';
 
+export interface PostgresRestartCleanupStatement {
+  readonly sql: string;
+  readonly params: readonly unknown[];
+}
+
 const EXECUTOR_ROLE = 'opc_sip_effect_executor';
 const RUNTIME_ROLE = 'opc_runtime';
 const WRITER_IDENTITY = 'unified-rustpbx.sip-foundation';
@@ -71,6 +76,38 @@ export function parsePostgresRestartPhase(args: readonly string[]): PostgresRest
     throw new Error('g03_postgres_restart_phase_invalid');
   }
   return args[0];
+}
+
+export function createPostgresRestartCleanupPlan(
+  runIdInput: string
+): readonly PostgresRestartCleanupStatement[] {
+  const runId = checkedRunId(runIdInput);
+  return Object.freeze([
+    Object.freeze({
+      sql: 'DELETE FROM ivekit_sip_effect_receipts WHERE tenant_id = $1',
+      params: Object.freeze([runId])
+    }),
+    Object.freeze({
+      sql: 'DELETE FROM tenants WHERE id = $1',
+      params: Object.freeze([runId])
+    }),
+    Object.freeze({
+      sql: `UPDATE ivekit_sip_effect_writer_registry
+            SET enabled = FALSE,
+                activation_receipt_id = NULL,
+                activated_at = NULL
+            WHERE writer_identity = $1`,
+      params: Object.freeze([WRITER_IDENTITY])
+    }),
+    Object.freeze({
+      sql: `UPDATE ivekit_sip_effect_schema_registry
+            SET enabled = FALSE,
+                activation_receipt_id = NULL,
+                activated_at = NULL
+            WHERE schema_id = $1 AND schema_version = $2`,
+      params: Object.freeze([SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_VERSION])
+    })
+  ]);
 }
 
 export function createPostgresRestartFixture(runIdInput: string): {
@@ -301,23 +338,9 @@ async function cleanup(runId: string, outputPath: string): Promise<void> {
   const admin = databasePool('admin');
   try {
     await admin.query('BEGIN');
-    await admin.query('DELETE FROM tenants WHERE id = $1', [runId]);
-    await admin.query(
-      `UPDATE ivekit_sip_effect_writer_registry
-       SET enabled = FALSE,
-           activation_receipt_id = NULL,
-           activated_at = NULL
-       WHERE writer_identity = $1`,
-      [WRITER_IDENTITY]
-    );
-    await admin.query(
-      `UPDATE ivekit_sip_effect_schema_registry
-       SET enabled = FALSE,
-           activation_receipt_id = NULL,
-           activated_at = NULL
-       WHERE schema_id = $1 AND schema_version = $2`,
-      [SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_VERSION]
-    );
+    for (const statement of createPostgresRestartCleanupPlan(runId)) {
+      await admin.query(statement.sql, [...statement.params]);
+    }
     await admin.query('COMMIT');
     await assertRegistryState(admin, false);
     const remaining = await admin.query<{ count: string }>(

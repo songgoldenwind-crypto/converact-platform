@@ -49,3 +49,22 @@ test('G03 PostgreSQL restart probe accepts only explicit prepare, recover and cl
     /g03_postgres_restart_phase_invalid/u
   );
 });
+
+test('G03 PostgreSQL restart cleanup removes child receipts before the tenant cascade', async () => {
+  assert.equal(existsSync(probePath), true, 'missing G03 PostgreSQL restart probe');
+  const probe = await import(pathToFileURL(probePath.pathname).href);
+  assert.equal(
+    typeof probe.createPostgresRestartCleanupPlan,
+    'function',
+    'missing G03 PostgreSQL restart cleanup plan'
+  );
+
+  const plan = probe.createPostgresRestartCleanupPlan('g03-pg-restart-01');
+  assert.equal(plan.length, 4);
+  assert.match(plan[0].sql, /^DELETE FROM ivekit_sip_effect_receipts/u);
+  assert.match(plan[1].sql, /^DELETE FROM tenants/u);
+  assert.deepEqual(plan[0].params, ['g03-pg-restart-01']);
+  assert.deepEqual(plan[1].params, ['g03-pg-restart-01']);
+  assert.equal(Object.isFrozen(plan), true);
+  assert.equal(Object.isFrozen(plan[0]), true);
+});
