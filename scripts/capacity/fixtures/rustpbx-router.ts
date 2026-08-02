@@ -3,14 +3,18 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { fileURLToPath } from 'node:url';
 
 const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
-const FORWARD_ROUTES: Readonly<Record<string, string>> = Object.freeze({
-  '18005550200': 'sip:uas@172.30.44.22:5060',
-  '18005550201': 'sip:uas@172.30.44.23:5060',
-  '18005550202': 'sip:uas@172.30.44.24:5060',
-  '18005550203': 'sip:uas@172.30.44.25:5060',
-  '18005550204': 'sip:uas@172.30.44.26:5060',
-  '18005550205': 'sip:uas@172.30.44.27:5060;transport=tcp',
-  '18005550206': 'sip:uas@172.30.44.28:5060'
+const FORWARD_ROUTES: Readonly<Record<string, Readonly<{
+  target: string;
+  max_call_duration_seconds: number;
+}>>> = Object.freeze({
+  '18005550200': route('sip:uas@172.30.44.22:5060'),
+  '18005550201': route('sip:uas@172.30.44.23:5060'),
+  '18005550202': route('sip:uas@172.30.44.24:5060'),
+  '18005550203': route('sip:uas@172.30.44.25:5060'),
+  '18005550204': route('sip:uas@172.30.44.26:5060'),
+  '18005550205': route('sip:uas@172.30.44.27:5060;transport=tcp'),
+  '18005550206': route('sip:uas@172.30.44.28:5060'),
+  '18005550207': route('sip:uas@172.30.44.22:5060', 7_260)
 });
 
 export function createRustPbxCapacityRouter(options: {
@@ -55,11 +59,11 @@ export function createRustPbxCapacityRouter(options: {
           return;
         }
         evidence.router_requests += 1;
-        const target = FORWARD_ROUTES[sipUser(String(payload.to))];
-        if (target) {
+        const route = FORWARD_ROUTES[sipUser(String(payload.to))];
+        if (route) {
           writeJson(response, 200, {
-            action: 'forward', targets: [target], strategy: 'sequential',
-            record: false, timeout: 30, max_ring_time: 30
+            action: 'forward', targets: [route.target], strategy: 'sequential',
+            record: false, timeout: route.max_call_duration_seconds, max_ring_time: 30
           });
           return;
         }
@@ -89,6 +93,13 @@ export function createRustPbxCapacityRouter(options: {
       else response.destroy();
     }
   });
+}
+
+function route(target: string, maxCallDurationSeconds = 30): Readonly<{
+  target: string;
+  max_call_duration_seconds: number;
+}> {
+  return Object.freeze({ target, max_call_duration_seconds: maxCallDurationSeconds });
 }
 
 function authorized(request: IncomingMessage, expected: string): boolean {

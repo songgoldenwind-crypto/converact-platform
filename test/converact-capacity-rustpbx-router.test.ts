@@ -77,6 +77,36 @@ test('capacity Router forwards an E.164 destination with its leading plus', asyn
   });
 });
 
+test('capacity Router gives the isolated two-hour route a bounded soak duration', async (context) => {
+  const server = createRustPbxCapacityRouter({ token });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  context.after(() => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
+  const port = (server.address() as AddressInfo).port;
+
+  const response = await fetch(`http://127.0.0.1:${port}/router`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-pbx-key': token },
+    body: JSON.stringify({
+      call_id: 'two-hour-control-call',
+      from: 'sip:sipp@172.30.44.20',
+      to: 'sip:+18005550207@rustpbx',
+      direction: 'inbound',
+      method: 'INVITE',
+      uri: 'sip:+18005550207@rustpbx'
+    })
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    action: 'forward',
+    targets: ['sip:uas@172.30.44.22:5060'],
+    strategy: 'sequential',
+    record: false,
+    timeout: 7_260,
+    max_ring_time: 30
+  });
+});
+
 test('capacity Router rejects malformed or oversized requests without counting them', async (context) => {
   const server = createRustPbxCapacityRouter({ token, max_body_bytes: 128 });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

@@ -183,7 +183,7 @@ export function createRustPbxSippScenarios(
         'long-call-2h-uac.xml',
         'long-call-2h-uas.xml',
         '172.30.44.22',
-        '+18005550200'
+        '+18005550207'
       ),
       timeout_seconds: 7_260,
       opt_in: true

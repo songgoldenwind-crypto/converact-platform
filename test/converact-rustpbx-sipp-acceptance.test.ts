@@ -61,6 +61,7 @@ test('RustPBX SIPp acceptance pins tools and covers the complete signaling matri
   const longCall = scenarios.find((scenario) => scenario.id === 'long-call-2h');
   assert.equal(longCall?.opt_in, true);
   assert.equal(longCall?.timeout_seconds, 7_260);
+  assert.equal(longCall?.service, '+18005550207');
   assert.deepEqual(
     selectRustPbxSippScenarios(scenarios, '').map((entry) => entry.id),
     scenarios.filter((entry) => entry.id !== 'long-call-2h').map((entry) => entry.id)
