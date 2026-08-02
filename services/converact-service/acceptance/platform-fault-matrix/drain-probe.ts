@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { fork, type ChildProcess } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
-import { resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -33,7 +33,10 @@ export async function runDrainCampaign(input: {
   container_snapshot_sha256?: string;
 }): Promise<{
   result: Record<string, any>;
-  receipts: SignedPlatformDrainReceipt[];
+  receipt_transitions: {
+    initial_receipts: SignedPlatformDrainReceipt[];
+    active_zero_receipts: SignedPlatformDrainReceipt[];
+  };
   public_key_bundle: Record<string, unknown>;
 }> {
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/u.test(input?.run_id || '')) {
@@ -169,14 +172,10 @@ export async function runDrainCampaign(input: {
     const verifierExit = await verifierNode.shutdown();
 
     const rollingSchema = runRollingSchemaChecks();
-    const receiptSummary = finalReceipts.map((receipt) => ({
-      authority: receipt.body.authority,
-      key_id: receipt.key_id,
-      receipt_revision: receipt.body.receipt_revision,
-      active_count: receipt.body.active_count,
-      body_sha256: sha256(JSON.stringify(receipt.body)),
-      signature_sha256: sha256(receipt.signature)
-    }));
+    const receiptTransitions = {
+      initial_receipts: initialReceipts,
+      active_zero_receipts: finalReceipts
+    };
     const result = {
       status: 'passed',
       duration_ms: Math.max(1, Math.ceil(performance.now() - started)),
@@ -200,8 +199,12 @@ export async function runDrainCampaign(input: {
       established_mutations_during_drain:
         drainObservation.established_mutation_allowed === true ? 1 : 0,
       established_close_state: String(closeObservation.state || ''),
-      active_zero_receipts: receiptSummary,
-      receipts_manifest_sha256: sha256(JSON.stringify(finalReceipts)),
+      drain_id: `drain-${input.run_id}`,
+      drain_node_id: 'node-drain',
+      drain_owner_epoch: drainReservation.owner_epoch,
+      initial_nonzero_receipts: summarizeReceipts(initialReceipts),
+      active_zero_receipts: summarizeReceipts(finalReceipts),
+      receipts_manifest_sha256: sha256(JSON.stringify(receiptTransitions)),
       fresh_receipt_verification_count: Number(verification.verification_count),
       fresh_receipt_verified_phase: String(verification.phase || ''),
       initial_owner_node_id: lostReservation.owner_node_id,
@@ -222,7 +225,7 @@ export async function runDrainCampaign(input: {
     }
     return {
       result,
-      receipts: finalReceipts,
+      receipt_transitions: receiptTransitions,
       public_key_bundle: {
         drain_id: `drain-${input.run_id}`,
         node_id: 'node-drain',
@@ -509,6 +512,17 @@ function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
+function summarizeReceipts(receipts: SignedPlatformDrainReceipt[]) {
+  return receipts.map((receipt) => ({
+    authority: receipt.body.authority,
+    key_id: receipt.key_id,
+    receipt_revision: receipt.body.receipt_revision,
+    active_count: receipt.body.active_count,
+    body_sha256: sha256(JSON.stringify(receipt.body)),
+    signature_sha256: sha256(receipt.signature)
+  }));
+}
+
 function plainRecord(value: unknown): value is Record<string, any> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
@@ -523,15 +537,25 @@ async function main(): Promise<void> {
       container_snapshot_sha256: args[4]!
     });
     writeJson(args[0]!, campaign.result);
-    writeJson(args[1]!, campaign.receipts);
+    writeJson(args[1]!, campaign.receipt_transitions);
     writeJson(args[2]!, campaign.public_key_bundle);
     process.stdout.write(`${JSON.stringify(campaign.result)}\n`);
     return;
   }
   if (mode === 'finalize' && args.length === 3) {
+    const evidenceDirectory = dirname(resolve(args[1]!));
+    const rawArtifacts = Object.fromEntries([
+      'drain-public-keys.json',
+      'drain-receipts.json',
+      'drain-result.json',
+      'drain-run.log',
+      'unrelated-containers-after.tsv',
+      'unrelated-containers-before.tsv'
+    ].map((name) => [name, readFileSync(join(evidenceDirectory, name), 'utf8')]));
     const result = buildDrainEvidence({
-      ...readJson(args[1]!),
-      identity: readJson(args[0]!)
+      identity: readJson(args[0]!),
+      raw_manifest: readFileSync(join(evidenceDirectory, 'raw-output.sha256'), 'utf8'),
+      raw_artifacts: rawArtifacts
     });
     writeJson(args[2]!, result);
     process.stdout.write(`${JSON.stringify(result)}\n`);

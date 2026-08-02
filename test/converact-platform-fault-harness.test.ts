@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +23,11 @@ import {
 import {
   runBoundedCapacityWorkload
 } from '../services/converact-service/acceptance/platform-fault-matrix/capacity-probe.js';
+import {
+  PLATFORM_DRAIN_AUTHORITIES,
+  signPlatformDrainReceipt,
+  type PlatformDrainAuthority
+} from '../src/agent-runtime/converact/platform-foundation/index.js';
 
 const acceptanceRoot = new URL(
   '../services/converact-service/acceptance/platform-fault-matrix/',
@@ -593,7 +599,7 @@ test('drain evidence requires observed processes, exact phases, signed zeros and
   ].map((authority, index) => ({
     authority,
     key_id: `drain-${authority}-key-v1`,
-    receipt_revision: index === 2 ? 2 : 1,
+    receipt_revision: 2,
     active_count: '0',
     body_sha256: String(index + 1).repeat(64).slice(0, 64),
     signature_sha256: String(index + 2).repeat(64).slice(0, 64)
@@ -648,9 +654,11 @@ test('drain evidence requires observed processes, exact phases, signed zeros and
     container_actions: 0,
     validation_processes_remaining: 0
   };
-  const result = buildDrainEvidence(validInput);
+  const result = buildDrainEvidence(boundDrainEvidenceFixture(validInput));
   assert.equal(result.status, 'verified_controlled');
   assert.equal(result.production_eligible, false);
+
+  assert.equal(buildDrainEvidence(validInput).status, 'failed');
 
   const booleanOnly = {
     identity,
@@ -671,24 +679,125 @@ test('drain evidence requires observed processes, exact phases, signed zeros and
   };
   assert.equal(buildDrainEvidence(booleanOnly).status, 'failed');
 
-  assert.equal(buildDrainEvidence({
-    ...validInput,
-    active_zero_receipts: activeZeroReceipts.map((entry, index) =>
-      index === 2 ? { ...entry, active_count: '1' } : entry)
-  }).status, 'failed');
-  assert.equal(buildDrainEvidence({
+  assert.equal(buildDrainEvidence(forgedDrainSignatureFixture(validInput)).status, 'failed');
+  assert.equal(buildDrainEvidence(boundDrainEvidenceFixture({
     ...validInput,
     phase_sequence: ['accepting', 'route_draining', 'stopped']
-  }).status, 'failed');
-  assert.equal(buildDrainEvidence({
+  })).status, 'failed');
+  assert.equal(buildDrainEvidence(boundDrainEvidenceFixture({
     ...validInput,
     lost_node_exit_signal: 'SIGTERM'
-  }).status, 'failed');
-  assert.equal(buildDrainEvidence({
+  })).status, 'failed');
+  assert.equal(buildDrainEvidence(boundDrainEvidenceFixture({
     ...validInput,
     fresh_verifier_pid: 303
-  }).status, 'failed');
+  })).status, 'failed');
 });
+
+function boundDrainEvidenceFixture(summaryInput: Record<string, any>) {
+  const drainId = 'drain-unit-evidence';
+  const nodeId = 'node-drain';
+  const ownerEpoch = '4294967297';
+  const authorityKeyIds = {} as Record<PlatformDrainAuthority, string>;
+  const publicKeys: Record<string, string> = {};
+  const privateKeys = new Map<PlatformDrainAuthority, ReturnType<typeof generateKeyPairSync>['privateKey']>();
+  for (const authority of PLATFORM_DRAIN_AUTHORITIES) {
+    const pair = generateKeyPairSync('ed25519');
+    const keyId = `drain-${authority}-key-v1`;
+    authorityKeyIds[authority] = keyId;
+    publicKeys[keyId] = pair.publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    privateKeys.set(authority, pair.privateKey);
+  }
+  const signed = (revision: number, final: boolean) => PLATFORM_DRAIN_AUTHORITIES.map((authority) =>
+    signPlatformDrainReceipt({
+      key_id: authorityKeyIds[authority],
+      private_key: privateKeys.get(authority)!,
+      body: {
+        schema_version: '1.0.0',
+        drain_id: drainId,
+        node_id: nodeId,
+        owner_epoch: ownerEpoch,
+        authority,
+        receipt_revision: revision,
+        active_count: !final && authority === 'communication_attached_generations' ? '1' : '0',
+        active_id_digest: sha256(`${authority}:${revision}`),
+        observed_at: final ? '2026-08-01T16:00:02.000Z' : '2026-08-01T16:00:01.000Z',
+        expires_at: '2026-08-01T16:02:00.000Z'
+      }
+    }));
+  const transitions = {
+    initial_receipts: signed(1, false),
+    active_zero_receipts: signed(2, true)
+  };
+  const summarize = (receipts: typeof transitions.active_zero_receipts) => receipts.map((receipt) => ({
+    authority: receipt.body.authority,
+    key_id: receipt.key_id,
+    receipt_revision: receipt.body.receipt_revision,
+    active_count: receipt.body.active_count,
+    body_sha256: sha256(JSON.stringify(receipt.body)),
+    signature_sha256: sha256(receipt.signature)
+  }));
+  const containerSnapshot = 'stopped-container-snapshot\n';
+  const { identity: _ignoredIdentity, ...summary } = summaryInput;
+  const result = {
+    ...summary,
+    drain_id: drainId,
+    drain_node_id: nodeId,
+    drain_owner_epoch: ownerEpoch,
+    initial_nonzero_receipts: summarize(transitions.initial_receipts),
+    active_zero_receipts: summarize(transitions.active_zero_receipts),
+    receipts_manifest_sha256: sha256(JSON.stringify(transitions)),
+    unrelated_containers_before_sha256: sha256(containerSnapshot),
+    unrelated_containers_after_sha256: sha256(containerSnapshot)
+  };
+  const rawArtifacts: Record<string, string> = {
+    'drain-public-keys.json': prettyJson({
+      drain_id: drainId,
+      node_id: nodeId,
+      owner_epoch: ownerEpoch,
+      authority_key_ids: authorityKeyIds,
+      public_keys: publicKeys
+    }),
+    'drain-receipts.json': prettyJson(transitions),
+    'drain-result.json': prettyJson(result),
+    'drain-run.log': `${JSON.stringify(result)}\n`,
+    'unrelated-containers-after.tsv': containerSnapshot,
+    'unrelated-containers-before.tsv': containerSnapshot
+  };
+  const rawManifest = Object.keys(rawArtifacts).sort().map(
+    (name) => `${sha256(rawArtifacts[name]!)}  ${name}\n`
+  ).join('');
+  return {
+    identity: { ...identity, raw_output_sha256: sha256(rawManifest) },
+    raw_manifest: rawManifest,
+    raw_artifacts: rawArtifacts
+  };
+}
+
+function prettyJson(value: unknown): string {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+function forgedDrainSignatureFixture(summaryInput: Record<string, any>) {
+  const bound = boundDrainEvidenceFixture(summaryInput);
+  const transitions = JSON.parse(bound.raw_artifacts['drain-receipts.json']!);
+  const result = JSON.parse(bound.raw_artifacts['drain-result.json']!);
+  transitions.active_zero_receipts[0].signature = 'A'.repeat(86);
+  result.active_zero_receipts[0].signature_sha256 = sha256('A'.repeat(86));
+  result.receipts_manifest_sha256 = sha256(JSON.stringify(transitions));
+  bound.raw_artifacts['drain-receipts.json'] = prettyJson(transitions);
+  bound.raw_artifacts['drain-result.json'] = prettyJson(result);
+  bound.raw_artifacts['drain-run.log'] = `${JSON.stringify(result)}\n`;
+  bound.raw_manifest = Object.keys(bound.raw_artifacts).sort().map(
+    (name) => `${sha256(bound.raw_artifacts[name]!)}  ${name}\n`
+  ).join('');
+  bound.identity.raw_output_sha256 = sha256(bound.raw_manifest);
+  return bound;
+}
+
+function sha256(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
 
 test('drain probe uses production admission/event/drain code and actual child loss', async () => {
   const { runDrainCampaign } = await import(
@@ -706,6 +815,12 @@ test('drain probe uses production admission/event/drain code and actual child lo
   ]);
   assert.equal(result.active_zero_receipts.length, 7);
   assert.equal(result.active_zero_receipts.every((entry: any) => entry.active_count === '0'), true);
+  assert.equal(result.initial_nonzero_receipts.length, 7);
+  assert.equal(result.initial_nonzero_receipts.find(
+    (entry: any) => entry.authority === 'communication_attached_generations'
+  )?.active_count, '1');
+  assert.equal(campaign.receipt_transitions.initial_receipts.length, 7);
+  assert.equal(campaign.receipt_transitions.active_zero_receipts.length, 7);
   assert.equal(result.fresh_receipt_verification_count, 7);
   assert.equal(new Set([
     result.orchestrator_pid,
@@ -729,6 +844,7 @@ test('drain runner is exact-source read-only to containers and retains bounded e
   assert.match(script, /cmp -s "\$BEFORE_CONTAINERS" "\$AFTER_CONTAINERS"/);
   assert.match(script, /docker ps -q/);
   assert.match(script, /evidence-secret-scan\.mjs/);
+  assert.match(script, /drain-receipts\.json/);
   assert.doesNotMatch(script, /printf \\"/);
   assert.doesNotMatch(script, /docker (?:compose\s+)?(?:up|start|stop|kill|rm|down)|docker system prune/);
   assert.match(probe, /fork\(/);
@@ -737,6 +853,8 @@ test('drain runner is exact-source read-only to containers and retains bounded e
   assert.match(probe, /decodePlatformEvent/);
   assert.match(probe, /decideInboxWrite/);
   assert.match(probe, /PlatformDrainCoordinator/);
+  assert.match(probe, /raw_manifest/);
+  assert.match(probe, /raw_artifacts/);
   assert.match(node, /ComponentNodeAdmissionController/);
   assert.match(node, /signPlatformDrainReceipt/);
 });

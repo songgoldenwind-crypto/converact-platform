@@ -201,3 +201,31 @@ test('drain rejects stale receipt revisions and fails closed on monotonic timeou
   );
   assert.equal(invalid.snapshot().phase, 'drain_failed');
 });
+
+test('drain requires distinct Ed25519 public-key material for every authority', () => {
+  const clock = new MutableClock(new Date('2026-08-02T08:00:01.000Z'), 1_000);
+  const shared = generateKeyPairSync('ed25519');
+  const authorityKeyIds = {} as Record<PlatformDrainAuthority, string>;
+  const publicKeys: Record<string, ReturnType<typeof generateKeyPairSync>['publicKey']> = {};
+  for (const authority of PLATFORM_DRAIN_AUTHORITIES) {
+    const keyId = `drain-${authority}-key-v1`;
+    authorityKeyIds[authority] = keyId;
+    publicKeys[keyId] = shared.publicKey;
+  }
+
+  assert.throws(
+    () => new PlatformDrainCoordinator({
+      drain_id: 'drain-shared-material',
+      node_id: 'node-a',
+      owner_epoch: '4294967297',
+      required_authorities: PLATFORM_DRAIN_AUTHORITIES,
+      authority_key_ids: authorityKeyIds,
+      public_keys: publicKeys,
+      clock,
+      timeout_ms: 10_000,
+      receipt_max_age_ms: 5_000,
+      max_clock_skew_ms: 500
+    }),
+    (error: any) => error?.code === 'drain_authority_key_material_reuse_forbidden'
+  );
+});

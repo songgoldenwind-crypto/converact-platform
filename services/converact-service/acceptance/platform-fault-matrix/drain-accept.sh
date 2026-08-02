@@ -70,7 +70,7 @@ snapshot_containers() {
 BEFORE_CONTAINERS="$EVIDENCE_DIR/unrelated-containers-before.tsv"
 AFTER_CONTAINERS="$EVIDENCE_DIR/unrelated-containers-after.tsv"
 DRAIN_RESULT="$EVIDENCE_DIR/drain-result.json"
-RECEIPTS_RESULT="$EVIDENCE_DIR/active-zero-receipts.json"
+RECEIPTS_RESULT="$EVIDENCE_DIR/drain-receipts.json"
 PUBLIC_KEYS_RESULT="$EVIDENCE_DIR/drain-public-keys.json"
 IDENTITY_RESULT="$EVIDENCE_DIR/evidence-identity.json"
 FINAL_RESULT="$EVIDENCE_DIR/drain-controlled-evidence.json"

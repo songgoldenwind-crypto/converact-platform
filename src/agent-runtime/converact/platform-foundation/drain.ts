@@ -160,6 +160,10 @@ export class PlatformDrainCoordinator {
     if (new Set(Object.values(authorityKeyIds)).size !== requiredAuthorities.length) {
       fail('drain_authority_key_reuse_forbidden');
     }
+    const publicKeyFingerprints = [...publicKeys.values()].map(publicKeyFingerprint);
+    if (new Set(publicKeyFingerprints).size !== requiredAuthorities.length) {
+      fail('drain_authority_key_material_reuse_forbidden');
+    }
     this.#config = {
       drain_id: input.drain_id,
       node_id: input.node_id,
@@ -432,6 +436,12 @@ function ed25519PublicKey(value: KeyInput): KeyObject {
   } catch {
     fail('drain_receipt_public_key_invalid');
   }
+}
+
+function publicKeyFingerprint(value: KeyObject): string {
+  return createHash('sha256')
+    .update(value.export({ type: 'spki', format: 'der' }))
+    .digest('hex');
 }
 
 function validClock(value: unknown): value is PlatformClock {

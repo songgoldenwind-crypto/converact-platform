@@ -129,8 +129,10 @@ NODE_BIN='/absolute/path/to/node-v24' \
 
 The drain runner requires a clean exact-source checkout and Node v24. It also requires every pre-existing container
 to be stopped, snapshots all of them before and after, and fails unless both snapshots are byte-identical. The
-runner cannot start, stop or remove a container. Per-Authority public keys and signed receipts are retained and
-secret-scanned; private signing material exists only in one bounded child-process lifetime. This controlled slice
+runner cannot start, stop or remove a container. Per-Authority public keys plus the signed revision-1 nonzero and
+revision-2 active-zero receipt sets are retained and secret-scanned; private signing material exists only in one
+bounded child-process lifetime. The finalizer binds the exact raw manifest, rejects aliased public-key material,
+and cryptographically verifies every retained receipt before it can emit `verified_controlled`. This controlled slice
 does not prove independent production trust bootstrap, real SIP/media continuity, embedded-edge survival, region
 recovery, DR or production eligibility.
 

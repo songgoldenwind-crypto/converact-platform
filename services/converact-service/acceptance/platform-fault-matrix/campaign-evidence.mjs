@@ -1,4 +1,11 @@
 import {
+  createHash,
+  createPublicKey,
+  verify as cryptoVerify
+} from 'node:crypto';
+
+import {
+  assertEvidenceArtifactSafe,
   assertControlledEvidenceIdentity,
   assertControlledEvidenceSafe
 } from './evidence-contract.mjs';
@@ -25,6 +32,26 @@ const DRAIN_AUTHORITIES = Object.freeze([
   'ai_attached_generations',
   'unobserved_effect_receipts',
   'billing_projection_conflicts'
+]);
+const DRAIN_RAW_ARTIFACT_NAMES = Object.freeze([
+  'drain-public-keys.json',
+  'drain-receipts.json',
+  'drain-result.json',
+  'drain-run.log',
+  'unrelated-containers-after.tsv',
+  'unrelated-containers-before.tsv'
+]);
+const DRAIN_RECEIPT_BODY_FIELDS = Object.freeze([
+  'schema_version',
+  'drain_id',
+  'node_id',
+  'owner_epoch',
+  'authority',
+  'receipt_revision',
+  'active_count',
+  'active_id_digest',
+  'observed_at',
+  'expires_at'
 ]);
 
 export function buildBackupRestoreEvidence(input) {
@@ -78,62 +105,71 @@ export function buildBackupRestoreEvidence(input) {
 }
 
 export function buildDrainEvidence(input) {
-  assertControlledEvidenceSafe(input);
   const identity = assertControlledEvidenceIdentity(input?.identity);
+  const binding = verifyDrainRawBinding(input, identity);
+  const result = binding?.result || {};
+  assertControlledEvidenceSafe(result);
   const processIds = [
-    input.orchestrator_pid,
-    input.drain_node_pid,
-    input.lost_node_pid,
-    input.recovery_node_pid,
-    input.fresh_verifier_pid
+    result.orchestrator_pid,
+    result.drain_node_pid,
+    result.lost_node_pid,
+    result.recovery_node_pid,
+    result.fresh_verifier_pid
   ];
-  const valid = input.status === 'passed'
-    && boundedDuration(input.duration_ms, false)
-    && input.clock_domain === 'monotonic'
+  const valid = binding !== null
+    && result.status === 'passed'
+    && boundedDuration(result.duration_ms, false)
+    && result.clock_domain === 'monotonic'
     && processIds.every(positiveInteger)
     && new Set(processIds).size === processIds.length
-    && input.drain_node_exit_code === 0
-    && input.drain_node_exit_signal === null
-    && input.lost_node_exit_code === null
-    && input.lost_node_exit_signal === 'SIGKILL'
-    && input.recovery_node_exit_code === 0
-    && input.recovery_node_exit_signal === null
-    && input.fresh_verifier_exit_code === 0
-    && input.fresh_verifier_exit_signal === null
-    && exactArray(input.phase_sequence, DRAIN_PHASES)
-    && input.drain_rejection_code === 'component_node_draining'
-    && positiveInteger(input.established_mutations_before_drain)
-    && input.established_mutations_during_drain
-      === input.established_mutations_before_drain
-    && input.established_close_state === 'closed'
-    && validActiveZeroReceipts(input.active_zero_receipts)
-    && sha256(input.receipts_manifest_sha256)
-    && input.fresh_receipt_verification_count === DRAIN_AUTHORITIES.length
-    && input.fresh_receipt_verified_phase === 'active_zero_verified'
-    && token(input.initial_owner_node_id)
-    && token(input.post_loss_owner_node_id)
-    && input.initial_owner_node_id !== input.post_loss_owner_node_id
-    && positiveU64(input.initial_owner_epoch)
-    && positiveU64(input.post_loss_owner_epoch)
-    && BigInt(input.post_loss_owner_epoch) > BigInt(input.initial_owner_epoch)
-    && input.stale_owner_error_code === 'stale_owner_epoch'
-    && input.post_loss_new_work_state === 'active'
-    && validRollingSchema(input.rolling_schema)
-    && sha256(input.unrelated_containers_before_sha256)
-    && input.unrelated_containers_after_sha256
-      === input.unrelated_containers_before_sha256
-    && input.container_actions === 0
-    && input.validation_processes_remaining === 0;
+    && result.drain_node_exit_code === 0
+    && result.drain_node_exit_signal === null
+    && result.lost_node_exit_code === null
+    && result.lost_node_exit_signal === 'SIGKILL'
+    && result.recovery_node_exit_code === 0
+    && result.recovery_node_exit_signal === null
+    && result.fresh_verifier_exit_code === 0
+    && result.fresh_verifier_exit_signal === null
+    && exactArray(result.phase_sequence, DRAIN_PHASES)
+    && result.drain_rejection_code === 'component_node_draining'
+    && positiveInteger(result.established_mutations_before_drain)
+    && result.established_mutations_during_drain
+      === result.established_mutations_before_drain
+    && result.established_close_state === 'closed'
+    && validInitialDrainReceipts(result.initial_nonzero_receipts)
+    && validActiveZeroReceipts(result.active_zero_receipts)
+    && sha256(result.receipts_manifest_sha256)
+    && result.fresh_receipt_verification_count === DRAIN_AUTHORITIES.length
+    && result.fresh_receipt_verified_phase === 'active_zero_verified'
+    && token(result.initial_owner_node_id)
+    && token(result.post_loss_owner_node_id)
+    && result.initial_owner_node_id !== result.post_loss_owner_node_id
+    && positiveU64(result.initial_owner_epoch)
+    && positiveU64(result.post_loss_owner_epoch)
+    && BigInt(result.post_loss_owner_epoch) > BigInt(result.initial_owner_epoch)
+    && result.stale_owner_error_code === 'stale_owner_epoch'
+    && result.post_loss_new_work_state === 'active'
+    && validRollingSchema(result.rolling_schema)
+    && sha256(result.unrelated_containers_before_sha256)
+    && result.unrelated_containers_after_sha256
+      === result.unrelated_containers_before_sha256
+    && result.container_actions === 0
+    && result.validation_processes_remaining === 0;
   return freeze({
     evidence_id: 'G02-E11-DRAIN',
     status: valid ? 'verified_controlled' : 'failed',
     production_eligible: false,
     evidence: valid ? freeze({
-      ...input,
+      ...result,
       identity,
-      active_zero_receipts: freeze(input.active_zero_receipts.map((receipt) => freeze({ ...receipt }))),
-      phase_sequence: freeze([...input.phase_sequence]),
-      rolling_schema: freeze({ ...input.rolling_schema })
+      initial_nonzero_receipts: freeze(
+        result.initial_nonzero_receipts.map((receipt) => freeze({ ...receipt }))
+      ),
+      active_zero_receipts: freeze(
+        result.active_zero_receipts.map((receipt) => freeze({ ...receipt }))
+      ),
+      phase_sequence: freeze([...result.phase_sequence]),
+      rolling_schema: freeze({ ...result.rolling_schema })
     }) : null
   });
 }
@@ -201,6 +237,198 @@ function boundedDuration(value, zeroAllowed) {
     && value <= MAX_RECOVERY_MS;
 }
 
+function verifyDrainRawBinding(input, identity) {
+  if (!plainRecord(input) || !plainRecord(input.raw_artifacts)
+    || typeof input.raw_manifest !== 'string'
+    || !exactKeys(input, ['identity', 'raw_artifacts', 'raw_manifest'])
+    || !exactKeys(input.raw_artifacts, DRAIN_RAW_ARTIFACT_NAMES)) return null;
+  try {
+    assertEvidenceArtifactSafe(input.raw_manifest);
+    for (const name of DRAIN_RAW_ARTIFACT_NAMES) {
+      if (typeof input.raw_artifacts[name] !== 'string') return null;
+      assertEvidenceArtifactSafe(input.raw_artifacts[name]);
+    }
+  } catch {
+    return null;
+  }
+  if (digest(input.raw_manifest) !== identity.raw_output_sha256
+    || !validRawManifest(input.raw_manifest, input.raw_artifacts)) return null;
+
+  const result = parseCanonicalJson(input.raw_artifacts['drain-result.json']);
+  const transitions = parseCanonicalJson(input.raw_artifacts['drain-receipts.json']);
+  const keyBundle = parseCanonicalJson(input.raw_artifacts['drain-public-keys.json']);
+  if (!plainRecord(result) || !plainRecord(transitions) || !plainRecord(keyBundle)
+    || input.raw_artifacts['drain-run.log'] !== `${JSON.stringify(result)}\n`
+    || input.raw_artifacts['unrelated-containers-before.tsv']
+      !== input.raw_artifacts['unrelated-containers-after.tsv']
+    || result.unrelated_containers_before_sha256
+      !== digest(input.raw_artifacts['unrelated-containers-before.tsv'])
+    || result.unrelated_containers_after_sha256
+      !== digest(input.raw_artifacts['unrelated-containers-after.tsv'])) return null;
+
+  const verifiedKeys = verifiedDrainPublicKeys(keyBundle);
+  if (!verifiedKeys || !exactKeys(transitions, ['active_zero_receipts', 'initial_receipts'])
+    || !Array.isArray(transitions.initial_receipts)
+    || !Array.isArray(transitions.active_zero_receipts)) return null;
+  const initial = verifiedDrainReceiptSet(
+    transitions.initial_receipts,
+    keyBundle,
+    verifiedKeys,
+    1,
+    false,
+    identity
+  );
+  const activeZero = verifiedDrainReceiptSet(
+    transitions.active_zero_receipts,
+    keyBundle,
+    verifiedKeys,
+    2,
+    true,
+    identity
+  );
+  if (!initial || !activeZero
+    || JSON.stringify(result.initial_nonzero_receipts) !== JSON.stringify(initial)
+    || JSON.stringify(result.active_zero_receipts) !== JSON.stringify(activeZero)
+    || result.receipts_manifest_sha256 !== digest(JSON.stringify(transitions))
+    || result.drain_id !== keyBundle.drain_id
+    || result.drain_node_id !== keyBundle.node_id
+    || result.drain_owner_epoch !== keyBundle.owner_epoch) return null;
+  return { result, transitions, key_bundle: keyBundle };
+}
+
+function validRawManifest(value, artifacts) {
+  const expected = DRAIN_RAW_ARTIFACT_NAMES.map(
+    (name) => `${digest(artifacts[name])}  ${name}\n`
+  ).join('');
+  return value === expected;
+}
+
+function parseCanonicalJson(value) {
+  try {
+    const parsed = JSON.parse(value);
+    return value === `${JSON.stringify(parsed, null, 2)}\n` ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function verifiedDrainPublicKeys(bundle) {
+  if (!exactKeys(bundle, ['authority_key_ids', 'drain_id', 'node_id', 'owner_epoch', 'public_keys'])
+    || !token(bundle.drain_id) || !token(bundle.node_id) || !positiveU64(bundle.owner_epoch)
+    || !plainRecord(bundle.authority_key_ids) || !plainRecord(bundle.public_keys)
+    || !exactKeys(bundle.authority_key_ids, DRAIN_AUTHORITIES)) return null;
+  const keyIds = DRAIN_AUTHORITIES.map((authority) => bundle.authority_key_ids[authority]);
+  if (keyIds.some((keyId) => !token(keyId)) || new Set(keyIds).size !== DRAIN_AUTHORITIES.length
+    || !exactKeys(bundle.public_keys, [...keyIds].sort())) return null;
+  const keys = new Map();
+  const fingerprints = new Set();
+  try {
+    for (const keyId of keyIds) {
+      const key = createPublicKey(bundle.public_keys[keyId]);
+      if (key.type !== 'public' || key.asymmetricKeyType !== 'ed25519') return null;
+      const fingerprint = createHash('sha256')
+        .update(key.export({ type: 'spki', format: 'der' }))
+        .digest('hex');
+      if (fingerprints.has(fingerprint)) return null;
+      fingerprints.add(fingerprint);
+      keys.set(keyId, key);
+    }
+  } catch {
+    return null;
+  }
+  return keys;
+}
+
+function verifiedDrainReceiptSet(receipts, bundle, publicKeys, revision, activeZero, identity) {
+  if (receipts.length !== DRAIN_AUTHORITIES.length) return null;
+  const summaries = [];
+  const authorities = new Set();
+  for (const receipt of receipts) {
+    if (!plainRecord(receipt) || !exactKeys(receipt, ['body', 'key_id', 'signature'])
+      || !token(receipt.key_id) || !validDrainReceiptBody(receipt.body)
+      || authorities.has(receipt.body.authority)
+      || receipt.key_id !== bundle.authority_key_ids[receipt.body.authority]
+      || receipt.body.drain_id !== bundle.drain_id
+      || receipt.body.node_id !== bundle.node_id
+      || receipt.body.owner_epoch !== bundle.owner_epoch
+      || receipt.body.receipt_revision !== revision
+      || receipt.body.active_count !== (
+        !activeZero && receipt.body.authority === 'communication_attached_generations' ? '1' : '0'
+      )
+      || Date.parse(receipt.body.observed_at) < Date.parse(identity.started_at)
+      || Date.parse(receipt.body.observed_at) > Date.parse(identity.completed_at)
+      || !/^[A-Za-z0-9_-]{86}$/u.test(receipt.signature)) return null;
+    const key = publicKeys.get(receipt.key_id);
+    if (!key || !cryptoVerify(
+      null,
+      Buffer.from(canonicalDrainReceiptBody(receipt.body), 'utf8'),
+      key,
+      Buffer.from(receipt.signature, 'base64url')
+    )) return null;
+    authorities.add(receipt.body.authority);
+    summaries.push({
+      authority: receipt.body.authority,
+      key_id: receipt.key_id,
+      receipt_revision: receipt.body.receipt_revision,
+      active_count: receipt.body.active_count,
+      body_sha256: digest(JSON.stringify(receipt.body)),
+      signature_sha256: digest(receipt.signature)
+    });
+  }
+  return DRAIN_AUTHORITIES.every((authority) => authorities.has(authority)) ? summaries : null;
+}
+
+function validDrainReceiptBody(body) {
+  if (!plainRecord(body) || !exactKeys(body, DRAIN_RECEIPT_BODY_FIELDS)
+    || body.schema_version !== '1.0.0' || !token(body.drain_id) || !token(body.node_id)
+    || !positiveU64(body.owner_epoch) || !DRAIN_AUTHORITIES.includes(body.authority)
+    || !positiveInteger(body.receipt_revision) || !u64(body.active_count)
+    || !sha256(body.active_id_digest) || !canonicalTimestamp(body.observed_at)
+    || !canonicalTimestamp(body.expires_at)) return false;
+  const observedAt = Date.parse(body.observed_at);
+  const expiresAt = Date.parse(body.expires_at);
+  return expiresAt > observedAt && expiresAt - observedAt <= 300_000;
+}
+
+function canonicalDrainReceiptBody(body) {
+  return JSON.stringify({
+    schema_version: body.schema_version,
+    drain_id: body.drain_id,
+    node_id: body.node_id,
+    owner_epoch: body.owner_epoch,
+    authority: body.authority,
+    receipt_revision: body.receipt_revision,
+    active_count: body.active_count,
+    active_id_digest: body.active_id_digest,
+    observed_at: body.observed_at,
+    expires_at: body.expires_at
+  });
+}
+
+function exactKeys(value, expected) {
+  if (!plainRecord(value)) return false;
+  const actual = Object.keys(value).sort();
+  const required = [...expected].sort();
+  return actual.length === required.length
+    && required.every((key, index) => actual[index] === key);
+}
+
+function validInitialDrainReceipts(value) {
+  if (!Array.isArray(value) || value.length !== DRAIN_AUTHORITIES.length) return false;
+  const authorities = new Set();
+  for (const receipt of value) {
+    if (!plainRecord(receipt) || !DRAIN_AUTHORITIES.includes(receipt.authority)
+      || authorities.has(receipt.authority) || !token(receipt.key_id)
+      || receipt.receipt_revision !== 1
+      || receipt.active_count !== (
+        receipt.authority === 'communication_attached_generations' ? '1' : '0'
+      )
+      || !sha256(receipt.body_sha256) || !sha256(receipt.signature_sha256)) return false;
+    authorities.add(receipt.authority);
+  }
+  return DRAIN_AUTHORITIES.every((authority) => authorities.has(authority));
+}
+
 function validActiveZeroReceipts(value) {
   if (!Array.isArray(value) || value.length !== DRAIN_AUTHORITIES.length) return false;
   const authorities = new Set();
@@ -210,7 +438,7 @@ function validActiveZeroReceipts(value) {
   for (const receipt of value) {
     if (!plainRecord(receipt) || !DRAIN_AUTHORITIES.includes(receipt.authority)
       || authorities.has(receipt.authority) || !token(receipt.key_id)
-      || keyIds.has(receipt.key_id) || !positiveInteger(receipt.receipt_revision)
+      || keyIds.has(receipt.key_id) || receipt.receipt_revision !== 2
       || receipt.active_count !== '0' || !sha256(receipt.body_sha256)
       || bodies.has(receipt.body_sha256) || !sha256(receipt.signature_sha256)
       || signatures.has(receipt.signature_sha256)) return false;
@@ -219,11 +447,7 @@ function validActiveZeroReceipts(value) {
     bodies.add(receipt.body_sha256);
     signatures.add(receipt.signature_sha256);
   }
-  const communication = value.find(
-    (receipt) => receipt.authority === 'communication_attached_generations'
-  );
-  return DRAIN_AUTHORITIES.every((authority) => authorities.has(authority))
-    && communication.receipt_revision >= 2;
+  return DRAIN_AUTHORITIES.every((authority) => authorities.has(authority));
 }
 
 function validRollingSchema(value) {
@@ -244,6 +468,15 @@ function exactArray(value, expected) {
 
 function positiveU64(value) {
   if (typeof value !== 'string' || !/^[1-9][0-9]{0,19}$/u.test(value)) return false;
+  try {
+    return BigInt(value) <= 18_446_744_073_709_551_615n;
+  } catch {
+    return false;
+  }
+}
+
+function u64(value) {
+  if (typeof value !== 'string' || !/^(?:0|[1-9][0-9]{0,19})$/u.test(value)) return false;
   try {
     return BigInt(value) <= 18_446_744_073_709_551_615n;
   } catch {
@@ -275,6 +508,10 @@ function canonicalTimestamp(value) {
 
 function sha256(value) {
   return typeof value === 'string' && SHA256.test(value);
+}
+
+function digest(value) {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
 function token(value) {
