@@ -81,6 +81,20 @@ done
   exit 1
 }
 
+RUSTPBX_SOURCE_DIR="${CONVERACT_FABRIC_RUSTPBX_SOURCE_DIR:-}"
+RSIPSTACK_SOURCE_DIR="${CONVERACT_FABRIC_RSIPSTACK_SOURCE_DIR:-}"
+RUSTRTC_SOURCE_DIR="${CONVERACT_FABRIC_RUSTRTC_SOURCE_DIR:-}"
+SOURCE_OVERRIDE_COUNT=0
+for source_dir in "$RUSTPBX_SOURCE_DIR" "$RSIPSTACK_SOURCE_DIR" "$RUSTRTC_SOURCE_DIR"; do
+  if [[ -n "$source_dir" ]]; then
+    ((SOURCE_OVERRIDE_COUNT += 1))
+  fi
+done
+if ((SOURCE_OVERRIDE_COUNT != 0 && SOURCE_OVERRIDE_COUNT != 3)); then
+  echo "all three Rust source overrides must be provided together" >&2
+  exit 1
+fi
+
 HOST_UID="$(id -u)"
 HOST_GID="$(id -g)"
 BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/converact-rustpbx-build.XXXXXX")"
@@ -100,12 +114,59 @@ cleanup() {
 }
 trap cleanup EXIT
 
-git clone --filter=blob:none --no-checkout https://github.com/restsend/rustpbx.git "$BUILD_ROOT/rustpbx"
-git -C "$BUILD_ROOT/rustpbx" checkout --detach "$RUSTPBX_COMMIT"
-git clone --filter=blob:none --no-checkout https://github.com/restsend/rsipstack.git "$BUILD_ROOT/rsipstack"
-git -C "$BUILD_ROOT/rsipstack" checkout --detach "$RSIPSTACK_COMMIT"
-git clone --filter=blob:none --no-checkout https://github.com/restsend/rustrtc.git "$BUILD_ROOT/rustrtc"
-git -C "$BUILD_ROOT/rustrtc" checkout --detach "$RUSTRTC_COMMIT"
+clone_pinned_source() {
+  local component="$1"
+  local expected_commit="$2"
+  local remote_url="$3"
+  local source_dir="$4"
+  local destination="$5"
+
+  if [[ -n "$source_dir" ]]; then
+    source_dir="$(cd "$source_dir" && pwd -P)"
+    git -C "$source_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+      echo "$component source override is not a Git worktree" >&2
+      exit 1
+    }
+    [[ -z "$(git -C "$source_dir" status --porcelain --untracked-files=all)" ]] || {
+      echo "$component source override is not clean" >&2
+      exit 1
+    }
+    local actual_commit
+    actual_commit="$(git -C "$source_dir" rev-parse HEAD)"
+    [[ "$actual_commit" == "$expected_commit" ]] || {
+      echo "$component source override does not match $expected_commit" >&2
+      exit 1
+    }
+    git clone --no-local --no-checkout "$source_dir" "$destination"
+  else
+    git clone --filter=blob:none --no-checkout "$remote_url" "$destination"
+  fi
+
+  git -C "$destination" checkout --detach "$expected_commit"
+  [[ "$(git -C "$destination" rev-parse HEAD)" == "$expected_commit" ]] || {
+    echo "$component checkout does not match $expected_commit" >&2
+    exit 1
+  }
+}
+
+clone_pinned_source \
+  rustpbx \
+  "$RUSTPBX_COMMIT" \
+  https://github.com/restsend/rustpbx.git \
+  "$RUSTPBX_SOURCE_DIR" \
+  "$BUILD_ROOT/rustpbx"
+clone_pinned_source \
+  rsipstack \
+  "$RSIPSTACK_COMMIT" \
+  https://github.com/restsend/rsipstack.git \
+  "$RSIPSTACK_SOURCE_DIR" \
+  "$BUILD_ROOT/rsipstack"
+clone_pinned_source \
+  rustrtc \
+  "$RUSTRTC_COMMIT" \
+  https://github.com/restsend/rustrtc.git \
+  "$RUSTRTC_SOURCE_DIR" \
+  "$BUILD_ROOT/rustrtc"
 
 git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-tcp-reconnect.patch"
 git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-tcp-reconnect.patch"

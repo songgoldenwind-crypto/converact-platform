@@ -109,6 +109,29 @@ test('Converact Fabric RustPBX build pins source, toolchain, lockfile, and runti
   assert.match(lock, /name = "rsipstack"\nversion = "0\.5\.18"\ndependencies =/);
 });
 
+test('RustPBX verification accepts only a complete exact-source override set', () => {
+  assert.match(buildScript, /CONVERACT_FABRIC_RUSTPBX_SOURCE_DIR/);
+  assert.match(buildScript, /CONVERACT_FABRIC_RSIPSTACK_SOURCE_DIR/);
+  assert.match(buildScript, /CONVERACT_FABRIC_RUSTRTC_SOURCE_DIR/);
+  assert.match(buildScript, /all three Rust source overrides must be provided together/);
+  assert.match(
+    buildScript,
+    /git -C "\$source_dir" status --porcelain --untracked-files=all/
+  );
+  assert.match(
+    buildScript,
+    /git -C "\$source_dir" rev-parse HEAD[\s\S]*expected_commit/
+  );
+  assert.match(
+    buildScript,
+    /git clone --no-local --no-checkout "\$source_dir" "\$destination"/
+  );
+  assert.match(
+    buildScript,
+    /git clone --filter=blob:none --no-checkout "\$remote_url" "\$destination"/
+  );
+});
+
 test('RustPBX deployment examples reference the current patchset', () => {
   for (const path of [
     'infra/env.example',
