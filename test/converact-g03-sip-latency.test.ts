@@ -93,7 +93,7 @@ test('SIPp RTT parser rejects missing, mixed or malformed samples', () => {
 
 test('SIPp statistics parser derives exact message ownership from the final row', () => {
   const aggregate = [
-    'TotalCallCreated(C);SuccessfulCall(C);FailedCall(C)',
+    'TotalCallCreated;SuccessfulCall(C);FailedCall(C)',
     '1;1;0',
     '100;100;0'
   ].join('\n');

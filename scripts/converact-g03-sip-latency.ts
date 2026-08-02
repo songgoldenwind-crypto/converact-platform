@@ -261,7 +261,7 @@ export function parseSippScenarioStatistics(
   };
 
   return Object.freeze({
-    total_calls_created: value(aggregate, 'TotalCallCreated(C)'),
+    total_calls_created: value(aggregate, 'TotalCallCreated'),
     successful_calls: value(aggregate, 'SuccessfulCall(C)'),
     failed_calls: value(aggregate, 'FailedCall(C)'),
     invite_sent: value(counts, `${invitePrefix}Sent`),
