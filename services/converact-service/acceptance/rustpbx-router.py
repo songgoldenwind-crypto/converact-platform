@@ -135,7 +135,8 @@ class Handler(BaseHTTPRequestHandler):
 
 def sip_user(value):
     match = re.search(r"sip:([^@;>]+)", value, re.IGNORECASE)
-    return match.group(1) if match else ""
+    user = match.group(1) if match else ""
+    return user[1:] if user.startswith("+") else user
 
 
 HTTPServer(("0.0.0.0", 8081), Handler).serve_forever()

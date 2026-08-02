@@ -126,7 +126,7 @@ function parseJsonObject(value: string): Record<string, unknown> | null {
 }
 
 function sipUser(value: string): string {
-  return /sip:([^@;>]+)/i.exec(value)?.[1] || '';
+  return (/sip:([^@;>]+)/i.exec(value)?.[1] || '').replace(/^\+/, '');
 }
 
 function writeJson(response: ServerResponse, status: number, value: object): void {
