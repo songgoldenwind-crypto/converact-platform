@@ -567,6 +567,7 @@ function placementFixture(events: string[]): TinodePlacement {
         reservation_id: 'reservation-tinode-owner',
         profile_id: 'cell-10k-v1',
         snapshot_version: 7,
+        placement_generation: 1,
         provider_endpoint: 'https://tinode-owner.internal'
       };
     }

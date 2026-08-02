@@ -957,6 +957,7 @@ test('Voice provider executor rejects a cross-node RustPBX pickup before RWI mut
     reservation_id: `reservation-${input.interaction_id}`,
     profile_id: 'cell-10k-v1',
     snapshot_version: 1,
+    placement_generation: 1,
     provider_endpoint: input.interaction_id === parkedCall.id
       ? 'http://rustpbx-b.internal'
       : 'http://rustpbx-a.internal'
@@ -1342,6 +1343,7 @@ function voicePlacementFixture(calls: string[]): VoiceCallPlacementPort {
         reservation_id: `reservation-${interactionId}`,
         profile_id: 'cell-10k-v1',
         snapshot_version: 1,
+        placement_generation: 1,
         provider_endpoint: 'http://rustpbx-a.internal'
       };
     }

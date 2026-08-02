@@ -555,7 +555,7 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
       async createInbound(input: Record<string, unknown>) {
         order.push('create-inbound');
         inbound.push(input);
-        return { id: String(input.call_id), state: 'ringing' };
+        return { id: String(input.call_id), state: 'ringing', revision: 1 };
       }
     },
     router: {
@@ -615,6 +615,7 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
             reservation_id: 'reservation-voice-a',
             profile_id: 'cell-10k-v1',
             snapshot_version: 7,
+            placement_generation: 3,
             provider_endpoint: 'http://rustpbx-a.internal'
           };
         }
@@ -645,7 +646,10 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
     data: {
       accepted: boolean;
       call_id: string;
+      interaction_id: string;
       provider_call_id: string;
+      call_generation: number;
+      call_revision: number;
       reservation_id: string;
       owner_epoch: string;
       cell_id: string;
@@ -680,7 +684,10 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
   assert.deepEqual(result.data, {
     accepted: true,
     call_id: 'vcall-snapshot-a',
+    interaction_id: 'vcall-snapshot-a',
     provider_call_id: 'provider-snapshot-a',
+    call_generation: 3,
+    call_revision: 1,
     reservation_id: 'reservation-voice-a',
     owner_epoch: '12884901889',
     cell_id: 'cell-a',

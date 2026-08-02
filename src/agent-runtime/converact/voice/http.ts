@@ -1033,8 +1033,11 @@ async function routeProviderWebhook(input: {
           status: 201,
           data: {
             accepted: true,
-            call_id: inboundPlacement.call_id,
+            call_id: authoritativeCall.id,
+            interaction_id: inboundPlacement.call_id,
             provider_call_id: request.call_id,
+            call_generation: owner.placement_generation,
+            call_revision: authoritativeCall.revision,
             reservation_id: owner.reservation_id,
             owner_epoch: owner.owner_epoch,
             cell_id: owner.cell_id,

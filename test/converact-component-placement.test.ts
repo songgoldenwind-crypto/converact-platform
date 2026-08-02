@@ -96,6 +96,7 @@ test('component placement owner lookup requires an active fenced owner', async (
     reservation_id: 'reservation-sip_voice',
     profile_id: 'cell-10k-v1',
     snapshot_version: 7,
+    placement_generation: 1,
     provider_endpoint: 'http://rustpbx-a.internal'
   });
 

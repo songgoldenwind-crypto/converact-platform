@@ -37,6 +37,7 @@ export interface ComponentPlacementOwner {
   reservation_id: string;
   profile_id: string;
   snapshot_version: number;
+  placement_generation: number;
   provider_endpoint: string;
 }
 
@@ -241,6 +242,7 @@ export class ComponentPlacementAdapter {
       reservation_id: record.reservation_id,
       profile_id: record.profile_id,
       snapshot_version: record.snapshot_version,
+      placement_generation: record.placement_generation,
       provider_endpoint: record.provider_endpoint
     };
   }
