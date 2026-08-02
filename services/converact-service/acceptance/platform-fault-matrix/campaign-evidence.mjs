@@ -8,6 +8,24 @@ const TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u;
 const EXPECTED_MIGRATION = '112_converact_platform_history_receipt_integrity';
 const MAX_RECOVERY_MS = 24 * 60 * 60 * 1_000;
 const MAX_OPERATIONS = 100_000_000;
+const DRAIN_PHASES = Object.freeze([
+  'accepting',
+  'route_draining',
+  'worker_draining',
+  'authority_draining',
+  'active_zero_verified',
+  'quiesced',
+  'stopped'
+]);
+const DRAIN_AUTHORITIES = Object.freeze([
+  'platform_worker_leases',
+  'domain_event_inflight',
+  'communication_attached_generations',
+  'recording_attached_generations',
+  'ai_attached_generations',
+  'unobserved_effect_receipts',
+  'billing_projection_conflicts'
+]);
 
 export function buildBackupRestoreEvidence(input) {
   assertControlledEvidenceSafe(input);
@@ -62,27 +80,61 @@ export function buildBackupRestoreEvidence(input) {
 export function buildDrainEvidence(input) {
   assertControlledEvidenceSafe(input);
   const identity = assertControlledEvidenceIdentity(input?.identity);
-  const valid = positiveInteger(input.process_a_pid)
-    && positiveInteger(input.process_b_pid)
-    && input.process_a_pid !== input.process_b_pid
+  const processIds = [
+    input.orchestrator_pid,
+    input.drain_node_pid,
+    input.lost_node_pid,
+    input.recovery_node_pid,
+    input.fresh_verifier_pid
+  ];
+  const valid = input.status === 'passed'
+    && boundedDuration(input.duration_ms, false)
+    && input.clock_domain === 'monotonic'
+    && processIds.every(positiveInteger)
+    && new Set(processIds).size === processIds.length
+    && input.drain_node_exit_code === 0
+    && input.drain_node_exit_signal === null
+    && input.lost_node_exit_code === null
+    && input.lost_node_exit_signal === 'SIGKILL'
+    && input.recovery_node_exit_code === 0
+    && input.recovery_node_exit_signal === null
+    && input.fresh_verifier_exit_code === 0
+    && input.fresh_verifier_exit_signal === null
+    && exactArray(input.phase_sequence, DRAIN_PHASES)
+    && input.drain_rejection_code === 'component_node_draining'
+    && positiveInteger(input.established_mutations_before_drain)
+    && input.established_mutations_during_drain
+      === input.established_mutations_before_drain
+    && input.established_close_state === 'closed'
+    && validActiveZeroReceipts(input.active_zero_receipts)
+    && sha256(input.receipts_manifest_sha256)
+    && input.fresh_receipt_verification_count === DRAIN_AUTHORITIES.length
+    && input.fresh_receipt_verified_phase === 'active_zero_verified'
     && token(input.initial_owner_node_id)
-    && token(input.post_drain_owner_node_id)
-    && input.initial_owner_node_id !== input.post_drain_owner_node_id
-    && input.drain_rejected_new_work === true
-    && input.established_work_survived_drain === true
-    && input.active_zero_observed === true
-    && input.offline_after_active_zero === true
-    && input.process_loss_observed === true
-    && input.stale_owner_rejected === true
-    && input.n_minus_1_schema_accepted === true
-    && input.duplicate_replayed === true
-    && input.unrelated_containers_unchanged === true
+    && token(input.post_loss_owner_node_id)
+    && input.initial_owner_node_id !== input.post_loss_owner_node_id
+    && positiveU64(input.initial_owner_epoch)
+    && positiveU64(input.post_loss_owner_epoch)
+    && BigInt(input.post_loss_owner_epoch) > BigInt(input.initial_owner_epoch)
+    && input.stale_owner_error_code === 'stale_owner_epoch'
+    && input.post_loss_new_work_state === 'active'
+    && validRollingSchema(input.rolling_schema)
+    && sha256(input.unrelated_containers_before_sha256)
+    && input.unrelated_containers_after_sha256
+      === input.unrelated_containers_before_sha256
+    && input.container_actions === 0
     && input.validation_processes_remaining === 0;
   return freeze({
     evidence_id: 'G02-E11-DRAIN',
     status: valid ? 'verified_controlled' : 'failed',
     production_eligible: false,
-    evidence: valid ? freeze({ ...input, identity }) : null
+    evidence: valid ? freeze({
+      ...input,
+      identity,
+      active_zero_receipts: freeze(input.active_zero_receipts.map((receipt) => freeze({ ...receipt }))),
+      phase_sequence: freeze([...input.phase_sequence]),
+      rolling_schema: freeze({ ...input.rolling_schema })
+    }) : null
   });
 }
 
@@ -147,6 +199,56 @@ function boundedDuration(value, zeroAllowed) {
   return Number.isSafeInteger(value)
     && value >= (zeroAllowed ? 0 : 1)
     && value <= MAX_RECOVERY_MS;
+}
+
+function validActiveZeroReceipts(value) {
+  if (!Array.isArray(value) || value.length !== DRAIN_AUTHORITIES.length) return false;
+  const authorities = new Set();
+  const keyIds = new Set();
+  const bodies = new Set();
+  const signatures = new Set();
+  for (const receipt of value) {
+    if (!plainRecord(receipt) || !DRAIN_AUTHORITIES.includes(receipt.authority)
+      || authorities.has(receipt.authority) || !token(receipt.key_id)
+      || keyIds.has(receipt.key_id) || !positiveInteger(receipt.receipt_revision)
+      || receipt.active_count !== '0' || !sha256(receipt.body_sha256)
+      || bodies.has(receipt.body_sha256) || !sha256(receipt.signature_sha256)
+      || signatures.has(receipt.signature_sha256)) return false;
+    authorities.add(receipt.authority);
+    keyIds.add(receipt.key_id);
+    bodies.add(receipt.body_sha256);
+    signatures.add(receipt.signature_sha256);
+  }
+  const communication = value.find(
+    (receipt) => receipt.authority === 'communication_attached_generations'
+  );
+  return DRAIN_AUTHORITIES.every((authority) => authorities.has(authority))
+    && communication.receipt_revision >= 2;
+}
+
+function validRollingSchema(value) {
+  return plainRecord(value)
+    && value.n_plus_1_reads_n === 'accepted'
+    && value.additive_minor === 'accepted'
+    && value.unknown_major === 'quarantined:unsupported_schema_version'
+    && value.duplicate === 'replay'
+    && value.stale === 'stale'
+    && value.gap === 'gap_requires_reconcile'
+    && value.distinct_ordering_key === 'insert';
+}
+
+function exactArray(value, expected) {
+  return Array.isArray(value) && value.length === expected.length
+    && expected.every((item, index) => value[index] === item);
+}
+
+function positiveU64(value) {
+  if (typeof value !== 'string' || !/^[1-9][0-9]{0,19}$/u.test(value)) return false;
+  try {
+    return BigInt(value) <= 18_446_744_073_709_551_615n;
+  } catch {
+    return false;
+  }
 }
 
 function positiveInteger(value) {

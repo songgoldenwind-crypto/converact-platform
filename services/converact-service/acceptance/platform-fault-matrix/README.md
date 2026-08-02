@@ -19,6 +19,11 @@ volume, network, database, credential, port, or evidence directory.
   digest-pinned PostgreSQL containers. The source is removed before a distinct empty target is created; a fresh
   process verifies exact database/object digests, RLS and append-only history. One parent process measures restore,
   runtime-role initialization and fresh-process verification through a single monotonic timing boundary.
+- The drain executable slice runs the production Cell/component admission controllers, platform drain coordinator
+  and event compatibility decisions across separate Node processes. It observes an actual `SIGKILL`, stale-owner
+  rejection, the seven-phase monotonic drain sequence and an independent fresh-process verification of seven
+  Ed25519-bound zero receipts. It performs no container action and makes no real-media or region claim. Until an
+  exact-source fixed-host result is retained and reviewed, `G02-E11-DRAIN` remains `not_run`.
 - Event system, object store, PKI/KMS, DNS, configuration, wall-clock, AI/GPU, recording upload, provider,
   observability and host/node adapters are not yet executed by this slice.
 - Every unexecuted dependency remains `not_run`.
@@ -110,6 +115,24 @@ target containers/networks/volumes, verifies pre-existing container snapshots,
 and retains only secret-scanned textual evidence. RTO excludes target-container
 boot and uses a process-local monotonic clock. Its frozen-checkpoint result does
 not prove continuous-write PITR, regional DR or production eligibility.
+
+Controlled rolling drain/node-loss campaign:
+
+```bash
+CONVERACT_G02_DRAIN_CONFIRM=G02_PLATFORM_DRAIN_EVIDENCE \
+CONVERACT_G02_FAULT_RUN_ID='drain-<unique suffix>' \
+CONVERACT_G02_SOURCE_COMMIT='<40 hex exact commit>' \
+CONVERACT_G02_NODE_IMAGE='node:24-bookworm-slim@sha256:<64 hex digest>' \
+NODE_BIN='/absolute/path/to/node-v24' \
+./drain-accept.sh
+```
+
+The drain runner requires a clean exact-source checkout and Node v24. It also requires every pre-existing container
+to be stopped, snapshots all of them before and after, and fails unless both snapshots are byte-identical. The
+runner cannot start, stop or remove a container. Per-Authority public keys and signed receipts are retained and
+secret-scanned; private signing material exists only in one bounded child-process lifetime. This controlled slice
+does not prove independent production trust bootstrap, real SIP/media continuity, embedded-edge survival, region
+recovery, DR or production eligibility.
 
 Secrets, tokens, passwords, cookies, private keys and credentials are forbidden in evidence. Missing prerequisites,
 partial campaigns, mock services, loopback media, upstream benchmarks and historical results never promote a real

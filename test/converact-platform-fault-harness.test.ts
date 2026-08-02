@@ -581,8 +581,78 @@ test('restore probe preserves opaque container identity while resolving only fil
     === 'converact_upload_dir_invalid');
 });
 
-test('drain evidence requires distinct live processes, active-zero and stale-owner fencing', () => {
-  const result = buildDrainEvidence({
+test('drain evidence requires observed processes, exact phases, signed zeros and rolling decisions', () => {
+  const activeZeroReceipts = [
+    'platform_worker_leases',
+    'domain_event_inflight',
+    'communication_attached_generations',
+    'recording_attached_generations',
+    'ai_attached_generations',
+    'unobserved_effect_receipts',
+    'billing_projection_conflicts'
+  ].map((authority, index) => ({
+    authority,
+    key_id: `drain-${authority}-key-v1`,
+    receipt_revision: index === 2 ? 2 : 1,
+    active_count: '0',
+    body_sha256: String(index + 1).repeat(64).slice(0, 64),
+    signature_sha256: String(index + 2).repeat(64).slice(0, 64)
+  }));
+  const validInput = {
+    identity,
+    status: 'passed',
+    duration_ms: 1_200,
+    clock_domain: 'monotonic',
+    orchestrator_pid: 300,
+    drain_node_pid: 301,
+    lost_node_pid: 302,
+    recovery_node_pid: 303,
+    fresh_verifier_pid: 304,
+    drain_node_exit_code: 0,
+    drain_node_exit_signal: null,
+    lost_node_exit_code: null,
+    lost_node_exit_signal: 'SIGKILL',
+    recovery_node_exit_code: 0,
+    recovery_node_exit_signal: null,
+    fresh_verifier_exit_code: 0,
+    fresh_verifier_exit_signal: null,
+    phase_sequence: [
+      'accepting', 'route_draining', 'worker_draining', 'authority_draining',
+      'active_zero_verified', 'quiesced', 'stopped'
+    ],
+    drain_rejection_code: 'component_node_draining',
+    established_mutations_before_drain: 1,
+    established_mutations_during_drain: 1,
+    established_close_state: 'closed',
+    active_zero_receipts: activeZeroReceipts,
+    receipts_manifest_sha256: '8'.repeat(64),
+    fresh_receipt_verification_count: 7,
+    fresh_receipt_verified_phase: 'active_zero_verified',
+    initial_owner_node_id: 'node-a',
+    post_loss_owner_node_id: 'node-b',
+    initial_owner_epoch: '4294967297',
+    post_loss_owner_epoch: '4294967298',
+    stale_owner_error_code: 'stale_owner_epoch',
+    post_loss_new_work_state: 'active',
+    rolling_schema: {
+      n_plus_1_reads_n: 'accepted',
+      additive_minor: 'accepted',
+      unknown_major: 'quarantined:unsupported_schema_version',
+      duplicate: 'replay',
+      stale: 'stale',
+      gap: 'gap_requires_reconcile',
+      distinct_ordering_key: 'insert'
+    },
+    unrelated_containers_before_sha256: '9'.repeat(64),
+    unrelated_containers_after_sha256: '9'.repeat(64),
+    container_actions: 0,
+    validation_processes_remaining: 0
+  };
+  const result = buildDrainEvidence(validInput);
+  assert.equal(result.status, 'verified_controlled');
+  assert.equal(result.production_eligible, false);
+
+  const booleanOnly = {
     identity,
     process_a_pid: 301,
     process_b_pid: 302,
@@ -598,27 +668,76 @@ test('drain evidence requires distinct live processes, active-zero and stale-own
     duplicate_replayed: true,
     unrelated_containers_unchanged: true,
     validation_processes_remaining: 0
-  });
-  assert.equal(result.status, 'verified_controlled');
-  assert.equal(result.production_eligible, false);
+  };
+  assert.equal(buildDrainEvidence(booleanOnly).status, 'failed');
 
   assert.equal(buildDrainEvidence({
-    identity,
-    process_a_pid: 301,
-    process_b_pid: 302,
-    initial_owner_node_id: 'node-a',
-    post_drain_owner_node_id: 'node-b',
-    drain_rejected_new_work: true,
-    established_work_survived_drain: true,
-    active_zero_observed: false,
-    offline_after_active_zero: false,
-    process_loss_observed: true,
-    stale_owner_rejected: true,
-    n_minus_1_schema_accepted: true,
-    duplicate_replayed: true,
-    unrelated_containers_unchanged: true,
-    validation_processes_remaining: 0
+    ...validInput,
+    active_zero_receipts: activeZeroReceipts.map((entry, index) =>
+      index === 2 ? { ...entry, active_count: '1' } : entry)
   }).status, 'failed');
+  assert.equal(buildDrainEvidence({
+    ...validInput,
+    phase_sequence: ['accepting', 'route_draining', 'stopped']
+  }).status, 'failed');
+  assert.equal(buildDrainEvidence({
+    ...validInput,
+    lost_node_exit_signal: 'SIGTERM'
+  }).status, 'failed');
+  assert.equal(buildDrainEvidence({
+    ...validInput,
+    fresh_verifier_pid: 303
+  }).status, 'failed');
+});
+
+test('drain probe uses production admission/event/drain code and actual child loss', async () => {
+  const { runDrainCampaign } = await import(
+    '../services/converact-service/acceptance/platform-fault-matrix/drain-probe.js'
+  );
+  const campaign = await runDrainCampaign({ run_id: 'unit-drain' });
+  const result = campaign.result;
+  assert.equal(result.status, 'passed');
+  assert.equal(result.lost_node_exit_signal, 'SIGKILL');
+  assert.equal(result.drain_rejection_code, 'component_node_draining');
+  assert.equal(result.stale_owner_error_code, 'stale_owner_epoch');
+  assert.deepEqual(result.phase_sequence, [
+    'accepting', 'route_draining', 'worker_draining', 'authority_draining',
+    'active_zero_verified', 'quiesced', 'stopped'
+  ]);
+  assert.equal(result.active_zero_receipts.length, 7);
+  assert.equal(result.active_zero_receipts.every((entry: any) => entry.active_count === '0'), true);
+  assert.equal(result.fresh_receipt_verification_count, 7);
+  assert.equal(new Set([
+    result.orchestrator_pid,
+    result.drain_node_pid,
+    result.lost_node_pid,
+    result.recovery_node_pid,
+    result.fresh_verifier_pid
+  ]).size, 5);
+  assert.equal(result.validation_processes_remaining, 0);
+});
+
+test('drain runner is exact-source read-only to containers and retains bounded evidence', () => {
+  const script = readFileSync(new URL('drain-accept.sh', acceptanceRoot), 'utf8');
+  const probe = readFileSync(new URL('drain-probe.ts', acceptanceRoot), 'utf8');
+  const node = readFileSync(new URL('drain-node.ts', acceptanceRoot), 'utf8');
+  assert.match(script, /G02_PLATFORM_DRAIN_EVIDENCE/);
+  assert.match(script, /git -C "\$ROOT_DIR" rev-parse HEAD/);
+  assert.match(script, /git -C "\$ROOT_DIR" status --porcelain/);
+  assert.match(script, /requires Node v24/);
+  assert.match(script, /snapshot_containers/);
+  assert.match(script, /cmp -s "\$BEFORE_CONTAINERS" "\$AFTER_CONTAINERS"/);
+  assert.match(script, /docker ps -q/);
+  assert.match(script, /evidence-secret-scan\.mjs/);
+  assert.doesNotMatch(script, /docker (?:compose\s+)?(?:up|start|stop|kill|rm|down)|docker system prune/);
+  assert.match(probe, /fork\(/);
+  assert.match(probe, /SIGKILL/);
+  assert.match(probe, /CellAdmissionController/);
+  assert.match(probe, /decodePlatformEvent/);
+  assert.match(probe, /decideInboxWrite/);
+  assert.match(probe, /PlatformDrainCoordinator/);
+  assert.match(node, /ComponentNodeAdmissionController/);
+  assert.match(node, /signPlatformDrainReceipt/);
 });
 
 test('capacity evidence requires observed hard bounds for active pending retry and fanout', () => {

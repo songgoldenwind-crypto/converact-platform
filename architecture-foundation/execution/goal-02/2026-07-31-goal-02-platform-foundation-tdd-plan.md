@@ -443,6 +443,33 @@ Controlled progress, without promoting the aggregate task:
 - [ ] Record commit/source/binary/image/config/model/hardware/clocks/workload/seed/time/raw output in evidence index.
 - [x] If any prerequisite or campaign is absent, keep that entry `not_run`; never borrow historical evidence.
 
+### T12-E11 — rolling drain、node loss 与 active-zero
+
+**Implementation files:**
+
+- `src/agent-runtime/converact/platform-foundation/drain.ts`
+- `src/agent-runtime/converact/platform-foundation/index.ts`
+- `services/converact-service/acceptance/platform-fault-matrix/drain-node.ts`
+- `services/converact-service/acceptance/platform-fault-matrix/drain-probe.ts`
+- `services/converact-service/acceptance/platform-fault-matrix/drain-accept.sh`
+- `services/converact-service/acceptance/platform-fault-matrix/campaign-evidence.mjs`
+
+**Test files:**
+
+- `test/converact-platform-drain.test.ts`
+- `test/converact-platform-fault-harness.test.ts`
+
+- [x] RED: require the monotonic phase sequence, Ed25519-bound per-Authority receipt, checked-u64 count,
+  exact drain/node/owner epoch, freshness, strictly monotonic receipt revision and fail-closed timeout/restart.
+- [x] RED: reject boolean-only campaign claims; require distinct orchestrator/drain/lost/recovery PIDs, observed
+  process exit/signal, admission error codes, signed active-zero vector, schema decisions and bounded cleanup facts.
+- [x] GREEN: implement only the platform drain coordinator and receipt verifier; reuse existing Cell and component
+  admission controllers plus the production event decoder/inbox decision functions in the campaign.
+- [ ] Run an exact-source, clean-checkout multi-process campaign on `ubuntu@101.42.7.139`; keep all nine existing
+  containers stopped and prove their before/after snapshots are byte-identical.
+- [ ] Retain raw output/manifests/identity/non-claim and independent review. This campaign cannot claim real media,
+  region recovery, production eligibility or continuation of an embedded process-owned edge.
+
 ## 15. Task T13 — Independent review and closeout
 
 - [x] Give a fresh read-only reviewer the Goal, PROGRAM-RULES, design, contracts, source/test map, diff and raw results.

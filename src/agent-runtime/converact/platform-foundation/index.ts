@@ -39,6 +39,20 @@ export type {
 } from './event-envelope.js';
 
 export {
+  PLATFORM_DRAIN_AUTHORITIES,
+  PlatformDrainCoordinator,
+  PlatformDrainError,
+  signPlatformDrainReceipt
+} from './drain.js';
+export type {
+  PlatformDrainAuthority,
+  PlatformDrainPhase,
+  PlatformDrainReceiptBody,
+  PlatformDrainSnapshot,
+  SignedPlatformDrainReceipt
+} from './drain.js';
+
+export {
   createEffectAuditLink,
   decideEffectReceiptAppend,
   effectNeedsReconcile
