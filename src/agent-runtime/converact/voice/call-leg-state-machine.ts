@@ -11,6 +11,13 @@ import {
   parseProtocolDialogId
 } from './foundation-identifiers.js';
 
+/**
+ * This TypeScript model proves transition semantics. The live native Call/Leg
+ * registry is owned by the Unified RustPBX process.
+ */
+export const CALL_LEG_FOUNDATION_ROLE =
+  'conformance_reference_not_live_native_authority' as const;
+
 export type CallLegFoundationErrorCode =
   | 'call_leg_input_invalid'
   | 'call_leg_call_not_found'

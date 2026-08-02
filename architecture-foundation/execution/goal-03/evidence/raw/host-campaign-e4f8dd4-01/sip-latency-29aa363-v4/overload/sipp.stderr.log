@@ -1,0 +1,2 @@
+Resolving remote host '172.30.44.10'... Done.
+2026-08-02	18:36:32.448058	1785695792.448058: Failed to delete FD from epoll, errno = 1 (Operation not permitted)

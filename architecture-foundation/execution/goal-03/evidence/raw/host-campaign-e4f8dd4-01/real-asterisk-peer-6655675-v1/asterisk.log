@@ -1,0 +1,1959 @@
+2026-08-02T18:28:11.239650172Z Unable to install capabilities.
+2026-08-02T18:28:11.520966653Z [0mAsterisk 20.6.0~dfsg+~cs6.13.40431414-2build5, Copyright (C) 1999 - 2022, Sangoma Technologies Corporation and others.
+2026-08-02T18:28:11.520993570Z Created by Mark Spencer <markster@digium.com>
+2026-08-02T18:28:11.520997857Z Asterisk comes with ABSOLUTELY NO WARRANTY; type 'core show warranty' for details.
+2026-08-02T18:28:11.521001171Z This is free software, with components licensed under the GNU General Public
+2026-08-02T18:28:11.521004659Z License version 2 and other licenses; you are welcome to redistribute it under
+2026-08-02T18:28:11.521007657Z certain conditions. Type 'core show license' for details.
+2026-08-02T18:28:11.521010850Z =========================================================================
+2026-08-02T18:28:11.521014061Z Running as user 'asterisk'
+2026-08-02T18:28:11.521017440Z Running under group 'asterisk'
+2026-08-02T18:28:11.521020535Z Manager registered action DBGet
+2026-08-02T18:28:11.521023684Z Manager registered action DBGetTree
+2026-08-02T18:28:11.521026714Z Manager registered action DBPut
+2026-08-02T18:28:11.521030167Z Manager registered action DBDel
+2026-08-02T18:28:11.521033134Z Manager registered action DBDelTree
+2026-08-02T18:28:11.521036570Z PBX UUID: 10bffad5-b623-4d77-b00b-7f00eee4b65c
+2026-08-02T18:28:11.521039671Z Registered 'audio' codec 'amr' at sample rate '8000' with id '1'
+2026-08-02T18:28:11.521042981Z Created cached format with name 'amr'
+2026-08-02T18:28:11.521046486Z Registered 'audio' codec 'amrwb' at sample rate '16000' with id '2'
+2026-08-02T18:28:11.521049866Z Created cached format with name 'amrwb'
+2026-08-02T18:28:11.521053098Z Registered 'audio' codec 'codec2' at sample rate '8000' with id '3'
+2026-08-02T18:28:11.521056434Z Created cached format with name 'codec2'
+2026-08-02T18:28:11.521059663Z Registered 'audio' codec 'g723' at sample rate '8000' with id '4'
+2026-08-02T18:28:11.521063021Z Created cached format with name 'g723'
+2026-08-02T18:28:11.521065875Z Registered 'audio' codec 'ulaw' at sample rate '8000' with id '5'
+2026-08-02T18:28:11.521069164Z Created cached format with name 'ulaw'
+2026-08-02T18:28:11.521072225Z Registered 'audio' codec 'alaw' at sample rate '8000' with id '6'
+2026-08-02T18:28:11.521075362Z Created cached format with name 'alaw'
+2026-08-02T18:28:11.521078326Z Registered 'audio' codec 'gsm' at sample rate '8000' with id '7'
+2026-08-02T18:28:11.521081372Z Created cached format with name 'gsm'
+2026-08-02T18:28:11.521084277Z Registered 'audio' codec 'g726' at sample rate '8000' with id '8'
+2026-08-02T18:28:11.521087295Z Created cached format with name 'g726'
+2026-08-02T18:28:11.521090601Z Registered 'audio' codec 'g726aal2' at sample rate '8000' with id '9'
+2026-08-02T18:28:11.521093780Z Created cached format with name 'g726aal2'
+2026-08-02T18:28:11.521109325Z Registered 'audio' codec 'adpcm' at sample rate '8000' with id '10'
+2026-08-02T18:28:11.521113610Z Created cached format with name 'adpcm'
+2026-08-02T18:28:11.521117012Z Registered 'audio' codec 'slin' at sample rate '8000' with id '11'
+2026-08-02T18:28:11.521120099Z Created cached format with name 'slin'
+2026-08-02T18:28:11.521123530Z Registered 'audio' codec 'slin' at sample rate '12000' with id '12'
+2026-08-02T18:28:11.521128416Z Created cached format with name 'slin12'
+2026-08-02T18:28:11.521131497Z Registered 'audio' codec 'slin' at sample rate '16000' with id '13'
+2026-08-02T18:28:11.521134778Z Created cached format with name 'slin16'
+2026-08-02T18:28:11.521138293Z Registered 'audio' codec 'slin' at sample rate '24000' with id '14'
+2026-08-02T18:28:11.521141456Z Created cached format with name 'slin24'
+2026-08-02T18:28:11.521144915Z Registered 'audio' codec 'slin' at sample rate '32000' with id '15'
+2026-08-02T18:28:11.521148094Z Created cached format with name 'slin32'
+2026-08-02T18:28:11.521151471Z Registered 'audio' codec 'slin' at sample rate '44100' with id '16'
+2026-08-02T18:28:11.521154857Z Created cached format with name 'slin44'
+2026-08-02T18:28:11.521157924Z Registered 'audio' codec 'slin' at sample rate '48000' with id '17'
+2026-08-02T18:28:11.521161451Z Created cached format with name 'slin48'
+2026-08-02T18:28:11.521164301Z Registered 'audio' codec 'slin' at sample rate '96000' with id '18'
+2026-08-02T18:28:11.521167423Z Created cached format with name 'slin96'
+2026-08-02T18:28:11.521170418Z Registered 'audio' codec 'slin' at sample rate '192000' with id '19'
+2026-08-02T18:28:11.521173674Z Created cached format with name 'slin192'
+2026-08-02T18:28:11.521176617Z Registered 'audio' codec 'lpc10' at sample rate '8000' with id '20'
+2026-08-02T18:28:11.521179980Z Created cached format with name 'lpc10'
+2026-08-02T18:28:11.521183074Z Registered 'audio' codec 'g729' at sample rate '8000' with id '21'
+2026-08-02T18:28:11.521186201Z Created cached format with name 'g729'
+2026-08-02T18:28:11.521189273Z Registered 'audio' codec 'speex' at sample rate '8000' with id '22'
+2026-08-02T18:28:11.521192391Z Created cached format with name 'speex'
+2026-08-02T18:28:11.521195589Z Registered 'audio' codec 'speex' at sample rate '16000' with id '23'
+2026-08-02T18:28:11.521198453Z Created cached format with name 'speex16'
+2026-08-02T18:28:11.521201217Z Registered 'audio' codec 'speex' at sample rate '32000' with id '24'
+2026-08-02T18:28:11.521204178Z Created cached format with name 'speex32'
+2026-08-02T18:28:11.521207173Z Registered 'audio' codec 'ilbc' at sample rate '8000' with id '25'
+2026-08-02T18:28:11.521209441Z Created cached format with name 'ilbc'
+2026-08-02T18:28:11.521211526Z Registered 'audio' codec 'g722' at sample rate '16000' with id '26'
+2026-08-02T18:28:11.521217509Z Created cached format with name 'g722'
+2026-08-02T18:28:11.521219694Z Registered 'audio' codec 'siren7' at sample rate '16000' with id '27'
+2026-08-02T18:28:11.521221753Z Created cached format with name 'siren7'
+2026-08-02T18:28:11.521223821Z Registered 'audio' codec 'siren14' at sample rate '32000' with id '28'
+2026-08-02T18:28:11.521225888Z Created cached format with name 'siren14'
+2026-08-02T18:28:11.521227898Z Registered 'audio' codec 'g719' at sample rate '48000' with id '29'
+2026-08-02T18:28:11.521230030Z Created cached format with name 'g719'
+2026-08-02T18:28:11.521232027Z Registered 'audio' codec 'opus' at sample rate '48000' with id '30'
+2026-08-02T18:28:11.521234043Z Created cached format with name 'opus'
+2026-08-02T18:28:11.523362552Z Registered 'image' codec 'jpeg' at sample rate '0' with id '31'
+2026-08-02T18:28:11.523378697Z Created cached format with name 'jpeg'
+2026-08-02T18:28:11.523381865Z Registered 'image' codec 'png' at sample rate '0' with id '32'
+2026-08-02T18:28:11.523384608Z Created cached format with name 'png'
+2026-08-02T18:28:11.523387524Z Registered 'video' codec 'h261' at sample rate '1000' with id '33'
+2026-08-02T18:28:11.523390652Z Created cached format with name 'h261'
+2026-08-02T18:28:11.523396674Z Registered 'video' codec 'h263' at sample rate '1000' with id '34'
+2026-08-02T18:28:11.523399473Z Created cached format with name 'h263'
+2026-08-02T18:28:11.523402157Z Registered 'video' codec 'h263p' at sample rate '1000' with id '35'
+2026-08-02T18:28:11.523424012Z Created cached format with name 'h263p'
+2026-08-02T18:28:11.523427077Z Registered 'video' codec 'h264' at sample rate '1000' with id '36'
+2026-08-02T18:28:11.523429743Z Created cached format with name 'h264'
+2026-08-02T18:28:11.523432371Z Registered 'video' codec 'h265' at sample rate '1000' with id '37'
+2026-08-02T18:28:11.523435106Z Created cached format with name 'h265'
+2026-08-02T18:28:11.523437693Z Registered 'video' codec 'mpeg4' at sample rate '1000' with id '38'
+2026-08-02T18:28:11.523440460Z Created cached format with name 'mpeg4'
+2026-08-02T18:28:11.523443107Z Registered 'video' codec 'vp8' at sample rate '1000' with id '39'
+2026-08-02T18:28:11.523445766Z Created cached format with name 'vp8'
+2026-08-02T18:28:11.523448510Z Registered 'video' codec 'vp9' at sample rate '1000' with id '40'
+2026-08-02T18:28:11.523451330Z Created cached format with name 'vp9'
+2026-08-02T18:28:11.523454120Z Registered 'text' codec 'red' at sample rate '0' with id '41'
+2026-08-02T18:28:11.523457107Z Created cached format with name 'red'
+2026-08-02T18:28:11.523459841Z Registered 'text' codec 't140' at sample rate '0' with id '42'
+2026-08-02T18:28:11.523462657Z Created cached format with name 't140'
+2026-08-02T18:28:11.523474919Z Registered 'image' codec 't38' at sample rate '0' with id '43'
+2026-08-02T18:28:11.523477785Z Created cached format with name 't38'
+2026-08-02T18:28:11.523480473Z Registered 'audio' codec 'none' at sample rate '8000' with id '44'
+2026-08-02T18:28:11.523483201Z Created cached format with name 'none'
+2026-08-02T18:28:11.523485909Z Registered 'audio' codec 'silk' at sample rate '8000' with id '45'
+2026-08-02T18:28:11.523497477Z Created cached format with name 'silk8'
+2026-08-02T18:28:11.523500572Z Registered 'audio' codec 'silk' at sample rate '12000' with id '46'
+2026-08-02T18:28:11.523503590Z Created cached format with name 'silk12'
+2026-08-02T18:28:11.523506563Z Registered 'audio' codec 'silk' at sample rate '16000' with id '47'
+2026-08-02T18:28:11.523509289Z Created cached format with name 'silk16'
+2026-08-02T18:28:11.523512154Z Registered 'audio' codec 'silk' at sample rate '24000' with id '48'
+2026-08-02T18:28:11.523515067Z Created cached format with name 'silk24'
+2026-08-02T18:28:11.523517834Z Sorcery registered wizard 'bucket'
+2026-08-02T18:28:11.523520640Z Sorcery registered wizard 'bucket_file'
+2026-08-02T18:28:11.523523676Z Registered custom function '[1;36mLOG_GROUP[0m'
+2026-08-02T18:28:11.523527023Z [1;30m  == [0mMessage handler 'dialplan' registered.
+2026-08-02T18:28:11.523789060Z [1;30m  == [0mRegistered custom function '[1;36mMESSAGE[0m'
+2026-08-02T18:28:11.524068524Z [1;30m  == [0mRegistered custom function '[1;36mMESSAGE_DATA[0m'
+2026-08-02T18:28:11.524656718Z [1;30m  == [0mRegistered application '[1;36mMessageSend[0m'
+2026-08-02T18:28:11.525130463Z [1;30m  == [0mManager registered action MessageSend
+2026-08-02T18:28:11.525230111Z [1;30m  == [0mRegistered channel type 'Surrogate' (Surrogate channel used to pull channel from an application)
+2026-08-02T18:28:11.525673530Z [1;30m  == [0mManager registered action BridgeTechnologyList
+2026-08-02T18:28:11.525957690Z [1;30m  == [0mManager registered action BridgeTechnologySuspend
+2026-08-02T18:28:11.526235140Z [1;30m  == [0mManager registered action BridgeTechnologyUnsuspend
+2026-08-02T18:28:11.526557401Z [1;30m  == [0mRegistered DNS resolver 'system' with priority '2147483647'
+2026-08-02T18:28:11.526877178Z [1;30m [0mAsterisk PBX Core Initializing
+2026-08-02T18:28:11.526886258Z [1;30m  == [0mRegistering builtin functions:
+2026-08-02T18:28:11.527088820Z [1;30m  == [0mRegistered custom function '[1;36mEXCEPTION[0m'
+2026-08-02T18:28:11.527398236Z [1;30m  == [0mRegistered custom function '[1;36mTESTTIME[0m'
+2026-08-02T18:28:11.527729912Z [1;30m  == [0mManager registered action ShowDialPlan
+2026-08-02T18:28:11.528120262Z [1;30m  == [0mManager registered action ExtensionStateList
+2026-08-02T18:28:11.528622790Z [1;30m  == [0mRegistered application '[1;36mAnswer[0m'
+2026-08-02T18:28:11.529023330Z [1;30m  == [0mRegistered application '[1;36mBackGround[0m'
+2026-08-02T18:28:11.529296467Z [1;30m  == [0mRegistered application '[1;36mBusy[0m'
+2026-08-02T18:28:11.529650089Z [1;30m  == [0mRegistered application '[1;36mCongestion[0m'
+2026-08-02T18:28:11.529940123Z [1;30m  == [0mRegistered application '[1;36mExecIfTime[0m'
+2026-08-02T18:28:11.530316756Z [1;30m  == [0mRegistered application '[1;36mGoto[0m'
+2026-08-02T18:28:11.530726106Z [1;30m  == [0mRegistered application '[1;36mGotoIf[0m'
+2026-08-02T18:28:11.531054196Z [1;30m  == [0mRegistered application '[1;36mGotoIfTime[0m'
+2026-08-02T18:28:11.531404049Z [1;30m  == [0mRegistered application '[1;36mImportVar[0m'
+2026-08-02T18:28:11.531689556Z [1;30m  == [0mRegistered application '[1;36mHangup[0m'
+2026-08-02T18:28:11.532007456Z [1;30m  == [0mRegistered application '[1;36mIncomplete[0m'
+2026-08-02T18:28:11.532323693Z [1;30m  == [0mRegistered application '[1;36mNoOp[0m'
+2026-08-02T18:28:11.532540492Z [1;30m  == [0mRegistered application '[1;36mProceeding[0m'
+2026-08-02T18:28:11.532808652Z [1;30m  == [0mRegistered application '[1;36mProgress[0m'
+2026-08-02T18:28:11.533050545Z [1;30m  == [0mRegistered application '[1;36mRaiseException[0m'
+2026-08-02T18:28:11.533510311Z [1;30m  == [0mRegistered application '[1;36mRinging[0m'
+2026-08-02T18:28:11.533899683Z [1;30m  == [0mRegistered application '[1;36mSayAlpha[0m'
+2026-08-02T18:28:11.533908449Z [1;30m  == [0mRegistered application '[1;36mSayAlphaCase[0m'
+2026-08-02T18:28:11.534137809Z [1;30m  == [0mRegistered application '[1;36mSayDigits[0m'
+2026-08-02T18:28:11.534423258Z [1;30m  == [0mRegistered application '[1;36mSayMoney[0m'
+2026-08-02T18:28:11.534849991Z [1;30m  == [0mRegistered application '[1;36mSayNumber[0m'
+2026-08-02T18:28:11.535047745Z [1;30m  == [0mRegistered application '[1;36mSayOrdinal[0m'
+2026-08-02T18:28:11.535343906Z [1;30m  == [0mRegistered application '[1;36mSayPhonetic[0m'
+2026-08-02T18:28:11.535584169Z [1;30m  == [0mRegistered application '[1;36mSetAMAFlags[0m'
+2026-08-02T18:28:11.535865554Z [1;30m  == [0mRegistered application '[1;36mWait[0m'
+2026-08-02T18:28:11.536149623Z [1;30m  == [0mRegistered application '[1;36mWaitDigit[0m'
+2026-08-02T18:28:11.536460049Z [1;30m  == [0mRegistered application '[1;36mWaitExten[0m'
+2026-08-02T18:28:11.536837617Z [1;30m  == [0mRegistered application '[1;36mSet[0m'
+2026-08-02T18:28:11.537130136Z [1;30m  == [0mRegistered application '[1;36mMSet[0m'
+2026-08-02T18:28:11.537453400Z [1;30m  == [0mRegistered channel type 'Local' (Local Proxy Channel Driver)
+2026-08-02T18:28:11.537714273Z [1;30m  == [0mManager registered action LocalOptimizeAway
+2026-08-02T18:28:11.537722619Z [1;30m [0mAsterisk Dynamic Loader Starting:
+2026-08-02T18:28:11.538900556Z [2026-08-02T18:28:11.538+0000] [1;33mNOTICE[0m[1]: [1;37mloader.c[0m:[1;37m2405[0m [1;37mload_modules[0m: 359 modules will be loaded.
+2026-08-02T18:28:11.615832443Z [1;30m [0mLoading logger.
+2026-08-02T18:28:11.615882305Z [1;30m  == [0mlogger => ([0;33mLogger[0m)
+2026-08-02T18:28:11.615886619Z [1;30m [0mLoading extconfig.
+2026-08-02T18:28:11.615889917Z [1;30m  == [0mextconfig => ([0;33mConfiguration[0m)
+2026-08-02T18:28:11.615893386Z [1;30m [0mLoading res_curl.so.
+2026-08-02T18:28:11.616614908Z [1;30m  == [0mres_curl.so => ([0;33mcURL Resource Module[0m)
+2026-08-02T18:28:11.616737793Z [1;30m [0mLoading res_odbc_transaction.so.
+2026-08-02T18:28:11.617513042Z [1;30m  == [0mRegistered application '[1;36mODBC_Commit[0m'
+2026-08-02T18:28:11.617959956Z [1;30m  == [0mRegistered application '[1;36mODBC_Rollback[0m'
+2026-08-02T18:28:11.618445691Z [1;30m  == [0mRegistered custom function '[1;36mODBC[0m'
+2026-08-02T18:28:11.618458634Z [1;30m  == [0mres_odbc_transaction.so => ([0;33mODBC transaction resource[0m)
+2026-08-02T18:28:11.618540297Z [1;30m [0mLoading res_odbc.so.
+2026-08-02T18:28:11.618721347Z [1;30m  == [0mres_odbc.so => ([0;33mODBC resource[0m)
+2026-08-02T18:28:11.618728724Z [1;30m [0mLoading func_curl.so.
+2026-08-02T18:28:11.619235967Z [1;30m  == [0mRegistered custom function '[1;36mCURL[0m'
+2026-08-02T18:28:11.619704805Z [1;30m  == [0mRegistered custom function '[1;36mCURLOPT[0m'
+2026-08-02T18:28:11.619716779Z [1;30m  == [0mfunc_curl.so => ([0;33mLoad external URL[0m)
+2026-08-02T18:28:11.619810864Z [1;30m [0mLoading res_config_ldap.so.
+2026-08-02T18:28:11.619954500Z [2026-08-02T18:28:11.619+0000] [1;33mNOTICE[0m[1]: [1;37mres_config_ldap.c[0m:[1;37m1832[0m [1;37mparse_config[0m: No directory user found, anonymous binding as default.
+2026-08-02T18:28:11.619962933Z [2026-08-02T18:28:11.619+0000] [1;31mERROR[0m[1]: [1;37mres_config_ldap.c[0m:[1;37m1858[0m [1;37mparse_config[0m: No directory URL or host found.
+2026-08-02T18:28:11.619980686Z [2026-08-02T18:28:11.619+0000] [1;31mERROR[0m[1]: [1;37mres_config_ldap.c[0m:[1;37m1720[0m [1;37mload_module[0m: Cannot load LDAP RealTime driver.
+2026-08-02T18:28:11.619984351Z [1;30m  == [0mres_config_ldap.so => ([0;33mLDAP realtime interface[0m)
+2026-08-02T18:28:11.619987794Z [1;30m [0mLoading res_sorcery_config.so.
+2026-08-02T18:28:11.619991088Z [1;30m  == [0mSorcery registered wizard 'config'
+2026-08-02T18:28:11.620004115Z [1;30m  == [0mres_sorcery_config.so => ([0;33mSorcery Configuration File Object Wizard[0m)
+2026-08-02T18:28:11.620043704Z [1;30m [0mLoading res_sorcery_memory_cache.so.
+2026-08-02T18:28:11.620171751Z [1;30m  == [0mSorcery registered wizard 'memory_cache'
+2026-08-02T18:28:11.620676473Z [1;30m  == [0mManager registered action SorceryMemoryCacheExpireObject
+2026-08-02T18:28:11.621064355Z [1;30m  == [0mManager registered action SorceryMemoryCacheExpire
+2026-08-02T18:28:11.621474164Z [1;30m  == [0mManager registered action SorceryMemoryCacheStaleObject
+2026-08-02T18:28:11.621858633Z [1;30m  == [0mManager registered action SorceryMemoryCacheStale
+2026-08-02T18:28:11.622240039Z [1;30m  == [0mManager registered action SorceryMemoryCachePopulate
+2026-08-02T18:28:11.622249105Z [1;30m  == [0mres_sorcery_memory_cache.so => ([0;33mSorcery Memory Cache Object Wizard[0m)
+2026-08-02T18:28:11.622252536Z [1;30m [0mLoading res_format_attr_opus.so.
+2026-08-02T18:28:11.622255376Z [1;30m  == [0mRegistered format interface for codec 'opus'
+2026-08-02T18:28:11.623458662Z [1;30m  == [0mres_format_attr_opus.so => ([0;33mOpus Format Attribute Module[0m)
+2026-08-02T18:28:11.623471967Z [1;30m [0mLoading res_sorcery_realtime.so.
+2026-08-02T18:28:11.623475463Z [1;30m  == [0mSorcery registered wizard 'realtime'
+2026-08-02T18:28:11.623478883Z [1;30m  == [0mres_sorcery_realtime.so => ([0;33mSorcery Realtime Object Wizard[0m)
+2026-08-02T18:28:11.623482097Z [1;30m [0mLoading res_config_sqlite3.so.
+2026-08-02T18:28:11.623485217Z [1;30m  == [0mres_config_sqlite3.so => ([0;33mSQLite 3 realtime config engine[0m)
+2026-08-02T18:28:11.623488448Z [1;30m [0mLoading res_config_curl.so.
+2026-08-02T18:28:11.623491606Z [1;30m  == [0mres_config_curl.so => ([0;33mRealtime Curl configuration[0m)
+2026-08-02T18:28:11.623494830Z [1;30m [0mLoading res_sorcery_memory.so.
+2026-08-02T18:28:11.623520877Z [1;30m  == [0mSorcery registered wizard 'memory'
+2026-08-02T18:28:11.623523640Z [1;30m  == [0mres_sorcery_memory.so => ([0;33mSorcery In-Memory Object Wizard[0m)
+2026-08-02T18:28:11.623526544Z [1;30m [0mLoading res_sorcery_astdb.so.
+2026-08-02T18:28:11.623538827Z [1;30m  == [0mSorcery registered wizard 'astdb'
+2026-08-02T18:28:11.623541693Z [1;30m  == [0mres_sorcery_astdb.so => ([0;33mSorcery Astdb Object Wizard[0m)
+2026-08-02T18:28:11.623544377Z [1;30m [0mLoading res_pjsip_config_wizard.so.
+2026-08-02T18:28:11.623546995Z [1;30m  == [0mres_pjsip_config_wizard.so => ([0;33mPJSIP Config Wizard[0m)
+2026-08-02T18:28:11.623549897Z [1;30m [0mLoading res_statsd.so.
+2026-08-02T18:28:11.623552615Z [1;30m  == [0mres_statsd.so => ([0;33mStatsD client support[0m)
+2026-08-02T18:28:11.623555722Z [1;30m [0mLoading udptl.
+2026-08-02T18:28:11.624223331Z [1;30m  == [0mudptl => ([0;33mUDPTL[0m)
+2026-08-02T18:28:11.624232807Z [1;30m [0mLoading plc.
+2026-08-02T18:28:11.624395090Z [1;30m  == [0mplc => ([0;33mPLC[0m)
+2026-08-02T18:28:11.624445519Z [1;30m [0mLoading acl.
+2026-08-02T18:28:11.625418409Z [1;30m  == [0macl => ([0;33mNamed ACL system[0m)
+2026-08-02T18:28:11.625431446Z [1;30m [0mLoading http.
+2026-08-02T18:28:11.625434708Z [1;30m  == [0mhttp => ([0;33mBuilt-in HTTP Server[0m)
+2026-08-02T18:28:11.625438058Z [1;30m [0mLoading manager.
+2026-08-02T18:28:11.625441456Z [1;30m  == [0mManager registered action Ping
+2026-08-02T18:28:11.625515061Z [1;30m  == [0mManager registered action Events
+2026-08-02T18:28:11.625800525Z [1;30m  == [0mManager registered action Logoff
+2026-08-02T18:28:11.626065487Z [1;30m  == [0mManager registered action Login
+2026-08-02T18:28:11.626338794Z [1;30m  == [0mManager registered action Challenge
+2026-08-02T18:28:11.626579953Z [1;30m  == [0mManager registered action Hangup
+2026-08-02T18:28:11.626939278Z [1;30m  == [0mManager registered action Status
+2026-08-02T18:28:11.627235622Z [1;30m  == [0mManager registered action Setvar
+2026-08-02T18:28:11.627517444Z [1;30m  == [0mManager registered action Getvar
+2026-08-02T18:28:11.627829642Z [1;30m  == [0mManager registered action GetConfig
+2026-08-02T18:28:11.628121308Z [1;30m  == [0mManager registered action GetConfigJSON
+2026-08-02T18:28:11.628561308Z [1;30m  == [0mManager registered action UpdateConfig
+2026-08-02T18:28:11.628808235Z [1;30m  == [0mManager registered action CreateConfig
+2026-08-02T18:28:11.629085991Z [1;30m  == [0mManager registered action ListCategories
+2026-08-02T18:28:11.629379093Z [1;30m  == [0mManager registered action Redirect
+2026-08-02T18:28:11.629656679Z [1;30m  == [0mManager registered action Atxfer
+2026-08-02T18:28:11.629916032Z [1;30m  == [0mManager registered action CancelAtxfer
+2026-08-02T18:28:11.630255843Z [1;30m  == [0mManager registered action Originate
+2026-08-02T18:28:11.630521965Z [1;30m  == [0mManager registered action Command
+2026-08-02T18:28:11.630857287Z [1;30m  == [0mManager registered action ExtensionState
+2026-08-02T18:28:11.631087365Z [1;30m  == [0mManager registered action PresenceState
+2026-08-02T18:28:11.631394068Z [1;30m  == [0mManager registered action AbsoluteTimeout
+2026-08-02T18:28:11.631670555Z [1;30m  == [0mManager registered action MailboxStatus
+2026-08-02T18:28:11.631966701Z [1;30m  == [0mManager registered action MailboxCount
+2026-08-02T18:28:11.633379521Z [1;30m  == [0mManager registered action ListCommands
+2026-08-02T18:28:11.633390937Z [1;30m  == [0mManager registered action SendText
+2026-08-02T18:28:11.633394219Z [1;30m  == [0mManager registered action UserEvent
+2026-08-02T18:28:11.633397057Z [1;30m  == [0mManager registered action WaitEvent
+2026-08-02T18:28:11.633399709Z [1;30m  == [0mManager registered action CoreSettings
+2026-08-02T18:28:11.633402616Z [1;30m  == [0mManager registered action CoreStatus
+2026-08-02T18:28:11.633457528Z [1;30m  == [0mManager registered action Reload
+2026-08-02T18:28:11.633462198Z [1;30m  == [0mManager registered action LoggerRotate
+2026-08-02T18:28:11.633722560Z [1;30m  == [0mManager registered action CoreShowChannels
+2026-08-02T18:28:11.634004350Z [1;30m  == [0mManager registered action CoreShowChannelMap
+2026-08-02T18:28:11.634311033Z [1;30m  == [0mManager registered action ModuleLoad
+2026-08-02T18:28:11.634581979Z [1;30m  == [0mManager registered action ModuleCheck
+2026-08-02T18:28:11.635066076Z [1;30m  == [0mManager registered action AOCMessage
+2026-08-02T18:28:11.635433752Z [1;30m  == [0mManager registered action Filter
+2026-08-02T18:28:11.635695883Z [1;30m  == [0mManager registered action BlindTransfer
+2026-08-02T18:28:11.636056302Z [1;30m  == [0mRegistered custom function '[1;36mAMI_CLIENT[0m'
+2026-08-02T18:28:11.643651035Z [1;30m  == [0mManager registered action BridgeList
+2026-08-02T18:28:11.643975163Z [1;30m  == [0mManager registered action BridgeInfo
+2026-08-02T18:28:11.644197682Z [1;30m  == [0mManager registered action BridgeDestroy
+2026-08-02T18:28:11.644491435Z [1;30m  == [0mManager registered action BridgeKick
+2026-08-02T18:28:11.644783499Z [1;30m  == [0mmanager => ([0;33mAsterisk Manager Interface[0m)
+2026-08-02T18:28:11.644935251Z [1;30m [0mLoading indications.
+2026-08-02T18:28:11.645178316Z [1;30m    -- [0mRegistered indication country 'at'
+2026-08-02T18:28:11.645256272Z [1;30m    -- [0mRegistered indication country 'au'
+2026-08-02T18:28:11.645262992Z [1;30m    -- [0mRegistered indication country 'bg'
+2026-08-02T18:28:11.645339933Z [1;30m    -- [0mRegistered indication country 'br'
+2026-08-02T18:28:11.645429068Z [1;30m    -- [0mRegistered indication country 'be'
+2026-08-02T18:28:11.645473968Z [1;30m    -- [0mRegistered indication country 'ch'
+2026-08-02T18:28:11.645479589Z [1;30m    -- [0mRegistered indication country 'cl'
+2026-08-02T18:28:11.645538261Z [1;30m    -- [0mRegistered indication country 'cn'
+2026-08-02T18:28:11.645605844Z [1;30m    -- [0mRegistered indication country 'cz'
+2026-08-02T18:28:11.645666876Z [1;30m    -- [0mRegistered indication country 'de'
+2026-08-02T18:28:11.645726432Z [1;30m    -- [0mRegistered indication country 'dk'
+2026-08-02T18:28:11.645839894Z [1;30m    -- [0mRegistered indication country 'ee'
+2026-08-02T18:28:11.645881130Z [1;30m    -- [0mRegistered indication country 'es'
+2026-08-02T18:28:11.645887812Z [1;30m    -- [0mRegistered indication country 'fi'
+2026-08-02T18:28:11.645953347Z [1;30m    -- [0mRegistered indication country 'fr'
+2026-08-02T18:28:11.645995294Z [1;30m    -- [0mRegistered indication country 'gr'
+2026-08-02T18:28:11.646001038Z [1;30m    -- [0mRegistered indication country 'hu'
+2026-08-02T18:28:11.646077601Z [1;30m    -- [0mRegistered indication country 'id'
+2026-08-02T18:28:11.646119584Z [1;30m    -- [0mRegistered indication country 'il'
+2026-08-02T18:28:11.646125410Z [1;30m    -- [0mRegistered indication country 'in'
+2026-08-02T18:28:11.646190033Z [1;30m    -- [0mRegistered indication country 'it'
+2026-08-02T18:28:11.646230413Z [1;30m    -- [0mRegistered indication country 'lt'
+2026-08-02T18:28:11.646236344Z [1;30m    -- [0mRegistered indication country 'jp'
+2026-08-02T18:28:11.646359369Z [1;30m    -- [0mRegistered indication country 'mx'
+2026-08-02T18:28:11.646369619Z [1;30m    -- [0mRegistered indication country 'my'
+2026-08-02T18:28:11.646373222Z [1;30m    -- [0mRegistered indication country 'nl'
+2026-08-02T18:28:11.646381491Z [1;30m    -- [0mRegistered indication country 'no'
+2026-08-02T18:28:11.646495043Z [1;30m    -- [0mRegistered indication country 'nz'
+2026-08-02T18:28:11.646501385Z [1;30m    -- [0mRegistered indication country 'ph'
+2026-08-02T18:28:11.646563108Z [1;30m    -- [0mRegistered indication country 'pl'
+2026-08-02T18:28:11.646645656Z [1;30m    -- [0mRegistered indication country 'pt'
+2026-08-02T18:28:11.646717230Z [1;30m    -- [0mRegistered indication country 'ru'
+2026-08-02T18:28:11.646803388Z [1;30m    -- [0mRegistered indication country 'se'
+2026-08-02T18:28:11.646868554Z [1;30m    -- [0mRegistered indication country 'sg'
+2026-08-02T18:28:11.646927537Z [1;30m    -- [0mRegistered indication country 'th'
+2026-08-02T18:28:11.647041199Z [1;30m    -- [0mRegistered indication country 'uk'
+2026-08-02T18:28:11.647048098Z [1;30m    -- [0mRegistered indication country 'us'
+2026-08-02T18:28:11.647111895Z [1;30m    -- [0mRegistered indication country 'us-old'
+2026-08-02T18:28:11.647197813Z [1;30m    -- [0mRegistered indication country 'tw'
+2026-08-02T18:28:11.647263598Z [1;30m    -- [0mRegistered indication country 've'
+2026-08-02T18:28:11.647344617Z [1;30m    -- [0mRegistered indication country 'za'
+2026-08-02T18:28:11.647465465Z [2026-08-02T18:28:11.647+0000] [1;33mNOTICE[0m[1]: [1;37mindications.c[0m:[1;37m1100[0m [1;37mload_indications[0m: Default country for indication tones: us
+2026-08-02T18:28:11.647524118Z [2026-08-02T18:28:11.647+0000] [1;33mNOTICE[0m[1]: [1;37mindications.c[0m:[1;37m424[0m [1;37mast_set_indication_country[0m: Setting default indication country to 'us'
+2026-08-02T18:28:11.647640506Z [1;30m  == [0mindications => ([0;33mIndication Tone Handling[0m)
+2026-08-02T18:28:11.647739382Z [1;30m [0mLoading features.
+2026-08-02T18:28:11.651019361Z [1;30m  == [0mRegistered custom function '[1;36mFEATURE[0m'
+2026-08-02T18:28:11.651324914Z [1;30m  == [0mRegistered custom function '[1;36mFEATUREMAP[0m'
+2026-08-02T18:28:11.652030092Z [1;30m  == [0mRegistered application '[1;36mBridge[0m'
+2026-08-02T18:28:11.652153165Z [1;30m  == [0mManager registered action Bridge
+2026-08-02T18:28:11.652161306Z [1;30m  == [0mfeatures => ([0;33mCall Features[0m)
+2026-08-02T18:28:11.652194492Z [1;30m [0mLoading enum.
+2026-08-02T18:28:11.652350375Z [1;30m  == [0menum => ([0;33mENUM Support[0m)
+2026-08-02T18:28:11.652461414Z [1;30m [0mLoading dsp.
+2026-08-02T18:28:11.652576098Z [1;30m  == [0mdsp => ([0;33mDSP[0m)
+2026-08-02T18:28:11.652689619Z [1;30m [0mLoading dnsmgr.
+2026-08-02T18:28:11.652847657Z [1;30m  == [0mdnsmgr => ([0;33mDNS Manager[0m)
+2026-08-02T18:28:11.652964188Z [1;30m [0mLoading cel.
+2026-08-02T18:28:11.653651369Z [1;30m  == [0mcel => ([0;33mCEL Engine[0m)
+2026-08-02T18:28:11.654261814Z [1;30m [0mLoading cdr.
+2026-08-02T18:28:11.655523559Z [2026-08-02T18:28:11.655+0000] [1;33mNOTICE[0m[1]: [1;37mcdr.c[0m:[1;37m4568[0m [1;37mcdr_toggle_runtime_options[0m: CDR simple logging enabled.
+2026-08-02T18:28:11.655544463Z [1;30m  == [0mcdr => ([0;33mCDR Engine[0m)
+2026-08-02T18:28:11.655548800Z [1;30m [0mLoading ccss.
+2026-08-02T18:28:11.655911316Z [1;30m  == [0mRegistered application '[1;36mCallCompletionRequest[0m'
+2026-08-02T18:28:11.656114224Z [1;30m  == [0mRegistered application '[1;36mCallCompletionCancel[0m'
+2026-08-02T18:28:11.656237523Z [1;30m  == [0mccss => ([0;33mCall Completion Supplementary Services[0m)
+2026-08-02T18:28:11.656386347Z [1;30m [0mLoading res_geolocation.so.
+2026-08-02T18:28:11.658455153Z [2026-08-02T18:28:11.658+0000] [1;31mWARNING[0m[1]: [1;37mconfig.c[0m:[1;37m2130[0m [1;37mprocess_text_line[0m: parse error: No category context for line 310 of /etc/asterisk/geolocation.conf
+2026-08-02T18:28:11.658597321Z [2026-08-02T18:28:11.658+0000] [1;31mERROR[0m[1]: [1;37mres_sorcery_config.c[0m:[1;37m334[0m [1;37msorcery_config_internal_load[0m: Contents of config file 'geolocation.conf' are invalid and cannot be parsed
+2026-08-02T18:28:11.658606399Z [2026-08-02T18:28:11.658+0000] [1;31mWARNING[0m[1]: [1;37mconfig.c[0m:[1;37m2130[0m [1;37mprocess_text_line[0m: parse error: No category context for line 310 of /etc/asterisk/geolocation.conf
+2026-08-02T18:28:11.658611005Z [2026-08-02T18:28:11.658+0000] [1;31mERROR[0m[1]: [1;37mres_sorcery_config.c[0m:[1;37m334[0m [1;37msorcery_config_internal_load[0m: Contents of config file 'geolocation.conf' are invalid and cannot be parsed
+2026-08-02T18:28:11.659779820Z [1;30m  == [0mRegistered custom function '[1;36mGEOLOC_PROFILE[0m'
+2026-08-02T18:28:11.659793389Z [1;30m  == [0mres_geolocation.so => ([0;33mres_geolocation Module for Asterisk[0m)
+2026-08-02T18:28:11.659797799Z [1;30m [0mLoading res_timing_pthread.so.
+2026-08-02T18:28:11.660058342Z [1;30m  == [0mres_timing_pthread.so => ([0;33mpthread Timing Interface[0m)
+2026-08-02T18:28:11.660088241Z [1;30m [0mLoading res_timing_timerfd.so.
+2026-08-02T18:28:11.660092403Z [1;30m  == [0mres_timing_timerfd.so => ([0;33mTimerfd Timing Interface[0m)
+2026-08-02T18:28:11.660095752Z [1;30m [0mLoading res_pjproject.so.
+2026-08-02T18:28:11.660975999Z [1;30m  == [0mres_pjproject.so => ([0;33mPJPROJECT Log and Utility Support[0m)
+2026-08-02T18:28:11.661164385Z [1;30m [0mLoading res_pjsip.so.
+2026-08-02T18:28:11.667216610Z [1;30m    -- [0mLocal IPv4 address determined to be: 172.30.44.22
+2026-08-02T18:28:11.667841686Z [1;30m    -- [0mLocal IPv6 address determined to be: ::1
+2026-08-02T18:28:11.668999958Z [1;30m  == [0mManager registered action PJSIPShowEndpoints
+2026-08-02T18:28:11.670065389Z [1;30m  == [0mManager registered action PJSIPShowEndpoint
+2026-08-02T18:28:11.671630661Z [1;30m  == [0mManager registered action PJSIPShowAuths
+2026-08-02T18:28:11.694161907Z [1;30m  == [0mManager registered action PJSIPShowAors
+2026-08-02T18:28:11.698003686Z [1;30m  == [0m'UDP+IPv4' is an available SIP transport
+2026-08-02T18:28:11.698164915Z [1;30m  == [0m'TCP+IPv4' is not an available SIP transport, disabling resolver support for it
+2026-08-02T18:28:11.698175368Z [1;30m  == [0m'TLS+IPv4' is not an available SIP transport, disabling resolver support for it
+2026-08-02T18:28:11.698179472Z [1;30m  == [0m'UDP+IPv6' is not an available SIP transport, disabling resolver support for it
+2026-08-02T18:28:11.698183157Z [1;30m  == [0m'TCP+IPv6' is not an available SIP transport, disabling resolver support for it
+2026-08-02T18:28:11.698239414Z [1;30m  == [0m'TLS+IPv6' is not an available SIP transport, disabling resolver support for it
+2026-08-02T18:28:11.699156403Z [1;30m  == [0mManager registered action PJSIPQualify
+2026-08-02T18:28:11.699646016Z [1;30m  == [0mManager registered action PJSIPShowContacts
+2026-08-02T18:28:11.699845764Z [1;30m  == [0mres_pjsip.so => ([0;33mBasic SIP resource[0m)
+2026-08-02T18:28:11.700002422Z [1;30m [0mLoading res_pjsip_authenticator_digest.so.
+2026-08-02T18:28:11.700010259Z [1;30m  == [0mres_pjsip_authenticator_digest.so => ([0;33mPJSIP authentication resource[0m)
+2026-08-02T18:28:11.700013390Z [1;30m [0mLoading res_resolver_unbound.so.
+2026-08-02T18:28:11.701075438Z [1;30m  == [0mRegistered DNS resolver 'unbound' with priority '100'
+2026-08-02T18:28:11.701151095Z [1;30m  == [0mres_resolver_unbound.so => ([0;33mUnbound DNS Resolver Support[0m)
+2026-08-02T18:28:11.701157706Z [1;30m [0mLoading res_pjsip_endpoint_identifier_ip.so.
+2026-08-02T18:28:11.702034508Z [1;30m  == [0mres_pjsip_endpoint_identifier_ip.so => ([0;33mPJSIP IP endpoint identifier[0m)
+2026-08-02T18:28:11.702092847Z [1;30m [0mLoading res_pjsip_endpoint_identifier_user.so.
+2026-08-02T18:28:11.702099305Z [1;30m  == [0mres_pjsip_endpoint_identifier_user.so => ([0;33mPJSIP username endpoint identifier[0m)
+2026-08-02T18:28:11.702105117Z [1;30m [0mLoading res_pjsip_registrar.so.
+2026-08-02T18:28:11.702588171Z [1;30m  == [0mManager registered action PJSIPShowRegistrationsInbound
+2026-08-02T18:28:11.703016309Z [1;30m  == [0mManager registered action PJSIPShowRegistrationInboundContactStatuses
+2026-08-02T18:28:11.703199085Z [1;30m  == [0mres_pjsip_registrar.so => ([0;33mPJSIP Registrar Support[0m)
+2026-08-02T18:28:11.703326444Z [1;30m [0mLoading res_stir_shaken.so.
+2026-08-02T18:28:11.705573544Z [1;30m  == [0mRegistered custom function '[1;36mSTIR_SHAKEN[0m'
+2026-08-02T18:28:11.705703733Z [1;30m  == [0mres_stir_shaken.so => ([0;33mSTIR/SHAKEN Module for Asterisk[0m)
+2026-08-02T18:28:11.705895974Z [1;30m [0mLoading res_pjsip_pubsub.so.
+2026-08-02T18:28:11.708538310Z [1;30m  == [0mManager registered action PJSIPShowSubscriptionsInbound
+2026-08-02T18:28:11.708831606Z [1;30m  == [0mManager registered action PJSIPShowSubscriptionsOutbound
+2026-08-02T18:28:11.709158075Z [1;30m  == [0mManager registered action PJSIPShowResourceLists
+2026-08-02T18:28:11.709241495Z [1;30m  == [0mres_pjsip_pubsub.so => ([0;33mPJSIP event resource[0m)
+2026-08-02T18:28:11.709323530Z [1;30m [0mLoading res_pjsip_session.so.
+2026-08-02T18:28:11.709589569Z [1;30m  == [0mres_pjsip_session.so => ([0;33mPJSIP Session resource[0m)
+2026-08-02T18:28:11.709678458Z [1;30m [0mLoading chan_pjsip.so.
+2026-08-02T18:28:11.709867908Z [1;30m  == [0mRegistered RTP glue 'PJSIP'
+2026-08-02T18:28:11.709874668Z [1;30m  == [0mRegistered channel type 'PJSIP' (PJSIP Channel Driver)
+2026-08-02T18:28:11.710291986Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_DIAL_CONTACTS[0m'
+2026-08-02T18:28:11.710685822Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_PARSE_URI[0m'
+2026-08-02T18:28:11.710979922Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_MEDIA_OFFER[0m'
+2026-08-02T18:28:11.711287373Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_DTMF_MODE[0m'
+2026-08-02T18:28:11.711572560Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_MOH_PASSTHROUGH[0m'
+2026-08-02T18:28:11.711925595Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_SEND_SESSION_REFRESH[0m'
+2026-08-02T18:28:11.712355011Z [1;30m  == [0mRegistered application '[1;36mPJSIPHangup[0m'
+2026-08-02T18:28:11.712547348Z [1;30m  == [0mManager registered action PJSIPHangup
+2026-08-02T18:28:11.712734808Z [1;30m  == [0mchan_pjsip.so => ([0;33mPJSIP Channel Driver[0m)
+2026-08-02T18:28:11.712743340Z [1;30m [0mLoading res_pjsip_geolocation.so.
+2026-08-02T18:28:11.712909897Z [1;30m  == [0mres_pjsip_geolocation.so => ([0;33mres_pjsip_geolocation Module for Asterisk[0m)
+2026-08-02T18:28:11.712917121Z [1;30m [0mLoading res_musiconhold.so.
+2026-08-02T18:28:11.712920150Z [2026-08-02T18:28:11.712+0000] [1;31mERROR[0m[1]: [1;37mfile.c[0m:[1;37m1164[0m [1;37m__ast_file_read_dirs[0m: Error opening directory - /usr/share/asterisk/moh: No such file or directory
+2026-08-02T18:28:11.712950214Z [2026-08-02T18:28:11.712+0000] [1;31mWARNING[0m[1]: [1;37mres_musiconhold.c[0m:[1;37m2260[0m [1;37mload_module[0m: No music on hold classes configured, disabling music on hold.
+2026-08-02T18:28:11.713347469Z [1;30m  == [0mRegistered application '[1;36mMusicOnHold[0m'
+2026-08-02T18:28:11.713737286Z [1;30m  == [0mRegistered application '[1;36mStartMusicOnHold[0m'
+2026-08-02T18:28:11.714054643Z [1;30m  == [0mRegistered application '[1;36mStopMusicOnHold[0m'
+2026-08-02T18:28:11.714063426Z [1;30m  == [0mres_musiconhold.so => ([0;33mMusic On Hold Resource[0m)
+2026-08-02T18:28:11.714067143Z [1;30m [0mLoading res_format_attr_ilbc.so.
+2026-08-02T18:28:11.714070751Z [1;30m  == [0mRegistered format interface for codec 'ilbc'
+2026-08-02T18:28:11.714074057Z [1;30m  == [0mres_format_attr_ilbc.so => ([0;33miLBC Format Attribute Module[0m)
+2026-08-02T18:28:11.714077538Z [1;30m [0mLoading res_xmpp.so.
+2026-08-02T18:28:11.716647619Z [1;30m  == [0mManager registered action JabberSend
+2026-08-02T18:28:11.717033286Z [1;30m  == [0mRegistered application '[1;36mJabberSend[0m'
+2026-08-02T18:28:11.717339165Z [1;30m  == [0mRegistered application '[1;36mJabberSendGroup[0m'
+2026-08-02T18:28:11.717699713Z [1;30m  == [0mRegistered application '[1;36mJabberJoin[0m'
+2026-08-02T18:28:11.717974589Z [1;30m  == [0mRegistered application '[1;36mJabberLeave[0m'
+2026-08-02T18:28:11.718480948Z [1;30m  == [0mRegistered custom function '[1;36mJABBER_STATUS[0m'
+2026-08-02T18:28:11.718810525Z [1;30m  == [0mRegistered custom function '[1;36mJABBER_RECEIVE[0m'
+2026-08-02T18:28:11.718819036Z [1;30m    -- [0mMessage technology 'xmpp' registered.
+2026-08-02T18:28:11.718822249Z [1;30m  == [0mres_xmpp.so => ([0;33mAsterisk XMPP Interface[0m)
+2026-08-02T18:28:11.718825767Z [1;30m [0mLoading res_format_attr_celt.so.
+2026-08-02T18:28:11.718828616Z [1;30m  == [0mRegistered format interface for codec 'celt'
+2026-08-02T18:28:11.718831580Z [1;30m  == [0mres_format_attr_celt.so => ([0;33mCELT Format Attribute Module[0m)
+2026-08-02T18:28:11.719024201Z [1;30m [0mLoading res_http_websocket.so.
+2026-08-02T18:28:11.719117860Z [1;30m  == [0mWebSocket registered sub-protocol 'echo'
+2026-08-02T18:28:11.719123880Z [1;30m  == [0mres_http_websocket.so => ([0;33mHTTP WebSocket Support[0m)
+2026-08-02T18:28:11.719127035Z [1;30m [0mLoading res_audiosocket.so.
+2026-08-02T18:28:11.719161175Z [1;30m [0mLoading AudioSocket Support module
+2026-08-02T18:28:11.719164515Z [1;30m  == [0mres_audiosocket.so => ([0;33mAudioSocket support[0m)
+2026-08-02T18:28:11.719168145Z [1;30m [0mLoading res_format_attr_siren14.so.
+2026-08-02T18:28:11.719181569Z [1;30m  == [0mRegistered format interface for codec 'siren14'
+2026-08-02T18:28:11.719184775Z [1;30m  == [0mres_format_attr_siren14.so => ([0;33mSiren14 Format Attribute Module[0m)
+2026-08-02T18:28:11.719187965Z [1;30m [0mLoading res_aeap.so.
+2026-08-02T18:28:11.719796647Z [1;30m  == [0mres_aeap.so => ([0;33mAsterisk External Application Protocol Module for Asterisk[0m)
+2026-08-02T18:28:11.719930581Z [1;30m [0mLoading res_stun_monitor.so.
+2026-08-02T18:28:11.719938816Z [1;30m  == [0mres_stun_monitor.so => ([0;33mSTUN Network Monitor[0m)
+2026-08-02T18:28:11.719941927Z [1;30m [0mLoading res_format_attr_siren7.so.
+2026-08-02T18:28:11.719944881Z [1;30m  == [0mRegistered format interface for codec 'siren7'
+2026-08-02T18:28:11.719947623Z [1;30m  == [0mres_format_attr_siren7.so => ([0;33mSiren7 Format Attribute Module[0m)
+2026-08-02T18:28:11.719950599Z [1;30m [0mLoading res_smdi.so.
+2026-08-02T18:28:11.719953444Z [2026-08-02T18:28:11.719+0000] [1;33mNOTICE[0m[1]: [1;37mres_smdi.c[0m:[1;37m1424[0m [1;37mload_module[0m: No SMDI interfaces are available to listen on, not starting SMDI listener.
+2026-08-02T18:28:11.720365214Z [1;30m  == [0mRegistered custom function '[1;36mSMDI_MSG_RETRIEVE[0m'
+2026-08-02T18:28:11.720726757Z [1;30m  == [0mRegistered custom function '[1;36mSMDI_MSG[0m'
+2026-08-02T18:28:11.720735976Z [1;30m  == [0mres_smdi.so => ([0;33mSimplified Message Desk Interface (SMDI) Resource[0m)
+2026-08-02T18:28:11.720739699Z [1;30m [0mLoading res_format_attr_silk.so.
+2026-08-02T18:28:11.720754567Z [1;30m  == [0mRegistered format interface for codec 'silk'
+2026-08-02T18:28:11.720758269Z [1;30m  == [0mres_format_attr_silk.so => ([0;33mSILK Format Attribute Module[0m)
+2026-08-02T18:28:11.720763212Z [1;30m [0mLoading res_format_attr_amr.so.
+2026-08-02T18:28:11.720767712Z [1;30m  == [0mRegistered format interface for codec 'amr'
+2026-08-02T18:28:11.720782671Z [1;30m  == [0mRegistered format interface for codec 'amrwb'
+2026-08-02T18:28:11.720785878Z [1;30m  == [0mres_format_attr_amr.so => ([0;33mAMR Format Attribute Module[0m)
+2026-08-02T18:28:11.720952915Z [1;30m [0mLoading res_rtp_asterisk.so.
+2026-08-02T18:28:11.720960589Z [1;30m  == [0mRegistered RTP engine 'asterisk'
+2026-08-02T18:28:11.721098216Z [1;30m  == [0mRTP Allocating from port range 10000 -> 20000
+2026-08-02T18:28:11.721277948Z [1;30m  == [0mres_rtp_asterisk.so => ([0;33mAsterisk RTP Stack[0m)
+2026-08-02T18:28:11.721285095Z [1;30m [0mLoading res_rtp_multicast.so.
+2026-08-02T18:28:11.721288561Z [1;30m  == [0mRegistered RTP engine 'multicast'
+2026-08-02T18:28:11.721322423Z [1;30m  == [0mres_rtp_multicast.so => ([0;33mMulticast RTP Engine[0m)
+2026-08-02T18:28:11.721329754Z [1;30m [0mLoading res_speech.so.
+2026-08-02T18:28:11.721333001Z [1;30m  == [0mres_speech.so => ([0;33mGeneric Speech Recognition API[0m)
+2026-08-02T18:28:11.721336428Z [1;30m [0mLoading res_speech_aeap.so.
+2026-08-02T18:28:11.721339582Z [1;30m  == [0mRegistered speech recognition engine '_aeap_test_speech_'
+2026-08-02T18:28:11.721342766Z [1;30m  == [0mMade '_aeap_test_speech_' the default speech recognition engine
+2026-08-02T18:28:11.721346009Z [1;30m  == [0mres_speech_aeap.so => ([0;33mAsterisk External Application Speech Engine[0m)
+2026-08-02T18:28:11.721349545Z [1;30m [0mLoading res_format_attr_vp8.so.
+2026-08-02T18:28:11.721352715Z [1;30m  == [0mRegistered format interface for codec 'vp8'
+2026-08-02T18:28:11.721355840Z [1;30m  == [0mres_format_attr_vp8.so => ([0;33mVP8 Format Attribute Module[0m)
+2026-08-02T18:28:11.721359318Z [1;30m [0mLoading res_crypto.so.
+2026-08-02T18:28:11.721362481Z [1;30m  == [0mres_crypto.so => ([0;33mCryptographic Digital Signatures[0m)
+2026-08-02T18:28:11.721365783Z [1;30m [0mLoading res_format_attr_g729.so.
+2026-08-02T18:28:11.721368882Z [1;30m  == [0mRegistered format interface for codec 'g729'
+2026-08-02T18:28:11.721372120Z [1;30m  == [0mres_format_attr_g729.so => ([0;33mG.729 Format Attribute Module[0m)
+2026-08-02T18:28:11.721375561Z [1;30m [0mLoading res_srtp.so.
+2026-08-02T18:28:11.744210443Z [1;30m  == [0mlibsrtp2 2.5.0 initialized
+2026-08-02T18:28:11.744234192Z [1;30m  == [0mres_srtp.so => ([0;33mSecure RTP (SRTP)[0m)
+2026-08-02T18:28:11.744238600Z [1;30m [0mLoading res_phoneprov.so.
+2026-08-02T18:28:11.744520304Z [2026-08-02T18:28:11.744+0000] [1;31mWARNING[0m[1]: [1;37mres_phoneprov.c[0m:[1;37m1249[0m [1;37mget_defaults[0m: Unable to find a valid server address or name.
+2026-08-02T18:28:11.745396517Z [1;30m  == [0mRegistered custom function '[1;36mPP_EACH_USER[0m'
+2026-08-02T18:28:11.745729772Z [1;30m  == [0mRegistered custom function '[1;36mPP_EACH_EXTENSION[0m'
+2026-08-02T18:28:11.746442620Z [1;30m  == [0mres_phoneprov.so => ([0;33mHTTP Phone Provisioning[0m)
+2026-08-02T18:28:11.746456014Z [1;30m [0mLoading res_pjsip_aoc.so.
+2026-08-02T18:28:11.746459344Z [1;30m  == [0mres_pjsip_aoc.so => ([0;33mPJSIP AOC Support[0m)
+2026-08-02T18:28:11.746462272Z [1;30m [0mLoading res_pjsip_outbound_publish.so.
+2026-08-02T18:28:11.747358813Z [1;30m  == [0mres_pjsip_outbound_publish.so => ([0;33mPJSIP Outbound Publish Support[0m)
+2026-08-02T18:28:11.747415873Z [1;30m [0mLoading res_pjsip_outbound_authenticator_digest.so.
+2026-08-02T18:28:11.747440629Z [1;30m  == [0mres_pjsip_outbound_authenticator_digest.so => ([0;33mPJSIP authentication resource[0m)
+2026-08-02T18:28:11.747469993Z [1;30m [0mLoading res_pjsip_mwi_body_generator.so.
+2026-08-02T18:28:11.747541986Z [1;30m  == [0mres_pjsip_mwi_body_generator.so => ([0;33mPJSIP MWI resource[0m)
+2026-08-02T18:28:11.747619311Z [1;30m [0mLoading res_pjsip_dialog_info_body_generator.so.
+2026-08-02T18:28:11.747665992Z [1;30m  == [0mres_pjsip_dialog_info_body_generator.so => ([0;33mPJSIP Extension State Dialog Info+XML Provider[0m)
+2026-08-02T18:28:11.747728083Z [1;30m [0mLoading res_pjsip_pidf_body_generator.so.
+2026-08-02T18:28:11.747795488Z [1;30m  == [0mres_pjsip_pidf_body_generator.so => ([0;33mPJSIP Extension State PIDF Provider[0m)
+2026-08-02T18:28:11.747866513Z [1;30m [0mLoading res_pjsip_xpidf_body_generator.so.
+2026-08-02T18:28:11.747901512Z [1;30m  == [0mres_pjsip_xpidf_body_generator.so => ([0;33mPJSIP Extension State PIDF Provider[0m)
+2026-08-02T18:28:11.747993493Z [1;30m [0mLoading res_pjsip_pidf_digium_body_supplement.so.
+2026-08-02T18:28:11.747998885Z [1;30m  == [0mres_pjsip_pidf_digium_body_supplement.so => ([0;33mPJSIP PIDF Sangoma presence supplement[0m)
+2026-08-02T18:28:11.748078576Z [1;30m [0mLoading res_pjsip_pidf_eyebeam_body_supplement.so.
+2026-08-02T18:28:11.748134715Z [1;30m  == [0mres_pjsip_pidf_eyebeam_body_supplement.so => ([0;33mPJSIP PIDF Eyebeam supplement[0m)
+2026-08-02T18:28:11.748216892Z [1;30m [0mLoading res_pjsip_mwi.so.
+2026-08-02T18:28:11.748590628Z [1;30m  == [0mres_pjsip_mwi.so => ([0;33mPJSIP MWI resource[0m)
+2026-08-02T18:28:11.748736790Z [1;30m [0mLoading res_pjsip_publish_asterisk.so.
+2026-08-02T18:28:11.749631396Z [1;30m  == [0mres_pjsip_publish_asterisk.so => ([0;33mPJSIP Asterisk Event PUBLISH Support[0m)
+2026-08-02T18:28:11.749711906Z [1;30m [0mLoading res_pjsip_exten_state.so.
+2026-08-02T18:28:11.749798805Z [1;30m  == [0mres_pjsip_exten_state.so => ([0;33mPJSIP Extension State Notifications[0m)
+2026-08-02T18:28:11.749857538Z [1;30m [0mLoading chan_iax2.so.
+2026-08-02T18:28:11.752433502Z [1;30m  == [0mBinding IAX2 to default address 0.0.0.0:4569
+2026-08-02T18:28:11.753044310Z [1;30m  == [0mRegistered application '[1;36mIAX2Provision[0m'
+2026-08-02T18:28:11.753512374Z [1;30m  == [0mRegistered custom function '[1;36mIAXPEER[0m'
+2026-08-02T18:28:11.753850403Z [1;30m  == [0mRegistered custom function '[1;36mIAXVAR[0m'
+2026-08-02T18:28:11.753931978Z [1;30m  == [0mManager registered action IAXpeers
+2026-08-02T18:28:11.754016756Z [1;30m  == [0mManager registered action IAXpeerlist
+2026-08-02T18:28:11.754132134Z [1;30m  == [0mManager registered action IAXnetstats
+2026-08-02T18:28:11.754138420Z [1;30m  == [0mManager registered action IAXregistry
+2026-08-02T18:28:11.754212734Z [1;30m  == [0mRegistered channel type 'IAX2' (Inter Asterisk eXchange Driver (Ver 2))
+2026-08-02T18:28:11.755080844Z [1;30m  == [0m10 helper threads started
+2026-08-02T18:28:11.755093322Z [1;30m  == [0mIAX Ready and Listening
+2026-08-02T18:28:11.755281193Z [1;30m    -- [0mLoaded provisioning template 'default'
+2026-08-02T18:28:11.756437361Z [1;30m  == [0mchan_iax2.so => ([0;33mInter Asterisk eXchange (Ver 2)[0m)
+2026-08-02T18:28:11.756450940Z [1;30m [0mLoading chan_motif.so.
+2026-08-02T18:28:11.756800098Z [1;30m  == [0mRegistered RTP glue 'Motif'
+2026-08-02T18:28:11.756808896Z [1;30m  == [0mRegistered channel type 'Motif' (Motif Jingle Channel Driver)
+2026-08-02T18:28:11.756812418Z [1;30m  == [0mchan_motif.so => ([0;33mMotif Jingle Channel Driver[0m)
+2026-08-02T18:28:11.756978700Z [1;30m [0mLoading chan_sip.so.
+2026-08-02T18:28:11.756985438Z SIP channel loading...
+2026-08-02T18:28:11.757620958Z [2026-08-02T18:28:11.757+0000] [1;31mWARNING[0m[1]: [1;37mchan_sip.c[0m:[1;37m33486[0m [1;37mreload_config[0m: Failed to bind to 0.0.0.0:5060: Address already in use
+2026-08-02T18:28:11.757711452Z [1;30m    -- [0mMessage technology 'sip' registered.
+2026-08-02T18:28:11.757787305Z [1;30m  == [0mRegistered channel type 'SIP' (Session Initiation Protocol (SIP))
+2026-08-02T18:28:11.757977500Z [1;30m  == [0mRegistered RTP glue 'SIP'
+2026-08-02T18:28:11.758428691Z [1;30m  == [0mRegistered application '[1;36mSIPDtmfMode[0m'
+2026-08-02T18:28:11.758726430Z [1;30m  == [0mRegistered application '[1;36mSIPAddHeader[0m'
+2026-08-02T18:28:11.759094468Z [1;30m  == [0mRegistered application '[1;36mSIPRemoveHeader[0m'
+2026-08-02T18:28:11.759381439Z [1;30m  == [0mRegistered application '[1;36mSIPSendCustomINFO[0m'
+2026-08-02T18:28:11.759832325Z [1;30m  == [0mRegistered custom function '[1;36mSIP_HEADER[0m'
+2026-08-02T18:28:11.760146219Z [1;30m  == [0mRegistered custom function '[1;36mSIP_HEADERS[0m'
+2026-08-02T18:28:11.760561719Z [1;30m  == [0mRegistered custom function '[1;36mSIPPEER[0m'
+2026-08-02T18:28:11.760833657Z [1;30m  == [0mRegistered custom function '[1;36mCHECKSIPDOMAIN[0m'
+2026-08-02T18:28:11.760920448Z [1;30m  == [0mManager registered action SIPpeers
+2026-08-02T18:28:11.761586734Z [1;30m  == [0mManager registered action SIPshowpeer
+2026-08-02T18:28:11.761599392Z [1;30m  == [0mManager registered action SIPqualifypeer
+2026-08-02T18:28:11.761602566Z [1;30m  == [0mManager registered action SIPshowregistry
+2026-08-02T18:28:11.761605355Z [1;30m  == [0mManager registered action SIPnotify
+2026-08-02T18:28:11.761607954Z [1;30m  == [0mManager registered action SIPpeerstatus
+2026-08-02T18:28:11.761610970Z [1;30m  == [0mWebSocket registered sub-protocol 'sip'
+2026-08-02T18:28:11.761613679Z [1;30m  == [0mchan_sip.so => ([0;33mSession Initiation Protocol (SIP)[0m)
+2026-08-02T18:28:11.761616971Z [1;30m [0mLoading chan_audiosocket.so.
+2026-08-02T18:28:11.761620238Z [1;30m  == [0mRegistered channel type 'AudioSocket' (AudioSocket Channel Driver)
+2026-08-02T18:28:11.761623245Z [1;30m  == [0mchan_audiosocket.so => ([0;33mAudioSocket Channel[0m)
+2026-08-02T18:28:11.761626333Z [1;30m [0mLoading app_audiosocket.so.
+2026-08-02T18:28:11.762011574Z [1;30m  == [0mRegistered application '[1;36mAudioSocket[0m'
+2026-08-02T18:28:11.762020154Z [1;30m  == [0mapp_audiosocket.so => ([0;33mAudioSocket Application[0m)
+2026-08-02T18:28:11.762221286Z [1;30m [0mLoading res_pjsip_sdp_rtp.so.
+2026-08-02T18:28:11.762279006Z [1;30m  == [0mres_pjsip_sdp_rtp.so => ([0;33mPJSIP SDP RTP/AVP stream handler[0m)
+2026-08-02T18:28:11.762326692Z [1;30m [0mLoading chan_rtp.so.
+2026-08-02T18:28:11.762335401Z [1;30m  == [0mRegistered RTP glue 'UnicastRTP'
+2026-08-02T18:28:11.762469140Z [1;30m  == [0mRegistered channel type 'MulticastRTP' (Multicast RTP Paging Channel Driver)
+2026-08-02T18:28:11.762698168Z [1;30m  == [0mRegistered channel type 'UnicastRTP' (Unicast RTP Media Channel Driver)
+2026-08-02T18:28:11.762704525Z [1;30m  == [0mchan_rtp.so => ([0;33mRTP Media Channel[0m)
+2026-08-02T18:28:11.762818867Z [1;30m [0mLoading res_pjsip_t38.so.
+2026-08-02T18:28:11.764438962Z [1;30m  == [0mres_pjsip_t38.so => ([0;33mPJSIP T.38 UDPTL Support[0m)
+2026-08-02T18:28:11.764451420Z [1;30m [0mLoading res_stasis.so.
+2026-08-02T18:28:11.764454848Z [1;30m  == [0mMessage handler 'ari' registered.
+2026-08-02T18:28:11.764457920Z [1;30m  == [0mres_stasis.so => ([0;33mStasis application support[0m)
+2026-08-02T18:28:11.764461707Z [1;30m [0mLoading format_h263.so.
+2026-08-02T18:28:11.764464739Z [1;30m  == [0mRegistered file format h263, extension(s) h263
+2026-08-02T18:28:11.764467663Z [1;30m  == [0mformat_h263.so => ([0;33mRaw H.263 data[0m)
+2026-08-02T18:28:11.764470680Z [1;30m [0mLoading format_g723.so.
+2026-08-02T18:28:11.764481413Z [1;30m  == [0mRegistered file format g723sf, extension(s) g723|g723sf
+2026-08-02T18:28:11.764484280Z [1;30m  == [0mformat_g723.so => ([0;33mG.723.1 Simple Timestamp File Format[0m)
+2026-08-02T18:28:11.764487132Z [1;30m [0mLoading format_ilbc.so.
+2026-08-02T18:28:11.764489717Z [1;30m  == [0mRegistered file format iLBC, extension(s) ilbc
+2026-08-02T18:28:11.764492523Z [1;30m  == [0mformat_ilbc.so => ([0;33mRaw iLBC data[0m)
+2026-08-02T18:28:11.764495217Z [1;30m [0mLoading res_stasis_test.so.
+2026-08-02T18:28:11.764497825Z [1;30m  == [0mres_stasis_test.so => ([0;33mStasis test utilities[0m)
+2026-08-02T18:28:11.764500694Z [1;30m [0mLoading format_vox.so.
+2026-08-02T18:28:11.764503326Z [1;30m  == [0mRegistered file format vox, extension(s) vox
+2026-08-02T18:28:11.764506147Z [1;30m  == [0mformat_vox.so => ([0;33mDialogic VOX (ADPCM) File Format[0m)
+2026-08-02T18:28:11.764509401Z [1;30m [0mLoading res_fax.so.
+2026-08-02T18:28:11.764512292Z [1;30m  == [0mRegistered application '[1;36mSendFAX[0m'
+2026-08-02T18:28:11.764515433Z [1;30m  == [0mRegistered application '[1;36mReceiveFAX[0m'
+2026-08-02T18:28:11.764518345Z [1;30m  == [0mManager registered action FAXSessions
+2026-08-02T18:28:11.764521278Z [1;30m  == [0mManager registered action FAXSession
+2026-08-02T18:28:11.764524061Z [1;30m  == [0mManager registered action FAXStats
+2026-08-02T18:28:11.764825490Z [1;30m  == [0mRegistered custom function '[1;36mFAXOPT[0m'
+2026-08-02T18:28:11.764835738Z [1;30m  == [0mres_fax.so => ([0;33mGeneric FAX Applications[0m)
+2026-08-02T18:28:11.764839536Z [1;30m [0mLoading format_siren7.so.
+2026-08-02T18:28:11.764849013Z [1;30m  == [0mRegistered file format siren7, extension(s) siren7
+2026-08-02T18:28:11.764908846Z [1;30m  == [0mformat_siren7.so => ([0;33mITU G.722.1 (Siren7, licensed from Polycom)[0m)
+2026-08-02T18:28:11.764985893Z [1;30m [0mLoading format_pcm.so.
+2026-08-02T18:28:11.764991881Z [1;30m  == [0mRegistered file format pcm, extension(s) pcm|ulaw|ul|mu|ulw
+2026-08-02T18:28:11.765055076Z [1;30m  == [0mRegistered file format alaw, extension(s) alaw|al|alw
+2026-08-02T18:28:11.765144329Z [1;30m  == [0mRegistered file format au, extension(s) au
+2026-08-02T18:28:11.765255540Z [1;30m  == [0mRegistered file format g722, extension(s) g722
+2026-08-02T18:28:11.765261048Z [1;30m  == [0mformat_pcm.so => ([0;33mRaw/Sun uLaw/ALaw 8KHz (PCM,PCMA,AU), G.722 16Khz[0m)
+2026-08-02T18:28:11.765357007Z [1;30m [0mLoading format_siren14.so.
+2026-08-02T18:28:11.765436970Z [1;30m  == [0mRegistered file format siren14, extension(s) siren14
+2026-08-02T18:28:11.765482898Z [1;30m  == [0mformat_siren14.so => ([0;33mITU G.722.1 Annex C (Siren14, licensed from Polycom)[0m)
+2026-08-02T18:28:11.765579386Z [1;30m [0mLoading res_agi.so.
+2026-08-02T18:28:11.765812463Z [1;30m  == [0mAGI Command 'answer' registered
+2026-08-02T18:28:11.765990141Z [1;30m  == [0mAGI Command 'asyncagi break' registered
+2026-08-02T18:28:11.766180210Z [1;30m  == [0mAGI Command 'channel status' registered
+2026-08-02T18:28:11.766407752Z [1;30m  == [0mAGI Command 'database del' registered
+2026-08-02T18:28:11.766598207Z [1;30m  == [0mAGI Command 'database deltree' registered
+2026-08-02T18:28:11.766803900Z [1;30m  == [0mAGI Command 'database get' registered
+2026-08-02T18:28:11.766984919Z [1;30m  == [0mAGI Command 'database put' registered
+2026-08-02T18:28:11.767167114Z [1;30m  == [0mAGI Command 'exec' registered
+2026-08-02T18:28:11.767349165Z [1;30m  == [0mAGI Command 'get data' registered
+2026-08-02T18:28:11.767577226Z [1;30m  == [0mAGI Command 'get full variable' registered
+2026-08-02T18:28:11.767736182Z [1;30m  == [0mAGI Command 'get option' registered
+2026-08-02T18:28:11.767948075Z [1;30m  == [0mAGI Command 'get variable' registered
+2026-08-02T18:28:11.768089767Z [1;30m  == [0mAGI Command 'hangup' registered
+2026-08-02T18:28:11.768261267Z [1;30m  == [0mAGI Command 'noop' registered
+2026-08-02T18:28:11.768465213Z [1;30m  == [0mAGI Command 'receive char' registered
+2026-08-02T18:28:11.768669703Z [1;30m  == [0mAGI Command 'receive text' registered
+2026-08-02T18:28:11.768891084Z [1;30m  == [0mAGI Command 'record file' registered
+2026-08-02T18:28:11.769097354Z [1;30m  == [0mAGI Command 'say alpha' registered
+2026-08-02T18:28:11.769276234Z [1;30m  == [0mAGI Command 'say digits' registered
+2026-08-02T18:28:11.769494586Z [1;30m  == [0mAGI Command 'say number' registered
+2026-08-02T18:28:11.769680050Z [1;30m  == [0mAGI Command 'say phonetic' registered
+2026-08-02T18:28:11.769972260Z [1;30m  == [0mAGI Command 'say date' registered
+2026-08-02T18:28:11.769980362Z [1;30m  == [0mAGI Command 'say time' registered
+2026-08-02T18:28:11.770178603Z [1;30m  == [0mAGI Command 'say datetime' registered
+2026-08-02T18:28:11.770393835Z [1;30m  == [0mAGI Command 'send image' registered
+2026-08-02T18:28:11.770582570Z [1;30m  == [0mAGI Command 'send text' registered
+2026-08-02T18:28:11.770791231Z [1;30m  == [0mAGI Command 'set autohangup' registered
+2026-08-02T18:28:11.770941829Z [1;30m  == [0mAGI Command 'set callerid' registered
+2026-08-02T18:28:11.771141917Z [1;30m  == [0mAGI Command 'set context' registered
+2026-08-02T18:28:11.771442839Z [1;30m  == [0mAGI Command 'set extension' registered
+2026-08-02T18:28:11.771461982Z [1;30m  == [0mAGI Command 'set music' registered
+2026-08-02T18:28:11.771673909Z [1;30m  == [0mAGI Command 'set priority' registered
+2026-08-02T18:28:11.771834983Z [1;30m  == [0mAGI Command 'set variable' registered
+2026-08-02T18:28:11.772057143Z [1;30m  == [0mAGI Command 'stream file' registered
+2026-08-02T18:28:11.772308201Z [1;30m  == [0mAGI Command 'control stream file' registered
+2026-08-02T18:28:11.772523173Z [1;30m  == [0mAGI Command 'tdd mode' registered
+2026-08-02T18:28:11.772702494Z [1;30m  == [0mAGI Command 'verbose' registered
+2026-08-02T18:28:11.772907203Z [1;30m  == [0mAGI Command 'wait for digit' registered
+2026-08-02T18:28:11.773087403Z [1;30m  == [0mAGI Command 'speech create' registered
+2026-08-02T18:28:11.773274478Z [1;30m  == [0mAGI Command 'speech set' registered
+2026-08-02T18:28:11.773468304Z [1;30m  == [0mAGI Command 'speech destroy' registered
+2026-08-02T18:28:11.773792058Z [1;30m  == [0mAGI Command 'speech load grammar' registered
+2026-08-02T18:28:11.773799603Z [1;30m  == [0mAGI Command 'speech unload grammar' registered
+2026-08-02T18:28:11.773974141Z [1;30m  == [0mAGI Command 'speech activate grammar' registered
+2026-08-02T18:28:11.774176070Z [1;30m  == [0mAGI Command 'speech deactivate grammar' registered
+2026-08-02T18:28:11.774381588Z [1;30m  == [0mAGI Command 'speech recognize' registered
+2026-08-02T18:28:11.774806780Z [1;30m  == [0mRegistered application '[1;36mDeadAGI[0m'
+2026-08-02T18:28:11.775186946Z [1;30m  == [0mRegistered application '[1;36mEAGI[0m'
+2026-08-02T18:28:11.775552642Z [1;30m  == [0mManager registered action AGI
+2026-08-02T18:28:11.776108606Z [1;30m  == [0mRegistered application '[1;36mAGI[0m'
+2026-08-02T18:28:11.776369054Z [1;30m  == [0mres_agi.so => ([0;33mAsterisk Gateway Interface (AGI)[0m)
+2026-08-02T18:28:11.776386034Z [1;30m [0mLoading format_vp8.so.
+2026-08-02T18:28:11.776390203Z [1;30m  == [0mRegistered file format VP8, extension(s) vp8
+2026-08-02T18:28:11.776406254Z [1;30m  == [0mformat_vp8.so => ([0;33mRaw VP8 data[0m)
+2026-08-02T18:28:11.776441431Z [1;30m [0mLoading res_ari_model.so.
+2026-08-02T18:28:11.776446685Z [1;30m  == [0mres_ari_model.so => ([0;33mARI Model validators[0m)
+2026-08-02T18:28:11.776450747Z [1;30m [0mLoading format_ogg_opus_open_source.so.
+2026-08-02T18:28:11.776489875Z [1;30m  == [0mRegistered file format ogg_opus, extension(s) opus
+2026-08-02T18:28:11.776535205Z [1;30m  == [0mformat_ogg_opus_open_source.so => ([0;33mOGG/Opus audio[0m)
+2026-08-02T18:28:11.776597283Z [1;30m [0mLoading func_dialplan.so.
+2026-08-02T18:28:11.777212055Z [1;30m  == [0mRegistered custom function '[1;36mDIALPLAN_EXISTS[0m'
+2026-08-02T18:28:11.777227842Z [1;30m  == [0mRegistered custom function '[1;36mVALID_EXTEN[0m'
+2026-08-02T18:28:11.777270492Z [1;30m  == [0mfunc_dialplan.so => ([0;33mDialplan Context/Extension/Priority Checking Functions[0m)
+2026-08-02T18:28:11.777336037Z [1;30m [0mLoading res_hep.so.
+2026-08-02T18:28:11.778229602Z [1;30m  == [0mres_hep.so => ([0;33mHEPv3 API[0m)
+2026-08-02T18:28:11.778246578Z [1;30m [0mLoading format_wav_gsm.so.
+2026-08-02T18:28:11.778295008Z [1;30m  == [0mRegistered file format wav49, extension(s) WAV|wav49
+2026-08-02T18:28:11.778420227Z [1;30m  == [0mformat_wav_gsm.so => ([0;33mMicrosoft WAV format (Proprietary GSM)[0m)
+2026-08-02T18:28:11.778496931Z [1;30m [0mLoading format_gsm.so.
+2026-08-02T18:28:11.778501670Z [1;30m  == [0mRegistered file format gsm, extension(s) gsm
+2026-08-02T18:28:11.778538834Z [1;30m  == [0mformat_gsm.so => ([0;33mRaw GSM data[0m)
+2026-08-02T18:28:11.778570540Z [1;30m [0mLoading res_adsi.so.
+2026-08-02T18:28:11.778651435Z [1;30m  == [0mres_adsi.so => ([0;33mADSI Resource[0m)
+2026-08-02T18:28:11.778700241Z [1;30m [0mLoading format_ogg_speex.so.
+2026-08-02T18:28:11.778712070Z [1;30m  == [0mRegistered file format ogg_speex, extension(s) spx
+2026-08-02T18:28:11.778775729Z [1;30m  == [0mRegistered file format ogg_speex16, extension(s) spx16
+2026-08-02T18:28:11.778848880Z [1;30m  == [0mRegistered file format ogg_speex32, extension(s) spx32
+2026-08-02T18:28:11.778854386Z [1;30m  == [0mformat_ogg_speex.so => ([0;33mOGG/Speex audio[0m)
+2026-08-02T18:28:11.778947677Z [1;30m [0mLoading format_g729.so.
+2026-08-02T18:28:11.778952567Z [1;30m  == [0mRegistered file format g729, extension(s) g729
+2026-08-02T18:28:11.779156271Z [1;30m  == [0mformat_g729.so => ([0;33mRaw G.729 data[0m)
+2026-08-02T18:28:11.779163800Z [1;30m [0mLoading res_pjsip_dtmf_info.so.
+2026-08-02T18:28:11.779174275Z [1;30m  == [0mres_pjsip_dtmf_info.so => ([0;33mPJSIP DTMF INFO Support[0m)
+2026-08-02T18:28:11.779220640Z [1;30m [0mLoading res_stasis_recording.so.
+2026-08-02T18:28:11.779226733Z [1;30m  == [0mres_stasis_recording.so => ([0;33mStasis application recording support[0m)
+2026-08-02T18:28:11.779245649Z [1;30m [0mLoading format_g719.so.
+2026-08-02T18:28:11.779249714Z [1;30m  == [0mRegistered file format g719, extension(s) g719
+2026-08-02T18:28:11.779347896Z [1;30m  == [0mformat_g719.so => ([0;33mITU G.719[0m)
+2026-08-02T18:28:11.779358206Z [1;30m [0mLoading format_g726.so.
+2026-08-02T18:28:11.779361734Z [1;30m  == [0mRegistered file format g726-40, extension(s) g726-40
+2026-08-02T18:28:11.779364867Z [1;30m  == [0mRegistered file format g726-32, extension(s) g726-32
+2026-08-02T18:28:11.779438307Z [1;30m  == [0mRegistered file format g726-24, extension(s) g726-24
+2026-08-02T18:28:11.779444195Z [1;30m  == [0mRegistered file format g726-16, extension(s) g726-16
+2026-08-02T18:28:11.779447986Z [1;30m  == [0mformat_g726.so => ([0;33mRaw G.726 (16/24/32/40kbps) data[0m)
+2026-08-02T18:28:11.779451252Z [1;30m [0mLoading format_sln.so.
+2026-08-02T18:28:11.779454656Z [1;30m  == [0mRegistered file format sln, extension(s) sln|slin|raw
+2026-08-02T18:28:11.779458003Z [1;30m  == [0mRegistered file format sln12, extension(s) sln12
+2026-08-02T18:28:11.779461693Z [1;30m  == [0mRegistered file format sln16, extension(s) sln16
+2026-08-02T18:28:11.779465020Z [1;30m  == [0mRegistered file format sln24, extension(s) sln24
+2026-08-02T18:28:11.779469842Z [1;30m  == [0mRegistered file format sln32, extension(s) sln32
+2026-08-02T18:28:11.779476699Z [1;30m  == [0mRegistered file format sln44, extension(s) sln44
+2026-08-02T18:28:11.779560099Z [1;30m  == [0mRegistered file format sln48, extension(s) sln48
+2026-08-02T18:28:11.779576010Z [1;30m  == [0mRegistered file format sln96, extension(s) sln96
+2026-08-02T18:28:11.779587000Z [1;30m  == [0mRegistered file format sln192, extension(s) sln192
+2026-08-02T18:28:11.779666970Z [1;30m  == [0mformat_sln.so => ([0;33mRaw Signed Linear Audio support (SLN) 8khz-192khz[0m)
+2026-08-02T18:28:11.779971628Z [1;30m [0mLoading format_wav.so.
+2026-08-02T18:28:11.779980046Z [1;30m  == [0mRegistered file format wav, extension(s) wav
+2026-08-02T18:28:11.779984224Z [1;30m  == [0mRegistered file format wav16, extension(s) wav16
+2026-08-02T18:28:11.779987803Z [1;30m  == [0mformat_wav.so => ([0;33mMicrosoft WAV/WAV16 format (8kHz/16kHz Signed Linear)[0m)
+2026-08-02T18:28:11.779991349Z [1;30m [0mLoading res_pjsip_one_touch_record_info.so.
+2026-08-02T18:28:11.779994811Z [1;30m  == [0mres_pjsip_one_touch_record_info.so => ([0;33mPJSIP INFO One Touch Recording Support[0m)
+2026-08-02T18:28:11.779999074Z [1;30m [0mLoading res_pjsip_empty_info.so.
+2026-08-02T18:28:11.780002361Z [1;30m  == [0mres_pjsip_empty_info.so => ([0;33mPJSIP Empty INFO Support[0m)
+2026-08-02T18:28:11.780021328Z [1;30m [0mLoading format_ogg_vorbis.so.
+2026-08-02T18:28:11.780025218Z [1;30m  == [0mRegistered file format ogg_vorbis, extension(s) ogg
+2026-08-02T18:28:11.780028647Z [1;30m  == [0mformat_ogg_vorbis.so => ([0;33mOGG/Vorbis audio[0m)
+2026-08-02T18:28:11.780037916Z [1;30m [0mLoading res_pjsip_nat.so.
+2026-08-02T18:28:11.780094486Z [1;30m  == [0mres_pjsip_nat.so => ([0;33mPJSIP NAT Support[0m)
+2026-08-02T18:28:11.780177843Z [1;30m [0mLoading format_h264.so.
+2026-08-02T18:28:11.780183210Z [1;30m  == [0mRegistered file format h264, extension(s) h264
+2026-08-02T18:28:11.780255014Z [1;30m  == [0mformat_h264.so => ([0;33mRaw H.264 data[0m)
+2026-08-02T18:28:11.780322205Z [1;30m [0mLoading app_stack.so.
+2026-08-02T18:28:11.780461101Z [1;30m  == [0mAGI Command 'gosub' registered
+2026-08-02T18:28:11.780845079Z [1;30m  == [0mRegistered application '[1;36mStackPop[0m'
+2026-08-02T18:28:11.781277412Z [1;30m  == [0mRegistered application '[1;36mReturn[0m'
+2026-08-02T18:28:11.781696940Z [1;30m  == [0mRegistered application '[1;36mGosubIf[0m'
+2026-08-02T18:28:11.782410069Z [1;30m  == [0mRegistered application '[1;36mGosub[0m'
+2026-08-02T18:28:11.782422119Z [1;30m  == [0mRegistered custom function '[1;36mLOCAL[0m'
+2026-08-02T18:28:11.782948045Z [1;30m  == [0mRegistered custom function '[1;36mLOCAL_PEEK[0m'
+2026-08-02T18:28:11.782956711Z [1;30m  == [0mRegistered custom function '[1;36mSTACK_PEEK[0m'
+2026-08-02T18:28:11.782959763Z [1;30m  == [0mapp_stack.so => ([0;33mDialplan subroutines (Gosub, Return, etc)[0m)
+2026-08-02T18:28:11.783078064Z [1;30m [0mLoading res_pjsip_diversion.so.
+2026-08-02T18:28:11.783083506Z [1;30m  == [0mres_pjsip_diversion.so => ([0;33mPJSIP Add Diversion Header Support[0m)
+2026-08-02T18:28:11.783086496Z [1;30m [0mLoading res_ari.so.
+2026-08-02T18:28:11.784090953Z [2026-08-02T18:28:11.784+0000] [1;31mERROR[0m[1]: [1;37mari/config.c[0m:[1;37m312[0m [1;37mprocess_config[0m: No configured users for ARI
+2026-08-02T18:28:11.784386953Z [1;30m  == [0mres_ari.so => ([0;33mAsterisk RESTful Interface[0m)
+2026-08-02T18:28:11.784488241Z [1;30m [0mLoading res_pjsip_messaging.so.
+2026-08-02T18:28:11.784507222Z [1;30m    -- [0mMessage technology 'pjsip' registered.
+2026-08-02T18:28:11.784511655Z [1;30m  == [0mres_pjsip_messaging.so => ([0;33mPJSIP Messaging Support[0m)
+2026-08-02T18:28:11.784515370Z [1;30m [0mLoading res_pjsip_logger.so.
+2026-08-02T18:28:11.784519148Z [1;30m  == [0mres_pjsip_logger.so => ([0;33mPJSIP Packet Logger[0m)
+2026-08-02T18:28:11.784595344Z [1;30m [0mLoading res_pjsip_rfc3326.so.
+2026-08-02T18:28:11.784599960Z [1;30m  == [0mres_pjsip_rfc3326.so => ([0;33mPJSIP RFC3326 Support[0m)
+2026-08-02T18:28:11.784603483Z [1;30m [0mLoading res_pjsip_dlg_options.so.
+2026-08-02T18:28:11.784606313Z [1;30m  == [0mres_pjsip_dlg_options.so => ([0;33mSIP OPTIONS in dialog handler[0m)
+2026-08-02T18:28:11.784609507Z [1;30m [0mLoading res_pjsip_transport_websocket.so.
+2026-08-02T18:28:11.785611609Z [1;30m [0mLoading res_pjsip_path.so.
+2026-08-02T18:28:11.785696850Z [1;30m  == [0mres_pjsip_path.so => ([0;33mPJSIP Path Header Support[0m)
+2026-08-02T18:28:11.785703131Z [1;30m [0mLoading res_pjsip_history.so.
+2026-08-02T18:28:11.785847402Z [1;30m  == [0mres_pjsip_history.so => ([0;33mPJSIP History[0m)
+2026-08-02T18:28:11.785898548Z [1;30m [0mLoading res_pjsip_phoneprov_provider.so.
+2026-08-02T18:28:11.786419830Z [1;30m  == [0mres_pjsip_phoneprov_provider.so => ([0;33mPJSIP Phoneprov Provider[0m)
+2026-08-02T18:28:11.786511144Z [1;30m [0mLoading res_pjsip_outbound_registration.so.
+2026-08-02T18:28:11.788762981Z [1;30m  == [0mManager registered action PJSIPUnregister
+2026-08-02T18:28:11.789062153Z [1;30m  == [0mManager registered action PJSIPRegister
+2026-08-02T18:28:11.789412791Z [1;30m  == [0mManager registered action PJSIPShowRegistrationsOutbound
+2026-08-02T18:28:11.789657429Z [1;30m  == [0mres_pjsip_outbound_registration.so => ([0;33mPJSIP Outbound Registration Support[0m)
+2026-08-02T18:28:11.789785076Z [1;30m [0mLoading res_pjsip_notify.so.
+2026-08-02T18:28:11.790584853Z [1;30m  == [0mManager registered action PJSIPNotify
+2026-08-02T18:28:11.790597599Z [1;30m  == [0mres_pjsip_notify.so => ([0;33mCLI/AMI PJSIP NOTIFY Support[0m)
+2026-08-02T18:28:11.790765616Z [1;30m [0mLoading res_pjsip_sips_contact.so.
+2026-08-02T18:28:11.790772474Z [1;30m  == [0mres_pjsip_sips_contact.so => ([0;33mUAC SIPS Contact support[0m)
+2026-08-02T18:28:11.790775780Z [1;30m [0mLoading res_pjsip_caller_id.so.
+2026-08-02T18:28:11.790778528Z [1;30m  == [0mres_pjsip_caller_id.so => ([0;33mPJSIP Caller ID Support[0m)
+2026-08-02T18:28:11.790781366Z [1;30m [0mLoading res_pjsip_acl.so.
+2026-08-02T18:28:11.791750361Z [1;30m  == [0mres_pjsip_acl.so => ([0;33mPJSIP ACL Resource[0m)
+2026-08-02T18:28:11.791821798Z [1;30m [0mLoading res_pjsip_header_funcs.so.
+2026-08-02T18:28:11.792379752Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_HEADER[0m'
+2026-08-02T18:28:11.792677308Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_HEADERS[0m'
+2026-08-02T18:28:11.793071766Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_RESPONSE_HEADER[0m'
+2026-08-02T18:28:11.793382422Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_RESPONSE_HEADERS[0m'
+2026-08-02T18:28:11.793842696Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_HEADER_PARAM[0m'
+2026-08-02T18:28:11.793884599Z [1;30m  == [0mres_pjsip_header_funcs.so => ([0;33mPJSIP Header Functions[0m)
+2026-08-02T18:28:11.793888400Z [1;30m [0mLoading res_pjsip_refer.so.
+2026-08-02T18:28:11.793891431Z [1;30m    -- [0mRefer technology 'pjsip' registered.
+2026-08-02T18:28:11.794012963Z [1;30m  == [0mres_pjsip_refer.so => ([0;33mPJSIP Blind and Attended Transfer Support[0m)
+2026-08-02T18:28:11.794020045Z [1;30m [0mLoading res_pjsip_send_to_voicemail.so.
+2026-08-02T18:28:11.794023276Z [1;30m  == [0mres_pjsip_send_to_voicemail.so => ([0;33mPJSIP REFER Send to Voicemail Support[0m)
+2026-08-02T18:28:11.794075400Z [1;30m [0mLoading res_pjsip_rfc3329.so.
+2026-08-02T18:28:11.794079301Z [1;30m  == [0mres_pjsip_rfc3329.so => ([0;33mPJSIP RFC3329 Support (partial)[0m)
+2026-08-02T18:28:11.794082454Z [1;30m [0mLoading sounds.
+2026-08-02T18:28:11.794109660Z [1;30m  == [0msounds => ([0;33mSounds Index[0m)
+2026-08-02T18:28:11.794113282Z [1;30m [0mLoading func_presencestate.so.
+2026-08-02T18:28:11.794591073Z [1;30m  == [0mRegistered custom function '[1;36mPRESENCE_STATE[0m'
+2026-08-02T18:28:11.794678219Z [1;30m  == [0mfunc_presencestate.so => ([0;33mGets or sets a presence state in the dialplan[0m)
+2026-08-02T18:28:11.794715647Z [1;30m [0mLoading func_devstate.so.
+2026-08-02T18:28:11.795046945Z [1;30m  == [0mRegistered custom function '[1;36mDEVICE_STATE[0m'
+2026-08-02T18:28:11.795392198Z [1;30m  == [0mRegistered custom function '[1;36mHINT[0m'
+2026-08-02T18:28:11.795504539Z [1;30m  == [0mfunc_devstate.so => ([0;33mGets or sets a device state in the dialplan[0m)
+2026-08-02T18:28:11.795512962Z [1;30m [0mLoading res_mwi_devstate.so.
+2026-08-02T18:28:11.795689684Z [1;30m  == [0mres_mwi_devstate.so => ([0;33mMWI Device State Subscriptions[0m)
+2026-08-02T18:28:11.795696385Z [1;30m [0mLoading codec_speex.so.
+2026-08-02T18:28:11.795699510Z [1;30m    -- [0mCODEC SPEEX: Setting Quality to 3
+2026-08-02T18:28:11.795703030Z [1;30m    -- [0mCODEC SPEEX: Setting Complexity to 2
+2026-08-02T18:28:11.795706089Z [1;30m    -- [0mCODEC SPEEX: Perceptual Enhancement Mode. [on]
+2026-08-02T18:28:11.795716965Z [1;30m    -- [0mCODEC SPEEX: VAD Mode. [on]
+2026-08-02T18:28:11.795734640Z [1;30m    -- [0mCODEC SPEEX: VBR Mode. [on]
+2026-08-02T18:28:11.795738049Z [1;30m    -- [0mCODEC SPEEX: Disabling ABR
+2026-08-02T18:28:11.795740919Z [1;30m    -- [0mCODEC SPEEX: Setting VBR Quality to 4.000000
+2026-08-02T18:28:11.795744116Z [1;30m    -- [0mCODEC SPEEX: DTX Mode. [off]
+2026-08-02T18:28:11.795747089Z [1;30m    -- [0mCODEC SPEEX: Preprocessing. [off]
+2026-08-02T18:28:11.795750199Z [1;30m    -- [0mCODEC SPEEX: Preprocessor VAD. [off]
+2026-08-02T18:28:11.795756678Z [1;30m    -- [0mCODEC SPEEX: Preprocessor AGC. [off]
+2026-08-02T18:28:11.795759872Z [1;30m    -- [0mCODEC SPEEX: Setting preprocessor AGC Level to 8000.000000
+2026-08-02T18:28:11.795763036Z [1;30m    -- [0mCODEC SPEEX: Preprocessor Denoise. [off]
+2026-08-02T18:28:11.795766082Z [1;30m    -- [0mCODEC SPEEX: Preprocessor Dereverb. [off]
+2026-08-02T18:28:11.795769145Z [1;30m    -- [0mCODEC SPEEX: Setting preprocessor Dereverb Decay to 0.400000
+2026-08-02T18:28:11.795772336Z [1;30m    -- [0mCODEC SPEEX: Setting preprocessor Dereverb Level to 0.300000
+2026-08-02T18:28:11.795775512Z [1;30m    -- [0mCODEC SPEEX: Experimental RTCP Feedback. [off]
+2026-08-02T18:28:11.796367788Z [1;30m  == [0mRegistered translator '[0;35mspeextolin[0m' from codec speex to slin, table cost, 900000, computational cost 568
+2026-08-02T18:28:11.799641674Z [1;30m  == [0mRegistered translator '[0;35mlintospeex[0m' from codec slin to speex, table cost, 600000, computational cost 3333
+2026-08-02T18:28:11.800602087Z [1;30m  == [0mRegistered translator '[0;35mspeexwbtolin16[0m' from codec speex to slin, table cost, 900000, computational cost 950
+2026-08-02T18:28:11.805397777Z [1;30m  == [0mRegistered translator '[0;35mlin16tospeexwb[0m' from codec slin to speex, table cost, 600000, computational cost 4770
+2026-08-02T18:28:11.805534883Z [1;30m  == [0mRegistered translator '[0;35mspeexuwbtolin32[0m' from codec speex to slin, table cost, 900000, computational cost 999999
+2026-08-02T18:28:11.805542884Z [1;30m  == [0mRegistered translator '[0;35mlin32tospeexuwb[0m' from codec slin to speex, table cost, 600000, computational cost 999999
+2026-08-02T18:28:11.805546401Z [1;30m  == [0mcodec_speex.so => ([0;33mSpeex Coder/Decoder[0m)
+2026-08-02T18:28:11.805549579Z [1;30m [0mLoading func_jitterbuffer.so.
+2026-08-02T18:28:11.806035724Z [1;30m  == [0mRegistered custom function '[1;36mJITTERBUFFER[0m'
+2026-08-02T18:28:11.806044789Z [1;30m  == [0mfunc_jitterbuffer.so => ([0;33mJitter buffer for read side of channel.[0m)
+2026-08-02T18:28:11.806118181Z [1;30m [0mLoading app_confbridge.so.
+2026-08-02T18:28:11.811537750Z [2026-08-02T18:28:11.811+0000] [1;33mNOTICE[0m[1]: [1;37mconfbridge/conf_config_parser.c[0m:[1;37m2386[0m [1;37mverify_default_profiles[0m: Adding default_menu menu to app_confbridge
+2026-08-02T18:28:11.811807519Z [1;30m  == [0mRegistered channel type 'CBRec' (Conference Bridge Recording Channel)
+2026-08-02T18:28:11.812044697Z [1;30m  == [0mRegistered channel type 'CBAnn' (Conference Bridge Announcing Channel)
+2026-08-02T18:28:11.812852635Z [1;30m  == [0mRegistered application '[1;36mConfBridge[0m'
+2026-08-02T18:28:11.813135413Z [1;30m  == [0mRegistered application '[1;36mConfKick[0m'
+2026-08-02T18:28:11.813604388Z [1;30m  == [0mRegistered custom function '[1;36mCONFBRIDGE[0m'
+2026-08-02T18:28:11.813901755Z [1;30m  == [0mRegistered custom function '[1;36mCONFBRIDGE_INFO[0m'
+2026-08-02T18:28:11.814239081Z [1;30m  == [0mRegistered custom function '[1;36mCONFBRIDGE_CHANNELS[0m'
+2026-08-02T18:28:11.814441593Z [1;30m  == [0mManager registered action ConfbridgeList
+2026-08-02T18:28:11.814591220Z [1;30m  == [0mManager registered action ConfbridgeListRooms
+2026-08-02T18:28:11.814597968Z [1;30m  == [0mManager registered action ConfbridgeMute
+2026-08-02T18:28:11.814677017Z [1;30m  == [0mManager registered action ConfbridgeUnmute
+2026-08-02T18:28:11.814791117Z [1;30m  == [0mManager registered action ConfbridgeKick
+2026-08-02T18:28:11.814796300Z [1;30m  == [0mManager registered action ConfbridgeUnlock
+2026-08-02T18:28:11.814866977Z [1;30m  == [0mManager registered action ConfbridgeLock
+2026-08-02T18:28:11.814997519Z [1;30m  == [0mManager registered action ConfbridgeStartRecord
+2026-08-02T18:28:11.815003237Z [1;30m  == [0mManager registered action ConfbridgeStopRecord
+2026-08-02T18:28:11.815055170Z [1;30m  == [0mManager registered action ConfbridgeSetSingleVideoSrc
+2026-08-02T18:28:11.815148473Z [1;30m  == [0mapp_confbridge.so => ([0;33mConference Bridge Application[0m)
+2026-08-02T18:28:11.815154328Z [1;30m [0mLoading app_agent_pool.so.
+2026-08-02T18:28:11.815237621Z [1;30m  == [0mManager registered action Agents
+2026-08-02T18:28:11.815276981Z [1;30m  == [0mManager registered action AgentLogoff
+2026-08-02T18:28:11.815676862Z [1;30m  == [0mRegistered custom function '[1;36mAGENT[0m'
+2026-08-02T18:28:11.816053395Z [1;30m  == [0mRegistered application '[1;36mAgentLogin[0m'
+2026-08-02T18:28:11.816381069Z [1;30m  == [0mRegistered application '[1;36mAgentRequest[0m'
+2026-08-02T18:28:11.817368328Z [1;30m  == [0mapp_agent_pool.so => ([0;33mCall center agent pool applications[0m)
+2026-08-02T18:28:11.817539180Z [1;30m [0mLoading res_calendar.so.
+2026-08-02T18:28:11.817913013Z [1;30m  == [0mRegistered custom function '[1;36mCALENDAR_BUSY[0m'
+2026-08-02T18:28:11.818240410Z [1;30m  == [0mRegistered custom function '[1;36mCALENDAR_EVENT[0m'
+2026-08-02T18:28:11.818569447Z [1;30m  == [0mRegistered custom function '[1;36mCALENDAR_QUERY[0m'
+2026-08-02T18:28:11.818941791Z [1;30m  == [0mRegistered custom function '[1;36mCALENDAR_QUERY_RESULT[0m'
+2026-08-02T18:28:11.819268495Z [1;30m  == [0mRegistered custom function '[1;36mCALENDAR_WRITE[0m'
+2026-08-02T18:28:11.819414845Z [1;30m  == [0mres_calendar.so => ([0;33mAsterisk Calendar integration[0m)
+2026-08-02T18:28:11.819426728Z [1;30m [0mLoading res_parking.so.
+2026-08-02T18:28:11.821760197Z [1;30m  == [0mRegistered application '[1;36mPark[0m'
+2026-08-02T18:28:11.822121254Z [1;30m  == [0mRegistered application '[1;36mParkedCall[0m'
+2026-08-02T18:28:11.822496548Z [1;30m  == [0mRegistered application '[1;36mParkAndAnnounce[0m'
+2026-08-02T18:28:11.822857359Z [1;30m  == [0mManager registered action Parkinglots
+2026-08-02T18:28:11.823086873Z [1;30m  == [0mManager registered action ParkedCalls
+2026-08-02T18:28:11.823461465Z [1;30m  == [0mManager registered action Park
+2026-08-02T18:28:11.823877087Z [1;30m  == [0mRegistered custom function '[1;36mPARK_GET_CHANNEL[0m'
+2026-08-02T18:28:11.824102494Z [1;30m  == [0mres_parking.so => ([0;33mCall Parking Resource[0m)
+2026-08-02T18:28:11.824110255Z [1;30m [0mLoading res_calendar_icalendar.so.
+2026-08-02T18:28:11.824114438Z [1;30m  == [0mRegistered calendar type 'ical' (iCalendar .ics calendars)
+2026-08-02T18:28:11.824117769Z [1;30m  == [0mres_calendar_icalendar.so => ([0;33mAsterisk iCalendar .ics file integration[0m)
+2026-08-02T18:28:11.824120906Z [1;30m [0mLoading res_calendar_ews.so.
+2026-08-02T18:28:11.824171923Z [1;30m  == [0mRegistered calendar type 'ews' (MS Exchange Web Service calendars)
+2026-08-02T18:28:11.824177600Z [1;30m  == [0mres_calendar_ews.so => ([0;33mAsterisk MS Exchange Web Service Calendar Integration[0m)
+2026-08-02T18:28:11.824180770Z [1;30m [0mLoading res_calendar_exchange.so.
+2026-08-02T18:28:11.824184038Z [1;30m  == [0mRegistered calendar type 'exchange' (MS Exchange calendars)
+2026-08-02T18:28:11.824186828Z [1;30m  == [0mres_calendar_exchange.so => ([0;33mAsterisk MS Exchange Calendar Integration[0m)
+2026-08-02T18:28:11.824190324Z [1;30m [0mLoading res_calendar_caldav.so.
+2026-08-02T18:28:11.824193018Z [1;30m  == [0mRegistered calendar type 'caldav' (CalDAV calendars)
+2026-08-02T18:28:11.824196268Z [1;30m  == [0mres_calendar_caldav.so => ([0;33mAsterisk CalDAV Calendar Integration[0m)
+2026-08-02T18:28:11.824216685Z [1;30m [0mLoading cdr_radius.so.
+2026-08-02T18:28:11.824285513Z [2026-08-02T18:28:11.824+0000] [1;33mNOTICE[0m[1]: [1;37mcdr_radius.c[0m:[1;37m264[0m [1;37mload_module[0m: Cannot load radiusclient-ng configuration file /etc/radiusclient-ng/radiusclient.conf.
+2026-08-02T18:28:11.825099981Z [1;30m [0mLoading cel_manager.so.
+2026-08-02T18:28:11.825167959Z [1;30m  == [0mcel_manager.so => ([0;33mAsterisk Manager Interface CEL Backend[0m)
+2026-08-02T18:28:11.825174329Z [1;30m [0mLoading cel_tds.so.
+2026-08-02T18:28:11.825279267Z [2026-08-02T18:28:11.825+0000] [1;33mNOTICE[0m[1]: [1;37mcel_tds.c[0m:[1;37m447[0m [1;37mtds_load_module[0m: cel_tds has no global category, nothing to configure.
+2026-08-02T18:28:11.825285495Z [2026-08-02T18:28:11.825+0000] [1;31mWARNING[0m[1]: [1;37mcel_tds.c[0m:[1;37m552[0m [1;37mload_module[0m: cel_tds module had config problems; declining load
+2026-08-02T18:28:11.825980485Z [1;30m [0mLoading cdr_custom.so.
+2026-08-02T18:28:11.826152467Z [1;30m  == [0mcdr_custom.so => ([0;33mCustomizable Comma Separated Values CDR Backend[0m)
+2026-08-02T18:28:11.826189069Z [1;30m [0mLoading cdr_manager.so.
+2026-08-02T18:28:11.826193140Z [1;30m  == [0mcdr_manager.so => ([0;33mAsterisk Manager Interface CDR Backend[0m)
+2026-08-02T18:28:11.826196563Z [1;30m [0mLoading cdr_sqlite3_custom.so.
+2026-08-02T18:28:11.826884917Z [1;30m [0mLoading cdr_tds.so.
+2026-08-02T18:28:11.827722520Z [1;30m [0mLoading cdr_csv.so.
+2026-08-02T18:28:11.827917123Z [1;30m  == [0mcdr_csv.so => ([0;33mComma Separated Values CDR Backend[0m)
+2026-08-02T18:28:11.827925052Z [1;30m [0mLoading cel_radius.so.
+2026-08-02T18:28:11.827979320Z [2026-08-02T18:28:11.827+0000] [1;33mNOTICE[0m[1]: [1;37mcel_radius.c[0m:[1;37m234[0m [1;37mload_module[0m: Cannot load radiusclient-ng configuration file /etc/radiusclient-ng/radiusclient.conf.
+2026-08-02T18:28:11.828596004Z [1;30m [0mLoading cdr_pgsql.so.
+2026-08-02T18:28:11.828716929Z [2026-08-02T18:28:11.828+0000] [1;33mNOTICE[0m[1]: [1;37mcdr_pgsql.c[0m:[1;37m541[0m [1;37mconfig_module[0m: cdr_pgsql configuration contains no global section, skipping module load.
+2026-08-02T18:28:11.829403918Z [1;30m [0mLoading cel_sqlite3_custom.so.
+2026-08-02T18:28:11.830052923Z [1;30m [0mLoading cel_custom.so.
+2026-08-02T18:28:11.830227227Z [2026-08-02T18:28:11.830+0000] [1;33mNOTICE[0m[1]: [1;37mcel_custom.c[0m:[1;37m92[0m [1;37mload_config[0m: No mappings found in cel_custom.conf. Not logging CEL to custom CSVs.
+2026-08-02T18:28:11.830235889Z [1;30m [0mAdded CEL CSV mapping for 0 files.
+2026-08-02T18:28:11.830359164Z [1;30m  == [0mcel_custom.so => ([0;33mCustomizable Comma Separated Values CEL Backend[0m)
+2026-08-02T18:28:11.830370027Z [1;30m [0mLoading cel_pgsql.so.
+2026-08-02T18:28:11.830373102Z [2026-08-02T18:28:11.830+0000] [1;31mWARNING[0m[1]: [1;37mcel_pgsql.c[0m:[1;37m463[0m [1;37mprocess_my_load_module[0m: CEL pgsql config file missing global section.
+2026-08-02T18:28:11.830376461Z [1;30m  == [0mcel_pgsql.so => ([0;33mPostgreSQL CEL Backend[0m)
+2026-08-02T18:28:11.830381080Z [1;30m [0mLoading cdr_adaptive_odbc.so.
+2026-08-02T18:28:11.830530726Z [1;30m  == [0mcdr_adaptive_odbc.so => ([0;33mAdaptive ODBC CDR backend[0m)
+2026-08-02T18:28:11.830537341Z [1;30m [0mLoading cel_odbc.so.
+2026-08-02T18:28:11.830540358Z [1;30m  == [0mcel_odbc.so => ([0;33mODBC CEL backend[0m)
+2026-08-02T18:28:11.830543128Z [1;30m [0mLoading cdr_odbc.so.
+2026-08-02T18:28:11.830545602Z [1;30m  == [0mcdr_odbc.so => ([0;33mODBC CDR Backend[0m)
+2026-08-02T18:28:11.830548265Z [1;30m [0mLoading pbx_loopback.so.
+2026-08-02T18:28:11.830550781Z [1;30m  == [0mpbx_loopback.so => ([0;33mLoopback Switch[0m)
+2026-08-02T18:28:11.830553536Z [1;30m [0mLoading app_dictate.so.
+2026-08-02T18:28:11.830931908Z [1;30m  == [0mRegistered application '[1;36mDictate[0m'
+2026-08-02T18:28:11.830940015Z [1;30m  == [0mapp_dictate.so => ([0;33mVirtual Dictation Machine[0m)
+2026-08-02T18:28:11.830943348Z [1;30m [0mLoading app_bridgeaddchan.so.
+2026-08-02T18:28:11.831348035Z [1;30m  == [0mRegistered application '[1;36mBridgeAdd[0m'
+2026-08-02T18:28:11.831360800Z [1;30m  == [0mapp_bridgeaddchan.so => ([0;33mBridge Add Channel Application[0m)
+2026-08-02T18:28:11.831364514Z [1;30m [0mLoading pbx_lua.so.
+2026-08-02T18:28:11.831612254Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'default'
+2026-08-02T18:28:11.831751232Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'public'
+2026-08-02T18:28:11.831758101Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'demo'
+2026-08-02T18:28:11.831761393Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'local'
+2026-08-02T18:28:11.831855742Z [1;30m    -- [0mTime to scan old dialplan and merge leftovers back into the new: 0.000024 sec
+2026-08-02T18:28:11.831860929Z [1;30m    -- [0mTime to restore hints and swap in new dialplan: 0.000004 sec
+2026-08-02T18:28:11.831863956Z [1;30m    -- [0mTime to delete the old dialplan: 0.000008 sec
+2026-08-02T18:28:11.831866708Z [1;30m    -- [0mTotal time merge_contexts_delete: 0.000036 sec
+2026-08-02T18:28:11.831869391Z [1;30m    -- [0mpbx_lua successfully loaded 1 contexts (enable debug for details).
+2026-08-02T18:28:11.831891933Z [1;30m  == [0mpbx_lua.so => ([0;33mLua PBX Switch[0m)
+2026-08-02T18:28:11.831914142Z [1;30m [0mLoading app_talkdetect.so.
+2026-08-02T18:28:11.832330163Z [1;30m  == [0mRegistered application '[1;36mBackgroundDetect[0m'
+2026-08-02T18:28:11.832450764Z [1;30m  == [0mapp_talkdetect.so => ([0;33mPlayback with Talk Detection[0m)
+2026-08-02T18:28:11.832458005Z [1;30m [0mLoading func_vmcount.so.
+2026-08-02T18:28:11.832831397Z [1;30m  == [0mRegistered custom function '[1;36mVMCOUNT[0m'
+2026-08-02T18:28:11.832955644Z [1;30m  == [0mfunc_vmcount.so => ([0;33mIndicator for whether a voice mailbox has messages in a given folder.[0m)
+2026-08-02T18:28:11.832962919Z [1;30m [0mLoading func_volume.so.
+2026-08-02T18:28:11.833215124Z [1;30m  == [0mRegistered custom function '[1;36mVOLUME[0m'
+2026-08-02T18:28:11.833223077Z [1;30m  == [0mfunc_volume.so => ([0;33mTechnology independent volume control[0m)
+2026-08-02T18:28:11.833226440Z [1;30m [0mLoading app_bridgewait.so.
+2026-08-02T18:28:11.833686993Z [1;30m  == [0mRegistered application '[1;36mBridgeWait[0m'
+2026-08-02T18:28:11.833698979Z [1;30m  == [0mapp_bridgewait.so => ([0;33mPlace the channel into a holding bridge application[0m)
+2026-08-02T18:28:11.833702469Z [1;30m [0mLoading func_pitchshift.so.
+2026-08-02T18:28:11.834039468Z [1;30m  == [0mRegistered custom function '[1;36mPITCH_SHIFT[0m'
+2026-08-02T18:28:11.834120236Z [1;30m  == [0mfunc_pitchshift.so => ([0;33mAudio Effects Dialplan Functions[0m)
+2026-08-02T18:28:11.834157043Z [1;30m [0mLoading app_sf.so.
+2026-08-02T18:28:11.834533152Z [1;30m  == [0mRegistered application '[1;36mReceiveSF[0m'
+2026-08-02T18:28:11.834831808Z [1;30m  == [0mRegistered application '[1;36mSendSF[0m'
+2026-08-02T18:28:11.834840402Z [1;30m  == [0mapp_sf.so => ([0;33mSF Sender and Receiver Applications[0m)
+2026-08-02T18:28:11.834844041Z [1;30m [0mLoading app_while.so.
+2026-08-02T18:28:11.835130540Z [1;30m  == [0mRegistered application '[1;36mWhile[0m'
+2026-08-02T18:28:11.835410430Z [1;30m  == [0mRegistered application '[1;36mEndWhile[0m'
+2026-08-02T18:28:11.835726623Z [1;30m  == [0mRegistered application '[1;36mExitWhile[0m'
+2026-08-02T18:28:11.836028720Z [1;30m  == [0mRegistered application '[1;36mContinueWhile[0m'
+2026-08-02T18:28:11.836155002Z [1;30m  == [0mapp_while.so => ([0;33mWhile Loops and Conditional Execution[0m)
+2026-08-02T18:28:11.836161131Z [1;30m [0mLoading chan_unistim.so.
+2026-08-02T18:28:11.836171554Z [2026-08-02T18:28:11.836+0000] [1;31mERROR[0m[1]: [1;37mchan_unistim.c[0m:[1;37m6861[0m [1;37mreload_config[0m: Unable to load config unistim.conf
+2026-08-02T18:28:11.836716464Z [1;30m [0mLoading app_waitforsilence.so.
+2026-08-02T18:28:11.837196081Z [1;30m  == [0mRegistered application '[1;36mWaitForSilence[0m'
+2026-08-02T18:28:11.837532095Z [1;30m  == [0mRegistered application '[1;36mWaitForNoise[0m'
+2026-08-02T18:28:11.837667944Z [1;30m  == [0mapp_waitforsilence.so => ([0;33mWait For Silence/Noise[0m)
+2026-08-02T18:28:11.837675760Z [1;30m [0mLoading app_waitforcond.so.
+2026-08-02T18:28:11.837973416Z [1;30m  == [0mRegistered application '[1;36mWaitForCondition[0m'
+2026-08-02T18:28:11.838095677Z [1;30m  == [0mapp_waitforcond.so => ([0;33mWait until condition is true[0m)
+2026-08-02T18:28:11.838102864Z [1;30m [0mLoading app_cdr.so.
+2026-08-02T18:28:11.838362685Z [1;30m  == [0mRegistered application '[1;36mNoCDR[0m'
+2026-08-02T18:28:11.838774194Z [1;30m  == [0mRegistered application '[1;36mResetCDR[0m'
+2026-08-02T18:28:11.838782688Z [1;30m  == [0mapp_cdr.so => ([0;33mTell Asterisk to not maintain a CDR for the current call[0m)
+2026-08-02T18:28:11.838786190Z [1;30m [0mLoading func_extstate.so.
+2026-08-02T18:28:11.839075515Z [1;30m  == [0mRegistered custom function '[1;36mEXTENSION_STATE[0m'
+2026-08-02T18:28:11.839191256Z [1;30m  == [0mfunc_extstate.so => ([0;33mGets an extension's state in the dialplan[0m)
+2026-08-02T18:28:11.839198779Z [1;30m [0mLoading func_realtime.so.
+2026-08-02T18:28:11.839537423Z [1;30m  == [0mRegistered custom function '[1;36mREALTIME[0m'
+2026-08-02T18:28:11.839865568Z [1;30m  == [0mRegistered custom function '[1;36mREALTIME_STORE[0m'
+2026-08-02T18:28:11.840185314Z [1;30m  == [0mRegistered custom function '[1;36mREALTIME_DESTROY[0m'
+2026-08-02T18:28:11.840483547Z [1;30m  == [0mRegistered custom function '[1;36mREALTIME_FIELD[0m'
+2026-08-02T18:28:11.840829245Z [1;30m  == [0mRegistered custom function '[1;36mREALTIME_HASH[0m'
+2026-08-02T18:28:11.840837833Z [1;30m  == [0mfunc_realtime.so => ([0;33mRead/Write/Store/Destroy values from a RealTime repository[0m)
+2026-08-02T18:28:11.840841389Z [1;30m [0mLoading app_directed_pickup.so.
+2026-08-02T18:28:11.841192694Z [1;30m  == [0mRegistered application '[1;36mPickup[0m'
+2026-08-02T18:28:11.841646641Z [1;30m  == [0mRegistered application '[1;36mPickupChan[0m'
+2026-08-02T18:28:11.841659920Z [1;30m  == [0mapp_directed_pickup.so => ([0;33mDirected Call Pickup Application[0m)
+2026-08-02T18:28:11.841671318Z [1;30m [0mLoading codec_alaw.so.
+2026-08-02T18:28:11.841704507Z [1;30m  == [0mRegistered translator '[0;35malawtolin[0m' from codec alaw to slin, table cost, 900000, computational cost 55
+2026-08-02T18:28:11.841709071Z [1;30m  == [0mRegistered translator '[0;35mlintoalaw[0m' from codec slin to alaw, table cost, 600000, computational cost 34
+2026-08-02T18:28:11.841712682Z [1;30m  == [0mcodec_alaw.so => ([0;33mA-law Coder/Decoder[0m)
+2026-08-02T18:28:11.841716279Z [1;30m [0mLoading app_senddtmf.so.
+2026-08-02T18:28:11.841836213Z [1;30m  == [0mManager registered action PlayDTMF
+2026-08-02T18:28:11.841978198Z [1;30m  == [0mManager registered action SendFlash
+2026-08-02T18:28:11.842397727Z [1;30m  == [0mRegistered application '[1;36mSendDTMF[0m'
+2026-08-02T18:28:11.842409500Z [1;30m  == [0mapp_senddtmf.so => ([0;33mSend DTMF digits Application[0m)
+2026-08-02T18:28:11.842413118Z [1;30m [0mLoading app_transfer.so.
+2026-08-02T18:28:11.842806140Z [1;30m  == [0mRegistered application '[1;36mTransfer[0m'
+2026-08-02T18:28:11.842814561Z [1;30m  == [0mapp_transfer.so => ([0;33mTransfers a caller to another extension[0m)
+2026-08-02T18:28:11.842821403Z [1;30m [0mLoading app_originate.so.
+2026-08-02T18:28:11.843235830Z [1;30m  == [0mRegistered application '[1;36mOriginate[0m'
+2026-08-02T18:28:11.843356542Z [1;30m  == [0mapp_originate.so => ([0;33mOriginate call[0m)
+2026-08-02T18:28:11.843366883Z [1;30m [0mLoading res_clialiases.so.
+2026-08-02T18:28:11.843616004Z [1;30m  == [0mAliased CLI command 'hangup request' to 'channel request hangup'
+2026-08-02T18:28:11.843733873Z [1;30m  == [0mAliased CLI command 'originate' to 'channel originate'
+2026-08-02T18:28:11.843740515Z [1;30m  == [0mAliased CLI command 'help' to 'core show help'
+2026-08-02T18:28:11.843743425Z [1;30m  == [0mAliased CLI command 'pri intense debug span' to 'pri set debug intense span'
+2026-08-02T18:28:11.843746440Z [1;30m  == [0mAliased CLI command 'reload' to 'module reload'
+2026-08-02T18:28:11.843749463Z [1;30m  == [0mAliased CLI command 'pjsip reload' to 'module reload res_pjsip.so res_pjsip_authenticator_digest.so res_pjsip_endpoint_identifier_ip.so res_pjsip_mwi.so res_pjsip_notify.so res_pjsip_outbound_publish.so res_pjsip_publish_asterisk.so res_pjsip_outbound_registration.so'
+2026-08-02T18:28:11.843752925Z [1;30m  == [0mres_clialiases.so => ([0;33mCLI Aliases[0m)
+2026-08-02T18:28:11.843755847Z [1;30m [0mLoading app_read.so.
+2026-08-02T18:28:11.844165731Z [1;30m  == [0mRegistered application '[1;36mRead[0m'
+2026-08-02T18:28:11.844278975Z [1;30m  == [0mapp_read.so => ([0;33mRead Variable Application[0m)
+2026-08-02T18:28:11.844294462Z [1;30m [0mLoading func_hangupcause.so.
+2026-08-02T18:28:11.844583647Z [1;30m  == [0mRegistered custom function '[1;36mHANGUPCAUSE[0m'
+2026-08-02T18:28:11.844877796Z [1;30m  == [0mRegistered custom function '[1;36mHANGUPCAUSE_KEYS[0m'
+2026-08-02T18:28:11.845172780Z [1;30m  == [0mRegistered application '[1;36mHangupCauseClear[0m'
+2026-08-02T18:28:11.845287590Z [1;30m  == [0mfunc_hangupcause.so => ([0;33mHANGUPCAUSE related functions and applications[0m)
+2026-08-02T18:28:11.845294702Z [1;30m [0mLoading app_voicemail_imap.so.
+2026-08-02T18:28:11.845672968Z [2026-08-02T18:28:11.845+0000] [1;31mERROR[0m[1]: [1;37mapp_voicemail_imap.c[0m:[1;37m2944[0m [1;37minboxcount2[0m: Couldn't find mailbox 1234 in context default
+2026-08-02T18:28:11.845851060Z [2026-08-02T18:28:11.845+0000] [1;31mERROR[0m[1]: [1;37mapp_voicemail_imap.c[0m:[1;37m2944[0m [1;37minboxcount2[0m: Couldn't find mailbox 1234 in context devices@myaliases
+2026-08-02T18:28:11.845859652Z [2026-08-02T18:28:11.845+0000] [1;31mERROR[0m[1]: [1;37mapp_voicemail_imap.c[0m:[1;37m2944[0m [1;37minboxcount2[0m: Couldn't find mailbox 1234 in context other
+2026-08-02T18:28:11.846003006Z [1;30m    -- [0mNo voicemail provider registered.
+2026-08-02T18:28:11.846372961Z [1;30m  == [0mRegistered application '[1;36mVoiceMail[0m'
+2026-08-02T18:28:11.846820121Z [1;30m  == [0mRegistered application '[1;36mVoiceMailMain[0m'
+2026-08-02T18:28:11.847132666Z [1;30m  == [0mRegistered application '[1;36mVMAuthenticate[0m'
+2026-08-02T18:28:11.847501151Z [1;30m  == [0mRegistered application '[1;36mVoiceMailPlayMsg[0m'
+2026-08-02T18:28:11.847800607Z [1;30m  == [0mRegistered application '[1;36mVMSayName[0m'
+2026-08-02T18:28:11.848206170Z [1;30m  == [0mRegistered custom function '[1;36mVM_INFO[0m'
+2026-08-02T18:28:11.848353578Z [1;30m  == [0mManager registered action VoicemailUsersList
+2026-08-02T18:28:11.848497353Z [1;30m  == [0mManager registered action VoicemailUserStatus
+2026-08-02T18:28:11.848647854Z [1;30m  == [0mManager registered action VoicemailRefresh
+2026-08-02T18:28:11.848823351Z [1;30m  == [0mManager registered action VoicemailBoxSummary
+2026-08-02T18:28:11.848956542Z [1;30m  == [0mManager registered action VoicemailMove
+2026-08-02T18:28:11.849108515Z [1;30m  == [0mManager registered action VoicemailRemove
+2026-08-02T18:28:11.849217917Z [1;30m  == [0mManager registered action VoicemailForward
+2026-08-02T18:28:11.849414371Z [1;30m  == [0mapp_voicemail_imap.so => ([0;33mComedian Mail (Voicemail System) with IMAP Storage[0m)
+2026-08-02T18:28:11.849434200Z [1;30m [0mLoading func_global.so.
+2026-08-02T18:28:11.849801298Z [1;30m  == [0mRegistered custom function '[1;36mGLOBAL[0m'
+2026-08-02T18:28:11.850193894Z [1;30m  == [0mRegistered custom function '[1;36mGLOBAL_DELETE[0m'
+2026-08-02T18:28:11.850416335Z [1;30m  == [0mRegistered custom function '[1;36mGLOBAL_EXISTS[0m'
+2026-08-02T18:28:11.850800081Z [1;30m  == [0mRegistered custom function '[1;36mSHARED[0m'
+2026-08-02T18:28:11.850808886Z [1;30m  == [0mfunc_global.so => ([0;33mVariable dialplan functions[0m)
+2026-08-02T18:28:11.850812411Z [1;30m [0mLoading res_format_attr_h264.so.
+2026-08-02T18:28:11.850815267Z [1;30m  == [0mRegistered format interface for codec 'h264'
+2026-08-02T18:28:11.850818109Z [1;30m  == [0mres_format_attr_h264.so => ([0;33mH.264 Format Attribute Module[0m)
+2026-08-02T18:28:11.850821167Z [1;30m [0mLoading func_base64.so.
+2026-08-02T18:28:11.851059234Z [1;30m  == [0mRegistered custom function '[1;36mBASE64_ENCODE[0m'
+2026-08-02T18:28:11.851413297Z [1;30m  == [0mRegistered custom function '[1;36mBASE64_DECODE[0m'
+2026-08-02T18:28:11.851453438Z [1;30m  == [0mfunc_base64.so => ([0;33mbase64 encode/decode dialplan functions[0m)
+2026-08-02T18:28:11.851457777Z [1;30m [0mLoading app_celgenuserevent.so.
+2026-08-02T18:28:11.851793327Z [1;30m  == [0mRegistered application '[1;36mCELGenUserEvent[0m'
+2026-08-02T18:28:11.851801590Z [1;30m  == [0mapp_celgenuserevent.so => ([0;33mGenerate an User-Defined CEL event[0m)
+2026-08-02T18:28:11.851804729Z [1;30m [0mLoading func_blacklist.so.
+2026-08-02T18:28:11.852121574Z [1;30m  == [0mRegistered custom function '[1;36mBLACKLIST[0m'
+2026-08-02T18:28:11.852241799Z [1;30m  == [0mfunc_blacklist.so => ([0;33mLook up Caller*ID name/number from blacklist database[0m)
+2026-08-02T18:28:11.852249090Z [1;30m [0mLoading app_mp3.so.
+2026-08-02T18:28:11.852519367Z [1;30m  == [0mRegistered application '[1;36mMP3Player[0m'
+2026-08-02T18:28:11.852651058Z [1;30m  == [0mapp_mp3.so => ([0;33mSilly MP3 Application[0m)
+2026-08-02T18:28:11.852658627Z [1;30m [0mLoading func_timeout.so.
+2026-08-02T18:28:11.852930915Z [1;30m  == [0mRegistered custom function '[1;36mTIMEOUT[0m'
+2026-08-02T18:28:11.853009780Z [1;30m  == [0mfunc_timeout.so => ([0;33mChannel timeout dialplan functions[0m)
+2026-08-02T18:28:11.853015936Z [1;30m [0mLoading func_holdintercept.so.
+2026-08-02T18:28:11.853271198Z [1;30m  == [0mRegistered custom function '[1;36mHOLD_INTERCEPT[0m'
+2026-08-02T18:28:11.853287187Z [1;30m  == [0mfunc_holdintercept.so => ([0;33mHold interception dialplan function[0m)
+2026-08-02T18:28:11.853290816Z [1;30m [0mLoading app_db.so.
+2026-08-02T18:28:11.853656680Z [1;30m  == [0mRegistered application '[1;36mDBdeltree[0m'
+2026-08-02T18:28:11.853668628Z [1;30m  == [0mapp_db.so => ([0;33mDatabase Access Functions[0m)
+2026-08-02T18:28:11.853672183Z [1;30m [0mLoading app_morsecode.so.
+2026-08-02T18:28:11.854005070Z [1;30m  == [0mRegistered application '[1;36mMorsecode[0m'
+2026-08-02T18:28:11.854013609Z [1;30m  == [0mapp_morsecode.so => ([0;33mMorse code[0m)
+2026-08-02T18:28:11.854017435Z [1;30m [0mLoading app_authenticate.so.
+2026-08-02T18:28:11.854420290Z [1;30m  == [0mRegistered application '[1;36mAuthenticate[0m'
+2026-08-02T18:28:11.854553561Z [1;30m  == [0mapp_authenticate.so => ([0;33mAuthentication Application[0m)
+2026-08-02T18:28:11.854561018Z [1;30m [0mLoading app_record.so.
+2026-08-02T18:28:11.854919756Z [1;30m  == [0mRegistered application '[1;36mRecord[0m'
+2026-08-02T18:28:11.854983135Z [1;30m  == [0mapp_record.so => ([0;33mTrivial Record Application[0m)
+2026-08-02T18:28:11.854987930Z [1;30m [0mLoading codec_gsm.so.
+2026-08-02T18:28:11.855279566Z [1;30m  == [0mRegistered translator '[0;35mgsmtolin[0m' from codec gsm to slin, table cost, 900000, computational cost 343
+2026-08-02T18:28:11.856124942Z [1;30m  == [0mRegistered translator '[0;35mlintogsm[0m' from codec slin to gsm, table cost, 600000, computational cost 813
+2026-08-02T18:28:11.856136313Z [1;30m  == [0mcodec_gsm.so => ([0;33mGSM Coder/Decoder[0m)
+2026-08-02T18:28:11.856139693Z [1;30m [0mLoading app_broadcast.so.
+2026-08-02T18:28:11.856711146Z [1;30m  == [0mRegistered application '[1;36mBroadcast[0m'
+2026-08-02T18:28:11.856723391Z [1;30m  == [0mapp_broadcast.so => ([0;33mChannel Audio Broadcasting[0m)
+2026-08-02T18:28:11.856727193Z [1;30m [0mLoading codec_a_mu.so.
+2026-08-02T18:28:11.856838366Z [1;30m  == [0mRegistered translator '[0;35malawtoulaw[0m' from codec alaw to ulaw, table cost, 915000, computational cost 49
+2026-08-02T18:28:11.856844477Z [1;30m  == [0mRegistered translator '[0;35mulawtoalaw[0m' from codec ulaw to alaw, table cost, 915000, computational cost 21
+2026-08-02T18:28:11.856847522Z [1;30m  == [0mcodec_a_mu.so => ([0;33mA-law and Mulaw direct Coder/Decoder[0m)
+2026-08-02T18:28:11.856850636Z [1;30m [0mLoading func_evalexten.so.
+2026-08-02T18:28:11.857274422Z [1;30m  == [0mRegistered custom function '[1;36mEVAL_EXTEN[0m'
+2026-08-02T18:28:11.857336092Z [1;30m  == [0mfunc_evalexten.so => ([0;33mExtension evaluation function[0m)
+2026-08-02T18:28:11.857345290Z [1;30m [0mLoading app_page.so.
+2026-08-02T18:28:11.857761982Z [1;30m  == [0mRegistered application '[1;36mPage[0m'
+2026-08-02T18:28:11.857893091Z [1;30m  == [0mapp_page.so => ([0;33mPage Multiple Phones[0m)
+2026-08-02T18:28:11.857900584Z [1;30m [0mLoading bridge_native_rtp.so.
+2026-08-02T18:28:11.857903789Z [1;30m  == [0mRegistered bridge technology native_rtp
+2026-08-02T18:28:11.857906923Z [1;30m  == [0mbridge_native_rtp.so => ([0;33mNative RTP bridging module[0m)
+2026-08-02T18:28:11.857910201Z [1;30m [0mLoading app_externalivr.so.
+2026-08-02T18:28:11.858197205Z [1;30m  == [0mRegistered application '[1;36mExternalIVR[0m'
+2026-08-02T18:28:11.858206236Z [1;30m  == [0mapp_externalivr.so => ([0;33mExternal IVR Interface Application[0m)
+2026-08-02T18:28:11.858209430Z [1;30m [0mLoading res_clioriginate.so.
+2026-08-02T18:28:11.858326424Z [1;30m  == [0mres_clioriginate.so => ([0;33mCall origination and redirection from the CLI[0m)
+2026-08-02T18:28:11.858336434Z [1;30m [0mLoading app_speech_utils.so.
+2026-08-02T18:28:11.858719675Z [1;30m  == [0mRegistered application '[1;36mSpeechCreate[0m'
+2026-08-02T18:28:11.859015007Z [1;30m  == [0mRegistered application '[1;36mSpeechLoadGrammar[0m'
+2026-08-02T18:28:11.859314559Z [1;30m  == [0mRegistered application '[1;36mSpeechUnloadGrammar[0m'
+2026-08-02T18:28:11.859675098Z [1;30m  == [0mRegistered application '[1;36mSpeechActivateGrammar[0m'
+2026-08-02T18:28:11.859943922Z [1;30m  == [0mRegistered application '[1;36mSpeechDeactivateGrammar[0m'
+2026-08-02T18:28:11.860266834Z [1;30m  == [0mRegistered application '[1;36mSpeechStart[0m'
+2026-08-02T18:28:11.860634686Z [1;30m  == [0mRegistered application '[1;36mSpeechBackground[0m'
+2026-08-02T18:28:11.860966847Z [1;30m  == [0mRegistered application '[1;36mSpeechDestroy[0m'
+2026-08-02T18:28:11.861240333Z [1;30m  == [0mRegistered application '[1;36mSpeechProcessingSound[0m'
+2026-08-02T18:28:11.861614744Z [1;30m  == [0mRegistered custom function '[1;36mSPEECH[0m'
+2026-08-02T18:28:11.861872011Z [1;30m  == [0mRegistered custom function '[1;36mSPEECH_SCORE[0m'
+2026-08-02T18:28:11.862216167Z [1;30m  == [0mRegistered custom function '[1;36mSPEECH_TEXT[0m'
+2026-08-02T18:28:11.862463688Z [1;30m  == [0mRegistered custom function '[1;36mSPEECH_GRAMMAR[0m'
+2026-08-02T18:28:11.862788863Z [1;30m  == [0mRegistered custom function '[1;36mSPEECH_ENGINE[0m'
+2026-08-02T18:28:11.863059655Z [1;30m  == [0mRegistered custom function '[1;36mSPEECH_RESULTS_TYPE[0m'
+2026-08-02T18:28:11.863067665Z [1;30m  == [0mapp_speech_utils.so => ([0;33mDialplan Speech Applications[0m)
+2026-08-02T18:28:11.863071115Z [1;30m [0mLoading bridge_builtin_interval_features.so.
+2026-08-02T18:28:11.863074337Z [1;30m  == [0mbridge_builtin_interval_features.so => ([0;33mBuilt in bridging interval features[0m)
+2026-08-02T18:28:11.863077644Z [1;30m [0mLoading func_callerid.so.
+2026-08-02T18:28:11.863523780Z [1;30m  == [0mRegistered custom function '[1;36mCALLERID[0m'
+2026-08-02T18:28:11.863863875Z [1;30m  == [0mRegistered custom function '[1;36mCONNECTEDLINE[0m'
+2026-08-02T18:28:11.864344702Z [1;30m  == [0mRegistered custom function '[1;36mREDIRECTING[0m'
+2026-08-02T18:28:11.864357171Z [1;30m  == [0mfunc_callerid.so => ([0;33mParty ID related dialplan functions (Caller-ID, Connected-line, Redirecting)[0m)
+2026-08-02T18:28:11.864360890Z [1;30m [0mLoading pbx_realtime.so.
+2026-08-02T18:28:11.864473191Z [1;30m  == [0mpbx_realtime.so => ([0;33mRealtime Switch[0m)
+2026-08-02T18:28:11.864479274Z [1;30m [0mLoading app_system.so.
+2026-08-02T18:28:11.864910192Z [1;30m  == [0mRegistered application '[1;36mTrySystem[0m'
+2026-08-02T18:28:11.865241288Z [1;30m  == [0mRegistered application '[1;36mSystem[0m'
+2026-08-02T18:28:11.865250934Z [1;30m  == [0mapp_system.so => ([0;33mGeneric System() application[0m)
+2026-08-02T18:28:11.865342051Z [1;30m [0mLoading app_voicemail.so.
+2026-08-02T18:28:11.865697362Z [2026-08-02T18:28:11.865+0000] [1;31mWARNING[0m[32]: [1;37mapp_voicemail_imap.c[0m:[1;37m2581[0m [1;37m__messagecount[0m: Couldn't find mailbox 1234 in context default
+2026-08-02T18:28:11.865834916Z [2026-08-02T18:28:11.865+0000] [1;31mWARNING[0m[32]: [1;37mapp_voicemail_imap.c[0m:[1;37m2581[0m [1;37m__messagecount[0m: Couldn't find mailbox 1234 in context devices@myaliases
+2026-08-02T18:28:11.865842604Z [2026-08-02T18:28:11.865+0000] [1;31mWARNING[0m[32]: [1;37mapp_voicemail_imap.c[0m:[1;37m2581[0m [1;37m__messagecount[0m: Couldn't find mailbox 1234 in context other
+2026-08-02T18:28:11.865846042Z [2026-08-02T18:28:11.865+0000] [1;31mWARNING[0m[1]: [1;37mpbx_app.c[0m:[1;37m115[0m [1;37mast_register_application2[0m: Already have an application 'VoiceMail'
+2026-08-02T18:28:11.865849581Z [2026-08-02T18:28:11.865+0000] [1;31mWARNING[0m[1]: [1;37mpbx_app.c[0m:[1;37m115[0m [1;37mast_register_application2[0m: Already have an application 'VoiceMailMain'
+2026-08-02T18:28:11.865853023Z [2026-08-02T18:28:11.865+0000] [1;31mWARNING[0m[1]: [1;37mpbx_app.c[0m:[1;37m115[0m [1;37mast_register_application2[0m: Already have an application 'VMAuthenticate'
+2026-08-02T18:28:11.865894242Z [2026-08-02T18:28:11.865+0000] [1;31mWARNING[0m[1]: [1;37mpbx_app.c[0m:[1;37m115[0m [1;37mast_register_application2[0m: Already have an application 'VoiceMailPlayMsg'
+2026-08-02T18:28:11.865898859Z [2026-08-02T18:28:11.865+0000] [1;31mWARNING[0m[1]: [1;37mpbx_app.c[0m:[1;37m115[0m [1;37mast_register_application2[0m: Already have an application 'VMSayName'
+2026-08-02T18:28:11.866242233Z [2026-08-02T18:28:11.866+0000] [1;31mERROR[0m[1]: [1;37mpbx_functions.c[0m:[1;37m394[0m [1;37m__ast_custom_function_register[0m: Function VM_INFO already registered.
+2026-08-02T18:28:11.866427918Z [2026-08-02T18:28:11.866+0000] [1;31mWARNING[0m[1]: [1;37mmanager.c[0m:[1;37m8014[0m [1;37mast_manager_register_struct[0m: Manager: Action 'VoicemailUsersList' already registered
+2026-08-02T18:28:11.866536966Z [2026-08-02T18:28:11.866+0000] [1;31mWARNING[0m[1]: [1;37mmanager.c[0m:[1;37m8014[0m [1;37mast_manager_register_struct[0m: Manager: Action 'VoicemailUserStatus' already registered
+2026-08-02T18:28:11.866719764Z [2026-08-02T18:28:11.866+0000] [1;31mWARNING[0m[1]: [1;37mmanager.c[0m:[1;37m8014[0m [1;37mast_manager_register_struct[0m: Manager: Action 'VoicemailRefresh' already registered
+2026-08-02T18:28:11.866818907Z [2026-08-02T18:28:11.866+0000] [1;31mWARNING[0m[1]: [1;37mmanager.c[0m:[1;37m8014[0m [1;37mast_manager_register_struct[0m: Manager: Action 'VoicemailBoxSummary' already registered
+2026-08-02T18:28:11.866997529Z [2026-08-02T18:28:11.866+0000] [1;31mWARNING[0m[1]: [1;37mmanager.c[0m:[1;37m8014[0m [1;37mast_manager_register_struct[0m: Manager: Action 'VoicemailMove' already registered
+2026-08-02T18:28:11.867119113Z [2026-08-02T18:28:11.867+0000] [1;31mWARNING[0m[1]: [1;37mmanager.c[0m:[1;37m8014[0m [1;37mast_manager_register_struct[0m: Manager: Action 'VoicemailRemove' already registered
+2026-08-02T18:28:11.867394859Z [2026-08-02T18:28:11.867+0000] [1;31mWARNING[0m[1]: [1;37mmanager.c[0m:[1;37m8014[0m [1;37mast_manager_register_struct[0m: Manager: Action 'VoicemailForward' already registered
+2026-08-02T18:28:11.867407225Z [2026-08-02T18:28:11.867+0000] [1;31mERROR[0m[1]: [1;37mapp_voicemail.c[0m:[1;37m15897[0m [1;37mload_module[0m: Failure registering applications, functions or tests
+2026-08-02T18:28:11.867410935Z [1;30m  == [0mUnregistered application 'VoiceMail'
+2026-08-02T18:28:11.867414082Z [1;30m  == [0mUnregistered application 'VoiceMailMain'
+2026-08-02T18:28:11.867416798Z [1;30m  == [0mUnregistered application 'VMAuthenticate'
+2026-08-02T18:28:11.867419561Z [1;30m  == [0mUnregistered application 'VoiceMailPlayMsg'
+2026-08-02T18:28:11.867422642Z [1;30m  == [0mUnregistered application 'VMSayName'
+2026-08-02T18:28:11.867425574Z [1;30m  == [0mManager unregistered action VoicemailUsersList
+2026-08-02T18:28:11.867458982Z [1;30m  == [0mManager unregistered action VoicemailUserStatus
+2026-08-02T18:28:11.867462883Z [1;30m  == [0mManager unregistered action VoicemailRefresh
+2026-08-02T18:28:11.867465573Z [1;30m  == [0mManager unregistered action VoicemailBoxSummary
+2026-08-02T18:28:11.867468360Z [1;30m  == [0mManager unregistered action VoicemailMove
+2026-08-02T18:28:11.867471489Z [1;30m  == [0mManager unregistered action VoicemailRemove
+2026-08-02T18:28:11.867474480Z [1;30m  == [0mManager unregistered action VoicemailForward
+2026-08-02T18:28:11.867969776Z [1;30m [0mLoading app_waitforring.so.
+2026-08-02T18:28:11.868408388Z [1;30m  == [0mRegistered application '[1;36mWaitForRing[0m'
+2026-08-02T18:28:11.868420553Z [1;30m  == [0mapp_waitforring.so => ([0;33mWaits until first ring after time[0m)
+2026-08-02T18:28:11.868424184Z [1;30m [0mLoading func_cdr.so.
+2026-08-02T18:28:11.868899051Z [1;30m  == [0mRegistered custom function '[1;36mCDR[0m'
+2026-08-02T18:28:11.869240978Z [1;30m  == [0mRegistered custom function '[1;36mCDR_PROP[0m'
+2026-08-02T18:28:11.869249449Z [1;30m  == [0mfunc_cdr.so => ([0;33mCall Detail Record (CDR) dialplan functions[0m)
+2026-08-02T18:28:11.869252746Z [1;30m [0mLoading app_zapateller.so.
+2026-08-02T18:28:11.869599032Z [1;30m  == [0mRegistered application '[1;36mZapateller[0m'
+2026-08-02T18:28:11.869725673Z [1;30m  == [0mapp_zapateller.so => ([0;33mBlock Telemarketers with Special Information Tone[0m)
+2026-08-02T18:28:11.869733136Z [1;30m [0mLoading res_tonedetect.so.
+2026-08-02T18:28:11.869984290Z [1;30m  == [0mRegistered application '[1;36mWaitForTone[0m'
+2026-08-02T18:28:11.870395010Z [1;30m  == [0mRegistered application '[1;36mToneScan[0m'
+2026-08-02T18:28:11.870814297Z [1;30m  == [0mRegistered custom function '[1;36mTONE_DETECT[0m'
+2026-08-02T18:28:11.870938811Z [1;30m  == [0mres_tonedetect.so => ([0;33mTone detection module[0m)
+2026-08-02T18:28:11.870945787Z [1;30m [0mLoading res_ael_share.so.
+2026-08-02T18:28:11.870949059Z [1;30m  == [0mres_ael_share.so => ([0;33mshare-able code for AEL[0m)
+2026-08-02T18:28:11.870952267Z [1;30m [0mLoading func_lock.so.
+2026-08-02T18:28:11.871174127Z [1;30m  == [0mRegistered custom function '[1;36mLOCK[0m'
+2026-08-02T18:28:11.871548720Z [1;30m  == [0mRegistered custom function '[1;36mTRYLOCK[0m'
+2026-08-02T18:28:11.871828900Z [1;30m  == [0mRegistered custom function '[1;36mUNLOCK[0m'
+2026-08-02T18:28:11.871937570Z [1;30m  == [0mfunc_lock.so => ([0;33mDialplan mutexes[0m)
+2026-08-02T18:28:11.871952387Z [1;30m [0mLoading func_version.so.
+2026-08-02T18:28:11.872387786Z [1;30m  == [0mRegistered custom function '[1;36mVERSION[0m'
+2026-08-02T18:28:11.872399792Z [1;30m  == [0mfunc_version.so => ([0;33mGet Asterisk Version/Build Info[0m)
+2026-08-02T18:28:11.872403278Z [1;30m [0mLoading func_sayfiles.so.
+2026-08-02T18:28:11.872711021Z [1;30m  == [0mRegistered custom function '[1;36mSAYFILES[0m'
+2026-08-02T18:28:11.872719392Z [1;30m  == [0mfunc_sayfiles.so => ([0;33mSay application files[0m)
+2026-08-02T18:28:11.872722608Z [1;30m [0mLoading func_env.so.
+2026-08-02T18:28:11.873106156Z [1;30m  == [0mRegistered custom function '[1;36mENV[0m'
+2026-08-02T18:28:11.873420198Z [1;30m  == [0mRegistered custom function '[1;36mSTAT[0m'
+2026-08-02T18:28:11.873870998Z [1;30m  == [0mRegistered custom function '[1;36mFILE[0m'
+2026-08-02T18:28:11.874154373Z [1;30m  == [0mRegistered custom function '[1;36mFILE_COUNT_LINE[0m'
+2026-08-02T18:28:11.874546220Z [1;30m  == [0mRegistered custom function '[1;36mFILE_FORMAT[0m'
+2026-08-02T18:28:11.874806687Z [1;30m  == [0mRegistered custom function '[1;36mDIRNAME[0m'
+2026-08-02T18:28:11.875115602Z [1;30m  == [0mRegistered custom function '[1;36mBASENAME[0m'
+2026-08-02T18:28:11.875124252Z [1;30m  == [0mfunc_env.so => ([0;33mEnvironment/filesystem dialplan functions[0m)
+2026-08-02T18:28:11.875127862Z [1;30m [0mLoading func_math.so.
+2026-08-02T18:28:11.875488047Z [1;30m  == [0mRegistered custom function '[1;36mMATH[0m'
+2026-08-02T18:28:11.875839362Z [1;30m  == [0mRegistered custom function '[1;36mINC[0m'
+2026-08-02T18:28:11.876101309Z [1;30m  == [0mRegistered custom function '[1;36mDEC[0m'
+2026-08-02T18:28:11.876434975Z [1;30m  == [0mRegistered custom function '[1;36mMIN[0m'
+2026-08-02T18:28:11.876695475Z [1;30m  == [0mRegistered custom function '[1;36mMAX[0m'
+2026-08-02T18:28:11.877060813Z [1;30m  == [0mRegistered custom function '[1;36mABS[0m'
+2026-08-02T18:28:11.877119151Z [1;30m  == [0mfunc_math.so => ([0;33mMathematical dialplan function[0m)
+2026-08-02T18:28:11.877123401Z [1;30m [0mLoading pbx_dundi.so.
+2026-08-02T18:28:11.877127598Z [2026-08-02T18:28:11.877+0000] [1;31mERROR[0m[1]: [1;37mpbx_dundi.c[0m:[1;37m4986[0m [1;37mset_config[0m: Unable to load config dundi.conf
+2026-08-02T18:28:11.877640855Z [1;30m [0mLoading func_aes.so.
+2026-08-02T18:28:11.878032410Z [1;30m  == [0mRegistered custom function '[1;36mAES_DECRYPT[0m'
+2026-08-02T18:28:11.878365788Z [1;30m  == [0mRegistered custom function '[1;36mAES_ENCRYPT[0m'
+2026-08-02T18:28:11.878377958Z [1;30m  == [0mfunc_aes.so => ([0;33mAES dialplan functions[0m)
+2026-08-02T18:28:11.878381416Z [1;30m [0mLoading app_milliwatt.so.
+2026-08-02T18:28:11.878729899Z [1;30m  == [0mRegistered application '[1;36mMilliwatt[0m'
+2026-08-02T18:28:11.878931969Z [1;30m  == [0mapp_milliwatt.so => ([0;33mDigital Milliwatt (mu-law) Test Application[0m)
+2026-08-02T18:28:11.878940305Z [1;30m [0mLoading pbx_spool.so.
+2026-08-02T18:28:11.878943343Z [1;30m  == [0mpbx_spool.so => ([0;33mOutgoing Spool Support[0m)
+2026-08-02T18:28:11.878946365Z [1;30m [0mLoading app_jack.so.
+2026-08-02T18:28:11.879361824Z [1;30m  == [0mRegistered application '[1;36mJACK[0m'
+2026-08-02T18:28:11.879492361Z [1;30m  == [0mRegistered custom function '[1;36mJACK_HOOK[0m'
+2026-08-02T18:28:11.879499848Z [1;30m  == [0mapp_jack.so => ([0;33mJACK Interface[0m)
+2026-08-02T18:28:11.879503620Z [1;30m [0mLoading app_stream_echo.so.
+2026-08-02T18:28:11.879829465Z [1;30m  == [0mRegistered application '[1;36mStreamEcho[0m'
+2026-08-02T18:28:11.879892871Z [1;30m  == [0mapp_stream_echo.so => ([0;33mStream Echo Application[0m)
+2026-08-02T18:28:11.879898592Z [1;30m [0mLoading func_shell.so.
+2026-08-02T18:28:11.880223342Z [1;30m  == [0mRegistered custom function '[1;36mSHELL[0m'
+2026-08-02T18:28:11.880231484Z [1;30m  == [0mfunc_shell.so => ([0;33mCollects the output generated by a command executed by the system shell[0m)
+2026-08-02T18:28:11.880234850Z [1;30m [0mLoading app_if.so.
+2026-08-02T18:28:11.880569753Z [1;30m  == [0mRegistered application '[1;36mIf[0m'
+2026-08-02T18:28:11.880894349Z [1;30m  == [0mRegistered application '[1;36mElseIf[0m'
+2026-08-02T18:28:11.881149635Z [1;30m  == [0mRegistered application '[1;36mEndIf[0m'
+2026-08-02T18:28:11.881528217Z [1;30m  == [0mRegistered application '[1;36mElse[0m'
+2026-08-02T18:28:11.881796970Z [1;30m  == [0mRegistered application '[1;36mExitIf[0m'
+2026-08-02T18:28:11.881924222Z [1;30m  == [0mapp_if.so => ([0;33mIf Branch and Conditional Execution[0m)
+2026-08-02T18:28:11.881931589Z [1;30m [0mLoading func_speex.so.
+2026-08-02T18:28:11.882186800Z [1;30m  == [0mRegistered custom function '[1;36mAGC[0m'
+2026-08-02T18:28:11.882566653Z [1;30m  == [0mRegistered custom function '[1;36mDENOISE[0m'
+2026-08-02T18:28:11.882578849Z [1;30m  == [0mfunc_speex.so => ([0;33mNoise reduction and Automatic Gain Control (AGC)[0m)
+2026-08-02T18:28:11.882592243Z [1;30m [0mLoading func_iconv.so.
+2026-08-02T18:28:11.882877647Z [1;30m  == [0mRegistered custom function '[1;36mICONV[0m'
+2026-08-02T18:28:11.882994632Z [1;30m  == [0mfunc_iconv.so => ([0;33mCharset conversions[0m)
+2026-08-02T18:28:11.883001847Z [1;30m [0mLoading func_export.so.
+2026-08-02T18:28:11.883221133Z [1;30m  == [0mRegistered custom function '[1;36mEXPORT[0m'
+2026-08-02T18:28:11.883229061Z [1;30m  == [0mfunc_export.so => ([0;33mSet variables and functions on other channels[0m)
+2026-08-02T18:28:11.883232665Z [1;30m [0mLoading app_sms.so.
+2026-08-02T18:28:11.883649916Z [1;30m  == [0mRegistered application '[1;36mSMS[0m'
+2026-08-02T18:28:11.883661862Z [1;30m  == [0mapp_sms.so => ([0;33mSMS/PSTN handler[0m)
+2026-08-02T18:28:11.883665283Z [1;30m [0mLoading app_reload.so.
+2026-08-02T18:28:11.884029753Z [1;30m  == [0mRegistered application '[1;36mReload[0m'
+2026-08-02T18:28:11.884038293Z [1;30m  == [0mapp_reload.so => ([0;33mReload module(s)[0m)
+2026-08-02T18:28:11.884041678Z [1;30m [0mLoading func_enum.so.
+2026-08-02T18:28:11.884358100Z [1;30m  == [0mRegistered custom function '[1;36mENUMRESULT[0m'
+2026-08-02T18:28:11.884711349Z [1;30m  == [0mRegistered custom function '[1;36mENUMQUERY[0m'
+2026-08-02T18:28:11.885027102Z [1;30m  == [0mRegistered custom function '[1;36mENUMLOOKUP[0m'
+2026-08-02T18:28:11.885369816Z [1;30m  == [0mRegistered custom function '[1;36mTXTCIDNAME[0m'
+2026-08-02T18:28:11.885381654Z [1;30m  == [0mfunc_enum.so => ([0;33mENUM related dialplan functions[0m)
+2026-08-02T18:28:11.885385258Z [1;30m [0mLoading func_json.so.
+2026-08-02T18:28:11.885711714Z [1;30m  == [0mRegistered custom function '[1;36mJSON_DECODE[0m'
+2026-08-02T18:28:11.885896593Z [1;30m  == [0mfunc_json.so => ([0;33mJSON decoding function[0m)
+2026-08-02T18:28:11.885903563Z [1;30m [0mLoading res_convert.so.
+2026-08-02T18:28:11.885906974Z [1;30m  == [0mres_convert.so => ([0;33mFile format conversion CLI command[0m)
+2026-08-02T18:28:11.885910474Z [1;30m [0mLoading codec_adpcm.so.
+2026-08-02T18:28:11.885913787Z [1;30m  == [0mRegistered translator '[0;35madpcmtolin[0m' from codec adpcm to slin, table cost, 900000, computational cost 111
+2026-08-02T18:28:11.886037685Z [1;30m  == [0mRegistered translator '[0;35mlintoadpcm[0m' from codec slin to adpcm, table cost, 600000, computational cost 116
+2026-08-02T18:28:11.886138798Z [1;30m  == [0mcodec_adpcm.so => ([0;33mAdaptive Differential PCM Coder/Decoder[0m)
+2026-08-02T18:28:11.886151899Z [1;30m [0mLoading codec_amr.so.
+2026-08-02T18:28:11.886894464Z [1;30m  == [0mRegistered translator '[0;35mamrtolin[0m' from codec amr to slin, table cost, 900000, computational cost 796
+2026-08-02T18:28:11.890205304Z [1;30m  == [0mRegistered translator '[0;35mlintoamr[0m' from codec slin to amr, table cost, 600000, computational cost 3231
+2026-08-02T18:28:11.892018219Z [1;30m  == [0mRegistered translator '[0;35mamrtolin16[0m' from codec amrwb to slin, table cost, 900000, computational cost 1793
+2026-08-02T18:28:11.899637628Z [1;30m  == [0mRegistered translator '[0;35mlin16toamr[0m' from codec slin to amrwb, table cost, 600000, computational cost 7052
+2026-08-02T18:28:11.899651729Z [1;30m  == [0mcodec_amr.so => ([0;33mAMR Coder/Decoder[0m)
+2026-08-02T18:28:11.899656252Z [1;30m [0mLoading app_playback.so.
+2026-08-02T18:28:11.900346905Z [1;30m  == [0mRegistered application '[1;36mPlayback[0m'
+2026-08-02T18:28:11.900359760Z [1;30m  == [0mapp_playback.so => ([0;33mSound File Playback Application[0m)
+2026-08-02T18:28:11.900441340Z [1;30m [0mLoading res_http_media_cache.so.
+2026-08-02T18:28:11.901343969Z [1;30m  == [0mRegistered bucket scheme 'http'
+2026-08-02T18:28:11.901458051Z [1;30m  == [0mRegistered bucket scheme 'https'
+2026-08-02T18:28:11.901465300Z [1;30m  == [0mres_http_media_cache.so => ([0;33mHTTP Media Cache Backend[0m)
+2026-08-02T18:28:11.901468782Z [1;30m [0mLoading res_stasis_snoop.so.
+2026-08-02T18:28:11.901472011Z [1;30m  == [0mres_stasis_snoop.so => ([0;33mStasis application snoop support[0m)
+2026-08-02T18:28:11.901475409Z [1;30m [0mLoading app_sayunixtime.so.
+2026-08-02T18:28:11.901841558Z [1;30m  == [0mRegistered application '[1;36mSayUnixTime[0m'
+2026-08-02T18:28:11.902187100Z [1;30m  == [0mRegistered application '[1;36mDateTime[0m'
+2026-08-02T18:28:11.902195864Z [1;30m  == [0mapp_sayunixtime.so => ([0;33mSay time[0m)
+2026-08-02T18:28:11.902199148Z [1;30m [0mLoading func_sysinfo.so.
+2026-08-02T18:28:11.902657001Z [1;30m  == [0mRegistered custom function '[1;36mSYSINFO[0m'
+2026-08-02T18:28:11.902669077Z [1;30m  == [0mfunc_sysinfo.so => ([0;33mSystem information related functions[0m)
+2026-08-02T18:28:11.902672614Z [1;30m [0mLoading app_getcpeid.so.
+2026-08-02T18:28:11.903026861Z [1;30m  == [0mRegistered application '[1;36mGetCPEID[0m'
+2026-08-02T18:28:11.903035159Z [1;30m  == [0mapp_getcpeid.so => ([0;33mGet ADSI CPE ID[0m)
+2026-08-02T18:28:11.903038599Z [1;30m [0mLoading app_attended_transfer.so.
+2026-08-02T18:28:11.903379395Z [1;30m  == [0mRegistered application '[1;36mAttendedTransfer[0m'
+2026-08-02T18:28:11.903392207Z [1;30m  == [0mapp_attended_transfer.so => ([0;33mAttended transfer to the given extension[0m)
+2026-08-02T18:28:11.903399451Z [1;30m [0mLoading codec_opus_open_source.so.
+2026-08-02T18:28:11.904008319Z [1;30m  == [0mRegistered translator '[0;35mopustolin[0m' from codec opus to slin, table cost, 900000, computational cost 636
+2026-08-02T18:28:11.911572038Z [1;30m  == [0mRegistered translator '[0;35mlintoopus[0m' from codec slin to opus, table cost, 600000, computational cost 7462
+2026-08-02T18:28:11.912250495Z [1;30m  == [0mRegistered translator '[0;35mopustolin12[0m' from codec opus to slin, table cost, 899999, computational cost 693
+2026-08-02T18:28:11.912379008Z [1;30m  == [0mRegistered translator '[0;35mlin12toopus[0m' from codec slin to opus, table cost, 599999, computational cost 999999
+2026-08-02T18:28:11.912847697Z [1;30m  == [0mRegistered translator '[0;35mopustolin16[0m' from codec opus to slin, table cost, 899998, computational cost 513
+2026-08-02T18:28:11.929248662Z [1;30m  == [0mRegistered translator '[0;35mlin16toopus[0m' from codec slin to opus, table cost, 599998, computational cost 16199
+2026-08-02T18:28:11.930058839Z [1;30m  == [0mRegistered translator '[0;35mopustolin24[0m' from codec opus to slin, table cost, 899996, computational cost 785
+2026-08-02T18:28:11.930172435Z [1;30m  == [0mRegistered translator '[0;35mlin24toopus[0m' from codec slin to opus, table cost, 599996, computational cost 999999
+2026-08-02T18:28:11.931196209Z [1;30m  == [0mRegistered translator '[0;35mopustolin48[0m' from codec opus to slin, table cost, 899992, computational cost 1002
+2026-08-02T18:28:11.931340722Z [1;30m  == [0mRegistered translator '[0;35mlin48toopus[0m' from codec slin to opus, table cost, 599992, computational cost 999999
+2026-08-02T18:28:11.931508109Z [1;30m  == [0mcodec_opus_open_source.so => ([0;33mOpus Coder/Decoder[0m)
+2026-08-02T18:28:11.931634436Z [1;30m [0mLoading app_sendtext.so.
+2026-08-02T18:28:11.932365689Z [1;30m  == [0mRegistered application '[1;36mSendText[0m'
+2026-08-02T18:28:11.932761644Z [1;30m  == [0mRegistered application '[1;36mReceiveText[0m'
+2026-08-02T18:28:11.932770650Z [1;30m  == [0mapp_sendtext.so => ([0;33mSend and Receive Text Applications[0m)
+2026-08-02T18:28:11.932774300Z [1;30m [0mLoading res_mutestream.so.
+2026-08-02T18:28:11.933136006Z [1;30m  == [0mRegistered custom function '[1;36mMUTEAUDIO[0m'
+2026-08-02T18:28:11.933587038Z [1;30m  == [0mManager registered action MuteAudio
+2026-08-02T18:28:11.933599122Z [1;30m  == [0mres_mutestream.so => ([0;33mMute audio stream resources[0m)
+2026-08-02T18:28:11.933649835Z [1;30m [0mLoading bridge_builtin_features.so.
+2026-08-02T18:28:11.933654127Z [1;30m  == [0mbridge_builtin_features.so => ([0;33mBuilt in bridging features[0m)
+2026-08-02T18:28:11.933657722Z [1;30m [0mLoading res_limit.so.
+2026-08-02T18:28:11.933800063Z [1;30m  == [0mres_limit.so => ([0;33mResource limits[0m)
+2026-08-02T18:28:11.933805965Z [1;30m [0mLoading bridge_simple.so.
+2026-08-02T18:28:11.933808801Z [1;30m  == [0mRegistered bridge technology simple_bridge
+2026-08-02T18:28:11.933811525Z [1;30m  == [0mbridge_simple.so => ([0;33mSimple two channel bridging module[0m)
+2026-08-02T18:28:11.933814458Z [1;30m [0mLoading res_realtime.so.
+2026-08-02T18:28:11.933817113Z [1;30m  == [0mres_realtime.so => ([0;33mRealtime Data Lookup/Rewrite[0m)
+2026-08-02T18:28:11.933820020Z [1;30m [0mLoading app_mf.so.
+2026-08-02T18:28:11.934251198Z [1;30m  == [0mRegistered application '[1;36mReceiveMF[0m'
+2026-08-02T18:28:11.934636270Z [1;30m  == [0mRegistered application '[1;36mSendMF[0m'
+2026-08-02T18:28:11.934777900Z [1;30m  == [0mManager registered action PlayMF
+2026-08-02T18:28:11.934785233Z [1;30m  == [0mapp_mf.so => ([0;33mMF Sender and Receiver Applications[0m)
+2026-08-02T18:28:11.934788667Z [1;30m [0mLoading func_uri.so.
+2026-08-02T18:28:11.935153798Z [1;30m  == [0mRegistered custom function '[1;36mURIDECODE[0m'
+2026-08-02T18:28:11.935453281Z [1;30m  == [0mRegistered custom function '[1;36mURIENCODE[0m'
+2026-08-02T18:28:11.935465238Z [1;30m  == [0mfunc_uri.so => ([0;33mURI encode/decode dialplan functions[0m)
+2026-08-02T18:28:11.935468831Z [1;30m [0mLoading codec_g722.so.
+2026-08-02T18:28:11.935834061Z [1;30m  == [0mRegistered translator '[0;35mg722tolin[0m' from codec g722 to slin, table cost, 960000, computational cost 375
+2026-08-02T18:28:11.936399363Z [1;30m  == [0mRegistered translator '[0;35mlintog722[0m' from codec slin to g722, table cost, 825000, computational cost 481
+2026-08-02T18:28:11.937118143Z [1;30m  == [0mRegistered translator '[0;35mg722tolin16[0m' from codec g722 to slin, table cost, 900000, computational cost 593
+2026-08-02T18:28:11.938073832Z [1;30m  == [0mRegistered translator '[0;35mlin16tog722[0m' from codec slin to g722, table cost, 600000, computational cost 883
+2026-08-02T18:28:11.938160949Z [1;30m  == [0mcodec_g722.so => ([0;33mITU G.722-64kbps G722 Transcoder[0m)
+2026-08-02T18:28:11.938197652Z [1;30m [0mLoading func_groupcount.so.
+2026-08-02T18:28:11.938577728Z [1;30m  == [0mRegistered custom function '[1;36mGROUP_COUNT[0m'
+2026-08-02T18:28:11.938884056Z [1;30m  == [0mRegistered custom function '[1;36mGROUP_MATCH_COUNT[0m'
+2026-08-02T18:28:11.939228129Z [1;30m  == [0mRegistered custom function '[1;36mGROUP_LIST[0m'
+2026-08-02T18:28:11.939522982Z [1;30m  == [0mRegistered custom function '[1;36mGROUP[0m'
+2026-08-02T18:28:11.939631404Z [1;30m  == [0mfunc_groupcount.so => ([0;33mChannel group dialplan functions[0m)
+2026-08-02T18:28:11.939638410Z [1;30m [0mLoading func_config.so.
+2026-08-02T18:28:11.939890732Z [1;30m  == [0mRegistered custom function '[1;36mAST_CONFIG[0m'
+2026-08-02T18:28:11.939967230Z [1;30m  == [0mfunc_config.so => ([0;33mAsterisk configuration file variable access[0m)
+2026-08-02T18:28:11.939973788Z [1;30m [0mLoading app_playtones.so.
+2026-08-02T18:28:11.940286998Z [1;30m  == [0mRegistered application '[1;36mPlayTones[0m'
+2026-08-02T18:28:11.940618549Z [1;30m  == [0mRegistered application '[1;36mStopPlayTones[0m'
+2026-08-02T18:28:11.940630789Z [1;30m  == [0mapp_playtones.so => ([0;33mPlaytones Application[0m)
+2026-08-02T18:28:11.940634322Z [1;30m [0mLoading app_softhangup.so.
+2026-08-02T18:28:11.940909190Z [1;30m  == [0mRegistered application '[1;36mSoftHangup[0m'
+2026-08-02T18:28:11.940994257Z [1;30m  == [0mapp_softhangup.so => ([0;33mHangs up the requested channel[0m)
+2026-08-02T18:28:11.941030505Z [1;30m [0mLoading func_frame_drop.so.
+2026-08-02T18:28:11.941356004Z [1;30m  == [0mRegistered custom function '[1;36mFRAME_DROP[0m'
+2026-08-02T18:28:11.941367869Z [1;30m  == [0mfunc_frame_drop.so => ([0;33mFunction to drop frames on a channel.[0m)
+2026-08-02T18:28:11.941371580Z [1;30m [0mLoading app_minivm.so.
+2026-08-02T18:28:11.941774558Z [1;30m  == [0mRegistered application '[1;36mMinivmRecord[0m'
+2026-08-02T18:28:11.942117112Z [1;30m  == [0mRegistered application '[1;36mMinivmGreet[0m'
+2026-08-02T18:28:11.942466648Z [1;30m  == [0mRegistered application '[1;36mMinivmNotify[0m'
+2026-08-02T18:28:11.942815018Z [1;30m  == [0mRegistered application '[1;36mMinivmDelete[0m'
+2026-08-02T18:28:11.943144186Z [1;30m  == [0mRegistered application '[1;36mMinivmAccMess[0m'
+2026-08-02T18:28:11.943504825Z [1;30m  == [0mRegistered application '[1;36mMinivmMWI[0m'
+2026-08-02T18:28:11.943828576Z [1;30m  == [0mRegistered custom function '[1;36mMINIVMACCOUNT[0m'
+2026-08-02T18:28:11.944187693Z [1;30m  == [0mRegistered custom function '[1;36mMINIVMCOUNTER[0m'
+2026-08-02T18:28:11.944466404Z [1;30m  == [0mapp_minivm.so => ([0;33mMini VoiceMail (A minimal Voicemail e-mail System)[0m)
+2026-08-02T18:28:11.944562051Z [1;30m [0mLoading func_talkdetect.so.
+2026-08-02T18:28:11.945098959Z [1;30m  == [0mRegistered custom function '[1;36mTALK_DETECT[0m'
+2026-08-02T18:28:11.945184774Z [1;30m  == [0mfunc_talkdetect.so => ([0;33mTalk detection dialplan function[0m)
+2026-08-02T18:28:11.945222139Z [1;30m [0mLoading app_verbose.so.
+2026-08-02T18:28:11.945514299Z [1;30m  == [0mRegistered application '[1;36mLog[0m'
+2026-08-02T18:28:11.945882152Z [1;30m  == [0mRegistered application '[1;36mVerbose[0m'
+2026-08-02T18:28:11.945890599Z [1;30m  == [0mapp_verbose.so => ([0;33mSend verbose output[0m)
+2026-08-02T18:28:11.945893839Z [1;30m [0mLoading func_callcompletion.so.
+2026-08-02T18:28:11.946246836Z [1;30m  == [0mRegistered custom function '[1;36mCALLCOMPLETION[0m'
+2026-08-02T18:28:11.946255184Z [1;30m  == [0mfunc_callcompletion.so => ([0;33mCall Control Configuration Function[0m)
+2026-08-02T18:28:11.946347213Z [1;30m [0mLoading app_chanspy.so.
+2026-08-02T18:28:11.946902671Z [1;30m  == [0mRegistered application '[1;36mChanSpy[0m'
+2026-08-02T18:28:11.947447218Z [1;30m  == [0mRegistered application '[1;36mExtenSpy[0m'
+2026-08-02T18:28:11.947737411Z [1;30m  == [0mRegistered application '[1;36mDAHDIScan[0m'
+2026-08-02T18:28:11.947877835Z [1;30m  == [0mapp_chanspy.so => ([0;33mListen to the audio of an active channel[0m)
+2026-08-02T18:28:11.947885268Z [1;30m [0mLoading func_cut.so.
+2026-08-02T18:28:11.948139354Z [1;30m  == [0mRegistered custom function '[1;36mCUT[0m'
+2026-08-02T18:28:11.948479448Z [1;30m  == [0mRegistered custom function '[1;36mSORT[0m'
+2026-08-02T18:28:11.948492202Z [1;30m  == [0mfunc_cut.so => ([0;33mCut out information from a string[0m)
+2026-08-02T18:28:11.948595721Z [1;30m [0mLoading func_periodic_hook.so.
+2026-08-02T18:28:11.948985255Z [1;30m  == [0mRegistered custom function '[1;36mPERIODIC_HOOK[0m'
+2026-08-02T18:28:11.948993933Z [1;30m  == [0mfunc_periodic_hook.so => ([0;33mPeriodic dialplan hooks.[0m)
+2026-08-02T18:28:11.948997357Z [1;30m [0mLoading app_exec.so.
+2026-08-02T18:28:11.949360033Z [1;30m  == [0mRegistered application '[1;36mExec[0m'
+2026-08-02T18:28:11.949733407Z [1;30m  == [0mRegistered application '[1;36mTryExec[0m'
+2026-08-02T18:28:11.950020437Z [1;30m  == [0mRegistered application '[1;36mExecIf[0m'
+2026-08-02T18:28:11.950253608Z [1;30m  == [0mapp_exec.so => ([0;33mExecutes dialplan applications[0m)
+2026-08-02T18:28:11.950455612Z [1;30m [0mLoading func_module.so.
+2026-08-02T18:28:11.950467029Z [1;30m  == [0mRegistered custom function '[1;36mIFMODULE[0m'
+2026-08-02T18:28:11.950470814Z [1;30m  == [0mfunc_module.so => ([0;33mChecks if Asterisk module is loaded in memory[0m)
+2026-08-02T18:28:11.950474291Z [1;30m [0mLoading codec_g726.so.
+2026-08-02T18:28:11.950843973Z [1;30m  == [0mRegistered translator '[0;35mg726tolin[0m' from codec g726 to slin, table cost, 900000, computational cost 394
+2026-08-02T18:28:11.952211559Z [1;30m  == [0mRegistered translator '[0;35mlintog726[0m' from codec slin to g726, table cost, 600000, computational cost 1263
+2026-08-02T18:28:11.952704470Z [1;30m  == [0mRegistered translator '[0;35mg726aal2tolin[0m' from codec g726aal2 to slin, table cost, 900000, computational cost 340
+2026-08-02T18:28:11.954027676Z [1;30m  == [0mRegistered translator '[0;35mlintog726aal2[0m' from codec slin to g726aal2, table cost, 600000, computational cost 1230
+2026-08-02T18:28:11.954191267Z [1;30m  == [0mcodec_g726.so => ([0;33mITU G.726-32kbps G726 Transcoder[0m)
+2026-08-02T18:28:11.954198739Z [1;30m [0mLoading app_mixmonitor.so.
+2026-08-02T18:28:11.954931361Z [1;30m  == [0mRegistered application '[1;36mMixMonitor[0m'
+2026-08-02T18:28:11.955266050Z [1;30m  == [0mRegistered application '[1;36mStopMixMonitor[0m'
+2026-08-02T18:28:11.955404375Z [1;30m  == [0mManager registered action MixMonitorMute
+2026-08-02T18:28:11.955608885Z [1;30m  == [0mManager registered action MixMonitor
+2026-08-02T18:28:11.955704994Z [1;30m  == [0mManager registered action StopMixMonitor
+2026-08-02T18:28:11.956107273Z [1;30m  == [0mRegistered custom function '[1;36mMIXMONITOR[0m'
+2026-08-02T18:28:11.956116958Z [1;30m  == [0mapp_mixmonitor.so => ([0;33mMixed Audio Monitoring Application[0m)
+2026-08-02T18:28:11.956120452Z [1;30m [0mLoading res_security_log.so.
+2026-08-02T18:28:11.956372236Z [1;30m    -- [0mSecurity Logging Enabled
+2026-08-02T18:28:11.956383426Z [1;30m  == [0mres_security_log.so => ([0;33mSecurity Event Logging[0m)
+2026-08-02T18:28:11.956386968Z [1;30m [0mLoading app_alarmreceiver.so.
+2026-08-02T18:28:11.956873948Z [1;30m  == [0mRegistered application '[1;36mAlarmReceiver[0m'
+2026-08-02T18:28:11.956914238Z [1;30m  == [0mapp_alarmreceiver.so => ([0;33mAlarm Receiver for Asterisk[0m)
+2026-08-02T18:28:11.956918213Z [1;30m [0mLoading func_db.so.
+2026-08-02T18:28:11.957159435Z [1;30m  == [0mRegistered custom function '[1;36mDB[0m'
+2026-08-02T18:28:11.957478835Z [1;30m  == [0mRegistered custom function '[1;36mDB_EXISTS[0m'
+2026-08-02T18:28:11.957821842Z [1;30m  == [0mRegistered custom function '[1;36mDB_DELETE[0m'
+2026-08-02T18:28:11.958069247Z [1;30m  == [0mRegistered custom function '[1;36mDB_KEYS[0m'
+2026-08-02T18:28:11.958424172Z [1;30m  == [0mRegistered custom function '[1;36mDB_KEYCOUNT[0m'
+2026-08-02T18:28:11.958436045Z [1;30m  == [0mfunc_db.so => ([0;33mDatabase (astdb) related dialplan functions[0m)
+2026-08-02T18:28:11.958439544Z [1;30m [0mLoading bridge_softmix.so.
+2026-08-02T18:28:11.958442653Z [1;30m  == [0mRegistered bridge technology softmix
+2026-08-02T18:28:11.958445587Z [1;30m  == [0mbridge_softmix.so => ([0;33mMulti-party software based channel mixing[0m)
+2026-08-02T18:28:11.958448434Z [1;30m [0mLoading app_signal.so.
+2026-08-02T18:28:11.958814186Z [1;30m  == [0mRegistered application '[1;36mSignal[0m'
+2026-08-02T18:28:11.959177706Z [1;30m  == [0mRegistered application '[1;36mWaitForSignal[0m'
+2026-08-02T18:28:11.959186497Z [1;30m  == [0mapp_signal.so => ([0;33mChannel Signaling Applications[0m)
+2026-08-02T18:28:11.959190248Z [1;30m [0mLoading codec_resample.so.
+2026-08-02T18:28:11.959193824Z [1;30m  == [0mRegistered translator '[0;35mslin 8000khz -> 12000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.959315675Z [1;30m  == [0mRegistered translator '[0;35mslin 8000khz -> 16000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.959477368Z [1;30m  == [0mRegistered translator '[0;35mslin 8000khz -> 24000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.959557203Z [1;30m  == [0mRegistered translator '[0;35mslin 8000khz -> 32000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.959665006Z [1;30m  == [0mRegistered translator '[0;35mslin 8000khz -> 44100khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.959817545Z [1;30m  == [0mRegistered translator '[0;35mslin 8000khz -> 48000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.959911778Z [1;30m  == [0mRegistered translator '[0;35mslin 8000khz -> 96000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.960073886Z [1;30m  == [0mRegistered translator '[0;35mslin 8000khz -> 192000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.960196115Z [1;30m  == [0mRegistered translator '[0;35mslin 12000khz -> 8000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.960390164Z [1;30m  == [0mRegistered translator '[0;35mslin 12000khz -> 16000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.960504404Z [1;30m  == [0mRegistered translator '[0;35mslin 12000khz -> 24000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.960682932Z [1;30m  == [0mRegistered translator '[0;35mslin 12000khz -> 32000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.960803515Z [1;30m  == [0mRegistered translator '[0;35mslin 12000khz -> 44100khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.960978114Z [1;30m  == [0mRegistered translator '[0;35mslin 12000khz -> 48000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.961093887Z [1;30m  == [0mRegistered translator '[0;35mslin 12000khz -> 96000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.961274587Z [1;30m  == [0mRegistered translator '[0;35mslin 12000khz -> 192000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.961431827Z [1;30m  == [0mRegistered translator '[0;35mslin 16000khz -> 8000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.961615125Z [1;30m  == [0mRegistered translator '[0;35mslin 16000khz -> 12000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.961715182Z [1;30m  == [0mRegistered translator '[0;35mslin 16000khz -> 24000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.961897008Z [1;30m  == [0mRegistered translator '[0;35mslin 16000khz -> 32000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.962016230Z [1;30m  == [0mRegistered translator '[0;35mslin 16000khz -> 44100khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.962192504Z [1;30m  == [0mRegistered translator '[0;35mslin 16000khz -> 48000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.962312433Z [1;30m  == [0mRegistered translator '[0;35mslin 16000khz -> 96000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.962496433Z [1;30m  == [0mRegistered translator '[0;35mslin 16000khz -> 192000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.962594431Z [1;30m  == [0mRegistered translator '[0;35mslin 24000khz -> 8000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.962786699Z [1;30m  == [0mRegistered translator '[0;35mslin 24000khz -> 12000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.962890946Z [1;30m  == [0mRegistered translator '[0;35mslin 24000khz -> 16000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.963071939Z [1;30m  == [0mRegistered translator '[0;35mslin 24000khz -> 32000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.963194287Z [1;30m  == [0mRegistered translator '[0;35mslin 24000khz -> 44100khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.963379655Z [1;30m  == [0mRegistered translator '[0;35mslin 24000khz -> 48000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.963506812Z [1;30m  == [0mRegistered translator '[0;35mslin 24000khz -> 96000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.963688319Z [1;30m  == [0mRegistered translator '[0;35mslin 24000khz -> 192000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.963794744Z [1;30m  == [0mRegistered translator '[0;35mslin 32000khz -> 8000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.963963811Z [1;30m  == [0mRegistered translator '[0;35mslin 32000khz -> 12000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.964121449Z [1;30m  == [0mRegistered translator '[0;35mslin 32000khz -> 16000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.964286941Z [1;30m  == [0mRegistered translator '[0;35mslin 32000khz -> 24000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.964416198Z [1;30m  == [0mRegistered translator '[0;35mslin 32000khz -> 44100khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.964594928Z [1;30m  == [0mRegistered translator '[0;35mslin 32000khz -> 48000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.964708628Z [1;30m  == [0mRegistered translator '[0;35mslin 32000khz -> 96000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.964957423Z [1;30m  == [0mRegistered translator '[0;35mslin 32000khz -> 192000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.965073501Z [1;30m  == [0mRegistered translator '[0;35mslin 44100khz -> 8000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.965251740Z [1;30m  == [0mRegistered translator '[0;35mslin 44100khz -> 12000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.965412309Z [1;30m  == [0mRegistered translator '[0;35mslin 44100khz -> 16000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.965600288Z [1;30m  == [0mRegistered translator '[0;35mslin 44100khz -> 24000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.965716067Z [1;30m  == [0mRegistered translator '[0;35mslin 44100khz -> 32000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.965905790Z [1;30m  == [0mRegistered translator '[0;35mslin 44100khz -> 48000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.966036411Z [1;30m  == [0mRegistered translator '[0;35mslin 44100khz -> 96000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.966224877Z [1;30m  == [0mRegistered translator '[0;35mslin 44100khz -> 192000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.966353024Z [1;30m  == [0mRegistered translator '[0;35mslin 48000khz -> 8000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.966546012Z [1;30m  == [0mRegistered translator '[0;35mslin 48000khz -> 12000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.966658996Z [1;30m  == [0mRegistered translator '[0;35mslin 48000khz -> 16000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.966845759Z [1;30m  == [0mRegistered translator '[0;35mslin 48000khz -> 24000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.966972388Z [1;30m  == [0mRegistered translator '[0;35mslin 48000khz -> 32000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.967157213Z [1;30m  == [0mRegistered translator '[0;35mslin 48000khz -> 44100khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.967297495Z [1;30m  == [0mRegistered translator '[0;35mslin 48000khz -> 96000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.967504970Z [1;30m  == [0mRegistered translator '[0;35mslin 48000khz -> 192000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.967603201Z [1;30m  == [0mRegistered translator '[0;35mslin 96000khz -> 8000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.967814065Z [1;30m  == [0mRegistered translator '[0;35mslin 96000khz -> 12000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.968007747Z [1;30m  == [0mRegistered translator '[0;35mslin 96000khz -> 16000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.968192407Z [1;30m  == [0mRegistered translator '[0;35mslin 96000khz -> 24000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.968355122Z [1;30m  == [0mRegistered translator '[0;35mslin 96000khz -> 32000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.968526407Z [1;30m  == [0mRegistered translator '[0;35mslin 96000khz -> 44100khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.968655138Z [1;30m  == [0mRegistered translator '[0;35mslin 96000khz -> 48000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.968849570Z [1;30m  == [0mRegistered translator '[0;35mslin 96000khz -> 192000khz[0m' from codec slin to slin, table cost, 800000, computational cost 999999
+2026-08-02T18:28:11.968990182Z [1;30m  == [0mRegistered translator '[0;35mslin 192000khz -> 8000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.969165239Z [1;30m  == [0mRegistered translator '[0;35mslin 192000khz -> 12000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.969318742Z [1;30m  == [0mRegistered translator '[0;35mslin 192000khz -> 16000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.969521337Z [1;30m  == [0mRegistered translator '[0;35mslin 192000khz -> 24000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.969660061Z [1;30m  == [0mRegistered translator '[0;35mslin 192000khz -> 32000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.969855046Z [1;30m  == [0mRegistered translator '[0;35mslin 192000khz -> 44100khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.969970930Z [1;30m  == [0mRegistered translator '[0;35mslin 192000khz -> 48000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.970174905Z [1;30m  == [0mRegistered translator '[0;35mslin 192000khz -> 96000khz[0m' from codec slin to slin, table cost, 850000, computational cost 999999
+2026-08-02T18:28:11.970331185Z [1;30m  == [0mcodec_resample.so => ([0;33mSLIN Resampling Codec[0m)
+2026-08-02T18:28:11.970340714Z [1;30m [0mLoading func_channel.so.
+2026-08-02T18:28:11.971855363Z [1;30m  == [0mRegistered custom function '[1;36mCHANNEL[0m'
+2026-08-02T18:28:11.972151421Z [1;30m  == [0mRegistered custom function '[1;36mCHANNELS[0m'
+2026-08-02T18:28:11.972562863Z [1;30m  == [0mRegistered custom function '[1;36mCHANNEL_EXISTS[0m'
+2026-08-02T18:28:11.972836555Z [1;30m  == [0mRegistered custom function '[1;36mMASTER_CHANNEL[0m'
+2026-08-02T18:28:11.972958648Z [1;30m  == [0mfunc_channel.so => ([0;33mChannel information dialplan functions[0m)
+2026-08-02T18:28:11.972965831Z [1;30m [0mLoading app_userevent.so.
+2026-08-02T18:28:11.973289690Z [1;30m  == [0mRegistered application '[1;36mUserEvent[0m'
+2026-08-02T18:28:11.973480889Z [1;30m  == [0mapp_userevent.so => ([0;33mCustom User Event Application[0m)
+2026-08-02T18:28:11.973492325Z [1;30m [0mLoading func_sorcery.so.
+2026-08-02T18:28:11.973792810Z [1;30m  == [0mRegistered custom function '[1;36mAST_SORCERY[0m'
+2026-08-02T18:28:11.973801581Z [1;30m  == [0mfunc_sorcery.so => ([0;33mGet a field from a sorcery object[0m)
+2026-08-02T18:28:11.973833969Z [1;30m [0mLoading res_prometheus.so.
+2026-08-02T18:28:11.974940211Z [1;30m  == [0mres_prometheus.so => ([0;33mAsterisk Prometheus Module[0m)
+2026-08-02T18:28:11.975071926Z [1;30m [0mLoading func_pjsip_contact.so.
+2026-08-02T18:28:11.975457151Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_CONTACT[0m'
+2026-08-02T18:28:11.975469475Z [1;30m  == [0mfunc_pjsip_contact.so => ([0;33mGet information about a PJSIP contact[0m)
+2026-08-02T18:28:11.975541882Z [1;30m [0mLoading app_stasis.so.
+2026-08-02T18:28:11.975999348Z [1;30m  == [0mRegistered application '[1;36mStasis[0m'
+2026-08-02T18:28:11.976037385Z [1;30m  == [0mapp_stasis.so => ([0;33mStasis dialplan application[0m)
+2026-08-02T18:28:11.976041514Z [1;30m [0mLoading app_amd.so.
+2026-08-02T18:28:11.976044709Z [1;30m    -- [0mAMD defaults: initialSilence [2500] greeting [1500] afterGreetingSilence [800] totalAnalysisTime [5000] minimumWordLength [100] betweenWordsSilence [50] maximumNumberOfWords [2] silenceThreshold [256] maximumWordLength [5000]
+2026-08-02T18:28:11.976515662Z [1;30m  == [0mRegistered application '[1;36mAMD[0m'
+2026-08-02T18:28:11.976527842Z [1;30m  == [0mapp_amd.so => ([0;33mAnswering Machine Detection Application[0m)
+2026-08-02T18:28:11.976531455Z [1;30m [0mLoading app_readexten.so.
+2026-08-02T18:28:11.976926811Z [1;30m  == [0mRegistered application '[1;36mReadExten[0m'
+2026-08-02T18:28:11.976935448Z [1;30m  == [0mapp_readexten.so => ([0;33mRead and evaluate extension validity[0m)
+2026-08-02T18:28:11.976939131Z [1;30m [0mLoading app_festival.so.
+2026-08-02T18:28:11.977388021Z [1;30m  == [0mRegistered application '[1;36mFestival[0m'
+2026-08-02T18:28:11.977430299Z [1;30m  == [0mapp_festival.so => ([0;33mSimple Festival Interface[0m)
+2026-08-02T18:28:11.977435129Z [1;30m [0mLoading app_dumpchan.so.
+2026-08-02T18:28:11.977672397Z [1;30m  == [0mRegistered application '[1;36mDumpChan[0m'
+2026-08-02T18:28:11.977800434Z [1;30m  == [0mapp_dumpchan.so => ([0;33mDump Info About The Calling Channel[0m)
+2026-08-02T18:28:11.977816680Z [1;30m [0mLoading app_blind_transfer.so.
+2026-08-02T18:28:11.978078823Z [1;30m  == [0mRegistered application '[1;36mBlindTransfer[0m'
+2026-08-02T18:28:11.978087202Z [1;30m  == [0mapp_blind_transfer.so => ([0;33mBlind transfer channel to the given destination[0m)
+2026-08-02T18:28:11.978090660Z [1;30m [0mLoading res_fax_spandsp.so.
+2026-08-02T18:28:11.978093669Z [1;30m    -- [0mRegistered handler for 'Spandsp' (Spandsp FAX Driver)
+2026-08-02T18:28:11.978167291Z [1;30m  == [0mres_fax_spandsp.so => ([0;33mSpandsp G.711 and T.38 FAX Technologies[0m)
+2026-08-02T18:28:11.978172346Z [1;30m [0mLoading app_dtmfstore.so.
+2026-08-02T18:28:11.978533825Z [1;30m  == [0mRegistered application '[1;36mStoreDTMF[0m'
+2026-08-02T18:28:11.978648160Z [1;30m  == [0mapp_dtmfstore.so => ([0;33mTechnology independent async DTMF storage[0m)
+2026-08-02T18:28:11.978654607Z [1;30m [0mLoading codec_ulaw.so.
+2026-08-02T18:28:11.978657872Z [1;30m  == [0mRegistered translator '[0;35mulawtolin[0m' from codec ulaw to slin, table cost, 900000, computational cost 32
+2026-08-02T18:28:11.978825014Z [1;30m  == [0mRegistered translator '[0;35mlintoulaw[0m' from codec slin to ulaw, table cost, 600000, computational cost 17
+2026-08-02T18:28:11.978992484Z [1;30m  == [0mcodec_ulaw.so => ([0;33mmu-Law Coder/Decoder[0m)
+2026-08-02T18:28:11.978999595Z [1;30m [0mLoading app_disa.so.
+2026-08-02T18:28:11.979485867Z [1;30m  == [0mRegistered application '[1;36mDISA[0m'
+2026-08-02T18:28:11.979618437Z [1;30m  == [0mapp_disa.so => ([0;33mDISA (Direct Inward System Access) Application[0m)
+2026-08-02T18:28:11.979648477Z [1;30m [0mLoading app_controlplayback.so.
+2026-08-02T18:28:11.979910538Z [1;30m  == [0mRegistered application '[1;36mControlPlayback[0m'
+2026-08-02T18:28:11.980084404Z [1;30m  == [0mManager registered action ControlPlayback
+2026-08-02T18:28:11.980091508Z [1;30m  == [0mapp_controlplayback.so => ([0;33mControl Playback Application[0m)
+2026-08-02T18:28:11.980095300Z [1;30m [0mLoading res_format_attr_h263.so.
+2026-08-02T18:28:11.980098818Z [1;30m  == [0mRegistered format interface for codec 'h263'
+2026-08-02T18:28:11.980102153Z [1;30m  == [0mRegistered format interface for codec 'h263p'
+2026-08-02T18:28:11.980105457Z [1;30m  == [0mres_format_attr_h263.so => ([0;33mH.263 Format Attribute Module[0m)
+2026-08-02T18:28:11.980108937Z [1;30m [0mLoading chan_bridge_media.so.
+2026-08-02T18:28:11.980637634Z [1;30m  == [0mRegistered channel type 'Announcer' (Bridge Media Announcing Channel Driver)
+2026-08-02T18:28:11.980649404Z [1;30m  == [0mRegistered channel type 'Recorder' (Bridge Media Recording Channel Driver)
+2026-08-02T18:28:11.980660611Z [1;30m  == [0mchan_bridge_media.so => ([0;33mBridge Media Channel Driver[0m)
+2026-08-02T18:28:11.980663940Z [1;30m [0mLoading app_dial.so.
+2026-08-02T18:28:11.982246250Z [1;30m  == [0mRegistered application '[1;36mDial[0m'
+2026-08-02T18:28:11.982633158Z [1;30m  == [0mRegistered application '[1;36mRetryDial[0m'
+2026-08-02T18:28:11.982741996Z [1;30m  == [0mapp_dial.so => ([0;33mDialing Application[0m)
+2026-08-02T18:28:11.982749857Z [1;30m [0mLoading app_channelredirect.so.
+2026-08-02T18:28:11.983000395Z [1;30m  == [0mRegistered application '[1;36mChannelRedirect[0m'
+2026-08-02T18:28:11.983126055Z [1;30m  == [0mapp_channelredirect.so => ([0;33mRedirects a given channel to a dialplan target[0m)
+2026-08-02T18:28:11.983133750Z [1;30m [0mLoading func_dialgroup.so.
+2026-08-02T18:28:11.983474240Z [1;30m  == [0mRegistered custom function '[1;36mDIALGROUP[0m'
+2026-08-02T18:28:11.983614263Z [1;30m  == [0mfunc_dialgroup.so => ([0;33mDialgroup dialplan function[0m)
+2026-08-02T18:28:11.983621919Z [1;30m [0mLoading app_macro.so.
+2026-08-02T18:28:11.983841642Z [1;30m  == [0mRegistered application '[1;36mMacroExit[0m'
+2026-08-02T18:28:11.984214667Z [1;30m  == [0mRegistered application '[1;36mMacroIf[0m'
+2026-08-02T18:28:11.984538834Z [1;30m  == [0mRegistered application '[1;36mMacroExclusive[0m'
+2026-08-02T18:28:11.984972928Z [1;30m  == [0mRegistered application '[1;36mMacro[0m'
+2026-08-02T18:28:11.984981831Z [1;30m  == [0mapp_macro.so => ([0;33mExtension Macros[0m)
+2026-08-02T18:28:11.984985311Z [1;30m [0mLoading app_test.so.
+2026-08-02T18:28:11.985273385Z [1;30m  == [0mRegistered application '[1;36mTestClient[0m'
+2026-08-02T18:28:11.985632125Z [1;30m  == [0mRegistered application '[1;36mTestServer[0m'
+2026-08-02T18:28:11.985644452Z [1;30m  == [0mapp_test.so => ([0;33mInterface Test Application[0m)
+2026-08-02T18:28:11.985648406Z [1;30m [0mLoading app_followme.so.
+2026-08-02T18:28:11.986170150Z [1;30m  == [0mRegistered application '[1;36mFollowMe[0m'
+2026-08-02T18:28:11.986273555Z [1;30m  == [0mapp_followme.so => ([0;33mFind-Me/Follow-Me Application[0m)
+2026-08-02T18:28:11.986279303Z [1;30m [0mLoading res_hep_rtcp.so.
+2026-08-02T18:28:11.986282402Z [2026-08-02T18:28:11.986+0000] [1;31mWARNING[0m[1]: [1;37mres_hep_rtcp.c[0m:[1;37m161[0m [1;37mload_module[0m: res_hep is disabled; declining module load
+2026-08-02T18:28:11.986553043Z [1;30m [0mLoading func_strings.so.
+2026-08-02T18:28:11.986987680Z [1;30m  == [0mRegistered custom function '[1;36mFIELDQTY[0m'
+2026-08-02T18:28:11.987309308Z [1;30m  == [0mRegistered custom function '[1;36mFIELDNUM[0m'
+2026-08-02T18:28:11.987682999Z [1;30m  == [0mRegistered custom function '[1;36mFILTER[0m'
+2026-08-02T18:28:11.987977652Z [1;30m  == [0mRegistered custom function '[1;36mREPLACE[0m'
+2026-08-02T18:28:11.988334737Z [1;30m  == [0mRegistered custom function '[1;36mSTRREPLACE[0m'
+2026-08-02T18:28:11.988642764Z [1;30m  == [0mRegistered custom function '[1;36mSTRBETWEEN[0m'
+2026-08-02T18:28:11.988960358Z [1;30m  == [0mRegistered custom function '[1;36mLISTFILTER[0m'
+2026-08-02T18:28:11.989230258Z [1;30m  == [0mRegistered custom function '[1;36mREGEX[0m'
+2026-08-02T18:28:11.989579609Z [1;30m  == [0mRegistered custom function '[1;36mARRAY[0m'
+2026-08-02T18:28:11.989841144Z [1;30m  == [0mRegistered custom function '[1;36mQUOTE[0m'
+2026-08-02T18:28:11.990151495Z [1;30m  == [0mRegistered custom function '[1;36mCSV_QUOTE[0m'
+2026-08-02T18:28:11.990426660Z [1;30m  == [0mRegistered custom function '[1;36mLEN[0m'
+2026-08-02T18:28:11.990787733Z [1;30m  == [0mRegistered custom function '[1;36mSTRFTIME[0m'
+2026-08-02T18:28:11.991082386Z [1;30m  == [0mRegistered custom function '[1;36mSTRPTIME[0m'
+2026-08-02T18:28:11.991422432Z [1;30m  == [0mRegistered custom function '[1;36mEVAL[0m'
+2026-08-02T18:28:11.991687332Z [1;30m  == [0mRegistered custom function '[1;36mKEYPADHASH[0m'
+2026-08-02T18:28:11.992007701Z [1;30m  == [0mRegistered custom function '[1;36mHASHKEYS[0m'
+2026-08-02T18:28:11.992285348Z [1;30m  == [0mRegistered custom function '[1;36mHASH[0m'
+2026-08-02T18:28:11.992647488Z [1;30m  == [0mRegistered application '[1;36mClearHash[0m'
+2026-08-02T18:28:11.992925910Z [1;30m  == [0mRegistered custom function '[1;36mTOUPPER[0m'
+2026-08-02T18:28:11.993248840Z [1;30m  == [0mRegistered custom function '[1;36mTOLOWER[0m'
+2026-08-02T18:28:11.993577765Z [1;30m  == [0mRegistered custom function '[1;36mSHIFT[0m'
+2026-08-02T18:28:11.993898413Z [1;30m  == [0mRegistered custom function '[1;36mPOP[0m'
+2026-08-02T18:28:11.994160587Z [1;30m  == [0mRegistered custom function '[1;36mPUSH[0m'
+2026-08-02T18:28:11.994516955Z [1;30m  == [0mRegistered custom function '[1;36mUNSHIFT[0m'
+2026-08-02T18:28:11.994804726Z [1;30m  == [0mRegistered custom function '[1;36mPASSTHRU[0m'
+2026-08-02T18:28:11.995118054Z [1;30m  == [0mRegistered custom function '[1;36mTRIM[0m'
+2026-08-02T18:28:11.995392567Z [1;30m  == [0mRegistered custom function '[1;36mLTRIM[0m'
+2026-08-02T18:28:11.995792695Z [1;30m  == [0mRegistered custom function '[1;36mRTRIM[0m'
+2026-08-02T18:28:11.995802071Z [1;30m  == [0mfunc_strings.so => ([0;33mString handling dialplan functions[0m)
+2026-08-02T18:28:11.995805260Z [1;30m [0mLoading res_stasis_answer.so.
+2026-08-02T18:28:11.995808031Z [1;30m  == [0mres_stasis_answer.so => ([0;33mStasis application answer support[0m)
+2026-08-02T18:28:11.995810948Z [1;30m [0mLoading app_forkcdr.so.
+2026-08-02T18:28:11.996171619Z [1;30m  == [0mRegistered application '[1;36mForkCDR[0m'
+2026-08-02T18:28:11.996251947Z [1;30m  == [0mapp_forkcdr.so => ([0;33mFork The CDR into 2 separate entities[0m)
+2026-08-02T18:28:11.996281198Z [1;30m [0mLoading app_chanisavail.so.
+2026-08-02T18:28:11.996637264Z [1;30m  == [0mRegistered application '[1;36mChanIsAvail[0m'
+2026-08-02T18:28:11.996649028Z [1;30m  == [0mapp_chanisavail.so => ([0;33mCheck channel availability[0m)
+2026-08-02T18:28:11.996652263Z [1;30m [0mLoading func_srv.so.
+2026-08-02T18:28:11.996980914Z [1;30m  == [0mRegistered custom function '[1;36mSRVQUERY[0m'
+2026-08-02T18:28:11.997273080Z [1;30m  == [0mRegistered custom function '[1;36mSRVRESULT[0m'
+2026-08-02T18:28:11.997412128Z [1;30m  == [0mfunc_srv.so => ([0;33mSRV related dialplan functions[0m)
+2026-08-02T18:28:11.997423540Z [1;30m [0mLoading func_md5.so.
+2026-08-02T18:28:11.997626907Z [1;30m  == [0mRegistered custom function '[1;36mMD5[0m'
+2026-08-02T18:28:11.997734607Z [1;30m  == [0mfunc_md5.so => ([0;33mMD5 digest dialplan functions[0m)
+2026-08-02T18:28:11.997741868Z [1;30m [0mLoading func_scramble.so.
+2026-08-02T18:28:11.998002298Z [1;30m  == [0mRegistered custom function '[1;36mSCRAMBLE[0m'
+2026-08-02T18:28:11.998010325Z [1;30m  == [0mfunc_scramble.so => ([0;33mFrequency inverting voice scrambler[0m)
+2026-08-02T18:28:11.998013977Z [1;30m [0mLoading func_rand.so.
+2026-08-02T18:28:11.998332965Z [1;30m  == [0mRegistered custom function '[1;36mRAND[0m'
+2026-08-02T18:28:11.998345211Z [1;30m  == [0mfunc_rand.so => ([0;33mRandom number dialplan function[0m)
+2026-08-02T18:28:11.998349209Z [1;30m [0mLoading pbx_config.so.
+2026-08-02T18:28:11.998568423Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'local'
+2026-08-02T18:28:11.998576790Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'demo'
+2026-08-02T18:28:11.998693593Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'public'
+2026-08-02T18:28:11.998698283Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'default'
+2026-08-02T18:28:11.998703089Z [1;30m    -- [0mTime to scan old dialplan and merge leftovers back into the new: 0.000108 sec
+2026-08-02T18:28:11.998706747Z [1;30m    -- [0mTime to restore hints and swap in new dialplan: 0.000005 sec
+2026-08-02T18:28:11.998710127Z [1;30m    -- [0mTime to delete the old dialplan: 0.000029 sec
+2026-08-02T18:28:11.998712993Z [1;30m    -- [0mTotal time merge_contexts_delete: 0.000142 sec
+2026-08-02T18:28:11.998716109Z [1;30m    -- [0mpbx_config successfully loaded 6 contexts (enable debug for details).
+2026-08-02T18:28:11.998915894Z [1;30m  == [0mManager registered action DialplanExtensionAdd
+2026-08-02T18:28:11.999035960Z [1;30m  == [0mManager registered action DialplanExtensionRemove
+2026-08-02T18:28:11.999042260Z [1;30m  == [0mpbx_config.so => ([0;33mText Extension Configuration[0m)
+2026-08-02T18:28:11.999045819Z [1;30m [0mLoading codec_codec2.so.
+2026-08-02T18:28:12.001887943Z [1;30m  == [0mRegistered translator '[0;35mcodec2tolin[0m' from codec codec2 to slin, table cost, 900000, computational cost 2534
+2026-08-02T18:28:12.005327958Z [1;30m  == [0mRegistered translator '[0;35mlintocodec2[0m' from codec slin to codec2, table cost, 600000, computational cost 3351
+2026-08-02T18:28:12.005530725Z [1;30m  == [0mcodec_codec2.so => ([0;33mCodec 2 Coder/Decoder[0m)
+2026-08-02T18:28:12.005644968Z [1;30m [0mLoading func_sprintf.so.
+2026-08-02T18:28:12.006023989Z [1;30m  == [0mRegistered custom function '[1;36mSPRINTF[0m'
+2026-08-02T18:28:12.006104506Z [1;30m  == [0mfunc_sprintf.so => ([0;33mSPRINTF dialplan function[0m)
+2026-08-02T18:28:12.006200729Z [1;30m [0mLoading func_logic.so.
+2026-08-02T18:28:12.006369449Z [1;30m  == [0mRegistered custom function '[1;36mISNULL[0m'
+2026-08-02T18:28:12.006707787Z [1;30m  == [0mRegistered custom function '[1;36mSET[0m'
+2026-08-02T18:28:12.006965814Z [1;30m  == [0mRegistered custom function '[1;36mEXISTS[0m'
+2026-08-02T18:28:12.007284234Z [1;30m  == [0mRegistered custom function '[1;36mIF[0m'
+2026-08-02T18:28:12.007581387Z [1;30m  == [0mRegistered custom function '[1;36mIFTIME[0m'
+2026-08-02T18:28:12.007873882Z [1;30m  == [0mRegistered custom function '[1;36mIMPORT[0m'
+2026-08-02T18:28:12.008154431Z [1;30m  == [0mRegistered custom function '[1;36mDELETE[0m'
+2026-08-02T18:28:12.008521928Z [1;30m  == [0mRegistered custom function '[1;36mVARIABLE_EXISTS[0m'
+2026-08-02T18:28:12.008534677Z [1;30m  == [0mfunc_logic.so => ([0;33mLogical dialplan functions[0m)
+2026-08-02T18:28:12.008556357Z [1;30m [0mLoading res_snmp.so.
+2026-08-02T18:28:12.008664910Z [1;30m [0mLoading [Sub]Agent Module
+2026-08-02T18:28:12.008670849Z [1;30m  == [0mres_snmp.so => ([0;33mSNMP [Sub]Agent for Asterisk[0m)
+2026-08-02T18:28:12.008674055Z [1;30m [0mLoading bridge_holding.so.
+2026-08-02T18:28:12.008676602Z [1;30m  == [0mRegistered bridge technology holding_bridge
+2026-08-02T18:28:12.008679349Z [1;30m  == [0mbridge_holding.so => ([0;33mHolding bridge module[0m)
+2026-08-02T18:28:12.008682360Z [1;30m [0mLoading app_echo.so.
+2026-08-02T18:28:12.009045894Z [1;30m  == [0mRegistered application '[1;36mEcho[0m'
+2026-08-02T18:28:12.009054363Z [1;30m  == [0mapp_echo.so => ([0;33mSimple Echo Application[0m)
+2026-08-02T18:28:12.009121240Z [1;30m [0mLoading app_adsiprog.so.
+2026-08-02T18:28:12.009468541Z [1;30m  == [0mRegistered application '[1;36mADSIProg[0m'
+2026-08-02T18:28:12.009481149Z [1;30m  == [0mapp_adsiprog.so => ([0;33mAsterisk ADSI Programming Application[0m)
+2026-08-02T18:28:12.009484667Z [1;30m [0mLoading codec_lpc10.so.
+2026-08-02T18:28:12.009996259Z [1;30m  == [0mRegistered translator '[0;35mlpc10tolin[0m' from codec lpc10 to slin, table cost, 900000, computational cost 524
+2026-08-02T18:28:12.010860342Z [1;30m  == [0mRegistered translator '[0;35mlintolpc10[0m' from codec slin to lpc10, table cost, 600000, computational cost 568
+2026-08-02T18:28:12.011058246Z [1;30m  == [0mcodec_lpc10.so => ([0;33mLPC10 2.4kbps Coder/Decoder[0m)
+2026-08-02T18:28:12.011066285Z [1;30m [0mLoading app_privacy.so.
+2026-08-02T18:28:12.012521961Z [1;30m  == [0mRegistered application '[1;36mPrivacyManager[0m'
+2026-08-02T18:28:12.012535353Z [1;30m  == [0mapp_privacy.so => ([0;33mRequire phone number to be entered, if no CallerID sent[0m)
+2026-08-02T18:28:12.012539919Z [1;30m [0mLoading res_http_post.so.
+2026-08-02T18:28:12.012891121Z [1;30m  == [0mres_http_post.so => ([0;33mHTTP POST support[0m)
+2026-08-02T18:28:12.013152146Z [1;30m [0mLoading app_directory.so.
+2026-08-02T18:28:12.013850000Z [1;30m  == [0mRegistered application '[1;36mDirectory[0m'
+2026-08-02T18:28:12.013863716Z [1;30m  == [0mapp_directory.so => ([0;33mExtension Directory[0m)
+2026-08-02T18:28:12.013867823Z [1;30m [0mLoading func_sha1.so.
+2026-08-02T18:28:12.014386763Z [1;30m  == [0mRegistered custom function '[1;36mSHA1[0m'
+2026-08-02T18:28:12.014412376Z [1;30m  == [0mfunc_sha1.so => ([0;33mSHA-1 computation dialplan function[0m)
+2026-08-02T18:28:12.014430526Z [1;30m [0mLoading res_stasis_device_state.so.
+2026-08-02T18:28:12.014433895Z [1;30m  == [0mres_stasis_device_state.so => ([0;33mStasis application device state support[0m)
+2026-08-02T18:28:12.014436892Z [1;30m [0mLoading func_frame_trace.so.
+2026-08-02T18:28:12.014824725Z [1;30m  == [0mRegistered custom function '[1;36mFRAME_TRACE[0m'
+2026-08-02T18:28:12.014949821Z [1;30m  == [0mfunc_frame_trace.so => ([0;33mFrame Trace for internal ast_frame debugging.[0m)
+2026-08-02T18:28:12.014957253Z [1;30m [0mLoading app_waituntil.so.
+2026-08-02T18:28:12.015227505Z [1;30m  == [0mRegistered application '[1;36mWaitUntil[0m'
+2026-08-02T18:28:12.015236180Z [1;30m  == [0mapp_waituntil.so => ([0;33mWait until specified time[0m)
+2026-08-02T18:28:12.015297357Z [1;30m [0mLoading pbx_ael.so.
+2026-08-02T18:28:12.015718603Z [1;30m  == [0mRegistered application '[1;36mAELSub[0m'
+2026-08-02T18:28:12.016174663Z [1;30m  == [0mSetting global variable 'CONSOLE-AEL' to '"Console/dsp"'
+2026-08-02T18:28:12.016216458Z [1;30m  == [0mSetting global variable 'OUTBOUND-TRUNK' to '"Zap/g2"'
+2026-08-02T18:28:12.016222109Z [1;30m  == [0mSetting global variable 'OUTBOUND-TRUNKMSD' to '1'
+2026-08-02T18:28:12.016225453Z [1;30m    -- [0mIncluding switch 'DUNDi/e164' in context 'ael-dundi-e164-switch'
+2026-08-02T18:28:12.016369084Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'default'
+2026-08-02T18:28:12.016555474Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'public'
+2026-08-02T18:28:12.016607575Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'demo'
+2026-08-02T18:28:12.016611042Z [1;30m    -- [0mIncluding switch 'Lua/' in context 'local'
+2026-08-02T18:28:12.016631672Z [1;30m    -- [0mTime to scan old dialplan and merge leftovers back into the new: 0.000140 sec
+2026-08-02T18:28:12.016635410Z [1;30m    -- [0mTime to restore hints and swap in new dialplan: 0.000006 sec
+2026-08-02T18:28:12.016638740Z [1;30m    -- [0mTime to delete the old dialplan: 0.000030 sec
+2026-08-02T18:28:12.016641713Z [1;30m    -- [0mTotal time merge_contexts_delete: 0.000176 sec
+2026-08-02T18:28:12.016644564Z [1;30m    -- [0mpbx_ael successfully loaded 7 contexts (enable debug for details).
+2026-08-02T18:28:12.016679928Z [1;30m  == [0mpbx_ael.so => ([0;33mAsterisk Extension Language Compiler[0m)
+2026-08-02T18:28:12.016732585Z [1;30m [0mLoading res_ari_endpoints.so.
+2026-08-02T18:28:12.016856519Z [1;30m  == [0mres_ari_endpoints.so => ([0;33mRESTful API module - Endpoint resources[0m)
+2026-08-02T18:28:12.016862743Z [1;30m [0mLoading res_pjsip_endpoint_identifier_anonymous.so.
+2026-08-02T18:28:12.016877050Z [1;30m  == [0mres_pjsip_endpoint_identifier_anonymous.so => ([0;33mPJSIP Anonymous endpoint identifier[0m)
+2026-08-02T18:28:12.016881118Z [1;30m [0mLoading app_voicemail_odbc.so.
+2026-08-02T18:28:12.016991777Z [2026-08-02T18:28:12.016+0000] [1;31mWARNING[0m[1]: [1;37mapp_voicemail_odbc.c[0m:[1;37m5849[0m [1;37minboxcount2[0m: Failed to obtain database object for 'asterisk'!
+2026-08-02T18:28:12.017113551Z [2026-08-02T18:28:12.016+0000] [1;31mWARNING[0m[1]: [1;37mapp_voicemail_odbc.c[0m:[1;37m5849[0m [1;37minboxcount2[0m: Failed to obtain database object for 'asterisk'!
+2026-08-02T18:28:12.017120209Z [2026-08-02T18:28:12.016+0000] [1;31mWARNING[0m[1]: [1;37mapp_voicemail_odbc.c[0m:[1;37m5849[0m [1;37minboxcount2[0m: Failed to obtain database object for 'asterisk'!
+2026-08-02T18:28:12.017245543Z [2026-08-02T18:28:12.017+0000] [1;31mWARNING[0m[32]: [1;37mapp_voicemail_imap.c[0m:[1;37m2581[0m [1;37m__messagecount[0m: Couldn't find mailbox 1234 in context default
+2026-08-02T18:28:12.017355331Z [2026-08-02T18:28:12.017+0000] [1;31mWARNING[0m[32]: [1;37mapp_voicemail_imap.c[0m:[1;37m2581[0m [1;37m__messagecount[0m: Couldn't find mailbox 1234 in context devices@myaliases
+2026-08-02T18:28:12.017392612Z [2026-08-02T18:28:12.017+0000] [1;31mWARNING[0m[32]: [1;37mapp_voicemail_imap.c[0m:[1;37m2581[0m [1;37m__messagecount[0m: Couldn't find mailbox 1234 in context other
+2026-08-02T18:28:12.017763365Z [1;30m  == [0mRegistered application '[1;36mVoiceMail[0m'
+2026-08-02T18:28:12.018142690Z [1;30m  == [0mRegistered application '[1;36mVoiceMailMain[0m'
+2026-08-02T18:28:12.018549747Z [1;30m  == [0mRegistered application '[1;36mVMAuthenticate[0m'
+2026-08-02T18:28:12.018855441Z [1;30m  == [0mRegistered application '[1;36mVoiceMailPlayMsg[0m'
+2026-08-02T18:28:12.019198881Z [1;30m  == [0mRegistered application '[1;36mVMSayName[0m'
+2026-08-02T18:28:12.019603335Z [2026-08-02T18:28:12.019+0000] [1;31mERROR[0m[1]: [1;37mpbx_functions.c[0m:[1;37m394[0m [1;37m__ast_custom_function_register[0m: Function VM_INFO already registered.
+2026-08-02T18:28:12.019794600Z [1;30m  == [0mManager registered action VoicemailUsersList
+2026-08-02T18:28:12.019876361Z [1;30m  == [0mManager registered action VoicemailUserStatus
+2026-08-02T18:28:12.020411327Z [1;30m  == [0mManager registered action VoicemailRefresh
+2026-08-02T18:28:12.020423332Z [1;30m  == [0mManager registered action VoicemailBoxSummary
+2026-08-02T18:28:12.020426931Z [1;30m  == [0mManager registered action VoicemailMove
+2026-08-02T18:28:12.020579593Z [1;30m  == [0mManager registered action VoicemailRemove
+2026-08-02T18:28:12.020719153Z [1;30m  == [0mManager registered action VoicemailForward
+2026-08-02T18:28:12.020736943Z [2026-08-02T18:28:12.020+0000] [1;31mERROR[0m[1]: [1;37mapp_voicemail_odbc.c[0m:[1;37m15897[0m [1;37mload_module[0m: Failure registering applications, functions or tests
+2026-08-02T18:28:12.020866769Z [1;30m  == [0mUnregistered application 'VoiceMail'
+2026-08-02T18:28:12.020872117Z [1;30m  == [0mUnregistered application 'VoiceMailMain'
+2026-08-02T18:28:12.020875314Z [1;30m  == [0mUnregistered application 'VMAuthenticate'
+2026-08-02T18:28:12.020878040Z [1;30m  == [0mUnregistered application 'VoiceMailPlayMsg'
+2026-08-02T18:28:12.020881048Z [1;30m  == [0mUnregistered application 'VMSayName'
+2026-08-02T18:28:12.020884161Z [1;30m  == [0mManager unregistered action VoicemailUsersList
+2026-08-02T18:28:12.020887236Z [1;30m  == [0mManager unregistered action VoicemailUserStatus
+2026-08-02T18:28:12.020889813Z [1;30m  == [0mManager unregistered action VoicemailRefresh
+2026-08-02T18:28:12.020913844Z [1;30m  == [0mManager unregistered action VoicemailBoxSummary
+2026-08-02T18:28:12.020917292Z [1;30m  == [0mManager unregistered action VoicemailMove
+2026-08-02T18:28:12.020920021Z [1;30m  == [0mManager unregistered action VoicemailRemove
+2026-08-02T18:28:12.020922899Z [1;30m  == [0mManager unregistered action VoicemailForward
+2026-08-02T18:28:12.021216888Z [1;30m [0mLoading res_ari_device_states.so.
+2026-08-02T18:28:12.021281936Z [1;30m  == [0mres_ari_device_states.so => ([0;33mRESTful API module - Device state resources[0m)
+2026-08-02T18:28:12.021424902Z [1;30m [0mLoading res_ari_applications.so.
+2026-08-02T18:28:12.021434848Z [1;30m  == [0mres_ari_applications.so => ([0;33mRESTful API module - Stasis application resources[0m)
+2026-08-02T18:28:12.021449570Z [1;30m [0mLoading func_odbc.so.
+2026-08-02T18:28:12.021784043Z [1;30m  == [0mRegistered custom function '[1;36mODBC_FETCH[0m'
+2026-08-02T18:28:12.022112250Z [1;30m  == [0mRegistered application '[1;36mODBCFinish[0m'
+2026-08-02T18:28:12.022335816Z [1;30m  == [0mRegistered custom function '[1;36mODBC_SQL[0m'
+2026-08-02T18:28:12.022348971Z [1;30m  == [0mRegistered custom function '[1;36mODBC_ANTISOLICIT[0m'
+2026-08-02T18:28:12.022352444Z [1;30m  == [0mRegistered custom function '[1;36mODBC_PRESENCE[0m'
+2026-08-02T18:28:12.022688554Z [1;30m  == [0mRegistered custom function '[1;36mSQL_ESC[0m'
+2026-08-02T18:28:12.023010467Z [1;30m  == [0mRegistered custom function '[1;36mSQL_ESC_BACKSLASHES[0m'
+2026-08-02T18:28:12.023134594Z [1;30m  == [0mfunc_odbc.so => ([0;33mODBC lookups[0m)
+2026-08-02T18:28:12.023268811Z [1;30m [0mLoading res_ari_recordings.so.
+2026-08-02T18:28:12.023283686Z [1;30m  == [0mres_ari_recordings.so => ([0;33mRESTful API module - Recording resources[0m)
+2026-08-02T18:28:12.023287013Z [1;30m [0mLoading res_ari_sounds.so.
+2026-08-02T18:28:12.023377513Z [1;30m  == [0mres_ari_sounds.so => ([0;33mRESTful API module - Sound resources[0m)
+2026-08-02T18:28:12.023398346Z [1;30m [0mLoading func_pjsip_endpoint.so.
+2026-08-02T18:28:12.024223472Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_ENDPOINT[0m'
+2026-08-02T18:28:12.024336498Z [1;30m  == [0mfunc_pjsip_endpoint.so => ([0;33mGet information about a PJSIP endpoint[0m)
+2026-08-02T18:28:12.024341360Z [1;30m [0mLoading res_pjsip_stir_shaken.so.
+2026-08-02T18:28:12.024344427Z [1;30m  == [0mres_pjsip_stir_shaken.so => ([0;33mPJSIP STIR/SHAKEN Module for Asterisk[0m)
+2026-08-02T18:28:12.024347519Z [1;30m [0mLoading func_pjsip_aor.so.
+2026-08-02T18:28:12.024663790Z [1;30m  == [0mRegistered custom function '[1;36mPJSIP_AOR[0m'
+2026-08-02T18:28:12.024733600Z [1;30m  == [0mfunc_pjsip_aor.so => ([0;33mGet information about a PJSIP AOR[0m)
+2026-08-02T18:28:12.024848284Z [1;30m [0mLoading res_stasis_playback.so.
+2026-08-02T18:28:12.024853710Z [1;30m  == [0mres_stasis_playback.so => ([0;33mStasis application playback support[0m)
+2026-08-02T18:28:12.024857163Z [1;30m [0mLoading res_ari_events.so.
+2026-08-02T18:28:12.024860045Z [1;30m  == [0mWebSocket registered sub-protocol 'ari'
+2026-08-02T18:28:12.024863096Z [1;30m  == [0mres_ari_events.so => ([0;33mRESTful API module - WebSocket resource[0m)
+2026-08-02T18:28:12.024866100Z [1;30m [0mLoading res_ari_playbacks.so.
+2026-08-02T18:28:12.024869091Z [1;30m  == [0mres_ari_playbacks.so => ([0;33mRESTful API module - Playback control resources[0m)
+2026-08-02T18:28:12.024935720Z [1;30m [0mLoading res_ari_asterisk.so.
+2026-08-02T18:28:12.025037245Z [1;30m  == [0mres_ari_asterisk.so => ([0;33mRESTful API module - Asterisk resources[0m)
+2026-08-02T18:28:12.025042485Z [1;30m [0mLoading res_hep_pjsip.so.
+2026-08-02T18:28:12.025045781Z [2026-08-02T18:28:12.024+0000] [1;31mWARNING[0m[1]: [1;37mres_hep_pjsip.c[0m:[1;37m236[0m [1;37mload_module[0m: res_hep is disabled; declining module load
+2026-08-02T18:28:12.025113620Z [1;30m [0mLoading res_ari_bridges.so.
+2026-08-02T18:28:12.025118326Z [1;30m  == [0mres_ari_bridges.so => ([0;33mRESTful API module - Bridge resources[0m)
+2026-08-02T18:28:12.025204014Z [1;30m [0mLoading res_ari_channels.so.
+2026-08-02T18:28:12.025208946Z [1;30m  == [0mres_ari_channels.so => ([0;33mRESTful API module - Channel resources[0m)
+2026-08-02T18:28:12.025220434Z [1;30m [0mLoading res_manager_presencestate.so.
+2026-08-02T18:28:12.025657904Z [1;30m  == [0mManager registered action PresenceStateList
+2026-08-02T18:28:12.025669864Z [1;30m  == [0mres_manager_presencestate.so => ([0;33mManager Presence State Topic Forwarder[0m)
+2026-08-02T18:28:12.025673467Z [1;30m [0mLoading res_manager_devicestate.so.
+2026-08-02T18:28:12.026020612Z [1;30m  == [0mManager registered action DeviceStateList
+2026-08-02T18:28:12.026029185Z [1;30m  == [0mres_manager_devicestate.so => ([0;33mManager Device State Topic Forwarder[0m)
+2026-08-02T18:28:12.026032873Z [1;30m [0mLoading app_queue.so.
+2026-08-02T18:28:12.027123798Z [1;30m  == [0mRegistered application '[1;36mQueue[0m'
+2026-08-02T18:28:12.027486434Z [1;30m  == [0mRegistered application '[1;36mAddQueueMember[0m'
+2026-08-02T18:28:12.027814786Z [1;30m  == [0mRegistered application '[1;36mRemoveQueueMember[0m'
+2026-08-02T18:28:12.028170520Z [1;30m  == [0mRegistered application '[1;36mPauseQueueMember[0m'
+2026-08-02T18:28:12.028524558Z [1;30m  == [0mRegistered application '[1;36mUnpauseQueueMember[0m'
+2026-08-02T18:28:12.028898598Z [1;30m  == [0mRegistered application '[1;36mQueueLog[0m'
+2026-08-02T18:28:12.029168784Z [1;30m  == [0mRegistered application '[1;36mQueueUpdate[0m'
+2026-08-02T18:28:12.029329232Z [1;30m  == [0mManager registered action QueueStatus
+2026-08-02T18:28:12.029404055Z [1;30m  == [0mManager registered action QueueSummary
+2026-08-02T18:28:12.029575613Z [1;30m  == [0mManager registered action QueueAdd
+2026-08-02T18:28:12.029671668Z [1;30m  == [0mManager registered action QueueRemove
+2026-08-02T18:28:12.029775928Z [1;30m  == [0mManager registered action QueuePause
+2026-08-02T18:28:12.029891791Z [1;30m  == [0mManager registered action QueueLog
+2026-08-02T18:28:12.029997949Z [1;30m  == [0mManager registered action QueuePenalty
+2026-08-02T18:28:12.030130896Z [1;30m  == [0mManager registered action QueueMemberRingInUse
+2026-08-02T18:28:12.030226370Z [1;30m  == [0mManager registered action QueueRule
+2026-08-02T18:28:12.030343687Z [1;30m  == [0mManager registered action QueueReload
+2026-08-02T18:28:12.030423568Z [1;30m  == [0mManager registered action QueueReset
+2026-08-02T18:28:12.030547630Z [1;30m  == [0mManager registered action QueueChangePriorityCaller
+2026-08-02T18:28:12.030715605Z [1;30m  == [0mManager registered action QueueWithdrawCaller
+2026-08-02T18:28:12.031082345Z [1;30m  == [0mRegistered custom function '[1;36mQUEUE_VARIABLES[0m'
+2026-08-02T18:28:12.031443134Z [1;30m  == [0mRegistered custom function '[1;36mQUEUE_EXISTS[0m'
+2026-08-02T18:28:12.031864102Z [1;30m  == [0mRegistered custom function '[1;36mQUEUE_MEMBER[0m'
+2026-08-02T18:28:12.032255302Z [1;30m  == [0mRegistered custom function '[1;36mQUEUE_MEMBER_COUNT[0m'
+2026-08-02T18:28:12.032562750Z [1;30m  == [0mRegistered custom function '[1;36mQUEUE_MEMBER_LIST[0m'
+2026-08-02T18:28:12.032890642Z [1;30m  == [0mRegistered custom function '[1;36mQUEUE_GET_CHANNEL[0m'
+2026-08-02T18:28:12.033162798Z [1;30m  == [0mRegistered custom function '[1;36mQUEUE_WAITING_COUNT[0m'
+2026-08-02T18:28:12.033546282Z [1;30m  == [0mRegistered custom function '[1;36mQUEUE_MEMBER_PENALTY[0m'
+2026-08-02T18:28:12.033784244Z [1;30m  == [0mapp_queue.so => ([0;33mTrue Call Queueing[0m)
+2026-08-02T18:28:12.033793080Z [2026-08-02T18:28:12.033+0000] [1;31mWARNING[0m[1]: [1;37mloader.c[0m:[1;37m2409[0m [1;37mload_modules[0m: Some non-required modules failed to load.
+2026-08-02T18:28:12.054759705Z [2026-08-02T18:28:12.054+0000] [1;31mWARNING[0m[1]: [1;37mloader.c[0m:[1;37m2503[0m [1;37mload_modules[0m: Module 'chan_sip' has been loaded but was deprecated in Asterisk version 17 and will be removed in Asterisk version 21. Its replacement is 'chan_pjsip'.
+2026-08-02T18:28:12.060554888Z [2026-08-02T18:28:12.060+0000] [1;31mWARNING[0m[1]: [1;37mloader.c[0m:[1;37m2503[0m [1;37mload_modules[0m: Module 'res_adsi' has been loaded but may be removed in a future release.
+2026-08-02T18:28:12.094729335Z [2026-08-02T18:28:12.094+0000] [1;31mWARNING[0m[1]: [1;37mloader.c[0m:[1;37m2503[0m [1;37mload_modules[0m: Module 'app_getcpeid' has been loaded but may be removed in a future release.
+2026-08-02T18:28:12.108391540Z [2026-08-02T18:28:12.108+0000] [1;31mWARNING[0m[1]: [1;37mloader.c[0m:[1;37m2503[0m [1;37mload_modules[0m: Module 'app_macro' has been loaded but was deprecated in Asterisk version 16 and will be removed in Asterisk version 21. Its replacement is 'app_stack (GoSub)'.
+2026-08-02T18:28:12.113006438Z [2026-08-02T18:28:12.112+0000] [1;31mWARNING[0m[1]: [1;37mloader.c[0m:[1;37m2503[0m [1;37mload_modules[0m: Module 'app_adsiprog' has been loaded but may be removed in a future release.
+2026-08-02T18:28:12.120316550Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: res_pjsip_transport_websocket declined to load.
+2026-08-02T18:28:12.120343637Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: cdr_radius declined to load.
+2026-08-02T18:28:12.120347648Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: cel_tds declined to load.
+2026-08-02T18:28:12.120351048Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: cdr_sqlite3_custom declined to load.
+2026-08-02T18:28:12.120372448Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: cdr_tds declined to load.
+2026-08-02T18:28:12.120375996Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: cel_radius declined to load.
+2026-08-02T18:28:12.120379237Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: cdr_pgsql declined to load.
+2026-08-02T18:28:12.120382475Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: cel_sqlite3_custom declined to load.
+2026-08-02T18:28:12.120385724Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: chan_unistim declined to load.
+2026-08-02T18:28:12.120392826Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: app_voicemail declined to load.
+2026-08-02T18:28:12.120395951Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: pbx_dundi declined to load.
+2026-08-02T18:28:12.120399555Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: res_hep_rtcp declined to load.
+2026-08-02T18:28:12.120402809Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: app_voicemail_odbc declined to load.
+2026-08-02T18:28:12.120405856Z [2026-08-02T18:28:12.120+0000] [1;31mERROR[0m[1]: [1;37mloader.c[0m:[1;37m2524[0m [1;37mload_modules[0m: res_hep_pjsip declined to load.
+2026-08-02T18:28:12.121017390Z [2026-08-02T18:28:12.120+0000] [1;31mWARNING[0m[16]: [1;37mchan_sip.c[0m:[1;37m35472[0m [1;37mdeprecation_notice[0m: chan_sip has no official maintainer and is deprecated.  Migration to
+2026-08-02T18:28:12.121029875Z [2026-08-02T18:28:12.120+0000] [1;31mWARNING[0m[16]: [1;37mchan_sip.c[0m:[1;37m35473[0m [1;37mdeprecation_notice[0m: chan_pjsip is recommended.  See guides at the Asterisk Wiki:
+2026-08-02T18:28:12.121033935Z [2026-08-02T18:28:12.120+0000] [1;31mWARNING[0m[16]: [1;37mchan_sip.c[0m:[1;37m35474[0m [1;37mdeprecation_notice[0m: https://wiki.asterisk.org/wiki/display/AST/Migrating+from+chan_sip+to+res_pjsip
+2026-08-02T18:28:12.121037624Z [2026-08-02T18:28:12.120+0000] [1;31mWARNING[0m[16]: [1;37mchan_sip.c[0m:[1;37m35475[0m [1;37mdeprecation_notice[0m: https://wiki.asterisk.org/wiki/display/AST/Configuring+res_pjsip
+2026-08-02T18:28:12.123107993Z [1;32mAsterisk Ready.[0m
+2026-08-02T18:28:12.420064387Z [1;30m    -- [0mRemote UNIX connection
+2026-08-02T18:28:12.421485068Z [1;30m    -- [0mRemote UNIX connection disconnected
+2026-08-02T18:28:12.530408428Z [1;30m    -- [0mRemote UNIX connection
+2026-08-02T18:28:12.530664041Z [1;30m    -- [0mRemote UNIX connection disconnected
+2026-08-02T18:28:12.605676015Z [1;30m    -- [0mRemote UNIX connection
+2026-08-02T18:28:12.605868818Z [1;30m    -- [0mRemote UNIX connection disconnected
+2026-08-02T18:28:13.264266270Z <--- Received SIP request (653 bytes) from UDP:172.30.44.10:5060 --->
+2026-08-02T18:28:13.264285453Z INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+2026-08-02T18:28:13.264290592Z Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKORCM0HB8nO79;rport
+2026-08-02T18:28:13.264295416Z Call-ID: YhicoP3nkbBsRGa7mJnU9B@miuda.ai
+2026-08-02T18:28:13.264342361Z From: <sip:sipp@172.30.44.20:5060>;tag=Aacxha43
+2026-08-02T18:28:13.264349146Z To: <sip:uas@172.30.44.22:5060>
+2026-08-02T18:28:13.264353066Z CSeq: 19 INVITE
+2026-08-02T18:28:13.264357004Z User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+2026-08-02T18:28:13.264361077Z Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+2026-08-02T18:28:13.264365579Z Content-Type: application/sdp
+2026-08-02T18:28:13.264370362Z Max-Forwards: 69
+2026-08-02T18:28:13.264374225Z Content-Length: 168
+2026-08-02T18:28:13.264377811Z Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+2026-08-02T18:28:13.264382119Z 
+2026-08-02T18:28:13.264386196Z v=0
+2026-08-02T18:28:13.264389971Z o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+2026-08-02T18:28:13.264394162Z s=Converact Fabric RustPBX acceptance
+2026-08-02T18:28:13.264397897Z c=IN IP4 172.30.44.20
+2026-08-02T18:28:13.264401592Z t=0 0
+2026-08-02T18:28:13.264405243Z m=audio 6000 RTP/AVP 0
+2026-08-02T18:28:13.264409071Z a=rtpmap:0 PCMU/8000
+2026-08-02T18:28:13.264413145Z 
+2026-08-02T18:28:13.264714936Z <--- Transmitting SIP response (308 bytes) to UDP:172.30.44.10:5060 --->
+2026-08-02T18:28:13.264730201Z SIP/2.0 100 Trying
+2026-08-02T18:28:13.264735778Z Via: SIP/2.0/UDP 172.30.44.10:5060;rport=5060;received=172.30.44.10;branch=z9hG4bKORCM0HB8nO79
+2026-08-02T18:28:13.264740626Z Call-ID: YhicoP3nkbBsRGa7mJnU9B@miuda.ai
+2026-08-02T18:28:13.264759560Z From: <sip:sipp@172.30.44.20>;tag=Aacxha43
+2026-08-02T18:28:13.264764819Z To: <sip:uas@172.30.44.22>
+2026-08-02T18:28:13.264769559Z CSeq: 19 INVITE
+2026-08-02T18:28:13.264773487Z Server: Converact-G03-Asterisk-20.6.0
+2026-08-02T18:28:13.264777138Z Content-Length:  0
+2026-08-02T18:28:13.264855646Z 
+2026-08-02T18:28:13.264861864Z 
+2026-08-02T18:28:13.266089789Z [1;30m    -- [0mExecuting [uas@from-rustpbx:1] [1;36mNoOp[0m("[1;35mPJSIP/rustpbx-00000000[0m", "[1;35mConveract G03 real peer received "" <sipp>[0m") in new stack
+2026-08-02T18:28:13.266279737Z [1;30m    -- [0mExecuting [uas@from-rustpbx:2] [1;36mAnswer[0m("[1;35mPJSIP/rustpbx-00000000[0m", "[1;35m[0m") in new stack
+2026-08-02T18:28:13.266542851Z <--- Transmitting SIP response (750 bytes) to UDP:172.30.44.10:5060 --->
+2026-08-02T18:28:13.266556131Z SIP/2.0 200 OK
+2026-08-02T18:28:13.266559234Z Via: SIP/2.0/UDP 172.30.44.10:5060;rport=5060;received=172.30.44.10;branch=z9hG4bKORCM0HB8nO79
+2026-08-02T18:28:13.266562010Z Call-ID: YhicoP3nkbBsRGa7mJnU9B@miuda.ai
+2026-08-02T18:28:13.266565127Z From: <sip:sipp@172.30.44.20>;tag=Aacxha43
+2026-08-02T18:28:13.266568259Z To: <sip:uas@172.30.44.22>;tag=72768e5f-5b43-4d77-8b5f-d4edceb77166
+2026-08-02T18:28:13.266571345Z CSeq: 19 INVITE
+2026-08-02T18:28:13.266574309Z Server: Converact-G03-Asterisk-20.6.0
+2026-08-02T18:28:13.266577079Z Contact: <sip:172.30.44.22:5060>
+2026-08-02T18:28:13.266580183Z Allow: OPTIONS, REGISTER, SUBSCRIBE, NOTIFY, PUBLISH, INVITE, ACK, BYE, CANCEL, UPDATE, PRACK, INFO, MESSAGE, REFER
+2026-08-02T18:28:13.266583557Z Supported: 100rel, replaces, norefersub
+2026-08-02T18:28:13.266586604Z Content-Type: application/sdp
+2026-08-02T18:28:13.266589399Z Content-Length:   179
+2026-08-02T18:28:13.266592483Z 
+2026-08-02T18:28:13.266595493Z v=0
+2026-08-02T18:28:13.266598307Z o=- 53655765 2353687639 IN IP4 172.30.44.22
+2026-08-02T18:28:13.266601443Z s=Asterisk
+2026-08-02T18:28:13.266604314Z c=IN IP4 172.30.44.22
+2026-08-02T18:28:13.266678277Z t=0 0
+2026-08-02T18:28:13.266682590Z m=audio 15076 RTP/AVP 0
+2026-08-02T18:28:13.266685855Z a=rtpmap:0 PCMU/8000
+2026-08-02T18:28:13.266688743Z a=ptime:20
+2026-08-02T18:28:13.266691265Z a=maxptime:140
+2026-08-02T18:28:13.266693983Z a=sendrecv
+2026-08-02T18:28:13.266696980Z 
+2026-08-02T18:28:13.266953321Z <--- Received SIP request (353 bytes) from UDP:172.30.44.10:5060 --->
+2026-08-02T18:28:13.266962173Z ACK sip:172.30.44.22:5060 SIP/2.0
+2026-08-02T18:28:13.266965511Z Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKzhhDcnulGgBZ
+2026-08-02T18:28:13.266968679Z Call-ID: YhicoP3nkbBsRGa7mJnU9B@miuda.ai
+2026-08-02T18:28:13.266971553Z From: <sip:sipp@172.30.44.20>;tag=Aacxha43
+2026-08-02T18:28:13.266974503Z To: <sip:uas@172.30.44.22>;tag=72768e5f-5b43-4d77-8b5f-d4edceb77166
+2026-08-02T18:28:13.266990680Z CSeq: 19 ACK
+2026-08-02T18:28:13.266993525Z Max-Forwards: 70
+2026-08-02T18:28:13.266996061Z Content-Length: 0
+2026-08-02T18:28:13.266998904Z User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+2026-08-02T18:28:13.267001857Z 
+2026-08-02T18:28:13.267005116Z 
+2026-08-02T18:28:13.521996002Z <--- Received SIP request (420 bytes) from UDP:172.30.44.10:5060 --->
+2026-08-02T18:28:13.522011351Z BYE sip:172.30.44.22:5060 SIP/2.0
+2026-08-02T18:28:13.522015551Z Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKW0L0SDXVBD2K;rport
+2026-08-02T18:28:13.522018476Z Call-ID: YhicoP3nkbBsRGa7mJnU9B@miuda.ai
+2026-08-02T18:28:13.522021289Z From: <sip:sipp@172.30.44.20:5060>;tag=Aacxha43
+2026-08-02T18:28:13.522024885Z To: <sip:uas@172.30.44.22:5060>;tag=72768e5f-5b43-4d77-8b5f-d4edceb77166
+2026-08-02T18:28:13.522028277Z CSeq: 20 BYE
+2026-08-02T18:28:13.522031448Z User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+2026-08-02T18:28:13.522034706Z Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+2026-08-02T18:28:13.522038506Z Max-Forwards: 70
+2026-08-02T18:28:13.522041087Z Content-Length: 0
+2026-08-02T18:28:13.522043829Z 
+2026-08-02T18:28:13.522046633Z 
+2026-08-02T18:28:13.522259040Z <--- Transmitting SIP response (342 bytes) to UDP:172.30.44.10:5060 --->
+2026-08-02T18:28:13.522267936Z SIP/2.0 200 OK
+2026-08-02T18:28:13.522271189Z Via: SIP/2.0/UDP 172.30.44.10:5060;rport=5060;received=172.30.44.10;branch=z9hG4bKW0L0SDXVBD2K
+2026-08-02T18:28:13.522274423Z Call-ID: YhicoP3nkbBsRGa7mJnU9B@miuda.ai
+2026-08-02T18:28:13.522277361Z From: <sip:sipp@172.30.44.20>;tag=Aacxha43
+2026-08-02T18:28:13.522280317Z To: <sip:uas@172.30.44.22>;tag=72768e5f-5b43-4d77-8b5f-d4edceb77166
+2026-08-02T18:28:13.522283259Z CSeq: 20 BYE
+2026-08-02T18:28:13.522285934Z Server: Converact-G03-Asterisk-20.6.0
+2026-08-02T18:28:13.522288626Z Content-Length:  0
+2026-08-02T18:28:13.522291682Z 
+2026-08-02T18:28:13.522294353Z 
+2026-08-02T18:28:13.523796256Z [1;30m  == [0mSpawn extension (from-rustpbx, uas, 2) exited non-zero on 'PJSIP/rustpbx-00000000'
+2026-08-02T18:28:13.523811098Z [1;30m    -- [0mExecuting [h@from-rustpbx:1] [1;36mNoOp[0m("[1;35mPJSIP/rustpbx-00000000[0m", "[1;35mConveract G03 real peer call completed[0m") in new stack
+2026-08-02T18:28:13.997420012Z [1;30m    -- [0mRemote UNIX connection
+2026-08-02T18:28:13.997497411Z [1;30m    -- [0mRemote UNIX connection disconnected

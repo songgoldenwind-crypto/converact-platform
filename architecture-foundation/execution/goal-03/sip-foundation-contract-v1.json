@@ -20,10 +20,12 @@
   },
   "authority": {
     "sip_edge": "Kamailio",
-    "call_leg_business_dialog": "Unified RustPBX",
+    "call_leg_business_dialog": "Unified RustPBX native process",
     "protocol_transaction_dialog": "selected_SipFoundation_adapter",
     "durable_effect_ledger": "Unified RustPBX SipEffect ledger",
     "ordinary_media": "RTPengine",
+    "control_plane_voice_call": "call_intent_and_rebuildable_projection",
+    "typescript_sip_foundation": "conformance_and_migration_harness_not_live_runtime_authority",
     "forbidden_second_authorities": [
       "rvoip_high_level_call_orchestrator",
       "adapter_business_call_store",
@@ -35,9 +37,11 @@
     "rustpbx_commit": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
     "rsipstack_commit": "8318e97b1170de4e5245b120afec1cdf53e3d716",
     "rustrtc_commit": "166c6d22984429eb6b509920c14fcd69f974f0b3",
-    "patchset": "ivekit.42",
+    "patchset": "ivekit.43",
     "current_adapter": "rsipstack",
-    "target_adapter": "rvoip_low_level_slices_after_separate_gates"
+    "target_adapter": "rvoip_low_level_slices_after_separate_gates",
+    "native_runtime_authority": "Unified RustPBX process",
+    "typescript_model_role": "conformance_and_migration_harness_not_live_runtime_authority"
   },
   "anti_corruption_boundary": {
     "public_types_owned_by": "Converact Platform",
@@ -51,7 +55,8 @@
       "Call",
       "BusinessDialog",
       "MediaSession"
-    ]
+    ],
+    "provider_call_id": "opaque_native_runtime_reference_never_CallId"
   },
   "ingress_events": [
     "request_received",

@@ -35,6 +35,12 @@ containers. Full Docker inspect documents were deliberately excluded because
 they can contain unrelated environment values; equal normalized digests and
 unchanged container IDs are retained instead.
 
+Neither accepted review proves that the TypeScript `VoiceCall`, Call/Leg model,
+`RsipstackFoundationAdapter` or PostgreSQL reference ledger is a live native
+authority. Unified RustPBX remains the sole active Call/Leg authority;
+`G03-E16-NATIVE-AUTHORITY` and the `.43` mailbox patchset are outside those old
+reviewed diffs and remain pending exact-source review.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with
@@ -45,7 +51,8 @@ were closed before the accepted implementation baseline.
 
 This is not the final G03 review. `G03-E15-REVIEW` remains `not_run` until the
 100 Trying, wire differential, fault isolation, peer interoperability,
-long-call and performance campaigns are either proved or honestly retained as
-open external gates, and a reviewer examines the final exact commit/diff.
+long-call, native authority activation and performance campaigns are either
+proved or honestly retained as open external gates, and a reviewer examines
+the final exact commit/diff.
 Those remaining campaign entries are currently `not_run`; production
 eligibility remains false.

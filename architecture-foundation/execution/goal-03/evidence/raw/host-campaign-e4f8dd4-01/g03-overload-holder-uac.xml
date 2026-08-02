@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+
+<scenario name="Converact G03 single in-flight capacity holder">
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: Converact G03 holder <sip:holder@[local_ip]:[local_port]>;tag=[call_number]
+      To: Converact G03 Route <sip:[service]@[remote_ip]:[remote_port]>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:holder@[local_ip]:[local_port];transport=[transport]>
+      Max-Forwards: 70
+      Subject: Converact G03 overload capacity holder
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+  <recv response="100" />
+  <pause milliseconds="30000" />
+</scenario>

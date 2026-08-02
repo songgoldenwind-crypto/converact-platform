@@ -26,6 +26,7 @@ import {
   sipWireFreezeSha256
 } from '../src/agent-runtime/converact/voice/sip-foundation/route-binding.js';
 import {
+  SIP_FOUNDATION_TYPESCRIPT_ROLE,
   SipFoundationError,
   type BackendCapabilitySet,
   type BackendCapabilitySetInput,
@@ -38,6 +39,13 @@ import {
 const SOURCE_DIGEST = 'a'.repeat(64);
 const BINARY_DIGEST = 'b'.repeat(64);
 const CONFIG_DIGEST = 'c'.repeat(64);
+
+test('TypeScript SipFoundation is a conformance harness, not the live SIP authority', () => {
+  assert.equal(
+    SIP_FOUNDATION_TYPESCRIPT_ROLE,
+    'conformance_and_migration_harness_not_live_runtime_authority'
+  );
+});
 
 test('capability digest helper canonicalizes the closed payload without mutating it', () => {
   const input = capabilitySetInput();

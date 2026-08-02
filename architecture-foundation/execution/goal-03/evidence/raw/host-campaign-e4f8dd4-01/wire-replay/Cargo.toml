@@ -1,0 +1,9 @@
+[package]
+name = "converact-g03-wire-replay"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+rsipstack = { path = "../rsipstack" }
+sha2 = "=0.11.0"

@@ -171,6 +171,15 @@
       "source_commit": null,
       "raw_output_sha256": null,
       "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E16-NATIVE-AUTHORITY",
+      "claim": "Unified RustPBX native Call/Leg and SipEffect activation",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
     }
   ],
   "inherited_claims": [],
@@ -178,6 +187,7 @@
     "100_trying_and_wire_differential_campaign_not_run",
     "real_sip_peer_campaign_not_run",
     "host_fault_and_oom_campaign_not_run",
-    "long_call_and_capacity_campaign_not_run"
+    "long_call_and_capacity_campaign_not_run",
+    "native_call_leg_and_effect_authority_activation_not_run"
   ]
 }

@@ -25,9 +25,12 @@ const sourceIdentity = Object.freeze({
   rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
   rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
   rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-  patchset: 'ivekit.42',
+  patchset: 'ivekit.43',
   current_adapter: 'rsipstack',
   target_adapter: 'rvoip_low_level_slices_after_separate_gates',
+  native_runtime_authority: 'Unified RustPBX process',
+  typescript_model_role:
+    'conformance_and_migration_harness_not_live_runtime_authority',
 });
 
 function sha256(value) {
@@ -690,10 +693,13 @@ function sipFoundationContract() {
     ...envelope('converact-sip-foundation-contract-v1'),
     authority: {
       sip_edge: 'Kamailio',
-      call_leg_business_dialog: 'Unified RustPBX',
+      call_leg_business_dialog: 'Unified RustPBX native process',
       protocol_transaction_dialog: 'selected_SipFoundation_adapter',
       durable_effect_ledger: 'Unified RustPBX SipEffect ledger',
       ordinary_media: 'RTPengine',
+      control_plane_voice_call: 'call_intent_and_rebuildable_projection',
+      typescript_sip_foundation:
+        'conformance_and_migration_harness_not_live_runtime_authority',
       forbidden_second_authorities: [
         'rvoip_high_level_call_orchestrator',
         'adapter_business_call_store',
@@ -715,6 +721,7 @@ function sipFoundationContract() {
         'BusinessDialog',
         'MediaSession',
       ],
+      provider_call_id: 'opaque_native_runtime_reference_never_CallId',
     },
     ingress_events: [
       'request_received',
@@ -998,7 +1005,10 @@ function callLegContract() {
   return {
     $schema: './call-leg-state-machine-v1.schema.json',
     ...envelope('converact-call-leg-state-machine-v1'),
-    authority: 'Unified RustPBX Call Core',
+    authority: 'Unified RustPBX native Call Core',
+    typescript_model_role: 'conformance_reference_not_live_native_authority',
+    control_plane_voice_call_role: 'call_intent_and_rebuildable_projection',
+    provider_call_id_role: 'opaque_native_runtime_reference_never_CallId',
     identifiers: {
       common_representation: 'opaque_ascii_1_to_128_no_whitespace',
       generated_identity: 'sha256_length_prefixed_tenant_namespace_components',
@@ -1013,7 +1023,8 @@ function callLegContract() {
       ],
       legacy_call_id_import: {
         accepted_syntax: ['vcall_*', 'uuid'],
-        authority: 'exact_PostgresVoiceCallStore_composition_binding_and_tenant_id_match',
+        authority:
+          'trusted_projection_attestation_only_native_RustPBX_adoption_required',
         credential: 'module_private_issuer_no_caller_supplied_lookup_or_record',
         runtime_brand: 'constructor_issued_module_private_WeakSet_membership',
         repository_composition: 'native_private_field_not_structurally_replaceable',
@@ -1431,7 +1442,7 @@ function writeWireCorpus() {
       baseline_adapter: 'rsipstack',
       target_adapter: 'rvoip_low_level_slices',
       semantic_diff_policy: 'explicit_versioned_compatibility_decision_only',
-      baseline_semantic_capture_status: 'not_run',
+      baseline_semantic_capture_status: 'verified_controlled',
     },
     required_feature_coverage: [
       'INVITE', 'ACK', 'BYE', 'CANCEL', 'REGISTER', 'OPTIONS',
@@ -1442,7 +1453,7 @@ function writeWireCorpus() {
       ...item,
       byte_length: Buffer.byteLength(bytes),
       sha256: sha256(bytes),
-      current_adapter_result: 'not_run',
+      current_adapter_result: 'matches_frozen_expected',
       target_adapter_result: 'not_run',
       production_eligible: false,
     })),
@@ -1552,6 +1563,11 @@ function evidenceIndex() {
         '40bc31d5c95fb879712acd5d1ffc8bcac91b04826d82c408f5246ca6e9bdcea9',
       ),
       entry('G03-E15-REVIEW', 'Independent G03 review', 'not_run'),
+      entry(
+        'G03-E16-NATIVE-AUTHORITY',
+        'Unified RustPBX native Call/Leg and SipEffect activation',
+        'not_run',
+      ),
     ],
     inherited_claims: [],
     external_or_environment_blockers: [
@@ -1559,6 +1575,7 @@ function evidenceIndex() {
       'real_sip_peer_campaign_not_run',
       'host_fault_and_oom_campaign_not_run',
       'long_call_and_capacity_campaign_not_run',
+      'native_call_leg_and_effect_authority_activation_not_run',
     ],
   };
 }
@@ -1626,13 +1643,16 @@ const sourceMaps = Object.freeze({
       'src/agent-runtime/converact/voice/sip-foundation/recovery.ts',
       'src/agent-runtime/converact/voice/sip-foundation/session-registry.ts',
       'infra/converact/rustpbx/patches/rsipstack-ivekit-capacity.patch',
+      'infra/converact/rustpbx/patches/rsipstack-ivekit-bounded-protocol-mailboxes.patch',
       'infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch',
+      'infra/converact/rustpbx/patches/rustpbx-ivekit-bounded-call-mailboxes.patch',
     ],
     test_paths: [
       'test/converact-sip-receipt-drain.test.ts',
       'test/converact-sip-foundation-recovery.test.ts',
       'test/converact-rsipstack-server-invite-lifecycle-patch.test.ts',
       'test/converact-rustpbx-dialog-recovery-patch.test.ts',
+      'test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts',
     ],
   },
   legacy_assessment: {
@@ -1766,8 +1786,8 @@ function evidenceSchema() {
       production_eligible: { const: false },
       entries: {
         type: 'array',
-        minItems: 15,
-        maxItems: 15,
+        minItems: 16,
+        maxItems: 16,
         items: {
           type: 'object',
           additionalProperties: false,

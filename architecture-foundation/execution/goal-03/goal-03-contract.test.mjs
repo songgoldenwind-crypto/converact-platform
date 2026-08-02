@@ -107,7 +107,18 @@ test('all G03 machine documents validate as closed versioned contracts', () => {
 test('SipFoundation freezes one authority, exact current pins and bounded SLOs', () => {
   const contract = readJson(join(goalDirectory, documents.sip[1]));
   assert.equal(contract.authority.sip_edge, 'Kamailio');
-  assert.equal(contract.authority.call_leg_business_dialog, 'Unified RustPBX');
+  assert.equal(
+    contract.authority.call_leg_business_dialog,
+    'Unified RustPBX native process',
+  );
+  assert.equal(
+    contract.authority.control_plane_voice_call,
+    'call_intent_and_rebuildable_projection',
+  );
+  assert.equal(
+    contract.authority.typescript_sip_foundation,
+    'conformance_and_migration_harness_not_live_runtime_authority',
+  );
   assert.equal(
     contract.authority.protocol_transaction_dialog,
     'selected_SipFoundation_adapter',
@@ -116,10 +127,17 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
     rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
     rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
     rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-    patchset: 'ivekit.42',
+    patchset: 'ivekit.43',
     current_adapter: 'rsipstack',
     target_adapter: 'rvoip_low_level_slices_after_separate_gates',
+    native_runtime_authority: 'Unified RustPBX process',
+    typescript_model_role:
+      'conformance_and_migration_harness_not_live_runtime_authority',
   });
+  assert.equal(
+    contract.anti_corruption_boundary.provider_call_id,
+    'opaque_native_runtime_reference_never_CallId',
+  );
   assert.equal(contract.admission_and_store_slo.trying_p99_budget_ms, 100);
   assert.equal(contract.admission_and_store_slo.trying_hard_deadline_ms, 200);
   assert.equal(contract.admission_and_store_slo.durable_transaction_p99_budget_ms, 20);
@@ -157,7 +175,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.match(build, /RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"/u);
   assert.match(build, /RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"/u);
   assert.match(build, /RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"/u);
-  assert.match(build, /PATCHSET="ivekit\.42"/u);
+  assert.match(build, /PATCHSET="ivekit\.43"/u);
 });
 
 test('SipFoundation control messages have one compiled closed wire schema', () => {
@@ -263,7 +281,19 @@ test('SipFoundation control messages have one compiled closed wire schema', () =
 
 test('Call/Leg and effect contracts distinguish identities, races and receipt meanings', () => {
   const call = readJson(join(goalDirectory, documents.call[1]));
-  assert.equal(call.authority, 'Unified RustPBX Call Core');
+  assert.equal(call.authority, 'Unified RustPBX native Call Core');
+  assert.equal(
+    call.typescript_model_role,
+    'conformance_reference_not_live_native_authority',
+  );
+  assert.equal(
+    call.control_plane_voice_call_role,
+    'call_intent_and_rebuildable_projection',
+  );
+  assert.equal(
+    call.provider_call_id_role,
+    'opaque_native_runtime_reference_never_CallId',
+  );
   assert.deepEqual(
     call.identifiers.types.map((item) => item.type),
     [
@@ -274,7 +304,7 @@ test('Call/Leg and effect contracts distinguish identities, races and receipt me
   assert.ok(call.identifiers.invariants.includes('sip_call_id_is_not_CallId'));
   assert.equal(
     call.identifiers.legacy_call_id_import.authority,
-    'exact_PostgresVoiceCallStore_composition_binding_and_tenant_id_match',
+    'trusted_projection_attestation_only_native_RustPBX_adoption_required',
   );
   assert.equal(
     call.identifiers.legacy_call_id_import.credential,
@@ -341,7 +371,10 @@ test('Call/Leg and effect contracts distinguish identities, races and receipt me
 test('wire corpus hashes exact bytes and covers every mandatory G03 feature', () => {
   const manifest = readJson(join(goalDirectory, documents.wire[1]));
   assert.equal(manifest.cases.length, 22);
-  assert.equal(manifest.corpus_policy.baseline_semantic_capture_status, 'not_run');
+  assert.equal(
+    manifest.corpus_policy.baseline_semantic_capture_status,
+    'verified_controlled',
+  );
   assert.deepEqual(new Set(manifest.required_feature_coverage), new Set([
     'INVITE', 'ACK', 'BYE', 'CANCEL', 'REGISTER', 'OPTIONS',
     're-INVITE', 'UPDATE', 'PRACK', 'REFER', 'NOTIFY', '100rel',
@@ -355,7 +388,7 @@ test('wire corpus hashes exact bytes and covers every mandatory G03 feature', ()
     const bytes = readFileSync(path);
     assert.equal(bytes.byteLength, item.byte_length, item.id);
     assert.equal(sha256(bytes), item.sha256, item.id);
-    assert.equal(item.current_adapter_result, 'not_run');
+    assert.equal(item.current_adapter_result, 'matches_frozen_expected');
     assert.equal(item.target_adapter_result, 'not_run');
     assert.equal(item.production_eligible, false);
     assert.doesNotMatch(bytes.toString('utf8'), /(?:BEGIN [A-Z ]*PRIVATE KEY|Bearer [A-Za-z0-9._~-]{20,})/u);
@@ -397,8 +430,8 @@ test('evidence promotes only exact proved slices and retains every open gate', (
   assert.equal(evidence.production_eligible, false);
   assert.equal(evidence.current_state, 'implementation_in_progress');
   assert.deepEqual(evidence.inherited_claims, []);
-  assert.equal(evidence.entries.length, 15);
-  assert.equal(new Set(evidence.entries.map((entry) => entry.evidence_id)).size, 15);
+  assert.equal(evidence.entries.length, 16);
+  assert.equal(new Set(evidence.entries.map((entry) => entry.evidence_id)).size, 16);
   const expectedStatuses = {
     'G03-E01-CONTRACT': 'verified_local',
     'G03-E02-BASELINE': 'verified_local',
@@ -415,6 +448,7 @@ test('evidence promotes only exact proved slices and retains every open gate', (
     'G03-E13-PERFORMANCE': 'not_run',
     'G03-E14-TYPECHECK': 'verified_local',
     'G03-E15-REVIEW': 'not_run',
+    'G03-E16-NATIVE-AUTHORITY': 'not_run',
   };
   for (const entry of evidence.entries) {
     assert.equal(entry.status, expectedStatuses[entry.evidence_id]);

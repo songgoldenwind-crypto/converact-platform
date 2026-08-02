@@ -1,0 +1,4 @@
+Channel                                                                          Context                  Extension                Prio State   Application  Data                      CallerID        Duration Accountcode PeerAccount BridgeID            
+0 active channels
+0 active calls
+1 call processed

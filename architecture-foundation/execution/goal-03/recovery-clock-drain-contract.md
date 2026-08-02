@@ -22,8 +22,10 @@ values are never persisted.
 
 ## 2. Owner and Replay
 
-Every restored Call projection opens at the positive uint64 generation loaded
-from durable authority; generation `1` is never assumed. Every restored
+Every restored native RustPBX Call opens at the positive uint64 generation
+loaded from durable authority; generation `1` is never assumed. The
+TypeScript `VoiceCall` row is rebuilt as a control-plane projection after the
+native fence is established and cannot grant ownership. Every restored
 mutation validates the owner epoch, Protocol Session/Leg generation and command
 sequence. A stale owner may query but cannot send, reconcile, enqueue mailbox
 work, register timers or mutate. The new owner uses compare-and-swap against
@@ -67,7 +69,8 @@ recovery capsule carries a schema identity. A new writer version requires:
 
 Unknown fields follow the version's closed-schema rule. An incompatible object
 is drained by the old binary or fails closed; it is never guessed into a new
-shape. The current physical v1 writer activation remains `not_run`.
+shape. Controlled PostgreSQL reference activation/replay is verified, while
+the native RustPBX v1 effect writer remains `G03-E16/not_run`.
 
 ## 5. Drain State Machine
 
@@ -108,5 +111,6 @@ Rules:
 | transport accepted, protocol incomplete | local accepted receipt | transaction query/timer policy | exact-byte retransmission only |
 | protocol complete | terminal receipt/tombstone | replay terminal receipt | no duplicate CDR/effect |
 
-Physical crash/restart, rolling binary and long-call evidence are separately
-tracked; this document freezes behavior but does not claim those campaigns ran.
+Controlled PostgreSQL reference crash/restart is tracked separately from
+native RustPBX crash/restart, rolling binary and long-call evidence. This
+document freezes behavior and does not promote one evidence class into another.

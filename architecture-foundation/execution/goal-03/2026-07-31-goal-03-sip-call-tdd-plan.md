@@ -41,6 +41,9 @@ Failing cases:
   constructor-branded exact concrete `PostgresVoiceCallStore`, native-private
   composition, captured trusted query and an exact tenant/ID match;
   caller lookups, records, prototype spoofs and own-method overrides fail;
+- the adapter attests a control-plane projection and derives only a candidate;
+  `VoiceCall`, `provider_call_id`, the TypeScript Leg registry and TypeScript
+  SipFoundation cannot claim live native Authority;
 - all six types reject whitespace, empty and oversized values;
 - deterministic IDs resist component-boundary ambiguity;
 - one Call supports bounded multiple Legs and Dialog history;
@@ -58,7 +61,7 @@ Failing cases:
 - the Call registry exposes no callback execution seam; bounded dequeued work
   executes only in a supervised worker and re-enters through the same fence.
 
-Minimal implementation files:
+Minimal conformance/reference implementation files:
 
 - `src/agent-runtime/converact/voice/foundation-identifiers.ts`
 - `src/agent-runtime/converact/voice/voice-call-id-authority.ts`
@@ -69,6 +72,10 @@ Complexity: expected O(1) Call/Leg lookup and ordinary transition. Fork winner
 selection is O(branches in that attempt), with a hard ceiling of 32, and
 explicit reconciliation is O(bounded Legs). No global scan/task/database
 access.
+
+The TypeScript registry is not deployed as a second active Call registry. Its
+semantics must later be bound to the native RustPBX process under
+`G03-E16-NATIVE-AUTHORITY`.
 
 Commit intent: `feat(voice): add bounded call leg foundation`.
 
@@ -85,6 +92,8 @@ Tests first in the G03 test file and existing SipFoundation/effect suites:
 - existing sessions continue, release O(1), active-zero becomes observable;
 - repeated drain is idempotent and a deadline never force-closes Calls;
 - deterministic Retry-After bounds remain exact.
+- native effect-writer activation is a separate failing gate; PostgreSQL
+  reference behavior alone cannot satisfy it.
 
 Minimal implementation files:
 
@@ -102,8 +111,10 @@ Run serially:
 2. New Call/Leg tests.
 3. SipFoundation, effect and recovery tests.
 4. Exact rsipstack/RustPBX patch contract tests.
-5. repository typecheck.
-6. Generate raw output, command/source manifest and SHA-256 evidence with no
+5. Native Call/Leg/effect binding tests; retain `not_run` until an actual
+   RustPBX port exists.
+6. repository typecheck.
+7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.
 
 Update only evidence entries proved by these commands. Local verification does

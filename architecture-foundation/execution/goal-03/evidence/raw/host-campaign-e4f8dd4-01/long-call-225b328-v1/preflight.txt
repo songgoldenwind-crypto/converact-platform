@@ -1,0 +1,14 @@
+started_at_utc=2026-08-02T18:50:28.397277188Z
+225b32800bd4a9b5f5a8ed31236c8547cf28b19a
+converact-rustpbx-baseline-postgres-1 postgres Up 13 minutes (healthy)
+converact-rustpbx-baseline-router-1 converact/g03-tools:0.1.0-e4f8dd4 Up 13 minutes (healthy)
+converact-rustpbx-baseline-rustpbx-1 converact/rustpbx:0.4.11-ivekit.42-6c49ee76-g03-e4f8dd4 Up 13 minutes (healthy)
+┌─────┬──────────────────────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id  │ name                             │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├─────┼──────────────────────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 2   │ liuyao-server                    │ default     │ N/A     │ fork    │ 0        │ 0      │ 1    │ stopped   │ 0%       │ 0b       │ ubuntu   │ disabled │
+│ 195 │ metafate-prediction              │ default     │ 1.0.0   │ fork    │ 0        │ 0      │ 389  │ stopped   │ 0%       │ 0b       │ ubuntu   │ disabled │
+│ 1   │ metafate-teacher-domestic        │ default     │ 1.0.0   │ fork    │ 0        │ 0      │ 72   │ stopped   │ 0%       │ 0b       │ ubuntu   │ disabled │
+│ 7   │ metafate-user-center-domestic    │ default     │ 0.1.0   │ fork    │ 0        │ 0      │ 11   │ stopped   │ 0%       │ 0b       │ ubuntu   │ disabled │
+└─────┴──────────────────────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+inactive

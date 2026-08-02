@@ -1,3 +1,10 @@
+/**
+ * The TypeScript seam is a closed conformance/migration model. It does not
+ * parse or send production SIP and cannot own native transactions or dialogs.
+ */
+export const SIP_FOUNDATION_TYPESCRIPT_ROLE =
+  'conformance_and_migration_harness_not_live_runtime_authority' as const;
+
 export type SipFoundationBackendId = 'rsipstack' | 'rvoip';
 
 export type SipFoundationCapabilityId =

@@ -19,16 +19,38 @@ import {
 } from '../src/agent-runtime/converact/voice/foundation-identifiers.js';
 import * as foundationIdentifiers from '../src/agent-runtime/converact/voice/foundation-identifiers.js';
 import {
-  VoiceCallIdAuthorityAdapter
+  VoiceCallIdAuthorityAdapter,
+  VoiceCallProjectionIdAdapter
 } from '../src/agent-runtime/converact/voice/voice-call-id-authority.js';
 import {
   PostgresVoiceCallStore
 } from '../src/agent-runtime/converact/voice/postgres/call-store.js';
 import {
+  CALL_LEG_FOUNDATION_ROLE,
   CallLegRegistry
 } from '../src/agent-runtime/converact/voice/call-leg-state-machine.js';
+import {
+  VOICE_CALL_MODEL_ROLE,
+  VOICE_PROVIDER_CALL_ID_ROLE
+} from '../src/agent-runtime/converact/voice/types.js';
 
 const TENANT_ID = 'tenant-foundation';
+
+test('TypeScript voice models cannot claim native RustPBX Call authority', () => {
+  assert.equal(
+    VOICE_CALL_MODEL_ROLE,
+    'call_intent_and_rebuildable_projection'
+  );
+  assert.equal(
+    VOICE_PROVIDER_CALL_ID_ROLE,
+    'opaque_native_runtime_reference_never_CallId'
+  );
+  assert.equal(
+    CALL_LEG_FOUNDATION_ROLE,
+    'conformance_reference_not_live_native_authority'
+  );
+  assert.equal(VoiceCallIdAuthorityAdapter, VoiceCallProjectionIdAdapter);
+});
 
 test('owned identifiers are bounded, typed and boundary-unambiguous', async () => {
   const callId = deriveCallId(TENANT_ID, 'order', '42');

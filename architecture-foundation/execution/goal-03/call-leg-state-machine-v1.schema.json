@@ -13,6 +13,9 @@
     "binding",
     "status",
     "authority",
+    "typescript_model_role",
+    "control_plane_voice_call_role",
+    "provider_call_id_role",
     "identifiers",
     "call_states",
     "leg_states",
@@ -99,7 +102,16 @@
       }
     },
     "authority": {
-      "const": "Unified RustPBX Call Core"
+      "const": "Unified RustPBX native Call Core"
+    },
+    "typescript_model_role": {
+      "const": "conformance_reference_not_live_native_authority"
+    },
+    "control_plane_voice_call_role": {
+      "const": "call_intent_and_rebuildable_projection"
+    },
+    "provider_call_id_role": {
+      "const": "opaque_native_runtime_reference_never_CallId"
     },
     "identifiers": {
       "type": "object",
@@ -301,7 +313,7 @@
               "items": false
             },
             "authority": {
-              "const": "exact_PostgresVoiceCallStore_composition_binding_and_tenant_id_match"
+              "const": "trusted_projection_attestation_only_native_RustPBX_adoption_required"
             },
             "credential": {
               "const": "module_private_issuer_no_caller_supplied_lookup_or_record"

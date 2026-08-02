@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "suite": "Converact Fabric RustPBX SIPp acceptance",
+  "status": "passed",
+  "generated_at": "2026-08-02T19:03:25.144Z",
+  "duration_ms": 66719,
+  "tools": {
+    "sipp_version": "3.7.7",
+    "sipp_sha256": "8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef",
+    "container_image": "alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"
+  },
+  "target": {
+    "docker_network": "converact-rustpbx-baseline",
+    "rustpbx_ip": "172.30.44.10"
+  },
+  "evidence": {
+    "router_request_delta": 1,
+    "cdr_request_delta": 1
+  },
+  "scenarios": [
+    {
+      "id": "long-call-2h",
+      "status": "passed",
+      "duration_ms": 66258,
+      "calls": 1,
+      "transport": "udp",
+      "uac": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      },
+      "uas": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      }
+    }
+  ]
+}

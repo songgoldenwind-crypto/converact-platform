@@ -1,0 +1,133 @@
+----------------------------------------------- 2026-08-02T18:23:33.660103
+UDP message received [652] bytes:
+
+INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKdY0MCy9eckKn;rport
+Call-ID: 32rkjztz42cW6vCgNSGiAV@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=NsLmwUW9
+To: <sip:uas@172.30.44.22:5060>
+CSeq: 1 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:23:33.660359
+UDP message sent [250] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKdY0MCy9eckKn;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=NsLmwUW9
+To: <sip:uas@172.30.44.22:5060>
+Call-ID: 32rkjztz42cW6vCgNSGiAV@miuda.ai
+CSeq: 1 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:23:33.661526
+UDP message sent [317] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKdY0MCy9eckKn;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=NsLmwUW9
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+Call-ID: 32rkjztz42cW6vCgNSGiAV@miuda.ai
+CSeq: 1 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:23:33.766195
+UDP message sent [525] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKdY0MCy9eckKn;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=NsLmwUW9
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+Call-ID: 32rkjztz42cW6vCgNSGiAV@miuda.ai
+CSeq: 1 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:23:33.869529
+UDP message sent [511] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKdY0MCy9eckKn;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=NsLmwUW9
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+Call-ID: 32rkjztz42cW6vCgNSGiAV@miuda.ai
+CSeq: 1 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:23:33.869838
+UDP message received [339] bytes:
+
+ACK sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKFZpfKx1BOD6X
+From: <sip:sipp@172.30.44.20:5060>;tag=NsLmwUW9
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+Call-ID: 32rkjztz42cW6vCgNSGiAV@miuda.ai
+CSeq: 1 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:23:34.123962
+UDP message received [396] bytes:
+
+BYE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKttMZTode37fb;rport
+Call-ID: 32rkjztz42cW6vCgNSGiAV@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=NsLmwUW9
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+CSeq: 2 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:23:34.124124
+UDP message sent [309] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKttMZTode37fb;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=NsLmwUW9
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+Call-ID: 32rkjztz42cW6vCgNSGiAV@miuda.ai
+CSeq: 2 BYE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+

@@ -1,0 +1,133 @@
+----------------------------------------------- 2026-08-02T18:24:12.711784
+TCP message received [680] bytes:
+
+INVITE sip:uas@172.30.44.27:5060;transport=TCP SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKtNSGC4ZO9DGt;rport
+Call-ID: pLBEUJqSkWy5e76OK1wsLE@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=ShL8B3db
+To: <sip:uas@172.30.44.27:5060;transport=TCP>
+CSeq: 6 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:12.712007
+TCP message sent [264] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKtNSGC4ZO9DGt;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=ShL8B3db
+To: <sip:uas@172.30.44.27:5060;transport=TCP>
+Call-ID: pLBEUJqSkWy5e76OK1wsLE@miuda.ai
+CSeq: 6 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:12.713181
+TCP message sent [331] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKtNSGC4ZO9DGt;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=ShL8B3db
+To: <sip:uas@172.30.44.27:5060;transport=TCP>;tag=1SIPpTag1
+Call-ID: pLBEUJqSkWy5e76OK1wsLE@miuda.ai
+CSeq: 6 INVITE
+Contact: <sip:uas@172.30.44.27:5060;transport=TCP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:12.815529
+TCP message sent [539] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKtNSGC4ZO9DGt;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=ShL8B3db
+To: <sip:uas@172.30.44.27:5060;transport=TCP>;tag=1SIPpTag1
+Call-ID: pLBEUJqSkWy5e76OK1wsLE@miuda.ai
+CSeq: 6 INVITE
+Contact: <sip:uas@172.30.44.27:5060;transport=TCP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.27
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.27
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:12.918365
+TCP message sent [525] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKtNSGC4ZO9DGt;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=ShL8B3db
+To: <sip:uas@172.30.44.27:5060;transport=TCP>;tag=1SIPpTag1
+Call-ID: pLBEUJqSkWy5e76OK1wsLE@miuda.ai
+CSeq: 6 INVITE
+Contact: <sip:uas@172.30.44.27:5060;transport=TCP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.27
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.27
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:12.918663
+TCP message received [367] bytes:
+
+ACK sip:uas@172.30.44.27:5060;transport=TCP SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKeSQrRUoLomXf
+From: <sip:sipp@172.30.44.20:5060>;tag=ShL8B3db
+To: <sip:uas@172.30.44.27:5060;transport=TCP>;tag=1SIPpTag1
+Call-ID: pLBEUJqSkWy5e76OK1wsLE@miuda.ai
+CSeq: 6 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:13.175002
+TCP message received [424] bytes:
+
+BYE sip:uas@172.30.44.27:5060;transport=TCP SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKnvSOCaD6t5hs;rport
+Call-ID: pLBEUJqSkWy5e76OK1wsLE@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=ShL8B3db
+To: <sip:uas@172.30.44.27:5060;transport=TCP>;tag=1SIPpTag1
+CSeq: 7 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:13.175146
+TCP message sent [323] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKnvSOCaD6t5hs;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=ShL8B3db
+To: <sip:uas@172.30.44.27:5060;transport=TCP>;tag=1SIPpTag1
+Call-ID: pLBEUJqSkWy5e76OK1wsLE@miuda.ai
+CSeq: 7 BYE
+Contact: <sip:uas@172.30.44.27:5060;transport=TCP>
+Content-Length: 0
+
+

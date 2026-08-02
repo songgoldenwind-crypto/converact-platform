@@ -18,7 +18,10 @@
     "target_contract": "frozen",
     "production_eligible": false
   },
-  "authority": "Unified RustPBX Call Core",
+  "authority": "Unified RustPBX native Call Core",
+  "typescript_model_role": "conformance_reference_not_live_native_authority",
+  "control_plane_voice_call_role": "call_intent_and_rebuildable_projection",
+  "provider_call_id_role": "opaque_native_runtime_reference_never_CallId",
   "identifiers": {
     "common_representation": "opaque_ascii_1_to_128_no_whitespace",
     "generated_identity": "sha256_length_prefixed_tenant_namespace_components",
@@ -65,7 +68,7 @@
         "vcall_*",
         "uuid"
       ],
-      "authority": "exact_PostgresVoiceCallStore_composition_binding_and_tenant_id_match",
+      "authority": "trusted_projection_attestation_only_native_RustPBX_adoption_required",
       "credential": "module_private_issuer_no_caller_supplied_lookup_or_record",
       "runtime_brand": "constructor_issued_module_private_WeakSet_membership",
       "repository_composition": "native_private_field_not_structurally_replaceable",

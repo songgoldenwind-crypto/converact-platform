@@ -1,0 +1,63 @@
+----------------------------------------------- 2026-08-02T18:24:17.160826
+UDP message sent [610] bytes:
+
+INVITE sip:+18005550206@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-opc-1-1
+From: Converact Fabric SIPp <sip:sipp@172.30.44.20:5060>;tag=1
+To: Converact Fabric Route <sip:+18005550206@172.30.44.10:5060>
+Call-ID: udp-retransmission-1785695056182-1-1@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Type: application/sdp
+Content-Length:   168
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:17.161255
+UDP message received [352] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-opc-1-1
+From: Converact Fabric SIPp <sip:sipp@172.30.44.20:5060>;tag=1
+To: Converact Fabric Route <sip:+18005550206@172.30.44.10:5060>
+Call-ID: udp-retransmission-1785695056182-1-1@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:18.378059
+UDP message received [421] bytes:
+
+SIP/2.0 486 Busy Here
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-opc-1-1
+From: Converact Fabric SIPp <sip:sipp@172.30.44.20:5060>;tag=1
+To: "Converact Fabric Route" <sip:+18005550206@172.30.44.10:5060>;tag=DA12oELg
+Call-ID: udp-retransmission-1785695056182-1-1@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:18.378622
+UDP message sent [416] bytes:
+
+ACK sip:+18005550206@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-opc-1-1
+From: Converact Fabric SIPp <sip:sipp@172.30.44.20:5060>;tag=1
+To: "Converact Fabric Route" <sip:+18005550206@172.30.44.10:5060>;tag=DA12oELg
+Call-ID: udp-retransmission-1785695056182-1-1@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+

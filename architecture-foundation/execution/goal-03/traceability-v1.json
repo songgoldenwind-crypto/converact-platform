@@ -1126,13 +1126,16 @@
         "src/agent-runtime/converact/voice/sip-foundation/recovery.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "infra/converact/rustpbx/patches/rsipstack-ivekit-capacity.patch",
-        "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch"
+        "infra/converact/rustpbx/patches/rsipstack-ivekit-bounded-protocol-mailboxes.patch",
+        "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-ivekit-bounded-call-mailboxes.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-foundation-recovery.test.ts",
         "test/converact-rsipstack-server-invite-lifecycle-patch.test.ts",
-        "test/converact-rustpbx-dialog-recovery-patch.test.ts"
+        "test/converact-rustpbx-dialog-recovery-patch.test.ts",
+        "test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3297,13 +3300,16 @@
         "src/agent-runtime/converact/voice/sip-foundation/recovery.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "infra/converact/rustpbx/patches/rsipstack-ivekit-capacity.patch",
-        "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch"
+        "infra/converact/rustpbx/patches/rsipstack-ivekit-bounded-protocol-mailboxes.patch",
+        "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-ivekit-bounded-call-mailboxes.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-foundation-recovery.test.ts",
         "test/converact-rsipstack-server-invite-lifecycle-patch.test.ts",
-        "test/converact-rustpbx-dialog-recovery-patch.test.ts"
+        "test/converact-rustpbx-dialog-recovery-patch.test.ts",
+        "test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],

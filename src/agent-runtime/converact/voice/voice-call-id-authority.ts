@@ -11,34 +11,34 @@ import {
   PostgresVoiceCallStore
 } from './postgres/call-store.js';
 
-const AUTHORITY_ISSUER = Symbol('voice-call-id-authority-issuer');
+const PROJECTION_ADAPTER_ISSUER = Symbol('voice-call-projection-id-adapter-issuer');
 const TENANT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/;
 const LEGACY_VCALL_PATTERN = /^vcall_[A-Za-z0-9][A-Za-z0-9._:@/-]{0,120}$/;
 const LEGACY_UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
- * The only production bridge from a pre-foundation VoiceCall ID to CallId.
- * The private issuer and exact concrete repository check prevent callers from
- * promoting a structural lookup or raw SIP Call-ID into business authority.
+ * Attests an existing legacy control-plane projection before deriving the
+ * candidate CallId that the native RustPBX authority may adopt. This adapter
+ * neither owns an active Call nor promotes provider/SIP identifiers.
  */
-export class VoiceCallIdAuthorityAdapter {
+export class VoiceCallProjectionIdAdapter {
   readonly #calls: PostgresVoiceCallStore;
 
   private constructor(
-    issuer: typeof AUTHORITY_ISSUER,
+    issuer: typeof PROJECTION_ADAPTER_ISSUER,
     calls: PostgresVoiceCallStore
   ) {
-    if (issuer !== AUTHORITY_ISSUER) throw invalidLegacyCallId();
+    if (issuer !== PROJECTION_ADAPTER_ISSUER) throw invalidLegacyCallId();
     this.#calls = calls;
     Object.freeze(this);
   }
 
-  static bind(calls: PostgresVoiceCallStore): VoiceCallIdAuthorityAdapter {
+  static bind(calls: PostgresVoiceCallStore): VoiceCallProjectionIdAdapter {
     if (!isTrustedPostgresVoiceCallStore(calls)) {
       throw invalidLegacyCallId();
     }
-    return new VoiceCallIdAuthorityAdapter(AUTHORITY_ISSUER, calls);
+    return new VoiceCallProjectionIdAdapter(PROJECTION_ADAPTER_ISSUER, calls);
   }
 
   async resolveExisting(
@@ -67,8 +67,11 @@ export class VoiceCallIdAuthorityAdapter {
   }
 }
 
-Object.freeze(VoiceCallIdAuthorityAdapter.prototype);
-Object.freeze(VoiceCallIdAuthorityAdapter);
+Object.freeze(VoiceCallProjectionIdAdapter.prototype);
+Object.freeze(VoiceCallProjectionIdAdapter);
+
+/** @deprecated Compatibility export; this object is not a Call authority. */
+export const VoiceCallIdAuthorityAdapter = VoiceCallProjectionIdAdapter;
 
 function legacyTenantId(value: unknown): string {
   if (typeof value !== 'string' || !TENANT_ID_PATTERN.test(value)) {

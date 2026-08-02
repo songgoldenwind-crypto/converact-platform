@@ -11,14 +11,15 @@ evidence is not promoted.
 
 | Domain | Current/target implementation | Focused tests | Evidence ID |
 | --- | --- | --- | --- |
-| owned ID types and authority-attested legacy import | `voice/foundation-identifiers.ts`; module-issued `voice-call-id-authority.ts` bound by constructor WeakSet brand to exact `PostgresVoiceCallStore`, native-private composition and captured query method | `test/converact-call-leg-foundation.test.ts` including prototype/own-override rejection | `G03-E03-ID-STATE` |
-| Call business state | `voice/types.ts`; `voice/state-machine.ts`; `voice/call-service.ts` | Voice application/state tests | `G03-E03-ID-STATE` |
-| Leg/race state, pre-INVITE fork registration/CANCEL effects, terminating-winner 2xx retransmission, atomic transfer, fenced callback-free mailbox/timers | `voice/call-leg-state-machine.ts` | `test/converact-call-leg-foundation.test.ts` | `G03-E03-ID-STATE` |
+| owned ID types and projection-attested legacy import | `voice/foundation-identifiers.ts`; module-issued `VoiceCallProjectionIdAdapter` bound to exact `PostgresVoiceCallStore` with native-private composition and captured query method | `test/converact-call-leg-foundation.test.ts` including prototype/own-override rejection and role lock | `G03-E03-ID-STATE` |
+| Call product intent/projection | `voice/types.ts`; `voice/state-machine.ts`; `voice/call-service.ts` | Voice application/state tests | `G03-E03-ID-STATE`; native authority is `G03-E16/not_run` |
+| Leg/race conformance model | `voice/call-leg-state-machine.ts` covering pre-INVITE fork registration/CANCEL effects, terminating-winner 2xx retransmission, atomic transfer and fenced callback-free mailbox/timers | `test/converact-call-leg-foundation.test.ts` | `G03-E03-ID-STATE`; native binding is `G03-E16/not_run` |
 | SipFoundation types/capabilities | `sip-foundation/types.ts`; `capabilities.ts`; `closed-schema.ts` | `test/converact-sip-foundation.test.ts` | `G03-E02-BASELINE` |
 | originate/answer/terminate control port | closed `sip-foundation-control-message-v1` schema embedded in the target machine contract; current RustPBX binding remains outside the target port | compiled closed-schema contract test; future Adapter activation tests | `not_run` |
 | Protocol Session, pre-callback reservation and drain | `sip-foundation/session-registry.ts` | foundation + G03 reentrancy tests | `G03-E09-DRAIN` |
-| rsipstack Adapter | `sip-foundation/rsipstack-adapter.ts`; `route-binding.ts` | foundation tests; exact patch tests | `G03-E02-BASELINE`, `G03-E07-WIRE` |
-| durable effects/receipts | `effect-oracle.ts`; `postgres-effect-store.ts`; migration 107 | effect oracle and physical PostgreSQL tests; `test/converact-g03-postgres-restart-acceptance.test.ts` | `G03-E04-EFFECT`, `G03-E05-POSTGRES` |
+| TypeScript rsipstack conformance Adapter | `sip-foundation/rsipstack-adapter.ts`; `route-binding.ts` | foundation tests and explicit non-authority role test | `G03-E02-BASELINE`; live native binding is `G03-E16/not_run` |
+| native rsipstack runtime and bounded mailboxes | `.43` build plus `rsipstack-ivekit-bounded-protocol-mailboxes.patch` and `rustpbx-ivekit-bounded-call-mailboxes.patch` | exact patch gate; native suites 272/272 and 1919 passed + 1 ignored | local source proof; host evidence remains `not_run` |
+| durable effects/receipts reference | `effect-oracle.ts`; `postgres-effect-store.ts`; migration 107 | effect oracle and physical PostgreSQL tests; `test/converact-g03-postgres-restart-acceptance.test.ts` | `G03-E04-EFFECT`, `G03-E05-POSTGRES`; native writer is `G03-E16/not_run` |
 | physical restart/replay probe | `services/converact-service/acceptance/g03-sip-foundation/postgres-effect-restart-probe.ts` | `test/converact-g03-postgres-restart-acceptance.test.ts`; controlled host campaign | `G03-E05-POSTGRES` |
 | recovery/clock | `sip-foundation/recovery.ts`; dialog takeover/shadow sources | recovery and takeover tests | `G03-E08-RECOVERY` |
 | one 100 Trying | rsipstack single-trying patch; RustPBX call module; `g03-trying/final/overload` SIPp scenarios; `scripts/converact-g03-sip-latency.ts` | exact patch/native test, SIPp 3.7.7 raw RTT plus aggregate/message-count parser tests, nearest-rank tests and controlled latency campaign | `G03-E06-TRYING` |
@@ -32,11 +33,11 @@ evidence is not promoted.
 
 | Slice | Decision | Removal Gate |
 | --- | --- | --- |
-| `VoiceCall` repository/state machine | preserve as only business Call authority | never replaced by Adapter state |
-| TypeScript SipFoundation seam | preserve and harden | only superseding versioned contract |
-| rsipstack Adapter/patch queue | current baseline; do not delete | G06 new-call move + active/unknown/repair zero + rollback closure |
-| durable effect v1 | preserve; add semantic projection rather than destructive rename | rolling N/N+1 physical migration proof |
-| dialog shadow/takeover | preserve as outer business recovery authority | superseding recovery ADR and evidence |
+| `VoiceCall` repository/state machine | preserve as Call intent and rebuildable control-plane projection | never promoted to active native authority |
+| TypeScript SipFoundation seam | preserve as closed conformance/migration harness | never promoted to native transaction/Dialog authority |
+| native rsipstack patch queue | current production baseline; do not delete | G06 new-call move + active/unknown/repair zero + rollback closure |
+| durable effect v1 | preserve as reference contract; native writer must implement the same receipts | rolling N/N+1 plus `G03-E16` native activation proof |
+| dialog shadow/takeover | preserve as recovery projection/reconciliation harness; native owner CAS is required | superseding recovery ADR and evidence |
 | rvoip high-level session/orchestrator | do not import | explicit superseding Authority review |
 | media/codec/LiveKit | out of G03 | G04/G05/G07 goals |
 

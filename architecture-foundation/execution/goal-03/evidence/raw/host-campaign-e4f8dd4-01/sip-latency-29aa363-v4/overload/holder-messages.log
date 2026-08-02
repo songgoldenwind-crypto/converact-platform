@@ -1,0 +1,71 @@
+----------------------------------------------- 2026-08-02T18:36:30.342004
+UDP message sent [439] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5062;branch=z9hG4bK-13-1-0
+From: Converact G03 holder <sip:holder@172.30.44.20:5062>;tag=1
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: g03-holder-29aa363-1@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:holder@172.30.44.20:5062;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload capacity holder
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:36:30.342394
+UDP message received [333] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.20:5062;branch=z9hG4bK-13-1-0
+From: Converact G03 holder <sip:holder@172.30.44.20:5062>;tag=1
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: g03-holder-29aa363-1@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:36:32.482852
+UDP message received [399] bytes:
+
+SIP/2.0 486 Busy Here
+Via: SIP/2.0/UDP 172.30.44.20:5062;branch=z9hG4bK-13-1-0
+From: Converact G03 holder <sip:holder@172.30.44.20:5062>;tag=1
+Call-ID: g03-holder-29aa363-1@172.30.44.20
+CSeq: 1 INVITE
+To: "Converact G03 Route" <sip:+18005550999@172.30.44.10:5060>;tag=7AWw7iQZ
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Reason: Q.850;cause=17;text="acceptance-route"
+
+
+-----------------------------------------------
+Unexpected UDP message received:
+
+SIP/2.0 486 Busy Here
+Via: SIP/2.0/UDP 172.30.44.20:5062;branch=z9hG4bK-13-1-0
+From: Converact G03 holder <sip:holder@172.30.44.20:5062>;tag=1
+Call-ID: g03-holder-29aa363-1@172.30.44.20
+CSeq: 1 INVITE
+To: "Converact G03 Route" <sip:+18005550999@172.30.44.10:5060>;tag=7AWw7iQZ
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Reason: Q.850;cause=17;text="acceptance-route"
+
+
+----------------------------------------------- 2026-08-02T18:36:32.483722
+UDP message sent [424] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5062;branch=z9hG4bK-13-1-0
+From: Converact G03 holder <sip:holder@172.30.44.20:5062>;tag=1
+To: "Converact G03 Route" <sip:+18005550999@172.30.44.10:5060>;tag=7AWw7iQZ
+Call-ID: g03-holder-29aa363-1@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5062;transport=UDP>
+Max-Forwards: 70
+Subject: Performance Test
+Content-Length: 0
+
+

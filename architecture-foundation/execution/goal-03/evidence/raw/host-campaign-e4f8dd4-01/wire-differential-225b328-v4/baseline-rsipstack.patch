@@ -1,0 +1,3106 @@
+diff --git a/src/dialog/dialog.rs b/src/dialog/dialog.rs
+index 0ed9556..98aa6f9 100644
+--- a/src/dialog/dialog.rs
++++ b/src/dialog/dialog.rs
+@@ -967,6 +967,7 @@ impl DialogInner {
+                     if !matches!(method, Method::PRack) {
+                         self.clear_remote_reliable();
+                     }
++                    self.refresh_remote_target_from_response(&method, &resp)?;
+                     return Ok(Some(resp));
+                 }
+                 _ => break,
+@@ -979,6 +980,31 @@ impl DialogInner {
+         self.send_dialog_request(request).boxed().await
+     }
+ 
++    fn refresh_remote_target_from_response(
++        &self,
++        method: &Method,
++        response: &Response,
++    ) -> Result<()> {
++        if !matches!(method, Method::Invite | Method::Update)
++            || response.status_code.kind() != StatusCodeKind::Successful
++        {
++            return Ok(());
++        }
++        let mut contacts = response.typed_contact_headers()?;
++        if contacts.is_empty() {
++            return Ok(());
++        }
++        if contacts.len() != 1 {
++            return Err(crate::Error::Error(
++                "target refresh response must contain one Contact".to_string(),
++            ));
++        }
++        let contact = contacts.remove(0);
++        let remote_uri = contact.uri.clone();
++        self.set_remote_target(remote_uri, Some(contact.into()));
++        Ok(())
++    }
++
+     pub fn snapshot(&self) -> DialogSnapshot {
+         let id = self.id.lock().clone();
+ 
+@@ -1163,7 +1189,10 @@ impl DialogInner {
+ 
+         match state {
+             DialogState::Updated(_, _, _)
++            | DialogState::Publish(_, _, _)
+             | DialogState::Notify(_, _, _)
++            | DialogState::Refer(_, _, _)
++            | DialogState::Message(_, _, _)
+             | DialogState::Info(_, _, _)
+             | DialogState::Options(_, _, _) => {
+                 return Ok(());
+@@ -1269,6 +1298,17 @@ impl Dialog {
+         }
+     }
+ 
++    pub fn snapshot(&self) -> DialogSnapshot {
++        match self {
++            Dialog::ServerInvite(d) => d.inner.snapshot(),
++            Dialog::ClientInvite(d) => d.inner.snapshot(),
++            Dialog::ServerSubscription(d) => d.inner.snapshot(),
++            Dialog::ClientSubscription(d) => d.inner.snapshot(),
++            Dialog::ServerPublication(d) => d.inner.snapshot(),
++            Dialog::ClientPublication(d) => d.inner.snapshot(),
++        }
++    }
++
+     pub fn from(&self) -> &crate::sip::typed::From {
+         match self {
+             Dialog::ServerInvite(d) => &d.inner.from,
+diff --git a/src/dialog/invitation.rs b/src/dialog/invitation.rs
+index babc25a..54633ae 100644
+--- a/src/dialog/invitation.rs
++++ b/src/dialog/invitation.rs
+@@ -235,7 +235,99 @@ impl<'a> Drop for DialogGuardForUnconfirmed<'a> {
+ 
+ pub type InviteAsyncResult = Result<(DialogId, Option<Response>)>;
+ 
++/// An outbound INVITE whose dialog identity exists but whose request has not
++/// been sent. This permits an external media controller to transform the SDP
++/// after the real local dialog tag is known and before any signaling is visible.
++pub struct PreparedClientInvite {
++    dialog_layer_inner: DialogLayerInnerRef,
++    dialog: ClientInviteDialog,
++    tx: Transaction,
++}
++
++impl PreparedClientInvite {
++    pub fn dialog_id(&self) -> DialogId {
++        self.dialog.id()
++    }
++
++    pub fn logical_offer(&self) -> &[u8] {
++        &self.tx.original.body
++    }
++
++    pub fn replace_uncommitted_invite_offer(&mut self, effective_offer: Vec<u8>) -> Result<()> {
++        if !matches!(self.dialog.state(), DialogState::Calling(_)) {
++            return Err(crate::Error::Error(
++                "prepared INVITE is no longer uncommitted".to_string(),
++            ));
++        }
++        let content_length = effective_offer.len() as u32;
++        self.tx.original.body = effective_offer.clone();
++        self.tx
++            .original
++            .headers
++            .unique_push(crate::sip::Header::ContentLength(content_length.into()));
++
++        let mut initial_request = self.dialog.inner.initial_request.lock();
++        initial_request.body = effective_offer;
++        initial_request
++            .headers
++            .unique_push(crate::sip::Header::ContentLength(content_length.into()));
++        Ok(())
++    }
++
++    pub async fn send(self) -> Result<(ClientInviteDialog, Option<Response>)> {
++        let id = self.dialog.id();
++        self.dialog_layer_inner
++            .dialogs
++            .insert(id.to_string(), Dialog::ClientInvite(self.dialog.clone()));
++
++        debug!(%id, "prepared client invite dialog created");
++        let mut guard = DialogGuardForUnconfirmed {
++            dialog_layer_inner: &self.dialog_layer_inner,
++            id: &id,
++            invite_tx: Some(self.tx),
++        };
++        let tx = guard
++            .invite_tx
++            .as_mut()
++            .expect("prepared INVITE transaction must be available");
++        let result = self.dialog.process_invite(tx).boxed().await;
++        self.dialog_layer_inner.dialogs.remove(&id.to_string());
++
++        match result {
++            Ok((new_dialog_id, response)) => {
++                if response.as_ref().is_some_and(|value| {
++                    value.status_code.kind() == crate::sip::StatusCodeKind::Successful
++                }) {
++                    debug!(
++                        "prepared client invite dialog confirmed: {} => {}",
++                        id, new_dialog_id
++                    );
++                    self.dialog_layer_inner.dialogs.insert(
++                        new_dialog_id.to_string(),
++                        Dialog::ClientInvite(self.dialog.clone()),
++                    );
++                }
++                Ok((self.dialog, response))
++            }
++            Err(error) => Err(error),
++        }
++    }
++}
++
+ impl DialogLayer {
++    pub fn prepare_invite(
++        &self,
++        opt: InviteOption,
++        state_sender: DialogStateSender,
++    ) -> Result<PreparedClientInvite> {
++        let (dialog, tx) = self.create_client_invite_dialog(opt, state_sender)?;
++        Ok(PreparedClientInvite {
++            dialog_layer_inner: self.inner.clone(),
++            dialog,
++            tx,
++        })
++    }
++
+     /// Create an INVITE request from options
+     ///
+     /// Constructs a properly formatted SIP INVITE request based on the
+@@ -495,49 +587,7 @@ impl DialogLayer {
+         opt: InviteOption,
+         state_sender: DialogStateSender,
+     ) -> Result<(ClientInviteDialog, Option<Response>)> {
+-        let (dialog, tx) = self.create_client_invite_dialog(opt, state_sender)?;
+-        let id = dialog.id();
+-
+-        self.inner
+-            .dialogs
+-            .insert(id.to_string(), Dialog::ClientInvite(dialog.clone()));
+-
+-        debug!(%id, "client invite dialog created");
+-        let mut guard = DialogGuardForUnconfirmed {
+-            dialog_layer_inner: &self.inner,
+-            id: &id,
+-            invite_tx: Some(tx),
+-        };
+-
+-        let tx = guard
+-            .invite_tx
+-            .as_mut()
+-            .expect("transcation should be avaible");
+-
+-        let r = dialog.process_invite(tx).boxed().await;
+-        self.inner.dialogs.remove(&id.to_string());
+-
+-        match r {
+-            Ok((new_dialog_id, resp)) => {
+-                match resp {
+-                    Some(ref r)
+-                        if r.status_code.kind() == crate::sip::StatusCodeKind::Successful =>
+-                    {
+-                        debug!(
+-                            "client invite dialog confirmed: {} => {}",
+-                            id, new_dialog_id
+-                        );
+-                        self.inner.dialogs.insert(
+-                            new_dialog_id.to_string(),
+-                            Dialog::ClientInvite(dialog.clone()),
+-                        );
+-                    }
+-                    _ => {}
+-                }
+-                Ok((dialog, resp))
+-            }
+-            Err(e) => Err(e),
+-        }
++        self.prepare_invite(opt, state_sender)?.send().await
+     }
+ 
+     // Asynchronously executes an INVITE transaction in the background.
+@@ -654,3 +704,83 @@ impl DialogLayer {
+         Ok((dialog, tx))
+     }
+ }
++
++#[cfg(test)]
++mod prepared_invite_tests {
++    use super::*;
++    use crate::transport::{udp::UdpConnection, TransportLayer};
++    use crate::EndpointBuilder;
++    use tokio::sync::mpsc::unbounded_channel;
++    use tokio_util::sync::CancellationToken;
++
++    async fn prepared_invite(logical_offer: &[u8]) -> PreparedClientInvite {
++        let cancel_token = CancellationToken::new();
++        let transport = TransportLayer::new(cancel_token.child_token());
++        let udp = UdpConnection::create_connection(
++            "127.0.0.1:0".parse().unwrap(),
++            None,
++            Some(cancel_token.child_token()),
++        )
++        .await
++        .unwrap();
++        transport.add_transport(udp.into());
++        let endpoint = EndpointBuilder::new()
++            .with_user_agent("rsipstack-prepared-invite-test")
++            .with_transport_layer(transport)
++            .build();
++        let dialog_layer = DialogLayer::new(endpoint.inner.clone());
++        let (state_sender, _) = unbounded_channel();
++        dialog_layer
++            .prepare_invite(
++                InviteOption {
++                    caller: "sip:alice@example.com".try_into().unwrap(),
++                    callee: "sip:bob@example.com".try_into().unwrap(),
++                    contact: "sip:alice@127.0.0.1:5060".try_into().unwrap(),
++                    content_type: Some("application/sdp".to_string()),
++                    offer: Some(logical_offer.to_vec()),
++                    call_id: Some("prepared-invite-call".to_string()),
++                    ..Default::default()
++                },
++                state_sender,
++            )
++            .unwrap()
++    }
++
++    #[tokio::test]
++    async fn prepared_invite_exposes_real_local_tag_before_send() {
++        let invite = prepared_invite(b"v=0\r\na=logical\r\n").await;
++        let id = invite.dialog_id();
++
++        assert_eq!(id.call_id, "prepared-invite-call");
++        assert!(!id.local_tag.is_empty());
++        assert!(id.remote_tag.is_empty());
++        assert_eq!(invite.logical_offer(), b"v=0\r\na=logical\r\n");
++    }
++
++    #[tokio::test]
++    async fn prepared_invite_sends_only_the_effective_offer() {
++        let mut invite = prepared_invite(b"v=0\r\na=logical\r\n").await;
++        let effective = b"v=0\r\na=effective\r\n".to_vec();
++
++        invite
++            .replace_uncommitted_invite_offer(effective.clone())
++            .unwrap();
++
++        assert_eq!(invite.tx.original.body, effective);
++        assert_eq!(
++            invite.dialog.inner.initial_request.lock().body,
++            b"v=0\r\na=effective\r\n"
++        );
++        let content_length = invite
++            .tx
++            .original
++            .headers
++            .iter()
++            .find_map(|header| match header {
++                crate::sip::Header::ContentLength(value) => Some(value.value().to_string()),
++                _ => None,
++            });
++        let expected_length = b"v=0\r\na=effective\r\n".len().to_string();
++        assert_eq!(content_length.as_deref(), Some(expected_length.as_str()));
++    }
++}
+diff --git a/src/dialog/server_dialog.rs b/src/dialog/server_dialog.rs
+index 92ad2f4..9512841 100644
+--- a/src/dialog/server_dialog.rs
++++ b/src/dialog/server_dialog.rs
+@@ -1,10 +1,10 @@
++use super::DialogId;
+ use super::dialog::{Dialog, DialogInnerRef, DialogState, TerminatedReason, TransactionHandle};
+ use super::subscription::ServerSubscriptionDialog;
+-use super::DialogId;
+-use crate::sip::{prelude::HeadersExt, Header, Method, Request, SipMessage, StatusCode};
++use crate::sip::{Header, Method, Request, SipMessage, StatusCode, prelude::HeadersExt};
+ use crate::{
+-    transaction::transaction::{Transaction, TransactionEvent},
+     Result,
++    transaction::transaction::{Transaction, TransactionEvent},
+ };
+ use std::sync::atomic::Ordering;
+ use tokio_util::sync::CancellationToken;
+@@ -291,20 +291,33 @@ impl ServerInviteDialog {
+         &self,
+         code: Option<crate::sip::StatusCode>,
+         reason: Option<String>,
++    ) -> Result<()> {
++        self.reject_with_headers(code, reason, None)
++    }
++
++    /// Reject the incoming INVITE request with additional response headers.
++    ///
++    /// This is the response-header counterpart to [`Self::reject`]. It is
++    /// useful for overload responses such as `503 Service Unavailable` where
++    /// an upstream proxy needs a `Retry-After` signal.
++    pub fn reject_with_headers(
++        &self,
++        code: Option<crate::sip::StatusCode>,
++        reason: Option<String>,
++        headers: Option<Vec<crate::sip::Header>>,
+     ) -> Result<()> {
+         if self.inner.is_terminated() || self.inner.is_confirmed() {
+             return Ok(());
+         }
+         debug!(id=%self.id(), ?code, ?reason, "rejecting dialog");
+-        let headers = if let Some(reason) = reason {
+-            Some(vec![crate::sip::Header::Reason(reason.into())])
+-        } else {
+-            None
+-        };
++        let mut headers = headers.unwrap_or_default();
++        if let Some(reason) = reason {
++            headers.push(crate::sip::Header::Reason(reason.into()));
++        }
+         let resp = self.inner.make_response(
+             &self.initial_request(),
+             code.unwrap_or(crate::sip::StatusCode::Decline),
+-            headers,
++            (!headers.is_empty()).then_some(headers),
+             None,
+         );
+         self.inner
+diff --git a/src/dialog/tests/test_client_dialog.rs b/src/dialog/tests/test_client_dialog.rs
+index 035173f..726f797 100644
+--- a/src/dialog/tests/test_client_dialog.rs
++++ b/src/dialog/tests/test_client_dialog.rs
+@@ -816,6 +816,7 @@ async fn test_ack_sent_to_domain_name_from_contact() -> crate::Result<()> {
+ 
+     // Oneshot channel to receive the ACK for verification
+     let (ack_sender, ack_receiver) = oneshot::channel::<Request>();
++    let (info_uri_sender, info_uri_receiver) = oneshot::channel::<Uri>();
+ 
+     // UAS handler - wait for INVITE, respond with 200 OK containing domain Contact
+     tokio::spawn(async move {
+@@ -844,6 +845,35 @@ async fn test_ack_sent_to_domain_name_from_contact() -> crate::Result<()> {
+                 }
+             }
+         }
++
++        let mut update_tx = uas_incoming
++            .recv()
++            .await
++            .expect("failed to receive UPDATE transaction");
++        assert_eq!(update_tx.original.method, crate::sip::Method::Update);
++        let refreshed_contact = Contact::new(&format!(
++            "<sip:bob@refreshed.example.com:{};transport=udp>",
++            uas_port
++        ));
++        update_tx
++            .reply_with(
++                StatusCode::OK,
++                vec![refreshed_contact.into()],
++                Some(b"v=0\r\na=sendrecv\r\n".to_vec()),
++            )
++            .await
++            .expect("failed to respond to UPDATE");
++
++        let mut info_tx = uas_incoming
++            .recv()
++            .await
++            .expect("failed to receive INFO transaction");
++        assert_eq!(info_tx.original.method, crate::sip::Method::Info);
++        let _ = info_uri_sender.send(info_tx.original.uri.clone());
++        info_tx
++            .reply(StatusCode::OK)
++            .await
++            .expect("failed to respond to INFO");
+     });
+ 
+     // ========== UAC: Create and process INVITE ==========
+@@ -889,6 +919,34 @@ async fn test_ack_sent_to_domain_name_from_contact() -> crate::Result<()> {
+         "Dialog should be confirmed after 200 OK"
+     );
+ 
++    let update_response = client_dialog
++        .request(
++            crate::sip::Method::Update,
++            Some(vec![
++                ContentType::new("application/sdp").into(),
++                Contact::new(&format!("<sip:alice@127.0.0.1:{}>", uac_port)).into(),
++            ]),
++            Some(b"v=0\r\na=sendrecv\r\n".to_vec()),
++        )
++        .await?
++        .expect("missing UPDATE response");
++    assert_eq!(update_response.status_code, StatusCode::OK);
++
++    let info_response = client_dialog
++        .request(crate::sip::Method::Info, None, None)
++        .await?
++        .expect("missing INFO response");
++    assert_eq!(info_response.status_code, StatusCode::OK);
++    let info_uri = tokio::time::timeout(std::time::Duration::from_secs(2), info_uri_receiver)
++        .await
++        .expect("timeout receiving INFO")
++        .expect("INFO URI channel closed");
++    assert_eq!(
++        info_uri.host_with_port.host,
++        crate::sip::Host::Domain("refreshed.example.com".into())
++    );
++    assert_eq!(info_uri.host_with_port.port, Some(uas_port.into()));
++
+     uas_token.cancel();
+ 
+     Ok(())
+diff --git a/src/dialog/tests/test_dialog_states.rs b/src/dialog/tests/test_dialog_states.rs
+index 400d440..0bf8cea 100644
+--- a/src/dialog/tests/test_dialog_states.rs
++++ b/src/dialog/tests/test_dialog_states.rs
+@@ -328,8 +328,85 @@ async fn test_dialog_in_dialog_requests() -> crate::Result<()> {
+     let (handle, _) = TransactionHandle::new();
+     dialog_inner.transition(DialogState::Options(dialog_id.clone(), options_req, handle))?;
+ 
++    for (method, state) in [
++        (
++            crate::sip::Method::Refer,
++            DialogState::Refer(
++                dialog_id.clone(),
++                Request {
++                    method: crate::sip::Method::Refer,
++                    ..create_invite_request(
++                        "alice-tag-456",
++                        "bob-tag-789",
++                        "test-call-id-in-dialog-123",
++                    )
++                },
++                TransactionHandle::new().0,
++            ),
++        ),
++        (
++            crate::sip::Method::Message,
++            DialogState::Message(
++                dialog_id.clone(),
++                Request {
++                    method: crate::sip::Method::Message,
++                    ..create_invite_request(
++                        "alice-tag-456",
++                        "bob-tag-789",
++                        "test-call-id-in-dialog-123",
++                    )
++                },
++                TransactionHandle::new().0,
++            ),
++        ),
++        (
++            crate::sip::Method::Notify,
++            DialogState::Notify(
++                dialog_id.clone(),
++                Request {
++                    method: crate::sip::Method::Notify,
++                    ..create_invite_request(
++                        "alice-tag-456",
++                        "bob-tag-789",
++                        "test-call-id-in-dialog-123",
++                    )
++                },
++                TransactionHandle::new().0,
++            ),
++        ),
++        (
++            crate::sip::Method::Publish,
++            DialogState::Publish(
++                dialog_id.clone(),
++                Request {
++                    method: crate::sip::Method::Publish,
++                    ..create_invite_request(
++                        "alice-tag-456",
++                        "bob-tag-789",
++                        "test-call-id-in-dialog-123",
++                    )
++                },
++                TransactionHandle::new().0,
++            ),
++        ),
++    ] {
++        dialog_inner.transition(state)?;
++        assert!(
++            dialog_inner.is_confirmed(),
++            "{method} must not replace the durable dialog state"
++        );
++    }
++
+     // Dialog should still be confirmed after in-dialog requests
+     assert!(dialog_inner.is_confirmed());
++    let dialog = crate::dialog::dialog::Dialog::from_inner(
++        TransactionRole::Client,
++        std::sync::Arc::new(dialog_inner),
++    );
++    assert_eq!(
++        dialog.snapshot().state,
++        crate::dialog::dialog::DialogSnapshotState::Confirmed
++    );
+ 
+     Ok(())
+ }
+diff --git a/src/dialog/tests/test_server_dialog.rs b/src/dialog/tests/test_server_dialog.rs
+index ea60a46..1e00716 100644
+--- a/src/dialog/tests/test_server_dialog.rs
++++ b/src/dialog/tests/test_server_dialog.rs
+@@ -5,10 +5,10 @@ use tokio::sync::mpsc::unbounded_channel;
+ 
+ use crate::{
+     dialog::{
++        DialogId,
+         dialog::DialogInner,
+         server_dialog::ServerInviteDialog,
+         tests::test_dialog_states::{create_invite_request, create_test_endpoint},
+-        DialogId,
+     },
+     transaction::{key::TransactionRole, transaction::TransactionEvent},
+     transport::SipAddr,
+@@ -48,12 +48,13 @@ async fn test_dialog_make_request() -> crate::Result<()> {
+         .expect("Failed to make request");
+     assert_eq!(bye.method, crate::sip::Method::Bye);
+ 
+-    assert!(bye
+-        .via_header()
+-        .expect("not via header")
+-        .typed()?
+-        .received()
+-        .is_none());
++    assert!(
++        bye.via_header()
++            .expect("not via header")
++            .typed()?
++            .received()
++            .is_none()
++    );
+     assert!(
+         bye.via_header().expect("not via header").typed()?.branch()
+             != invite_req
+@@ -153,6 +154,64 @@ async fn test_accept_with_public_contact_preserves_contact_header() -> crate::Re
+     Ok(())
+ }
+ 
++#[tokio::test]
++async fn test_reject_with_headers_preserves_retry_after_and_reason() -> crate::Result<()> {
++    let dialog_id = DialogId {
++        call_id: "test-call-id-retry-after".to_string(),
++        local_tag: "bob-tag-789".to_string(),
++        remote_tag: "alice-tag-456".to_string(),
++    };
++    let endpoint = create_test_endpoint().await?;
++    let (tu_sender, mut tu_receiver) = unbounded_channel();
++    let (state_sender, _state_receiver) = unbounded_channel();
++    let invite_req = create_invite_request(&dialog_id.remote_tag, "", "test-call-id-retry-after");
++    let dialog_inner = DialogInner::new(
++        TransactionRole::Server,
++        dialog_id,
++        invite_req,
++        endpoint.inner.clone(),
++        state_sender,
++        None,
++        None,
++        tu_sender,
++    )
++    .expect("Failed to create dialog inner");
++    let server_dialog = ServerInviteDialog {
++        inner: Arc::new(dialog_inner),
++    };
++
++    server_dialog.reject_with_headers(
++        Some(crate::sip::StatusCode::ServiceUnavailable),
++        Some("Media relay unavailable".to_string()),
++        Some(vec![crate::sip::Header::RetryAfter(
++            crate::sip::headers::RetryAfter::new("1"),
++        )]),
++    )?;
++
++    match tu_receiver
++        .recv()
++        .await
++        .expect("Should receive transaction event")
++    {
++        TransactionEvent::Respond(response) => {
++            assert_eq!(
++                response.status_code,
++                crate::sip::StatusCode::ServiceUnavailable
++            );
++            assert!(response.headers.iter().any(|header| {
++                matches!(header, crate::sip::Header::RetryAfter(value) if value.value() == "1")
++            }));
++            assert!(response.headers.iter().any(|header| {
++                matches!(header, crate::sip::Header::Reason(value)
++                    if value.value() == "Media relay unavailable")
++            }));
++        }
++        _ => panic!("Expected TransactionEvent::Respond"),
++    }
++
++    Ok(())
++}
++
+ #[tokio::test]
+ async fn test_server_dialog_bye_via() -> crate::Result<()> {
+     let dialog_id = DialogId {
+diff --git a/src/transaction/endpoint.rs b/src/transaction/endpoint.rs
+index d204586..0c7e60e 100644
+--- a/src/transaction/endpoint.rs
++++ b/src/transaction/endpoint.rs
+@@ -12,12 +12,18 @@ use crate::{
+     Error, Result, VERSION,
+ };
+ use async_trait::async_trait;
+-use dashmap::DashMap;
++use dashmap::{mapref::entry::Entry, DashMap};
+ use parking_lot::Mutex;
+-use std::{sync::Arc, time::Duration};
++use std::{
++    sync::{
++        atomic::{AtomicU64, AtomicUsize, Ordering},
++        Arc,
++    },
++    time::Duration,
++};
+ use tokio::{
+     select,
+-    sync::mpsc::{error, unbounded_channel},
++    sync::mpsc::{channel, error},
+ };
+ use tokio_util::sync::CancellationToken;
+ use tracing::{debug, info, trace, warn};
+@@ -39,6 +45,7 @@ pub trait TransportEventInspector: Send + Sync {
+ 
+ pub struct EndpointOption {
+     pub t1: Duration,
++    pub t2: Duration,
+     pub t4: Duration,
+     pub t1x64: Duration,
+     pub timerc: Duration,
+@@ -49,6 +56,7 @@ impl Default for EndpointOption {
+     fn default() -> Self {
+         EndpointOption {
+             t1: Duration::from_millis(500),
++            t2: Duration::from_secs(4),
+             t4: Duration::from_secs(5),
+             t1x64: Duration::from_millis(64 * 500),
+             timerc: Duration::from_secs(180),
+@@ -57,10 +65,187 @@ impl Default for EndpointOption {
+     }
+ }
+ 
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct EndpointCapacityLimits {
++    pub max_active_transactions: usize,
++    pub max_finished_transactions: usize,
++    pub incoming_transaction_queue_capacity: usize,
++    pub max_transport_connections: usize,
++}
++
++impl EndpointCapacityLimits {
++    pub fn try_new(
++        max_active_transactions: usize,
++        max_finished_transactions: usize,
++        incoming_transaction_queue_capacity: usize,
++        max_transport_connections: usize,
++    ) -> Result<Self> {
++        if max_active_transactions == 0
++            || max_finished_transactions == 0
++            || incoming_transaction_queue_capacity == 0
++            || max_transport_connections == 0
++        {
++            return Err(Error::EndpointError(
++                "SIP capacity limits must be greater than zero".to_string(),
++            ));
++        }
++        Ok(Self {
++            max_active_transactions,
++            max_finished_transactions,
++            incoming_transaction_queue_capacity,
++            max_transport_connections,
++        })
++    }
++}
++
++impl Default for EndpointCapacityLimits {
++    fn default() -> Self {
++        Self {
++            max_active_transactions: usize::MAX,
++            max_finished_transactions: usize::MAX,
++            incoming_transaction_queue_capacity: 65_536,
++            max_transport_connections: usize::MAX,
++        }
++    }
++}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub struct EndpointStats {
+     pub running_transactions: usize,
+     pub finished_transactions: usize,
+     pub waiting_ack: usize,
++    pub timer_tasks: usize,
++    pub incoming_queue_depth: usize,
++    pub max_active_transactions: usize,
++    pub max_finished_transactions: usize,
++    pub incoming_transaction_queue_capacity: usize,
++    pub max_transport_connections: usize,
++    pub active_limit_rejections_total: u64,
++    pub incoming_queue_rejections_total: u64,
++    pub finished_cache_drops_total: u64,
++    pub active_transport_connections: usize,
++    pub transport_connection_limit_rejections_total: u64,
++}
++
++struct EndpointCapacityState {
++    limits: EndpointCapacityLimits,
++    active_transactions: AtomicUsize,
++    finished_transactions: AtomicUsize,
++    active_limit_rejections_total: AtomicU64,
++    incoming_queue_rejections_total: AtomicU64,
++    finished_cache_drops_total: AtomicU64,
++}
++
++impl EndpointCapacityState {
++    fn new(limits: EndpointCapacityLimits) -> Self {
++        Self {
++            limits,
++            active_transactions: AtomicUsize::new(0),
++            finished_transactions: AtomicUsize::new(0),
++            active_limit_rejections_total: AtomicU64::new(0),
++            incoming_queue_rejections_total: AtomicU64::new(0),
++            finished_cache_drops_total: AtomicU64::new(0),
++        }
++    }
++
++    fn try_acquire_active_transaction(&self) -> bool {
++        if try_acquire_bounded(
++            &self.active_transactions,
++            self.limits.max_active_transactions,
++        ) {
++            true
++        } else {
++            self.active_limit_rejections_total
++                .fetch_add(1, Ordering::Relaxed);
++            false
++        }
++    }
++
++    fn release_active_transaction(&self) {
++        release_bounded(&self.active_transactions);
++    }
++
++    fn try_acquire_finished_transaction(&self) -> bool {
++        if try_acquire_bounded(
++            &self.finished_transactions,
++            self.limits.max_finished_transactions,
++        ) {
++            true
++        } else {
++            self.finished_cache_drops_total
++                .fetch_add(1, Ordering::Relaxed);
++            false
++        }
++    }
++
++    fn release_finished_transaction(&self) {
++        release_bounded(&self.finished_transactions);
++    }
++
++    fn record_incoming_queue_rejection(&self) {
++        self.incoming_queue_rejections_total
++            .fetch_add(1, Ordering::Relaxed);
++    }
++
++    fn snapshot(&self, incoming_queue_depth: usize, timer_tasks: usize) -> EndpointStats {
++        EndpointStats {
++            running_transactions: self.active_transactions.load(Ordering::Acquire),
++            finished_transactions: self.finished_transactions.load(Ordering::Acquire),
++            waiting_ack: 0,
++            timer_tasks,
++            incoming_queue_depth,
++            max_active_transactions: self.limits.max_active_transactions,
++            max_finished_transactions: self.limits.max_finished_transactions,
++            incoming_transaction_queue_capacity: self.limits.incoming_transaction_queue_capacity,
++            max_transport_connections: self.limits.max_transport_connections,
++            active_limit_rejections_total: self
++                .active_limit_rejections_total
++                .load(Ordering::Relaxed),
++            incoming_queue_rejections_total: self
++                .incoming_queue_rejections_total
++                .load(Ordering::Relaxed),
++            finished_cache_drops_total: self.finished_cache_drops_total.load(Ordering::Relaxed),
++            active_transport_connections: 0,
++            transport_connection_limit_rejections_total: 0,
++        }
++    }
++}
++
++fn try_acquire_bounded(counter: &AtomicUsize, limit: usize) -> bool {
++    let mut current = counter.load(Ordering::Acquire);
++    loop {
++        if current >= limit {
++            return false;
++        }
++        match counter.compare_exchange_weak(
++            current,
++            current + 1,
++            Ordering::AcqRel,
++            Ordering::Acquire,
++        ) {
++            Ok(_) => return true,
++            Err(actual) => current = actual,
++        }
++    }
++}
++
++fn release_bounded(counter: &AtomicUsize) {
++    let mut current = counter.load(Ordering::Acquire);
++    loop {
++        if current == 0 {
++            debug_assert!(false, "SIP capacity counter release underflow");
++            return;
++        }
++        match counter.compare_exchange_weak(
++            current,
++            current - 1,
++            Ordering::AcqRel,
++            Ordering::Acquire,
++        ) {
++            Ok(_) => return,
++            Err(actual) => current = actual,
++        }
++    }
+ }
+ 
+ /// SIP Endpoint Core Implementation
+@@ -88,11 +273,12 @@ pub struct EndpointStats {
+ /// * `incoming_sender` - Channel for incoming transaction notifications
+ /// * `cancel_token` - Cancellation token for graceful shutdown
+ /// * `timer_interval` - Interval for timer processing
+-/// * `t1`, `t4`, `t1x64` - SIP timer values as per RFC 3261
++/// * `t1`, `t2`, `t4`, `t1x64` - SIP timer values as per RFC 3261
+ ///
+ /// # Timer Values
+ ///
+ /// * `t1` - RTT estimate (default 500ms)
++/// * `t2` - Maximum retransmission interval (default 4s)
+ /// * `t4` - Maximum duration a message will remain in the network (default 4s)
+ /// * `t1x64` - Maximum retransmission timeout (default 32s)
+ pub struct EndpointInner {
+@@ -105,6 +291,7 @@ pub struct EndpointInner {
+     pub waiting_ack: DashMap<DialogId, TransactionKey>,
+     incoming_sender: TransactionSender,
+     incoming_receiver: Mutex<Option<TransactionReceiver>>,
++    capacity: EndpointCapacityState,
+     cancel_token: CancellationToken,
+     #[allow(dead_code)]
+     timer_interval: Duration,
+@@ -144,6 +331,7 @@ pub struct EndpointBuilder {
+     target_locator: Option<Box<dyn TargetLocator>>,
+     transport_inspector: Option<Box<dyn TransportEventInspector>>,
+     domain_resolver: Option<Box<dyn DomainResolver>>,
++    capacity_limits: Option<EndpointCapacityLimits>,
+ }
+ 
+ /// SIP Endpoint
+@@ -212,8 +400,10 @@ impl EndpointInner {
+         message_inspector: Option<Box<dyn MessageInspector>>,
+         locator: Option<Box<dyn TargetLocator>>,
+         transport_inspector: Option<Box<dyn TransportEventInspector>>,
++        capacity_limits: EndpointCapacityLimits,
+     ) -> Arc<Self> {
+-        let (incoming_sender, incoming_receiver) = unbounded_channel();
++        let (incoming_sender, incoming_receiver) =
++            channel(capacity_limits.incoming_transaction_queue_capacity);
+         Arc::new(EndpointInner {
+             allows: Mutex::new(Some(allows)),
+             user_agent,
+@@ -226,6 +416,7 @@ impl EndpointInner {
+             cancel_token,
+             incoming_sender,
+             incoming_receiver: Mutex::new(Some(incoming_receiver)),
++            capacity: EndpointCapacityState::new(capacity_limits),
+             option: option.unwrap_or_default(),
+             message_inspector,
+             locator,
+@@ -293,7 +484,9 @@ impl EndpointInner {
+                 if let TransactionTimer::TimerCleanup(key) = t {
+                     trace!(%key, "TimerCleanup");
+                     self.transactions.remove(&key);
+-                    self.finished_transactions.remove(&key);
++                    if self.finished_transactions.remove(&key).is_some() {
++                        self.capacity.release_finished_transaction();
++                    }
+                     continue;
+                 }
+ 
+@@ -479,29 +672,95 @@ impl EndpointInner {
+             _ => {}
+         }
+ 
++        let reject_connection = connection.clone();
+         let tx =
+             Transaction::new_server(key.clone(), request.clone(), self.clone(), Some(connection));
+ 
+-        self.incoming_sender.send(tx).ok();
++        if !tx.is_admitted() {
++            self.reject_overloaded_request(&request, &reject_connection)
++                .await?;
++            return Ok(());
++        }
++
++        if let Err(error) = self.incoming_sender.try_send(tx) {
++            let rejected = error.into_inner();
++            drop(rejected);
++            self.capacity.record_incoming_queue_rejection();
++            self.reject_overloaded_request(&request, &reject_connection)
++                .await?;
++        }
+         Ok(())
+     }
+ 
+-    pub fn attach_transaction(&self, key: &TransactionKey, tu_sender: TransactionEventSender) {
++    async fn reject_overloaded_request(
++        &self,
++        request: &crate::sip::Request,
++        connection: &SipConnection,
++    ) -> Result<()> {
++        let mut response =
++            self.make_response(request, crate::sip::StatusCode::ServiceUnavailable, None);
++        response
++            .headers
++            .push(crate::sip::Header::Other("Retry-After".into(), "1".into()));
++        let response = if let Some(ref inspector) = self.message_inspector {
++            inspector.before_send(response.into(), None)
++        } else {
++            response.into()
++        };
++        let destination = if !connection.is_reliable() {
++            self.get_destination_from_request(request).await
++        } else {
++            None
++        };
++        connection.send(response, destination.as_ref()).await
++    }
++
++    pub fn attach_transaction(
++        &self,
++        key: &TransactionKey,
++        tu_sender: TransactionEventSender,
++    ) -> bool {
+         trace!(%key, "attach transaction");
+-        self.transactions.insert(key.clone(), tu_sender);
++        match self.transactions.entry(key.clone()) {
++            Entry::Occupied(_) => false,
++            Entry::Vacant(entry) => {
++                if !self.capacity.try_acquire_active_transaction() {
++                    return false;
++                }
++                entry.insert(tu_sender);
++                true
++            }
++        }
+     }
+ 
+     pub fn detach_transaction(&self, key: &TransactionKey, last_message: Option<SipMessage>) {
+         trace!(%key, "detach transaction");
+-        self.transactions.remove(key);
+-
+         if let Some(msg) = last_message {
+-            self.timers.timeout(
+-                self.option.t1x64,
+-                TransactionTimer::TimerCleanup(key.clone()), // maybe use TimerK ???
+-            );
++            self.publish_finished_transaction(key, msg);
++        }
+ 
+-            self.finished_transactions.insert(key.clone(), Some(msg));
++        // The finished transaction is visible before active transaction release.
++        // A retransmission can therefore never observe an untracked key and be
++        // admitted as a second server transaction during this transition.
++        if self.transactions.remove(key).is_some() {
++            self.capacity.release_active_transaction();
++        }
++    }
++
++    fn publish_finished_transaction(&self, key: &TransactionKey, msg: SipMessage) {
++        match self.finished_transactions.entry(key.clone()) {
++            Entry::Occupied(mut entry) => {
++                entry.insert(Some(msg));
++            }
++            Entry::Vacant(entry) => {
++                if self.capacity.try_acquire_finished_transaction() {
++                    self.timers.timeout(
++                        self.option.t1x64,
++                        TransactionTimer::TimerCleanup(key.clone()), // maybe use TimerK ???
++                    );
++                    entry.insert(Some(msg));
++                }
++            }
+         }
+     }
+ 
+@@ -564,15 +823,14 @@ impl EndpointInner {
+     }
+ 
+     pub fn get_stats(&self) -> EndpointStats {
+-        let waiting_ack = self.waiting_ack.len();
+-        let running_transactions = self.transactions.len();
+-        let finished_transactions = self.finished_transactions.len();
+-
+-        EndpointStats {
+-            running_transactions,
+-            finished_transactions,
+-            waiting_ack,
+-        }
++        let queue_depth = self.incoming_sender.max_capacity() - self.incoming_sender.capacity();
++        let mut stats = self.capacity.snapshot(queue_depth, self.timers.len());
++        stats.waiting_ack = self.waiting_ack.len();
++        let transport = self.transport_layer.get_capacity_stats();
++        stats.active_transport_connections = transport.active_connections;
++        stats.transport_connection_limit_rejections_total =
++            transport.connection_limit_rejections_total;
++        stats
+     }
+ }
+ 
+@@ -595,6 +853,7 @@ impl EndpointBuilder {
+             target_locator: None,
+             transport_inspector: None,
+             domain_resolver: None,
++            capacity_limits: None,
+         }
+     }
+ 
+@@ -648,6 +907,11 @@ impl EndpointBuilder {
+         self
+     }
+ 
++    pub fn with_capacity_limits(&mut self, limits: EndpointCapacityLimits) -> &mut Self {
++        self.capacity_limits = Some(limits);
++        self
++    }
++
+     pub fn build(&mut self) -> Endpoint {
+         let cancel_token = self.cancel_token.take().unwrap_or_default();
+         let transport_layer = self.transport_layer.take().unwrap_or_else(|| {
+@@ -657,6 +921,10 @@ impl EndpointBuilder {
+                 TransportLayer::new(cancel_token.clone())
+             }
+         });
++        let capacity_limits = self.capacity_limits.take().unwrap_or_default();
++        transport_layer
++            .set_max_connections(capacity_limits.max_transport_connections)
++            .expect("validated endpoint transport capacity");
+ 
+         let allows = self.allows.to_owned();
+         let user_agent = self.user_agent.to_owned();
+@@ -676,6 +944,7 @@ impl EndpointBuilder {
+             message_inspector,
+             locator,
+             transport_inspector,
++            capacity_limits,
+         );
+ 
+         Endpoint { inner: core }
+@@ -715,3 +984,63 @@ impl Endpoint {
+         self.inner.transport_layer.get_addrs()
+     }
+ }
++
++#[cfg(test)]
++mod capacity_tests {
++    use super::*;
++
++    #[test]
++    fn endpoint_capacity_limits_reject_zero_values() {
++        assert!(EndpointCapacityLimits::try_new(0, 1, 1, 1).is_err());
++        assert!(EndpointCapacityLimits::try_new(1, 0, 1, 1).is_err());
++        assert!(EndpointCapacityLimits::try_new(1, 1, 0, 1).is_err());
++        assert!(EndpointCapacityLimits::try_new(1, 1, 1, 0).is_err());
++    }
++
++    #[test]
++    fn active_transaction_reservations_are_strictly_bounded() {
++        let state = EndpointCapacityState::new(
++            EndpointCapacityLimits::try_new(2, 3, 4, 5).expect("valid limits"),
++        );
++
++        assert!(state.try_acquire_active_transaction());
++        assert!(state.try_acquire_active_transaction());
++        assert!(!state.try_acquire_active_transaction());
++        assert_eq!(state.snapshot(0, 0).running_transactions, 2);
++        assert_eq!(state.snapshot(0, 0).active_limit_rejections_total, 1);
++
++        state.release_active_transaction();
++        assert!(state.try_acquire_active_transaction());
++        assert_eq!(state.snapshot(0, 0).running_transactions, 2);
++    }
++
++    #[test]
++    fn finished_transaction_reservations_are_strictly_bounded() {
++        let state = EndpointCapacityState::new(
++            EndpointCapacityLimits::try_new(2, 1, 4, 5).expect("valid limits"),
++        );
++
++        assert!(state.try_acquire_finished_transaction());
++        assert!(!state.try_acquire_finished_transaction());
++        assert_eq!(state.snapshot(0, 0).finished_transactions, 1);
++        assert_eq!(state.snapshot(0, 0).finished_cache_drops_total, 1);
++
++        state.release_finished_transaction();
++        assert!(state.try_acquire_finished_transaction());
++    }
++
++    #[test]
++    fn queue_rejections_are_counted_without_high_cardinality_labels() {
++        let state = EndpointCapacityState::new(
++            EndpointCapacityLimits::try_new(2, 2, 4, 5).expect("valid limits"),
++        );
++        state.record_incoming_queue_rejection();
++        state.record_incoming_queue_rejection();
++
++        let stats = state.snapshot(3, 7);
++        assert_eq!(stats.incoming_queue_depth, 3);
++        assert_eq!(stats.timer_tasks, 7);
++        assert_eq!(stats.incoming_queue_rejections_total, 2);
++        assert_eq!(stats.max_transport_connections, 5);
++    }
++}
+diff --git a/src/transaction/mod.rs b/src/transaction/mod.rs
+index fc6c862..44affed 100644
+--- a/src/transaction/mod.rs
++++ b/src/transaction/mod.rs
+@@ -1,7 +1,7 @@
+ use crate::transport::{SipAddr, SipConnection};
+ use key::TransactionKey;
+ use std::time::Duration;
+-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
++use tokio::sync::mpsc::{Receiver, Sender};
+ use transaction::Transaction;
+ 
+ pub mod endpoint;
+@@ -11,6 +11,8 @@ mod timer;
+ pub mod transaction;
+ pub use endpoint::Endpoint;
+ pub use endpoint::EndpointBuilder;
++pub use endpoint::EndpointCapacityLimits;
++pub use endpoint::EndpointStats;
+ #[cfg(test)]
+ mod tests;
+ 
+@@ -24,8 +26,8 @@ pub struct IncomingRequest {
+     pub from: SipAddr,
+ }
+ 
+-pub type TransactionReceiver = UnboundedReceiver<Transaction>;
+-pub type TransactionSender = UnboundedSender<Transaction>;
++pub type TransactionReceiver = Receiver<Transaction>;
++pub type TransactionSender = Sender<Transaction>;
+ 
+ /// SIP Transaction State
+ ///
+@@ -184,8 +186,10 @@ impl std::fmt::Display for TransactionType {
+ /// * `TimerD` - Wait timer for response retransmissions (client)
+ /// * `TimerE` - Retransmission timer for non-INVITE server transactions
+ /// * `TimerF` - Transaction timeout timer for non-INVITE server transactions
+-/// * `TimerK` - Wait timer for ACK (server INVITE transactions)
+ /// * `TimerG` - Retransmission timer for INVITE server transactions
++/// * `TimerH` - INVITE server transaction timeout while waiting for ACK
++/// * `TimerI` - Confirmed INVITE server transaction linger timer
++/// * `TimerK` - Non-INVITE server transaction linger timer
+ /// * `TimerCleanup` - Internal cleanup timer for transaction removal
+ ///
+ /// # Timer Values (RFC 3261)
+@@ -253,6 +257,8 @@ pub enum TransactionTimer {
+     TimerD(TransactionKey),
+     TimerK(TransactionKey),
+     TimerG(TransactionKey, Duration),
++    TimerH(TransactionKey),
++    TimerI(TransactionKey),
+     TimerCleanup(TransactionKey),
+ }
+ 
+@@ -264,6 +270,8 @@ impl TransactionTimer {
+             TransactionTimer::TimerC(key) => key,
+             TransactionTimer::TimerD(key) => key,
+             TransactionTimer::TimerG(key, _) => key,
++            TransactionTimer::TimerH(key) => key,
++            TransactionTimer::TimerI(key) => key,
+             TransactionTimer::TimerK(key) => key,
+             TransactionTimer::TimerCleanup(key) => key,
+         }
+@@ -282,6 +290,8 @@ impl std::fmt::Display for TransactionTimer {
+             TransactionTimer::TimerG(key, duration) => {
+                 write!(f, "TimerG: {} {}", key, duration.as_millis())
+             }
++            TransactionTimer::TimerH(key) => write!(f, "TimerH: {}", key),
++            TransactionTimer::TimerI(key) => write!(f, "TimerI: {}", key),
+             TransactionTimer::TimerK(key) => write!(f, "TimerK: {}", key),
+             TransactionTimer::TimerCleanup(key) => write!(f, "TimerCleanup: {}", key),
+         }
+diff --git a/src/transaction/tests/test_server.rs b/src/transaction/tests/test_server.rs
+index e20f7af..6ed041a 100644
+--- a/src/transaction/tests/test_server.rs
++++ b/src/transaction/tests/test_server.rs
+@@ -1,14 +1,771 @@
+-use crate::sip::headers::*;
+-use crate::transport::SipConnection;
++use crate::sip::{headers::*, HeadersExt};
++use crate::transaction::endpoint::{EndpointCapacityLimits, EndpointOption, MessageInspector};
++use crate::transaction::transaction::{ServerInviteTermination, TransactionEvent};
++use crate::transaction::{TransactionState, TransactionTimer};
++use crate::transport::{
++    channel::ChannelConnection, tcp::TcpConnection, SipAddr, SipConnection, TransportEvent,
++};
+ use crate::{
+     transport::{udp::UdpConnection, TransportLayer},
+     EndpointBuilder,
+ };
++use std::sync::{
++    atomic::{AtomicUsize, Ordering},
++    Arc,
++};
+ use std::time::Duration;
+-use tokio::{select, time::sleep};
++use tokio::{
++    io::AsyncReadExt,
++    net::{TcpListener, TcpStream},
++    select,
++    time::{sleep, timeout},
++};
+ use tokio_util::sync::CancellationToken;
+ use tracing::info;
+ 
++fn invite_request(via_transport: &str, via_addr: &SipAddr, branch: &str) -> crate::sip::Request {
++    crate::sip::Request {
++        method: crate::sip::Method::Invite,
++        uri: crate::sip::Uri::try_from("sip:bob@example.test").expect("request URI"),
++        headers: vec![
++            Via::new(&format!(
++                "SIP/2.0/{via_transport} {};branch={branch}",
++                via_addr.addr
++            ))
++            .into(),
++            CSeq::new("1 INVITE").into(),
++            From::new("Alice <sip:alice@example.test>;tag=server-lifecycle").into(),
++            To::new("Bob <sip:bob@example.test>").into(),
++            CallId::new(&format!("{branch}@example.test")).into(),
++        ]
++        .into(),
++        version: crate::sip::Version::V2,
++        body: Default::default(),
++    }
++}
++
++async fn udp_server_transaction(
++    option: EndpointOption,
++    inspector: Option<Box<dyn MessageInspector>>,
++) -> (crate::transaction::transaction::Transaction, UdpConnection) {
++    let server = UdpConnection::create_connection(
++        "127.0.0.1:0".parse().expect("server address"),
++        None,
++        None,
++    )
++    .await
++    .expect("server UDP");
++    let peer =
++        UdpConnection::create_connection("127.0.0.1:0".parse().expect("peer address"), None, None)
++            .await
++            .expect("peer UDP");
++    let mut builder = EndpointBuilder::new();
++    builder
++        .with_user_agent("rsipstack-test")
++        .with_option(option);
++    if let Some(inspector) = inspector {
++        builder.with_inspector(inspector);
++    }
++    let endpoint = builder.build();
++    let request = invite_request("UDP", peer.get_addr(), "z9hG4bK-server-lifecycle");
++    let key = crate::transaction::TransactionKey::from_request(
++        &request,
++        crate::transaction::key::TransactionRole::Server,
++    )
++    .expect("transaction key");
++    let transaction = crate::transaction::transaction::Transaction::new_server(
++        key,
++        request,
++        endpoint.inner.clone(),
++        Some(server.into()),
++    );
++    (transaction, peer)
++}
++
++async fn recv_udp_bytes(peer: &UdpConnection) -> Vec<u8> {
++    let mut buffer = vec![0_u8; 65_535];
++    let (len, _) = timeout(Duration::from_secs(1), peer.recv_raw(&mut buffer))
++        .await
++        .expect("UDP response timeout")
++        .expect("UDP response");
++    buffer.truncate(len);
++    buffer
++}
++
++struct CountingWireInspector {
++    calls: Arc<AtomicUsize>,
++}
++
++impl MessageInspector for CountingWireInspector {
++    fn before_send(
++        &self,
++        mut msg: crate::sip::SipMessage,
++        _dest: Option<&SipAddr>,
++    ) -> crate::sip::SipMessage {
++        let call = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
++        if let crate::sip::SipMessage::Response(response) = &mut msg {
++            response.headers.push(crate::sip::Header::Other(
++                "X-Wire-Generation".into(),
++                call.to_string(),
++            ));
++        }
++        msg
++    }
++
++    fn after_received(
++        &self,
++        msg: crate::sip::SipMessage,
++        _from: Option<&SipAddr>,
++    ) -> crate::sip::SipMessage {
++        msg
++    }
++}
++
++#[tokio::test]
++async fn duplicate_invite_replays_frozen_post_inspector_response() {
++    let inspector_calls = Arc::new(AtomicUsize::new(0));
++    let option = EndpointOption {
++        t1: Duration::from_secs(1),
++        t2: Duration::from_secs(4),
++        t4: Duration::from_secs(5),
++        t1x64: Duration::from_secs(64),
++        timerc: Duration::from_secs(180),
++        callid_suffix: None,
++    };
++    let (mut transaction, peer) = udp_server_transaction(
++        option,
++        Some(Box::new(CountingWireInspector {
++            calls: inspector_calls.clone(),
++        })),
++    )
++    .await;
++
++    transaction
++        .reply(crate::sip::StatusCode::ServiceUnavailable)
++        .await
++        .expect("initial final response");
++    let initial = recv_udp_bytes(&peer).await;
++
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Received(
++            transaction.original.clone().into(),
++            None,
++        ))
++        .expect("duplicate INVITE event");
++    assert!(
++        timeout(Duration::from_millis(20), transaction.receive())
++            .await
++            .is_err(),
++        "a duplicate INVITE must not reach the transaction user"
++    );
++    let replay = recv_udp_bytes(&peer).await;
++
++    assert_eq!(replay, initial, "replay must preserve exact wire bytes");
++    assert_eq!(
++        inspector_calls.load(Ordering::SeqCst),
++        1,
++        "wire inspector must run only for the initial response"
++    );
++    assert_eq!(transaction.state, TransactionState::Completed);
++}
++
++#[tokio::test]
++async fn timer_g_doubles_to_t2_and_replays_frozen_udp_response() {
++    let option = EndpointOption {
++        t1: Duration::from_millis(10),
++        t2: Duration::from_millis(20),
++        t4: Duration::from_secs(1),
++        t1x64: Duration::from_secs(2),
++        timerc: Duration::from_secs(180),
++        callid_suffix: None,
++    };
++    let (mut transaction, peer) = udp_server_transaction(option, None).await;
++    transaction
++        .reply(crate::sip::StatusCode::ServiceUnavailable)
++        .await
++        .expect("initial final response");
++    let initial = recv_udp_bytes(&peer).await;
++
++    sleep(Duration::from_millis(15)).await;
++    let first_timer = transaction
++        .endpoint_inner
++        .timers
++        .poll(std::time::Instant::now())
++        .into_iter()
++        .find(|timer| matches!(timer, TransactionTimer::TimerG(_, _)))
++        .expect("initial Timer G");
++    assert!(matches!(
++        &first_timer,
++        TransactionTimer::TimerG(_, duration) if *duration == Duration::from_millis(10)
++    ));
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Timer(first_timer))
++        .expect("first Timer G event");
++    assert!(timeout(Duration::from_millis(5), transaction.receive())
++        .await
++        .is_err());
++    assert_eq!(recv_udp_bytes(&peer).await, initial);
++
++    sleep(Duration::from_millis(25)).await;
++    let second_timer = transaction
++        .endpoint_inner
++        .timers
++        .poll(std::time::Instant::now())
++        .into_iter()
++        .find(|timer| matches!(timer, TransactionTimer::TimerG(_, _)))
++        .expect("second Timer G");
++    assert!(matches!(
++        &second_timer,
++        TransactionTimer::TimerG(_, duration) if *duration == Duration::from_millis(20)
++    ));
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Timer(second_timer))
++        .expect("second Timer G event");
++    assert!(timeout(Duration::from_millis(5), transaction.receive())
++        .await
++        .is_err());
++    assert_eq!(recv_udp_bytes(&peer).await, initial);
++
++    sleep(Duration::from_millis(25)).await;
++    let capped_timer = transaction
++        .endpoint_inner
++        .timers
++        .poll(std::time::Instant::now())
++        .into_iter()
++        .find(|timer| matches!(timer, TransactionTimer::TimerG(_, _)))
++        .expect("capped Timer G");
++    assert!(matches!(
++        capped_timer,
++        TransactionTimer::TimerG(_, duration) if duration == Duration::from_millis(20)
++    ));
++}
++
++#[tokio::test]
++async fn timer_h_is_observable_and_terminates_udp_transaction() {
++    let option = EndpointOption {
++        t1: Duration::from_millis(10),
++        t2: Duration::from_millis(20),
++        t4: Duration::from_millis(30),
++        t1x64: Duration::from_millis(640),
++        timerc: Duration::from_secs(180),
++        callid_suffix: None,
++    };
++    let (mut transaction, peer) = udp_server_transaction(option, None).await;
++    transaction
++        .reply(crate::sip::StatusCode::ServiceUnavailable)
++        .await
++        .expect("initial final response");
++    recv_udp_bytes(&peer).await;
++    assert!(transaction.timer_g.is_some());
++    assert!(transaction.timer_h.is_some());
++
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Timer(TransactionTimer::TimerH(
++            transaction.key.clone(),
++        )))
++        .expect("Timer H event");
++    assert_eq!(
++        transaction
++            .drain_non_2xx_server_invite()
++            .await
++            .expect("drain Timer H"),
++        Some(ServerInviteTermination::TimerHExpired)
++    );
++    assert!(transaction.is_terminated());
++}
++
++#[tokio::test]
++async fn timer_g_transport_failure_is_observable_and_terminates() {
++    let option = EndpointOption {
++        t1: Duration::from_millis(10),
++        t2: Duration::from_millis(20),
++        t4: Duration::from_millis(30),
++        t1x64: Duration::from_millis(640),
++        timerc: Duration::from_secs(180),
++        callid_suffix: None,
++    };
++    let (mut transaction, peer) = udp_server_transaction(option, None).await;
++    transaction
++        .reply(crate::sip::StatusCode::ServiceUnavailable)
++        .await
++        .expect("initial final response");
++    recv_udp_bytes(&peer).await;
++
++    transaction.destination = Some(SipAddr::from(
++        "[::1]:9"
++            .parse::<std::net::SocketAddr>()
++            .expect("IPv6 destination"),
++    ));
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Timer(TransactionTimer::TimerG(
++            transaction.key.clone(),
++            Duration::from_millis(10),
++        )))
++        .expect("Timer G event");
++    let termination = timeout(
++        Duration::from_secs(1),
++        transaction.drain_non_2xx_server_invite(),
++    )
++    .await
++    .expect("transport failure did not terminate")
++    .expect("drain transport failure");
++    assert!(matches!(
++        termination,
++        Some(ServerInviteTermination::TransportError)
++    ));
++    assert!(transaction.is_terminated());
++}
++
++#[tokio::test]
++async fn udp_ack_cancels_g_h_and_retains_transaction_until_timer_i() {
++    let option = EndpointOption {
++        t1: Duration::from_millis(10),
++        t2: Duration::from_millis(20),
++        t4: Duration::from_millis(30),
++        t1x64: Duration::from_millis(640),
++        timerc: Duration::from_secs(180),
++        callid_suffix: None,
++    };
++    let (mut transaction, peer) = udp_server_transaction(option, None).await;
++    transaction
++        .reply(crate::sip::StatusCode::ServiceUnavailable)
++        .await
++        .expect("initial final response");
++    recv_udp_bytes(&peer).await;
++
++    let mut ack = transaction.original.clone();
++    ack.method = crate::sip::Method::Ack;
++    *ack.cseq_header_mut().expect("ACK CSeq") = CSeq::new("1 ACK");
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Received(ack.into(), None))
++        .expect("ACK event");
++    assert!(matches!(
++        transaction.receive().await,
++        Some(crate::sip::SipMessage::Request(crate::sip::Request {
++            method: crate::sip::Method::Ack,
++            ..
++        }))
++    ));
++    assert_eq!(transaction.state, TransactionState::Confirmed);
++    assert!(transaction.timer_g.is_none());
++    assert!(transaction.timer_h.is_none());
++    assert!(transaction.timer_i.is_some());
++
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Timer(TransactionTimer::TimerI(
++            transaction.key.clone(),
++        )))
++        .expect("Timer I event");
++    assert_eq!(
++        transaction
++            .drain_non_2xx_server_invite()
++            .await
++            .expect("drain Timer I"),
++        Some(ServerInviteTermination::Acknowledged)
++    );
++    assert!(transaction.is_terminated());
++}
++
++#[tokio::test]
++async fn reliable_transport_uses_h_but_no_g_or_i() {
++    let listener = TcpListener::bind("127.0.0.1:0").await.expect("TCP bind");
++    let listener_addr = listener.local_addr().expect("listener address");
++    let client = TcpStream::connect(listener_addr);
++    let accepted = listener.accept();
++    let (client, accepted) = tokio::join!(client, accepted);
++    let mut client = client.expect("TCP connect");
++    let (server_stream, _) = accepted.expect("TCP accept");
++    let server_addr = SipAddr {
++        r#type: Some(crate::sip::Transport::Tcp),
++        addr: listener_addr.into(),
++    };
++    let server_connection =
++        TcpConnection::from_stream(server_stream, server_addr, None).expect("TCP connection");
++    let peer_addr = SipAddr {
++        r#type: Some(crate::sip::Transport::Tcp),
++        addr: client.local_addr().expect("client address").into(),
++    };
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-test")
++        .with_option(EndpointOption {
++            t1: Duration::from_millis(10),
++            t2: Duration::from_millis(20),
++            t4: Duration::from_millis(30),
++            t1x64: Duration::from_millis(640),
++            timerc: Duration::from_secs(180),
++            callid_suffix: None,
++        })
++        .build();
++    let request = invite_request("TCP", &peer_addr, "z9hG4bK-reliable-lifecycle");
++    let key = crate::transaction::TransactionKey::from_request(
++        &request,
++        crate::transaction::key::TransactionRole::Server,
++    )
++    .expect("transaction key");
++    let mut transaction = crate::transaction::transaction::Transaction::new_server(
++        key,
++        request,
++        endpoint.inner.clone(),
++        Some(server_connection.into()),
++    );
++
++    transaction
++        .reply(crate::sip::StatusCode::ServiceUnavailable)
++        .await
++        .expect("initial final response");
++    let mut response = vec![0_u8; 4096];
++    timeout(Duration::from_secs(1), client.read(&mut response))
++        .await
++        .expect("TCP response timeout")
++        .expect("TCP response");
++    assert!(transaction.timer_g.is_none());
++    assert!(transaction.timer_h.is_some());
++
++    let mut ack = transaction.original.clone();
++    ack.method = crate::sip::Method::Ack;
++    *ack.cseq_header_mut().expect("ACK CSeq") = CSeq::new("1 ACK");
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Received(ack.into(), None))
++        .expect("ACK event");
++    assert!(matches!(
++        transaction.receive().await,
++        Some(crate::sip::SipMessage::Request(crate::sip::Request {
++            method: crate::sip::Method::Ack,
++            ..
++        }))
++    ));
++    assert!(transaction.is_terminated());
++    assert!(transaction.timer_i.is_none());
++}
++
++#[tokio::test]
++async fn initial_final_send_failure_does_not_commit_response_and_terminates() {
++    let (_incoming_tx, incoming_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (outgoing_tx, outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    drop(outgoing_rx);
++    let channel_addr = SipAddr::from(
++        "127.0.0.1:5060"
++            .parse::<std::net::SocketAddr>()
++            .expect("channel address"),
++    );
++    let connection =
++        ChannelConnection::create_connection(incoming_rx, outgoing_tx, channel_addr.clone(), None)
++            .await
++            .expect("channel connection");
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-test")
++        .build();
++    let request = invite_request("UDP", &channel_addr, "z9hG4bK-final-send-failure");
++    let key = crate::transaction::TransactionKey::from_request(
++        &request,
++        crate::transaction::key::TransactionRole::Server,
++    )
++    .expect("transaction key");
++    let mut transaction = crate::transaction::transaction::Transaction::new_server(
++        key,
++        request,
++        endpoint.inner.clone(),
++        Some(connection.into()),
++    );
++
++    assert!(transaction
++        .reply(crate::sip::StatusCode::ServiceUnavailable)
++        .await
++        .is_err());
++    assert_eq!(transaction.state, TransactionState::Terminated);
++    assert!(transaction.last_response.is_none());
++    assert_eq!(
++        transaction
++            .drain_non_2xx_server_invite()
++            .await
++            .expect("typed transport failure"),
++        Some(ServerInviteTermination::TransportError)
++    );
++}
++
++#[tokio::test]
++async fn async_final_response_send_failure_terminates_and_notifies_owner() {
++    let (_incoming_tx, incoming_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (outgoing_tx, outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    drop(outgoing_rx);
++    let channel_addr = SipAddr::from(
++        "127.0.0.1:5060"
++            .parse::<std::net::SocketAddr>()
++            .expect("channel address"),
++    );
++    let connection =
++        ChannelConnection::create_connection(incoming_rx, outgoing_tx, channel_addr.clone(), None)
++            .await
++            .expect("channel connection");
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-test")
++        .build();
++    let request = invite_request("UDP", &channel_addr, "z9hG4bK-async-final-send-failure");
++    let key = crate::transaction::TransactionKey::from_request(
++        &request,
++        crate::transaction::key::TransactionRole::Server,
++    )
++    .expect("transaction key");
++    let mut transaction = crate::transaction::transaction::Transaction::new_server(
++        key,
++        request,
++        endpoint.inner.clone(),
++        Some(connection.into()),
++    );
++    let response = transaction.endpoint_inner.make_response(
++        &transaction.original,
++        crate::sip::StatusCode::ServiceUnavailable,
++        None,
++    );
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Respond(response))
++        .expect("async final response");
++
++    let owner_notification = timeout(Duration::from_millis(100), transaction.receive())
++        .await
++        .expect("fatal transport error must notify the transaction owner");
++    assert!(owner_notification.is_none());
++    assert!(transaction.is_terminated());
++    assert!(transaction.last_response.is_none());
++    assert_eq!(
++        transaction
++            .drain_non_2xx_server_invite()
++            .await
++            .expect("typed transport failure"),
++        Some(ServerInviteTermination::TransportError)
++    );
++}
++
++#[tokio::test]
++async fn invite_2xx_does_not_start_non_2xx_g_or_h() {
++    let option = EndpointOption {
++        t1: Duration::from_millis(10),
++        t2: Duration::from_millis(20),
++        t4: Duration::from_millis(30),
++        t1x64: Duration::from_millis(640),
++        timerc: Duration::from_secs(180),
++        callid_suffix: None,
++    };
++    let (mut transaction, peer) = udp_server_transaction(option, None).await;
++    transaction
++        .reply(crate::sip::StatusCode::OK)
++        .await
++        .expect("initial 2xx response");
++    recv_udp_bytes(&peer).await;
++    assert!(transaction.timer_g.is_none());
++    assert!(transaction.timer_h.is_none());
++}
++
++#[tokio::test]
++async fn endpoint_capacity_emergency_503_remains_stateless() {
++    let server = UdpConnection::create_connection(
++        "127.0.0.1:0".parse().expect("server address"),
++        None,
++        None,
++    )
++    .await
++    .expect("server UDP");
++    let peer =
++        UdpConnection::create_connection("127.0.0.1:0".parse().expect("peer address"), None, None)
++            .await
++            .expect("peer UDP");
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-test")
++        .with_capacity_limits(EndpointCapacityLimits::try_new(1, 8, 8, 8).expect("capacity limits"))
++        .build();
++    let mut incoming = endpoint
++        .incoming_transactions()
++        .expect("incoming transactions");
++    let first = invite_request("UDP", peer.get_addr(), "z9hG4bK-capacity-first");
++    endpoint
++        .inner
++        .on_received_message(first.clone().into(), server.clone().into(), peer.get_addr())
++        .await
++        .expect("first INVITE");
++    let first_transaction = incoming.recv().await.expect("first transaction");
++    assert_eq!(endpoint.inner.get_stats().running_transactions, 1);
++
++    let second = invite_request("UDP", peer.get_addr(), "z9hG4bK-capacity-second");
++    endpoint
++        .inner
++        .on_received_message(second.into(), server.into(), peer.get_addr())
++        .await
++        .expect("capacity rejection");
++    let rejection = String::from_utf8(recv_udp_bytes(&peer).await).expect("UTF-8 SIP rejection");
++    assert!(rejection.starts_with("SIP/2.0 503"));
++    assert!(rejection.contains("Retry-After: 1"));
++    assert!(matches!(
++        incoming.try_recv(),
++        Err(tokio::sync::mpsc::error::TryRecvError::Empty)
++    ));
++    let stats = endpoint.inner.get_stats();
++    assert_eq!(stats.running_transactions, 1);
++    assert_eq!(stats.active_limit_rejections_total, 1);
++
++    drop(first_transaction);
++    assert_eq!(endpoint.inner.get_stats().running_transactions, 0);
++}
++
++#[tokio::test]
++async fn repeated_send_trying_emits_one_initial_response() {
++    let (_incoming_tx, incoming_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    let channel_addr = SipAddr::from(
++        "127.0.0.1:5060"
++            .parse::<std::net::SocketAddr>()
++            .expect("channel address"),
++    );
++    let connection =
++        ChannelConnection::create_connection(incoming_rx, outgoing_tx, channel_addr, None)
++            .await
++            .expect("channel connection");
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-test")
++        .build();
++    let request = crate::sip::Request {
++        method: crate::sip::Method::Invite,
++        uri: crate::sip::Uri::try_from("sip:bob@example.test").expect("request URI"),
++        headers: vec![
++            Via::new("SIP/2.0/UDP example.test:5060;branch=z9hG4bK-single-trying").into(),
++            CSeq::new("1 INVITE").into(),
++            From::new("Alice <sip:alice@example.test>;tag=single-trying").into(),
++            To::new("Bob <sip:bob@example.test>").into(),
++            CallId::new("single-trying@example.test").into(),
++        ]
++        .into(),
++        version: crate::sip::Version::V2,
++        body: Default::default(),
++    };
++    let key = crate::transaction::TransactionKey::from_request(
++        &request,
++        crate::transaction::key::TransactionRole::Server,
++    )
++    .expect("transaction key");
++    let mut transaction = crate::transaction::Transaction::new_server(
++        key,
++        request,
++        endpoint.inner.clone(),
++        Some(connection.into()),
++    );
++
++    transaction.send_trying().await.expect("first 100 Trying");
++    transaction
++        .send_trying()
++        .await
++        .expect("duplicate owner is a no-op");
++
++    let first = outgoing_rx.recv().await.expect("first response");
++    assert!(matches!(
++        first,
++        TransportEvent::Incoming(
++            crate::sip::SipMessage::Response(crate::sip::Response {
++                status_code: crate::sip::StatusCode::Trying,
++                ..
++            }),
++            _,
++            _
++        )
++    ));
++    assert!(
++        matches!(
++            outgoing_rx.try_recv(),
++            Err(tokio::sync::mpsc::error::TryRecvError::Empty)
++        ),
++        "the second application owner must not emit another 100 Trying"
++    );
++}
++
++#[tokio::test]
++async fn failed_send_trying_can_retry_on_replacement_connection() {
++    let (_failed_incoming_tx, failed_incoming_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (failed_outgoing_tx, failed_outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    drop(failed_outgoing_rx);
++    let channel_addr = SipAddr::from(
++        "127.0.0.1:5060"
++            .parse::<std::net::SocketAddr>()
++            .expect("channel address"),
++    );
++    let failed_connection = ChannelConnection::create_connection(
++        failed_incoming_rx,
++        failed_outgoing_tx,
++        channel_addr.clone(),
++        None,
++    )
++    .await
++    .expect("failed channel connection");
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-test")
++        .build();
++    let request = crate::sip::Request {
++        method: crate::sip::Method::Invite,
++        uri: crate::sip::Uri::try_from("sip:bob@example.test").expect("request URI"),
++        headers: vec![
++            Via::new("SIP/2.0/UDP example.test:5060;branch=z9hG4bK-trying-retry").into(),
++            CSeq::new("1 INVITE").into(),
++            From::new("Alice <sip:alice@example.test>;tag=trying-retry").into(),
++            To::new("Bob <sip:bob@example.test>").into(),
++            CallId::new("trying-retry@example.test").into(),
++        ]
++        .into(),
++        version: crate::sip::Version::V2,
++        body: Default::default(),
++    };
++    let key = crate::transaction::TransactionKey::from_request(
++        &request,
++        crate::transaction::key::TransactionRole::Server,
++    )
++    .expect("transaction key");
++    let mut transaction = crate::transaction::Transaction::new_server(
++        key,
++        request,
++        endpoint.inner.clone(),
++        Some(failed_connection.into()),
++    );
++
++    assert!(transaction.send_trying().await.is_err());
++
++    let (_retry_incoming_tx, retry_incoming_rx) = tokio::sync::mpsc::unbounded_channel();
++    let (retry_outgoing_tx, mut retry_outgoing_rx) = tokio::sync::mpsc::unbounded_channel();
++    let retry_connection = ChannelConnection::create_connection(
++        retry_incoming_rx,
++        retry_outgoing_tx,
++        channel_addr,
++        None,
++    )
++    .await
++    .expect("retry channel connection");
++    transaction.connection = Some(retry_connection.into());
++    transaction
++        .send_trying()
++        .await
++        .expect("replacement connection sends 100 Trying");
++
++    assert!(matches!(
++        retry_outgoing_rx.recv().await,
++        Some(TransportEvent::Incoming(
++            crate::sip::SipMessage::Response(crate::sip::Response {
++                status_code: crate::sip::StatusCode::Trying,
++                ..
++            }),
++            _,
++            _
++        ))
++    ));
++    assert!(matches!(
++        retry_outgoing_rx.try_recv(),
++        Err(tokio::sync::mpsc::error::TryRecvError::Empty)
++    ));
++}
++
+ #[tokio::test]
+ async fn test_server_transaction() {
+     let token = CancellationToken::new();
+@@ -107,3 +864,92 @@ async fn test_server_transaction() {
+         }
+     }
+ }
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn duplicate_request_during_detach_is_not_readmitted() {
++    use tokio::time::timeout;
++
++    let token = CancellationToken::new();
++    let server = UdpConnection::create_connection(
++        "127.0.0.1:0".parse().expect("server address"),
++        None,
++        None,
++    )
++    .await
++    .expect("server connection");
++    let server: SipConnection = server.into();
++    let server_addr = server.get_addr().clone();
++    let transport = TransportLayer::new(token.child_token());
++    transport.add_transport(server);
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-test")
++        .with_transport_layer(transport)
++        .build();
++    let mut incoming = endpoint
++        .incoming_transactions()
++        .expect("incoming transactions");
++    let serving = tokio::spawn({
++        let inner = endpoint.inner.clone();
++        async move { inner.serve().await.expect("serve endpoint") }
++    });
++
++    let client = UdpConnection::create_connection(
++        "127.0.0.1:0".parse().expect("client address"),
++        None,
++        None,
++    )
++    .await
++    .expect("client connection");
++    let client: SipConnection = client.into();
++    let request = crate::sip::message::Request {
++        method: crate::sip::method::Method::Register,
++        uri: crate::sip::Uri {
++            scheme: Some(crate::sip::Scheme::Sip),
++            host_with_port: crate::sip::HostWithPort::try_from(server_addr.addr.to_string())
++                .expect("host and port")
++                .into(),
++            ..Default::default()
++        },
++        headers: vec![
++            Via::new(&format!(
++                "SIP/2.0/UDP {};branch=z9hG4bK-ivekit-detach",
++                client.get_addr().addr
++            ))
++            .into(),
++            CSeq::new("1 REGISTER").into(),
++            From::new("iveKit <sip:ivekit@example.test>;tag=detach-race").into(),
++            CallId::new("ivekit-detach-race@example.test").into(),
++        ]
++        .into(),
++        version: crate::sip::Version::V2,
++        body: Default::default(),
++    };
++
++    client
++        .send(request.clone().into(), Some(&server_addr))
++        .await
++        .expect("send initial request");
++    let mut transaction = timeout(Duration::from_secs(1), incoming.recv())
++        .await
++        .expect("initial transaction timeout")
++        .expect("initial transaction");
++    let response = crate::sip::Response {
++        status_code: crate::sip::StatusCode::OK,
++        version: crate::sip::Version::V2,
++        headers: transaction.original.headers.clone(),
++        ..Default::default()
++    };
++    let send_duplicate = client.send(request.into(), Some(&server_addr));
++    let (responded, duplicated) = tokio::join!(transaction.respond(response), send_duplicate);
++    responded.expect("respond");
++    duplicated.expect("send duplicate");
++
++    assert!(
++        timeout(Duration::from_millis(100), incoming.recv())
++            .await
++            .is_err(),
++        "duplicate request must reuse the active or finished transaction"
++    );
++    endpoint.shutdown();
++    serving.await.expect("serve task");
++}
+diff --git a/src/transaction/timer.rs b/src/transaction/timer.rs
+index 631a398..163794f 100644
+--- a/src/transaction/timer.rs
++++ b/src/transaction/timer.rs
+@@ -70,9 +70,8 @@ impl<T> Timer<T> {
+ 
+         if should_notify {
+             self.condvar.notify_all();
+-            self.notify.notify_waiters();
+-        } else {
+-            self.condvar.notify_one();
++            // `notify_one` retains a permit when the async worker has released
++            // the state lock but has not registered `notified()` yet.
+             self.notify.notify_one();
+         }
+         task_id
+@@ -100,9 +99,7 @@ impl<T> Timer<T> {
+         if removed.is_some() {
+             if was_head {
+                 self.condvar.notify_all();
+-                self.notify.notify_waiters();
+-            } else {
+-                self.condvar.notify_one();
++                // Preserve the wake across the lock-to-wait registration gap.
+                 self.notify.notify_one();
+             }
+         }
+@@ -211,6 +208,46 @@ async fn wait_for_ready_async_wakes_on_new_timer() {
+     assert_eq!(ready, vec!["early"]);
+ }
+ 
++#[tokio::test]
++async fn new_head_notification_is_retained_before_waiter_registration() {
++    let timer = Timer::new();
++    timer.timeout(Duration::from_secs(60), "head");
++
++    tokio::time::timeout(Duration::from_millis(50), timer.notify.notified())
++        .await
++        .expect("new-head notification must retain a permit");
++}
++
++#[tokio::test]
++async fn wait_for_ready_ignores_non_head_insert_and_wakes_for_earlier_deadline() {
++    use std::sync::Arc;
++
++    let timer = Arc::new(Timer::new());
++    timer.timeout(Duration::from_secs(5), "head");
++    tokio::time::timeout(Duration::from_millis(50), timer.notify.notified())
++        .await
++        .expect("consume initial head notification");
++
++    let worker = Arc::clone(&timer);
++    let mut wait_handle = tokio::spawn(async move { worker.wait_for_ready().await });
++    tokio::task::yield_now().await;
++
++    timer.timeout(Duration::from_secs(10), "non-head");
++    assert!(
++        tokio::time::timeout(Duration::from_millis(30), &mut wait_handle)
++            .await
++            .is_err(),
++        "a non-head insert must not wake the timer worker"
++    );
++
++    timer.timeout(Duration::from_millis(20), "earlier");
++    let ready = tokio::time::timeout(Duration::from_secs(1), wait_handle)
++        .await
++        .expect("earlier deadline did not wake timer worker")
++        .expect("timer worker panicked");
++    assert_eq!(ready, vec!["earlier"]);
++}
++
+ impl<T> Timer<T> {
+     fn lock_state(&self) -> MutexGuard<'_, TimerState<T>> {
+         self.state.lock()
+diff --git a/src/transaction/transaction.rs b/src/transaction/transaction.rs
+index fca8e6a..2d926ac 100644
+--- a/src/transaction/transaction.rs
++++ b/src/transaction/transaction.rs
+@@ -11,11 +11,18 @@ use crate::transaction::make_tag;
+ use crate::transport::SipAddr;
+ use crate::{Error, Result};
+ use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+-use tracing::{debug, trace};
++use tracing::{debug, trace, warn};
+ 
+ pub type TransactionEventReceiver = UnboundedReceiver<TransactionEvent>;
+ pub type TransactionEventSender = UnboundedSender<TransactionEvent>;
+ 
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub enum ServerInviteTermination {
++    Acknowledged,
++    TimerHExpired,
++    TransportError,
++}
++
+ /// SIP Transaction Events
+ ///
+ /// `TransactionEvent` represents the various events that can occur during
+@@ -179,6 +186,11 @@ pub struct Transaction {
+     pub timer_d: Option<u64>,
+     pub timer_k: Option<u64>, // server invite only
+     pub timer_g: Option<u64>, // server invite only
++    pub timer_h: Option<u64>, // non-2xx server invite only
++    pub timer_i: Option<u64>, // non-2xx server invite only
++    admitted: bool,
++    initial_trying_sent: bool,
++    server_invite_termination: Option<ServerInviteTermination>,
+     is_cleaned_up: bool,
+ }
+ 
+@@ -200,7 +212,7 @@ impl Transaction {
+             TransactionState::Nothing
+         };
+         trace!(%key, %state, "transaction created");
+-        let tx = Self {
++        let mut tx = Self {
+             transaction_type,
+             endpoint_inner,
+             connection,
+@@ -216,11 +228,17 @@ impl Transaction {
+             timer_d: None,
+             timer_k: None,
+             timer_g: None,
++            timer_h: None,
++            timer_i: None,
++            admitted: false,
++            initial_trying_sent: false,
++            server_invite_termination: None,
+             tu_receiver,
+             tu_sender,
+             is_cleaned_up: false,
+         };
+-        tx.endpoint_inner
++        tx.admitted = tx
++            .endpoint_inner
+             .attach_transaction(&tx.key, tx.tu_sender.clone());
+         tx
+     }
+@@ -250,8 +268,19 @@ impl Transaction {
+         };
+         Transaction::new(tx_type, key, original, connection, endpoint_inner)
+     }
++
++    pub fn is_admitted(&self) -> bool {
++        self.admitted
++    }
++
+     // send client request
+     pub async fn send(&mut self) -> Result<()> {
++        if !self.admitted {
++            return Err(Error::TransactionError(
++                "SIP active transaction capacity exceeded".to_string(),
++                self.key.clone(),
++            ));
++        }
+         match self.transaction_type {
+             TransactionType::ClientInvite | TransactionType::ClientNonInvite => {}
+             _ => {
+@@ -303,7 +332,37 @@ impl Transaction {
+             self.original.to_owned().into()
+         };
+ 
+-        connection.send(message, self.destination.as_ref()).await?;
++        if let Err(error) = connection
++            .send(message.clone(), self.destination.as_ref())
++            .await
++        {
++            if !is_retryable_tcp_send_error(&connection, &error) {
++                return Err(error);
++            }
++
++            debug!(
++                key = %self.key,
++                error = %error,
++                "TCP send failed; reconnecting once"
++            );
++            self.endpoint_inner
++                .transport_layer
++                .del_connection_if_same(&connection);
++            let destination = self.destination.clone().ok_or(Error::TransactionError(
++                "no destination found for TCP reconnect".to_string(),
++                self.key.clone(),
++            ))?;
++            let (retry_connection, resolved_addr) = self
++                .endpoint_inner
++                .transport_layer
++                .lookup(&destination, Some(&self.key))
++                .await?;
++            self.destination.replace(resolved_addr);
++            retry_connection
++                .send(message, self.destination.as_ref())
++                .await?;
++            self.connection.replace(retry_connection);
++        }
+         self.transition(TransactionState::Calling).map(|_| ())
+     }
+ 
+@@ -374,11 +433,21 @@ impl Transaction {
+         };
+         trace!(key = %self.key, response = %response, "responding");
+ 
+-        match response.clone() {
+-            SipMessage::Response(resp) => self.last_response.replace(resp),
+-            _ => None,
+-        };
+-        connection.send(response, self.destination.as_ref()).await?;
++        let is_non_2xx_server_invite = self.transaction_type == TransactionType::ServerInvite
++            && matches!(response, SipMessage::Response(ref response) if
++                (300..=699).contains(&response.status_code.code()));
++        if let Err(error) = connection
++            .send(response.clone(), self.destination.as_ref())
++            .await
++        {
++            if is_non_2xx_server_invite {
++                self.terminate_server_invite_transport_error(&error);
++            }
++            return Err(error);
++        }
++        if let SipMessage::Response(response) = response {
++            self.last_response.replace(response);
++        }
+         self.transition(new_state).map(|_| ())
+     }
+ 
+@@ -533,10 +602,14 @@ impl Transaction {
+                     }
+                 }
+                 TransactionEvent::Timer(t) => {
+-                    self.on_timer(t).await.ok();
++                    if let Err(error) = self.on_timer(t).await {
++                        warn!(key = %self.key, error = %error, "transaction timer failed");
++                    }
+                 }
+                 TransactionEvent::Respond(response) => {
+-                    self.respond(response).await.ok();
++                    if self.respond(response).await.is_err() && self.is_terminated() {
++                        return None;
++                    }
+                 }
+                 TransactionEvent::Terminate(key) => {
+                     debug!(%key, "received terminate event");
+@@ -548,18 +621,78 @@ impl Transaction {
+     }
+ 
+     pub async fn send_trying(&mut self) -> Result<()> {
++        // The transaction is the single owner for application-initiated 100 Trying.
++        // Protocol retransmissions still use respond(last_response) independently.
++        if self.initial_trying_sent {
++            return Ok(());
++        }
+         let response = self
+             .endpoint_inner
+             .make_response(&self.original, StatusCode::Trying, None);
+-        self.respond(response).await
++        self.respond(response).await?;
++        self.initial_trying_sent = true;
++        Ok(())
+     }
+ 
+     pub fn is_terminated(&self) -> bool {
+         self.state == TransactionState::Terminated
+     }
++
++    pub async fn drain_non_2xx_server_invite(&mut self) -> Result<Option<ServerInviteTermination>> {
++        if self.transaction_type != TransactionType::ServerInvite
++            || (!self.is_non_2xx_server_invite() && self.server_invite_termination.is_none())
++            || !matches!(
++                self.state,
++                TransactionState::Completed
++                    | TransactionState::Confirmed
++                    | TransactionState::Terminated
++            )
++        {
++            return Ok(None);
++        }
++
++        while !self.is_terminated() {
++            if self.receive().await.is_none() {
++                break;
++            }
++        }
++        Ok(self.server_invite_termination.clone())
++    }
+ }
+ 
+ impl Transaction {
++    fn is_non_2xx_server_invite(&self) -> bool {
++        self.transaction_type == TransactionType::ServerInvite
++            && self
++                .last_response
++                .as_ref()
++                .map(|response| (300..=699).contains(&response.status_code.code()))
++                .unwrap_or(false)
++    }
++
++    async fn send_frozen_last_response(&self) -> Result<()> {
++        let response = self.last_response.as_ref().ok_or_else(|| {
++            Error::TransactionError(
++                "no frozen response available for replay".to_string(),
++                self.key.clone(),
++            )
++        })?;
++        let connection = self.connection.as_ref().ok_or_else(|| {
++            Error::TransactionError("no connection found".to_string(), self.key.clone())
++        })?;
++        connection
++            .send(response.clone().into(), self.destination.as_ref())
++            .await
++    }
++
++    fn terminate_server_invite_transport_error(&mut self, error: &Error) {
++        if self.transaction_type == TransactionType::ServerInvite {
++            self.server_invite_termination = Some(ServerInviteTermination::TransportError);
++        }
++        debug!(key = %self.key, error = %error, "transport failed; terminating transaction");
++        self.transition(TransactionState::Terminated).ok();
++    }
++
+     fn inform_tu_response(&mut self, response: Response) -> Result<()> {
+         let msg = if let Some(ref inspector) = self.endpoint_inner.message_inspector {
+             inspector.after_received(SipMessage::Response(response), None)
+@@ -627,17 +760,36 @@ impl Transaction {
+ 
+         match self.state {
+             TransactionState::Trying | TransactionState::Proceeding => {
+-                // retransmission of last response
+-                if let Some(last_response) = &self.last_response {
+-                    self.respond(last_response.to_owned()).await.ok();
++                if req.method == self.original.method && self.last_response.is_some() {
++                    if let Err(error) = self.send_frozen_last_response().await {
++                        self.terminate_server_invite_transport_error(&error);
++                    }
+                 }
+             }
+-            TransactionState::Completed | TransactionState::Confirmed => {
++            TransactionState::Completed => {
+                 if req.method == Method::Ack {
++                    let is_non_2xx_server_invite = self.is_non_2xx_server_invite();
++                    if is_non_2xx_server_invite {
++                        self.server_invite_termination =
++                            Some(ServerInviteTermination::Acknowledged);
++                    }
++                    let reliable = self
++                        .connection
++                        .as_ref()
++                        .map(SipConnection::is_reliable)
++                        .unwrap_or(true);
+                     self.transition(TransactionState::Confirmed).ok();
++                    if is_non_2xx_server_invite && reliable {
++                        self.transition(TransactionState::Terminated).ok();
++                    }
+                     return Some(req.into());
++                } else if req.method == Method::Invite && self.is_non_2xx_server_invite() {
++                    if let Err(error) = self.send_frozen_last_response().await {
++                        self.terminate_server_invite_transport_error(&error);
++                    }
+                 }
+             }
++            TransactionState::Confirmed => {}
+             _ => {}
+         }
+         None
+@@ -746,31 +898,25 @@ impl Transaction {
+             }
+             TransactionState::Completed => {
+                 if let TransactionTimer::TimerG(key, duration) = timer {
+-                    // resend the response
+-                    if let Some(last_response) = &self.last_response {
+-                        if let Some(connection) = &self.connection {
+-                            let last_response = if let Some(ref inspector) =
+-                                self.endpoint_inner.message_inspector
+-                            {
+-                                inspector.before_send(
+-                                    last_response.to_owned().into(),
+-                                    self.destination.as_ref(),
+-                                )
+-                            } else {
+-                                last_response.to_owned().into()
+-                            };
+-                            connection
+-                                .send(last_response, self.destination.as_ref())
+-                                .await?;
+-                        }
++                    if !self.is_non_2xx_server_invite() {
++                        return Ok(());
+                     }
+-                    // restart Timer G with an upper limit
+-                    let duration = (duration * 2).min(self.endpoint_inner.option.t1x64);
++                    if let Err(error) = self.send_frozen_last_response().await {
++                        self.terminate_server_invite_transport_error(&error);
++                        return Err(error);
++                    }
++                    let duration = (duration * 2).min(self.endpoint_inner.option.t2);
+                     let timer_g = self
+                         .endpoint_inner
+                         .timers
+                         .timeout(duration, TransactionTimer::TimerG(key, duration));
+                     self.timer_g.replace(timer_g);
++                } else if let TransactionTimer::TimerH(_) = timer {
++                    if self.is_non_2xx_server_invite() {
++                        self.server_invite_termination =
++                            Some(ServerInviteTermination::TimerHExpired);
++                        self.transition(TransactionState::Terminated)?;
++                    }
+                 } else if let TransactionTimer::TimerD(_) = timer {
+                     self.transition(TransactionState::Terminated)?;
+                 } else if let TransactionTimer::TimerK(_) = timer {
+@@ -778,7 +924,11 @@ impl Transaction {
+                 }
+             }
+             TransactionState::Confirmed => {
+-                if let TransactionTimer::TimerK(_) = timer {
++                if let TransactionTimer::TimerI(_) = timer {
++                    if self.is_non_2xx_server_invite() {
++                        self.transition(TransactionState::Terminated)?;
++                    }
++                } else if let TransactionTimer::TimerK(_) = timer {
+                     self.transition(TransactionState::Terminated)?;
+                 }
+             }
+@@ -848,8 +998,8 @@ impl Transaction {
+                     .take()
+                     .map(|id| self.endpoint_inner.timers.cancel(id));
+ 
+-                if self.transaction_type == TransactionType::ServerInvite {
+-                    // start Timer G for server invite only
++                let is_non_2xx_server_invite = self.is_non_2xx_server_invite();
++                if is_non_2xx_server_invite {
+                     let connection = self.connection.as_ref().ok_or(Error::TransactionError(
+                         "no connection found".to_string(),
+                         self.key.clone(),
+@@ -864,34 +1014,61 @@ impl Transaction {
+                         );
+                         self.timer_g.replace(timer_g);
+                     }
+-                    debug!(key=%self.key, last = self.last_response.is_none(), "entered confirmed state, waiting for ACK");
++                    self.timer_h.replace(self.endpoint_inner.timers.timeout(
++                        self.endpoint_inner.option.t1x64,
++                        TransactionTimer::TimerH(self.key.clone()),
++                    ));
++                    debug!(key=%self.key, "entered completed state, waiting for ACK");
++                    if let Some(ref resp) = self.last_response {
++                        let dialog_id = DialogId::try_from((resp, TransactionRole::Server))?;
++                        self.endpoint_inner
++                            .waiting_ack
++                            .insert(dialog_id, self.key.clone());
++                    }
++                } else if self.transaction_type == TransactionType::ServerInvite {
++                    // Preserve the pre-existing 2xx lifecycle outside this
++                    // RFC 3261 non-2xx correctness slice, without G or H.
+                     if let Some(ref resp) = self.last_response {
+                         let dialog_id = DialogId::try_from((resp, TransactionRole::Server))?;
+                         self.endpoint_inner
+                             .waiting_ack
+                             .insert(dialog_id, self.key.clone());
+                     }
+-                    // start Timer K, wait for ACK
+                     let timer_k = self.endpoint_inner.timers.timeout(
+                         self.endpoint_inner.option.t4,
+                         TransactionTimer::TimerK(self.key.clone()),
+                     );
+                     self.timer_k.replace(timer_k);
+                 }
+-                // start Timer D
+-                let timer_d = self.endpoint_inner.timers.timeout(
+-                    self.endpoint_inner.option.t1x64,
+-                    TransactionTimer::TimerD(self.key.clone()),
+-                );
+-                self.timer_d.replace(timer_d);
++                if !is_non_2xx_server_invite {
++                    let timer_d = self.endpoint_inner.timers.timeout(
++                        self.endpoint_inner.option.t1x64,
++                        TransactionTimer::TimerD(self.key.clone()),
++                    );
++                    self.timer_d.replace(timer_d);
++                }
+             }
+             TransactionState::Confirmed => {
+                 self.cleanup_timer();
+-                let timer_k = self.endpoint_inner.timers.timeout(
+-                    self.endpoint_inner.option.t4,
+-                    TransactionTimer::TimerK(self.key.clone()),
+-                );
+-                self.timer_k.replace(timer_k);
++                if self.is_non_2xx_server_invite() {
++                    let connection = self.connection.as_ref().ok_or(Error::TransactionError(
++                        "no connection found".to_string(),
++                        self.key.clone(),
++                    ))?;
++                    if !connection.is_reliable() {
++                        let timer_i = self.endpoint_inner.timers.timeout(
++                            self.endpoint_inner.option.t4,
++                            TransactionTimer::TimerI(self.key.clone()),
++                        );
++                        self.timer_i.replace(timer_i);
++                    }
++                } else {
++                    let timer_k = self.endpoint_inner.timers.timeout(
++                        self.endpoint_inner.option.t4,
++                        TransactionTimer::TimerK(self.key.clone()),
++                    );
++                    self.timer_k.replace(timer_k);
++                }
+             }
+             TransactionState::Terminated => {
+                 self.cleanup();
+@@ -929,6 +1106,12 @@ impl Transaction {
+         self.timer_g
+             .take()
+             .map(|id| self.endpoint_inner.timers.cancel(id));
++        self.timer_h
++            .take()
++            .map(|id| self.endpoint_inner.timers.cancel(id));
++        self.timer_i
++            .take()
++            .map(|id| self.endpoint_inner.timers.cancel(id));
+     }
+ 
+     pub fn role(&self) -> TransactionRole {
+@@ -947,6 +1130,10 @@ impl Transaction {
+         self.is_cleaned_up = true;
+         self.cleanup_timer();
+ 
++        if !self.admitted {
++            return;
++        }
++
+         match self.last_response {
+             Some(ref resp) => match DialogId::try_from((resp, self.role())) {
+                 Ok(dialog_id) => self
+@@ -988,6 +1175,25 @@ impl Transaction {
+     }
+ }
+ 
++fn is_retryable_tcp_send_error(connection: &SipConnection, error: &Error) -> bool {
++    if !matches!(connection, SipConnection::Tcp(_)) {
++        return false;
++    }
++
++    matches!(
++        error,
++        Error::IoError(io_error)
++            if matches!(
++                io_error.kind(),
++                std::io::ErrorKind::BrokenPipe
++                    | std::io::ErrorKind::ConnectionAborted
++                    | std::io::ErrorKind::ConnectionReset
++                    | std::io::ErrorKind::NotConnected
++                    | std::io::ErrorKind::UnexpectedEof
++            )
++    )
++}
++
+ impl Drop for Transaction {
+     fn drop(&mut self) {
+         self.cleanup();
+diff --git a/src/transport/connection.rs b/src/transport/connection.rs
+index cb49897..58839ed 100644
+--- a/src/transport/connection.rs
++++ b/src/transport/connection.rs
+@@ -227,6 +227,13 @@ impl SipConnection {
+         }
+     }
+ 
++    pub(crate) fn same_instance(&self, other: &Self) -> bool {
++        match (self, other) {
++            (SipConnection::Tcp(left), SipConnection::Tcp(right)) => left.same_instance(right),
++            _ => false,
++        }
++    }
++
+     pub async fn send(&self, msg: SipMessage, destination: Option<&SipAddr>) -> Result<()> {
+         match self {
+             SipConnection::Channel(transport) => transport.send(msg).await,
+diff --git a/src/transport/mod.rs b/src/transport/mod.rs
+index 67e895f..3795bf0 100644
+--- a/src/transport/mod.rs
++++ b/src/transport/mod.rs
+@@ -13,6 +13,7 @@ pub use connection::TransportEvent;
+ pub use sip_addr::SipAddr;
+ pub use tcp_listener::TcpListenerConnection;
+ pub use tls::{TlsConfig, TlsListenerConnection};
++pub use transport_layer::TransportCapacityStats;
+ pub use transport_layer::TransportLayer;
+ pub use transport_layer::TransportWhitelist;
+ pub use websocket::WebSocketListenerConnection;
+diff --git a/src/transport/tcp.rs b/src/transport/tcp.rs
+index e74dbb6..7b66332 100644
+--- a/src/transport/tcp.rs
++++ b/src/transport/tcp.rs
+@@ -91,6 +91,10 @@ impl TcpConnection {
+     pub fn cancel_token(&self) -> Option<CancellationToken> {
+         self.cancel_token.clone()
+     }
++
++    pub(crate) fn same_instance(&self, other: &Self) -> bool {
++        Arc::ptr_eq(&self.inner, &other.inner)
++    }
+ }
+ 
+ #[async_trait::async_trait]
+diff --git a/src/transport/tcp_listener.rs b/src/transport/tcp_listener.rs
+index 92deb09..3a4dca8 100644
+--- a/src/transport/tcp_listener.rs
++++ b/src/transport/tcp_listener.rs
+@@ -77,7 +77,11 @@ impl TcpListenerConnection {
+                     }
+                 };
+                 let sip_connection = SipConnection::Tcp(tcp_connection.clone());
+-                transport_layer_inner.add_connection(sip_connection.clone());
++                if !transport_layer_inner.add_connection(sip_connection.clone()) {
++                    debug!(?local_addr, "tcp connection rejected by capacity limit");
++                    sip_connection.close().await.ok();
++                    continue;
++                }
+                 debug!(?local_addr, "new tcp connection");
+             }
+         });
+diff --git a/src/transport/tls.rs b/src/transport/tls.rs
+index 7733285..eec2f7e 100644
+--- a/src/transport/tls.rs
++++ b/src/transport/tls.rs
+@@ -363,7 +363,14 @@ impl TlsListenerConnection {
+                     };
+ 
+                     let sip_connection = SipConnection::Tls(tls_connection.clone());
+-                    transport_layer_inner_ref.add_connection(sip_connection.clone());
++                    if !transport_layer_inner_ref.add_connection(sip_connection.clone()) {
++                        debug!(
++                            ?remote_sip_addr,
++                            "tls connection rejected by capacity limit"
++                        );
++                        sip_connection.close().await.ok();
++                        return;
++                    }
+                     debug!(?remote_sip_addr, "new tls connection");
+                 });
+             }
+diff --git a/src/transport/transport_layer.rs b/src/transport/transport_layer.rs
+index 406febe..aef815a 100644
+--- a/src/transport/transport_layer.rs
++++ b/src/transport/transport_layer.rs
+@@ -10,7 +10,10 @@ use async_trait::async_trait;
+ use parking_lot::{Mutex, RwLock};
+ use std::collections::HashMap;
+ use std::net::IpAddr;
+-use std::sync::Arc;
++use std::sync::{
++    atomic::{AtomicU64, AtomicUsize, Ordering},
++    Arc,
++};
+ use tokio::select;
+ use tokio::sync::mpsc;
+ use tokio_util::sync::CancellationToken;
+@@ -106,6 +109,7 @@ pub struct TransportLayerInner {
+     pub domain_resolver: Box<dyn DomainResolver>,
+     whitelist: RwLock<Option<TransportWhitelistRef>>,
+     tls_config: RwLock<Option<TlsConfig>>,
++    capacity: TransportCapacityState,
+ }
+ pub(crate) type TransportLayerInnerRef = Arc<TransportLayerInner>;
+ 
+@@ -115,6 +119,111 @@ pub struct TransportLayer {
+     pub inner: TransportLayerInnerRef,
+ }
+ 
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct TransportCapacityStats {
++    pub active_connections: usize,
++    pub max_connections: usize,
++    pub connection_limit_rejections_total: u64,
++}
++
++struct TransportCapacityState {
++    active_connections: AtomicUsize,
++    max_connections: AtomicUsize,
++    connection_limit_rejections_total: AtomicU64,
++}
++
++struct TransportConnectionCapacityGuard {
++    inner: TransportLayerInnerRef,
++}
++
++impl Drop for TransportConnectionCapacityGuard {
++    fn drop(&mut self) {
++        self.inner.capacity.release_connection();
++    }
++}
++
++impl TransportCapacityState {
++    fn new(max_connections: usize) -> Result<Self> {
++        if max_connections == 0 {
++            return Err(crate::Error::EndpointError(
++                "SIP transport connection limit must be greater than zero".to_string(),
++            ));
++        }
++        Ok(Self {
++            active_connections: AtomicUsize::new(0),
++            max_connections: AtomicUsize::new(max_connections),
++            connection_limit_rejections_total: AtomicU64::new(0),
++        })
++    }
++
++    fn set_limit(&self, max_connections: usize) -> Result<()> {
++        if max_connections == 0 {
++            return Err(crate::Error::EndpointError(
++                "SIP transport connection limit must be greater than zero".to_string(),
++            ));
++        }
++        let active = self.active_connections.load(Ordering::Acquire);
++        if active > max_connections {
++            return Err(crate::Error::EndpointError(format!(
++                "SIP transport connection limit {max_connections} is below {active} active connections"
++            )));
++        }
++        self.max_connections
++            .store(max_connections, Ordering::Release);
++        Ok(())
++    }
++
++    fn try_acquire_connection(&self) -> bool {
++        let mut current = self.active_connections.load(Ordering::Acquire);
++        loop {
++            let limit = self.max_connections.load(Ordering::Acquire);
++            if current >= limit {
++                self.connection_limit_rejections_total
++                    .fetch_add(1, Ordering::Relaxed);
++                return false;
++            }
++            match self.active_connections.compare_exchange_weak(
++                current,
++                current + 1,
++                Ordering::AcqRel,
++                Ordering::Acquire,
++            ) {
++                Ok(_) => return true,
++                Err(actual) => current = actual,
++            }
++        }
++    }
++
++    fn release_connection(&self) {
++        let mut current = self.active_connections.load(Ordering::Acquire);
++        loop {
++            if current == 0 {
++                debug_assert!(false, "SIP transport capacity counter release underflow");
++                return;
++            }
++            match self.active_connections.compare_exchange_weak(
++                current,
++                current - 1,
++                Ordering::AcqRel,
++                Ordering::Acquire,
++            ) {
++                Ok(_) => return,
++                Err(actual) => current = actual,
++            }
++        }
++    }
++
++    fn snapshot(&self) -> TransportCapacityStats {
++        TransportCapacityStats {
++            active_connections: self.active_connections.load(Ordering::Acquire),
++            max_connections: self.max_connections.load(Ordering::Acquire),
++            connection_limit_rejections_total: self
++                .connection_limit_rejections_total
++                .load(Ordering::Relaxed),
++        }
++    }
++}
++
+ impl TransportLayer {
+     pub fn new_with_domain_resolver(
+         cancel_token: CancellationToken,
+@@ -130,6 +239,8 @@ impl TransportLayer {
+             domain_resolver,
+             whitelist: RwLock::new(None),
+             tls_config: RwLock::new(None),
++            capacity: TransportCapacityState::new(usize::MAX)
++                .expect("unbounded transport capacity is valid"),
+         };
+         Self {
+             outbound: None,
+@@ -150,14 +261,26 @@ impl TransportLayer {
+         self.inner.del_listener(addr)
+     }
+ 
+-    pub fn add_connection(&self, connection: SipConnection) {
+-        self.inner.add_connection(connection);
++    pub fn add_connection(&self, connection: SipConnection) -> bool {
++        self.inner.add_connection(connection)
+     }
+ 
+     pub fn del_connection(&self, addr: &SipAddr) {
+         self.inner.del_connection(addr)
+     }
+ 
++    pub fn set_max_connections(&self, max_connections: usize) -> Result<()> {
++        self.inner.capacity.set_limit(max_connections)
++    }
++
++    pub fn get_capacity_stats(&self) -> TransportCapacityStats {
++        self.inner.capacity.snapshot()
++    }
++
++    pub(crate) fn del_connection_if_same(&self, connection: &SipConnection) {
++        self.inner.del_connection_if_same(connection)
++    }
++
+     pub async fn lookup(
+         &self,
+         target: &SipAddr,
+@@ -248,14 +371,19 @@ impl TransportLayerInner {
+         self.listens.write().retain(|t| t.get_addr() != addr);
+     }
+ 
+-    pub(super) fn add_connection(&self, connection: SipConnection) {
++    pub(super) fn add_connection(self: &Arc<Self>, connection: SipConnection) -> bool {
+         if let Some(remote_addr) = connection.get_remote_addr().cloned() {
++            if !self.capacity.try_acquire_connection() {
++                return false;
++            }
+             let mut connections = self.connections.write();
+             connections.insert(remote_addr, connection.clone());
+             drop(connections);
+             self.serve_connection(connection);
++            true
+         } else {
+             warn!(addr = %connection.get_addr(), "connection has no remote address");
++            false
+         }
+     }
+ 
+@@ -263,8 +391,21 @@ impl TransportLayerInner {
+         self.connections.write().remove(addr);
+     }
+ 
++    fn del_connection_if_same(&self, connection: &SipConnection) {
++        let Some(remote_addr) = connection.get_remote_addr() else {
++            return;
++        };
++        let mut connections = self.connections.write();
++        let should_remove = connections
++            .get(remote_addr)
++            .is_some_and(|current| current.same_instance(connection));
++        if should_remove {
++            connections.remove(remote_addr);
++        }
++    }
++
+     async fn lookup(
+-        &self,
++        self: &Arc<Self>,
+         destination: &SipAddr,
+         outbound: Option<&SipAddr>,
+         key: Option<&TransactionKey>,
+@@ -329,7 +470,13 @@ impl TransportLayerInner {
+                     ));
+                 }
+             };
+-            self.add_connection(sip_connection.clone());
++            if !self.add_connection(sip_connection.clone()) {
++                sip_connection.close().await.ok();
++                return Err(crate::Error::TransportLayerError(
++                    "SIP transport connection capacity exceeded".to_string(),
++                    target.clone(),
++                ));
++            }
+             return Ok((sip_connection, target.clone()));
+         }
+ 
+@@ -383,7 +530,7 @@ impl TransportLayerInner {
+         }
+     }
+ 
+-    pub fn serve_connection(&self, transport: SipConnection) {
++    pub fn serve_connection(self: &Arc<Self>, transport: SipConnection) {
+         let sub_token = self.cancel_token.child_token();
+         let sender_clone = self.transport_tx.clone();
+         let remote_addr = transport
+@@ -391,13 +538,19 @@ impl TransportLayerInner {
+             .map(|addr| addr.to_string())
+             .unwrap_or_else(|| "-".to_string());
+         info!(addr=%transport.get_addr(), remote=%remote_addr, "serve_connection: starting serve_loop");
++        let transport_layer = self.clone();
+         tokio::spawn(async move {
++            let _capacity_guard = TransportConnectionCapacityGuard {
++                inner: transport_layer.clone(),
++            };
+             match sender_clone.send(TransportEvent::New(transport.clone())) {
+                 Ok(()) => {
+                     info!(addr=%transport.get_addr(), remote=%remote_addr, "serve_connection: New event sent");
+                 }
+                 Err(e) => {
+                     warn!(addr=%transport.get_addr(), remote=%remote_addr, error = ?e, "Error sending new connection event");
++                    transport_layer.del_connection_if_same(&transport);
++                    transport.close().await.ok();
+                     return;
+                 }
+             }
+@@ -413,6 +566,7 @@ impl TransportLayerInner {
+             }
+             info!(addr=%transport.get_addr(), remote=%remote_addr, "transport serve_loop exited");
+             transport.close().await.ok();
++            transport_layer.del_connection_if_same(&transport);
+             sender_clone.send(TransportEvent::Closed(transport)).ok();
+         });
+     }
+@@ -553,4 +707,65 @@ mod tests {
+ 
+         Ok(())
+     }
++
++    #[tokio::test]
++    async fn closed_tcp_connection_is_removed_before_reconnect() -> Result<()> {
++        use tokio::net::TcpListener;
++        use tokio::sync::oneshot;
++        use tokio::time::{sleep, timeout, Duration};
++
++        let listener = TcpListener::bind("127.0.0.1:0").await?;
++        let socket_addr = listener.local_addr()?;
++        let target = SipAddr {
++            r#type: Some(Transport::Tcp),
++            addr: socket_addr.into(),
++        };
++        let (first_closed_tx, first_closed_rx) = oneshot::channel();
++        let server = tokio::spawn(async move {
++            let (first, _) = listener.accept().await.unwrap();
++            drop(first);
++            first_closed_tx.send(()).unwrap();
++            let (_second, _) = listener.accept().await.unwrap();
++        });
++
++        let tl = super::TransportLayer::new(tokio_util::sync::CancellationToken::new());
++        let (first, _) = tl.lookup(&target, None).await?;
++        first_closed_rx.await.unwrap();
++
++        timeout(Duration::from_secs(2), async {
++            loop {
++                if !tl.inner.connections.read().contains_key(&target) {
++                    break;
++                }
++                sleep(Duration::from_millis(10)).await;
++            }
++        })
++        .await
++        .expect("closed TCP connection should leave the cache");
++
++        let (second, _) = tl.lookup(&target, None).await?;
++        assert!(!first.same_instance(&second));
++        server.abort();
++        Ok(())
++    }
++
++    #[test]
++    fn connection_limit_rejects_overflow_and_recovers_after_release() {
++        let state = super::TransportCapacityState::new(2).expect("valid limit");
++
++        assert!(state.try_acquire_connection());
++        assert!(state.try_acquire_connection());
++        assert!(!state.try_acquire_connection());
++        assert_eq!(state.snapshot().active_connections, 2);
++        assert_eq!(state.snapshot().connection_limit_rejections_total, 1);
++
++        state.release_connection();
++        assert!(state.try_acquire_connection());
++        assert_eq!(state.snapshot().active_connections, 2);
++    }
++
++    #[test]
++    fn connection_limit_rejects_zero() {
++        assert!(super::TransportCapacityState::new(0).is_err());
++    }
+ }
+diff --git a/src/transport/websocket.rs b/src/transport/websocket.rs
+index ab13c5f..f23083d 100644
+--- a/src/transport/websocket.rs
++++ b/src/transport/websocket.rs
+@@ -163,7 +163,14 @@ impl WebSocketListenerConnection {
+                     };
+                     let sip_connection = SipConnection::WebSocket(connection.clone());
+                     let connection_addr = connection.get_addr().clone();
+-                    transport_layer_inner_ref.add_connection(sip_connection.clone());
++                    if !transport_layer_inner_ref.add_connection(sip_connection.clone()) {
++                        debug!(
++                            ?connection_addr,
++                            "websocket connection rejected by capacity limit"
++                        );
++                        sip_connection.close().await.ok();
++                        return;
++                    }
+                     debug!(?connection_addr, "new websocket connection");
+                 });
+             }

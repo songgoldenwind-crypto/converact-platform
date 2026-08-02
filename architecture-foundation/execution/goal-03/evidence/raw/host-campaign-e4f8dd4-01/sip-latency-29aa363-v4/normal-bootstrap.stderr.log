@@ -1,0 +1,7 @@
+ Container converact-rustpbx-baseline-router-1  Running
+ Container converact-rustpbx-baseline-postgres-1  Running
+ Container converact-rustpbx-baseline-rustpbx-1  Running
+ Container converact-rustpbx-baseline-postgres-1  Waiting
+ Container converact-rustpbx-baseline-router-1  Waiting
+ Container converact-rustpbx-baseline-router-1  Healthy
+ Container converact-rustpbx-baseline-postgres-1  Healthy

@@ -2,6 +2,14 @@ export type VoiceDirection = 'inbound' | 'outbound';
 export type VoiceRouteDirection = VoiceDirection | 'both';
 export type VoiceAddressKind = 'e164' | 'extension' | 'sip_uri';
 
+/** Durable product intent/read model; active Call/Leg authority stays in RustPBX. */
+export const VOICE_CALL_MODEL_ROLE =
+  'call_intent_and_rebuildable_projection' as const;
+
+/** Provider IDs are opaque correlation references, never Converact CallId values. */
+export const VOICE_PROVIDER_CALL_ID_ROLE =
+  'opaque_native_runtime_reference_never_CallId' as const;
+
 export type VoiceCallState =
   | 'planned'
   | 'queued'
@@ -308,6 +316,7 @@ export interface VoiceCall {
   tenant_id: string;
   business_ref: VoiceBusinessRef;
   provider_profile_id: string;
+  /** Opaque reference issued by the elected native runtime; not a business CallId. */
   provider_call_id: string;
   provider_dialog_id: string;
   media_call_id: string | null;

@@ -1,0 +1,5 @@
+finished_at_utc=2026-08-02T18:51:04.288282661Z
+converact-rustpbx-baseline-postgres-1 postgres Up 14 minutes (healthy)
+converact-rustpbx-baseline-router-1 converact/g03-tools:0.1.0-e4f8dd4 Up 14 minutes (healthy)
+converact-rustpbx-baseline-rustpbx-1 converact/rustpbx:0.4.11-ivekit.42-6c49ee76-g03-e4f8dd4 Up 14 minutes (healthy)
+inactive

@@ -25,7 +25,7 @@
     "baseline_adapter": "rsipstack",
     "target_adapter": "rvoip_low_level_slices",
     "semantic_diff_policy": "explicit_versioned_compatibility_decision_only",
-    "baseline_semantic_capture_status": "not_run"
+    "baseline_semantic_capture_status": "verified_controlled"
   },
   "required_feature_coverage": [
     "INVITE",
@@ -56,7 +56,7 @@
       "dialog_semantics": "create_early_dialog",
       "byte_length": 603,
       "sha256": "83632c6410a3d1d59c767911b91f264a0c918f08305053eccaf0dea8180057ab",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -70,7 +70,7 @@
       "dialog_semantics": "confirm_ack",
       "byte_length": 354,
       "sha256": "4b7c07046f810535415d41525598f2e86d7a02f37b056d312b271460b6ba0b72",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -84,7 +84,7 @@
       "dialog_semantics": "terminate_dialog",
       "byte_length": 354,
       "sha256": "8ff1c339972e7a9890f92e09ef581a7ca959f73908b5d49d6c4bcd649a061649",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -98,7 +98,7 @@
       "dialog_semantics": "cancel_early_dialog",
       "byte_length": 294,
       "sha256": "89c2ac1d5b7e652d6a2a769d53a68343a198e2c68fbd4f8f93db52637a89c65c",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -112,7 +112,7 @@
       "dialog_semantics": "standalone_register_only",
       "byte_length": 346,
       "sha256": "1988153c0a716b0d4a6a2c81d3551ed24d2d03eab31bbf41b823381fee589888",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -126,7 +126,7 @@
       "dialog_semantics": "no_business_call",
       "byte_length": 294,
       "sha256": "0dfe42b0ef3d74527439722f4adb80d9dc5856f6369aaba2717a328e179113c3",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -140,7 +140,7 @@
       "dialog_semantics": "same_leg_new_negotiation_generation",
       "byte_length": 621,
       "sha256": "e2d507a1950dd228a979fa6f8ec5ad7dcbbd668eaad77f42e07694e1e40fb4ed",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -154,7 +154,7 @@
       "dialog_semantics": "same_dialog_update",
       "byte_length": 621,
       "sha256": "c9770ed07cd1723b7902f428ad72bc0bf5d73de4b7862553c6d57b9c80a9cf45",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -168,7 +168,7 @@
       "dialog_semantics": "close_reliable_provisional",
       "byte_length": 376,
       "sha256": "d656bac3a596bb58cac149148ab951ace442337e90daab030de16218d7e0d7eb",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -182,7 +182,7 @@
       "dialog_semantics": "prepare_transfer",
       "byte_length": 439,
       "sha256": "ef84fa22bc89153f4ecd3a983af61a7476e3fef9d1d37cc6a5cd10697bc20e82",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -196,7 +196,7 @@
       "dialog_semantics": "observe_transfer_result",
       "byte_length": 475,
       "sha256": "e9a1c541387708a67c44348338f91f53d726578320214163c85572ff123e6c7a",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -210,7 +210,7 @@
       "dialog_semantics": "create_early_dialog_require_prack",
       "byte_length": 346,
       "sha256": "50a94f83b4ea0ef33f1b66797267a81c93fcb844ebdb09d8652ee1cf3e63f884",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -224,7 +224,7 @@
       "dialog_semantics": "durably_select_one_winner",
       "byte_length": 306,
       "sha256": "a1ecbe14faae21d41c57d272b048b2055c9ded7bff56886cb8f3b7c005196ce8",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -238,7 +238,7 @@
       "dialog_semantics": "ack_then_bye_non_winner",
       "byte_length": 306,
       "sha256": "a7bce0ddcb3295833ebc7ebacda490b3aa120245d98de2f2e77933c4d6ab830a",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -252,7 +252,7 @@
       "dialog_semantics": "bounded_auth_retry_new_attempt",
       "byte_length": 375,
       "sha256": "b3f14c3b23a852d2b4852259dc72f928b1644b87463ade4a775ca843489c27b6",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -266,7 +266,7 @@
       "dialog_semantics": "derived_attempt_same_semantic_intent",
       "byte_length": 558,
       "sha256": "56b4e9c489605574ccee0de8e5a8f5a9e8b48a1526d4898720618b8c98664b9e",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -280,7 +280,7 @@
       "dialog_semantics": "dedupe_and_emit_one_canonical_dtmf",
       "byte_length": 419,
       "sha256": "3d1e208eacd05c6ab956fee1646d2087bc1ddb9323b047e9de3105ee855b05a0",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -294,7 +294,7 @@
       "dialog_semantics": "negotiate_one_outbound_dtmf_mechanism",
       "byte_length": 603,
       "sha256": "83632c6410a3d1d59c767911b91f264a0c918f08305053eccaf0dea8180057ab",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -308,7 +308,7 @@
       "dialog_semantics": "reject_before_call_creation",
       "byte_length": 365,
       "sha256": "4b0f73d5800be0191fea8cb1dba09b25b7d3a01d7a0fd35b0b9d984866dfe20c",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -322,7 +322,7 @@
       "dialog_semantics": "reject_before_call_creation",
       "byte_length": 345,
       "sha256": "77daf801557b377cbae09a8ba227c9fc0d80b33b92405f82a5bac659dfc2d824",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -336,7 +336,7 @@
       "dialog_semantics": "reject_before_secret_logging",
       "byte_length": 406,
       "sha256": "6dfb6f082d251cad4678a24ec1bf9414aa12de272e4b043cdf05dbd1c44a2de8",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     },
@@ -350,7 +350,7 @@
       "dialog_semantics": "reject_header_line_limit",
       "byte_length": 8496,
       "sha256": "5e96c0178c327828234de6c1570fc300634d9ecb73f2828d641616dbd5f904de",
-      "current_adapter_result": "not_run",
+      "current_adapter_result": "matches_frozen_expected",
       "target_adapter_result": "not_run",
       "production_eligible": false
     }

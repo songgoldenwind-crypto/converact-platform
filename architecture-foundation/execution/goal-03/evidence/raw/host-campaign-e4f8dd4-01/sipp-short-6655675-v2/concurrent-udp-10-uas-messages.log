@@ -1,0 +1,1330 @@
+----------------------------------------------- 2026-08-02T18:24:19.936804
+UDP message received [652] bytes:
+
+INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKv4xsa5PEwwvi;rport
+Call-ID: aKQpGHGCOre5Rp18oZwjCv@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=GSxNLi71
+To: <sip:uas@172.30.44.22:5060>
+CSeq: 9 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:19.936999
+UDP message sent [250] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKv4xsa5PEwwvi;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=GSxNLi71
+To: <sip:uas@172.30.44.22:5060>
+Call-ID: aKQpGHGCOre5Rp18oZwjCv@miuda.ai
+CSeq: 9 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:19.938172
+UDP message sent [317] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKv4xsa5PEwwvi;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=GSxNLi71
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+Call-ID: aKQpGHGCOre5Rp18oZwjCv@miuda.ai
+CSeq: 9 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.041778
+UDP message sent [525] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKv4xsa5PEwwvi;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=GSxNLi71
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+Call-ID: aKQpGHGCOre5Rp18oZwjCv@miuda.ai
+CSeq: 9 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.048032
+UDP message received [653] bytes:
+
+INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKQyi9XEBi6tMt;rport
+Call-ID: QiSq4pXErbAmYesV9Tuxat@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=reB3x73C
+To: <sip:uas@172.30.44.22:5060>
+CSeq: 10 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.048604
+UDP message sent [251] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKQyi9XEBi6tMt;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=reB3x73C
+To: <sip:uas@172.30.44.22:5060>
+Call-ID: QiSq4pXErbAmYesV9Tuxat@miuda.ai
+CSeq: 10 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.049788
+UDP message sent [318] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKQyi9XEBi6tMt;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=reB3x73C
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag2
+Call-ID: QiSq4pXErbAmYesV9Tuxat@miuda.ai
+CSeq: 10 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.136257
+UDP message received [653] bytes:
+
+INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKQWraVVNwn76i;rport
+Call-ID: AUsBKz89kNfnbsjqgb0Z5V@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=njrhEfv8
+To: <sip:uas@172.30.44.22:5060>
+CSeq: 11 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.136456
+UDP message sent [251] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKQWraVVNwn76i;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=njrhEfv8
+To: <sip:uas@172.30.44.22:5060>
+Call-ID: AUsBKz89kNfnbsjqgb0Z5V@miuda.ai
+CSeq: 11 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.137630
+UDP message sent [318] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKQWraVVNwn76i;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=njrhEfv8
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag3
+Call-ID: AUsBKz89kNfnbsjqgb0Z5V@miuda.ai
+CSeq: 11 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.146344
+UDP message sent [511] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKv4xsa5PEwwvi;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=GSxNLi71
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+Call-ID: aKQpGHGCOre5Rp18oZwjCv@miuda.ai
+CSeq: 9 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.146561
+UDP message received [339] bytes:
+
+ACK sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKJBjNwlWVIiZ3
+From: <sip:sipp@172.30.44.20:5060>;tag=GSxNLi71
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+Call-ID: aKQpGHGCOre5Rp18oZwjCv@miuda.ai
+CSeq: 9 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:20.154171
+UDP message sent [526] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKQyi9XEBi6tMt;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=reB3x73C
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag2
+Call-ID: QiSq4pXErbAmYesV9Tuxat@miuda.ai
+CSeq: 10 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.236333
+UDP message received [653] bytes:
+
+INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK0gAwM8PgPt7j;rport
+Call-ID: 0SVJ776ipXu80CjL7MXPE6@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=L0fN3Hhg
+To: <sip:uas@172.30.44.22:5060>
+CSeq: 12 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.236483
+UDP message sent [251] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK0gAwM8PgPt7j;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=L0fN3Hhg
+To: <sip:uas@172.30.44.22:5060>
+Call-ID: 0SVJ776ipXu80CjL7MXPE6@miuda.ai
+CSeq: 12 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.237644
+UDP message sent [318] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK0gAwM8PgPt7j;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=L0fN3Hhg
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag4
+Call-ID: 0SVJ776ipXu80CjL7MXPE6@miuda.ai
+CSeq: 12 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.242027
+UDP message sent [526] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKQWraVVNwn76i;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=njrhEfv8
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag3
+Call-ID: AUsBKz89kNfnbsjqgb0Z5V@miuda.ai
+CSeq: 11 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.257024
+UDP message sent [512] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKQyi9XEBi6tMt;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=reB3x73C
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag2
+Call-ID: QiSq4pXErbAmYesV9Tuxat@miuda.ai
+CSeq: 10 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.257254
+UDP message received [340] bytes:
+
+ACK sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKOar8cVvboUtI
+From: <sip:sipp@172.30.44.20:5060>;tag=reB3x73C
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag2
+Call-ID: QiSq4pXErbAmYesV9Tuxat@miuda.ai
+CSeq: 10 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:20.336215
+UDP message received [653] bytes:
+
+INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKcy8fc9AftKIc;rport
+Call-ID: 6NLkEL9c2bZe7vlvML65vg@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=EmMLUkPo
+To: <sip:uas@172.30.44.22:5060>
+CSeq: 13 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.336403
+UDP message sent [251] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKcy8fc9AftKIc;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=EmMLUkPo
+To: <sip:uas@172.30.44.22:5060>
+Call-ID: 6NLkEL9c2bZe7vlvML65vg@miuda.ai
+CSeq: 13 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.337568
+UDP message sent [318] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKcy8fc9AftKIc;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=EmMLUkPo
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag5
+Call-ID: 6NLkEL9c2bZe7vlvML65vg@miuda.ai
+CSeq: 13 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.340915
+UDP message sent [526] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK0gAwM8PgPt7j;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=L0fN3Hhg
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag4
+Call-ID: 0SVJ776ipXu80CjL7MXPE6@miuda.ai
+CSeq: 12 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.345334
+UDP message sent [512] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKQWraVVNwn76i;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=njrhEfv8
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag3
+Call-ID: AUsBKz89kNfnbsjqgb0Z5V@miuda.ai
+CSeq: 11 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.345529
+UDP message received [340] bytes:
+
+ACK sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKW7eImiQ9wx7U
+From: <sip:sipp@172.30.44.20:5060>;tag=njrhEfv8
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag3
+Call-ID: AUsBKz89kNfnbsjqgb0Z5V@miuda.ai
+CSeq: 11 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:20.401056
+UDP message received [397] bytes:
+
+BYE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKfh5AigRBjM7l;rport
+Call-ID: aKQpGHGCOre5Rp18oZwjCv@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=GSxNLi71
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+CSeq: 10 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.401172
+UDP message sent [310] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKfh5AigRBjM7l;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=GSxNLi71
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag1
+Call-ID: aKQpGHGCOre5Rp18oZwjCv@miuda.ai
+CSeq: 10 BYE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.437507
+UDP message received [653] bytes:
+
+INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKlQ1bWHITAFV5;rport
+Call-ID: 8DvMhmIYIVLIr1Vf9VmfvJ@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=lmlJ9q9G
+To: <sip:uas@172.30.44.22:5060>
+CSeq: 14 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.437661
+UDP message sent [251] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKlQ1bWHITAFV5;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=lmlJ9q9G
+To: <sip:uas@172.30.44.22:5060>
+Call-ID: 8DvMhmIYIVLIr1Vf9VmfvJ@miuda.ai
+CSeq: 14 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.438830
+UDP message sent [318] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKlQ1bWHITAFV5;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=lmlJ9q9G
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag6
+Call-ID: 8DvMhmIYIVLIr1Vf9VmfvJ@miuda.ai
+CSeq: 14 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.442138
+UDP message sent [526] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKcy8fc9AftKIc;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=EmMLUkPo
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag5
+Call-ID: 6NLkEL9c2bZe7vlvML65vg@miuda.ai
+CSeq: 13 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.444409
+UDP message sent [512] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK0gAwM8PgPt7j;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=L0fN3Hhg
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag4
+Call-ID: 0SVJ776ipXu80CjL7MXPE6@miuda.ai
+CSeq: 12 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.444606
+UDP message received [340] bytes:
+
+ACK sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKFRQ4gc09teAX
+From: <sip:sipp@172.30.44.20:5060>;tag=L0fN3Hhg
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag4
+Call-ID: 0SVJ776ipXu80CjL7MXPE6@miuda.ai
+CSeq: 12 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:20.512105
+UDP message received [397] bytes:
+
+BYE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKonYzoouVMfyJ;rport
+Call-ID: QiSq4pXErbAmYesV9Tuxat@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=reB3x73C
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag2
+CSeq: 11 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.512252
+UDP message sent [310] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKonYzoouVMfyJ;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=reB3x73C
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag2
+Call-ID: QiSq4pXErbAmYesV9Tuxat@miuda.ai
+CSeq: 11 BYE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.536752
+UDP message received [653] bytes:
+
+INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKKaVeJnbdhAAp;rport
+Call-ID: 7pnyyRS9Fl78yO5rlmf6wn@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=BmjrDH80
+To: <sip:uas@172.30.44.22:5060>
+CSeq: 15 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.536894
+UDP message sent [251] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKKaVeJnbdhAAp;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=BmjrDH80
+To: <sip:uas@172.30.44.22:5060>
+Call-ID: 7pnyyRS9Fl78yO5rlmf6wn@miuda.ai
+CSeq: 15 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.538054
+UDP message sent [318] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKKaVeJnbdhAAp;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=BmjrDH80
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag7
+Call-ID: 7pnyyRS9Fl78yO5rlmf6wn@miuda.ai
+CSeq: 15 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.542435
+UDP message sent [526] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKlQ1bWHITAFV5;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=lmlJ9q9G
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag6
+Call-ID: 8DvMhmIYIVLIr1Vf9VmfvJ@miuda.ai
+CSeq: 14 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.545767
+UDP message sent [512] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKcy8fc9AftKIc;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=EmMLUkPo
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag5
+Call-ID: 6NLkEL9c2bZe7vlvML65vg@miuda.ai
+CSeq: 13 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.545951
+UDP message received [340] bytes:
+
+ACK sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKf8te4CzBusuj
+From: <sip:sipp@172.30.44.20:5060>;tag=EmMLUkPo
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag5
+Call-ID: 6NLkEL9c2bZe7vlvML65vg@miuda.ai
+CSeq: 13 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:20.599379
+UDP message received [397] bytes:
+
+BYE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKc09PULFeoS54;rport
+Call-ID: AUsBKz89kNfnbsjqgb0Z5V@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=njrhEfv8
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag3
+CSeq: 12 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.599521
+UDP message sent [310] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKc09PULFeoS54;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=njrhEfv8
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag3
+Call-ID: AUsBKz89kNfnbsjqgb0Z5V@miuda.ai
+CSeq: 12 BYE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.637025
+UDP message received [653] bytes:
+
+INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKR1oCKunBXo3j;rport
+Call-ID: owNIOd4WLSnrwhKj4YK4fP@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=CQXRnE28
+To: <sip:uas@172.30.44.22:5060>
+CSeq: 16 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.637180
+UDP message sent [251] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKR1oCKunBXo3j;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=CQXRnE28
+To: <sip:uas@172.30.44.22:5060>
+Call-ID: owNIOd4WLSnrwhKj4YK4fP@miuda.ai
+CSeq: 16 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.638370
+UDP message sent [318] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKR1oCKunBXo3j;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=CQXRnE28
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag8
+Call-ID: owNIOd4WLSnrwhKj4YK4fP@miuda.ai
+CSeq: 16 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.640625
+UDP message sent [526] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKKaVeJnbdhAAp;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=BmjrDH80
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag7
+Call-ID: 7pnyyRS9Fl78yO5rlmf6wn@miuda.ai
+CSeq: 15 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.647148
+UDP message sent [512] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKlQ1bWHITAFV5;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=lmlJ9q9G
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag6
+Call-ID: 8DvMhmIYIVLIr1Vf9VmfvJ@miuda.ai
+CSeq: 14 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.647378
+UDP message received [340] bytes:
+
+ACK sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKOcA62shzgnAP
+From: <sip:sipp@172.30.44.20:5060>;tag=lmlJ9q9G
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag6
+Call-ID: 8DvMhmIYIVLIr1Vf9VmfvJ@miuda.ai
+CSeq: 14 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:20.698431
+UDP message received [397] bytes:
+
+BYE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKFUmBCIRrhCay;rport
+Call-ID: 0SVJ776ipXu80CjL7MXPE6@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=L0fN3Hhg
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag4
+CSeq: 13 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.698631
+UDP message sent [310] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKFUmBCIRrhCay;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=L0fN3Hhg
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag4
+Call-ID: 0SVJ776ipXu80CjL7MXPE6@miuda.ai
+CSeq: 13 BYE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.736338
+UDP message received [653] bytes:
+
+INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK2yDM3zhxMhD1;rport
+Call-ID: xK5AG2wjIROsAlmJ1q4Sbi@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=Spn5KRHe
+To: <sip:uas@172.30.44.22:5060>
+CSeq: 17 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.736482
+UDP message sent [251] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK2yDM3zhxMhD1;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=Spn5KRHe
+To: <sip:uas@172.30.44.22:5060>
+Call-ID: xK5AG2wjIROsAlmJ1q4Sbi@miuda.ai
+CSeq: 17 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.737648
+UDP message sent [318] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK2yDM3zhxMhD1;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=Spn5KRHe
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag9
+Call-ID: xK5AG2wjIROsAlmJ1q4Sbi@miuda.ai
+CSeq: 17 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.742004
+UDP message sent [526] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKR1oCKunBXo3j;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=CQXRnE28
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag8
+Call-ID: owNIOd4WLSnrwhKj4YK4fP@miuda.ai
+CSeq: 16 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.744268
+UDP message sent [512] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKKaVeJnbdhAAp;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=BmjrDH80
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag7
+Call-ID: 7pnyyRS9Fl78yO5rlmf6wn@miuda.ai
+CSeq: 15 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.744484
+UDP message received [340] bytes:
+
+ACK sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKlprJNOgM9pTL
+From: <sip:sipp@172.30.44.20:5060>;tag=BmjrDH80
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag7
+Call-ID: 7pnyyRS9Fl78yO5rlmf6wn@miuda.ai
+CSeq: 15 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:20.800814
+UDP message received [397] bytes:
+
+BYE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKkhCfIEodsErJ;rport
+Call-ID: 6NLkEL9c2bZe7vlvML65vg@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=EmMLUkPo
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag5
+CSeq: 14 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.800976
+UDP message sent [310] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKkhCfIEodsErJ;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=EmMLUkPo
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag5
+Call-ID: 6NLkEL9c2bZe7vlvML65vg@miuda.ai
+CSeq: 14 BYE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.836370
+UDP message received [653] bytes:
+
+INVITE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKY5mVd1QXaddh;rport
+Call-ID: vimf6Cagefr3om59Kzjujr@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=CcHRLg1n
+To: <sip:uas@172.30.44.22:5060>
+CSeq: 18 INVITE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Content-Type: application/sdp
+Max-Forwards: 69
+Content-Length: 168
+Allow: INVITE,BYE,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.836542
+UDP message sent [251] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKY5mVd1QXaddh;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=CcHRLg1n
+To: <sip:uas@172.30.44.22:5060>
+Call-ID: vimf6Cagefr3om59Kzjujr@miuda.ai
+CSeq: 18 INVITE
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.837705
+UDP message sent [319] bytes:
+
+SIP/2.0 180 Ringing
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKY5mVd1QXaddh;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=CcHRLg1n
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag10
+Call-ID: vimf6Cagefr3om59Kzjujr@miuda.ai
+CSeq: 18 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.842100
+UDP message sent [526] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK2yDM3zhxMhD1;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=Spn5KRHe
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag9
+Call-ID: xK5AG2wjIROsAlmJ1q4Sbi@miuda.ai
+CSeq: 17 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.846476
+UDP message sent [512] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKR1oCKunBXo3j;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=CQXRnE28
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag8
+Call-ID: owNIOd4WLSnrwhKj4YK4fP@miuda.ai
+CSeq: 16 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.846687
+UDP message received [340] bytes:
+
+ACK sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKDgbWRQxFrXAI
+From: <sip:sipp@172.30.44.20:5060>;tag=CQXRnE28
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag8
+Call-ID: owNIOd4WLSnrwhKj4YK4fP@miuda.ai
+CSeq: 16 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:20.901074
+UDP message received [397] bytes:
+
+BYE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKiFDc9O7kaL64;rport
+Call-ID: 8DvMhmIYIVLIr1Vf9VmfvJ@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=lmlJ9q9G
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag6
+CSeq: 15 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.901222
+UDP message sent [310] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKiFDc9O7kaL64;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=lmlJ9q9G
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag6
+Call-ID: 8DvMhmIYIVLIr1Vf9VmfvJ@miuda.ai
+CSeq: 15 BYE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.941921
+UDP message sent [527] bytes:
+
+SIP/2.0 183 Session Progress
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKY5mVd1QXaddh;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=CcHRLg1n
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag10
+Call-ID: vimf6Cagefr3om59Kzjujr@miuda.ai
+CSeq: 18 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.946352
+UDP message sent [512] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK2yDM3zhxMhD1;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=Spn5KRHe
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag9
+Call-ID: xK5AG2wjIROsAlmJ1q4Sbi@miuda.ai
+CSeq: 17 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:20.946586
+UDP message received [340] bytes:
+
+ACK sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKgI1Qb6Il7k88
+From: <sip:sipp@172.30.44.20:5060>;tag=Spn5KRHe
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag9
+Call-ID: xK5AG2wjIROsAlmJ1q4Sbi@miuda.ai
+CSeq: 17 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:20.998958
+UDP message received [397] bytes:
+
+BYE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKLb8Ghmh1VYFM;rport
+Call-ID: 7pnyyRS9Fl78yO5rlmf6wn@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=BmjrDH80
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag7
+CSeq: 16 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:20.999111
+UDP message sent [310] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKLb8Ghmh1VYFM;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=BmjrDH80
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag7
+Call-ID: 7pnyyRS9Fl78yO5rlmf6wn@miuda.ai
+CSeq: 16 BYE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:21.045530
+UDP message sent [513] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKY5mVd1QXaddh;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=CcHRLg1n
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag10
+Call-ID: vimf6Cagefr3om59Kzjujr@miuda.ai
+CSeq: 18 INVITE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Type: application/sdp
+Content-Length:   164
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.22
+s=Converact Fabric downstream UAS
+c=IN IP4 172.30.44.22
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-02T18:24:21.045836
+UDP message received [341] bytes:
+
+ACK sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKQzmakInmdPp7
+From: <sip:sipp@172.30.44.20:5060>;tag=CcHRLg1n
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag10
+Call-ID: vimf6Cagefr3om59Kzjujr@miuda.ai
+CSeq: 18 ACK
+Max-Forwards: 70
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+
+
+----------------------------------------------- 2026-08-02T18:24:21.100402
+UDP message received [397] bytes:
+
+BYE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKnswERdRAG00g;rport
+Call-ID: owNIOd4WLSnrwhKj4YK4fP@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=CQXRnE28
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag8
+CSeq: 17 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:21.100579
+UDP message sent [310] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKnswERdRAG00g;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=CQXRnE28
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag8
+Call-ID: owNIOd4WLSnrwhKj4YK4fP@miuda.ai
+CSeq: 17 BYE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:21.200223
+UDP message received [397] bytes:
+
+BYE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKW5kEhnMp7nvY;rport
+Call-ID: xK5AG2wjIROsAlmJ1q4Sbi@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=Spn5KRHe
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag9
+CSeq: 18 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:21.200378
+UDP message sent [310] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bKW5kEhnMp7nvY;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=Spn5KRHe
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag9
+Call-ID: xK5AG2wjIROsAlmJ1q4Sbi@miuda.ai
+CSeq: 18 BYE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:21.301024
+UDP message received [398] bytes:
+
+BYE sip:uas@172.30.44.22:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK6DiRdZlHZJtY;rport
+Call-ID: vimf6Cagefr3om59Kzjujr@miuda.ai
+From: <sip:sipp@172.30.44.20:5060>;tag=CcHRLg1n
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag10
+CSeq: 19 BYE
+User-Agent: rustpbx/0.4.11 (built 2026-08-02)
+Contact: <sip:da510f02cbbf0c7c@172.30.44.10:5060>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-02T18:24:21.301184
+UDP message sent [311] bytes:
+
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 172.30.44.10:5060;branch=z9hG4bK6DiRdZlHZJtY;rport
+From: <sip:sipp@172.30.44.20:5060>;tag=CcHRLg1n
+To: <sip:uas@172.30.44.22:5060>;tag=1SIPpTag10
+Call-ID: vimf6Cagefr3om59Kzjujr@miuda.ai
+CSeq: 19 BYE
+Contact: <sip:uas@172.30.44.22:5060;transport=UDP>
+Content-Length: 0
+
+

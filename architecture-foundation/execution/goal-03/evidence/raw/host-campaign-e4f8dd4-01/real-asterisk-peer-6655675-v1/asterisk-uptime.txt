@@ -1,0 +1,2 @@
+System uptime: 1 second
+Last reload: 1 second

@@ -23,8 +23,11 @@ Unified RustPBX Call Core ----- durable Call/Leg/Business facts
         v
 SipFoundation ----------------- prepared wire/effect/transaction/dialog
         |
-        +-- current: pinned rsipstack Adapter
+        +-- live native runtime: pinned rsipstack inside RustPBX
         +-- later: gated low-level rvoip Adapter (G06)
+
+TypeScript control plane ------ Call intent/rebuildable projections and
+                                conformance/migration harnesses only
 ```
 
 No rsipstack, rvoip, rustrtc or audio-codec type may cross upward into Call,
@@ -48,21 +51,32 @@ New deterministic identifiers use SHA-256 over length-prefixed tenant,
 namespace and components, truncated to 128 bits and prefixed by type. This
 avoids delimiter ambiguity and does not force a ULID migration. Existing UUID
 and `vcall_*` values enter only through the module-issued
-`VoiceCallIdAuthorityAdapter`, bound at composition time to the exact concrete
+`VoiceCallProjectionIdAdapter` (with a compatibility export under the former
+name), bound at composition time to the exact concrete
 `PostgresVoiceCallStore`. Construction records a module-private WeakSet brand,
-the repository keeps its `PgQueryable` in a native private field, and authority
-lookup invokes the captured original prototype method rather than a caller
+the repository keeps its `PgQueryable` in a native private field, and the
+attestation lookup invokes the captured original prototype method rather than a caller
 override. The store must return an exact tenant/ID match. The module exposes
 neither a caller-supplied lookup nor an import record. A raw string, SIP header,
 look-alike prototype object, proxy or genuine instance with an own `get`
-override cannot mint authority even when the value has valid UUID syntax.
+override cannot derive a candidate even when the value has valid UUID syntax.
+This check attests an existing control-plane projection; only the native
+RustPBX Call Core can adopt that candidate and open the authoritative Call.
+`provider_call_id` remains an opaque native-runtime reference and is never a
+`CallId`.
 
 ## 3. Call and Leg Mutation
 
-The existing `VoiceCall` state machine remains the only business Call state
-machine. G03 adds a Leg state projection used by Call Core; it is not a new
-database authority. Opening or restoring a Call projection requires its
-durable positive generation. Every Leg, mailbox and timer mutation carries
+The existing TypeScript `VoiceCall` state machine is the durable product Call
+intent and rebuildable control-plane projection. It is not the authority for
+an active native Call or Leg. The TypeScript `CallLegRegistry` freezes and
+tests required transition semantics as a conformance reference; the live
+implementation must reside in the Unified RustPBX process. Native activation
+is tracked separately as `G03-E16-NATIVE-AUTHORITY` and remains `not_run` until
+the exact Rust binding and effect writer are proved.
+
+Opening or restoring an authoritative Call requires its durable positive
+generation. Every Leg, mailbox and timer mutation carries
 tenant, Call, owner epoch, generation and expected revision. A mutation either
 advances the revision exactly once, returns the original receipt for the same
 event ID/hash, or fails closed.
@@ -86,8 +100,9 @@ Race decisions are explicit:
   restores the exact pre-transfer stable state (`confirmed` or `held`).
 - Duplicate BYE/CANCEL/effect identities do not create duplicate CDR or effects.
 
-The Call projection never invokes caller-provided callbacks. It exposes only
-fenced enqueue/dequeue operations on a bounded per-Call mailbox. A supervised
+The conformance Call projection never invokes caller-provided callbacks. The
+native implementation must expose only fenced enqueue/dequeue operations on a
+bounded per-Call mailbox. A supervised
 worker owns execution outside the registry and may re-enter only through the
 same tenant/Call/owner/generation/revision fences. Async work therefore cannot
 escape from a callback after the registry has reported failure.
@@ -169,9 +184,9 @@ headers retain wire order. Authentication material, numbers, SDP keys and raw
 provider payloads are excluded from ordinary logs, metrics and evidence.
 
 The 22 raw fixtures under `wire-corpus/` freeze required G03 inputs and SHA-256
-identities. The corpus existing as bytes is verified locally; rsipstack baseline
-semantic capture and future differential rvoip replay are separate evidence
-and remain `not_run` until run.
+identities. Controlled rsipstack baseline semantic capture is verified for the
+exact `.42` candidate; future rvoip differential replay and `.43`
+requalification remain separate `not_run` evidence.
 
 ## 6. Initial INVITE and Durable Store
 
@@ -217,8 +232,8 @@ observation distinguishable even though both converge the effect record to
 
 | State | Meaning |
 | --- | --- |
-| current | Source contains a bounded seam, exact rsipstack Adapter, ledger and recovery eligibility; live writer activation and complete runtime wiring are not proved |
-| target | The complete interface and corpus are frozen; ID/Leg, receipt and drain slices have local implementation, while control-port Adapter activation remains `not_run` |
+| current | RustPBX/rsipstack is the native runtime; TypeScript contains bounded conformance/reference models and a physical PostgreSQL reference ledger, but these are not a second live SIP/Call authority |
+| target | The complete interface and corpus are frozen; `.43` bounds native protocol/control mailboxes, while native Call/Leg/effect-port activation and candidate host requalification remain `not_run` |
 | production eligible | `false` until physical store, real peers, latency distribution, long-run, fault/OOM, native safety and host performance evidence pass independent review |
 
 No rvoip benchmark, old server result or historical Wave result is inherited.

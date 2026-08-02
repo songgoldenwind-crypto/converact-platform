@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Converact Fabric RustPBX SIPp acceptance" tests="1" failures="1" time="34.690" timestamp="2026-08-02T18:51:04.148Z">
+  <testcase classname="converact.rustpbx.sipp" name="long-call-2h" time="34.048">
+    <failure message="uac_failed" />
+  </testcase>
+</testsuite>

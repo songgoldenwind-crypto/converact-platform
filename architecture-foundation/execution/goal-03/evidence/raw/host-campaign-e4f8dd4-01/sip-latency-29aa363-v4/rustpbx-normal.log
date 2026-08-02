@@ -1,0 +1,84 @@
+Loading config from: /app/config/rustpbx.toml
+Start at 2026-08-02 18:37:04.031853234 UTC
+rustpbx 0.4.11
+Build Time: 2026-08-02 17:39:10 +00:00
+Git Commit: 
+Git Branch: 
+Git Status: dirty
+SIP workers=1 Media workers=1 Call record workers=1
+[2m2026-08-02T18:37:04.046740736Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying all pending migrations
+[2m2026-08-02T18:37:04.048780032Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'user'
+[2m2026-08-02T18:37:04.055134545Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'user' has been applied
+[2m2026-08-02T18:37:04.055714436Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'department'
+[2m2026-08-02T18:37:04.059564982Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'department' has been applied
+[2m2026-08-02T18:37:04.059880024Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'extension'
+[2m2026-08-02T18:37:04.064218129Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'extension' has been applied
+[2m2026-08-02T18:37:04.064525735Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'extension_department'
+[2m2026-08-02T18:37:04.069008891Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'extension_department' has been applied
+[2m2026-08-02T18:37:04.06945925Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'sip_trunk'
+[2m2026-08-02T18:37:04.084889716Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'sip_trunk' has been applied
+[2m2026-08-02T18:37:04.085207773Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'presence'
+[2m2026-08-02T18:37:04.087482373Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'presence' has been applied
+[2m2026-08-02T18:37:04.087738173Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'routing'
+[2m2026-08-02T18:37:04.096131185Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'routing' has been applied
+[2m2026-08-02T18:37:04.096378908Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'call_record'
+[2m2026-08-02T18:37:04.111409831Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'call_record' has been applied
+[2m2026-08-02T18:37:04.111650148Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'm_20251126_000001_create_frequency_limits_table'
+[2m2026-08-02T18:37:04.114880789Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'm_20251126_000001_create_frequency_limits_table' has been applied
+[2m2026-08-02T18:37:04.115142975Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'call_record_indices'
+[2m2026-08-02T18:37:04.1187183Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'call_record_indices' has been applied
+[2m2026-08-02T18:37:04.11898335Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'call_record_optimization_indices'
+[2m2026-08-02T18:37:04.12152648Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'call_record_optimization_indices' has been applied
+[2m2026-08-02T18:37:04.121787328Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'call_record_dashboard_index'
+[2m2026-08-02T18:37:04.12311259Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'call_record_dashboard_index' has been applied
+[2m2026-08-02T18:37:04.123491624Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'call_record_from_number_index'
+[2m2026-08-02T18:37:04.127221828Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'call_record_from_number_index' has been applied
+[2m2026-08-02T18:37:04.127494408Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'add_leg_timeline_column'
+[2m2026-08-02T18:37:04.139527192Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'add_leg_timeline_column' has been applied
+[2m2026-08-02T18:37:04.139834528Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'add_rewrite_columns'
+[2m2026-08-02T18:37:04.145578485Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'add_rewrite_columns' has been applied
+[2m2026-08-02T18:37:04.1458748Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'm20260227_000001_create_system_notifications'
+[2m2026-08-02T18:37:04.149079176Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'm20260227_000001_create_system_notifications' has been applied
+[2m2026-08-02T18:37:04.14939093Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'add_user_mfa_columns'
+[2m2026-08-02T18:37:04.157798515Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'add_user_mfa_columns' has been applied
+[2m2026-08-02T18:37:04.158060776Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'add_sip_trunk_register_columns'
+[2m2026-08-02T18:37:04.159594597Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'add_sip_trunk_register_columns' has been applied
+[2m2026-08-02T18:37:04.159857337Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'rbac'
+[2m2026-08-02T18:37:04.190486921Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'rbac' has been applied
+[2m2026-08-02T18:37:04.19071224Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'add_sip_trunk_rewrite_hostport'
+[2m2026-08-02T18:37:04.191360474Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'add_sip_trunk_rewrite_hostport' has been applied
+[2m2026-08-02T18:37:04.191563812Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'add_metadata_column'
+[2m2026-08-02T18:37:04.19221729Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'add_metadata_column' has been applied
+[2m2026-08-02T18:37:04.192451407Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'alter_rewrite_columns_length'
+[2m2026-08-02T18:37:04.194845853Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'alter_rewrite_columns_length' has been applied
+[2m2026-08-02T18:37:04.195038964Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'add_outbound_sip_trunk_id'
+[2m2026-08-02T18:37:04.197439171Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'add_outbound_sip_trunk_id' has been applied
+[2m2026-08-02T18:37:04.197647218Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Applying migration 'queue'
+[2m2026-08-02T18:37:04.200963237Z[0m [32m INFO[0m [2msea_orm_migration::migrator[0m[2m:[0m Migration 'queue' has been applied
+[2m2026-08-02T18:37:04.202453877Z[0m [32m INFO[0m [2mrustpbx::addons::observability[0m[2m:[0m Prometheus metrics recorder installed
+[2m2026-08-02T18:37:04.233435545Z[0m [32m INFO[0m [2mrustpbx::proxy::server[0m[2m:[0m Max open files            262144               262144               files     
+[2m2026-08-02T18:37:04.233823574Z[0m [32m INFO[0m [2mrustpbx::proxy::server[0m[2m:[0m start proxy, udp port: UDP 172.30.44.10:5060
+[2m2026-08-02T18:37:04.23384974Z[0m [32m INFO[0m [2mrustpbx::proxy::server[0m[2m:[0m start proxy, tcp port: 0.0.0.0:5060
+[2m2026-08-02T18:37:04.242831061Z[0m [32m INFO[0m [2mrustpbx::proxy::data[0m[2m:[0m trunks reloaded [3mtotal[0m[2m=[0m0 [3mconfig_count[0m[2m=[0m0 [3mfile_count[0m[2m=[0m0 [3mgenerated_entries[0m[2m=[0m0 [3mduration_ms[0m[2m=[0m0
+[2m2026-08-02T18:37:04.24286633Z[0m [32m INFO[0m [2mrustpbx::proxy::data[0m[2m:[0m queues reloaded [3mtotal[0m[2m=[0m0 [3mconfig_count[0m[2m=[0m0 [3mfile_count[0m[2m=[0m0 [3mduration_ms[0m[2m=[0m0
+[2m2026-08-02T18:37:04.242874829Z[0m [32m INFO[0m [2mrustpbx::proxy::data[0m[2m:[0m routes reloaded [3mtotal[0m[2m=[0m0 [3mconfig_count[0m[2m=[0m0 [3mfile_count[0m[2m=[0m0 [3mgenerated_entries[0m[2m=[0m0 [3mduration_ms[0m[2m=[0m0
+[2m2026-08-02T18:37:04.242888438Z[0m [32m INFO[0m [2mrustpbx::proxy::data[0m[2m:[0m loading acl rules from embedded config [3mcount[0m[2m=[0m2
+[2m2026-08-02T18:37:04.242899492Z[0m [32m INFO[0m [2mrustpbx::proxy::data[0m[2m:[0m acl rules reloaded [3mtotal[0m[2m=[0m2 [3mconfig_count[0m[2m=[0m2 [3mfile_count[0m[2m=[0m0 [3mduration_ms[0m[2m=[0m0
+[2m2026-08-02T18:37:04.244100776Z[0m [32m INFO[0m [2mrustpbx::media::engine[0m[2m:[0m MediaEngine command loop started [3mreaper_interval[0m[2m=[0m60s [3msession_idle_ttl[0m[2m=[0m7200s
+[2m2026-08-02T18:37:04.244246013Z[0m [32m INFO[0m [2mrustpbx::proxy::server[0m[2m:[0m modules loaded in 220.288µs modules: ["acl", "auth", "presence", "registrar", "call"] allows: INVITE,REGISTER,BYE,OPTIONS,ACK,CANCEL,UPDATE,REFER,NOTIFY,MESSAGE,INFO,SUBSCRIBE,PUBLISH
+[2m2026-08-02T18:37:04.244437108Z[0m [32m INFO[0m [2mrustpbx::proxy::trunk_health[0m[2m:[0m trunk health check started (default interval=30s, addr=0.0.0.0:5060)
+[2m2026-08-02T18:37:04.252483018Z[0m [32m INFO[0m [2mrustpbx::addons::registry[0m[2m:[0m Addon Observability is disabled
+[2m2026-08-02T18:37:04.252607537Z[0m [32m INFO[0m [2mrustpbx::addons::registry[0m[2m:[0m Addon SSL Certificates is disabled
+[2m2026-08-02T18:37:04.252682228Z[0m [32m INFO[0m [2mrustpbx::addons::registry[0m[2m:[0m Addon Archive is disabled
+[2m2026-08-02T18:37:04.252716631Z[0m [32m INFO[0m [2mrustpbx::addons::registry[0m[2m:[0m Addon Call Transcription is disabled
+[2m2026-08-02T18:37:04.252510596Z[0m [32m INFO[0m [2mrustpbx::callrecord[0m[2m:[0m CallRecordManager serving
+[2m2026-08-02T18:37:04.252826509Z[0m [32m INFO[0m [2mrustpbx::addons::registry[0m[2m:[0m Addon Queue Manager is disabled
+[2m2026-08-02T18:37:04.281434444Z[0m [32m INFO[0m [2mrustpbx[0m[2m:[0m starting rustpbx on 0.0.0.0:8080
+2026-08-02T18:37:11.416241256Z INFO http.access | 172.30.44.2 | GET | 200 | - | 0.079ms | /api/pending-reloads
+2026-08-02T18:37:11.431268187Z INFO http.access | 172.30.44.2 | POST | 200 | - | 13.708ms | /api/sip-trunk
+2026-08-02T18:37:11.434287776Z INFO http.access | 172.30.44.2 | PUT | 200 | - | 1.548ms | /api/sip-trunk
+[2m2026-08-02T18:37:11.435514419Z[0m [32m INFO[0m [2mrustpbx::handler::ami[0m[2m:[0m Reload SIP trunks via /reload/trunks endpoint [3mclient_ip[0m[2m=[0m172.30.44.2:57006
+[2m2026-08-02T18:37:11.438000573Z[0m [32m INFO[0m [2mrustpbx::proxy::data[0m[2m:[0m generated trunks file from database [3mpath[0m[2m=[0m/app/generated/trunks/trunks.generated.toml [3mentries[0m[2m=[0m1
+[2m2026-08-02T18:37:11.438133853Z[0m [32m INFO[0m [2mrustpbx::proxy::data[0m[2m:[0m loaded trunk 'converact-capacity-sipp' from /app/generated/trunks/trunks.generated.toml
+[2m2026-08-02T18:37:11.438195358Z[0m [32m INFO[0m [2mrustpbx::proxy::data[0m[2m:[0m trunks reloaded [3mtotal[0m[2m=[0m1 [3mconfig_count[0m[2m=[0m0 [3mfile_count[0m[2m=[0m0 [3mgenerated_entries[0m[2m=[0m1 [3mduration_ms[0m[2m=[0m2
+2026-08-02T18:37:11.438256182Z INFO http.access | 172.30.44.2 | POST | 200 | - | 2.766ms | /ami/v1/reload/trunks
