@@ -1,0 +1,69 @@
+{
+  "$schema": "./goal-gate-amendment-v1.schema.json",
+  "amendment_id": "GATE-AMENDMENT-G02-G03-2026-08-02-V1",
+  "version": 1,
+  "authorized_at": "2026-08-02",
+  "authorization_basis": "user_authorized_split_then_start_g03",
+  "scope": {
+    "changes": [
+      "G03_dependency_gate_only"
+    ],
+    "does_not_change": [
+      "G02_binding_objective_or_hash",
+      "G03_binding_objective_or_hash",
+      "domain_authorities",
+      "technical_acceptance_gates",
+      "evidence_statuses",
+      "production_eligibility"
+    ]
+  },
+  "frozen_inputs": {
+    "manifest_path": "goals/manifest.json",
+    "manifest_sha256": "11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912",
+    "goal_02_path": "goals/goal-02-platform-foundation-security-observability.md",
+    "goal_02_sha256": "742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9",
+    "goal_03_path": "goals/goal-03-sip-call-durable-foundation.md",
+    "goal_03_sha256": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af"
+  },
+  "development_gate": {
+    "gate_id": "G02_PLATFORM_FOUNDATION_GATE",
+    "status": "completed",
+    "closure_commit": "16ab4af98c5f3b453ad3d9bdd1ae5fe959a37720",
+    "evidence_uris": [
+      "architecture-foundation/execution/goal-02/evidence-index-v1.json",
+      "architecture-foundation/execution/goal-02/independent-review.md"
+    ],
+    "review_findings": {
+      "critical": 0,
+      "high": 0,
+      "important": 0,
+      "minor": 0
+    },
+    "production_eligible": false
+  },
+  "production_gate": {
+    "gate_id": "G02_PRODUCTION_EVIDENCE_GATE",
+    "status": "blocked_external",
+    "not_run_evidence_ids": [
+      "G02-E09-DEPENDENCY",
+      "G02-E12-LONG-MEDIA",
+      "G02-E14-REGION",
+      "G02-E15-NATIVE"
+    ],
+    "production_eligible": false
+  },
+  "effective_dependency": {
+    "dependent_goal": "G03",
+    "prerequisite_goal": "G02",
+    "original_gate": "completed",
+    "effective_gate": "platform_foundation_gate_completed",
+    "amendment_precedence": "later_user_authorized_gate_only"
+  },
+  "invariants": [
+    "anything_unproved_remains_not_run",
+    "production_eligibility_remains_false",
+    "G03_does_not_inherit_G02_external_evidence",
+    "G03_must_satisfy_its_own_full_objective",
+    "no_production_or_server_mutation_authorized"
+  ]
+}
