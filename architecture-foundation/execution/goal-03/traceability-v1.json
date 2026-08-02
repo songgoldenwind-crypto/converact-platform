@@ -1,0 +1,3406 @@
+{
+  "$schema": "./traceability-v1.schema.json",
+  "traceability_id": "converact-goal-03-traceability-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-02T00:00:00.000Z",
+  "binding": {
+    "goal_path": "goals/goal-03-sip-call-durable-foundation.md",
+    "goal_sha256": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af",
+    "amendment_path": "goals/amendments/2026-08-02-g02-g03-gate-split-v1.json",
+    "amendment_sha256": "3f55c9afdc2af68d8a93a5cfe19311cb9aaefb63192c85475d479af98fa2049b",
+    "manifest_path": "goals/manifest.json",
+    "manifest_sha256": "11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912",
+    "g02_development_gate_commit": "16ab4af98c5f3b453ad3d9bdd1ae5fe959a37720",
+    "gate_split_commit": "e5f4c81e8eb796131313aab8f5b3a47231fe41b7"
+  },
+  "source_traceability": {
+    "path": "architecture-foundation/execution/goal-00/requirement-traceability-v1.json",
+    "sha256": "d5fbafcb5ee97530928e999f1dbf7e9a268293558026977f6e9b07c5e5895edf"
+  },
+  "requirements": [
+    {
+      "requirement_id": "R4:001:HISTORICAL_OBJECTIVE:GOALS_4_THROUGH_11",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/0",
+      "requirement": "Execute Goals 4 through 11 from `docs/design/communication-foundation-vos5000-parity-performance-plan.md` in dependency order.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:002:BASELINE_REVIEW:DECISION_01_AUTHORITY_BOUNDARY",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/1",
+      "requirement": "锁定的是 Authority，不是某个库",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "wire_security",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/route-binding.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "architecture-foundation/execution/goal-03/wire-corpus"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:007:BASELINE_REVIEW:DECISION_06_FAST_DECODE_PATH_SEPARATION",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/6",
+      "requirement": "普通快路径和解码路径要彻底分开",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:009:BASELINE_REVIEW:DECISION_08_RUSTPBX_DEFOUNDATION",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/8",
+      "requirement": "RustPBX主干仍可保留，但要逐步“去底座化”",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:010:BASELINE_REVIEW:DECISION_09_FREEZE_ARCHITECTURE_ADR",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/9",
+      "requirement": "建议正式冻结的架构决议",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:011:BASELINE_REVIEW:FINAL_JUDGMENT",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/10",
+      "requirement": "最终判断",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:012:MARKDOWN_GATE:GOAL0.ACCEPTANCE.01",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/11",
+      "requirement": "不使用浮动分支构建；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:013:MARKDOWN_GATE:GOAL0.ACCEPTANCE.02",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/12",
+      "requirement": "spike 覆盖内核转发、用户态降级和不确定命令结果；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:014:MARKDOWN_GATE:GOAL0.ACCEPTANCE.03",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/13",
+      "requirement": "测试骨架能产生可 reconciliation 的 attempted/connected/failed/active 证据；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "effect_receipt",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
+        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+      ],
+      "test_paths": [
+        "test/converact-sip-effect-oracle.test.ts",
+        "test/converact-sip-effect-postgres.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:015:MARKDOWN_GATE:GOAL0.ACCEPTANCE.04",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/14",
+      "requirement": "metrics schema 固定 type、unit、label、bucket 和 clock metadata；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "effect_receipt",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
+        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+      ],
+      "test_paths": [
+        "test/converact-sip-effect-oracle.test.ts",
+        "test/converact-sip-effect-postgres.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:016:MARKDOWN_GATE:GOAL0.ACCEPTANCE.05",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/15",
+      "requirement": "后续协议不存在依赖上游实际上不支持的隐含动作。",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:017:MARKDOWN_GATE:GOAL1.ACCEPTANCE.01",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/16",
+      "requirement": "stale epoch 100% 拒绝；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:018:MARKDOWN_GATE:GOAL1.ACCEPTANCE.02",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/17",
+      "requirement": "command replay 不重复副作用；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:019:MARKDOWN_GATE:GOAL1.ACCEPTANCE.03",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/18",
+      "requirement": "prepare/commit/cancel/lease-expiry 和 unknown reconciliation 可重复验证；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:020:MARKDOWN_GATE:GOAL1.ACCEPTANCE.04",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/19",
+      "requirement": "prepare ACK 到 commit ACK 前 outbound delta 为 0，revoke ACK 后旧 group outbound 永久为 0，group zero live refs 才释放；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:021:MARKDOWN_GATE:GOAL1.ACCEPTANCE.05",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/20",
+      "requirement": "control plane 中断不影响已建立 media；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:022:MARKDOWN_GATE:GOAL1.ACCEPTANCE.06",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/21",
+      "requirement": "10 万 reservation 模型内存有界；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:023:MARKDOWN_GATE:GOAL1.ACCEPTANCE.07",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/22",
+      "requirement": "无 tenant/call 高基数 metrics。",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:030:MARKDOWN_GATE:GOAL3.ACCEPTANCE.01",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/29",
+      "requirement": "完整基础呼叫；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:031:MARKDOWN_GATE:GOAL3.ACCEPTANCE.02",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/30",
+      "requirement": "CANCEL/PRACK/UPDATE；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:032:MARKDOWN_GATE:GOAL3.ACCEPTANCE.03",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/31",
+      "requirement": "RustPBX owner 故障时媒体继续，控制 takeover 满足第 10.3 节；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:033:MARKDOWN_GATE:GOAL3.ACCEPTANCE.04",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/32",
+      "requirement": "“媒体继续”按第 10.3 节逐 Edge 分类：ordinary RTPengine 可 `continue_degraded`，embedded mandatory Edge 中断必须记 `interrupt_visible`；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:034:MARKDOWN_GATE:GOAL3.ACCEPTANCE.05",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/33",
+      "requirement": "fast path 故障结果可解释；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:035:MARKDOWN_GATE:GOAL3.ACCEPTANCE.06",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/34",
+      "requirement": "initial SDP 只在全部必需 group commit ACK 后暴露；active migration 遵循 prepared-blocked candidate SDP、old zero-output revoke ACK、new commit、bounded receive-only grace，并记录 writer gap/loss；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:036:MARKDOWN_GATE:GOAL3.ACCEPTANCE.07",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/35",
+      "requirement": "RustPBX 不同步依赖远程数据库完成每包处理；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:037:MARKDOWN_GATE:GOAL3.ACCEPTANCE.08",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/36",
+      "requirement": "录音和 AI tap 不回压主媒体。",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:066:MARKDOWN_GATE:GOAL6.ACCEPTANCE.01",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/65",
+      "requirement": "本文第 11 节每项都有自动化 SIP trace、媒体和 CDR/cause 证据；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:067:MARKDOWN_GATE:GOAL6.ACCEPTANCE.02",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/66",
+      "requirement": "无状态泄漏；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:068:MARKDOWN_GATE:GOAL6.ACCEPTANCE.03",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/67",
+      "requirement": "Business Dialog owner 一致；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:069:MARKDOWN_GATE:GOAL6.ACCEPTANCE.04",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/68",
+      "requirement": "错误码和 CDR 一致；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:070:MARKDOWN_GATE:GOAL6.ACCEPTANCE.05",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/69",
+      "requirement": "Kamailio failover 不重放已提交 B2BUA 副作用。",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:071:MARKDOWN_GATE:GOAL6.ACCEPTANCE.06",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/70",
+      "requirement": "同一 Protocol Session 只有一个 Adapter 可发送、计时和修改状态；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:072:MARKDOWN_GATE:GOAL6.ACCEPTANCE.07",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/71",
+      "requirement": "任何可见 effect 在 Business Dialog/durable shadow commit 前不发送；unknown 不猜测 重发，自动重传不改变 committed bytes/hash；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:073:MARKDOWN_GATE:GOAL6.ACCEPTANCE.08",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/72",
+      "requirement": "rvoip Protocol Dialog 不覆盖 RustPBX Business Dialog、owner epoch、CDR 或 media-control Authority；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:074:MARKDOWN_GATE:GOAL6.ACCEPTANCE.09",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/73",
+      "requirement": "rvoip Adapter 未通过的能力仍由旧 Adapter 服务或保持 `not_run`，不做虚假 fallback。",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:083:MARKDOWN_GATE:GOAL8.ACCEPTANCE.01",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/82",
+      "requirement": "任一资源维度不足均 fail closed；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:084:MARKDOWN_GATE:GOAL8.ACCEPTANCE.02",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/83",
+      "requirement": "reservation 不泄漏；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:085:MARKDOWN_GATE:GOAL8.ACCEPTANCE.03",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/84",
+      "requirement": "stale observation 权重归零；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:086:MARKDOWN_GATE:GOAL8.ACCEPTANCE.04",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/85",
+      "requirement": "N+1 失败时不超卖；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:087:MARKDOWN_GATE:GOAL8.ACCEPTANCE.05",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/86",
+      "requirement": "static NUMA/NIC topology 不被伪装为逐通话原子槽；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:088:MARKDOWN_GATE:GOAL8.ACCEPTANCE.06",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/87",
+      "requirement": "marginal efficiency 门槛进入 finalizer。",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:117:REVIEW:C1",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/116",
+      "requirement": "`commit_send/query_effect`不能提供文档暗示的“可确认发送”语义",
+      "source_prior_status": "conditional",
+      "source_evidence_status": "not_run",
+      "g03_domain": "effect_receipt",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
+        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+      ],
+      "test_paths": [
+        "test/converact-sip-effect-oracle.test.ts",
+        "test/converact-sip-effect-postgres.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:118:REVIEW:C2",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/117",
+      "requirement": "`prepare_effect`在Transport绑定前冻结“完整规范化bytes”不一定可行",
+      "source_prior_status": "conditional",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:121:REVIEW:C5",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/120",
+      "requirement": "Protocol Dialog可恢复，不等于活动Transaction和Transport连接可恢复",
+      "source_prior_status": "conditional",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:122:REVIEW:C6",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/121",
+      "requirement": "“同进程嵌入媒体”与“媒体故障不影响SIP”不能同时作为强保证",
+      "source_prior_status": "conditional",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:123:REVIEW:I1",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/122",
+      "requirement": "Durable Store已经进入建呼关键路径，但没有SLO和降级模型",
+      "source_prior_status": "conditional",
+      "source_evidence_status": "not_run",
+      "g03_domain": "effect_receipt",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
+        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+      ],
+      "test_paths": [
+        "test/converact-sip-effect-oracle.test.ts",
+        "test/converact-sip-effect-postgres.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:124:REVIEW:I2",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/123",
+      "requirement": "Kamailio与Rust SIP parser的差异是安全边界，不只是兼容性测试",
+      "source_prior_status": "conditional",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:127:REVIEW:I5",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/126",
+      "requirement": "DTMF Authority定义正确，但事件获取链路没闭合",
+      "source_prior_status": "conditional",
+      "source_evidence_status": "not_run",
+      "g03_domain": "wire_security",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/route-binding.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "architecture-foundation/execution/goal-03/wire-corpus"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:129:REVIEW:I7",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/128",
+      "requirement": "缺少持久化Schema与Snapshot版本兼容策略",
+      "source_prior_status": "conditional",
+      "source_evidence_status": "not_run",
+      "g03_domain": "effect_receipt",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
+        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+      ],
+      "test_paths": [
+        "test/converact-sip-effect-oracle.test.ts",
+        "test/converact-sip-effect-postgres.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:134:REVIEW:I12",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/133",
+      "requirement": "Drain策略缺少最长生命周期",
+      "source_prior_status": "conditional",
+      "source_evidence_status": "not_run",
+      "g03_domain": "recovery_fault_drain",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/recovery.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "infra/converact/rustpbx/patches/rsipstack-ivekit-capacity.patch",
+        "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation-recovery.test.ts",
+        "test/converact-rsipstack-server-invite-lifecycle-patch.test.ts",
+        "test/converact-rustpbx-dialog-recovery-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:139:SUPPLEMENTAL_REVIEW:FORMAL_VERIFICATION",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/138",
+      "requirement": "State machines and invariants have model/property verification before eligibility",
+      "source_prior_status": "conditional",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:145:RVOIP_CAPABILITY:AUTHORITY_RTPENGINE_ORDINARY_RTP_FAST_PATH",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/144",
+      "requirement": "Keep the existing ordinary RTP and RTCP relay path on RTPengine; its carrier performance profile remains not_run until signed evidence exists.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:146:RVOIP_CAPABILITY:AUTHORITY_RTPENGINE_WIRE_SDP_TRANSPORT",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/145",
+      "requirement": "Current RTPengine Wire SDP transport exists, but directed Edge, Binding Group and durable binding-commit integration remain not_run.",
+      "source_prior_status": "partial",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:147:RVOIP_CAPABILITY:AUTHORITY_RUSTPBX_CALL",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/146",
+      "requirement": "Keep RustPBX as the only Call authority.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:148:RVOIP_CAPABILITY:AUTHORITY_RUSTPBX_DIALOG",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/147",
+      "requirement": "Keep RustPBX owner epoch and durable dialog shadow authoritative.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:149:RVOIP_CAPABILITY:AUTHORITY_RUSTPBX_LEG",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/148",
+      "requirement": "Keep RustPBX as the only Leg authority.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:150:RVOIP_CAPABILITY:AUTHORITY_RUSTPBX_LOGICAL_MEDIA_GRAPH",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/149",
+      "requirement": "Implement Logical Media Graph, Media Plan, directed Edge classification, Backend assignment, binding commit and writer fencing with RustPBX as the sole target authority.",
+      "source_prior_status": "not_run",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:172:RVOIP_CAPABILITY:EXTRACTION_ONE_AUTHORITY_GUARDRAIL",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/171",
+      "requirement": "Apply the one-authority and one-entrypoint guardrail to every future extraction manifest.",
+      "source_prior_status": "partial",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:221:RVOIP_CAPABILITY:INTEGRATION_CURATED_CARGO_BUILD_GRAPH",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/220",
+      "requirement": "Build the exact minimal rvoip source slice in one locked RustPBX Cargo graph without importing the full workspace.",
+      "source_prior_status": "not_run",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:222:RVOIP_CAPABILITY:INTEGRATION_NO_RUSTPBX_RVOIP_RPC",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/221",
+      "requirement": "Prove every RustPBX-to-rvoip SIP call is an in-process Interface call with no network endpoint or RPC fallback.",
+      "source_prior_status": "not_run",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:223:RVOIP_CAPABILITY:INTEGRATION_SINGLE_UNIFIED_RUSTPBX_BINARY",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/222",
+      "requirement": "Produce one reproducible Unified RustPBX executable containing the selected low-level rvoip SIP Modules and the phase-one embedded voice-media-rs Backend.",
+      "source_prior_status": "not_run",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:224:RVOIP_CAPABILITY:INTEGRATION_UPSTREAM_TYPE_ISOLATION",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/223",
+      "requirement": "Prevent rsipstack, rvoip, rustrtc, and audio-codec types from escaping into product-layer public Interfaces.",
+      "source_prior_status": "not_run",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:255:RVOIP_CAPABILITY:PROVIDER_DIALOG_SEMANTIC_ABSORPTION",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/254",
+      "requirement": "Keep the local owner-fenced Dialog contract; do not reuse rvoip DialogManager types.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:278:RVOIP_CAPABILITY:REJECT_SECOND_SIP_B2BUA",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/277",
+      "requirement": "Do not run a second SIP B2BUA beside RustPBX.",
+      "source_prior_status": "unknown",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R4:279:RVOIP_CAPABILITY:REJECT_VCON_DURABLE_SESSION_AUTHORITY",
+      "source_id": "R4_TRACEABILITY",
+      "source_path": "docs/capacity/contracts/unified-voice-foundation-r4-traceability-v1.json",
+      "source_pointer": "/rows/278",
+      "requirement": "Do not use vCon as durable session, manifest, or audit authority.",
+      "source_prior_status": "unknown",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R5:003:R5-AUTH-001",
+      "source_id": "R5_DELTA",
+      "source_path": "docs/capacity/contracts/unified-communication-foundation-r5-traceability-v1.json",
+      "source_pointer": "/delta_rows/2",
+      "requirement": "Kamailio remains the SIP edge and does not own Call, billing or media business state.",
+      "source_prior_status": "not_run",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R5:004:R5-AUTH-002",
+      "source_id": "R5_DELTA",
+      "source_path": "docs/capacity/contracts/unified-communication-foundation-r5-traceability-v1.json",
+      "source_pointer": "/delta_rows/3",
+      "requirement": "Unified RustPBX remains the only telephony Call, Leg, Business Dialog, routing, CDR and recording-intent Authority.",
+      "source_prior_status": "not_run",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R5:005:R5-AUTH-003",
+      "source_id": "R5_DELTA",
+      "source_path": "docs/capacity/contracts/unified-communication-foundation-r5-traceability-v1.json",
+      "source_pointer": "/delta_rows/4",
+      "requirement": "RustPBX Call Core is the single Logical Media Graph Authority while Media Engine Facade is the single Media Plan, Directed Edge generation and writer-fence Authority.",
+      "source_prior_status": "not_run",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R5:007:R5-AUTH-005",
+      "source_id": "R5_DELTA",
+      "source_path": "docs/capacity/contracts/unified-communication-foundation-r5-traceability-v1.json",
+      "source_pointer": "/delta_rows/6",
+      "requirement": "OPC AI-native Orchestrator owns cross-channel Task, Tool, Memory, Policy, Approval, Handoff, Action Ledger and Evaluation.",
+      "source_prior_status": "not_run",
+      "source_evidence_status": "not_run",
+      "g03_domain": "wire_security",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/route-binding.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "architecture-foundation/execution/goal-03/wire-corpus"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "R5:059:R5-RECOVERY-001",
+      "source_id": "R5_DELTA",
+      "source_path": "docs/capacity/contracts/unified-communication-foundation-r5-traceability-v1.json",
+      "source_pointer": "/delta_rows/58",
+      "requirement": "Timeout and crash recovery query and reconcile the same attempt identity rather than issuing a new create.",
+      "source_prior_status": "not_run",
+      "source_evidence_status": "not_run",
+      "g03_domain": "effect_receipt",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
+        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+      ],
+      "test_paths": [
+        "test/converact-sip-effect-oracle.test.ts",
+        "test/converact-sip-effect-postgres.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PLATFORM_R2:S05",
+      "source_id": "PLATFORM_R2",
+      "source_path": "docs/design/2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md",
+      "source_pointer": "#5",
+      "requirement": "Authority 分配: Native 模式下 Converact 可以成为相应业务对象的正式 Authority。Overlay 模式下 Converact 只拥有自己的 Engagement execution、Evidence、Action Ledger 和 OutcomeClaim，不把外部 Case、Opportunity、",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "wire_security",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/route-binding.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "architecture-foundation/execution/goal-03/wire-corpus"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PLATFORM_R2:S07",
+      "source_id": "PLATFORM_R2",
+      "source_path": "docs/design/2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md",
+      "source_pointer": "#7",
+      "requirement": "逻辑架构: ┌──────────────────────────────────────────────────────────────┐ │ Product Offers                                               │",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PLATFORM_R2:S08",
+      "source_id": "PLATFORM_R2",
+      "source_path": "docs/design/2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md",
+      "source_pointer": "#8",
+      "requirement": "通信底座不被首个行业限制: R5 的以下决定不因 R2 改变： - Kamailio 是 SIP Edge；",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PLATFORM_R2:S12",
+      "source_id": "PLATFORM_R2",
+      "source_path": "docs/design/2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md",
+      "source_pointer": "#12",
+      "requirement": "对 18 个 Goal 的修正: 现有 18 个 Goal 继续使用，但其语义调整为： 这 18 个 Goal 覆盖 Horizontal Foundation、首个 Resolve Profile 和一个条件式电信 Option，",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "RESOLVE_R1:W1",
+      "source_id": "RESOLVE_R1",
+      "source_path": "docs/design/2026-07-31-ai-native-multimodal-resolution-platform-r1.md",
+      "source_pointer": "#workstream-w1",
+      "requirement": "Communication Fabric: Overlay、SIP、RTP、WebRTC、switch、codec、drain、capacity",
+      "source_prior_status": "target",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROGRAM:G03",
+      "source_id": "GOAL_PROGRAM",
+      "source_path": "goals/manifest.json",
+      "source_pointer": "/goals/3",
+      "requirement": "Execute G03 SIP 与 Durable Call Foundation only after its declared entry gate and dependencies.",
+      "source_prior_status": "not_run",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:1F8DA36D05BF0CFE",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/1F8DA36D05BF0CFE",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:architecture-foundation/docs/adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:1455C9D46C990A5E",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/1455C9D46C990A5E",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:architecture-foundation/goals/goal-03-sip-call-durable-foundation.md before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:B179D5AB008F0EBC",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/B179D5AB008F0EBC",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:docs/Kamailio_RustPBX_运营级VoIP平台设计完整文档.md before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:076E664E6047CDD0",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/076E664E6047CDD0",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:frontend/src/pages/video-call-join.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:08C699448DA0402C",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/08C699448DA0402C",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:infra/k8s/templates/livekit-sip-deployment.yaml before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:6A5787E270ABD9E8",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/6A5787E270ABD9E8",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:scripts/sip-volte-readiness.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:D9BB7EB2E4D55DF5",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/D9BB7EB2E4D55DF5",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/agent-tools/conference.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:0D0D28D26FA831F9",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/0D0D28D26FA831F9",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/agent-tools/recording-search.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:E4A1DD29BE8A03BF",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/E4A1DD29BE8A03BF",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/agent-tools/supervisor.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:9D152B30CA228C42",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/9D152B30CA228C42",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/agent-tools/warm-transfer-bridge.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:E127F08EB231ED3E",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/E127F08EB231ED3E",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/analytics/sprint10-http.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:93BFBDAAC95E7CAA",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/93BFBDAAC95E7CAA",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/application.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:BE719AA79393743F",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/BE719AA79393743F",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/cdr-receiver.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:1B488AAFE09436FD",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/1B488AAFE09436FD",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/compliance/compliance-store.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:BCC87E31B8DCBF0B",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/BCC87E31B8DCBF0B",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/compliance/consent-tracker.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:E1250EB2B620E263",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/E1250EB2B620E263",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/compliance/retention-policy.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:12D4D476AD2CAAD1",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/12D4D476AD2CAAD1",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/egress-manager.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:7339E868FF9D1305",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/7339E868FF9D1305",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/omnichannel/omni-http.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:6101F3C7C2F326C2",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/6101F3C7C2F326C2",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/outbound-dialer.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:1E1776DDCFF63760",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/1E1776DDCFF63760",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/types.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:70795100BCE059F1",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/70795100BCE059F1",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/agent-runtime/call-center/unified-routing-adapter.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:0C80A0E528A20D5B",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/0C80A0E528A20D5B",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/call-center-http.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:D37AA967FA84F5F9",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/D37AA967FA84F5F9",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:src/platform/interaction-hub/adapters/rustpbx.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:B7BD7936C8F99314",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/B7BD7936C8F99314",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:test/call-center-phase0-http.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:A917E3CD0EE88A69",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/A917E3CD0EE88A69",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:test/call-center-phase0.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:D5DC46BD65E83C91",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/D5DC46BD65E83C91",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:test/call-center-phase1-http.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:1A28257E9334920D",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/1A28257E9334920D",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:test/sip-volte-readiness.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:907ACCC35A0405E7",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/907ACCC35A0405E7",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:test/video-call-join-contract.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:2D3600E02783F13C",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_desktop/files/2D3600E02783F13C",
+      "requirement": "Preserve and assess legacy local path legacy_desktop:实时通信项目安全漏洞综合分析报告-2026，涵盖Asterisk、pjproject、reSIProcate、Jitsi、OpenSIPS、Kamailio.pdf before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:9F799B93882B0CFE",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/9F799B93882B0CFE",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:.github/workflows/ivekit-rustpbx-image.yml before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:DB260F5F9409EC10",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/DB260F5F9409EC10",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:infra/ivekit/rustpbx/README.md before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:A844A8C02B4BD850",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/A844A8C02B4BD850",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:infra/ivekit/rustpbx/build.sh before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:8309A596A7A69717",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/8309A596A7A69717",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:infra/ivekit/rustpbx/patches/rustpbx-ivekit-admission-retry-after.patch before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:3BE77AFBA0EDA2A2",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/3BE77AFBA0EDA2A2",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rsipstack-rejection-headers-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:B455CF4F3B83FC1F",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/B455CF4F3B83FC1F",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rsipstack-server-invite-lifecycle-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:0F4DB1CE05B64605",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/0F4DB1CE05B64605",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rsipstack-single-trying-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:5BCAF92E37D6875F",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/5BCAF92E37D6875F",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-admission-retry-after-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:9D3C19429C589F53",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/9D3C19429C589F53",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-audio-tap.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:BE27F43FE3583FE6",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/BE27F43FE3583FE6",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-build.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:27BEE1EE4DC1DBA1",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/27BEE1EE4DC1DBA1",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-cdr-transport-contract.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:73A4E6943C8517B9",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/73A4E6943C8517B9",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-dialog-recovery-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:E5989C21DAF3D069",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/E5989C21DAF3D069",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-dual-leg-cdr-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:0AA0722EB25E71BC",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/0AA0722EB25E71BC",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-http-client-capacity-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:4C3DCA0E1B34B799",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/4C3DCA0E1B34B799",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-media-control-client-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:13A43C9746538407",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/13A43C9746538407",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-media-lifecycle-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:60CADEE9332BF5B4",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/60CADEE9332BF5B4",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-media-mid-dialog-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:C3A45BADBFE491DA",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/C3A45BADBFE491DA",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-processing-ivr-execution-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:FB815EDD0CD0D37C",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/FB815EDD0CD0D37C",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-processing-terminal-events-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:AA6540A4B8FEECCE",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/AA6540A4B8FEECCE",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-recording-lifecycle-reservation-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:64C76869241E869A",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/64C76869241E869A",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-session-media-profile-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:A60A81048546B433",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/A60A81048546B433",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-webphone-edge-auth.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "LEGACY_CHANGE:A10FD21DFC7E4DBA",
+      "source_id": "LEGACY_LOCAL_CHANGES",
+      "source_path": "architecture-foundation/execution/goal-00/workspace-inventory-v1.json",
+      "source_pointer": "/workspaces/legacy_ivekit/files/A10FD21DFC7E4DBA",
+      "requirement": "Preserve and assess legacy local path legacy_ivekit:test/ivekit-rustpbx-webphone-patch.test.ts before any migration.",
+      "source_prior_status": "implemented_local",
+      "source_evidence_status": "not_run",
+      "g03_domain": "call_leg",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/types.ts",
+        "src/agent-runtime/converact/voice/state-machine.ts",
+        "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
+        "src/agent-runtime/converact/voice/cdr-convergence.ts"
+      ],
+      "test_paths": [
+        "test/converact-voice-application.test.ts",
+        "test/converact-dialog-owner-takeover.test.ts",
+        "test/converact-voice-cdr-convergence.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:09F75101FA7D8E55",
+      "source_id": "PROD_EVIDENCE:09F75101FA7D8E55",
+      "source_path": "docs/evidence/wave3-rustpbx-direct-sip-capacity-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-direct-sip-capacity-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:FC8288D8FD972C3F",
+      "source_id": "PROD_EVIDENCE:FC8288D8FD972C3F",
+      "source_path": "docs/evidence/wave3-rustpbx-ivekit19-image-inspect-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-ivekit19-image-inspect-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:3B95EF43B57F9BDA",
+      "source_id": "PROD_EVIDENCE:3B95EF43B57F9BDA",
+      "source_path": "docs/evidence/wave3-rustpbx-kamailio-sip-capacity-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-kamailio-sip-capacity-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:B7B4717B3B40509D",
+      "source_id": "PROD_EVIDENCE:B7B4717B3B40509D",
+      "source_path": "docs/evidence/wave3-rustpbx-kamailio-sip-capacity-server-validation-2026-07-24.md",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-kamailio-sip-capacity-server-validation-2026-07-24.md; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:6389D3D3F6E0B804",
+      "source_id": "PROD_EVIDENCE:6389D3D3F6E0B804",
+      "source_path": "docs/evidence/wave3-rustpbx-rtp-media-capacity-server-validation-2026-07-24.md",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-rtp-media-capacity-server-validation-2026-07-24.md; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "recovery_fault_drain",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/recovery.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "infra/converact/rustpbx/patches/rsipstack-ivekit-capacity.patch",
+        "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation-recovery.test.ts",
+        "test/converact-rsipstack-server-invite-lifecycle-patch.test.ts",
+        "test/converact-rustpbx-dialog-recovery-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:C94905F2CC907EB3",
+      "source_id": "PROD_EVIDENCE:C94905F2CC907EB3",
+      "source_path": "docs/evidence/wave3-rustpbx-rtp-strict-10-ivekit19-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-rtp-strict-10-ivekit19-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:9947779371937280",
+      "source_id": "PROD_EVIDENCE:9947779371937280",
+      "source_path": "docs/evidence/wave3-rustpbx-rtp-strict-150-generator-bound-ivekit19-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-rtp-strict-150-generator-bound-ivekit19-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:6F314A9237598FB9",
+      "source_id": "PROD_EVIDENCE:6F314A9237598FB9",
+      "source_path": "docs/evidence/wave3-rustpbx-rtp-throughput-600-800-ivekit18-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-rtp-throughput-600-800-ivekit18-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:7D327B1195916DAC",
+      "source_id": "PROD_EVIDENCE:7D327B1195916DAC",
+      "source_path": "docs/evidence/wave3-rustpbx-rtp-throughput-600-800-ivekit19-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-rtp-throughput-600-800-ivekit19-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:A0C52F88E8868D15",
+      "source_id": "PROD_EVIDENCE:A0C52F88E8868D15",
+      "source_path": "docs/evidence/wave3-rustpbx-rtp-throughput-900-mixed-ivekit19-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-rtp-throughput-900-mixed-ivekit19-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:D4AE0ACCC2DCAA4B",
+      "source_id": "PROD_EVIDENCE:D4AE0ACCC2DCAA4B",
+      "source_path": "docs/evidence/wave3-rustpbx-rtp-throughput-900-rbuf2m-mixed-ivekit19-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-rtp-throughput-900-rbuf2m-mixed-ivekit19-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:F2F590E7526AF472",
+      "source_id": "PROD_EVIDENCE:F2F590E7526AF472",
+      "source_path": "docs/evidence/wave3-rustpbx-udp-socket-host-observation-2026-07-24.txt",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-rustpbx-udp-socket-host-observation-2026-07-24.txt; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "legacy_assessment",
+      "implementation_paths": [
+        "architecture-foundation/execution/goal-03/source-test-path-map.md"
+      ],
+      "test_paths": [
+        "architecture-foundation/execution/goal-03/goal-03-contract.test.mjs"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:2A7E3AC59145E1BE",
+      "source_id": "PROD_EVIDENCE:2A7E3AC59145E1BE",
+      "source_path": "docs/evidence/wave3-sip-kamailio-frontier-led-off-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-sip-kamailio-frontier-led-off-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:8C782EA6CBDD187F",
+      "source_id": "PROD_EVIDENCE:8C782EA6CBDD187F",
+      "source_path": "docs/evidence/wave3-sip-kamailio-frontier-refine-soft503-fix-led-off-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-sip-kamailio-frontier-refine-soft503-fix-led-off-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    },
+    {
+      "requirement_id": "PROD_EVIDENCE:453F5B16AD0CA751",
+      "source_id": "PROD_EVIDENCE:453F5B16AD0CA751",
+      "source_path": "docs/evidence/wave3-sip-kamailio-frontier-soft503-fix-led-off-2026-07-24.json",
+      "source_pointer": "#artifact",
+      "requirement": "Preserve historical evidence artifact docs/evidence/wave3-sip-kamailio-frontier-soft503-fix-led-off-2026-07-24.json; re-qualify before any new production claim.",
+      "source_prior_status": "historical_superseded",
+      "source_evidence_status": "evidence_exists_not_requalified",
+      "g03_domain": "sip_foundation",
+      "implementation_paths": [
+        "src/agent-runtime/converact/voice/sip-foundation/types.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
+        "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
+        "infra/converact/rustpbx/build.sh"
+      ],
+      "test_paths": [
+        "test/converact-sip-foundation.test.ts",
+        "test/converact-rustpbx-build.test.ts",
+        "test/converact-rsipstack-single-trying-patch.test.ts"
+      ],
+      "status": "not_run",
+      "evidence_uris": [],
+      "production_eligible": false,
+      "rationale": "Mapped exactly once; no G00 or historical evidence is requalified by G03."
+    }
+  ],
+  "closure": {
+    "source_rows_targeting_g03": 143,
+    "mapped_exactly_once": 143,
+    "unmapped": 0,
+    "production_eligible": 0,
+    "domain_counts": {
+      "sip_foundation": 51,
+      "call_leg": 43,
+      "effect_receipt": 6,
+      "wire_security": 4,
+      "recovery_fault_drain": 2,
+      "legacy_assessment": 37
+    }
+  }
+}

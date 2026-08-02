@@ -1,0 +1,162 @@
+{
+  "$schema": "./evidence-index-v1.schema.json",
+  "evidence_index_id": "converact-goal-03-evidence-index-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-02T00:00:00.000Z",
+  "binding": {
+    "goal_path": "goals/goal-03-sip-call-durable-foundation.md",
+    "goal_sha256": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af",
+    "amendment_path": "goals/amendments/2026-08-02-g02-g03-gate-split-v1.json",
+    "amendment_sha256": "3f55c9afdc2af68d8a93a5cfe19311cb9aaefb63192c85475d479af98fa2049b",
+    "manifest_path": "goals/manifest.json",
+    "manifest_sha256": "11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912",
+    "g02_development_gate_commit": "16ab4af98c5f3b453ad3d9bdd1ae5fe959a37720",
+    "gate_split_commit": "e5f4c81e8eb796131313aab8f5b3a47231fe41b7"
+  },
+  "current_state": "implementation_in_progress",
+  "production_eligible": false,
+  "entries": [
+    {
+      "evidence_id": "G03-E01-CONTRACT",
+      "claim": "G03 machine contracts and binding validation",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E02-BASELINE",
+      "claim": "Existing SipFoundation focused baseline",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E03-ID-STATE",
+      "claim": "Strong IDs and Call/Leg race semantics",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E04-EFFECT",
+      "claim": "Durable effect and semantic receipt classes",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E05-POSTGRES",
+      "claim": "Physical PostgreSQL durability, ACL and restart replay",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E06-TRYING",
+      "claim": "100 Trying and final/overload raw latency distribution",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E07-WIRE",
+      "claim": "Wire corpus rsipstack baseline and differential replay",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E08-RECOVERY",
+      "claim": "Confirmed-quiescent recovery, clock and fencing",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E09-DRAIN",
+      "claim": "New-call stop, old-call drain and active-zero",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E10-FAULT",
+      "claim": "Protocol/worker crash, panic, OOM and blocking isolation",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E11-INTEROP",
+      "claim": "SIPp and real peer interoperability",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E12-LONG-CALL",
+      "claim": "Long call control and restart stability",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E13-PERFORMANCE",
+      "claim": "Same-source hot-path latency, allocation and capacity baseline",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E14-TYPECHECK",
+      "claim": "Repository TypeScript typecheck",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    },
+    {
+      "evidence_id": "G03-E15-REVIEW",
+      "claim": "Independent G03 review",
+      "status": "not_run",
+      "evidence_uris": [],
+      "source_commit": null,
+      "raw_output_sha256": null,
+      "production_eligible": false
+    }
+  ],
+  "inherited_claims": [],
+  "external_or_environment_blockers": [
+    "physical_postgresql_runtime_not_started",
+    "real_sip_peer_campaign_not_run",
+    "host_fault_and_oom_campaign_not_run",
+    "long_call_and_capacity_campaign_not_run"
+  ]
+}

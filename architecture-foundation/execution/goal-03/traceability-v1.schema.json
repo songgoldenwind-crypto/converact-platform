@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.invalid/schemas/goal-03-traceability-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "traceability_id",
+    "version",
+    "generated_at",
+    "binding",
+    "source_traceability",
+    "requirements",
+    "closure"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "./traceability-v1.schema.json"
+    },
+    "traceability_id": {
+      "const": "converact-goal-03-traceability-v1"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal_path",
+        "goal_sha256",
+        "amendment_path",
+        "amendment_sha256",
+        "manifest_path",
+        "manifest_sha256",
+        "g02_development_gate_commit",
+        "gate_split_commit"
+      ],
+      "properties": {
+        "goal_path": {
+          "const": "goals/goal-03-sip-call-durable-foundation.md"
+        },
+        "goal_sha256": {
+          "const": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af"
+        },
+        "amendment_path": {
+          "const": "goals/amendments/2026-08-02-g02-g03-gate-split-v1.json"
+        },
+        "amendment_sha256": {
+          "const": "3f55c9afdc2af68d8a93a5cfe19311cb9aaefb63192c85475d479af98fa2049b"
+        },
+        "manifest_path": {
+          "const": "goals/manifest.json"
+        },
+        "manifest_sha256": {
+          "const": "11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912"
+        },
+        "g02_development_gate_commit": {
+          "const": "16ab4af98c5f3b453ad3d9bdd1ae5fe959a37720"
+        },
+        "gate_split_commit": {
+          "const": "e5f4c81e8eb796131313aab8f5b3a47231fe41b7"
+        }
+      }
+    },
+    "source_traceability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "const": "architecture-foundation/execution/goal-00/requirement-traceability-v1.json"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 143,
+      "maxItems": 143,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requirement_id",
+          "source_id",
+          "source_path",
+          "source_pointer",
+          "requirement",
+          "source_prior_status",
+          "source_evidence_status",
+          "g03_domain",
+          "implementation_paths",
+          "test_paths",
+          "status",
+          "evidence_uris",
+          "production_eligible",
+          "rationale"
+        ],
+        "properties": {
+          "requirement_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_pointer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requirement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_prior_status": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_evidence_status": {
+            "type": "string",
+            "minLength": 1
+          },
+          "g03_domain": {
+            "enum": [
+              "sip_foundation",
+              "call_leg",
+              "effect_receipt",
+              "wire_security",
+              "recovery_fault_drain",
+              "legacy_assessment"
+            ]
+          },
+          "implementation_paths": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "test_paths": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "status": {
+            "const": "not_run"
+          },
+          "evidence_uris": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "production_eligible": {
+            "const": false
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_rows_targeting_g03",
+        "mapped_exactly_once",
+        "unmapped",
+        "production_eligible",
+        "domain_counts"
+      ],
+      "properties": {
+        "source_rows_targeting_g03": {
+          "const": 143
+        },
+        "mapped_exactly_once": {
+          "const": 143
+        },
+        "unmapped": {
+          "const": 0
+        },
+        "production_eligible": {
+          "const": 0
+        },
+        "domain_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sip_foundation",
+            "call_leg",
+            "effect_receipt",
+            "wire_security",
+            "recovery_fault_drain",
+            "legacy_assessment"
+          ],
+          "properties": {
+            "sip_foundation": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "call_leg": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "effect_receipt": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "wire_security": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "recovery_fault_drain": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "legacy_assessment": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

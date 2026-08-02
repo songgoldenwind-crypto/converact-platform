@@ -1,0 +1,1425 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.invalid/schemas/wire-freeze-corpus-manifest-v1.schema.json",
+  "title": "Converact SIP wire freeze corpus v1",
+  "description": "Closed identity schema for the frozen versioned contract document.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "contract_id",
+    "version",
+    "generated_at",
+    "binding",
+    "status",
+    "corpus_policy",
+    "required_feature_coverage",
+    "cases"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "./wire-freeze-corpus-manifest-v1.schema.json"
+    },
+    "contract_id": {
+      "const": "converact-wire-freeze-corpus-manifest-v1"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "generated_at": {
+      "const": "2026-08-02T00:00:00.000Z"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal_path",
+        "goal_sha256",
+        "amendment_path",
+        "amendment_sha256",
+        "manifest_path",
+        "manifest_sha256",
+        "g02_development_gate_commit",
+        "gate_split_commit"
+      ],
+      "properties": {
+        "goal_path": {
+          "const": "goals/goal-03-sip-call-durable-foundation.md"
+        },
+        "goal_sha256": {
+          "const": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af"
+        },
+        "amendment_path": {
+          "const": "goals/amendments/2026-08-02-g02-g03-gate-split-v1.json"
+        },
+        "amendment_sha256": {
+          "const": "3f55c9afdc2af68d8a93a5cfe19311cb9aaefb63192c85475d479af98fa2049b"
+        },
+        "manifest_path": {
+          "const": "goals/manifest.json"
+        },
+        "manifest_sha256": {
+          "const": "11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912"
+        },
+        "g02_development_gate_commit": {
+          "const": "16ab4af98c5f3b453ad3d9bdd1ae5fe959a37720"
+        },
+        "gate_split_commit": {
+          "const": "e5f4c81e8eb796131313aab8f5b3a47231fe41b7"
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_runtime",
+        "target_contract",
+        "production_eligible"
+      ],
+      "properties": {
+        "current_runtime": {
+          "const": "partial_existing_not_requalified"
+        },
+        "target_contract": {
+          "const": "frozen"
+        },
+        "production_eligible": {
+          "const": false
+        }
+      }
+    },
+    "corpus_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw_bytes_are_authority",
+        "line_endings",
+        "secrets",
+        "baseline_adapter",
+        "target_adapter",
+        "semantic_diff_policy",
+        "baseline_semantic_capture_status"
+      ],
+      "properties": {
+        "raw_bytes_are_authority": {
+          "const": true
+        },
+        "line_endings": {
+          "const": "CRLF"
+        },
+        "secrets": {
+          "const": "test_only_non_secret_values"
+        },
+        "baseline_adapter": {
+          "const": "rsipstack"
+        },
+        "target_adapter": {
+          "const": "rvoip_low_level_slices"
+        },
+        "semantic_diff_policy": {
+          "const": "explicit_versioned_compatibility_decision_only"
+        },
+        "baseline_semantic_capture_status": {
+          "const": "not_run"
+        }
+      }
+    },
+    "required_feature_coverage": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "prefixItems": [
+        {
+          "const": "INVITE"
+        },
+        {
+          "const": "ACK"
+        },
+        {
+          "const": "BYE"
+        },
+        {
+          "const": "CANCEL"
+        },
+        {
+          "const": "REGISTER"
+        },
+        {
+          "const": "OPTIONS"
+        },
+        {
+          "const": "re-INVITE"
+        },
+        {
+          "const": "UPDATE"
+        },
+        {
+          "const": "PRACK"
+        },
+        {
+          "const": "REFER"
+        },
+        {
+          "const": "NOTIFY"
+        },
+        {
+          "const": "100rel"
+        },
+        {
+          "const": "fork"
+        },
+        {
+          "const": "auth"
+        },
+        {
+          "const": "DTMF"
+        },
+        {
+          "const": "malformed"
+        }
+      ],
+      "items": false
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 22,
+      "maxItems": 22,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "invite-offer"
+            },
+            "file": {
+              "const": "wire-corpus/invite-offer.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "INVITE"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "invite_server_transaction"
+            },
+            "dialog_semantics": {
+              "const": "create_early_dialog"
+            },
+            "byte_length": {
+              "const": 603
+            },
+            "sha256": {
+              "const": "83632c6410a3d1d59c767911b91f264a0c918f08305053eccaf0dea8180057ab"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "ack-2xx"
+            },
+            "file": {
+              "const": "wire-corpus/ack-2xx.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "ACK"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "uas_core_dialog"
+            },
+            "dialog_semantics": {
+              "const": "confirm_ack"
+            },
+            "byte_length": {
+              "const": 354
+            },
+            "sha256": {
+              "const": "4b7c07046f810535415d41525598f2e86d7a02f37b056d312b271460b6ba0b72"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "bye"
+            },
+            "file": {
+              "const": "wire-corpus/bye.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "BYE"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "non_invite_transaction"
+            },
+            "dialog_semantics": {
+              "const": "terminate_dialog"
+            },
+            "byte_length": {
+              "const": 354
+            },
+            "sha256": {
+              "const": "8ff1c339972e7a9890f92e09ef581a7ca959f73908b5d49d6c4bcd649a061649"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "cancel"
+            },
+            "file": {
+              "const": "wire-corpus/cancel.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "CANCEL"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "cancel_correlated_to_invite"
+            },
+            "dialog_semantics": {
+              "const": "cancel_early_dialog"
+            },
+            "byte_length": {
+              "const": 294
+            },
+            "sha256": {
+              "const": "89c2ac1d5b7e652d6a2a769d53a68343a198e2c68fbd4f8f93db52637a89c65c"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "register"
+            },
+            "file": {
+              "const": "wire-corpus/register.sip"
+            },
+            "transport": {
+              "const": "tcp"
+            },
+            "method_or_status": {
+              "const": "REGISTER"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "non_invite_transaction"
+            },
+            "dialog_semantics": {
+              "const": "standalone_register_only"
+            },
+            "byte_length": {
+              "const": 346
+            },
+            "sha256": {
+              "const": "1988153c0a716b0d4a6a2c81d3551ed24d2d03eab31bbf41b823381fee589888"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "options"
+            },
+            "file": {
+              "const": "wire-corpus/options.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "OPTIONS"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "non_invite_transaction"
+            },
+            "dialog_semantics": {
+              "const": "no_business_call"
+            },
+            "byte_length": {
+              "const": 294
+            },
+            "sha256": {
+              "const": "0dfe42b0ef3d74527439722f4adb80d9dc5856f6369aaba2717a328e179113c3"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "reinvite-hold"
+            },
+            "file": {
+              "const": "wire-corpus/reinvite-hold.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "INVITE"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "invite_server_transaction"
+            },
+            "dialog_semantics": {
+              "const": "same_leg_new_negotiation_generation"
+            },
+            "byte_length": {
+              "const": 621
+            },
+            "sha256": {
+              "const": "e2d507a1950dd228a979fa6f8ec5ad7dcbbd668eaad77f42e07694e1e40fb4ed"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "update"
+            },
+            "file": {
+              "const": "wire-corpus/update.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "UPDATE"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "non_invite_transaction"
+            },
+            "dialog_semantics": {
+              "const": "same_dialog_update"
+            },
+            "byte_length": {
+              "const": 621
+            },
+            "sha256": {
+              "const": "c9770ed07cd1723b7902f428ad72bc0bf5d73de4b7862553c6d57b9c80a9cf45"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "prack"
+            },
+            "file": {
+              "const": "wire-corpus/prack.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "PRACK"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "non_invite_transaction"
+            },
+            "dialog_semantics": {
+              "const": "close_reliable_provisional"
+            },
+            "byte_length": {
+              "const": 376
+            },
+            "sha256": {
+              "const": "d656bac3a596bb58cac149148ab951ace442337e90daab030de16218d7e0d7eb"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "refer"
+            },
+            "file": {
+              "const": "wire-corpus/refer.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "REFER"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "non_invite_transaction"
+            },
+            "dialog_semantics": {
+              "const": "prepare_transfer"
+            },
+            "byte_length": {
+              "const": 439
+            },
+            "sha256": {
+              "const": "ef84fa22bc89153f4ecd3a983af61a7476e3fef9d1d37cc6a5cd10697bc20e82"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "notify-refer"
+            },
+            "file": {
+              "const": "wire-corpus/notify-refer.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "NOTIFY"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "non_invite_transaction"
+            },
+            "dialog_semantics": {
+              "const": "observe_transfer_result"
+            },
+            "byte_length": {
+              "const": 475
+            },
+            "sha256": {
+              "const": "e9a1c541387708a67c44348338f91f53d726578320214163c85572ff123e6c7a"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "reliable-provisional-183"
+            },
+            "file": {
+              "const": "wire-corpus/reliable-provisional-183.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "183"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "invite_client_transaction"
+            },
+            "dialog_semantics": {
+              "const": "create_early_dialog_require_prack"
+            },
+            "byte_length": {
+              "const": 346
+            },
+            "sha256": {
+              "const": "50a94f83b4ea0ef33f1b66797267a81c93fcb844ebdb09d8652ee1cf3e63f884"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "fork-final-a"
+            },
+            "file": {
+              "const": "wire-corpus/fork-final-a.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "200"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "invite_client_transaction"
+            },
+            "dialog_semantics": {
+              "const": "durably_select_one_winner"
+            },
+            "byte_length": {
+              "const": 306
+            },
+            "sha256": {
+              "const": "a1ecbe14faae21d41c57d272b048b2055c9ded7bff56886cb8f3b7c005196ce8"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "fork-final-b-late"
+            },
+            "file": {
+              "const": "wire-corpus/fork-final-b-late.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "200"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "invite_client_transaction"
+            },
+            "dialog_semantics": {
+              "const": "ack_then_bye_non_winner"
+            },
+            "byte_length": {
+              "const": 306
+            },
+            "sha256": {
+              "const": "a7bce0ddcb3295833ebc7ebacda490b3aa120245d98de2f2e77933c4d6ab830a"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "auth-challenge"
+            },
+            "file": {
+              "const": "wire-corpus/auth-challenge.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "401"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "invite_client_transaction"
+            },
+            "dialog_semantics": {
+              "const": "bounded_auth_retry_new_attempt"
+            },
+            "byte_length": {
+              "const": 375
+            },
+            "sha256": {
+              "const": "b3f14c3b23a852d2b4852259dc72f928b1644b87463ade4a775ca843489c27b6"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "auth-retry"
+            },
+            "file": {
+              "const": "wire-corpus/auth-retry.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "INVITE"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "invite_client_transaction"
+            },
+            "dialog_semantics": {
+              "const": "derived_attempt_same_semantic_intent"
+            },
+            "byte_length": {
+              "const": 558
+            },
+            "sha256": {
+              "const": "56b4e9c489605574ccee0de8e5a8f5a9e8b48a1526d4898720618b8c98664b9e"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "dtmf-info"
+            },
+            "file": {
+              "const": "wire-corpus/dtmf-info.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "INFO"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "non_invite_transaction"
+            },
+            "dialog_semantics": {
+              "const": "dedupe_and_emit_one_canonical_dtmf"
+            },
+            "byte_length": {
+              "const": 419
+            },
+            "sha256": {
+              "const": "3d1e208eacd05c6ab956fee1646d2087bc1ddb9323b047e9de3105ee855b05a0"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "dtmf-rfc4733-offer"
+            },
+            "file": {
+              "const": "wire-corpus/dtmf-rfc4733-offer.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "INVITE"
+            },
+            "expected_disposition": {
+              "const": "accept"
+            },
+            "transaction_semantics": {
+              "const": "invite_server_transaction"
+            },
+            "dialog_semantics": {
+              "const": "negotiate_one_outbound_dtmf_mechanism"
+            },
+            "byte_length": {
+              "const": 603
+            },
+            "sha256": {
+              "const": "83632c6410a3d1d59c767911b91f264a0c918f08305053eccaf0dea8180057ab"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "malformed-conflicting-content-length"
+            },
+            "file": {
+              "const": "wire-corpus/malformed-conflicting-content-length.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "INVITE"
+            },
+            "expected_disposition": {
+              "const": "reject"
+            },
+            "transaction_semantics": {
+              "const": "none"
+            },
+            "dialog_semantics": {
+              "const": "reject_before_call_creation"
+            },
+            "byte_length": {
+              "const": 365
+            },
+            "sha256": {
+              "const": "4b0f73d5800be0191fea8cb1dba09b25b7d3a01d7a0fd35b0b9d984866dfe20c"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "malformed-uri-percent"
+            },
+            "file": {
+              "const": "wire-corpus/malformed-uri-percent.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "INVITE"
+            },
+            "expected_disposition": {
+              "const": "reject"
+            },
+            "transaction_semantics": {
+              "const": "none"
+            },
+            "dialog_semantics": {
+              "const": "reject_before_call_creation"
+            },
+            "byte_length": {
+              "const": 345
+            },
+            "sha256": {
+              "const": "77daf801557b377cbae09a8ba227c9fc0d80b33b92405f82a5bac659dfc2d824"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "malformed-folded-authorization"
+            },
+            "file": {
+              "const": "wire-corpus/malformed-folded-authorization.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "INVITE"
+            },
+            "expected_disposition": {
+              "const": "reject"
+            },
+            "transaction_semantics": {
+              "const": "none"
+            },
+            "dialog_semantics": {
+              "const": "reject_before_secret_logging"
+            },
+            "byte_length": {
+              "const": 406
+            },
+            "sha256": {
+              "const": "6dfb6f082d251cad4678a24ec1bf9414aa12de272e4b043cdf05dbd1c44a2de8"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "file",
+            "transport",
+            "method_or_status",
+            "expected_disposition",
+            "transaction_semantics",
+            "dialog_semantics",
+            "byte_length",
+            "sha256",
+            "current_adapter_result",
+            "target_adapter_result",
+            "production_eligible"
+          ],
+          "properties": {
+            "id": {
+              "const": "malformed-oversized-header"
+            },
+            "file": {
+              "const": "wire-corpus/malformed-oversized-header.sip"
+            },
+            "transport": {
+              "const": "udp"
+            },
+            "method_or_status": {
+              "const": "OPTIONS"
+            },
+            "expected_disposition": {
+              "const": "reject"
+            },
+            "transaction_semantics": {
+              "const": "none"
+            },
+            "dialog_semantics": {
+              "const": "reject_header_line_limit"
+            },
+            "byte_length": {
+              "const": 8496
+            },
+            "sha256": {
+              "const": "5e96c0178c327828234de6c1570fc300634d9ecb73f2828d641616dbd5f904de"
+            },
+            "current_adapter_result": {
+              "const": "not_run"
+            },
+            "target_adapter_result": {
+              "const": "not_run"
+            },
+            "production_eligible": {
+              "const": false
+            }
+          }
+        }
+      ],
+      "items": false
+    }
+  }
+}

@@ -1,0 +1,310 @@
+{
+  "$schema": "./call-leg-state-machine-v1.schema.json",
+  "contract_id": "converact-call-leg-state-machine-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-02T00:00:00.000Z",
+  "binding": {
+    "goal_path": "goals/goal-03-sip-call-durable-foundation.md",
+    "goal_sha256": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af",
+    "amendment_path": "goals/amendments/2026-08-02-g02-g03-gate-split-v1.json",
+    "amendment_sha256": "3f55c9afdc2af68d8a93a5cfe19311cb9aaefb63192c85475d479af98fa2049b",
+    "manifest_path": "goals/manifest.json",
+    "manifest_sha256": "11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912",
+    "g02_development_gate_commit": "16ab4af98c5f3b453ad3d9bdd1ae5fe959a37720",
+    "gate_split_commit": "e5f4c81e8eb796131313aab8f5b3a47231fe41b7"
+  },
+  "status": {
+    "current_runtime": "partial_existing_not_requalified",
+    "target_contract": "frozen",
+    "production_eligible": false
+  },
+  "authority": "Unified RustPBX Call Core",
+  "identifiers": {
+    "common_representation": "opaque_ascii_1_to_128_no_whitespace",
+    "generated_identity": "sha256_length_prefixed_tenant_namespace_components",
+    "generated_digest_characters": 32,
+    "types": [
+      {
+        "type": "CallId",
+        "prefix": "call_",
+        "legacy_inputs": [
+          "vcall_*",
+          "uuid"
+        ]
+      },
+      {
+        "type": "LegId",
+        "prefix": "leg_",
+        "legacy_inputs": []
+      },
+      {
+        "type": "ProtocolDialogId",
+        "prefix": "pdlg_",
+        "legacy_inputs": []
+      },
+      {
+        "type": "TransactionId",
+        "prefix": "ptxn_",
+        "legacy_inputs": []
+      },
+      {
+        "type": "MediaSessionId",
+        "prefix": "media_",
+        "legacy_inputs": []
+      },
+      {
+        "type": "InteractionId",
+        "prefix": "interaction_",
+        "legacy_inputs": [
+          "CallId_string_when_one_call_is_the_interaction"
+        ]
+      }
+    ],
+    "invariants": [
+      "sip_call_id_is_not_CallId",
+      "one_Call_has_many_Legs",
+      "one_Leg_has_bounded_ProtocolDialog_history",
+      "one_Leg_has_at_most_one_active_ProtocolDialog",
+      "InteractionId_can_span_calls_but_is_never_inferred_from_SIP_Call-ID",
+      "MediaSessionId_does_not_own_Call_state"
+    ]
+  },
+  "call_states": [
+    "planned",
+    "queued",
+    "dialing",
+    "ringing",
+    "active",
+    "held",
+    "transferring",
+    "completed",
+    "cancelled",
+    "missed",
+    "rejected",
+    "failed",
+    "timed_out"
+  ],
+  "leg_states": [
+    "planned",
+    "inviting",
+    "early",
+    "confirmed",
+    "held",
+    "transferring",
+    "terminating",
+    "terminated",
+    "failed"
+  ],
+  "terminal_leg_states": [
+    "terminated",
+    "failed"
+  ],
+  "events": [
+    "start_invite",
+    "provisional",
+    "final_2xx",
+    "cancel_requested",
+    "late_final_2xx",
+    "hold_committed",
+    "resume_committed",
+    "transfer_prepare",
+    "transfer_abort",
+    "transfer_commit",
+    "bye_requested",
+    "termination_observed",
+    "protocol_failure"
+  ],
+  "transitions": [
+    {
+      "from": "planned",
+      "event": "start_invite",
+      "to": "inviting",
+      "required_effect": "none"
+    },
+    {
+      "from": "inviting",
+      "event": "provisional",
+      "to": "early",
+      "required_effect": "none"
+    },
+    {
+      "from": "inviting",
+      "event": "final_2xx",
+      "to": "confirmed",
+      "required_effect": "ack_2xx"
+    },
+    {
+      "from": "early",
+      "event": "final_2xx",
+      "to": "confirmed",
+      "required_effect": "ack_2xx"
+    },
+    {
+      "from": "planned",
+      "event": "cancel_requested",
+      "to": "terminating",
+      "required_effect": "cancel_if_invite_exists"
+    },
+    {
+      "from": "inviting",
+      "event": "cancel_requested",
+      "to": "terminating",
+      "required_effect": "send_cancel"
+    },
+    {
+      "from": "early",
+      "event": "cancel_requested",
+      "to": "terminating",
+      "required_effect": "send_cancel"
+    },
+    {
+      "from": "terminating",
+      "event": "late_final_2xx",
+      "to": "terminating",
+      "required_effect": "ack_then_bye"
+    },
+    {
+      "from": "confirmed",
+      "event": "hold_committed",
+      "to": "held",
+      "required_effect": "none"
+    },
+    {
+      "from": "held",
+      "event": "resume_committed",
+      "to": "confirmed",
+      "required_effect": "none"
+    },
+    {
+      "from": "confirmed",
+      "event": "transfer_prepare",
+      "to": "transferring",
+      "required_effect": "none"
+    },
+    {
+      "from": "held",
+      "event": "transfer_prepare",
+      "to": "transferring",
+      "required_effect": "none"
+    },
+    {
+      "from": "transferring",
+      "event": "transfer_abort",
+      "to": "confirmed",
+      "required_effect": "none"
+    },
+    {
+      "from": "transferring",
+      "event": "transfer_commit",
+      "to": "terminating",
+      "required_effect": "bye_old_selected_leg"
+    },
+    {
+      "from": "confirmed",
+      "event": "bye_requested",
+      "to": "terminating",
+      "required_effect": "send_bye"
+    },
+    {
+      "from": "held",
+      "event": "bye_requested",
+      "to": "terminating",
+      "required_effect": "send_bye"
+    },
+    {
+      "from": "terminating",
+      "event": "termination_observed",
+      "to": "terminated",
+      "required_effect": "none"
+    },
+    {
+      "from": "planned",
+      "event": "protocol_failure",
+      "to": "failed",
+      "required_effect": "none"
+    },
+    {
+      "from": "inviting",
+      "event": "protocol_failure",
+      "to": "failed",
+      "required_effect": "none"
+    },
+    {
+      "from": "early",
+      "event": "protocol_failure",
+      "to": "failed",
+      "required_effect": "none"
+    },
+    {
+      "from": "confirmed",
+      "event": "protocol_failure",
+      "to": "failed",
+      "required_effect": "none"
+    },
+    {
+      "from": "held",
+      "event": "protocol_failure",
+      "to": "failed",
+      "required_effect": "none"
+    },
+    {
+      "from": "transferring",
+      "event": "protocol_failure",
+      "to": "failed",
+      "required_effect": "none"
+    },
+    {
+      "from": "terminating",
+      "event": "protocol_failure",
+      "to": "failed",
+      "required_effect": "none"
+    }
+  ],
+  "concurrency": {
+    "mutation_fence": [
+      "tenant_id",
+      "call_id",
+      "owner_epoch",
+      "generation",
+      "expected_revision"
+    ],
+    "owner_epoch": "positive_uint64_monotonic",
+    "generation": "positive_uint64_monotonic_per_leg_binding",
+    "revision": "positive_uint64_advance_exactly_one",
+    "duplicate_event": "same_event_id_and_hash_returns_original_receipt",
+    "conflicting_duplicate": "fail_closed",
+    "stale_owner": "query_only",
+    "sequence_gap": "fail_closed_then_reconcile"
+  },
+  "race_policy": {
+    "cancel_before_final": "CANCEL_then_487_ACK",
+    "cancel_races_2xx": "ACK_2xx_then_BYE_without_second_CDR",
+    "bye_duplicate": "idempotent_same_effect_identity",
+    "fork_winner": "first_durably_selected_2xx_leg_only",
+    "late_fork_2xx": "ACK_then_BYE_non_winner",
+    "remaining_early_forks": "CANCEL",
+    "reinvite": "same_leg_same_dialog_new_negotiation_generation",
+    "reinvite_glare": "491_and_bounded_retry_without_new_leg",
+    "transfer": "old_selected_leg_remains_until_transfer_commit"
+  },
+  "bounds": {
+    "active_calls_hard_ceiling": 1000000,
+    "legs_per_call_default": 32,
+    "legs_per_call_hard_ceiling": 256,
+    "fork_branches_per_attempt_hard_ceiling": 32,
+    "protocol_dialog_history_per_leg_hard_ceiling": 16,
+    "mailbox_per_call_default": 256,
+    "mailbox_per_call_hard_ceiling": 1024,
+    "dedupe_receipts_per_call_hard_ceiling": 2048,
+    "timers_per_call_hard_ceiling": 128,
+    "overflow_policy": "reject_new_work_without_mutating_existing_call"
+  },
+  "complexity": {
+    "call_lookup": "expected_O(1)",
+    "leg_lookup": "expected_O(1)",
+    "dialog_lookup": "expected_O(1)",
+    "transition": "O(1)",
+    "bounded_call_reconciliation": "O(legs_per_call)",
+    "global_active_call_scan_on_hot_path": "forbidden"
+  }
+}

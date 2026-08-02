@@ -1,0 +1,1214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.invalid/schemas/call-leg-state-machine-v1.schema.json",
+  "title": "Converact Call/Leg state machine v1",
+  "description": "Closed identity schema for the frozen versioned contract document.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "contract_id",
+    "version",
+    "generated_at",
+    "binding",
+    "status",
+    "authority",
+    "identifiers",
+    "call_states",
+    "leg_states",
+    "terminal_leg_states",
+    "events",
+    "transitions",
+    "concurrency",
+    "race_policy",
+    "bounds",
+    "complexity"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "./call-leg-state-machine-v1.schema.json"
+    },
+    "contract_id": {
+      "const": "converact-call-leg-state-machine-v1"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "generated_at": {
+      "const": "2026-08-02T00:00:00.000Z"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal_path",
+        "goal_sha256",
+        "amendment_path",
+        "amendment_sha256",
+        "manifest_path",
+        "manifest_sha256",
+        "g02_development_gate_commit",
+        "gate_split_commit"
+      ],
+      "properties": {
+        "goal_path": {
+          "const": "goals/goal-03-sip-call-durable-foundation.md"
+        },
+        "goal_sha256": {
+          "const": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af"
+        },
+        "amendment_path": {
+          "const": "goals/amendments/2026-08-02-g02-g03-gate-split-v1.json"
+        },
+        "amendment_sha256": {
+          "const": "3f55c9afdc2af68d8a93a5cfe19311cb9aaefb63192c85475d479af98fa2049b"
+        },
+        "manifest_path": {
+          "const": "goals/manifest.json"
+        },
+        "manifest_sha256": {
+          "const": "11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912"
+        },
+        "g02_development_gate_commit": {
+          "const": "16ab4af98c5f3b453ad3d9bdd1ae5fe959a37720"
+        },
+        "gate_split_commit": {
+          "const": "e5f4c81e8eb796131313aab8f5b3a47231fe41b7"
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_runtime",
+        "target_contract",
+        "production_eligible"
+      ],
+      "properties": {
+        "current_runtime": {
+          "const": "partial_existing_not_requalified"
+        },
+        "target_contract": {
+          "const": "frozen"
+        },
+        "production_eligible": {
+          "const": false
+        }
+      }
+    },
+    "authority": {
+      "const": "Unified RustPBX Call Core"
+    },
+    "identifiers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "common_representation",
+        "generated_identity",
+        "generated_digest_characters",
+        "types",
+        "invariants"
+      ],
+      "properties": {
+        "common_representation": {
+          "const": "opaque_ascii_1_to_128_no_whitespace"
+        },
+        "generated_identity": {
+          "const": "sha256_length_prefixed_tenant_namespace_components"
+        },
+        "generated_digest_characters": {
+          "const": 32
+        },
+        "types": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "prefix",
+                "legacy_inputs"
+              ],
+              "properties": {
+                "type": {
+                  "const": "CallId"
+                },
+                "prefix": {
+                  "const": "call_"
+                },
+                "legacy_inputs": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "const": "vcall_*"
+                    },
+                    {
+                      "const": "uuid"
+                    }
+                  ],
+                  "items": false
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "prefix",
+                "legacy_inputs"
+              ],
+              "properties": {
+                "type": {
+                  "const": "LegId"
+                },
+                "prefix": {
+                  "const": "leg_"
+                },
+                "legacy_inputs": {
+                  "type": "array",
+                  "maxItems": 0
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "prefix",
+                "legacy_inputs"
+              ],
+              "properties": {
+                "type": {
+                  "const": "ProtocolDialogId"
+                },
+                "prefix": {
+                  "const": "pdlg_"
+                },
+                "legacy_inputs": {
+                  "type": "array",
+                  "maxItems": 0
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "prefix",
+                "legacy_inputs"
+              ],
+              "properties": {
+                "type": {
+                  "const": "TransactionId"
+                },
+                "prefix": {
+                  "const": "ptxn_"
+                },
+                "legacy_inputs": {
+                  "type": "array",
+                  "maxItems": 0
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "prefix",
+                "legacy_inputs"
+              ],
+              "properties": {
+                "type": {
+                  "const": "MediaSessionId"
+                },
+                "prefix": {
+                  "const": "media_"
+                },
+                "legacy_inputs": {
+                  "type": "array",
+                  "maxItems": 0
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "prefix",
+                "legacy_inputs"
+              ],
+              "properties": {
+                "type": {
+                  "const": "InteractionId"
+                },
+                "prefix": {
+                  "const": "interaction_"
+                },
+                "legacy_inputs": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 1,
+                  "prefixItems": [
+                    {
+                      "const": "CallId_string_when_one_call_is_the_interaction"
+                    }
+                  ],
+                  "items": false
+                }
+              }
+            }
+          ],
+          "items": false
+        },
+        "invariants": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "prefixItems": [
+            {
+              "const": "sip_call_id_is_not_CallId"
+            },
+            {
+              "const": "one_Call_has_many_Legs"
+            },
+            {
+              "const": "one_Leg_has_bounded_ProtocolDialog_history"
+            },
+            {
+              "const": "one_Leg_has_at_most_one_active_ProtocolDialog"
+            },
+            {
+              "const": "InteractionId_can_span_calls_but_is_never_inferred_from_SIP_Call-ID"
+            },
+            {
+              "const": "MediaSessionId_does_not_own_Call_state"
+            }
+          ],
+          "items": false
+        }
+      }
+    },
+    "call_states": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "prefixItems": [
+        {
+          "const": "planned"
+        },
+        {
+          "const": "queued"
+        },
+        {
+          "const": "dialing"
+        },
+        {
+          "const": "ringing"
+        },
+        {
+          "const": "active"
+        },
+        {
+          "const": "held"
+        },
+        {
+          "const": "transferring"
+        },
+        {
+          "const": "completed"
+        },
+        {
+          "const": "cancelled"
+        },
+        {
+          "const": "missed"
+        },
+        {
+          "const": "rejected"
+        },
+        {
+          "const": "failed"
+        },
+        {
+          "const": "timed_out"
+        }
+      ],
+      "items": false
+    },
+    "leg_states": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "prefixItems": [
+        {
+          "const": "planned"
+        },
+        {
+          "const": "inviting"
+        },
+        {
+          "const": "early"
+        },
+        {
+          "const": "confirmed"
+        },
+        {
+          "const": "held"
+        },
+        {
+          "const": "transferring"
+        },
+        {
+          "const": "terminating"
+        },
+        {
+          "const": "terminated"
+        },
+        {
+          "const": "failed"
+        }
+      ],
+      "items": false
+    },
+    "terminal_leg_states": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "const": "terminated"
+        },
+        {
+          "const": "failed"
+        }
+      ],
+      "items": false
+    },
+    "events": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "prefixItems": [
+        {
+          "const": "start_invite"
+        },
+        {
+          "const": "provisional"
+        },
+        {
+          "const": "final_2xx"
+        },
+        {
+          "const": "cancel_requested"
+        },
+        {
+          "const": "late_final_2xx"
+        },
+        {
+          "const": "hold_committed"
+        },
+        {
+          "const": "resume_committed"
+        },
+        {
+          "const": "transfer_prepare"
+        },
+        {
+          "const": "transfer_abort"
+        },
+        {
+          "const": "transfer_commit"
+        },
+        {
+          "const": "bye_requested"
+        },
+        {
+          "const": "termination_observed"
+        },
+        {
+          "const": "protocol_failure"
+        }
+      ],
+      "items": false
+    },
+    "transitions": {
+      "type": "array",
+      "minItems": 24,
+      "maxItems": 24,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "planned"
+            },
+            "event": {
+              "const": "start_invite"
+            },
+            "to": {
+              "const": "inviting"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "inviting"
+            },
+            "event": {
+              "const": "provisional"
+            },
+            "to": {
+              "const": "early"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "inviting"
+            },
+            "event": {
+              "const": "final_2xx"
+            },
+            "to": {
+              "const": "confirmed"
+            },
+            "required_effect": {
+              "const": "ack_2xx"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "early"
+            },
+            "event": {
+              "const": "final_2xx"
+            },
+            "to": {
+              "const": "confirmed"
+            },
+            "required_effect": {
+              "const": "ack_2xx"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "planned"
+            },
+            "event": {
+              "const": "cancel_requested"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "cancel_if_invite_exists"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "inviting"
+            },
+            "event": {
+              "const": "cancel_requested"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "send_cancel"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "early"
+            },
+            "event": {
+              "const": "cancel_requested"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "send_cancel"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "terminating"
+            },
+            "event": {
+              "const": "late_final_2xx"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "ack_then_bye"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "confirmed"
+            },
+            "event": {
+              "const": "hold_committed"
+            },
+            "to": {
+              "const": "held"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "held"
+            },
+            "event": {
+              "const": "resume_committed"
+            },
+            "to": {
+              "const": "confirmed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "confirmed"
+            },
+            "event": {
+              "const": "transfer_prepare"
+            },
+            "to": {
+              "const": "transferring"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "held"
+            },
+            "event": {
+              "const": "transfer_prepare"
+            },
+            "to": {
+              "const": "transferring"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "transferring"
+            },
+            "event": {
+              "const": "transfer_abort"
+            },
+            "to": {
+              "const": "confirmed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "transferring"
+            },
+            "event": {
+              "const": "transfer_commit"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "bye_old_selected_leg"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "confirmed"
+            },
+            "event": {
+              "const": "bye_requested"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "send_bye"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "held"
+            },
+            "event": {
+              "const": "bye_requested"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "send_bye"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "terminating"
+            },
+            "event": {
+              "const": "termination_observed"
+            },
+            "to": {
+              "const": "terminated"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "planned"
+            },
+            "event": {
+              "const": "protocol_failure"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "inviting"
+            },
+            "event": {
+              "const": "protocol_failure"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "early"
+            },
+            "event": {
+              "const": "protocol_failure"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "confirmed"
+            },
+            "event": {
+              "const": "protocol_failure"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "held"
+            },
+            "event": {
+              "const": "protocol_failure"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "transferring"
+            },
+            "event": {
+              "const": "protocol_failure"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "from": {
+              "const": "terminating"
+            },
+            "event": {
+              "const": "protocol_failure"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "concurrency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mutation_fence",
+        "owner_epoch",
+        "generation",
+        "revision",
+        "duplicate_event",
+        "conflicting_duplicate",
+        "stale_owner",
+        "sequence_gap"
+      ],
+      "properties": {
+        "mutation_fence": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            {
+              "const": "tenant_id"
+            },
+            {
+              "const": "call_id"
+            },
+            {
+              "const": "owner_epoch"
+            },
+            {
+              "const": "generation"
+            },
+            {
+              "const": "expected_revision"
+            }
+          ],
+          "items": false
+        },
+        "owner_epoch": {
+          "const": "positive_uint64_monotonic"
+        },
+        "generation": {
+          "const": "positive_uint64_monotonic_per_leg_binding"
+        },
+        "revision": {
+          "const": "positive_uint64_advance_exactly_one"
+        },
+        "duplicate_event": {
+          "const": "same_event_id_and_hash_returns_original_receipt"
+        },
+        "conflicting_duplicate": {
+          "const": "fail_closed"
+        },
+        "stale_owner": {
+          "const": "query_only"
+        },
+        "sequence_gap": {
+          "const": "fail_closed_then_reconcile"
+        }
+      }
+    },
+    "race_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cancel_before_final",
+        "cancel_races_2xx",
+        "bye_duplicate",
+        "fork_winner",
+        "late_fork_2xx",
+        "remaining_early_forks",
+        "reinvite",
+        "reinvite_glare",
+        "transfer"
+      ],
+      "properties": {
+        "cancel_before_final": {
+          "const": "CANCEL_then_487_ACK"
+        },
+        "cancel_races_2xx": {
+          "const": "ACK_2xx_then_BYE_without_second_CDR"
+        },
+        "bye_duplicate": {
+          "const": "idempotent_same_effect_identity"
+        },
+        "fork_winner": {
+          "const": "first_durably_selected_2xx_leg_only"
+        },
+        "late_fork_2xx": {
+          "const": "ACK_then_BYE_non_winner"
+        },
+        "remaining_early_forks": {
+          "const": "CANCEL"
+        },
+        "reinvite": {
+          "const": "same_leg_same_dialog_new_negotiation_generation"
+        },
+        "reinvite_glare": {
+          "const": "491_and_bounded_retry_without_new_leg"
+        },
+        "transfer": {
+          "const": "old_selected_leg_remains_until_transfer_commit"
+        }
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "active_calls_hard_ceiling",
+        "legs_per_call_default",
+        "legs_per_call_hard_ceiling",
+        "fork_branches_per_attempt_hard_ceiling",
+        "protocol_dialog_history_per_leg_hard_ceiling",
+        "mailbox_per_call_default",
+        "mailbox_per_call_hard_ceiling",
+        "dedupe_receipts_per_call_hard_ceiling",
+        "timers_per_call_hard_ceiling",
+        "overflow_policy"
+      ],
+      "properties": {
+        "active_calls_hard_ceiling": {
+          "const": 1000000
+        },
+        "legs_per_call_default": {
+          "const": 32
+        },
+        "legs_per_call_hard_ceiling": {
+          "const": 256
+        },
+        "fork_branches_per_attempt_hard_ceiling": {
+          "const": 32
+        },
+        "protocol_dialog_history_per_leg_hard_ceiling": {
+          "const": 16
+        },
+        "mailbox_per_call_default": {
+          "const": 256
+        },
+        "mailbox_per_call_hard_ceiling": {
+          "const": 1024
+        },
+        "dedupe_receipts_per_call_hard_ceiling": {
+          "const": 2048
+        },
+        "timers_per_call_hard_ceiling": {
+          "const": 128
+        },
+        "overflow_policy": {
+          "const": "reject_new_work_without_mutating_existing_call"
+        }
+      }
+    },
+    "complexity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_lookup",
+        "leg_lookup",
+        "dialog_lookup",
+        "transition",
+        "bounded_call_reconciliation",
+        "global_active_call_scan_on_hot_path"
+      ],
+      "properties": {
+        "call_lookup": {
+          "const": "expected_O(1)"
+        },
+        "leg_lookup": {
+          "const": "expected_O(1)"
+        },
+        "dialog_lookup": {
+          "const": "expected_O(1)"
+        },
+        "transition": {
+          "const": "O(1)"
+        },
+        "bounded_call_reconciliation": {
+          "const": "O(legs_per_call)"
+        },
+        "global_active_call_scan_on_hot_path": {
+          "const": "forbidden"
+        }
+      }
+    }
+  }
+}

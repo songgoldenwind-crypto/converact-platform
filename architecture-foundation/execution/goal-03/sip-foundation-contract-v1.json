@@ -1,0 +1,196 @@
+{
+  "$schema": "./sip-foundation-contract-v1.schema.json",
+  "contract_id": "converact-sip-foundation-contract-v1",
+  "version": "1.0.0",
+  "generated_at": "2026-08-02T00:00:00.000Z",
+  "binding": {
+    "goal_path": "goals/goal-03-sip-call-durable-foundation.md",
+    "goal_sha256": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af",
+    "amendment_path": "goals/amendments/2026-08-02-g02-g03-gate-split-v1.json",
+    "amendment_sha256": "3f55c9afdc2af68d8a93a5cfe19311cb9aaefb63192c85475d479af98fa2049b",
+    "manifest_path": "goals/manifest.json",
+    "manifest_sha256": "11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912",
+    "g02_development_gate_commit": "16ab4af98c5f3b453ad3d9bdd1ae5fe959a37720",
+    "gate_split_commit": "e5f4c81e8eb796131313aab8f5b3a47231fe41b7"
+  },
+  "status": {
+    "current_runtime": "partial_existing_not_requalified",
+    "target_contract": "frozen",
+    "production_eligible": false
+  },
+  "authority": {
+    "sip_edge": "Kamailio",
+    "call_leg_business_dialog": "Unified RustPBX",
+    "protocol_transaction_dialog": "selected_SipFoundation_adapter",
+    "durable_effect_ledger": "Unified RustPBX SipEffect ledger",
+    "ordinary_media": "RTPengine",
+    "forbidden_second_authorities": [
+      "rvoip_high_level_call_orchestrator",
+      "adapter_business_call_store",
+      "adapter_cdr_writer",
+      "adapter_route_or_billing_writer"
+    ]
+  },
+  "source_identity": {
+    "rustpbx_commit": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
+    "rsipstack_commit": "8318e97b1170de4e5245b120afec1cdf53e3d716",
+    "rustrtc_commit": "166c6d22984429eb6b509920c14fcd69f974f0b3",
+    "patchset": "ivekit.40",
+    "current_adapter": "rsipstack",
+    "target_adapter": "rvoip_low_level_slices_after_separate_gates"
+  },
+  "anti_corruption_boundary": {
+    "public_types_owned_by": "Converact Platform",
+    "forbidden_public_types": [
+      "rsipstack::*",
+      "rvoip_*::*",
+      "rustrtc::*",
+      "audio_codec::*"
+    ],
+    "protocol_session_is_not": [
+      "Call",
+      "BusinessDialog",
+      "MediaSession"
+    ]
+  },
+  "ingress_events": [
+    "request_received",
+    "response_received",
+    "provisional_received",
+    "final_received",
+    "transport_accepted",
+    "transport_failed",
+    "transaction_timed_out",
+    "protocol_dialog_changed",
+    "dns_candidate_exhausted"
+  ],
+  "commands": {
+    "prepare_effect": "freeze_bytes_hash_route_attempt_without_send",
+    "commit_send": "owner_fenced_idempotent_visible_effect",
+    "query_effect": "read_without_mutation",
+    "reconcile_effect": "fenced_unknown_resolution",
+    "snapshot": "protocol_state_without_business_or_secret_authority",
+    "restore": "confirmed_quiescent_same_adapter_only",
+    "drain": "reject_new_protocol_sessions_preserve_existing_sessions"
+  },
+  "command_identity_fields": [
+    "tenant_id",
+    "protocol_session_id",
+    "protocol_session_generation",
+    "effect_id",
+    "command_id",
+    "owner_epoch",
+    "command_sequence",
+    "idempotency_key",
+    "request_hash",
+    "wire_freeze_sha256"
+  ],
+  "protocol_coverage": {
+    "methods": [
+      "INVITE",
+      "ACK",
+      "BYE",
+      "CANCEL",
+      "REGISTER",
+      "OPTIONS",
+      "UPDATE",
+      "PRACK",
+      "REFER",
+      "NOTIFY",
+      "INFO"
+    ],
+    "transaction": [
+      "invite_client_server",
+      "non_invite_client_server",
+      "ack_2xx_core_dialog",
+      "ack_non_2xx_transaction",
+      "cancel_correlation",
+      "timers_A_B_D_E_F_G_H_I_J_K",
+      "udp_retransmission_same_committed_bytes",
+      "reliable_transport_no_udp_retransmission",
+      "forked_final_responses",
+      "401_407_retry"
+    ],
+    "protocol_dialog": [
+      "early_confirmed_terminated",
+      "route_set_and_target_refresh",
+      "local_remote_cseq_monotonicity",
+      "reinvite_update_glare",
+      "prack_100rel",
+      "refer_notify_replaces"
+    ],
+    "transport_dns": {
+      "transports": [
+        "udp",
+        "tcp",
+        "tls"
+      ],
+      "websocket_status": "not_run",
+      "maximum_candidates": 8,
+      "dns_deadline_ms": 2000,
+      "connect_candidate_deadline_ms": 3000,
+      "resolution_connect_deadline_ms": 10000,
+      "retry_per_candidate_ceiling": 1
+    }
+  },
+  "edge_core_sip_v1": {
+    "wire_mode": "raw_bytes_with_trusted_metadata",
+    "trusted_metadata": [
+      "source_identity",
+      "ingress_transport",
+      "tls_verification",
+      "raw_message_length",
+      "raw_message_sha256",
+      "parser_policy_version"
+    ],
+    "untrusted_internal_metadata_policy": "strip_then_rebuild_at_trusted_edge",
+    "limits": {
+      "message_bytes": 65535,
+      "start_line_bytes": 4096,
+      "uri_bytes": 2048,
+      "header_section_bytes": 32768,
+      "header_count": 128,
+      "header_line_bytes": 8192,
+      "body_bytes": 32768,
+      "multipart_depth": 2,
+      "multipart_parts": 16
+    },
+    "duplicate_header_policy": "fail_closed_on_ambiguous_or_conflicting_values",
+    "secret_logging": "forbidden"
+  },
+  "admission_and_store_slo": {
+    "transaction_admission_precedes_trying": true,
+    "trying_precedes_business_durable_decision": true,
+    "trying_p99_budget_ms": 100,
+    "trying_hard_deadline_ms": 200,
+    "durable_transaction_p99_budget_ms": 20,
+    "call_setup_cumulative_store_p99_budget_ms": 60,
+    "store_write_timeout_ms": 250,
+    "pool_wait_p99_budget_ms": 10,
+    "pool_size_ceiling": 256,
+    "queue_depth_ceiling": 1024,
+    "retry_attempt_ceiling": 3,
+    "new_call_store_failure": "503_with_deterministic_retry_after",
+    "established_call_store_failure": "bounded_repair_without_media_dependency",
+    "business_visible_18x_2xx_before_durable_decision": false
+  },
+  "boundedness": {
+    "lookup_complexity": "expected_O(1)",
+    "timer_complexity": "amortized_O(1)_or_bounded_O(logN)",
+    "global_hot_lock": "forbidden",
+    "unbounded_queue": "forbidden",
+    "per_message_task": "forbidden",
+    "per_packet_database_or_http": "forbidden",
+    "metrics": "low_cardinality_only"
+  },
+  "deletion_gate": {
+    "rsipstack_delete_before_g06": false,
+    "requires": [
+      "new_call_selection_moved",
+      "old_call_active_zero",
+      "unknown_effect_zero",
+      "repair_zero",
+      "rollback_window_closed"
+    ]
+  }
+}

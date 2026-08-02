@@ -1,0 +1,756 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.invalid/schemas/sip-effect-receipt-contract-v1.schema.json",
+  "title": "Converact SIP effect/receipt contract v1",
+  "description": "Closed identity schema for the frozen versioned contract document.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "contract_id",
+    "version",
+    "generated_at",
+    "binding",
+    "status",
+    "authority",
+    "persistence",
+    "schema_identity",
+    "states",
+    "semantic_receipt_classes",
+    "identity_fields",
+    "transitions",
+    "atomic_boundaries",
+    "retry_after",
+    "repair",
+    "network_claim"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "./sip-effect-receipt-contract-v1.schema.json"
+    },
+    "contract_id": {
+      "const": "converact-sip-effect-receipt-contract-v1"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "generated_at": {
+      "const": "2026-08-02T00:00:00.000Z"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal_path",
+        "goal_sha256",
+        "amendment_path",
+        "amendment_sha256",
+        "manifest_path",
+        "manifest_sha256",
+        "g02_development_gate_commit",
+        "gate_split_commit"
+      ],
+      "properties": {
+        "goal_path": {
+          "const": "goals/goal-03-sip-call-durable-foundation.md"
+        },
+        "goal_sha256": {
+          "const": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af"
+        },
+        "amendment_path": {
+          "const": "goals/amendments/2026-08-02-g02-g03-gate-split-v1.json"
+        },
+        "amendment_sha256": {
+          "const": "3f55c9afdc2af68d8a93a5cfe19311cb9aaefb63192c85475d479af98fa2049b"
+        },
+        "manifest_path": {
+          "const": "goals/manifest.json"
+        },
+        "manifest_sha256": {
+          "const": "11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912"
+        },
+        "g02_development_gate_commit": {
+          "const": "16ab4af98c5f3b453ad3d9bdd1ae5fe959a37720"
+        },
+        "gate_split_commit": {
+          "const": "e5f4c81e8eb796131313aab8f5b3a47231fe41b7"
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_runtime",
+        "target_contract",
+        "production_eligible"
+      ],
+      "properties": {
+        "current_runtime": {
+          "const": "partial_existing_not_requalified"
+        },
+        "target_contract": {
+          "const": "frozen"
+        },
+        "production_eligible": {
+          "const": false
+        }
+      }
+    },
+    "authority": {
+      "const": "Unified RustPBX SipEffect ledger"
+    },
+    "persistence": {
+      "const": "PostgreSQL Region durable store"
+    },
+    "schema_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_id",
+        "current_schema_version",
+        "current_schema_hash",
+        "writer_identity",
+        "physical_activation_status"
+      ],
+      "properties": {
+        "schema_id": {
+          "const": "ivekit.sip-effect-oracle"
+        },
+        "current_schema_version": {
+          "const": 1
+        },
+        "current_schema_hash": {
+          "const": "ae27a73dac95c90686f8020c2fb5e92dd016cc1712216d03b227ec3a6d6ca5ba"
+        },
+        "writer_identity": {
+          "const": "unified-rustpbx.sip-foundation"
+        },
+        "physical_activation_status": {
+          "const": "not_run"
+        }
+      }
+    },
+    "states": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "prefixItems": [
+        {
+          "const": "prepared"
+        },
+        {
+          "const": "durable_decision"
+        },
+        {
+          "const": "send_attempted"
+        },
+        {
+          "const": "transport_accepted"
+        },
+        {
+          "const": "protocol_observed"
+        },
+        {
+          "const": "failed"
+        },
+        {
+          "const": "unknown"
+        }
+      ],
+      "items": false
+    },
+    "semantic_receipt_classes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accepted",
+        "completed",
+        "state_observed",
+        "unknown"
+      ],
+      "properties": {
+        "accepted": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "from_state",
+            "proves",
+            "does_not_prove"
+          ],
+          "properties": {
+            "level": {
+              "const": "transport_accepted"
+            },
+            "from_state": {
+              "const": "send_attempted"
+            },
+            "proves": {
+              "const": "local_transport_accepted_bytes_only"
+            },
+            "does_not_prove": {
+              "const": "peer_received_or_protocol_completed"
+            }
+          }
+        },
+        "completed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "from_states",
+            "proves"
+          ],
+          "properties": {
+            "level": {
+              "const": "protocol_observed"
+            },
+            "from_states": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "send_attempted"
+                },
+                {
+                  "const": "transport_accepted"
+                }
+              ],
+              "items": false
+            },
+            "proves": {
+              "const": "selected_protocol_completion_observed_on_primary_path"
+            }
+          }
+        },
+        "state_observed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "from_state",
+            "proves"
+          ],
+          "properties": {
+            "level": {
+              "const": "protocol_observed"
+            },
+            "from_state": {
+              "const": "unknown"
+            },
+            "proves": {
+              "const": "query_or_reconcile_observed_external_state"
+            }
+          }
+        },
+        "unknown": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "retry_policy"
+          ],
+          "properties": {
+            "level": {
+              "const": "unknown"
+            },
+            "retry_policy": {
+              "const": "never_blindly_issue_new_effect_identity"
+            }
+          }
+        }
+      }
+    },
+    "identity_fields": {
+      "type": "array",
+      "minItems": 15,
+      "maxItems": 15,
+      "prefixItems": [
+        {
+          "const": "tenant_id"
+        },
+        {
+          "const": "protocol_effect_id"
+        },
+        {
+          "const": "protocol_session_id"
+        },
+        {
+          "const": "protocol_session_generation"
+        },
+        {
+          "const": "decision_id"
+        },
+        {
+          "const": "idempotency_key"
+        },
+        {
+          "const": "request_hash"
+        },
+        {
+          "const": "command_id"
+        },
+        {
+          "const": "adapter_identity_hash"
+        },
+        {
+          "const": "wire_bytes_hash"
+        },
+        {
+          "const": "route_binding_hash"
+        },
+        {
+          "const": "wire_attempt_facts_hash"
+        },
+        {
+          "const": "wire_freeze_sha256"
+        },
+        {
+          "const": "owner_epoch"
+        },
+        {
+          "const": "command_sequence"
+        }
+      ],
+      "items": false
+    },
+    "transitions": {
+      "type": "array",
+      "minItems": 14,
+      "maxItems": 14,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "prepared"
+            },
+            "to": {
+              "const": "durable_decision"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "prepared"
+            },
+            "to": {
+              "const": "failed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "durable_decision"
+            },
+            "to": {
+              "const": "send_attempted"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "durable_decision"
+            },
+            "to": {
+              "const": "failed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "send_attempted"
+            },
+            "to": {
+              "const": "transport_accepted"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "send_attempted"
+            },
+            "to": {
+              "const": "protocol_observed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "send_attempted"
+            },
+            "to": {
+              "const": "unknown"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "send_attempted"
+            },
+            "to": {
+              "const": "failed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "transport_accepted"
+            },
+            "to": {
+              "const": "protocol_observed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "transport_accepted"
+            },
+            "to": {
+              "const": "unknown"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "transport_accepted"
+            },
+            "to": {
+              "const": "failed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "unknown"
+            },
+            "to": {
+              "const": "protocol_observed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "unknown"
+            },
+            "to": {
+              "const": "unknown"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "unknown"
+            },
+            "to": {
+              "const": "failed"
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "atomic_boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_admission",
+        "media_generation",
+        "bridge_head",
+        "recording",
+        "commit_rule"
+      ],
+      "properties": {
+        "call_admission": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            {
+              "const": "call_session"
+            },
+            {
+              "const": "protocol_effect"
+            },
+            {
+              "const": "effect_wal"
+            },
+            {
+              "const": "capacity_reservation_receipt"
+            },
+            {
+              "const": "idempotency_record"
+            }
+          ],
+          "items": false
+        },
+        "media_generation": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": "media_plan"
+            },
+            {
+              "const": "directed_media_edges"
+            },
+            {
+              "const": "backend_binding_groups"
+            },
+            {
+              "const": "capacity_reservation_receipt"
+            }
+          ],
+          "items": false
+        },
+        "bridge_head": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": "bridge_command"
+            },
+            {
+              "const": "bridge_decision"
+            },
+            {
+              "const": "bridge_receipt"
+            },
+            {
+              "const": "head_compare_and_swap"
+            }
+          ],
+          "items": false
+        },
+        "recording": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": "recording_intent"
+            },
+            {
+              "const": "root_recording_manifest"
+            },
+            {
+              "const": "source_chain"
+            },
+            {
+              "const": "segment_reference"
+            }
+          ],
+          "items": false
+        },
+        "commit_rule": {
+          "const": "all_or_nothing_single_region_transaction"
+        }
+      }
+    },
+    "retry_after": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "formula",
+        "failure_codes",
+        "pool_wait_ms_maximum",
+        "queue_depth_maximum",
+        "retry_attempt_maximum",
+        "jitter",
+        "invalid_input"
+      ],
+      "properties": {
+        "formula": {
+          "const": "clamp(1,30,1+ceil(pool_wait_ms/1000)+ceil(queue_depth/256)+retry_attempt)"
+        },
+        "failure_codes": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": "store_timeout"
+            },
+            {
+              "const": "store_pool_exhausted"
+            },
+            {
+              "const": "store_unavailable"
+            },
+            {
+              "const": "store_schema_incompatible"
+            }
+          ],
+          "items": false
+        },
+        "pool_wait_ms_maximum": {
+          "const": 250
+        },
+        "queue_depth_maximum": {
+          "const": 1024
+        },
+        "retry_attempt_maximum": {
+          "const": 3
+        },
+        "jitter": {
+          "const": "forbidden"
+        },
+        "invalid_input": {
+          "const": "reject_without_fabricated_retry_after"
+        }
+      }
+    },
+    "repair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "query_before_reconcile",
+        "batch_hard_ceiling",
+        "attempts_hard_ceiling",
+        "lease_ms_hard_ceiling",
+        "fence_fields",
+        "exhaustion"
+      ],
+      "properties": {
+        "query_before_reconcile": {
+          "const": true
+        },
+        "batch_hard_ceiling": {
+          "const": 100
+        },
+        "attempts_hard_ceiling": {
+          "const": 8
+        },
+        "lease_ms_hard_ceiling": {
+          "const": 30000
+        },
+        "fence_fields": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": "repair_owner_id"
+            },
+            {
+              "const": "repair_owner_epoch"
+            },
+            {
+              "const": "repair_claim_token"
+            },
+            {
+              "const": "repair_claim_revision"
+            }
+          ],
+          "items": false
+        },
+        "exhaustion": {
+          "const": "operator_visible_auditable_no_infinite_retry"
+        }
+      }
+    },
+    "network_claim": {
+      "const": "idempotent_effect_plus_observation_not_exactly_once"
+    }
+  }
+}

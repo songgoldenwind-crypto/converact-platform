@@ -1,0 +1,741 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.invalid/schemas/sip-foundation-contract-v1.schema.json",
+  "title": "Converact SipFoundation contract v1",
+  "description": "Closed identity schema for the frozen versioned contract document.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "contract_id",
+    "version",
+    "generated_at",
+    "binding",
+    "status",
+    "authority",
+    "source_identity",
+    "anti_corruption_boundary",
+    "ingress_events",
+    "commands",
+    "command_identity_fields",
+    "protocol_coverage",
+    "edge_core_sip_v1",
+    "admission_and_store_slo",
+    "boundedness",
+    "deletion_gate"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "./sip-foundation-contract-v1.schema.json"
+    },
+    "contract_id": {
+      "const": "converact-sip-foundation-contract-v1"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "generated_at": {
+      "const": "2026-08-02T00:00:00.000Z"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal_path",
+        "goal_sha256",
+        "amendment_path",
+        "amendment_sha256",
+        "manifest_path",
+        "manifest_sha256",
+        "g02_development_gate_commit",
+        "gate_split_commit"
+      ],
+      "properties": {
+        "goal_path": {
+          "const": "goals/goal-03-sip-call-durable-foundation.md"
+        },
+        "goal_sha256": {
+          "const": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af"
+        },
+        "amendment_path": {
+          "const": "goals/amendments/2026-08-02-g02-g03-gate-split-v1.json"
+        },
+        "amendment_sha256": {
+          "const": "3f55c9afdc2af68d8a93a5cfe19311cb9aaefb63192c85475d479af98fa2049b"
+        },
+        "manifest_path": {
+          "const": "goals/manifest.json"
+        },
+        "manifest_sha256": {
+          "const": "11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912"
+        },
+        "g02_development_gate_commit": {
+          "const": "16ab4af98c5f3b453ad3d9bdd1ae5fe959a37720"
+        },
+        "gate_split_commit": {
+          "const": "e5f4c81e8eb796131313aab8f5b3a47231fe41b7"
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_runtime",
+        "target_contract",
+        "production_eligible"
+      ],
+      "properties": {
+        "current_runtime": {
+          "const": "partial_existing_not_requalified"
+        },
+        "target_contract": {
+          "const": "frozen"
+        },
+        "production_eligible": {
+          "const": false
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sip_edge",
+        "call_leg_business_dialog",
+        "protocol_transaction_dialog",
+        "durable_effect_ledger",
+        "ordinary_media",
+        "forbidden_second_authorities"
+      ],
+      "properties": {
+        "sip_edge": {
+          "const": "Kamailio"
+        },
+        "call_leg_business_dialog": {
+          "const": "Unified RustPBX"
+        },
+        "protocol_transaction_dialog": {
+          "const": "selected_SipFoundation_adapter"
+        },
+        "durable_effect_ledger": {
+          "const": "Unified RustPBX SipEffect ledger"
+        },
+        "ordinary_media": {
+          "const": "RTPengine"
+        },
+        "forbidden_second_authorities": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": "rvoip_high_level_call_orchestrator"
+            },
+            {
+              "const": "adapter_business_call_store"
+            },
+            {
+              "const": "adapter_cdr_writer"
+            },
+            {
+              "const": "adapter_route_or_billing_writer"
+            }
+          ],
+          "items": false
+        }
+      }
+    },
+    "source_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rustpbx_commit",
+        "rsipstack_commit",
+        "rustrtc_commit",
+        "patchset",
+        "current_adapter",
+        "target_adapter"
+      ],
+      "properties": {
+        "rustpbx_commit": {
+          "const": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
+        },
+        "rsipstack_commit": {
+          "const": "8318e97b1170de4e5245b120afec1cdf53e3d716"
+        },
+        "rustrtc_commit": {
+          "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
+        },
+        "patchset": {
+          "const": "ivekit.40"
+        },
+        "current_adapter": {
+          "const": "rsipstack"
+        },
+        "target_adapter": {
+          "const": "rvoip_low_level_slices_after_separate_gates"
+        }
+      }
+    },
+    "anti_corruption_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_types_owned_by",
+        "forbidden_public_types",
+        "protocol_session_is_not"
+      ],
+      "properties": {
+        "public_types_owned_by": {
+          "const": "Converact Platform"
+        },
+        "forbidden_public_types": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": "rsipstack::*"
+            },
+            {
+              "const": "rvoip_*::*"
+            },
+            {
+              "const": "rustrtc::*"
+            },
+            {
+              "const": "audio_codec::*"
+            }
+          ],
+          "items": false
+        },
+        "protocol_session_is_not": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {
+              "const": "Call"
+            },
+            {
+              "const": "BusinessDialog"
+            },
+            {
+              "const": "MediaSession"
+            }
+          ],
+          "items": false
+        }
+      }
+    },
+    "ingress_events": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "prefixItems": [
+        {
+          "const": "request_received"
+        },
+        {
+          "const": "response_received"
+        },
+        {
+          "const": "provisional_received"
+        },
+        {
+          "const": "final_received"
+        },
+        {
+          "const": "transport_accepted"
+        },
+        {
+          "const": "transport_failed"
+        },
+        {
+          "const": "transaction_timed_out"
+        },
+        {
+          "const": "protocol_dialog_changed"
+        },
+        {
+          "const": "dns_candidate_exhausted"
+        }
+      ],
+      "items": false
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prepare_effect",
+        "commit_send",
+        "query_effect",
+        "reconcile_effect",
+        "snapshot",
+        "restore",
+        "drain"
+      ],
+      "properties": {
+        "prepare_effect": {
+          "const": "freeze_bytes_hash_route_attempt_without_send"
+        },
+        "commit_send": {
+          "const": "owner_fenced_idempotent_visible_effect"
+        },
+        "query_effect": {
+          "const": "read_without_mutation"
+        },
+        "reconcile_effect": {
+          "const": "fenced_unknown_resolution"
+        },
+        "snapshot": {
+          "const": "protocol_state_without_business_or_secret_authority"
+        },
+        "restore": {
+          "const": "confirmed_quiescent_same_adapter_only"
+        },
+        "drain": {
+          "const": "reject_new_protocol_sessions_preserve_existing_sessions"
+        }
+      }
+    },
+    "command_identity_fields": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "prefixItems": [
+        {
+          "const": "tenant_id"
+        },
+        {
+          "const": "protocol_session_id"
+        },
+        {
+          "const": "protocol_session_generation"
+        },
+        {
+          "const": "effect_id"
+        },
+        {
+          "const": "command_id"
+        },
+        {
+          "const": "owner_epoch"
+        },
+        {
+          "const": "command_sequence"
+        },
+        {
+          "const": "idempotency_key"
+        },
+        {
+          "const": "request_hash"
+        },
+        {
+          "const": "wire_freeze_sha256"
+        }
+      ],
+      "items": false
+    },
+    "protocol_coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "methods",
+        "transaction",
+        "protocol_dialog",
+        "transport_dns"
+      ],
+      "properties": {
+        "methods": {
+          "type": "array",
+          "minItems": 11,
+          "maxItems": 11,
+          "prefixItems": [
+            {
+              "const": "INVITE"
+            },
+            {
+              "const": "ACK"
+            },
+            {
+              "const": "BYE"
+            },
+            {
+              "const": "CANCEL"
+            },
+            {
+              "const": "REGISTER"
+            },
+            {
+              "const": "OPTIONS"
+            },
+            {
+              "const": "UPDATE"
+            },
+            {
+              "const": "PRACK"
+            },
+            {
+              "const": "REFER"
+            },
+            {
+              "const": "NOTIFY"
+            },
+            {
+              "const": "INFO"
+            }
+          ],
+          "items": false
+        },
+        "transaction": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "prefixItems": [
+            {
+              "const": "invite_client_server"
+            },
+            {
+              "const": "non_invite_client_server"
+            },
+            {
+              "const": "ack_2xx_core_dialog"
+            },
+            {
+              "const": "ack_non_2xx_transaction"
+            },
+            {
+              "const": "cancel_correlation"
+            },
+            {
+              "const": "timers_A_B_D_E_F_G_H_I_J_K"
+            },
+            {
+              "const": "udp_retransmission_same_committed_bytes"
+            },
+            {
+              "const": "reliable_transport_no_udp_retransmission"
+            },
+            {
+              "const": "forked_final_responses"
+            },
+            {
+              "const": "401_407_retry"
+            }
+          ],
+          "items": false
+        },
+        "protocol_dialog": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "prefixItems": [
+            {
+              "const": "early_confirmed_terminated"
+            },
+            {
+              "const": "route_set_and_target_refresh"
+            },
+            {
+              "const": "local_remote_cseq_monotonicity"
+            },
+            {
+              "const": "reinvite_update_glare"
+            },
+            {
+              "const": "prack_100rel"
+            },
+            {
+              "const": "refer_notify_replaces"
+            }
+          ],
+          "items": false
+        },
+        "transport_dns": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "transports",
+            "websocket_status",
+            "maximum_candidates",
+            "dns_deadline_ms",
+            "connect_candidate_deadline_ms",
+            "resolution_connect_deadline_ms",
+            "retry_per_candidate_ceiling"
+          ],
+          "properties": {
+            "transports": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "const": "udp"
+                },
+                {
+                  "const": "tcp"
+                },
+                {
+                  "const": "tls"
+                }
+              ],
+              "items": false
+            },
+            "websocket_status": {
+              "const": "not_run"
+            },
+            "maximum_candidates": {
+              "const": 8
+            },
+            "dns_deadline_ms": {
+              "const": 2000
+            },
+            "connect_candidate_deadline_ms": {
+              "const": 3000
+            },
+            "resolution_connect_deadline_ms": {
+              "const": 10000
+            },
+            "retry_per_candidate_ceiling": {
+              "const": 1
+            }
+          }
+        }
+      }
+    },
+    "edge_core_sip_v1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wire_mode",
+        "trusted_metadata",
+        "untrusted_internal_metadata_policy",
+        "limits",
+        "duplicate_header_policy",
+        "secret_logging"
+      ],
+      "properties": {
+        "wire_mode": {
+          "const": "raw_bytes_with_trusted_metadata"
+        },
+        "trusted_metadata": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "prefixItems": [
+            {
+              "const": "source_identity"
+            },
+            {
+              "const": "ingress_transport"
+            },
+            {
+              "const": "tls_verification"
+            },
+            {
+              "const": "raw_message_length"
+            },
+            {
+              "const": "raw_message_sha256"
+            },
+            {
+              "const": "parser_policy_version"
+            }
+          ],
+          "items": false
+        },
+        "untrusted_internal_metadata_policy": {
+          "const": "strip_then_rebuild_at_trusted_edge"
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "message_bytes",
+            "start_line_bytes",
+            "uri_bytes",
+            "header_section_bytes",
+            "header_count",
+            "header_line_bytes",
+            "body_bytes",
+            "multipart_depth",
+            "multipart_parts"
+          ],
+          "properties": {
+            "message_bytes": {
+              "const": 65535
+            },
+            "start_line_bytes": {
+              "const": 4096
+            },
+            "uri_bytes": {
+              "const": 2048
+            },
+            "header_section_bytes": {
+              "const": 32768
+            },
+            "header_count": {
+              "const": 128
+            },
+            "header_line_bytes": {
+              "const": 8192
+            },
+            "body_bytes": {
+              "const": 32768
+            },
+            "multipart_depth": {
+              "const": 2
+            },
+            "multipart_parts": {
+              "const": 16
+            }
+          }
+        },
+        "duplicate_header_policy": {
+          "const": "fail_closed_on_ambiguous_or_conflicting_values"
+        },
+        "secret_logging": {
+          "const": "forbidden"
+        }
+      }
+    },
+    "admission_and_store_slo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transaction_admission_precedes_trying",
+        "trying_precedes_business_durable_decision",
+        "trying_p99_budget_ms",
+        "trying_hard_deadline_ms",
+        "durable_transaction_p99_budget_ms",
+        "call_setup_cumulative_store_p99_budget_ms",
+        "store_write_timeout_ms",
+        "pool_wait_p99_budget_ms",
+        "pool_size_ceiling",
+        "queue_depth_ceiling",
+        "retry_attempt_ceiling",
+        "new_call_store_failure",
+        "established_call_store_failure",
+        "business_visible_18x_2xx_before_durable_decision"
+      ],
+      "properties": {
+        "transaction_admission_precedes_trying": {
+          "const": true
+        },
+        "trying_precedes_business_durable_decision": {
+          "const": true
+        },
+        "trying_p99_budget_ms": {
+          "const": 100
+        },
+        "trying_hard_deadline_ms": {
+          "const": 200
+        },
+        "durable_transaction_p99_budget_ms": {
+          "const": 20
+        },
+        "call_setup_cumulative_store_p99_budget_ms": {
+          "const": 60
+        },
+        "store_write_timeout_ms": {
+          "const": 250
+        },
+        "pool_wait_p99_budget_ms": {
+          "const": 10
+        },
+        "pool_size_ceiling": {
+          "const": 256
+        },
+        "queue_depth_ceiling": {
+          "const": 1024
+        },
+        "retry_attempt_ceiling": {
+          "const": 3
+        },
+        "new_call_store_failure": {
+          "const": "503_with_deterministic_retry_after"
+        },
+        "established_call_store_failure": {
+          "const": "bounded_repair_without_media_dependency"
+        },
+        "business_visible_18x_2xx_before_durable_decision": {
+          "const": false
+        }
+      }
+    },
+    "boundedness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lookup_complexity",
+        "timer_complexity",
+        "global_hot_lock",
+        "unbounded_queue",
+        "per_message_task",
+        "per_packet_database_or_http",
+        "metrics"
+      ],
+      "properties": {
+        "lookup_complexity": {
+          "const": "expected_O(1)"
+        },
+        "timer_complexity": {
+          "const": "amortized_O(1)_or_bounded_O(logN)"
+        },
+        "global_hot_lock": {
+          "const": "forbidden"
+        },
+        "unbounded_queue": {
+          "const": "forbidden"
+        },
+        "per_message_task": {
+          "const": "forbidden"
+        },
+        "per_packet_database_or_http": {
+          "const": "forbidden"
+        },
+        "metrics": {
+          "const": "low_cardinality_only"
+        }
+      }
+    },
+    "deletion_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rsipstack_delete_before_g06",
+        "requires"
+      ],
+      "properties": {
+        "rsipstack_delete_before_g06": {
+          "const": false
+        },
+        "requires": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            {
+              "const": "new_call_selection_moved"
+            },
+            {
+              "const": "old_call_active_zero"
+            },
+            {
+              "const": "unknown_effect_zero"
+            },
+            {
+              "const": "repair_zero"
+            },
+            {
+              "const": "rollback_window_closed"
+            }
+          ],
+          "items": false
+        }
+      }
+    }
+  }
+}
