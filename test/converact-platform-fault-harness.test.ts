@@ -680,6 +680,7 @@ test('drain evidence requires observed processes, exact phases, signed zeros and
   assert.equal(buildDrainEvidence(booleanOnly).status, 'failed');
 
   assert.equal(buildDrainEvidence(forgedDrainSignatureFixture(validInput)).status, 'failed');
+  assert.equal(buildDrainEvidence(extraDrainResultFieldFixture(validInput)).status, 'failed');
   assert.equal(buildDrainEvidence(boundDrainEvidenceFixture({
     ...validInput,
     phase_sequence: ['accepting', 'route_draining', 'stopped']
@@ -786,6 +787,19 @@ function forgedDrainSignatureFixture(summaryInput: Record<string, any>) {
   result.active_zero_receipts[0].signature_sha256 = sha256('A'.repeat(86));
   result.receipts_manifest_sha256 = sha256(JSON.stringify(transitions));
   bound.raw_artifacts['drain-receipts.json'] = prettyJson(transitions);
+  bound.raw_artifacts['drain-result.json'] = prettyJson(result);
+  bound.raw_artifacts['drain-run.log'] = `${JSON.stringify(result)}\n`;
+  bound.raw_manifest = Object.keys(bound.raw_artifacts).sort().map(
+    (name) => `${sha256(bound.raw_artifacts[name]!)}  ${name}\n`
+  ).join('');
+  bound.identity.raw_output_sha256 = sha256(bound.raw_manifest);
+  return bound;
+}
+
+function extraDrainResultFieldFixture(summaryInput: Record<string, any>) {
+  const bound = boundDrainEvidenceFixture(summaryInput);
+  const result = JSON.parse(bound.raw_artifacts['drain-result.json']!);
+  result.real_human_media = true;
   bound.raw_artifacts['drain-result.json'] = prettyJson(result);
   bound.raw_artifacts['drain-run.log'] = `${JSON.stringify(result)}\n`;
   bound.raw_manifest = Object.keys(bound.raw_artifacts).sort().map(

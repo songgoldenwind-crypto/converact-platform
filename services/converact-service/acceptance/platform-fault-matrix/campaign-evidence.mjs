@@ -53,6 +53,48 @@ const DRAIN_RECEIPT_BODY_FIELDS = Object.freeze([
   'observed_at',
   'expires_at'
 ]);
+const DRAIN_RESULT_FIELDS = Object.freeze([
+  'active_zero_receipts',
+  'clock_domain',
+  'container_actions',
+  'drain_id',
+  'drain_node_exit_code',
+  'drain_node_exit_signal',
+  'drain_node_id',
+  'drain_node_pid',
+  'drain_owner_epoch',
+  'drain_rejection_code',
+  'duration_ms',
+  'established_close_state',
+  'established_mutations_before_drain',
+  'established_mutations_during_drain',
+  'fresh_receipt_verification_count',
+  'fresh_receipt_verified_phase',
+  'fresh_verifier_exit_code',
+  'fresh_verifier_exit_signal',
+  'fresh_verifier_pid',
+  'initial_nonzero_receipts',
+  'initial_owner_epoch',
+  'initial_owner_node_id',
+  'lost_node_exit_code',
+  'lost_node_exit_signal',
+  'lost_node_pid',
+  'orchestrator_pid',
+  'phase_sequence',
+  'post_loss_new_work_state',
+  'post_loss_owner_epoch',
+  'post_loss_owner_node_id',
+  'receipts_manifest_sha256',
+  'recovery_node_exit_code',
+  'recovery_node_exit_signal',
+  'recovery_node_pid',
+  'rolling_schema',
+  'stale_owner_error_code',
+  'status',
+  'unrelated_containers_after_sha256',
+  'unrelated_containers_before_sha256',
+  'validation_processes_remaining'
+]);
 
 export function buildBackupRestoreEvidence(input) {
   assertControlledEvidenceSafe(input);
@@ -257,7 +299,8 @@ function verifyDrainRawBinding(input, identity) {
   const result = parseCanonicalJson(input.raw_artifacts['drain-result.json']);
   const transitions = parseCanonicalJson(input.raw_artifacts['drain-receipts.json']);
   const keyBundle = parseCanonicalJson(input.raw_artifacts['drain-public-keys.json']);
-  if (!plainRecord(result) || !plainRecord(transitions) || !plainRecord(keyBundle)
+  if (!plainRecord(result) || !exactKeys(result, DRAIN_RESULT_FIELDS)
+    || !plainRecord(transitions) || !plainRecord(keyBundle)
     || input.raw_artifacts['drain-run.log'] !== `${JSON.stringify(result)}\n`
     || input.raw_artifacts['unrelated-containers-before.tsv']
       !== input.raw_artifacts['unrelated-containers-after.tsv']
