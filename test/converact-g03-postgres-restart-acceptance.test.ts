@@ -266,4 +266,42 @@ test('G03 PostgreSQL restart probe freezes database and phase deadlines', async 
   assert.match(source, /withPostgresRestartPhaseDeadline/u);
   assert.match(source, /SET LOCAL statement_timeout/u);
   assert.match(source, /SET LOCAL lock_timeout/u);
+  assert.doesNotMatch(source, /Promise\.race\(\[operation\(\), deadline\]\)/u);
+  assert.match(source, /process\.exit\(124\)/u);
+});
+
+test('G03 PostgreSQL restart baseline is sampled after the accepted effect write', async () => {
+  const source = readFileSync(probePath, 'utf8');
+  const prepareStart = source.indexOf('async function prepare(');
+  const recoverStart = source.indexOf('async function recover(');
+  const prepareSource = source.slice(prepareStart, recoverStart);
+  const acceptedWrite = prepareSource.indexOf(
+    'await oracle.recordTransportAccepted('
+  );
+  const identityRead = prepareSource.indexOf(
+    'const postgresIdentity = await readDatabaseIdentity(admin);'
+  );
+  assert.ok(acceptedWrite >= 0, 'missing accepted Effect write');
+  assert.ok(identityRead >= 0, 'missing prepare PostgreSQL identity read');
+  assert.ok(
+    identityRead > acceptedWrite,
+    'PostgreSQL identity must be sampled after all durable prepare writes'
+  );
+});
+
+test('G03 PostgreSQL runtime-role initialization stays on one checked-out client', async () => {
+  const source = readFileSync(probePath, 'utf8');
+  const prepareStart = source.indexOf('async function prepare(');
+  const recoverStart = source.indexOf('async function recover(');
+  const prepareSource = source.slice(prepareStart, recoverStart);
+  assert.match(prepareSource, /const bootstrapClient = await admin\.connect\(\)/u);
+  assert.match(
+    prepareSource,
+    /initializeConveractFabricRuntimeRole\(\s*bootstrapClient,/u
+  );
+  assert.match(prepareSource, /bootstrapClient\.release\(\)/u);
+  assert.doesNotMatch(
+    prepareSource,
+    /initializeConveractFabricRuntimeRole\(admin,/u
+  );
 });

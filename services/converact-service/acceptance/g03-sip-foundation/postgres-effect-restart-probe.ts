@@ -611,17 +611,17 @@ async function main(): Promise<void> {
 export async function withPostgresRestartPhaseDeadline<T>(
   operation: () => Promise<T>
 ): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const deadline = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error('g03_postgres_restart_phase_timeout'));
-    }, POSTGRES_RESTART_DATABASE_LIMITS.phase_timeout_ms);
-    timer.unref();
-  });
+  const timer = setTimeout(() => {
+    process.stderr.write(
+      '{"status":"failed","code":"g03_postgres_restart_phase_timeout"}\n'
+    );
+    process.exit(124);
+  }, POSTGRES_RESTART_DATABASE_LIMITS.phase_timeout_ms);
+  timer.unref();
   try {
-    return await Promise.race([operation(), deadline]);
+    return await operation();
   } finally {
-    if (timer) clearTimeout(timer);
+    clearTimeout(timer);
   }
 }
 
@@ -635,9 +635,16 @@ async function prepare(
   const runtimePassword = requiredEnv('CONVERACT_RUNTIME_DB_PASSWORD');
   let runtime: Pool | null = null;
   try {
-    await initializeConveractFabricRuntimeRole(admin, runtimePassword);
+    const bootstrapClient = await admin.connect();
+    try {
+      await initializeConveractFabricRuntimeRole(
+        bootstrapClient,
+        runtimePassword
+      );
+    } finally {
+      bootstrapClient.release();
+    }
     await assertRegistryState(admin, false);
-    const postgresIdentity = await readDatabaseIdentity(admin);
     await admin.query(
       `INSERT INTO tenants (id, name, settings)
        VALUES ($1, $2, $3::jsonb)`,
@@ -666,6 +673,7 @@ async function prepare(
     );
     assert.equal(accepted.state, 'transport_accepted');
     assert.equal(accepted.revision, '4');
+    const postgresIdentity = await readDatabaseIdentity(admin);
     writeJson(outputPath, {
       status: 'passed',
       phase: 'prepare',
