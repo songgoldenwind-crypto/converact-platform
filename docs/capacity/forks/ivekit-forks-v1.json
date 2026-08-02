@@ -177,7 +177,7 @@
         },
         {
           "path": "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch",
-          "sha256": "589ac55dfec9865996acc142f4a76aaf7fea7e7f341663c71425eecdb6cde4e6",
+          "sha256": "d6eb33fafeb321d8c1cf92ec022cbcdf161f68984a0780068a49a1a1631e1e73",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-lifecycle.patch",
           "purpose": "Commit bounded PII-minimized per-leg dialog recovery state through the cell-local mTLS shadow service before visible T1 18x, 200 and successful in-dialog responses, with exact replay after uncertain transport outcomes and ordinary-profile isolation."
         },

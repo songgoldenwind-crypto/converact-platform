@@ -899,7 +899,7 @@ index 9026dbd0..18d51e6f 100644
  use anyhow::{Result, anyhow};
  use async_trait::async_trait;
  use dashmap::DashMap;
- use ivekit_component_hook::{
+ use converact_component_hook::{
      Authorization, AuthorizationRequest, Authorizer, Guard, Operation, Request,
  };
  use serde::{Deserialize, Serialize};

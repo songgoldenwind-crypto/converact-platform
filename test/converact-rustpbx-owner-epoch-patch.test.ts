@@ -6,9 +6,12 @@ import test from 'node:test';
 
 const patchPath =
   'infra/converact/rustpbx/patches/rustpbx-ivekit-owner-epoch.patch';
+const dialogShadowPatchPath =
+  'infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch';
 
 test('RustPBX owner epoch patch wires local component authorization outside RTP paths', () => {
   const patch = readFileSync(patchPath, 'utf8');
+  const dialogShadowPatch = readFileSync(dialogShadowPatchPath, 'utf8');
   const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
 
   assert.match(build, /rustpbx-ivekit-owner-epoch\.patch/);
@@ -22,6 +25,8 @@ test('RustPBX owner epoch patch wires local component authorization outside RTP 
     patch,
     /ivekit-component-hook = \{ path = "vendor\/ivekit-component-hook" \}/
   );
+  assert.match(dialogShadowPatch, /^ use converact_component_hook::\{$/m);
+  assert.doesNotMatch(dialogShadowPatch, /^ use ivekit_component_hook::\{$/m);
   assert.match(patch, /pub mod ivekit_owner/);
   assert.match(patch, /reservation_id/);
   assert.match(patch, /owner_epoch/);
