@@ -2,14 +2,17 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   mkdirSync,
+  readFileSync,
   renameSync,
+  statSync,
   unlinkSync,
   writeFileSync
 } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 
 import { initializeConveractFabricRuntimeRole } from '../../../../src/converact-runtime-role.js';
 import {
@@ -35,17 +38,88 @@ import type {
   PreparedProtocolEffectAuthority
 } from '../../../../src/agent-runtime/converact/voice/sip-foundation/types.js';
 
-export type PostgresRestartPhase = 'prepare' | 'recover' | 'cleanup';
+export type PostgresRestartPhase = 'prepare' | 'recover' | 'verify' | 'cleanup';
 
 export interface PostgresRestartCleanupStatement {
   readonly sql: string;
   readonly params: readonly unknown[];
+  readonly expected_row_count: number;
+}
+
+export interface PostgresRestartBinding {
+  readonly run_id: string;
+  readonly source_commit: string;
+  readonly database_name: string;
+  readonly confirmation_sha256: string;
+  readonly tenant_name: string;
+  readonly tenant_marker: Readonly<{
+    goal_id: 'G03';
+    run_id: string;
+    source_commit: string;
+    confirmation_sha256: string;
+  }>;
+  readonly protocol_effect_id: string;
+  readonly durable_receipt_id: string;
+  readonly send_receipt_id: string;
+  readonly accepted_receipt_id: string;
+  readonly observed_receipt_id: string;
+  readonly writer_activation_receipt_id: string;
+  readonly schema_activation_receipt_id: string;
+}
+
+export interface PostgresRestartDatabaseIdentity {
+  readonly system_identifier: string;
+  readonly postmaster_start_time: string;
+}
+
+export interface PostgresRestartReplayOracle {
+  query(identity: ProtocolEffectIdentity): Promise<{
+    readonly state: string;
+    readonly revision: string;
+    readonly last_receipt_id: string | null;
+  } | null>;
+  prepare(input: DurableProtocolEffectPrepareInput): Promise<{
+    readonly effect: {
+      readonly state: string;
+      readonly revision: string;
+      readonly last_receipt_id: string | null;
+    };
+    readonly replayed: boolean;
+  }>;
+  recordTransportAccepted(
+    identity: ProtocolEffectIdentity,
+    receiptId: string
+  ): Promise<{
+    readonly state: string;
+    readonly revision: string;
+    readonly last_receipt_id: string | null;
+  }>;
+  recordProtocolObserved(
+    identity: ProtocolEffectIdentity,
+    receiptId: string
+  ): Promise<{
+    readonly state: string;
+    readonly revision: string;
+    readonly last_receipt_id: string | null;
+  }>;
 }
 
 const EXECUTOR_ROLE = 'opc_sip_effect_executor';
 const RUNTIME_ROLE = 'opc_runtime';
 const WRITER_IDENTITY = 'unified-rustpbx.sip-foundation';
 const RUN_ID_PATTERN = /^[a-z0-9][a-z0-9-]{2,39}$/u;
+const SOURCE_COMMIT_PATTERN = /^[0-9a-f]{40}$/u;
+const RESTART_BINDING_VERSION = 'converact-g03-postgres-restart-v1';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const MAX_EVIDENCE_BYTES = 1_048_576;
+
+export const POSTGRES_RESTART_DATABASE_LIMITS = Object.freeze({
+  connection_timeout_ms: 2_000,
+  statement_timeout_ms: 2_000,
+  lock_timeout_ms: 1_000,
+  query_timeout_ms: 2_500,
+  phase_timeout_ms: 15_000
+});
 
 const RESTART_AUTHORITY: PreparedProtocolEffectAuthority = Object.freeze({
   verifyPreparedEffect(prepared: PreparedProtocolEffect): Uint8Array {
@@ -72,40 +146,101 @@ const RESTART_AUTHORITY: PreparedProtocolEffectAuthority = Object.freeze({
 
 export function parsePostgresRestartPhase(args: readonly string[]): PostgresRestartPhase {
   if (args.length !== 1 ||
-      (args[0] !== 'prepare' && args[0] !== 'recover' && args[0] !== 'cleanup')) {
+      (args[0] !== 'prepare' && args[0] !== 'recover' &&
+       args[0] !== 'verify' && args[0] !== 'cleanup')) {
     throw new Error('g03_postgres_restart_phase_invalid');
   }
   return args[0];
 }
 
-export function createPostgresRestartCleanupPlan(
-  runIdInput: string
-): readonly PostgresRestartCleanupStatement[] {
+export function createPostgresRestartBinding(
+  runIdInput: string,
+  sourceCommitInput: string
+): PostgresRestartBinding {
   const runId = checkedRunId(runIdInput);
+  const sourceCommit = checkedSourceCommit(sourceCommitInput);
+  const databaseName = `converact_g03_${runId.replaceAll('-', '_')}`;
+  if (databaseName.length > 63) {
+    throw new Error('g03_postgres_restart_database_name_invalid');
+  }
+  const confirmation = sha256([
+    RESTART_BINDING_VERSION,
+    runId,
+    sourceCommit,
+    databaseName
+  ].join('\n'));
+  const tenantMarker = Object.freeze({
+    goal_id: 'G03' as const,
+    run_id: runId,
+    source_commit: sourceCommit,
+    confirmation_sha256: confirmation
+  });
+  return Object.freeze({
+    run_id: runId,
+    source_commit: sourceCommit,
+    database_name: databaseName,
+    confirmation_sha256: confirmation,
+    tenant_name: `G03 PostgreSQL restart ${runId}`,
+    tenant_marker: tenantMarker,
+    protocol_effect_id: `g03-effect-${runId}`,
+    durable_receipt_id: `g03-durable-${runId}`,
+    send_receipt_id: `g03-send-${runId}`,
+    accepted_receipt_id: `g03-accepted-${runId}`,
+    observed_receipt_id: `g03-observed-${runId}`,
+    writer_activation_receipt_id: `g03-writer-activation-${runId}`,
+    schema_activation_receipt_id: `g03-schema-activation-${runId}`
+  });
+}
+
+export function createPostgresRestartCleanupPlan(
+  binding: PostgresRestartBinding
+): readonly PostgresRestartCleanupStatement[] {
   return Object.freeze([
     Object.freeze({
-      sql: 'DELETE FROM ivekit_sip_effect_receipts WHERE tenant_id = $1',
-      params: Object.freeze([runId])
+      sql: `DELETE FROM ivekit_sip_effect_receipts
+            WHERE tenant_id = $1 AND protocol_effect_id = $2`,
+      params: Object.freeze([binding.run_id, binding.protocol_effect_id]),
+      expected_row_count: 4
     }),
     Object.freeze({
-      sql: 'DELETE FROM tenants WHERE id = $1',
-      params: Object.freeze([runId])
+      sql: `DELETE FROM tenants
+            WHERE id = $1 AND name = $2 AND settings = $3::jsonb`,
+      params: Object.freeze([
+        binding.run_id,
+        binding.tenant_name,
+        JSON.stringify(binding.tenant_marker)
+      ]),
+      expected_row_count: 1
     }),
     Object.freeze({
       sql: `UPDATE ivekit_sip_effect_writer_registry
             SET enabled = FALSE,
                 activation_receipt_id = NULL,
                 activated_at = NULL
-            WHERE writer_identity = $1`,
-      params: Object.freeze([WRITER_IDENTITY])
+            WHERE writer_identity = $1
+              AND activation_receipt_id = $2
+              AND enabled = TRUE`,
+      params: Object.freeze([
+        WRITER_IDENTITY,
+        binding.writer_activation_receipt_id
+      ]),
+      expected_row_count: 1
     }),
     Object.freeze({
       sql: `UPDATE ivekit_sip_effect_schema_registry
             SET enabled = FALSE,
                 activation_receipt_id = NULL,
                 activated_at = NULL
-            WHERE schema_id = $1 AND schema_version = $2`,
-      params: Object.freeze([SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_VERSION])
+            WHERE schema_id = $1
+              AND schema_version = $2
+              AND activation_receipt_id = $3
+              AND enabled = TRUE`,
+      params: Object.freeze([
+        SIP_EFFECT_SCHEMA_ID,
+        SIP_EFFECT_SCHEMA_VERSION,
+        binding.schema_activation_receipt_id
+      ]),
+      expected_row_count: 1
     })
   ]);
 }
@@ -219,28 +354,296 @@ export function createPostgresRestartFixture(runIdInput: string): {
   return Object.freeze({ authority: RESTART_AUTHORITY, input, identity });
 }
 
-async function main(): Promise<void> {
-  const phase = parsePostgresRestartPhase(process.argv.slice(2));
-  const runId = checkedRunId(requiredEnv('CONVERACT_G03_RESTART_RUN_ID'));
-  const outputPath = requiredOutputPath();
-  if (phase === 'prepare') await prepare(runId, outputPath);
-  if (phase === 'recover') await recover(runId, outputPath);
-  if (phase === 'cleanup') await cleanup(runId, outputPath);
+export async function replayPostgresRestartEffect(
+  oracle: PostgresRestartReplayOracle,
+  fixture: ReturnType<typeof createPostgresRestartFixture>,
+  binding: PostgresRestartBinding
+): Promise<Readonly<{
+  prepare_replayed: true;
+  accepted_receipt_replayed: true;
+  recovered_state: 'transport_accepted';
+  recovered_revision: '4';
+  observed_state: 'protocol_observed';
+  observed_revision: '5';
+  replay_revision: '5';
+}>> {
+  const recovered = await oracle.query(fixture.identity);
+  if (!recovered || recovered.state !== 'transport_accepted' ||
+      recovered.revision !== '4' ||
+      recovered.last_receipt_id !== binding.accepted_receipt_id) {
+    throw new Error('g03_postgres_restart_recovered_effect_invalid');
+  }
+
+  const preparedReplay = await oracle.prepare(fixture.input);
+  if (preparedReplay.replayed !== true ||
+      preparedReplay.effect.state !== 'transport_accepted' ||
+      preparedReplay.effect.revision !== '4' ||
+      preparedReplay.effect.last_receipt_id !== binding.accepted_receipt_id) {
+    throw new Error('g03_postgres_restart_prepare_replay_invalid');
+  }
+
+  const acceptedReplay = await oracle.recordTransportAccepted(
+    fixture.identity,
+    binding.accepted_receipt_id
+  );
+  if (acceptedReplay.state !== 'transport_accepted' ||
+      acceptedReplay.revision !== '4' ||
+      acceptedReplay.last_receipt_id !== binding.accepted_receipt_id) {
+    throw new Error('g03_postgres_restart_accepted_replay_invalid');
+  }
+
+  const observed = await oracle.recordProtocolObserved(
+    fixture.identity,
+    binding.observed_receipt_id
+  );
+  if (observed.state !== 'protocol_observed' || observed.revision !== '5' ||
+      observed.last_receipt_id !== binding.observed_receipt_id) {
+    throw new Error('g03_postgres_restart_observed_transition_invalid');
+  }
+  const observedReplay = await oracle.recordProtocolObserved(
+    fixture.identity,
+    binding.observed_receipt_id
+  );
+  if (observedReplay.state !== 'protocol_observed' ||
+      observedReplay.revision !== '5' ||
+      observedReplay.last_receipt_id !== binding.observed_receipt_id) {
+    throw new Error('g03_postgres_restart_observed_replay_invalid');
+  }
+
+  return Object.freeze({
+    prepare_replayed: true,
+    accepted_receipt_replayed: true,
+    recovered_state: 'transport_accepted',
+    recovered_revision: '4',
+    observed_state: 'protocol_observed',
+    observed_revision: '5',
+    replay_revision: '5'
+  });
 }
 
-async function prepare(runId: string, outputPath: string): Promise<void> {
+export function verifyPostgresRestartEvidence(
+  binding: PostgresRestartBinding,
+  preparedInput: unknown,
+  recoveredInput: unknown
+): Readonly<{
+  status: 'passed';
+  phase: 'verify';
+  restart_confirmed: true;
+  process_replacement_confirmed: true;
+  pre_restart_effect_replay_confirmed: true;
+  system_identifier: string;
+  previous_postmaster_start_time: string;
+  recovered_postmaster_start_time: string;
+  production_eligible: false;
+}> {
+  const prepared = checkedEvidenceRecord(preparedInput, 'prepare');
+  const recovered = checkedEvidenceRecord(recoveredInput, 'recover');
+  assertEvidenceBinding(prepared, binding);
+  assertEvidenceBinding(recovered, binding);
+  const preparedProcess = checkedEvidenceUuid(prepared.process_instance_id);
+  const recoveredProcess = checkedEvidenceUuid(recovered.process_instance_id);
+  if (preparedProcess === recoveredProcess) {
+    throw new Error('g03_postgres_restart_process_not_replaced');
+  }
+  const preparedDatabase = checkedDatabaseIdentity(prepared.postgres_identity);
+  const recoveredDatabase = checkedDatabaseIdentity(recovered.postgres_identity);
+  if (preparedDatabase.system_identifier !== recoveredDatabase.system_identifier) {
+    throw new Error('g03_postgres_restart_system_identifier_changed');
+  }
+  if (preparedDatabase.postmaster_start_time ===
+      recoveredDatabase.postmaster_start_time) {
+    throw new Error('g03_postgres_restart_not_observed');
+  }
+  if (prepared.state !== 'transport_accepted' || prepared.revision !== '4' ||
+      prepared.last_receipt_id !== binding.accepted_receipt_id) {
+    throw new Error('g03_postgres_restart_prepare_evidence_invalid');
+  }
+  if (recovered.prepare_replayed !== true ||
+      recovered.accepted_receipt_replayed !== true) {
+    throw new Error('g03_postgres_restart_pre_restart_replay_missing');
+  }
+  if (recovered.recovered_state !== 'transport_accepted' ||
+      recovered.recovered_revision !== '4' ||
+      recovered.observed_state !== 'protocol_observed' ||
+      recovered.observed_revision !== '5' ||
+      recovered.replay_revision !== '5' ||
+      recovered.effect_count !== 1 || recovered.receipt_count !== 4) {
+    throw new Error('g03_postgres_restart_recover_evidence_invalid');
+  }
+  if (prepared.production_eligible !== false ||
+      recovered.production_eligible !== false) {
+    throw new Error('g03_postgres_restart_eligibility_invalid');
+  }
+  return Object.freeze({
+    status: 'passed',
+    phase: 'verify',
+    restart_confirmed: true,
+    process_replacement_confirmed: true,
+    pre_restart_effect_replay_confirmed: true,
+    system_identifier: preparedDatabase.system_identifier,
+    previous_postmaster_start_time: preparedDatabase.postmaster_start_time,
+    recovered_postmaster_start_time: recoveredDatabase.postmaster_start_time,
+    production_eligible: false
+  });
+}
+
+function checkedEvidenceRecord(
+  value: unknown,
+  phase: 'prepare' | 'recover'
+): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`g03_postgres_restart_${phase}_evidence_invalid`);
+  }
+  const record = value as Record<string, unknown>;
+  if (record.status !== 'passed' || record.phase !== phase) {
+    throw new Error(`g03_postgres_restart_${phase}_evidence_invalid`);
+  }
+  return record;
+}
+
+function assertEvidenceBinding(
+  record: Readonly<Record<string, unknown>>,
+  binding: PostgresRestartBinding
+): void {
+  if (!isDeepStrictEqual(record.campaign_binding, binding)) {
+    throw new Error('g03_postgres_restart_evidence_binding_invalid');
+  }
+}
+
+function checkedEvidenceUuid(value: unknown): string {
+  if (typeof value !== 'string' || !UUID_PATTERN.test(value)) {
+    throw new Error('g03_postgres_restart_process_identity_invalid');
+  }
+  return value;
+}
+
+function checkedDatabaseIdentity(value: unknown): PostgresRestartDatabaseIdentity {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('g03_postgres_restart_database_identity_invalid');
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.system_identifier !== 'string' ||
+      !/^[0-9]{10,32}$/u.test(record.system_identifier) ||
+      typeof record.postmaster_start_time !== 'string' ||
+      record.postmaster_start_time.length < 10 ||
+      record.postmaster_start_time.length > 128 ||
+      /[\u0000-\u001f\u007f]/u.test(record.postmaster_start_time)) {
+    throw new Error('g03_postgres_restart_database_identity_invalid');
+  }
+  return Object.freeze({
+    system_identifier: record.system_identifier,
+    postmaster_start_time: record.postmaster_start_time
+  });
+}
+
+function assertPrepareEvidenceForRecovery(
+  binding: PostgresRestartBinding,
+  preparedInput: unknown,
+  recoveredProcessInstanceId: string,
+  recoveredDatabaseIdentity: PostgresRestartDatabaseIdentity
+): void {
+  const prepared = checkedEvidenceRecord(preparedInput, 'prepare');
+  assertEvidenceBinding(prepared, binding);
+  const preparedProcess = checkedEvidenceUuid(prepared.process_instance_id);
+  const recoveredProcess = checkedEvidenceUuid(recoveredProcessInstanceId);
+  if (preparedProcess === recoveredProcess) {
+    throw new Error('g03_postgres_restart_process_not_replaced');
+  }
+  const preparedDatabase = checkedDatabaseIdentity(prepared.postgres_identity);
+  const recoveredDatabase = checkedDatabaseIdentity(recoveredDatabaseIdentity);
+  if (preparedDatabase.system_identifier !== recoveredDatabase.system_identifier) {
+    throw new Error('g03_postgres_restart_system_identifier_changed');
+  }
+  if (preparedDatabase.postmaster_start_time ===
+      recoveredDatabase.postmaster_start_time) {
+    throw new Error('g03_postgres_restart_not_observed');
+  }
+  if (prepared.state !== 'transport_accepted' || prepared.revision !== '4' ||
+      prepared.last_receipt_id !== binding.accepted_receipt_id ||
+      prepared.production_eligible !== false) {
+    throw new Error('g03_postgres_restart_prepare_evidence_invalid');
+  }
+}
+
+async function readDatabaseIdentity(
+  database: Pool | PoolClient
+): Promise<PostgresRestartDatabaseIdentity> {
+  const result = await database.query<{
+    system_identifier: string;
+    postmaster_start_time: string;
+  }>(
+    `SELECT
+       control.system_identifier::text AS system_identifier,
+       pg_postmaster_start_time()::text AS postmaster_start_time
+     FROM pg_control_system() AS control`
+  );
+  if (result.rows.length !== 1) {
+    throw new Error('g03_postgres_restart_database_identity_invalid');
+  }
+  return checkedDatabaseIdentity(result.rows[0]);
+}
+
+async function main(): Promise<void> {
+  const phase = parsePostgresRestartPhase(process.argv.slice(2));
+  const binding = createPostgresRestartBinding(
+    requiredEnv('CONVERACT_G03_RESTART_RUN_ID'),
+    requiredEnv('CONVERACT_G03_SOURCE_COMMIT')
+  );
+  assert.equal(
+    requiredEnv('PGDATABASE'),
+    binding.database_name,
+    'g03_postgres_restart_database_binding_invalid'
+  );
+  assert.equal(
+    requiredEnv('CONVERACT_G03_RESTART_CONFIRMATION_SHA256'),
+    binding.confirmation_sha256,
+    'g03_postgres_restart_confirmation_invalid'
+  );
+  const outputPath = requiredOutputPath();
+  await withPostgresRestartPhaseDeadline(async () => {
+    if (phase === 'prepare') await prepare(binding, outputPath);
+    if (phase === 'recover') await recover(binding, outputPath);
+    if (phase === 'verify') await verify(binding, outputPath);
+    if (phase === 'cleanup') await cleanup(binding, outputPath);
+  });
+}
+
+export async function withPostgresRestartPhaseDeadline<T>(
+  operation: () => Promise<T>
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error('g03_postgres_restart_phase_timeout'));
+    }, POSTGRES_RESTART_DATABASE_LIMITS.phase_timeout_ms);
+    timer.unref();
+  });
+  try {
+    return await Promise.race([operation(), deadline]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function prepare(
+  binding: PostgresRestartBinding,
+  outputPath: string
+): Promise<void> {
+  const runId = binding.run_id;
+  const processInstanceId = randomUUID();
   const admin = databasePool('admin');
   const runtimePassword = requiredEnv('CONVERACT_RUNTIME_DB_PASSWORD');
   let runtime: Pool | null = null;
   try {
     await initializeConveractFabricRuntimeRole(admin, runtimePassword);
     await assertRegistryState(admin, false);
+    const postgresIdentity = await readDatabaseIdentity(admin);
     await admin.query(
-      `INSERT INTO tenants (id, name)
-       VALUES ($1, $2)`,
-      [runId, `G03 PostgreSQL restart ${runId}`]
+      `INSERT INTO tenants (id, name, settings)
+       VALUES ($1, $2, $3::jsonb)`,
+      [runId, binding.tenant_name, JSON.stringify(binding.tenant_marker)]
     );
-    await activateRegistries(admin, runId);
+    await activateRegistries(admin, binding);
     runtime = databasePool('runtime');
     const fixture = createPostgresRestartFixture(runId);
     const oracle = new SipEffectOracle({
@@ -251,15 +654,15 @@ async function prepare(runId: string, outputPath: string): Promise<void> {
     assert.equal(prepared.replayed, false);
     await oracle.recordDurableDecision(
       fixture.identity,
-      `g03-durable-${runId}`
+      binding.durable_receipt_id
     );
     await oracle.recordSendAttempted(
       fixture.identity,
-      `g03-send-${runId}`
+      binding.send_receipt_id
     );
     const accepted = await oracle.recordTransportAccepted(
       fixture.identity,
-      `g03-accepted-${runId}`
+      binding.accepted_receipt_id
     );
     assert.equal(accepted.state, 'transport_accepted');
     assert.equal(accepted.revision, '4');
@@ -267,6 +670,9 @@ async function prepare(runId: string, outputPath: string): Promise<void> {
       status: 'passed',
       phase: 'prepare',
       process_pid: process.pid,
+      process_instance_id: processInstanceId,
+      campaign_binding: binding,
+      postgres_identity: postgresIdentity,
       identity: fixture.identity,
       state: accepted.state,
       revision: accepted.revision,
@@ -281,28 +687,36 @@ async function prepare(runId: string, outputPath: string): Promise<void> {
   }
 }
 
-async function recover(runId: string, outputPath: string): Promise<void> {
+async function recover(
+  binding: PostgresRestartBinding,
+  outputPath: string
+): Promise<void> {
+  const runId = binding.run_id;
+  const processInstanceId = randomUUID();
   const admin = databasePool('admin');
   const runtime = databasePool('runtime');
   try {
-    await assertRegistryState(admin, true);
+    await assertRegistryState(admin, true, binding);
+    const preparedEvidence = readEvidenceFile(
+      requiredEvidencePath('CONVERACT_G03_PREPARE_EVIDENCE')
+    );
+    const postgresIdentity = await readDatabaseIdentity(admin);
+    assertPrepareEvidenceForRecovery(
+      binding,
+      preparedEvidence,
+      processInstanceId,
+      postgresIdentity
+    );
     const fixture = createPostgresRestartFixture(runId);
     const oracle = new SipEffectOracle({
       store: new PostgresEffectStore(runtime),
       prepared_effect_authority: RESTART_AUTHORITY
     });
-    const recovered = await oracle.query(fixture.identity);
-    assert.ok(recovered);
-    assert.equal(recovered.state, 'transport_accepted');
-    assert.equal(recovered.revision, '4');
-    assert.equal(recovered.last_receipt_id, `g03-accepted-${runId}`);
-    const receiptId = `g03-observed-${runId}`;
-    const observed = await oracle.recordProtocolObserved(fixture.identity, receiptId);
-    assert.equal(observed.state, 'protocol_observed');
-    assert.equal(observed.revision, '5');
-    const replayed = await oracle.recordProtocolObserved(fixture.identity, receiptId);
-    assert.equal(replayed.state, 'protocol_observed');
-    assert.equal(replayed.revision, '5');
+    const replay = await replayPostgresRestartEffect(
+      oracle,
+      fixture,
+      binding
+    );
     const counts = await admin.query<{
       effects: string;
       receipts: string;
@@ -319,12 +733,11 @@ async function recover(runId: string, outputPath: string): Promise<void> {
       status: 'passed',
       phase: 'recover',
       process_pid: process.pid,
+      process_instance_id: processInstanceId,
+      campaign_binding: binding,
+      postgres_identity: postgresIdentity,
       identity: fixture.identity,
-      recovered_state: recovered.state,
-      recovered_revision: recovered.revision,
-      observed_state: observed.state,
-      observed_revision: observed.revision,
-      replay_revision: replayed.revision,
+      ...replay,
       effect_count: 1,
       receipt_count: 4,
       production_eligible: false
@@ -334,14 +747,41 @@ async function recover(runId: string, outputPath: string): Promise<void> {
   }
 }
 
-async function cleanup(runId: string, outputPath: string): Promise<void> {
+async function verify(
+  binding: PostgresRestartBinding,
+  outputPath: string
+): Promise<void> {
+  const prepared = readEvidenceFile(
+    requiredEvidencePath('CONVERACT_G03_PREPARE_EVIDENCE')
+  );
+  const recovered = readEvidenceFile(
+    requiredEvidencePath('CONVERACT_G03_RECOVER_EVIDENCE')
+  );
+  writeJson(
+    outputPath,
+    verifyPostgresRestartEvidence(binding, prepared, recovered)
+  );
+}
+
+async function cleanup(
+  binding: PostgresRestartBinding,
+  outputPath: string
+): Promise<void> {
+  const runId = binding.run_id;
   const admin = databasePool('admin');
+  const client = await admin.connect();
   try {
-    await admin.query('BEGIN');
-    for (const statement of createPostgresRestartCleanupPlan(runId)) {
-      await admin.query(statement.sql, [...statement.params]);
+    await beginBoundedTransaction(client);
+    await assertCampaignOwnership(client, binding);
+    for (const statement of createPostgresRestartCleanupPlan(binding)) {
+      const result = await client.query(statement.sql, [...statement.params]);
+      assert.equal(
+        result.rowCount,
+        statement.expected_row_count,
+        'g03_postgres_restart_cleanup_row_count_invalid'
+      );
     }
-    await admin.query('COMMIT');
+    await client.query('COMMIT');
     await assertRegistryState(admin, false);
     const remaining = await admin.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count
@@ -358,62 +798,153 @@ async function cleanup(runId: string, outputPath: string): Promise<void> {
       production_eligible: false
     });
   } catch (error) {
-    await admin.query('ROLLBACK').catch(() => undefined);
+    await client.query('ROLLBACK').catch(() => undefined);
     throw error;
   } finally {
+    client.release();
     await admin.end();
   }
 }
 
-async function activateRegistries(admin: Pool, runId: string): Promise<void> {
-  await admin.query('BEGIN');
+async function activateRegistries(
+  admin: Pool,
+  binding: PostgresRestartBinding
+): Promise<void> {
+  const client = await admin.connect();
   try {
-    const schema = await admin.query(
+    await beginBoundedTransaction(client);
+    const schema = await client.query(
       `UPDATE ivekit_sip_effect_schema_registry
        SET enabled = TRUE,
            activation_receipt_id = $3,
            activated_at = clock_timestamp()
-       WHERE schema_id = $1 AND schema_version = $2`,
+       WHERE schema_id = $1
+         AND schema_version = $2
+         AND enabled = FALSE
+         AND activation_receipt_id IS NULL`,
       [
         SIP_EFFECT_SCHEMA_ID,
         SIP_EFFECT_SCHEMA_VERSION,
-        `g03-schema-activation-${runId}`
+        binding.schema_activation_receipt_id
       ]
     );
-    const writer = await admin.query(
+    const writer = await client.query(
       `UPDATE ivekit_sip_effect_writer_registry
        SET enabled = TRUE,
            activation_receipt_id = $2,
            activated_at = clock_timestamp()
-       WHERE writer_identity = $1`,
-      [WRITER_IDENTITY, `g03-writer-activation-${runId}`]
+       WHERE writer_identity = $1
+         AND enabled = FALSE
+         AND activation_receipt_id IS NULL`,
+      [WRITER_IDENTITY, binding.writer_activation_receipt_id]
     );
     assert.equal(schema.rowCount, 1);
     assert.equal(writer.rowCount, 1);
-    await admin.query('COMMIT');
+    await client.query('COMMIT');
   } catch (error) {
-    await admin.query('ROLLBACK').catch(() => undefined);
+    await client.query('ROLLBACK').catch(() => undefined);
     throw error;
+  } finally {
+    client.release();
   }
 }
 
-async function assertRegistryState(admin: Pool, enabled: boolean): Promise<void> {
+async function beginBoundedTransaction(client: PoolClient): Promise<void> {
+  await client.query('BEGIN');
+  await client.query(
+    `SET LOCAL statement_timeout = '${POSTGRES_RESTART_DATABASE_LIMITS.statement_timeout_ms}ms'`
+  );
+  await client.query(
+    `SET LOCAL lock_timeout = '${POSTGRES_RESTART_DATABASE_LIMITS.lock_timeout_ms}ms'`
+  );
+}
+
+async function assertCampaignOwnership(
+  admin: Pool | PoolClient,
+  binding: PostgresRestartBinding
+): Promise<void> {
+  const tenant = await admin.query<{
+    id: string;
+    name: string;
+    settings: unknown;
+  }>(
+    `SELECT id, name, settings
+     FROM tenants
+     WHERE id = $1
+       AND name = $2
+       AND settings = $3::jsonb
+     FOR UPDATE`,
+    [
+      binding.run_id,
+      binding.tenant_name,
+      JSON.stringify(binding.tenant_marker)
+    ]
+  );
+  assert.deepEqual(tenant.rows, [{
+    id: binding.run_id,
+    name: binding.tenant_name,
+    settings: binding.tenant_marker
+  }]);
+
+  const effect = await admin.query<{ protocol_effect_id: string }>(
+    `SELECT protocol_effect_id
+     FROM ivekit_sip_protocol_effects
+     WHERE tenant_id = $1 AND protocol_effect_id = $2
+     FOR UPDATE`,
+    [binding.run_id, binding.protocol_effect_id]
+  );
+  assert.deepEqual(effect.rows, [{
+    protocol_effect_id: binding.protocol_effect_id
+  }]);
+
+  const receipts = await admin.query<{ receipt_id: string }>(
+    `SELECT receipt_id
+     FROM ivekit_sip_effect_receipts
+     WHERE tenant_id = $1 AND protocol_effect_id = $2
+     ORDER BY receipt_id
+     FOR UPDATE`,
+    [binding.run_id, binding.protocol_effect_id]
+  );
+  assert.deepEqual(
+    receipts.rows.map(({ receipt_id: receiptId }) => receiptId),
+    [
+      binding.accepted_receipt_id,
+      binding.durable_receipt_id,
+      binding.observed_receipt_id,
+      binding.send_receipt_id
+    ].sort()
+  );
+
+  await assertRegistryState(admin, true, binding, true);
+}
+
+async function assertRegistryState(
+  admin: Pool | PoolClient,
+  enabled: boolean,
+  binding?: PostgresRestartBinding,
+  lock = false
+): Promise<void> {
   const result = await admin.query<{
     schema_enabled: boolean;
+    schema_activation_receipt_id: string | null;
     writer_enabled: boolean;
+    writer_activation_receipt_id: string | null;
     executor_exists: boolean;
     runtime_exists: boolean;
   }>(
     `SELECT
        schema_entry.enabled AS schema_enabled,
+       schema_entry.activation_receipt_id AS schema_activation_receipt_id,
        writer.enabled AS writer_enabled,
+       writer.activation_receipt_id AS writer_activation_receipt_id,
        EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $4) AS executor_exists,
        EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $5) AS runtime_exists
      FROM ivekit_sip_effect_schema_registry AS schema_entry
      CROSS JOIN ivekit_sip_effect_writer_registry AS writer
      WHERE schema_entry.schema_id = $1
        AND schema_entry.schema_version = $2
-       AND writer.writer_identity = $3`,
+       AND writer.writer_identity = $3
+     ${lock ? 'FOR UPDATE OF schema_entry, writer' : ''}`,
     [
       SIP_EFFECT_SCHEMA_ID,
       SIP_EFFECT_SCHEMA_VERSION,
@@ -424,7 +955,13 @@ async function assertRegistryState(admin: Pool, enabled: boolean): Promise<void>
   );
   assert.deepEqual(result.rows, [{
     schema_enabled: enabled,
+    schema_activation_receipt_id: enabled
+      ? binding?.schema_activation_receipt_id
+      : null,
     writer_enabled: enabled,
+    writer_activation_receipt_id: enabled
+      ? binding?.writer_activation_receipt_id
+      : null,
     executor_exists: true,
     runtime_exists: true
   }]);
@@ -444,7 +981,12 @@ function databasePool(kind: 'admin' | 'runtime'): Pool {
       ? requiredEnv('PGPASSWORD')
       : requiredEnv('CONVERACT_RUNTIME_DB_PASSWORD'),
     max: 2,
-    connectionTimeoutMillis: 2_000,
+    connectionTimeoutMillis:
+      POSTGRES_RESTART_DATABASE_LIMITS.connection_timeout_ms,
+    statement_timeout:
+      POSTGRES_RESTART_DATABASE_LIMITS.statement_timeout_ms,
+    lock_timeout: POSTGRES_RESTART_DATABASE_LIMITS.lock_timeout_ms,
+    query_timeout: POSTGRES_RESTART_DATABASE_LIMITS.query_timeout_ms,
     idleTimeoutMillis: 1_000,
     application_name: `converact-g03-restart-${kind}`
   });
@@ -453,6 +995,13 @@ function databasePool(kind: 'admin' | 'runtime'): Pool {
 function checkedRunId(value: string): string {
   if (!RUN_ID_PATTERN.test(value)) {
     throw new Error('g03_postgres_restart_run_id_invalid');
+  }
+  return value;
+}
+
+function checkedSourceCommit(value: string): string {
+  if (!SOURCE_COMMIT_PATTERN.test(value)) {
+    throw new Error('g03_postgres_restart_source_commit_invalid');
   }
   return value;
 }
@@ -478,6 +1027,23 @@ function requiredOutputPath(): string {
     throw new Error('g03_postgres_restart_output_invalid');
   }
   return resolve(value);
+}
+
+function requiredEvidencePath(name: string): string {
+  const value = requiredEnv(name);
+  if (!value.startsWith('/')) {
+    throw new Error(`g03_postgres_restart_${name.toLowerCase()}_invalid`);
+  }
+  return resolve(value);
+}
+
+function readEvidenceFile(pathInput: string): unknown {
+  const path = resolve(pathInput);
+  const size = statSync(path).size;
+  if (!Number.isSafeInteger(size) || size < 2 || size > MAX_EVIDENCE_BYTES) {
+    throw new Error('g03_postgres_restart_evidence_size_invalid');
+  }
+  return JSON.parse(readFileSync(path, 'utf8')) as unknown;
 }
 
 function writeJson(pathInput: string, value: unknown): void {
