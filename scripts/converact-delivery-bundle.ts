@@ -811,6 +811,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'expect-487-timeout-uac.xml',
     'expect-503-uac.xml',
     'inbound-reject-486-uac.xml',
+    'long-call-2h-uac.xml',
+    'long-call-2h-uas.xml',
     'no-answer-uas.xml',
     'options-uas.xml',
     'register-digest-uac.xml',

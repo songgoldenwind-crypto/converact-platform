@@ -457,6 +457,8 @@ test('Converact Fabric delivery bundle contains only curated handoff artifacts w
     assert.match(storageIsolationReadme, /docker-compose\.storage\.yml/);
     assert.match(storageIsolationReadme, /never promotes the V6/i);
     assert.equal(files.includes('acceptance/rustpbx/sipp/answer-bye-uac.xml'), true);
+    assert.equal(files.includes('acceptance/rustpbx/sipp/long-call-2h-uac.xml'), true);
+    assert.equal(files.includes('acceptance/rustpbx/sipp/long-call-2h-uas.xml'), true);
     const rustPbxAcceptancePackage = JSON.parse(readFileSync(
       join(outputDir, 'acceptance', 'rustpbx', 'package.json'),
       'utf8'

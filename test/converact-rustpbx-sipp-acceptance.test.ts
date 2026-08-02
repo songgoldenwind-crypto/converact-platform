@@ -55,11 +55,26 @@ test('RustPBX SIPp acceptance pins tools and covers the complete signaling matri
     'udp-retransmission',
     'concurrent-udp-10',
     'register-digest',
-    'register-invalid-password'
+    'register-invalid-password',
+    'long-call-2h'
   ]);
+  const longCall = scenarios.find((scenario) => scenario.id === 'long-call-2h');
+  assert.equal(longCall?.opt_in, true);
+  assert.equal(longCall?.timeout_seconds, 7_260);
+  assert.deepEqual(
+    selectRustPbxSippScenarios(scenarios, '').map((entry) => entry.id),
+    scenarios.filter((entry) => entry.id !== 'long-call-2h').map((entry) => entry.id)
+  );
+  assert.deepEqual(
+    selectRustPbxSippScenarios(scenarios, 'long-call-2h').map((entry) => entry.id),
+    ['long-call-2h']
+  );
   assert.equal(scenarios.find((scenario) => scenario.id === 'udp-retransmission')?.minimum_retransmissions, 1);
   assert.equal(scenarios.find((scenario) => scenario.id === 'concurrent-udp-10')?.calls, 10);
-  assert.equal(scenarios.filter((scenario) => scenario.service?.startsWith('+180055502')).length, 9);
+  assert.equal(
+    scenarios.filter((scenario) => !scenario.opt_in && scenario.service?.startsWith('+180055502')).length,
+    9
+  );
   assert.ok(
     scenarios
       .filter((scenario) => scenario.service && scenario.id !== 'register-digest'
@@ -87,6 +102,12 @@ test('RustPBX SIPp acceptance pins tools and covers the complete signaling matri
   assert.match(tcpUac, /<send retrans="500" start_rtd="sip_route">/);
   assert.match(tcpUac, /<recv response="100" optional="true" rtd="sip_route" \/>/);
   assert.match(tcpUac, /<recv response="200" rrs="true" rtd="sip_post_dial" \/>/);
+
+  const longCallUac = readFileSync(new URL(
+    '../services/converact-service/acceptance/sipp/long-call-2h-uac.xml',
+    import.meta.url
+  ), 'utf8');
+  assert.match(longCallUac, /<pause milliseconds="7200000" \/>/);
 });
 
 test('RustPBX SIPp acceptance counts duplicate inbound INVITEs as retransmissions', () => {

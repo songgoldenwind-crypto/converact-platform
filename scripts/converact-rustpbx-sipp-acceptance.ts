@@ -43,6 +43,7 @@ export interface RustPbxSippScenario {
   auth_password?: string;
   uac_ip?: string;
   minimum_retransmissions?: number;
+  opt_in?: boolean;
 }
 
 export interface RustPbxSippScenarioResult {
@@ -175,6 +176,17 @@ export function createRustPbxSippScenarios(
       auth_username: extension,
       auth_password: 'invalid-acceptance-password',
       uac_ip: '172.30.44.29'
+    },
+    {
+      ...scenario(
+        'long-call-2h',
+        'long-call-2h-uac.xml',
+        'long-call-2h-uas.xml',
+        '172.30.44.22',
+        '+18005550200'
+      ),
+      timeout_seconds: 7_260,
+      opt_in: true
     }
   ];
 }
@@ -184,7 +196,7 @@ export function selectRustPbxSippScenarios(
   rawFilter: string
 ): RustPbxSippScenario[] {
   const requested = new Set(rawFilter.split(',').map((value) => value.trim()).filter(Boolean));
-  if (!requested.size) return scenarios;
+  if (!requested.size) return scenarios.filter((scenario) => !scenario.opt_in);
   const known = new Set(scenarios.map((scenario) => scenario.id));
   const unknown = [...requested].filter((id) => !known.has(id));
   if (unknown.length) throw new Error(`unknown RustPBX SIPp scenarios: ${unknown.join(', ')}`);
