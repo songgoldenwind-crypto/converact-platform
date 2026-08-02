@@ -111,6 +111,16 @@ plus 1 ignored RustPBX library test. The `.43` release image, controlled-host
 wire/latency/long-call/fault/capacity campaigns and production eligibility
 remain `not_run` until requalified against the committed patchset.
 
+ivekit.44 adds the native foundation identity boundary without replacing the
+SIP stack. Canonical `CallId`, `LegId`, `ProtocolDialogId`, `TransactionId`,
+`MediaSessionId` and `InteractionId` values use the same length-prefixed
+SHA-256 derivation as the control plane. Snapshot admission carries an
+attested VoiceCall projection reference, placement interaction reference and
+the exact provider Call-ID separately; only RustPBX adopts the projection into
+the canonical business `CallId`. Positive owner epoch, generation and revision
+are mandatory, and a provider-ID mismatch fails admission closed. Runtime
+registry and durable SipEffect activation remain separate G03 gates.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

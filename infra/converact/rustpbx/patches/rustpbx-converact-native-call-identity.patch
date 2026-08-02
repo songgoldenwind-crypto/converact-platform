@@ -1,0 +1,753 @@
+diff --git a/src/call/domain/foundation_identity.rs b/src/call/domain/foundation_identity.rs
+new file mode 100644
+index 00000000..c497d24d
+--- /dev/null
++++ b/src/call/domain/foundation_identity.rs
+@@ -0,0 +1,529 @@
++use serde::{Deserialize, Deserializer, Serialize};
++use sha2::{Digest, Sha256};
++
++const MAX_IDENTIFIER_BYTES: usize = 128;
++const MAX_COMPONENTS: usize = 16;
++const MAX_COMPONENT_BYTES: usize = 4_096;
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
++pub enum FoundationIdentityError {
++    #[error("voice foundation identifier is invalid")]
++    InvalidIdentifier,
++    #[error("voice call projection identifier is invalid")]
++    InvalidProjection,
++    #[error("voice call mutation fence is invalid")]
++    InvalidFence,
++}
++
++macro_rules! canonical_identifier {
++    ($name:ident, $prefix:literal, $namespace:literal, $derive_fn:ident) => {
++        #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
++        #[serde(transparent)]
++        pub struct $name(String);
++
++        impl $name {
++            pub fn parse(value: &str) -> Result<Self, FoundationIdentityError> {
++                parse_canonical(value, $prefix).map(Self)
++            }
++
++            pub fn as_str(&self) -> &str {
++                &self.0
++            }
++        }
++
++        impl std::fmt::Display for $name {
++            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++                formatter.write_str(&self.0)
++            }
++        }
++
++        impl<'de> Deserialize<'de> for $name {
++            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
++            where
++                D: Deserializer<'de>,
++            {
++                let value = String::deserialize(deserializer)?;
++                Self::parse(&value).map_err(serde::de::Error::custom)
++            }
++        }
++
++        pub fn $derive_fn(
++            tenant_id: &str,
++            components: &[&str],
++        ) -> Result<$name, FoundationIdentityError> {
++            derive_identifier($prefix, $namespace, tenant_id, components).map($name)
++        }
++    };
++}
++
++canonical_identifier!(CallId, "call_", "call", derive_call_id);
++canonical_identifier!(LegId, "leg_", "leg", derive_leg_id);
++canonical_identifier!(
++    ProtocolDialogId,
++    "pdlg_",
++    "protocol-dialog",
++    derive_protocol_dialog_id
++);
++canonical_identifier!(
++    TransactionId,
++    "ptxn_",
++    "protocol-transaction",
++    derive_transaction_id
++);
++canonical_identifier!(
++    MediaSessionId,
++    "media_",
++    "media-session",
++    derive_media_session_id
++);
++canonical_identifier!(
++    InteractionId,
++    "interaction_",
++    "interaction",
++    derive_interaction_id
++);
++
++#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
++#[serde(transparent)]
++pub struct ProviderCallId(String);
++
++impl ProviderCallId {
++    pub fn parse(value: &str) -> Result<Self, FoundationIdentityError> {
++        valid_opaque_wire_identifier(value)?;
++        Ok(Self(value.to_string()))
++    }
++
++    pub fn as_str(&self) -> &str {
++        &self.0
++    }
++}
++
++impl std::fmt::Display for ProviderCallId {
++    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        formatter.write_str(&self.0)
++    }
++}
++
++impl<'de> Deserialize<'de> for ProviderCallId {
++    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
++    where
++        D: Deserializer<'de>,
++    {
++        let value = String::deserialize(deserializer)?;
++        Self::parse(&value).map_err(serde::de::Error::custom)
++    }
++}
++
++#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
++pub struct NativeCallIdentity {
++    tenant_id: String,
++    call_id: CallId,
++    interaction_id: InteractionId,
++    provider_call_id: ProviderCallId,
++    owner_epoch: u64,
++    generation: u64,
++    revision: u64,
++}
++
++impl NativeCallIdentity {
++    pub fn adopt_projection(
++        tenant_id: &str,
++        projection_call_id: &str,
++        placement_interaction_id: &str,
++        provider_call_id: &str,
++        owner_epoch: u64,
++        generation: u64,
++        revision: u64,
++    ) -> Result<Self, FoundationIdentityError> {
++        let projection_kind = legacy_projection_kind(projection_call_id)?;
++        valid_opaque_wire_identifier(placement_interaction_id)?;
++        let call_id = derive_call_id(
++            tenant_id,
++            &[
++                "legacy-voice-call-repository",
++                projection_kind,
++                projection_call_id,
++            ],
++        )?;
++        let interaction_id =
++            derive_interaction_id(tenant_id, &["placement", placement_interaction_id])?;
++        Self::from_canonical(
++            tenant_id,
++            call_id,
++            interaction_id,
++            ProviderCallId::parse(provider_call_id)?,
++            owner_epoch,
++            generation,
++            revision,
++        )
++    }
++
++    pub fn from_canonical(
++        tenant_id: &str,
++        call_id: CallId,
++        interaction_id: InteractionId,
++        provider_call_id: ProviderCallId,
++        owner_epoch: u64,
++        generation: u64,
++        revision: u64,
++    ) -> Result<Self, FoundationIdentityError> {
++        valid_tenant_id(tenant_id)?;
++        if owner_epoch == 0 || generation == 0 || revision == 0 {
++            return Err(FoundationIdentityError::InvalidFence);
++        }
++        Ok(Self {
++            tenant_id: tenant_id.to_string(),
++            call_id,
++            interaction_id,
++            provider_call_id,
++            owner_epoch,
++            generation,
++            revision,
++        })
++    }
++
++    pub fn tenant_id(&self) -> &str {
++        &self.tenant_id
++    }
++
++    pub fn call_id(&self) -> &CallId {
++        &self.call_id
++    }
++
++    pub fn interaction_id(&self) -> &InteractionId {
++        &self.interaction_id
++    }
++
++    pub fn provider_call_id(&self) -> &ProviderCallId {
++        &self.provider_call_id
++    }
++
++    pub fn owner_epoch(&self) -> u64 {
++        self.owner_epoch
++    }
++
++    pub fn generation(&self) -> u64 {
++        self.generation
++    }
++
++    pub fn revision(&self) -> u64 {
++        self.revision
++    }
++}
++
++impl<'de> Deserialize<'de> for NativeCallIdentity {
++    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
++    where
++        D: Deserializer<'de>,
++    {
++        #[derive(Deserialize)]
++        struct WireIdentity {
++            tenant_id: String,
++            call_id: CallId,
++            interaction_id: InteractionId,
++            provider_call_id: ProviderCallId,
++            owner_epoch: u64,
++            generation: u64,
++            revision: u64,
++        }
++
++        let wire = WireIdentity::deserialize(deserializer)?;
++        Self::from_canonical(
++            &wire.tenant_id,
++            wire.call_id,
++            wire.interaction_id,
++            wire.provider_call_id,
++            wire.owner_epoch,
++            wire.generation,
++            wire.revision,
++        )
++        .map_err(serde::de::Error::custom)
++    }
++}
++
++fn parse_canonical(value: &str, prefix: &str) -> Result<String, FoundationIdentityError> {
++    let Some(digest) = value.strip_prefix(prefix) else {
++        return Err(FoundationIdentityError::InvalidIdentifier);
++    };
++    if value.len() > MAX_IDENTIFIER_BYTES
++        || digest.len() != 32
++        || !digest
++            .bytes()
++            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
++    {
++        return Err(FoundationIdentityError::InvalidIdentifier);
++    }
++    Ok(value.to_string())
++}
++
++fn derive_identifier(
++    prefix: &str,
++    namespace: &str,
++    tenant_id: &str,
++    components: &[&str],
++) -> Result<String, FoundationIdentityError> {
++    valid_tenant_id(tenant_id)?;
++    if components.is_empty() || components.len() > MAX_COMPONENTS {
++        return Err(FoundationIdentityError::InvalidIdentifier);
++    }
++
++    let mut hash = Sha256::new();
++    append_length_prefixed(&mut hash, namespace)?;
++    append_length_prefixed(&mut hash, tenant_id)?;
++    for component in components {
++        append_length_prefixed(&mut hash, component)?;
++    }
++    let digest = hash.finalize();
++    let mut result = String::with_capacity(prefix.len() + 32);
++    result.push_str(prefix);
++    const HEX: &[u8; 16] = b"0123456789abcdef";
++    for byte in digest.iter().take(16) {
++        result.push(HEX[(byte >> 4) as usize] as char);
++        result.push(HEX[(byte & 0x0f) as usize] as char);
++    }
++    Ok(result)
++}
++
++fn append_length_prefixed(hash: &mut Sha256, value: &str) -> Result<(), FoundationIdentityError> {
++    if value.len() > MAX_COMPONENT_BYTES
++        || value
++            .chars()
++            .any(|character| matches!(character as u32, 0x00..=0x1f | 0x7f))
++    {
++        return Err(FoundationIdentityError::InvalidIdentifier);
++    }
++    let length =
++        u32::try_from(value.len()).map_err(|_| FoundationIdentityError::InvalidIdentifier)?;
++    hash.update(length.to_be_bytes());
++    hash.update(value.as_bytes());
++    Ok(())
++}
++
++fn valid_tenant_id(value: &str) -> Result<(), FoundationIdentityError> {
++    let mut bytes = value.bytes();
++    let Some(first) = bytes.next() else {
++        return Err(FoundationIdentityError::InvalidIdentifier);
++    };
++    if value.len() > MAX_IDENTIFIER_BYTES
++        || !first.is_ascii_alphanumeric()
++        || !bytes.all(valid_common_input_byte)
++    {
++        return Err(FoundationIdentityError::InvalidIdentifier);
++    }
++    Ok(())
++}
++
++fn valid_common_input_byte(byte: u8) -> bool {
++    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'@' | b'/' | b'-')
++}
++
++fn valid_opaque_wire_identifier(value: &str) -> Result<(), FoundationIdentityError> {
++    if value.is_empty()
++        || value.len() > MAX_IDENTIFIER_BYTES
++        || !value.is_ascii()
++        || value
++            .bytes()
++            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
++    {
++        return Err(FoundationIdentityError::InvalidIdentifier);
++    }
++    Ok(())
++}
++
++fn legacy_projection_kind(value: &str) -> Result<&'static str, FoundationIdentityError> {
++    if valid_vcall_projection(value) {
++        return Ok("vcall");
++    }
++    if valid_uuid_projection(value) {
++        return Ok("uuid");
++    }
++    Err(FoundationIdentityError::InvalidProjection)
++}
++
++fn valid_vcall_projection(value: &str) -> bool {
++    let Some(suffix) = value.strip_prefix("vcall_") else {
++        return false;
++    };
++    let mut bytes = suffix.bytes();
++    matches!(bytes.next(), Some(first) if first.is_ascii_alphanumeric())
++        && value.len() <= MAX_IDENTIFIER_BYTES
++        && bytes.all(valid_common_input_byte)
++}
++
++fn valid_uuid_projection(value: &str) -> bool {
++    if value.len() != 36 {
++        return false;
++    }
++    let bytes = value.as_bytes();
++    if [8, 13, 18, 23].iter().any(|index| bytes[*index] != b'-')
++        || !(b'1'..=b'8').contains(&bytes[14])
++        || !matches!(bytes[19].to_ascii_lowercase(), b'8' | b'9' | b'a' | b'b')
++    {
++        return false;
++    }
++    bytes.iter().enumerate().all(|(index, byte)| {
++        [8, 13, 18, 23].contains(&index)
++            || byte.is_ascii_digit()
++            || (b'a'..=b'f').contains(&byte.to_ascii_lowercase())
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn canonical_derivation_matches_the_control_plane_vectors() {
++        let tenant = "tenant-a";
++
++        assert_eq!(
++            derive_call_id(
++                tenant,
++                &["legacy-voice-call-repository", "vcall", "vcall_abc",],
++            )
++            .unwrap()
++            .as_str(),
++            "call_7f906e5acdb6ff58c90d54566ced341f"
++        );
++        assert_eq!(
++            derive_leg_id(
++                tenant,
++                &["call_0123456789abcdef0123456789abcdef", "inbound", "0",],
++            )
++            .unwrap()
++            .as_str(),
++            "leg_e93b4b669532aa79f6ecf0befeb69be2"
++        );
++        assert_eq!(
++            derive_protocol_dialog_id(tenant, &["provider-dialog-a"])
++                .unwrap()
++                .as_str(),
++            "pdlg_e5cfae6c89253a3ee37a53be030b5200"
++        );
++        assert_eq!(
++            derive_transaction_id(tenant, &["z9hG4bK-a", "INVITE"])
++                .unwrap()
++                .as_str(),
++            "ptxn_0500dde3b9b4ff789d2a141916fd6619"
++        );
++        assert_eq!(
++            derive_media_session_id(tenant, &["call_0123456789abcdef0123456789abcdef"],)
++                .unwrap()
++                .as_str(),
++            "media_5d6bc2ba33d5f7c89be37e9dda95eda6"
++        );
++        assert_eq!(
++            derive_interaction_id(tenant, &["placement", "vcall_abc"])
++                .unwrap()
++                .as_str(),
++            "interaction_2f76cfe99ecf8daf6972aa0734d860b4"
++        );
++    }
++
++    #[test]
++    fn canonical_parsers_reject_role_confusion_and_noncanonical_values() {
++        let call = "call_0123456789abcdef0123456789abcdef";
++        assert_eq!(CallId::parse(call).unwrap().as_str(), call);
++
++        assert!(CallId::parse("provider-call-id@example.test").is_err());
++        assert!(CallId::parse(" call_0123456789abcdef0123456789abcdef").is_err());
++        assert!(CallId::parse("call_0123456789ABCDEF0123456789abcdef").is_err());
++        assert!(InteractionId::parse(call).is_err());
++        assert!(ProviderCallId::parse("provider call id").is_err());
++        assert!(ProviderCallId::parse(&"a".repeat(129)).is_err());
++    }
++
++    #[test]
++    fn native_identity_keeps_business_and_provider_roles_distinct() {
++        let identity = NativeCallIdentity::adopt_projection(
++            "tenant-a",
++            "vcall_abc",
++            "vcall_abc",
++            "provider-call-id@example.test",
++            7,
++            11,
++            13,
++        )
++        .unwrap();
++
++        assert_eq!(
++            identity.call_id().as_str(),
++            "call_7f906e5acdb6ff58c90d54566ced341f"
++        );
++        assert_eq!(
++            identity.interaction_id.as_str(),
++            "interaction_2f76cfe99ecf8daf6972aa0734d860b4"
++        );
++        assert_eq!(
++            identity.provider_call_id().as_str(),
++            "provider-call-id@example.test"
++        );
++        assert_ne!(
++            identity.call_id().as_str(),
++            identity.provider_call_id().as_str()
++        );
++        assert_eq!(identity.owner_epoch(), 7);
++        assert_eq!(identity.generation(), 11);
++        assert_eq!(identity.revision(), 13);
++    }
++
++    #[test]
++    fn native_identity_rejects_unattested_or_unfenced_projection_data() {
++        assert!(
++            NativeCallIdentity::adopt_projection(
++                "tenant-a",
++                "provider-call-id@example.test",
++                "vcall_abc",
++                "provider-call-id@example.test",
++                1,
++                1,
++                1,
++            )
++            .is_err()
++        );
++        assert!(
++            NativeCallIdentity::adopt_projection(
++                "tenant-a",
++                "vcall_abc",
++                "vcall_abc",
++                "provider-call-id@example.test",
++                0,
++                1,
++                1,
++            )
++            .is_err()
++        );
++        assert!(
++            NativeCallIdentity::adopt_projection(
++                "tenant-a",
++                "vcall_abc",
++                "vcall_abc",
++                "provider-call-id@example.test",
++                1,
++                0,
++                1,
++            )
++            .is_err()
++        );
++        assert!(
++            NativeCallIdentity::adopt_projection(
++                "tenant-a",
++                "vcall_abc",
++                "vcall_abc",
++                "provider-call-id@example.test",
++                1,
++                1,
++                0,
++            )
++            .is_err()
++        );
++    }
++
++    #[test]
++    fn deserialization_cannot_bypass_identifier_validation() {
++        assert!(
++            serde_json::from_str::<CallId>(r#""call_0123456789abcdef0123456789abcdef""#,).is_ok()
++        );
++        assert!(serde_json::from_str::<CallId>(r#""provider-call-id@example.test""#).is_err());
++    }
++}
+diff --git a/src/call/domain/mod.rs b/src/call/domain/mod.rs
+index 2745efa5..23ee053d 100644
+--- a/src/call/domain/mod.rs
++++ b/src/call/domain/mod.rs
+@@ -12,6 +12,7 @@
+ //! 4. **Media Path Awareness**: Native support for both anchored and bypass media paths
+ 
+ mod command;
++pub mod foundation_identity;
+ mod hangup;
+ mod leg;
+ mod policy;
+diff --git a/src/ivekit_owner.rs b/src/ivekit_owner.rs
+index 19f40f25..7374532d 100644
+--- a/src/ivekit_owner.rs
++++ b/src/ivekit_owner.rs
+@@ -189,6 +189,7 @@ impl Authorizer for DisabledAuthorizer {
+ 
+ struct OwnerEntry {
+     contract: OwnerContract,
++    native_identity: Option<crate::call::domain::foundation_identity::NativeCallIdentity>,
+     guard: Guard<DisabledAuthorizer>,
+ }
+ 
+@@ -230,14 +231,42 @@ static CONFIG: OnceLock<std::result::Result<Option<OwnerConfig>, String>> = Once
+ static OWNERS: OnceLock<DashMap<String, Arc<OwnerEntry>>> = OnceLock::new();
+ 
+ pub async fn ensure_owner(provider_call_id: &str, contract: OwnerContract) -> Result<bool> {
++    ensure_owner_inner(provider_call_id, contract, None, false).await
++}
++
++pub async fn ensure_owner_with_identity(
++    provider_call_id: &str,
++    contract: OwnerContract,
++    native_identity: crate::call::domain::foundation_identity::NativeCallIdentity,
++) -> Result<bool> {
++    if native_identity.provider_call_id().as_str() != provider_call_id
++        || native_identity.tenant_id() != contract.tenant_id
++        || native_identity.owner_epoch().to_string() != contract.owner_epoch
++    {
++        return Err(anyhow!(
++            "native call identity does not match owner contract"
++        ));
++    }
++    ensure_owner_inner(provider_call_id, contract, Some(native_identity), true).await
++}
++
++async fn ensure_owner_inner(
++    provider_call_id: &str,
++    contract: OwnerContract,
++    native_identity: Option<crate::call::domain::foundation_identity::NativeCallIdentity>,
++    require_config: bool,
++) -> Result<bool> {
+     valid_provider_call_id(provider_call_id)?;
+     contract.validate()?;
+     let Some(config) = config()? else {
++        if require_config {
++            return Err(anyhow!("native call owner is not configured"));
++        }
+         return Ok(false);
+     };
+     let owners = owners();
+     if let Some(existing) = owners.get(provider_call_id) {
+-        if existing.contract != contract {
++        if existing.contract != contract || existing.native_identity != native_identity {
+             return Err(anyhow!("owner contract conflict"));
+         }
+         existing
+@@ -255,12 +284,13 @@ pub async fn ensure_owner(provider_call_id: &str, contract: OwnerContract) -> Re
+         .map_err(|error| anyhow!("owner open rejected: {error}"))?;
+     let entry = Arc::new(OwnerEntry {
+         contract: contract.clone(),
++        native_identity: native_identity.clone(),
+         guard,
+     });
+     match owners.entry(provider_call_id.to_string()) {
+         dashmap::mapref::entry::Entry::Occupied(existing) => {
+             let current = existing.get();
+-            if current.contract != contract {
++            if current.contract != contract || current.native_identity != native_identity {
+                 return Err(anyhow!("owner contract conflict"));
+             }
+             current
+@@ -294,6 +324,14 @@ pub fn owner_contract(provider_call_id: &str) -> Option<OwnerContract> {
+         .map(|entry| entry.contract.clone())
+ }
+ 
++pub fn owner_identity(
++    provider_call_id: &str,
++) -> Option<crate::call::domain::foundation_identity::NativeCallIdentity> {
++    owners()
++        .get(provider_call_id)
++        .and_then(|entry| entry.native_identity.clone())
++}
++
+ pub fn session_hook() -> Result<Option<Arc<dyn CallSessionHook>>> {
+     Ok(config()?.map(|_| Arc::new(IveKitOwnerSessionHook) as Arc<dyn CallSessionHook>))
+ }
+diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
+index 1810aa55..0efe08da 100644
+--- a/src/proxy/routing/http.rs
++++ b/src/proxy/routing/http.rs
+@@ -342,11 +342,18 @@ impl HttpCallRouter {
+                 extensions: None,
+             });
+         }
+-        crate::ivekit_owner::ensure_owner(
++        let native_identity = admitted
++            .native_identity(call_id)
++            .map_err(|error| RouteError {
++                error: anyhow!("snapshot inbound admission identity is invalid: {error}"),
++                status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++                extensions: None,
++            })?;
++        crate::ivekit_owner::ensure_owner_with_identity(
+             call_id,
+             crate::ivekit_owner::OwnerContract {
+                 reservation_id: admitted.reservation_id,
+-                interaction_id: admitted.call_id,
++                interaction_id: admitted.placement_interaction_id,
+                 owner_epoch: admitted.owner_epoch,
+                 route_snapshot_revision: admitted.route_snapshot_revision,
+                 availability_profile: admitted.availability_profile,
+@@ -356,6 +363,7 @@ impl HttpCallRouter {
+                 owner_node_id: admitted.owner_node_id,
+                 media_control_profile: admitted.media_control_profile,
+             },
++            native_identity,
+         )
+         .await
+         .map_err(|error| RouteError {
+@@ -458,7 +466,11 @@ struct HttpSnapshotAdmissionPayload<'a> {
+ #[derive(Deserialize)]
+ struct HttpSnapshotAdmissionResponse {
+     accepted: bool,
+-    call_id: String,
++    call_projection_id: String,
++    placement_interaction_id: String,
++    provider_call_id: String,
++    call_generation: u64,
++    call_revision: u64,
+     reservation_id: String,
+     owner_epoch: String,
+     tenant_id: String,
+@@ -474,6 +486,31 @@ struct HttpSnapshotAdmissionResponse {
+     audio_tap_token: Option<String>,
+ }
+ 
++impl HttpSnapshotAdmissionResponse {
++    fn native_identity(
++        &self,
++        expected_provider_call_id: &str,
++    ) -> Result<crate::call::domain::foundation_identity::NativeCallIdentity> {
++        if self.provider_call_id != expected_provider_call_id {
++            return Err(anyhow!("snapshot admission provider call ID mismatch"));
++        }
++        let owner_epoch = self
++            .owner_epoch
++            .parse::<u64>()
++            .map_err(|_| anyhow!("snapshot admission owner epoch is invalid"))?;
++        crate::call::domain::foundation_identity::NativeCallIdentity::adopt_projection(
++            &self.tenant_id,
++            &self.call_projection_id,
++            &self.placement_interaction_id,
++            &self.provider_call_id,
++            owner_epoch,
++            self.call_generation,
++            self.call_revision,
++        )
++        .map_err(Into::into)
++    }
++}
++
+ fn ordinary_availability_profile() -> String {
+     "VOICE-ORDINARY".to_string()
+ }
+@@ -1043,4 +1080,41 @@ mod snapshot_tests {
+         assert!(validated_audio_tap_token(format!("valid-token-{}\n", "x".repeat(32))).is_none());
+         assert!(validated_audio_tap_token(format!("token-{}", "x".repeat(2049))).is_none());
+     }
++
++    #[test]
++    fn snapshot_admission_derives_native_identity_without_promoting_sip_call_id() {
++        let response: HttpSnapshotAdmissionResponse = serde_json::from_value(serde_json::json!({
++            "accepted": true,
++            "call_projection_id": "vcall_abc",
++            "placement_interaction_id": "vcall_abc",
++            "provider_call_id": "provider-call-id@example.test",
++            "call_generation": 3,
++            "call_revision": 5,
++            "reservation_id": "reservation-a",
++            "owner_epoch": "7",
++            "tenant_id": "tenant-a",
++            "cell_id": "cell-a",
++            "owner_node_id": "rustpbx-a",
++            "media_control_profile": {
++                "media_profile_id": "g711-relay-v1"
++            },
++            "route_snapshot_revision": 11
++        }))
++        .unwrap();
++
++        let identity = response
++            .native_identity("provider-call-id@example.test")
++            .unwrap();
++        assert_eq!(
++            identity.call_id().as_str(),
++            "call_7f906e5acdb6ff58c90d54566ced341f"
++        );
++        assert_eq!(
++            identity.provider_call_id().as_str(),
++            "provider-call-id@example.test"
++        );
++        assert_eq!(identity.generation(), 3);
++        assert_eq!(identity.revision(), 5);
++        assert!(response.native_identity("different-provider-id").is_err());
++    }
+ }

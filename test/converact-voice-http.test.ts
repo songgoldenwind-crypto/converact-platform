@@ -645,8 +645,8 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
     status: number;
     data: {
       accepted: boolean;
-      call_id: string;
-      interaction_id: string;
+      call_projection_id: string;
+      placement_interaction_id: string;
       provider_call_id: string;
       call_generation: number;
       call_revision: number;
@@ -683,8 +683,8 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
     .digest('hex')}`;
   assert.deepEqual(result.data, {
     accepted: true,
-    call_id: 'vcall-snapshot-a',
-    interaction_id: 'vcall-snapshot-a',
+    call_projection_id: 'vcall-snapshot-a',
+    placement_interaction_id: 'vcall-snapshot-a',
     provider_call_id: 'provider-snapshot-a',
     call_generation: 3,
     call_revision: 1,
