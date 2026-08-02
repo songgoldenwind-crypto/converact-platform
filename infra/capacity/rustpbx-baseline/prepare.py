@@ -102,6 +102,9 @@ def main() -> None:
         "RUSTPBX_WEBHOOK_TOKEN": secrets.token_urlsafe(36),
         "RUSTPBX_TRUNK_CREDENTIAL": secrets.token_urlsafe(36),
         "RUSTPBX_MEDIA_PROXY_MODE": media_proxy_mode(),
+        "RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS": bounded_integer(
+            "RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS", 65536, 1, 1000000
+        ),
         "RUSTRTC_UDP_RECEIVE_BUFFER_BYTES": bounded_integer(
             "RUSTRTC_UDP_RECEIVE_BUFFER_BYTES", 1048576, 65536, 16777216
         ),

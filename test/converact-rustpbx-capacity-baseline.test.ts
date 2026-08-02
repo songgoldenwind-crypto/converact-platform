@@ -83,6 +83,7 @@ test('RustPBX direct baseline trusts the SIPp source instead of the absent Kamai
     env: {
       ...process.env,
       CONVERACT_FABRIC_CAPACITY_INCLUDE_KAMAILIO: '0',
+      RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS: '1',
       RUSTPBX_IMAGE: 'converact/rustpbx:0.4.11-ivekit.41-6c49ee76',
       KAMAILIO_IMAGE: 'converact/kamailio:6.0.7-ivekit.1',
       POSTGRES_IMAGE: 'postgres@sha256:' + 'a'.repeat(64),
@@ -93,6 +94,8 @@ test('RustPBX direct baseline trusts the SIPp source instead of the absent Kamai
 
   assert.equal(result.status, 0, result.stderr);
   const env = readFileSync(join(output, '.env'), 'utf8');
+  const config = readFileSync(join(output, 'rustpbx.toml'), 'utf8');
   assert.match(env, /^RUSTPBX_ACCEPTANCE_TRUNK_IP=172\.30\.44\.20$/m);
   assert.doesNotMatch(env, /^RUSTPBX_ACCEPTANCE_TRUNK_IP=172\.30\.44\.9$/m);
+  assert.match(config, /^sip_max_active_transactions = 1$/m);
 });
