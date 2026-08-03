@@ -1,0 +1,587 @@
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+index b2e363d6..2a55c02a 100644
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -1,7 +1,8 @@
+ use crate::call::domain::sip_effect::{
+     PreparedSipEffect, SIP_EFFECT_SCHEMA_HASH, SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_VERSION,
+-    SIP_EFFECT_WRITER_IDENTITY, SipEffectError, SipEffectPrepareOutcome, SipEffectRecord,
+-    SipEffectRepairFence, SipEffectState, protocol_effect_identity_hash,
++    SIP_EFFECT_WRITER_IDENTITY, SipEffectApplyOutcome, SipEffectError, SipEffectPrepareOutcome,
++    SipEffectReceipt, SipEffectReceiptLevel, SipEffectRecord, SipEffectRepairFence, SipEffectState,
++    classify_receipt, protocol_effect_identity_hash,
+ };
+ use chrono::{DateTime, Utc};
+ use serde_json::Value;
+@@ -132,6 +133,90 @@ const QUERY_SQL: &str = concat!(
+         "#,
+ );
+ 
++const TRANSITION_LOCK_SQL: &str = concat!(
++    "SELECT ",
++    effect_columns!(),
++    r#"
++        FROM ivekit_sip_protocol_effects
++        WHERE tenant_id = $1 AND protocol_effect_id = $2
++        FOR UPDATE
++        "#,
++);
++
++const RECEIPT_REPLAY_SQL: &str = r#"
++    SELECT protocol_effect_id, effect_identity_hash, receipt_hash, level,
++           from_state, failure_code, repair_delay_ms,
++           schema_id, schema_version, schema_hash, writer_identity
++    FROM ivekit_sip_effect_receipts
++    WHERE tenant_id = $1 AND receipt_id = $2
++"#;
++
++const RECEIPT_INSERT_SQL: &str = r#"
++    INSERT INTO ivekit_sip_effect_receipts
++      (receipt_id, tenant_id, protocol_effect_id, decision_id,
++       idempotency_key, request_hash, command_id, wire_bytes_hash,
++       effect_identity_hash, owner_epoch, command_sequence, receipt_hash,
++       level, from_state, failure_code, repair_delay_ms, observed_at,
++       schema_id, schema_version, schema_hash, writer_identity)
++    VALUES
++      ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric, $11::numeric,
++       $12, $13, $14, $15, $16, statement_timestamp(), $17, $18, $19, $20)
++    ON CONFLICT (tenant_id, receipt_id) DO NOTHING
++    RETURNING receipt_id
++"#;
++
++const TRANSITION_UPDATE_SQL: &str = concat!(
++    r#"
++    UPDATE ivekit_sip_protocol_effects
++    SET state = $10,
++        revision = revision + 1,
++        unknown_count = unknown_count +
++          CASE WHEN $10 = 'unknown' THEN 1 ELSE 0 END,
++        last_receipt_id = $11,
++        last_receipt_hash = $12,
++        last_receipt_repair_delay_ms = $14::integer,
++        failure_code = $13,
++        repair_due_at = CASE
++          WHEN $10 = 'unknown' THEN statement_timestamp() +
++            ($14::integer * INTERVAL '1 millisecond')
++          ELSE repair_due_at
++        END,
++        repair_owner_id = CASE WHEN $15 THEN NULL ELSE repair_owner_id END,
++        repair_owner_epoch = CASE WHEN $15 THEN NULL ELSE repair_owner_epoch END,
++        repair_claim_token = CASE WHEN $15 THEN NULL ELSE repair_claim_token END,
++        repair_claim_revision = CASE WHEN $15 THEN NULL ELSE repair_claim_revision END,
++        repair_lease_until = CASE WHEN $15 THEN NULL ELSE repair_lease_until END,
++        terminal_tombstone_id = CASE WHEN $16 THEN $11 ELSE NULL END,
++        terminal_tombstone_hash = CASE WHEN $16 THEN $12 ELSE NULL END,
++        terminal_at = CASE WHEN $16 THEN statement_timestamp() ELSE NULL END,
++        updated_at = statement_timestamp()
++    WHERE tenant_id = $1
++      AND protocol_effect_id = $2
++      AND decision_id = $3
++      AND idempotency_key = $4
++      AND request_hash = $5
++      AND command_id = $6
++      AND wire_bytes_hash = $7
++      AND owner_epoch = $8::numeric
++      AND command_sequence = $9::numeric
++      AND effect_identity_hash = $23
++      AND revision = $17::numeric
++      AND state = $18
++      AND (
++        $15 = FALSE OR (
++          repair_owner_id = $19
++          AND repair_owner_epoch = $20::numeric
++          AND repair_claim_token = $21
++          AND repair_claim_revision = $22::numeric
++          AND revision = $22::numeric
++          AND repair_lease_until > statement_timestamp()
++        )
++      )
++    RETURNING
++    "#,
++    effect_columns!(),
++);
++
+ pub struct PostgresSipEffectStore {
+     pool: PgPool,
+     admission: SipEffectAdmission,
+@@ -251,6 +336,158 @@ impl PostgresSipEffectStore {
+         Ok(outcome)
+     }
+ 
++    pub async fn apply(
++        &self,
++        receipt: SipEffectReceipt,
++    ) -> Result<SipEffectApplyOutcome, SipEffectStoreError> {
++        receipt.validate()?;
++        let identity = &receipt.fence.identity;
++        let effect_identity_hash = protocol_effect_identity_hash(identity)?;
++        let (_admission, mut transaction) =
++            self.begin_tenant_transaction(&identity.tenant_id).await?;
++        let current_row = sqlx::query(TRANSITION_LOCK_SQL)
++            .bind(&identity.tenant_id)
++            .bind(&identity.protocol_effect_id)
++            .fetch_optional(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?
++            .ok_or(SipEffectError::IdentityConflict)?;
++        let current = decode_effect(&current_row)?.record;
++        if current.identity != *identity {
++            return Err(SipEffectError::IdentityConflict.into());
++        }
++
++        if let Some(row) = sqlx::query(RECEIPT_REPLAY_SQL)
++            .bind(&identity.tenant_id)
++            .bind(&receipt.receipt_id)
++            .fetch_optional(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?
++        {
++            let semantic = validate_receipt_replay(&row, &receipt, &effect_identity_hash)?;
++            transaction.commit().await.map_err(map_sqlx_error)?;
++            return Ok(SipEffectApplyOutcome {
++                record: current,
++                semantic,
++                replayed: true,
++            });
++        }
++        if current.state.is_terminal() {
++            return Err(SipEffectError::Terminal.into());
++        }
++        if current.revision != receipt.fence.expected_revision {
++            return Err(SipEffectError::FenceLost.into());
++        }
++        let semantic = classify_receipt(current.state, receipt.level)?;
++        let repair_fence = receipt.repair_fence();
++        let clears_repair_claim = current.state == SipEffectState::Unknown;
++        if clears_repair_claim {
++            let repair_fence = repair_fence.ok_or(SipEffectError::RepairFenceRequired)?;
++            if current.repair_claim.as_ref() != Some(repair_fence)
++                || repair_fence.repair_claim_revision != current.revision
++            {
++                return Err(SipEffectError::FenceLost.into());
++            }
++        } else if repair_fence.is_some() {
++            return Err(SipEffectError::FenceLost.into());
++        }
++        let repair_delay_ms = receipt
++            .repair_delay_ms
++            .map(i32::try_from)
++            .transpose()
++            .map_err(|_| SipEffectStoreError::InvalidConfiguration)?;
++
++        let inserted_receipt = sqlx::query(RECEIPT_INSERT_SQL)
++            .bind(&receipt.receipt_id)
++            .bind(&identity.tenant_id)
++            .bind(&identity.protocol_effect_id)
++            .bind(&identity.decision_id)
++            .bind(&identity.idempotency_key)
++            .bind(&identity.request_hash)
++            .bind(&identity.command_id)
++            .bind(&identity.wire_bytes_hash)
++            .bind(&effect_identity_hash)
++            .bind(identity.owner_epoch.to_string())
++            .bind(identity.command_sequence.to_string())
++            .bind(&receipt.receipt_hash)
++            .bind(receipt.level.as_str())
++            .bind(current.state.as_str())
++            .bind(&receipt.failure_code)
++            .bind(repair_delay_ms)
++            .bind(SIP_EFFECT_SCHEMA_ID)
++            .bind(i32::from(SIP_EFFECT_SCHEMA_VERSION))
++            .bind(SIP_EFFECT_SCHEMA_HASH)
++            .bind(SIP_EFFECT_WRITER_IDENTITY)
++            .fetch_optional(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        if inserted_receipt.is_none() {
++            let replay = sqlx::query(RECEIPT_REPLAY_SQL)
++                .bind(&identity.tenant_id)
++                .bind(&receipt.receipt_id)
++                .fetch_optional(&mut *transaction)
++                .await
++                .map_err(map_sqlx_error)?
++                .ok_or(SipEffectError::ReceiptConflict)?;
++            let semantic = validate_receipt_replay(&replay, &receipt, &effect_identity_hash)?;
++            transaction.commit().await.map_err(map_sqlx_error)?;
++            return Ok(SipEffectApplyOutcome {
++                record: current,
++                semantic,
++                replayed: true,
++            });
++        }
++
++        let terminal = receipt.level.state().is_terminal();
++        let repair_owner_id = repair_fence
++            .map(|fence| fence.repair_owner_id.as_str())
++            .unwrap_or("");
++        let repair_owner_epoch = repair_fence
++            .map(|fence| fence.repair_owner_epoch.to_string())
++            .unwrap_or_else(|| "1".to_string());
++        let repair_claim_token = repair_fence
++            .map(|fence| fence.repair_claim_token.as_str())
++            .unwrap_or("");
++        let repair_claim_revision = repair_fence
++            .map(|fence| fence.repair_claim_revision.to_string())
++            .unwrap_or_else(|| "1".to_string());
++        let updated = sqlx::query(TRANSITION_UPDATE_SQL)
++            .bind(&identity.tenant_id)
++            .bind(&identity.protocol_effect_id)
++            .bind(&identity.decision_id)
++            .bind(&identity.idempotency_key)
++            .bind(&identity.request_hash)
++            .bind(&identity.command_id)
++            .bind(&identity.wire_bytes_hash)
++            .bind(identity.owner_epoch.to_string())
++            .bind(identity.command_sequence.to_string())
++            .bind(receipt.level.as_str())
++            .bind(&receipt.receipt_id)
++            .bind(&receipt.receipt_hash)
++            .bind(&receipt.failure_code)
++            .bind(repair_delay_ms)
++            .bind(clears_repair_claim)
++            .bind(terminal)
++            .bind(current.revision.to_string())
++            .bind(current.state.as_str())
++            .bind(repair_owner_id)
++            .bind(repair_owner_epoch)
++            .bind(repair_claim_token)
++            .bind(repair_claim_revision)
++            .bind(&effect_identity_hash)
++            .fetch_optional(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?
++            .ok_or(SipEffectError::FenceLost)?;
++        let updated = decode_effect(&updated)?.record;
++        transaction.commit().await.map_err(map_sqlx_error)?;
++        Ok(SipEffectApplyOutcome {
++            record: updated,
++            semantic,
++            replayed: false,
++        })
++    }
++
+     pub async fn query(
+         &self,
+         identity: &crate::call::domain::sip_effect::SipEffectIdentity,
+@@ -449,6 +686,40 @@ fn decode_effect(row: &PgRow) -> Result<DecodedEffect, SipEffectStoreError> {
+     })
+ }
+ 
++fn validate_receipt_replay(
++    row: &PgRow,
++    receipt: &SipEffectReceipt,
++    effect_identity_hash: &str,
++) -> Result<crate::call::domain::sip_effect::SipEffectReceiptSemantic, SipEffectStoreError> {
++    let schema_id: String = schema_field(row, "schema_id")?;
++    let schema_version: i32 = schema_field(row, "schema_version")?;
++    let schema_hash: String = schema_field(row, "schema_hash")?;
++    let writer_identity: String = schema_field(row, "writer_identity")?;
++    if schema_id != SIP_EFFECT_SCHEMA_ID
++        || schema_version != i32::from(SIP_EFFECT_SCHEMA_VERSION)
++        || schema_hash != SIP_EFFECT_SCHEMA_HASH
++        || writer_identity != SIP_EFFECT_WRITER_IDENTITY
++    {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
++    let stored_level = database_receipt_level(&schema_field::<String>(row, "level")?)?;
++    let from_state = database_state(&schema_field::<String>(row, "from_state")?)?;
++    let stored_delay = schema_field::<Option<i32>>(row, "repair_delay_ms")?
++        .map(positive_or_zero_u32)
++        .transpose()?;
++    if schema_field::<String>(row, "protocol_effect_id")?
++        != receipt.fence.identity.protocol_effect_id
++        || schema_field::<String>(row, "effect_identity_hash")? != effect_identity_hash
++        || schema_field::<String>(row, "receipt_hash")? != receipt.receipt_hash
++        || stored_level != receipt.level
++        || schema_field::<String>(row, "failure_code")? != receipt.failure_code
++        || stored_delay != receipt.repair_delay_ms
++    {
++        return Err(SipEffectError::ReceiptConflict.into());
++    }
++    Ok(classify_receipt(from_state, stored_level)?)
++}
++
+ fn schema_field<'r, T>(row: &'r PgRow, field: &str) -> Result<T, SipEffectStoreError>
+ where
+     T: sqlx::Decode<'r, Postgres> + sqlx::Type<Postgres>,
+@@ -492,6 +763,18 @@ fn database_state(value: &str) -> Result<SipEffectState, SipEffectStoreError> {
+     }
+ }
+ 
++fn database_receipt_level(value: &str) -> Result<SipEffectReceiptLevel, SipEffectStoreError> {
++    match value {
++        "durable_decision" => Ok(SipEffectReceiptLevel::DurableDecision),
++        "send_attempted" => Ok(SipEffectReceiptLevel::SendAttempted),
++        "transport_accepted" => Ok(SipEffectReceiptLevel::TransportAccepted),
++        "protocol_observed" => Ok(SipEffectReceiptLevel::ProtocolObserved),
++        "failed" => Ok(SipEffectReceiptLevel::Failed),
++        "unknown" => Ok(SipEffectReceiptLevel::Unknown),
++        _ => Err(SipEffectStoreError::SchemaIncompatible),
++    }
++}
++
+ fn map_sqlx_error(error: sqlx::Error) -> SipEffectStoreError {
+     match error {
+         sqlx::Error::PoolTimedOut => SipEffectStoreError::PoolTimeout,
+@@ -628,7 +911,8 @@ impl Drop for SipEffectAdmissionLease {
+ mod tests {
+     use super::*;
+     use crate::call::domain::sip_effect::{
+-        SipEffectIdentity, canonical_json_sha256, sha256_lower_hex, sip_wire_freeze_sha256,
++        SipEffectIdentity, SipEffectReceipt, SipEffectReceiptLevel, SipEffectReceiptSemantic,
++        canonical_json_sha256, sha256_lower_hex, sip_wire_freeze_sha256,
+     };
+     use chrono::{Duration as ChronoDuration, TimeZone};
+     use std::sync::Arc;
+@@ -756,6 +1040,94 @@ mod tests {
+         recovered_store.pool.close().await;
+     }
+ 
++    #[tokio::test]
++    #[ignore = "requires an isolated migrated PostgreSQL database"]
++    async fn postgres_receipt_transition_is_atomic_replayable_and_recoverable() {
++        let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
++        let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
++            .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
++        let effect = postgres_effect_fixture(&format!("{run_id}-transition"));
++        let options = PostgresSipEffectStoreOptions {
++            max_in_flight: 2,
++            max_queue_depth: 2,
++            wait_timeout: Duration::from_millis(250),
++        };
++        let store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        let opened = store.prepare(effect.clone()).await.unwrap().record;
++        let durable_receipt = SipEffectReceipt::new(
++            opened.fence(),
++            &format!("receipt-{run_id}-decision"),
++            SipEffectReceiptLevel::DurableDecision,
++            "",
++            None,
++        )
++        .unwrap();
++        let durable = store.apply(durable_receipt.clone()).await.unwrap();
++        assert_eq!(durable.semantic, SipEffectReceiptSemantic::DurableDecision);
++        assert!(!durable.replayed);
++        let replay = store.apply(durable_receipt).await.unwrap();
++        assert!(replay.replayed);
++        assert_eq!(replay.record, durable.record);
++
++        let attempted = store
++            .apply(
++                SipEffectReceipt::new(
++                    durable.record.fence(),
++                    &format!("receipt-{run_id}-attempt"),
++                    SipEffectReceiptLevel::SendAttempted,
++                    "",
++                    None,
++                )
++                .unwrap(),
++            )
++            .await
++            .unwrap();
++        let accepted = store
++            .apply(
++                SipEffectReceipt::new(
++                    attempted.record.fence(),
++                    &format!("receipt-{run_id}-accepted"),
++                    SipEffectReceiptLevel::TransportAccepted,
++                    "",
++                    None,
++                )
++                .unwrap(),
++            )
++            .await
++            .unwrap();
++        assert_eq!(accepted.semantic, SipEffectReceiptSemantic::Accepted);
++        let completed = store
++            .apply(
++                SipEffectReceipt::new(
++                    accepted.record.fence(),
++                    &format!("receipt-{run_id}-observed"),
++                    SipEffectReceiptLevel::ProtocolObserved,
++                    "",
++                    None,
++                )
++                .unwrap(),
++            )
++            .await
++            .unwrap();
++        assert_eq!(completed.semantic, SipEffectReceiptSemantic::Completed);
++        assert!(completed.record.state.is_terminal());
++        store.pool.close().await;
++
++        let recovered_store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        let recovered = recovered_store
++            .query(&effect.identity)
++            .await
++            .unwrap()
++            .unwrap();
++        assert_eq!(recovered, completed.record);
++        recovered_store.pool.close().await;
++    }
++
+     fn postgres_effect_fixture(run_id: &str) -> PreparedSipEffect {
+         let tenant_id = format!("rust-pg-{run_id}");
+         let effect_id = format!("effect-{run_id}");
+diff --git a/src/call/domain/sip_effect.rs b/src/call/domain/sip_effect.rs
+index 5224df2d..699a98ef 100644
+--- a/src/call/domain/sip_effect.rs
++++ b/src/call/domain/sip_effect.rs
+@@ -67,6 +67,18 @@ impl SipEffectState {
+     pub fn is_terminal(self) -> bool {
+         matches!(self, Self::ProtocolObserved | Self::Failed)
+     }
++
++    pub(crate) fn as_str(self) -> &'static str {
++        match self {
++            Self::Prepared => "prepared",
++            Self::DurableDecision => "durable_decision",
++            Self::SendAttempted => "send_attempted",
++            Self::TransportAccepted => "transport_accepted",
++            Self::ProtocolObserved => "protocol_observed",
++            Self::Failed => "failed",
++            Self::Unknown => "unknown",
++        }
++    }
+ }
+ 
+ #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+@@ -81,8 +93,7 @@ pub enum SipEffectReceiptLevel {
+ }
+ 
+ impl SipEffectReceiptLevel {
+-    #[cfg(test)]
+-    fn state(self) -> SipEffectState {
++    pub(crate) fn state(self) -> SipEffectState {
+         match self {
+             Self::DurableDecision => SipEffectState::DurableDecision,
+             Self::SendAttempted => SipEffectState::SendAttempted,
+@@ -93,7 +104,7 @@ impl SipEffectReceiptLevel {
+         }
+     }
+ 
+-    fn as_str(self) -> &'static str {
++    pub(crate) fn as_str(self) -> &'static str {
+         match self {
+             Self::DurableDecision => "durable_decision",
+             Self::SendAttempted => "send_attempted",
+@@ -269,6 +280,17 @@ pub struct SipEffectRepairFence {
+     pub repair_claim_revision: u64,
+ }
+ 
++impl SipEffectRepairFence {
++    pub(crate) fn validate(&self) -> Result<(), SipEffectError> {
++        checked_identifier(&self.repair_owner_id)?;
++        checked_identifier(&self.repair_claim_token)?;
++        if self.repair_owner_epoch == 0 || self.repair_claim_revision == 0 {
++            return Err(SipEffectError::InvalidInput);
++        }
++        Ok(())
++    }
++}
++
+ #[derive(Clone, Debug, Eq, PartialEq)]
+ pub struct SipEffectRecord {
+     pub identity: SipEffectIdentity,
+@@ -318,9 +340,7 @@ impl SipEffectReceipt {
+         failure_code: &str,
+         repair_delay_ms: Option<u32>,
+     ) -> Result<Self, SipEffectError> {
+-        fence.identity.validate()?;
+-        checked_identifier(receipt_id)?;
+-        validate_receipt_details(level, failure_code, repair_delay_ms)?;
++        validate_receipt_input(&fence, receipt_id, level, failure_code, repair_delay_ms)?;
+         let receipt_hash = receipt_hash(&fence, receipt_id, level, failure_code, repair_delay_ms)?;
+         Ok(Self {
+             fence,
+@@ -332,6 +352,36 @@ impl SipEffectReceipt {
+             repair_fence: None,
+         })
+     }
++
++    pub(crate) fn validate(&self) -> Result<(), SipEffectError> {
++        validate_receipt_input(
++            &self.fence,
++            &self.receipt_id,
++            self.level,
++            &self.failure_code,
++            self.repair_delay_ms,
++        )?;
++        checked_hash(&self.receipt_hash)?;
++        if self.receipt_hash
++            != receipt_hash(
++                &self.fence,
++                &self.receipt_id,
++                self.level,
++                &self.failure_code,
++                self.repair_delay_ms,
++            )?
++        {
++            return Err(SipEffectError::InvalidInput);
++        }
++        if let Some(fence) = &self.repair_fence {
++            fence.validate()?;
++        }
++        Ok(())
++    }
++
++    pub(crate) fn repair_fence(&self) -> Option<&SipEffectRepairFence> {
++        self.repair_fence.as_ref()
++    }
+ }
+ 
+ #[derive(Clone, Debug, Eq, PartialEq)]
+@@ -484,25 +534,7 @@ impl InMemorySipEffectLedger {
+         &mut self,
+         receipt: SipEffectReceipt,
+     ) -> Result<SipEffectApplyOutcome, SipEffectError> {
+-        receipt.fence.identity.validate()?;
+-        checked_identifier(&receipt.receipt_id)?;
+-        checked_hash(&receipt.receipt_hash)?;
+-        validate_receipt_details(
+-            receipt.level,
+-            &receipt.failure_code,
+-            receipt.repair_delay_ms,
+-        )?;
+-        if receipt.receipt_hash
+-            != receipt_hash(
+-                &receipt.fence,
+-                &receipt.receipt_id,
+-                receipt.level,
+-                &receipt.failure_code,
+-                receipt.repair_delay_ms,
+-            )?
+-        {
+-            return Err(SipEffectError::InvalidInput);
+-        }
++        receipt.validate()?;
+         let key = (
+             receipt.fence.identity.tenant_id.clone(),
+             receipt.fence.identity.protocol_effect_id.clone(),
+@@ -903,6 +935,21 @@ fn validate_receipt_details(
+     Ok(())
+ }
+ 
++fn validate_receipt_input(
++    fence: &SipEffectFence,
++    receipt_id: &str,
++    level: SipEffectReceiptLevel,
++    failure_code: &str,
++    repair_delay_ms: Option<u32>,
++) -> Result<(), SipEffectError> {
++    fence.identity.validate()?;
++    if fence.expected_revision == 0 {
++        return Err(SipEffectError::InvalidInput);
++    }
++    checked_identifier(receipt_id)?;
++    validate_receipt_details(level, failure_code, repair_delay_ms)
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;

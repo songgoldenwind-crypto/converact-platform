@@ -25,7 +25,7 @@ test('RustPBX media lifecycle patch is ordered and exact-source applicable', () 
     build,
     /rustpbx-ivekit-media-control-client\.patch"[\s\S]*rustpbx-ivekit-media-lifecycle\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.50"/);
+  assert.match(build, /PATCHSET="ivekit\.51"/);
   assert.match(patch, /IveKitMediaLifecycle/);
   assert.match(patch, /OrdinaryRelay/);
 });

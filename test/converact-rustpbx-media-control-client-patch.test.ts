@@ -18,7 +18,7 @@ test('RustPBX media-control client patch is ordered and exact-source applicable'
     build,
     /rustpbx-ivekit-http-client-capacity\.patch"[\s\S]*rustpbx-ivekit-media-control-client\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.50"/);
+  assert.match(build, /PATCHSET="ivekit\.51"/);
   assert.match(patch, /pub mod ivekit_media_control/);
   assert.match(patch, /src\/ivekit_media_control\.rs/);
   assert.match(patch, /ivekit\.media-control\.v1/);

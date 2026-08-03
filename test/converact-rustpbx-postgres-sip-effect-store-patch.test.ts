@@ -68,9 +68,9 @@ test("isolated PostgreSQL recovery evidence has an explicit executable test", ()
   assert.match(source, /recovered_store[\s\S]*\.query\(&effect\.identity\)/);
 });
 
-test("exact build applies ivekit.50 after the shared SipEffect domain", () => {
+test("exact build applies ivekit.51 after the shared SipEffect domain", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.50"/);
+  assert.match(build, /PATCHSET="ivekit\.51"/);
   assert.match(
     build,
     /rustpbx-converact-durable-sip-effect-domain\.patch"[\s\S]*rustpbx-converact-postgres-sip-effect-store\.patch"/,
@@ -81,7 +81,7 @@ test("exact build applies ivekit.50 after the shared SipEffect domain", () => {
   );
 });
 
-test("prepare/query slice does not promote transition or live authority evidence", () => {
+test("ivekit.50 prepare/query slice stopped before transitions and live authority", () => {
   const readme = readFileSync(README, "utf8");
   const evidence = JSON.parse(readFileSync(EVIDENCE, "utf8")) as {
     entries: Array<{ evidence_id: string; status: string }>;

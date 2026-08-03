@@ -235,6 +235,25 @@ it is executed against the exact committed server candidate. Local exact-source
 evidence is 3 focused admission tests and the complete RustPBX library suite
 (`1961` passed, `2` ignored); the new module emits no changed-file Clippy warning.
 
+ivekit.51 adds the native PostgreSQL receipt transition path. One tenant-scoped
+transaction locks the exact SipEffect identity, validates schema/writer and
+revision fencing, inserts the immutable receipt, advances the effect state and
+commits both facts atomically. Exact receipt replay is idempotent; a conflicting
+receipt, stale revision, terminal mutation or missing/stale repair fence fails
+closed. The SQL remains static and the existing bounded admission gate covers
+the whole transaction, so this slice adds no spawned task, unbounded queue or
+dynamic hot-path statement construction.
+
+The exact Rust 1.94 Linux candidate passed both isolated PostgreSQL tests for
+prepare/query recovery and atomic receipt transitions, followed by a real
+PostgreSQL restart. After restart the transition fixture remained
+`protocol_observed` at revision 5 with four durable receipts. The exact local
+source also passes 10 focused tests plus 2 ignored physical tests and the full
+RustPBX library suite (`1961` passed, `3` ignored), with no changed-file Clippy
+warning. Repair claim/reconcile, live SIP dispatch, real-peer/long-call/capacity
+gates and `G03-E16-NATIVE-AUTHORITY` remain `not_run`; production eligibility
+is not promoted.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

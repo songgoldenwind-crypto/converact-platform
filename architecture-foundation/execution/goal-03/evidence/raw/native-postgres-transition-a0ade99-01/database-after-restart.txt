@@ -1,0 +1,7 @@
+postgres_container=running/healthy
+rust_test_container_count=0
+effect_state=protocol_observed
+effect_revision=5
+last_receipt_id=receipt-server027fb727-observed
+receipt_count=4
+postgres_restart_recovery=passed
