@@ -1,0 +1,11 @@
+postgres_container=running/healthy
+rust_test_container_count=0
+effect_state=protocol_observed
+effect_revision=6
+last_receipt_id=receipt-server28446cd9-reconciled
+receipt_count=4
+repair_attempts=1
+repair_epoch_high_watermark=11
+repair_owner_cleared=true
+repair_claim_token_cleared=true
+postgres_restart_recovery=passed

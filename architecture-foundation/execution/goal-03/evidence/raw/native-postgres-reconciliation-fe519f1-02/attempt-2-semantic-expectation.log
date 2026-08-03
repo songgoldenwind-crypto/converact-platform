@@ -1,0 +1,44 @@
+rustc 1.94.1 (e408947bf 2026-03-25)
+cargo 1.94.1 (29ea6fb6a 2026-03-24)
+   Compiling rustpbx v0.4.11 (/workspace/source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 49.43s
+     Running unittests src/lib.rs (target/debug/deps/rustpbx-2292b3bbd3d87a06)
+
+running 1 test
+test call::adapters::postgres_sip_effect::tests::postgres_prepare_replay_and_query_survive_pool_recreation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1965 filtered out; finished in 0.22s
+
+   Compiling rustpbx v0.4.11 (/workspace/source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 43.88s
+     Running unittests src/lib.rs (target/debug/deps/rustpbx-2292b3bbd3d87a06)
+
+running 1 test
+test call::adapters::postgres_sip_effect::tests::postgres_receipt_transition_is_atomic_replayable_and_recoverable ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1965 filtered out; finished in 0.18s
+
+   Compiling rustpbx v0.4.11 (/workspace/source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 41.34s
+     Running unittests src/lib.rs (target/debug/deps/rustpbx-2292b3bbd3d87a06)
+
+running 1 test
+test call::adapters::postgres_sip_effect::tests::postgres_unknown_claim_is_fenced_and_reconciles_after_pool_recovery ... FAILED
+
+failures:
+
+---- call::adapters::postgres_sip_effect::tests::postgres_unknown_claim_is_fenced_and_reconciles_after_pool_recovery stdout ----
+
+thread 'call::adapters::postgres_sip_effect::tests::postgres_unknown_claim_is_fenced_and_reconciles_after_pool_recovery' (856) panicked at src/call/adapters/postgres_sip_effect.rs:1404:9:
+assertion `left == right` failed
+  left: StateObserved
+ right: Completed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    call::adapters::postgres_sip_effect::tests::postgres_unknown_claim_is_fenced_and_reconciles_after_pool_recovery
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1965 filtered out; finished in 0.13s
+
+error: test failed, to rerun pass `--lib`

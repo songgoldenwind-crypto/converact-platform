@@ -254,6 +254,32 @@ warning. Repair claim/reconcile, live SIP dispatch, real-peer/long-call/capacity
 gates and `G03-E16-NATIVE-AUTHORITY` remain `not_run`; production eligibility
 is not promoted.
 
+ivekit.52 adds the native single-effect repair claim and reconcile path. The
+claim is one static conditional PostgreSQL update and advances both effect
+revision and repair attempt. It requires an unknown effect whose repair time is
+due, no live lease, an owner epoch above the durable high-watermark and fewer
+than eight attempts. Leases are exact whole milliseconds, greater than zero and
+at most 30 seconds. Reconcile first queries the durable state for its caller,
+then the existing atomic `apply` transaction independently rechecks the exact
+owner ID, epoch, token, claim revision and unexpired database lease before it
+can clear the claim or publish a receipt. The query/apply separation therefore
+cannot bypass the transactional fence.
+
+The exact Rust 1.94 Linux candidate passed prepare/query, atomic transition and
+repair/reconcile tests against isolated PostgreSQL, followed by a PostgreSQL
+restart and a separate state query. The repaired effect remained
+`protocol_observed` at revision 6 with four receipts; its repair owner/token
+were cleared while attempt count 1 and epoch high-watermark 11 remained. Local
+Rust 1.94 evidence is 11 focused tests plus 3 physical ignores and the complete
+RustPBX library suite (`1962` passed, `4` ignored). The failed fixture and
+initial semantic-expectation attempts are preserved with the successful
+evidence.
+
+This slice exposes only an explicitly addressed effect. A bounded batch repair
+scanner, terminal attempt-exhaustion/operator workflow, live SIP dispatch,
+real-peer/long-call/fault/capacity gates and `G03-E16-NATIVE-AUTHORITY` remain
+`not_run`; production eligibility is not promoted.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

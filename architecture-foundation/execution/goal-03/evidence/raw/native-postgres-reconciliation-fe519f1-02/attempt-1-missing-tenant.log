@@ -1,0 +1,24 @@
+rustc 1.94.1 (e408947bf 2026-03-25)
+cargo 1.94.1 (29ea6fb6a 2026-03-24)
+   Compiling rustpbx v0.4.11 (/workspace/source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 30s
+     Running unittests src/lib.rs (target/debug/deps/rustpbx-2292b3bbd3d87a06)
+
+running 1 test
+test call::adapters::postgres_sip_effect::tests::postgres_prepare_replay_and_query_survive_pool_recreation ... FAILED
+
+failures:
+
+---- call::adapters::postgres_sip_effect::tests::postgres_prepare_replay_and_query_survive_pool_recreation stdout ----
+
+thread 'call::adapters::postgres_sip_effect::tests::postgres_prepare_replay_and_query_survive_pool_recreation' (293) panicked at src/call/adapters/postgres_sip_effect.rs:1197:63:
+called `Result::unwrap()` on an `Err` value: StoreUnavailable
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    call::adapters::postgres_sip_effect::tests::postgres_prepare_replay_and_query_survive_pool_recreation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1965 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `--lib`

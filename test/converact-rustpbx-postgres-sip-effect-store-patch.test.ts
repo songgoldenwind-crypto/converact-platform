@@ -68,9 +68,9 @@ test("isolated PostgreSQL recovery evidence has an explicit executable test", ()
   assert.match(source, /recovered_store[\s\S]*\.query\(&effect\.identity\)/);
 });
 
-test("exact build applies ivekit.51 after the shared SipEffect domain", () => {
+test("exact build applies ivekit.52 after the shared SipEffect domain", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.51"/);
+  assert.match(build, /PATCHSET="ivekit\.52"/);
   assert.match(
     build,
     /rustpbx-converact-durable-sip-effect-domain\.patch"[\s\S]*rustpbx-converact-postgres-sip-effect-store\.patch"/,

@@ -1,0 +1,365 @@
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+index 2a55c02a..96e1aa2c 100644
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -1,8 +1,8 @@
+ use crate::call::domain::sip_effect::{
+     PreparedSipEffect, SIP_EFFECT_SCHEMA_HASH, SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_VERSION,
+     SIP_EFFECT_WRITER_IDENTITY, SipEffectApplyOutcome, SipEffectError, SipEffectPrepareOutcome,
+-    SipEffectReceipt, SipEffectReceiptLevel, SipEffectRecord, SipEffectRepairFence, SipEffectState,
+-    classify_receipt, protocol_effect_identity_hash,
++    SipEffectReceipt, SipEffectReceiptLevel, SipEffectReconcileOutcome, SipEffectRecord,
++    SipEffectRepairFence, SipEffectState, classify_receipt, protocol_effect_identity_hash,
+ };
+ use chrono::{DateTime, Utc};
+ use serde_json::Value;
+@@ -16,6 +16,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+ const MAX_STORE_IN_FLIGHT: usize = 256;
+ const MAX_STORE_QUEUE_DEPTH: usize = 1_024;
+ const MAX_STORE_WAIT: Duration = Duration::from_millis(250);
++const MAX_REPAIR_LEASE: Duration = Duration::from_secs(30);
+ 
+ #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+ pub enum SipEffectStoreError {
+@@ -217,6 +218,43 @@ const TRANSITION_UPDATE_SQL: &str = concat!(
+     effect_columns!(),
+ );
+ 
++const CLAIM_UNKNOWN_SQL: &str = concat!(
++    r#"
++    UPDATE ivekit_sip_protocol_effects
++    SET repair_owner_id = $10,
++        repair_owner_epoch = $11::numeric,
++        repair_epoch_high_watermark = $11::numeric,
++        repair_claim_token = $12,
++        repair_claim_revision = revision + 1,
++        repair_lease_until = statement_timestamp() +
++          ($13::integer * INTERVAL '1 millisecond'),
++        repair_attempts = repair_attempts + 1,
++        revision = revision + 1,
++        updated_at = statement_timestamp()
++    WHERE tenant_id = $1
++      AND protocol_effect_id = $2
++      AND decision_id = $3
++      AND idempotency_key = $4
++      AND request_hash = $5
++      AND command_id = $6
++      AND wire_bytes_hash = $7
++      AND owner_epoch = $8::numeric
++      AND command_sequence = $9::numeric
++      AND effect_identity_hash = $14
++      AND state = 'unknown'
++      AND operator_attention_required = FALSE
++      AND repair_due_at <= statement_timestamp()
++      AND (
++        repair_lease_until IS NULL OR
++        repair_lease_until <= statement_timestamp()
++      )
++      AND repair_epoch_high_watermark < $11::numeric
++      AND repair_attempts < 8
++    RETURNING
++    "#,
++    effect_columns!(),
++);
++
+ pub struct PostgresSipEffectStore {
+     pool: PgPool,
+     admission: SipEffectAdmission,
+@@ -488,6 +526,104 @@ impl PostgresSipEffectStore {
+         })
+     }
+ 
++    pub async fn claim_unknown(
++        &self,
++        identity: &crate::call::domain::sip_effect::SipEffectIdentity,
++        repair_owner_id: &str,
++        repair_owner_epoch: u64,
++        repair_claim_token: &str,
++        lease_duration: Duration,
++    ) -> Result<SipEffectRepairFence, SipEffectStoreError> {
++        identity.validate()?;
++        let lease_ms = bounded_repair_lease_millis(lease_duration)?;
++        let requested_fence = SipEffectRepairFence {
++            repair_owner_id: repair_owner_id.to_string(),
++            repair_owner_epoch,
++            repair_claim_token: repair_claim_token.to_string(),
++            repair_claim_revision: 1,
++        };
++        requested_fence.validate()?;
++        let effect_identity_hash = protocol_effect_identity_hash(identity)?;
++        let (_admission, mut transaction) =
++            self.begin_tenant_transaction(&identity.tenant_id).await?;
++        let row = sqlx::query(CLAIM_UNKNOWN_SQL)
++            .bind(&identity.tenant_id)
++            .bind(&identity.protocol_effect_id)
++            .bind(&identity.decision_id)
++            .bind(&identity.idempotency_key)
++            .bind(&identity.request_hash)
++            .bind(&identity.command_id)
++            .bind(&identity.wire_bytes_hash)
++            .bind(identity.owner_epoch.to_string())
++            .bind(identity.command_sequence.to_string())
++            .bind(repair_owner_id)
++            .bind(repair_owner_epoch.to_string())
++            .bind(repair_claim_token)
++            .bind(lease_ms)
++            .bind(&effect_identity_hash)
++            .fetch_optional(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?
++            .ok_or(SipEffectError::FenceLost)?;
++        let claimed = decode_effect(&row)?.record;
++        let repair_fence = claimed
++            .repair_claim
++            .clone()
++            .ok_or(SipEffectStoreError::SchemaIncompatible)?;
++        if claimed.identity != *identity
++            || claimed.state != SipEffectState::Unknown
++            || claimed.revision != repair_fence.repair_claim_revision
++            || repair_fence.repair_owner_id != repair_owner_id
++            || repair_fence.repair_owner_epoch != repair_owner_epoch
++            || repair_fence.repair_claim_token != repair_claim_token
++        {
++            return Err(SipEffectStoreError::SchemaIncompatible);
++        }
++        repair_fence.validate()?;
++        transaction.commit().await.map_err(map_sqlx_error)?;
++        Ok(repair_fence)
++    }
++
++    pub async fn reconcile(
++        &self,
++        identity: &crate::call::domain::sip_effect::SipEffectIdentity,
++        repair_fence: &SipEffectRepairFence,
++        receipt_id: &str,
++        outcome: SipEffectReconcileOutcome,
++    ) -> Result<SipEffectApplyOutcome, SipEffectStoreError> {
++        repair_fence.validate()?;
++        let record = self
++            .query(identity)
++            .await?
++            .ok_or(SipEffectError::IdentityConflict)?;
++        if record.state != SipEffectState::Unknown
++            || record.repair_claim.as_ref() != Some(repair_fence)
++            || record.revision != repair_fence.repair_claim_revision
++        {
++            return Err(SipEffectError::FenceLost.into());
++        }
++        let (level, failure_code, repair_delay_ms) = match outcome {
++            SipEffectReconcileOutcome::ProtocolObserved => {
++                (SipEffectReceiptLevel::ProtocolObserved, "", None)
++            }
++            SipEffectReconcileOutcome::Failed => {
++                (SipEffectReceiptLevel::Failed, "reconciliation_failed", None)
++            }
++            SipEffectReconcileOutcome::Unknown { repair_after_ms } => {
++                (SipEffectReceiptLevel::Unknown, "", Some(repair_after_ms))
++            }
++        };
++        let receipt = SipEffectReceipt::new(
++            record.fence(),
++            receipt_id,
++            level,
++            failure_code,
++            repair_delay_ms,
++        )?
++        .with_repair_fence(repair_fence.clone())?;
++        self.apply(receipt).await
++    }
++
+     pub async fn query(
+         &self,
+         identity: &crate::call::domain::sip_effect::SipEffectIdentity,
+@@ -750,6 +886,18 @@ fn positive_or_zero_u32(value: i32) -> Result<u32, SipEffectStoreError> {
+     u32::try_from(value).map_err(|_| SipEffectStoreError::SchemaIncompatible)
+ }
+ 
++fn bounded_repair_lease_millis(duration: Duration) -> Result<i32, SipEffectStoreError> {
++    let milliseconds = u32::try_from(duration.as_millis())
++        .map_err(|_| SipEffectStoreError::InvalidConfiguration)?;
++    if duration.is_zero()
++        || duration > MAX_REPAIR_LEASE
++        || Duration::from_millis(u64::from(milliseconds)) != duration
++    {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    i32::try_from(milliseconds).map_err(|_| SipEffectStoreError::InvalidConfiguration)
++}
++
+ fn database_state(value: &str) -> Result<SipEffectState, SipEffectStoreError> {
+     match value {
+         "prepared" => Ok(SipEffectState::Prepared),
+@@ -912,7 +1060,7 @@ mod tests {
+     use super::*;
+     use crate::call::domain::sip_effect::{
+         SipEffectIdentity, SipEffectReceipt, SipEffectReceiptLevel, SipEffectReceiptSemantic,
+-        canonical_json_sha256, sha256_lower_hex, sip_wire_freeze_sha256,
++        SipEffectReconcileOutcome, canonical_json_sha256, sha256_lower_hex, sip_wire_freeze_sha256,
+     };
+     use chrono::{Duration as ChronoDuration, TimeZone};
+     use std::sync::Arc;
+@@ -934,6 +1082,34 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn repair_claim_lease_is_millisecond_exact_and_bounded() {
++        assert_eq!(
++            bounded_repair_lease_millis(Duration::from_millis(1)).unwrap(),
++            1,
++        );
++        assert_eq!(
++            bounded_repair_lease_millis(Duration::from_secs(30)).unwrap(),
++            30_000,
++        );
++        assert_eq!(
++            bounded_repair_lease_millis(Duration::ZERO).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert_eq!(
++            bounded_repair_lease_millis(Duration::from_millis(30_001)).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert_eq!(
++            bounded_repair_lease_millis(Duration::from_micros(1)).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert!(CLAIM_UNKNOWN_SQL.contains("repair_attempts < 8"));
++        assert!(CLAIM_UNKNOWN_SQL.contains("repair_due_at <= statement_timestamp()"));
++        assert!(CLAIM_UNKNOWN_SQL.contains("repair_lease_until <= statement_timestamp()"));
++        assert!(!CLAIM_UNKNOWN_SQL.contains("clock_timestamp()"));
++    }
++
+     #[tokio::test]
+     async fn admission_bounds_active_and_queued_database_work() {
+         let admission = Arc::new(SipEffectAdmission::new(1, 1, Duration::from_millis(50)).unwrap());
+@@ -1128,6 +1304,108 @@ mod tests {
+         recovered_store.pool.close().await;
+     }
+ 
++    #[tokio::test]
++    #[ignore = "requires an isolated migrated PostgreSQL database"]
++    async fn postgres_unknown_claim_is_fenced_and_reconciles_after_pool_recovery() {
++        let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
++        let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
++            .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
++        let effect = postgres_effect_fixture(&format!("{run_id}-repair"));
++        let options = PostgresSipEffectStoreOptions {
++            max_in_flight: 2,
++            max_queue_depth: 2,
++            wait_timeout: Duration::from_millis(250),
++        };
++        let store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        let prepared = store.prepare(effect.clone()).await.unwrap().record;
++        let durable = store
++            .apply(
++                SipEffectReceipt::new(
++                    prepared.fence(),
++                    &format!("receipt-{run_id}-repair-decision"),
++                    SipEffectReceiptLevel::DurableDecision,
++                    "",
++                    None,
++                )
++                .unwrap(),
++            )
++            .await
++            .unwrap()
++            .record;
++        let attempted = store
++            .apply(
++                SipEffectReceipt::new(
++                    durable.fence(),
++                    &format!("receipt-{run_id}-repair-attempt"),
++                    SipEffectReceiptLevel::SendAttempted,
++                    "",
++                    None,
++                )
++                .unwrap(),
++            )
++            .await
++            .unwrap()
++            .record;
++        let unknown = store
++            .apply(
++                SipEffectReceipt::new(
++                    attempted.fence(),
++                    &format!("receipt-{run_id}-unknown"),
++                    SipEffectReceiptLevel::Unknown,
++                    "",
++                    Some(0),
++                )
++                .unwrap(),
++            )
++            .await
++            .unwrap()
++            .record;
++        let claim = store
++            .claim_unknown(
++                &unknown.identity,
++                "repair-worker-a",
++                11,
++                &format!("claim-{run_id}-a"),
++                Duration::from_secs(10),
++            )
++            .await
++            .unwrap();
++        assert_eq!(claim.repair_claim_revision, unknown.revision + 1);
++        assert_eq!(
++            store
++                .claim_unknown(
++                    &unknown.identity,
++                    "repair-worker-b",
++                    11,
++                    &format!("claim-{run_id}-b"),
++                    Duration::from_secs(10),
++                )
++                .await
++                .unwrap_err(),
++            SipEffectStoreError::Domain(SipEffectError::FenceLost),
++        );
++        store.pool.close().await;
++
++        let recovered_store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        let reconciled = recovered_store
++            .reconcile(
++                &effect.identity,
++                &claim,
++                &format!("receipt-{run_id}-reconciled"),
++                SipEffectReconcileOutcome::ProtocolObserved,
++            )
++            .await
++            .unwrap();
++        assert_eq!(reconciled.semantic, SipEffectReceiptSemantic::StateObserved);
++        assert!(reconciled.record.state.is_terminal());
++        recovered_store.pool.close().await;
++    }
++
+     fn postgres_effect_fixture(run_id: &str) -> PreparedSipEffect {
+         let tenant_id = format!("rust-pg-{run_id}");
+         let effect_id = format!("effect-{run_id}");
+diff --git a/src/call/domain/sip_effect.rs b/src/call/domain/sip_effect.rs
+index 699a98ef..7b5295af 100644
+--- a/src/call/domain/sip_effect.rs
++++ b/src/call/domain/sip_effect.rs
+@@ -382,6 +382,16 @@ impl SipEffectReceipt {
+     pub(crate) fn repair_fence(&self) -> Option<&SipEffectRepairFence> {
+         self.repair_fence.as_ref()
+     }
++
++    pub(crate) fn with_repair_fence(
++        mut self,
++        repair_fence: SipEffectRepairFence,
++    ) -> Result<Self, SipEffectError> {
++        repair_fence.validate()?;
++        self.repair_fence = Some(repair_fence);
++        self.validate()?;
++        Ok(self)
++    }
+ }
+ 
+ #[derive(Clone, Debug, Eq, PartialEq)]

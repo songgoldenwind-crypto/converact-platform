@@ -109,9 +109,9 @@ test("Rust fixed vectors are byte-identical to the TypeScript contract", () => {
   assert.match(source, new RegExp(receiptHash));
 });
 
-test("exact build applies ivekit.51 after native Call composition", () => {
+test("exact build applies ivekit.52 after native Call composition", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.51"/);
+  assert.match(build, /PATCHSET="ivekit\.52"/);
   assert.match(
     build,
     /rustpbx-converact-native-call-runtime-composition\.patch"[\s\S]*rustpbx-converact-durable-sip-effect-domain\.patch"/,

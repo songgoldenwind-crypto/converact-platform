@@ -94,9 +94,9 @@ test("controlled PostgreSQL transition evidence is exact and remains scoped", ()
   assert.match(report, /does not promote `G03-E16-NATIVE-AUTHORITY`/);
 });
 
-test("exact build applies ivekit.51 after the PostgreSQL prepare store", () => {
+test("exact build applies ivekit.52 after the PostgreSQL prepare store", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.51"/);
+  assert.match(build, /PATCHSET="ivekit\.52"/);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-store\.patch"[\s\S]*rustpbx-converact-postgres-sip-effect-transitions\.patch"/,
@@ -107,7 +107,7 @@ test("exact build applies ivekit.51 after the PostgreSQL prepare store", () => {
   );
 });
 
-test("atomic transition slice does not promote repair or live authority", () => {
+test("ivekit.51 atomic transition slice stopped before repair and live authority", () => {
   const readme = readFileSync(README, "utf8");
   const evidence = JSON.parse(readFileSync(EVIDENCE, "utf8")) as {
     entries: Array<{ evidence_id: string; status: string }>;
