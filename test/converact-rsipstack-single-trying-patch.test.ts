@@ -56,7 +56,7 @@ test('the current patchset retains single-Trying ownership after the existing rs
     build,
     /rsipstack-ivekit-rejection-headers\.patch"[\s\S]*apply --check "\$PATCH_DIR\/rsipstack-ivekit-single-trying\.patch"[\s\S]*apply "\$PATCH_DIR\/rsipstack-ivekit-single-trying\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.49"/);
+  assert.match(build, /PATCHSET="ivekit\.50"/);
   assert.match(
     build,
     /^\s*cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline\s*$/m

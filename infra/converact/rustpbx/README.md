@@ -216,6 +216,25 @@ changed-module Clippy pass and the complete RustPBX library suite (`1958`
 passed, `1` ignored). ivekit.49 Linux/image/peer/capacity evidence remains
 `not_run` until the exact server campaign completes.
 
+ivekit.50 adds the concrete native PostgreSQL SipEffect store's bounded
+`prepare` and `query` path. It writes the exact shared schema/writer identity,
+wire bytes and identity hashes under the tenant RLS context and elected
+`opc_sip_effect_executor` role. Every operation passes a bounded two-stage
+admission gate (at most 256 active and 1,024 queued), a 250 ms maximum wait,
+bounded SQL timeouts and the database writer-election guard. Pool exhaustion,
+timeout, store outage and schema/writer mismatch are typed fail-closed results;
+there is no production in-memory fallback, spawned database task or unbounded
+queue. SQL is compile-time static, avoiding both a dynamic trust escape and a
+per-operation statement allocation.
+
+This slice deliberately stops at durable prepare and query. Receipt transition,
+repair claim/reconcile and live SIP dispatch remain `not_run`, so
+`G03-E16-NATIVE-AUTHORITY` and production eligibility are not promoted. The
+explicit isolated-PostgreSQL pool-recreation test also remains `not_run` until
+it is executed against the exact committed server candidate. Local exact-source
+evidence is 3 focused admission tests and the complete RustPBX library suite
+(`1961` passed, `2` ignored); the new module emits no changed-file Clippy warning.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

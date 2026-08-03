@@ -25,5 +25,5 @@ test('RustPBX reproducible build applies the HTTP capacity patch after the audio
     build,
     /rustpbx-ivekit-realtime-audio-tap\.patch"[\s\S]*apply --check "\$PATCH_DIR\/rustpbx-ivekit-http-client-capacity\.patch"[\s\S]*apply "\$PATCH_DIR\/rustpbx-ivekit-http-client-capacity\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.49"/);
+  assert.match(build, /PATCHSET="ivekit\.50"/);
 });

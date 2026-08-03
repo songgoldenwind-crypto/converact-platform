@@ -1,0 +1,842 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 2deabfee..254c1030 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -178,6 +178,8 @@ sqlx = { version = "0.9.0", features = [
+     "runtime-tokio",
+     "tls-rustls-ring",
+     "postgres",
++    "chrono",
++    "json",
+     "sqlite",
+     "mysql",
+     "any",
+diff --git a/src/call/adapters/mod.rs b/src/call/adapters/mod.rs
+index 0226b252..cc74b57e 100644
+--- a/src/call/adapters/mod.rs
++++ b/src/call/adapters/mod.rs
+@@ -11,6 +11,7 @@
+ 
+ #[cfg(feature = "console")]
+ mod console_adapter;
++pub mod postgres_sip_effect;
+ mod rwi_adapter;
+ mod session_action_bridge;
+ 
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+new file mode 100644
+index 00000000..b2e363d6
+--- /dev/null
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -0,0 +1,811 @@
++use crate::call::domain::sip_effect::{
++    PreparedSipEffect, SIP_EFFECT_SCHEMA_HASH, SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_VERSION,
++    SIP_EFFECT_WRITER_IDENTITY, SipEffectError, SipEffectPrepareOutcome, SipEffectRecord,
++    SipEffectRepairFence, SipEffectState, protocol_effect_identity_hash,
++};
++use chrono::{DateTime, Utc};
++use serde_json::Value;
++use sqlx::postgres::{PgPoolOptions, PgRow};
++use sqlx::{PgPool, Postgres, Row, Transaction};
++use std::sync::Arc;
++use std::sync::atomic::{AtomicUsize, Ordering};
++use std::time::Duration;
++use tokio::sync::{OwnedSemaphorePermit, Semaphore};
++
++const MAX_STORE_IN_FLIGHT: usize = 256;
++const MAX_STORE_QUEUE_DEPTH: usize = 1_024;
++const MAX_STORE_WAIT: Duration = Duration::from_millis(250);
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
++pub enum SipEffectStoreError {
++    #[error("SIP effect store configuration is invalid")]
++    InvalidConfiguration,
++    #[error("SIP effect store queue is exhausted")]
++    PoolExhausted,
++    #[error("SIP effect store admission timed out")]
++    PoolTimeout,
++    #[error("SIP effect store is unavailable")]
++    StoreUnavailable,
++    #[error("SIP effect store schema or writer election is incompatible")]
++    SchemaIncompatible,
++    #[error(transparent)]
++    Domain(#[from] SipEffectError),
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub struct PostgresSipEffectStoreOptions {
++    pub max_in_flight: usize,
++    pub max_queue_depth: usize,
++    pub wait_timeout: Duration,
++}
++
++impl Default for PostgresSipEffectStoreOptions {
++    fn default() -> Self {
++        Self {
++            max_in_flight: 32,
++            max_queue_depth: 128,
++            wait_timeout: MAX_STORE_WAIT,
++        }
++    }
++}
++
++impl PostgresSipEffectStoreOptions {
++    fn validate(self) -> Result<Self, SipEffectStoreError> {
++        validate_admission_limits(self.max_in_flight, self.max_queue_depth, self.wait_timeout)?;
++        Ok(self)
++    }
++}
++
++macro_rules! effect_columns {
++    () => {
++        r#"
++        protocol_effect_id, tenant_id, protocol_session_id,
++        protocol_session_generation, decision_id, idempotency_key, request_hash,
++        command_id, adapter_identity, adapter_identity_hash, wire_bytes_hash,
++        wire_length_bytes, canonical_wire_bytes, route_binding,
++        route_binding_hash, wire_attempt_facts, wire_attempt_facts_hash,
++        wire_freeze_sha256, effect_identity_hash,
++        owner_epoch::text AS owner_epoch,
++        command_sequence::text AS command_sequence,
++        schema_id, schema_version, schema_hash, writer_identity, state,
++        revision::text AS revision, unknown_count, last_receipt_id,
++        last_receipt_hash, last_receipt_repair_delay_ms, failure_code,
++        repair_owner_id, repair_owner_epoch::text AS repair_owner_epoch,
++        repair_epoch_high_watermark::text AS repair_epoch_high_watermark,
++        repair_claim_token,
++        repair_claim_revision::text AS repair_claim_revision,
++        repair_attempts, audit_until, payload_retained, prepared_at
++        "#
++    };
++}
++
++const PREPARE_INSERT_SQL: &str = concat!(
++    r#"
++        INSERT INTO ivekit_sip_protocol_effects
++          (protocol_effect_id, tenant_id, protocol_session_id,
++           protocol_session_generation, decision_id, idempotency_key,
++           request_hash, command_id, adapter_identity, adapter_identity_hash,
++           wire_bytes_hash, wire_length_bytes, canonical_wire_bytes,
++           route_binding, route_binding_hash, wire_attempt_facts,
++           wire_attempt_facts_hash, wire_freeze_sha256, effect_identity_hash,
++           owner_epoch, command_sequence, schema_id, schema_version,
++           schema_hash, writer_identity, state, revision, unknown_count,
++           last_receipt_id, last_receipt_hash, last_receipt_repair_delay_ms,
++           failure_code, repair_due_at, repair_owner_id, repair_owner_epoch,
++           repair_epoch_high_watermark, repair_claim_token,
++           repair_claim_revision, repair_lease_until, repair_attempts,
++           repair_exhausted_at, repair_exhaustion_receipt_hash,
++           operator_attention_required, repair_compacted_at,
++           retention_reference_count, rollback_reference_count, audit_until,
++           payload_retained, terminal_tombstone_id, terminal_tombstone_hash,
++           terminal_at, prepared_at, updated_at)
++        VALUES
++          ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12,
++           $13, $14::jsonb, $15, $16::jsonb, $17, $18, $19, $20::numeric,
++           $21::numeric, $22, $23, $24, $25, 'prepared', 1, 0, NULL, NULL,
++           NULL, '', NULL, NULL, NULL, 0, NULL, NULL, NULL, 0, NULL, NULL,
++           FALSE, NULL, 0, 0, $26, TRUE, NULL, NULL, NULL, $27, $27)
++        ON CONFLICT DO NOTHING
++        RETURNING
++        "#,
++    effect_columns!(),
++);
++
++const PREPARE_CONFLICT_SQL: &str = concat!(
++    "SELECT ",
++    effect_columns!(),
++    r#"
++        FROM ivekit_sip_protocol_effects
++        WHERE tenant_id = $1
++          AND (protocol_effect_id = $2 OR idempotency_key = $3)
++        ORDER BY (protocol_effect_id = $2) DESC
++        FOR UPDATE
++        "#,
++);
++
++const QUERY_SQL: &str = concat!(
++    "SELECT ",
++    effect_columns!(),
++    r#"
++        FROM ivekit_sip_protocol_effects
++        WHERE tenant_id = $1 AND protocol_effect_id = $2
++        "#,
++);
++
++pub struct PostgresSipEffectStore {
++    pool: PgPool,
++    admission: SipEffectAdmission,
++    wait_timeout: Duration,
++}
++
++impl PostgresSipEffectStore {
++    pub async fn connect(
++        database_url: &str,
++        options: PostgresSipEffectStoreOptions,
++    ) -> Result<Self, SipEffectStoreError> {
++        let options = options.validate()?;
++        let max_connections = u32::try_from(options.max_in_flight)
++            .map_err(|_| SipEffectStoreError::InvalidConfiguration)?;
++        let pool = PgPoolOptions::new()
++            .max_connections(max_connections)
++            .acquire_timeout(options.wait_timeout)
++            .connect(database_url)
++            .await
++            .map_err(map_sqlx_error)?;
++        Self::from_pool(pool, options)
++    }
++
++    pub fn from_pool(
++        pool: PgPool,
++        options: PostgresSipEffectStoreOptions,
++    ) -> Result<Self, SipEffectStoreError> {
++        let options = options.validate()?;
++        Ok(Self {
++            pool,
++            admission: SipEffectAdmission::new(
++                options.max_in_flight,
++                options.max_queue_depth,
++                options.wait_timeout,
++            )?,
++            wait_timeout: options.wait_timeout,
++        })
++    }
++
++    pub fn admission_snapshot(&self) -> SipEffectAdmissionSnapshot {
++        self.admission.snapshot()
++    }
++
++    pub async fn prepare(
++        &self,
++        effect: PreparedSipEffect,
++    ) -> Result<SipEffectPrepareOutcome, SipEffectStoreError> {
++        effect.validate()?;
++        let effect_identity_hash = protocol_effect_identity_hash(&effect.identity)?;
++        let (_admission, mut transaction) = self
++            .begin_tenant_transaction(&effect.identity.tenant_id)
++            .await?;
++        let inserted = sqlx::query(PREPARE_INSERT_SQL)
++            .bind(&effect.identity.protocol_effect_id)
++            .bind(&effect.identity.tenant_id)
++            .bind(&effect.identity.protocol_session_id)
++            .bind(&effect.identity.protocol_session_generation)
++            .bind(&effect.identity.decision_id)
++            .bind(&effect.identity.idempotency_key)
++            .bind(&effect.identity.request_hash)
++            .bind(&effect.identity.command_id)
++            .bind(&effect.adapter_identity)
++            .bind(&effect.identity.adapter_identity_hash)
++            .bind(&effect.identity.wire_bytes_hash)
++            .bind(
++                i32::try_from(effect.identity.wire_length_bytes)
++                    .map_err(|_| SipEffectStoreError::InvalidConfiguration)?,
++            )
++            .bind(&effect.canonical_wire_bytes)
++            .bind(&effect.route_binding)
++            .bind(&effect.identity.route_binding_hash)
++            .bind(&effect.wire_attempt_facts)
++            .bind(&effect.identity.wire_attempt_facts_hash)
++            .bind(&effect.identity.wire_freeze_sha256)
++            .bind(&effect_identity_hash)
++            .bind(effect.identity.owner_epoch.to_string())
++            .bind(effect.identity.command_sequence.to_string())
++            .bind(SIP_EFFECT_SCHEMA_ID)
++            .bind(i32::from(SIP_EFFECT_SCHEMA_VERSION))
++            .bind(SIP_EFFECT_SCHEMA_HASH)
++            .bind(SIP_EFFECT_WRITER_IDENTITY)
++            .bind(effect.audit_until)
++            .bind(effect.prepared_at)
++            .fetch_optional(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++
++        let outcome = if let Some(row) = inserted {
++            SipEffectPrepareOutcome {
++                record: decode_effect(&row)?.record,
++                replayed: false,
++            }
++        } else {
++            let rows = sqlx::query(PREPARE_CONFLICT_SQL)
++                .bind(&effect.identity.tenant_id)
++                .bind(&effect.identity.protocol_effect_id)
++                .bind(&effect.identity.idempotency_key)
++                .fetch_all(&mut *transaction)
++                .await
++                .map_err(map_sqlx_error)?;
++            if rows.len() != 1 {
++                return Err(SipEffectError::IdempotencyConflict.into());
++            }
++            let existing = decode_effect(&rows[0])?;
++            if existing.record.identity != effect.identity
++                || (existing.payload_retained
++                    && existing.record.canonical_wire_bytes != effect.canonical_wire_bytes)
++            {
++                return Err(SipEffectError::IdempotencyConflict.into());
++            }
++            SipEffectPrepareOutcome {
++                record: existing.record,
++                replayed: true,
++            }
++        };
++        transaction.commit().await.map_err(map_sqlx_error)?;
++        Ok(outcome)
++    }
++
++    pub async fn query(
++        &self,
++        identity: &crate::call::domain::sip_effect::SipEffectIdentity,
++    ) -> Result<Option<SipEffectRecord>, SipEffectStoreError> {
++        let expected_identity_hash = protocol_effect_identity_hash(identity)?;
++        let (_admission, mut transaction) =
++            self.begin_tenant_transaction(&identity.tenant_id).await?;
++        let row = sqlx::query(QUERY_SQL)
++            .bind(&identity.tenant_id)
++            .bind(&identity.protocol_effect_id)
++            .fetch_optional(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        let record = if let Some(row) = row {
++            let decoded = decode_effect(&row)?;
++            if &decoded.record.identity != identity
++                || protocol_effect_identity_hash(&decoded.record.identity)?
++                    != expected_identity_hash
++            {
++                return Err(SipEffectError::IdentityConflict.into());
++            }
++            Some(decoded.record)
++        } else {
++            None
++        };
++        transaction.commit().await.map_err(map_sqlx_error)?;
++        Ok(record)
++    }
++
++    async fn begin_tenant_transaction(
++        &self,
++        tenant_id: &str,
++    ) -> Result<(SipEffectAdmissionLease, Transaction<'_, Postgres>), SipEffectStoreError> {
++        if tenant_id.is_empty() {
++            return Err(SipEffectError::InvalidInput.into());
++        }
++        let admission = self.admission.enter().await?;
++        let transaction = tokio::time::timeout(self.wait_timeout, self.pool.begin())
++            .await
++            .map_err(|_| SipEffectStoreError::PoolTimeout)?
++            .map_err(map_sqlx_error)?;
++        let mut transaction = transaction;
++        sqlx::query("SET LOCAL statement_timeout = '250ms'")
++            .execute(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        sqlx::query("SET LOCAL lock_timeout = '250ms'")
++            .execute(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        sqlx::query("SET LOCAL search_path = pg_catalog, public, pg_temp")
++            .execute(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        sqlx::query("SELECT set_config('app.current_tenant', $1, TRUE)")
++            .bind(tenant_id)
++            .execute(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        sqlx::query("SET LOCAL ROLE opc_sip_effect_executor")
++            .execute(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        sqlx::query("SELECT set_config('app.sip_effect_writer_identity', $1, TRUE)")
++            .bind(SIP_EFFECT_WRITER_IDENTITY)
++            .execute(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        sqlx::query("SELECT ivekit_assert_sip_effect_writer($1, $2, $3, $4)")
++            .bind(SIP_EFFECT_WRITER_IDENTITY)
++            .bind(SIP_EFFECT_SCHEMA_ID)
++            .bind(i32::from(SIP_EFFECT_SCHEMA_VERSION))
++            .bind(SIP_EFFECT_SCHEMA_HASH)
++            .execute(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        Ok((admission, transaction))
++    }
++}
++
++struct DecodedEffect {
++    record: SipEffectRecord,
++    payload_retained: bool,
++}
++
++fn decode_effect(row: &PgRow) -> Result<DecodedEffect, SipEffectStoreError> {
++    let schema_id: String = schema_field(row, "schema_id")?;
++    let schema_version: i32 = schema_field(row, "schema_version")?;
++    let schema_hash: String = schema_field(row, "schema_hash")?;
++    let writer_identity: String = schema_field(row, "writer_identity")?;
++    if schema_id != SIP_EFFECT_SCHEMA_ID
++        || schema_version != i32::from(SIP_EFFECT_SCHEMA_VERSION)
++        || schema_hash != SIP_EFFECT_SCHEMA_HASH
++        || writer_identity != SIP_EFFECT_WRITER_IDENTITY
++    {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
++
++    let identity = crate::call::domain::sip_effect::SipEffectIdentity {
++        tenant_id: schema_field(row, "tenant_id")?,
++        protocol_effect_id: schema_field(row, "protocol_effect_id")?,
++        protocol_session_id: schema_field(row, "protocol_session_id")?,
++        protocol_session_generation: schema_field(row, "protocol_session_generation")?,
++        decision_id: schema_field(row, "decision_id")?,
++        idempotency_key: schema_field(row, "idempotency_key")?,
++        request_hash: schema_field(row, "request_hash")?,
++        command_id: schema_field(row, "command_id")?,
++        adapter_identity_hash: schema_field(row, "adapter_identity_hash")?,
++        wire_bytes_hash: schema_field(row, "wire_bytes_hash")?,
++        wire_length_bytes: positive_u32(schema_field::<i32>(row, "wire_length_bytes")?)?,
++        route_binding_hash: schema_field(row, "route_binding_hash")?,
++        wire_attempt_facts_hash: schema_field(row, "wire_attempt_facts_hash")?,
++        wire_freeze_sha256: schema_field(row, "wire_freeze_sha256")?,
++        owner_epoch: canonical_u64(&schema_field::<String>(row, "owner_epoch")?, true)?,
++        command_sequence: canonical_u64(&schema_field::<String>(row, "command_sequence")?, true)?,
++    };
++    let effect_identity_hash: String = schema_field(row, "effect_identity_hash")?;
++    if protocol_effect_identity_hash(&identity)? != effect_identity_hash {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
++
++    let repair_owner_id: Option<String> = schema_field(row, "repair_owner_id")?;
++    let repair_owner_epoch: Option<String> = schema_field(row, "repair_owner_epoch")?;
++    let repair_claim_token: Option<String> = schema_field(row, "repair_claim_token")?;
++    let repair_claim_revision: Option<String> = schema_field(row, "repair_claim_revision")?;
++    let repair_claim = match (
++        repair_owner_id,
++        repair_owner_epoch,
++        repair_claim_token,
++        repair_claim_revision,
++    ) {
++        (None, None, None, None) => None,
++        (Some(owner_id), Some(owner_epoch), Some(claim_token), Some(claim_revision)) => {
++            Some(SipEffectRepairFence {
++                repair_owner_id: owner_id,
++                repair_owner_epoch: canonical_u64(&owner_epoch, true)?,
++                repair_claim_token: claim_token,
++                repair_claim_revision: canonical_u64(&claim_revision, true)?,
++            })
++        }
++        _ => return Err(SipEffectStoreError::SchemaIncompatible),
++    };
++    let canonical_wire_bytes: Vec<u8> = schema_field(row, "canonical_wire_bytes")?;
++    let adapter_identity: Value = schema_field(row, "adapter_identity")?;
++    let route_binding: Value = schema_field(row, "route_binding")?;
++    let wire_attempt_facts: Value = schema_field(row, "wire_attempt_facts")?;
++    let prepared_at: DateTime<Utc> = schema_field(row, "prepared_at")?;
++    let audit_until: DateTime<Utc> = schema_field(row, "audit_until")?;
++    let state = database_state(&schema_field::<String>(row, "state")?)?;
++    let payload_retained: bool = schema_field(row, "payload_retained")?;
++    let repair_delay = schema_field::<Option<i32>>(row, "last_receipt_repair_delay_ms")?
++        .map(positive_or_zero_u32)
++        .transpose()?;
++    let repair_attempts = u8::try_from(schema_field::<i16>(row, "repair_attempts")?)
++        .map_err(|_| SipEffectStoreError::SchemaIncompatible)?;
++    let record = SipEffectRecord {
++        identity,
++        canonical_wire_bytes,
++        adapter_identity,
++        route_binding,
++        wire_attempt_facts,
++        state,
++        revision: canonical_u64(&schema_field::<String>(row, "revision")?, true)?,
++        unknown_count: positive_or_zero_u32(schema_field::<i32>(row, "unknown_count")?)?,
++        last_receipt_id: schema_field(row, "last_receipt_id")?,
++        last_receipt_hash: schema_field(row, "last_receipt_hash")?,
++        failure_code: schema_field(row, "failure_code")?,
++        repair_delay_ms: repair_delay,
++        repair_epoch_high_watermark: canonical_u64(
++            &schema_field::<String>(row, "repair_epoch_high_watermark")?,
++            false,
++        )?,
++        repair_claim,
++        repair_attempts,
++        prepared_at,
++        audit_until,
++    };
++    if payload_retained {
++        PreparedSipEffect {
++            identity: record.identity.clone(),
++            canonical_wire_bytes: record.canonical_wire_bytes.clone(),
++            adapter_identity: record.adapter_identity.clone(),
++            route_binding: record.route_binding.clone(),
++            wire_attempt_facts: record.wire_attempt_facts.clone(),
++            prepared_at: record.prepared_at,
++            audit_until: record.audit_until,
++        }
++        .validate()
++        .map_err(|_| SipEffectStoreError::SchemaIncompatible)?;
++    } else if !record.canonical_wire_bytes.is_empty() || !record.state.is_terminal() {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
++    Ok(DecodedEffect {
++        record,
++        payload_retained,
++    })
++}
++
++fn schema_field<'r, T>(row: &'r PgRow, field: &str) -> Result<T, SipEffectStoreError>
++where
++    T: sqlx::Decode<'r, Postgres> + sqlx::Type<Postgres>,
++{
++    row.try_get(field)
++        .map_err(|_| SipEffectStoreError::SchemaIncompatible)
++}
++
++fn canonical_u64(value: &str, positive: bool) -> Result<u64, SipEffectStoreError> {
++    let parsed = value
++        .parse::<u64>()
++        .map_err(|_| SipEffectStoreError::SchemaIncompatible)?;
++    if parsed.to_string() != value || (positive && parsed == 0) {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
++    Ok(parsed)
++}
++
++fn positive_u32(value: i32) -> Result<u32, SipEffectStoreError> {
++    let parsed = u32::try_from(value).map_err(|_| SipEffectStoreError::SchemaIncompatible)?;
++    if parsed == 0 {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
++    Ok(parsed)
++}
++
++fn positive_or_zero_u32(value: i32) -> Result<u32, SipEffectStoreError> {
++    u32::try_from(value).map_err(|_| SipEffectStoreError::SchemaIncompatible)
++}
++
++fn database_state(value: &str) -> Result<SipEffectState, SipEffectStoreError> {
++    match value {
++        "prepared" => Ok(SipEffectState::Prepared),
++        "durable_decision" => Ok(SipEffectState::DurableDecision),
++        "send_attempted" => Ok(SipEffectState::SendAttempted),
++        "transport_accepted" => Ok(SipEffectState::TransportAccepted),
++        "protocol_observed" => Ok(SipEffectState::ProtocolObserved),
++        "failed" => Ok(SipEffectState::Failed),
++        "unknown" => Ok(SipEffectState::Unknown),
++        _ => Err(SipEffectStoreError::SchemaIncompatible),
++    }
++}
++
++fn map_sqlx_error(error: sqlx::Error) -> SipEffectStoreError {
++    match error {
++        sqlx::Error::PoolTimedOut => SipEffectStoreError::PoolTimeout,
++        sqlx::Error::PoolClosed => SipEffectStoreError::StoreUnavailable,
++        sqlx::Error::Database(database) => match database.code().as_deref() {
++            Some("42501" | "55000" | "42P01" | "42703" | "42883") => {
++                SipEffectStoreError::SchemaIncompatible
++            }
++            Some("57014") => SipEffectStoreError::PoolTimeout,
++            _ => SipEffectStoreError::StoreUnavailable,
++        },
++        _ => SipEffectStoreError::StoreUnavailable,
++    }
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub struct SipEffectAdmissionSnapshot {
++    pub active: usize,
++    pub queued: usize,
++}
++
++#[derive(Debug)]
++struct SipEffectAdmission {
++    active: Arc<Semaphore>,
++    total: Arc<Semaphore>,
++    active_count: Arc<AtomicUsize>,
++    queued_count: Arc<AtomicUsize>,
++    wait_timeout: Duration,
++}
++
++impl SipEffectAdmission {
++    fn new(
++        max_in_flight: usize,
++        max_queue_depth: usize,
++        wait_timeout: Duration,
++    ) -> Result<Self, SipEffectStoreError> {
++        let total = validate_admission_limits(max_in_flight, max_queue_depth, wait_timeout)?;
++        Ok(Self {
++            active: Arc::new(Semaphore::new(max_in_flight)),
++            total: Arc::new(Semaphore::new(total)),
++            active_count: Arc::new(AtomicUsize::new(0)),
++            queued_count: Arc::new(AtomicUsize::new(0)),
++            wait_timeout,
++        })
++    }
++
++    async fn enter(&self) -> Result<SipEffectAdmissionLease, SipEffectStoreError> {
++        let total_permit = Arc::clone(&self.total)
++            .try_acquire_owned()
++            .map_err(|_| SipEffectStoreError::PoolExhausted)?;
++        if let Ok(active_permit) = Arc::clone(&self.active).try_acquire_owned() {
++            self.active_count.fetch_add(1, Ordering::AcqRel);
++            return Ok(SipEffectAdmissionLease {
++                _active_permit: active_permit,
++                _total_permit: total_permit,
++                active_count: Arc::clone(&self.active_count),
++            });
++        }
++
++        let queued = CounterGuard::new(Arc::clone(&self.queued_count));
++        let active_permit =
++            tokio::time::timeout(self.wait_timeout, Arc::clone(&self.active).acquire_owned())
++                .await
++                .map_err(|_| SipEffectStoreError::PoolTimeout)?
++                .map_err(|_| SipEffectStoreError::PoolExhausted)?;
++        drop(queued);
++        self.active_count.fetch_add(1, Ordering::AcqRel);
++        Ok(SipEffectAdmissionLease {
++            _active_permit: active_permit,
++            _total_permit: total_permit,
++            active_count: Arc::clone(&self.active_count),
++        })
++    }
++
++    fn snapshot(&self) -> SipEffectAdmissionSnapshot {
++        SipEffectAdmissionSnapshot {
++            active: self.active_count.load(Ordering::Acquire),
++            queued: self.queued_count.load(Ordering::Acquire),
++        }
++    }
++}
++
++fn validate_admission_limits(
++    max_in_flight: usize,
++    max_queue_depth: usize,
++    wait_timeout: Duration,
++) -> Result<usize, SipEffectStoreError> {
++    if max_in_flight == 0
++        || max_in_flight > MAX_STORE_IN_FLIGHT
++        || max_queue_depth == 0
++        || max_queue_depth > MAX_STORE_QUEUE_DEPTH
++        || wait_timeout.is_zero()
++        || wait_timeout > MAX_STORE_WAIT
++    {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    max_in_flight
++        .checked_add(max_queue_depth)
++        .ok_or(SipEffectStoreError::InvalidConfiguration)
++}
++
++#[derive(Debug)]
++struct CounterGuard {
++    counter: Arc<AtomicUsize>,
++}
++
++impl CounterGuard {
++    fn new(counter: Arc<AtomicUsize>) -> Self {
++        counter.fetch_add(1, Ordering::AcqRel);
++        Self { counter }
++    }
++}
++
++impl Drop for CounterGuard {
++    fn drop(&mut self) {
++        self.counter.fetch_sub(1, Ordering::AcqRel);
++    }
++}
++
++#[derive(Debug)]
++struct SipEffectAdmissionLease {
++    _active_permit: OwnedSemaphorePermit,
++    _total_permit: OwnedSemaphorePermit,
++    active_count: Arc<AtomicUsize>,
++}
++
++impl Drop for SipEffectAdmissionLease {
++    fn drop(&mut self) {
++        self.active_count.fetch_sub(1, Ordering::AcqRel);
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::call::domain::sip_effect::{
++        SipEffectIdentity, canonical_json_sha256, sha256_lower_hex, sip_wire_freeze_sha256,
++    };
++    use chrono::{Duration as ChronoDuration, TimeZone};
++    use std::sync::Arc;
++    use std::time::Duration;
++
++    #[test]
++    fn admission_limits_reject_zero_and_unbounded_configuration() {
++        assert_eq!(
++            SipEffectAdmission::new(0, 1, Duration::from_millis(1)).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert_eq!(
++            SipEffectAdmission::new(1, 1_025, Duration::from_millis(1)).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert_eq!(
++            SipEffectAdmission::new(1, 1, Duration::from_millis(251)).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++    }
++
++    #[tokio::test]
++    async fn admission_bounds_active_and_queued_database_work() {
++        let admission = Arc::new(SipEffectAdmission::new(1, 1, Duration::from_millis(50)).unwrap());
++        let active = admission.enter().await.unwrap();
++        assert_eq!(
++            admission.snapshot(),
++            SipEffectAdmissionSnapshot {
++                active: 1,
++                queued: 0,
++            }
++        );
++
++        let mut queued = Box::pin(admission.enter());
++        assert!(
++            tokio::time::timeout(Duration::from_millis(5), &mut queued)
++                .await
++                .is_err()
++        );
++        assert_eq!(
++            admission.snapshot(),
++            SipEffectAdmissionSnapshot {
++                active: 1,
++                queued: 1,
++            }
++        );
++        assert_eq!(
++            admission.enter().await.unwrap_err(),
++            SipEffectStoreError::PoolExhausted,
++        );
++
++        drop(active);
++        let queued = queued.await.unwrap();
++        assert_eq!(
++            admission.snapshot(),
++            SipEffectAdmissionSnapshot {
++                active: 1,
++                queued: 0,
++            }
++        );
++        drop(queued);
++        assert_eq!(
++            admission.snapshot(),
++            SipEffectAdmissionSnapshot {
++                active: 0,
++                queued: 0,
++            }
++        );
++    }
++
++    #[tokio::test]
++    async fn queued_database_work_times_out_without_growing_backlog() {
++        let admission = SipEffectAdmission::new(1, 1, Duration::from_millis(5)).unwrap();
++        let active = admission.enter().await.unwrap();
++        assert_eq!(
++            admission.enter().await.unwrap_err(),
++            SipEffectStoreError::PoolTimeout,
++        );
++        assert_eq!(
++            admission.snapshot(),
++            SipEffectAdmissionSnapshot {
++                active: 1,
++                queued: 0,
++            }
++        );
++        drop(active);
++    }
++
++    #[tokio::test]
++    #[ignore = "requires an isolated migrated PostgreSQL database"]
++    async fn postgres_prepare_replay_and_query_survive_pool_recreation() {
++        let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
++        let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
++            .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
++        let effect = postgres_effect_fixture(&run_id);
++        let options = PostgresSipEffectStoreOptions {
++            max_in_flight: 2,
++            max_queue_depth: 2,
++            wait_timeout: Duration::from_millis(250),
++        };
++
++        let first_store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        let first = first_store.prepare(effect.clone()).await.unwrap();
++        assert!(!first.replayed);
++        let replay = first_store.prepare(effect.clone()).await.unwrap();
++        assert!(replay.replayed);
++        assert_eq!(replay.record, first.record);
++        first_store.pool.close().await;
++
++        let recovered_store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        let recovered = recovered_store
++            .query(&effect.identity)
++            .await
++            .unwrap()
++            .unwrap();
++        assert_eq!(recovered, first.record);
++        let replay_after_reconnect = recovered_store.prepare(effect).await.unwrap();
++        assert!(replay_after_reconnect.replayed);
++        assert_eq!(replay_after_reconnect.record, recovered);
++        recovered_store.pool.close().await;
++    }
++
++    fn postgres_effect_fixture(run_id: &str) -> PreparedSipEffect {
++        let tenant_id = format!("rust-pg-{run_id}");
++        let effect_id = format!("effect-{run_id}");
++        let prepared_at = Utc.with_ymd_and_hms(2026, 8, 3, 0, 0, 0).unwrap();
++        let canonical_wire_bytes =
++            b"BYE sip:bob@example.test SIP/2.0\r\nContent-Length: 0\r\n\r\n".to_vec();
++        let adapter_identity = serde_json::json!({"adapter_id": "rsipstack"});
++        let route_binding = serde_json::json!({"transport": "udp"});
++        let request_hash =
++            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string();
++        let wire_attempt_facts = serde_json::json!({
++            "attempt": 1,
++            "semantic_intent_sha256": request_hash,
++        });
++        let wire_bytes_hash = sha256_lower_hex(&canonical_wire_bytes);
++        let wire_length_bytes = u32::try_from(canonical_wire_bytes.len()).unwrap();
++        let route_binding_hash = canonical_json_sha256(&route_binding).unwrap();
++        let wire_attempt_facts_hash = canonical_json_sha256(&wire_attempt_facts).unwrap();
++        let wire_freeze_sha256 = sip_wire_freeze_sha256(
++            &route_binding_hash,
++            &wire_attempt_facts_hash,
++            &wire_bytes_hash,
++            wire_length_bytes,
++        )
++        .unwrap();
++        PreparedSipEffect {
++            identity: SipEffectIdentity {
++                tenant_id: tenant_id.clone(),
++                protocol_effect_id: effect_id,
++                protocol_session_id: format!("session-{run_id}"),
++                protocol_session_generation: "1".to_string(),
++                decision_id: format!("decision-{run_id}"),
++                idempotency_key: format!("{tenant_id}/session/1/bye/1"),
++                request_hash,
++                command_id: format!("command-{run_id}"),
++                adapter_identity_hash: canonical_json_sha256(&adapter_identity).unwrap(),
++                wire_bytes_hash,
++                wire_length_bytes,
++                route_binding_hash,
++                wire_attempt_facts_hash,
++                wire_freeze_sha256,
++                owner_epoch: 7,
++                command_sequence: 1,
++            },
++            canonical_wire_bytes,
++            adapter_identity,
++            route_binding,
++            wire_attempt_facts,
++            prepared_at,
++            audit_until: prepared_at + ChronoDuration::days(30),
++        }
++    }
++}
