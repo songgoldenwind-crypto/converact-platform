@@ -173,6 +173,28 @@ ivekit.47 Linux/image/peer/capacity evidence therefore remain `not_run`. Local
 exact-source evidence is 9 focused native-model tests and the complete RustPBX
 library suite (`1943` passed, `1` ignored).
 
+ivekit.48 composes that model into the existing `ActiveProxyCallRegistry`;
+it does not introduce a second PBX or a parallel business-Call registry. Each
+authoritative provider session attaches one deterministic Leg to the single
+per-Call `NativeCall`, and initial Protocol Dialog admission updates the same
+object before the legacy dialog handle becomes visible. The existing
+`providers_by_call` map remains a bounded lookup index, not another state
+authority. Same-Call mutations use one synchronous per-Call mutex that is never
+held across async work; fresh Call allocation occurs outside DashMap shard
+locks, publication retries are bounded to three attempts, and close/removal is
+fenced by exact `Arc` identity. Capacity, authority, invalid-direction and
+Dialog failures roll back the active slot and all secondary indexes. A poisoned
+Call is retained for reconciliation while other Calls remain available.
+
+This is admission and index composition only. The live SIP transition dispatch
+and durable SipEffect writer remain `not_run`, so
+`G03-E16-NATIVE-AUTHORITY` is not promoted. Native Dialog history is
+intentionally retained until later lifecycle events are wired, and the active
+counter still counts provider sessions rather than distinct business Calls.
+ivekit.48 Linux/image/peer/capacity evidence also remains `not_run`. Local
+exact-source evidence is 21 focused registry tests and the complete RustPBX
+library suite (`1951` passed, `1` ignored).
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

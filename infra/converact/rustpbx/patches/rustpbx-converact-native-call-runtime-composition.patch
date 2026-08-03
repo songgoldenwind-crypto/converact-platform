@@ -1,0 +1,826 @@
+diff --git a/src/call/domain/native_call.rs b/src/call/domain/native_call.rs
+index fe6b030d..a8b14d97 100644
+--- a/src/call/domain/native_call.rs
++++ b/src/call/domain/native_call.rs
+@@ -394,6 +394,14 @@ impl NativeCall {
+         }
+     }
+ 
++    pub fn matches_authority(&self, identity: &NativeCallIdentity) -> bool {
++        self.tenant_id == identity.tenant_id()
++            && self.call_id == *identity.call_id()
++            && self.interaction_id == *identity.interaction_id()
++            && self.owner_epoch == identity.owner_epoch()
++            && self.generation == identity.generation()
++    }
++
+     pub fn snapshot(&self) -> NativeCallSnapshot {
+         let mut legs: Vec<_> = self.legs.values().map(NativeLeg::snapshot).collect();
+         legs.sort_by(|left, right| left.leg_id.cmp(&right.leg_id));
+diff --git a/src/proxy/active_call_registry.rs b/src/proxy/active_call_registry.rs
+index 364b3055..62f1f2a0 100644
+--- a/src/proxy/active_call_registry.rs
++++ b/src/proxy/active_call_registry.rs
+@@ -1,11 +1,18 @@
+ use crate::call::domain::foundation_identity::{
+-    CallId, NativeCallIdentity, ProtocolDialogId, ProviderCallId, derive_protocol_dialog_id,
++    CallId, LegId, NativeCallIdentity, ProtocolDialogId, ProviderCallId, derive_leg_id,
++    derive_protocol_dialog_id,
++};
++use crate::call::domain::native_call::{
++    NativeCall, NativeCallBounds, NativeCallError, NativeCallSnapshot, NativeLegDirection,
+ };
+ use crate::proxy::proxy_call::sip_session::SipSessionHandle;
+ use chrono::{DateTime, Utc};
+ use dashmap::DashMap;
+ use serde::Serialize;
++use sha2::{Digest, Sha256};
++use std::collections::HashSet;
+ use std::sync::atomic::{AtomicUsize, Ordering};
++use std::sync::{Arc, Mutex};
+ use tokio::sync::Notify;
+ #[cfg(test)]
+ use tracing::warn;
+@@ -14,6 +21,7 @@ const ACTIVE_CALLS_HARD_CEILING: usize = 1_000_000;
+ const CALL_LEGS_HARD_CEILING: usize = 256;
+ const PROTOCOL_DIALOG_HISTORY_HARD_CEILING: usize = 16;
+ const PROVIDER_DIALOG_IDENTIFIER_HARD_CEILING: usize = 1_024;
++const NATIVE_CALL_REGISTRATION_RETRIES: usize = 3;
+ 
+ #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize)]
+ pub enum ActiveProxyCallStatus {
+@@ -45,6 +53,24 @@ struct ActiveProxyCallSlot {
+     entry: ActiveProxyCallEntry,
+     handle: SipSessionHandle,
+     identity: Option<NativeCallIdentity>,
++    native_binding: Option<NativeCallBinding>,
++}
++
++#[derive(Clone)]
++struct NativeCallBinding {
++    call_id: CallId,
++    leg_id: LegId,
++    cell: Arc<NativeCallCell>,
++}
++
++struct NativeCallCell {
++    state: Mutex<NativeCallCellState>,
++}
++
++struct NativeCallCellState {
++    call: NativeCall,
++    provider_call_ids: HashSet<String>,
++    closed: bool,
+ }
+ 
+ struct RegisteredProtocolDialog {
+@@ -74,11 +100,18 @@ pub enum ActiveCallRegistryError {
+     DialogCapacityExhausted,
+     #[error("protocol dialog is already owned by another call")]
+     DialogAuthorityConflict,
++    #[error("active call direction is invalid")]
++    InvalidDirection,
++    #[error("native Call state conflicts with the active registry operation")]
++    NativeCallStateConflict,
++    #[error("native Call state is unavailable")]
++    NativeCallUnavailable,
+ }
+ 
+ pub struct ActiveProxyCallRegistry {
+     slots: DashMap<String, ActiveProxyCallSlot>,
+     providers_by_call: DashMap<CallId, Vec<String>>,
++    native_calls: DashMap<CallId, Arc<NativeCallCell>>,
+     handles_by_dialog: DashMap<String, SipSessionHandle>,
+     dialog_by_session: DashMap<String, Vec<RegisteredProtocolDialog>>,
+     active_count: AtomicUsize,
+@@ -126,6 +159,7 @@ impl ActiveProxyCallRegistry {
+         Self {
+             slots: DashMap::new(),
+             providers_by_call: DashMap::new(),
++            native_calls: DashMap::new(),
+             handles_by_dialog: DashMap::new(),
+             dialog_by_session: DashMap::new(),
+             active_count: AtomicUsize::new(0),
+@@ -235,7 +269,22 @@ impl ActiveProxyCallRegistry {
+                     }
+                     (None, Some(incoming)) => {
+                         self.register_call_provider(incoming)?;
++                        let direction = match native_leg_direction(&entry.direction) {
++                            Ok(direction) => direction,
++                            Err(error) => {
++                                self.unregister_call_provider(incoming);
++                                return Err(error);
++                            }
++                        };
++                        let native_binding = match self.register_native_call(incoming, direction) {
++                            Ok(binding) => binding,
++                            Err(error) => {
++                                self.unregister_call_provider(incoming);
++                                return Err(error);
++                            }
++                        };
+                         current.identity = Some(incoming.clone());
++                        current.native_binding = Some(native_binding);
+                     }
+                     _ => {}
+                 }
+@@ -246,16 +295,35 @@ impl ActiveProxyCallRegistry {
+             }
+             Entry::Vacant(vacant) => {
+                 self.reserve_active_slot()?;
+-                if let Some(identity) = identity.as_ref()
+-                    && let Err(error) = self.register_call_provider(identity)
+-                {
+-                    self.release_active_slot();
+-                    return Err(error);
+-                }
++                let native_binding = if let Some(identity) = identity.as_ref() {
++                    if let Err(error) = self.register_call_provider(identity) {
++                        self.release_active_slot();
++                        return Err(error);
++                    }
++                    let direction = match native_leg_direction(&entry.direction) {
++                        Ok(direction) => direction,
++                        Err(error) => {
++                            self.unregister_call_provider(identity);
++                            self.release_active_slot();
++                            return Err(error);
++                        }
++                    };
++                    match self.register_native_call(identity, direction) {
++                        Ok(binding) => Some(binding),
++                        Err(error) => {
++                            self.unregister_call_provider(identity);
++                            self.release_active_slot();
++                            return Err(error);
++                        }
++                    }
++                } else {
++                    None
++                };
+                 vacant.insert(ActiveProxyCallSlot {
+                     entry,
+                     handle,
+                     identity,
++                    native_binding,
+                 });
+                 self.notify_waiters();
+                 Ok(true)
+@@ -302,6 +370,157 @@ impl ActiveProxyCallRegistry {
+         Ok(())
+     }
+ 
++    fn register_native_call(
++        &self,
++        identity: &NativeCallIdentity,
++        direction: NativeLegDirection,
++    ) -> Result<NativeCallBinding, ActiveCallRegistryError> {
++        let call_id = identity.call_id().clone();
++        let leg_id = derive_leg_id(
++            identity.tenant_id(),
++            &[
++                "provider-call",
++                identity.call_id().as_str(),
++                identity.provider_call_id().as_str(),
++            ],
++        )
++        .map_err(|_| ActiveCallRegistryError::AuthorityConflict)?;
++
++        for _ in 0..NATIVE_CALL_REGISTRATION_RETRIES {
++            if let Some(cell) = self
++                .native_calls
++                .get(&call_id)
++                .map(|entry| entry.value().clone())
++            {
++                let mut state = cell
++                    .state
++                    .lock()
++                    .map_err(|_| ActiveCallRegistryError::NativeCallUnavailable)?;
++                if state.closed {
++                    drop(state);
++                    self.native_calls
++                        .remove_if(&call_id, |_, candidate| Arc::ptr_eq(candidate, &cell));
++                    continue;
++                }
++                if !state.call.matches_authority(identity) {
++                    return Err(ActiveCallRegistryError::AuthorityConflict);
++                }
++                if state
++                    .provider_call_ids
++                    .contains(identity.provider_call_id().as_str())
++                {
++                    return Err(ActiveCallRegistryError::ProviderAlreadyRegistered);
++                }
++                let fence = state.call.fence();
++                state
++                    .call
++                    .add_leg(
++                        &fence,
++                        leg_id.clone(),
++                        identity.provider_call_id().clone(),
++                        direction,
++                    )
++                    .map_err(map_native_leg_registration_error)?;
++                state
++                    .provider_call_ids
++                    .insert(identity.provider_call_id().as_str().to_string());
++                drop(state);
++                return Ok(NativeCallBinding {
++                    call_id,
++                    leg_id,
++                    cell,
++                });
++            }
++
++            // Construct outside the DashMap shard lock. Publishing a fresh
++            // Call stays O(1), while a same-Call race retries against the
++            // already-published per-Call cell.
++            let bounds = NativeCallBounds {
++                active_calls: self.max_active_calls,
++                protocol_dialog_history_per_leg: self.max_dialogs_per_session,
++                ..NativeCallBounds::default()
++            };
++            let mut call = NativeCall::new(identity.clone(), bounds)
++                .map_err(map_native_leg_registration_error)?;
++            call.add_leg(
++                &call.fence(),
++                leg_id.clone(),
++                identity.provider_call_id().clone(),
++                direction,
++            )
++            .map_err(map_native_leg_registration_error)?;
++            let cell = Arc::new(NativeCallCell {
++                state: Mutex::new(NativeCallCellState {
++                    call,
++                    provider_call_ids: HashSet::from([identity
++                        .provider_call_id()
++                        .as_str()
++                        .to_string()]),
++                    closed: false,
++                }),
++            });
++            use dashmap::mapref::entry::Entry;
++            match self.native_calls.entry(call_id.clone()) {
++                Entry::Vacant(vacant) => {
++                    vacant.insert(cell.clone());
++                    return Ok(NativeCallBinding {
++                        call_id,
++                        leg_id,
++                        cell,
++                    });
++                }
++                Entry::Occupied(_) => continue,
++            }
++        }
++        Err(ActiveCallRegistryError::NativeCallUnavailable)
++    }
++
++    fn unregister_native_call(&self, binding: &NativeCallBinding, provider_call_id: &str) {
++        let closed = match binding.cell.state.lock() {
++            Ok(mut state) => {
++                state.provider_call_ids.remove(provider_call_id);
++                if state.provider_call_ids.is_empty() {
++                    state.closed = true;
++                }
++                state.closed
++            }
++            Err(_) => {
++                tracing::error!(
++                    call_id = %binding.call_id,
++                    "Native Call is poisoned; retaining it for bounded reconciliation"
++                );
++                return;
++            }
++        };
++        if closed {
++            self.native_calls
++                .remove_if(&binding.call_id, |_, candidate| {
++                    Arc::ptr_eq(candidate, &binding.cell)
++                });
++        }
++    }
++
++    pub fn native_call_snapshot(
++        &self,
++        call_id: &CallId,
++    ) -> Result<Option<NativeCallSnapshot>, ActiveCallRegistryError> {
++        let Some(cell) = self
++            .native_calls
++            .get(call_id)
++            .map(|entry| entry.value().clone())
++        else {
++            return Ok(None);
++        };
++        let state = cell
++            .state
++            .lock()
++            .map_err(|_| ActiveCallRegistryError::NativeCallUnavailable)?;
++        if state.closed {
++            return Ok(None);
++        }
++        Ok(Some(state.call.snapshot()))
++    }
++
+     fn unregister_call_provider(&self, identity: &NativeCallIdentity) {
+         let call_id = identity.call_id();
+         let should_remove = if let Some(mut providers) = self.providers_by_call.get_mut(call_id) {
+@@ -343,6 +562,10 @@ impl ActiveProxyCallRegistry {
+             None => derive_protocol_dialog_id("standalone", &[&session_key, &dialog_id]),
+         }
+         .map_err(|_| ActiveCallRegistryError::InvalidDialogIdentifier)?;
++        let native_binding = slot.native_binding.clone();
++        if slot.identity.is_some() && native_binding.is_none() {
++            return Err(ActiveCallRegistryError::NativeCallUnavailable);
++        }
+         // Retain the slot guard until both dialog indexes are published. Removal
+         // starts by taking this slot out, so it cannot miss an in-flight dialog.
+ 
+@@ -367,6 +590,9 @@ impl ActiveProxyCallRegistry {
+                             if dialogs.get().len() >= self.max_dialogs_per_session {
+                                 return Err(ActiveCallRegistryError::DialogCapacityExhausted);
+                             }
++                            if let Some(binding) = native_binding.as_ref() {
++                                bind_native_protocol_dialog(binding, &protocol_dialog_id)?;
++                            }
+                             dialogs.get_mut().push(RegisteredProtocolDialog {
+                                 id: protocol_dialog_id,
+                                 provider_dialog_id: dialog_id,
+@@ -375,6 +601,9 @@ impl ActiveProxyCallRegistry {
+                         }
+                     }
+                     Entry::Vacant(dialogs) => {
++                        if let Some(binding) = native_binding.as_ref() {
++                            bind_native_protocol_dialog(binding, &protocol_dialog_id)?;
++                        }
+                         dialogs.insert(vec![RegisteredProtocolDialog {
+                             id: protocol_dialog_id,
+                             provider_dialog_id: dialog_id,
+@@ -436,6 +665,9 @@ impl ActiveProxyCallRegistry {
+         if let Some(identity) = slot.identity.as_ref() {
+             self.unregister_call_provider(identity);
+         }
++        if let Some(binding) = slot.native_binding.as_ref() {
++            self.unregister_native_call(binding, session_id);
++        }
+         if let Some((_, dialogs)) = self.dialog_by_session.remove(session_id) {
+             for dialog in dialogs {
+                 self.handles_by_dialog.remove(&dialog.provider_dialog_id);
+@@ -579,6 +811,71 @@ impl ActiveProxyCallRegistry {
+     }
+ }
+ 
++fn native_leg_direction(value: &str) -> Result<NativeLegDirection, ActiveCallRegistryError> {
++    match value {
++        "inbound" => Ok(NativeLegDirection::Inbound),
++        "outbound" => Ok(NativeLegDirection::Outbound),
++        _ => Err(ActiveCallRegistryError::InvalidDirection),
++    }
++}
++
++fn map_native_leg_registration_error(error: NativeCallError) -> ActiveCallRegistryError {
++    match error {
++        NativeCallError::CapacityExhausted => ActiveCallRegistryError::LegCapacityExhausted,
++        NativeCallError::AuthorityConflict
++        | NativeCallError::StaleOwner
++        | NativeCallError::StaleGeneration => ActiveCallRegistryError::AuthorityConflict,
++        NativeCallError::LegConflict => ActiveCallRegistryError::ProviderAlreadyRegistered,
++        _ => ActiveCallRegistryError::NativeCallStateConflict,
++    }
++}
++
++fn bind_native_protocol_dialog(
++    binding: &NativeCallBinding,
++    protocol_dialog_id: &ProtocolDialogId,
++) -> Result<(), ActiveCallRegistryError> {
++    let mut state = binding
++        .cell
++        .state
++        .lock()
++        .map_err(|_| ActiveCallRegistryError::NativeCallUnavailable)?;
++    if state.closed {
++        return Err(ActiveCallRegistryError::NativeCallUnavailable);
++    }
++    let event_hash = sha256_lower_hex(protocol_dialog_id.as_str().as_bytes());
++    let event_id = format!("dialog-bind-{event_hash}");
++    let fence = state.call.fence();
++    state
++        .call
++        .bind_protocol_dialog(
++            &fence,
++            &binding.leg_id,
++            protocol_dialog_id.clone(),
++            &event_id,
++            &event_hash,
++        )
++        .map(|_| ())
++        .map_err(|error| match error {
++            NativeCallError::CapacityExhausted => ActiveCallRegistryError::DialogCapacityExhausted,
++            NativeCallError::DialogConflict => ActiveCallRegistryError::DialogAuthorityConflict,
++            NativeCallError::AuthorityConflict
++            | NativeCallError::StaleOwner
++            | NativeCallError::StaleGeneration => ActiveCallRegistryError::AuthorityConflict,
++            _ => ActiveCallRegistryError::NativeCallStateConflict,
++        })
++}
++
++fn sha256_lower_hex(value: &[u8]) -> String {
++    const HEX: &[u8; 16] = b"0123456789abcdef";
++    let digest = Sha256::digest(value);
++    let mut encoded = String::with_capacity(64);
++    for byte in digest {
++        encoded.push(HEX[(byte >> 4) as usize] as char);
++        encoded.push(HEX[(byte & 0x0f) as usize] as char);
++    }
++    encoded
++}
++
+ fn valid_dialog_identifier(value: &str) -> bool {
+     !value.is_empty()
+         && value.len() <= PROVIDER_DIALOG_IDENTIFIER_HARD_CEILING
+@@ -591,6 +888,7 @@ fn valid_dialog_identifier(value: &str) -> bool {
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    use crate::call::domain::native_call::NativeLegState;
+     use crate::proxy::proxy_call::sip_session::SipSession;
+ 
+     fn make_handle(session_id: &str) -> SipSessionHandle {
+@@ -779,6 +1077,347 @@ mod tests {
+         assert_eq!(registry.get_by_call_id(&call_id)[0].session_id, session);
+     }
+ 
++    #[test]
++    fn authoritative_registration_composes_native_call_leg_and_dialog_authority() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 16);
++        let session = "provider-call-a";
++        let handle = make_handle(session);
++        let identity = native_identity("vcall_a", session);
++        let call_id = identity.call_id().clone();
++
++        registry
++            .try_upsert_authoritative(make_entry(session), handle.clone(), identity)
++            .unwrap();
++        let opened = registry
++            .native_call_snapshot(&call_id)
++            .unwrap()
++            .expect("native Call must be composed into the active registry");
++        assert_eq!(opened.legs.len(), 1);
++        assert_eq!(opened.legs[0].provider_call_id.as_str(), session);
++        assert_eq!(opened.legs[0].direction, NativeLegDirection::Outbound);
++        assert_eq!(opened.legs[0].state, NativeLegState::Planned);
++        assert_eq!(opened.revision, 2);
++
++        registry
++            .try_register_dialog("dialog-a".to_string(), handle)
++            .unwrap();
++        let bound = registry.native_call_snapshot(&call_id).unwrap().unwrap();
++        assert_eq!(bound.revision, 3);
++        assert_eq!(bound.legs[0].protocol_dialog_history.len(), 1);
++        assert_eq!(
++            bound.legs[0].active_protocol_dialog_id,
++            bound.legs[0].protocol_dialog_history.first().cloned(),
++        );
++    }
++
++    #[test]
++    fn conflicting_native_call_authority_cannot_add_a_second_provider_leg() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 16);
++        let first = native_identity("vcall_a", "provider-call-a");
++        let call_id = first.call_id().clone();
++        registry
++            .try_upsert_authoritative(
++                make_entry("provider-call-a"),
++                make_handle("provider-call-a"),
++                first.clone(),
++            )
++            .unwrap();
++        let conflicting = NativeCallIdentity::from_canonical(
++            first.tenant_id(),
++            call_id.clone(),
++            crate::call::domain::foundation_identity::derive_interaction_id(
++                first.tenant_id(),
++                &["different-interaction"],
++            )
++            .unwrap(),
++            ProviderCallId::parse("provider-call-b").unwrap(),
++            first.owner_epoch(),
++            first.generation(),
++            first.revision(),
++        )
++        .unwrap();
++
++        assert_eq!(
++            registry
++                .try_upsert_authoritative(
++                    make_entry("provider-call-b"),
++                    make_handle("provider-call-b"),
++                    conflicting,
++                )
++                .unwrap_err(),
++            ActiveCallRegistryError::AuthorityConflict,
++        );
++        assert!(registry.get("provider-call-b").is_none());
++        assert_eq!(
++            registry
++                .native_call_snapshot(&call_id)
++                .unwrap()
++                .unwrap()
++                .legs
++                .len(),
++            1,
++        );
++        assert_eq!(registry.get_by_call_id(&call_id).len(), 1);
++        assert_eq!(registry.count(), 1);
++    }
++
++    #[test]
++    fn native_authority_accepts_projection_revision_drift_but_rejects_owner_change() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 16);
++        let first = native_identity("vcall_a", "provider-call-a");
++        let call_id = first.call_id().clone();
++        registry
++            .try_upsert_authoritative(
++                make_entry("provider-call-a"),
++                make_handle("provider-call-a"),
++                first.clone(),
++            )
++            .unwrap();
++        let later_projection = NativeCallIdentity::from_canonical(
++            first.tenant_id(),
++            call_id.clone(),
++            first.interaction_id().clone(),
++            ProviderCallId::parse("provider-call-b").unwrap(),
++            first.owner_epoch(),
++            first.generation(),
++            first.revision() + 99,
++        )
++        .unwrap();
++        registry
++            .try_upsert_authoritative(
++                make_entry("provider-call-b"),
++                make_handle("provider-call-b"),
++                later_projection,
++            )
++            .unwrap();
++
++        let different_owner = NativeCallIdentity::from_canonical(
++            first.tenant_id(),
++            call_id.clone(),
++            first.interaction_id().clone(),
++            ProviderCallId::parse("provider-call-c").unwrap(),
++            first.owner_epoch() + 1,
++            first.generation(),
++            first.revision(),
++        )
++        .unwrap();
++        assert_eq!(
++            registry
++                .try_upsert_authoritative(
++                    make_entry("provider-call-c"),
++                    make_handle("provider-call-c"),
++                    different_owner,
++                )
++                .unwrap_err(),
++            ActiveCallRegistryError::AuthorityConflict,
++        );
++        assert!(registry.get("provider-call-c").is_none());
++        assert_eq!(registry.get_by_call_id(&call_id).len(), 2);
++        assert_eq!(
++            registry
++                .native_call_snapshot(&call_id)
++                .unwrap()
++                .unwrap()
++                .legs
++                .len(),
++            2,
++        );
++    }
++
++    #[test]
++    fn native_leg_capacity_failure_rolls_back_all_secondary_indexes() {
++        let registry = ActiveProxyCallRegistry::with_limits(64, 16);
++        let call_id = native_identity("vcall_a", "provider-call-00")
++            .call_id()
++            .clone();
++        for index in 0..32 {
++            let provider = format!("provider-call-{index:02}");
++            registry
++                .try_upsert_authoritative(
++                    make_entry(&provider),
++                    make_handle(&provider),
++                    native_identity("vcall_a", &provider),
++                )
++                .unwrap();
++        }
++
++        let rejected = "provider-call-32";
++        assert_eq!(
++            registry
++                .try_upsert_authoritative(
++                    make_entry(rejected),
++                    make_handle(rejected),
++                    native_identity("vcall_a", rejected),
++                )
++                .unwrap_err(),
++            ActiveCallRegistryError::LegCapacityExhausted,
++        );
++        assert!(registry.get(rejected).is_none());
++        assert_eq!(registry.count(), 32);
++        assert_eq!(registry.get_by_call_id(&call_id).len(), 32);
++        assert_eq!(
++            registry
++                .native_call_snapshot(&call_id)
++                .unwrap()
++                .unwrap()
++                .legs
++                .len(),
++            32,
++        );
++    }
++
++    #[test]
++    fn invalid_native_leg_direction_rolls_back_every_registry_index() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 16);
++        let session = "provider-call-a";
++        let identity = native_identity("vcall_a", session);
++        let call_id = identity.call_id().clone();
++        let mut entry = make_entry(session);
++        entry.direction = "sideways".to_string();
++
++        assert_eq!(
++            registry
++                .try_upsert_authoritative(entry, make_handle(session), identity)
++                .unwrap_err(),
++            ActiveCallRegistryError::InvalidDirection,
++        );
++        assert!(registry.is_empty());
++        assert!(registry.get_by_call_id(&call_id).is_empty());
++        assert!(registry.native_call_snapshot(&call_id).unwrap().is_none());
++    }
++
++    #[test]
++    fn native_dialog_capacity_failure_preserves_both_index_layers() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 1);
++        let session = "provider-call-a";
++        let handle = make_handle(session);
++        let identity = native_identity("vcall_a", session);
++        let call_id = identity.call_id().clone();
++        registry
++            .try_upsert_authoritative(make_entry(session), handle.clone(), identity)
++            .unwrap();
++        registry
++            .try_register_dialog("dialog-a".to_string(), handle.clone())
++            .unwrap();
++        let before = registry.native_call_snapshot(&call_id).unwrap().unwrap();
++
++        assert_eq!(
++            registry
++                .try_register_dialog("dialog-b".to_string(), handle)
++                .unwrap_err(),
++            ActiveCallRegistryError::DialogCapacityExhausted,
++        );
++        assert_eq!(
++            registry.native_call_snapshot(&call_id).unwrap(),
++            Some(before)
++        );
++        assert_eq!(registry.handles_by_dialog_count(), 1);
++        assert_eq!(registry.protocol_dialog_history(session).len(), 1);
++    }
++
++    #[test]
++    fn poisoned_native_call_isolated_from_other_call_authority() {
++        let registry = std::sync::Arc::new(ActiveProxyCallRegistry::with_limits(4, 16));
++        let first = native_identity("vcall_a", "provider-call-a");
++        let second = native_identity("vcall_b", "provider-call-b");
++        let first_call_id = first.call_id().clone();
++        let second_call_id = second.call_id().clone();
++        registry
++            .try_upsert_authoritative(
++                make_entry("provider-call-a"),
++                make_handle("provider-call-a"),
++                first,
++            )
++            .unwrap();
++        registry
++            .try_upsert_authoritative(
++                make_entry("provider-call-b"),
++                make_handle("provider-call-b"),
++                second,
++            )
++            .unwrap();
++        let poisoned = registry
++            .native_calls
++            .get(&first_call_id)
++            .unwrap()
++            .value()
++            .clone();
++        let worker = std::thread::spawn(move || {
++            let _guard = poisoned.state.lock().unwrap();
++            panic!("intentional per-Call poison");
++        });
++        assert!(worker.join().is_err());
++
++        assert_eq!(
++            registry.native_call_snapshot(&first_call_id).unwrap_err(),
++            ActiveCallRegistryError::NativeCallUnavailable,
++        );
++        assert!(
++            registry
++                .native_call_snapshot(&second_call_id)
++                .unwrap()
++                .is_some(),
++        );
++    }
++
++    #[test]
++    fn concurrent_same_call_leg_publication_and_close_leave_no_orphan_cell() {
++        let registry = std::sync::Arc::new(ActiveProxyCallRegistry::with_limits(4, 16));
++        let first = native_identity("vcall_a", "provider-call-a");
++        let second = native_identity("vcall_a", "provider-call-b");
++        let call_id = first.call_id().clone();
++        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
++        let workers: Vec<_> = [first, second]
++            .into_iter()
++            .map(|identity| {
++                let registry = registry.clone();
++                let barrier = barrier.clone();
++                std::thread::spawn(move || {
++                    let provider = identity.provider_call_id().as_str().to_string();
++                    barrier.wait();
++                    registry.try_upsert_authoritative(
++                        make_entry(&provider),
++                        make_handle(&provider),
++                        identity,
++                    )
++                })
++            })
++            .collect();
++        barrier.wait();
++        for worker in workers {
++            assert!(worker.join().unwrap().is_ok());
++        }
++        assert_eq!(
++            registry
++                .native_call_snapshot(&call_id)
++                .unwrap()
++                .unwrap()
++                .legs
++                .len(),
++            2,
++        );
++
++        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
++        let workers: Vec<_> = ["provider-call-a", "provider-call-b"]
++            .into_iter()
++            .map(|provider| {
++                let registry = registry.clone();
++                let barrier = barrier.clone();
++                std::thread::spawn(move || {
++                    barrier.wait();
++                    registry.remove(provider);
++                })
++            })
++            .collect();
++        barrier.wait();
++        for worker in workers {
++            worker.join().unwrap();
++        }
++        assert!(registry.native_call_snapshot(&call_id).unwrap().is_none());
++        assert!(registry.get_by_call_id(&call_id).is_empty());
++        assert!(registry.is_empty());
++    }
++
+     #[test]
+     fn capacity_rejects_new_work_without_mutating_existing_call() {
+         let registry = ActiveProxyCallRegistry::with_limits(1, 16);
+@@ -932,10 +1571,30 @@ mod tests {
+             .unwrap();
+ 
+         assert_eq!(registry.get_by_call_id(&call_id).len(), 2);
++        assert_eq!(
++            registry
++                .native_call_snapshot(&call_id)
++                .unwrap()
++                .unwrap()
++                .legs
++                .len(),
++            2,
++        );
+         registry.remove("provider-call-a");
+         assert_eq!(registry.get_by_call_id(&call_id).len(), 1);
++        assert_eq!(
++            registry
++                .native_call_snapshot(&call_id)
++                .unwrap()
++                .unwrap()
++                .legs
++                .len(),
++            2,
++            "bounded Leg history remains authoritative until the Call closes",
++        );
+         registry.remove("provider-call-b");
+         assert!(registry.get_by_call_id(&call_id).is_empty());
++        assert!(registry.native_call_snapshot(&call_id).unwrap().is_none());
+         assert!(registry.is_empty());
+     }
+ 
