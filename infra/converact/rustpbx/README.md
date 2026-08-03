@@ -195,6 +195,27 @@ ivekit.48 Linux/image/peer/capacity evidence also remains `not_run`. Local
 exact-source evidence is 21 focused registry tests and the complete RustPBX
 library suite (`1951` passed, `1` ignored).
 
+ivekit.49 freezes the native SipEffect domain and receipt semantics without
+creating another Call authority or enabling a non-durable fallback. The
+production build contains no in-memory ledger; its bounded in-memory
+conformance oracle is compiled for tests only. Prepared effects validate the
+authoritative wire bytes, byte length, adapter/route/attempt hashes,
+semantic-intent request hash and composite wire-freeze hash before admission.
+Identity and receipt hashing use the same sorted canonical JSON projection as
+the TypeScript contract, including decimal-string owner epoch and command
+sequence, and fixed cross-language vectors guard byte-for-byte compatibility.
+Receipt semantics keep transport `accepted`, protocol `completed` and
+reconciliation `state-observed` distinct; stale fences, conflicting receipts,
+blind unknown retries, hard capacity and repair-attempt exhaustion fail closed.
+
+This slice is a compiled domain contract, not the durable PostgreSQL writer or
+live SIP transition dispatch. Those runtime paths, crash/restart replay and
+`G03-E16-NATIVE-AUTHORITY` remain `not_run`; production eligibility is not
+promoted. Local exact-source evidence is 7 focused SipEffect tests, a clean
+changed-module Clippy pass and the complete RustPBX library suite (`1958`
+passed, `1` ignored). ivekit.49 Linux/image/peer/capacity evidence remains
+`not_run` until the exact server campaign completes.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

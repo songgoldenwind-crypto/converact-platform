@@ -1,0 +1,1326 @@
+diff --git a/src/call/domain/mod.rs b/src/call/domain/mod.rs
+index 806ccffb..35dcf9da 100644
+--- a/src/call/domain/mod.rs
++++ b/src/call/domain/mod.rs
+@@ -17,6 +17,7 @@ mod hangup;
+ mod leg;
+ pub mod native_call;
+ mod policy;
++pub mod sip_effect;
+ mod state;
+ mod transfer_event;
+ 
+diff --git a/src/call/domain/sip_effect.rs b/src/call/domain/sip_effect.rs
+new file mode 100644
+index 00000000..5224df2d
+--- /dev/null
++++ b/src/call/domain/sip_effect.rs
+@@ -0,0 +1,1308 @@
++use chrono::{DateTime, Utc};
++use serde::{Deserialize, Serialize};
++use serde_json::Value;
++use sha2::{Digest, Sha256};
++#[cfg(test)]
++use std::collections::HashMap;
++
++pub const SIP_EFFECT_SCHEMA_ID: &str = "ivekit.sip-effect-oracle";
++pub const SIP_EFFECT_SCHEMA_VERSION: u16 = 1;
++pub const SIP_EFFECT_SCHEMA_HASH: &str =
++    "ae27a73dac95c90686f8020c2fb5e92dd016cc1712216d03b227ec3a6d6ca5ba";
++pub const SIP_EFFECT_WRITER_IDENTITY: &str = "unified-rustpbx.sip-foundation";
++
++const IDENTIFIER_HARD_CEILING: usize = 200;
++const FAILURE_CODE_HARD_CEILING: usize = 128;
++const WIRE_BYTES_HARD_CEILING: usize = 65_535;
++const JSON_BYTES_HARD_CEILING: usize = 65_536;
++#[cfg(test)]
++const EFFECTS_HARD_CEILING: usize = 1_000_000;
++#[cfg(test)]
++const RECEIPTS_PER_EFFECT_HARD_CEILING: usize = 32;
++#[cfg(test)]
++const REPAIR_ATTEMPTS_HARD_CEILING: u8 = 8;
++const REPAIR_DELAY_MS_HARD_CEILING: u32 = 86_400_000;
++const STORE_POOL_WAIT_MS_HARD_CEILING: u32 = 250;
++const STORE_QUEUE_DEPTH_HARD_CEILING: u32 = 1_024;
++const STORE_RETRY_ATTEMPT_HARD_CEILING: u8 = 3;
++const JSON_SAFE_INTEGER_HARD_CEILING: u64 = 9_007_199_254_740_991;
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
++pub enum SipEffectError {
++    #[error("SIP effect input is invalid")]
++    InvalidInput,
++    #[error("SIP effect capacity is exhausted")]
++    CapacityExhausted,
++    #[error("SIP effect idempotency identity conflicts")]
++    IdempotencyConflict,
++    #[error("SIP effect identity conflicts")]
++    IdentityConflict,
++    #[error("SIP effect receipt conflicts")]
++    ReceiptConflict,
++    #[error("SIP effect transition conflicts")]
++    TransitionConflict,
++    #[error("SIP effect fence is stale")]
++    FenceLost,
++    #[error("SIP effect is terminal")]
++    Terminal,
++    #[error("SIP effect reconciliation requires a repair fence")]
++    RepairFenceRequired,
++    #[error("SIP effect repair attempts are exhausted")]
++    RepairExhausted,
++}
++
++#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(rename_all = "snake_case")]
++pub enum SipEffectState {
++    Prepared,
++    DurableDecision,
++    SendAttempted,
++    TransportAccepted,
++    ProtocolObserved,
++    Failed,
++    Unknown,
++}
++
++impl SipEffectState {
++    pub fn is_terminal(self) -> bool {
++        matches!(self, Self::ProtocolObserved | Self::Failed)
++    }
++}
++
++#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(rename_all = "snake_case")]
++pub enum SipEffectReceiptLevel {
++    DurableDecision,
++    SendAttempted,
++    TransportAccepted,
++    ProtocolObserved,
++    Failed,
++    Unknown,
++}
++
++impl SipEffectReceiptLevel {
++    #[cfg(test)]
++    fn state(self) -> SipEffectState {
++        match self {
++            Self::DurableDecision => SipEffectState::DurableDecision,
++            Self::SendAttempted => SipEffectState::SendAttempted,
++            Self::TransportAccepted => SipEffectState::TransportAccepted,
++            Self::ProtocolObserved => SipEffectState::ProtocolObserved,
++            Self::Failed => SipEffectState::Failed,
++            Self::Unknown => SipEffectState::Unknown,
++        }
++    }
++
++    fn as_str(self) -> &'static str {
++        match self {
++            Self::DurableDecision => "durable_decision",
++            Self::SendAttempted => "send_attempted",
++            Self::TransportAccepted => "transport_accepted",
++            Self::ProtocolObserved => "protocol_observed",
++            Self::Failed => "failed",
++            Self::Unknown => "unknown",
++        }
++    }
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub enum SipEffectReceiptSemantic {
++    DurableDecision,
++    SendAttempted,
++    Accepted,
++    Completed,
++    StateObserved,
++    Unknown,
++    Failed,
++}
++
++pub fn classify_receipt(
++    from: SipEffectState,
++    level: SipEffectReceiptLevel,
++) -> Result<SipEffectReceiptSemantic, SipEffectError> {
++    use SipEffectReceiptLevel as Level;
++    use SipEffectReceiptSemantic as Semantic;
++    use SipEffectState as State;
++    match (from, level) {
++        (State::Prepared, Level::DurableDecision) => Ok(Semantic::DurableDecision),
++        (State::DurableDecision, Level::SendAttempted) => Ok(Semantic::SendAttempted),
++        (State::SendAttempted, Level::TransportAccepted) => Ok(Semantic::Accepted),
++        (State::SendAttempted | State::TransportAccepted, Level::ProtocolObserved) => {
++            Ok(Semantic::Completed)
++        }
++        (State::Unknown, Level::ProtocolObserved) => Ok(Semantic::StateObserved),
++        (State::SendAttempted | State::TransportAccepted | State::Unknown, Level::Unknown) => {
++            Ok(Semantic::Unknown)
++        }
++        (
++            State::Prepared
++            | State::DurableDecision
++            | State::SendAttempted
++            | State::TransportAccepted
++            | State::Unknown,
++            Level::Failed,
++        ) => Ok(Semantic::Failed),
++        _ => Err(SipEffectError::TransitionConflict),
++    }
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct SipEffectIdentity {
++    pub tenant_id: String,
++    pub protocol_effect_id: String,
++    pub protocol_session_id: String,
++    pub protocol_session_generation: String,
++    pub decision_id: String,
++    pub idempotency_key: String,
++    pub request_hash: String,
++    pub command_id: String,
++    pub adapter_identity_hash: String,
++    pub wire_bytes_hash: String,
++    pub wire_length_bytes: u32,
++    pub route_binding_hash: String,
++    pub wire_attempt_facts_hash: String,
++    pub wire_freeze_sha256: String,
++    pub owner_epoch: u64,
++    pub command_sequence: u64,
++}
++
++impl SipEffectIdentity {
++    pub(crate) fn validate(&self) -> Result<(), SipEffectError> {
++        for identifier in [
++            &self.tenant_id,
++            &self.protocol_effect_id,
++            &self.protocol_session_id,
++            &self.protocol_session_generation,
++            &self.decision_id,
++            &self.idempotency_key,
++            &self.command_id,
++        ] {
++            checked_identifier(identifier)?;
++        }
++        for hash in [
++            &self.request_hash,
++            &self.adapter_identity_hash,
++            &self.wire_bytes_hash,
++            &self.route_binding_hash,
++            &self.wire_attempt_facts_hash,
++            &self.wire_freeze_sha256,
++        ] {
++            checked_hash(hash)?;
++        }
++        if self.owner_epoch == 0 || self.command_sequence == 0 {
++            return Err(SipEffectError::InvalidInput);
++        }
++        if self.wire_length_bytes == 0 || self.wire_length_bytes as usize > WIRE_BYTES_HARD_CEILING
++        {
++            return Err(SipEffectError::InvalidInput);
++        }
++        Ok(())
++    }
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct PreparedSipEffect {
++    pub identity: SipEffectIdentity,
++    pub canonical_wire_bytes: Vec<u8>,
++    pub adapter_identity: Value,
++    pub route_binding: Value,
++    pub wire_attempt_facts: Value,
++    pub prepared_at: DateTime<Utc>,
++    pub audit_until: DateTime<Utc>,
++}
++
++impl PreparedSipEffect {
++    pub fn validate(&self) -> Result<(), SipEffectError> {
++        self.identity.validate()?;
++        if self.canonical_wire_bytes.is_empty()
++            || self.canonical_wire_bytes.len() > WIRE_BYTES_HARD_CEILING
++            || sha256_lower_hex(&self.canonical_wire_bytes) != self.identity.wire_bytes_hash
++            || self.canonical_wire_bytes.len() != self.identity.wire_length_bytes as usize
++            || self.audit_until <= self.prepared_at
++        {
++            return Err(SipEffectError::InvalidInput);
++        }
++        for (value, expected_hash) in [
++            (&self.adapter_identity, &self.identity.adapter_identity_hash),
++            (&self.route_binding, &self.identity.route_binding_hash),
++            (
++                &self.wire_attempt_facts,
++                &self.identity.wire_attempt_facts_hash,
++            ),
++        ] {
++            if !value.is_object() || canonical_json_sha256(value)? != expected_hash.as_str() {
++                return Err(SipEffectError::InvalidInput);
++            }
++        }
++        let semantic_intent = self
++            .wire_attempt_facts
++            .get("semantic_intent_sha256")
++            .and_then(Value::as_str)
++            .ok_or(SipEffectError::InvalidInput)?;
++        checked_hash(semantic_intent)?;
++        if semantic_intent != self.identity.request_hash
++            || sip_wire_freeze_sha256(
++                &self.identity.route_binding_hash,
++                &self.identity.wire_attempt_facts_hash,
++                &self.identity.wire_bytes_hash,
++                self.identity.wire_length_bytes,
++            )? != self.identity.wire_freeze_sha256
++        {
++            return Err(SipEffectError::InvalidInput);
++        }
++        Ok(())
++    }
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct SipEffectFence {
++    pub identity: SipEffectIdentity,
++    pub expected_revision: u64,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct SipEffectRepairFence {
++    pub repair_owner_id: String,
++    pub repair_owner_epoch: u64,
++    pub repair_claim_token: String,
++    pub repair_claim_revision: u64,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct SipEffectRecord {
++    pub identity: SipEffectIdentity,
++    pub canonical_wire_bytes: Vec<u8>,
++    pub adapter_identity: Value,
++    pub route_binding: Value,
++    pub wire_attempt_facts: Value,
++    pub state: SipEffectState,
++    pub revision: u64,
++    pub unknown_count: u32,
++    pub last_receipt_id: Option<String>,
++    pub last_receipt_hash: Option<String>,
++    pub failure_code: String,
++    pub repair_delay_ms: Option<u32>,
++    pub repair_epoch_high_watermark: u64,
++    pub repair_claim: Option<SipEffectRepairFence>,
++    pub repair_attempts: u8,
++    pub prepared_at: DateTime<Utc>,
++    pub audit_until: DateTime<Utc>,
++}
++
++impl SipEffectRecord {
++    pub fn fence(&self) -> SipEffectFence {
++        SipEffectFence {
++            identity: self.identity.clone(),
++            expected_revision: self.revision,
++        }
++    }
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct SipEffectReceipt {
++    pub fence: SipEffectFence,
++    pub receipt_id: String,
++    pub receipt_hash: String,
++    pub level: SipEffectReceiptLevel,
++    pub failure_code: String,
++    pub repair_delay_ms: Option<u32>,
++    repair_fence: Option<SipEffectRepairFence>,
++}
++
++impl SipEffectReceipt {
++    pub fn new(
++        fence: SipEffectFence,
++        receipt_id: &str,
++        level: SipEffectReceiptLevel,
++        failure_code: &str,
++        repair_delay_ms: Option<u32>,
++    ) -> Result<Self, SipEffectError> {
++        fence.identity.validate()?;
++        checked_identifier(receipt_id)?;
++        validate_receipt_details(level, failure_code, repair_delay_ms)?;
++        let receipt_hash = receipt_hash(&fence, receipt_id, level, failure_code, repair_delay_ms)?;
++        Ok(Self {
++            fence,
++            receipt_id: receipt_id.to_string(),
++            receipt_hash,
++            level,
++            failure_code: failure_code.to_string(),
++            repair_delay_ms,
++            repair_fence: None,
++        })
++    }
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct SipEffectPrepareOutcome {
++    pub record: SipEffectRecord,
++    pub replayed: bool,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct SipEffectApplyOutcome {
++    pub record: SipEffectRecord,
++    pub semantic: SipEffectReceiptSemantic,
++    pub replayed: bool,
++}
++
++#[cfg(test)]
++#[derive(Clone, Debug)]
++struct StoredReceipt {
++    receipt_hash: String,
++    level: SipEffectReceiptLevel,
++    semantic: SipEffectReceiptSemantic,
++}
++
++#[cfg(test)]
++#[derive(Clone, Debug)]
++struct InMemoryEffect {
++    prepared: PreparedSipEffect,
++    record: SipEffectRecord,
++    receipts: HashMap<String, StoredReceipt>,
++}
++
++/// Test-only conformance oracle. Production has no in-memory fallback: a
++/// durable writer must be explicitly configured and pass its schema guard.
++#[cfg(test)]
++pub struct InMemorySipEffectLedger {
++    effects: HashMap<(String, String), InMemoryEffect>,
++    idempotency: HashMap<(String, String), String>,
++    maximum_effects: usize,
++}
++
++#[cfg(test)]
++impl InMemorySipEffectLedger {
++    pub fn new(maximum_effects: usize) -> Result<Self, SipEffectError> {
++        if maximum_effects == 0 || maximum_effects > EFFECTS_HARD_CEILING {
++            return Err(SipEffectError::InvalidInput);
++        }
++        Ok(Self {
++            effects: HashMap::with_capacity(maximum_effects.min(64)),
++            idempotency: HashMap::with_capacity(maximum_effects.min(64)),
++            maximum_effects,
++        })
++    }
++
++    pub fn prepare(
++        &mut self,
++        effect: PreparedSipEffect,
++    ) -> Result<SipEffectPrepareOutcome, SipEffectError> {
++        effect.validate()?;
++        let key = (
++            effect.identity.tenant_id.clone(),
++            effect.identity.protocol_effect_id.clone(),
++        );
++        let idempotency_key = (
++            effect.identity.tenant_id.clone(),
++            effect.identity.idempotency_key.clone(),
++        );
++        let by_effect = self.effects.get(&key);
++        let by_idempotency = self
++            .idempotency
++            .get(&idempotency_key)
++            .and_then(|effect_id| {
++                self.effects
++                    .get(&(effect.identity.tenant_id.clone(), effect_id.clone()))
++            });
++        if let Some(existing) = by_effect.or(by_idempotency) {
++            if existing.prepared.identity != effect.identity
++                || existing.prepared.canonical_wire_bytes != effect.canonical_wire_bytes
++            {
++                return Err(SipEffectError::IdempotencyConflict);
++            }
++            return Ok(SipEffectPrepareOutcome {
++                record: existing.record.clone(),
++                replayed: true,
++            });
++        }
++        if self.effects.len() >= self.maximum_effects {
++            return Err(SipEffectError::CapacityExhausted);
++        }
++        let record = SipEffectRecord {
++            identity: effect.identity.clone(),
++            canonical_wire_bytes: effect.canonical_wire_bytes.clone(),
++            adapter_identity: effect.adapter_identity.clone(),
++            route_binding: effect.route_binding.clone(),
++            wire_attempt_facts: effect.wire_attempt_facts.clone(),
++            state: SipEffectState::Prepared,
++            revision: 1,
++            unknown_count: 0,
++            last_receipt_id: None,
++            last_receipt_hash: None,
++            failure_code: String::new(),
++            repair_delay_ms: None,
++            repair_epoch_high_watermark: 0,
++            repair_claim: None,
++            repair_attempts: 0,
++            prepared_at: effect.prepared_at,
++            audit_until: effect.audit_until,
++        };
++        self.idempotency
++            .insert(idempotency_key, effect.identity.protocol_effect_id.clone());
++        self.effects.insert(
++            key,
++            InMemoryEffect {
++                prepared: effect,
++                record: record.clone(),
++                receipts: HashMap::new(),
++            },
++        );
++        Ok(SipEffectPrepareOutcome {
++            record,
++            replayed: false,
++        })
++    }
++
++    pub fn query(
++        &self,
++        identity: &SipEffectIdentity,
++    ) -> Result<Option<SipEffectRecord>, SipEffectError> {
++        identity.validate()?;
++        let key = (
++            identity.tenant_id.clone(),
++            identity.protocol_effect_id.clone(),
++        );
++        let Some(effect) = self.effects.get(&key) else {
++            return Ok(None);
++        };
++        if &effect.record.identity != identity {
++            return Err(SipEffectError::IdentityConflict);
++        }
++        Ok(Some(effect.record.clone()))
++    }
++
++    pub fn apply(
++        &mut self,
++        receipt: SipEffectReceipt,
++    ) -> Result<SipEffectApplyOutcome, SipEffectError> {
++        self.apply_inner(receipt)
++    }
++
++    fn apply_inner(
++        &mut self,
++        receipt: SipEffectReceipt,
++    ) -> Result<SipEffectApplyOutcome, SipEffectError> {
++        receipt.fence.identity.validate()?;
++        checked_identifier(&receipt.receipt_id)?;
++        checked_hash(&receipt.receipt_hash)?;
++        validate_receipt_details(
++            receipt.level,
++            &receipt.failure_code,
++            receipt.repair_delay_ms,
++        )?;
++        if receipt.receipt_hash
++            != receipt_hash(
++                &receipt.fence,
++                &receipt.receipt_id,
++                receipt.level,
++                &receipt.failure_code,
++                receipt.repair_delay_ms,
++            )?
++        {
++            return Err(SipEffectError::InvalidInput);
++        }
++        let key = (
++            receipt.fence.identity.tenant_id.clone(),
++            receipt.fence.identity.protocol_effect_id.clone(),
++        );
++        let effect = self
++            .effects
++            .get_mut(&key)
++            .ok_or(SipEffectError::IdentityConflict)?;
++        if effect.record.identity != receipt.fence.identity {
++            return Err(SipEffectError::IdentityConflict);
++        }
++        if let Some(stored) = effect.receipts.get(&receipt.receipt_id) {
++            if stored.receipt_hash != receipt.receipt_hash || stored.level != receipt.level {
++                return Err(SipEffectError::ReceiptConflict);
++            }
++            return Ok(SipEffectApplyOutcome {
++                record: effect.record.clone(),
++                semantic: stored.semantic,
++                replayed: true,
++            });
++        }
++        if effect.record.state.is_terminal() {
++            return Err(SipEffectError::Terminal);
++        }
++        if effect.record.revision != receipt.fence.expected_revision {
++            return Err(SipEffectError::FenceLost);
++        }
++        let semantic = classify_receipt(effect.record.state, receipt.level)?;
++        if effect.record.state == SipEffectState::Unknown {
++            let repair_fence = receipt
++                .repair_fence
++                .as_ref()
++                .ok_or(SipEffectError::RepairFenceRequired)?;
++            if effect.record.repair_claim.as_ref() != Some(repair_fence)
++                || repair_fence.repair_claim_revision != effect.record.revision
++            {
++                return Err(SipEffectError::FenceLost);
++            }
++        } else if receipt.repair_fence.is_some() {
++            return Err(SipEffectError::FenceLost);
++        }
++        if effect.receipts.len() >= RECEIPTS_PER_EFFECT_HARD_CEILING {
++            return Err(SipEffectError::CapacityExhausted);
++        }
++        let next_revision = effect
++            .record
++            .revision
++            .checked_add(1)
++            .ok_or(SipEffectError::CapacityExhausted)?;
++        let next_unknown_count = if receipt.level == SipEffectReceiptLevel::Unknown {
++            effect
++                .record
++                .unknown_count
++                .checked_add(1)
++                .ok_or(SipEffectError::CapacityExhausted)?
++        } else {
++            effect.record.unknown_count
++        };
++        effect.record.state = receipt.level.state();
++        effect.record.revision = next_revision;
++        effect.record.last_receipt_id = Some(receipt.receipt_id.clone());
++        effect.record.last_receipt_hash = Some(receipt.receipt_hash.clone());
++        effect.record.failure_code = receipt.failure_code.clone();
++        effect.record.repair_delay_ms = receipt.repair_delay_ms;
++        effect.record.repair_claim = None;
++        effect.record.unknown_count = next_unknown_count;
++        effect.receipts.insert(
++            receipt.receipt_id,
++            StoredReceipt {
++                receipt_hash: receipt.receipt_hash,
++                level: receipt.level,
++                semantic,
++            },
++        );
++        Ok(SipEffectApplyOutcome {
++            record: effect.record.clone(),
++            semantic,
++            replayed: false,
++        })
++    }
++
++    pub fn claim_unknown(
++        &mut self,
++        identity: &SipEffectIdentity,
++        repair_owner_id: &str,
++        repair_owner_epoch: u64,
++        repair_claim_token: &str,
++    ) -> Result<SipEffectRepairFence, SipEffectError> {
++        identity.validate()?;
++        checked_identifier(repair_owner_id)?;
++        checked_identifier(repair_claim_token)?;
++        if repair_owner_epoch == 0 {
++            return Err(SipEffectError::InvalidInput);
++        }
++        let key = (
++            identity.tenant_id.clone(),
++            identity.protocol_effect_id.clone(),
++        );
++        let effect = self
++            .effects
++            .get_mut(&key)
++            .ok_or(SipEffectError::IdentityConflict)?;
++        if &effect.record.identity != identity {
++            return Err(SipEffectError::IdentityConflict);
++        }
++        if effect.record.state != SipEffectState::Unknown
++            || effect.record.repair_claim.is_some()
++            || repair_owner_epoch <= effect.record.repair_epoch_high_watermark
++        {
++            return Err(SipEffectError::FenceLost);
++        }
++        if effect.record.repair_attempts >= REPAIR_ATTEMPTS_HARD_CEILING {
++            return Err(SipEffectError::RepairExhausted);
++        }
++        let claim_revision = effect
++            .record
++            .revision
++            .checked_add(1)
++            .ok_or(SipEffectError::CapacityExhausted)?;
++        let fence = SipEffectRepairFence {
++            repair_owner_id: repair_owner_id.to_string(),
++            repair_owner_epoch,
++            repair_claim_token: repair_claim_token.to_string(),
++            repair_claim_revision: claim_revision,
++        };
++        effect.record.revision = claim_revision;
++        effect.record.repair_epoch_high_watermark = repair_owner_epoch;
++        effect.record.repair_attempts += 1;
++        effect.record.repair_claim = Some(fence.clone());
++        Ok(fence)
++    }
++
++    pub fn reconcile(
++        &mut self,
++        identity: &SipEffectIdentity,
++        repair_fence: &SipEffectRepairFence,
++        receipt_id: &str,
++        outcome: SipEffectReconcileOutcome,
++    ) -> Result<SipEffectApplyOutcome, SipEffectError> {
++        let record = self
++            .query(identity)?
++            .ok_or(SipEffectError::IdentityConflict)?;
++        if record.repair_claim.as_ref() != Some(repair_fence)
++            || record.revision != repair_fence.repair_claim_revision
++        {
++            return Err(SipEffectError::FenceLost);
++        }
++        let (level, failure_code, repair_delay_ms) = match outcome {
++            SipEffectReconcileOutcome::ProtocolObserved => {
++                (SipEffectReceiptLevel::ProtocolObserved, "", None)
++            }
++            SipEffectReconcileOutcome::Failed => {
++                (SipEffectReceiptLevel::Failed, "reconciliation_failed", None)
++            }
++            SipEffectReconcileOutcome::Unknown { repair_after_ms } => {
++                (SipEffectReceiptLevel::Unknown, "", Some(repair_after_ms))
++            }
++        };
++        let mut receipt = SipEffectReceipt::new(
++            record.fence(),
++            receipt_id,
++            level,
++            failure_code,
++            repair_delay_ms,
++        )?;
++        receipt.repair_fence = Some(repair_fence.clone());
++        self.apply_inner(receipt)
++    }
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub enum SipEffectReconcileOutcome {
++    ProtocolObserved,
++    Failed,
++    Unknown { repair_after_ms: u32 },
++}
++
++pub fn retry_after_seconds(
++    pool_wait_ms: u32,
++    queue_depth: u32,
++    retry_attempt: u8,
++) -> Result<u8, SipEffectError> {
++    if pool_wait_ms > STORE_POOL_WAIT_MS_HARD_CEILING
++        || queue_depth > STORE_QUEUE_DEPTH_HARD_CEILING
++        || retry_attempt > STORE_RETRY_ATTEMPT_HARD_CEILING
++    {
++        return Err(SipEffectError::InvalidInput);
++    }
++    let seconds =
++        1_u32 + pool_wait_ms.div_ceil(1_000) + queue_depth.div_ceil(256) + u32::from(retry_attempt);
++    Ok(seconds.clamp(1, 30) as u8)
++}
++
++pub fn sha256_lower_hex(value: &[u8]) -> String {
++    let digest = Sha256::digest(value);
++    let mut encoded = String::with_capacity(64);
++    const HEX: &[u8; 16] = b"0123456789abcdef";
++    for byte in digest {
++        encoded.push(HEX[(byte >> 4) as usize] as char);
++        encoded.push(HEX[(byte & 0x0f) as usize] as char);
++    }
++    encoded
++}
++
++pub fn canonical_json_sha256(value: &Value) -> Result<String, SipEffectError> {
++    let mut canonical = String::new();
++    write_canonical_json(value, 0, &mut canonical)?;
++    if canonical.len() > JSON_BYTES_HARD_CEILING {
++        return Err(SipEffectError::InvalidInput);
++    }
++    Ok(sha256_lower_hex(canonical.as_bytes()))
++}
++
++fn write_canonical_json(
++    value: &Value,
++    depth: usize,
++    output: &mut String,
++) -> Result<(), SipEffectError> {
++    if depth > 16 || output.len() > JSON_BYTES_HARD_CEILING {
++        return Err(SipEffectError::InvalidInput);
++    }
++    match value {
++        Value::Null => output.push_str("null"),
++        Value::Bool(value) => output.push_str(if *value { "true" } else { "false" }),
++        Value::Number(value) => {
++            if let Some(unsigned) = value.as_u64() {
++                if unsigned > JSON_SAFE_INTEGER_HARD_CEILING {
++                    return Err(SipEffectError::InvalidInput);
++                }
++                output.push_str(&unsigned.to_string());
++            } else if let Some(signed) = value.as_i64() {
++                if signed.unsigned_abs() > JSON_SAFE_INTEGER_HARD_CEILING {
++                    return Err(SipEffectError::InvalidInput);
++                }
++                output.push_str(&signed.to_string());
++            } else {
++                // The shared TypeScript canonicalizer receives IEEE-754 numbers.
++                // Reject fractional/exponent inputs here instead of risking a
++                // silently different Rust rendering (for example 1.0 vs 1).
++                return Err(SipEffectError::InvalidInput);
++            }
++        }
++        Value::String(value) => output
++            .push_str(&serde_json::to_string(value).map_err(|_| SipEffectError::InvalidInput)?),
++        Value::Array(values) => {
++            output.push('[');
++            for (index, value) in values.iter().enumerate() {
++                if index > 0 {
++                    output.push(',');
++                }
++                write_canonical_json(value, depth + 1, output)?;
++            }
++            output.push(']');
++        }
++        Value::Object(values) => {
++            output.push('{');
++            let mut keys: Vec<_> = values.keys().collect();
++            // JavaScript Array#sort compares UTF-16 code units. Match that
++            // ordering exactly rather than Rust's UTF-8 byte ordering.
++            keys.sort_unstable_by(|left, right| left.encode_utf16().cmp(right.encode_utf16()));
++            for (index, key) in keys.into_iter().enumerate() {
++                if index > 0 {
++                    output.push(',');
++                }
++                output.push_str(
++                    &serde_json::to_string(key).map_err(|_| SipEffectError::InvalidInput)?,
++                );
++                output.push(':');
++                write_canonical_json(
++                    values.get(key).ok_or(SipEffectError::InvalidInput)?,
++                    depth + 1,
++                    output,
++                )?;
++            }
++            output.push('}');
++        }
++    }
++    if output.len() > JSON_BYTES_HARD_CEILING {
++        return Err(SipEffectError::InvalidInput);
++    }
++    Ok(())
++}
++
++fn receipt_hash(
++    fence: &SipEffectFence,
++    receipt_id: &str,
++    level: SipEffectReceiptLevel,
++    failure_code: &str,
++    repair_delay_ms: Option<u32>,
++) -> Result<String, SipEffectError> {
++    canonical_json_sha256(&serde_json::json!({
++        "identity": protocol_effect_identity_json(&fence.identity),
++        "receipt_id": receipt_id,
++        "level": level.as_str(),
++        "failure_code": failure_code,
++        "repair_delay_ms": repair_delay_ms,
++    }))
++}
++
++pub fn protocol_effect_identity_hash(
++    identity: &SipEffectIdentity,
++) -> Result<String, SipEffectError> {
++    identity.validate()?;
++    canonical_json_sha256(&protocol_effect_identity_json(identity))
++}
++
++pub fn sip_wire_freeze_sha256(
++    route_binding_sha256: &str,
++    wire_attempt_facts_sha256: &str,
++    wire_sha256: &str,
++    wire_length_bytes: u32,
++) -> Result<String, SipEffectError> {
++    checked_hash(route_binding_sha256)?;
++    checked_hash(wire_attempt_facts_sha256)?;
++    checked_hash(wire_sha256)?;
++    if wire_length_bytes == 0 || wire_length_bytes as usize > WIRE_BYTES_HARD_CEILING {
++        return Err(SipEffectError::InvalidInput);
++    }
++    canonical_json_sha256(&serde_json::json!({
++        "route_binding_sha256": route_binding_sha256,
++        "wire_attempt_facts_sha256": wire_attempt_facts_sha256,
++        "wire_sha256": wire_sha256,
++        "wire_length_bytes": wire_length_bytes,
++    }))
++}
++
++fn protocol_effect_identity_json(identity: &SipEffectIdentity) -> Value {
++    serde_json::json!({
++        "tenant_id": identity.tenant_id,
++        "protocol_effect_id": identity.protocol_effect_id,
++        "protocol_session_id": identity.protocol_session_id,
++        "protocol_session_generation": identity.protocol_session_generation,
++        "decision_id": identity.decision_id,
++        "idempotency_key": identity.idempotency_key,
++        "request_hash": identity.request_hash,
++        "command_id": identity.command_id,
++        "adapter_identity_hash": identity.adapter_identity_hash,
++        "wire_bytes_hash": identity.wire_bytes_hash,
++        "wire_length_bytes": identity.wire_length_bytes,
++        "route_binding_hash": identity.route_binding_hash,
++        "wire_attempt_facts_hash": identity.wire_attempt_facts_hash,
++        "wire_freeze_sha256": identity.wire_freeze_sha256,
++        "owner_epoch": identity.owner_epoch.to_string(),
++        "command_sequence": identity.command_sequence.to_string(),
++    })
++}
++
++fn checked_identifier(value: &str) -> Result<(), SipEffectError> {
++    if value.is_empty()
++        || value.len() > IDENTIFIER_HARD_CEILING
++        || !value.bytes().all(|byte| (b'!'..=b'~').contains(&byte))
++    {
++        return Err(SipEffectError::InvalidInput);
++    }
++    Ok(())
++}
++
++fn checked_hash(value: &str) -> Result<(), SipEffectError> {
++    if value.len() != 64
++        || !value
++            .bytes()
++            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
++    {
++        return Err(SipEffectError::InvalidInput);
++    }
++    Ok(())
++}
++
++fn validate_receipt_details(
++    level: SipEffectReceiptLevel,
++    failure_code: &str,
++    repair_delay_ms: Option<u32>,
++) -> Result<(), SipEffectError> {
++    match level {
++        SipEffectReceiptLevel::Unknown => {
++            if !failure_code.is_empty()
++                || repair_delay_ms.is_none()
++                || repair_delay_ms.is_some_and(|value| value > REPAIR_DELAY_MS_HARD_CEILING)
++            {
++                return Err(SipEffectError::InvalidInput);
++            }
++        }
++        SipEffectReceiptLevel::Failed => {
++            if failure_code.is_empty()
++                || failure_code.encode_utf16().count() > FAILURE_CODE_HARD_CEILING
++                || failure_code.contains(['\0', '\r', '\n'])
++                || repair_delay_ms.is_some()
++            {
++                return Err(SipEffectError::InvalidInput);
++            }
++        }
++        _ => {
++            if !failure_code.is_empty() || repair_delay_ms.is_some() {
++                return Err(SipEffectError::InvalidInput);
++            }
++        }
++    }
++    Ok(())
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use chrono::{Duration, TimeZone, Utc};
++
++    const HASH_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
++    const HASH_B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
++
++    fn prepared() -> PreparedSipEffect {
++        let prepared_at = Utc.with_ymd_and_hms(2026, 8, 3, 0, 0, 0).unwrap();
++        let wire = b"BYE sip:bob@example.test SIP/2.0\r\nContent-Length: 0\r\n\r\n".to_vec();
++        let adapter_identity = serde_json::json!({"adapter_id": "rsipstack"});
++        let route_binding = serde_json::json!({"transport": "udp"});
++        let wire_attempt_facts = serde_json::json!({
++            "attempt": 1,
++            "semantic_intent_sha256": HASH_A,
++        });
++        let wire_bytes_hash = sha256_lower_hex(&wire);
++        let route_binding_hash = canonical_json_sha256(&route_binding).unwrap();
++        let wire_attempt_facts_hash = canonical_json_sha256(&wire_attempt_facts).unwrap();
++        let wire_freeze_sha256 = sip_wire_freeze_sha256(
++            &route_binding_hash,
++            &wire_attempt_facts_hash,
++            &wire_bytes_hash,
++            wire.len() as u32,
++        )
++        .unwrap();
++        PreparedSipEffect {
++            identity: SipEffectIdentity {
++                tenant_id: "tenant-a".to_string(),
++                protocol_effect_id: "effect-a".to_string(),
++                protocol_session_id: "session-a".to_string(),
++                protocol_session_generation: "1".to_string(),
++                decision_id: "decision-a".to_string(),
++                idempotency_key: "tenant-a/session-a/1/bye/1".to_string(),
++                request_hash: HASH_A.to_string(),
++                command_id: "command-a".to_string(),
++                adapter_identity_hash: canonical_json_sha256(&adapter_identity).unwrap(),
++                wire_bytes_hash,
++                wire_length_bytes: wire.len() as u32,
++                route_binding_hash,
++                wire_attempt_facts_hash,
++                wire_freeze_sha256,
++                owner_epoch: 7,
++                command_sequence: 1,
++            },
++            canonical_wire_bytes: wire,
++            adapter_identity,
++            route_binding,
++            wire_attempt_facts,
++            prepared_at,
++            audit_until: prepared_at + Duration::days(30),
++        }
++    }
++
++    fn receipt(
++        record: &SipEffectRecord,
++        receipt_id: &str,
++        level: SipEffectReceiptLevel,
++    ) -> SipEffectReceipt {
++        SipEffectReceipt::new(record.fence(), receipt_id, level, "", None).unwrap()
++    }
++
++    #[test]
++    fn semantic_receipts_never_promote_transport_acceptance_to_completion() {
++        assert_eq!(
++            canonical_json_sha256(&serde_json::json!({"b": 2, "a": 1})).unwrap(),
++            "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777",
++        );
++        let effect = prepared();
++        assert_eq!(
++            protocol_effect_identity_hash(&effect.identity).unwrap(),
++            "b8f4c4aca40b76a37cf01f930801f5bd8589e34acb775a4313f2d2bb0067b508",
++        );
++        assert_eq!(
++            SipEffectReceipt::new(
++                SipEffectFence {
++                    identity: effect.identity,
++                    expected_revision: 1,
++                },
++                "receipt-decision",
++                SipEffectReceiptLevel::DurableDecision,
++                "",
++                None,
++            )
++            .unwrap()
++            .receipt_hash,
++            "23249993c72f0fdc45974516d66fea82ec64cd1a66ce9d7afe43b451311e7ff6",
++        );
++        assert_eq!(
++            classify_receipt(
++                SipEffectState::SendAttempted,
++                SipEffectReceiptLevel::TransportAccepted,
++            )
++            .unwrap(),
++            SipEffectReceiptSemantic::Accepted,
++        );
++        assert_eq!(
++            classify_receipt(
++                SipEffectState::TransportAccepted,
++                SipEffectReceiptLevel::ProtocolObserved,
++            )
++            .unwrap(),
++            SipEffectReceiptSemantic::Completed,
++        );
++        assert_eq!(
++            classify_receipt(
++                SipEffectState::Unknown,
++                SipEffectReceiptLevel::ProtocolObserved,
++            )
++            .unwrap(),
++            SipEffectReceiptSemantic::StateObserved,
++        );
++        assert_eq!(
++            classify_receipt(
++                SipEffectState::Prepared,
++                SipEffectReceiptLevel::TransportAccepted,
++            )
++            .unwrap_err(),
++            SipEffectError::TransitionConflict,
++        );
++    }
++
++    #[test]
++    fn prepare_validates_wire_identity_and_replays_only_exact_input() {
++        let mut ledger = InMemorySipEffectLedger::new(4).unwrap();
++        let effect = prepared();
++        let first = ledger.prepare(effect.clone()).unwrap();
++        assert!(!first.replayed);
++        assert_eq!(first.record.state, SipEffectState::Prepared);
++        assert_eq!(first.record.revision, 1);
++
++        let replay = ledger.prepare(effect.clone()).unwrap();
++        assert!(replay.replayed);
++        assert_eq!(replay.record, first.record);
++        let mut replay_with_new_audit_window = effect.clone();
++        replay_with_new_audit_window.prepared_at += Duration::seconds(1);
++        replay_with_new_audit_window.audit_until += Duration::seconds(1);
++        let replay = ledger.prepare(replay_with_new_audit_window).unwrap();
++        assert!(replay.replayed);
++        assert_eq!(replay.record, first.record);
++
++        let mut conflict = effect.clone();
++        conflict.identity.decision_id = "decision-b".to_string();
++        assert_eq!(
++            ledger.prepare(conflict).unwrap_err(),
++            SipEffectError::IdempotencyConflict,
++        );
++        let mut corrupt_wire = effect;
++        corrupt_wire.canonical_wire_bytes.push(0);
++        assert_eq!(
++            InMemorySipEffectLedger::new(1)
++                .unwrap()
++                .prepare(corrupt_wire)
++                .unwrap_err(),
++            SipEffectError::InvalidInput,
++        );
++        let mut corrupt_freeze = prepared();
++        corrupt_freeze.identity.wire_freeze_sha256 = HASH_B.to_string();
++        assert_eq!(
++            InMemorySipEffectLedger::new(1)
++                .unwrap()
++                .prepare(corrupt_freeze)
++                .unwrap_err(),
++            SipEffectError::InvalidInput,
++        );
++    }
++
++    #[test]
++    fn durable_effect_transitions_and_receipt_replay_are_fenced() {
++        let mut ledger = InMemorySipEffectLedger::new(4).unwrap();
++        let opened = ledger.prepare(prepared()).unwrap().record;
++        let decided = ledger
++            .apply(receipt(
++                &opened,
++                "receipt-decision",
++                SipEffectReceiptLevel::DurableDecision,
++            ))
++            .unwrap();
++        let attempted_receipt = receipt(
++            &decided.record,
++            "receipt-attempt",
++            SipEffectReceiptLevel::SendAttempted,
++        );
++        let attempted = ledger.apply(attempted_receipt.clone()).unwrap();
++        let replay = ledger.apply(attempted_receipt).unwrap();
++        assert!(replay.replayed);
++        assert_eq!(replay.record.revision, attempted.record.revision);
++        let accepted = ledger
++            .apply(receipt(
++                &attempted.record,
++                "receipt-accepted",
++                SipEffectReceiptLevel::TransportAccepted,
++            ))
++            .unwrap();
++        assert_eq!(accepted.semantic, SipEffectReceiptSemantic::Accepted);
++        let completed = ledger
++            .apply(receipt(
++                &accepted.record,
++                "receipt-observed",
++                SipEffectReceiptLevel::ProtocolObserved,
++            ))
++            .unwrap();
++        assert_eq!(completed.semantic, SipEffectReceiptSemantic::Completed);
++        assert_eq!(completed.record.state, SipEffectState::ProtocolObserved);
++        let after_terminal = SipEffectReceipt::new(
++            completed.record.fence(),
++            "receipt-after-terminal",
++            SipEffectReceiptLevel::Failed,
++            "late_failure",
++            None,
++        )
++        .unwrap();
++        assert_eq!(
++            ledger.apply(after_terminal).unwrap_err(),
++            SipEffectError::Terminal,
++        );
++    }
++
++    #[test]
++    fn conflicting_receipt_and_stale_revision_preserve_existing_state() {
++        let mut ledger = InMemorySipEffectLedger::new(4).unwrap();
++        let opened = ledger.prepare(prepared()).unwrap().record;
++        let durable = receipt(&opened, "receipt-a", SipEffectReceiptLevel::DurableDecision);
++        let decided = ledger.apply(durable.clone()).unwrap().record;
++        let conflict = receipt(&decided, "receipt-a", SipEffectReceiptLevel::SendAttempted);
++        assert_eq!(
++            ledger.apply(conflict).unwrap_err(),
++            SipEffectError::ReceiptConflict,
++        );
++        let mut tampered = receipt(
++            &decided,
++            "receipt-send",
++            SipEffectReceiptLevel::SendAttempted,
++        );
++        tampered.receipt_id = "receipt-tampered".to_string();
++        assert_eq!(
++            ledger.apply(tampered).unwrap_err(),
++            SipEffectError::InvalidInput,
++        );
++        let stale = SipEffectReceipt::new(
++            opened.fence(),
++            "receipt-stale",
++            SipEffectReceiptLevel::SendAttempted,
++            "",
++            None,
++        )
++        .unwrap();
++        assert_eq!(ledger.apply(stale).unwrap_err(), SipEffectError::FenceLost,);
++        assert_eq!(ledger.query(&decided.identity).unwrap().unwrap(), decided,);
++    }
++
++    #[test]
++    fn unknown_requires_query_claim_and_a_higher_repair_epoch() {
++        let mut ledger = InMemorySipEffectLedger::new(4).unwrap();
++        let opened = ledger.prepare(prepared()).unwrap().record;
++        let decided = ledger
++            .apply(receipt(
++                &opened,
++                "receipt-decision",
++                SipEffectReceiptLevel::DurableDecision,
++            ))
++            .unwrap()
++            .record;
++        let attempted = ledger
++            .apply(receipt(
++                &decided,
++                "receipt-attempt",
++                SipEffectReceiptLevel::SendAttempted,
++            ))
++            .unwrap()
++            .record;
++        let unknown = SipEffectReceipt::new(
++            attempted.fence(),
++            "receipt-unknown",
++            SipEffectReceiptLevel::Unknown,
++            "",
++            Some(250),
++        )
++        .unwrap();
++        let unknown = ledger.apply(unknown).unwrap().record;
++        assert_eq!(unknown.state, SipEffectState::Unknown);
++        assert_eq!(unknown.unknown_count, 1);
++        assert_eq!(
++            ledger
++                .apply(
++                    SipEffectReceipt::new(
++                        unknown.fence(),
++                        "receipt-blind-retry",
++                        SipEffectReceiptLevel::ProtocolObserved,
++                        "",
++                        None,
++                    )
++                    .unwrap()
++                )
++                .unwrap_err(),
++            SipEffectError::RepairFenceRequired,
++        );
++
++        let claim = ledger
++            .claim_unknown(&unknown.identity, "repair-worker-a", 11, "claim-a")
++            .unwrap();
++        assert_eq!(
++            ledger
++                .claim_unknown(&unknown.identity, "repair-worker-b", 11, "claim-b")
++                .unwrap_err(),
++            SipEffectError::FenceLost,
++        );
++        let observed = ledger
++            .reconcile(
++                &unknown.identity,
++                &claim,
++                "receipt-reconciled",
++                SipEffectReconcileOutcome::ProtocolObserved,
++            )
++            .unwrap();
++        assert_eq!(observed.semantic, SipEffectReceiptSemantic::StateObserved);
++        assert_eq!(observed.record.state, SipEffectState::ProtocolObserved);
++    }
++
++    #[test]
++    fn bounded_ledger_and_retry_after_fail_closed() {
++        let mut ledger = InMemorySipEffectLedger::new(1).unwrap();
++        ledger.prepare(prepared()).unwrap();
++        let mut second = prepared();
++        second.identity.protocol_effect_id = "effect-b".to_string();
++        second.identity.idempotency_key = "tenant-a/session-a/1/bye/2".to_string();
++        second.identity.command_id = "command-b".to_string();
++        second.identity.command_sequence = 2;
++        assert_eq!(
++            ledger.prepare(second).unwrap_err(),
++            SipEffectError::CapacityExhausted,
++        );
++        assert_eq!(retry_after_seconds(0, 0, 0).unwrap(), 1);
++        assert_eq!(retry_after_seconds(250, 1_024, 3).unwrap(), 9);
++        assert_eq!(
++            retry_after_seconds(251, 0, 0).unwrap_err(),
++            SipEffectError::InvalidInput,
++        );
++    }
++
++    #[test]
++    fn unknown_repair_attempts_stop_at_the_hard_ceiling() {
++        let mut ledger = InMemorySipEffectLedger::new(1).unwrap();
++        let opened = ledger.prepare(prepared()).unwrap().record;
++        let decided = ledger
++            .apply(receipt(
++                &opened,
++                "receipt-decision",
++                SipEffectReceiptLevel::DurableDecision,
++            ))
++            .unwrap()
++            .record;
++        let attempted = ledger
++            .apply(receipt(
++                &decided,
++                "receipt-attempt",
++                SipEffectReceiptLevel::SendAttempted,
++            ))
++            .unwrap()
++            .record;
++        let identity = attempted.identity.clone();
++        let mut unknown = ledger
++            .apply(
++                SipEffectReceipt::new(
++                    attempted.fence(),
++                    "receipt-unknown-initial",
++                    SipEffectReceiptLevel::Unknown,
++                    "",
++                    Some(0),
++                )
++                .unwrap(),
++            )
++            .unwrap()
++            .record;
++        for attempt in 1_u64..=8 {
++            let claim = ledger
++                .claim_unknown(
++                    &identity,
++                    "repair-worker",
++                    attempt,
++                    &format!("claim-{attempt}"),
++                )
++                .unwrap();
++            unknown = ledger
++                .reconcile(
++                    &identity,
++                    &claim,
++                    &format!("receipt-unknown-{attempt}"),
++                    SipEffectReconcileOutcome::Unknown { repair_after_ms: 0 },
++                )
++                .unwrap()
++                .record;
++        }
++        assert_eq!(unknown.repair_attempts, 8);
++        assert_eq!(
++            ledger
++                .claim_unknown(&identity, "repair-worker", 9, "claim-9")
++                .unwrap_err(),
++            SipEffectError::RepairExhausted,
++        );
++    }
++}
