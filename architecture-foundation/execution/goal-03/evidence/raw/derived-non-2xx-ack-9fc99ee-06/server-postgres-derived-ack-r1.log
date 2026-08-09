@@ -1,0 +1,20 @@
+   Compiling rustpbx v0.4.11 (/workspace/rustpbx)
+   Compiling rsipstack v0.5.18 (/workspace/rsipstack)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5m 13s
+     Running unittests src/lib.rs (target/debug/deps/rustpbx-2292b3bbd3d87a06)
+
+running 1 test
+
+thread 'call::adapters::postgres_sip_effect::tests::postgres_atomically_derives_one_non_2xx_ack_from_its_parent_effect' (554) panicked at src/call/adapters/postgres_sip_effect.rs:2633:75:
+called `Result::unwrap()` on an `Err` value: SchemaIncompatible
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test call::adapters::postgres_sip_effect::tests::postgres_atomically_derives_one_non_2xx_ack_from_its_parent_effect ... FAILED
+
+failures:
+
+failures:
+    call::adapters::postgres_sip_effect::tests::postgres_atomically_derives_one_non_2xx_ack_from_its_parent_effect
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2008 filtered out; finished in 0.09s
+
+error: test failed, to rerun pass `--lib`

@@ -1,0 +1,713 @@
+    Updating `rsproxy` index
+ Downloading crates ...
+  Downloaded anstyle-parse v1.0.0 (registry `rsproxy`)
+  Downloaded data-encoding v2.11.0 (registry `rsproxy`)
+  Downloaded block-buffer v0.12.1 (registry `rsproxy`)
+  Downloaded anstyle-query v1.1.5 (registry `rsproxy`)
+  Downloaded bitflags v2.13.1 (registry `rsproxy`)
+  Downloaded futures-executor v0.3.33 (registry `rsproxy`)
+  Downloaded anstream v1.0.0 (registry `rsproxy`)
+  Downloaded cfg-if v1.0.4 (registry `rsproxy`)
+  Downloaded dashmap v6.2.1 (registry `rsproxy`)
+  Downloaded anstyle v1.0.14 (registry `rsproxy`)
+  Downloaded clap_builder v4.6.5 (registry `rsproxy`)
+  Downloaded crossbeam-epoch v0.9.20 (registry `rsproxy`)
+  Downloaded base64 v0.22.1 (registry `rsproxy`)
+  Downloaded autocfg v1.5.1 (registry `rsproxy`)
+  Downloaded crypto-common v0.1.7 (registry `rsproxy`)
+  Downloaded heck v0.5.0 (registry `rsproxy`)
+  Downloaded crossbeam-utils v0.8.22 (registry `rsproxy`)
+  Downloaded async-trait v0.1.91 (registry `rsproxy`)
+  Downloaded scopeguard v1.2.0 (registry `rsproxy`)
+  Downloaded icu_normalizer_data v2.2.0 (registry `rsproxy`)
+  Downloaded litemap v0.8.2 (registry `rsproxy`)
+  Downloaded is_terminal_polyfill v1.70.2 (registry `rsproxy`)
+  Downloaded tower-service v0.3.3 (registry `rsproxy`)
+  Downloaded linux-raw-sys v0.12.1 (registry `rsproxy`)
+  Downloaded clap v4.6.5 (registry `rsproxy`)
+  Downloaded sha1 v0.10.7 (registry `rsproxy`)
+  Downloaded serde_urlencoded v0.7.1 (registry `rsproxy`)
+  Downloaded mio v1.2.2 (registry `rsproxy`)
+  Downloaded ryu v1.0.23 (registry `rsproxy`)
+  Downloaded serde_json v1.0.151 (registry `rsproxy`)
+  Downloaded tagptr v0.2.0 (registry `rsproxy`)
+  Downloaded md-5 v0.11.0 (registry `rsproxy`)
+  Downloaded colorchoice v1.0.5 (registry `rsproxy`)
+  Downloaded cpufeatures v0.3.0 (registry `rsproxy`)
+  Downloaded hyper v1.11.0 (registry `rsproxy`)
+  Downloaded tracing-core v0.1.36 (registry `rsproxy`)
+  Downloaded rustls-pki-types v1.15.1 (registry `rsproxy`)
+  Downloaded lazy_static v1.5.0 (registry `rsproxy`)
+  Downloaded block-buffer v0.10.4 (registry `rsproxy`)
+  Downloaded getrandom v0.4.3 (registry `rsproxy`)
+  Downloaded proc-macro2 v1.0.107 (registry `rsproxy`)
+  Downloaded yoke v0.8.3 (registry `rsproxy`)
+  Downloaded chrono v0.4.45 (registry `rsproxy`)
+  Downloaded zerovec-derive v0.11.3 (registry `rsproxy`)
+  Downloaded displaydoc v0.2.7 (registry `rsproxy`)
+  Downloaded cpufeatures v0.2.17 (registry `rsproxy`)
+  Downloaded memchr v2.8.3 (registry `rsproxy`)
+  Downloaded icu_collections v2.2.0 (registry `rsproxy`)
+  Downloaded serde_derive v1.0.229 (registry `rsproxy`)
+  Downloaded futures-task v0.3.33 (registry `rsproxy`)
+  Downloaded thiserror-impl v2.0.19 (registry `rsproxy`)
+  Downloaded tokio-tungstenite v0.29.0 (registry `rsproxy`)
+  Downloaded lock_api v0.4.14 (registry `rsproxy`)
+  Downloaded tokio-util v0.7.19 (registry `rsproxy`)
+  Downloaded zerotrie v0.2.4 (registry `rsproxy`)
+  Downloaded tracing-attributes v0.1.31 (registry `rsproxy`)
+  Downloaded sync_wrapper v1.0.2 (registry `rsproxy`)
+  Downloaded nom v7.1.3 (registry `rsproxy`)
+  Downloaded percent-encoding v2.3.2 (registry `rsproxy`)
+  Downloaded digest v0.11.3 (registry `rsproxy`)
+  Downloaded pin-project-lite v0.2.17 (registry `rsproxy`)
+  Downloaded writeable v0.6.3 (registry `rsproxy`)
+  Downloaded bytes v1.12.1 (registry `rsproxy`)
+  Downloaded hybrid-array v0.4.14 (registry `rsproxy`)
+  Downloaded http-body-util v0.1.4 (registry `rsproxy`)
+  Downloaded shlex v2.0.1 (registry `rsproxy`)
+  Downloaded thiserror v2.0.19 (registry `rsproxy`)
+  Downloaded tower v0.5.3 (registry `rsproxy`)
+  Downloaded resolv-conf v0.7.6 (registry `rsproxy`)
+  Downloaded uuid v1.24.0 (registry `rsproxy`)
+  Downloaded subtle v2.6.1 (registry `rsproxy`)
+  Downloaded icu_properties v2.2.0 (registry `rsproxy`)
+  Downloaded chacha20 v0.10.1 (registry `rsproxy`)
+  Downloaded mime_guess v2.0.5 (registry `rsproxy`)
+  Downloaded httpdate v1.0.3 (registry `rsproxy`)
+  Downloaded hashbrown v0.15.5 (registry `rsproxy`)
+  Downloaded const-oid v0.10.2 (registry `rsproxy`)
+  Downloaded quote v1.0.47 (registry `rsproxy`)
+  Downloaded time v0.3.55 (registry `rsproxy`)
+  Downloaded critical-section v1.2.0 (registry `rsproxy`)
+  Downloaded atomic-waker v1.1.2 (registry `rsproxy`)
+  Downloaded rand v0.9.5 (registry `rsproxy`)
+  Downloaded sha2 v0.11.0 (registry `rsproxy`)
+  Downloaded hickory-net v0.26.1 (registry `rsproxy`)
+  Downloaded unicode-ident v1.0.24 (registry `rsproxy`)
+  Downloaded tokio-macros v2.7.2 (registry `rsproxy`)
+  Downloaded matchit v0.8.4 (registry `rsproxy`)
+  Downloaded getrandom v0.2.17 (registry `rsproxy`)
+  Downloaded serde_path_to_error v0.1.20 (registry `rsproxy`)
+  Downloaded untrusted v0.9.0 (registry `rsproxy`)
+  Downloaded tinyvec v1.12.0 (registry `rsproxy`)
+  Downloaded yoke-derive v0.8.2 (registry `rsproxy`)
+  Downloaded time-core v0.1.9 (registry `rsproxy`)
+  Downloaded sharded-slab v0.1.7 (registry `rsproxy`)
+  Downloaded log v0.4.33 (registry `rsproxy`)
+  Downloaded thread_local v1.1.10 (registry `rsproxy`)
+  Downloaded syn v3.0.3 (registry `rsproxy`)
+  Downloaded hickory-resolver v0.26.1 (registry `rsproxy`)
+  Downloaded icu_properties_data v2.2.0 (registry `rsproxy`)
+  Downloaded utf8_iter v1.0.4 (registry `rsproxy`)
+  Downloaded tracing-log v0.2.0 (registry `rsproxy`)
+  Downloaded socket2 v0.6.5 (registry `rsproxy`)
+  Downloaded portable-atomic v1.14.0 (registry `rsproxy`)
+  Downloaded rand_chacha v0.9.0 (registry `rsproxy`)
+  Downloaded http v1.5.0 (registry `rsproxy`)
+  Downloaded crossbeam-channel v0.5.16 (registry `rsproxy`)
+  Downloaded sdp-rs v0.2.1 (registry `rsproxy`)
+  Downloaded once_cell v1.21.4 (registry `rsproxy`)
+  Downloaded version_check v0.9.5 (registry `rsproxy`)
+  Downloaded rustix v1.1.4 (registry `rsproxy`)
+  Downloaded zerovec v0.11.6 (registry `rsproxy`)
+  Downloaded httparse v1.10.1 (registry `rsproxy`)
+  Downloaded futures-channel v0.3.33 (registry `rsproxy`)
+  Downloaded unicase v2.9.0 (registry `rsproxy`)
+  Downloaded parking_lot_core v0.9.12 (registry `rsproxy`)
+  Downloaded mime v0.3.17 (registry `rsproxy`)
+  Downloaded equivalent v1.0.2 (registry `rsproxy`)
+  Downloaded smallvec v1.15.2 (registry `rsproxy`)
+  Downloaded axum v0.8.9 (registry `rsproxy`)
+  Downloaded strsim v0.11.1 (registry `rsproxy`)
+  Downloaded getrandom v0.3.4 (registry `rsproxy`)
+  Downloaded dotenvy v0.15.7 (registry `rsproxy`)
+  Downloaded clap_derive v4.6.4 (registry `rsproxy`)
+  Downloaded rustls-webpki v0.103.13 (registry `rsproxy`)
+  Downloaded fastrand v2.5.0 (registry `rsproxy`)
+  Downloaded ppv-lite86 v0.2.21 (registry `rsproxy`)
+  Downloaded tokio v1.53.1 (registry `rsproxy`)
+  Downloaded zerofrom-derive v0.1.7 (registry `rsproxy`)
+  Downloaded generic-array v0.14.7 (registry `rsproxy`)
+  Downloaded rand v0.10.2 (registry `rsproxy`)
+  Downloaded icu_locale_core v2.2.0 (registry `rsproxy`)
+  Downloaded digest v0.10.7 (registry `rsproxy`)
+  Downloaded futures-util v0.3.33 (registry `rsproxy`)
+  Downloaded num-conv v0.2.2 (registry `rsproxy`)
+  Downloaded moka v0.12.15 (registry `rsproxy`)
+  Downloaded signal-hook-registry v1.4.8 (registry `rsproxy`)
+  Downloaded powerfmt v0.2.0 (registry `rsproxy`)
+  Downloaded parking_lot v0.12.5 (registry `rsproxy`)
+  Downloaded itoa v1.0.18 (registry `rsproxy`)
+  Downloaded icu_provider v2.2.0 (registry `rsproxy`)
+  Downloaded serde v1.0.229 (registry `rsproxy`)
+  Downloaded idna_adapter v1.2.2 (registry `rsproxy`)
+  Downloaded futures-sink v0.3.33 (registry `rsproxy`)
+  Downloaded nu-ansi-term v0.50.3 (registry `rsproxy`)
+  Downloaded iana-time-zone v0.1.65 (registry `rsproxy`)
+  Downloaded serde_core v1.0.229 (registry `rsproxy`)
+  Downloaded axum-core v0.5.6 (registry `rsproxy`)
+  Downloaded errno v0.3.14 (registry `rsproxy`)
+  Downloaded cc v1.4.0 (registry `rsproxy`)
+  Downloaded tungstenite v0.29.0 (registry `rsproxy`)
+  Downloaded num-traits v0.2.19 (registry `rsproxy`)
+  Downloaded ring v0.17.14 (registry `rsproxy`)
+  Downloaded url v2.5.8 (registry `rsproxy`)
+  Downloaded ipnet v2.12.1 (registry `rsproxy`)
+  Downloaded crypto-common v0.2.2 (registry `rsproxy`)
+  Downloaded zerofrom v0.1.8 (registry `rsproxy`)
+  Downloaded tower-layer v0.3.3 (registry `rsproxy`)
+  Downloaded prefix-trie v0.8.4 (registry `rsproxy`)
+  Downloaded zmij v1.0.23 (registry `rsproxy`)
+  Downloaded typenum v1.20.1 (registry `rsproxy`)
+  Downloaded tracing-subscriber v0.3.23 (registry `rsproxy`)
+  Downloaded find-msvc-tools v0.1.9 (registry `rsproxy`)
+  Downloaded tower-http v0.6.11 (registry `rsproxy`)
+  Downloaded potential_utf v0.1.5 (registry `rsproxy`)
+  Downloaded futures-macro v0.3.33 (registry `rsproxy`)
+  Downloaded deranged v0.5.8 (registry `rsproxy`)
+  Downloaded rustls v0.23.43 (registry `rsproxy`)
+  Downloaded idna v1.1.0 (registry `rsproxy`)
+  Downloaded icu_normalizer v2.2.0 (registry `rsproxy`)
+  Downloaded clap_lex v1.1.0 (registry `rsproxy`)
+  Downloaded futures v0.3.33 (registry `rsproxy`)
+  Downloaded tokio-rustls v0.26.4 (registry `rsproxy`)
+  Downloaded hashbrown v0.14.5 (registry `rsproxy`)
+  Downloaded syn v2.0.119 (registry `rsproxy`)
+  Downloaded tinystr v0.8.3 (registry `rsproxy`)
+  Downloaded synstructure v0.13.2 (registry `rsproxy`)
+  Downloaded rtp-rs v0.6.0 (registry `rsproxy`)
+  Downloaded minimal-lexical v0.2.1 (registry `rsproxy`)
+  Downloaded zerocopy v0.8.55 (registry `rsproxy`)
+  Downloaded either v1.17.0 (registry `rsproxy`)
+  Downloaded rand_core v0.9.5 (registry `rsproxy`)
+  Downloaded if-addrs v0.14.0 (registry `rsproxy`)
+  Downloaded futures-io v0.3.33 (registry `rsproxy`)
+  Downloaded http-range-header v0.4.2 (registry `rsproxy`)
+  Downloaded num_threads v0.1.7 (registry `rsproxy`)
+  Downloaded form_urlencoded v1.2.2 (registry `rsproxy`)
+  Downloaded libc v0.2.189 (registry `rsproxy`)
+  Downloaded tinyvec_macros v0.1.1 (registry `rsproxy`)
+  Downloaded zeroize v1.9.0 (registry `rsproxy`)
+  Downloaded rand_core v0.10.1 (registry `rsproxy`)
+  Downloaded utf8parse v0.2.2 (registry `rsproxy`)
+  Downloaded time-macros v0.2.32 (registry `rsproxy`)
+  Downloaded tempfile v3.27.0 (registry `rsproxy`)
+  Downloaded stable_deref_trait v1.2.1 (registry `rsproxy`)
+  Downloaded slab v0.4.12 (registry `rsproxy`)
+  Downloaded http-body v1.1.0 (registry `rsproxy`)
+  Downloaded hickory-proto v0.26.1 (registry `rsproxy`)
+  Downloaded vec1 v1.12.1 (registry `rsproxy`)
+  Downloaded tracing v0.1.44 (registry `rsproxy`)
+  Downloaded hyper-util v0.1.20 (registry `rsproxy`)
+  Downloaded futures-core v0.3.33 (registry `rsproxy`)
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.24
+   Compiling libc v0.2.189
+   Compiling syn v3.0.3
+   Compiling cfg-if v1.0.4
+   Compiling syn v2.0.119
+   Compiling smallvec v1.15.2
+   Compiling pin-project-lite v0.2.17
+   Compiling portable-atomic v1.14.0
+   Compiling synstructure v0.13.2
+   Compiling bytes v1.12.1
+   Compiling zerofrom-derive v0.1.7
+   Compiling yoke-derive v0.8.2
+   Compiling zerofrom v0.1.8
+   Compiling parking_lot_core v0.9.12
+   Compiling stable_deref_trait v1.2.1
+   Compiling yoke v0.8.3
+   Compiling scopeguard v1.2.0
+   Compiling futures-core v0.3.33
+   Compiling critical-section v1.2.0
+   Compiling lock_api v0.4.14
+   Compiling once_cell v1.21.4
+   Compiling zerovec-derive v0.11.3
+   Compiling typenum v1.20.1
+   Compiling zerovec v0.11.6
+   Compiling displaydoc v0.2.7
+   Compiling futures-sink v0.3.33
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling log v0.4.33
+   Compiling futures-channel v0.3.33
+   Compiling parking_lot v0.12.5
+   Compiling errno v0.3.14
+   Compiling serde_core v1.0.229
+   Compiling signal-hook-registry v1.4.8
+   Compiling tokio-macros v2.7.2
+   Compiling socket2 v0.6.5
+   Compiling mio v1.2.2
+   Compiling tokio v1.53.1
+   Compiling tinystr v0.8.3
+   Compiling futures-macro v0.3.33
+   Compiling futures-task v0.3.33
+   Compiling futures-io v0.3.33
+   Compiling version_check v0.9.5
+   Compiling slab v0.4.12
+   Compiling litemap v0.8.2
+   Compiling writeable v0.6.3
+   Compiling icu_locale_core v2.2.0
+   Compiling futures-util v0.3.33
+   Compiling generic-array v0.14.7
+   Compiling zerotrie v0.2.4
+   Compiling http v1.5.0
+   Compiling potential_utf v0.1.5
+   Compiling tracing-core v0.1.36
+   Compiling rand_core v0.10.1
+   Compiling getrandom v0.4.3
+   Compiling autocfg v1.5.1
+   Compiling icu_properties_data v2.2.0
+   Compiling icu_normalizer_data v2.2.0
+   Compiling serde v1.0.229
+   Compiling utf8_iter v1.0.4
+   Compiling num-traits v0.2.19
+   Compiling icu_collections v2.2.0
+   Compiling icu_provider v2.2.0
+   Compiling serde_derive v1.0.229
+   Compiling shlex v2.0.1
+   Compiling zerocopy v0.8.55
+   Compiling getrandom v0.3.4
+   Compiling find-msvc-tools v0.1.9
+   Compiling thiserror v2.0.19
+   Compiling percent-encoding v2.3.2
+   Compiling cc v1.4.0
+   Compiling tracing-attributes v0.1.31
+   Compiling thiserror-impl v2.0.19
+   Compiling crossbeam-utils v0.8.22
+   Compiling httparse v1.10.1
+   Compiling tracing v0.1.44
+   Compiling icu_normalizer v2.2.0
+   Compiling icu_properties v2.2.0
+   Compiling ring v0.17.14
+   Compiling form_urlencoded v1.2.2
+   Compiling http-body v1.1.0
+   Compiling data-encoding v2.11.0
+   Compiling cpufeatures v0.3.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling rand_core v0.9.5
+   Compiling idna_adapter v1.2.2
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling hybrid-array v0.4.14
+   Compiling tower-service v0.3.3
+   Compiling digest v0.10.7
+   Compiling idna v1.1.0
+   Compiling rand_chacha v0.9.0
+   Compiling chacha20 v0.10.1
+   Compiling ipnet v2.12.1
+   Compiling getrandom v0.2.17
+   Compiling unicase v2.9.0
+   Compiling tinyvec_macros v0.1.1
+   Compiling either v1.17.0
+   Compiling untrusted v0.9.0
+   Compiling zmij v1.0.23
+   Compiling utf8parse v0.2.2
+   Compiling mime v0.3.17
+   Compiling zeroize v1.9.0
+   Compiling cpufeatures v0.2.17
+   Compiling tower-layer v0.3.3
+   Compiling crossbeam-epoch v0.9.20
+   Compiling httpdate v1.0.3
+   Compiling sha1 v0.10.7
+   Compiling rustls-pki-types v1.15.1
+   Compiling anstyle-parse v1.0.0
+   Compiling prefix-trie v0.8.4
+   Compiling tinyvec v1.12.0
+   Compiling mime_guess v2.0.5
+   Compiling rand v0.10.2
+   Compiling rand v0.9.5
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling url v2.5.8
+   Compiling http-body-util v0.1.4
+   Compiling anstyle v1.0.14
+   Compiling rustix v1.1.4
+   Compiling rustls v0.23.43
+   Compiling atomic-waker v1.1.2
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling colorchoice v1.0.5
+   Compiling serde_json v1.0.151
+   Compiling sync_wrapper v1.0.2
+   Compiling const-oid v0.10.2
+   Compiling bitflags v2.13.1
+   Compiling anstyle-query v1.1.5
+   Compiling digest v0.11.3
+   Compiling anstream v1.0.0
+   Compiling hyper v1.11.0
+   Compiling hickory-proto v0.26.1
+   Compiling tungstenite v0.29.0
+   Compiling rustls-webpki v0.103.13
+   Compiling crossbeam-channel v0.5.16
+   Compiling uuid v1.24.0
+   Compiling async-trait v0.1.91
+   Compiling num_threads v0.1.7
+   Compiling iana-time-zone v0.1.65
+   Compiling powerfmt v0.2.0
+   Compiling num-conv v0.2.2
+   Compiling ryu v1.0.23
+   Compiling strsim v0.11.1
+   Compiling deranged v0.5.8
+   Compiling equivalent v1.0.2
+   Compiling linux-raw-sys v0.12.1
+   Compiling time-core v0.1.9
+   Compiling subtle v2.6.1
+   Compiling lazy_static v1.5.0
+   Compiling clap_lex v1.1.0
+   Compiling minimal-lexical v0.2.1
+   Compiling tagptr v0.2.0
+   Compiling heck v0.5.0
+   Compiling hashbrown v0.15.5
+   Compiling clap_derive v4.6.4
+   Compiling tokio-util v0.7.19
+   Compiling moka v0.12.15
+   Compiling nom v7.1.3
+   Compiling clap_builder v4.6.5
+   Compiling time v0.3.55
+   Compiling sharded-slab v0.1.7
+   Compiling hickory-net v0.26.1
+   Compiling serde_urlencoded v0.7.1
+   Compiling chrono v0.4.45
+   Compiling tokio-tungstenite v0.29.0
+   Compiling hyper-util v0.1.20
+   Compiling axum-core v0.5.6
+   Compiling tower v0.5.3
+   Compiling tracing-log v0.2.0
+   Compiling futures-executor v0.3.33
+   Compiling serde_path_to_error v0.1.20
+   Compiling thread_local v1.1.10
+   Compiling http-range-header v0.4.2
+   Compiling hashbrown v0.14.5
+   Compiling resolv-conf v0.7.6
+   Compiling nu-ansi-term v0.50.3
+   Compiling matchit v0.8.4
+   Compiling base64 v0.22.1
+   Compiling fastrand v2.5.0
+   Compiling vec1 v1.12.1
+   Compiling sdp-rs v0.2.1
+   Compiling tempfile v3.27.0
+   Compiling axum v0.8.9
+   Compiling tracing-subscriber v0.3.23
+   Compiling dashmap v6.2.1
+   Compiling hickory-resolver v0.26.1
+   Compiling tower-http v0.6.11
+   Compiling futures v0.3.33
+   Compiling tokio-rustls v0.26.4
+   Compiling clap v4.6.5
+   Compiling md-5 v0.11.0
+   Compiling sha2 v0.11.0
+   Compiling if-addrs v0.14.0
+   Compiling rtp-rs v0.6.0
+   Compiling dotenvy v0.15.7
+   Compiling rsipstack v0.5.18 (/workspace/rsipstack)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 08s
+     Running unittests src/lib.rs (/workspace/rustpbx/target/debug/deps/rsipstack-ba41916e49ecf6d4)
+
+running 302 tests
+test bounded::tests::bounded_sender_rejects_full_and_closed_mailboxes ... ok
+test dialog::invitation::prepared_invite_tests::prepared_invite_sends_only_the_effective_offer ... ok
+test dialog::invitation::prepared_invite_tests::prepared_invite_exposes_real_local_tag_before_send ... ok
+test dialog::tests::test_authenticate::test_compute_digest_case_sensitive_uri ... ok
+test dialog::tests::test_authenticate::test_extract_digest_uri_raw ... ok
+test dialog::tests::test_authenticate::test_authenticate_via_header_branch_update ... ok
+test dialog::tests::test_authenticate::test_verify_digest_invite_method ... ok
+test dialog::tests::test_authenticate::test_verify_digest_ip_address_uri ... ok
+test dialog::tests::test_authenticate::test_verify_digest_lowercase_tcp ... ok
+test dialog::tests::test_authenticate::test_verify_digest_lowercase_tls ... ok
+test dialog::tests::test_authenticate::test_verify_digest_lowercase_udp ... ok
+test dialog::tests::test_authenticate::test_verify_digest_mixed_case_transport ... ok
+test dialog::tests::test_authenticate::test_verify_digest_real_world_unify_tls ... ok
+test dialog::tests::test_authenticate::test_verify_digest_no_transport ... ok
+test dialog::tests::test_authenticate::test_verify_digest_real_world_unify_udp ... ok
+test dialog::tests::test_authenticate::test_verify_digest_rsip_digest_generator_mismatch ... ok
+test dialog::tests::test_authenticate::test_verify_digest_sips_uri ... ok
+test dialog::tests::test_authenticate::test_verify_digest_uppercase_udp ... ok
+test dialog::tests::test_authenticate::test_verify_digest_uppercase_tls ... ok
+test dialog::tests::test_authenticate::test_verify_digest_websocket_transport ... ok
+test dialog::tests::test_authenticate::test_verify_digest_with_port_no_transport ... ok
+test dialog::tests::test_authenticate::test_verify_digest_with_qop_auth ... ok
+test dialog::tests::test_authenticate::test_verify_digest_with_user_in_uri ... ok
+test dialog::tests::test_authenticate::test_verify_digest_wrong_password_fails ... ok
+test dialog::tests::test_client_dialog::test_ack_sent_to_websocket_channel_via_locator ... ok
+test dialog::tests::test_client_dialog::test_ack_sent_to_domain_name_from_contact ... ok
+test dialog::tests::test_client_dialog::test_cancel_conforms_to_rfc3261_section_9_1 ... ok
+test dialog::tests::test_client_dialog::test_client_dialog_creation ... ok
+test dialog::tests::test_client_dialog::test_client_dialog_sequence_handling ... ok
+test dialog::tests::test_client_dialog::test_client_dialog_termination_scenarios ... ok
+test dialog::tests::test_client_dialog::test_client_dialog_state_transitions ... ok
+test dialog::tests::test_client_dialog::test_confirmed_dialog_bye_keeps_contact_uri_with_outbound_route ... ok
+test dialog::tests::test_client_dialog::test_drop_unconfirmed_dialog_with_487_response ... ok
+test dialog::tests::test_client_dialog::test_make_request_preserves_remote_target_and_route_order ... ok
+test dialog::tests::test_client_dialog::test_route_set_updates_from_200_ok_response ... ok
+test dialog::tests::test_dialog_layer::test_dialog_error_cases ... ok
+test dialog::tests::test_dialog_layer::test_dialog_layer_creation ... ok
+test dialog::tests::test_dialog_layer::test_dialog_layer_with_swapped_tags ... ok
+test dialog::tests::test_dialog_layer::test_dialog_removal ... ok
+test dialog::tests::test_dialog_layer::test_dialog_retrieval_and_matching ... ok
+test dialog::tests::test_dialog_layer::test_existing_server_invite_dialog_retrieval ... ok
+test dialog::tests::test_dialog_layer::test_make_invite_request_with_tcp_transport ... ok
+test dialog::tests::test_dialog_layer::test_make_invite_request_with_tls_transport_uses_sips_scheme ... ok
+test dialog::tests::test_dialog_layer::test_make_invite_request_without_transport_uses_contact_as_is ... ok
+test dialog::tests::test_dialog_layer::test_multiple_dialogs_management ... ok
+test dialog::tests::test_dialog_layer::test_server_invite_dialog_creation ... ok
+test dialog::tests::test_dialog_layer::test_server_invite_dialog_with_tcp_transport ... ok
+test dialog::tests::test_dialog_states::test_dialog_id_creation ... ok
+test dialog::tests::test_dialog_states::test_dialog_id_eq ... ok
+test dialog::tests::test_dialog_states::test_dialog_in_dialog_requests ... ok
+test dialog::tests::test_dialog_states::test_dialog_sequence_numbers ... ok
+test dialog::tests::test_dialog_states::test_dialog_state_display ... ok
+test dialog::tests::test_dialog_states::test_dialog_state_transitions ... ok
+test dialog::tests::test_dialog_states::test_dialog_termination_scenarios ... ok
+test dialog::tests::test_dialog_states::test_server_dialog_state_transitions ... ok
+test dialog::tests::test_prack::server_dialog_handles_prack_request ... ok
+test dialog::tests::test_refer::test_client_dialog_refer_accepts_name_addr_values ... ok
+test dialog::tests::test_refer::test_refer_to_from_uri_preserves_existing_uri_behavior ... ok
+test dialog::tests::test_server_dialog::test_accept_with_public_contact_preserves_contact_header ... ok
+test dialog::tests::test_server_dialog::test_dialog_make_request ... ok
+test dialog::tests::test_server_dialog::test_reject_with_headers_preserves_retry_after_and_reason ... ok
+test dialog::tests::test_server_dialog::test_server_dialog_bye_via ... ok
+test dialog::tests::test_server_dialog::test_server_dialog_reinvite_via ... ok
+test dialog::tests::test_sub_pub::test_client_publication_etag_handling ... ok
+test dialog::tests::test_sub_pub::test_server_publication_creation ... ok
+test dialog::tests::test_sub_pub::test_server_subscription_creation ... ok
+test error::tests::test_try_send_error_closed_conversion ... ok
+test error::tests::test_try_send_error_full_conversion ... ok
+test resolver::sip_resolver::tests::test_domain_with_port ... ok
+test resolver::sip_resolver::tests::test_fallback_to_a ... ok
+test resolver::sip_resolver::tests::test_ip_direct ... ok
+test resolver::sip_resolver::tests::test_srv_lookup_basic ... ok
+test resolver::sip_resolver::tests::test_srv_ordering_weight ... ok
+test resolver::sip_resolver::tests::test_srv_priority ... ok
+test sip::headers::typed::contact::tests::contact_header_list_parses_masked_kamailio_response ... ok
+test sip::headers::typed::contact::tests::record_style_contact_without_brackets_splits_header_params ... ok
+test sip::headers::typed::identity::tests::identity_basic_parse ... ok
+test sip::headers::typed::identity::tests::identity_display_roundtrip ... ok
+test sip::headers::typed::identity::tests::identity_info_contains_colon_and_path ... ok
+test sip::headers::typed::identity::tests::identity_missing_alg_errors ... ok
+test sip::headers::typed::identity::tests::identity_missing_info_errors ... ok
+test sip::headers::typed::identity::tests::identity_no_ppt ... ok
+test sip::headers::typed::identity::tests::identity_params_order_independent ... ok
+test sip::headers::typed::parse_helpers::tests::test_display_name_with_quotes ... ok
+test sip::headers::typed::parse_helpers::tests::test_empty_display_name_with_brackets ... ok
+test sip::headers::typed::parse_helpers::tests::test_just_uri_no_params ... ok
+test sip::headers::typed::parse_helpers::tests::test_no_brackets_multiple_params_with_at ... ok
+test sip::headers::typed::parse_helpers::tests::test_no_brackets_no_params_host_only ... ok
+test sip::headers::typed::parse_helpers::tests::test_no_userinfo_with_port_and_params ... ok
+test sip::headers::typed::parse_helpers::tests::test_userinfo_password_no_brackets ... ok
+test sip::headers::typed::parse_helpers::tests::test_with_angle_brackets ... ok
+test sip::headers::typed::parse_helpers::tests::test_with_display_name_and_angle_brackets ... ok
+test sip::headers::typed::parse_helpers::tests::test_with_port ... ok
+test sip::headers::typed::parse_helpers::tests::test_without_angle_brackets ... ok
+test sip::headers::typed::parse_helpers::tests::test_without_angle_brackets_multiple_params ... ok
+test sip::headers::typed::record_route::tests::record_route_keeps_uri_param_values_with_colons ... ok
+test sip::headers::typed::record_route::tests::record_route_lr_flag ... ok
+test sip::headers::typed::record_route::tests::record_route_lr_on_is_treated_as_loose_route ... ok
+test sip::headers::typed::record_route::tests::record_route_multi_entry ... ok
+test sip::headers::typed::record_route::tests::record_route_with_transport ... ok
+test sip::headers::typed::route::tests::route_colon_in_uri_param_preserved ... ok
+test sip::headers::typed::route::tests::route_display_roundtrip ... ok
+test sip::headers::typed::route::tests::route_lr_and_ob ... ok
+test sip::headers::typed::route::tests::route_lr_on_is_treated_as_loose_route ... ok
+test sip::headers::typed::route::tests::route_multi_uri ... ok
+test sip::headers::typed::route::tests::route_multi_uri_three ... ok
+test sip::headers::typed::route::tests::route_single_lr ... ok
+test sip::headers::typed::route::tests::route_single_ob ... ok
+test sip::headers::typed::route::tests::route_with_transport_param ... ok
+test sip::headers::typed::via::tests::via_basic_parse ... ok
+test sip::headers::typed::via::tests::via_received ... ok
+test sip::headers::typed::via::tests::via_rport_no_value ... ok
+test sip::headers::typed::via::tests::via_rport_with_value ... ok
+test sip::headers::typed::via::tests::via_tcp_transport ... ok
+test sip::headers::typed::via::tests::via_with_rport_builder ... ok
+test sip::message::tests::compact_form_headers_are_parsed ... ok
+test sip::message::tests::compact_form_refer_to_alias_r ... ok
+test sip::message::tests::compact_form_session_expires_alias_x ... ok
+test sip::message::tests::destination_from_request_with_route ... ok
+test sip::message::tests::destination_from_request_without_route ... ok
+test sip::message::tests::header_contains_token_helper ... ok
+test sip::message::tests::header_value_helper_case_insensitive ... ok
+test sip::message::tests::headers_push_front ... ok
+test sip::message::tests::new_headers_p_asserted_identity ... ok
+test sip::message::tests::new_headers_path_header ... ok
+test sip::message::tests::new_headers_reason_roundtrip ... ok
+test sip::message::tests::new_headers_refer_to_roundtrip ... ok
+test sip::message::tests::new_headers_replaces ... ok
+test sip::message::tests::new_headers_rseq_rack ... ok
+test sip::message::tests::new_headers_session_expires_roundtrip ... ok
+test sip::message::tests::parse_invite_request ... ok
+test sip::message::tests::parse_ok_response ... ok
+test sip::message::tests::parse_register_request ... ok
+test sip::message::tests::request_binary_body_survives_serialization ... ok
+test sip::message::tests::response_binary_body_survives_serialization ... ok
+test sip::message::tests::response_has_multiple_via_headers ... ok
+test sip::message::tests::top_via_header_returns_first_value_from_combined_header ... ok
+test sip::parser::tests::parser_accepts_the_wire_boundary_limits ... ok
+test sip::parser::tests::parser_accepts_valid_extension_header_token ... ok
+test sip::parser::tests::parser_keeps_body_with_colons_intact ... ok
+test sip::parser::tests::parser_rejects_conflicting_content_length ... ok
+test sip::parser::tests::parser_rejects_invalid_uri_escape_and_duplicate_singleton ... ok
+test sip::parser::tests::parser_rejects_obsolete_header_folding ... ok
+test sip::parser::tests::parser_rejects_oversized_header_line ... ok
+test sip::status_code::tests::accepted_status_code_is_202 ... ok
+test sip::uri::tests::uri_anonymous ... ok
+test sip::uri::tests::uri_branch_param ... ok
+test sip::uri::tests::uri_display_percent_encodes_user_and_password ... ok
+test sip::uri::tests::uri_host_only_no_user ... ok
+test sip::uri::tests::uri_ipv4_host ... ok
+test sip::uri::tests::uri_ipv4_host_with_port ... ok
+test sip::uri::tests::uri_ipv6_host ... ok
+test sip::uri::tests::uri_ipv6_host_with_port ... ok
+test sip::uri::tests::uri_lr_flag_param ... ok
+test sip::uri::tests::uri_lr_on_is_treated_as_loose_route ... ok
+test sip::uri::tests::uri_maddr_param ... ok
+test sip::uri::tests::uri_multiple_params ... ok
+test sip::uri::tests::uri_param_value_keeps_colons_and_following_params ... ok
+test sip::uri::tests::uri_password_auth ... ok
+test sip::uri::tests::uri_preserves_username_with_period ... ok
+test sip::uri::tests::uri_roundtrip_complex ... ok
+test sip::uri::tests::uri_rport_with_other_params ... ok
+test sip::uri::tests::uri_rport_with_value ... ok
+test sip::uri::tests::uri_rport_without_value ... ok
+test sip::uri::tests::uri_sips_scheme ... ok
+test sip::uri::tests::uri_tag_param ... ok
+test sip::uri::tests::uri_transport_tcp_param ... ok
+test sip::uri::tests::uri_transport_tls_param ... ok
+test sip::uri::tests::uri_ttl_param ... ok
+test sip::uri::tests::uri_with_headers ... ok
+test sip::uri::tests::user_param_is_parsed_as_uri_param ... ok
+test transaction::endpoint::capacity_tests::active_transaction_reservations_are_strictly_bounded ... ok
+test transaction::endpoint::capacity_tests::egress_effect_permit_rejects_unbounded_or_ambiguous_tokens ... ok
+test transaction::endpoint::capacity_tests::endpoint_capacity_limits_reject_zero_values ... ok
+test transaction::endpoint::capacity_tests::finished_transaction_reservations_are_strictly_bounded ... ok
+test transaction::endpoint::capacity_tests::queue_rejections_are_counted_without_high_cardinality_labels ... ok
+test transaction::key::test_transaction_key ... ok
+test transaction::key::transaction_key_uses_top_via_header_value ... ok
+test transaction::tests::test_client::automatic_non_2xx_ack_uses_parent_bound_derivation_not_ordinary_prepare ... ok
+test transaction::tests::test_client::cancelled_ack_transport_send_reports_unknown_exactly_once ... ok
+test transaction::tests::test_client::cancelled_cancel_transport_send_reports_unknown_exactly_once ... ok
+test transaction::tests::test_client::cancelled_derived_ack_prepare_keeps_reconcile_latch_and_never_falls_back ... ok
+test transaction::tests::test_client::cancelled_primary_transport_send_reports_unknown_exactly_once ... ok
+test transaction::tests::test_client::client_cancel_retry_reuses_the_frozen_wire_image ... ok
+test transaction::tests::test_client::client_derived_ack_prepare_failure_requires_reconcile_without_blind_retry ... ok
+test transaction::tests::test_client::client_initial_cancel_and_ack_each_require_one_egress_effect_decision ... ok
+test transaction::tests::test_client::client_initial_prepare_failure_emits_no_bytes_and_preserves_nothing_state ... ok
+test transaction::tests::test_client::client_request_is_protocol_completed_only_after_a_final_response ... ok
+test transaction::tests::test_client::client_timer_retransmission_reuses_frozen_bytes_without_new_effect_decision ... ok
+test transaction::tests::test_client::dropping_client_transaction_marks_outstanding_effect_unknown_once ... ok
+test transaction::tests::test_client::durable_prepare_receives_the_actual_udp_destination ... ok
+test transaction::tests::test_client::legacy_cancel_is_unknown_because_its_response_has_no_transaction_owner ... ok
+test transaction::tests::test_client::local_client_timeout_is_protocol_unknown_not_completed ... ok
+test transaction::tests::test_client::non_timeout_local_response_cannot_terminate_client_transaction ... ok
+test transaction::tests::test_client::test_client_transaction ... ok
+test transaction::tests::test_client::test_make_ack_accepts_comma_separated_record_route ... ok
+test transaction::tests::test_client::test_make_ack_preserves_du_param_with_colons_in_record_route ... ok
+test transaction::tests::test_client::test_make_ack_updates_first_combined_via_value_only ... ok
+test transaction::tests::test_client::test_make_ack_uses_contact_and_reversed_route_order ... ok
+test transaction::tests::test_client::test_make_ack_uses_contact_with_ob ... ok
+test transaction::tests::test_client::test_make_ack_uses_first_route_without_lr ... ok
+test transaction::tests::test_client::transport_unknown_primary_send_cannot_prepare_a_second_effect ... ok
+test transaction::tests::test_endpoint::test_endpoint_recvrequests ... ok
+test transaction::tests::test_endpoint::test_endpoint_serve ... ok
+test transaction::tests::test_endpoint::test_send ... ok
+test transaction::tests::test_provisional_responses::test_multiple_provisional_responses ... ok
+test transaction::tests::test_server::async_final_response_send_failure_terminates_and_notifies_owner ... ok
+test transaction::tests::test_server::cancelled_response_transport_send_reports_unknown_exactly_once ... ok
+test transaction::tests::test_server::dropping_server_invite_before_ack_marks_final_response_unknown_once ... ok
+test transaction::tests::test_server::duplicate_invite_replays_frozen_post_inspector_response ... ok
+test transaction::tests::test_server::duplicate_request_during_detach_is_not_readmitted ... ok
+test transaction::tests::test_server::egress_effect_gate_bypasses_trying_and_retransmission_but_gates_first_final_send ... ok
+test transaction::tests::test_server::egress_effect_prepare_failure_prevents_visible_send_and_state_transition ... ok
+test transaction::tests::test_server::endpoint_capacity_emergency_503_remains_stateless ... ok
+test transaction::tests::test_server::failed_send_trying_can_retry_on_replacement_connection ... ok
+test transaction::tests::test_server::initial_final_send_failure_does_not_commit_response_and_terminates ... ok
+test transaction::tests::test_server::invite_2xx_does_not_start_non_2xx_g_or_h ... ok
+test transaction::tests::test_server::reliable_transport_uses_h_but_no_g_or_i ... ok
+test transaction::tests::test_server::repeated_send_trying_emits_one_initial_response ... ok
+test transaction::tests::test_server::server_invite_2xx_is_not_falsely_completed_by_the_transaction_layer ... ok
+test transaction::tests::test_server::server_invite_final_response_is_protocol_completed_only_by_the_matching_ack ... ok
+test transaction::tests::test_server::test_server_transaction ... ok
+test transaction::tests::test_server::timer_g_doubles_to_t2_and_replays_frozen_udp_response ... ok
+test transaction::tests::test_server::timer_g_transport_failure_is_observable_and_terminates ... ok
+test transaction::tests::test_server::timer_h_is_observable_and_terminates_udp_transaction ... ok
+test transaction::tests::test_server::timer_h_then_late_ack_keeps_one_protocol_unknown_observation ... ok
+test transaction::tests::test_server::udp_ack_cancels_g_h_and_retains_transaction_until_timer_i ... ok
+test transaction::tests::test_transaction_states::test_client_invite_transaction_creation ... ok
+test transaction::tests::test_transaction_states::test_client_non_invite_transaction_creation ... ok
+test transaction::tests::test_transaction_states::test_server_invite_transaction_creation ... ok
+test transaction::tests::test_transaction_states::test_server_non_invite_transaction_creation ... ok
+test transaction::tests::test_transaction_states::test_transaction_key_generation ... ok
+test transaction::tests::test_transaction_states::test_transaction_types ... ok
+test transaction::tests::tests::test_linphone_contact ... ok
+test transaction::tests::tests::test_random_text ... ok
+test transaction::timer::new_head_notification_is_retained_before_waiter_registration ... ok
+test transaction::timer::test_timer ... ok
+test transaction::timer::wait_for_ready_async_returns_ready ... ok
+test transaction::timer::wait_for_ready_async_wakes_on_new_timer ... ok
+test transaction::timer::wait_for_ready_ignores_non_head_insert_and_wakes_for_earlier_deadline ... ok
+test transport::channel::tests::test_bounded_connection_serve_loop ... ok
+test transport::channel::tests::test_bounded_serve_loop_twice_returns_error ... ok
+test transport::channel::tests::test_create_connection_bounded_send_receive ... ok
+test transport::channel::tests::test_try_send_bounded_full ... ok
+test transport::channel::tests::test_try_send_on_bounded ... ok
+test transport::channel::tests::test_try_send_on_unbounded ... ok
+test transport::connection::tests::connected_flow_rejects_a_destination_that_is_not_its_peer ... ok
+test transport::connection::tests::listener_connection_cannot_report_a_wire_send_as_accepted ... ok
+test transport::connection::tests::tcp_reconnect_changes_the_connected_flow_generation ... ok
+test transport::connection::tests::tcp_send_frozen_writes_the_supplied_canonical_wire_image ... ok
+test transport::connection::tests::test_transport_channel_returns_udp ... ok
+test transport::connection::tests::test_transport_channel_send ... ok
+test transport::connection::tests::test_transport_tcp_listener_returns_tcp ... ok
+test transport::connection::tests::test_transport_udp_returns_udp ... ok
+test transport::connection::tests::udp_egress_binding_freezes_the_actual_datagram_destination ... ok
+test transport::stream::tests::decode_complete_message_no_body ... ok
+test transport::stream::tests::decode_complete_message_with_body ... ok
+test transport::stream::tests::decode_keepalive_request ... ok
+test transport::stream::tests::decode_keepalive_response ... ok
+test transport::stream::tests::decode_rejects_oversized_buffer ... ok
+test transport::stream::tests::decode_returns_none_when_body_incomplete ... ok
+test transport::stream::tests::decode_returns_none_when_headers_incomplete ... ok
+test transport::stream::tests::decode_short_content_length_header ... ok
+test transport::stream::tests::decode_two_back_to_back_messages ... ok
+test transport::stream::tests::encode_preserves_binary_body ... ok
+test transport::tests::test_listener_api::test_tcp_listener_connection_api ... ok
+test transport::tests::test_listener_api::test_websocket_listener_connection_api ... ok
+test transport::tests::test_sipaddr::build_via_received_updates_first_value_only ... ok
+test transport::tests::test_sipaddr::parse_target_from_via_keeps_quoted_comma_in_first_value ... ok
+test transport::tests::test_sipaddr::parse_target_from_via_uses_topmost_value ... ok
+test transport::tests::test_sipaddr::test_sipaddr ... ok
+test transport::tests::test_sipaddr::test_via_received ... ok
+test transport::tests::test_stream_encoding::test_sip_codec_encoding ... ok
+test transport::tests::test_stream_encoding::test_sip_codec_fragmented_message ... ok
+test transport::tests::test_stream_encoding::test_sip_codec_keepalive ... ok
+test transport::tests::test_stream_encoding::test_sip_codec_malformed_message ... ok
+test transport::tests::test_stream_encoding::test_sip_codec_multiple_messages ... ok
+test transport::tests::test_stream_encoding::test_sip_codec_multiple_messages_with_bodies ... ok
+test transport::tests::test_stream_encoding::test_sip_codec_single_message ... ok
+test transport::tests::test_stream_encoding::test_sip_codec_size_limit ... ok
+test dialog::tests::test_client_dialog::test_drop_unconfirmed_dialog_without_final_response ... ok
+test transport::tests::test_tls_reload::test_reload_error_handling_invalid_key ... ok
+test transport::tests::test_tls_reload::test_reloadable_cert_resolver_new ... ok
+test transport::tests::test_tls_reload::test_reload_error_handling ... ok
+test transport::tests::test_tls_reload::test_tls_listener_connection_with_config ... ok
+test transport::tests::test_udp::test_udp_ingress_survives_a_full_transport_mailbox ... ok
+test transport::tests::test_udp::test_udp_keepalive ... ok
+test transport::tests::test_udp::test_udp_recv_binary_body_sip_message ... ok
+test transport::tests::test_udp::test_udp_recv_sip_message ... ok
+test transport::tests::test_via_received::test_via_received_tcp ... ok
+test transport::tests::test_via_received::test_via_received_tcp_different_addr ... ok
+test transport::tests::test_via_received::test_via_received_tls ... ok
+test transport::tests::test_via_received::test_via_received_udp ... ok
+test transport::tests::test_via_received::test_via_received_ws ... ok
+test transport::tests::test_via_received::test_via_response_not_modified ... ok
+test transport::transport_layer::tests::closed_tcp_connection_is_removed_before_reconnect ... ok
+test transport::transport_layer::tests::connection_limit_rejects_overflow_and_recovers_after_release ... ok
+test transport::transport_layer::tests::connection_limit_rejects_zero ... ok
+test transport::transport_layer::tests::test_lookup ... ok
+test transport::transport_layer::tests::test_serve_listens ... ok
+test transport::transport_layer::tests::test_sip_dns_lookup ... ok
+test transport::tests::test_tls_reload::test_reloadable_cert_resolver_reload ... ok
+
+test result: ok. 302 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.42s
+
