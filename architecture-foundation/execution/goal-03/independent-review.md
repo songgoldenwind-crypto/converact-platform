@@ -38,11 +38,11 @@ unchanged container IDs are retained instead.
 Neither accepted review proves that the TypeScript `VoiceCall`, Call/Leg model,
 `RsipstackFoundationAdapter` or PostgreSQL reference ledger is a live native
 authority. Unified RustPBX remains the sole active Call/Leg authority;
-`G03-E16-NATIVE-AUTHORITY` and the `.62` current patchset, including its
+`G03-E16-NATIVE-AUTHORITY` and the `.63` current patchset, including its
 default-disabled native durable egress adapter, are outside those old reviewed
 diffs and remain pending exact-source review.
 
-## Current `.62` interim review boundary
+## Current `.63` interim review boundary
 
 The `.59` protocol-observation slice received iterative code review while it
 was developed. Findings around cancellation ownership, queue loss, receipt
@@ -80,10 +80,19 @@ replay, rsipstack `306/306`, doctest `67/67` and RustPBX `2,006/0/8`. The
 component-only raw bundle is
 `evidence/raw/peer-derived-cancel-56e0d42-08/`.
 
+The incremental `.63` slice removes the immediate-Unknown UAS-2xx gap. One
+explicit `ServerInvite2xxOwner` retains the initial application-authorized
+permit and immutable response bytes. UDP retransmission is T1→T2 on the shared
+timer heap; reliable transports never retransmit. Exact Call-ID/tag/CSeq ACK
+matching is accepted only from Endpoint-proven ingress, while 64*T1, owner drop
+or retransmission failure resolves Unknown once. Local exact-source tests pass
+rsipstack `309/309` and the RustPBX durable-gate module `32/32`. This is not an
+independent review or host result; both remain `not_run` for `.63`.
+
 That work is not a final independent acceptance. Live Endpoint composition and
 transport-flow-generation binding, the live Call Core holder for the matched
-CANCEL capability, reconciliation resumption, UAS-Core 2xx ACK ownership,
-parent-Unknown reconciliation, stale nonterminal observer-crash recovery,
+CANCEL capability/UAS-2xx owner composition, reconciliation resumption,
+parent-Unknown reconciliation, stale nonterminal and in-flight UAS-owner crash recovery,
 mixed-binary activation, fault/OOM and capacity evidence remain open. The
 candidate therefore remains default-disabled and `G03-E15-REVIEW`,
 `G03-E16-NATIVE-AUTHORITY` and production eligibility remain

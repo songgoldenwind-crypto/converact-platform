@@ -601,6 +601,29 @@ real-peer, long-call, fault/OOM and capacity qualification remain `not_run`.
 These component tests do not inherit older release-image or capacity evidence;
 production eligibility remains false.
 
+ivekit.63 transfers each successful server-INVITE response from the initial
+application-authorized send into one bounded embedded UAS 2xx owner. The owner
+retains the same immutable response bytes and the same durable permit; it does
+not create a second Call or business-intent authority. On UDP it retransmits
+that frozen response from T1 with exponential backoff capped at T2. Reliable
+transports do not retransmit. Both paths keep one exact ACK binding over
+Call-ID, local/remote tags and INVITE CSeq until the 64*T1 deadline.
+
+Only an ACK delivered through the private Endpoint peer-ingress path and
+matching that binding resolves the deferred permit as `protocol_observed`.
+Wrong-CSeq or wrong-dialog ACKs cannot resolve it. Deadline, owner drop or
+retransmission transport failure resolves the same permit as `unknown` exactly
+once. The owner is stored inside the already bounded active transaction and
+uses the shared timer heap, so this slice adds no per-call task, unbounded
+channel, global scan, media-path work or duplicate wire allocation.
+
+Local exact-source Rust 1.94.1 component tests pass rsipstack `309/309` and the
+RustPBX durable-gate module `32/32`. Authorized-server full-suite verification,
+live Call Core/Endpoint composition, process-crash recovery of an in-flight UAS
+owner, exact release image, real-peer, long-call, fault/OOM and capacity
+qualification remain `not_run`. No result is inherited from `.62`; production
+eligibility remains false.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

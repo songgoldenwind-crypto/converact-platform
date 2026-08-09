@@ -79,7 +79,7 @@ test('Converact Fabric RustPBX build pins source, toolchain, lockfile, and runti
   assert.match(buildScript, /find \. -type f -name '\*\.patch'.*LC_ALL=C sort/);
   assert.match(buildScript, /CONVERACT_SOURCE_COMMIT=.*rev-parse HEAD/s);
   assert.match(runtimeDockerfile, /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m);
-  assert.match(buildScript, /PATCHSET="ivekit\.62"/);
+  assert.match(buildScript, /PATCHSET="ivekit\.63"/);
   assert.match(
     buildScript,
     /--build-arg "CONVERACT_SOURCE_COMMIT=\$CONVERACT_SOURCE_COMMIT"/

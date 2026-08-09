@@ -1,0 +1,738 @@
+diff --git a/src/transaction/endpoint.rs b/src/transaction/endpoint.rs
+index be78938..d9ecc3c 100644
+--- a/src/transaction/endpoint.rs
++++ b/src/transaction/endpoint.rs
+@@ -72,7 +72,9 @@ pub enum EgressEffectOutcome {
+ /// A primary-path protocol observation for a previously permitted egress
+ /// effect. `Completed` requires an actual matching peer message (a final
+ /// response for a client request, or ACK for a server non-2xx INVITE final
+-/// response owned by this transaction layer).
++/// response owned by this transaction layer, or ACK for a successful INVITE
++/// response retained by the bounded UAS-Core owner). Peer completion is only
++/// emitted from Endpoint-proven ingress.
+ /// `Unknown` records that the transaction ended without that observation.
+ /// `TransportTerminal` records that the effect's frozen completion policy ends
+ /// at local transport acceptance (for example ACK, which has no matching peer
+diff --git a/src/transaction/mod.rs b/src/transaction/mod.rs
+index 7e5929c..cbad159 100644
+--- a/src/transaction/mod.rs
++++ b/src/transaction/mod.rs
+@@ -193,6 +193,8 @@ impl std::fmt::Display for TransactionType {
+ /// * `TimerG` - Retransmission timer for INVITE server transactions
+ /// * `TimerH` - INVITE server transaction timeout while waiting for ACK
+ /// * `TimerI` - Confirmed INVITE server transaction linger timer
++/// * `TimerUas2xxRetransmit` - UAS-Core 2xx retransmission cadence on unreliable transport
++/// * `TimerUas2xxDeadline` - UAS-Core deadline while waiting for the matching 2xx ACK
+ /// * `TimerK` - Non-INVITE server transaction linger timer
+ /// * `TimerCleanup` - Internal cleanup timer for transaction removal
+ ///
+@@ -209,6 +211,8 @@ impl std::fmt::Display for TransactionType {
+ /// * Timer E: starts at T1, doubles up to T2
+ /// * Timer F: 64*T1 (32 seconds)
+ /// * Timer G: starts at T1, doubles up to T2
++/// * UAS 2xx retransmit: starts at T1, doubles up to T2, and stops on ACK
++/// * UAS 2xx deadline: 64*T1
+ /// * Timer K: T4 for unreliable, 0 for reliable transports
+ ///
+ /// # Examples
+@@ -263,6 +267,10 @@ pub enum TransactionTimer {
+     TimerG(TransactionKey, Duration),
+     TimerH(TransactionKey),
+     TimerI(TransactionKey),
++    /// UAS-Core retransmission cadence for a successful INVITE response.
++    TimerUas2xxRetransmit(TransactionKey, Duration),
++    /// UAS-Core deadline for observing the matching ACK to a 2xx response.
++    TimerUas2xxDeadline(TransactionKey),
+     TimerCleanup(TransactionKey),
+ }
+ 
+@@ -276,6 +284,8 @@ impl TransactionTimer {
+             TransactionTimer::TimerG(key, _) => key,
+             TransactionTimer::TimerH(key) => key,
+             TransactionTimer::TimerI(key) => key,
++            TransactionTimer::TimerUas2xxRetransmit(key, _) => key,
++            TransactionTimer::TimerUas2xxDeadline(key) => key,
+             TransactionTimer::TimerK(key) => key,
+             TransactionTimer::TimerCleanup(key) => key,
+         }
+@@ -296,6 +306,12 @@ impl std::fmt::Display for TransactionTimer {
+             }
+             TransactionTimer::TimerH(key) => write!(f, "TimerH: {}", key),
+             TransactionTimer::TimerI(key) => write!(f, "TimerI: {}", key),
++            TransactionTimer::TimerUas2xxRetransmit(key, duration) => {
++                write!(f, "TimerUas2xxRetransmit: {} {}", key, duration.as_millis())
++            }
++            TransactionTimer::TimerUas2xxDeadline(key) => {
++                write!(f, "TimerUas2xxDeadline: {}", key)
++            }
+             TransactionTimer::TimerK(key) => write!(f, "TimerK: {}", key),
+             TransactionTimer::TimerCleanup(key) => write!(f, "TimerCleanup: {}", key),
+         }
+diff --git a/src/transaction/tests/test_server.rs b/src/transaction/tests/test_server.rs
+index 521e290..773494b 100644
+--- a/src/transaction/tests/test_server.rs
++++ b/src/transaction/tests/test_server.rs
+@@ -296,6 +296,17 @@ async fn udp_server_transaction_with_effect_gate(
+     crate::transaction::transaction::Transaction,
+     UdpConnection,
+     crate::transaction::endpoint::EndpointInnerRef,
++) {
++    udp_server_transaction_with_effect_gate_and_option(gate, EndpointOption::default()).await
++}
++
++async fn udp_server_transaction_with_effect_gate_and_option(
++    gate: Arc<dyn EgressEffectGate>,
++    option: EndpointOption,
++) -> (
++    crate::transaction::transaction::Transaction,
++    UdpConnection,
++    crate::transaction::endpoint::EndpointInnerRef,
+ ) {
+     let server = UdpConnection::create_connection(
+         "127.0.0.1:0".parse().expect("server address"),
+@@ -311,6 +322,7 @@ async fn udp_server_transaction_with_effect_gate(
+     let mut builder = EndpointBuilder::new();
+     builder
+         .with_user_agent("rsipstack-effect-gate-test")
++        .with_option(option)
+         .with_egress_effect_gate(gate);
+     let endpoint = builder.build();
+     let request = invite_request("UDP", peer.get_addr(), "z9hG4bK-effect-gate");
+@@ -700,7 +712,147 @@ async fn server_invite_final_response_is_protocol_completed_only_by_the_matching
+ }
+ 
+ #[tokio::test]
+-async fn server_invite_2xx_is_not_falsely_completed_by_the_transaction_layer() {
++async fn server_invite_2xx_is_completed_only_after_the_matching_peer_ack() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        canonical_wire_images: std::sync::Mutex::new(Vec::new()),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        protocol_observations: std::sync::Mutex::new(Vec::new()),
++        reject_prepare: false,
++    });
++    let (mut transaction, peer, endpoint) =
++        udp_server_transaction_with_effect_gate(gate.clone()).await;
++
++    transaction
++        .reply(crate::sip::StatusCode::OK)
++        .await
++        .expect("send 2xx response");
++    let _response = recv_udp_bytes(&peer).await;
++    assert!(gate
++        .protocol_observations
++        .lock()
++        .expect("protocol observation lock")
++        .is_empty());
++
++    let mut wrong_ack = transaction.original.clone();
++    wrong_ack.method = crate::sip::Method::Ack;
++    *wrong_ack.cseq_header_mut().expect("ACK CSeq") = CSeq::new("2 ACK");
++    endpoint
++        .on_received_message_for_test(
++            wrong_ack.into(),
++            transaction.connection.clone().expect("server connection"),
++            peer.get_addr(),
++        )
++        .await
++        .expect("wrong ACK ingress");
++    assert!(timeout(Duration::from_millis(20), transaction.receive())
++        .await
++        .is_err());
++    assert!(gate
++        .protocol_observations
++        .lock()
++        .expect("protocol observation lock")
++        .is_empty());
++
++    let mut ack = transaction.original.clone();
++    ack.method = crate::sip::Method::Ack;
++    *ack.cseq_header_mut().expect("ACK CSeq") = CSeq::new("1 ACK");
++    endpoint
++        .on_received_message_for_test(
++            ack.into(),
++            transaction.connection.clone().expect("server connection"),
++            peer.get_addr(),
++        )
++        .await
++        .expect("matching ACK ingress");
++    assert!(matches!(
++        transaction.receive().await,
++        Some(crate::sip::SipMessage::Request(crate::sip::Request {
++            method: crate::sip::Method::Ack,
++            ..
++        }))
++    ));
++    assert_eq!(
++        gate.protocol_observations
++            .lock()
++            .expect("protocol observation lock")
++            .as_slice(),
++        [(
++            "effect-test-1".to_string(),
++            EgressEffectProtocolObservation::Completed,
++        )]
++    );
++    drop(transaction);
++    assert_eq!(
++        gate.protocol_observations
++            .lock()
++            .expect("protocol observation lock")
++            .len(),
++        1,
++        "cleanup must not overwrite the peer ACK completion"
++    );
++}
++
++#[tokio::test]
++async fn udp_server_invite_2xx_retransmits_the_same_frozen_wire_under_one_permit() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        canonical_wire_images: std::sync::Mutex::new(Vec::new()),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        protocol_observations: std::sync::Mutex::new(Vec::new()),
++        reject_prepare: false,
++    });
++    let option = EndpointOption {
++        t1: Duration::from_millis(10),
++        t2: Duration::from_millis(20),
++        t4: Duration::from_millis(30),
++        t1x64: Duration::from_millis(640),
++        timerc: Duration::from_secs(180),
++        callid_suffix: None,
++    };
++    let (mut transaction, peer, endpoint) =
++        udp_server_transaction_with_effect_gate_and_option(gate.clone(), option).await;
++
++    transaction
++        .reply(crate::sip::StatusCode::OK)
++        .await
++        .expect("send 2xx response");
++    let initial = recv_udp_bytes(&peer).await;
++
++    sleep(Duration::from_millis(15)).await;
++    let retransmit = endpoint
++        .timers
++        .poll(std::time::Instant::now())
++        .into_iter()
++        .find(|timer| matches!(timer, TransactionTimer::TimerUas2xxRetransmit(_, _)))
++        .expect("UAS 2xx retransmit timer");
++    assert!(matches!(
++        &retransmit,
++        TransactionTimer::TimerUas2xxRetransmit(_, duration)
++            if *duration == Duration::from_millis(10)
++    ));
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Timer(retransmit))
++        .expect("UAS 2xx retransmit event");
++    assert!(timeout(Duration::from_millis(5), transaction.receive())
++        .await
++        .is_err());
++    assert_eq!(recv_udp_bytes(&peer).await, initial);
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 1);
++    assert_eq!(
++        gate.outcomes.lock().expect("outcome lock").as_slice(),
++        [EgressEffectOutcome::TransportAccepted]
++    );
++    assert!(gate
++        .protocol_observations
++        .lock()
++        .expect("protocol observation lock")
++        .is_empty());
++}
++
++#[tokio::test]
++async fn server_invite_2xx_deadline_marks_the_same_permit_unknown_once() {
+     let gate = Arc::new(RecordingEgressEffectGate {
+         prepare_calls: AtomicUsize::new(0),
+         canonical_wire_images: std::sync::Mutex::new(Vec::new()),
+@@ -716,6 +868,13 @@ async fn server_invite_2xx_is_not_falsely_completed_by_the_transaction_layer() {
+         .await
+         .expect("send 2xx response");
+     let _response = recv_udp_bytes(&peer).await;
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Timer(
++            TransactionTimer::TimerUas2xxDeadline(transaction.key.clone()),
++        ))
++        .expect("UAS 2xx deadline event");
++    assert!(transaction.receive().await.is_none());
+     assert_eq!(
+         gate.protocol_observations
+             .lock()
+@@ -733,7 +892,7 @@ async fn server_invite_2xx_is_not_falsely_completed_by_the_transaction_layer() {
+             .expect("protocol observation lock")
+             .len(),
+         1,
+-        "cleanup must not fabricate completion after the UAS Core handoff gap is recorded unknown"
++        "deadline and cleanup must resolve one permit exactly once"
+     );
+ }
+ 
+@@ -1212,6 +1371,108 @@ async fn reliable_transport_uses_h_but_no_g_or_i() {
+     assert!(transaction.timer_i.is_none());
+ }
+ 
++#[tokio::test]
++async fn reliable_server_invite_2xx_waits_for_ack_without_retransmitting() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        canonical_wire_images: std::sync::Mutex::new(Vec::new()),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        protocol_observations: std::sync::Mutex::new(Vec::new()),
++        reject_prepare: false,
++    });
++    let listener = TcpListener::bind("127.0.0.1:0").await.expect("TCP bind");
++    let listener_addr = listener.local_addr().expect("listener address");
++    let client = TcpStream::connect(listener_addr);
++    let accepted = listener.accept();
++    let (client, accepted) = tokio::join!(client, accepted);
++    let mut client = client.expect("TCP connect");
++    let (server_stream, _) = accepted.expect("TCP accept");
++    let server_addr = SipAddr {
++        r#type: Some(crate::sip::Transport::Tcp),
++        addr: listener_addr.into(),
++    };
++    let server_connection =
++        TcpConnection::from_stream(server_stream, server_addr, None).expect("TCP connection");
++    let peer_addr = SipAddr {
++        r#type: Some(crate::sip::Transport::Tcp),
++        addr: client.local_addr().expect("client address").into(),
++    };
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-reliable-uas-2xx-test")
++        .with_option(EndpointOption {
++            t1: Duration::from_millis(10),
++            t2: Duration::from_millis(20),
++            t4: Duration::from_millis(30),
++            t1x64: Duration::from_millis(640),
++            timerc: Duration::from_secs(180),
++            callid_suffix: None,
++        })
++        .with_egress_effect_gate(gate.clone())
++        .build();
++    let request = invite_request("TCP", &peer_addr, "z9hG4bK-reliable-uas-2xx");
++    let key = crate::transaction::TransactionKey::from_request(
++        &request,
++        crate::transaction::key::TransactionRole::Server,
++    )
++    .expect("transaction key");
++    let mut transaction = crate::transaction::transaction::Transaction::new_server(
++        key,
++        request,
++        endpoint.inner.clone(),
++        Some(server_connection.into()),
++    );
++
++    transaction
++        .reply(crate::sip::StatusCode::OK)
++        .await
++        .expect("send reliable 2xx response");
++    let mut response = vec![0_u8; 4096];
++    timeout(Duration::from_secs(1), client.read(&mut response))
++        .await
++        .expect("TCP response timeout")
++        .expect("TCP response");
++    sleep(Duration::from_millis(15)).await;
++    assert!(endpoint
++        .inner
++        .timers
++        .poll(std::time::Instant::now())
++        .into_iter()
++        .all(|timer| !matches!(timer, TransactionTimer::TimerUas2xxRetransmit(_, _))));
++    assert!(
++        timeout(Duration::from_millis(20), client.read(&mut response))
++            .await
++            .is_err()
++    );
++
++    let mut ack = transaction.original.clone();
++    ack.method = crate::sip::Method::Ack;
++    *ack.cseq_header_mut().expect("ACK CSeq") = CSeq::new("1 ACK");
++    transaction
++        .tu_sender
++        .send(peer_received(
++            ack.into(),
++            transaction.connection.clone().expect("server connection"),
++        ))
++        .expect("ACK event");
++    assert!(matches!(
++        transaction.receive().await,
++        Some(crate::sip::SipMessage::Request(crate::sip::Request {
++            method: crate::sip::Method::Ack,
++            ..
++        }))
++    ));
++    assert_eq!(
++        gate.protocol_observations
++            .lock()
++            .expect("protocol observation lock")
++            .as_slice(),
++        [(
++            "effect-test-1".to_string(),
++            EgressEffectProtocolObservation::Completed,
++        )]
++    );
++}
++
+ #[tokio::test]
+ async fn initial_final_send_failure_does_not_commit_response_and_terminates() {
+     let gate = Arc::new(RecordingEgressEffectGate {
+diff --git a/src/transaction/transaction.rs b/src/transaction/transaction.rs
+index 8a194e1..1a8ea78 100644
+--- a/src/transaction/transaction.rs
++++ b/src/transaction/transaction.rs
+@@ -24,6 +24,7 @@ pub type TransactionEventSender = BoundedSender<TransactionEvent>;
+ pub enum ServerInviteTermination {
+     Acknowledged,
+     TimerHExpired,
++    Uas2xxDeadlineExpired,
+     TransportError,
+ }
+ 
+@@ -53,6 +54,71 @@ impl FrozenSipMessage {
+     }
+ }
+ 
++/// Exact ACK correlation and immutable wire ownership for a successful
++/// server-INVITE response. The application authorizes the initial 2xx; this
++/// bounded owner only retransmits those same bytes and resolves that same
++/// durable permit from Endpoint-proven peer ingress.
++struct ServerInvite2xxOwner {
++    ack_dialog_id: DialogId,
++    ack_cseq: u32,
++    response: Arc<FrozenSipMessage>,
++    permit: Option<EgressEffectPermit>,
++}
++
++impl ServerInvite2xxOwner {
++    fn try_new(
++        key: &TransactionKey,
++        original: &Request,
++        response: Arc<FrozenSipMessage>,
++        permit: Option<EgressEffectPermit>,
++    ) -> Result<Self> {
++        let SipMessage::Response(response_message) = &response.message else {
++            return Err(Error::TransactionError(
++                "UAS 2xx owner requires a response".to_string(),
++                key.clone(),
++            ));
++        };
++        if !(200..=299).contains(&response_message.status_code.code()) {
++            return Err(Error::TransactionError(
++                "UAS 2xx owner requires a successful INVITE response".to_string(),
++                key.clone(),
++            ));
++        }
++        let original_cseq = original.cseq_header()?;
++        let response_cseq = response_message.cseq_header()?;
++        if original_cseq.method()? != Method::Invite
++            || response_cseq.method()? != Method::Invite
++            || original_cseq.seq()? != response_cseq.seq()?
++        {
++            return Err(Error::TransactionError(
++                "UAS 2xx response CSeq does not bind the original INVITE".to_string(),
++                key.clone(),
++            ));
++        }
++        Ok(Self {
++            ack_dialog_id: DialogId::try_from((response_message, TransactionRole::Server))?,
++            ack_cseq: original_cseq.seq()?,
++            response,
++            permit,
++        })
++    }
++
++    fn matches_ack(&self, request: &Request) -> bool {
++        if request.method != Method::Ack {
++            return false;
++        }
++        let Ok(cseq) = request.cseq_header() else {
++            return false;
++        };
++        if cseq.method().ok() != Some(Method::Ack) || cseq.seq().ok() != Some(self.ack_cseq) {
++            return false;
++        }
++        DialogId::try_from((request, TransactionRole::Server))
++            .map(|dialog_id| dialog_id == self.ack_dialog_id)
++            .unwrap_or(false)
++    }
++}
++
+ /// Owns a prepared durable permit across every cancellation point in the
+ /// transport send. Dropping an armed attempt is an ambiguous send result, so
+ /// the synchronous gate callback must observe `TransportUnknown` exactly once.
+@@ -309,6 +375,7 @@ pub struct Transaction {
+     frozen_cancel_response: Option<Arc<FrozenSipMessage>>,
+     frozen_last_ack: Option<Arc<FrozenSipMessage>>,
+     frozen_last_response: Option<Arc<FrozenSipMessage>>,
++    server_invite_2xx_owner: Option<ServerInvite2xxOwner>,
+     initial_effect_permit: Option<EgressEffectPermit>,
+     last_response_effect_permit: Option<EgressEffectPermit>,
+     initial_effect_attempt_started: bool,
+@@ -331,6 +398,8 @@ pub struct Transaction {
+     pub timer_g: Option<u64>, // server invite only
+     pub timer_h: Option<u64>, // non-2xx server invite only
+     pub timer_i: Option<u64>, // non-2xx server invite only
++    timer_uas_2xx_retransmit: Option<u64>,
++    timer_uas_2xx_deadline: Option<u64>,
+     admitted: bool,
+     initial_trying_sent: bool,
+     server_invite_termination: Option<ServerInviteTermination>,
+@@ -474,6 +543,7 @@ impl Transaction {
+             frozen_cancel_response: None,
+             frozen_last_ack: None,
+             frozen_last_response: None,
++            server_invite_2xx_owner: None,
+             initial_effect_permit: None,
+             last_response_effect_permit: None,
+             initial_effect_attempt_started: false,
+@@ -494,6 +564,8 @@ impl Transaction {
+             timer_g: None,
+             timer_h: None,
+             timer_i: None,
++            timer_uas_2xx_retransmit: None,
++            timer_uas_2xx_deadline: None,
+             admitted: false,
+             initial_trying_sent: false,
+             server_invite_termination: None,
+@@ -803,6 +875,16 @@ impl Transaction {
+         let is_2xx_server_invite = self.transaction_type == TransactionType::ServerInvite
+             && matches!(response.message, SipMessage::Response(ref response) if
+                 (200..=299).contains(&response.status_code.code()));
++        let mut server_invite_2xx_owner = if is_2xx_server_invite {
++            Some(ServerInvite2xxOwner::try_new(
++                &self.key,
++                &self.original,
++                response.clone(),
++                None,
++            )?)
++        } else {
++            None
++        };
+         if let Err(error) = connection
+             .send_frozen(
+                 &response.message,
+@@ -821,11 +903,14 @@ impl Transaction {
+         if is_non_2xx_server_invite {
+             self.last_response_effect_permit = protocol_permit;
+         } else if is_2xx_server_invite {
+-            // The transaction layer does not own UAS-Core 2xx retransmission
+-            // and ACK correlation yet. Persist Unknown until that owner can
+-            // accept the same permit; never release a non-terminal receipt as
+-            // if the effect were deliberately complete.
+-            self.observe_egress_protocol(protocol_permit, EgressEffectProtocolObservation::Unknown);
++            let owner = server_invite_2xx_owner.as_mut().ok_or_else(|| {
++                Error::TransactionError(
++                    "UAS 2xx owner was not prepared".to_string(),
++                    self.key.clone(),
++                )
++            })?;
++            owner.permit = protocol_permit;
++            self.server_invite_2xx_owner = server_invite_2xx_owner;
+         } else {
+             self.observe_egress_protocol(
+                 protocol_permit,
+@@ -1226,6 +1311,9 @@ impl Transaction {
+         if request.method != Method::Ack || self.transaction_type != TransactionType::ServerInvite {
+             return false;
+         }
++        if let Some(owner) = self.server_invite_2xx_owner.as_ref() {
++            return owner.matches_ack(request);
++        }
+         let Ok(ack_cseq) = request.cseq_header() else {
+             return false;
+         };
+@@ -1255,6 +1343,41 @@ impl Transaction {
+                 .unwrap_or(false)
+     }
+ 
++    async fn send_frozen_server_invite_2xx(&self) -> Result<()> {
++        let owner = self.server_invite_2xx_owner.as_ref().ok_or_else(|| {
++            Error::TransactionError(
++                "no UAS 2xx owner available for replay".to_string(),
++                self.key.clone(),
++            )
++        })?;
++        let connection = self.connection.as_ref().ok_or_else(|| {
++            Error::TransactionError("no connection found".to_string(), self.key.clone())
++        })?;
++        if connection.is_reliable() {
++            return Ok(());
++        }
++        connection
++            .send_frozen(
++                &owner.response.message,
++                &owner.response.canonical_wire_bytes,
++                self.destination.as_ref(),
++            )
++            .await
++    }
++
++    fn finish_server_invite_2xx(
++        &mut self,
++        observation: EgressEffectProtocolObservation,
++        termination: ServerInviteTermination,
++    ) {
++        let permit = self
++            .server_invite_2xx_owner
++            .as_mut()
++            .and_then(|owner| owner.permit.take());
++        self.server_invite_termination = Some(termination);
++        self.observe_egress_protocol(permit, observation);
++    }
++
+     async fn send_frozen_last_response(&self) -> Result<()> {
+         let response = self.frozen_last_response.as_ref().ok_or_else(|| {
+             Error::TransactionError(
+@@ -1472,14 +1595,20 @@ impl Transaction {
+                     if !self.is_matching_server_ack(&req) {
+                         return None;
+                     }
+-                    if self.is_non_2xx_server_invite() {
++                    let is_non_2xx_server_invite = self.is_non_2xx_server_invite();
++                    let is_2xx_server_invite = self.server_invite_2xx_owner.is_some();
++                    if is_non_2xx_server_invite {
+                         let permit = self.last_response_effect_permit.take();
+                         self.observe_egress_protocol(
+                             permit,
+                             EgressEffectProtocolObservation::Completed,
+                         );
++                    } else if is_2xx_server_invite {
++                        self.finish_server_invite_2xx(
++                            EgressEffectProtocolObservation::Completed,
++                            ServerInviteTermination::Acknowledged,
++                        );
+                     }
+-                    let is_non_2xx_server_invite = self.is_non_2xx_server_invite();
+                     if is_non_2xx_server_invite {
+                         self.server_invite_termination =
+                             Some(ServerInviteTermination::Acknowledged);
+@@ -1489,9 +1618,13 @@ impl Transaction {
+                         .as_ref()
+                         .map(SipConnection::is_reliable)
+                         .unwrap_or(true);
+-                    self.transition(TransactionState::Confirmed).ok();
+-                    if is_non_2xx_server_invite && reliable {
++                    if is_2xx_server_invite {
+                         self.transition(TransactionState::Terminated).ok();
++                    } else {
++                        self.transition(TransactionState::Confirmed).ok();
++                        if is_non_2xx_server_invite && reliable {
++                            self.transition(TransactionState::Terminated).ok();
++                        }
+                     }
+                     return Some(req.into());
+                 } else if req.method == Method::Invite && self.is_non_2xx_server_invite() {
+@@ -1699,6 +1832,40 @@ impl Transaction {
+                             Some(ServerInviteTermination::TimerHExpired);
+                         self.transition(TransactionState::Terminated)?;
+                     }
++                } else if let TransactionTimer::TimerUas2xxRetransmit(key, duration) = timer {
++                    if self.server_invite_2xx_owner.is_none() {
++                        return Ok(());
++                    }
++                    if self
++                        .connection
++                        .as_ref()
++                        .map(SipConnection::is_reliable)
++                        .unwrap_or(true)
++                    {
++                        return Ok(());
++                    }
++                    if let Err(error) = self.send_frozen_server_invite_2xx().await {
++                        self.finish_server_invite_2xx(
++                            EgressEffectProtocolObservation::Unknown,
++                            ServerInviteTermination::TransportError,
++                        );
++                        self.transition(TransactionState::Terminated)?;
++                        return Err(error);
++                    }
++                    let duration = (duration * 2).min(self.endpoint_inner.option.t2);
++                    let retransmit = self.endpoint_inner.timers.timeout(
++                        duration,
++                        TransactionTimer::TimerUas2xxRetransmit(key, duration),
++                    );
++                    self.timer_uas_2xx_retransmit.replace(retransmit);
++                } else if let TransactionTimer::TimerUas2xxDeadline(_) = timer {
++                    if self.server_invite_2xx_owner.is_some() {
++                        self.finish_server_invite_2xx(
++                            EgressEffectProtocolObservation::Unknown,
++                            ServerInviteTermination::Uas2xxDeadlineExpired,
++                        );
++                        self.transition(TransactionState::Terminated)?;
++                    }
+                 } else if let TransactionTimer::TimerD(_) = timer {
+                     self.transition(TransactionState::Terminated)?;
+                 } else if let TransactionTimer::TimerK(_) = timer {
+@@ -1807,22 +1974,30 @@ impl Transaction {
+                             .waiting_ack
+                             .insert(dialog_id, self.key.clone());
+                     }
+-                } else if self.transaction_type == TransactionType::ServerInvite {
+-                    // Preserve the pre-existing 2xx lifecycle outside this
+-                    // RFC 3261 non-2xx correctness slice, without G or H.
+-                    if let Some(ref resp) = self.last_response {
+-                        let dialog_id = DialogId::try_from((resp, TransactionRole::Server))?;
+-                        self.endpoint_inner
+-                            .waiting_ack
+-                            .insert(dialog_id, self.key.clone());
++                } else if let Some(owner) = self.server_invite_2xx_owner.as_ref() {
++                    self.endpoint_inner
++                        .waiting_ack
++                        .insert(owner.ack_dialog_id.clone(), self.key.clone());
++                    let connection = self.connection.as_ref().ok_or(Error::TransactionError(
++                        "no connection found".to_string(),
++                        self.key.clone(),
++                    ))?;
++                    if !connection.is_reliable() {
++                        let retransmit = self.endpoint_inner.timers.timeout(
++                            self.endpoint_inner.option.t1,
++                            TransactionTimer::TimerUas2xxRetransmit(
++                                self.key.clone(),
++                                self.endpoint_inner.option.t1,
++                            ),
++                        );
++                        self.timer_uas_2xx_retransmit.replace(retransmit);
+                     }
+-                    let timer_k = self.endpoint_inner.timers.timeout(
+-                        self.endpoint_inner.option.t4,
+-                        TransactionTimer::TimerK(self.key.clone()),
++                    let deadline = self.endpoint_inner.timers.timeout(
++                        self.endpoint_inner.option.t1x64,
++                        TransactionTimer::TimerUas2xxDeadline(self.key.clone()),
+                     );
+-                    self.timer_k.replace(timer_k);
+-                }
+-                if !is_non_2xx_server_invite {
++                    self.timer_uas_2xx_deadline.replace(deadline);
++                } else {
+                     let timer_d = self.endpoint_inner.timers.timeout(
+                         self.endpoint_inner.option.t1x64,
+                         TransactionTimer::TimerD(self.key.clone()),
+@@ -1894,6 +2069,12 @@ impl Transaction {
+         self.timer_i
+             .take()
+             .map(|id| self.endpoint_inner.timers.cancel(id));
++        self.timer_uas_2xx_retransmit
++            .take()
++            .map(|id| self.endpoint_inner.timers.cancel(id));
++        self.timer_uas_2xx_deadline
++            .take()
++            .map(|id| self.endpoint_inner.timers.cancel(id));
+     }
+ 
+     pub fn role(&self) -> TransactionRole {
+@@ -1916,6 +2097,11 @@ impl Transaction {
+         self.observe_egress_protocol(initial_permit, EgressEffectProtocolObservation::Unknown);
+         let response_permit = self.last_response_effect_permit.take();
+         self.observe_egress_protocol(response_permit, EgressEffectProtocolObservation::Unknown);
++        let uas_2xx_permit = self
++            .server_invite_2xx_owner
++            .as_mut()
++            .and_then(|owner| owner.permit.take());
++        self.observe_egress_protocol(uas_2xx_permit, EgressEffectProtocolObservation::Unknown);
+ 
+         if !self.admitted {
+             return;

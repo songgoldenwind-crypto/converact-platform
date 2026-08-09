@@ -1,0 +1,105 @@
+diff --git a/src/call/adapters/rsipstack_sip_effect_gate.rs b/src/call/adapters/rsipstack_sip_effect_gate.rs
+index f1878eb..cfe378c 100644
+--- a/src/call/adapters/rsipstack_sip_effect_gate.rs
++++ b/src/call/adapters/rsipstack_sip_effect_gate.rs
+@@ -2222,10 +2222,10 @@ fn is_sha256(value: &str) -> bool {
+ mod tests {
+     use super::{
+         COMPLETION_SCOPE_TRANSACTION_PEER, COMPLETION_SCOPE_TRANSPORT_TERMINAL,
+-        DurableRsipstackEgressGate, SipEffectDerivedAttempt, SipEffectDurableObservation,
+-        SipEffectGateError, SipEffectGateOptions, SipEffectIntent, SipEffectIntentRegistry,
+-        SipEffectPeerDerivedAttempt, SipEffectPrepareForSendOutcome, SipEffectStorePort,
+-        materialize_derived_effect, materialize_peer_derived_effect,
++        COMPLETION_SCOPE_UAS_CORE_DEFERRED, DurableRsipstackEgressGate, SipEffectDerivedAttempt,
++        SipEffectDurableObservation, SipEffectGateError, SipEffectGateOptions, SipEffectIntent,
++        SipEffectIntentRegistry, SipEffectPeerDerivedAttempt, SipEffectPrepareForSendOutcome,
++        SipEffectStorePort, materialize_derived_effect, materialize_peer_derived_effect,
+     };
+     use crate::call::adapters::postgres_sip_effect::SipEffectStoreError;
+     use crate::call::domain::sip_effect::{
+@@ -2492,7 +2492,12 @@ mod tests {
+                     if matches!(
+                         record.state,
+                         SipEffectState::SendAttempted | SipEffectState::TransportAccepted
+-                    ) && completion_scope == Some(COMPLETION_SCOPE_TRANSACTION_PEER) =>
++                    ) && matches!(
++                        completion_scope,
++                        Some(
++                            COMPLETION_SCOPE_TRANSACTION_PEER | COMPLETION_SCOPE_UAS_CORE_DEFERRED
++                        )
++                    ) =>
+                 {
+                     (
+                         "protocol-observed",
+@@ -2598,6 +2603,24 @@ Content-Length: 0\r\n\r\n"
+         .into()
+     }
+ 
++    fn invite_ok(call: &str, branch: &str) -> (TransactionKey, SipMessage) {
++        let response = rsipstack::sip::Response::try_from(
++            format!(
++                "SIP/2.0 200 OK\r\n\
++Via: SIP/2.0/UDP 127.0.0.1:5060;branch={branch}\r\n\
++From: <sip:alice@example.test>;tag=from-tag\r\n\
++To: <sip:bob@example.test>;tag=to-tag\r\n\
++Call-ID: {call}\r\n\
++CSeq: 1 INVITE\r\n\
++Content-Length: 0\r\n\r\n"
++            )
++            .as_str(),
++        )
++        .unwrap();
++        let key = TransactionKey::from_response(&response, TransactionRole::Server).unwrap();
++        (key, response.into())
++    }
++
+     fn cancel(call: &str, branch: &str) -> (TransactionKey, SipMessage) {
+         let request = Request::try_from(
+             format!(
+@@ -2796,6 +2819,46 @@ Content-Length: 0\r\n\r\n"
+         assert_eq!(gate.snapshot().observation_persist_failures, 0);
+     }
+ 
++    #[tokio::test]
++    async fn uas_core_ack_completion_resolves_the_deferred_2xx_permit() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let (key, message) = invite_ok("call-uas-2xx@example.test", "z9hG4bK-uas-2xx");
++        let _intent_lease = registry
++            .register(&key, &message, intent("effect-uas-2xx", "session-uas-2xx"))
++            .unwrap();
++        let wire = message.to_bytes();
++
++        let permit = prepare_with_transport_binding(&gate, &key, &message, &wire)
++            .await
++            .expect("durable UAS 2xx permit");
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++        assert_eq!(
++            prepared.wire_attempt_facts["completion_scope"],
++            COMPLETION_SCOPE_UAS_CORE_DEFERRED
++        );
++
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        assert!(observer.persist_next().await.unwrap());
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::TransportAccepted
++        );
++
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Completed);
++        assert!(observer.persist_next().await.unwrap());
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::ProtocolObserved
++        );
++        assert_eq!(gate.snapshot().pending_observations, 0);
++    }
++
+     #[tokio::test]
+     async fn non_2xx_ack_is_atomically_derived_from_the_parent_invite_permit() {
+         let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
