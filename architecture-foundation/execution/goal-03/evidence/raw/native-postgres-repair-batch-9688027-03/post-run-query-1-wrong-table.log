@@ -1,0 +1,3 @@
+ERROR:  relation "ivekit_sip_protocol_effect_receipts" does not exist
+LINE 1: select count(*) from ivekit_sip_protocol_effect_receipts
+                             ^

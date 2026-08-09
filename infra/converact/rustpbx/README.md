@@ -280,6 +280,35 @@ scanner, terminal attempt-exhaustion/operator workflow, live SIP dispatch,
 real-peer/long-call/fault/capacity gates and `G03-E16-NATIVE-AUTHORITY` remain
 `not_run`; production eligibility is not promoted.
 
+ivekit.53 adds a bounded PostgreSQL repair batch without creating a second
+Call or SIP writer. One transaction selects at most 100 due unknown effects in
+durable due-time order with `FOR UPDATE SKIP LOCKED`, partitions them in
+memory, and uses two static array updates for claimable and exhausted rows.
+There is no unbounded scan, per-effect SQL round trip, dynamically constructed
+SQL, global lock or packet-path work. Claim tokens, leases, owner epochs,
+revisions and the 100-row ceiling are validated before commit.
+
+The eighth unsuccessful repair remains queryable as unknown. The next eligible
+batch atomically clears its claim and due time, raises the owner-epoch
+high-watermark, records a deterministic exhaustion hash and sets operator
+attention. It cannot be claimed again by the automatic path. Controlled Rust
+1.94 exact-source evidence is the complete locked library suite (`1964`
+passed, `5` ignored) under a 2-CPU/6-GiB limit. The committed lock hash is
+`ae2fa0bd8475d2d86e810c2288c52bfa59f3cc72e8fde5433eda173652501a9c`;
+the preceding stale lock fails before compilation under `--locked` and its raw
+error is retained. The exact Linux candidate separately passed all four
+isolated PostgreSQL tests, including batch exhaustion, followed by a real
+PostgreSQL restart and separate read-only query.
+The exhausted effect remained durable at revision 21 with 11 receipts, attempt
+count 8, epoch high-watermark 9, operator attention set and every claim field
+cleared. All preceding failed attempts and the pre-Clippy successful candidate
+are retained separately; only the final exact-source run is cited as current.
+
+This slice still does not start a repair worker or activate live SIP dispatch.
+Real-peer, raw `100 Trying`, long-call, fault/OOM, capacity and
+`G03-E16-NATIVE-AUTHORITY` remain `not_run`; production eligibility is not
+promoted.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

@@ -1,0 +1,43 @@
+   Compiling rustpbx v0.4.11 (/workspace/source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4m 27s
+     Running unittests src/lib.rs (target/debug/deps/rustpbx-2292b3bbd3d87a06)
+
+running 4 tests
+test call::adapters::postgres_sip_effect::tests::postgres_prepare_replay_and_query_survive_pool_recreation ... FAILED
+test call::adapters::postgres_sip_effect::tests::postgres_receipt_transition_is_atomic_replayable_and_recoverable ... FAILED
+test call::adapters::postgres_sip_effect::tests::postgres_repair_batch_exhausts_after_eight_bounded_attempts ... FAILED
+test call::adapters::postgres_sip_effect::tests::postgres_unknown_claim_is_fenced_and_reconciles_after_pool_recovery ... FAILED
+
+failures:
+
+---- call::adapters::postgres_sip_effect::tests::postgres_prepare_replay_and_query_survive_pool_recreation stdout ----
+
+thread 'call::adapters::postgres_sip_effect::tests::postgres_prepare_replay_and_query_survive_pool_recreation' (285) panicked at src/call/adapters/postgres_sip_effect.rs:1562:63:
+called `Result::unwrap()` on an `Err` value: SchemaIncompatible
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- call::adapters::postgres_sip_effect::tests::postgres_receipt_transition_is_atomic_replayable_and_recoverable stdout ----
+
+thread 'call::adapters::postgres_sip_effect::tests::postgres_receipt_transition_is_atomic_replayable_and_recoverable' (287) panicked at src/call/adapters/postgres_sip_effect.rs:1600:58:
+called `Result::unwrap()` on an `Err` value: SchemaIncompatible
+
+---- call::adapters::postgres_sip_effect::tests::postgres_repair_batch_exhausts_after_eight_bounded_attempts stdout ----
+
+thread 'call::adapters::postgres_sip_effect::tests::postgres_repair_batch_exhausts_after_eight_bounded_attempts' (289) panicked at src/call/adapters/postgres_sip_effect.rs:1790:60:
+called `Result::unwrap()` on an `Err` value: SchemaIncompatible
+
+---- call::adapters::postgres_sip_effect::tests::postgres_unknown_claim_is_fenced_and_reconciles_after_pool_recovery stdout ----
+
+thread 'call::adapters::postgres_sip_effect::tests::postgres_unknown_claim_is_fenced_and_reconciles_after_pool_recovery' (291) panicked at src/call/adapters/postgres_sip_effect.rs:1688:60:
+called `Result::unwrap()` on an `Err` value: SchemaIncompatible
+
+
+failures:
+    call::adapters::postgres_sip_effect::tests::postgres_prepare_replay_and_query_survive_pool_recreation
+    call::adapters::postgres_sip_effect::tests::postgres_receipt_transition_is_atomic_replayable_and_recoverable
+    call::adapters::postgres_sip_effect::tests::postgres_repair_batch_exhausts_after_eight_bounded_attempts
+    call::adapters::postgres_sip_effect::tests::postgres_unknown_claim_is_fenced_and_reconciles_after_pool_recovery
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 1965 filtered out; finished in 0.08s
+
+error: test failed, to rerun pass `--lib`

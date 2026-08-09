@@ -1,0 +1,24 @@
+captured_at_utc=2026-08-03T04:26:36Z
+hostname=VM-0-3-ubuntu
+kernel=Linux 6.8.0-71-generic x86_64
+cpu_model=Intel(R) Xeon(R) Platinum 8255C CPU @ 2.50GHz
+cpu_count=2
+memory_bytes=8059359232
+clock_sync=yes
+docker_server_version=28.2.2
+rust_image_ref=rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55
+rust_image_id=sha256:1c3316753323aa5edd4c2be762323794f4aa9f4335635dc4c7964ee99cb986d2
+rust_test_limits=cpus:2,memory_bytes:6442450944,cargo_jobs:2
+postgres_image_ref=postgres:16-alpine@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb
+postgres_limits=cpus_nano:1000000000,memory_bytes:536870912
+postgres_status=running/healthy
+postgres_network=converact-g03-net-027fb727
+source_commit=32955cb43a974d751fc2546ec38d0cad278853e2
+source_tree=387240d4b95c3580c038267e967b2495fe06829e
+base_source_commit=28446cd96b786b1eaef4060f9af3759b97300ea7
+canonical_base_commit=9688027e5b72011f38f6b375c1ba59c47375998c
+workload=4 ignored PostgreSQL tests,serial,test-threads:1
+run_id=server32955cb4
+40cabf1dc5290220e6c4345ce3b02a3f463dd31a5a6d4851f00e083fae7c085b  /home/ubuntu/converact-validation/g03-027fb727/source/src/call/adapters/postgres_sip_effect.rs
+fc0bf2870cc34e4c2a29a2e55709a476541cf381afb356a3b69aa6d92576e772  /home/ubuntu/converact-validation/g03-027fb727/source/src/call/domain/sip_effect.rs
+18b7b9ca1248eb63a0c75d83ac231efcb3db4ed9c8c52ec255fd303dbea10f1f  rustpbx-converact-postgres-sip-effect-repair-batch.patch

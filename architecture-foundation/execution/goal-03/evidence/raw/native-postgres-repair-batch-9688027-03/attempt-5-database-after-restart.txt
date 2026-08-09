@@ -1,0 +1,6 @@
+postgres_container=converact-g03-pg-027fb727
+postgres_health=healthy
+source_commit=220ce0bf2f4a6997c64777cf8c64fae6572ccfd0
+effect_id=effect-server220ce0bf-repair-batch
+effect_state=unknown|effect_revision=21|repair_attempts=8|repair_epoch_high_watermark=9|operator_attention=true|repair_exhausted_at_set=true|repair_due_cleared=true|repair_owner_cleared=true|repair_token_cleared=true|exhaustion_hash=caf82438f423e05544c84ffc3df02512368031feba1a9cf357941781363db0b7
+receipt_count=11

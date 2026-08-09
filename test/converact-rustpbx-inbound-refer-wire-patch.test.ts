@@ -50,7 +50,7 @@ test('inbound REFER emits one canonical Max-Forwards header', () => {
 test('the exact build applies the REFER wire repair and runs the full library suite', () => {
   const build = readFileSync(BUILD, 'utf8');
 
-  assert.match(build, /PATCHSET="ivekit\.52"/);
+  assert.match(build, /PATCHSET="ivekit\.53"/);
   assert.match(
     build,
     /rustpbx-ivekit-server-invite-owner\.patch"[\s\S]*rustpbx-ivekit-inbound-refer-wire\.patch"/

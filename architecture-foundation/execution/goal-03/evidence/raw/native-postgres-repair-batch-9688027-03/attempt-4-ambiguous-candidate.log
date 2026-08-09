@@ -1,0 +1,25 @@
+   Compiling rustpbx v0.4.11 (/workspace/source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 21s
+     Running unittests src/lib.rs (target/debug/deps/rustpbx-2292b3bbd3d87a06)
+
+running 4 tests
+test call::adapters::postgres_sip_effect::tests::postgres_prepare_replay_and_query_survive_pool_recreation ... ok
+test call::adapters::postgres_sip_effect::tests::postgres_receipt_transition_is_atomic_replayable_and_recoverable ... ok
+test call::adapters::postgres_sip_effect::tests::postgres_repair_batch_exhausts_after_eight_bounded_attempts ... FAILED
+test call::adapters::postgres_sip_effect::tests::postgres_unknown_claim_is_fenced_and_reconciles_after_pool_recovery ... ok
+
+failures:
+
+---- call::adapters::postgres_sip_effect::tests::postgres_repair_batch_exhausts_after_eight_bounded_attempts stdout ----
+
+thread 'call::adapters::postgres_sip_effect::tests::postgres_repair_batch_exhausts_after_eight_bounded_attempts' (289) panicked at src/call/adapters/postgres_sip_effect.rs:1844:18:
+called `Result::unwrap()` on an `Err` value: StoreUnavailable
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    call::adapters::postgres_sip_effect::tests::postgres_repair_batch_exhausts_after_eight_bounded_attempts
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 1965 filtered out; finished in 0.47s
+
+error: test failed, to rerun pass `--lib`

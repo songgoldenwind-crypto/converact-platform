@@ -119,9 +119,9 @@ test("controlled repair evidence binds attempts, restart and cleared claim", () 
   assert.match(report, /`G03-E16-NATIVE-AUTHORITY` remain[\s\S]*`not_run`/);
 });
 
-test("exact build applies ivekit.52 after atomic transitions", () => {
+test("exact build applies ivekit.53 after atomic transitions", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.52"/);
+  assert.match(build, /PATCHSET="ivekit\.53"/);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-transitions\.patch"[\s\S]*rustpbx-converact-postgres-sip-effect-reconciliation\.patch"/,
@@ -132,16 +132,20 @@ test("exact build applies ivekit.52 after atomic transitions", () => {
   );
 });
 
-test("reconciliation slice keeps batch exhaustion and live authority not_run", () => {
+test("ivekit.52 reconciliation stopped before batch exhaustion and live authority", () => {
   const readme = readFileSync(README, "utf8");
+  const slice = readme.slice(
+    readme.indexOf("ivekit.52"),
+    readme.indexOf("ivekit.53"),
+  );
   const evidence = JSON.parse(readFileSync(EVIDENCE, "utf8")) as {
     entries: Array<{ evidence_id: string; status: string }>;
   };
   const nativeAuthority = evidence.entries.find(
     (entry) => entry.evidence_id === "G03-E16-NATIVE-AUTHORITY",
   );
-  assert.match(readme, /ivekit\.52/);
-  assert.match(readme, /repair claim/i);
-  assert.match(readme, /batch[\s\S]*exhaustion[\s\S]*live SIP dispatch[\s\S]*`not_run`/i);
+  assert.match(slice, /ivekit\.52/);
+  assert.match(slice, /repair claim/i);
+  assert.match(slice, /batch[\s\S]*exhaustion[\s\S]*live SIP dispatch[\s\S]*`not_run`/i);
   assert.equal(nativeAuthority?.status, "not_run");
 });

@@ -1,0 +1,12 @@
+   Compiling rustpbx v0.4.11 (/workspace)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 44.85s
+     Running unittests src/lib.rs (target/debug/deps/rustpbx-831ab3c91b875caf)
+
+running 4 tests
+test call::adapters::postgres_sip_effect::tests::postgres_prepare_replay_and_query_survive_pool_recreation ... ok
+test call::adapters::postgres_sip_effect::tests::postgres_receipt_transition_is_atomic_replayable_and_recoverable ... ok
+test call::adapters::postgres_sip_effect::tests::postgres_repair_batch_exhausts_after_eight_bounded_attempts ... ok
+test call::adapters::postgres_sip_effect::tests::postgres_unknown_claim_is_fenced_and_reconciles_after_pool_recovery ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 1965 filtered out; finished in 0.59s
+

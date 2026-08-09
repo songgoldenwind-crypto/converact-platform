@@ -1,0 +1,10 @@
+error: failed to load source for dependency `rustrtc`
+
+Caused by:
+  Unable to update /rustrtc
+
+Caused by:
+  failed to read `/rustrtc/Cargo.toml`
+
+Caused by:
+  No such file or directory (os error 2)

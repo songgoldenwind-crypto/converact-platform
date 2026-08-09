@@ -59,7 +59,7 @@ test("RustPBX compiles the bounded fenced native Call and Leg model", () => {
 
 test("the exact build applies the model after outbound admission", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.52"/);
+  assert.match(build, /PATCHSET="ivekit\.53"/);
   assert.match(
     build,
     /rustpbx-converact-outbound-call-admission\.patch"[\s\S]*rustpbx-converact-native-call-leg-model\.patch"/,

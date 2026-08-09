@@ -25,7 +25,7 @@ test('RustPBX reproducible build applies the WebPhone registry patch', () => {
 
   assert.match(build, /apply --check "\$PATCH_DIR\/rustpbx-ivekit-webphone-registry\.patch"/);
   assert.match(build, /apply "\$PATCH_DIR\/rustpbx-ivekit-webphone-registry\.patch"/);
-  assert.match(build, /PATCHSET="ivekit\.52"/);
+  assert.match(build, /PATCHSET="ivekit\.53"/);
   assert.match(build, /0\.4\.11-\$\{PATCHSET\}-6c49ee76/);
   assert.match(readme, /WebPhone pre-authentication registry/);
   assert.match(readme, /O\(1\)/);

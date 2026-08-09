@@ -1,0 +1,6 @@
+836ee69743b6b2fc2bea8b047dfc53a7acc51bcc5ec161816303e3008141c7eb  ./host-manifest.txt
+1ed8fb29ba394030abaa115ea133d41d32310fffa8a908712b9bab5238de504f  ./pre-lock-fix.log
+7fc9b9708715204ec50ebe62619084b002bd1ba3ae68cd4d5d586a74797d4f7b  ./rust-toolchain.txt
+04c95bedf750d2edf2a2186efeb81f6a7a0e73a6adf4a480c3ac48e416c81500  ./secret-scan-status.txt
+ba47aa5683854d563cf62aa0f66054eced4341959c69b52e15ce44402be33a8f  ./strict-full-library.log
+e94d9aef7b2676dccb889e47c54be9898546a61def0b011625bba4be746e426f  ./verification.txt

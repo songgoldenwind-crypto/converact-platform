@@ -1,0 +1,741 @@
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+index 96e1aa2c..1cf541b5 100644
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -1,13 +1,16 @@
+ use crate::call::domain::sip_effect::{
+-    PreparedSipEffect, SIP_EFFECT_SCHEMA_HASH, SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_VERSION,
+-    SIP_EFFECT_WRITER_IDENTITY, SipEffectApplyOutcome, SipEffectError, SipEffectPrepareOutcome,
+-    SipEffectReceipt, SipEffectReceiptLevel, SipEffectReconcileOutcome, SipEffectRecord,
+-    SipEffectRepairFence, SipEffectState, classify_receipt, protocol_effect_identity_hash,
++    PreparedSipEffect, SIP_EFFECT_REPAIR_ATTEMPT_CEILING, SIP_EFFECT_SCHEMA_HASH,
++    SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_VERSION, SIP_EFFECT_WRITER_IDENTITY,
++    SipEffectApplyOutcome, SipEffectError, SipEffectPrepareOutcome, SipEffectReceipt,
++    SipEffectReceiptLevel, SipEffectReconcileOutcome, SipEffectRecord, SipEffectRepairFence,
++    SipEffectState, classify_receipt, protocol_effect_identity_hash,
++    sip_effect_repair_exhaustion_hash, validate_sip_effect_identifier,
+ };
+ use chrono::{DateTime, Utc};
+ use serde_json::Value;
+ use sqlx::postgres::{PgPoolOptions, PgRow};
+ use sqlx::{PgPool, Postgres, Row, Transaction};
++use std::collections::{HashMap, HashSet};
+ use std::sync::Arc;
+ use std::sync::atomic::{AtomicUsize, Ordering};
+ use std::time::Duration;
+@@ -17,6 +20,8 @@ const MAX_STORE_IN_FLIGHT: usize = 256;
+ const MAX_STORE_QUEUE_DEPTH: usize = 1_024;
+ const MAX_STORE_WAIT: Duration = Duration::from_millis(250);
+ const MAX_REPAIR_LEASE: Duration = Duration::from_secs(30);
++const MAX_REPAIR_BATCH_SIZE: usize = 100;
++const MAX_REPAIR_TOKEN_PREFIX_BYTES: usize = 128;
+ 
+ #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+ pub enum SipEffectStoreError {
+@@ -76,7 +81,9 @@ macro_rules! effect_columns {
+         repair_epoch_high_watermark::text AS repair_epoch_high_watermark,
+         repair_claim_token,
+         repair_claim_revision::text AS repair_claim_revision,
+-        repair_attempts, audit_until, payload_retained, prepared_at
++        repair_attempts, repair_exhausted_at,
++        repair_exhaustion_receipt_hash, operator_attention_required,
++        audit_until, payload_retained, prepared_at
+         "#
+     };
+ }
+@@ -255,6 +262,106 @@ const CLAIM_UNKNOWN_SQL: &str = concat!(
+     effect_columns!(),
+ );
+ 
++const CLAIM_UNKNOWN_BATCH_SELECT_SQL: &str = concat!(
++    "SELECT ",
++    effect_columns!(),
++    r#"
++    FROM ivekit_sip_protocol_effects
++    WHERE tenant_id = $1
++      AND state = 'unknown'
++      AND operator_attention_required = FALSE
++      AND repair_due_at <= statement_timestamp()
++      AND (
++        repair_lease_until IS NULL OR
++        repair_lease_until <= statement_timestamp()
++      )
++      AND repair_epoch_high_watermark < $2::numeric
++      AND repair_attempts <= 8
++    ORDER BY repair_due_at, protocol_effect_id
++    FOR UPDATE SKIP LOCKED
++    LIMIT $3
++    "#,
++);
++
++const CLAIM_UNKNOWN_BATCH_UPDATE_SQL: &str = concat!(
++    r#"
++    UPDATE ivekit_sip_protocol_effects AS effect
++    SET repair_owner_id = $5,
++        repair_owner_epoch = $6::numeric,
++        repair_epoch_high_watermark = $6::numeric,
++        repair_claim_token = candidate.claim_token,
++        repair_claim_revision = effect.revision + 1,
++        repair_lease_until = statement_timestamp() +
++          ($7::integer * INTERVAL '1 millisecond'),
++        repair_attempts = effect.repair_attempts + 1,
++        revision = effect.revision + 1,
++        updated_at = statement_timestamp()
++    FROM (
++      SELECT candidate_effect_id,
++             expected_revision::numeric AS expected_revision,
++             claim_token
++      FROM unnest($1::text[], $2::text[], $3::text[])
++        AS candidate(candidate_effect_id, expected_revision, claim_token)
++    ) AS candidate
++    WHERE effect.tenant_id = $4
++      AND effect.protocol_effect_id = candidate.candidate_effect_id
++      AND effect.revision = candidate.expected_revision
++      AND effect.state = 'unknown'
++      AND effect.operator_attention_required = FALSE
++      AND effect.repair_due_at <= statement_timestamp()
++      AND (
++        effect.repair_lease_until IS NULL OR
++        effect.repair_lease_until <= statement_timestamp()
++      )
++      AND effect.repair_epoch_high_watermark < $6::numeric
++      AND effect.repair_attempts < 8
++    RETURNING
++    "#,
++    effect_columns!(),
++);
++
++const EXHAUST_UNKNOWN_BATCH_UPDATE_SQL: &str = r#"
++    UPDATE ivekit_sip_protocol_effects AS effect
++    SET repair_owner_id = NULL,
++        repair_owner_epoch = NULL,
++        repair_epoch_high_watermark = $5::numeric,
++        repair_claim_token = NULL,
++        repair_claim_revision = NULL,
++        repair_lease_until = NULL,
++        repair_due_at = NULL,
++        repair_exhausted_at = statement_timestamp(),
++        repair_exhaustion_receipt_hash = candidate.exhaustion_hash,
++        operator_attention_required = TRUE,
++        revision = effect.revision + 1,
++        updated_at = statement_timestamp()
++    FROM (
++      SELECT protocol_effect_id,
++             expected_revision::numeric AS expected_revision,
++             exhaustion_hash
++      FROM unnest($1::text[], $2::text[], $3::text[])
++        AS candidate(protocol_effect_id, expected_revision, exhaustion_hash)
++    ) AS candidate
++    WHERE effect.tenant_id = $4
++      AND effect.protocol_effect_id = candidate.protocol_effect_id
++      AND effect.revision = candidate.expected_revision
++      AND effect.state = 'unknown'
++      AND effect.operator_attention_required = FALSE
++      AND effect.repair_due_at <= statement_timestamp()
++      AND (
++        effect.repair_lease_until IS NULL OR
++        effect.repair_lease_until <= statement_timestamp()
++      )
++      AND effect.repair_epoch_high_watermark < $5::numeric
++      AND effect.repair_attempts = 8
++    RETURNING effect.protocol_effect_id
++"#;
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct SipEffectRepairBatch {
++    pub effects: Vec<SipEffectRecord>,
++    pub exhausted_count: usize,
++}
++
+ pub struct PostgresSipEffectStore {
+     pool: PgPool,
+     admission: SipEffectAdmission,
+@@ -584,6 +691,183 @@ impl PostgresSipEffectStore {
+         Ok(repair_fence)
+     }
+ 
++    pub async fn claim_unknown_batch(
++        &self,
++        tenant_id: &str,
++        repair_owner_id: &str,
++        repair_owner_epoch: u64,
++        claim_token_prefix: &str,
++        lease_duration: Duration,
++        limit: usize,
++    ) -> Result<SipEffectRepairBatch, SipEffectStoreError> {
++        validate_repair_batch_identity(
++            tenant_id,
++            repair_owner_id,
++            repair_owner_epoch,
++            claim_token_prefix,
++        )?;
++        let lease_ms = bounded_repair_lease_millis(lease_duration)?;
++        let limit = bounded_repair_batch_limit(limit)?;
++        let owner_epoch = repair_owner_epoch.to_string();
++        let (_admission, mut transaction) = self.begin_tenant_transaction(tenant_id).await?;
++        let due_rows = sqlx::query(CLAIM_UNKNOWN_BATCH_SELECT_SQL)
++            .bind(tenant_id)
++            .bind(&owner_epoch)
++            .bind(limit)
++            .fetch_all(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        if due_rows.len() > usize::try_from(limit).unwrap_or(MAX_REPAIR_BATCH_SIZE) {
++            return Err(SipEffectStoreError::SchemaIncompatible);
++        }
++
++        let mut claimable = Vec::with_capacity(due_rows.len());
++        let mut exhausted = Vec::with_capacity(due_rows.len());
++        for row in &due_rows {
++            let record = decode_effect(row)?.record;
++            if record.identity.tenant_id != tenant_id
++                || record.state != SipEffectState::Unknown
++                || record.operator_attention_required
++                || record.repair_claim.is_some()
++                || record.repair_epoch_high_watermark >= repair_owner_epoch
++                || record.repair_attempts > SIP_EFFECT_REPAIR_ATTEMPT_CEILING
++            {
++                return Err(SipEffectStoreError::SchemaIncompatible);
++            }
++            if record.repair_attempts < SIP_EFFECT_REPAIR_ATTEMPT_CEILING {
++                claimable.push(record);
++            } else {
++                exhausted.push(record);
++            }
++        }
++
++        let mut claimed_effects = Vec::with_capacity(claimable.len());
++        if !claimable.is_empty() {
++            let mut effect_ids = Vec::with_capacity(claimable.len());
++            let mut revisions = Vec::with_capacity(claimable.len());
++            let mut claim_tokens = Vec::with_capacity(claimable.len());
++            for effect in &claimable {
++                let claim_revision = effect
++                    .revision
++                    .checked_add(1)
++                    .ok_or(SipEffectStoreError::SchemaIncompatible)?;
++                let claim_token = format!(
++                    "{claim_token_prefix}:{}:{repair_owner_epoch}:{claim_revision}",
++                    effect.identity.protocol_effect_id
++                );
++                SipEffectRepairFence {
++                    repair_owner_id: repair_owner_id.to_string(),
++                    repair_owner_epoch,
++                    repair_claim_token: claim_token.clone(),
++                    repair_claim_revision: claim_revision,
++                }
++                .validate()?;
++                effect_ids.push(effect.identity.protocol_effect_id.clone());
++                revisions.push(effect.revision.to_string());
++                claim_tokens.push(claim_token);
++            }
++            let claimed_rows = sqlx::query(CLAIM_UNKNOWN_BATCH_UPDATE_SQL)
++                .bind(&effect_ids)
++                .bind(&revisions)
++                .bind(&claim_tokens)
++                .bind(tenant_id)
++                .bind(repair_owner_id)
++                .bind(&owner_epoch)
++                .bind(lease_ms)
++                .fetch_all(&mut *transaction)
++                .await
++                .map_err(map_sqlx_error)?;
++            if claimed_rows.len() != claimable.len() {
++                return Err(SipEffectError::FenceLost.into());
++            }
++            let mut returned = HashMap::with_capacity(claimed_rows.len());
++            for row in &claimed_rows {
++                let record = decode_effect(row)?.record;
++                if returned
++                    .insert(record.identity.protocol_effect_id.clone(), record)
++                    .is_some()
++                {
++                    return Err(SipEffectStoreError::SchemaIncompatible);
++                }
++            }
++            for (index, expected) in claimable.iter().enumerate() {
++                let claimed = returned
++                    .remove(&expected.identity.protocol_effect_id)
++                    .ok_or(SipEffectError::FenceLost)?;
++                let expected_revision = expected
++                    .revision
++                    .checked_add(1)
++                    .ok_or(SipEffectStoreError::SchemaIncompatible)?;
++                let fence = claimed
++                    .repair_claim
++                    .as_ref()
++                    .ok_or(SipEffectStoreError::SchemaIncompatible)?;
++                if claimed.identity != expected.identity
++                    || claimed.state != SipEffectState::Unknown
++                    || claimed.revision != expected_revision
++                    || claimed.repair_attempts != expected.repair_attempts + 1
++                    || claimed.repair_epoch_high_watermark != repair_owner_epoch
++                    || claimed.operator_attention_required
++                    || fence.repair_owner_id != repair_owner_id
++                    || fence.repair_owner_epoch != repair_owner_epoch
++                    || fence.repair_claim_revision != expected_revision
++                    || fence.repair_claim_token != claim_tokens[index]
++                {
++                    return Err(SipEffectStoreError::SchemaIncompatible);
++                }
++                claimed_effects.push(claimed);
++            }
++            if !returned.is_empty() {
++                return Err(SipEffectStoreError::SchemaIncompatible);
++            }
++        }
++
++        let exhausted_count = if exhausted.is_empty() {
++            0
++        } else {
++            let mut effect_ids = Vec::with_capacity(exhausted.len());
++            let mut revisions = Vec::with_capacity(exhausted.len());
++            let mut exhaustion_hashes = Vec::with_capacity(exhausted.len());
++            for effect in &exhausted {
++                effect_ids.push(effect.identity.protocol_effect_id.clone());
++                revisions.push(effect.revision.to_string());
++                exhaustion_hashes.push(sip_effect_repair_exhaustion_hash(
++                    tenant_id,
++                    &effect.identity.protocol_effect_id,
++                    effect.repair_attempts,
++                    repair_owner_epoch,
++                )?);
++            }
++            let rows = sqlx::query(EXHAUST_UNKNOWN_BATCH_UPDATE_SQL)
++                .bind(&effect_ids)
++                .bind(&revisions)
++                .bind(&exhaustion_hashes)
++                .bind(tenant_id)
++                .bind(&owner_epoch)
++                .fetch_all(&mut *transaction)
++                .await
++                .map_err(map_sqlx_error)?;
++            if rows.len() != exhausted.len() {
++                return Err(SipEffectError::FenceLost.into());
++            }
++            let returned_ids = rows
++                .iter()
++                .map(|row| schema_field::<String>(row, "protocol_effect_id"))
++                .collect::<Result<HashSet<_>, _>>()?;
++            let expected_ids = effect_ids.into_iter().collect::<HashSet<_>>();
++            if returned_ids.len() != exhausted.len() || returned_ids != expected_ids {
++                return Err(SipEffectStoreError::SchemaIncompatible);
++            }
++            exhausted.len()
++        };
++
++        transaction.commit().await.map_err(map_sqlx_error)?;
++        Ok(SipEffectRepairBatch {
++            effects: claimed_effects,
++            exhausted_count,
++        })
++    }
++
+     pub async fn reconcile(
+         &self,
+         identity: &crate::call::domain::sip_effect::SipEffectIdentity,
+@@ -779,6 +1063,34 @@ fn decode_effect(row: &PgRow) -> Result<DecodedEffect, SipEffectStoreError> {
+         .transpose()?;
+     let repair_attempts = u8::try_from(schema_field::<i16>(row, "repair_attempts")?)
+         .map_err(|_| SipEffectStoreError::SchemaIncompatible)?;
++    let repair_exhausted_at: Option<DateTime<Utc>> = schema_field(row, "repair_exhausted_at")?;
++    let repair_exhaustion_receipt_hash: Option<String> =
++        schema_field(row, "repair_exhaustion_receipt_hash")?;
++    let operator_attention_required: bool = schema_field(row, "operator_attention_required")?;
++    let repair_epoch_high_watermark = canonical_u64(
++        &schema_field::<String>(row, "repair_epoch_high_watermark")?,
++        false,
++    )?;
++    if (repair_exhausted_at.is_some() != repair_exhaustion_receipt_hash.is_some())
++        || operator_attention_required != repair_exhausted_at.is_some()
++    {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
++    if let Some(exhaustion_hash) = repair_exhaustion_receipt_hash.as_ref()
++        && (state != SipEffectState::Unknown
++            || repair_attempts != SIP_EFFECT_REPAIR_ATTEMPT_CEILING
++            || repair_claim.is_some()
++            || repair_delay.is_none()
++            || exhaustion_hash
++                != &sip_effect_repair_exhaustion_hash(
++                    &identity.tenant_id,
++                    &identity.protocol_effect_id,
++                    repair_attempts,
++                    repair_epoch_high_watermark,
++                )?)
++    {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
+     let record = SipEffectRecord {
+         identity,
+         canonical_wire_bytes,
+@@ -792,12 +1104,12 @@ fn decode_effect(row: &PgRow) -> Result<DecodedEffect, SipEffectStoreError> {
+         last_receipt_hash: schema_field(row, "last_receipt_hash")?,
+         failure_code: schema_field(row, "failure_code")?,
+         repair_delay_ms: repair_delay,
+-        repair_epoch_high_watermark: canonical_u64(
+-            &schema_field::<String>(row, "repair_epoch_high_watermark")?,
+-            false,
+-        )?,
++        repair_epoch_high_watermark,
+         repair_claim,
+         repair_attempts,
++        repair_exhausted_at,
++        repair_exhaustion_receipt_hash,
++        operator_attention_required,
+         prepared_at,
+         audit_until,
+     };
+@@ -898,6 +1210,38 @@ fn bounded_repair_lease_millis(duration: Duration) -> Result<i32, SipEffectStore
+     i32::try_from(milliseconds).map_err(|_| SipEffectStoreError::InvalidConfiguration)
+ }
+ 
++fn bounded_repair_batch_limit(limit: usize) -> Result<i64, SipEffectStoreError> {
++    if limit == 0 || limit > MAX_REPAIR_BATCH_SIZE {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    i64::try_from(limit).map_err(|_| SipEffectStoreError::InvalidConfiguration)
++}
++
++fn validate_repair_batch_identity(
++    tenant_id: &str,
++    repair_owner_id: &str,
++    repair_owner_epoch: u64,
++    claim_token_prefix: &str,
++) -> Result<(), SipEffectStoreError> {
++    validate_sip_effect_identifier(tenant_id)?;
++    if claim_token_prefix.is_empty()
++        || claim_token_prefix.len() > MAX_REPAIR_TOKEN_PREFIX_BYTES
++        || !claim_token_prefix
++            .bytes()
++            .all(|byte| (b'!'..=b'~').contains(&byte))
++    {
++        return Err(SipEffectError::InvalidInput.into());
++    }
++    SipEffectRepairFence {
++        repair_owner_id: repair_owner_id.to_string(),
++        repair_owner_epoch,
++        repair_claim_token: claim_token_prefix.to_string(),
++        repair_claim_revision: 1,
++    }
++    .validate()?;
++    Ok(())
++}
++
+ fn database_state(value: &str) -> Result<SipEffectState, SipEffectStoreError> {
+     match value {
+         "prepared" => Ok(SipEffectState::Prepared),
+@@ -1110,6 +1454,30 @@ mod tests {
+         assert!(!CLAIM_UNKNOWN_SQL.contains("clock_timestamp()"));
+     }
+ 
++    #[test]
++    fn repair_batch_is_bounded_and_uses_skip_locked_candidates() {
++        assert_eq!(bounded_repair_batch_limit(1).unwrap(), 1);
++        assert_eq!(bounded_repair_batch_limit(100).unwrap(), 100);
++        assert_eq!(
++            bounded_repair_batch_limit(0).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert_eq!(
++            bounded_repair_batch_limit(101).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert!(CLAIM_UNKNOWN_BATCH_SELECT_SQL.contains("FOR UPDATE SKIP LOCKED"));
++        assert!(CLAIM_UNKNOWN_BATCH_SELECT_SQL.contains("LIMIT $3"));
++        assert!(CLAIM_UNKNOWN_BATCH_SELECT_SQL.contains("repair_attempts <= 8"));
++        assert!(CLAIM_UNKNOWN_BATCH_UPDATE_SQL.contains("repair_attempts < 8"));
++        assert!(
++            CLAIM_UNKNOWN_BATCH_UPDATE_SQL
++                .contains("effect.protocol_effect_id = candidate.candidate_effect_id")
++        );
++        assert!(EXHAUST_UNKNOWN_BATCH_UPDATE_SQL.contains("repair_attempts = 8"));
++        assert!(EXHAUST_UNKNOWN_BATCH_UPDATE_SQL.contains("operator_attention_required = TRUE"));
++    }
++
+     #[tokio::test]
+     async fn admission_bounds_active_and_queued_database_work() {
+         let admission = Arc::new(SipEffectAdmission::new(1, 1, Duration::from_millis(50)).unwrap());
+@@ -1406,6 +1774,130 @@ mod tests {
+         recovered_store.pool.close().await;
+     }
+ 
++    #[tokio::test]
++    #[ignore = "requires an isolated migrated PostgreSQL database"]
++    async fn postgres_repair_batch_exhausts_after_eight_bounded_attempts() {
++        let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
++        let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
++            .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
++        let effect = postgres_effect_fixture(&format!("{run_id}-repair-batch"));
++        let options = PostgresSipEffectStoreOptions {
++            max_in_flight: 2,
++            max_queue_depth: 2,
++            wait_timeout: Duration::from_millis(250),
++        };
++        let store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        let prepared = store.prepare(effect.clone()).await.unwrap().record;
++        let durable = store
++            .apply(
++                SipEffectReceipt::new(
++                    prepared.fence(),
++                    &format!("receipt-{run_id}-batch-decision"),
++                    SipEffectReceiptLevel::DurableDecision,
++                    "",
++                    None,
++                )
++                .unwrap(),
++            )
++            .await
++            .unwrap()
++            .record;
++        let attempted = store
++            .apply(
++                SipEffectReceipt::new(
++                    durable.fence(),
++                    &format!("receipt-{run_id}-batch-attempt"),
++                    SipEffectReceiptLevel::SendAttempted,
++                    "",
++                    None,
++                )
++                .unwrap(),
++            )
++            .await
++            .unwrap()
++            .record;
++        store
++            .apply(
++                SipEffectReceipt::new(
++                    attempted.fence(),
++                    &format!("receipt-{run_id}-batch-unknown"),
++                    SipEffectReceiptLevel::Unknown,
++                    "",
++                    Some(0),
++                )
++                .unwrap(),
++            )
++            .await
++            .unwrap();
++
++        for epoch in 1..=8 {
++            let batch = store
++                .claim_unknown_batch(
++                    &effect.identity.tenant_id,
++                    &format!("repair-worker-{run_id}"),
++                    epoch,
++                    &format!("claim-{run_id}"),
++                    Duration::from_secs(10),
++                    1,
++                )
++                .await
++                .unwrap();
++            assert_eq!(batch.effects.len(), 1);
++            assert_eq!(batch.exhausted_count, 0);
++            let claimed = &batch.effects[0];
++            assert_eq!(claimed.repair_attempts, epoch as u8);
++            assert!(!claimed.operator_attention_required);
++            let fence = claimed.repair_claim.clone().unwrap();
++            let unknown = store
++                .reconcile(
++                    &claimed.identity,
++                    &fence,
++                    &format!("receipt-{run_id}-batch-retry-{epoch}"),
++                    SipEffectReconcileOutcome::Unknown { repair_after_ms: 0 },
++                )
++                .await
++                .unwrap();
++            assert_eq!(unknown.record.state, SipEffectState::Unknown);
++        }
++
++        let exhausted_batch = store
++            .claim_unknown_batch(
++                &effect.identity.tenant_id,
++                &format!("repair-worker-{run_id}"),
++                9,
++                &format!("claim-{run_id}"),
++                Duration::from_secs(10),
++                1,
++            )
++            .await
++            .unwrap();
++        assert!(exhausted_batch.effects.is_empty());
++        assert_eq!(exhausted_batch.exhausted_count, 1);
++
++        let exhausted = store.query(&effect.identity).await.unwrap().unwrap();
++        assert_eq!(exhausted.state, SipEffectState::Unknown);
++        assert_eq!(exhausted.repair_attempts, 8);
++        assert_eq!(exhausted.repair_epoch_high_watermark, 9);
++        assert!(exhausted.repair_claim.is_none());
++        assert!(exhausted.operator_attention_required);
++        assert!(exhausted.repair_exhausted_at.is_some());
++        let exhaustion_hash = sip_effect_repair_exhaustion_hash(
++            &effect.identity.tenant_id,
++            &effect.identity.protocol_effect_id,
++            8,
++            9,
++        )
++        .unwrap();
++        assert_eq!(
++            exhausted.repair_exhaustion_receipt_hash.as_deref(),
++            Some(exhaustion_hash.as_str()),
++        );
++        store.pool.close().await;
++    }
++
+     fn postgres_effect_fixture(run_id: &str) -> PreparedSipEffect {
+         let tenant_id = format!("rust-pg-{run_id}");
+         let effect_id = format!("effect-{run_id}");
+diff --git a/src/call/domain/sip_effect.rs b/src/call/domain/sip_effect.rs
+index 7b5295af..174711e9 100644
+--- a/src/call/domain/sip_effect.rs
++++ b/src/call/domain/sip_effect.rs
+@@ -10,8 +10,10 @@ pub const SIP_EFFECT_SCHEMA_VERSION: u16 = 1;
+ pub const SIP_EFFECT_SCHEMA_HASH: &str =
+     "ae27a73dac95c90686f8020c2fb5e92dd016cc1712216d03b227ec3a6d6ca5ba";
+ pub const SIP_EFFECT_WRITER_IDENTITY: &str = "unified-rustpbx.sip-foundation";
++pub const SIP_EFFECT_REPAIR_ATTEMPT_CEILING: u8 = 8;
+ 
+ const IDENTIFIER_HARD_CEILING: usize = 200;
++const REPAIR_CLAIM_TOKEN_HARD_CEILING: usize = 512;
+ const FAILURE_CODE_HARD_CEILING: usize = 128;
+ const WIRE_BYTES_HARD_CEILING: usize = 65_535;
+ const JSON_BYTES_HARD_CEILING: usize = 65_536;
+@@ -19,8 +21,6 @@ const JSON_BYTES_HARD_CEILING: usize = 65_536;
+ const EFFECTS_HARD_CEILING: usize = 1_000_000;
+ #[cfg(test)]
+ const RECEIPTS_PER_EFFECT_HARD_CEILING: usize = 32;
+-#[cfg(test)]
+-const REPAIR_ATTEMPTS_HARD_CEILING: u8 = 8;
+ const REPAIR_DELAY_MS_HARD_CEILING: u32 = 86_400_000;
+ const STORE_POOL_WAIT_MS_HARD_CEILING: u32 = 250;
+ const STORE_QUEUE_DEPTH_HARD_CEILING: u32 = 1_024;
+@@ -283,7 +283,7 @@ pub struct SipEffectRepairFence {
+ impl SipEffectRepairFence {
+     pub(crate) fn validate(&self) -> Result<(), SipEffectError> {
+         checked_identifier(&self.repair_owner_id)?;
+-        checked_identifier(&self.repair_claim_token)?;
++        checked_ascii_token(&self.repair_claim_token, REPAIR_CLAIM_TOKEN_HARD_CEILING)?;
+         if self.repair_owner_epoch == 0 || self.repair_claim_revision == 0 {
+             return Err(SipEffectError::InvalidInput);
+         }
+@@ -308,6 +308,9 @@ pub struct SipEffectRecord {
+     pub repair_epoch_high_watermark: u64,
+     pub repair_claim: Option<SipEffectRepairFence>,
+     pub repair_attempts: u8,
++    pub repair_exhausted_at: Option<DateTime<Utc>>,
++    pub repair_exhaustion_receipt_hash: Option<String>,
++    pub operator_attention_required: bool,
+     pub prepared_at: DateTime<Utc>,
+     pub audit_until: DateTime<Utc>,
+ }
+@@ -496,6 +499,9 @@ impl InMemorySipEffectLedger {
+             repair_epoch_high_watermark: 0,
+             repair_claim: None,
+             repair_attempts: 0,
++            repair_exhausted_at: None,
++            repair_exhaustion_receipt_hash: None,
++            operator_attention_required: false,
+             prepared_at: effect.prepared_at,
+             audit_until: effect.audit_until,
+         };
+@@ -656,7 +662,7 @@ impl InMemorySipEffectLedger {
+         {
+             return Err(SipEffectError::FenceLost);
+         }
+-        if effect.record.repair_attempts >= REPAIR_ATTEMPTS_HARD_CEILING {
++        if effect.record.repair_attempts >= SIP_EFFECT_REPAIR_ATTEMPT_CEILING {
+             return Err(SipEffectError::RepairExhausted);
+         }
+         let claim_revision = effect
+@@ -851,6 +857,25 @@ pub fn protocol_effect_identity_hash(
+     canonical_json_sha256(&protocol_effect_identity_json(identity))
+ }
+ 
++pub fn sip_effect_repair_exhaustion_hash(
++    tenant_id: &str,
++    protocol_effect_id: &str,
++    repair_attempts: u8,
++    repair_epoch_high_watermark: u64,
++) -> Result<String, SipEffectError> {
++    checked_identifier(tenant_id)?;
++    checked_identifier(protocol_effect_id)?;
++    if repair_attempts != SIP_EFFECT_REPAIR_ATTEMPT_CEILING || repair_epoch_high_watermark == 0 {
++        return Err(SipEffectError::InvalidInput);
++    }
++    canonical_json_sha256(&serde_json::json!({
++        "tenant_id": tenant_id,
++        "protocol_effect_id": protocol_effect_id,
++        "repair_attempts": repair_attempts,
++        "repair_epoch_high_watermark": repair_epoch_high_watermark.to_string(),
++    }))
++}
++
+ pub fn sip_wire_freeze_sha256(
+     route_binding_sha256: &str,
+     wire_attempt_facts_sha256: &str,
+@@ -893,8 +918,16 @@ fn protocol_effect_identity_json(identity: &SipEffectIdentity) -> Value {
+ }
+ 
+ fn checked_identifier(value: &str) -> Result<(), SipEffectError> {
++    checked_ascii_token(value, IDENTIFIER_HARD_CEILING)
++}
++
++pub(crate) fn validate_sip_effect_identifier(value: &str) -> Result<(), SipEffectError> {
++    checked_identifier(value)
++}
++
++fn checked_ascii_token(value: &str, hard_ceiling: usize) -> Result<(), SipEffectError> {
+     if value.is_empty()
+-        || value.len() > IDENTIFIER_HARD_CEILING
++        || value.len() > hard_ceiling
+         || !value.bytes().all(|byte| (b'!'..=b'~').contains(&byte))
+     {
+         return Err(SipEffectError::InvalidInput);
+@@ -1023,6 +1056,45 @@ mod tests {
+         SipEffectReceipt::new(record.fence(), receipt_id, level, "", None).unwrap()
+     }
+ 
++    #[test]
++    fn repair_exhaustion_hash_and_claim_token_bounds_are_exact() {
++        assert_eq!(
++            sip_effect_repair_exhaustion_hash(
++                "tenant-a",
++                "effect-a",
++                SIP_EFFECT_REPAIR_ATTEMPT_CEILING,
++                9,
++            )
++            .unwrap(),
++            "fd547d1498fdfc68617bf81305d9bb02e5d06c166e12904bf94a2f8f4e11ac88",
++        );
++        assert_eq!(
++            sip_effect_repair_exhaustion_hash("tenant-a", "effect-a", 7, 9).unwrap_err(),
++            SipEffectError::InvalidInput,
++        );
++        assert!(
++            SipEffectRepairFence {
++                repair_owner_id: "worker-a".to_string(),
++                repair_owner_epoch: 1,
++                repair_claim_token: "x".repeat(REPAIR_CLAIM_TOKEN_HARD_CEILING),
++                repair_claim_revision: 1,
++            }
++            .validate()
++            .is_ok()
++        );
++        assert_eq!(
++            SipEffectRepairFence {
++                repair_owner_id: "worker-a".to_string(),
++                repair_owner_epoch: 1,
++                repair_claim_token: "x".repeat(REPAIR_CLAIM_TOKEN_HARD_CEILING + 1),
++                repair_claim_revision: 1,
++            }
++            .validate()
++            .unwrap_err(),
++            SipEffectError::InvalidInput,
++        );
++    }
++
+     #[test]
+     fn semantic_receipts_never_promote_transport_acceptance_to_completion() {
+         assert_eq!(

@@ -1,0 +1,9 @@
+attempt-1-missing-dependency=101
+attempt-2-wrong-session-role=101
+attempt-3-decode-diagnostic=101
+attempt-4-ambiguous-candidate=101
+attempt-5-pre-clippy-success=0
+attempt-6-cargo-cache-shadow=127
+attempt-7-missing-tenants=101
+attempt-8-final=0
+post-run-query-1-wrong-table=1

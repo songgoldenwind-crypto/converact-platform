@@ -829,6 +829,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
 
 [[package]]
+name = "converact-component-hook"
+version = "0.1.0"
+
+[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2575,10 +2579,6 @@ name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
-
-[[package]]
-name = "converact-component-hook"
-version = "0.1.0"
 
 [[package]]
 name = "jni"
@@ -4492,6 +4492,7 @@ dependencies = [
  "chrono-tz",
  "clap",
  "console-subscriber",
+ "converact-component-hook",
  "country-emoji",
  "crossbeam-channel",
  "crossbeam-utils",
@@ -4511,7 +4512,6 @@ dependencies = [
  "instant-acme",
  "ipnet",
  "iso_currency",
- "converact-component-hook",
  "ldap3",
  "lru",
  "md-5 0.11.0",
@@ -5280,6 +5280,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "cfg-if",
+ "chrono",
  "crc",
  "crossbeam-queue",
  "either",
@@ -5440,6 +5441,7 @@ dependencies = [
  "bitflags",
  "byteorder",
  "bytes",
+ "chrono",
  "crc",
  "digest 0.11.3",
  "dotenvy",
@@ -5510,6 +5512,7 @@ dependencies = [
  "base64 0.22.1",
  "bitflags",
  "byteorder",
+ "chrono",
  "crc",
  "dotenvy",
  "etcetera 0.11.0",
@@ -5569,6 +5572,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488e99c397a62007e4229aec669a179816339afc6d2620ca6fa420dbee2e982c"
 dependencies = [
  "atoi",
+ "chrono",
  "flume 0.12.0",
  "form_urlencoded",
  "futures-channel",

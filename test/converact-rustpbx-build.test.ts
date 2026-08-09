@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
@@ -78,7 +79,7 @@ test('Converact Fabric RustPBX build pins source, toolchain, lockfile, and runti
   assert.match(buildScript, /find \. -type f -name '\*\.patch'.*LC_ALL=C sort/);
   assert.match(buildScript, /CONVERACT_SOURCE_COMMIT=.*rev-parse HEAD/s);
   assert.match(runtimeDockerfile, /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m);
-  assert.match(buildScript, /PATCHSET="ivekit\.52"/);
+  assert.match(buildScript, /PATCHSET="ivekit\.53"/);
   assert.match(
     buildScript,
     /--build-arg "CONVERACT_SOURCE_COMMIT=\$CONVERACT_SOURCE_COMMIT"/
@@ -102,6 +103,10 @@ test('Converact Fabric RustPBX build pins source, toolchain, lockfile, and runti
   assert.match(runtimeDockerfile, /ENTRYPOINT \["\/app\/entrypoint\.sh"\]/);
 
   const lock = readFileSync('infra/converact/rustpbx/Cargo.lock', 'utf8');
+  assert.equal(
+    createHash('sha256').update(lock).digest('hex'),
+    'ae2fa0bd8475d2d86e810c2288c52bfa59f3cc72e8fde5433eda173652501a9c'
+  );
   assert.match(
     lock,
     /name = "rustrtc"\nversion = "0\.3\.90"\ndependencies = \[[\s\S]*?"socket2 0\.6\.5"/
