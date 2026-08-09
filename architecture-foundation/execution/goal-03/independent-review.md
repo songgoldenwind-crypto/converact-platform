@@ -38,9 +38,27 @@ unchanged container IDs are retained instead.
 Neither accepted review proves that the TypeScript `VoiceCall`, Call/Leg model,
 `RsipstackFoundationAdapter` or PostgreSQL reference ledger is a live native
 authority. Unified RustPBX remains the sole active Call/Leg authority;
-`G03-E16-NATIVE-AUTHORITY` and the `.58` current patchset, including its
+`G03-E16-NATIVE-AUTHORITY` and the `.59` current patchset, including its
 default-disabled native durable egress adapter, are outside those old reviewed
 diffs and remain pending exact-source review.
+
+## Current `.59` interim review boundary
+
+The `.59` protocol-observation slice received iterative code review while it
+was developed. Findings around cancellation ownership, queue loss, receipt
+semantics, v1/v2 schema closure, PostgreSQL round trips, database clock
+ownership and ingress provenance were either implemented in the current
+candidate or retained as explicit activation blockers. Fresh patch-chain replay
+and exact-source tests then passed; the controlled Linux bundle
+`evidence/raw/native-protocol-observation-fe4c38b-05/` records the full RustPBX
+library result and six physical PostgreSQL cases.
+
+That interim work is not a final independent acceptance. Automatic derived ACK
+intent, automatic 200-to-CANCEL, UAS-Core 2xx ACK ownership, stale nonterminal
+observer-crash recovery, live endpoint composition, mixed-binary activation,
+fault/OOM and capacity evidence remain open. The candidate therefore remains
+default-disabled and `G03-E15-REVIEW`, `G03-E16-NATIVE-AUTHORITY` and production
+eligibility remain `not_run`/false.
 
 ## Rejection history and remaining gate
 

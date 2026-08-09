@@ -1,0 +1,10 @@
+   Compiling rustpbx v0.4.11 (/workspace/rustpbx)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 21s
+     Running unittests src/lib.rs (target/debug/deps/rustpbx-2292b3bbd3d87a06)
+
+running 1 test
+test call::adapters::postgres_sip_effect::tests::postgres_prepare_and_terminal_receipts_use_database_clock_under_host_skew ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2004 filtered out; finished in 0.15s
+
+__EXIT_CODE=0
