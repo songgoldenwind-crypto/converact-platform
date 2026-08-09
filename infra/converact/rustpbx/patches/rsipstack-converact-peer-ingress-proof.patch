@@ -1,0 +1,607 @@
+diff --git a/src/dialog/server_dialog.rs b/src/dialog/server_dialog.rs
+index 8ede4a2..b22f482 100644
+--- a/src/dialog/server_dialog.rs
++++ b/src/dialog/server_dialog.rs
+@@ -732,9 +732,17 @@ impl ServerInviteDialog {
+                         crate::sip::StatusCode::ServerInternalError,
+                     )
+                 })?;
++                let ingress_proof = tx.take_initial_peer_ingress_proof().ok_or_else(|| {
++                    crate::Error::DialogError(
++                        "network ACK is missing Endpoint ingress proof".to_string(),
++                        self.id(),
++                        crate::sip::StatusCode::ServerInternalError,
++                    )
++                })?;
+                 self.inner.tu_sender.send(TransactionEvent::Received(
+                     tx.original.clone().into(),
+                     connection,
++                    ingress_proof,
+                 ))?;
+                 Ok(())
+             }
+diff --git a/src/transaction/endpoint.rs b/src/transaction/endpoint.rs
+index 1aff115..6193147 100644
+--- a/src/transaction/endpoint.rs
++++ b/src/transaction/endpoint.rs
+@@ -156,6 +156,25 @@ pub trait TransportEventInspector: Send + Sync {
+     async fn handle(&self, event: TransportEvent) -> Option<TransportEvent>;
+ }
+ 
++/// One-use proof that a transaction message entered through the Endpoint's
++/// transport loop. The field and production constructor are private to this
++/// module, so neither applications nor other crate modules can manufacture
++/// peer-observation authority.
++pub struct PeerIngressProof {
++    _private: (),
++}
++
++impl PeerIngressProof {
++    fn from_transport() -> Self {
++        Self { _private: () }
++    }
++
++    #[cfg(test)]
++    pub(crate) fn test_only() -> Self {
++        Self { _private: () }
++    }
++}
++
+ pub struct EndpointOption {
+     pub t1: Duration,
+     pub t2: Duration,
+@@ -394,6 +413,24 @@ fn release_bounded(counter: &AtomicUsize) {
+ /// * `t2` - Maximum retransmission interval (default 4s)
+ /// * `t4` - Maximum duration a message will remain in the network (default 4s)
+ /// * `t1x64` - Maximum retransmission timeout (default 32s)
++///
++/// Transport ingress is deliberately not a public injection API:
++///
++/// ```compile_fail
++/// use rsipstack::sip::SipMessage;
++/// use rsipstack::transaction::endpoint::EndpointInner;
++/// use rsipstack::transport::{SipAddr, SipConnection};
++/// use std::sync::Arc;
++///
++/// fn inject_peer_message(
++///     endpoint: &Arc<EndpointInner>,
++///     message: SipMessage,
++///     connection: SipConnection,
++///     from: &SipAddr,
++/// ) {
++///     let _ = endpoint.on_received_message(message, connection, from);
++/// }
++/// ```
+ pub struct EndpointInner {
+     pub allows: Mutex<Option<Vec<crate::sip::Method>>>,
+     pub user_agent: String,
+@@ -671,7 +708,7 @@ impl EndpointInner {
+     }
+ 
+     // receive message from transport layer
+-    pub async fn on_received_message(
++    async fn on_received_message(
+         self: &Arc<Self>,
+         msg: SipMessage,
+         connection: SipConnection,
+@@ -774,9 +811,10 @@ impl EndpointInner {
+         } else {
+             msg
+         };
++        let ingress_proof = PeerIngressProof::from_transport();
+ 
+         if let Some(tu) = self.transactions.get(&key) {
+-            tu.send(TransactionEvent::Received(msg, connection))
++            tu.send(TransactionEvent::Received(msg, connection, ingress_proof))
+                 .map_err(|e| Error::TransactionError(e.to_string(), key))?;
+             return Ok(());
+         }
+@@ -821,8 +859,13 @@ impl EndpointInner {
+         }
+ 
+         let reject_connection = connection.clone();
+-        let tx =
+-            Transaction::new_server(key.clone(), request.clone(), self.clone(), Some(connection));
++        let tx = Transaction::new_server_from_peer(
++            key.clone(),
++            request.clone(),
++            self.clone(),
++            connection,
++            ingress_proof,
++        );
+ 
+         if !tx.is_admitted() {
+             self.reject_overloaded_request(&request, &reject_connection)
+@@ -840,6 +883,16 @@ impl EndpointInner {
+         Ok(())
+     }
+ 
++    #[cfg(test)]
++    pub(super) async fn on_received_message_for_test(
++        self: &Arc<Self>,
++        msg: SipMessage,
++        connection: SipConnection,
++        from: &SipAddr,
++    ) -> Result<()> {
++        self.on_received_message(msg, connection, from).await
++    }
++
+     async fn reject_overloaded_request(
+         &self,
+         request: &crate::sip::Request,
+@@ -1152,6 +1205,11 @@ impl Endpoint {
+ mod capacity_tests {
+     use super::*;
+ 
++    #[test]
++    fn peer_ingress_proof_adds_no_per_message_storage() {
++        assert_eq!(std::mem::size_of::<PeerIngressProof>(), 0);
++    }
++
+     #[test]
+     fn egress_effect_permit_rejects_unbounded_or_ambiguous_tokens() {
+         assert!(EgressEffectPermit::try_new("").is_err());
+diff --git a/src/transaction/tests/test_client.rs b/src/transaction/tests/test_client.rs
+index 8894d8f..97a4dac 100644
+--- a/src/transaction/tests/test_client.rs
++++ b/src/transaction/tests/test_client.rs
+@@ -416,6 +416,22 @@ async fn recv_udp_bytes(peer: &UdpConnection) -> Vec<u8> {
+     buffer
+ }
+ 
++async fn deliver_peer_message(
++    transaction: &Transaction,
++    peer: &UdpConnection,
++    message: SipMessage,
++) {
++    transaction
++        .endpoint_inner
++        .on_received_message_for_test(
++            message,
++            transaction.connection.clone().expect("client connection"),
++            peer.get_addr(),
++        )
++        .await
++        .expect("Endpoint peer ingress");
++}
++
+ fn busy_response() -> Response {
+     Response::try_from(
+         "SIP/2.0 486 Busy Here\r\n\
+@@ -621,13 +637,7 @@ async fn client_request_is_protocol_completed_only_after_a_final_response() {
+ 
+     let mut wrong_response = busy_response();
+     *wrong_response.cseq_header_mut().expect("wrong CSeq") = CSeq::new("2 INVITE");
+-    transaction
+-        .tu_sender
+-        .send(TransactionEvent::Received(
+-            wrong_response.into(),
+-            transaction.connection.clone().expect("client connection"),
+-        ))
+-        .expect("wrong final response event");
++    deliver_peer_message(&transaction, &peer, wrong_response.into()).await;
+     assert!(timeout(Duration::from_millis(20), transaction.receive())
+         .await
+         .is_err());
+@@ -638,13 +648,7 @@ async fn client_request_is_protocol_completed_only_after_a_final_response() {
+         .expect("protocol observation lock")
+         .is_empty());
+ 
+-    transaction
+-        .tu_sender
+-        .send(TransactionEvent::Received(
+-            busy_response().into(),
+-            transaction.connection.clone().expect("client connection"),
+-        ))
+-        .expect("final response event");
++    deliver_peer_message(&transaction, &peer, busy_response().into()).await;
+     assert!(matches!(
+         transaction.receive().await,
+         Some(SipMessage::Response(response))
+@@ -682,13 +686,7 @@ async fn automatic_non_2xx_ack_uses_parent_bound_derivation_not_ordinary_prepare
+         recv_udp_message(&peer).await,
+         SipMessage::Request(request) if request.method == crate::sip::Method::Invite
+     ));
+-    transaction
+-        .tu_sender
+-        .send(TransactionEvent::Received(
+-            busy_response().into(),
+-            transaction.connection.clone().expect("client connection"),
+-        ))
+-        .expect("final response event");
++    deliver_peer_message(&transaction, &peer, busy_response().into()).await;
+ 
+     assert!(matches!(
+         transaction.receive().await,
+@@ -730,13 +728,7 @@ async fn cancelled_derived_ack_prepare_keeps_reconcile_latch_and_never_falls_bac
+     transaction.send().await.expect("send INVITE");
+     let _invite = recv_udp_message(&peer).await;
+     let final_response = busy_response();
+-    transaction
+-        .tu_sender
+-        .send(TransactionEvent::Received(
+-            final_response.clone().into(),
+-            transaction.connection.clone().expect("client connection"),
+-        ))
+-        .expect("first final response");
++    deliver_peer_message(&transaction, &peer, final_response.clone().into()).await;
+ 
+     assert!(timeout(Duration::from_millis(20), transaction.receive())
+         .await
+@@ -754,13 +746,7 @@ async fn cancelled_derived_ack_prepare_keeps_reconcile_latch_and_never_falls_bac
+         )]
+     );
+ 
+-    transaction
+-        .tu_sender
+-        .send(TransactionEvent::Received(
+-            final_response.into(),
+-            transaction.connection.clone().expect("client connection"),
+-        ))
+-        .expect("duplicate final response");
++    deliver_peer_message(&transaction, &peer, final_response.into()).await;
+     assert!(timeout(Duration::from_millis(20), transaction.receive())
+         .await
+         .is_err());
+@@ -1051,13 +1037,7 @@ async fn client_derived_ack_prepare_failure_requires_reconcile_without_blind_ret
+     ));
+ 
+     let final_response = busy_response();
+-    transaction
+-        .tu_sender
+-        .send(TransactionEvent::Received(
+-            final_response.clone().into(),
+-            transaction.connection.clone().expect("client connection"),
+-        ))
+-        .expect("first final response");
++    deliver_peer_message(&transaction, &peer, final_response.clone().into()).await;
+     assert!(matches!(
+         transaction.receive().await,
+         Some(SipMessage::Response(response)) if response.status_code == crate::sip::StatusCode::BusyHere
+@@ -1072,13 +1052,7 @@ async fn client_derived_ack_prepare_failure_requires_reconcile_without_blind_ret
+         "a rejected ACK durable decision must emit no bytes"
+     );
+ 
+-    transaction
+-        .tu_sender
+-        .send(TransactionEvent::Received(
+-            final_response.into(),
+-            transaction.connection.clone().expect("client connection"),
+-        ))
+-        .expect("duplicate final response");
++    deliver_peer_message(&transaction, &peer, final_response.into()).await;
+     assert!(timeout(Duration::from_millis(25), transaction.receive())
+         .await
+         .is_err());
+diff --git a/src/transaction/tests/test_provisional_responses.rs b/src/transaction/tests/test_provisional_responses.rs
+index 8e924b3..df989b3 100644
+--- a/src/transaction/tests/test_provisional_responses.rs
++++ b/src/transaction/tests/test_provisional_responses.rs
+@@ -1,11 +1,16 @@
+ use super::create_test_endpoint;
+ use crate::sip::{headers::*, Response, SipMessage, StatusCode};
+ use crate::transaction::{
++    endpoint::PeerIngressProof,
+     key::{TransactionKey, TransactionRole},
+     transaction::{Transaction, TransactionEvent},
+     TransactionState,
+ };
+-use crate::transport::{channel::ChannelConnection, SipAddr};
++use crate::transport::{channel::ChannelConnection, SipAddr, SipConnection};
++
++fn peer_received(message: SipMessage, connection: SipConnection) -> TransactionEvent {
++    TransactionEvent::Received(message, connection, PeerIngressProof::test_only())
++}
+ 
+ #[tokio::test]
+ async fn test_multiple_provisional_responses() -> crate::Result<()> {
+@@ -58,7 +63,7 @@ async fn test_multiple_provisional_responses() -> crate::Result<()> {
+     };
+ 
+     tx.tu_sender
+-        .send(TransactionEvent::Received(
++        .send(peer_received(
+             SipMessage::Response(resp1.clone()),
+             connection.clone(),
+         ))
+@@ -91,7 +96,7 @@ async fn test_multiple_provisional_responses() -> crate::Result<()> {
+     };
+ 
+     tx.tu_sender
+-        .send(TransactionEvent::Received(
++        .send(peer_received(
+             SipMessage::Response(resp2.clone()),
+             connection.clone(),
+         ))
+@@ -115,7 +120,7 @@ async fn test_multiple_provisional_responses() -> crate::Result<()> {
+ 
+     // 3. Send exact retransmission of second 183 (should be ignored)
+     tx.tu_sender
+-        .send(TransactionEvent::Received(
++        .send(peer_received(
+             SipMessage::Response(resp2.clone()),
+             connection,
+         ))
+diff --git a/src/transaction/tests/test_server.rs b/src/transaction/tests/test_server.rs
+index 4f1c629..266327e 100644
+--- a/src/transaction/tests/test_server.rs
++++ b/src/transaction/tests/test_server.rs
+@@ -1,7 +1,7 @@
+ use crate::sip::{headers::*, HeadersExt};
+ use crate::transaction::endpoint::{
+     EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, EgressEffectProtocolObservation,
+-    EndpointCapacityLimits, EndpointOption, MessageInspector,
++    EndpointCapacityLimits, EndpointOption, MessageInspector, PeerIngressProof,
+ };
+ use crate::transaction::transaction::{ServerInviteTermination, TransactionEvent};
+ use crate::transaction::{TransactionState, TransactionTimer};
+@@ -18,6 +18,10 @@ use std::sync::{
+     Arc,
+ };
+ use std::time::Duration;
++
++fn peer_received(message: crate::sip::SipMessage, connection: SipConnection) -> TransactionEvent {
++    TransactionEvent::Received(message, connection, PeerIngressProof::test_only())
++}
+ use tokio::{
+     io::AsyncReadExt,
+     net::{TcpListener, TcpStream},
+@@ -294,7 +298,7 @@ async fn egress_effect_gate_bypasses_trying_and_retransmission_but_gates_first_f
+ 
+     transaction
+         .tu_sender
+-        .send(TransactionEvent::Received(
++        .send(peer_received(
+             transaction.original.clone().into(),
+             transaction.connection.clone().expect("server connection"),
+         ))
+@@ -337,7 +341,7 @@ async fn server_invite_final_response_is_protocol_completed_only_by_the_matching
+     ack.method = crate::sip::Method::Ack;
+     *ack.cseq_header_mut().expect("ACK CSeq") = CSeq::new("2 ACK");
+     endpoint
+-        .on_received_message(
++        .on_received_message_for_test(
+             ack.clone().into(),
+             transaction.connection.clone().expect("server connection"),
+             peer.get_addr(),
+@@ -355,7 +359,7 @@ async fn server_invite_final_response_is_protocol_completed_only_by_the_matching
+ 
+     *ack.cseq_header_mut().expect("ACK CSeq") = CSeq::new("1 ACK");
+     endpoint
+-        .on_received_message(
++        .on_received_message_for_test(
+             ack.clone().into(),
+             transaction.connection.clone().expect("server connection"),
+             peer.get_addr(),
+@@ -381,7 +385,7 @@ async fn server_invite_final_response_is_protocol_completed_only_by_the_matching
+     );
+ 
+     endpoint
+-        .on_received_message(
++        .on_received_message_for_test(
+             ack.into(),
+             transaction.connection.clone().expect("server connection"),
+             peer.get_addr(),
+@@ -515,7 +519,7 @@ async fn timer_h_then_late_ack_keeps_one_protocol_unknown_observation() {
+     late_ack.method = crate::sip::Method::Ack;
+     *late_ack.cseq_header_mut().expect("late ACK CSeq") = CSeq::new("1 ACK");
+     endpoint
+-        .on_received_message(
++        .on_received_message_for_test(
+             late_ack.into(),
+             transaction.connection.clone().expect("server connection"),
+             peer.get_addr(),
+@@ -616,7 +620,7 @@ async fn duplicate_invite_replays_frozen_post_inspector_response() {
+ 
+     transaction
+         .tu_sender
+-        .send(TransactionEvent::Received(
++        .send(peer_received(
+             transaction.original.clone().into(),
+             transaction.connection.clone().expect("server connection"),
+         ))
+@@ -811,7 +815,7 @@ async fn udp_ack_cancels_g_h_and_retains_transaction_until_timer_i() {
+     *ack.cseq_header_mut().expect("ACK CSeq") = CSeq::new("1 ACK");
+     transaction
+         .tu_sender
+-        .send(TransactionEvent::Received(
++        .send(peer_received(
+             ack.into(),
+             transaction.connection.clone().expect("server connection"),
+         ))
+@@ -904,7 +908,7 @@ async fn reliable_transport_uses_h_but_no_g_or_i() {
+     *ack.cseq_header_mut().expect("ACK CSeq") = CSeq::new("1 ACK");
+     transaction
+         .tu_sender
+-        .send(TransactionEvent::Received(
++        .send(peer_received(
+             ack.into(),
+             transaction.connection.clone().expect("server connection"),
+         ))
+@@ -1083,16 +1087,28 @@ async fn endpoint_capacity_emergency_503_remains_stateless() {
+     let first = invite_request("UDP", peer.get_addr(), "z9hG4bK-capacity-first");
+     endpoint
+         .inner
+-        .on_received_message(first.clone().into(), server.clone().into(), peer.get_addr())
++        .on_received_message_for_test(first.clone().into(), server.clone().into(), peer.get_addr())
+         .await
+         .expect("first INVITE");
+-    let first_transaction = incoming.recv().await.expect("first transaction");
++    let mut first_transaction = incoming.recv().await.expect("first transaction");
++    assert!(
++        first_transaction
++            .take_initial_peer_ingress_proof()
++            .is_some(),
++        "transport ingress must mint one opaque peer proof"
++    );
++    assert!(
++        first_transaction
++            .take_initial_peer_ingress_proof()
++            .is_none(),
++        "the peer proof must be one-use"
++    );
+     assert_eq!(endpoint.inner.get_stats().running_transactions, 1);
+ 
+     let second = invite_request("UDP", peer.get_addr(), "z9hG4bK-capacity-second");
+     endpoint
+         .inner
+-        .on_received_message(second.into(), server.into(), peer.get_addr())
++        .on_received_message_for_test(second.into(), server.into(), peer.get_addr())
+         .await
+         .expect("capacity rejection");
+     let rejection = String::from_utf8(recv_udp_bytes(&peer).await).expect("UTF-8 SIP rejection");
+diff --git a/src/transaction/transaction.rs b/src/transaction/transaction.rs
+index 8c9b740..f866abe 100644
+--- a/src/transaction/transaction.rs
++++ b/src/transaction/transaction.rs
+@@ -1,6 +1,6 @@
+ use super::endpoint::{
+     EgressDerivedEffectKind, EgressEffectGate, EgressEffectOutcome, EgressEffectPermit,
+-    EgressEffectProtocolObservation, EndpointInnerRef,
++    EgressEffectProtocolObservation, EndpointInnerRef, PeerIngressProof,
+ };
+ use super::key::TransactionKey;
+ use super::{SipConnection, TransactionState, TransactionTimer, TransactionType};
+@@ -148,7 +148,7 @@ impl Drop for EgressProtocolObservationAttempt {
+ ///
+ /// # fn handle_event(event: TransactionEvent) {
+ /// match event {
+-///     TransactionEvent::Received(msg, conn) => {
++///     TransactionEvent::Received(msg, conn, ingress_proof) => {
+ ///         // Process received SIP message
+ ///     },
+ ///     TransactionEvent::LocalTimeout(response) => {
+@@ -167,7 +167,7 @@ impl Drop for EgressProtocolObservationAttempt {
+ /// # }
+ /// ```
+ pub enum TransactionEvent {
+-    Received(SipMessage, SipConnection),
++    Received(SipMessage, SipConnection, PeerIngressProof),
+     LocalTimeout(Response),
+     Timer(TransactionTimer),
+     Respond(Response),
+@@ -280,6 +280,20 @@ pub fn transaction_event_channel() -> (TransactionEventSender, TransactionEventR
+ /// * Timer F: Non-INVITE transaction timeout
+ /// * Timer G: INVITE response retransmission timer
+ /// * Timer K: Wait time for ACK
++///
++/// The network event receiver is private so callers cannot replace the
++/// Endpoint-owned ingress path:
++///
++/// ```compile_fail
++/// use rsipstack::transaction::transaction::{Transaction, TransactionEventReceiver};
++///
++/// fn replace_network_events(
++///     transaction: &mut Transaction,
++///     receiver: TransactionEventReceiver,
++/// ) {
++///     transaction.tu_receiver = receiver;
++/// }
++/// ```
+ pub struct Transaction {
+     pub transaction_type: TransactionType,
+     pub key: TransactionKey,
+@@ -302,7 +316,8 @@ pub struct Transaction {
+     final_response_effect_attempt_started: bool,
+     automatic_ack_reconciliation_required: bool,
+     last_automatic_ack_error: Option<String>,
+-    pub tu_receiver: TransactionEventReceiver,
++    initial_peer_ingress_proof: Option<PeerIngressProof>,
++    tu_receiver: TransactionEventReceiver,
+     pub(crate) tu_sender: TransactionEventSender,
+     pub timer_a: Option<u64>,
+     pub timer_b: Option<u64>,
+@@ -395,6 +410,7 @@ impl Transaction {
+         key: TransactionKey,
+         original: Request,
+         connection: Option<SipConnection>,
++        initial_peer_ingress_proof: Option<PeerIngressProof>,
+         endpoint_inner: EndpointInnerRef,
+     ) -> Self {
+         let (tu_sender, tu_receiver) = transaction_event_channel();
+@@ -429,6 +445,7 @@ impl Transaction {
+             final_response_effect_attempt_started: false,
+             automatic_ack_reconciliation_required: false,
+             last_automatic_ack_error: None,
++            initial_peer_ingress_proof,
+             timer_a: None,
+             timer_b: None,
+             timer_c: None,
+@@ -460,7 +477,7 @@ impl Transaction {
+             Method::Invite => TransactionType::ClientInvite,
+             _ => TransactionType::ClientNonInvite,
+         };
+-        Transaction::new(tx_type, key, original, connection, endpoint_inner)
++        Transaction::new(tx_type, key, original, connection, None, endpoint_inner)
+     }
+ 
+     pub fn new_server(
+@@ -473,7 +490,32 @@ impl Transaction {
+             Method::Invite | Method::Ack => TransactionType::ServerInvite,
+             _ => TransactionType::ServerNonInvite,
+         };
+-        Transaction::new(tx_type, key, original, connection, endpoint_inner)
++        Transaction::new(tx_type, key, original, connection, None, endpoint_inner)
++    }
++
++    pub(super) fn new_server_from_peer(
++        key: TransactionKey,
++        original: Request,
++        endpoint_inner: EndpointInnerRef,
++        connection: SipConnection,
++        ingress_proof: PeerIngressProof,
++    ) -> Self {
++        let tx_type = match original.method {
++            Method::Invite | Method::Ack => TransactionType::ServerInvite,
++            _ => TransactionType::ServerNonInvite,
++        };
++        Transaction::new(
++            tx_type,
++            key,
++            original,
++            Some(connection),
++            Some(ingress_proof),
++            endpoint_inner,
++        )
++    }
++
++    pub(crate) fn take_initial_peer_ingress_proof(&mut self) -> Option<PeerIngressProof> {
++        self.initial_peer_ingress_proof.take()
+     }
+ 
+     pub fn is_admitted(&self) -> bool {
+@@ -1041,11 +1083,15 @@ impl Transaction {
+     pub async fn receive(&mut self) -> Option<SipMessage> {
+         while let Some(event) = self.tu_receiver.recv().await {
+             match event {
+-                TransactionEvent::Received(msg, connection) => {
++                TransactionEvent::Received(msg, connection, ingress_proof) => {
+                     if let Some(msg) = match msg {
+-                        SipMessage::Request(req) => self.on_received_request(req, connection).await,
++                        SipMessage::Request(req) => {
++                            self.on_received_request(req, connection, ingress_proof)
++                                .await
++                        }
+                         SipMessage::Response(resp) => {
+-                            self.on_received_response(resp, connection).await
++                            self.on_received_response(resp, connection, ingress_proof)
++                                .await
+                         }
+                     } {
+                         return Some(msg);
+@@ -1228,6 +1274,7 @@ impl Transaction {
+         &mut self,
+         req: Request,
+         connection: SipConnection,
++        _ingress_proof: PeerIngressProof,
+     ) -> Option<SipMessage> {
+         match self.transaction_type {
+             TransactionType::ClientInvite | TransactionType::ClientNonInvite => return None,
+@@ -1331,6 +1378,7 @@ impl Transaction {
+         &mut self,
+         resp: Response,
+         connection: SipConnection,
++        _ingress_proof: PeerIngressProof,
+     ) -> Option<SipMessage> {
+         match self.transaction_type {
+             TransactionType::ServerInvite | TransactionType::ServerNonInvite => return None,
