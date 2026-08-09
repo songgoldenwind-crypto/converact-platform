@@ -1,0 +1,65 @@
+campaign=converact-g03-peer-ingress-proof-701475a-07
+status=verified_controlled_component_only
+
+SOURCE AND PATCH BINDING
+- G03 binding SHA-256: 05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af
+- rsipstack incremental patch SHA-256: 218b0b6704f681a2a384a2a131c239876f245b0e85fb15c072525ab55797073f
+- complete sorted patch-set SHA-256: 46b248a41e296729a865c0488b76bf071d5b1ca94c9906655c9378ea15c981d2
+- a fresh clone of the committed `.60` exact-source baseline accepted the
+  `.61` patch with `git apply --check`, `git apply` and `git diff --check`.
+- byte comparison reproduced exactly: server_dialog.rs, endpoint.rs,
+  transaction.rs, test_client.rs, test_server.rs and
+  test_provisional_responses.rs.
+
+TDD OBSERVATION
+- before the private ingress boundary existed, both compile-fail doctests
+  compiled and failed their doctest expectation;
+- after the minimal boundary was added, external Endpoint ingress and
+  transaction-receiver replacement no longer compiled;
+- client and server protocol-observation tests were moved from synthetic TU
+  injection to the Endpoint transport-ingress path;
+- `PeerIngressProof` is zero-sized and the production constructor remains
+  private to the Endpoint module.
+
+FINAL AUTHORIZED-HOST COMMAND CLASS
+- all Docker commands ran only on `ubuntu@101.42.7.139`;
+- each Rust test used a temporary `--rm` container, pinned Rust 1.94.1 image,
+  isolated current-code source mount and isolated Cargo cache;
+- no local Docker and no release deployment occurred.
+
+FINAL RESULTS
+- `server-rsipstack-peer-ingress-r2.log`:
+  `303 passed; 0 failed` library tests and `67 passed; 0 failed` doctests.
+- `server-rustpbx-peer-ingress-r2.log`:
+  `2002 passed; 0 failed; 8 ignored`; 228.37 seconds test execution.
+
+FINAL LOCAL CANONICAL VERIFICATION
+- all changed exact-patch/source gates: `165 passed; 0 failed`;
+- Goal 03 generated-contract suite: `9 passed; 0 failed`;
+- combined canonical gate count: `174 passed; 0 failed`;
+- `npm run typecheck`: passed;
+- fresh `.60` replay and six-file byte comparison: passed;
+- `bash -n infra/converact/rustpbx/build.sh`: passed;
+- exact-source rsipstack Rust 2021 rustfmt and `git diff --check`: passed.
+
+SERVER POSTFLIGHT
+- only `converact-g03-current-pg-7f4cd00c` remained running and healthy;
+- old containers and PM2 applications were stopped and retained;
+- nginx was inactive;
+- externally bound TCP listener was SSH only;
+- all temporary test containers were removed automatically.
+
+ATTEMPT DISCLOSURE
+- rsipstack r1 and RustPBX r1 are retained and hashed alongside final r2 logs;
+- the r1 cache/storage harness failures are not code failures and are not
+  counted as passes;
+- only the named final logs support the final result.
+
+NOT RUN / NOT CLAIMED
+- live RustPBX Endpoint composition and Native Authority activation;
+- automatic 200-to-CANCEL and UAS-Core 2xx ACK ownership;
+- stale SendAttempted/TransportAccepted crash recovery;
+- mixed-binary N/N+1 activation and drain;
+- exact `.61` release image, real peer, carrier interop and long call;
+- process fault/OOM, allocation, 2/4/8-core scaling and capacity;
+- G03-E15 final review, G03-E16 Native Authority and production eligibility.
