@@ -52,11 +52,15 @@ complete success summary and the container exited before the local streaming
 session was closed; the retained server-side log and its SHA-256, rather than
 that client stream's exit status, are the evidence.
 
-The build reused only the rebuildable G03 Cargo target cache. No old service,
-container, image, volume, database, release, restart policy, configuration,
-source tree or user artifact was deleted or edited. nginx and all four PM2
-applications remained stopped. The only externally bound TCP listener at
-postflight was SSH; the isolated PostgreSQL container publishes no host port.
+The build reused only the rebuildable G03 Cargo target cache. After all raw
+logs and hashes were frozen, `cargo clean` removed that task-only cache
+(`14,965` generated files; Cargo reported `9.1 GiB`) and restored server disk
+use from 97% to 86%. The cache is recoverable from the retained exact source.
+No old service, container, image, volume, database, release, restart policy,
+configuration, source tree or user artifact was deleted or edited. nginx and
+all four PM2 applications remained stopped. The only externally bound TCP
+listener at postflight was SSH; the isolated PostgreSQL container publishes no
+host port.
 
 `remote-artifacts.sha256` binds every retained raw log. No credentials,
 authorization headers, private keys, secret values or environment dumps are

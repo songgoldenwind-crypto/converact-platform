@@ -49,6 +49,9 @@ SERVER POSTFLIGHT
 - nginx was inactive;
 - the externally bound TCP listener was SSH only;
 - temporary Rust test containers were removed automatically.
+- after evidence freeze, `cargo clean` removed only the rebuildable current-G03
+  target cache (`14,965` generated files; Cargo reported `9.1 GiB`), reducing
+  server disk use from 97% to 86% without touching any old service artifact.
 
 EXECUTION DISCLOSURE
 - the final RustPBX success summary was durably present in the server log and
