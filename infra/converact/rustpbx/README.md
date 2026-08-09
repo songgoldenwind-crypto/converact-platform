@@ -411,6 +411,40 @@ PostgreSQL gate adapter, Linux image, physical PostgreSQL restart, crash-window,
 real-peer and capacity campaigns remain `not_run` for `.56`; no live SIP path
 activates the optional gate, and production eligibility remains false.
 
+ivekit.57 adds the production-compiling RustPBX adapter that can bind the
+optional rsipstack egress gate to the existing PostgreSQL SipEffect store. The
+adapter is default-disabled: no live endpoint installs it in this slice. A
+caller must first register one bounded, owner-leased Native Call semantic intent
+for the exact transaction/message binding; missing, conflicting, released or
+over-capacity intent fails before store work and emits no SIP bytes. There is no
+production in-memory fallback.
+
+The gate persists the exact canonical bytes supplied by rsipstack, their length
+and hash, route and attempt facts, and the semantic-intent binding. It advances
+the existing ledger through its individually atomic `prepared`,
+`durable_decision` and `send_attempted` transitions and returns a transport
+permit only for a new, non-replayed `send_attempted` receipt. An ambiguous
+post-commit result or an already observed send attempt consumes the intent and
+requires query/reconcile; it never authorizes a blind second transmission.
+
+Transport observation performs only expected O(1) keyed removal plus
+non-blocking `try_send`. Pending observations are semaphore-bounded, while one
+fixed set of hash-sharded bounded queues feeds explicitly supervised store
+observers. Queue saturation or an observer/store failure leaves the durable
+effect at `send_attempted` for reconciliation instead of blocking the transport
+or claiming acceptance. The adapter creates no per-effect task, unbounded queue,
+global scan or RTP/media-path database operation.
+
+The exact `.56 + .57` Rust 1.94 aarch64 macOS source passes all ten focused
+adapter tests and the complete locked RustPBX library suite (`1977 passed`, `0`
+failed, `5 ignored`). The new module has no Clippy warning under Rust 1.94.1;
+the pinned upstream tree still has pre-existing warnings outside this patch.
+Live endpoint activation, complete registration of every automatic and
+application-owned SIP direction, observer/reconcile supervision, exact Linux
+image, physical PostgreSQL restart, crash-window, real-peer and capacity work
+remain `not_run`. `G03-E16-NATIVE-AUTHORITY` is not promoted, and production
+eligibility remains false.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

@@ -17,12 +17,12 @@ function additions(contents: string): string {
     .join("\n");
 }
 
-test("ivekit.56 applies canonical wire freeze after the durable egress gate", () => {
+test("ivekit.57 applies canonical wire freeze after the durable egress gate", () => {
   const parsed = spawnSync("git", ["apply", "--numstat", PATCH], {
     encoding: "utf8",
   });
   assert.equal(parsed.status, 0, parsed.stderr);
-  assert.match(build, /PATCHSET="ivekit\.56"/);
+  assert.match(build, /PATCHSET="ivekit\.57"/);
   assert.match(
     build,
     /rsipstack-converact-durable-egress-effect-gate\.patch"[\s\S]*rsipstack-converact-canonical-wire-freeze\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/,

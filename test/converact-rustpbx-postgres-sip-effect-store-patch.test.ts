@@ -68,9 +68,9 @@ test("isolated PostgreSQL recovery evidence has an explicit executable test", ()
   assert.match(source, /recovered_store[\s\S]*\.query\(&effect\.identity\)/);
 });
 
-test("exact build retains the PostgreSQL store in ivekit.56", () => {
+test("exact build retains the PostgreSQL store in ivekit.57", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.56"/);
+  assert.match(build, /PATCHSET="ivekit\.57"/);
   assert.match(
     build,
     /rustpbx-converact-durable-sip-effect-domain\.patch"[\s\S]*rustpbx-converact-postgres-sip-effect-store\.patch"/,

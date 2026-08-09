@@ -38,8 +38,9 @@ unchanged container IDs are retained instead.
 Neither accepted review proves that the TypeScript `VoiceCall`, Call/Leg model,
 `RsipstackFoundationAdapter` or PostgreSQL reference ledger is a live native
 authority. Unified RustPBX remains the sole active Call/Leg authority;
-`G03-E16-NATIVE-AUTHORITY` and the `.53` current patchset are outside those old
-reviewed diffs and remain pending exact-source review.
+`G03-E16-NATIVE-AUTHORITY` and the `.57` current patchset, including its
+default-disabled native durable egress adapter, are outside those old reviewed
+diffs and remain pending exact-source review.
 
 ## Rejection history and remaining gate
 

@@ -185,7 +185,7 @@
           "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
         },
         "patchset": {
-          "const": "ivekit.56"
+          "const": "ivekit.57"
         },
         "current_adapter": {
           "const": "rsipstack"

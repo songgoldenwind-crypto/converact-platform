@@ -22,9 +22,9 @@ Production eligibility: `false`
 | Call-ID, provider reference or UUID confused with business Call | distinct types; a module-issued projection adapter may attest an exact legacy tenant/ID match, but only native RustPBX may adopt the candidate; provider/SIP IDs never become CallId | local role/identifier tests; native binding `not_run` |
 | stale/split-brain owner | positive epoch, generation, expected revision and durable CAS | local logic/source tests; fleet partition `not_run` |
 | duplicate visible effect | idempotency key + exact prepared bytes + receipt replay | native isolated PostgreSQL transition/repair tests and restart verified; live SIP dispatch `not_run` |
-| unknown send blindly retried | unknown state, query, repair lease/token/revision fence | local ledger tests |
+| unknown send blindly retried | unknown state, query, repair lease/token/revision fence | `.57` native gate and ledger tests; live endpoint activation `not_run` |
 | auth/SDP secret leak | raw values excluded from logs, metrics, evidence and error details | source review plus exact-campaign generated-secret scans passed |
-| queue/connection exhaustion | hard capacities, deterministic 503/Retry-After, no unbounded waiter/task | `.53` native suites and exact 2-vCPU 1000-CPS controlled step passed; allocation and saturation frontier remain `not_run` |
+| queue/connection exhaustion | hard capacities, deterministic 503/Retry-After, no unbounded waiter/task | `.57` local bounded-gate tests and `.53` exact 2-vCPU 1000-CPS controlled step passed separately; `.57` host allocation and saturation frontier remain `not_run` |
 | malicious object/accessor/proxy input | closed own-data snapshots and bounded copies | existing local SipFoundation tests |
 | async callback continues after registry failure | Call registry invokes no callbacks; only fenced bounded dequeue, supervised execution and fenced re-entry | G03 unit/source evidence required |
 | fork winner leaves early sibling ringing | register every branch before INVITE; winner receipt contains bounded per-Leg CANCEL effects and atomically marks siblings terminating | G03 race unit evidence required |
@@ -75,18 +75,21 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
 
 ## 6. Residual Risks
 
-1. TypeScript SipFoundation/effect source is a conformance/reference harness,
-   not the elected live native writer path.
+1. TypeScript SipFoundation/effect source is a conformance/reference harness;
+   the `.57` native adapter is compiled but default-disabled and therefore is
+   not yet an elected live writer path.
 2. Exact `.53` wire, raw latency, SIPp/Asterisk interop, two-hour SIP-control
    and 2-vCPU capacity regression campaigns passed; rvoip differential,
    allocation and multi-core scaling remain separate future Gates. The soak is
    not RTP/media, recording or quality evidence.
-3. Native Call/Leg and SipEffect port activation remains `G03-E16/not_run`;
-   controlled PostgreSQL reference replay does not close it.
+3. Native Call/Leg and all-direction SipEffect endpoint activation remains
+   `G03-E16/not_run`; local adapter tests and controlled PostgreSQL replay do
+   not close it.
 4. Native panic, process abort, OOM, disk/network loss and blocking-call
    campaigns have not run.
 5. Fault/OOM and complete host-performance evidence have not run for the exact
-   `.53` candidate. Retained `.42` results remain historical only.
+   `.57` candidate. Retained `.53` evidence is scoped to its exact source, and
+   `.42` results remain historical only.
 
 All five remain visible in `evidence-index-v1.json` and prevent production
 eligibility.

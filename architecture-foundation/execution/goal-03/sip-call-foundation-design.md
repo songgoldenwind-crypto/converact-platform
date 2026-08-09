@@ -235,7 +235,7 @@ observation distinguishable even though both converge the effect record to
 | State | Meaning |
 | --- | --- |
 | current | RustPBX/rsipstack is the native runtime; TypeScript contains bounded conformance/reference models and a physical PostgreSQL reference ledger, but these are not a second live SIP/Call authority |
-| target | The complete interface and corpus are frozen; `.53` contains bounded protocol/control mailboxes, the native Call/Leg model and bounded PostgreSQL SipEffect primitives. Exact-image wire, raw latency, SIPp/Asterisk interop and a 2-vCPU capacity regression have controlled evidence; live Native Authority activation remains `not_run` |
+| target | The complete interface and corpus are frozen; `.57` contains bounded protocol/control mailboxes, the native Call/Leg model, bounded PostgreSQL SipEffect primitives and a default-disabled exact-wire rsipstack gate adapter. Exact-image wire, raw latency, SIPp/Asterisk interop and a 2-vCPU capacity regression remain controlled `.53` evidence only; `.57` live endpoint/all-direction activation, host requalification and Native Authority remain `not_run` |
 | production eligible | `false` until long-run, fault/OOM, Native Authority, allocation and multi-core scaling evidence pass independent review |
 
 No rvoip benchmark, old server result or historical Wave result is inherited.

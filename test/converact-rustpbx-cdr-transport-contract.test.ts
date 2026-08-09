@@ -30,7 +30,7 @@ test('RustPBX CDR transport uses mTLS and a no-op legacy sink', () => {
 
   assert.equal(spawnSync('git', ['apply', '--numstat', patchPath]).status, 0);
   assert.match(build, /rustpbx-ivekit-cdr-mtls-noop\.patch/);
-  assert.match(build, /PATCHSET="ivekit\.56"/);
+  assert.match(build, /PATCHSET="ivekit\.57"/);
   assert.match(
     build,
     /rustpbx-ivekit-dual-leg-cdr\.patch"[\s\S]*rustpbx-ivekit-cdr-mtls-noop\.patch"[\s\S]*rustpbx-ivekit-media-tracing\.patch"/

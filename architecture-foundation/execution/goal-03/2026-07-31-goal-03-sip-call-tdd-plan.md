@@ -111,8 +111,10 @@ Run serially:
 2. New Call/Leg tests.
 3. SipFoundation, effect and recovery tests.
 4. Exact rsipstack/RustPBX patch contract tests.
-5. Native Call/Leg/effect binding tests; retain `not_run` until an actual
-   RustPBX port exists.
+5. Native Call/Leg/effect binding tests; the `.57` RustPBX port exists as a
+   default-disabled adapter, but retain activation `not_run` until every SIP
+   direction registers intent and the fixed observer/reconciler workers are
+   supervised in the live endpoint.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.

@@ -94,9 +94,9 @@ test("controlled PostgreSQL transition evidence is exact and remains scoped", ()
   assert.match(report, /does not promote `G03-E16-NATIVE-AUTHORITY`/);
 });
 
-test("exact build retains atomic transitions in ivekit.56", () => {
+test("exact build retains atomic transitions in ivekit.57", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.56"/);
+  assert.match(build, /PATCHSET="ivekit\.57"/);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-store\.patch"[\s\S]*rustpbx-converact-postgres-sip-effect-transitions\.patch"/,
