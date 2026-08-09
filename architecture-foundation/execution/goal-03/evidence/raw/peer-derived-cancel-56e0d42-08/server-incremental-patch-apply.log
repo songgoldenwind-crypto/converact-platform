@@ -1,0 +1,17 @@
+source_commit=56e0d42
+f14d0a8cbab9d0a104588d78f4f2bc3bf0b48fd8a0e9a1515cbf487318a20eef  /home/ubuntu/converact-g03-62-56e0d42/infra/converact/rustpbx/patches/rsipstack-converact-peer-derived-cancel-response.patch
+fc56524e5b753d2a4ec354a07fb2f9679de90b0af32a0d9f3ea2a11e489b301c  /home/ubuntu/converact-g03-62-56e0d42/infra/converact/rustpbx/patches/rustpbx-converact-peer-derived-cancel-response.patch
+baseline
+2f900cc6ce1548e4080573ffa136396377216c2dfd86616bb56a18236cf4fd22  /home/ubuntu/converact-g03-62-56e0d42/native/rsipstack/src/transaction/endpoint.rs
+2d2541daf88847d5632c9c6d5902a3be9923b3cf4f8e6bf94699166e557557f5  /home/ubuntu/converact-g03-62-56e0d42/native/rsipstack/src/transaction/mod.rs
+fd26432269e65acfd3b58db999b364f28720765348070f0bff2f21c5e41f811d  /home/ubuntu/converact-g03-62-56e0d42/native/rsipstack/src/transaction/tests/test_server.rs
+296a6ab56c1e4d3cfcac1493c06d642cc3bf3f6b34548cab86c781d4495fdc81  /home/ubuntu/converact-g03-62-56e0d42/native/rsipstack/src/transaction/transaction.rs
+d0c99f9a19f4e89f1b1050d97c799b402891d4cf9eaf3907f02626fa4b10cca7  /home/ubuntu/converact-g03-62-56e0d42/native/rustpbx/src/call/adapters/rsipstack_sip_effect_gate.rs
+dry_run
+apply
+result
+3903c9789baf127632fc9f347666eafd0be8881087e05f72f115e3bf02b69704  /home/ubuntu/converact-g03-62-56e0d42/native/rsipstack/src/transaction/endpoint.rs
+ae32e87eb1cd7d28136e6caa08bb8d367c29ca4fa9fe7b32e99796ab3f9df3ab  /home/ubuntu/converact-g03-62-56e0d42/native/rsipstack/src/transaction/mod.rs
+06d880efb70608bd841878788d3f2c5d9462b90e9c3f70ea38be6f779d8daaab  /home/ubuntu/converact-g03-62-56e0d42/native/rsipstack/src/transaction/tests/test_server.rs
+cee8b8bceb01cb86837006293e76acfd38764f99391f474b497ab21fdefb33a5  /home/ubuntu/converact-g03-62-56e0d42/native/rsipstack/src/transaction/transaction.rs
+ca3301f74092f5cccf8fdc2d35bbd53715c61b6b16c4e4954bcc2863216289ed  /home/ubuntu/converact-g03-62-56e0d42/native/rustpbx/src/call/adapters/rsipstack_sip_effect_gate.rs
