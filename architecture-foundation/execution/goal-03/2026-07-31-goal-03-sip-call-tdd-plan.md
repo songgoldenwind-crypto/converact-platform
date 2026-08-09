@@ -111,10 +111,11 @@ Run serially:
 2. New Call/Leg tests.
 3. SipFoundation, effect and recovery tests.
 4. Exact rsipstack/RustPBX patch contract tests.
-5. Native Call/Leg/effect binding tests; the `.60` RustPBX port includes a
+5. Native Call/Leg/effect binding tests; the `.61` RustPBX port includes a
    direction-keyed UAS/UAC state model, closed v2 wire-attempt facts and
    separate transport/protocol receipts plus one parent-bound non-2xx ACK
-   derivation. The gate remains default-disabled; retain activation `not_run`
+   derivation. Network peer observations additionally require the private,
+   zero-sized Endpoint ingress proof. The gate remains default-disabled; retain activation `not_run`
    until automatic 200-to-CANCEL, UAS-2xx ownership, parent-Unknown and stale-
    nonterminal crash recovery, and fixed observer/reconciler supervision are
    wired through the live endpoint.
@@ -130,8 +131,9 @@ or performance evidence.
 
 These run only when their prerequisites are deliberately provided; absence
 does not stop independent offline work. The physical PostgreSQL restart/replay
-campaign, the `.59` six-case native PostgreSQL component campaign and the `.60`
-atomic-derived-ACK case completed on the authorized validation host. They remain within
+campaign, the `.59` six-case native PostgreSQL component campaign, the `.60`
+atomic-derived-ACK case and the `.61` peer-ingress source suites completed on
+the authorized validation host. They remain within
 `G03-E05-POSTGRES = verified_controlled` and do not qualify the remaining
 campaigns:
 

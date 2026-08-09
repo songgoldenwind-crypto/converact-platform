@@ -38,11 +38,11 @@ unchanged container IDs are retained instead.
 Neither accepted review proves that the TypeScript `VoiceCall`, Call/Leg model,
 `RsipstackFoundationAdapter` or PostgreSQL reference ledger is a live native
 authority. Unified RustPBX remains the sole active Call/Leg authority;
-`G03-E16-NATIVE-AUTHORITY` and the `.60` current patchset, including its
+`G03-E16-NATIVE-AUTHORITY` and the `.61` current patchset, including its
 default-disabled native durable egress adapter, are outside those old reviewed
 diffs and remain pending exact-source review.
 
-## Current `.60` interim review boundary
+## Current `.61` interim review boundary
 
 The `.59` protocol-observation slice received iterative code review while it
 was developed. Findings around cancellation ownership, queue loss, receipt
@@ -61,7 +61,18 @@ tightened. Exact local and isolated-Linux suites pass, as does one explicit
 physical PostgreSQL atomic-derived-ACK case. The evidence bundle is
 `evidence/raw/derived-non-2xx-ack-9fc99ee-06/`.
 
-That work is not a final independent acceptance. Automatic 200-to-CANCEL,
+The incremental `.61` slice closes the specific provenance gap in which an
+ordinary internal sender could construct a synthetic network `Received` event.
+The production proof constructor and Endpoint ingress function are private,
+the transaction receiver cannot be replaced externally, and client/server
+tests now enter through Endpoint ingress. Compile-fail tests were observed RED
+before the boundary and GREEN after it; exact incremental replay, rsipstack
+`303/303`, doctest `67/67` and RustPBX `2,002/0/8` pass on the authorized
+server. The component-only raw bundle is
+`evidence/raw/peer-ingress-proof-701475a-07/`.
+
+That work is not a final independent acceptance. Live Endpoint composition and
+transport-flow-generation binding, automatic 200-to-CANCEL,
 UAS-Core 2xx ACK ownership, parent-Unknown reconciliation, stale nonterminal
 observer-crash recovery, live endpoint composition, mixed-binary activation,
 fault/OOM and capacity evidence remain open. The candidate therefore remains

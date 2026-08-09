@@ -544,6 +544,31 @@ capacity campaigns remain `not_run`. Live endpoint activation remains
 `not_run`; `G03-E15-REVIEW` and `G03-E16-NATIVE-AUTHORITY` are not promoted, and
 production eligibility remains false.
 
+ivekit.61 seals the source of a peer protocol observation. A network
+`TransactionEvent::Received` carries an opaque `PeerIngressProof` minted only
+inside the private Endpoint transport-ingress path. Client responses and server
+ACKs cannot be injected through the public transaction sender without that
+proof, and external code cannot call the Endpoint ingress function or replace
+the receiver. Server-dialog forwarding consumes the proof once. The proof is a
+zero-sized value; the path adds no heap allocation, global map, global lock or
+per-message task.
+
+On the final exact Rust 1.94.1 sources, the authorized validation server passed
+rsipstack `303/303` library tests and `67/67` compile-fail/doctests, followed by
+the complete RustPBX library suite with `2,002` passed, `0` failed and `8`
+ignored. The retained raw bundle is
+`architecture-foundation/execution/goal-03/evidence/raw/peer-ingress-proof-701475a-07/`.
+This is component evidence only: no release image was built or deployed and no
+old server service, container, database or source was deleted or changed.
+
+The proof does not yet carry an independently verified transport flow
+generation into the durable receipt, and the default-disabled gate is not wired
+through a live RustPBX Endpoint. Automatic 200-to-CANCEL, UAS-Core 2xx ACK
+ownership, stale nonterminal recovery, mixed-binary activation, real-peer,
+long-call, fault/OOM and capacity campaigns remain `not_run`.
+`G03-E15-REVIEW`, `G03-E16-NATIVE-AUTHORITY` and production eligibility remain
+unpromoted.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the
